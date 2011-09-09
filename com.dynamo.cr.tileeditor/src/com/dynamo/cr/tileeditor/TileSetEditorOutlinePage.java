@@ -6,7 +6,6 @@ import java.util.List;
 import org.eclipse.jface.resource.ImageRegistry;
 import org.eclipse.jface.viewers.ColumnLabelProvider;
 import org.eclipse.jface.viewers.ColumnViewerToolTipSupport;
-import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.ITreeContentProvider;
 import org.eclipse.jface.viewers.LabelProvider;
 import org.eclipse.jface.viewers.TreeViewer;
@@ -15,17 +14,14 @@ import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.graphics.ImageData;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.ui.IEditorRegistry;
-import org.eclipse.ui.ISelectionListener;
 import org.eclipse.ui.ISharedImages;
-import org.eclipse.ui.IWorkbenchPart;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.contexts.IContextService;
-import org.eclipse.ui.views.contentoutline.ContentOutline;
 import org.eclipse.ui.views.contentoutline.ContentOutlinePage;
 
 import com.dynamo.cr.tileeditor.core.TileSetPresenter;
 
-public class TileSetEditorOutlinePage extends ContentOutlinePage implements ISelectionListener {
+public class TileSetEditorOutlinePage extends ContentOutlinePage {
 
     private final TileSetPresenter presenter;
     private final RootItem root;
@@ -44,7 +40,6 @@ public class TileSetEditorOutlinePage extends ContentOutlinePage implements ISel
     @Override
     public void dispose() {
         super.dispose();
-        getSite().getPage().removeSelectionListener(this);
         if (this.root.collisionGroups.items != null) {
             for (CollisionGroupItem item : this.root.collisionGroups.items) {
                 item.image.dispose();
@@ -203,22 +198,12 @@ public class TileSetEditorOutlinePage extends ContentOutlinePage implements ISel
         viewer.setInput(this.root);
         viewer.expandToLevel(2);
 
-        getSite().getPage().addSelectionListener(this);
-
         // This makes sure the context will be active while this component is
         IContextService contextService = (IContextService) getSite()
                 .getService(IContextService.class);
         contextService.activateContext(Activator.CONTEXT_ID);
 
         this.presenter.refresh();
-    }
-
-    @Override
-    public void selectionChanged(IWorkbenchPart part, ISelection selection) {
-        if (! (part instanceof ContentOutline)) {
-            TreeViewer viewer = getTreeViewer();
-            viewer.setSelection(selection);
-        }
     }
 
     private void updateCollisionGroupImages(CollisionGroupItem[] items, Color[] colors) {
