@@ -27,10 +27,10 @@ import org.eclipse.core.commands.operations.IUndoContext;
 import org.eclipse.core.commands.operations.UndoContext;
 import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.osgi.util.NLS;
-import org.eclipse.ui.views.properties.IPropertySource;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.tileeditor.core.ITileSetView;
 import com.dynamo.cr.tileeditor.core.TileSetModel;
 import com.dynamo.cr.tileeditor.core.TileSetPresenter;
@@ -43,8 +43,9 @@ public class TileSetTest {
     TileSetPresenter presenter;
     IOperationHistory history;
     IUndoContext undoContext;
-    IPropertySource propertySource;
+    IPropertyModel<TileSetModel, TileSetModel> propertyModel;
 
+    @SuppressWarnings("unchecked")
     @Before
     public void setup() {
         System.setProperty("java.awt.headless", "true");
@@ -53,7 +54,7 @@ public class TileSetTest {
         this.undoContext = new UndoContext();
         this.model = new TileSetModel(this.history, this.undoContext);
         this.presenter = new TileSetPresenter(this.model, this.view);
-        this.propertySource = (IPropertySource) this.model.getAdapter(IPropertySource.class);
+        this.propertyModel = (IPropertyModel<TileSetModel, TileSetModel>) this.model.getAdapter(IPropertyModel.class);
     }
 
     private TileSet loadEmptyFile() throws IOException {
@@ -116,7 +117,7 @@ public class TileSetTest {
 
         assertEquals(emptyTileSet.getImage(), this.model.getImage());
         verify(this.view, times(1)).setImageProperty(any(String.class));
-        propertySource.setPropertyValue("image", tileSetFile);
+        this.model.executeOperation(propertyModel.setPropertyValue("image", tileSetFile));
         assertEquals(tileSetFile, this.model.getImage());
         verify(this.view, times(2)).setImageProperty(any(String.class));
         this.history.undo(this.undoContext, null, null);
@@ -130,7 +131,7 @@ public class TileSetTest {
 
         assertEquals(emptyTileSet.getTileWidth(), this.model.getTileWidth());
         verify(this.view, times(1)).setTileWidthProperty(anyInt());
-        propertySource.setPropertyValue("tileWidth", 17);
+        this.model.executeOperation(propertyModel.setPropertyValue("tileWidth", 17));
         assertEquals(17, this.model.getTileWidth());
         verify(this.view, times(2)).setTileWidthProperty(anyInt());
         this.history.undo(this.undoContext, null, null);
@@ -145,7 +146,7 @@ public class TileSetTest {
 
         assertEquals(emptyTileSet.getTileHeight(), this.model.getTileHeight());
         verify(this.view, times(1)).setTileHeightProperty(anyInt());
-        propertySource.setPropertyValue("tileHeight", 17);
+        this.model.executeOperation(propertyModel.setPropertyValue("tileHeight", 17));
         assertEquals(17, this.model.getTileHeight());
         verify(this.view, times(2)).setTileHeightProperty(anyInt());
         this.history.undo(this.undoContext, null, null);
@@ -160,7 +161,7 @@ public class TileSetTest {
 
         assertEquals(emptyTileSet.getTileMargin(), this.model.getTileMargin());
         verify(this.view, never()).setTileMarginProperty(anyInt());
-        propertySource.setPropertyValue("tileMargin", 1);
+        this.model.executeOperation(propertyModel.setPropertyValue("tileMargin", 1));
         assertEquals(1, this.model.getTileMargin());
         verify(this.view, times(1)).setTileMarginProperty(anyInt());
         this.history.undo(this.undoContext, null, null);
@@ -177,7 +178,7 @@ public class TileSetTest {
 
         assertEquals(emptyTileSet.getTileSpacing(), this.model.getTileSpacing());
         verify(this.view, never()).setTileSpacingProperty(anyInt());
-        propertySource.setPropertyValue("tileSpacing", 1);
+        this.model.executeOperation(propertyModel.setPropertyValue("tileSpacing", 1));
         assertEquals(1, this.model.getTileSpacing());
         verify(this.view, times(1)).setTileSpacingProperty(anyInt());
         this.history.undo(this.undoContext, null, null);
@@ -195,7 +196,7 @@ public class TileSetTest {
         }
         assertEquals(emptyTileSet.getCollision(), this.model.getCollision());
         verify(this.view, times(1)).setCollisionProperty(any(String.class));
-        propertySource.setPropertyValue("collision", tileSetFile);
+        this.model.executeOperation(propertyModel.setPropertyValue("collision", tileSetFile));
         assertEquals(tileSetFile, this.model.getCollision());
         verify(this.view, times(2)).setCollisionProperty(any(String.class));
         this.history.undo(this.undoContext, null, null);
@@ -218,7 +219,7 @@ public class TileSetTest {
 
         assertEquals(emptyTileSet.getMaterialTag(), this.model.getMaterialTag());
         verify(this.view, times(1)).setMaterialTagProperty(any(String.class));
-        propertySource.setPropertyValue("materialTag", "my_material");
+        this.model.executeOperation(propertyModel.setPropertyValue("materialTag", "my_material"));
         assertEquals("my_material", this.model.getMaterialTag());
         verify(this.view, times(2)).setMaterialTagProperty(any(String.class));
         this.history.undo(this.undoContext, null, null);
@@ -244,11 +245,12 @@ public class TileSetTest {
         // requirement
         testUseCase111();
 
-        // add the group
-
+        // preconditions
         assertEquals(1, this.model.getCollisionGroups().size());
         assertEquals("foreground", this.model.getCollisionGroups().get(0));
         verify(this.view, times(1)).setCollisionGroups(any(List.class), any(List.class));
+
+        // add the group
         this.presenter.addCollisionGroup("hazad");
         assertEquals(2, this.model.getCollisionGroups().size());
         assertEquals("foreground", this.model.getCollisionGroups().get(0));
@@ -264,12 +266,12 @@ public class TileSetTest {
         assertEquals("hazad", this.model.getCollisionGroups().get(1));
         verify(this.view, times(4)).setCollisionGroups(any(List.class), any(List.class));
 
-        // paint tiles
-
+        // preconditions
         assertEquals("", this.model.getConvexHulls().get(1).getCollisionGroup());
         assertEquals("", this.model.getConvexHulls().get(2).getCollisionGroup());
         verify(this.view, never()).setTileHullColor(eq(1), any(Color.class));
         verify(this.view, never()).setTileHullColor(eq(2), any(Color.class));
+
         // simulate painting
         this.presenter.beginSetConvexHullCollisionGroup("hazad");
         this.presenter.setConvexHullCollisionGroup(1);
@@ -498,7 +500,7 @@ public class TileSetTest {
         assertEquals(TileSetModel.TAG_1.getMessage(), this.model.getPropertyTag("image", TileSetModel.TAG_1).getMessage());
         verify(this.view, times(1)).setImageTags(any(List.class));
 
-        propertySource.setPropertyValue("image", "test/mario_tileset.png");
+        this.model.executeOperation(propertyModel.setPropertyValue("image", "test/mario_tileset.png"));
         assertTrue(!this.model.hasPropertyAnnotation("image", TileSetModel.TAG_1));
         verify(this.view, times(2)).setImageTags(any(List.class));
     }
@@ -515,12 +517,12 @@ public class TileSetTest {
         assertTrue(!this.model.hasPropertyAnnotation("image", TileSetModel.TAG_2));
 
         String invalidPath = "test";
-        propertySource.setPropertyValue("image", invalidPath);
+        this.model.executeOperation(propertyModel.setPropertyValue("image", invalidPath));
         assertTrue(this.model.hasPropertyAnnotation("image", TileSetModel.TAG_2));
         assertEquals(NLS.bind(TileSetModel.TAG_2.getMessage(), invalidPath), this.model.getPropertyTag("image", TileSetModel.TAG_2).getMessage());
         verify(this.view, times(3)).setImageTags(any(List.class));
 
-        propertySource.setPropertyValue("image", "test/mario_tileset.png");
+        this.model.executeOperation(propertyModel.setPropertyValue("image", "test/mario_tileset.png"));
         assertTrue(!this.model.hasPropertyAnnotation("image", TileSetModel.TAG_2));
         verify(this.view, times(4)).setImageTags(any(List.class));
     }
@@ -537,12 +539,12 @@ public class TileSetTest {
         assertTrue(!this.model.hasPropertyAnnotation("collision", TileSetModel.TAG_3));
 
         String invalidPath = "test";
-        propertySource.setPropertyValue("collision", invalidPath);
+        this.model.executeOperation(propertyModel.setPropertyValue("collision", invalidPath));
         assertTrue(this.model.hasPropertyAnnotation("collision", TileSetModel.TAG_3));
         assertEquals(NLS.bind(TileSetModel.TAG_3.getMessage(), invalidPath), this.model.getPropertyTag("collision", TileSetModel.TAG_3).getMessage());
         verify(this.view, times(1)).setCollisionTags(any(List.class));
 
-        propertySource.setPropertyValue("collision", "test/mario_tileset.png");
+        this.model.executeOperation(propertyModel.setPropertyValue("collision", "test/mario_tileset.png"));
         assertTrue(!this.model.hasPropertyAnnotation("collision", TileSetModel.TAG_3));
         verify(this.view, times(2)).setCollisionTags(any(List.class));
     }
@@ -559,8 +561,8 @@ public class TileSetTest {
         assertTrue(!this.model.hasPropertyAnnotation("image", TileSetModel.TAG_4));
         assertTrue(!this.model.hasPropertyAnnotation("collision", TileSetModel.TAG_4));
 
-        propertySource.setPropertyValue("image", "test/mario_tileset.png");
-        propertySource.setPropertyValue("collision", "test/mario_half_tileset.png");
+        this.model.executeOperation(propertyModel.setPropertyValue("image", "test/mario_tileset.png"));
+        this.model.executeOperation(propertyModel.setPropertyValue("collision", "test/mario_half_tileset.png"));
         assertTrue(this.model.hasPropertyAnnotation("image", TileSetModel.TAG_4));
         String message = NLS.bind(TileSetModel.TAG_4.getMessage(), new Object[] {84, 67, 84, 33});
         assertEquals(message, this.model.getPropertyTag("image", TileSetModel.TAG_4).getMessage());
@@ -569,7 +571,7 @@ public class TileSetTest {
         verify(this.view, times(3)).setImageTags(any(List.class));
         verify(this.view, times(1)).setCollisionTags(any(List.class));
 
-        propertySource.setPropertyValue("collision", "test/mario_tileset.png");
+        this.model.executeOperation(propertyModel.setPropertyValue("collision", "test/mario_tileset.png"));
         assertTrue(!this.model.hasPropertyAnnotation("image", TileSetModel.TAG_4));
         assertTrue(!this.model.hasPropertyAnnotation("collision", TileSetModel.TAG_4));
         verify(this.view, times(4)).setImageTags(any(List.class));
@@ -587,12 +589,12 @@ public class TileSetTest {
 
         assertTrue(!this.model.hasPropertyAnnotation("tileWidth", TileSetModel.TAG_5));
 
-        propertySource.setPropertyValue("tileWidth", 0);
+        this.model.executeOperation(propertyModel.setPropertyValue("tileWidth", 0));
         assertTrue(this.model.hasPropertyAnnotation("tileWidth", TileSetModel.TAG_5));
         assertEquals(TileSetModel.TAG_5.getMessage(), this.model.getPropertyTag("tileWidth", TileSetModel.TAG_5).getMessage());
         verify(this.view, times(1)).setTileWidthTags(any(List.class));
 
-        propertySource.setPropertyValue("tileWidth", 16);
+        this.model.executeOperation(propertyModel.setPropertyValue("tileWidth", 16));
         assertTrue(!this.model.hasPropertyAnnotation("tileWidth", TileSetModel.TAG_5));
         verify(this.view, times(2)).setTileWidthTags(any(List.class));
     }
@@ -608,12 +610,12 @@ public class TileSetTest {
 
         assertTrue(!this.model.hasPropertyAnnotation("tileHeight", TileSetModel.TAG_6));
 
-        propertySource.setPropertyValue("tileHeight", 0);
+        this.model.executeOperation(propertyModel.setPropertyValue("tileHeight", 0));
         assertTrue(this.model.hasPropertyAnnotation("tileHeight", TileSetModel.TAG_6));
         assertEquals(TileSetModel.TAG_6.getMessage(), this.model.getPropertyTag("tileHeight", TileSetModel.TAG_6).getMessage());
         verify(this.view, times(1)).setTileHeightTags(any(List.class));
 
-        propertySource.setPropertyValue("tileHeight", 16);
+        this.model.executeOperation(propertyModel.setPropertyValue("tileHeight", 16));
         assertTrue(!this.model.hasPropertyAnnotation("tileHeight", TileSetModel.TAG_6));
         verify(this.view, times(2)).setTileHeightTags(any(List.class));
     }
@@ -627,14 +629,14 @@ public class TileSetTest {
     public void testMessage17() throws IOException {
         loadEmptyFile();
 
-        propertySource.setPropertyValue("image", "test/mario_tileset.png");
+        this.model.executeOperation(propertyModel.setPropertyValue("image", "test/mario_tileset.png"));
 
         assertTrue(!this.model.hasPropertyAnnotation("image", TileSetModel.TAG_7));
         assertTrue(!this.model.hasPropertyAnnotation("tileWidth", TileSetModel.TAG_7));
 
         String message = NLS.bind(TileSetModel.TAG_7.getMessage(), new Object[] {86, 84});
-        propertySource.setPropertyValue("tileWidth", 85);
-        propertySource.setPropertyValue("tileMargin", 1);
+        this.model.executeOperation(propertyModel.setPropertyValue("tileWidth", 85));
+        this.model.executeOperation(propertyModel.setPropertyValue("tileMargin", 1));
         assertTrue(this.model.hasPropertyAnnotation("image", TileSetModel.TAG_7));
         assertEquals(message, this.model.getPropertyTag("image", TileSetModel.TAG_7).getMessage());
         verify(this.view, times(4)).setImageTags(any(List.class));
@@ -646,7 +648,7 @@ public class TileSetTest {
         verify(this.view, times(1)).setTileMarginTags(any(List.class));
 
         message = NLS.bind(TileSetModel.TAG_7.getMessage(), new Object[] {85, 84});
-        propertySource.setPropertyValue("tileMargin", 0);
+        this.model.executeOperation(propertyModel.setPropertyValue("tileMargin", 0));
         assertTrue(this.model.hasPropertyAnnotation("image", TileSetModel.TAG_7));
         assertEquals(message, this.model.getPropertyTag("image", TileSetModel.TAG_7).getMessage());
         verify(this.view, times(5)).setImageTags(any(List.class));
@@ -656,7 +658,7 @@ public class TileSetTest {
         assertTrue(!this.model.hasPropertyAnnotation("tileMargin", TileSetModel.TAG_7));
         verify(this.view, times(2)).setTileMarginTags(any(List.class));
 
-        propertySource.setPropertyValue("tileWidth", 16);
+        this.model.executeOperation(propertyModel.setPropertyValue("tileWidth", 16));
         assertTrue(!this.model.hasPropertyAnnotation("image", TileSetModel.TAG_7));
         verify(this.view, times(6)).setImageTags(any(List.class));
         assertTrue(!this.model.hasPropertyAnnotation("tileWidth", TileSetModel.TAG_7));
@@ -674,14 +676,14 @@ public class TileSetTest {
     public void testMessage18() throws IOException {
         loadEmptyFile();
 
-        propertySource.setPropertyValue("image", "test/mario_tileset.png");
+        this.model.executeOperation(propertyModel.setPropertyValue("image", "test/mario_tileset.png"));
 
         assertTrue(!this.model.hasPropertyAnnotation("tileHeight", TileSetModel.TAG_8));
         assertTrue(!this.model.hasPropertyAnnotation("tileWidth", TileSetModel.TAG_8));
 
         String message = NLS.bind(TileSetModel.TAG_8.getMessage(), new Object[] {69, 67});
-        propertySource.setPropertyValue("tileHeight", 68);
-        propertySource.setPropertyValue("tileMargin", 1);
+        this.model.executeOperation(propertyModel.setPropertyValue("tileHeight", 68));
+        this.model.executeOperation(propertyModel.setPropertyValue("tileMargin", 1));
         assertTrue(this.model.hasPropertyAnnotation("image", TileSetModel.TAG_8));
         assertEquals(message, this.model.getPropertyTag("image", TileSetModel.TAG_8).getMessage());
         verify(this.view, times(4)).setImageTags(any(List.class));
@@ -693,7 +695,7 @@ public class TileSetTest {
         verify(this.view, times(1)).setTileMarginTags(any(List.class));
 
         message = NLS.bind(TileSetModel.TAG_8.getMessage(), new Object[] {68, 67});
-        propertySource.setPropertyValue("tileMargin", 0);
+        this.model.executeOperation(propertyModel.setPropertyValue("tileMargin", 0));
         assertTrue(this.model.hasPropertyAnnotation("image", TileSetModel.TAG_8));
         assertEquals(message, this.model.getPropertyTag("image", TileSetModel.TAG_8).getMessage());
         verify(this.view, times(5)).setImageTags(any(List.class));
@@ -703,7 +705,7 @@ public class TileSetTest {
         assertTrue(!this.model.hasPropertyAnnotation("tileMargin", TileSetModel.TAG_8));
         verify(this.view, times(2)).setTileMarginTags(any(List.class));
 
-        propertySource.setPropertyValue("tileHeight", 16);
+        this.model.executeOperation(propertyModel.setPropertyValue("tileHeight", 16));
         assertTrue(!this.model.hasPropertyAnnotation("image", TileSetModel.TAG_8));
         verify(this.view, times(6)).setImageTags(any(List.class));
         assertTrue(!this.model.hasPropertyAnnotation("tileHeight", TileSetModel.TAG_8));
@@ -723,12 +725,12 @@ public class TileSetTest {
 
         assertTrue(!this.model.hasPropertyAnnotation("materialTag", TileSetModel.TAG_9));
 
-        propertySource.setPropertyValue("materialTag", "");
+        this.model.executeOperation(propertyModel.setPropertyValue("materialTag", ""));
         assertTrue(this.model.hasPropertyAnnotation("materialTag", TileSetModel.TAG_9));
         assertEquals(TileSetModel.TAG_9.getMessage(), this.model.getPropertyTag("materialTag", TileSetModel.TAG_9).getMessage());
         verify(this.view, times(1)).setMaterialTagTags(any(List.class));
 
-        propertySource.setPropertyValue("materialTag", "tile");
+        this.model.executeOperation(propertyModel.setPropertyValue("materialTag", "tile"));
         assertTrue(!this.model.hasPropertyAnnotation("materialTag", TileSetModel.TAG_9));
         verify(this.view, times(2)).setMaterialTagTags(any(List.class));
     }
@@ -744,12 +746,12 @@ public class TileSetTest {
 
         assertTrue(!this.model.hasPropertyAnnotation("tileMargin", TileSetModel.TAG_10));
 
-        propertySource.setPropertyValue("tileMargin", -1);
+        this.model.executeOperation(propertyModel.setPropertyValue("tileMargin", -1));
         assertTrue(this.model.hasPropertyAnnotation("tileMargin", TileSetModel.TAG_10));
         assertEquals(TileSetModel.TAG_10.getMessage(), this.model.getPropertyTag("tileMargin", TileSetModel.TAG_10).getMessage());
         verify(this.view, times(1)).setTileMarginTags(any(List.class));
 
-        propertySource.setPropertyValue("tileMargin", 0);
+        this.model.executeOperation(propertyModel.setPropertyValue("tileMargin", 0));
         assertTrue(!this.model.hasPropertyAnnotation("tileMargin", TileSetModel.TAG_10));
         verify(this.view, times(2)).setTileMarginTags(any(List.class));
     }
@@ -765,12 +767,12 @@ public class TileSetTest {
 
         assertTrue(!this.model.hasPropertyAnnotation("tileSpacing", TileSetModel.TAG_11));
 
-        propertySource.setPropertyValue("tileSpacing", -1);
+        this.model.executeOperation(propertyModel.setPropertyValue("tileSpacing", -1));
         assertTrue(this.model.hasPropertyAnnotation("tileSpacing", TileSetModel.TAG_11));
         assertEquals(TileSetModel.TAG_11.getMessage(), this.model.getPropertyTag("tileSpacing", TileSetModel.TAG_11).getMessage());
         verify(this.view, times(1)).setTileSpacingTags(any(List.class));
 
-        propertySource.setPropertyValue("tileSpacing", 0);
+        this.model.executeOperation(propertyModel.setPropertyValue("tileSpacing", 0));
         assertTrue(!this.model.hasPropertyAnnotation("tileSpacing", TileSetModel.TAG_11));
         verify(this.view, times(2)).setTileSpacingTags(any(List.class));
     }
