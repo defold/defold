@@ -37,7 +37,7 @@ public abstract class ArrayPropertyDesc<V, T, U extends IPropertyObjectWorld> ex
         private Text[] textFields;
         private Composite composite;
         private IPropertyModel<T, U>[] models;
-        private double[] oldValue;
+        private String[] oldValue;
         Editor(Composite parent) {
             composite = new Composite(parent, SWT.NONE);
             composite.setBackground(parent.getBackground());
@@ -53,6 +53,7 @@ public abstract class ArrayPropertyDesc<V, T, U extends IPropertyObjectWorld> ex
                 t.setLayoutData(gd);
                 textFields[i] = t;
             }
+            oldValue = new String[count];
         }
 
         Text createText(Composite parent) {
@@ -89,13 +90,15 @@ public abstract class ArrayPropertyDesc<V, T, U extends IPropertyObjectWorld> ex
             double[] array = valueToArray(firstValue);
 
             for (int i = 0; i < count; ++i) {
+                String s;
                 if (equal[i]) {
-                    textFields[i].setText(Double.toString(array[i]));
+                    s = Double.toString(array[i]);
                 } else {
-                    textFields[i].setText("");
+                    s = "";
                 }
+                textFields[i].setText(s);
+                oldValue[i] = s;
             }
-            oldValue = array;
         }
 
         @Override
@@ -107,9 +110,11 @@ public abstract class ArrayPropertyDesc<V, T, U extends IPropertyObjectWorld> ex
         public void handleEvent(Event event) {
 
             double[] newValue = new double[count];
+            String[] newStringValue = new String[count];
             try {
                 for (int i = 0; i < newValue.length; i++) {
                     String s = this.textFields[i].getText();
+                    newStringValue[i] = s;
                     // NOTE: Treat "" as 0
                     if (s.length() != 0) {
                         newValue[i] = Double.parseDouble(s);
@@ -122,7 +127,7 @@ public abstract class ArrayPropertyDesc<V, T, U extends IPropertyObjectWorld> ex
             boolean updateValue = false;
             if (event.type == SWT.KeyDown && (event.character == '\r' || event.character == '\n')) {
                 updateValue = true;
-            } else if (event.type == SWT.FocusOut && !Arrays.equals(newValue, oldValue)) {
+            } else if (event.type == SWT.FocusOut && !Arrays.equals(newStringValue, oldValue)) {
                 updateValue = true;
             }
             if (updateValue) {
@@ -138,7 +143,7 @@ public abstract class ArrayPropertyDesc<V, T, U extends IPropertyObjectWorld> ex
                 if (combinedOperation != null)
                     models[0].getCommandFactory().execute(combinedOperation, models[0].getWorld());
             }
-            oldValue = newValue;
+            oldValue = newStringValue;
         }
     }
 
