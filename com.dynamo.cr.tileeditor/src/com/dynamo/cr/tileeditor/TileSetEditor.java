@@ -59,7 +59,7 @@ ISelectionListener, KeyListener, IResourceChangeListener {
     private UndoContext undoContext;
     private TileSetPresenter presenter;
     private TileSetEditorOutlinePage outlinePage;
-    private List<String> collisionGroups;
+    private String[] selectedCollisionGroups;
 
     // EditorPart
 
@@ -102,7 +102,7 @@ ISelectionListener, KeyListener, IResourceChangeListener {
         actionBars.setGlobalActionHandler(undoId, undoHandler);
         actionBars.setGlobalActionHandler(redoId, redoHandler);
 
-        this.outlinePage = new TileSetEditorOutlinePage(this.presenter) {
+        this.outlinePage = new TileSetEditorOutlinePage(this.presenter, this) {
             @Override
             public void init(IPageSite pageSite) {
                 super.init(pageSite);
@@ -145,14 +145,20 @@ ISelectionListener, KeyListener, IResourceChangeListener {
         IContextService contextService = (IContextService) getSite()
                 .getService(IContextService.class);
         contextService.activateContext(Activator.CONTEXT_ID);
+
+        setFocus();
     }
 
     public TileSetPresenter getPresenter() {
         return this.presenter;
     }
 
-    public List<String> getCollisionGroups() {
-        return this.collisionGroups;
+    public String[] getSelectedCollisionGroups() {
+        return this.selectedCollisionGroups;
+    }
+
+    public void setSelectedCollisionGroups(String[] selectedCollisionGroups) {
+        this.selectedCollisionGroups = selectedCollisionGroups;
     }
 
     @Override
@@ -346,9 +352,9 @@ ISelectionListener, KeyListener, IResourceChangeListener {
     }
 
     @Override
-    public void setCollisionGroups(List<String> collisionGroups, List<Color> colors) {
-        this.collisionGroups = collisionGroups;
-        outlinePage.setInput(collisionGroups, colors);
+    public void setCollisionGroups(List<String> collisionGroups, List<Color> colors, String[] selectedCollisionGroups) {
+        this.selectedCollisionGroups = selectedCollisionGroups;
+        outlinePage.setInput(collisionGroups, colors, selectedCollisionGroups);
     }
 
     @Override
@@ -373,8 +379,6 @@ ISelectionListener, KeyListener, IResourceChangeListener {
     @Override
     public Object getAdapter(@SuppressWarnings("rawtypes") Class adapter) {
         if (adapter == IContentOutlinePage.class) {
-            if (this.outlinePage == null)
-                this.outlinePage = new TileSetEditorOutlinePage(this.presenter);
             return this.outlinePage;
         }
 

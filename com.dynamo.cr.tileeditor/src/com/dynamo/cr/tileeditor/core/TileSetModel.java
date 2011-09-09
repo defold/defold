@@ -75,6 +75,7 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
     List<ConvexHull> convexHulls;
     float[] convexHullPoints;
     List<String> collisionGroups;
+    String[] selectedCollisionGroups;
 
     IOperationHistory undoHistory;
     IUndoContext undoContext;
@@ -140,6 +141,7 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
     public TileSetModel(IOperationHistory undoHistory, IUndoContext undoContext) {
         this.convexHulls = new ArrayList<ConvexHull>();
         this.collisionGroups = new ArrayList<String>();
+        this.selectedCollisionGroups = new String[0];
         this.undoHistory = undoHistory;
         this.undoContext = undoContext;
         this.undoHistory.setLimit(this.undoContext, 100);
@@ -350,36 +352,83 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
         }
     }
 
+    public String[] getSelectedCollisionGroups() {
+        return this.selectedCollisionGroups;
+    }
+
+    public void setSelectedCollisionGroup(String selectedCollisionGroup) {
+        List<String> selectedCollisionGroups = new ArrayList<String>(1);
+        selectedCollisionGroups.add(selectedCollisionGroup);
+        setSelectedCollisionGroups(selectedCollisionGroups.toArray(new String[selectedCollisionGroups.size()]));
+    }
+
+    public void setSelectedCollisionGroups(String[] selectedCollisionGroups) {
+        this.selectedCollisionGroups = selectedCollisionGroups;
+    }
+
     public void addCollisionGroup(String collisionGroup) {
-        if (this.collisionGroups.contains(collisionGroup)) {
-            Activator.logException(new IllegalArgumentException(collisionGroup));
-        } else {
-            List<String> oldCollisionGroups = new ArrayList<String>(this.collisionGroups);
-            this.collisionGroups.add(collisionGroup);
+        addCollisionGroups(new String[] {collisionGroup});
+    }
+
+    public void addCollisionGroups(String[] collisionGroups) {
+        boolean added = false;
+        List<String> oldCollisionGroups = new ArrayList<String>(this.collisionGroups);
+        for (String collisionGroup : collisionGroups) {
+            if (this.collisionGroups.contains(collisionGroup)) {
+                Activator.logException(new IllegalArgumentException(collisionGroup));
+            } else {
+                added = true;
+                this.collisionGroups.add(collisionGroup);
+            }
+        }
+        if (added) {
             Collections.sort(this.collisionGroups);
             firePropertyChangeEvent(new PropertyChangeEvent(this, "collisionGroups", oldCollisionGroups, this.collisionGroups));
         }
     }
 
     public void removeCollisionGroup(String collisionGroup) {
-        if (!this.collisionGroups.contains(collisionGroup)) {
-            Activator.logException(new IllegalArgumentException(collisionGroup));
-        } else {
-            List<String> oldCollisionGroups = new ArrayList<String>(this.collisionGroups);
-            this.collisionGroups.remove(collisionGroup);
+        removeCollisionGroups(new String[] {collisionGroup});
+    }
+
+    public void removeCollisionGroups(String[] collisionGroups) {
+        boolean removed = false;
+        List<String> oldCollisionGroups = new ArrayList<String>(this.collisionGroups);
+        for (String collisionGroup : collisionGroups) {
+            if (!this.collisionGroups.contains(collisionGroup)) {
+                Activator.logException(new IllegalArgumentException(collisionGroup));
+            } else {
+                removed = true;
+                this.collisionGroups.remove(collisionGroup);
+            }
+        }
+        if (removed) {
             firePropertyChangeEvent(new PropertyChangeEvent(this, "collisionGroups", oldCollisionGroups, this.collisionGroups));
         }
     }
 
-    public void renameCollisionGroup(String collisionGroup, String newCollisionGroup) {
-        if (this.collisionGroups.contains(collisionGroup)) {
-            List<String> oldCollisionGroups = new ArrayList<String>(this.collisionGroups);
-            this.collisionGroups.remove(collisionGroup);
-            if (!this.collisionGroups.contains(newCollisionGroup)) {
-                this.collisionGroups.add(newCollisionGroup);
+    public void renameCollisionGroup(String oldCollisionGroup, String newCollisionGroup) {
+        renameCollisionGroups(new String[] {oldCollisionGroup}, new String[] {newCollisionGroup});
+    }
+
+    public void renameCollisionGroups(String[] oldCollisionGroups, String[] newCollisionGroups) {
+        boolean renamed = false;
+        List<String> tmpCollisionGroups = new ArrayList<String>(this.collisionGroups);
+        int n = oldCollisionGroups.length;
+        for (int i = 0; i < n; ++i) {
+            if (!this.collisionGroups.contains(oldCollisionGroups[i])) {
+                Activator.logException(new IllegalArgumentException(oldCollisionGroups[i]));
+            } else {
+                renamed = true;
+                this.collisionGroups.remove(oldCollisionGroups[i]);
+                if (!this.collisionGroups.contains(newCollisionGroups[i])) {
+                    this.collisionGroups.add(newCollisionGroups[i]);
+                }
             }
+        }
+        if (renamed) {
             Collections.sort(this.collisionGroups);
-            firePropertyChangeEvent(new PropertyChangeEvent(this, "collisionGroups", oldCollisionGroups, this.collisionGroups));
+            firePropertyChangeEvent(new PropertyChangeEvent(this, "collisionGroups", tmpCollisionGroups, this.collisionGroups));
         }
     }
 

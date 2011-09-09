@@ -37,7 +37,7 @@ public interface ITileSetView {
 
     void setMaterialTagTags(List<Tag> tags);
 
-    void setCollisionGroups(List<String> collisionGroups, List<Color> colors);
+    void setCollisionGroups(List<String> collisionGroups, List<Color> colors, String[] selectedCollisionGroups);
 
     void setTiles(BufferedImage image, float[] v, int[] hullIndices,
             int[] hullCounts, Color[] hullColors, Vector3f hullScale);

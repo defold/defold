@@ -1,13 +1,17 @@
 package com.dynamo.cr.tileeditor;
 
 import java.awt.Color;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.eclipse.jface.resource.ImageRegistry;
 import org.eclipse.jface.viewers.ColumnLabelProvider;
 import org.eclipse.jface.viewers.ColumnViewerToolTipSupport;
+import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.ITreeContentProvider;
 import org.eclipse.jface.viewers.LabelProvider;
+import org.eclipse.jface.viewers.SelectionChangedEvent;
+import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.jface.viewers.TreeViewer;
 import org.eclipse.jface.viewers.Viewer;
 import org.eclipse.swt.graphics.Image;
@@ -26,8 +30,12 @@ public class TileSetEditorOutlinePage extends ContentOutlinePage {
     private final TileSetPresenter presenter;
     private final RootItem root;
     private final Image collisionGroupImage;
+    // needed to avoid circumference when selecting programatically vs manually
+    private boolean ignoreSelection = false;
+    // needed to update the editor state of selection
+    private final TileSetEditor editor;
 
-    public TileSetEditorOutlinePage(TileSetPresenter presenter) {
+    public TileSetEditorOutlinePage(TileSetPresenter presenter, TileSetEditor editor) {
         this.presenter = presenter;
         this.root = new RootItem();
 
@@ -35,6 +43,8 @@ public class TileSetEditorOutlinePage extends ContentOutlinePage {
                 .getImageRegistry();
         this.collisionGroupImage = imageRegist
                 .getDescriptor(Activator.COLLISION_GROUP_IMAGE_ID).createImage();
+
+        this.editor = editor;
     }
 
     @Override
@@ -47,7 +57,7 @@ public class TileSetEditorOutlinePage extends ContentOutlinePage {
         }
     }
 
-    public void setInput(List<String> collisionGroups, List<Color> collisionGroupColors) {
+    public void setInput(List<String> collisionGroups, List<Color> collisionGroupColors, String[] selectedCollisionGroups) {
         int n = collisionGroups.size();
         CollisionGroupItem[] items = new CollisionGroupItem[n];
         for (int i = 0; i < n; ++i) {
@@ -68,8 +78,27 @@ public class TileSetEditorOutlinePage extends ContentOutlinePage {
             }
         }
         if (viewer != null) {
+            ignoreSelection = true;
             viewer.setInput(this.root);
             viewer.expandToLevel(2);
+            int ns = selectedCollisionGroups.length;
+            if (selectedCollisionGroups != null && ns > 0) {
+                List<CollisionGroupItem> selectedItems = new ArrayList<CollisionGroupItem>(ns);
+                int s = 0;
+                for (CollisionGroupItem item : this.root.collisionGroups.items) {
+                    for (int i = s; i < ns; ++i) {
+                        if (item.group.equals(selectedCollisionGroups[i])) {
+                            selectedItems.add(item);
+                            ++s;
+                            break;
+                        }
+                    }
+                }
+                viewer.setSelection(new StructuredSelection(selectedItems));
+            } else {
+                viewer.setSelection(new StructuredSelection());
+            }
+            ignoreSelection = false;
         }
     }
 
@@ -204,6 +233,27 @@ public class TileSetEditorOutlinePage extends ContentOutlinePage {
         contextService.activateContext(Activator.CONTEXT_ID);
 
         this.presenter.refresh();
+    }
+
+    @Override
+    public void selectionChanged(SelectionChangedEvent event) {
+        super.selectionChanged(event);
+        if (!this.ignoreSelection) {
+            if (event.getSelection() instanceof IStructuredSelection) {
+                List<String> selectedItems = new ArrayList<String>();
+                Object[] selection = ((IStructuredSelection)event.getSelection()).toArray();
+                for (Object object : selection) {
+                    if (object instanceof CollisionGroupItem) {
+                        CollisionGroupItem item = (CollisionGroupItem)object;
+                        selectedItems.add(item.group);
+                    }
+                }
+                String[] selectedCollisionGroups = selectedItems.toArray(new String[selectedItems.size()]);
+                this.presenter.selectCollisionGroups(selectedCollisionGroups);
+                // needed to update the editor, since selections are not propagated to the view when changed
+                editor.setSelectedCollisionGroups(selectedCollisionGroups);
+            }
+        }
     }
 
     private void updateCollisionGroupImages(CollisionGroupItem[] items, Color[] colors) {

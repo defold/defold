@@ -8,14 +8,16 @@ import org.eclipse.ui.handlers.HandlerUtil;
 
 import com.dynamo.cr.tileeditor.TileSetEditor;
 
-public class AddCollisionGroup extends AbstractHandler {
+public class RemoveCollisionsGroup extends AbstractHandler {
 
     @Override
     public Object execute(ExecutionEvent event) throws ExecutionException {
         IEditorPart editorPart = HandlerUtil.getActiveEditor(event);
         if (editorPart instanceof TileSetEditor) {
             TileSetEditor tileSetEditor = (TileSetEditor)editorPart;
-            tileSetEditor.getPresenter().addCollisionGroup("default");
+            if (tileSetEditor.getSelectedCollisionGroups().length > 0) {
+                tileSetEditor.getPresenter().removeSelectedCollisionGroups();
+            }
         }
         return null;
     }

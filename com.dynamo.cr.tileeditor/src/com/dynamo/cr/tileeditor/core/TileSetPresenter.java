@@ -14,8 +14,8 @@ import javax.vecmath.Vector3f;
 import org.eclipse.core.runtime.IProgressMonitor;
 
 import com.dynamo.cr.tileeditor.operations.AddCollisionGroupOperation;
-import com.dynamo.cr.tileeditor.operations.RemoveCollisionGroupOperation;
-import com.dynamo.cr.tileeditor.operations.RenameCollisionGroupOperation;
+import com.dynamo.cr.tileeditor.operations.RemoveCollisionGroupsOperation;
+import com.dynamo.cr.tileeditor.operations.RenameCollisionGroupsOperation;
 import com.dynamo.cr.tileeditor.operations.SetConvexHullCollisionGroupsOperation;
 import com.dynamo.tile.proto.Tile.TileSet;
 
@@ -81,12 +81,20 @@ public class TileSetPresenter implements TaggedPropertyListener {
         this.model.executeOperation(new AddCollisionGroupOperation(this.model, collisionGroup));
     }
 
-    public void removeCollisionGroup(String collisionGroup) {
-        this.model.executeOperation(new RemoveCollisionGroupOperation(this.model, collisionGroup));
+    public void removeSelectedCollisionGroups() {
+        if (this.model.getSelectedCollisionGroups().length > 0) {
+            this.model.executeOperation(new RemoveCollisionGroupsOperation(this.model));
+        }
     }
 
-    public void renameCollisionGroup(String collisionGroup, String newCollisionGroup) {
-        this.model.executeOperation(new RenameCollisionGroupOperation(this.model, collisionGroup, newCollisionGroup));
+    public void renameSelectedCollisionGroups(String[] newCollisionGroups) {
+        if (this.model.getSelectedCollisionGroups().length == newCollisionGroups.length) {
+            this.model.executeOperation(new RenameCollisionGroupsOperation(this.model, newCollisionGroups));
+        }
+    }
+
+    public void selectCollisionGroups(String[] selectedCollisionGroups) {
+        this.model.setSelectedCollisionGroups(selectedCollisionGroups);
     }
 
     public void refresh() {
@@ -250,7 +258,7 @@ public class TileSetPresenter implements TaggedPropertyListener {
 
     private void setViewCollisionGroups(List<String> collisionGroups) {
         updateCollisionGroupColors(collisionGroups.size());
-        view.setCollisionGroups(collisionGroups, this.collisionGroupColors);
+        view.setCollisionGroups(collisionGroups, this.collisionGroupColors, this.model.getSelectedCollisionGroups());
     }
 
     private void updateCollisionGroupColors(int size) {

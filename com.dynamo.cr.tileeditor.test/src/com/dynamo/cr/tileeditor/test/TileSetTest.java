@@ -99,7 +99,7 @@ public class TileSetTest {
         verify(this.view, never()).setTileSpacingProperty(anyInt());
         verify(this.view, times(1)).setCollisionProperty(any(String.class));
         verify(this.view, times(1)).setMaterialTagProperty(any(String.class));
-        verify(this.view, times(1)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class));
+        verify(this.view, times(1)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
     }
 
     /**
@@ -247,23 +247,29 @@ public class TileSetTest {
         // preconditions
         assertEquals(1, this.model.getCollisionGroups().size());
         assertEquals("foreground", this.model.getCollisionGroups().get(0));
-        verify(this.view, times(1)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class));
+        assertEquals(0, this.model.getSelectedCollisionGroups().length);
+        verify(this.view, times(1)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
 
         // add the group
         this.presenter.addCollisionGroup("hazad");
         assertEquals(2, this.model.getCollisionGroups().size());
         assertEquals("foreground", this.model.getCollisionGroups().get(0));
         assertEquals("hazad", this.model.getCollisionGroups().get(1));
-        verify(this.view, times(2)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class));
+        assertEquals(1, this.model.getSelectedCollisionGroups().length);
+        assertEquals("hazad", this.model.getSelectedCollisionGroups()[0]);
+        verify(this.view, times(2)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
         this.history.undo(this.undoContext, null, null);
         assertEquals(1, this.model.getCollisionGroups().size());
         assertEquals("foreground", this.model.getCollisionGroups().get(0));
-        verify(this.view, times(3)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class));
+        assertEquals(0, this.model.getSelectedCollisionGroups().length);
+        verify(this.view, times(3)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
         this.history.redo(this.undoContext, null, null);
         assertEquals(2, this.model.getCollisionGroups().size());
         assertEquals("foreground", this.model.getCollisionGroups().get(0));
         assertEquals("hazad", this.model.getCollisionGroups().get(1));
-        verify(this.view, times(4)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class));
+        assertEquals(1, this.model.getSelectedCollisionGroups().length);
+        assertEquals("hazad", this.model.getSelectedCollisionGroups()[0]);
+        verify(this.view, times(4)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
 
         // preconditions
         assertEquals("", this.model.getConvexHulls().get(1).getCollisionGroup());
@@ -305,24 +311,31 @@ public class TileSetTest {
         // requirement
         testUseCase114();
 
+        // preconditions
         assertEquals("hazad", this.model.getCollisionGroups().get(1));
         assertEquals("hazad", this.model.getConvexHulls().get(1).getCollisionGroup());
-        verify(this.view, times(4)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class));
+        verify(this.view, times(4)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
         verify(this.view, times(3)).setTileHullColor(eq(1), any(Color.class));
-        this.presenter.renameCollisionGroup("hazad", "hazard");
+
+        this.presenter.selectCollisionGroups(new String[] {"hazad"});
+        assertEquals(1, this.model.getSelectedCollisionGroups().length);
+        assertEquals("hazad", this.model.getSelectedCollisionGroups()[0]);
+
+        // test
+        this.presenter.renameSelectedCollisionGroups(new String[] {"hazard"});
         assertEquals("hazard", this.model.getCollisionGroups().get(1));
         assertEquals("hazard", this.model.getConvexHulls().get(1).getCollisionGroup());
-        verify(this.view, times(5)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class));
+        verify(this.view, times(5)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
         verify(this.view, times(4)).setTileHullColor(eq(1), any(Color.class));
         this.history.undo(this.undoContext, null, null);
         assertEquals("hazad", this.model.getCollisionGroups().get(1));
         assertEquals("hazad", this.model.getConvexHulls().get(1).getCollisionGroup());
-        verify(this.view, times(6)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class));
+        verify(this.view, times(6)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
         verify(this.view, times(5)).setTileHullColor(eq(1), any(Color.class));
         this.history.redo(this.undoContext, null, null);
         assertEquals("hazard", this.model.getCollisionGroups().get(1));
         assertEquals("hazard", this.model.getConvexHulls().get(1).getCollisionGroup());
-        verify(this.view, times(7)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class));
+        verify(this.view, times(7)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
         verify(this.view, times(6)).setTileHullColor(eq(1), any(Color.class));
     }
 
@@ -360,18 +373,22 @@ public class TileSetTest {
         assertEquals("obstuction", this.model.getCollisionGroups().get(2));
         assertEquals("obstruction", this.model.getConvexHulls().get(2).getCollisionGroup());
         assertEquals("obstuction", this.model.getConvexHulls().get(3).getCollisionGroup());
-        verify(this.view, times(3)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class));
+        assertEquals(1, this.model.getSelectedCollisionGroups().length);
+        assertEquals("obstuction", this.model.getSelectedCollisionGroups()[0]);
+        verify(this.view, times(3)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
         verify(this.view, times(1)).setTileHullColor(eq(2), any(Color.class));
         verify(this.view, times(1)).setTileHullColor(eq(3), any(Color.class));
 
         // test
-        this.presenter.renameCollisionGroup("obstuction", "obstruction");
+        this.presenter.renameSelectedCollisionGroups(new String[] {"obstruction"});
         assertEquals(2, this.model.getCollisionGroups().size());
         assertEquals("foreground", this.model.getCollisionGroups().get(0));
         assertEquals("obstruction", this.model.getCollisionGroups().get(1));
         assertEquals("obstruction", this.model.getConvexHulls().get(2).getCollisionGroup());
         assertEquals("obstruction", this.model.getConvexHulls().get(3).getCollisionGroup());
-        verify(this.view, times(4)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class));
+        assertEquals(1, this.model.getSelectedCollisionGroups().length);
+        assertEquals("obstruction", this.model.getSelectedCollisionGroups()[0]);
+        verify(this.view, times(4)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
         verify(this.view, times(2)).setTileHullColor(eq(3), any(Color.class));
 
         // undo
@@ -382,7 +399,9 @@ public class TileSetTest {
         assertEquals("obstuction", this.model.getCollisionGroups().get(2));
         assertEquals("obstruction", this.model.getConvexHulls().get(2).getCollisionGroup());
         assertEquals("obstuction", this.model.getConvexHulls().get(3).getCollisionGroup());
-        verify(this.view, times(5)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class));
+        assertEquals(1, this.model.getSelectedCollisionGroups().length);
+        assertEquals("obstuction", this.model.getSelectedCollisionGroups()[0]);
+        verify(this.view, times(5)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
         verify(this.view, times(3)).setTileHullColor(eq(3), any(Color.class));
 
         // redo
@@ -392,7 +411,9 @@ public class TileSetTest {
         assertEquals("obstruction", this.model.getCollisionGroups().get(1));
         assertEquals("obstruction", this.model.getConvexHulls().get(2).getCollisionGroup());
         assertEquals("obstruction", this.model.getConvexHulls().get(3).getCollisionGroup());
-        verify(this.view, times(6)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class));
+        assertEquals(1, this.model.getSelectedCollisionGroups().length);
+        assertEquals("obstruction", this.model.getSelectedCollisionGroups()[0]);
+        verify(this.view, times(6)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
         verify(this.view, times(4)).setTileHullColor(eq(3), any(Color.class));
     }
 
@@ -416,15 +437,21 @@ public class TileSetTest {
         assertEquals("hazad", this.model.getCollisionGroups().get(1));
         assertEquals("obstruction", this.model.getCollisionGroups().get(2));
         assertEquals("hazad", this.model.getConvexHulls().get(1).getCollisionGroup());
-        verify(this.view, times(5)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class));
+        assertEquals(1, this.model.getSelectedCollisionGroups().length);
+        assertEquals("obstruction", this.model.getSelectedCollisionGroups()[0]);
+        verify(this.view, times(5)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
         verify(this.view, times(3)).setTileHullColor(eq(1), any(Color.class));
 
-        this.presenter.removeCollisionGroup("hazad");
+        this.presenter.selectCollisionGroups(new String[] {"hazad"});
+        assertEquals(1, this.model.getSelectedCollisionGroups().length);
+        assertEquals("hazad", this.model.getSelectedCollisionGroups()[0]);
+        this.presenter.removeSelectedCollisionGroups();
         assertEquals(2, this.model.getCollisionGroups().size());
         assertEquals("foreground", this.model.getCollisionGroups().get(0));
         assertEquals("obstruction", this.model.getCollisionGroups().get(1));
         assertEquals("", this.model.getConvexHulls().get(1).getCollisionGroup());
-        verify(this.view, times(6)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class));
+        assertEquals(0, this.model.getSelectedCollisionGroups().length);
+        verify(this.view, times(6)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
         verify(this.view, times(4)).setTileHullColor(eq(1), any(Color.class));
 
         this.history.undo(this.undoContext, null, null);
@@ -433,7 +460,9 @@ public class TileSetTest {
         assertEquals("hazad", this.model.getCollisionGroups().get(1));
         assertEquals("obstruction", this.model.getCollisionGroups().get(2));
         assertEquals("hazad", this.model.getConvexHulls().get(1).getCollisionGroup());
-        verify(this.view, times(7)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class));
+        assertEquals(1, this.model.getSelectedCollisionGroups().length);
+        assertEquals("hazad", this.model.getSelectedCollisionGroups()[0]);
+        verify(this.view, times(7)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
         verify(this.view, times(5)).setTileHullColor(eq(1), any(Color.class));
 
         this.history.redo(this.undoContext, null, null);
@@ -441,7 +470,8 @@ public class TileSetTest {
         assertEquals("foreground", this.model.getCollisionGroups().get(0));
         assertEquals("obstruction", this.model.getCollisionGroups().get(1));
         assertEquals("", this.model.getConvexHulls().get(1).getCollisionGroup());
-        verify(this.view, times(8)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class));
+        assertEquals(0, this.model.getSelectedCollisionGroups().length);
+        verify(this.view, times(8)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
         verify(this.view, times(6)).setTileHullColor(eq(1), any(Color.class));
     }
 
@@ -785,7 +815,7 @@ public class TileSetTest {
         verify(this.view, never()).setCollisionTags(anyListOf(Tag.class));
         verify(this.view, times(5)).setMaterialTagProperty(any(String.class));
         verify(this.view, never()).setMaterialTagTags(anyListOf(Tag.class));
-        verify(this.view, times(4)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class));
+        verify(this.view, times(4)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
         verify(this.view, times(13)).setTiles(any(BufferedImage.class), any(float[].class), any(int[].class), any(int[].class), any(Color[].class), any(Vector3f.class));
         verify(this.view, never()).clearTiles();
         verify(this.view, times(6)).setTileHullColor(anyInt(), any(Color.class));
@@ -806,7 +836,7 @@ public class TileSetTest {
         verify(this.view, times(1)).setCollisionTags(anyListOf(Tag.class));
         verify(this.view, times(6)).setMaterialTagProperty(any(String.class));
         verify(this.view, times(1)).setMaterialTagTags(anyListOf(Tag.class));
-        verify(this.view, times(5)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class));
+        verify(this.view, times(5)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
         verify(this.view, times(14)).setTiles(any(BufferedImage.class), any(float[].class), any(int[].class), any(int[].class), any(Color[].class), any(Vector3f.class));
         verify(this.view, never()).clearTiles();
         verify(this.view, times(6)).setTileHullColor(anyInt(), any(Color.class));

@@ -109,7 +109,7 @@
          </activeWhen>
       </handler>
       <handler
-            class="com.dynamo.cr.tileeditor.commands.RenameCollisionGroup"
+            class="com.dynamo.cr.tileeditor.commands.RenameCollisionsGroup"
             commandId="org.eclipse.ui.edit.rename">
          <activeWhen>
             <reference
@@ -118,7 +118,7 @@
          </activeWhen>
       </handler>
       <handler
-            class="com.dynamo.cr.tileeditor.commands.RemoveCollisionGroup"
+            class="com.dynamo.cr.tileeditor.commands.RemoveCollisionsGroup"
             commandId="org.eclipse.ui.edit.delete">
          <activeWhen>
             <reference
