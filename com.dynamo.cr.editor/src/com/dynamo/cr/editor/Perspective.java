@@ -30,7 +30,7 @@ public class Perspective implements IPerspectiveFactory {
         folder.addView("org.eclipse.ui.views.ProblemView");
         layout.getViewLayout("org.eclipse.ui.views.ProblemView").setCloseable(false);
 
-        folder.addView(IPageLayout.ID_PROP_SHEET);
+        layout.addStandaloneView(IPageLayout.ID_PROP_SHEET,  true, IPageLayout.RIGHT, 0.65f, editorArea);
         layout.getViewLayout(IPageLayout.ID_PROP_SHEET).setCloseable(false);
 
         folder.addView("org.eclipse.pde.runtime.LogView");

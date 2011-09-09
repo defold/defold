@@ -1,5 +1,7 @@
 package com.dynamo.cr.scene.graph;
 
+import org.eclipse.core.commands.operations.IUndoableOperation;
+
 import com.dynamo.cr.properties.ICommandFactory;
 import com.dynamo.cr.properties.IPropertyAccessor;
 import com.dynamo.cr.scene.operations.SetPropertiesOperation;
@@ -7,7 +9,7 @@ import com.dynamo.cr.scene.operations.SetPropertiesOperation;
 public class UndoableCommandFactory implements
         ICommandFactory<Object, Scene> {
     @Override
-    public void createCommand(Object node, String property,
+    public IUndoableOperation create(Object node, String property,
             IPropertyAccessor<Object, Scene> accessor, Object oldValue,
             Object newValue, Scene scene) {
 
@@ -15,7 +17,14 @@ public class UndoableCommandFactory implements
             SetPropertiesOperation<Object> operation = new SetPropertiesOperation<Object>(node,
                     property, accessor, oldValue,
                     newValue, scene);
-            scene.executeOperation(operation);
+            return operation;
         }
+        return null;
+    }
+
+
+    @Override
+    public void execute(IUndoableOperation operation, Scene scene) {
+        scene.executeOperation(operation);
     }
 }

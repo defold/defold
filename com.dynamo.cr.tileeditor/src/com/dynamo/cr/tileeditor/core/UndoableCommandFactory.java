@@ -1,5 +1,7 @@
 package com.dynamo.cr.tileeditor.core;
 
+import org.eclipse.core.commands.operations.IUndoableOperation;
+
 import com.dynamo.cr.properties.ICommandFactory;
 import com.dynamo.cr.properties.IPropertyAccessor;
 import com.dynamo.cr.tileeditor.operations.SetPropertiesOperation;
@@ -7,7 +9,7 @@ import com.dynamo.cr.tileeditor.operations.SetPropertiesOperation;
 public class UndoableCommandFactory implements
 ICommandFactory<Object, TileSetModel> {
     @Override
-    public void createCommand(Object node, String property,
+    public IUndoableOperation create(Object node, String property,
             IPropertyAccessor<Object, TileSetModel> accessor, Object oldValue,
             Object newValue, TileSetModel model) {
 
@@ -15,7 +17,13 @@ ICommandFactory<Object, TileSetModel> {
             SetPropertiesOperation<Object> operation = new SetPropertiesOperation<Object>(node,
                     property, accessor, oldValue,
                     newValue, model);
-            model.executeOperation(operation);
+            return operation;
         }
+        return null;
+    }
+
+    @Override
+    public void execute(IUndoableOperation operation, TileSetModel world) {
+        world.executeOperation(operation);
     }
 }

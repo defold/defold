@@ -17,24 +17,27 @@ import java.util.Map;
 import javax.imageio.ImageIO;
 
 import org.eclipse.core.commands.ExecutionException;
-import org.eclipse.core.commands.operations.AbstractOperation;
 import org.eclipse.core.commands.operations.IOperationHistory;
 import org.eclipse.core.commands.operations.IUndoContext;
+import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.core.runtime.IAdaptable;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
-import org.eclipse.ui.views.properties.IPropertySource;
 
+import com.dynamo.cr.properties.Entity;
+import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.properties.IPropertyObjectWorld;
 import com.dynamo.cr.properties.Property;
-import com.dynamo.cr.properties.PropertyIntrospectorSource;
+import com.dynamo.cr.properties.PropertyIntrospector;
+import com.dynamo.cr.properties.PropertyIntrospectorModel;
 import com.dynamo.cr.tileeditor.Activator;
 import com.dynamo.cr.tileeditor.pipeline.ConvexHull2D;
 import com.dynamo.tile.proto.Tile;
 import com.dynamo.tile.proto.Tile.TileSet;
 import com.google.protobuf.TextFormat;
 
+@Entity(commandFactory = UndoableCommandFactory.class)
 public class TileSetModel extends Model implements IPropertyObjectWorld, IAdaptable {
 
     // TODO: Should be configurable
@@ -52,20 +55,22 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
     public static final Tag TAG_10 = new Tag("10", Tag.TYPE_ERROR, Messages.TileSetModel_TAG_10);
     public static final Tag TAG_11 = new Tag("11", Tag.TYPE_ERROR, Messages.TileSetModel_TAG_11);
 
-    @Property(commandFactory = UndoableCommandFactory.class, isResource = true)
+    @Property(isResource = true)
     String image;
-    @Property(commandFactory = UndoableCommandFactory.class)
+    @Property
     int tileWidth;
-    @Property(commandFactory = UndoableCommandFactory.class)
+    @Property
     int tileHeight;
-    @Property(commandFactory = UndoableCommandFactory.class)
+    @Property
     int tileMargin;
-    @Property(commandFactory = UndoableCommandFactory.class)
+    @Property
     int tileSpacing;
-    @Property(commandFactory = UndoableCommandFactory.class, isResource = true)
+    @Property(isResource = true)
     String collision;
-    @Property(commandFactory = UndoableCommandFactory.class)
+    @Property
     String materialTag;
+
+    private static PropertyIntrospector<TileSetModel, TileSetModel> introspector = new PropertyIntrospector<TileSetModel, TileSetModel>(TileSetModel.class);
 
     List<ConvexHull> convexHulls;
     float[] convexHullPoints;
@@ -76,8 +81,6 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
 
     BufferedImage loadedImage;
     BufferedImage loadedCollision;
-
-    private IPropertySource propertySource;
 
     public class ConvexHull {
         String collisionGroup = "";
@@ -144,11 +147,8 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
 
     @Override
     public Object getAdapter(@SuppressWarnings("rawtypes") Class adapter) {
-        if (adapter == IPropertySource.class) {
-            if (this.propertySource == null) {
-                this.propertySource = new PropertyIntrospectorSource<TileSetModel, TileSetModel>(this, this, null);
-            }
-            return this.propertySource;
+        if (adapter == IPropertyModel.class) {
+            return new PropertyIntrospectorModel<TileSetModel, TileSetModel>(this, this, introspector, null);
         }
         return null;
     }
@@ -456,7 +456,7 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
         }
     }
 
-    public void executeOperation(AbstractOperation operation) {
+    public void executeOperation(IUndoableOperation operation) {
         operation.addContext(this.undoContext);
         IStatus status = null;
         try {

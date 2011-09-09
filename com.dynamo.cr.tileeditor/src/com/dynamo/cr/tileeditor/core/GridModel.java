@@ -10,35 +10,35 @@ import java.util.Map;
 import org.eclipse.core.commands.operations.IOperationHistory;
 import org.eclipse.core.commands.operations.IUndoContext;
 import org.eclipse.core.runtime.IAdaptable;
-import org.eclipse.ui.views.properties.IPropertySource;
 
+import com.dynamo.cr.properties.Entity;
+import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.properties.IPropertyObjectWorld;
 import com.dynamo.cr.properties.Property;
-import com.dynamo.cr.properties.PropertyIntrospectorSource;
+import com.dynamo.cr.properties.PropertyIntrospector;
+import com.dynamo.cr.properties.PropertyIntrospectorModel;
 import com.dynamo.tile.proto.Tile;
 import com.dynamo.tile.proto.Tile.TileGrid;
 
+@Entity(commandFactory = UndoableCommandFactory.class)
 public class GridModel extends Model implements IPropertyObjectWorld, IAdaptable {
 
+    private static PropertyIntrospector<Cell, GridModel> cellIntrospector = new PropertyIntrospector<Cell, GridModel>(Cell.class);
     public class Cell implements IAdaptable {
 
-        private PropertyIntrospectorSource<Cell, GridModel> propertySource;
         @Override
         public Object getAdapter(@SuppressWarnings("rawtypes") Class adapter) {
-            if (adapter == IPropertySource.class) {
-                if (this.propertySource == null) {
-                    this.propertySource = new PropertyIntrospectorSource<Cell, GridModel>(this, GridModel.this, null);
-                }
-                return this.propertySource;
+            if (adapter == IPropertyModel.class) {
+                return new PropertyIntrospectorModel<Cell, GridModel>(this, GridModel.this, cellIntrospector, null);
             }
             return null;
         }
 
-        @Property(commandFactory = UndoableCommandFactory.class)
+        @Property
         private int tile;
-        @Property(commandFactory = UndoableCommandFactory.class)
+        @Property
         private boolean hFlip;
-        @Property(commandFactory = UndoableCommandFactory.class)
+        @Property
         private boolean vFlip;
 
         public int getTile() {
@@ -62,25 +62,22 @@ public class GridModel extends Model implements IPropertyObjectWorld, IAdaptable
 
     }
 
+    private static PropertyIntrospector<Layer, GridModel> layerIntrospector = new PropertyIntrospector<Layer, GridModel>(Layer.class);
     public class Layer implements IAdaptable {
 
-        private PropertyIntrospectorSource<Layer, GridModel> propertySource;
         @Override
         public Object getAdapter(@SuppressWarnings("rawtypes") Class adapter) {
-            if (adapter == IPropertySource.class) {
-                if (this.propertySource == null) {
-                    this.propertySource = new PropertyIntrospectorSource<Layer, GridModel>(this, GridModel.this, null);
-                }
-                return this.propertySource;
+            if (adapter == IPropertyModel.class) {
+                return new PropertyIntrospectorModel<Layer, GridModel>(this, GridModel.this, layerIntrospector, null);
             }
             return null;
         }
 
-        @Property(commandFactory = UndoableCommandFactory.class)
+        @Property
         private String id;
-        @Property(commandFactory = UndoableCommandFactory.class)
+        @Property
         private float z;
-        @Property(commandFactory = UndoableCommandFactory.class)
+        @Property
         private boolean visible;
 
         // upper 32-bits y, lower 32-bits x
@@ -139,19 +136,17 @@ public class GridModel extends Model implements IPropertyObjectWorld, IAdaptable
 
     }
 
-    @Property(commandFactory = UndoableCommandFactory.class, isResource = true)
+    @Property(isResource = true)
     private String tileSet;
-    @Property(commandFactory = UndoableCommandFactory.class)
+    @Property
     private float cellWidth;
-    @Property(commandFactory = UndoableCommandFactory.class)
+    @Property
     private float cellHeight;
 
     private List<Layer> layers;
 
     private final IOperationHistory history;
     private final IUndoContext undoContext;
-
-    private IPropertySource propertySource;
 
     public GridModel(IOperationHistory history, IUndoContext undoContext) {
         this.history = history;
@@ -236,13 +231,12 @@ public class GridModel extends Model implements IPropertyObjectWorld, IAdaptable
         setLayers(layers);
     }
 
+    private static PropertyIntrospector<GridModel, GridModel> introspector = new PropertyIntrospector<GridModel, GridModel>(GridModel.class);
+
     @Override
     public Object getAdapter(@SuppressWarnings("rawtypes") Class adapter) {
-        if (adapter == IPropertySource.class) {
-            if (this.propertySource == null) {
-                this.propertySource = new PropertyIntrospectorSource<GridModel, GridModel>(this, this, null);
-            }
-            return this.propertySource;
+        if (adapter == IPropertyModel.class) {
+            return new PropertyIntrospectorModel<GridModel, GridModel>(this, this, introspector, null);
         }
         return null;
     }

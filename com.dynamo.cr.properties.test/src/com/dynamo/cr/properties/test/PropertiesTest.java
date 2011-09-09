@@ -6,20 +6,20 @@ import java.util.HashMap;
 import java.util.Map;
 
 import javax.vecmath.Vector4d;
-import javax.vecmath.Quat4d;
 
+import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.swt.graphics.RGB;
-import org.eclipse.ui.views.properties.IPropertySource;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.dynamo.cr.properties.Entity;
 import com.dynamo.cr.properties.ICommandFactory;
 import com.dynamo.cr.properties.IPropertyAccessor;
+import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.properties.IPropertyObjectWorld;
 import com.dynamo.cr.properties.Property;
-import com.dynamo.cr.properties.PropertyIntrospectorSource;
-import com.dynamo.cr.properties.Vector4dEmbeddedSource;
-import com.dynamo.cr.properties.Quat4dEmbeddedSource;
+import com.dynamo.cr.properties.PropertyIntrospector;
+import com.dynamo.cr.properties.PropertyIntrospectorModel;
 import com.dynamo.cr.properties.proto.PropertiesTestProto;
 
 public class PropertiesTest {
@@ -32,7 +32,7 @@ public class PropertiesTest {
     static public class TestCommandFactory implements ICommandFactory<TestClass, TestWorld> {
 
         @Override
-        public void createCommand(TestClass obj, String property,
+        public IUndoableOperation create(TestClass obj, String property,
                 IPropertyAccessor<TestClass, TestWorld> accessor,
                 Object oldValue, Object newValue, TestWorld world) {
 
@@ -52,35 +52,36 @@ public class PropertiesTest {
             } catch (Throwable e) {
                 throw new RuntimeException(e);
             }
+
+            return null;
+        }
+
+        @Override
+        public void execute(IUndoableOperation operation, TestWorld world) {
         }
     }
 
+    @Entity(commandFactory = TestCommandFactory.class)
     static public class TestClass {
-        @Property(commandFactory = TestCommandFactory.class)
+        @Property
         int integerValue = 123;
 
-        @Property(commandFactory = TestCommandFactory.class)
+        @Property
         double doubleValue = 456;
 
-        @Property(commandFactory = TestCommandFactory.class)
+        @Property
         String stringValue = "foobar";
 
-        @Property(commandFactory = TestCommandFactory.class)
+        @Property
         RGB rgbValue = new RGB(1, 2, 3);
 
-        @Property(commandFactory = TestCommandFactory.class)
+        @Property
         Vector4d vector4Value = new Vector4d(1, 2, 3, 4);
 
-        @Property(embeddedSource = Vector4dEmbeddedSource.class, commandFactory = TestCommandFactory.class)
-        Vector4d vector4ValueEmbedded = new Vector4d(10, 20, 30, 40);
-
-        @Property(embeddedSource = Quat4dEmbeddedSource.class, commandFactory = TestCommandFactory.class)
-        Quat4d quat4ValueEmbedded = new Quat4d(0, 0, 0, 1);
-
-        @Property(commandFactory = TestCommandFactory.class)
+        @Property
         PropertiesTestProto.EnumType enumValue = PropertiesTestProto.EnumType.VAL_B;
 
-        @Property(commandFactory = TestCommandFactory.class)
+        @Property
         int missingGetterSetter;
 
         public int getIntegerValue() {
@@ -131,28 +132,18 @@ public class PropertiesTest {
             this.vector4Value = vector4Value;
         }
 
-        public Vector4d getVector4ValueEmbedded() {
-            return vector4ValueEmbedded;
-        }
-
-        public void setVector4ValueEmbedded(Vector4d vector4ValueEmbedded) {
-            this.vector4ValueEmbedded = vector4ValueEmbedded;
-        }
-
-        public Quat4d getQuat4ValueEmbedded() {
-            return quat4ValueEmbedded;
-        }
     }
 
     private TestWorld world;
     private TestClass test;
-    private PropertyIntrospectorSource<TestClass, TestWorld> source;
+    private PropertyIntrospectorModel<TestClass, TestWorld> source;
+    private static PropertyIntrospector<TestClass, TestWorld> introspector = new PropertyIntrospector<TestClass, TestWorld>(TestClass.class);
 
     @Before
     public void setUp() {
         world = new TestWorld();
         test = new TestClass();
-        source = new PropertyIntrospectorSource<TestClass, TestWorld>(test, world, null);
+        source = new PropertyIntrospectorModel<TestClass, TestWorld>(test, world, introspector, null);
     }
 
     @Test
@@ -164,27 +155,9 @@ public class PropertiesTest {
         assertEquals(null, source.getPropertyValue("noSuchProperty"));
         assertEquals(test.getVector4Value(), source.getPropertyValue("vector4Value"));
         assertEquals(test.getEnumValue(), source.getPropertyValue("enumValue"));
-
-        // vector4ValueEmbedded has sub-properties due to embeddedSource = Vector4dEmbeddedSource.class
-        // test sub-properties here.
-        IPropertySource embeddedVecSource = (IPropertySource)  source.getPropertyValue("vector4ValueEmbedded");
-        Vector4d v = test.getVector4ValueEmbedded();
-        assertEquals(v.getX(), embeddedVecSource.getPropertyValue("x"));
-        assertEquals(v.getY(), embeddedVecSource.getPropertyValue("y"));
-        assertEquals(v.getZ(), embeddedVecSource.getPropertyValue("z"));
-        assertEquals(v.getW(), embeddedVecSource.getPropertyValue("w"));
-
-        // quat4ValueEmbedded has sub-properties due to embeddedSource = Quat4dEmbeddedSource.class
-        // test sub-properties here.
-        IPropertySource embeddedQuatSource = (IPropertySource)  source.getPropertyValue("quat4ValueEmbedded");
-        Quat4d q = test.getQuat4ValueEmbedded();
-        assertEquals(q.getX(), embeddedQuatSource.getPropertyValue("x"));
-        assertEquals(q.getY(), embeddedQuatSource.getPropertyValue("y"));
-        assertEquals(q.getZ(), embeddedQuatSource.getPropertyValue("z"));
-        assertEquals(q.getW(), embeddedQuatSource.getPropertyValue("w"));
     }
 
-    void doTestSet(IPropertySource testSource, String property, Object newValue) {
+    void doTestSet(IPropertyModel<TestClass, TestWorld> testSource, String property, Object newValue) {
         assertEquals(null, world.commandsCreated.get(property));
         testSource.setPropertyValue(property, newValue);
         assertEquals(new Integer(1), world.commandsCreated.get(property));
@@ -209,15 +182,6 @@ public class PropertiesTest {
 
         assertEquals(totalCommands++, world.totalCommands);
         doTestSet(source, "enumValue", PropertiesTestProto.EnumType.VAL_A);
-
-        IPropertySource embeddedSource = (IPropertySource)  source.getPropertyValue("vector4ValueEmbedded");
-
-        assertEquals(totalCommands++, world.totalCommands);
-        // We can't us doTestSet here as the actual property set i the parent property and not x
-        assertEquals(null, world.commandsCreated.get("vector4ValueEmbedded"));
-        embeddedSource.setPropertyValue("x", 11.0);
-        assertEquals(new Integer(1), world.commandsCreated.get("vector4ValueEmbedded"));
-        assertEquals(11.0, embeddedSource.getPropertyValue("x"));
 
         assertEquals(totalCommands++, world.totalCommands);
     }

@@ -44,7 +44,8 @@ public class SetPropertiesOperation<T> extends AbstractOperation {
         try {
             int i = 0;
             for (Object node : nodes) {
-                accessor.setValue(node, property, newValues.get(i++), scene);
+                accessor.setValue(node, property, newValues.get(i), scene);
+                ++i;
             }
         } catch (Throwable e) {
             throw new ExecutionException("Failed to set property " + property, e);
@@ -58,7 +59,8 @@ public class SetPropertiesOperation<T> extends AbstractOperation {
         try {
             int i = 0;
             for (Object node : nodes) {
-                accessor.setValue(node, property, newValues.get(i++), scene);
+                accessor.setValue(node, property, newValues.get(i), scene);
+                ++i;
             }
         } catch (Throwable e) {
             throw new ExecutionException("Failed to set property " + property, e);
@@ -72,7 +74,8 @@ public class SetPropertiesOperation<T> extends AbstractOperation {
         try {
             int i = 0;
             for (Object node : nodes) {
-                accessor.setValue(node, property, oldValues.get(i++), scene);
+                accessor.setValue(node, property, oldValues.get(i), scene);
+                ++i;
             }
         } catch (Throwable e) {
             throw new ExecutionException("Failed to set property " + property, e);

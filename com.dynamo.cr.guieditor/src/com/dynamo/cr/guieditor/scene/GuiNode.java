@@ -2,16 +2,17 @@ package com.dynamo.cr.guieditor.scene;
 
 import java.awt.geom.Rectangle2D;
 
-import javax.vecmath.Vector4d;
+import javax.vecmath.Vector3d;
 
 import org.eclipse.core.runtime.IAdaptable;
 import org.eclipse.swt.graphics.RGB;
-import org.eclipse.ui.views.properties.IPropertySource;
 
 import com.dynamo.cr.guieditor.DrawContext;
+import com.dynamo.cr.properties.Entity;
+import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.properties.Property;
-import com.dynamo.cr.properties.PropertyIntrospectorSource;
-import com.dynamo.cr.properties.Vector4dEmbeddedSource;
+import com.dynamo.cr.properties.PropertyIntrospector;
+import com.dynamo.cr.properties.PropertyIntrospectorModel;
 import com.dynamo.gui.proto.Gui.NodeDesc;
 import com.dynamo.gui.proto.Gui.NodeDesc.BlendMode;
 import com.dynamo.gui.proto.Gui.NodeDesc.Pivot;
@@ -19,70 +20,73 @@ import com.dynamo.gui.proto.Gui.NodeDesc.XAnchor;
 import com.dynamo.gui.proto.Gui.NodeDesc.YAnchor;
 import com.dynamo.proto.DdfMath.Vector4;
 
+@Entity(commandFactory = UndoableCommandFactory.class)
 public abstract class GuiNode implements IAdaptable {
 
     protected GuiScene scene;
     protected NodeDesc nodeDesc;
 
-    @Property(commandFactory = UndoableCommandFactory.class, embeddedSource = Vector4dEmbeddedSource.class)
-    protected Vector4d position;
+    @Property
+    protected Vector3d position;
 
-    @Property(commandFactory = UndoableCommandFactory.class, embeddedSource = Vector4dEmbeddedSource.class)
-    protected Vector4d rotation;
+    @Property
+    protected Vector3d rotation;
 
-    @Property(commandFactory = UndoableCommandFactory.class, embeddedSource = Vector4dEmbeddedSource.class)
-    protected Vector4d scale;
+    @Property
+    protected Vector3d scale;
 
-    @Property(commandFactory = UndoableCommandFactory.class, embeddedSource = Vector4dEmbeddedSource.class)
-    protected Vector4d size;
+    @Property
+    protected Vector3d size;
 
-    @Property(commandFactory = UndoableCommandFactory.class)
+    @Property()
     protected RGB color;
 
-    @Property(commandFactory = UndoableCommandFactory.class)
+    @Property()
     private double alpha;
 
-    @Property(commandFactory = UndoableCommandFactory.class)
+    @Property()
     private String texture;
 
-    @Property(commandFactory = UndoableCommandFactory.class)
+    @Property()
     private BlendMode blendMode;
 
-    @Property(commandFactory = UndoableCommandFactory.class)
+    @Property()
     private String id;
 
-    @Property(commandFactory = UndoableCommandFactory.class)
+    @Property()
     private Pivot pivot;
 
-    @Property(commandFactory = UndoableCommandFactory.class)
+    @Property()
     private XAnchor xanchor;
 
-    @Property(commandFactory = UndoableCommandFactory.class)
+    @Property()
     private YAnchor yanchor;
 
-    private PropertyIntrospectorSource<GuiNode, GuiScene> propertySource;
+    private PropertyIntrospectorModel<GuiNode, GuiScene> propertyModel;
 
-    public Vector4d getRotation() {
-        return new Vector4d(rotation);
+    private static PropertyIntrospector<GuiNode, GuiScene> introspector = new PropertyIntrospector<GuiNode, GuiScene>(GuiNode.class);
+
+    public Vector3d getRotation() {
+        return new Vector3d(rotation);
     }
 
-    public void setRotation(Vector4d rotation) {
+    public void setRotation(Vector3d rotation) {
         this.rotation.set(rotation);
     }
 
-    public Vector4d getScale() {
-        return new Vector4d(scale);
+    public Vector3d getScale() {
+        return new Vector3d(scale);
     }
 
-    public void setScale(Vector4d scale) {
+    public void setScale(Vector3d scale) {
         this.scale.set(scale);
     }
 
-    public Vector4d getSize() {
-        return new Vector4d(size);
+    public Vector3d getSize() {
+        return new Vector3d(size);
     }
 
-    public void setSize(Vector4d size) {
+    public void setSize(Vector3d size) {
         this.size.set(size);
     }
 
@@ -156,22 +160,21 @@ public abstract class GuiNode implements IAdaptable {
         this.scene = scene;
     }
 
-    private Vector4d toVector4d(Vector4 vector) {
-        Vector4d ret = new Vector4d();
+    private Vector3d toVector3d(Vector4 vector) {
+        Vector3d ret = new Vector3d();
         ret.setX(vector.getX());
         ret.setY(vector.getY());
         ret.setZ(vector.getZ());
-        ret.setW(vector.getW());
         return ret;
     }
 
     public GuiNode(GuiScene scene, NodeDesc nodeDesc) {
         this.scene = scene;
         this.nodeDesc = nodeDesc;
-        this.position = toVector4d(nodeDesc.getPosition());
-        this.rotation = toVector4d(nodeDesc.getRotation());
-        this.scale = toVector4d(nodeDesc.getScale());
-        this.size = toVector4d(nodeDesc.getSize());
+        this.position = toVector3d(nodeDesc.getPosition());
+        this.rotation = toVector3d(nodeDesc.getRotation());
+        this.scale = toVector3d(nodeDesc.getScale());
+        this.size = toVector3d(nodeDesc.getSize());
         this.color = new RGB((int) (nodeDesc.getColor().getX() * 255),
                              (int) (nodeDesc.getColor().getY() * 255),
                              (int) (nodeDesc.getColor().getZ() * 255));
@@ -195,14 +198,12 @@ public abstract class GuiNode implements IAdaptable {
         scene.propertyChanged(this, "position");
     }
 
+
     @SuppressWarnings({ "unchecked", "rawtypes" })
     @Override
     public Object getAdapter(Class adapter) {
-        if (adapter == IPropertySource.class) {
-            if (this.propertySource == null) {
-                this.propertySource = new PropertyIntrospectorSource(this, getScene(), getScene().getContentRoot());
-            }
-            return this.propertySource;
+        if (adapter == IPropertyModel.class) {
+            return new PropertyIntrospectorModel(this, getScene(), introspector, getScene().getContentRoot());
         }
         return null;
     }
@@ -211,22 +212,22 @@ public abstract class GuiNode implements IAdaptable {
         return scene;
     }
 
-    public Vector4d getPosition() {
-        return new Vector4d(position);
+    public Vector3d getPosition() {
+        return new Vector3d(position);
     }
 
-    public void setPosition(Vector4d newPosition) {
+    public void setPosition(Vector3d newPosition) {
         position.setX(newPosition.getX());
         position.setY(newPosition.getY());
         position.setZ(newPosition.getZ());
     }
 
-    Vector4.Builder buildVector4(Vector4d v) {
+    Vector4.Builder buildVector3(Vector3d v) {
         return Vector4.newBuilder()
             .setX((float) v.x)
             .setY((float) v.y)
             .setZ((float) v.z)
-            .setW((float) v.w);
+            .setW((float) 0);
     }
 
     public final NodeDesc buildNodeDesc() {
@@ -236,10 +237,10 @@ public abstract class GuiNode implements IAdaptable {
             .setZ(color.blue / 255.0f)
             .setW((float) alpha).build();
         NodeDesc.Builder builder = NodeDesc.newBuilder().mergeFrom(nodeDesc);
-        builder.setPosition(buildVector4(position))
-        .setRotation(buildVector4(rotation))
-        .setScale(buildVector4(scale))
-        .setSize(buildVector4(size))
+        builder.setPosition(buildVector3(position))
+        .setRotation(buildVector3(rotation))
+        .setScale(buildVector3(scale))
+        .setSize(buildVector3(size))
         .setColor(color4)
         .setTexture(texture)
         .setBlendMode(blendMode)

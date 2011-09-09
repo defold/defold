@@ -80,7 +80,6 @@ import org.eclipse.ui.progress.IProgressService;
 import org.eclipse.ui.statushandlers.StatusManager;
 import org.eclipse.ui.views.contentoutline.IContentOutlinePage;
 import org.eclipse.ui.views.properties.IPropertySheetPage;
-import org.eclipse.ui.views.properties.PropertySheetPage;
 
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.core.ProjectProperties;
@@ -94,6 +93,7 @@ import com.dynamo.cr.guieditor.scene.GuiScene;
 import com.dynamo.cr.guieditor.scene.IGuiSceneListener;
 import com.dynamo.cr.guieditor.tools.SelectMoveTool;
 import com.dynamo.cr.guieditor.util.DrawUtil;
+import com.dynamo.cr.properties.FormPropertySheetPage;
 import com.dynamo.gui.proto.Gui.SceneDesc;
 import com.google.protobuf.TextFormat;
 
@@ -109,7 +109,7 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
     private GuiSelectionProvider selectionProvider;
     private Map<String, IAction> actions = new HashMap<String, IAction>();
     private UndoContext undoContext;
-    private PropertySheetPage propertySheetPage;
+    private FormPropertySheetPage propertySheetPage;
     private SelectMoveTool selectMoveTool;
     private boolean refreshPropertySheetPosted;
     private IOperationHistory history;
@@ -128,7 +128,7 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
         selectionProvider.setEnableSelectionThrottling(true);
 
         renderer = new GuiRenderer();
-        propertySheetPage = new PropertySheetPage() {
+        propertySheetPage = new FormPropertySheetPage() {
             public void setActionBars(IActionBars actionBars) {
                 super.setActionBars(actionBars);
                 String undoId = ActionFactory.UNDO.getId();

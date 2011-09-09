@@ -100,7 +100,6 @@ import org.eclipse.ui.progress.IProgressService;
 import org.eclipse.ui.statushandlers.StatusManager;
 import org.eclipse.ui.views.contentoutline.IContentOutlinePage;
 import org.eclipse.ui.views.properties.IPropertySheetPage;
-import org.eclipse.ui.views.properties.PropertySheetPage;
 import org.osgi.service.prefs.Preferences;
 
 import com.dynamo.cr.contenteditor.Activator;
@@ -112,6 +111,7 @@ import com.dynamo.cr.contenteditor.manipulator.ManipulatorController;
 import com.dynamo.cr.contenteditor.manipulator.MoveManipulator;
 import com.dynamo.cr.contenteditor.preferences.PreferenceConstants;
 import com.dynamo.cr.editor.core.EditorUtil;
+import com.dynamo.cr.properties.FormPropertySheetPage;
 import com.dynamo.cr.scene.graph.CameraNode;
 import com.dynamo.cr.scene.graph.CollectionNode;
 import com.dynamo.cr.scene.graph.CollectionProxyNode;
@@ -185,13 +185,13 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
     // TODO: Part of a hack described in the end of init()
     private IPartListener partListener;
     private Preferences preferences;
-    private PropertySheetPage propertySheetPage;
+    private FormPropertySheetPage propertySheetPage;
     private boolean refreshPropertySheetPosted;
 
     public CollectionEditor() {
         m_SelectBuffer = ByteBuffer.allocateDirect(4 * MAX_MODELS).order(ByteOrder.nativeOrder()).asIntBuffer();
 
-        propertySheetPage = new PropertySheetPage() {
+        propertySheetPage = new FormPropertySheetPage() {
             public void setActionBars(IActionBars actionBars) {
                 super.setActionBars(actionBars);
                 String undoId = ActionFactory.UNDO.getId();

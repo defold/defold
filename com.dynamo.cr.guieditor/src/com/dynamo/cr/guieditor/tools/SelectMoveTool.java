@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import javax.media.opengl.GL;
-import javax.vecmath.Vector4d;
+import javax.vecmath.Vector3d;
 
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.KeyEvent;
@@ -29,7 +29,7 @@ public class SelectMoveTool {
     private int prevX;
     private int prevY;
     private List<GuiNode> originalSelection;
-    private List<Vector4d> originalPositions;
+    private List<Vector3d> originalPositions;
 
     enum State {
         INITIAL,
@@ -82,7 +82,7 @@ public class SelectMoveTool {
                     toMoveSelection = selectedNodes;
                 }
 
-                originalPositions = new ArrayList<Vector4d>();
+                originalPositions = new ArrayList<Vector3d>();
                 for (GuiNode node : toMoveSelection) {
                     originalPositions.add(node.getPosition());
                 }
@@ -112,7 +112,7 @@ public class SelectMoveTool {
 
             int i = 0;
             for (GuiNode node : selectionProvider.getSelectionList()) {
-                Vector4d position = new Vector4d(originalPositions.get(i));
+                Vector3d position = new Vector3d(originalPositions.get(i));
                 position.x += dx;
                 position.y += dy;
                 node.setPosition(position);
@@ -130,16 +130,16 @@ public class SelectMoveTool {
         }
         else if (state == State.MOVING) {
             if (changed) {
-                List<Vector4d> newPositions = new ArrayList<Vector4d>();
+                List<Vector3d> newPositions = new ArrayList<Vector3d>();
                 for (GuiNode node : selectionProvider.getSelectionList()) {
-                    Vector4d position = node.getPosition();
+                    Vector3d position = node.getPosition();
                     newPositions.add(position);
                 }
                 IPropertyAccessor<?, ? extends IPropertyObjectWorld> tmp = new BeanPropertyAccessor();
                 @SuppressWarnings("unchecked")
                 IPropertyAccessor<Object, GuiScene> accessor = (IPropertyAccessor<Object, GuiScene>) tmp;
                 @SuppressWarnings({ "unchecked", "rawtypes" })
-                SetPropertiesOperation<Vector4d> operation = new SetPropertiesOperation<Vector4d>((List) selectionProvider.getSelectionList(), "position", accessor, originalPositions, newPositions, editor.getScene());
+                SetPropertiesOperation<Vector3d> operation = new SetPropertiesOperation<Vector3d>((List) selectionProvider.getSelectionList(), "position", accessor, originalPositions, newPositions, editor.getScene());
                 editor.executeOperation(operation);
             }
         }
@@ -165,21 +165,21 @@ public class SelectMoveTool {
         }
 
         if (dx != 0 || dy != 0) {
-            originalPositions = new ArrayList<Vector4d>();
-            List<Vector4d> newPositions = new ArrayList<Vector4d>();
+            originalPositions = new ArrayList<Vector3d>();
+            List<Vector3d> newPositions = new ArrayList<Vector3d>();
 
             for (GuiNode node : selectionProvider.getSelectionList()) {
-                Vector4d position = node.getPosition();
+                Vector3d position = node.getPosition();
                 originalPositions.add(position);
                 position = node.getPosition();
-                position.add(new Vector4d(dx, dy, 0, 0));
+                position.add(new Vector3d(dx, dy, 0));
                 newPositions.add(position);
             }
             IPropertyAccessor<?, ? extends IPropertyObjectWorld> tmp = new BeanPropertyAccessor();
             @SuppressWarnings("unchecked")
             IPropertyAccessor<Object, GuiScene> accessor = (IPropertyAccessor<Object, GuiScene>) tmp;
             @SuppressWarnings({ "unchecked", "rawtypes" })
-            SetPropertiesOperation<Vector4d> operation = new SetPropertiesOperation<Vector4d>((List) selectionProvider.getSelectionList(), "position", accessor, originalPositions, newPositions, editor.getScene());
+            SetPropertiesOperation<Vector3d> operation = new SetPropertiesOperation<Vector3d>((List) selectionProvider.getSelectionList(), "position", accessor, originalPositions, newPositions, editor.getScene());
             editor.executeOperation(operation);
         }
 

@@ -16,7 +16,7 @@ import java.util.Map;
 import java.util.Set;
 
 import javax.media.opengl.GLException;
-import javax.vecmath.Vector4d;
+import javax.vecmath.Vector3d;
 
 import org.apache.commons.io.IOUtils;
 import org.eclipse.core.resources.IContainer;
@@ -33,7 +33,6 @@ import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.ui.services.IDisposable;
-import org.eclipse.ui.views.properties.IPropertySource;
 
 import com.dynamo.cr.guieditor.Activator;
 import com.dynamo.cr.guieditor.DrawContext;
@@ -41,9 +40,12 @@ import com.dynamo.cr.guieditor.IGuiEditor;
 import com.dynamo.cr.guieditor.render.GuiFontResource;
 import com.dynamo.cr.guieditor.render.GuiTextureResource;
 import com.dynamo.cr.guieditor.render.IGuiRenderer;
+import com.dynamo.cr.properties.Entity;
+import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.properties.IPropertyObjectWorld;
 import com.dynamo.cr.properties.Property;
-import com.dynamo.cr.properties.PropertyIntrospectorSource;
+import com.dynamo.cr.properties.PropertyIntrospector;
+import com.dynamo.cr.properties.PropertyIntrospectorModel;
 import com.dynamo.gui.proto.Gui.NodeDesc;
 import com.dynamo.gui.proto.Gui.NodeDesc.BlendMode;
 import com.dynamo.gui.proto.Gui.NodeDesc.Type;
@@ -53,9 +55,10 @@ import com.dynamo.gui.proto.Gui.SceneDesc.TextureDesc;
 import com.dynamo.render.proto.Font;
 import com.google.protobuf.TextFormat;
 
+@Entity(commandFactory = UndoableCommandFactory.class)
 public class GuiScene implements IPropertyObjectWorld, IAdaptable, IResourceChangeListener, IDisposable {
 
-    @Property(commandFactory = UndoableCommandFactory.class, isResource = true)
+    @Property(isResource = true)
     private String script;
 
     private SceneDesc sceneDesc;
@@ -74,14 +77,14 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable, IResourceChan
     private ArrayList<IGuiSceneListener> listeners = new ArrayList<IGuiSceneListener>();
     private IGuiEditor editor;
 
-    private PropertyIntrospectorSource<GuiScene, GuiScene> propertySource;
-
     // NOTE: This can contain removed items. It used for reloading. Better be safe than sorry. :-)
     private Set<IResource> referredResources = new HashSet<IResource>();
 
     private RenderResourceCollection renderResourceCollection = new RenderResourceCollection();
 
     private boolean isDisposed;
+
+    private static PropertyIntrospector<GuiScene, GuiScene> introspector = new PropertyIntrospector<GuiScene, GuiScene>(GuiScene.class);
 
     public GuiScene(IGuiEditor editor, SceneDesc sceneDesc) {
         this.editor = editor;
@@ -133,11 +136,8 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable, IResourceChan
 
     @Override
     public Object getAdapter(@SuppressWarnings("rawtypes") Class adapter) {
-        if (adapter == IPropertySource.class) {
-            if (this.propertySource == null) {
-                this.propertySource = new PropertyIntrospectorSource<GuiScene, GuiScene>(this, this, getContentRoot());
-            }
-            return this.propertySource;
+        if (adapter == IPropertyModel.class) {
+            return new PropertyIntrospectorModel<GuiScene, GuiScene>(this, this, introspector, getContentRoot());
         }
         return null;
     }
@@ -260,7 +260,7 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable, IResourceChan
 
         for (GuiNode node : nodes) {
             if (drawContext.isSelected(node)) {
-                Vector4d position = node.getPosition();
+                Vector3d position = node.getPosition();
                 double x = position.getX();
                 double y = position.getY();
                 renderer.drawQuad(x - s2, y - s2, x + s2, y + s2, 0.3, 0.3, 0.3, 1, BlendMode.BLEND_MODE_ALPHA, null);

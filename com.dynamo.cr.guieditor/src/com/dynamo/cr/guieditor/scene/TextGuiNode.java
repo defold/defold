@@ -15,9 +15,9 @@ import com.sun.opengl.util.texture.Texture;
 
 public class TextGuiNode extends GuiNode {
 
-    @Property(commandFactory = UndoableCommandFactory.class)
+    @Property
     private String text;
-    @Property(commandFactory = UndoableCommandFactory.class)
+    @Property
     private String font;
 
     private Rectangle2D textBounds = new Rectangle2D.Double(0, 0, 1, 1);

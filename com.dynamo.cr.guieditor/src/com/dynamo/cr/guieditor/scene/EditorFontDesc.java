@@ -2,27 +2,30 @@ package com.dynamo.cr.guieditor.scene;
 
 import org.eclipse.core.resources.IResource;
 import org.eclipse.core.runtime.IAdaptable;
-import org.eclipse.ui.views.properties.IPropertySource;
 
 import com.dynamo.cr.guieditor.render.GuiFontResource;
+import com.dynamo.cr.properties.Entity;
+import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.properties.Property;
-import com.dynamo.cr.properties.PropertyIntrospectorSource;
+import com.dynamo.cr.properties.PropertyIntrospector;
+import com.dynamo.cr.properties.PropertyIntrospectorModel;
 import com.dynamo.gui.proto.Gui.SceneDesc.FontDesc;
 
+@Entity(commandFactory = UndoableCommandFactory.class)
 public class EditorFontDesc implements IAdaptable {
-    @Property(commandFactory = UndoableCommandFactory.class)
+    @Property
     private String name;
 
-    @Property(commandFactory = UndoableCommandFactory.class, isResource = true)
+    @Property(isResource = true)
     private String font;
 
     private GuiScene scene;
 
-    private PropertyIntrospectorSource<EditorFontDesc, GuiScene> propertySource;
-
     private GuiFontResource fontResource;
 
     private long lastModified = IResource.NULL_STAMP;
+
+    private static PropertyIntrospector<EditorFontDesc, GuiScene> introspector = new PropertyIntrospector<EditorFontDesc, GuiScene>(EditorFontDesc.class);
 
     public EditorFontDesc(GuiScene scene, FontDesc fontDesc) {
         this.scene = scene;
@@ -32,11 +35,8 @@ public class EditorFontDesc implements IAdaptable {
 
     @Override
     public Object getAdapter(@SuppressWarnings("rawtypes") Class adapter) {
-        if (adapter == IPropertySource.class) {
-            if (this.propertySource == null) {
-                this.propertySource = new PropertyIntrospectorSource<EditorFontDesc, GuiScene>(this, scene, scene.getContentRoot());
-            }
-            return this.propertySource;
+        if (adapter == IPropertyModel.class) {
+            return new PropertyIntrospectorModel<EditorFontDesc, GuiScene>(this, scene, introspector, scene.getContentRoot());
         }
         return null;
     }

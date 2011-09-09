@@ -3,7 +3,9 @@ package com.dynamo.cr.guieditor.test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -17,6 +19,7 @@ import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.HashMap;
 
+import javax.vecmath.Vector3d;
 import javax.vecmath.Vector4d;
 
 import org.apache.commons.io.IOUtils;
@@ -242,7 +245,7 @@ public class GuiEditorTest {
 
         assertEquals(1, nodeCount());
         GuiNode node = editor.getScene().getNode(0);
-        node.setPosition(new Vector4d());
+        node.setPosition(new Vector3d());
 
         IPropertyAccessor<?, ? extends IPropertyObjectWorld> tmp = new BeanPropertyAccessor();
         IPropertyAccessor<Object, GuiScene> accessor = (IPropertyAccessor<Object, GuiScene>) tmp;
@@ -262,7 +265,7 @@ public class GuiEditorTest {
 
         assertEquals(1, nodeCount());
         TextGuiNode node = (TextGuiNode) editor.getScene().getNode(0);
-        node.setPosition(new Vector4d());
+        node.setPosition(new Vector3d());
 
         IPropertyAccessor<?, ? extends IPropertyObjectWorld> tmp = new BeanPropertyAccessor();
         IPropertyAccessor<Object, GuiScene> accessor = (IPropertyAccessor<Object, GuiScene>) tmp;

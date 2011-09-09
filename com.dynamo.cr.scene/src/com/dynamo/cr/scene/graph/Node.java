@@ -8,15 +8,16 @@ import javax.vecmath.Quat4d;
 import javax.vecmath.Vector4d;
 
 import org.eclipse.core.runtime.IAdaptable;
-import org.eclipse.ui.views.properties.IPropertySource;
 
+import com.dynamo.cr.properties.Entity;
+import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.properties.Property;
-import com.dynamo.cr.properties.PropertyIntrospectorSource;
-import com.dynamo.cr.properties.Quat4dEmbeddedSource;
-import com.dynamo.cr.properties.Vector4dEmbeddedSource;
+import com.dynamo.cr.properties.PropertyIntrospector;
+import com.dynamo.cr.properties.PropertyIntrospectorModel;
 import com.dynamo.cr.scene.math.AABB;
 import com.dynamo.cr.scene.math.Transform;
 
+@Entity(commandFactory = UndoableCommandFactory.class)
 public abstract class Node implements IAdaptable
 {
     public static final int FLAG_EDITABLE = (1 << 0);
@@ -31,10 +32,10 @@ public abstract class Node implements IAdaptable
     public static final int ERROR_FLAG_CHILD_ERROR = (1 << 3);
     public static final int ERROR_FLAG_COUNT = 4;
 
-    @Property(commandFactory = UndoableCommandFactory.class, embeddedSource = Vector4dEmbeddedSource.class)
+    @Property
     protected Vector4d localTranslation = new Vector4d();
 
-    @Property(commandFactory = UndoableCommandFactory.class, embeddedSource = Quat4dEmbeddedSource.class)
+    @Property
     protected Quat4d localRotation = new Quat4d();
 
     protected Node m_Parent;
@@ -48,10 +49,10 @@ public abstract class Node implements IAdaptable
     private String identifier;
 
     // Psuedo states
-    @Property(commandFactory = UndoableCommandFactory.class, embeddedSource = Vector4dEmbeddedSource.class)
+    @Property
     private Vector4d worldTranslation = new Vector4d();
 
-    private PropertyIntrospectorSource<Node, Scene> propertySource;
+    private static PropertyIntrospector<Node, Scene> introspector = new PropertyIntrospector<Node, Scene>(Node.class);
 
     public Node(String identifier, Scene scene, int flags)
     {
@@ -69,11 +70,8 @@ public abstract class Node implements IAdaptable
     @SuppressWarnings({ "rawtypes" })
     @Override
     public Object getAdapter(Class adapter) {
-        if (adapter == IPropertySource.class) {
-            if (this.propertySource == null) {
-                this.propertySource = new PropertyIntrospectorSource<Node, Scene>(this, getScene(), null);
-            }
-            return this.propertySource;
+        if (adapter == IPropertyModel.class) {
+            return new PropertyIntrospectorModel<Node, Scene>(this, getScene(), introspector, null);
         }
         return null;
     }

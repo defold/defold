@@ -2,27 +2,30 @@ package com.dynamo.cr.guieditor.scene;
 
 import org.eclipse.core.resources.IResource;
 import org.eclipse.core.runtime.IAdaptable;
-import org.eclipse.ui.views.properties.IPropertySource;
 
 import com.dynamo.cr.guieditor.render.GuiTextureResource;
+import com.dynamo.cr.properties.Entity;
+import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.properties.Property;
-import com.dynamo.cr.properties.PropertyIntrospectorSource;
+import com.dynamo.cr.properties.PropertyIntrospector;
+import com.dynamo.cr.properties.PropertyIntrospectorModel;
 import com.dynamo.gui.proto.Gui.SceneDesc.TextureDesc;
 
+@Entity(commandFactory = UndoableCommandFactory.class)
 public class EditorTextureDesc implements IAdaptable {
-    @Property(commandFactory = UndoableCommandFactory.class)
+    @Property
     private String name;
 
-    @Property(commandFactory = UndoableCommandFactory.class, isResource = true)
+    @Property(isResource = true)
     private String texture;
-
-    private PropertyIntrospectorSource<EditorTextureDesc, GuiScene> propertySource;
 
     private GuiScene scene;
 
     private GuiTextureResource textureResource;
 
     private long lastModified = IResource.NULL_STAMP;
+
+    private static PropertyIntrospector<EditorTextureDesc, GuiScene> introspector = new PropertyIntrospector<EditorTextureDesc, GuiScene>(EditorTextureDesc.class);
 
     public EditorTextureDesc(GuiScene scene, TextureDesc textureDesc) {
         this.scene = scene;
@@ -32,11 +35,8 @@ public class EditorTextureDesc implements IAdaptable {
 
     @Override
     public Object getAdapter(@SuppressWarnings("rawtypes") Class adapter) {
-        if (adapter == IPropertySource.class) {
-            if (this.propertySource == null) {
-                this.propertySource = new PropertyIntrospectorSource<EditorTextureDesc, GuiScene>(this, scene, scene.getContentRoot());
-            }
-            return this.propertySource;
+        if (adapter == IPropertyModel.class) {
+            return new PropertyIntrospectorModel<EditorTextureDesc, GuiScene>(this, scene, introspector, scene.getContentRoot());
         }
         return null;
     }
