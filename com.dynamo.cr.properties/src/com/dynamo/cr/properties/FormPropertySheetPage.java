@@ -13,12 +13,15 @@ public class FormPropertySheetPage implements IPropertySheetPage {
 
     private IWorkbenchPart sourcePart;
     private FormPropertySheetViewer viewer;
-    private PartListener partListener = new PartListener();
+    private final PartListener partListener = new PartListener();
 
     private class PartListener implements IPartListener {
+        @Override
         public void partActivated(IWorkbenchPart part) {}
+        @Override
         public void partBroughtToTop(IWorkbenchPart part) {}
 
+        @Override
         public void partClosed(IWorkbenchPart part) {
             if (sourcePart == part) {
                 if (sourcePart != null)
@@ -30,7 +33,9 @@ public class FormPropertySheetPage implements IPropertySheetPage {
             }
         }
 
+        @Override
         public void partDeactivated(IWorkbenchPart part) {}
+        @Override
         public void partOpened(IWorkbenchPart part) {}
     }
 
@@ -46,6 +51,10 @@ public class FormPropertySheetPage implements IPropertySheetPage {
     @Override
     public Control getControl() {
         return this.viewer.getControl();
+    }
+
+    public FormPropertySheetViewer getViewer() {
+        return this.viewer;
     }
 
     @Override

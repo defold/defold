@@ -20,12 +20,12 @@ import org.eclipse.ui.forms.widgets.ScrolledForm;
 @SuppressWarnings({"rawtypes", "unchecked"})
 public class FormPropertySheetViewer extends Viewer {
 
-    private ScrolledForm form;
-    private StackLayout stackLayout = new StackLayout();
-    private Composite propertiesComposite;
-    private Composite noSelectionComposite;
-    private Map<IPropertyDesc[], Composite> modelComposities = new HashMap<IPropertyDesc[], Composite>();
-    private FormToolkit toolkit;
+    private final ScrolledForm form;
+    private final StackLayout stackLayout = new StackLayout();
+    private final Composite propertiesComposite;
+    private final Composite noSelectionComposite;
+    private final Map<IPropertyDesc[], Composite> modelComposities = new HashMap<IPropertyDesc[], Composite>();
+    private final FormToolkit toolkit;
     private Composite currentComposite;
     private IPropertyModel[] models;
 
@@ -83,7 +83,6 @@ public class FormPropertySheetViewer extends Viewer {
 
     private Composite getPropertiesComposite(IPropertyModel model) {
         if (!modelComposities.containsKey(model.getPropertyDescs())) {
-            System.out.println(modelComposities.size());
             Composite c = toolkit.createComposite(this.propertiesComposite);
 
             IPropertyDesc[] descs = model.getPropertyDescs();

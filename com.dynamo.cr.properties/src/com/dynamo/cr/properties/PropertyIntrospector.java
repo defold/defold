@@ -17,6 +17,7 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.swt.graphics.RGB;
 
 import com.dynamo.cr.properties.descriptors.DoublePropertyDesc;
+import com.dynamo.cr.properties.descriptors.IntegerPropertyDesc;
 import com.dynamo.cr.properties.descriptors.ProtoEnumDesc;
 import com.dynamo.cr.properties.descriptors.Quat4PropertyDesc;
 import com.dynamo.cr.properties.descriptors.RGBPropertyDesc;
@@ -28,7 +29,7 @@ import com.google.protobuf.ProtocolMessageEnum;
 public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
 
     private Class<?> klass;
-    private Map<Object, Class<? extends IPropertyAccessor<T, U>>> idToAccessor = new HashMap<Object, Class<? extends IPropertyAccessor<T, U>>>();
+    private final Map<Object, Class<? extends IPropertyAccessor<T, U>>> idToAccessor = new HashMap<Object, Class<? extends IPropertyAccessor<T, U>>>();
     private IPropertyDesc<T, U>[] descriptors;
     private ICommandFactory<T, U> commandFactory;
 
@@ -79,6 +80,8 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
                             descriptor = new RGBPropertyDesc<T, U>(field.getName(), field.getName());
                         } else if (field.getType() == Double.TYPE) {
                             descriptor = new DoublePropertyDesc<T, U>(field.getName(), field.getName());
+                        } else if (field.getType() == Integer.TYPE) {
+                            descriptor = new IntegerPropertyDesc<T, U>(field.getName(), field.getName());
                         } else if (ProtocolMessageEnum.class.isAssignableFrom(field.getType())) {
                             descriptor = new ProtoEnumDesc<T, U>((Class<? extends ProtocolMessageEnum>) field.getType(), field.getName(), field.getName());
                         } else {

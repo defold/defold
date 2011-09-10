@@ -8,8 +8,6 @@ import javax.vecmath.Vector3f;
 
 import org.eclipse.core.commands.operations.IOperationApprover;
 import org.eclipse.core.commands.operations.IOperationHistory;
-import org.eclipse.core.commands.operations.IOperationHistoryListener;
-import org.eclipse.core.commands.operations.OperationHistoryEvent;
 import org.eclipse.core.commands.operations.UndoContext;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
@@ -30,7 +28,6 @@ import org.eclipse.ui.IActionBars;
 import org.eclipse.ui.IEditorInput;
 import org.eclipse.ui.IEditorSite;
 import org.eclipse.ui.IFileEditorInput;
-import org.eclipse.ui.ISelectionListener;
 import org.eclipse.ui.IWorkbenchPart;
 import org.eclipse.ui.PartInitException;
 import org.eclipse.ui.PlatformUI;
@@ -43,22 +40,25 @@ import org.eclipse.ui.part.EditorPart;
 import org.eclipse.ui.part.IPageSite;
 import org.eclipse.ui.progress.IProgressService;
 import org.eclipse.ui.views.contentoutline.IContentOutlinePage;
+import org.eclipse.ui.views.properties.IPropertySheetPage;
 
 import com.dynamo.cr.editor.core.EditorUtil;
+import com.dynamo.cr.properties.FormPropertySheetPage;
 import com.dynamo.cr.tileeditor.core.ITileSetView;
 import com.dynamo.cr.tileeditor.core.Tag;
 import com.dynamo.cr.tileeditor.core.TileSetModel;
 import com.dynamo.cr.tileeditor.core.TileSetPresenter;
 
 public class TileSetEditor extends EditorPart implements ITileSetView,
-MouseListener, MouseMoveListener, Listener, IOperationHistoryListener,
-ISelectionListener, KeyListener, IResourceChangeListener {
+MouseListener, MouseMoveListener, Listener,
+KeyListener, IResourceChangeListener {
 
     private IContainer contentRoot;
     private IOperationHistory history;
     private UndoContext undoContext;
     private TileSetPresenter presenter;
     private TileSetEditorOutlinePage outlinePage;
+    private FormPropertySheetPage propertySheetPage;
 
     // EditorPart
 
@@ -82,14 +82,13 @@ ISelectionListener, KeyListener, IResourceChangeListener {
         this.undoContext = new UndoContext();
         this.history = PlatformUI.getWorkbench().getOperationSupport()
                 .getOperationHistory();
-        this.history.addOperationHistoryListener(this);
         this.history.setLimit(this.undoContext, 100);
 
         IOperationApprover approver = new LinearUndoViolationUserApprover(
                 this.undoContext, this);
         this.history.addOperationApprover(approver);
 
-        TileSetModel model = new TileSetModel(this.history, this.undoContext);
+        final TileSetModel model = new TileSetModel(this.history, this.undoContext);
         this.presenter = new TileSetPresenter(model, this);
 
         final String undoId = ActionFactory.UNDO.getId();
@@ -108,6 +107,26 @@ ISelectionListener, KeyListener, IResourceChangeListener {
                 IActionBars actionBars = pageSite.getActionBars();
                 actionBars.setGlobalActionHandler(undoId, undoHandler);
                 actionBars.setGlobalActionHandler(redoId, redoHandler);
+            }
+        };
+        this.propertySheetPage = new FormPropertySheetPage() {
+            @Override
+            public void createControl(Composite parent) {
+                super.createControl(parent);
+                getViewer().setInput(new Object[] {model});
+            }
+
+            @Override
+            public void setActionBars(IActionBars actionBars) {
+                super.setActionBars(actionBars);
+                actionBars.setGlobalActionHandler(undoId, undoHandler);
+                actionBars.setGlobalActionHandler(redoId, redoHandler);
+            }
+
+            @Override
+            public void selectionChanged(IWorkbenchPart part,
+                    ISelection selection) {
+                // Ignore selections for this property view
             }
         };
 
@@ -129,12 +148,6 @@ ISelectionListener, KeyListener, IResourceChangeListener {
     public void dispose() {
         super.dispose();
 
-        getSite().getWorkbenchWindow().getSelectionService().removeSelectionListener(this);
-
-        if (history != null) {
-            history.removeOperationHistoryListener(this);
-            history.removeOperationHistoryListener(this);
-        }
         ResourcesPlugin.getWorkspace().removeResourceChangeListener(this);
     }
 
@@ -187,22 +200,6 @@ ISelectionListener, KeyListener, IResourceChangeListener {
 
     @Override
     public void resourceChanged(IResourceChangeEvent event) {
-        // TODO Auto-generated method stub
-
-    }
-
-    // ISelectionListener
-
-    @Override
-    public void selectionChanged(IWorkbenchPart part, ISelection selection) {
-        // TODO Auto-generated method stub
-
-    }
-
-    // IOperationHistoryListener
-
-    @Override
-    public void historyNotification(OperationHistoryEvent event) {
         // TODO Auto-generated method stub
 
     }
@@ -261,86 +258,72 @@ ISelectionListener, KeyListener, IResourceChangeListener {
 
     @Override
     public void setImageProperty(String newValue) {
-        // TODO Auto-generated method stub
-
+        this.propertySheetPage.refresh();
     }
 
     @Override
     public void setImageTags(List<Tag> tags) {
-        // TODO Auto-generated method stub
-
+        this.propertySheetPage.refresh();
     }
 
     @Override
     public void setTileWidthProperty(int tileWidth) {
-        // TODO Auto-generated method stub
-
+        this.propertySheetPage.refresh();
     }
 
     @Override
     public void setTileWidthTags(List<Tag> tags) {
-        // TODO Auto-generated method stub
-
+        this.propertySheetPage.refresh();
     }
 
     @Override
     public void setTileHeightProperty(int tileHeight) {
-        // TODO Auto-generated method stub
-
+        this.propertySheetPage.refresh();
     }
 
     @Override
     public void setTileHeightTags(List<Tag> tags) {
-        // TODO Auto-generated method stub
-
+        this.propertySheetPage.refresh();
     }
 
     @Override
     public void setTileMarginProperty(int tileMargin) {
-        // TODO Auto-generated method stub
-
+        this.propertySheetPage.refresh();
     }
 
     @Override
     public void setTileMarginTags(List<Tag> tags) {
-        // TODO Auto-generated method stub
-
+        this.propertySheetPage.refresh();
     }
 
     @Override
     public void setTileSpacingProperty(int tileSpacing) {
-        // TODO Auto-generated method stub
-
+        this.propertySheetPage.refresh();
     }
 
     @Override
     public void setTileSpacingTags(List<Tag> tags) {
-        // TODO Auto-generated method stub
-
+        this.propertySheetPage.refresh();
     }
 
     @Override
     public void setCollisionProperty(String newValue) {
-        // TODO Auto-generated method stub
-
+        this.propertySheetPage.refresh();
     }
 
     @Override
     public void setCollisionTags(List<Tag> tags) {
-        // TODO Auto-generated method stub
-
+        this.propertySheetPage.refresh();
     }
 
     @Override
     public void setMaterialTagProperty(String newValue) {
-        // TODO Auto-generated method stub
-
+        this.propertySheetPage.refresh();
     }
 
     @Override
     public void setMaterialTagTags(List<Tag> tags) {
-        // TODO Auto-generated method stub
-
+        this.propertySheetPage.refresh();
     }
 
     @Override
@@ -369,11 +352,13 @@ ISelectionListener, KeyListener, IResourceChangeListener {
 
     @Override
     public Object getAdapter(@SuppressWarnings("rawtypes") Class adapter) {
-        if (adapter == IContentOutlinePage.class) {
+        if (adapter == IPropertySheetPage.class) {
+            return this.propertySheetPage;
+        } else if (adapter == IContentOutlinePage.class) {
             return this.outlinePage;
+        } else {
+            return super.getAdapter(adapter);
         }
-
-        return super.getAdapter(adapter);
     }
 
 }
