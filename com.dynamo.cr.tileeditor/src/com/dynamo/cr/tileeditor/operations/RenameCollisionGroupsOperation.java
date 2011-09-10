@@ -17,6 +17,7 @@ public class RenameCollisionGroupsOperation extends AbstractOperation {
     TileSetModel model;
     String[] oldCollisionGroups;
     String[] newCollisionGroups;
+    String[] newSelectedCollisionGroups;
     boolean[] collisions;
     List<ConvexHullGroup> convexHulls;
 
@@ -33,9 +34,26 @@ public class RenameCollisionGroupsOperation extends AbstractOperation {
         this.newCollisionGroups = newCollisionGroups;
         int n = newCollisionGroups.length;
         this.collisions = new boolean[n];
+        List<String> newSelectedGroups = new ArrayList<String>(n);
         for (int i = 0; i < n; ++i) {
             this.collisions[i] = model.getCollisionGroups().contains(newCollisionGroups[i]);
+            boolean collision = false;
+            if (!this.collisions[i]) {
+                // check if the name collides with another of the earlier new names
+                for (int j = 0; j < i; ++j) {
+                    if (newCollisionGroups[i].equals(newCollisionGroups[j])) {
+                        collision = true;
+                        break;
+                    }
+                }
+            }
+            if (collision) {
+                this.collisions[i] = collision;
+            } else {
+                newSelectedGroups.add(newCollisionGroups[i]);
+            }
         }
+        this.newSelectedCollisionGroups = newSelectedGroups.toArray(new String[newSelectedGroups.size()]);
         this.convexHulls = new ArrayList<ConvexHullGroup>();
         n = model.getConvexHulls().size();
         for (int i = 0; i < n; ++i) {
@@ -56,7 +74,7 @@ public class RenameCollisionGroupsOperation extends AbstractOperation {
     @Override
     public IStatus execute(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
-        this.model.setSelectedCollisionGroups(this.newCollisionGroups);
+        this.model.setSelectedCollisionGroups(this.newSelectedCollisionGroups);
         this.model.renameCollisionGroups(this.oldCollisionGroups, this.newCollisionGroups);
         for (ConvexHullGroup hullGroup : this.convexHulls) {
             ConvexHull convexHull = this.model.getConvexHulls().get(hullGroup.index);
@@ -68,7 +86,7 @@ public class RenameCollisionGroupsOperation extends AbstractOperation {
     @Override
     public IStatus redo(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
-        this.model.setSelectedCollisionGroups(this.newCollisionGroups);
+        this.model.setSelectedCollisionGroups(this.newSelectedCollisionGroups);
         this.model.renameCollisionGroups(this.oldCollisionGroups, this.newCollisionGroups);
         for (ConvexHullGroup hullGroup : this.convexHulls) {
             ConvexHull convexHull = this.model.getConvexHulls().get(hullGroup.index);

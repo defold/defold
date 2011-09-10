@@ -416,7 +416,7 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
         List<String> tmpCollisionGroups = new ArrayList<String>(this.collisionGroups);
         int n = oldCollisionGroups.length;
         for (int i = 0; i < n; ++i) {
-            if (!this.collisionGroups.contains(oldCollisionGroups[i])) {
+            if (!tmpCollisionGroups.contains(oldCollisionGroups[i])) {
                 Activator.logException(new IllegalArgumentException(oldCollisionGroups[i]));
             } else {
                 renamed = true;

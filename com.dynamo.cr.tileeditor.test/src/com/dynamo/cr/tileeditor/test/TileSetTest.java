@@ -418,12 +418,94 @@ public class TileSetTest {
     }
 
     /**
-     * Use Case 1.1.7 - Remove Collision Group
+     * Use Case 1.1.7 - Rename Collision Groups to Single Group
      * 
      * @throws IOException
      */
     @Test
     public void testUseCase117() throws Exception {
+
+        // requirements
+        testUseCase111();
+
+        // add group
+        this.presenter.addCollisionGroup("obstruction");
+
+        // paint
+        this.presenter.beginSetConvexHullCollisionGroup("obstruction");
+        this.presenter.setConvexHullCollisionGroup(2);
+        this.presenter.endSetConvexHullCollisionGroup();
+
+        // add another group
+        this.presenter.addCollisionGroup("obstuction");
+
+        // paint
+        this.presenter.beginSetConvexHullCollisionGroup("obstuction");
+        this.presenter.setConvexHullCollisionGroup(3);
+        this.presenter.endSetConvexHullCollisionGroup();
+
+        this.presenter.selectCollisionGroups(new String[] {"obstuction", "obstruction"});
+
+        // preconditions
+        assertEquals(3, this.model.getCollisionGroups().size());
+        assertEquals("foreground", this.model.getCollisionGroups().get(0));
+        assertEquals("obstruction", this.model.getCollisionGroups().get(1));
+        assertEquals("obstuction", this.model.getCollisionGroups().get(2));
+        assertEquals("obstruction", this.model.getConvexHulls().get(2).getCollisionGroup());
+        assertEquals("obstuction", this.model.getConvexHulls().get(3).getCollisionGroup());
+        assertEquals(2, this.model.getSelectedCollisionGroups().length);
+        assertEquals("obstuction", this.model.getSelectedCollisionGroups()[0]);
+        assertEquals("obstruction", this.model.getSelectedCollisionGroups()[1]);
+        verify(this.view, times(3)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
+        verify(this.view, times(1)).setTileHullColor(eq(2), any(Color.class));
+        verify(this.view, times(1)).setTileHullColor(eq(3), any(Color.class));
+
+        // test
+        this.presenter.renameSelectedCollisionGroups(new String[] {"obstruction2", "obstruction2"});
+        assertEquals(2, this.model.getCollisionGroups().size());
+        assertEquals("foreground", this.model.getCollisionGroups().get(0));
+        assertEquals("obstruction2", this.model.getCollisionGroups().get(1));
+        assertEquals("obstruction2", this.model.getConvexHulls().get(2).getCollisionGroup());
+        assertEquals("obstruction2", this.model.getConvexHulls().get(3).getCollisionGroup());
+        assertEquals(1, this.model.getSelectedCollisionGroups().length);
+        assertEquals("obstruction2", this.model.getSelectedCollisionGroups()[0]);
+        verify(this.view, times(4)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
+        verify(this.view, times(2)).setTileHullColor(eq(3), any(Color.class));
+
+        // undo
+        this.history.undo(this.undoContext, null, null);
+        assertEquals(3, this.model.getCollisionGroups().size());
+        assertEquals("foreground", this.model.getCollisionGroups().get(0));
+        assertEquals("obstruction", this.model.getCollisionGroups().get(1));
+        assertEquals("obstuction", this.model.getCollisionGroups().get(2));
+        assertEquals("obstruction", this.model.getConvexHulls().get(2).getCollisionGroup());
+        assertEquals("obstuction", this.model.getConvexHulls().get(3).getCollisionGroup());
+        assertEquals(2, this.model.getSelectedCollisionGroups().length);
+        assertEquals("obstuction", this.model.getSelectedCollisionGroups()[0]);
+        assertEquals("obstruction", this.model.getSelectedCollisionGroups()[1]);
+        verify(this.view, times(6)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
+        verify(this.view, times(3)).setTileHullColor(eq(3), any(Color.class));
+
+        // redo
+        this.history.redo(this.undoContext, null, null);
+        assertEquals(2, this.model.getCollisionGroups().size());
+        assertEquals("foreground", this.model.getCollisionGroups().get(0));
+        assertEquals("obstruction2", this.model.getCollisionGroups().get(1));
+        assertEquals("obstruction2", this.model.getConvexHulls().get(2).getCollisionGroup());
+        assertEquals("obstruction2", this.model.getConvexHulls().get(3).getCollisionGroup());
+        assertEquals(1, this.model.getSelectedCollisionGroups().length);
+        assertEquals("obstruction2", this.model.getSelectedCollisionGroups()[0]);
+        verify(this.view, times(7)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
+        verify(this.view, times(4)).setTileHullColor(eq(3), any(Color.class));
+    }
+
+    /**
+     * Use Case 1.1.9 - Remove Collision Group
+     * 
+     * @throws IOException
+     */
+    @Test
+    public void testUseCase119() throws Exception {
 
         // requirements
         testUseCase114();
