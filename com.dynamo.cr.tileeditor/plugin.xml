@@ -96,6 +96,29 @@
             </command>
          </menu>
       </menuContribution>
+      <menuContribution
+            allPopups="false"
+            locationURI="popup:com.dynamo.cr.tileeditor.menus.TileSetOutlineContext">
+         <command
+               commandId="com.dynamo.cr.tileeditor.commands.AddCollisionGroup"
+               label="Add"
+               style="push">
+         </command>
+         <separator
+               name="com.dynamo.cr.tileeditor.separator1"
+               visible="true">
+         </separator>
+         <command
+               commandId="org.eclipse.ui.edit.rename"
+               label="Rename"
+               style="push">
+         </command>
+         <command
+               commandId="org.eclipse.ui.edit.delete"
+               label="Delete"
+               style="push">
+         </command>
+      </menuContribution>
    </extension>
    <extension
          point="org.eclipse.ui.handlers">
@@ -116,6 +139,18 @@
                   definitionId="com.dynamo.cr.tileeditor.definitions.tileSetEditorActive">
             </reference>
          </activeWhen>
+         <enabledWhen>
+            <with
+                  variable="selection">
+               <iterate
+                     ifEmpty="false"
+                     operator="and">
+                  <instanceof
+                        value="com.dynamo.cr.tileeditor.TileSetEditorOutlinePage$CollisionGroupItem">
+                  </instanceof>
+               </iterate>
+            </with>
+         </enabledWhen>
       </handler>
       <handler
             class="com.dynamo.cr.tileeditor.commands.RemoveCollisionsGroup"
@@ -125,6 +160,18 @@
                   definitionId="com.dynamo.cr.tileeditor.definitions.tileSetEditorActive">
             </reference>
          </activeWhen>
+         <enabledWhen>
+            <with
+                  variable="selection">
+               <iterate
+                     ifEmpty="false"
+                     operator="and">
+                  <instanceof
+                        value="com.dynamo.cr.tileeditor.TileSetEditorOutlinePage$CollisionGroupItem">
+                  </instanceof>
+               </iterate>
+            </with>
+         </enabledWhen>
       </handler>
    </extension>
    <extension

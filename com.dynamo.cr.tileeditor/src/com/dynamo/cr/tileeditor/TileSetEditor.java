@@ -59,7 +59,6 @@ ISelectionListener, KeyListener, IResourceChangeListener {
     private UndoContext undoContext;
     private TileSetPresenter presenter;
     private TileSetEditorOutlinePage outlinePage;
-    private String[] selectedCollisionGroups;
 
     // EditorPart
 
@@ -102,7 +101,7 @@ ISelectionListener, KeyListener, IResourceChangeListener {
         actionBars.setGlobalActionHandler(undoId, undoHandler);
         actionBars.setGlobalActionHandler(redoId, redoHandler);
 
-        this.outlinePage = new TileSetEditorOutlinePage(this.presenter, this) {
+        this.outlinePage = new TileSetEditorOutlinePage(this.presenter) {
             @Override
             public void init(IPageSite pageSite) {
                 super.init(pageSite);
@@ -146,19 +145,12 @@ ISelectionListener, KeyListener, IResourceChangeListener {
                 .getService(IContextService.class);
         contextService.activateContext(Activator.CONTEXT_ID);
 
-        setFocus();
+        // Set the outline as selection provider
+        getSite().setSelectionProvider(this.outlinePage);
     }
 
     public TileSetPresenter getPresenter() {
         return this.presenter;
-    }
-
-    public String[] getSelectedCollisionGroups() {
-        return this.selectedCollisionGroups;
-    }
-
-    public void setSelectedCollisionGroups(String[] selectedCollisionGroups) {
-        this.selectedCollisionGroups = selectedCollisionGroups;
     }
 
     @Override
@@ -353,7 +345,6 @@ ISelectionListener, KeyListener, IResourceChangeListener {
 
     @Override
     public void setCollisionGroups(List<String> collisionGroups, List<Color> colors, String[] selectedCollisionGroups) {
-        this.selectedCollisionGroups = selectedCollisionGroups;
         outlinePage.setInput(collisionGroups, colors, selectedCollisionGroups);
     }
 

@@ -4,6 +4,8 @@ import java.awt.Color;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.eclipse.jface.action.MenuManager;
+import org.eclipse.jface.action.Separator;
 import org.eclipse.jface.resource.ImageRegistry;
 import org.eclipse.jface.viewers.ColumnLabelProvider;
 import org.eclipse.jface.viewers.ColumnViewerToolTipSupport;
@@ -17,8 +19,10 @@ import org.eclipse.jface.viewers.Viewer;
 import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.graphics.ImageData;
 import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Menu;
 import org.eclipse.ui.IEditorRegistry;
 import org.eclipse.ui.ISharedImages;
+import org.eclipse.ui.IWorkbenchActionConstants;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.contexts.IContextService;
 import org.eclipse.ui.views.contentoutline.ContentOutlinePage;
@@ -27,15 +31,15 @@ import com.dynamo.cr.tileeditor.core.TileSetPresenter;
 
 public class TileSetEditorOutlinePage extends ContentOutlinePage {
 
+    private static final String MENU_ID = "com.dynamo.cr.tileeditor.menus.TileSetOutlineContext";
+
     private final TileSetPresenter presenter;
     private final RootItem root;
     private final Image collisionGroupImage;
     // needed to avoid circumference when selecting programatically vs manually
     private boolean ignoreSelection = false;
-    // needed to update the editor state of selection
-    private final TileSetEditor editor;
 
-    public TileSetEditorOutlinePage(TileSetPresenter presenter, TileSetEditor editor) {
+    public TileSetEditorOutlinePage(TileSetPresenter presenter) {
         this.presenter = presenter;
         this.root = new RootItem();
 
@@ -43,8 +47,6 @@ public class TileSetEditorOutlinePage extends ContentOutlinePage {
                 .getImageRegistry();
         this.collisionGroupImage = imageRegist
                 .getDescriptor(Activator.COLLISION_GROUP_IMAGE_ID).createImage();
-
-        this.editor = editor;
     }
 
     @Override
@@ -227,6 +229,13 @@ public class TileSetEditorOutlinePage extends ContentOutlinePage {
         viewer.setInput(this.root);
         viewer.expandToLevel(2);
 
+        // Pop-up context menu
+        MenuManager menuManager = new MenuManager();
+        menuManager.add(new Separator(IWorkbenchActionConstants.MB_ADDITIONS));
+        Menu menu = menuManager.createContextMenu(viewer.getTree());
+        viewer.getTree().setMenu(menu);
+        getSite().registerContextMenu(MENU_ID, menuManager, viewer);
+
         // This makes sure the context will be active while this component is
         IContextService contextService = (IContextService) getSite()
                 .getService(IContextService.class);
@@ -250,8 +259,6 @@ public class TileSetEditorOutlinePage extends ContentOutlinePage {
                 }
                 String[] selectedCollisionGroups = selectedItems.toArray(new String[selectedItems.size()]);
                 this.presenter.selectCollisionGroups(selectedCollisionGroups);
-                // needed to update the editor, since selections are not propagated to the view when changed
-                editor.setSelectedCollisionGroups(selectedCollisionGroups);
             }
         }
     }
