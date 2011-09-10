@@ -112,20 +112,7 @@ public class TileSetPresenter implements TaggedPropertyListener, IOperationHisto
     }
 
     public void refresh() {
-        this.view.setImageProperty(this.model.getImage());
-        this.view.setImageTags(this.model.getPropertyTags("image"));
-        this.view.setTileWidthProperty(this.model.getTileWidth());
-        this.view.setTileWidthTags(this.model.getPropertyTags("tileWidth"));
-        this.view.setTileHeightProperty(this.model.getTileHeight());
-        this.view.setTileHeightTags(this.model.getPropertyTags("tileHeight"));
-        this.view.setTileMarginProperty(this.model.getTileMargin());
-        this.view.setTileMarginTags(this.model.getPropertyTags("tileMargin"));
-        this.view.setTileSpacingProperty(this.model.getTileSpacing());
-        this.view.setTileSpacingTags(this.model.getPropertyTags("tileSpacing"));
-        this.view.setCollisionProperty(this.model.getCollision());
-        this.view.setCollisionTags(this.model.getPropertyTags("collision"));
-        this.view.setMaterialTagProperty(this.model.getMaterialTag());
-        this.view.setMaterialTagTags(this.model.getPropertyTags("materialTag"));
+        this.view.refreshProperties();
         setViewCollisionGroups(this.model.getCollisionGroups());
         setViewTiles(this.model.getConvexHulls());
     }
@@ -134,24 +121,12 @@ public class TileSetPresenter implements TaggedPropertyListener, IOperationHisto
     @Override
     public void propertyChange(PropertyChangeEvent evt) {
         if (evt.getSource() instanceof TileSetModel) {
-            if (evt.getPropertyName().equals("image")) {
-                view.setImageProperty((String)evt.getNewValue());
-            } else if (evt.getPropertyName().equals("tileWidth")) {
-                view.setTileWidthProperty((Integer)evt.getNewValue());
-            } else if (evt.getPropertyName().equals("tileHeight")) {
-                view.setTileHeightProperty((Integer)evt.getNewValue());
-            } else if (evt.getPropertyName().equals("tileMargin")) {
-                view.setTileMarginProperty((Integer)evt.getNewValue());
-            } else if (evt.getPropertyName().equals("tileSpacing")) {
-                view.setTileSpacingProperty((Integer)evt.getNewValue());
-            } else if (evt.getPropertyName().equals("collision")) {
-                view.setCollisionProperty((String)evt.getNewValue());
-            } else if (evt.getPropertyName().equals("materialTag")) {
-                view.setMaterialTagProperty((String)evt.getNewValue());
-            } else if (evt.getPropertyName().equals("collisionGroups")) {
+            if (evt.getPropertyName().equals("collisionGroups")) {
                 setViewCollisionGroups((List<String>)evt.getNewValue());
             } else if (evt.getPropertyName().equals("convexHulls")) {
                 setViewTiles((List<TileSetModel.ConvexHull>)evt.getNewValue());
+            } else {
+                this.view.refreshProperties();
             }
         } else if (evt.getSource() instanceof TileSetModel.ConvexHull) {
             if (evt.getPropertyName().equals("collisionGroup")) {
@@ -163,21 +138,7 @@ public class TileSetPresenter implements TaggedPropertyListener, IOperationHisto
     @Override
     public void propertyTag(PropertyTagEvent evt) {
         if (evt.getSource() instanceof TileSetModel) {
-            if (evt.getPropertyName().equals("image")) {
-                this.view.setImageTags(evt.getTags());
-            } else if (evt.getPropertyName().equals("tileWidth")) {
-                this.view.setTileWidthTags(evt.getTags());
-            } else if (evt.getPropertyName().equals("tileHeight")) {
-                this.view.setTileHeightTags(evt.getTags());
-            } else if (evt.getPropertyName().equals("tileMargin")) {
-                this.view.setTileMarginTags(evt.getTags());
-            } else if (evt.getPropertyName().equals("tileSpacing")) {
-                this.view.setTileSpacingTags(evt.getTags());
-            } else if (evt.getPropertyName().equals("collision")) {
-                this.view.setCollisionTags(evt.getTags());
-            } else if (evt.getPropertyName().equals("materialTag")) {
-                this.view.setMaterialTagTags(evt.getTags());
-            }
+            this.view.refreshProperties();
         }
     }
 

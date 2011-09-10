@@ -22,6 +22,7 @@ import org.eclipse.swt.events.MouseEvent;
 import org.eclipse.swt.events.MouseListener;
 import org.eclipse.swt.events.MouseMoveListener;
 import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.Listener;
 import org.eclipse.ui.IActionBars;
@@ -45,7 +46,6 @@ import org.eclipse.ui.views.properties.IPropertySheetPage;
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.properties.FormPropertySheetPage;
 import com.dynamo.cr.tileeditor.core.ITileSetView;
-import com.dynamo.cr.tileeditor.core.Tag;
 import com.dynamo.cr.tileeditor.core.TileSetModel;
 import com.dynamo.cr.tileeditor.core.TileSetPresenter;
 
@@ -60,6 +60,7 @@ KeyListener, IResourceChangeListener {
     private TileSetEditorOutlinePage outlinePage;
     private FormPropertySheetPage propertySheetPage;
     private boolean dirty = false;
+    private boolean refreshPropertiesPosted;
 
     // EditorPart
 
@@ -258,73 +259,8 @@ KeyListener, IResourceChangeListener {
     // ITileSetView
 
     @Override
-    public void setImageProperty(String newValue) {
-        this.propertySheetPage.refresh();
-    }
-
-    @Override
-    public void setImageTags(List<Tag> tags) {
-        this.propertySheetPage.refresh();
-    }
-
-    @Override
-    public void setTileWidthProperty(int tileWidth) {
-        this.propertySheetPage.refresh();
-    }
-
-    @Override
-    public void setTileWidthTags(List<Tag> tags) {
-        this.propertySheetPage.refresh();
-    }
-
-    @Override
-    public void setTileHeightProperty(int tileHeight) {
-        this.propertySheetPage.refresh();
-    }
-
-    @Override
-    public void setTileHeightTags(List<Tag> tags) {
-        this.propertySheetPage.refresh();
-    }
-
-    @Override
-    public void setTileMarginProperty(int tileMargin) {
-        this.propertySheetPage.refresh();
-    }
-
-    @Override
-    public void setTileMarginTags(List<Tag> tags) {
-        this.propertySheetPage.refresh();
-    }
-
-    @Override
-    public void setTileSpacingProperty(int tileSpacing) {
-        this.propertySheetPage.refresh();
-    }
-
-    @Override
-    public void setTileSpacingTags(List<Tag> tags) {
-        this.propertySheetPage.refresh();
-    }
-
-    @Override
-    public void setCollisionProperty(String newValue) {
-        this.propertySheetPage.refresh();
-    }
-
-    @Override
-    public void setCollisionTags(List<Tag> tags) {
-        this.propertySheetPage.refresh();
-    }
-
-    @Override
-    public void setMaterialTagProperty(String newValue) {
-        this.propertySheetPage.refresh();
-    }
-
-    @Override
-    public void setMaterialTagTags(List<Tag> tags) {
-        this.propertySheetPage.refresh();
+    public void refreshProperties() {
+        postRefreshProperties();
     }
 
     @Override
@@ -365,6 +301,21 @@ KeyListener, IResourceChangeListener {
             return this.outlinePage;
         } else {
             return super.getAdapter(adapter);
+        }
+    }
+
+    private void postRefreshProperties() {
+        if (!refreshPropertiesPosted) {
+            refreshPropertiesPosted = true;
+
+            Display.getDefault().timerExec(100, new Runnable() {
+
+                @Override
+                public void run() {
+                    refreshPropertiesPosted = false;
+                    propertySheetPage.refresh();
+                }
+            });
         }
     }
 
