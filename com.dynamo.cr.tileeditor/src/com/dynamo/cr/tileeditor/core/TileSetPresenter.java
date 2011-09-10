@@ -11,7 +11,10 @@ import java.util.List;
 import javax.vecmath.Point3f;
 import javax.vecmath.Vector3f;
 
+import org.eclipse.core.commands.operations.IOperationHistoryListener;
+import org.eclipse.core.commands.operations.OperationHistoryEvent;
 import org.eclipse.core.runtime.IProgressMonitor;
+import org.eclipse.ui.services.IDisposable;
 
 import com.dynamo.cr.tileeditor.operations.AddCollisionGroupOperation;
 import com.dynamo.cr.tileeditor.operations.RemoveCollisionGroupsOperation;
@@ -19,27 +22,38 @@ import com.dynamo.cr.tileeditor.operations.RenameCollisionGroupsOperation;
 import com.dynamo.cr.tileeditor.operations.SetConvexHullCollisionGroupsOperation;
 import com.dynamo.tile.proto.Tile.TileSet;
 
-public class TileSetPresenter implements TaggedPropertyListener {
+public class TileSetPresenter implements TaggedPropertyListener, IOperationHistoryListener, IDisposable {
     private final TileSetModel model;
     private final ITileSetView view;
     private List<Color> collisionGroupColors;
     // Used for painting collision groups onto tiles (convex hulls)
-    String[] oldCollisionGroups;
-    String currentCollisionGroup;
+    private String[] oldCollisionGroups;
+    private String currentCollisionGroup;
+    private int undoRedoCounter;
 
     public TileSetPresenter(TileSetModel model, ITileSetView view) {
         this.model = model;
         this.view = view;
         this.model.addTaggedPropertyListener(this);
         this.collisionGroupColors = new ArrayList<Color>();
+        this.undoRedoCounter = 0;
+        this.model.getUndoHistory().addOperationHistoryListener(this);
+    }
+
+    @Override
+    public void dispose() {
+        this.model.removeTaggedPropertyListener(this);
+        this.model.getUndoHistory().removeOperationHistoryListener(this);
     }
 
     public void load(TileSet tileSet) throws IOException {
         this.model.load(tileSet);
+        this.undoRedoCounter = 0;
     }
 
     public void save(OutputStream outputStream, IProgressMonitor monitor) throws IOException {
         this.model.save(outputStream, monitor);
+        this.undoRedoCounter = 0;
     }
 
     public TileSetModel getModel() {
@@ -164,6 +178,26 @@ public class TileSetPresenter implements TaggedPropertyListener {
             } else if (evt.getPropertyName().equals("materialTag")) {
                 this.view.setMaterialTagTags(evt.getTags());
             }
+        }
+    }
+
+    @Override
+    public void historyNotification(OperationHistoryEvent event) {
+        boolean changed = false;
+        int type = event.getEventType();
+        switch (type) {
+        case OperationHistoryEvent.DONE:
+        case OperationHistoryEvent.REDONE:
+            ++this.undoRedoCounter;
+            changed = true;
+            break;
+        case OperationHistoryEvent.UNDONE:
+            --this.undoRedoCounter;
+            changed = true;
+            break;
+        }
+        if (changed) {
+            this.view.setDirty(this.undoRedoCounter != 0);
         }
     }
 

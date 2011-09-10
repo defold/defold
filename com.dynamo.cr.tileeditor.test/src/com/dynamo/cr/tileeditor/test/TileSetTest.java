@@ -3,6 +3,7 @@ package com.dynamo.cr.tileeditor.test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyListOf;
 import static org.mockito.Matchers.eq;
@@ -27,6 +28,7 @@ import org.eclipse.core.commands.operations.IUndoContext;
 import org.eclipse.core.commands.operations.UndoContext;
 import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.osgi.util.NLS;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -56,6 +58,11 @@ public class TileSetTest {
         this.model = new TileSetModel(this.history, this.undoContext);
         this.presenter = new TileSetPresenter(this.model, this.view);
         this.propertyModel = (IPropertyModel<TileSetModel, TileSetModel>) this.model.getAdapter(IPropertyModel.class);
+    }
+
+    @After
+    public void teardown() {
+        this.presenter.dispose();
     }
 
     private TileSet loadEmptyFile() throws IOException {
@@ -100,6 +107,7 @@ public class TileSetTest {
         verify(this.view, times(1)).setCollisionProperty(any(String.class));
         verify(this.view, times(1)).setMaterialTagProperty(any(String.class));
         verify(this.view, times(1)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
+        verify(this.view, never()).setDirty(anyBoolean());
     }
 
     /**
@@ -117,15 +125,19 @@ public class TileSetTest {
 
         assertEquals(emptyTileSet.getImage(), this.model.getImage());
         verify(this.view, times(1)).setImageProperty(any(String.class));
+        verify(this.view, never()).setDirty(true);
         this.model.executeOperation(propertyModel.setPropertyValue("image", tileSetFile));
         assertEquals(tileSetFile, this.model.getImage());
         verify(this.view, times(2)).setImageProperty(any(String.class));
+        verify(this.view, times(1)).setDirty(true);
         this.history.undo(this.undoContext, null, null);
         assertEquals(emptyTileSet.getImage(), this.model.getImage());
         verify(this.view, times(3)).setImageProperty(any(String.class));
+        verify(this.view, times(1)).setDirty(false);
         this.history.redo(this.undoContext, null, null);
         assertEquals(tileSetFile, this.model.getImage());
         verify(this.view, times(4)).setImageProperty(any(String.class));
+        verify(this.view, times(2)).setDirty(true);
 
         // tile width
 
@@ -593,6 +605,7 @@ public class TileSetTest {
             assertEquals(this.model.getConvexHullPoints()[i], newModel.getConvexHullPoints()[i], 0.000001);
         }
         assertEquals(this.model.getCollisionGroups(), newModel.getCollisionGroups());
+        verify(this.view, times(1)).setDirty(false);
     }
 
     /**

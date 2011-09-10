@@ -59,6 +59,7 @@ KeyListener, IResourceChangeListener {
     private TileSetPresenter presenter;
     private TileSetEditorOutlinePage outlinePage;
     private FormPropertySheetPage propertySheetPage;
+    private boolean dirty = false;
 
     // EditorPart
 
@@ -148,6 +149,7 @@ KeyListener, IResourceChangeListener {
     public void dispose() {
         super.dispose();
 
+        this.presenter.dispose();
         ResourcesPlugin.getWorkspace().removeResourceChangeListener(this);
     }
 
@@ -168,8 +170,7 @@ KeyListener, IResourceChangeListener {
 
     @Override
     public boolean isDirty() {
-        // TODO Auto-generated method stub
-        return false;
+        return this.dirty;
     }
 
     @Override
@@ -348,6 +349,12 @@ KeyListener, IResourceChangeListener {
     public void setTileHullColor(int tileIndex, Color color) {
         // TODO Auto-generated method stub
 
+    }
+
+    @Override
+    public void setDirty(boolean dirty) {
+        this.dirty = dirty;
+        firePropertyChange(PROP_DIRTY);
     }
 
     @Override

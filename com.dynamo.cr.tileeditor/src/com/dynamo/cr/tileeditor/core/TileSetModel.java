@@ -432,6 +432,10 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
         }
     }
 
+    public IOperationHistory getUndoHistory() {
+        return undoHistory;
+    }
+
     public BufferedImage getLoadedImage() {
         return this.loadedImage;
     }

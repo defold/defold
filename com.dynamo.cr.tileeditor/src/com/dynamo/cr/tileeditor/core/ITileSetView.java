@@ -46,4 +46,6 @@ public interface ITileSetView {
 
     void setTileHullColor(int tileIndex, Color color);
 
+    void setDirty(boolean dirty);
+
 }
