@@ -183,21 +183,20 @@ public class TileSetPresenter implements TaggedPropertyListener, IOperationHisto
 
     @Override
     public void historyNotification(OperationHistoryEvent event) {
-        boolean changed = false;
+        boolean prevDirty = this.undoRedoCounter != 0;
         int type = event.getEventType();
         switch (type) {
         case OperationHistoryEvent.DONE:
         case OperationHistoryEvent.REDONE:
             ++this.undoRedoCounter;
-            changed = true;
             break;
         case OperationHistoryEvent.UNDONE:
             --this.undoRedoCounter;
-            changed = true;
             break;
         }
-        if (changed) {
-            this.view.setDirty(this.undoRedoCounter != 0);
+        boolean dirty = this.undoRedoCounter != 0;
+        if (prevDirty != dirty) {
+            this.view.setDirty(dirty);
         }
     }
 

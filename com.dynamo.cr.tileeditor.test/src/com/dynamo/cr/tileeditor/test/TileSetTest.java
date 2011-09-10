@@ -580,6 +580,9 @@ public class TileSetTest {
         // requires
         testUseCase114();
 
+        // preconditions
+        verify(this.view, times(1)).setDirty(false);
+
         String newTileSetPath = "test/tmp.tileset";
         File newTileSetFile = new File(newTileSetPath);
 
