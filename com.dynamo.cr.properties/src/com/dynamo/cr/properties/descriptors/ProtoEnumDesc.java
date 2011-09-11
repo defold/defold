@@ -3,6 +3,7 @@ package com.dynamo.cr.properties.descriptors;
 import java.lang.reflect.Method;
 
 import org.eclipse.core.commands.operations.IUndoableOperation;
+import org.eclipse.core.resources.IContainer;
 import org.eclipse.jface.viewers.ArrayContentProvider;
 import org.eclipse.jface.viewers.ComboViewer;
 import org.eclipse.jface.viewers.ISelection;
@@ -86,7 +87,7 @@ public class ProtoEnumDesc<T, U extends IPropertyObjectWorld> extends PropertyDe
     }
 
     @Override
-    public IPropertyEditor<T, U> createEditor(Composite parent) {
+    public IPropertyEditor<T, U> createEditor(Composite parent, IContainer contentRoot) {
         return new Editor(parent);
     }
 

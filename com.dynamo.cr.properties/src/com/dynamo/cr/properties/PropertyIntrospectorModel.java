@@ -1,7 +1,6 @@
 package com.dynamo.cr.properties;
 
 import org.eclipse.core.commands.operations.IUndoableOperation;
-import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.runtime.IStatus;
 
 public class PropertyIntrospectorModel<T, U extends IPropertyObjectWorld> implements IPropertyModel<T, U> {
@@ -9,13 +8,11 @@ public class PropertyIntrospectorModel<T, U extends IPropertyObjectWorld> implem
     private T object;
     private U world;
     private PropertyIntrospector<T, U> introspector;
-    private IContainer contentRoot;
 
-    public PropertyIntrospectorModel(T source, U world, PropertyIntrospector<T, U> introspector, IContainer contentRoot) {
+    public PropertyIntrospectorModel(T source, U world, PropertyIntrospector<T, U> introspector) {
         this.object = source;
         this.world = world;
         this.introspector = introspector;
-        this.contentRoot = contentRoot;
     }
 
     @Override

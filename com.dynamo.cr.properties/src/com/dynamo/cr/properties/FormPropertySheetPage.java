@@ -1,5 +1,6 @@
 package com.dynamo.cr.properties;
 
+import org.eclipse.core.resources.IContainer;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.swt.widgets.Composite;
@@ -14,6 +15,11 @@ public class FormPropertySheetPage implements IPropertySheetPage {
     private IWorkbenchPart sourcePart;
     private FormPropertySheetViewer viewer;
     private final PartListener partListener = new PartListener();
+    private IContainer contentRoot;
+
+    public FormPropertySheetPage(IContainer contentRoot) {
+        this.contentRoot = contentRoot;
+    }
 
     private class PartListener implements IPartListener {
         @Override
@@ -41,7 +47,7 @@ public class FormPropertySheetPage implements IPropertySheetPage {
 
     @Override
     public void createControl(Composite parent) {
-        viewer = new FormPropertySheetViewer(parent);
+        viewer = new FormPropertySheetViewer(parent, contentRoot);
     }
 
     @Override

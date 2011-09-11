@@ -128,7 +128,7 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
         selectionProvider.setEnableSelectionThrottling(true);
 
         renderer = new GuiRenderer();
-        propertySheetPage = new FormPropertySheetPage() {
+        propertySheetPage = new FormPropertySheetPage(getContentRoot()) {
             public void setActionBars(IActionBars actionBars) {
                 super.setActionBars(actionBars);
                 String undoId = ActionFactory.UNDO.getId();

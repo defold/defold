@@ -143,7 +143,7 @@ public class PropertiesTest {
     public void setUp() {
         world = new TestWorld();
         test = new TestClass();
-        source = new PropertyIntrospectorModel<TestClass, TestWorld>(test, world, introspector, null);
+        source = new PropertyIntrospectorModel<TestClass, TestWorld>(test, world, introspector);
     }
 
     @Test

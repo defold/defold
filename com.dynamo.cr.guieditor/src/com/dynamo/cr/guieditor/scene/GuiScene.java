@@ -137,7 +137,7 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable, IResourceChan
     @Override
     public Object getAdapter(@SuppressWarnings("rawtypes") Class adapter) {
         if (adapter == IPropertyModel.class) {
-            return new PropertyIntrospectorModel<GuiScene, GuiScene>(this, this, introspector, getContentRoot());
+            return new PropertyIntrospectorModel<GuiScene, GuiScene>(this, this, introspector);
         }
         return null;
     }

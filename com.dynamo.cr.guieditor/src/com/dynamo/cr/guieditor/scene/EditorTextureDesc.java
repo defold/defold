@@ -36,7 +36,7 @@ public class EditorTextureDesc implements IAdaptable {
     @Override
     public Object getAdapter(@SuppressWarnings("rawtypes") Class adapter) {
         if (adapter == IPropertyModel.class) {
-            return new PropertyIntrospectorModel<EditorTextureDesc, GuiScene>(this, scene, introspector, scene.getContentRoot());
+            return new PropertyIntrospectorModel<EditorTextureDesc, GuiScene>(this, scene, introspector);
         }
         return null;
     }

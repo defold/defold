@@ -16,7 +16,6 @@ import org.eclipse.core.commands.operations.DefaultOperationHistory;
 import org.eclipse.core.commands.operations.IOperationHistory;
 import org.eclipse.core.commands.operations.IUndoContext;
 import org.eclipse.core.commands.operations.UndoContext;
-import org.eclipse.ui.views.properties.IPropertySource;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -33,7 +32,6 @@ public class GridTest {
     private GridPresenter presenter;
     private IOperationHistory history;
     private IUndoContext undoContext;
-    private IPropertySource propertySource;
 
     @Before
     public void setup() {
@@ -43,7 +41,6 @@ public class GridTest {
         this.undoContext = new UndoContext();
         this.model = new GridModel(this.history, this.undoContext);
         this.presenter = new GridPresenter(this.model, this.view);
-        this.propertySource = (IPropertySource) this.model.getAdapter(IPropertySource.class);
     }
 
     private TileGrid loadEmptyFile() throws IOException {

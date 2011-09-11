@@ -4,6 +4,7 @@ package com.dynamo.cr.properties.descriptors;
 import java.util.Arrays;
 
 import org.eclipse.core.commands.operations.IUndoableOperation;
+import org.eclipse.core.resources.IContainer;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
@@ -148,7 +149,7 @@ public abstract class ArrayPropertyDesc<V, T, U extends IPropertyObjectWorld> ex
     }
 
     @Override
-    public IPropertyEditor<T, U> createEditor(Composite parent) {
+    public IPropertyEditor<T, U> createEditor(Composite parent, IContainer contentRoot) {
         return new Editor(parent);
     }
 

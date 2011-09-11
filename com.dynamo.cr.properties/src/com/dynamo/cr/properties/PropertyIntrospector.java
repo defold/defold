@@ -21,6 +21,7 @@ import com.dynamo.cr.properties.descriptors.IntegerPropertyDesc;
 import com.dynamo.cr.properties.descriptors.ProtoEnumDesc;
 import com.dynamo.cr.properties.descriptors.Quat4PropertyDesc;
 import com.dynamo.cr.properties.descriptors.RGBPropertyDesc;
+import com.dynamo.cr.properties.descriptors.ResourcePropertyDesc;
 import com.dynamo.cr.properties.descriptors.TextPropertyDesc;
 import com.dynamo.cr.properties.descriptors.Vector3PropertyDesc;
 import com.dynamo.cr.properties.descriptors.Vector4PropertyDesc;
@@ -67,8 +68,10 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
 
                         IPropertyDesc<T, U> descriptor;
                         if (field.getType() == String.class) {
-                            // TODO: Add support for resources
-                            descriptor = new TextPropertyDesc<T, U>(field.getName(), field.getName());
+                            if (property.isResource())
+                                descriptor = new ResourcePropertyDesc<T, U>(field.getName(), field.getName());
+                            else
+                                descriptor = new TextPropertyDesc<T, U>(field.getName(), field.getName());
                         } else if (field.getType() == Vector4d.class) {
                             descriptor = new Vector4PropertyDesc<T, U>(field.getName(), field.getName());
                         } else if (field.getType() == Quat4d.class) {

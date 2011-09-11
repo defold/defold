@@ -29,7 +29,7 @@ public class GridModel extends Model implements IPropertyObjectWorld, IAdaptable
         @Override
         public Object getAdapter(@SuppressWarnings("rawtypes") Class adapter) {
             if (adapter == IPropertyModel.class) {
-                return new PropertyIntrospectorModel<Cell, GridModel>(this, GridModel.this, cellIntrospector, null);
+                return new PropertyIntrospectorModel<Cell, GridModel>(this, GridModel.this, cellIntrospector);
             }
             return null;
         }
@@ -68,7 +68,7 @@ public class GridModel extends Model implements IPropertyObjectWorld, IAdaptable
         @Override
         public Object getAdapter(@SuppressWarnings("rawtypes") Class adapter) {
             if (adapter == IPropertyModel.class) {
-                return new PropertyIntrospectorModel<Layer, GridModel>(this, GridModel.this, layerIntrospector, null);
+                return new PropertyIntrospectorModel<Layer, GridModel>(this, GridModel.this, layerIntrospector);
             }
             return null;
         }
@@ -236,7 +236,7 @@ public class GridModel extends Model implements IPropertyObjectWorld, IAdaptable
     @Override
     public Object getAdapter(@SuppressWarnings("rawtypes") Class adapter) {
         if (adapter == IPropertyModel.class) {
-            return new PropertyIntrospectorModel<GridModel, GridModel>(this, this, introspector, null);
+            return new PropertyIntrospectorModel<GridModel, GridModel>(this, this, introspector);
         }
         return null;
     }
