@@ -153,7 +153,7 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
     @Override
     public Object getAdapter(@SuppressWarnings("rawtypes") Class adapter) {
         if (adapter == IPropertyModel.class) {
-            return new PropertyIntrospectorModel<TileSetModel, TileSetModel>(this, this, introspector, null);
+            return new PropertyIntrospectorModel<TileSetModel, TileSetModel>(this, this, introspector);
         }
         return null;
     }

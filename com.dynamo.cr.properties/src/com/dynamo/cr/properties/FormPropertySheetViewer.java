@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.runtime.IAdaptable;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.Viewer;
@@ -28,8 +29,11 @@ public class FormPropertySheetViewer extends Viewer {
     private final FormToolkit toolkit;
     private Composite currentComposite;
     private IPropertyModel[] models;
+    private IContainer contentRoot;
+    private ArrayList<IPropertyEditor> editors = new ArrayList<IPropertyEditor>();
 
-    public FormPropertySheetViewer(Composite parent) {
+    public FormPropertySheetViewer(Composite parent, IContainer contentRoot) {
+        this.contentRoot = contentRoot;
         toolkit = new FormToolkit(parent.getDisplay());
         this.form = toolkit.createScrolledForm(parent);
         form.getBody().setLayout(new GridLayout());
@@ -43,6 +47,12 @@ public class FormPropertySheetViewer extends Viewer {
         propertiesComposite.layout();
 
         this.form.reflow(true);
+    }
+
+    public void dispose() {
+        for (IPropertyEditor e : editors) {
+            e.dispose();
+        }
     }
 
     @Override
@@ -96,7 +106,8 @@ public class FormPropertySheetViewer extends Viewer {
                 Label label = new Label(c, SWT.NULL);
                 label.setText(desc.getName() + ":");
 
-                IPropertyEditor editor = desc.createEditor(c);
+                IPropertyEditor editor = desc.createEditor(c, contentRoot);
+                this.editors.add(editor);
                 Control control;
                 if (editor == null) {
                     control = new Label(c, SWT.NONE);

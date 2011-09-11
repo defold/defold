@@ -191,7 +191,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
     public CollectionEditor() {
         m_SelectBuffer = ByteBuffer.allocateDirect(4 * MAX_MODELS).order(ByteOrder.nativeOrder()).asIntBuffer();
 
-        propertySheetPage = new FormPropertySheetPage() {
+        propertySheetPage = new FormPropertySheetPage(contentRoot) {
             public void setActionBars(IActionBars actionBars) {
                 super.setActionBars(actionBars);
                 String undoId = ActionFactory.UNDO.getId();

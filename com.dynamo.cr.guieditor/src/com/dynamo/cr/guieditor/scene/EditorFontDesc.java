@@ -36,7 +36,7 @@ public class EditorFontDesc implements IAdaptable {
     @Override
     public Object getAdapter(@SuppressWarnings("rawtypes") Class adapter) {
         if (adapter == IPropertyModel.class) {
-            return new PropertyIntrospectorModel<EditorFontDesc, GuiScene>(this, scene, introspector, scene.getContentRoot());
+            return new PropertyIntrospectorModel<EditorFontDesc, GuiScene>(this, scene, introspector);
         }
         return null;
     }

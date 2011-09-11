@@ -66,7 +66,6 @@ public class ReloadNodeTest {
         project.setDescription(pd, monitor);
 
         Bundle bundle = Platform.getBundle("com.dynamo.cr.integrationtest");
-        @SuppressWarnings("unchecked")
         Enumeration<URL> entries = bundle.findEntries("/test", "*", true);
         while (entries.hasMoreElements()) {
             URL url = entries.nextElement();

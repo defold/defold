@@ -62,8 +62,6 @@ public abstract class GuiNode implements IAdaptable {
     @Property()
     private YAnchor yanchor;
 
-    private PropertyIntrospectorModel<GuiNode, GuiScene> propertyModel;
-
     private static PropertyIntrospector<GuiNode, GuiScene> introspector = new PropertyIntrospector<GuiNode, GuiScene>(GuiNode.class);
 
     public Vector3d getRotation() {
@@ -203,7 +201,7 @@ public abstract class GuiNode implements IAdaptable {
     @Override
     public Object getAdapter(Class adapter) {
         if (adapter == IPropertyModel.class) {
-            return new PropertyIntrospectorModel(this, getScene(), introspector, getScene().getContentRoot());
+            return new PropertyIntrospectorModel(this, getScene(), introspector);
         }
         return null;
     }

@@ -71,7 +71,7 @@ public abstract class Node implements IAdaptable
     @Override
     public Object getAdapter(Class adapter) {
         if (adapter == IPropertyModel.class) {
-            return new PropertyIntrospectorModel<Node, Scene>(this, getScene(), introspector, null);
+            return new PropertyIntrospectorModel<Node, Scene>(this, getScene(), introspector);
         }
         return null;
     }

@@ -112,7 +112,7 @@ IResourceChangeListener {
                 actionBars.setGlobalActionHandler(redoId, redoHandler);
             }
         };
-        this.propertySheetPage = new FormPropertySheetPage() {
+        this.propertySheetPage = new FormPropertySheetPage(contentRoot) {
             @Override
             public void createControl(Composite parent) {
                 super.createControl(parent);

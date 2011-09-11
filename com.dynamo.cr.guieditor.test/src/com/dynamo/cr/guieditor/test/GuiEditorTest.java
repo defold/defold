@@ -116,7 +116,6 @@ public class GuiEditorTest {
         project.open(monitor);
 
         Bundle bundle = Platform.getBundle(Activator.PLUGIN_ID);
-        @SuppressWarnings("unchecked")
         Enumeration<URL> entries = bundle.findEntries("/test", "*", true);
         while (entries.hasMoreElements()) {
             URL url = entries.nextElement();
