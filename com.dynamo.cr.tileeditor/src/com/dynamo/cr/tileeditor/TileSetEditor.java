@@ -2,6 +2,8 @@ package com.dynamo.cr.tileeditor;
 
 import java.awt.Color;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.util.List;
 
 import javax.vecmath.Vector3f;
@@ -15,6 +17,8 @@ import org.eclipse.core.resources.IResourceChangeEvent;
 import org.eclipse.core.resources.IResourceChangeListener;
 import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.IProgressMonitor;
+import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.swt.events.KeyEvent;
 import org.eclipse.swt.events.KeyListener;
@@ -40,6 +44,7 @@ import org.eclipse.ui.operations.UndoActionHandler;
 import org.eclipse.ui.part.EditorPart;
 import org.eclipse.ui.part.IPageSite;
 import org.eclipse.ui.progress.IProgressService;
+import org.eclipse.ui.statushandlers.StatusManager;
 import org.eclipse.ui.views.contentoutline.IContentOutlinePage;
 import org.eclipse.ui.views.properties.IPropertySheetPage;
 
@@ -60,7 +65,9 @@ KeyListener, IResourceChangeListener {
     private TileSetEditorOutlinePage outlinePage;
     private FormPropertySheetPage propertySheetPage;
     private boolean dirty = false;
-    private boolean refreshPropertiesPosted;
+    private boolean refreshPropertiesPosted = false;
+    // avoids reloading while saving
+    private boolean inSave = false;
 
     // EditorPart
 
@@ -176,7 +183,21 @@ KeyListener, IResourceChangeListener {
 
     @Override
     public void doSave(IProgressMonitor monitor) {
-        // TODO Auto-generated method stub
+        this.inSave = true;
+        try {
+            IFileEditorInput input = (IFileEditorInput) getEditorInput();
+            ByteArrayOutputStream stream = new ByteArrayOutputStream();
+            this.presenter.save(stream, monitor);
+            input.getFile().setContents(
+                    new ByteArrayInputStream(stream.toByteArray()), false,
+                    true, monitor);
+        } catch (Throwable e) {
+            Status status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, 0,
+                    e.getMessage(), null);
+            StatusManager.getManager().handle(status, StatusManager.LOG | StatusManager.SHOW);
+        } finally {
+            this.inSave = false;
+        }
 
     }
 
@@ -202,7 +223,8 @@ KeyListener, IResourceChangeListener {
 
     @Override
     public void resourceChanged(IResourceChangeEvent event) {
-        // TODO Auto-generated method stub
+        if (this.inSave)
+            return;
 
     }
 

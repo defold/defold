@@ -48,12 +48,12 @@ public class TileSetPresenter implements TaggedPropertyListener, IOperationHisto
 
     public void load(TileSet tileSet) throws IOException {
         this.model.load(tileSet);
-        this.undoRedoCounter = 0;
+        setUndoRedoCounter(0);
     }
 
     public void save(OutputStream outputStream, IProgressMonitor monitor) throws IOException {
         this.model.save(outputStream, monitor);
-        this.undoRedoCounter = 0;
+        setUndoRedoCounter(0);
     }
 
     public TileSetModel getModel() {
@@ -144,21 +144,25 @@ public class TileSetPresenter implements TaggedPropertyListener, IOperationHisto
 
     @Override
     public void historyNotification(OperationHistoryEvent event) {
-        boolean prevDirty = this.undoRedoCounter != 0;
         int type = event.getEventType();
         switch (type) {
         case OperationHistoryEvent.DONE:
         case OperationHistoryEvent.REDONE:
-            ++this.undoRedoCounter;
+            setUndoRedoCounter(this.undoRedoCounter+1);
             break;
         case OperationHistoryEvent.UNDONE:
-            --this.undoRedoCounter;
+            setUndoRedoCounter(this.undoRedoCounter-1);
             break;
         }
-        boolean dirty = this.undoRedoCounter != 0;
+    }
+
+    private void setUndoRedoCounter(int undoRedoCounter) {
+        boolean prevDirty = this.undoRedoCounter != 0;
+        boolean dirty = undoRedoCounter != 0;
         if (prevDirty != dirty) {
             this.view.setDirty(dirty);
         }
+        this.undoRedoCounter = undoRedoCounter;
     }
 
     private void setViewTiles(List<TileSetModel.ConvexHull> convexHulls) {

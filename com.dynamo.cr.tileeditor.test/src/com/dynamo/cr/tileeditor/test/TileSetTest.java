@@ -601,7 +601,7 @@ public class TileSetTest {
             assertEquals(this.model.getConvexHullPoints()[i], newModel.getConvexHullPoints()[i], 0.000001);
         }
         assertEquals(this.model.getCollisionGroups(), newModel.getCollisionGroups());
-        verify(this.view, times(1)).setDirty(false);
+        verify(this.view, times(2)).setDirty(false);
     }
 
     /**
