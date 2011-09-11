@@ -11,7 +11,10 @@ import java.util.List;
 import javax.vecmath.Point3f;
 import javax.vecmath.Vector3f;
 
+import org.eclipse.core.commands.operations.IOperationHistoryListener;
+import org.eclipse.core.commands.operations.OperationHistoryEvent;
 import org.eclipse.core.runtime.IProgressMonitor;
+import org.eclipse.ui.services.IDisposable;
 
 import com.dynamo.cr.tileeditor.operations.AddCollisionGroupOperation;
 import com.dynamo.cr.tileeditor.operations.RemoveCollisionGroupsOperation;
@@ -19,27 +22,38 @@ import com.dynamo.cr.tileeditor.operations.RenameCollisionGroupsOperation;
 import com.dynamo.cr.tileeditor.operations.SetConvexHullCollisionGroupsOperation;
 import com.dynamo.tile.proto.Tile.TileSet;
 
-public class TileSetPresenter implements TaggedPropertyListener {
+public class TileSetPresenter implements TaggedPropertyListener, IOperationHistoryListener, IDisposable {
     private final TileSetModel model;
     private final ITileSetView view;
     private List<Color> collisionGroupColors;
     // Used for painting collision groups onto tiles (convex hulls)
-    String[] oldCollisionGroups;
-    String currentCollisionGroup;
+    private String[] oldCollisionGroups;
+    private String currentCollisionGroup;
+    private int undoRedoCounter;
 
     public TileSetPresenter(TileSetModel model, ITileSetView view) {
         this.model = model;
         this.view = view;
         this.model.addTaggedPropertyListener(this);
         this.collisionGroupColors = new ArrayList<Color>();
+        this.undoRedoCounter = 0;
+        this.model.getUndoHistory().addOperationHistoryListener(this);
+    }
+
+    @Override
+    public void dispose() {
+        this.model.removeTaggedPropertyListener(this);
+        this.model.getUndoHistory().removeOperationHistoryListener(this);
     }
 
     public void load(TileSet tileSet) throws IOException {
         this.model.load(tileSet);
+        setUndoRedoCounter(0);
     }
 
     public void save(OutputStream outputStream, IProgressMonitor monitor) throws IOException {
         this.model.save(outputStream, monitor);
+        setUndoRedoCounter(0);
     }
 
     public TileSetModel getModel() {
@@ -98,20 +112,7 @@ public class TileSetPresenter implements TaggedPropertyListener {
     }
 
     public void refresh() {
-        this.view.setImageProperty(this.model.getImage());
-        this.view.setImageTags(this.model.getPropertyTags("image"));
-        this.view.setTileWidthProperty(this.model.getTileWidth());
-        this.view.setTileWidthTags(this.model.getPropertyTags("tileWidth"));
-        this.view.setTileHeightProperty(this.model.getTileHeight());
-        this.view.setTileHeightTags(this.model.getPropertyTags("tileHeight"));
-        this.view.setTileMarginProperty(this.model.getTileMargin());
-        this.view.setTileMarginTags(this.model.getPropertyTags("tileMargin"));
-        this.view.setTileSpacingProperty(this.model.getTileSpacing());
-        this.view.setTileSpacingTags(this.model.getPropertyTags("tileSpacing"));
-        this.view.setCollisionProperty(this.model.getCollision());
-        this.view.setCollisionTags(this.model.getPropertyTags("collision"));
-        this.view.setMaterialTagProperty(this.model.getMaterialTag());
-        this.view.setMaterialTagTags(this.model.getPropertyTags("materialTag"));
+        this.view.refreshProperties();
         setViewCollisionGroups(this.model.getCollisionGroups());
         setViewTiles(this.model.getConvexHulls());
     }
@@ -120,24 +121,12 @@ public class TileSetPresenter implements TaggedPropertyListener {
     @Override
     public void propertyChange(PropertyChangeEvent evt) {
         if (evt.getSource() instanceof TileSetModel) {
-            if (evt.getPropertyName().equals("image")) {
-                view.setImageProperty((String)evt.getNewValue());
-            } else if (evt.getPropertyName().equals("tileWidth")) {
-                view.setTileWidthProperty((Integer)evt.getNewValue());
-            } else if (evt.getPropertyName().equals("tileHeight")) {
-                view.setTileHeightProperty((Integer)evt.getNewValue());
-            } else if (evt.getPropertyName().equals("tileMargin")) {
-                view.setTileMarginProperty((Integer)evt.getNewValue());
-            } else if (evt.getPropertyName().equals("tileSpacing")) {
-                view.setTileSpacingProperty((Integer)evt.getNewValue());
-            } else if (evt.getPropertyName().equals("collision")) {
-                view.setCollisionProperty((String)evt.getNewValue());
-            } else if (evt.getPropertyName().equals("materialTag")) {
-                view.setMaterialTagProperty((String)evt.getNewValue());
-            } else if (evt.getPropertyName().equals("collisionGroups")) {
+            if (evt.getPropertyName().equals("collisionGroups")) {
                 setViewCollisionGroups((List<String>)evt.getNewValue());
             } else if (evt.getPropertyName().equals("convexHulls")) {
                 setViewTiles((List<TileSetModel.ConvexHull>)evt.getNewValue());
+            } else {
+                this.view.refreshProperties();
             }
         } else if (evt.getSource() instanceof TileSetModel.ConvexHull) {
             if (evt.getPropertyName().equals("collisionGroup")) {
@@ -149,22 +138,31 @@ public class TileSetPresenter implements TaggedPropertyListener {
     @Override
     public void propertyTag(PropertyTagEvent evt) {
         if (evt.getSource() instanceof TileSetModel) {
-            if (evt.getPropertyName().equals("image")) {
-                this.view.setImageTags(evt.getTags());
-            } else if (evt.getPropertyName().equals("tileWidth")) {
-                this.view.setTileWidthTags(evt.getTags());
-            } else if (evt.getPropertyName().equals("tileHeight")) {
-                this.view.setTileHeightTags(evt.getTags());
-            } else if (evt.getPropertyName().equals("tileMargin")) {
-                this.view.setTileMarginTags(evt.getTags());
-            } else if (evt.getPropertyName().equals("tileSpacing")) {
-                this.view.setTileSpacingTags(evt.getTags());
-            } else if (evt.getPropertyName().equals("collision")) {
-                this.view.setCollisionTags(evt.getTags());
-            } else if (evt.getPropertyName().equals("materialTag")) {
-                this.view.setMaterialTagTags(evt.getTags());
-            }
+            this.view.refreshProperties();
         }
+    }
+
+    @Override
+    public void historyNotification(OperationHistoryEvent event) {
+        int type = event.getEventType();
+        switch (type) {
+        case OperationHistoryEvent.DONE:
+        case OperationHistoryEvent.REDONE:
+            setUndoRedoCounter(this.undoRedoCounter+1);
+            break;
+        case OperationHistoryEvent.UNDONE:
+            setUndoRedoCounter(this.undoRedoCounter-1);
+            break;
+        }
+    }
+
+    private void setUndoRedoCounter(int undoRedoCounter) {
+        boolean prevDirty = this.undoRedoCounter != 0;
+        boolean dirty = undoRedoCounter != 0;
+        if (prevDirty != dirty) {
+            this.view.setDirty(dirty);
+        }
+        this.undoRedoCounter = undoRedoCounter;
     }
 
     private void setViewTiles(List<TileSetModel.ConvexHull> convexHulls) {

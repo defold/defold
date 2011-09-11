@@ -55,19 +55,19 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
     public static final Tag TAG_10 = new Tag("10", Tag.TYPE_ERROR, Messages.TileSetModel_TAG_10);
     public static final Tag TAG_11 = new Tag("11", Tag.TYPE_ERROR, Messages.TileSetModel_TAG_11);
 
-    @Property(isResource = true)
+    @Property(accessor = TileSetPropertyAccessor.class, isResource = true)
     String image;
-    @Property
+    @Property(accessor = TileSetPropertyAccessor.class)
     int tileWidth;
-    @Property
+    @Property(accessor = TileSetPropertyAccessor.class)
     int tileHeight;
-    @Property
+    @Property(accessor = TileSetPropertyAccessor.class)
     int tileMargin;
-    @Property
+    @Property(accessor = TileSetPropertyAccessor.class)
     int tileSpacing;
-    @Property(isResource = true)
+    @Property(accessor = TileSetPropertyAccessor.class, isResource = true)
     String collision;
-    @Property
+    @Property(accessor = TileSetPropertyAccessor.class)
     String materialTag;
 
     private static PropertyIntrospector<TileSetModel, TileSetModel> introspector = new PropertyIntrospector<TileSetModel, TileSetModel>(TileSetModel.class);
@@ -430,6 +430,10 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
             Collections.sort(this.collisionGroups);
             firePropertyChangeEvent(new PropertyChangeEvent(this, "collisionGroups", tmpCollisionGroups, this.collisionGroups));
         }
+    }
+
+    public IOperationHistory getUndoHistory() {
+        return undoHistory;
     }
 
     public BufferedImage getLoadedImage() {

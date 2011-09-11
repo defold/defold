@@ -4,8 +4,8 @@ import org.eclipse.osgi.util.NLS;
 
 public class Tag {
     public static final int TYPE_INFO = 0;
-    public static final int TYPE_WARNING = 0;
-    public static final int TYPE_ERROR = 0;
+    public static final int TYPE_WARNING = 1;
+    public static final int TYPE_ERROR = 2;
 
     private final String id;
     private final int type;

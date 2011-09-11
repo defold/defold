@@ -2,6 +2,8 @@ package com.dynamo.cr.tileeditor;
 
 import java.awt.Color;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.util.List;
 
 import javax.vecmath.Vector3f;
@@ -15,6 +17,8 @@ import org.eclipse.core.resources.IResourceChangeEvent;
 import org.eclipse.core.resources.IResourceChangeListener;
 import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.IProgressMonitor;
+import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.swt.events.KeyEvent;
 import org.eclipse.swt.events.KeyListener;
@@ -22,6 +26,7 @@ import org.eclipse.swt.events.MouseEvent;
 import org.eclipse.swt.events.MouseListener;
 import org.eclipse.swt.events.MouseMoveListener;
 import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.Listener;
 import org.eclipse.ui.IActionBars;
@@ -39,13 +44,13 @@ import org.eclipse.ui.operations.UndoActionHandler;
 import org.eclipse.ui.part.EditorPart;
 import org.eclipse.ui.part.IPageSite;
 import org.eclipse.ui.progress.IProgressService;
+import org.eclipse.ui.statushandlers.StatusManager;
 import org.eclipse.ui.views.contentoutline.IContentOutlinePage;
 import org.eclipse.ui.views.properties.IPropertySheetPage;
 
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.properties.FormPropertySheetPage;
 import com.dynamo.cr.tileeditor.core.ITileSetView;
-import com.dynamo.cr.tileeditor.core.Tag;
 import com.dynamo.cr.tileeditor.core.TileSetModel;
 import com.dynamo.cr.tileeditor.core.TileSetPresenter;
 
@@ -59,6 +64,10 @@ KeyListener, IResourceChangeListener {
     private TileSetPresenter presenter;
     private TileSetEditorOutlinePage outlinePage;
     private FormPropertySheetPage propertySheetPage;
+    private boolean dirty = false;
+    private boolean refreshPropertiesPosted = false;
+    // avoids reloading while saving
+    private boolean inSave = false;
 
     // EditorPart
 
@@ -148,6 +157,7 @@ KeyListener, IResourceChangeListener {
     public void dispose() {
         super.dispose();
 
+        this.presenter.dispose();
         ResourcesPlugin.getWorkspace().removeResourceChangeListener(this);
     }
 
@@ -168,13 +178,26 @@ KeyListener, IResourceChangeListener {
 
     @Override
     public boolean isDirty() {
-        // TODO Auto-generated method stub
-        return false;
+        return this.dirty;
     }
 
     @Override
     public void doSave(IProgressMonitor monitor) {
-        // TODO Auto-generated method stub
+        this.inSave = true;
+        try {
+            IFileEditorInput input = (IFileEditorInput) getEditorInput();
+            ByteArrayOutputStream stream = new ByteArrayOutputStream();
+            this.presenter.save(stream, monitor);
+            input.getFile().setContents(
+                    new ByteArrayInputStream(stream.toByteArray()), false,
+                    true, monitor);
+        } catch (Throwable e) {
+            Status status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, 0,
+                    e.getMessage(), null);
+            StatusManager.getManager().handle(status, StatusManager.LOG | StatusManager.SHOW);
+        } finally {
+            this.inSave = false;
+        }
 
     }
 
@@ -200,7 +223,8 @@ KeyListener, IResourceChangeListener {
 
     @Override
     public void resourceChanged(IResourceChangeEvent event) {
-        // TODO Auto-generated method stub
+        if (this.inSave)
+            return;
 
     }
 
@@ -257,73 +281,8 @@ KeyListener, IResourceChangeListener {
     // ITileSetView
 
     @Override
-    public void setImageProperty(String newValue) {
-        this.propertySheetPage.refresh();
-    }
-
-    @Override
-    public void setImageTags(List<Tag> tags) {
-        this.propertySheetPage.refresh();
-    }
-
-    @Override
-    public void setTileWidthProperty(int tileWidth) {
-        this.propertySheetPage.refresh();
-    }
-
-    @Override
-    public void setTileWidthTags(List<Tag> tags) {
-        this.propertySheetPage.refresh();
-    }
-
-    @Override
-    public void setTileHeightProperty(int tileHeight) {
-        this.propertySheetPage.refresh();
-    }
-
-    @Override
-    public void setTileHeightTags(List<Tag> tags) {
-        this.propertySheetPage.refresh();
-    }
-
-    @Override
-    public void setTileMarginProperty(int tileMargin) {
-        this.propertySheetPage.refresh();
-    }
-
-    @Override
-    public void setTileMarginTags(List<Tag> tags) {
-        this.propertySheetPage.refresh();
-    }
-
-    @Override
-    public void setTileSpacingProperty(int tileSpacing) {
-        this.propertySheetPage.refresh();
-    }
-
-    @Override
-    public void setTileSpacingTags(List<Tag> tags) {
-        this.propertySheetPage.refresh();
-    }
-
-    @Override
-    public void setCollisionProperty(String newValue) {
-        this.propertySheetPage.refresh();
-    }
-
-    @Override
-    public void setCollisionTags(List<Tag> tags) {
-        this.propertySheetPage.refresh();
-    }
-
-    @Override
-    public void setMaterialTagProperty(String newValue) {
-        this.propertySheetPage.refresh();
-    }
-
-    @Override
-    public void setMaterialTagTags(List<Tag> tags) {
-        this.propertySheetPage.refresh();
+    public void refreshProperties() {
+        postRefreshProperties();
     }
 
     @Override
@@ -351,6 +310,12 @@ KeyListener, IResourceChangeListener {
     }
 
     @Override
+    public void setDirty(boolean dirty) {
+        this.dirty = dirty;
+        firePropertyChange(PROP_DIRTY);
+    }
+
+    @Override
     public Object getAdapter(@SuppressWarnings("rawtypes") Class adapter) {
         if (adapter == IPropertySheetPage.class) {
             return this.propertySheetPage;
@@ -358,6 +323,21 @@ KeyListener, IResourceChangeListener {
             return this.outlinePage;
         } else {
             return super.getAdapter(adapter);
+        }
+    }
+
+    private void postRefreshProperties() {
+        if (!refreshPropertiesPosted) {
+            refreshPropertiesPosted = true;
+
+            Display.getDefault().timerExec(100, new Runnable() {
+
+                @Override
+                public void run() {
+                    refreshPropertiesPosted = false;
+                    propertySheetPage.refresh();
+                }
+            });
         }
     }
 
