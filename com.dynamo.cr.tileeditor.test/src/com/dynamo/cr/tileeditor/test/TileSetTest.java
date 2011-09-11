@@ -18,7 +18,10 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.URL;
+import java.util.Enumeration;
 
 import javax.vecmath.Vector3f;
 
@@ -26,12 +29,22 @@ import org.eclipse.core.commands.operations.DefaultOperationHistory;
 import org.eclipse.core.commands.operations.IOperationHistory;
 import org.eclipse.core.commands.operations.IUndoContext;
 import org.eclipse.core.commands.operations.UndoContext;
+import org.eclipse.core.resources.IContainer;
+import org.eclipse.core.resources.IFile;
+import org.eclipse.core.resources.IProject;
+import org.eclipse.core.resources.IProjectDescription;
+import org.eclipse.core.resources.ResourcesPlugin;
+import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.NullProgressMonitor;
+import org.eclipse.core.runtime.Path;
+import org.eclipse.core.runtime.Platform;
 import org.eclipse.osgi.util.NLS;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.osgi.framework.Bundle;
 
+import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.tileeditor.core.ITileSetView;
 import com.dynamo.cr.tileeditor.core.TileSetModel;
@@ -40,6 +53,9 @@ import com.dynamo.tile.proto.Tile.TileSet;
 import com.google.protobuf.TextFormat;
 
 public class TileSetTest {
+    private IProject project;
+    private IContainer contentRoot;
+    private NullProgressMonitor monitor;
     ITileSetView view;
     TileSetModel model;
     TileSetPresenter presenter;
@@ -49,12 +65,41 @@ public class TileSetTest {
 
     @SuppressWarnings("unchecked")
     @Before
-    public void setup() {
+    public void setup() throws Exception {
+        project = ResourcesPlugin.getWorkspace().getRoot().getProject("test");
+        monitor = new NullProgressMonitor();
+        if (project.exists()) {
+            project.delete(true, monitor);
+        }
+        project.create(monitor);
+        project.open(monitor);
+
+        IProjectDescription pd = project.getDescription();
+        pd.setNatureIds(new String[] { "com.dynamo.cr.editor.core.crnature" });
+        project.setDescription(pd, monitor);
+
+        Bundle bundle = Platform.getBundle("com.dynamo.cr.tileeditor.test");
+        Enumeration<URL> entries = bundle.findEntries("/test", "*", true);
+        while (entries.hasMoreElements()) {
+            URL url = entries.nextElement();
+            IPath path = new Path(url.getPath()).removeFirstSegments(1);
+            // Create path of url-path and remove first element, ie /test/sounds/ -> /sounds
+            if (url.getFile().endsWith("/")) {
+                project.getFolder(path).create(true, true, monitor);
+            } else {
+                InputStream is = url.openStream();
+                IFile file = project.getFile(path);
+                file.create(is, true, monitor);
+                is.close();
+            }
+        }
+        this.contentRoot = EditorUtil.findContentRoot(this.project.getFile("game.project"));
+
         System.setProperty("java.awt.headless", "true");
         this.view = mock(ITileSetView.class);
         this.history = new DefaultOperationHistory();
         this.undoContext = new UndoContext();
-        this.model = new TileSetModel(this.history, this.undoContext);
+        this.model = new TileSetModel(this.contentRoot, this.history, this.undoContext);
         this.presenter = new TileSetPresenter(this.model, this.view);
         this.propertyModel = (IPropertyModel<TileSetModel, TileSetModel>) this.model.getAdapter(IPropertyModel.class);
     }
@@ -112,7 +157,7 @@ public class TileSetTest {
     public void testUseCase111() throws Exception {
         TileSet emptyTileSet = loadEmptyFile();
 
-        String tileSetFile = "test/mario_tileset.png";
+        String tileSetFile = "/mario_tileset.png";
 
         // image
 
@@ -586,7 +631,7 @@ public class TileSetTest {
         TileSet tileSet = tileSetBuilder.build();
         newTileSetFile = new File(newTileSetPath);
         newTileSetFile.delete();
-        TileSetModel newModel = new TileSetModel(this.history, this.undoContext);
+        TileSetModel newModel = new TileSetModel(this.contentRoot, this.history, this.undoContext);
         newModel.load(tileSet);
         assertEquals(this.model.getImage(), newModel.getImage());
         assertEquals(this.model.getTileWidth(), newModel.getTileWidth());
@@ -616,7 +661,7 @@ public class TileSetTest {
         assertEquals(TileSetModel.TAG_1.getMessage(), this.model.getPropertyTag("image", TileSetModel.TAG_1).getMessage());
         verify(this.view, times(6)).refreshProperties();
 
-        this.model.executeOperation(propertyModel.setPropertyValue("image", "test/mario_tileset.png"));
+        this.model.executeOperation(propertyModel.setPropertyValue("image", "/mario_tileset.png"));
         assertTrue(!this.model.hasPropertyAnnotation("image", TileSetModel.TAG_1));
         verify(this.view, times(8)).refreshProperties();
     }
@@ -632,13 +677,13 @@ public class TileSetTest {
         assertTrue(!this.model.hasPropertyAnnotation("image", TileSetModel.TAG_2));
         verify(this.view, times(6)).refreshProperties();
 
-        String invalidPath = "test";
+        String invalidPath = "/test";
         this.model.executeOperation(propertyModel.setPropertyValue("image", invalidPath));
         assertTrue(this.model.hasPropertyAnnotation("image", TileSetModel.TAG_2));
         assertEquals(NLS.bind(TileSetModel.TAG_2.getMessage(), invalidPath), this.model.getPropertyTag("image", TileSetModel.TAG_2).getMessage());
         verify(this.view, times(9)).refreshProperties();
 
-        this.model.executeOperation(propertyModel.setPropertyValue("image", "test/mario_tileset.png"));
+        this.model.executeOperation(propertyModel.setPropertyValue("image", "/mario_tileset.png"));
         assertTrue(!this.model.hasPropertyAnnotation("image", TileSetModel.TAG_2));
         verify(this.view, times(11)).refreshProperties();
     }
@@ -660,7 +705,7 @@ public class TileSetTest {
         assertEquals(NLS.bind(TileSetModel.TAG_3.getMessage(), invalidPath), this.model.getPropertyTag("collision", TileSetModel.TAG_3).getMessage());
         verify(this.view, times(8)).refreshProperties();
 
-        this.model.executeOperation(propertyModel.setPropertyValue("collision", "test/mario_tileset.png"));
+        this.model.executeOperation(propertyModel.setPropertyValue("collision", "/mario_tileset.png"));
         assertTrue(!this.model.hasPropertyAnnotation("collision", TileSetModel.TAG_3));
         verify(this.view, times(10)).refreshProperties();
     }
@@ -677,8 +722,8 @@ public class TileSetTest {
         assertTrue(!this.model.hasPropertyAnnotation("collision", TileSetModel.TAG_4));
         verify(this.view, times(6)).refreshProperties();
 
-        this.model.executeOperation(propertyModel.setPropertyValue("image", "test/mario_tileset.png"));
-        this.model.executeOperation(propertyModel.setPropertyValue("collision", "test/mario_half_tileset.png"));
+        this.model.executeOperation(propertyModel.setPropertyValue("image", "/mario_tileset.png"));
+        this.model.executeOperation(propertyModel.setPropertyValue("collision", "/mario_half_tileset.png"));
         assertTrue(this.model.hasPropertyAnnotation("image", TileSetModel.TAG_4));
         String message = NLS.bind(TileSetModel.TAG_4.getMessage(), new Object[] {84, 67, 84, 33});
         assertEquals(message, this.model.getPropertyTag("image", TileSetModel.TAG_4).getMessage());
@@ -686,7 +731,7 @@ public class TileSetTest {
         assertEquals(message, this.model.getPropertyTag("collision", TileSetModel.TAG_4).getMessage());
         verify(this.view, times(11)).refreshProperties();
 
-        this.model.executeOperation(propertyModel.setPropertyValue("collision", "test/mario_tileset.png"));
+        this.model.executeOperation(propertyModel.setPropertyValue("collision", "/mario_tileset.png"));
         assertTrue(!this.model.hasPropertyAnnotation("image", TileSetModel.TAG_4));
         assertTrue(!this.model.hasPropertyAnnotation("collision", TileSetModel.TAG_4));
         verify(this.view, times(14)).refreshProperties();
@@ -744,7 +789,7 @@ public class TileSetTest {
 
         verify(this.view, times(6)).refreshProperties();
 
-        this.model.executeOperation(propertyModel.setPropertyValue("image", "test/mario_tileset.png"));
+        this.model.executeOperation(propertyModel.setPropertyValue("image", "/mario_tileset.png"));
 
         assertTrue(!this.model.hasPropertyAnnotation("image", TileSetModel.TAG_7));
         assertTrue(!this.model.hasPropertyAnnotation("tileWidth", TileSetModel.TAG_7));
@@ -787,7 +832,7 @@ public class TileSetTest {
 
         verify(this.view, times(6)).refreshProperties();
 
-        this.model.executeOperation(propertyModel.setPropertyValue("image", "test/mario_tileset.png"));
+        this.model.executeOperation(propertyModel.setPropertyValue("image", "/mario_tileset.png"));
 
         assertTrue(!this.model.hasPropertyAnnotation("tileHeight", TileSetModel.TAG_8));
         assertTrue(!this.model.hasPropertyAnnotation("tileWidth", TileSetModel.TAG_8));

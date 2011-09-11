@@ -170,12 +170,12 @@ public class TileSetPresenter implements TaggedPropertyListener, IOperationHisto
         int tilesPerRow = 0;
         int tilesPerColumn = 0;
         if (image != null) {
-            tilesPerRow = this.model.calcTileCount(this.model.getTileWidth(), image.getWidth());
-            tilesPerColumn = this.model.calcTileCount(this.model.getTileHeight(), image.getHeight());
+            tilesPerRow = TileSetUtil.calculateTileCount(this.model.getTileWidth(), image.getWidth(), this.model.getTileMargin(), this.model.getTileSpacing());
+            tilesPerColumn = TileSetUtil.calculateTileCount(this.model.getTileHeight(), image.getHeight(), this.model.getTileMargin(), this.model.getTileSpacing());
         }
-        if (tilesPerRow > 0 && tilesPerColumn > 0) {
+        int tileCount = tilesPerRow * tilesPerColumn;
+        if (tilesPerRow > 0 && tilesPerColumn > 0 && tileCount == this.model.getConvexHulls().size()) {
             updateCollisionGroupColors(this.model.getCollisionGroups().size());
-            int tileCount = tilesPerRow * tilesPerColumn;
             int tileWidth = this.model.getTileWidth();
             int tileHeight = this.model.getTileHeight();
             int tileMargin = this.model.getTileMargin();

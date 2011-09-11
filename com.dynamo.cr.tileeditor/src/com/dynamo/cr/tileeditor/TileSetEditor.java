@@ -20,15 +20,8 @@ import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.viewers.ISelection;
-import org.eclipse.swt.events.KeyEvent;
-import org.eclipse.swt.events.KeyListener;
-import org.eclipse.swt.events.MouseEvent;
-import org.eclipse.swt.events.MouseListener;
-import org.eclipse.swt.events.MouseMoveListener;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Display;
-import org.eclipse.swt.widgets.Event;
-import org.eclipse.swt.widgets.Listener;
 import org.eclipse.ui.IActionBars;
 import org.eclipse.ui.IEditorInput;
 import org.eclipse.ui.IEditorSite;
@@ -54,9 +47,9 @@ import com.dynamo.cr.tileeditor.core.ITileSetView;
 import com.dynamo.cr.tileeditor.core.TileSetModel;
 import com.dynamo.cr.tileeditor.core.TileSetPresenter;
 
-public class TileSetEditor extends EditorPart implements ITileSetView,
-MouseListener, MouseMoveListener, Listener,
-KeyListener, IResourceChangeListener {
+public class TileSetEditor extends EditorPart implements
+ITileSetView,
+IResourceChangeListener {
 
     private IContainer contentRoot;
     private IOperationHistory history;
@@ -68,6 +61,7 @@ KeyListener, IResourceChangeListener {
     private boolean refreshPropertiesPosted = false;
     // avoids reloading while saving
     private boolean inSave = false;
+    private TileSetRenderer renderer;
 
     // EditorPart
 
@@ -97,7 +91,7 @@ KeyListener, IResourceChangeListener {
                 this.undoContext, this);
         this.history.addOperationApprover(approver);
 
-        final TileSetModel model = new TileSetModel(this.history, this.undoContext);
+        final TileSetModel model = new TileSetModel(this.contentRoot, this.history, this.undoContext);
         this.presenter = new TileSetPresenter(model, this);
 
         final String undoId = ActionFactory.UNDO.getId();
@@ -158,11 +152,17 @@ KeyListener, IResourceChangeListener {
         super.dispose();
 
         this.presenter.dispose();
+        if (this.renderer != null) {
+            this.renderer.dispose();
+        }
         ResourcesPlugin.getWorkspace().removeResourceChangeListener(this);
     }
 
     @Override
     public void createPartControl(Composite parent) {
+
+        this.renderer = new TileSetRenderer(this.presenter, parent);
+
         // This makes sure the context will be active while this component is
         IContextService contextService = (IContextService) getSite()
                 .getService(IContextService.class);
@@ -170,6 +170,8 @@ KeyListener, IResourceChangeListener {
 
         // Set the outline as selection provider
         getSite().setSelectionProvider(this.outlinePage);
+
+        this.presenter.refresh();
     }
 
     public TileSetPresenter getPresenter() {
@@ -228,56 +230,6 @@ KeyListener, IResourceChangeListener {
 
     }
 
-    // Listener
-
-    @Override
-    public void handleEvent(Event event) {
-        // TODO Auto-generated method stub
-
-    }
-
-    // KeyListener
-
-    @Override
-    public void keyPressed(KeyEvent e) {
-        // TODO Auto-generated method stub
-
-    }
-
-    @Override
-    public void keyReleased(KeyEvent e) {
-        // TODO Auto-generated method stub
-
-    }
-
-    // MouseMoveListener
-
-    @Override
-    public void mouseMove(MouseEvent e) {
-        // TODO Auto-generated method stub
-
-    }
-
-    // MouseListener
-
-    @Override
-    public void mouseDoubleClick(MouseEvent e) {
-        // TODO Auto-generated method stub
-
-    }
-
-    @Override
-    public void mouseDown(MouseEvent e) {
-        // TODO Auto-generated method stub
-
-    }
-
-    @Override
-    public void mouseUp(MouseEvent e) {
-        // TODO Auto-generated method stub
-
-    }
-
     // ITileSetView
 
     @Override
@@ -287,26 +239,29 @@ KeyListener, IResourceChangeListener {
 
     @Override
     public void setCollisionGroups(List<String> collisionGroups, List<Color> colors, String[] selectedCollisionGroups) {
-        outlinePage.setInput(collisionGroups, colors, selectedCollisionGroups);
+        this.outlinePage.setInput(collisionGroups, colors, selectedCollisionGroups);
     }
 
     @Override
     public void setTiles(BufferedImage image, float[] v, int[] hullIndices,
             int[] hullCounts, Color[] hullColors, Vector3f hullScale) {
-        // TODO Auto-generated method stub
-
+        if (this.renderer != null) {
+            this.renderer.setTiles(image, v, hullIndices, hullCounts, hullColors, hullScale);
+        }
     }
 
     @Override
     public void clearTiles() {
-        // TODO Auto-generated method stub
-
+        if (this.renderer != null) {
+            this.renderer.clearTiles();
+        }
     }
 
     @Override
     public void setTileHullColor(int tileIndex, Color color) {
-        // TODO Auto-generated method stub
-
+        if (this.renderer != null) {
+            this.renderer.setTileHullColor(tileIndex, color);
+        }
     }
 
     @Override

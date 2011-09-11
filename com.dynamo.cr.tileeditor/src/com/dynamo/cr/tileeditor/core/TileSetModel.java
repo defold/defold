@@ -2,8 +2,6 @@ package com.dynamo.cr.tileeditor.core;
 
 import java.awt.image.BufferedImage;
 import java.beans.PropertyChangeEvent;
-import java.io.BufferedInputStream;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -20,9 +18,12 @@ import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.IOperationHistory;
 import org.eclipse.core.commands.operations.IUndoContext;
 import org.eclipse.core.commands.operations.IUndoableOperation;
+import org.eclipse.core.resources.IContainer;
+import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.IAdaptable;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Status;
 
 import com.dynamo.cr.properties.Entity;
@@ -72,6 +73,7 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
 
     private static PropertyIntrospector<TileSetModel, TileSetModel> introspector = new PropertyIntrospector<TileSetModel, TileSetModel>(TileSetModel.class);
 
+    private final IContainer contentRoot;
     List<ConvexHull> convexHulls;
     float[] convexHullPoints;
     List<String> collisionGroups;
@@ -138,7 +140,8 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
         }
     }
 
-    public TileSetModel(IOperationHistory undoHistory, IUndoContext undoContext) {
+    public TileSetModel(IContainer contentRoot, IOperationHistory undoHistory, IUndoContext undoContext) {
+        this.contentRoot = contentRoot;
         this.convexHulls = new ArrayList<ConvexHull>();
         this.collisionGroups = new ArrayList<String>();
         this.selectedCollisionGroups = new String[0];
@@ -169,7 +172,7 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
                     this.loadedImage = loadImage(image);
                     updateConvexHulls();
                     clearPropertyTag("image", TAG_2);
-                } catch (IOException e) {
+                } catch (Exception e) {
                     this.loadedImage = null;
                     setPropertyTag("image", Tag.bind(TAG_2, image));
                 }
@@ -266,7 +269,7 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
                     this.loadedCollision = loadImage(collision);
                     updateConvexHulls();
                     clearPropertyTag("collision", TAG_3);
-                } catch (IOException e) {
+                } catch (Exception e) {
                     this.loadedCollision = null;
                     setPropertyTag("collision", Tag.bind(TAG_3, collision));
                 }
@@ -440,9 +443,10 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
         return this.loadedImage;
     }
 
-    private BufferedImage loadImage(String fileName) throws IOException {
+    private BufferedImage loadImage(String fileName) throws Exception {
         try {
-            InputStream is = new BufferedInputStream(new FileInputStream(fileName));
+            IFile file = this.contentRoot.getFile(new Path(fileName));
+            InputStream is = file.getContents();
             try {
                 return ImageIO.read(is);
             } finally {
@@ -527,15 +531,6 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
         if (verifyImageDimensions() && verifyTileDimensions()) {
             updateConvexHullsList();
             updateConvexHullsData();
-        }
-    }
-
-    public int calcTileCount(int tileSize, int imageSize) {
-        int actualTileSize = (2 * this.tileMargin + this.tileSpacing + tileSize);
-        if (actualTileSize != 0) {
-            return (imageSize + this.tileSpacing)/actualTileSize;
-        } else {
-            return 0;
         }
     }
 
@@ -624,8 +619,8 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
             imageWidth = this.loadedCollision.getWidth();
             imageHeight = this.loadedCollision.getHeight();
         }
-        int tilesPerRow = calcTileCount(this.tileWidth, imageWidth);
-        int tilesPerColumn = calcTileCount(this.tileHeight, imageHeight);
+        int tilesPerRow = TileSetUtil.calculateTileCount(this.tileWidth, imageWidth, this.tileMargin, this.tileSpacing);
+        int tilesPerColumn = TileSetUtil.calculateTileCount(this.tileHeight, imageHeight, this.tileMargin, this.tileSpacing);
         if (tilesPerRow <= 0 || tilesPerColumn <= 0) {
             // TODO: Report error
             return;
@@ -653,8 +648,8 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
         int width = this.loadedCollision.getWidth();
         int height = this.loadedCollision.getHeight();
 
-        int tilesPerRow = calcTileCount(this.tileWidth, width);
-        int tilesPerColumn = calcTileCount(this.tileHeight, height);
+        int tilesPerRow = TileSetUtil.calculateTileCount(this.tileWidth, width, this.tileMargin, this.tileSpacing);
+        int tilesPerColumn = TileSetUtil.calculateTileCount(this.tileHeight, height, this.tileMargin, this.tileSpacing);
         ConvexHull2D.Point[][] points = new ConvexHull2D.Point[tilesPerRow * tilesPerColumn][];
         int pointCount = 0;
         int[] mask = new int[this.tileWidth * this.tileHeight];
