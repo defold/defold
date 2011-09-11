@@ -30,6 +30,7 @@ public class FormPropertySheetViewer extends Viewer {
     private Composite currentComposite;
     private IPropertyModel[] models;
     private IContainer contentRoot;
+    private ArrayList<IPropertyEditor> editors = new ArrayList<IPropertyEditor>();
 
     public FormPropertySheetViewer(Composite parent, IContainer contentRoot) {
         this.contentRoot = contentRoot;
@@ -46,6 +47,12 @@ public class FormPropertySheetViewer extends Viewer {
         propertiesComposite.layout();
 
         this.form.reflow(true);
+    }
+
+    public void dispose() {
+        for (IPropertyEditor e : editors) {
+            e.dispose();
+        }
     }
 
     @Override
@@ -100,6 +107,7 @@ public class FormPropertySheetViewer extends Viewer {
                 label.setText(desc.getName() + ":");
 
                 IPropertyEditor editor = desc.createEditor(c, contentRoot);
+                this.editors.add(editor);
                 Control control;
                 if (editor == null) {
                     control = new Label(c, SWT.NONE);

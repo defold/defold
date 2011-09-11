@@ -57,6 +57,10 @@ public abstract class ArrayPropertyDesc<V, T, U extends IPropertyObjectWorld> ex
             oldValue = new String[count];
         }
 
+        @Override
+        public void dispose() {
+        }
+
         Text createText(Composite parent) {
             Text text = new Text(parent, SWT.BORDER);
             text.addListener(SWT.KeyDown, this);

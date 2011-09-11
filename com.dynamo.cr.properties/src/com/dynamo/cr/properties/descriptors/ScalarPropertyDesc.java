@@ -35,6 +35,10 @@ public abstract class ScalarPropertyDesc<S, T, U extends IPropertyObjectWorld> e
         }
 
         @Override
+        public void dispose() {
+        }
+
+        @Override
         public Control getControl() {
             return text;
         }

@@ -10,4 +10,6 @@ public interface IPropertyEditor<T, U extends IPropertyObjectWorld> {
 
     public void refresh();
 
+    public void dispose();
+
 }

@@ -49,6 +49,10 @@ public class ProtoEnumDesc<T, U extends IPropertyObjectWorld> extends PropertyDe
         }
 
         @Override
+        public void dispose() {
+        }
+
+        @Override
         public Control getControl() {
             return viewer.getControl();
         }

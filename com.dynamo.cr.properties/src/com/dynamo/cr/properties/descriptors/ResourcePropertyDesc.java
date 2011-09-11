@@ -30,18 +30,15 @@ public class ResourcePropertyDesc<T, U extends IPropertyObjectWorld> extends Pro
         super(id, name);
     }
 
-    public String fromString(String text) {
-        return text;
-    }
-
     private class Editor implements IPropertyEditor<T, U>, Listener {
 
         private Text text;
         private String oldValue;
         private IPropertyModel<T, U>[] models;
         private Button selectionButton;
+        private Composite composite;
         Editor(Composite parent) {
-            Composite composite = new Composite(parent, SWT.NONE);
+            composite = new Composite(parent, SWT.NONE);
             composite.setLayoutData(new GridData(GridData.FILL_HORIZONTAL));
             GridLayout layout = new GridLayout(2, false);
             layout.marginWidth = 0;
@@ -62,8 +59,12 @@ public class ResourcePropertyDesc<T, U extends IPropertyObjectWorld> extends Pro
         }
 
         @Override
+        public void dispose() {
+        }
+
+        @Override
         public Control getControl() {
-            return text;
+            return composite;
         }
 
         @Override
@@ -88,7 +89,7 @@ public class ResourcePropertyDesc<T, U extends IPropertyObjectWorld> extends Pro
 
         @Override
         public void handleEvent(Event event) {
-            String value = fromString(text.getText());
+            String value = text.getText();
             if (value == null)
                 return;
 
@@ -119,6 +120,7 @@ public class ResourcePropertyDesc<T, U extends IPropertyObjectWorld> extends Pro
                 oldValue = value.toString();
             }
         }
+
     }
 
     @Override

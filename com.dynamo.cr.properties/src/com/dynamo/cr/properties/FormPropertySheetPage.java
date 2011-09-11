@@ -52,6 +52,9 @@ public class FormPropertySheetPage implements IPropertySheetPage {
 
     @Override
     public void dispose() {
+        if (viewer != null) {
+            viewer.dispose();
+        }
     }
 
     @Override
