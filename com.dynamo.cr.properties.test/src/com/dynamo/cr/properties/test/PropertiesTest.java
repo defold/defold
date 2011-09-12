@@ -152,9 +152,13 @@ public class PropertiesTest {
         assertEquals(test.getDoubleValue(), source.getPropertyValue("doubleValue"));
         assertEquals(test.getStringValue(), source.getPropertyValue("stringValue"));
         assertEquals(test.getRgbValue(), source.getPropertyValue("rgbValue"));
-        assertEquals(null, source.getPropertyValue("noSuchProperty"));
         assertEquals(test.getVector4Value(), source.getPropertyValue("vector4Value"));
         assertEquals(test.getEnumValue(), source.getPropertyValue("enumValue"));
+    }
+
+    @Test(expected=RuntimeException.class)
+    public void testGetMissingGetter() throws Exception {
+        source.getPropertyValue("noSuchProperty");
     }
 
     void doTestSet(IPropertyModel<TestClass, TestWorld> testSource, String property, Object newValue) {
