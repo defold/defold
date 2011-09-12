@@ -124,6 +124,7 @@ public class TileSetPresenter implements TaggedPropertyListener, IOperationHisto
                 setViewTiles((List<TileSetModel.ConvexHull>)evt.getNewValue());
             } else {
                 this.view.refreshProperties();
+                setViewTiles(this.model.getConvexHulls());
             }
         } else if (evt.getSource() instanceof TileSetModel.ConvexHull) {
             if (evt.getPropertyName().equals("collisionGroup")) {
