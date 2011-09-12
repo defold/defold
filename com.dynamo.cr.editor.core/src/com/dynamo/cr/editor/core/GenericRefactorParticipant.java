@@ -1,4 +1,4 @@
-package com.dynamo.cr.ddfeditor.refactoring;
+package com.dynamo.cr.editor.core;
 
 import java.util.List;
 
@@ -9,8 +9,6 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Status;
 
-import com.dynamo.cr.editor.core.IResourceRefactorParticipant;
-import com.dynamo.cr.editor.core.ResourceRefactorContext;
 import com.dynamo.cr.protobind.IPath;
 import com.dynamo.cr.protobind.MessageNode;
 import com.dynamo.cr.protobind.RepeatedNode;

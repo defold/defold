@@ -11,6 +11,7 @@ import org.eclipse.core.runtime.Status;
 
 import com.dynamo.cr.ddfeditor.Activator;
 import com.dynamo.cr.editor.core.EditorCorePlugin;
+import com.dynamo.cr.editor.core.GenericRefactorParticipant;
 import com.dynamo.cr.editor.core.IResourceType;
 import com.dynamo.cr.editor.core.ResourceRefactorContext;
 import com.dynamo.cr.protobind.MessageNode;
