@@ -134,13 +134,14 @@ KeyListener {
         if (image != this.image) {
             this.context.makeCurrent();
             if (this.texture != null) {
-                this.texture.dispose();
+                this.texture.updateImage(TextureIO.newTextureData(image, false));
+            } else {
+                this.texture = TextureIO.newTexture(image, false);
+                this.texture.setTexParameteri(GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST);
+                this.texture.setTexParameteri(GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST);
+                this.texture.setTexParameteri(GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP);
+                this.texture.setTexParameteri(GL.GL_TEXTURE_WRAP_T, GL.GL_CLAMP);
             }
-            this.texture = TextureIO.newTexture(image, false);
-            this.texture.setTexParameteri(GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST);
-            this.texture.setTexParameteri(GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST);
-            this.texture.setTexParameteri(GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP);
-            this.texture.setTexParameteri(GL.GL_TEXTURE_WRAP_T, GL.GL_CLAMP);
             this.image = image;
             this.context.release();
         }
