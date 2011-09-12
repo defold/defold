@@ -13,11 +13,17 @@ import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IResourceChangeEvent;
 import org.eclipse.core.resources.IResourceChangeListener;
+import org.eclipse.core.resources.IWorkspace;
 import org.eclipse.core.resources.ResourcesPlugin;
+import org.eclipse.core.runtime.CoreException;
+import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.Status;
+import org.eclipse.jface.action.IStatusLineManager;
 import org.eclipse.jface.viewers.ISelection;
+import org.eclipse.jface.window.Window;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.ui.IActionBars;
@@ -29,10 +35,12 @@ import org.eclipse.ui.PartInitException;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.actions.ActionFactory;
 import org.eclipse.ui.contexts.IContextService;
+import org.eclipse.ui.dialogs.SaveAsDialog;
 import org.eclipse.ui.operations.LinearUndoViolationUserApprover;
 import org.eclipse.ui.operations.RedoActionHandler;
 import org.eclipse.ui.operations.UndoActionHandler;
 import org.eclipse.ui.part.EditorPart;
+import org.eclipse.ui.part.FileEditorInput;
 import org.eclipse.ui.part.IPageSite;
 import org.eclipse.ui.progress.IProgressService;
 import org.eclipse.ui.statushandlers.StatusManager;
@@ -203,20 +211,47 @@ IResourceChangeListener {
 
     @Override
     public void doSaveAs() {
-        // TODO Auto-generated method stub
+        IFileEditorInput input= (IFileEditorInput) getEditorInput();
+        IFile file = input.getFile();
+        SaveAsDialog dialog = new SaveAsDialog(getSite().getShell());
+        dialog.setOriginalFile(file);
+        dialog.create();
 
+        if (dialog.open() == Window.OK) {
+            IPath filePath = dialog.getResult();
+            if (filePath == null) {
+                return;
+            }
+
+            IWorkspace workspace = ResourcesPlugin.getWorkspace();
+            IFile newFile= workspace.getRoot().getFile(filePath);
+
+            try {
+                newFile.create(new ByteArrayInputStream(new byte[0]), IFile.FORCE, new NullProgressMonitor());
+            } catch (CoreException e) {
+                Status status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, 0,
+                        e.getMessage(), null);
+                StatusManager.getManager().handle(status, StatusManager.LOG | StatusManager.SHOW);
+                return;
+            }
+            FileEditorInput newInput = new FileEditorInput(newFile);
+            setInput(newInput);
+            setPartName(newInput.getName());
+
+            IStatusLineManager lineManager = getEditorSite().getActionBars().getStatusLineManager();
+            IProgressMonitor pm = lineManager.getProgressMonitor();
+            doSave(pm);
+        }
     }
 
     @Override
     public boolean isSaveAsAllowed() {
-        // TODO Auto-generated method stub
-        return false;
+        return true;
     }
 
     @Override
     public void setFocus() {
-        // TODO Auto-generated method stub
-
+        this.renderer.getCanvas().setFocus();
     }
 
     // IResourceChangeListener

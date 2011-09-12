@@ -113,6 +113,10 @@ KeyListener {
         this.canvas.addKeyListener(this);
     }
 
+    public GLCanvas getCanvas() {
+        return canvas;
+    }
+
     @Override
     public void dispose() {
         this.context.makeCurrent();
