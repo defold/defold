@@ -22,6 +22,7 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.action.IStatusLineManager;
+import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.window.Window;
 import org.eclipse.swt.widgets.Composite;
@@ -30,7 +31,11 @@ import org.eclipse.ui.IActionBars;
 import org.eclipse.ui.IEditorInput;
 import org.eclipse.ui.IEditorSite;
 import org.eclipse.ui.IFileEditorInput;
+import org.eclipse.ui.IPartListener;
+import org.eclipse.ui.IPartService;
+import org.eclipse.ui.IWindowListener;
 import org.eclipse.ui.IWorkbenchPart;
+import org.eclipse.ui.IWorkbenchWindow;
 import org.eclipse.ui.PartInitException;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.actions.ActionFactory;
@@ -49,6 +54,7 @@ import org.eclipse.ui.views.properties.IPropertySheetPage;
 
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.properties.FormPropertySheetPage;
+import com.dynamo.cr.tileeditor.TileSetEditor.ActivationListener;
 import com.dynamo.cr.tileeditor.core.ITileSetView;
 import com.dynamo.cr.tileeditor.core.TileSetModel;
 import com.dynamo.cr.tileeditor.core.TileSetPresenter;
@@ -68,6 +74,9 @@ IResourceChangeListener {
     // avoids reloading while saving
     private boolean inSave = false;
     private TileSetRenderer renderer;
+    private ActivationListener activationListener;
+    private long lastModificationStamp;
+    private final static int UNDO_LIMIT = 100;
 
     // EditorPart
 
@@ -82,6 +91,7 @@ IResourceChangeListener {
 
         IFileEditorInput fileEditorInput = (IFileEditorInput) input;
         IFile file = fileEditorInput.getFile();
+        lastModificationStamp = file.getModificationStamp();
         this.contentRoot = EditorUtil.findContentRoot(file);
         if (this.contentRoot == null) {
             throw new PartInitException(
@@ -91,7 +101,7 @@ IResourceChangeListener {
         this.undoContext = new UndoContext();
         this.history = PlatformUI.getWorkbench().getOperationSupport()
                 .getOperationHistory();
-        this.history.setLimit(this.undoContext, 100);
+        this.history.setLimit(this.undoContext, UNDO_LIMIT);
 
         IOperationApprover approver = new LinearUndoViolationUserApprover(
                 this.undoContext, this);
@@ -162,6 +172,7 @@ IResourceChangeListener {
             this.renderer.dispose();
         }
         ResourcesPlugin.getWorkspace().removeResourceChangeListener(this);
+        this.activationListener.dispose();
     }
 
     @Override
@@ -178,6 +189,7 @@ IResourceChangeListener {
         getSite().setSelectionProvider(this.outlinePage);
 
         this.presenter.refresh();
+        this.activationListener = new ActivationListener(getSite().getWorkbenchWindow().getPartService());
     }
 
     public TileSetPresenter getPresenter() {
@@ -192,11 +204,12 @@ IResourceChangeListener {
     @Override
     public void doSave(IProgressMonitor monitor) {
         this.inSave = true;
+        IFileEditorInput input = (IFileEditorInput) getEditorInput();
+        IFile file = input.getFile();
         try {
-            IFileEditorInput input = (IFileEditorInput) getEditorInput();
             ByteArrayOutputStream stream = new ByteArrayOutputStream();
             this.presenter.save(stream, monitor);
-            input.getFile().setContents(
+            file.setContents(
                     new ByteArrayInputStream(stream.toByteArray()), false,
                     true, monitor);
         } catch (Throwable e) {
@@ -204,9 +217,9 @@ IResourceChangeListener {
                     e.getMessage(), null);
             StatusManager.getManager().handle(status, StatusManager.LOG | StatusManager.SHOW);
         } finally {
+            lastModificationStamp = file.getModificationStamp();
             this.inSave = false;
         }
-
     }
 
     @Override
@@ -329,6 +342,100 @@ IResourceChangeListener {
                 }
             });
         }
+    }
+
+    private void checkFileState() {
+        IFileEditorInput input = (IFileEditorInput) getEditorInput();
+        IFile file = input.getFile();
+        // The file can be changed by an editor within eclipse or externally
+        if (file.getModificationStamp() != lastModificationStamp || !file.isSynchronized(IFile.DEPTH_ZERO)) {
+            try {
+                // Refresh if changed externally
+                file.refreshLocal(IFile.DEPTH_ZERO, new NullProgressMonitor());
+            } catch (CoreException e) {
+                Activator.logException(e);
+                // We continue here. We must update lastModificationStamp. Otherwise risk of infinite loop.
+            }
+            // Get new modification time stamp
+            lastModificationStamp = file.getModificationStamp();
+
+            boolean reload;
+
+            if (isDirty()) {
+                String msg = String.format("The file '%s' has been changed on the file system. Do you want to replace the editor contents with these changes?", file.getName());
+                reload = MessageDialog.openQuestion(getSite().getShell(), "File Changed", msg);
+            } else {
+                // Always reload if not dirty
+                reload = true;
+            }
+
+            if (reload) {
+                // Clear undo stack
+                this.history.setLimit(this.undoContext, 0);
+                this.history.setLimit(this.undoContext, UNDO_LIMIT);
+
+                IProgressService service = PlatformUI.getWorkbench()
+                        .getProgressService();
+                TileSetLoader loader = new TileSetLoader(file, this.presenter);
+                try {
+                    service.runInUI(service, loader, null);
+                    if (loader.exception != null) {
+                        Activator.logException(loader.exception);
+                    }
+                } catch (Throwable e) {
+                    Activator.logException(e);
+                }
+            }
+        }
+    }
+
+    class ActivationListener implements IPartListener, IWindowListener {
+
+        private IPartService partService;
+
+        public ActivationListener(IPartService partService) {
+            this.partService = partService;
+            this.partService.addPartListener(this);
+            PlatformUI.getWorkbench().addWindowListener(this);
+        }
+
+        public void dispose() {
+            this.partService.removePartListener(this);
+            PlatformUI.getWorkbench().removeWindowListener(this);
+        }
+
+        @Override
+        public void windowActivated(IWorkbenchWindow window) {
+            if (TileSetEditor.this == this.partService.getActivePart()) {
+                checkFileState();
+            }
+        }
+
+        @Override
+        public void windowDeactivated(IWorkbenchWindow window) {}
+
+        @Override
+        public void windowClosed(IWorkbenchWindow window) {}
+
+        @Override
+        public void windowOpened(IWorkbenchWindow window) {}
+
+        @Override
+        public void partActivated(IWorkbenchPart part) {
+            checkFileState();
+        }
+
+        @Override
+        public void partBroughtToTop(IWorkbenchPart part) {}
+
+        @Override
+        public void partClosed(IWorkbenchPart part) {}
+
+        @Override
+        public void partDeactivated(IWorkbenchPart part) {}
+
+        @Override
+        public void partOpened(IWorkbenchPart part) {}
     }
 
 }
