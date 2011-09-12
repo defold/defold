@@ -47,7 +47,7 @@ KeyListener {
     private final int[] viewPort = new int[4];
     private boolean paintRequested = false;
     private boolean mac = false;
-    private final float scale = 1.0f;
+    private float scale = 1.0f;
     // Camera data
     private int cameraMode = CAMERA_MODE_NONE;
     private int lastX;
@@ -201,11 +201,16 @@ KeyListener {
         int dy = e.y - this.lastY;
         switch (this.cameraMode) {
         case CAMERA_MODE_TRACK:
-            offset[0] += dx;
-            offset[1] -= dy;
+            float recipScale = 1.0f / this.scale;
+            this.offset[0] += dx * recipScale;
+            this.offset[1] -= dy * recipScale;
             requestPaint();
             break;
         case CAMERA_MODE_DOLLY:
+            float ds = -dy * 0.005f;
+            this.scale -= (this.scale > 1.0f) ? ds * this.scale : ds;
+            this.scale = Math.max(0.1f, this.scale);
+            requestPaint();
             break;
         }
         this.lastX = e.x;
@@ -257,17 +262,21 @@ KeyListener {
             GL gl = this.context.getGL();
             GLU glu = new GLU();
             try {
+                gl.glClearColor(0.0f, 0.0f, 0.0f, 1);
+                gl.glClear(GL.GL_COLOR_BUFFER_BIT);
+
                 gl.glViewport(this.viewPort[0], this.viewPort[1], this.viewPort[2], this.viewPort[3]);
 
                 gl.glMatrixMode(GL.GL_PROJECTION);
                 gl.glLoadIdentity();
-                glu.gluOrtho2D(0, this.viewPort[2], 0, this.viewPort[3]);
+                float recipScale = 1.0f / this.scale;
+                float x = 0.5f * this.viewPort[2] * recipScale;
+                float y = 0.5f * this.viewPort[3] * recipScale;
+                glu.gluOrtho2D(-x, x, -y, y);
 
                 gl.glMatrixMode(GL.GL_MODELVIEW);
                 gl.glLoadIdentity();
-                gl.glTranslatef(0.5f, 0.5f, 0.5f);
-                gl.glClearColor(0.0f, 0.0f, 0.0f, 1);
-                gl.glClear(GL.GL_COLOR_BUFFER_BIT);
+                gl.glTranslatef(this.offset[0], this.offset[1], 0.0f);
 
                 drawTileSet(gl);
 
@@ -303,9 +312,6 @@ KeyListener {
         // 1 pixel spacing between tiles
         int totalWidth = (this.tileWidth + 1) * tilesPerRow + 1;
         int totalHeight = (this.tileHeight + 1) * tilesPerColumn + 1;
-
-        // temp center, round for pixel perfection
-        gl.glTranslatef(Math.round(offset[0]), Math.round(offset[1]), 0.0f);
 
         // background
         drawBackground(gl, totalWidth, totalHeight);
