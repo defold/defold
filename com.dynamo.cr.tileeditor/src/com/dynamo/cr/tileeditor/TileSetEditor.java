@@ -251,8 +251,7 @@ IResourceChangeListener {
 
     @Override
     public void setFocus() {
-        // TODO Auto-generated method stub
-
+        this.renderer.getCanvas().setFocus();
     }
 
     // IResourceChangeListener
