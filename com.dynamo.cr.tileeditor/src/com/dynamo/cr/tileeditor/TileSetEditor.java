@@ -6,8 +6,6 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.util.List;
 
-import javax.vecmath.Vector3f;
-
 import org.eclipse.core.commands.operations.IOperationApprover;
 import org.eclipse.core.commands.operations.IOperationHistory;
 import org.eclipse.core.commands.operations.UndoContext;
@@ -243,10 +241,12 @@ IResourceChangeListener {
     }
 
     @Override
-    public void setTiles(BufferedImage image, float[] v, int[] hullIndices,
-            int[] hullCounts, Color[] hullColors, Vector3f hullScale) {
+    public void setTileData(BufferedImage image, BufferedImage collision,
+            int tileWidth, int tileHeight, int tileMargin, int tileSpacing,
+            float[] hullVertices, int[] hullIndices, int[] hullCounts, Color[] hullColors) {
         if (this.renderer != null) {
-            this.renderer.setTiles(image, v, hullIndices, hullCounts, hullColors, hullScale);
+            this.renderer.setTileData(image, collision, tileWidth, tileHeight, tileMargin, tileSpacing,
+                    hullVertices, hullIndices, hullCounts, hullColors);
         }
     }
 

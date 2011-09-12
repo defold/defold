@@ -19,7 +19,7 @@ public class TileSetPropertyAccessor extends BeanPropertyAccessor {
         if (world instanceof TileSetModel) {
             TileSetModel model = (TileSetModel)world;
             List<Tag> tags = model.getPropertyTags(property);
-            int n = tags.size();
+            int n = (tags != null) ? tags.size() : 0;
             if (n > 0) {
                 IStatus[] statuses = new IStatus[n];
                 for (int i = 0; i < n; ++i) {

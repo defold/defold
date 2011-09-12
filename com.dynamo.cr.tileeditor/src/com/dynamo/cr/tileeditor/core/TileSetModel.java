@@ -443,6 +443,10 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
         return this.loadedImage;
     }
 
+    public BufferedImage getLoadedCollision() {
+        return this.loadedCollision;
+    }
+
     private BufferedImage loadImage(String fileName) throws Exception {
         try {
             IFile file = this.contentRoot.getFile(new Path(fileName));

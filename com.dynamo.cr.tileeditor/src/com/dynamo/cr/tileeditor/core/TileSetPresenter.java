@@ -8,9 +8,6 @@ import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
 
-import javax.vecmath.Point3f;
-import javax.vecmath.Vector3f;
-
 import org.eclipse.core.commands.operations.IOperationHistoryListener;
 import org.eclipse.core.commands.operations.OperationHistoryEvent;
 import org.eclipse.core.runtime.IProgressMonitor;
@@ -167,57 +164,30 @@ public class TileSetPresenter implements TaggedPropertyListener, IOperationHisto
 
     private void setViewTiles(List<TileSetModel.ConvexHull> convexHulls) {
         BufferedImage image = this.model.getLoadedImage();
-        int tilesPerRow = 0;
-        int tilesPerColumn = 0;
-        if (image != null) {
-            tilesPerRow = TileSetUtil.calculateTileCount(this.model.getTileWidth(), image.getWidth(), this.model.getTileMargin(), this.model.getTileSpacing());
-            tilesPerColumn = TileSetUtil.calculateTileCount(this.model.getTileHeight(), image.getHeight(), this.model.getTileMargin(), this.model.getTileSpacing());
+        BufferedImage collision = this.model.getLoadedCollision();
+        if (image == null && collision == null) {
+            this.view.clearTiles();
+            return;
         }
+        int width = 0;
+        int height = 0;
+        if (image != null) {
+            width = image.getWidth();
+            height = image.getHeight();
+        } else {
+            width = collision.getWidth();
+            height = collision.getHeight();
+        }
+        int tileWidth = this.model.getTileWidth();
+        int tileHeight = this.model.getTileHeight();
+        int tileMargin = this.model.getTileMargin();
+        int tileSpacing = this.model.getTileSpacing();
+        int tilesPerRow = TileSetUtil.calculateTileCount(tileWidth, width, tileMargin, tileSpacing);
+        int tilesPerColumn = TileSetUtil.calculateTileCount(tileHeight, height, tileMargin, tileSpacing);
+
         int tileCount = tilesPerRow * tilesPerColumn;
         if (tilesPerRow > 0 && tilesPerColumn > 0 && tileCount == this.model.getConvexHulls().size()) {
             updateCollisionGroupColors(this.model.getCollisionGroups().size());
-            int tileWidth = this.model.getTileWidth();
-            int tileHeight = this.model.getTileHeight();
-            int tileMargin = this.model.getTileMargin();
-            int tileSpacing = this.model.getTileSpacing();
-            // vertex data is 3 components for position and 2 for uv
-            int vertexComponentCount = 5;
-            float[] v = new float[vertexComponentCount * 6 * tileCount];
-            // render space is a quad of [0,1],[0,1] into which the tiles are rendered with one pixel spacing
-            int pixelWidth = tilesPerRow * (1 + tileWidth) + 1;
-            float recipPixelWidth = 1.0f / pixelWidth;
-            int pixelHeight = tilesPerColumn * (1 + tileHeight) + 1;
-            float recipPixelHeight = 1.0f / pixelHeight;
-            float recipImageWidth = 1.0f / image.getWidth();
-            float recipImageHeight = 1.0f / image.getHeight();
-            float z = 0.0f;
-            int i = 0;
-            List<Point3f> hullOffsets = new ArrayList<Point3f>(tileCount);
-            for (int row = 0; row < tilesPerColumn; ++row) {
-                for (int column = 0; column < tilesPerRow; ++column) {
-                    float x0 = (column * (1 + tileWidth) + 1) * recipPixelWidth;
-                    float x1 = (column + 1) * (1 + tileWidth) * recipPixelWidth;
-                    float y0 = (row * (1 + tileHeight) + 1) * recipPixelHeight;
-                    float y1 = (row + 1) * (1 + tileHeight) * recipPixelHeight;
-                    float u0 = (column * (tileSpacing + tileMargin + tileWidth) + tileSpacing + tileMargin + 0.5f) * recipImageWidth;
-                    float u1 = ((column + 1) * (tileSpacing + tileMargin + tileWidth) - 0.5f) * recipImageWidth;
-                    float v0 = ((row + 1) * (tileSpacing + tileMargin + tileHeight) - 0.5f) * recipImageHeight;
-                    float v1 = (row * (tileSpacing + tileMargin + tileHeight) + tileSpacing + tileMargin + 0.5f) * recipImageHeight;
-                    v[i+0] = x0; v[i+1] = y0; v[i+2] = z; v[i+3] = u0; v[i+4] = v0;
-                    i += vertexComponentCount;
-                    v[i+0] = x0; v[i+1] = y1; v[i+2] = z; v[i+3] = u0; v[i+4] = v1;
-                    i += vertexComponentCount;
-                    v[i+0] = x1; v[i+1] = y0; v[i+2] = z; v[i+3] = u1; v[i+4] = v0;
-                    i += vertexComponentCount;
-                    v[i+0] = x1; v[i+1] = y0; v[i+2] = z; v[i+3] = u1; v[i+4] = v0;
-                    i += vertexComponentCount;
-                    v[i+0] = x0; v[i+1] = y1; v[i+2] = z; v[i+3] = u0; v[i+4] = v1;
-                    i += vertexComponentCount;
-                    v[i+0] = x1; v[i+1] = y1; v[i+2] = z; v[i+3] = u1; v[i+4] = v1;
-                    i += vertexComponentCount;
-                    hullOffsets.add(new Point3f(x0 + 0.5f, y0 + 0.5f, z));
-                }
-            }
             int[] hullIndices = new int[tileCount];
             int[] hullCounts = new int[tileCount];
             Color[] hullColors = new Color[tileCount];
@@ -233,8 +203,7 @@ public class TileSetPresenter implements TaggedPropertyListener, IOperationHisto
                     }
                 }
             }
-            Vector3f hullScale = new Vector3f(recipPixelWidth, recipPixelHeight, 1.0f);
-            view.setTiles(image, v, hullIndices, hullCounts, hullColors, hullScale);
+            this.view.setTileData(image, collision, tileWidth, tileHeight, tileMargin, tileSpacing, this.model.getConvexHullPoints(), hullIndices, hullCounts, hullColors);
         } else {
             view.clearTiles();
         }
