@@ -124,6 +124,7 @@ public class TileSetPresenter implements TaggedPropertyListener, IOperationHisto
                 setViewTiles((List<TileSetModel.ConvexHull>)evt.getNewValue());
             } else {
                 this.view.refreshProperties();
+                // TODO: Solve this better
                 setViewTiles(this.model.getConvexHulls());
             }
         } else if (evt.getSource() instanceof TileSetModel.ConvexHull) {

@@ -142,6 +142,7 @@ KeyListener {
             this.texture.setTexParameteri(GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP);
             this.texture.setTexParameteri(GL.GL_TEXTURE_WRAP_T, GL.GL_CLAMP);
             this.image = image;
+            this.context.release();
         }
         this.collision = collision;
         this.tileWidth = tileWidth;
