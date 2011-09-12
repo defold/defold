@@ -37,11 +37,22 @@ MouseMoveListener,
 Listener,
 KeyListener {
 
+    private final static int CAMERA_MODE_NONE = 0;
+    private final static int CAMERA_MODE_TRACK = 1;
+    private final static int CAMERA_MODE_DOLLY = 2;
+
     private final TileSetPresenter presenter;
     private final GLCanvas canvas;
     private final GLContext context;
     private final int[] viewPort = new int[4];
     private boolean paintRequested = false;
+    private boolean mac = false;
+    private final float scale = 1.0f;
+    // Camera data
+    private int cameraMode = CAMERA_MODE_NONE;
+    private int lastX;
+    private int lastY;
+    private final float[] offset = new float[2];
     // Render data
     private BufferedImage image;
     private Texture texture;
@@ -78,6 +89,8 @@ KeyListener {
         gl.glPolygonMode(GL.GL_FRONT, GL.GL_FILL);
         if (!System.getProperty("os.name").equals("Mac OS X")) {
             gl.setSwapInterval(1);
+        } else {
+            this.mac = true;
         }
 
         BufferedImage backgroundImage = new BufferedImage(2, 2, BufferedImage.TYPE_INT_ARGB);
@@ -178,8 +191,19 @@ KeyListener {
 
     @Override
     public void mouseMove(MouseEvent e) {
-        // TODO Auto-generated method stub
-
+        int dx = e.x - this.lastX;
+        int dy = e.y - this.lastY;
+        switch (this.cameraMode) {
+        case CAMERA_MODE_TRACK:
+            offset[0] += dx;
+            offset[1] -= dy;
+            requestPaint();
+            break;
+        case CAMERA_MODE_DOLLY:
+            break;
+        }
+        this.lastX = e.x;
+        this.lastY = e.y;
     }
 
     // MouseListener
@@ -191,15 +215,29 @@ KeyListener {
     }
 
     @Override
-    public void mouseDown(MouseEvent e) {
-        // TODO Auto-generated method stub
+    public void mouseDown(MouseEvent event) {
+        this.lastX = event.x;
+        this.lastY = event.y;
 
+        if ((this.mac && event.stateMask == (SWT.ALT | SWT.CTRL))
+                || (!this.mac && event.button == 2 && event.stateMask == SWT.ALT))
+        {
+            this.cameraMode = CAMERA_MODE_TRACK;
+        }
+        else if ((this.mac && event.stateMask == (SWT.CTRL))
+                || (!this.mac && event.button == 3 && event.stateMask == SWT.ALT))
+        {
+            this.cameraMode = CAMERA_MODE_DOLLY;
+        }
+        else
+        {
+            this.cameraMode = CAMERA_MODE_NONE;
+        }
     }
 
     @Override
     public void mouseUp(MouseEvent e) {
-        // TODO Auto-generated method stub
-
+        this.cameraMode = CAMERA_MODE_NONE;
     }
 
     private void requestPaint() {
@@ -261,7 +299,7 @@ KeyListener {
         int totalHeight = (this.tileHeight + 1) * tilesPerColumn + 1;
 
         // temp center, round for pixel perfection
-        gl.glTranslatef(Math.round((this.viewPort[2] - totalWidth) * 0.5f), Math.round((this.viewPort[3] - totalHeight) * 0.5f), 0.0f);
+        gl.glTranslatef(Math.round(offset[0]), Math.round(offset[1]), 0.0f);
 
         // background
         drawBackground(gl, totalWidth, totalHeight);
@@ -327,7 +365,6 @@ KeyListener {
                 v.put(x1); v.put(y0); t.put(u1); t.put(v0);
             }
         }
-
         v.flip();
         t.flip();
 
