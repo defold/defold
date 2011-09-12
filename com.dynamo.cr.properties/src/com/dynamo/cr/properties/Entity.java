@@ -6,4 +6,5 @@ import java.lang.annotation.RetentionPolicy;
 @Retention(RetentionPolicy.RUNTIME)
 public @interface Entity {
     Class<? extends ICommandFactory<?, ?>> commandFactory() default DummyCommandFactory.class;
+    Class<? extends IPropertyAccessor<?, ?>> accessor() default BeanPropertyAccessor.class;
 }

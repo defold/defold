@@ -38,7 +38,7 @@ import com.dynamo.tile.proto.Tile;
 import com.dynamo.tile.proto.Tile.TileSet;
 import com.google.protobuf.TextFormat;
 
-@Entity(commandFactory = UndoableCommandFactory.class)
+@Entity(commandFactory = UndoableCommandFactory.class, accessor = TileSetPropertyAccessor.class)
 public class TileSetModel extends Model implements IPropertyObjectWorld, IAdaptable {
 
     // TODO: Should be configurable
@@ -56,19 +56,19 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
     public static final Tag TAG_10 = new Tag("10", Tag.TYPE_ERROR, Messages.TileSetModel_TAG_10);
     public static final Tag TAG_11 = new Tag("11", Tag.TYPE_ERROR, Messages.TileSetModel_TAG_11);
 
-    @Property(accessor = TileSetPropertyAccessor.class, isResource = true)
+    @Property(isResource = true)
     String image;
-    @Property(accessor = TileSetPropertyAccessor.class)
+    @Property
     int tileWidth;
-    @Property(accessor = TileSetPropertyAccessor.class)
+    @Property
     int tileHeight;
-    @Property(accessor = TileSetPropertyAccessor.class)
+    @Property
     int tileMargin;
-    @Property(accessor = TileSetPropertyAccessor.class)
+    @Property
     int tileSpacing;
-    @Property(accessor = TileSetPropertyAccessor.class, isResource = true)
+    @Property(isResource = true)
     String collision;
-    @Property(accessor = TileSetPropertyAccessor.class)
+    @Property
     String materialTag;
 
     private static PropertyIntrospector<TileSetModel, TileSetModel> introspector = new PropertyIntrospector<TileSetModel, TileSetModel>(TileSetModel.class);

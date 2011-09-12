@@ -44,6 +44,7 @@ public abstract class ArrayPropertyDesc<V, T, U extends IPropertyObjectWorld> ex
             composite.setBackground(parent.getBackground());
             GridLayout layout = new GridLayout(count, false);
             layout.marginWidth = 0;
+            layout.marginHeight = 0;
             composite.setLayout(layout);
             GridData gd = new GridData();
             gd.widthHint = 54;

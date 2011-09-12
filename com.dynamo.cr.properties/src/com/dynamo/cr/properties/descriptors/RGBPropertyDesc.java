@@ -44,6 +44,7 @@ public class RGBPropertyDesc<T, U extends IPropertyObjectWorld> extends Property
             composite.setBackground(parent.getBackground());
             GridLayout layout = new GridLayout(2, false);
             layout.marginWidth = 0;
+            layout.marginHeight = 0;
             layout.horizontalSpacing = 0;
             composite.setLayout(layout);
 

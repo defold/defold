@@ -1,12 +1,17 @@
 package com.dynamo.cr.guieditor.scene;
 
 import java.awt.geom.Rectangle2D;
+import java.util.HashMap;
+import java.util.Map;
 
 import javax.vecmath.Vector3d;
 
 import org.eclipse.core.runtime.IAdaptable;
+import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Status;
 import org.eclipse.swt.graphics.RGB;
 
+import com.dynamo.cr.guieditor.Activator;
 import com.dynamo.cr.guieditor.DrawContext;
 import com.dynamo.cr.properties.Entity;
 import com.dynamo.cr.properties.IPropertyModel;
@@ -20,7 +25,7 @@ import com.dynamo.gui.proto.Gui.NodeDesc.XAnchor;
 import com.dynamo.gui.proto.Gui.NodeDesc.YAnchor;
 import com.dynamo.proto.DdfMath.Vector4;
 
-@Entity(commandFactory = UndoableCommandFactory.class)
+@Entity(commandFactory = UndoableCommandFactory.class, accessor = GuiBeanPropertyAccessor.class)
 public abstract class GuiNode implements IAdaptable {
 
     protected GuiScene scene;
@@ -41,7 +46,7 @@ public abstract class GuiNode implements IAdaptable {
     @Property()
     protected RGB color;
 
-    @Property()
+    @Property
     private double alpha;
 
     @Property()
@@ -62,7 +67,17 @@ public abstract class GuiNode implements IAdaptable {
     @Property()
     private YAnchor yanchor;
 
+    private Map<String, IStatus> statusMap = new HashMap<String, IStatus>();
+
     private static PropertyIntrospector<GuiNode, GuiScene> introspector = new PropertyIntrospector<GuiNode, GuiScene>(GuiNode.class);
+
+    private void verify() {
+        statusMap.clear();
+        if (alpha < 0 || alpha > 1.0) {
+            IStatus status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, "alpha value must between 0 and 1");
+            statusMap.put("alpha", status);
+        }
+    }
 
     public Vector3d getRotation() {
         return new Vector3d(rotation);
@@ -104,6 +119,7 @@ public abstract class GuiNode implements IAdaptable {
 
     public void setAlpha(double alpha) {
         this.alpha = alpha;
+        verify();
     }
 
     public String getTexture() {
@@ -183,6 +199,7 @@ public abstract class GuiNode implements IAdaptable {
         this.pivot = nodeDesc.getPivot();
         this.xanchor = nodeDesc.getXanchor();
         this.yanchor = nodeDesc.getYanchor();
+        verify();
     }
 
     public abstract Rectangle2D getVisualBounds();
@@ -262,6 +279,10 @@ public abstract class GuiNode implements IAdaptable {
     public final boolean equals(Object obj) {
         // NOTE: Do not override this method. We have data-structures that rely on referential equivalence, eg nodeToIndex in GuiScene
         return super.equals(obj);
+    }
+
+    public IStatus getStatus(String property) {
+        return statusMap.get(property);
     }
 
 

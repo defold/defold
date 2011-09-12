@@ -124,8 +124,6 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
 
     public GuiEditor() {
         selectionProvider = new GuiSelectionProvider();
-        // Only enable this when not running unit tests
-        selectionProvider.setEnableSelectionThrottling(true);
 
         renderer = new GuiRenderer();
         propertySheetPage = new FormPropertySheetPage(getContentRoot()) {
@@ -707,23 +705,28 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
             return;
         }
 
+
+        int eventType = event.getEventType();
+
         if (!(event.getOperation() instanceof SelectOperation)) {
-            if (event.getEventType() == OperationHistoryEvent.DONE || event.getEventType() == OperationHistoryEvent.REDONE) {
+            if (eventType == OperationHistoryEvent.DONE || eventType == OperationHistoryEvent.REDONE) {
                 undoRedoCounter++;
-            } else if (event.getEventType() == OperationHistoryEvent.UNDONE) {
+            } else if (eventType == OperationHistoryEvent.UNDONE) {
                 undoRedoCounter--;
             }
         }
 
-        Display display = Display.getDefault();
-        display.asyncExec(new Runnable() {
-            @Override
-            public void run() {
-                propertySheetPage.refresh();
-                updateDirtyState();
-                postRedraw();
-            }
-        });
+        if (eventType == OperationHistoryEvent.DONE || eventType == OperationHistoryEvent.REDONE || eventType == OperationHistoryEvent.UNDONE) {
+            Display display = Display.getDefault();
+            display.asyncExec(new Runnable() {
+                @Override
+                public void run() {
+                    propertySheetPage.refresh();
+                    updateDirtyState();
+                    postRedraw();
+                }
+            });
+        }
     }
 
     @Override

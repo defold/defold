@@ -4,9 +4,7 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import javax.vecmath.Quat4d;
 import javax.vecmath.Vector3d;
@@ -30,9 +28,9 @@ import com.google.protobuf.ProtocolMessageEnum;
 public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
 
     private Class<?> klass;
-    private final Map<Object, Class<? extends IPropertyAccessor<T, U>>> idToAccessor = new HashMap<Object, Class<? extends IPropertyAccessor<T, U>>>();
     private IPropertyDesc<T, U>[] descriptors;
     private ICommandFactory<T, U> commandFactory;
+    private Class<? extends IPropertyAccessor<T, U>> accessorClass;
 
     public PropertyIntrospector(Class<?> klass) {
         this.klass = klass;
@@ -56,6 +54,7 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
             Entity entityAnnotation = klass.getAnnotation(Entity.class);
             if (entityAnnotation != null) {
                 this.commandFactory = (ICommandFactory<T, U>) entityAnnotation.commandFactory().newInstance();
+                this.accessorClass = (Class<? extends IPropertyAccessor<T, U>>) entityAnnotation.accessor();
             }
 
             Field[] fields = klass.getDeclaredFields();
@@ -92,7 +91,6 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
                         }
 
                         descriptors.add(descriptor);
-                        idToAccessor.put(field.getName(), (Class<? extends IPropertyAccessor<T, U>>) property.accessor());
                     }
                 }
             }
@@ -102,13 +100,7 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
         this.descriptors = descriptors.toArray(new IPropertyDesc[descriptors.size()]);
     }
 
-    @SuppressWarnings({ "rawtypes", "unchecked" })
     public Object getPropertyValue(T object, U world, Object id) {
-        Class<? extends IPropertyAccessor> accessorClass = idToAccessor.get(id);
-        if (accessorClass == null) {
-            return null;
-        }
-
         try {
             IPropertyAccessor<T, U> accessor = accessorClass.newInstance();
             Object value = accessor.getValue(object, (String) id, world);
@@ -133,10 +125,7 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
         }
     }
 
-
-    @SuppressWarnings({ "rawtypes", "unchecked" })
     public IUndoableOperation setPropertyValue(T object, U world, Object id, Object value) {
-        Class<? extends IPropertyAccessor> accessorClass = idToAccessor.get(id);
         try {
             IPropertyAccessor<T, U> accessor = accessorClass.newInstance();
             Object oldValue = accessor.getValue(object, (String) id, world);
@@ -159,13 +148,7 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
         return null;
     }
 
-    @SuppressWarnings({ "rawtypes", "unchecked" })
     public IStatus getPropertyStatus(T object, U world, Object id) {
-        Class<? extends IPropertyAccessor> accessorClass = idToAccessor.get(id);
-        if (accessorClass == null) {
-            return null;
-        }
-
         try {
             IPropertyAccessor<T, U> accessor = accessorClass.newInstance();
             IStatus status = accessor.getStatus(object, (String) id, world);

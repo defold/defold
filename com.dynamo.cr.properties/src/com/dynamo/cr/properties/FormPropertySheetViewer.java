@@ -6,6 +6,7 @@ import java.util.Map;
 
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.runtime.IAdaptable;
+import org.eclipse.core.runtime.IStatus;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.Viewer;
 import org.eclipse.swt.SWT;
@@ -32,10 +33,25 @@ public class FormPropertySheetViewer extends Viewer {
     private IContainer contentRoot;
     private ArrayList<IPropertyEditor> editors = new ArrayList<IPropertyEditor>();
 
+    static private class Entry {
+
+        public Entry(IPropertyEditor editor, StatusLabel statusLabel,
+                Label dummyLabel) {
+            this.editor = editor;
+            this.statusLabel = statusLabel;
+            this.dummyLabel = dummyLabel;
+        }
+
+        IPropertyEditor editor;
+        StatusLabel statusLabel;
+        Label dummyLabel;
+    }
+
     public FormPropertySheetViewer(Composite parent, IContainer contentRoot) {
         this.contentRoot = contentRoot;
         toolkit = new FormToolkit(parent.getDisplay());
         this.form = toolkit.createScrolledForm(parent);
+        this.form.setText("Properties");
         form.getBody().setLayout(new GridLayout());
         propertiesComposite = toolkit.createComposite(this.form.getBody());
         propertiesComposite.setLayoutData(new GridData(GridData.FILL_BOTH));
@@ -72,15 +88,46 @@ public class FormPropertySheetViewer extends Viewer {
 
     @Override
     public void refresh() {
+        boolean changed = false;
+
         if (models != null && currentComposite != null) {
             IPropertyDesc[] descs = models[0].getPropertyDescs();
             for (IPropertyDesc desc : descs) {
-                IPropertyEditor editor = (IPropertyEditor) currentComposite.getData(desc.getName());
+                Entry entry = (Entry) currentComposite.getData(desc.getName());
+                IPropertyEditor editor = entry.editor;
                 if (editor != null) {
                     editor.setModels(models);
                     editor.refresh();
+                    StatusLabel statusLabel = entry.statusLabel;
+                    Label dummyLabel = entry.dummyLabel;
+                    GridData gdStatusLabel = (GridData) statusLabel.getLayoutData();
+                    GridData gdDummyLabel = (GridData) dummyLabel.getLayoutData();
+                    boolean exclude = true;
+                    if (models.length == 1) {
+                        IStatus status = models[0].getPropertyStatus(desc.getId());
+                        if (status != null && status.getSeverity() >= IStatus.INFO) {
+                            exclude = false;
+                            statusLabel.getLabel().setText(status.getMessage());
+                            statusLabel.setStatus(status);
+                        }
+                    } else {
+                        exclude = true;
+                    }
+                    statusLabel.setVisible(!exclude);
+                    dummyLabel.setVisible(!exclude);
+
+                    if (exclude != gdStatusLabel.exclude) {
+                        changed = true;
+                    }
+                    gdStatusLabel.exclude = exclude;
+                    gdDummyLabel.exclude = exclude;
                 }
             }
+        }
+
+        if (changed) {
+            currentComposite.layout(true);
+            this.form.reflow(true);
         }
     }
 
@@ -89,6 +136,23 @@ public class FormPropertySheetViewer extends Viewer {
         stackLayout.topControl = noSelectionComposite;
         propertiesComposite.layout();
         this.form.reflow(true);
+    }
+
+    private static String niceifyLabel(String label) {
+        StringBuilder ret = new StringBuilder();
+        for (int i = 0; i < label.length(); ++i) {
+            char c = label.charAt(i);
+            if (i == 0) {
+                c = Character.toUpperCase(c);
+            } else {
+                if (Character.isUpperCase(c)) {
+                    ret.append(' ');
+                }
+            }
+            ret.append(c);
+        }
+
+        return ret.toString();
     }
 
     private Composite getPropertiesComposite(IPropertyModel model) {
@@ -100,11 +164,11 @@ public class FormPropertySheetViewer extends Viewer {
             GridLayout layout = new GridLayout();
             layout.marginWidth = 0;
             c.setLayout(layout);
-            layout.numColumns = 1;
+            layout.numColumns = 2;
 
             for (IPropertyDesc desc : descs) {
-                Label label = new Label(c, SWT.NULL);
-                label.setText(desc.getName() + ":");
+                Label label = new Label(c, SWT.NONE);
+                label.setText(niceifyLabel(desc.getName()));
 
                 IPropertyEditor editor = desc.createEditor(c, contentRoot);
                 this.editors.add(editor);
@@ -112,11 +176,22 @@ public class FormPropertySheetViewer extends Viewer {
                 if (editor == null) {
                     control = new Label(c, SWT.NONE);
                 } else {
-                    // Only map name to control for user-created editors
-                    c.setData(desc.getName(), editor);
                     control = editor.getControl();
                 }
                 control.setLayoutData(new GridData(GridData.FILL_HORIZONTAL));
+
+                GridData gd = new GridData();
+                gd.exclude = true;
+                Label dummyLabel = new Label(c, SWT.NONE);
+                dummyLabel.setLayoutData(gd);
+
+                StatusLabel statusLabel = new StatusLabel(c, SWT.BORDER);
+                gd = new GridData(GridData.FILL_HORIZONTAL);
+                gd.exclude = true;
+                gd.horizontalSpan = 1;
+                statusLabel.setLayoutData(gd);
+                Entry entry = new Entry(editor, statusLabel, dummyLabel);
+                c.setData(desc.getName(), entry);
             }
 
             modelComposities.put(model.getPropertyDescs(), c);
@@ -159,9 +234,13 @@ public class FormPropertySheetViewer extends Viewer {
         currentComposite = getPropertiesComposite(models[0]);
 
         refresh();
+        boolean relayout = stackLayout.topControl != currentComposite;
         stackLayout.topControl = currentComposite;
-        propertiesComposite.layout();
-        this.form.reflow(true);
+
+        if (relayout) {
+            propertiesComposite.layout();
+            this.form.reflow(true);
+        }
     }
 
     @Override
