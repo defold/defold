@@ -107,7 +107,6 @@ public class FormPropertySheetViewer extends Viewer {
                         IStatus status = models[0].getPropertyStatus(desc.getId());
                         if (status != null && status.getSeverity() >= IStatus.INFO) {
                             exclude = false;
-                            statusLabel.getLabel().setText(status.getMessage());
                             statusLabel.setStatus(status);
                         }
                     } else {
@@ -126,7 +125,9 @@ public class FormPropertySheetViewer extends Viewer {
         }
 
         if (changed) {
+            currentComposite.pack();
             currentComposite.layout(true);
+
             this.form.reflow(true);
         }
     }
@@ -178,9 +179,11 @@ public class FormPropertySheetViewer extends Viewer {
                 } else {
                     control = editor.getControl();
                 }
-                control.setLayoutData(new GridData(GridData.FILL_HORIZONTAL));
+                GridData gd = new GridData(GridData.FILL_HORIZONTAL);
+                gd.widthHint = 50;
+                control.setLayoutData(gd);
 
-                GridData gd = new GridData();
+                gd = new GridData();
                 gd.exclude = true;
                 Label dummyLabel = new Label(c, SWT.NONE);
                 dummyLabel.setLayoutData(gd);
