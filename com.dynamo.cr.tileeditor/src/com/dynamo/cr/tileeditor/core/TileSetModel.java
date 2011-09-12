@@ -671,12 +671,13 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
             }
         }
         this.convexHullPoints = new float[pointCount * 2];
+        int totalIndex = 0;
         for (int row = 0; row < tilesPerColumn; ++row) {
             for (int col = 0; col < tilesPerRow; ++col) {
                 int index = col + row * tilesPerRow;
                 for (int i = 0; i < points[index].length; ++i) {
-                    this.convexHullPoints[i*2 + 0] = points[index][i].getX();
-                    this.convexHullPoints[i*2 + 1] = points[index][i].getY();
+                    this.convexHullPoints[totalIndex++] = points[index][i].getX();
+                    this.convexHullPoints[totalIndex++] = points[index][i].getY();
                 }
             }
         }
