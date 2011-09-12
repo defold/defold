@@ -1,6 +1,7 @@
 package com.dynamo.cr.properties;
 
 import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.MultiStatus;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.graphics.Color;
 import org.eclipse.swt.layout.GridData;
@@ -20,8 +21,10 @@ public class StatusLabel extends Composite {
         super(parent, SWT.BORDER);
         GridLayout layout = new GridLayout();
         setLayout(layout);
-        label = new Label(this, style);
-        label.setLayoutData(new GridData(GridData.CENTER));
+        label = new Label(this, style | SWT.WRAP);
+        GridData gd = new GridData();
+        gd.widthHint = 200;
+        label.setLayoutData(gd);
 
         errorBackgroundColor = new Color(null, 255, 234, 232);
         errorTextColor = new Color(null, 181, 0, 0);
@@ -44,7 +47,22 @@ public class StatusLabel extends Composite {
     }
 
     public void setStatus(IStatus status) {
-        label.setText(status.getMessage());
+        String msg = null;
+
+        if (status instanceof MultiStatus) {
+            MultiStatus multiStatus = (MultiStatus) status;
+            StringBuilder sb = new StringBuilder();
+            IStatus[] children = multiStatus.getChildren();
+            for (IStatus c : children) {
+                sb.append("* ");
+                sb.append(c.getMessage());
+                sb.append("\n");
+            }
+            msg = sb.substring(0, sb.length() - 1);
+        } else {
+            msg = status.getMessage();
+        }
+        label.setText(msg);
 
         switch (status.getSeverity()) {
         case IStatus.ERROR:
