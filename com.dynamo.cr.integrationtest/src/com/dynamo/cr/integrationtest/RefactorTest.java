@@ -47,6 +47,7 @@ import com.dynamo.render.proto.Font.FontDesc;
 import com.dynamo.render.proto.Material.MaterialDesc;
 import com.dynamo.render.proto.Render.RenderPrototypeDesc;
 import com.dynamo.sprite.proto.Sprite.SpriteDesc;
+import com.dynamo.tile.proto.Tile.TileSet;
 import com.google.protobuf.Message;
 import com.google.protobuf.Message.Builder;
 import com.google.protobuf.TextFormat;
@@ -196,6 +197,32 @@ public class RefactorTest {
             @Override
             public String[] getReferences(SpriteDesc desc) {
                 return new String[] {desc.getTexture()};
+            }
+        });
+    }
+
+    /*
+     * Tileset
+     */
+
+    @Test
+    public void testImageForTileset() throws CoreException, IOException {
+
+        testRenameAndDelete(TileSet.newBuilder(), "graphics/sprites.tileset", "/graphics/ball.png", new ReferenceFetcher<TileSet>() {
+            @Override
+            public String[] getReferences(TileSet desc) {
+                return new String[] {desc.getImage()};
+            }
+        });
+    }
+
+    @Test
+    public void testCollisionForTileset() throws CoreException, IOException {
+
+        testRenameAndDelete(TileSet.newBuilder(), "graphics/sprites.tileset", "/graphics/pow.png", new ReferenceFetcher<TileSet>() {
+            @Override
+            public String[] getReferences(TileSet desc) {
+                return new String[] {desc.getCollision()};
             }
         });
     }

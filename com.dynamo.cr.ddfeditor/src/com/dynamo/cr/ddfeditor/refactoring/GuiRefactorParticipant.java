@@ -1,5 +1,6 @@
 package com.dynamo.cr.ddfeditor.refactoring;
 
+import com.dynamo.cr.editor.core.GenericRefactorParticipant;
 import com.dynamo.gui.proto.Gui.SceneDesc;
 
 public class GuiRefactorParticipant extends GenericRefactorParticipant {

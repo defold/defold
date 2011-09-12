@@ -1,5 +1,6 @@
 package com.dynamo.cr.ddfeditor.refactoring;
 
+import com.dynamo.cr.editor.core.GenericRefactorParticipant;
 import com.dynamo.render.proto.Font.FontDesc;
 import com.google.protobuf.Message.Builder;
 
