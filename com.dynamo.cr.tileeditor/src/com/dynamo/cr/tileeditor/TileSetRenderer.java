@@ -73,7 +73,9 @@ KeyListener {
         gl.glEnable(GL.GL_DEPTH_TEST);
         gl.glDepthFunc(GL.GL_LEQUAL);
         gl.glHint(GL.GL_PERSPECTIVE_CORRECTION_HINT, GL.GL_NICEST);
-        gl.setSwapInterval(1);
+        if (!System.getProperty("os.name").equals("Mac OS X")) {
+            gl.setSwapInterval(1);
+        }
 
         BufferedImage backgroundImage = new BufferedImage(2, 2, BufferedImage.TYPE_INT_ARGB);
         backgroundImage.setRGB(0, 0, 0xff999999);
