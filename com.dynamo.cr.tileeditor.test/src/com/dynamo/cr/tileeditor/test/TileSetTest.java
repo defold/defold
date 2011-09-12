@@ -937,20 +937,20 @@ public class TileSetTest {
 
         verify(this.view, times(34)).refreshProperties();
         verify(this.view, times(4)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
-        verify(this.view, times(13)).setTileData(any(BufferedImage.class), any(BufferedImage.class),
+        verify(this.view, times(25)).setTileData(any(BufferedImage.class), any(BufferedImage.class),
                 anyInt(), anyInt(), anyInt(), anyInt(),
                 any(float[].class), any(int[].class), any(int[].class), any(Color[].class));
-        verify(this.view, never()).clearTiles();
+        verify(this.view, times(18)).clearTiles();
         verify(this.view, times(6)).setTileHullColor(anyInt(), any(Color.class));
 
         this.presenter.refresh();
 
         verify(this.view, times(35)).refreshProperties();
         verify(this.view, times(5)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
-        verify(this.view, times(14)).setTileData(any(BufferedImage.class), any(BufferedImage.class),
+        verify(this.view, times(26)).setTileData(any(BufferedImage.class), any(BufferedImage.class),
                 anyInt(), anyInt(), anyInt(), anyInt(),
                 any(float[].class), any(int[].class), any(int[].class), any(Color[].class));
-        verify(this.view, never()).clearTiles();
+        verify(this.view, times(18)).clearTiles();
         verify(this.view, times(6)).setTileHullColor(anyInt(), any(Color.class));
     }
 }
