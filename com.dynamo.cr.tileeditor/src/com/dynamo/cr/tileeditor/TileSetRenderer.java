@@ -88,7 +88,7 @@ KeyListener {
         GL gl = this.context.getGL();
         gl.glPolygonMode(GL.GL_FRONT, GL.GL_FILL);
         if (!System.getProperty("os.name").equals("Mac OS X")) {
-            gl.setSwapInterval(1);
+            //gl.setSwapInterval(1);
         } else {
             this.mac = true;
         }
@@ -208,7 +208,7 @@ KeyListener {
             break;
         case CAMERA_MODE_DOLLY:
             float ds = -dy * 0.005f;
-            this.scale -= (this.scale > 1.0f) ? ds * this.scale : ds;
+            this.scale += (this.scale > 1.0f) ? ds * this.scale : ds;
             this.scale = Math.max(0.1f, this.scale);
             requestPaint();
             break;
@@ -309,45 +309,42 @@ KeyListener {
         int tilesPerRow = TileSetUtil.calculateTileCount(this.tileWidth, width, this.tileMargin, this.tileSpacing);
         int tilesPerColumn = TileSetUtil.calculateTileCount(this.tileHeight, height, this.tileMargin, this.tileSpacing);
 
-        // 1 pixel spacing between tiles
-        int totalWidth = (this.tileWidth + 1) * tilesPerRow + 1;
-        int totalHeight = (this.tileHeight + 1) * tilesPerColumn + 1;
+        final float borderSize = 2.0f;
+        float pixelBorderSize = borderSize / this.scale;
+        float totalWidth = (this.tileWidth + pixelBorderSize) * tilesPerRow + pixelBorderSize;
+        float totalHeight = (this.tileHeight + pixelBorderSize) * tilesPerColumn + pixelBorderSize;
 
         // background
         drawBackground(gl, totalWidth, totalHeight);
 
         // tiles
-        drawTiles(gl, tilesPerRow, tilesPerColumn);
-
-        // grid
-        drawBorders(gl, totalWidth, totalHeight, tilesPerRow, tilesPerColumn);
+        drawTiles(gl, borderSize, tilesPerRow, tilesPerColumn, totalWidth, totalHeight);
     }
 
-    private void drawBackground(GL gl, int width, int height) {
+    private void drawBackground(GL gl, float width, float height) {
         this.background.bind();
         this.background.enable();
-        float recipTexelWidth = width * 0.0625f;
-        float recipTexelHeight = height * 0.0625f;
-        float halfTexelWidth = 0.5f / width;
-        float halfTexelHeight = 0.5f / height;
-        float u0 = halfTexelWidth;
-        float u1 = recipTexelWidth + halfTexelWidth;
-        float v0 = -halfTexelHeight;
-        float v1 = recipTexelHeight - halfTexelHeight;
+        final float recipTileSize = 0.0625f;
+        float recipTexelWidth = width * recipTileSize;
+        float recipTexelHeight = height * recipTileSize;
+        float u0 = (0.5f / width + recipTileSize * this.offset[0]) * this.scale;
+        float u1 = u0 + recipTexelWidth * this.scale;
+        float v0 = (0.5f / height + recipTileSize * this.offset[1]) * this.scale;
+        float v1 = v0 + recipTexelHeight * this.scale;
         gl.glBegin(GL.GL_QUADS);
-        gl.glTexCoord2f(u0, v1);
-        gl.glVertex2f(0.0f, 0.0f);
         gl.glTexCoord2f(u0, v0);
+        gl.glVertex2f(0.0f, 0.0f);
+        gl.glTexCoord2f(u0, v1);
         gl.glVertex2f(0.0f, height);
-        gl.glTexCoord2f(u1, v0);
-        gl.glVertex2f(width, height);
         gl.glTexCoord2f(u1, v1);
+        gl.glVertex2f(width, height);
+        gl.glTexCoord2f(u1, v0);
         gl.glVertex2f(width, 0.0f);
         gl.glEnd();
         this.background.disable();
     }
 
-    private void drawTiles(GL gl, int tilesPerRow, int tilesPerColumn) {
+    private void drawTiles(GL gl, float borderSize, int tilesPerRow, int tilesPerColumn, float width, float height) {
         if (this.image == null) {
             return;
         }
@@ -358,19 +355,22 @@ KeyListener {
         int vertexCount = 4 * tileCount;
         FloatBuffer v = BufferUtil.newFloatBuffer(vertexCount * 2);
         FloatBuffer t = BufferUtil.newFloatBuffer(vertexCount * 2);
-        // render space is scaled pixel space, into which the tiles are rendered with one pixel non-scaled spacing
         float recipImageWidth = 1.0f / image.getWidth();
         float recipImageHeight = 1.0f / image.getHeight();
+        float recipScale = 1.0f / this.scale;
+        float border = borderSize * recipScale;
+        float pixelTexelWidth = recipScale * recipImageWidth;
+        float pixelTexelHeight = recipScale * recipImageHeight;
         for (int row = 0; row < tilesPerColumn; ++row) {
             for (int column = 0; column < tilesPerRow; ++column) {
-                float x0 = column * (tileWidth + 1.0f) + 1.0f;
+                float x0 = column * (tileWidth + border) + border;
                 float x1 = x0 + tileWidth;
-                float y0 = row * (tileHeight + 1.0f) + 1.0f;
+                float y0 = row * (tileHeight + border) + border;
                 float y1 = y0 + tileHeight;
-                float u0 = (column * (tileSpacing + 2*tileMargin + tileWidth) + tileMargin + 0.5f) * recipImageWidth;
-                float u1 = u0 + tileWidth * recipImageWidth;
-                float v1 = ((tilesPerColumn - row - 1) * (tileSpacing + 2*tileMargin + tileHeight) + tileMargin - 0.5f) * recipImageHeight;
-                float v0 = v1 + tileHeight * recipImageHeight;
+                float u0 = (column * (tileSpacing + 2*tileMargin + tileWidth) + tileMargin) * recipImageWidth + 0.5f * pixelTexelWidth;
+                float u1 = u0 + tileWidth * recipImageWidth - 0.5f * pixelTexelWidth;
+                float v1 = ((tilesPerColumn - row - 1) * (tileSpacing + 2*tileMargin + tileHeight) + tileMargin) * recipImageHeight - 0.5f * pixelTexelHeight;
+                float v0 = v1 + tileHeight * recipImageHeight + 0.5f * pixelTexelHeight;
                 v.put(x0); v.put(y0); t.put(u0); t.put(v0);
                 v.put(x0); v.put(y1); t.put(u0); t.put(v1);
                 v.put(x1); v.put(y1); t.put(u1); t.put(v1);
@@ -398,34 +398,4 @@ KeyListener {
         gl.glDisable(GL.GL_BLEND);
     }
 
-    private void drawBorders(GL gl, int width, int height, int tilesPerRow, int tilesPerColumn) {
-        int dx = (width - 1)/tilesPerRow;
-        int dy = (height - 1)/tilesPerColumn;
-        int vertexCount = ((tilesPerRow + 1) + (tilesPerColumn + 1)) * 2;
-        FloatBuffer v = BufferUtil.newFloatBuffer(vertexCount * 2);
-        for (int column = 0; column <= tilesPerRow; ++column) {
-            float x0 = column * dx;
-            v.put(x0); v.put(0.0f);
-            v.put(x0); v.put(height);
-        }
-        for (int row = 0; row <= tilesPerColumn; ++row) {
-            float y0 = row * dy;
-            v.put(0.0f); v.put(y0);
-            v.put(width); v.put(y0);
-        }
-        v.flip();
-
-        gl.glColor4f(0.1f, 0.1f, 0.1f, 0.6f);
-
-        gl.glEnable(GL.GL_BLEND);
-        gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
-        gl.glEnableClientState(GL.GL_VERTEX_ARRAY);
-
-        gl.glVertexPointer(2, GL.GL_FLOAT, 0, v);
-        gl.glDrawArrays(GL.GL_LINES, 0, vertexCount);
-
-        gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
-        gl.glColor3f(1.0f, 1.0f, 1.0f);
-        gl.glDisable(GL.GL_BLEND);
-    }
 }
