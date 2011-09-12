@@ -135,6 +135,7 @@ KeyListener {
         this.hullIndices = hullIndices;
         this.hullCounts = hullCounts;
         this.hullColors = hullColors;
+        requestPaint();
     }
 
 
