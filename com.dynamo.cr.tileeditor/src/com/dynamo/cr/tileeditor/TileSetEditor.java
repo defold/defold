@@ -6,13 +6,8 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.util.List;
 
-import org.eclipse.core.commands.operations.IOperationApprover;
-import org.eclipse.core.commands.operations.IOperationHistory;
-import org.eclipse.core.commands.operations.UndoContext;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
-import org.eclipse.core.resources.IResourceChangeEvent;
-import org.eclipse.core.resources.IResourceChangeListener;
 import org.eclipse.core.resources.IWorkspace;
 import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
@@ -22,7 +17,6 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.action.IStatusLineManager;
-import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.window.Window;
 import org.eclipse.swt.widgets.Composite;
@@ -31,20 +25,12 @@ import org.eclipse.ui.IActionBars;
 import org.eclipse.ui.IEditorInput;
 import org.eclipse.ui.IEditorSite;
 import org.eclipse.ui.IFileEditorInput;
-import org.eclipse.ui.IPartListener;
-import org.eclipse.ui.IPartService;
-import org.eclipse.ui.IWindowListener;
 import org.eclipse.ui.IWorkbenchPart;
-import org.eclipse.ui.IWorkbenchWindow;
 import org.eclipse.ui.PartInitException;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.actions.ActionFactory;
 import org.eclipse.ui.contexts.IContextService;
 import org.eclipse.ui.dialogs.SaveAsDialog;
-import org.eclipse.ui.operations.LinearUndoViolationUserApprover;
-import org.eclipse.ui.operations.RedoActionHandler;
-import org.eclipse.ui.operations.UndoActionHandler;
-import org.eclipse.ui.part.EditorPart;
 import org.eclipse.ui.part.FileEditorInput;
 import org.eclipse.ui.part.IPageSite;
 import org.eclipse.ui.progress.IProgressService;
@@ -54,18 +40,14 @@ import org.eclipse.ui.views.properties.IPropertySheetPage;
 
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.properties.FormPropertySheetPage;
-import com.dynamo.cr.tileeditor.TileSetEditor.ActivationListener;
 import com.dynamo.cr.tileeditor.core.ITileSetView;
 import com.dynamo.cr.tileeditor.core.TileSetModel;
 import com.dynamo.cr.tileeditor.core.TileSetPresenter;
 
-public class TileSetEditor extends EditorPart implements
-ITileSetView,
-IResourceChangeListener {
+public class TileSetEditor extends AbstractDefoldEditor implements
+ITileSetView {
 
     private IContainer contentRoot;
-    private IOperationHistory history;
-    private UndoContext undoContext;
     private TileSetPresenter presenter;
     private TileSetEditorOutlinePage outlinePage;
     private FormPropertySheetPage propertySheetPage;
@@ -74,46 +56,32 @@ IResourceChangeListener {
     // avoids reloading while saving
     private boolean inSave = false;
     private TileSetRenderer renderer;
-    private ActivationListener activationListener;
-    private long lastModificationStamp;
-    private final static int UNDO_LIMIT = 100;
 
     // EditorPart
 
     @Override
     public void init(IEditorSite site, IEditorInput input)
             throws PartInitException {
-        ResourcesPlugin.getWorkspace().addResourceChangeListener(this);
 
         setSite(site);
         setInput(input);
         setPartName(input.getName());
 
+        super.init(site, input);
+
         IFileEditorInput fileEditorInput = (IFileEditorInput) input;
         IFile file = fileEditorInput.getFile();
-        lastModificationStamp = file.getModificationStamp();
         this.contentRoot = EditorUtil.findContentRoot(file);
         if (this.contentRoot == null) {
             throw new PartInitException(
                     "Unable to locate content root for project");
         }
 
-        this.undoContext = new UndoContext();
-        this.history = PlatformUI.getWorkbench().getOperationSupport()
-                .getOperationHistory();
-        this.history.setLimit(this.undoContext, UNDO_LIMIT);
-
-        IOperationApprover approver = new LinearUndoViolationUserApprover(
-                this.undoContext, this);
-        this.history.addOperationApprover(approver);
-
         final TileSetModel model = new TileSetModel(this.contentRoot, this.history, this.undoContext);
         this.presenter = new TileSetPresenter(model, this);
 
         final String undoId = ActionFactory.UNDO.getId();
-        final UndoActionHandler undoHandler = new UndoActionHandler(this.getEditorSite(), undoContext);
         final String redoId = ActionFactory.REDO.getId();
-        final RedoActionHandler redoHandler = new RedoActionHandler(this.getEditorSite(), undoContext);
 
         IActionBars actionBars = site.getActionBars();
         actionBars.setGlobalActionHandler(undoId, undoHandler);
@@ -171,8 +139,6 @@ IResourceChangeListener {
         if (this.renderer != null) {
             this.renderer.dispose();
         }
-        ResourcesPlugin.getWorkspace().removeResourceChangeListener(this);
-        this.activationListener.dispose();
     }
 
     @Override
@@ -189,7 +155,6 @@ IResourceChangeListener {
         getSite().setSelectionProvider(this.outlinePage);
 
         this.presenter.refresh();
-        this.activationListener = new ActivationListener(getSite().getWorkbenchWindow().getPartService());
     }
 
     public TileSetPresenter getPresenter() {
@@ -217,7 +182,6 @@ IResourceChangeListener {
                     e.getMessage(), null);
             StatusManager.getManager().handle(status, StatusManager.LOG | StatusManager.SHOW);
         } finally {
-            lastModificationStamp = file.getModificationStamp();
             this.inSave = false;
         }
     }
@@ -265,15 +229,6 @@ IResourceChangeListener {
     @Override
     public void setFocus() {
         this.renderer.getCanvas().setFocus();
-    }
-
-    // IResourceChangeListener
-
-    @Override
-    public void resourceChanged(IResourceChangeEvent event) {
-        if (this.inSave)
-            return;
-
     }
 
     // ITileSetView
@@ -344,98 +299,20 @@ IResourceChangeListener {
         }
     }
 
-    private void checkFileState() {
-        IFileEditorInput input = (IFileEditorInput) getEditorInput();
-        IFile file = input.getFile();
-        // The file can be changed by an editor within eclipse or externally
-        if (file.getModificationStamp() != lastModificationStamp || !file.isSynchronized(IFile.DEPTH_ZERO)) {
-            try {
-                // Refresh if changed externally
-                file.refreshLocal(IFile.DEPTH_ZERO, new NullProgressMonitor());
-            } catch (CoreException e) {
-                Activator.logException(e);
-                // We continue here. We must update lastModificationStamp. Otherwise risk of infinite loop.
+    @Override
+    protected void doReload(IFile file) {
+        IProgressService service = PlatformUI.getWorkbench()
+                .getProgressService();
+        TileSetLoader loader = new TileSetLoader(file, this.presenter);
+        try {
+            service.runInUI(service, loader, null);
+            if (loader.exception != null) {
+                Activator.logException(loader.exception);
             }
-            // Get new modification time stamp
-            lastModificationStamp = file.getModificationStamp();
-
-            boolean reload;
-
-            if (isDirty()) {
-                String msg = String.format("The file '%s' has been changed on the file system. Do you want to replace the editor contents with these changes?", file.getName());
-                reload = MessageDialog.openQuestion(getSite().getShell(), "File Changed", msg);
-            } else {
-                // Always reload if not dirty
-                reload = true;
-            }
-
-            if (reload) {
-                // Clear undo stack
-                this.history.setLimit(this.undoContext, 0);
-                this.history.setLimit(this.undoContext, UNDO_LIMIT);
-
-                IProgressService service = PlatformUI.getWorkbench()
-                        .getProgressService();
-                TileSetLoader loader = new TileSetLoader(file, this.presenter);
-                try {
-                    service.runInUI(service, loader, null);
-                    if (loader.exception != null) {
-                        Activator.logException(loader.exception);
-                    }
-                } catch (Throwable e) {
-                    Activator.logException(e);
-                }
-            }
+        } catch (Throwable e) {
+            Activator.logException(e);
         }
     }
 
-    class ActivationListener implements IPartListener, IWindowListener {
-
-        private IPartService partService;
-
-        public ActivationListener(IPartService partService) {
-            this.partService = partService;
-            this.partService.addPartListener(this);
-            PlatformUI.getWorkbench().addWindowListener(this);
-        }
-
-        public void dispose() {
-            this.partService.removePartListener(this);
-            PlatformUI.getWorkbench().removeWindowListener(this);
-        }
-
-        @Override
-        public void windowActivated(IWorkbenchWindow window) {
-            if (TileSetEditor.this == this.partService.getActivePart()) {
-                checkFileState();
-            }
-        }
-
-        @Override
-        public void windowDeactivated(IWorkbenchWindow window) {}
-
-        @Override
-        public void windowClosed(IWorkbenchWindow window) {}
-
-        @Override
-        public void windowOpened(IWorkbenchWindow window) {}
-
-        @Override
-        public void partActivated(IWorkbenchPart part) {
-            checkFileState();
-        }
-
-        @Override
-        public void partBroughtToTop(IWorkbenchPart part) {}
-
-        @Override
-        public void partClosed(IWorkbenchPart part) {}
-
-        @Override
-        public void partDeactivated(IWorkbenchPart part) {}
-
-        @Override
-        public void partOpened(IWorkbenchPart part) {}
-    }
 
 }
