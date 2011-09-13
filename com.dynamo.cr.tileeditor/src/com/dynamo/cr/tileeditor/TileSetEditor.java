@@ -54,8 +54,12 @@ ITileSetView {
     private boolean dirty = false;
     private boolean refreshPropertiesPosted = false;
     // avoids reloading while saving
-    private boolean inSave = false;
     private TileSetRenderer renderer;
+
+    @Override
+    protected void logException(Throwable e) {
+        Activator.logException(e);
+    }
 
     // EditorPart
 
@@ -168,9 +172,9 @@ ITileSetView {
 
     @Override
     public void doSave(IProgressMonitor monitor) {
-        this.inSave = true;
         IFileEditorInput input = (IFileEditorInput) getEditorInput();
         IFile file = input.getFile();
+        this.inSave = true;
         try {
             ByteArrayOutputStream stream = new ByteArrayOutputStream();
             this.presenter.save(stream, monitor);

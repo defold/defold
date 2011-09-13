@@ -4,12 +4,16 @@ import org.eclipse.core.commands.operations.IOperationApprover;
 import org.eclipse.core.commands.operations.IOperationHistory;
 import org.eclipse.core.commands.operations.UndoContext;
 import org.eclipse.core.resources.IFile;
+import org.eclipse.core.resources.IResource;
 import org.eclipse.core.resources.IResourceChangeEvent;
 import org.eclipse.core.resources.IResourceChangeListener;
+import org.eclipse.core.resources.IResourceDelta;
+import org.eclipse.core.resources.IResourceDeltaVisitor;
 import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.jface.dialogs.MessageDialog;
+import org.eclipse.swt.widgets.Display;
 import org.eclipse.ui.IEditorInput;
 import org.eclipse.ui.IEditorSite;
 import org.eclipse.ui.IFileEditorInput;
@@ -33,7 +37,10 @@ public abstract class AbstractDefoldEditor extends EditorPart implements IResour
     protected IOperationHistory history;
     protected UndoActionHandler undoHandler;
     protected RedoActionHandler redoHandler;
+    protected boolean inSave = false;
     private final static int UNDO_LIMIT = 100;
+
+    protected abstract void logException(Throwable e);
 
     @Override
     public void dispose() {
@@ -66,15 +73,30 @@ public abstract class AbstractDefoldEditor extends EditorPart implements IResour
     private void checkFileState() {
         IFileEditorInput input = (IFileEditorInput) getEditorInput();
         IFile file = input.getFile();
-        // The file can be changed by an editor within eclipse or externally
-        if (file.getModificationStamp() != lastModificationStamp || !file.isSynchronized(IFile.DEPTH_ZERO)) {
-            try {
-                // Refresh if changed externally
-                file.refreshLocal(IFile.DEPTH_ZERO, new NullProgressMonitor());
-            } catch (CoreException e) {
-                Activator.logException(e);
-                // We continue here. We must update lastModificationStamp. Otherwise risk of infinite loop.
-            }
+
+        // We must retrieve this before refreshLocal below.
+        boolean isSynchronized = file.isSynchronized(IFile.DEPTH_ZERO);
+
+        try {
+            // Refresh if changed externally
+            file.refreshLocal(IFile.DEPTH_ZERO, new NullProgressMonitor());
+        } catch (CoreException e) {
+            Activator.logException(e);
+            // We continue here. Not much todo if we an error here.
+        }
+
+        if (!file.exists()) {
+            Display display= getSite().getShell().getDisplay();
+            display.asyncExec(new Runnable() {
+                public void run() {
+                    getSite().getPage().closeEditor(AbstractDefoldEditor.this, false);
+                }
+            });
+
+        }
+        else if (file.getModificationStamp() != lastModificationStamp || !isSynchronized) {
+            // The file can be changed by an editor within eclipse or externally
+
             // Get new modification time stamp
             lastModificationStamp = file.getModificationStamp();
 
@@ -98,11 +120,52 @@ public abstract class AbstractDefoldEditor extends EditorPart implements IResour
         }
     }
 
-    @Override
-    public void resourceChanged(IResourceChangeEvent event) {
+
+    protected void handleResourceChanged(IResourceChangeEvent event) {
         IFileEditorInput fileEditorInput = (IFileEditorInput) getEditorInput();
-        IFile file = fileEditorInput.getFile();
-        lastModificationStamp = file.getModificationStamp();
+        final IFile file = fileEditorInput.getFile();
+
+        try {
+            event.getDelta().accept(new IResourceDeltaVisitor() {
+
+                @Override
+                public boolean visit(IResourceDelta delta) throws CoreException {
+                    IResource resource = delta.getResource();
+                    if (file.equals(resource)) {
+
+                        /*
+                        if (file.exists()) {
+                            lastModificationStamp = file.getModificationStamp();
+                        }*/
+
+                        checkFileState();
+
+                        return false;
+                    } else {
+                        return true;
+                    }
+                }
+            });
+        } catch (CoreException e) {
+            logException(e);
+        }
+
+    }
+
+    @Override
+    public void resourceChanged(final IResourceChangeEvent event) {
+        if (inSave) {
+            IFileEditorInput fileEditorInput = (IFileEditorInput) getEditorInput();
+            IFile file = fileEditorInput.getFile();
+            lastModificationStamp = file.getModificationStamp();
+        } else {
+            Display display= getSite().getShell().getDisplay();
+            display.asyncExec(new Runnable() {
+                public void run() {
+                    handleResourceChanged(event);
+                }
+            });
+        }
     }
 
     protected abstract void doReload(IFile file);
