@@ -20,6 +20,11 @@ import org.eclipse.core.commands.operations.IUndoContext;
 import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
+import org.eclipse.core.resources.IResource;
+import org.eclipse.core.resources.IResourceChangeEvent;
+import org.eclipse.core.resources.IResourceDelta;
+import org.eclipse.core.resources.IResourceDeltaVisitor;
+import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IAdaptable;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
@@ -154,19 +159,23 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
         return image;
     }
 
+    private void loadImage() {
+        try {
+            this.loadedImage = loadImageFile(image);
+            updateConvexHulls();
+            clearPropertyStatus("image", Activator.STATUS_TS_IMG_NOT_FOUND);
+        } catch (Exception e) {
+            setPropertyStatus("image", Activator.STATUS_TS_IMG_NOT_FOUND, image);
+        }
+    }
+
     public void setImage(String image) {
         if ((this.image == null && image != null) || !this.image.equals(image)) {
             String oldImage = this.image;
             this.image = image;
             this.loadedImage = null;
             if (this.image != null && !this.image.equals("")) {
-                try {
-                    this.loadedImage = loadImage(image);
-                    updateConvexHulls();
-                    clearPropertyStatus("image", Activator.STATUS_TS_IMG_NOT_FOUND);
-                } catch (Exception e) {
-                    setPropertyStatus("image", Activator.STATUS_TS_IMG_NOT_FOUND, image);
-                }
+                loadImage();
                 clearPropertyStatus("image", Activator.STATUS_TS_IMG_NOT_SPECIFIED);
             } else {
                 setPropertyStatus("image", Activator.STATUS_TS_IMG_NOT_SPECIFIED);
@@ -251,19 +260,23 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
         return this.collision;
     }
 
+    private void loadCollision() {
+        try {
+            this.loadedCollision = loadImageFile(collision);
+            clearPropertyStatus("collision", Activator.STATUS_TS_COL_IMG_NOT_FOUND);
+        } catch (Exception e) {
+            this.loadedCollision = null;
+            setPropertyStatus("collision", Activator.STATUS_TS_COL_IMG_NOT_FOUND, collision);
+        }
+    }
+
     public void setCollision(String collision) {
         if ((this.collision == null && collision != null) || !this.collision.equals(collision)) {
             String oldCollision = this.collision;
             this.collision = collision;
             this.loadedCollision = null;
             if (this.collision != null && !this.collision.equals("")) {
-                try {
-                    this.loadedCollision = loadImage(collision);
-                    clearPropertyStatus("collision", Activator.STATUS_TS_COL_IMG_NOT_FOUND);
-                } catch (Exception e) {
-                    this.loadedCollision = null;
-                    setPropertyStatus("collision", Activator.STATUS_TS_COL_IMG_NOT_FOUND, collision);
-                }
+                loadCollision();
             }
             updateConvexHulls();
             firePropertyChangeEvent(new PropertyChangeEvent(this, "collision", oldCollision, collision));
@@ -426,7 +439,7 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
         return this.loadedCollision;
     }
 
-    private BufferedImage loadImage(String fileName) throws Exception {
+    private BufferedImage loadImageFile(String fileName) throws Exception {
         try {
             IFile file = this.contentRoot.getFile(new Path(fileName));
             InputStream is = file.getContents();
@@ -511,7 +524,7 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
     }
 
     private void updateConvexHulls() {
-        if (verifyImageDimensions() && verifyTileDimensions()) {
+        if (verifyImageDimensions() && verifyTileDimensions() && isOk()) {
             updateConvexHullsList();
         }
     }
@@ -663,6 +676,15 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
         }
     }
 
+    public boolean isOk() {
+        for (Map.Entry<String, IStatus> propertyStatus : this.propertyStatuses.entrySet()) {
+            if (!propertyStatus.getValue().isOK()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     public boolean hasPropertyStatus(String property, int code) {
         IStatus status = this.propertyStatuses.get(property);
         if (status != null) {
@@ -804,6 +826,46 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
                 }
                 firePropertyChangeEvent(new PropertyChangeEvent(this, property, oldStatus, newStatus));
             }
+        }
+    }
+
+    public void handleResourceChanged(IResourceChangeEvent event) {
+
+        final IFile files[] = new IFile[2];
+
+        if (image != null && image.length() > 0) {
+            files[0] = this.contentRoot.getFile(new Path(image));
+        }
+        if (collision != null && collision.length() > 0) {
+            files[1] = this.contentRoot.getFile(new Path(collision));
+        }
+
+        try {
+            event.getDelta().accept(new IResourceDeltaVisitor() {
+
+                @Override
+                public boolean visit(IResourceDelta delta) throws CoreException {
+                    IResource resource = delta.getResource();
+
+                    boolean found = false;
+                    if (files[0] != null && files[0].equals(resource)) {
+                        loadImage();
+                        found = true;
+                    }
+                    // NOTE: not else here
+                    if (files[1] != null && files[1].equals(resource)) {
+                        loadCollision();
+                        updateConvexHulls();
+                        found = true;
+                    }
+                    if (found) {
+                        return false;
+                    }
+                    return true;
+                }
+            });
+        } catch (CoreException e) {
+            Activator.logException(e);
         }
     }
 

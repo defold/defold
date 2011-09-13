@@ -1,6 +1,10 @@
 package com.dynamo.cr.editor;
 
+import java.util.List;
+
 import org.eclipse.core.resources.ResourcesPlugin;
+import org.eclipse.jface.preference.IPreferenceNode;
+import org.eclipse.jface.preference.PreferenceManager;
 import org.eclipse.ui.IWorkbenchPage;
 import org.eclipse.ui.IWorkbenchWindow;
 import org.eclipse.ui.PlatformUI;
@@ -28,13 +32,27 @@ public class ApplicationWorkbenchAdvisor extends WorkbenchAdvisor {
         org.eclipse.ui.ide.IDE.registerAdapters();
     }
 
-    /*
-     * TODO: Hack from http://www.eclipse.org/forums/index.php?t=msg&goto=486705&
-     */
+    protected void dumpPreferencesNodes(IPreferenceNode[] nodes, int indent) {
+
+        for (IPreferenceNode n : nodes) {
+            for (int i = 0; i < indent; ++i) {
+                System.out.print(' ');
+            }
+            System.out.println(n.getId());
+
+            IPreferenceNode[] subs = n.getSubNodes();
+            dumpPreferencesNodes(subs, indent + 2);
+        }
+
+    }
+
     @Override
     public void postStartup() {
-
         super.postStartup();
+
+        /*
+         * TODO: Hack from http://www.eclipse.org/forums/index.php?t=msg&goto=486705&
+         */
         IWorkbenchWindow[] workbenchs = PlatformUI.getWorkbench()
                 .getWorkbenchWindows();
 
@@ -53,5 +71,29 @@ public class ApplicationWorkbenchAdvisor extends WorkbenchAdvisor {
 
         view.getCommonViewer().setInput(
                 ResourcesPlugin.getWorkspace().getRoot());
+
+        // Remove unwanted preferences pages
+        // TODO: We should perhaps remove these using activities instead?
+        // We currently remove "New Project" etc using this feature
+        // See http://stackoverflow.com/questions/1460761/howto-hide-a-preference-page-in-an-eclipse-rcp
+        // See post with <activityPatternBinding...
+        PreferenceManager pm = PlatformUI.getWorkbench().getPreferenceManager( );
+        pm.remove("org.eclipse.team.ui.TeamPreferences");
+        pm.remove("org.eclipse.ui.preferencePages.Workbench/org.eclipse.ui.preferencePages.Perspectives");
+        pm.remove("org.eclipse.ui.preferencePages.Workbench/org.eclipse.equinox.security.ui.category");
+        pm.remove("org.eclipse.ui.preferencePages.Workbench/org.eclipse.ui.net.NetPreferences");
+        pm.remove("org.eclipse.ui.preferencePages.Workbench/org.eclipse.ui.preferencePages.ContentTypes");
+        pm.remove("org.eclipse.ui.preferencePages.Workbench/org.eclipse.ui.preferencePages.Workspace");
+        pm.remove("org.eclipse.ui.preferencePages.Workbench/org.eclipse.compare.internal.ComparePreferencePage");
+        pm.remove("org.eclipse.ui.preferencePages.Workbench/org.eclipse.ui.preferencePages.Views/org.eclipse.ui.preferencePages.Decorators");
+        pm.remove("org.eclipse.equinox.internal.p2.ui.sdk.ProvisioningPreferencePage");
+        pm.remove("org.eclipse.ui.preferencePages.Workbench/org.eclipse.ui.preferencePages.Editors/org.eclipse.ui.preferencePages.GeneralTextEditor/org.eclipse.ui.editors.preferencePages.QuickDiff");
+        pm.remove("org.eclipse.ui.preferencePages.Workbench/org.eclipse.ui.preferencePages.Editors/org.eclipse.ui.preferencePages.GeneralTextEditor/org.eclipse.ui.editors.preferencePages.Accessibility");
+        pm.remove("org.eclipse.ui.preferencePages.Workbench/org.eclipse.ui.preferencePages.Editors/org.eclipse.ui.preferencePages.GeneralTextEditor/org.eclipse.ui.editors.preferencePages.Spelling");
+        pm.remove("org.eclipse.ui.preferencePages.Workbench/org.eclipse.ui.preferencePages.Editors/org.eclipse.ui.preferencePages.GeneralTextEditor/org.eclipse.ui.editors.preferencePages.LinkedModePreferencePage");
+        pm.remove("org.eclipse.ui.preferencePages.Workbench/org.eclipse.ui.preferencePages.Editors/org.eclipse.ui.preferencePages.GeneralTextEditor/org.eclipse.ui.editors.preferencePages.HyperlinkDetectorsPreferencePage");
+
+        // NOTE: Uncomment line below to dump all preference nodes. Use / as separator. See above
+        //dumpPreferencesNodes(pm.getRootSubNodes(), 0);
     }
 }
