@@ -73,6 +73,10 @@ public class ApplicationWorkbenchAdvisor extends WorkbenchAdvisor {
                 ResourcesPlugin.getWorkspace().getRoot());
 
         // Remove unwanted preferences pages
+        // TODO: We should perhaps remove these using activities instead?
+        // We currently remove "New Project" etc using this feature
+        // See http://stackoverflow.com/questions/1460761/howto-hide-a-preference-page-in-an-eclipse-rcp
+        // See post with <activityPatternBinding...
         PreferenceManager pm = PlatformUI.getWorkbench().getPreferenceManager( );
         pm.remove("org.eclipse.team.ui.TeamPreferences");
         pm.remove("org.eclipse.ui.preferencePages.Workbench/org.eclipse.ui.preferencePages.Perspectives");
