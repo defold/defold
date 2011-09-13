@@ -173,6 +173,7 @@ public class TileSetTest implements IResourceChangeListener {
         verify(this.view, never()).setHulls(any(float[].class), any(int[].class), any(int[].class), any(Color[].class));
         verify(this.view, never()).setHullColor(anyInt(), any(Color.class));
         verify(this.view, never()).setDirty(anyBoolean());
+        verify(this.view, never()).setValid(anyBoolean());
     }
 
     /**
@@ -780,16 +781,19 @@ public class TileSetTest implements IResourceChangeListener {
 
         assertTrue(!this.model.hasPropertyStatus("image", code));
         verify(this.view, times(1)).refreshProperties();
+        verify(this.view, never()).setValid(anyBoolean());
 
         String invalidPath = "/test";
         this.model.executeOperation(propertyModel.setPropertyValue("image", invalidPath));
         assertTrue(this.model.hasPropertyStatus("image", code));
         assertEquals(NLS.bind(Activator.getStatusMessage(code), invalidPath), this.model.getPropertyStatus("image", code).getMessage());
         verify(this.view, times(4)).refreshProperties();
+        verify(this.view, times(2)).setValid(eq(false));
 
         this.model.executeOperation(propertyModel.setPropertyValue("image", "/mario_tileset.png"));
         assertTrue(!this.model.hasPropertyStatus("image", code));
         verify(this.view, times(6)).refreshProperties();
+        verify(this.view, times(1)).setValid(eq(true));
     }
 
     /**

@@ -23,4 +23,6 @@ public interface ITileSetView {
 
     public void setDirty(boolean dirty);
 
+    public void setValid(boolean valid);
+
 }

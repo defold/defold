@@ -49,11 +49,14 @@ KeyListener {
     private boolean paintRequested = false;
     private boolean mac = false;
     private float scale = 1.0f;
+    private boolean enabled = true;
+
     // Camera data
     private int cameraMode = CAMERA_MODE_NONE;
     private int lastX;
     private int lastY;
     private final float[] offset = new float[2];
+
     // Render data
     private BufferedImage image;
     private Texture texture;
@@ -301,6 +304,11 @@ KeyListener {
         this.cameraMode = CAMERA_MODE_NONE;
     }
 
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+        requestPaint();
+    }
+
     private void requestPaint() {
         if (this.paintRequested || this.canvas == null)
             return;
@@ -357,7 +365,7 @@ KeyListener {
     }
 
     private void drawTileSet(GL gl) {
-        if (this.image == null && this.collision == null) {
+        if (!this.enabled || (this.image == null && this.collision == null)) {
             return;
         }
 

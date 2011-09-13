@@ -297,6 +297,11 @@ ITileSetView {
     }
 
     @Override
+    public void setValid(boolean valid) {
+        this.renderer.setEnabled(valid);
+    }
+
+    @Override
     public Object getAdapter(@SuppressWarnings("rawtypes") Class adapter) {
         if (adapter == IPropertySheetPage.class) {
             return this.propertySheetPage;
