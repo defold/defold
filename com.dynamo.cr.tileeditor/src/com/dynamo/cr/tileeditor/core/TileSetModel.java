@@ -166,20 +166,20 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
         if ((this.image == null && image != null) || !this.image.equals(image)) {
             String oldImage = this.image;
             this.image = image;
-            firePropertyChangeEvent(new PropertyChangeEvent(this, "image", oldImage, image));
+            this.loadedImage = null;
             if (this.image != null && !this.image.equals("")) {
                 try {
                     this.loadedImage = loadImage(image);
                     updateConvexHulls();
                     clearPropertyTag("image", TAG_2);
                 } catch (Exception e) {
-                    this.loadedImage = null;
                     setPropertyTag("image", Tag.bind(TAG_2, image));
                 }
                 clearPropertyTag("image", TAG_1);
             } else {
                 setPropertyTag("image", TAG_1);
             }
+            firePropertyChangeEvent(new PropertyChangeEvent(this, "image", oldImage, image));
         }
     }
 
@@ -263,17 +263,18 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
         if ((this.collision == null && collision != null) || !this.collision.equals(collision)) {
             String oldCollision = this.collision;
             this.collision = collision;
-            firePropertyChangeEvent(new PropertyChangeEvent(this, "collision", oldCollision, collision));
+            this.loadedCollision = null;
             if (this.collision != null && !this.collision.equals("")) {
                 try {
                     this.loadedCollision = loadImage(collision);
-                    updateConvexHulls();
                     clearPropertyTag("collision", TAG_3);
                 } catch (Exception e) {
                     this.loadedCollision = null;
                     setPropertyTag("collision", Tag.bind(TAG_3, collision));
                 }
             }
+            updateConvexHulls();
+            firePropertyChangeEvent(new PropertyChangeEvent(this, "collision", oldCollision, collision));
         }
     }
 
@@ -299,24 +300,10 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
     }
 
     public void setConvexHulls(List<ConvexHull> convexHulls) {
-        if (this.convexHulls != convexHulls) {
-            boolean equal = true;
-            if (this.convexHulls.size() == convexHulls.size()) {
-                int n = this.convexHulls.size();
-                for (int i = 0; i < n; ++i) {
-                    if (!this.convexHulls.get(i).equals(convexHulls.get(i))) {
-                        equal = false;
-                        break;
-                    }
-                }
-            } else {
-                equal = false;
-            }
-            if (!equal) {
-                List<ConvexHull> oldConvexHulls = this.convexHulls;
-                this.convexHulls = convexHulls;
-                firePropertyChangeEvent(new PropertyChangeEvent(this, "convexHulls", oldConvexHulls, convexHulls));
-            }
+        if (!this.convexHulls.equals(convexHulls)) {
+            List<ConvexHull> oldConvexHulls = this.convexHulls;
+            this.convexHulls = convexHulls;
+            firePropertyChangeEvent(new PropertyChangeEvent(this, "convexHulls", oldConvexHulls, convexHulls));
         }
     }
 
@@ -534,7 +521,6 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
     private void updateConvexHulls() {
         if (verifyImageDimensions() && verifyTileDimensions()) {
             updateConvexHullsList();
-            updateConvexHullsData();
         }
     }
 
@@ -611,41 +597,44 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
     }
 
     private void updateConvexHullsList() {
-        if (this.loadedImage == null && this.loadedCollision == null) {
-            return;
-        }
-        int imageWidth = 0;
-        int imageHeight = 0;
-        if (this.loadedImage != null) {
-            imageWidth = this.loadedImage.getWidth();
-            imageHeight = this.loadedImage.getHeight();
-        } else {
-            imageWidth = this.loadedCollision.getWidth();
-            imageHeight = this.loadedCollision.getHeight();
-        }
-        int tilesPerRow = TileSetUtil.calculateTileCount(this.tileWidth, imageWidth, this.tileMargin, this.tileSpacing);
-        int tilesPerColumn = TileSetUtil.calculateTileCount(this.tileHeight, imageHeight, this.tileMargin, this.tileSpacing);
-        if (tilesPerRow <= 0 || tilesPerColumn <= 0) {
-            // TODO: Report error
-            return;
-        }
-        int tileCount = tilesPerRow * tilesPerColumn;
-        int prevTileCount = this.convexHulls.size();
-        if (tileCount != prevTileCount) {
-            List<TileSetModel.ConvexHull> newTiles = new ArrayList<TileSetModel.ConvexHull>(tileCount);
+        List<ConvexHull> convexHulls = null;
+        if (this.loadedCollision != null) {
+            int imageWidth = this.loadedCollision.getWidth();
+            int imageHeight = this.loadedCollision.getHeight();
+            int tilesPerRow = TileSetUtil.calculateTileCount(this.tileWidth, imageWidth, this.tileMargin, this.tileSpacing);
+            int tilesPerColumn = TileSetUtil.calculateTileCount(this.tileHeight, imageHeight, this.tileMargin, this.tileSpacing);
+            if (tilesPerRow <= 0 || tilesPerColumn <= 0) {
+                // TODO: Report error
+                return;
+            }
+            int tileCount = tilesPerRow * tilesPerColumn;
+            convexHulls = new ArrayList<TileSetModel.ConvexHull>(tileCount);
             int i;
+            int prevTileCount = this.convexHulls.size();
             for (i = 0; i < tileCount && i < prevTileCount; ++i) {
-                newTiles.add(this.convexHulls.get(i));
+                ConvexHull convexHull = new ConvexHull();
+                convexHull.setCollisionGroup(this.convexHulls.get(i).getCollisionGroup());
+                convexHulls.add(convexHull);
             }
             for (; i < tileCount; ++i) {
-                newTiles.add(new ConvexHull());
+                convexHulls.add(new ConvexHull());
             }
-            setConvexHulls(newTiles);
+            updateConvexHullsData(convexHulls);
+        } else {
+            convexHulls = new ArrayList<ConvexHull>(this.convexHulls.size());
+            for (ConvexHull convexHull : this.convexHulls) {
+                ConvexHull newHull = new ConvexHull();
+                newHull.setCollisionGroup(convexHull.getCollisionGroup());
+                convexHulls.add(newHull);
+            }
+            this.convexHullPoints = null;
         }
+        setConvexHulls(convexHulls);
     }
 
-    private void updateConvexHullsData() {
-        if (this.loadedCollision == null) {
+    private void updateConvexHullsData(List<ConvexHull> convexHulls) {
+        if (convexHulls.size() == 0) {
+            this.convexHullPoints = null;
             return;
         }
 
@@ -664,9 +653,9 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
                 mask = loadedCollision.getAlphaRaster().getPixels(x, y, this.tileWidth, this.tileHeight, mask);
                 int index = col + row * tilesPerRow;
                 points[index] = ConvexHull2D.imageConvexHull(mask, this.tileWidth, this.tileHeight, PLANE_COUNT);
-                TileSetModel.ConvexHull tile = this.convexHulls.get(index);
-                tile.setIndex(pointCount);
-                tile.setCount(points[index].length);
+                ConvexHull convexHull = convexHulls.get(index);
+                convexHull.setIndex(pointCount);
+                convexHull.setCount(points[index].length);
                 pointCount += points[index].length;
             }
         }

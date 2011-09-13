@@ -7,6 +7,8 @@ import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyListOf;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Matchers.isNull;
+import static org.mockito.Matchers.notNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -117,7 +119,7 @@ public class TileSetTest {
                 .setTileMargin(0)
                 .setCollision("")
                 .setMaterialTag("tile")
-                .addCollisionGroups("foreground")
+                .addCollisionGroups("default")
                 .build();
         this.presenter.load(tileSet);
         return tileSet;
@@ -140,9 +142,19 @@ public class TileSetTest {
         assertEquals(tileSet.getMaterialTag(), this.model.getMaterialTag());
         assertEquals(1, this.model.getCollisionGroups().size());
         assertEquals(tileSet.getCollisionGroups(0), this.model.getCollisionGroups().get(0));
+        assertEquals(0, this.model.getConvexHulls().size());
+        assertEquals(null, this.model.getConvexHullPoints());
 
-        verify(this.view, times(6)).refreshProperties();
+        verify(this.view, times(1)).setImage((BufferedImage)isNull());
+        verify(this.view, times(1)).setTileWidth(eq(16));
+        verify(this.view, times(1)).setTileHeight(eq(16));
+        verify(this.view, times(1)).setTileMargin(eq(0));
+        verify(this.view, times(1)).setTileSpacing(eq(0));
+        verify(this.view, times(1)).setCollision((BufferedImage)isNull());
+        verify(this.view, times(1)).refreshProperties();
         verify(this.view, times(1)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
+        verify(this.view, never()).setHulls(any(float[].class), any(int[].class), any(int[].class), any(Color[].class));
+        verify(this.view, never()).setHullColor(anyInt(), any(Color.class));
         verify(this.view, never()).setDirty(anyBoolean());
     }
 
@@ -160,64 +172,80 @@ public class TileSetTest {
         // image
 
         assertEquals(emptyTileSet.getImage(), this.model.getImage());
-        verify(this.view, times(6)).refreshProperties();
+        verify(this.view, times(1)).setImage((BufferedImage)isNull());
+        verify(this.view, times(1)).refreshProperties();
         verify(this.view, never()).setDirty(true);
         this.model.executeOperation(propertyModel.setPropertyValue("image", tileSetFile));
         assertEquals(tileSetFile, this.model.getImage());
-        verify(this.view, times(8)).refreshProperties();
+        verify(this.view, times(1)).setImage((BufferedImage)notNull());
+        verify(this.view, times(3)).refreshProperties();
         verify(this.view, times(1)).setDirty(true);
         this.history.undo(this.undoContext, null, null);
         assertEquals(emptyTileSet.getImage(), this.model.getImage());
-        verify(this.view, times(10)).refreshProperties();
+        verify(this.view, times(2)).setImage((BufferedImage)isNull());
+        verify(this.view, times(5)).refreshProperties();
         verify(this.view, times(1)).setDirty(false);
         this.history.redo(this.undoContext, null, null);
         assertEquals(tileSetFile, this.model.getImage());
-        verify(this.view, times(12)).refreshProperties();
+        verify(this.view, times(2)).setImage((BufferedImage)notNull());
+        verify(this.view, times(7)).refreshProperties();
         verify(this.view, times(2)).setDirty(true);
 
         // tile width
 
         assertEquals(emptyTileSet.getTileWidth(), this.model.getTileWidth());
-        verify(this.view, times(12)).refreshProperties();
+        verify(this.view, times(1)).setTileWidth(eq(16));
+        verify(this.view, times(7)).refreshProperties();
         this.model.executeOperation(propertyModel.setPropertyValue("tileWidth", 17));
         assertEquals(17, this.model.getTileWidth());
-        verify(this.view, times(13)).refreshProperties();
+        verify(this.view, times(1)).setTileWidth(eq(17));
+        verify(this.view, times(8)).refreshProperties();
         this.history.undo(this.undoContext, null, null);
         assertEquals(emptyTileSet.getTileWidth(), this.model.getTileWidth());
-        verify(this.view, times(14)).refreshProperties();
+        verify(this.view, times(2)).setTileWidth(eq(16));
+        verify(this.view, times(9)).refreshProperties();
         this.history.redo(this.undoContext, null, null);
         assertEquals(17, this.model.getTileWidth());
-        verify(this.view, times(15)).refreshProperties();
+        verify(this.view, times(2)).setTileWidth(eq(17));
+        verify(this.view, times(10)).refreshProperties();
         this.history.undo(this.undoContext, null, null);
 
         // tile height
 
         assertEquals(emptyTileSet.getTileHeight(), this.model.getTileHeight());
-        verify(this.view, times(16)).refreshProperties();
+        verify(this.view, times(1)).setTileHeight(eq(16));
+        verify(this.view, times(11)).refreshProperties();
         this.model.executeOperation(propertyModel.setPropertyValue("tileHeight", 17));
         assertEquals(17, this.model.getTileHeight());
-        verify(this.view, times(17)).refreshProperties();
+        verify(this.view, times(1)).setTileHeight(eq(17));
+        verify(this.view, times(12)).refreshProperties();
         this.history.undo(this.undoContext, null, null);
         assertEquals(emptyTileSet.getTileHeight(), this.model.getTileHeight());
-        verify(this.view, times(18)).refreshProperties();
+        verify(this.view, times(2)).setTileHeight(eq(16));
+        verify(this.view, times(13)).refreshProperties();
         this.history.redo(this.undoContext, null, null);
         assertEquals(17, this.model.getTileHeight());
-        verify(this.view, times(19)).refreshProperties();
+        verify(this.view, times(2)).setTileHeight(eq(17));
+        verify(this.view, times(14)).refreshProperties();
         this.history.undo(this.undoContext, null, null);
 
         // tile margin
 
         assertEquals(emptyTileSet.getTileMargin(), this.model.getTileMargin());
-        verify(this.view, times(20)).refreshProperties();
+        verify(this.view, times(1)).setTileMargin(eq(0));
+        verify(this.view, times(15)).refreshProperties();
         this.model.executeOperation(propertyModel.setPropertyValue("tileMargin", 1));
         assertEquals(1, this.model.getTileMargin());
-        verify(this.view, times(21)).refreshProperties();
+        verify(this.view, times(1)).setTileMargin(eq(1));
+        verify(this.view, times(16)).refreshProperties();
         this.history.undo(this.undoContext, null, null);
         assertEquals(0, this.model.getTileMargin());
-        verify(this.view, times(22)).refreshProperties();
+        verify(this.view, times(2)).setTileMargin(eq(0));
+        verify(this.view, times(17)).refreshProperties();
         this.history.redo(this.undoContext, null, null);
         assertEquals(1, this.model.getTileMargin());
-        verify(this.view, times(23)).refreshProperties();
+        verify(this.view, times(2)).setTileMargin(eq(1));
+        verify(this.view, times(18)).refreshProperties();
 
         // reset since we don't want any tile margin
         this.history.undo(this.undoContext, null, null);
@@ -225,34 +253,45 @@ public class TileSetTest {
         // tile spacing
 
         assertEquals(emptyTileSet.getTileSpacing(), this.model.getTileSpacing());
-        verify(this.view, times(24)).refreshProperties();
+        verify(this.view, times(1)).setTileSpacing(eq(0));
+        verify(this.view, times(19)).refreshProperties();
         this.model.executeOperation(propertyModel.setPropertyValue("tileSpacing", 1));
         assertEquals(1, this.model.getTileSpacing());
-        verify(this.view, times(25)).refreshProperties();
+        verify(this.view, times(1)).setTileSpacing(eq(1));
+        verify(this.view, times(20)).refreshProperties();
         this.history.undo(this.undoContext, null, null);
         assertEquals(0, this.model.getTileSpacing());
-        verify(this.view, times(26)).refreshProperties();
+        verify(this.view, times(2)).setTileSpacing(eq(0));
+        verify(this.view, times(21)).refreshProperties();
         this.history.redo(this.undoContext, null, null);
         assertEquals(1, this.model.getTileSpacing());
-        verify(this.view, times(27)).refreshProperties();
+        verify(this.view, times(2)).setTileSpacing(eq(1));
+        verify(this.view, times(22)).refreshProperties();
 
         // collision
 
-        assertEquals(20, this.model.getConvexHulls().size());
-        for (TileSetModel.ConvexHull convexHull : this.model.getConvexHulls()) {
-            assertEquals(0, convexHull.getCount());
-        }
+        assertEquals(0, this.model.getConvexHulls().size());
         assertEquals(emptyTileSet.getCollision(), this.model.getCollision());
-        verify(this.view, times(27)).refreshProperties();
+        assertEquals(null, this.model.getConvexHullPoints());
+        verify(this.view, times(1)).setCollision((BufferedImage)isNull());
+        verify(this.view, times(22)).refreshProperties();
+        verify(this.view, never()).setHulls(any(float[].class), any(int[].class), any(int[].class), any(Color[].class));
         this.model.executeOperation(propertyModel.setPropertyValue("collision", tileSetFile));
         assertEquals(tileSetFile, this.model.getCollision());
-        verify(this.view, times(28)).refreshProperties();
+        verify(this.view, times(1)).setCollision((BufferedImage)notNull());
+        verify(this.view, times(23)).refreshProperties();
+        verify(this.view, times(1)).setHulls(any(float[].class), any(int[].class), any(int[].class), any(Color[].class));
         this.history.undo(this.undoContext, null, null);
         assertEquals(emptyTileSet.getCollision(), this.model.getCollision());
-        verify(this.view, times(29)).refreshProperties();
+        verify(this.view, times(2)).setCollision((BufferedImage)isNull());
+        verify(this.view, times(24)).refreshProperties();
+        verify(this.view, times(1)).setHulls(any(float[].class), any(int[].class), any(int[].class), any(Color[].class));
         this.history.redo(this.undoContext, null, null);
-
         assertEquals(tileSetFile, this.model.getCollision());
+        verify(this.view, times(2)).setCollision((BufferedImage)notNull());
+        verify(this.view, times(25)).refreshProperties();
+        verify(this.view, times(2)).setHulls(any(float[].class), any(int[].class), any(int[].class), any(Color[].class));
+
         for (int i = 0; i < 10; ++i) {
             assertEquals(8, this.model.getConvexHulls().get(i).getCount());
         }
@@ -266,19 +305,21 @@ public class TileSetTest {
         // material tag
 
         assertEquals(emptyTileSet.getMaterialTag(), this.model.getMaterialTag());
-        verify(this.view, times(30)).refreshProperties();
+        verify(this.view, times(25)).refreshProperties();
         this.model.executeOperation(propertyModel.setPropertyValue("materialTag", "my_material"));
         assertEquals("my_material", this.model.getMaterialTag());
-        verify(this.view, times(31)).refreshProperties();
+        verify(this.view, times(26)).refreshProperties();
         this.history.undo(this.undoContext, null, null);
         assertEquals(emptyTileSet.getMaterialTag(), this.model.getMaterialTag());
-        verify(this.view, times(32)).refreshProperties();
+        verify(this.view, times(27)).refreshProperties();
         this.history.redo(this.undoContext, null, null);
         assertEquals("my_material", this.model.getMaterialTag());
-        verify(this.view, times(33)).refreshProperties();
+        verify(this.view, times(28)).refreshProperties();
 
         // reset since we don't want to edit material tag
         this.history.undo(this.undoContext, null, null);
+
+        verify(this.view, never()).setHullColor(anyInt(), any(Color.class));
     }
 
     /**
@@ -294,26 +335,26 @@ public class TileSetTest {
 
         // preconditions
         assertEquals(1, this.model.getCollisionGroups().size());
-        assertEquals("foreground", this.model.getCollisionGroups().get(0));
+        assertEquals("default", this.model.getCollisionGroups().get(0));
         assertEquals(0, this.model.getSelectedCollisionGroups().length);
         verify(this.view, times(1)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
 
         // add the group
         this.presenter.addCollisionGroup("hazad");
         assertEquals(2, this.model.getCollisionGroups().size());
-        assertEquals("foreground", this.model.getCollisionGroups().get(0));
+        assertEquals("default", this.model.getCollisionGroups().get(0));
         assertEquals("hazad", this.model.getCollisionGroups().get(1));
         assertEquals(1, this.model.getSelectedCollisionGroups().length);
         assertEquals("hazad", this.model.getSelectedCollisionGroups()[0]);
         verify(this.view, times(2)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
         this.history.undo(this.undoContext, null, null);
         assertEquals(1, this.model.getCollisionGroups().size());
-        assertEquals("foreground", this.model.getCollisionGroups().get(0));
+        assertEquals("default", this.model.getCollisionGroups().get(0));
         assertEquals(0, this.model.getSelectedCollisionGroups().length);
         verify(this.view, times(3)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
         this.history.redo(this.undoContext, null, null);
         assertEquals(2, this.model.getCollisionGroups().size());
-        assertEquals("foreground", this.model.getCollisionGroups().get(0));
+        assertEquals("default", this.model.getCollisionGroups().get(0));
         assertEquals("hazad", this.model.getCollisionGroups().get(1));
         assertEquals(1, this.model.getSelectedCollisionGroups().length);
         assertEquals("hazad", this.model.getSelectedCollisionGroups()[0]);
@@ -322,8 +363,8 @@ public class TileSetTest {
         // preconditions
         assertEquals("", this.model.getConvexHulls().get(1).getCollisionGroup());
         assertEquals("", this.model.getConvexHulls().get(2).getCollisionGroup());
-        verify(this.view, never()).setTileHullColor(eq(1), any(Color.class));
-        verify(this.view, never()).setTileHullColor(eq(2), any(Color.class));
+        verify(this.view, never()).setHullColor(eq(1), any(Color.class));
+        verify(this.view, never()).setHullColor(eq(2), any(Color.class));
 
         // simulate painting
         this.presenter.beginSetConvexHullCollisionGroup("hazad");
@@ -334,18 +375,18 @@ public class TileSetTest {
         this.presenter.endSetConvexHullCollisionGroup();
         assertEquals("hazad", this.model.getConvexHulls().get(1).getCollisionGroup());
         assertEquals("hazad", this.model.getConvexHulls().get(2).getCollisionGroup());
-        verify(this.view, times(1)).setTileHullColor(eq(1), any(Color.class));
-        verify(this.view, times(1)).setTileHullColor(eq(2), any(Color.class));
+        verify(this.view, times(1)).setHullColor(eq(1), any(Color.class));
+        verify(this.view, times(1)).setHullColor(eq(2), any(Color.class));
         this.history.undo(this.undoContext, null, null);
         assertEquals("", this.model.getConvexHulls().get(1).getCollisionGroup());
         assertEquals("", this.model.getConvexHulls().get(2).getCollisionGroup());
-        verify(this.view, times(2)).setTileHullColor(eq(1), any(Color.class));
-        verify(this.view, times(2)).setTileHullColor(eq(2), any(Color.class));
+        verify(this.view, times(2)).setHullColor(eq(1), any(Color.class));
+        verify(this.view, times(2)).setHullColor(eq(2), any(Color.class));
         this.history.redo(this.undoContext, null, null);
         assertEquals("hazad", this.model.getConvexHulls().get(1).getCollisionGroup());
         assertEquals("hazad", this.model.getConvexHulls().get(2).getCollisionGroup());
-        verify(this.view, times(3)).setTileHullColor(eq(1), any(Color.class));
-        verify(this.view, times(3)).setTileHullColor(eq(2), any(Color.class));
+        verify(this.view, times(3)).setHullColor(eq(1), any(Color.class));
+        verify(this.view, times(3)).setHullColor(eq(2), any(Color.class));
     }
 
     /**
@@ -363,7 +404,7 @@ public class TileSetTest {
         assertEquals("hazad", this.model.getCollisionGroups().get(1));
         assertEquals("hazad", this.model.getConvexHulls().get(1).getCollisionGroup());
         verify(this.view, times(4)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
-        verify(this.view, times(3)).setTileHullColor(eq(1), any(Color.class));
+        verify(this.view, times(3)).setHullColor(eq(1), any(Color.class));
 
         this.presenter.selectCollisionGroups(new String[] {"hazad"});
         assertEquals(1, this.model.getSelectedCollisionGroups().length);
@@ -374,17 +415,17 @@ public class TileSetTest {
         assertEquals("hazard", this.model.getCollisionGroups().get(1));
         assertEquals("hazard", this.model.getConvexHulls().get(1).getCollisionGroup());
         verify(this.view, times(5)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
-        verify(this.view, times(4)).setTileHullColor(eq(1), any(Color.class));
+        verify(this.view, times(4)).setHullColor(eq(1), any(Color.class));
         this.history.undo(this.undoContext, null, null);
         assertEquals("hazad", this.model.getCollisionGroups().get(1));
         assertEquals("hazad", this.model.getConvexHulls().get(1).getCollisionGroup());
         verify(this.view, times(6)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
-        verify(this.view, times(5)).setTileHullColor(eq(1), any(Color.class));
+        verify(this.view, times(5)).setHullColor(eq(1), any(Color.class));
         this.history.redo(this.undoContext, null, null);
         assertEquals("hazard", this.model.getCollisionGroups().get(1));
         assertEquals("hazard", this.model.getConvexHulls().get(1).getCollisionGroup());
         verify(this.view, times(7)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
-        verify(this.view, times(6)).setTileHullColor(eq(1), any(Color.class));
+        verify(this.view, times(6)).setHullColor(eq(1), any(Color.class));
     }
 
     /**
@@ -416,7 +457,7 @@ public class TileSetTest {
 
         // preconditions
         assertEquals(3, this.model.getCollisionGroups().size());
-        assertEquals("foreground", this.model.getCollisionGroups().get(0));
+        assertEquals("default", this.model.getCollisionGroups().get(0));
         assertEquals("obstruction", this.model.getCollisionGroups().get(1));
         assertEquals("obstuction", this.model.getCollisionGroups().get(2));
         assertEquals("obstruction", this.model.getConvexHulls().get(2).getCollisionGroup());
@@ -424,25 +465,25 @@ public class TileSetTest {
         assertEquals(1, this.model.getSelectedCollisionGroups().length);
         assertEquals("obstuction", this.model.getSelectedCollisionGroups()[0]);
         verify(this.view, times(3)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
-        verify(this.view, times(1)).setTileHullColor(eq(2), any(Color.class));
-        verify(this.view, times(1)).setTileHullColor(eq(3), any(Color.class));
+        verify(this.view, times(1)).setHullColor(eq(2), any(Color.class));
+        verify(this.view, times(1)).setHullColor(eq(3), any(Color.class));
 
         // test
         this.presenter.renameSelectedCollisionGroups(new String[] {"obstruction"});
         assertEquals(2, this.model.getCollisionGroups().size());
-        assertEquals("foreground", this.model.getCollisionGroups().get(0));
+        assertEquals("default", this.model.getCollisionGroups().get(0));
         assertEquals("obstruction", this.model.getCollisionGroups().get(1));
         assertEquals("obstruction", this.model.getConvexHulls().get(2).getCollisionGroup());
         assertEquals("obstruction", this.model.getConvexHulls().get(3).getCollisionGroup());
         assertEquals(1, this.model.getSelectedCollisionGroups().length);
         assertEquals("obstruction", this.model.getSelectedCollisionGroups()[0]);
         verify(this.view, times(4)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
-        verify(this.view, times(2)).setTileHullColor(eq(3), any(Color.class));
+        verify(this.view, times(2)).setHullColor(eq(3), any(Color.class));
 
         // undo
         this.history.undo(this.undoContext, null, null);
         assertEquals(3, this.model.getCollisionGroups().size());
-        assertEquals("foreground", this.model.getCollisionGroups().get(0));
+        assertEquals("default", this.model.getCollisionGroups().get(0));
         assertEquals("obstruction", this.model.getCollisionGroups().get(1));
         assertEquals("obstuction", this.model.getCollisionGroups().get(2));
         assertEquals("obstruction", this.model.getConvexHulls().get(2).getCollisionGroup());
@@ -450,19 +491,19 @@ public class TileSetTest {
         assertEquals(1, this.model.getSelectedCollisionGroups().length);
         assertEquals("obstuction", this.model.getSelectedCollisionGroups()[0]);
         verify(this.view, times(5)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
-        verify(this.view, times(3)).setTileHullColor(eq(3), any(Color.class));
+        verify(this.view, times(3)).setHullColor(eq(3), any(Color.class));
 
         // redo
         this.history.redo(this.undoContext, null, null);
         assertEquals(2, this.model.getCollisionGroups().size());
-        assertEquals("foreground", this.model.getCollisionGroups().get(0));
+        assertEquals("default", this.model.getCollisionGroups().get(0));
         assertEquals("obstruction", this.model.getCollisionGroups().get(1));
         assertEquals("obstruction", this.model.getConvexHulls().get(2).getCollisionGroup());
         assertEquals("obstruction", this.model.getConvexHulls().get(3).getCollisionGroup());
         assertEquals(1, this.model.getSelectedCollisionGroups().length);
         assertEquals("obstruction", this.model.getSelectedCollisionGroups()[0]);
         verify(this.view, times(6)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
-        verify(this.view, times(4)).setTileHullColor(eq(3), any(Color.class));
+        verify(this.view, times(4)).setHullColor(eq(3), any(Color.class));
     }
 
     /**
@@ -496,7 +537,7 @@ public class TileSetTest {
 
         // preconditions
         assertEquals(3, this.model.getCollisionGroups().size());
-        assertEquals("foreground", this.model.getCollisionGroups().get(0));
+        assertEquals("default", this.model.getCollisionGroups().get(0));
         assertEquals("obstruction", this.model.getCollisionGroups().get(1));
         assertEquals("obstuction", this.model.getCollisionGroups().get(2));
         assertEquals("obstruction", this.model.getConvexHulls().get(2).getCollisionGroup());
@@ -505,25 +546,25 @@ public class TileSetTest {
         assertEquals("obstuction", this.model.getSelectedCollisionGroups()[0]);
         assertEquals("obstruction", this.model.getSelectedCollisionGroups()[1]);
         verify(this.view, times(3)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
-        verify(this.view, times(1)).setTileHullColor(eq(2), any(Color.class));
-        verify(this.view, times(1)).setTileHullColor(eq(3), any(Color.class));
+        verify(this.view, times(1)).setHullColor(eq(2), any(Color.class));
+        verify(this.view, times(1)).setHullColor(eq(3), any(Color.class));
 
         // test
         this.presenter.renameSelectedCollisionGroups(new String[] {"obstruction2", "obstruction2"});
         assertEquals(2, this.model.getCollisionGroups().size());
-        assertEquals("foreground", this.model.getCollisionGroups().get(0));
+        assertEquals("default", this.model.getCollisionGroups().get(0));
         assertEquals("obstruction2", this.model.getCollisionGroups().get(1));
         assertEquals("obstruction2", this.model.getConvexHulls().get(2).getCollisionGroup());
         assertEquals("obstruction2", this.model.getConvexHulls().get(3).getCollisionGroup());
         assertEquals(1, this.model.getSelectedCollisionGroups().length);
         assertEquals("obstruction2", this.model.getSelectedCollisionGroups()[0]);
         verify(this.view, times(4)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
-        verify(this.view, times(2)).setTileHullColor(eq(3), any(Color.class));
+        verify(this.view, times(2)).setHullColor(eq(3), any(Color.class));
 
         // undo
         this.history.undo(this.undoContext, null, null);
         assertEquals(3, this.model.getCollisionGroups().size());
-        assertEquals("foreground", this.model.getCollisionGroups().get(0));
+        assertEquals("default", this.model.getCollisionGroups().get(0));
         assertEquals("obstruction", this.model.getCollisionGroups().get(1));
         assertEquals("obstuction", this.model.getCollisionGroups().get(2));
         assertEquals("obstruction", this.model.getConvexHulls().get(2).getCollisionGroup());
@@ -532,19 +573,19 @@ public class TileSetTest {
         assertEquals("obstuction", this.model.getSelectedCollisionGroups()[0]);
         assertEquals("obstruction", this.model.getSelectedCollisionGroups()[1]);
         verify(this.view, times(6)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
-        verify(this.view, times(3)).setTileHullColor(eq(3), any(Color.class));
+        verify(this.view, times(3)).setHullColor(eq(3), any(Color.class));
 
         // redo
         this.history.redo(this.undoContext, null, null);
         assertEquals(2, this.model.getCollisionGroups().size());
-        assertEquals("foreground", this.model.getCollisionGroups().get(0));
+        assertEquals("default", this.model.getCollisionGroups().get(0));
         assertEquals("obstruction2", this.model.getCollisionGroups().get(1));
         assertEquals("obstruction2", this.model.getConvexHulls().get(2).getCollisionGroup());
         assertEquals("obstruction2", this.model.getConvexHulls().get(3).getCollisionGroup());
         assertEquals(1, this.model.getSelectedCollisionGroups().length);
         assertEquals("obstruction2", this.model.getSelectedCollisionGroups()[0]);
         verify(this.view, times(7)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
-        verify(this.view, times(4)).setTileHullColor(eq(3), any(Color.class));
+        verify(this.view, times(4)).setHullColor(eq(3), any(Color.class));
     }
 
     /**
@@ -563,46 +604,46 @@ public class TileSetTest {
 
         // preconditions
         assertEquals(3, this.model.getCollisionGroups().size());
-        assertEquals("foreground", this.model.getCollisionGroups().get(0));
+        assertEquals("default", this.model.getCollisionGroups().get(0));
         assertEquals("hazad", this.model.getCollisionGroups().get(1));
         assertEquals("obstruction", this.model.getCollisionGroups().get(2));
         assertEquals("hazad", this.model.getConvexHulls().get(1).getCollisionGroup());
         assertEquals(1, this.model.getSelectedCollisionGroups().length);
         assertEquals("obstruction", this.model.getSelectedCollisionGroups()[0]);
         verify(this.view, times(5)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
-        verify(this.view, times(3)).setTileHullColor(eq(1), any(Color.class));
+        verify(this.view, times(3)).setHullColor(eq(1), any(Color.class));
 
         this.presenter.selectCollisionGroups(new String[] {"hazad"});
         assertEquals(1, this.model.getSelectedCollisionGroups().length);
         assertEquals("hazad", this.model.getSelectedCollisionGroups()[0]);
         this.presenter.removeSelectedCollisionGroups();
         assertEquals(2, this.model.getCollisionGroups().size());
-        assertEquals("foreground", this.model.getCollisionGroups().get(0));
+        assertEquals("default", this.model.getCollisionGroups().get(0));
         assertEquals("obstruction", this.model.getCollisionGroups().get(1));
         assertEquals("", this.model.getConvexHulls().get(1).getCollisionGroup());
         assertEquals(0, this.model.getSelectedCollisionGroups().length);
         verify(this.view, times(6)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
-        verify(this.view, times(4)).setTileHullColor(eq(1), any(Color.class));
+        verify(this.view, times(4)).setHullColor(eq(1), any(Color.class));
 
         this.history.undo(this.undoContext, null, null);
         assertEquals(3, this.model.getCollisionGroups().size());
-        assertEquals("foreground", this.model.getCollisionGroups().get(0));
+        assertEquals("default", this.model.getCollisionGroups().get(0));
         assertEquals("hazad", this.model.getCollisionGroups().get(1));
         assertEquals("obstruction", this.model.getCollisionGroups().get(2));
         assertEquals("hazad", this.model.getConvexHulls().get(1).getCollisionGroup());
         assertEquals(1, this.model.getSelectedCollisionGroups().length);
         assertEquals("hazad", this.model.getSelectedCollisionGroups()[0]);
         verify(this.view, times(7)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
-        verify(this.view, times(5)).setTileHullColor(eq(1), any(Color.class));
+        verify(this.view, times(5)).setHullColor(eq(1), any(Color.class));
 
         this.history.redo(this.undoContext, null, null);
         assertEquals(2, this.model.getCollisionGroups().size());
-        assertEquals("foreground", this.model.getCollisionGroups().get(0));
+        assertEquals("default", this.model.getCollisionGroups().get(0));
         assertEquals("obstruction", this.model.getCollisionGroups().get(1));
         assertEquals("", this.model.getConvexHulls().get(1).getCollisionGroup());
         assertEquals(0, this.model.getSelectedCollisionGroups().length);
         verify(this.view, times(8)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
-        verify(this.view, times(6)).setTileHullColor(eq(1), any(Color.class));
+        verify(this.view, times(6)).setHullColor(eq(1), any(Color.class));
     }
 
     /**
@@ -657,11 +698,11 @@ public class TileSetTest {
 
         assertTrue(this.model.hasPropertyAnnotation("image", TileSetModel.TAG_1));
         assertEquals(TileSetModel.TAG_1.getMessage(), this.model.getPropertyTag("image", TileSetModel.TAG_1).getMessage());
-        verify(this.view, times(6)).refreshProperties();
+        verify(this.view, times(1)).refreshProperties();
 
         this.model.executeOperation(propertyModel.setPropertyValue("image", "/mario_tileset.png"));
         assertTrue(!this.model.hasPropertyAnnotation("image", TileSetModel.TAG_1));
-        verify(this.view, times(8)).refreshProperties();
+        verify(this.view, times(3)).refreshProperties();
     }
 
     /**
@@ -673,17 +714,17 @@ public class TileSetTest {
         loadEmptyFile();
 
         assertTrue(!this.model.hasPropertyAnnotation("image", TileSetModel.TAG_2));
-        verify(this.view, times(6)).refreshProperties();
+        verify(this.view, times(1)).refreshProperties();
 
         String invalidPath = "/test";
         this.model.executeOperation(propertyModel.setPropertyValue("image", invalidPath));
         assertTrue(this.model.hasPropertyAnnotation("image", TileSetModel.TAG_2));
         assertEquals(NLS.bind(TileSetModel.TAG_2.getMessage(), invalidPath), this.model.getPropertyTag("image", TileSetModel.TAG_2).getMessage());
-        verify(this.view, times(9)).refreshProperties();
+        verify(this.view, times(4)).refreshProperties();
 
         this.model.executeOperation(propertyModel.setPropertyValue("image", "/mario_tileset.png"));
         assertTrue(!this.model.hasPropertyAnnotation("image", TileSetModel.TAG_2));
-        verify(this.view, times(11)).refreshProperties();
+        verify(this.view, times(6)).refreshProperties();
     }
 
     /**
@@ -695,17 +736,17 @@ public class TileSetTest {
         loadEmptyFile();
 
         assertTrue(!this.model.hasPropertyAnnotation("collision", TileSetModel.TAG_3));
-        verify(this.view, times(6)).refreshProperties();
+        verify(this.view, times(1)).refreshProperties();
 
         String invalidPath = "test";
         this.model.executeOperation(propertyModel.setPropertyValue("collision", invalidPath));
         assertTrue(this.model.hasPropertyAnnotation("collision", TileSetModel.TAG_3));
         assertEquals(NLS.bind(TileSetModel.TAG_3.getMessage(), invalidPath), this.model.getPropertyTag("collision", TileSetModel.TAG_3).getMessage());
-        verify(this.view, times(8)).refreshProperties();
+        verify(this.view, times(3)).refreshProperties();
 
         this.model.executeOperation(propertyModel.setPropertyValue("collision", "/mario_tileset.png"));
         assertTrue(!this.model.hasPropertyAnnotation("collision", TileSetModel.TAG_3));
-        verify(this.view, times(10)).refreshProperties();
+        verify(this.view, times(5)).refreshProperties();
     }
 
     /**
@@ -718,7 +759,7 @@ public class TileSetTest {
 
         assertTrue(!this.model.hasPropertyAnnotation("image", TileSetModel.TAG_4));
         assertTrue(!this.model.hasPropertyAnnotation("collision", TileSetModel.TAG_4));
-        verify(this.view, times(6)).refreshProperties();
+        verify(this.view, times(1)).refreshProperties();
 
         this.model.executeOperation(propertyModel.setPropertyValue("image", "/mario_tileset.png"));
         this.model.executeOperation(propertyModel.setPropertyValue("collision", "/mario_half_tileset.png"));
@@ -727,12 +768,12 @@ public class TileSetTest {
         assertEquals(message, this.model.getPropertyTag("image", TileSetModel.TAG_4).getMessage());
         assertTrue(this.model.hasPropertyAnnotation("collision", TileSetModel.TAG_4));
         assertEquals(message, this.model.getPropertyTag("collision", TileSetModel.TAG_4).getMessage());
-        verify(this.view, times(11)).refreshProperties();
+        verify(this.view, times(6)).refreshProperties();
 
         this.model.executeOperation(propertyModel.setPropertyValue("collision", "/mario_tileset.png"));
         assertTrue(!this.model.hasPropertyAnnotation("image", TileSetModel.TAG_4));
         assertTrue(!this.model.hasPropertyAnnotation("collision", TileSetModel.TAG_4));
-        verify(this.view, times(14)).refreshProperties();
+        verify(this.view, times(9)).refreshProperties();
     }
 
     /**
@@ -744,16 +785,16 @@ public class TileSetTest {
         loadEmptyFile();
 
         assertTrue(!this.model.hasPropertyAnnotation("tileWidth", TileSetModel.TAG_5));
-        verify(this.view, times(6)).refreshProperties();
+        verify(this.view, times(1)).refreshProperties();
 
         this.model.executeOperation(propertyModel.setPropertyValue("tileWidth", 0));
         assertTrue(this.model.hasPropertyAnnotation("tileWidth", TileSetModel.TAG_5));
         assertEquals(TileSetModel.TAG_5.getMessage(), this.model.getPropertyTag("tileWidth", TileSetModel.TAG_5).getMessage());
-        verify(this.view, times(8)).refreshProperties();
+        verify(this.view, times(3)).refreshProperties();
 
         this.model.executeOperation(propertyModel.setPropertyValue("tileWidth", 16));
         assertTrue(!this.model.hasPropertyAnnotation("tileWidth", TileSetModel.TAG_5));
-        verify(this.view, times(10)).refreshProperties();
+        verify(this.view, times(5)).refreshProperties();
     }
 
     /**
@@ -765,16 +806,16 @@ public class TileSetTest {
         loadEmptyFile();
 
         assertTrue(!this.model.hasPropertyAnnotation("tileHeight", TileSetModel.TAG_6));
-        verify(this.view, times(6)).refreshProperties();
+        verify(this.view, times(1)).refreshProperties();
 
         this.model.executeOperation(propertyModel.setPropertyValue("tileHeight", 0));
         assertTrue(this.model.hasPropertyAnnotation("tileHeight", TileSetModel.TAG_6));
         assertEquals(TileSetModel.TAG_6.getMessage(), this.model.getPropertyTag("tileHeight", TileSetModel.TAG_6).getMessage());
-        verify(this.view, times(8)).refreshProperties();
+        verify(this.view, times(3)).refreshProperties();
 
         this.model.executeOperation(propertyModel.setPropertyValue("tileHeight", 16));
         assertTrue(!this.model.hasPropertyAnnotation("tileHeight", TileSetModel.TAG_6));
-        verify(this.view, times(10)).refreshProperties();
+        verify(this.view, times(5)).refreshProperties();
     }
 
     /**
@@ -785,13 +826,13 @@ public class TileSetTest {
     public void testMessage17() throws IOException {
         loadEmptyFile();
 
-        verify(this.view, times(6)).refreshProperties();
+        verify(this.view, times(1)).refreshProperties();
 
         this.model.executeOperation(propertyModel.setPropertyValue("image", "/mario_tileset.png"));
 
         assertTrue(!this.model.hasPropertyAnnotation("image", TileSetModel.TAG_7));
         assertTrue(!this.model.hasPropertyAnnotation("tileWidth", TileSetModel.TAG_7));
-        verify(this.view, times(8)).refreshProperties();
+        verify(this.view, times(3)).refreshProperties();
 
         String message = NLS.bind(TileSetModel.TAG_7.getMessage(), new Object[] {86, 84});
         this.model.executeOperation(propertyModel.setPropertyValue("tileWidth", 85));
@@ -802,7 +843,7 @@ public class TileSetTest {
         assertEquals(message, this.model.getPropertyTag("tileWidth", TileSetModel.TAG_7).getMessage());
         assertTrue(this.model.hasPropertyAnnotation("tileMargin", TileSetModel.TAG_7));
         assertEquals(message, this.model.getPropertyTag("tileMargin", TileSetModel.TAG_7).getMessage());
-        verify(this.view, times(15)).refreshProperties();
+        verify(this.view, times(10)).refreshProperties();
 
         message = NLS.bind(TileSetModel.TAG_7.getMessage(), new Object[] {85, 84});
         this.model.executeOperation(propertyModel.setPropertyValue("tileMargin", 0));
@@ -811,13 +852,13 @@ public class TileSetTest {
         assertTrue(this.model.hasPropertyAnnotation("tileWidth", TileSetModel.TAG_7));
         assertEquals(message, this.model.getPropertyTag("tileWidth", TileSetModel.TAG_7).getMessage());
         assertTrue(!this.model.hasPropertyAnnotation("tileMargin", TileSetModel.TAG_7));
-        verify(this.view, times(19)).refreshProperties();
+        verify(this.view, times(14)).refreshProperties();
 
         this.model.executeOperation(propertyModel.setPropertyValue("tileWidth", 16));
         assertTrue(!this.model.hasPropertyAnnotation("image", TileSetModel.TAG_7));
         assertTrue(!this.model.hasPropertyAnnotation("tileWidth", TileSetModel.TAG_7));
         assertTrue(!this.model.hasPropertyAnnotation("tileMargin", TileSetModel.TAG_7));
-        verify(this.view, times(22)).refreshProperties();
+        verify(this.view, times(17)).refreshProperties();
     }
 
     /**
@@ -828,13 +869,13 @@ public class TileSetTest {
     public void testMessage18() throws IOException {
         loadEmptyFile();
 
-        verify(this.view, times(6)).refreshProperties();
+        verify(this.view, times(1)).refreshProperties();
 
         this.model.executeOperation(propertyModel.setPropertyValue("image", "/mario_tileset.png"));
 
         assertTrue(!this.model.hasPropertyAnnotation("tileHeight", TileSetModel.TAG_8));
         assertTrue(!this.model.hasPropertyAnnotation("tileWidth", TileSetModel.TAG_8));
-        verify(this.view, times(8)).refreshProperties();
+        verify(this.view, times(3)).refreshProperties();
 
         String message = NLS.bind(TileSetModel.TAG_8.getMessage(), new Object[] {69, 67});
         this.model.executeOperation(propertyModel.setPropertyValue("tileHeight", 68));
@@ -845,7 +886,7 @@ public class TileSetTest {
         assertEquals(message, this.model.getPropertyTag("tileHeight", TileSetModel.TAG_8).getMessage());
         assertTrue(this.model.hasPropertyAnnotation("tileMargin", TileSetModel.TAG_8));
         assertEquals(message, this.model.getPropertyTag("tileMargin", TileSetModel.TAG_8).getMessage());
-        verify(this.view, times(15)).refreshProperties();
+        verify(this.view, times(10)).refreshProperties();
 
         message = NLS.bind(TileSetModel.TAG_8.getMessage(), new Object[] {68, 67});
         this.model.executeOperation(propertyModel.setPropertyValue("tileMargin", 0));
@@ -854,13 +895,13 @@ public class TileSetTest {
         assertTrue(this.model.hasPropertyAnnotation("tileHeight", TileSetModel.TAG_8));
         assertEquals(message, this.model.getPropertyTag("tileHeight", TileSetModel.TAG_8).getMessage());
         assertTrue(!this.model.hasPropertyAnnotation("tileMargin", TileSetModel.TAG_8));
-        verify(this.view, times(19)).refreshProperties();
+        verify(this.view, times(14)).refreshProperties();
 
         this.model.executeOperation(propertyModel.setPropertyValue("tileHeight", 16));
         assertTrue(!this.model.hasPropertyAnnotation("image", TileSetModel.TAG_8));
         assertTrue(!this.model.hasPropertyAnnotation("tileHeight", TileSetModel.TAG_8));
         assertTrue(!this.model.hasPropertyAnnotation("tileMargin", TileSetModel.TAG_8));
-        verify(this.view, times(22)).refreshProperties();
+        verify(this.view, times(17)).refreshProperties();
     }
 
     /**
@@ -872,16 +913,16 @@ public class TileSetTest {
         loadEmptyFile();
 
         assertTrue(!this.model.hasPropertyAnnotation("materialTag", TileSetModel.TAG_9));
-        verify(this.view, times(6)).refreshProperties();
+        verify(this.view, times(1)).refreshProperties();
 
         this.model.executeOperation(propertyModel.setPropertyValue("materialTag", ""));
         assertTrue(this.model.hasPropertyAnnotation("materialTag", TileSetModel.TAG_9));
         assertEquals(TileSetModel.TAG_9.getMessage(), this.model.getPropertyTag("materialTag", TileSetModel.TAG_9).getMessage());
-        verify(this.view, times(8)).refreshProperties();
+        verify(this.view, times(3)).refreshProperties();
 
         this.model.executeOperation(propertyModel.setPropertyValue("materialTag", "tile"));
         assertTrue(!this.model.hasPropertyAnnotation("materialTag", TileSetModel.TAG_9));
-        verify(this.view, times(10)).refreshProperties();
+        verify(this.view, times(5)).refreshProperties();
     }
 
     /**
@@ -893,16 +934,16 @@ public class TileSetTest {
         loadEmptyFile();
 
         assertTrue(!this.model.hasPropertyAnnotation("tileMargin", TileSetModel.TAG_10));
-        verify(this.view, times(6)).refreshProperties();
+        verify(this.view, times(1)).refreshProperties();
 
         this.model.executeOperation(propertyModel.setPropertyValue("tileMargin", -1));
         assertTrue(this.model.hasPropertyAnnotation("tileMargin", TileSetModel.TAG_10));
         assertEquals(TileSetModel.TAG_10.getMessage(), this.model.getPropertyTag("tileMargin", TileSetModel.TAG_10).getMessage());
-        verify(this.view, times(8)).refreshProperties();
+        verify(this.view, times(3)).refreshProperties();
 
         this.model.executeOperation(propertyModel.setPropertyValue("tileMargin", 0));
         assertTrue(!this.model.hasPropertyAnnotation("tileMargin", TileSetModel.TAG_10));
-        verify(this.view, times(10)).refreshProperties();
+        verify(this.view, times(5)).refreshProperties();
     }
 
     /**
@@ -914,16 +955,16 @@ public class TileSetTest {
         loadEmptyFile();
 
         assertTrue(!this.model.hasPropertyAnnotation("tileSpacing", TileSetModel.TAG_11));
-        verify(this.view, times(6)).refreshProperties();
+        verify(this.view, times(1)).refreshProperties();
 
         this.model.executeOperation(propertyModel.setPropertyValue("tileSpacing", -1));
         assertTrue(this.model.hasPropertyAnnotation("tileSpacing", TileSetModel.TAG_11));
         assertEquals(TileSetModel.TAG_11.getMessage(), this.model.getPropertyTag("tileSpacing", TileSetModel.TAG_11).getMessage());
-        verify(this.view, times(8)).refreshProperties();
+        verify(this.view, times(3)).refreshProperties();
 
         this.model.executeOperation(propertyModel.setPropertyValue("tileSpacing", 0));
         assertTrue(!this.model.hasPropertyAnnotation("tileSpacing", TileSetModel.TAG_11));
-        verify(this.view, times(10)).refreshProperties();
+        verify(this.view, times(5)).refreshProperties();
     }
 
     /**
@@ -935,22 +976,16 @@ public class TileSetTest {
         // requirement
         testUseCase114();
 
-        verify(this.view, times(34)).refreshProperties();
+        verify(this.view, times(29)).refreshProperties();
         verify(this.view, times(4)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
-        verify(this.view, times(25)).setTileData(any(BufferedImage.class), any(BufferedImage.class),
-                anyInt(), anyInt(), anyInt(), anyInt(),
-                any(float[].class), any(int[].class), any(int[].class), any(Color[].class));
-        verify(this.view, times(18)).clearTiles();
-        verify(this.view, times(6)).setTileHullColor(anyInt(), any(Color.class));
+        verify(this.view, times(2)).setHulls(any(float[].class), any(int[].class), any(int[].class), any(Color[].class));
+        verify(this.view, times(6)).setHullColor(anyInt(), any(Color.class));
 
         this.presenter.refresh();
 
-        verify(this.view, times(35)).refreshProperties();
+        verify(this.view, times(30)).refreshProperties();
         verify(this.view, times(5)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
-        verify(this.view, times(26)).setTileData(any(BufferedImage.class), any(BufferedImage.class),
-                anyInt(), anyInt(), anyInt(), anyInt(),
-                any(float[].class), any(int[].class), any(int[].class), any(Color[].class));
-        verify(this.view, times(18)).clearTiles();
-        verify(this.view, times(6)).setTileHullColor(anyInt(), any(Color.class));
+        verify(this.view, times(3)).setHulls(any(float[].class), any(int[].class), any(int[].class), any(Color[].class));
+        verify(this.view, times(6)).setHullColor(anyInt(), any(Color.class));
     }
 }

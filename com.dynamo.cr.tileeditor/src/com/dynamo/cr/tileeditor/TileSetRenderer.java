@@ -8,7 +8,6 @@ import javax.media.opengl.GL;
 import javax.media.opengl.GLContext;
 import javax.media.opengl.GLDrawableFactory;
 import javax.media.opengl.glu.GLU;
-import javax.vecmath.Vector2f;
 
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.KeyEvent;
@@ -21,6 +20,7 @@ import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.opengl.GLCanvas;
 import org.eclipse.swt.opengl.GLData;
 import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.Listener;
 import org.eclipse.ui.services.IDisposable;
@@ -43,8 +43,8 @@ KeyListener {
     private final static int CAMERA_MODE_DOLLY = 2;
 
     private final TileSetPresenter presenter;
-    private final GLCanvas canvas;
-    private final GLContext context;
+    private GLCanvas canvas;
+    private GLContext context;
     private final int[] viewPort = new int[4];
     private boolean paintRequested = false;
     private boolean mac = false;
@@ -62,15 +62,22 @@ KeyListener {
     private int tileHeight;
     private int tileMargin;
     private int tileSpacing;
+    private FloatBuffer tileVertexBuffer;
     private float[] hullVertices;
     private int[] hullIndices;
     private int[] hullCounts;
     private Color[] hullColors;
-    private final Texture background;
+    private FloatBuffer hullVertexBuffer;
+    private Texture backgroundTexture;
+    private Texture transparentTexture;
 
-    public TileSetRenderer(TileSetPresenter presenter, Composite parent) {
+    public TileSetRenderer(TileSetPresenter presenter) {
         this.presenter = presenter;
 
+        this.mac = System.getProperty("os.name").equals("Mac OS X");
+    }
+
+    public void createControls(Composite parent) {
         GLData data = new GLData();
         data.doubleBuffer = true;
         data.depthSize = 24;
@@ -88,18 +95,21 @@ KeyListener {
         this.context.makeCurrent();
         GL gl = this.context.getGL();
         gl.glPolygonMode(GL.GL_FRONT, GL.GL_FILL);
-        if (!System.getProperty("os.name").equals("Mac OS X")) {
-            //gl.setSwapInterval(1);
-        } else {
-            this.mac = true;
-        }
 
         BufferedImage backgroundImage = new BufferedImage(2, 2, BufferedImage.TYPE_INT_ARGB);
         backgroundImage.setRGB(0, 0, 0xff999999);
         backgroundImage.setRGB(1, 0, 0xff666666);
         backgroundImage.setRGB(0, 1, 0xff666666);
         backgroundImage.setRGB(1, 1, 0xff999999);
-        background = TextureIO.newTexture(backgroundImage, false);
+        this.backgroundTexture = TextureIO.newTexture(backgroundImage, false);
+        BufferedImage transparentImage = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
+        transparentImage.setRGB(0, 0, 0x00000000);
+        this.transparentTexture = TextureIO.newTexture(transparentImage, false);
+
+        // if the image is already set, set the corresponding texture
+        if (this.image != null) {
+            this.texture = TextureIO.newTexture(image, false);
+        }
 
         this.context.release();
 
@@ -110,39 +120,86 @@ KeyListener {
         this.canvas.addKeyListener(this);
     }
 
-    public GLCanvas getCanvas() {
-        return canvas;
-    }
-
     @Override
     public void dispose() {
-        this.context.makeCurrent();
-        this.background.dispose();
-        if (this.texture != null) {
-            this.texture.dispose();
-        }
-        this.context.release();
-        canvas.dispose();
-    }
-
-    void setTileData(BufferedImage image, BufferedImage collision,
-            int tileWidth, int tileHeight, int tileMargin, int tileSpacing,
-            float[] hullVertices, int[] hullIndices, int[] hullCounts, Color[] hullColors) {
-        if (image != this.image) {
+        if (this.context != null) {
             this.context.makeCurrent();
+            this.backgroundTexture.dispose();
+            this.transparentTexture.dispose();
             if (this.texture != null) {
-                this.texture.updateImage(TextureIO.newTextureData(image, false));
-            } else {
-                this.texture = TextureIO.newTexture(image, false);
+                this.texture.dispose();
             }
-            this.image = image;
             this.context.release();
         }
-        this.collision = collision;
-        this.tileWidth = tileWidth;
-        this.tileHeight = tileHeight;
-        this.tileMargin = tileMargin;
-        this.tileSpacing = tileSpacing;
+        if (this.canvas != null) {
+            canvas.dispose();
+        }
+    }
+
+    public void setFocus() {
+        this.canvas.setFocus();
+    }
+
+    public void setImage(BufferedImage image) {
+        if (this.image != image) {
+            if (this.context != null) {
+                this.context.makeCurrent();
+                if (this.texture != null) {
+                    if (image != null) {
+                        this.texture.updateImage(TextureIO.newTextureData(image, false));
+                    } else {
+                        this.texture.dispose();
+                        this.texture = null;
+                    }
+                } else {
+                    this.texture = TextureIO.newTexture(image, false);
+                }
+                this.context.release();
+            }
+            this.image = image;
+            requestPaint();
+        }
+    }
+
+    public void setTileWidth(int tileWidth) {
+        if (this.tileWidth != tileWidth) {
+            this.tileWidth = tileWidth;
+            requestPaint();
+        }
+    }
+
+    public void setTileHeight(int tileHeight) {
+        if (this.tileHeight != tileHeight) {
+            this.tileHeight = tileHeight;
+            requestPaint();
+        }
+    }
+
+    public void setTileMargin(int tileMargin) {
+        if (this.tileMargin != tileMargin) {
+            this.tileMargin = tileMargin;
+            requestPaint();
+        }
+    }
+
+    public void setTileSpacing(int tileSpacing) {
+        if (this.tileSpacing != tileSpacing) {
+            this.tileSpacing = tileSpacing;
+            requestPaint();
+        }
+    }
+
+    public void setCollision(BufferedImage collision) {
+        if (this.collision != collision) {
+            this.collision = collision;
+            requestPaint();
+        }
+    }
+
+    public void setHulls(float[] hullVertices, int[] hullIndices, int[] hullCounts, Color[] hullColors) {
+        if (this.hullVertices == null || this.hullVertices.length != hullVertices.length || this.hullVertexBuffer == null) {
+            this.hullVertexBuffer = BufferUtil.newFloatBuffer(hullVertices.length);
+        }
         this.hullVertices = hullVertices;
         this.hullIndices = hullIndices;
         this.hullCounts = hullCounts;
@@ -150,12 +207,11 @@ KeyListener {
         requestPaint();
     }
 
-
-    public void clearTiles() {
-    }
-
-    public void setTileHullColor(int tileIndex, Color color) {
-        this.hullColors[tileIndex] = color;
+    public void setHullColor(int tileIndex, Color color) {
+        if (this.hullColors[tileIndex] != color) {
+            this.hullColors[tileIndex] = color;
+            requestPaint();
+        }
     }
 
     // Listener
@@ -246,10 +302,21 @@ KeyListener {
     }
 
     private void requestPaint() {
-        if (this.paintRequested)
+        if (this.paintRequested || this.canvas == null)
             return;
         this.paintRequested = true;
 
+        Display.getDefault().timerExec(10, new Runnable() {
+
+            @Override
+            public void run() {
+                paintRequested = false;
+                paint();
+            }
+        });
+    }
+
+    private void paint() {
         if (!this.canvas.isDisposed()) {
             this.canvas.setCurrent();
             this.context.makeCurrent();
@@ -287,7 +354,6 @@ KeyListener {
                 context.release();
             }
         }
-        paintRequested = false;
     }
 
     private void drawTileSet(GL gl) {
@@ -316,16 +382,16 @@ KeyListener {
         drawBackground(gl, totalWidth, totalHeight);
 
         // tiles
-        drawTiles(gl, borderSize, tilesPerRow, tilesPerColumn, totalWidth, totalHeight);
+        drawTiles(gl, borderSize, tilesPerRow, tilesPerColumn, totalWidth, totalHeight, width, height);
     }
 
     private void drawBackground(GL gl, float width, float height) {
-        this.background.bind();
-        this.background.setTexParameteri(GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST);
-        this.background.setTexParameteri(GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST);
-        this.background.setTexParameteri(GL.GL_TEXTURE_WRAP_S, GL.GL_REPEAT);
-        this.background.setTexParameteri(GL.GL_TEXTURE_WRAP_T, GL.GL_REPEAT);
-        this.background.enable();
+        this.backgroundTexture.bind();
+        this.backgroundTexture.setTexParameteri(GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST);
+        this.backgroundTexture.setTexParameteri(GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST);
+        this.backgroundTexture.setTexParameteri(GL.GL_TEXTURE_WRAP_S, GL.GL_REPEAT);
+        this.backgroundTexture.setTexParameteri(GL.GL_TEXTURE_WRAP_T, GL.GL_REPEAT);
+        this.backgroundTexture.enable();
         final float recipTileSize = 0.0625f;
         float recipTexelWidth = width * recipTileSize;
         float recipTexelHeight = height * recipTileSize;
@@ -343,53 +409,57 @@ KeyListener {
         gl.glTexCoord2f(u1, v0);
         gl.glVertex2f(width, 0.0f);
         gl.glEnd();
-        this.background.disable();
+        this.backgroundTexture.disable();
     }
 
-    private void drawTiles(GL gl, float borderSize, int tilesPerRow, int tilesPerColumn, float width, float height) {
-        if (this.image == null) {
-            return;
-        }
-
+    private void drawTiles(GL gl, float borderSize, int tilesPerRow, int tilesPerColumn, float width, float height, int imageWidth, int imageHeight) {
         int tileCount = tilesPerRow * tilesPerColumn;
-        // vertex data is 3 components for position and 2 for uv
-        FloatBuffer hullVertices = null;
-        Vector2f[] hullOffsets = null;
-        if (this.hullVertices != null && this.hullVertices.length > 0) {
-            hullVertices = BufferUtil.newFloatBuffer(this.hullVertices.length);
-            hullVertices.put(this.hullVertices);
-            hullVertices.flip();
-            hullOffsets = new Vector2f[tileCount];
-        }
+
+        // Construct vertex data
+
         int vertexCount = 4 * tileCount;
-        FloatBuffer v = BufferUtil.newFloatBuffer(vertexCount * 3);
-        FloatBuffer t = BufferUtil.newFloatBuffer(vertexCount * 2);
-        float recipImageWidth = 1.0f / image.getWidth();
-        float recipImageHeight = 1.0f / image.getHeight();
+        // tile vertex data is 2 uv + 3 pos
+        int componentCount = 5 * vertexCount;
+        if (this.tileVertexBuffer == null || this.tileVertexBuffer.capacity() != componentCount) {
+            this.tileVertexBuffer = BufferUtil.newFloatBuffer(componentCount);
+        }
+        FloatBuffer v = this.tileVertexBuffer;
+        float recipImageWidth = 1.0f / imageWidth;
+        float recipImageHeight = 1.0f / imageHeight;
         float recipScale = 1.0f / this.scale;
         float border = borderSize * recipScale;
+        float z = 0.5f;
         for (int row = 0; row < tilesPerColumn; ++row) {
             for (int column = 0; column < tilesPerRow; ++column) {
                 float x0 = column * (tileWidth + border) + border;
                 float x1 = x0 + tileWidth;
-                float y0 = row * (tileHeight + border) + border;
+                float y0 = (tilesPerColumn - row - 1) * (tileHeight + border) + border;
                 float y1 = y0 + tileHeight;
                 float u0 = (column * (tileSpacing + 2*tileMargin + tileWidth) + tileMargin) * recipImageWidth;
                 float u1 = u0 + tileWidth * recipImageWidth;
-                float v1 = ((tilesPerColumn - row - 1) * (tileSpacing + 2*tileMargin + tileHeight) + tileMargin) * recipImageHeight;
+                float v1 = (row * (tileSpacing + 2*tileMargin + tileHeight) + tileMargin) * recipImageHeight;
                 float v0 = v1 + tileHeight * recipImageHeight;
-                v.put(x0); v.put(y0); v.put(0.0f); t.put(u0); t.put(v0);
-                v.put(x0); v.put(y1); v.put(0.0f); t.put(u0); t.put(v1);
-                v.put(x1); v.put(y1); v.put(0.0f); t.put(u1); t.put(v1);
-                v.put(x1); v.put(y0); v.put(0.0f); t.put(u1); t.put(v0);
-                if (hullOffsets != null) {
-                    int index = column + (tilesPerColumn - row - 1) * tilesPerRow;
-                    hullOffsets[index] = new Vector2f(x0, y0);
+                v.put(u0); v.put(v0); v.put(x0); v.put(y0); v.put(z);
+                v.put(u0); v.put(v1); v.put(x0); v.put(y1); v.put(z);
+                v.put(u1); v.put(v1); v.put(x1); v.put(y1); v.put(z);
+                v.put(u1); v.put(v0); v.put(x1); v.put(y0); v.put(z);
+                if (this.collision != null) {
+                    int index = column + row * tilesPerRow;
+                    int hullCount = this.hullCounts[index];
+                    if (hullCount > 0) {
+                        int hullIndex = this.hullIndices[index];
+                        for (int i = 0; i < hullCount; ++i) {
+                            int hi = 2 * (hullIndex + i);
+                            this.hullVertexBuffer.put(x0 + 0.5f + this.hullVertices[hi+0]);
+                            this.hullVertexBuffer.put(y0 + 0.5f + this.hullVertices[hi+1]);
+                        }
+                    }
                 }
             }
         }
         v.flip();
-        t.flip();
+
+        // Tiles
 
         gl.glEnable(GL.GL_DEPTH_TEST);
         gl.glDepthMask(true);
@@ -397,19 +467,28 @@ KeyListener {
         gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
         gl.glEnableClientState(GL.GL_TEXTURE_COORD_ARRAY);
         gl.glEnableClientState(GL.GL_VERTEX_ARRAY);
-        this.texture.bind();
-        this.texture.setTexParameteri(GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST);
-        this.texture.setTexParameteri(GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST);
-        this.texture.setTexParameteri(GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP);
-        this.texture.setTexParameteri(GL.GL_TEXTURE_WRAP_T, GL.GL_CLAMP);
-        this.texture.enable();
+        if (this.texture != null) {
+            this.texture.bind();
+            this.texture.setTexParameteri(GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST);
+            this.texture.setTexParameteri(GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST);
+            this.texture.setTexParameteri(GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP);
+            this.texture.setTexParameteri(GL.GL_TEXTURE_WRAP_T, GL.GL_CLAMP);
+            this.texture.enable();
+        } else {
+            this.transparentTexture.bind();
+            this.transparentTexture.enable();
+        }
 
-        gl.glTexCoordPointer(2, GL.GL_FLOAT, 0, t);
-        gl.glVertexPointer(3, GL.GL_FLOAT, 0, v);
+        gl.glInterleavedArrays(GL.GL_T2F_V3F, 0, v);
 
         gl.glDrawArrays(GL.GL_QUADS, 0, vertexCount);
 
-        this.texture.disable();
+        if (this.texture != null) {
+            this.texture.disable();
+        } else {
+            this.transparentTexture.disable();
+        }
+
         gl.glDepthMask(false);
         gl.glDisableClientState(GL.GL_TEXTURE_COORD_ARRAY);
 
@@ -417,7 +496,7 @@ KeyListener {
 
         gl.glColor4f(0.2f, 0.2f, 0.2f, 0.7f);
         gl.glBegin(GL.GL_QUADS);
-        float z = -0.5f;
+        z = 0.0f;
         gl.glVertex3f(0.0f, 0.0f, z);
         gl.glVertex3f(0.0f, height, z);
         gl.glVertex3f(width, height, z);
@@ -426,18 +505,22 @@ KeyListener {
 
         gl.glDisable(GL.GL_DEPTH_TEST);
 
-        float[] color = new float[4];
-        if (hullVertices != null) {
+        // Hulls
+
+        if (this.collision != null) {
+            this.hullVertexBuffer.flip();
+            gl.glVertexPointer(2, GL.GL_FLOAT, 0, this.hullVertexBuffer);
+
+            Color c = null;
+            float f = 1.0f / 255.0f;
             for (int i = 0; i < this.hullCounts.length; ++i) {
-                color = hullColors[i].getComponents(color);
-                gl.glPushMatrix();
-                gl.glTranslatef(hullOffsets[i].x + 0.5f, hullOffsets[i].y + 0.5f, 0.0f);
-                gl.glColor4f(color[0], color[1], color[2], color[3]);
-                gl.glVertexPointer(2, GL.GL_FLOAT, 0, hullVertices);
+                c = hullColors[i];
+                gl.glColor4f(c.getRed() * f, c.getGreen() * f, c.getBlue() * f, c.getAlpha() * f);
                 gl.glDrawArrays(GL.GL_LINE_LOOP, this.hullIndices[i], this.hullCounts[i]);
-                gl.glPopMatrix();
             }
         }
+
+        // Clean up
         gl.glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
         gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
         gl.glDisable(GL.GL_BLEND);
