@@ -40,6 +40,7 @@ import org.eclipse.ui.views.properties.IPropertySheetPage;
 
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.properties.FormPropertySheetPage;
+import com.dynamo.cr.properties.FormPropertySheetViewer;
 import com.dynamo.cr.tileeditor.core.ITileSetView;
 import com.dynamo.cr.tileeditor.core.TileSetModel;
 import com.dynamo.cr.tileeditor.core.TileSetPresenter;
@@ -311,7 +312,8 @@ ITileSetView {
                 @Override
                 public void run() {
                     refreshPropertiesPosted = false;
-                    if (!propertySheetPage.getViewer().getControl().isDisposed())
+                    FormPropertySheetViewer viewer = propertySheetPage.getViewer();
+                    if (viewer != null && !viewer.getControl().isDisposed())
                         propertySheetPage.refresh();
                 }
             });
