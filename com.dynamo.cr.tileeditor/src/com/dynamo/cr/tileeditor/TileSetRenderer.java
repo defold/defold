@@ -256,8 +256,13 @@ KeyListener {
             GL gl = this.context.getGL();
             GLU glu = new GLU();
             try {
+                gl.glDepthMask(true);
+                gl.glEnable(GL.GL_DEPTH_TEST);
                 gl.glClearColor(0.0f, 0.0f, 0.0f, 1);
-                gl.glClear(GL.GL_COLOR_BUFFER_BIT);
+                gl.glClearDepth(1.0);
+                gl.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT);
+                gl.glDisable(GL.GL_DEPTH_TEST);
+                gl.glDepthMask(false);
 
                 gl.glViewport(this.viewPort[0], this.viewPort[1], this.viewPort[2], this.viewPort[3]);
 
@@ -358,7 +363,7 @@ KeyListener {
             hullOffsets = new Vector2f[tileCount];
         }
         int vertexCount = 4 * tileCount;
-        FloatBuffer v = BufferUtil.newFloatBuffer(vertexCount * 2);
+        FloatBuffer v = BufferUtil.newFloatBuffer(vertexCount * 3);
         FloatBuffer t = BufferUtil.newFloatBuffer(vertexCount * 2);
         float recipImageWidth = 1.0f / image.getWidth();
         float recipImageHeight = 1.0f / image.getHeight();
@@ -374,12 +379,12 @@ KeyListener {
                 float y1 = y0 + tileHeight;
                 float u0 = (column * (tileSpacing + 2*tileMargin + tileWidth) + tileMargin) * recipImageWidth + 0.5f * pixelTexelWidth;
                 float u1 = u0 + tileWidth * recipImageWidth - 0.5f * pixelTexelWidth;
-                float v1 = ((tilesPerColumn - row - 1) * (tileSpacing + 2*tileMargin + tileHeight) + tileMargin) * recipImageHeight - 0.5f * pixelTexelHeight;
-                float v0 = v1 + tileHeight * recipImageHeight + 0.5f * pixelTexelHeight;
-                v.put(x0); v.put(y0); t.put(u0); t.put(v0);
-                v.put(x0); v.put(y1); t.put(u0); t.put(v1);
-                v.put(x1); v.put(y1); t.put(u1); t.put(v1);
-                v.put(x1); v.put(y0); t.put(u1); t.put(v0);
+                float v1 = ((tilesPerColumn - row - 1) * (tileSpacing + 2*tileMargin + tileHeight) + tileMargin) * recipImageHeight;
+                float v0 = v1 + tileHeight * recipImageHeight - 0.5f * pixelTexelHeight;
+                v.put(x0); v.put(y0); v.put(0.0f); t.put(u0); t.put(v0);
+                v.put(x0); v.put(y1); v.put(0.0f); t.put(u0); t.put(v1);
+                v.put(x1); v.put(y1); v.put(0.0f); t.put(u1); t.put(v1);
+                v.put(x1); v.put(y0); v.put(0.0f); t.put(u1); t.put(v0);
                 if (hullOffsets != null) {
                     int index = column + (tilesPerColumn - row - 1) * tilesPerRow;
                     hullOffsets[index] = new Vector2f(x0, y0);
@@ -389,6 +394,8 @@ KeyListener {
         v.flip();
         t.flip();
 
+        gl.glEnable(GL.GL_DEPTH_TEST);
+        gl.glDepthMask(true);
         gl.glEnable(GL.GL_BLEND);
         gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
         gl.glEnableClientState(GL.GL_TEXTURE_COORD_ARRAY);
@@ -401,11 +408,25 @@ KeyListener {
         this.texture.enable();
 
         gl.glTexCoordPointer(2, GL.GL_FLOAT, 0, t);
-        gl.glVertexPointer(2, GL.GL_FLOAT, 0, v);
+        gl.glVertexPointer(3, GL.GL_FLOAT, 0, v);
 
         gl.glDrawArrays(GL.GL_QUADS, 0, vertexCount);
 
         this.texture.disable();
+        gl.glDepthMask(false);
+
+        // Overlay
+
+        gl.glColor4f(0.2f, 0.2f, 0.2f, 0.8f);
+        gl.glBegin(GL.GL_QUADS);
+        float z = -0.5f;
+        gl.glVertex3f(0.0f, 0.0f, z);
+        gl.glVertex3f(0.0f, height, z);
+        gl.glVertex3f(width, height, z);
+        gl.glVertex3f(width, 0.0f, z);
+        gl.glEnd();
+
+        gl.glDisable(GL.GL_DEPTH_TEST);
 
         float[] color = new float[4];
         if (hullVertices != null) {
