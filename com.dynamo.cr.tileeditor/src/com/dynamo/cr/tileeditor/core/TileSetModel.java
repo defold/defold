@@ -20,6 +20,11 @@ import org.eclipse.core.commands.operations.IUndoContext;
 import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
+import org.eclipse.core.resources.IResource;
+import org.eclipse.core.resources.IResourceChangeEvent;
+import org.eclipse.core.resources.IResourceDelta;
+import org.eclipse.core.resources.IResourceDeltaVisitor;
+import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IAdaptable;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
@@ -162,19 +167,23 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
         return image;
     }
 
+    private void loadImage() {
+        try {
+            this.loadedImage = loadImageFile(image);
+            updateConvexHulls();
+            clearPropertyTag("image", TAG_2);
+        } catch (Exception e) {
+            setPropertyTag("image", Tag.bind(TAG_2, image));
+        }
+    }
+
     public void setImage(String image) {
         if ((this.image == null && image != null) || !this.image.equals(image)) {
             String oldImage = this.image;
             this.image = image;
             this.loadedImage = null;
             if (this.image != null && !this.image.equals("")) {
-                try {
-                    this.loadedImage = loadImage(image);
-                    updateConvexHulls();
-                    clearPropertyTag("image", TAG_2);
-                } catch (Exception e) {
-                    setPropertyTag("image", Tag.bind(TAG_2, image));
-                }
+                loadImage();
                 clearPropertyTag("image", TAG_1);
             } else {
                 setPropertyTag("image", TAG_1);
@@ -259,19 +268,23 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
         return this.collision;
     }
 
+    private void loadCollision() {
+        try {
+            this.loadedCollision = loadImageFile(collision);
+            clearPropertyTag("collision", TAG_3);
+        } catch (Exception e) {
+            this.loadedCollision = null;
+            setPropertyTag("collision", Tag.bind(TAG_3, collision));
+        }
+    }
+
     public void setCollision(String collision) {
         if ((this.collision == null && collision != null) || !this.collision.equals(collision)) {
             String oldCollision = this.collision;
             this.collision = collision;
             this.loadedCollision = null;
             if (this.collision != null && !this.collision.equals("")) {
-                try {
-                    this.loadedCollision = loadImage(collision);
-                    clearPropertyTag("collision", TAG_3);
-                } catch (Exception e) {
-                    this.loadedCollision = null;
-                    setPropertyTag("collision", Tag.bind(TAG_3, collision));
-                }
+                loadCollision();
             }
             updateConvexHulls();
             firePropertyChangeEvent(new PropertyChangeEvent(this, "collision", oldCollision, collision));
@@ -434,7 +447,7 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
         return this.loadedCollision;
     }
 
-    private BufferedImage loadImage(String fileName) throws Exception {
+    private BufferedImage loadImageFile(String fileName) throws Exception {
         try {
             IFile file = this.contentRoot.getFile(new Path(fileName));
             InputStream is = file.getContents();
@@ -713,6 +726,46 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
         if (tags != null && tags.contains(tag)) {
             tags.remove(tag);
             firePropertyTagEvent(new PropertyTagEvent(this, property, tags));
+        }
+    }
+
+    public void handleResourceChanged(IResourceChangeEvent event) {
+
+        final IFile files[] = new IFile[2];
+
+        if (image != null && image.length() > 0) {
+            files[0] = this.contentRoot.getFile(new Path(image));
+        }
+        if (collision != null && collision.length() > 0) {
+            files[1] = this.contentRoot.getFile(new Path(collision));
+        }
+
+        try {
+            event.getDelta().accept(new IResourceDeltaVisitor() {
+
+                @Override
+                public boolean visit(IResourceDelta delta) throws CoreException {
+                    IResource resource = delta.getResource();
+
+                    boolean found = false;
+                    if (files[0] != null && files[0].equals(resource)) {
+                        loadImage();
+                        found = true;
+                    }
+                    // NOTE: not else here
+                    if (files[1] != null && files[1].equals(resource)) {
+                        loadCollision();
+                        updateConvexHulls();
+                        found = true;
+                    }
+                    if (found) {
+                        return false;
+                    }
+                    return true;
+                }
+            });
+        } catch (CoreException e) {
+            Activator.logException(e);
         }
     }
 

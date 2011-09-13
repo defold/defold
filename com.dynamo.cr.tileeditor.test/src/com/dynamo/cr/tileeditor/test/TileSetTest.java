@@ -1,6 +1,7 @@
 package com.dynamo.cr.tileeditor.test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
@@ -24,6 +25,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
 import java.util.Enumeration;
+import java.util.List;
 
 import org.eclipse.core.commands.operations.DefaultOperationHistory;
 import org.eclipse.core.commands.operations.IOperationHistory;
@@ -33,7 +35,10 @@ import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.IProjectDescription;
+import org.eclipse.core.resources.IResourceChangeEvent;
+import org.eclipse.core.resources.IResourceChangeListener;
 import org.eclipse.core.resources.ResourcesPlugin;
+import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.Path;
@@ -48,11 +53,12 @@ import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.tileeditor.core.ITileSetView;
 import com.dynamo.cr.tileeditor.core.TileSetModel;
+import com.dynamo.cr.tileeditor.core.TileSetModel.ConvexHull;
 import com.dynamo.cr.tileeditor.core.TileSetPresenter;
 import com.dynamo.tile.proto.Tile.TileSet;
 import com.google.protobuf.TextFormat;
 
-public class TileSetTest {
+public class TileSetTest implements IResourceChangeListener {
     private IProject project;
     private IContainer contentRoot;
     private NullProgressMonitor monitor;
@@ -63,9 +69,18 @@ public class TileSetTest {
     IUndoContext undoContext;
     IPropertyModel<TileSetModel, TileSetModel> propertyModel;
 
+    @Override
+    public void resourceChanged(IResourceChangeEvent event) {
+        if (model != null) {
+            model.handleResourceChanged(event);
+        }
+    }
+
     @SuppressWarnings("unchecked")
     @Before
     public void setup() throws Exception {
+        ResourcesPlugin.getWorkspace().addResourceChangeListener(this);
+
         project = ResourcesPlugin.getWorkspace().getRoot().getProject("test");
         monitor = new NullProgressMonitor();
         if (project.exists()) {
@@ -106,6 +121,7 @@ public class TileSetTest {
 
     @After
     public void teardown() {
+        ResourcesPlugin.getWorkspace().removeResourceChangeListener(this);
         this.presenter.dispose();
     }
 
@@ -160,7 +176,7 @@ public class TileSetTest {
 
     /**
      * Use Case 1.1.1 - Create the Tile Set
-     * 
+     *
      * @throws IOException
      */
     @Test
@@ -323,8 +339,52 @@ public class TileSetTest {
     }
 
     /**
+     * Use Case 1.1.3 - Edit collisions
+     * @throws IOException
+     * @throws CoreException
+     */
+    @Test
+    public void testUseCase113() throws IOException, CoreException {
+        loadEmptyFile();
+
+        String tileSetFileName = "/mario_tileset.png";
+        String tileSetFilePrimName = "/mario_half_tileset.png";
+
+        this.model.executeOperation(propertyModel.setPropertyValue("image", tileSetFileName));
+        this.model.executeOperation(propertyModel.setPropertyValue("collision", tileSetFileName));
+        List<ConvexHull> preHulls = this.model.getConvexHulls();
+
+        IFile tileSetFile = contentRoot.getFile(new Path(tileSetFileName));
+        IFile tileSetFilePrim = contentRoot.getFile(new Path(tileSetFilePrimName));
+        assertTrue(tileSetFile.exists());
+        assertTrue(tileSetFilePrim.exists());
+
+        // Overwrite mario_tileset with mario_half_tileset
+        InputStream input = tileSetFilePrim.getContents();
+        tileSetFile.setContents(input, IFile.FORCE, new NullProgressMonitor());
+        input.close();
+
+        List<ConvexHull> postHulls = this.model.getConvexHulls();
+
+        assertNotSame(preHulls.size(), postHulls.size());
+
+        verify(this.view, times(1)).setImage((BufferedImage)isNull());
+        verify(this.view, times(1)).setTileWidth(eq(16));
+        verify(this.view, times(1)).setTileHeight(eq(16));
+        verify(this.view, times(1)).setTileMargin(eq(0));
+        verify(this.view, times(1)).setTileSpacing(eq(0));
+        verify(this.view, times(1)).setCollision((BufferedImage)isNull());
+        verify(this.view, times(8)).refreshProperties();
+        verify(this.view, times(1)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
+        verify(this.view, times(2)).setHulls(any(float[].class), any(int[].class), any(int[].class), any(Color[].class));
+        verify(this.view, times(0)).setHullColor(anyInt(), any(Color.class));
+        verify(this.view, times(1)).setDirty(anyBoolean());
+    }
+
+
+    /**
      * Use Case 1.1.4 - Add a Collision Group
-     * 
+     *
      * @throws IOException
      */
     @Test
@@ -391,7 +451,7 @@ public class TileSetTest {
 
     /**
      * Use Case 1.1.5 - Rename Collision Group
-     * 
+     *
      * @throws IOException
      */
     @Test
@@ -430,7 +490,7 @@ public class TileSetTest {
 
     /**
      * Use Case 1.1.6 - Rename Collision Group to Existing Group
-     * 
+     *
      * @throws IOException
      */
     @Test
@@ -508,7 +568,7 @@ public class TileSetTest {
 
     /**
      * Use Case 1.1.7 - Rename Collision Groups to Single Group
-     * 
+     *
      * @throws IOException
      */
     @Test
@@ -590,7 +650,7 @@ public class TileSetTest {
 
     /**
      * Use Case 1.1.9 - Remove Collision Group
-     * 
+     *
      * @throws IOException
      */
     @Test
@@ -648,7 +708,7 @@ public class TileSetTest {
 
     /**
      * Use Case 1.1.8 - Save
-     * 
+     *
      * @throws IOException
      */
     @Test
