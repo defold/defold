@@ -54,7 +54,6 @@ import org.eclipse.ui.views.properties.IPropertySheetPage;
 
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.properties.FormPropertySheetPage;
-import com.dynamo.cr.tileeditor.TileSetEditor.ActivationListener;
 import com.dynamo.cr.tileeditor.core.ITileSetView;
 import com.dynamo.cr.tileeditor.core.TileSetModel;
 import com.dynamo.cr.tileeditor.core.TileSetPresenter;
@@ -149,6 +148,8 @@ IResourceChangeListener {
             }
         };
 
+        this.renderer = new TileSetRenderer(this.presenter);
+
         IProgressService service = PlatformUI.getWorkbench()
                 .getProgressService();
         TileSetLoader loader = new TileSetLoader(file, this.presenter);
@@ -178,7 +179,7 @@ IResourceChangeListener {
     @Override
     public void createPartControl(Composite parent) {
 
-        this.renderer = new TileSetRenderer(this.presenter, parent);
+        this.renderer.createControls(parent);
 
         // This makes sure the context will be active while this component is
         IContextService contextService = (IContextService) getSite()
@@ -264,7 +265,7 @@ IResourceChangeListener {
 
     @Override
     public void setFocus() {
-        this.renderer.getCanvas().setFocus();
+        this.renderer.setFocus();
     }
 
     // IResourceChangeListener
@@ -279,6 +280,36 @@ IResourceChangeListener {
     // ITileSetView
 
     @Override
+    public void setImage(BufferedImage image) {
+        this.renderer.setImage(image);
+    }
+
+    @Override
+    public void setTileWidth(int tileWidth) {
+        this.renderer.setTileWidth(tileWidth);
+    }
+
+    @Override
+    public void setTileHeight(int tileHeight) {
+        this.renderer.setTileHeight(tileHeight);
+    }
+
+    @Override
+    public void setTileMargin(int tileMargin) {
+        this.renderer.setTileMargin(tileMargin);
+    }
+
+    @Override
+    public void setTileSpacing(int tileSpacing) {
+        this.renderer.setTileSpacing(tileSpacing);
+    }
+
+    @Override
+    public void setCollision(BufferedImage collision) {
+        this.renderer.setCollision(collision);
+    }
+
+    @Override
     public void refreshProperties() {
         postRefreshProperties();
     }
@@ -289,27 +320,13 @@ IResourceChangeListener {
     }
 
     @Override
-    public void setTileData(BufferedImage image, BufferedImage collision,
-            int tileWidth, int tileHeight, int tileMargin, int tileSpacing,
-            float[] hullVertices, int[] hullIndices, int[] hullCounts, Color[] hullColors) {
-        if (this.renderer != null) {
-            this.renderer.setTileData(image, collision, tileWidth, tileHeight, tileMargin, tileSpacing,
-                    hullVertices, hullIndices, hullCounts, hullColors);
-        }
+    public void setHulls(float[] hullVertices, int[] hullIndices, int[] hullCounts, Color[] hullColors) {
+        this.renderer.setHulls(hullVertices, hullIndices, hullCounts, hullColors);
     }
 
     @Override
-    public void clearTiles() {
-        if (this.renderer != null) {
-            this.renderer.clearTiles();
-        }
-    }
-
-    @Override
-    public void setTileHullColor(int tileIndex, Color color) {
-        if (this.renderer != null) {
-            this.renderer.setTileHullColor(tileIndex, color);
-        }
+    public void setHullColor(int index, Color color) {
+        this.renderer.setHullColor(index, color);
     }
 
     @Override
@@ -338,7 +355,8 @@ IResourceChangeListener {
                 @Override
                 public void run() {
                     refreshPropertiesPosted = false;
-                    propertySheetPage.refresh();
+                    if (!propertySheetPage.getViewer().getControl().isDisposed())
+                        propertySheetPage.refresh();
                 }
             });
         }
@@ -391,7 +409,7 @@ IResourceChangeListener {
 
     class ActivationListener implements IPartListener, IWindowListener {
 
-        private IPartService partService;
+        private final IPartService partService;
 
         public ActivationListener(IPartService partService) {
             this.partService = partService;

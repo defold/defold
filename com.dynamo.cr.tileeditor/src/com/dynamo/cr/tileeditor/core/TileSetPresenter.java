@@ -27,6 +27,7 @@ public class TileSetPresenter implements TaggedPropertyListener, IOperationHisto
     private String[] oldCollisionGroups;
     private String currentCollisionGroup;
     private int undoRedoCounter;
+    private boolean loading = false;
 
     public TileSetPresenter(TileSetModel model, ITileSetView view) {
         this.model = model;
@@ -44,7 +45,10 @@ public class TileSetPresenter implements TaggedPropertyListener, IOperationHisto
     }
 
     public void load(TileSet tileSet) throws IOException {
+        loading = true;
         this.model.load(tileSet);
+        loading = false;
+        refresh();
         setUndoRedoCounter(0);
     }
 
@@ -109,23 +113,43 @@ public class TileSetPresenter implements TaggedPropertyListener, IOperationHisto
     }
 
     public void refresh() {
+        this.view.setImage(this.model.getLoadedImage());
+        this.view.setTileWidth(this.model.getTileWidth());
+        this.view.setTileHeight(this.model.getTileHeight());
+        this.view.setTileMargin(this.model.getTileMargin());
+        this.view.setTileSpacing(this.model.getTileSpacing());
+        this.view.setCollision(this.model.getLoadedCollision());
         this.view.refreshProperties();
         setViewCollisionGroups(this.model.getCollisionGroups());
-        setViewTiles(this.model.getConvexHulls());
+        setViewHulls(this.model.getConvexHulls());
     }
 
     @SuppressWarnings({ "unchecked" })
     @Override
     public void propertyChange(PropertyChangeEvent evt) {
+        if (loading)
+            return;
         if (evt.getSource() instanceof TileSetModel) {
             if (evt.getPropertyName().equals("collisionGroups")) {
                 setViewCollisionGroups((List<String>)evt.getNewValue());
             } else if (evt.getPropertyName().equals("convexHulls")) {
-                setViewTiles((List<TileSetModel.ConvexHull>)evt.getNewValue());
+                setViewHulls((List<TileSetModel.ConvexHull>)evt.getNewValue());
             } else {
+                if (evt.getPropertyName().equals("image")) {
+                    this.view.setImage(this.model.getLoadedImage());
+                } else if (evt.getPropertyName().equals("tileWidth")) {
+                    this.view.setTileWidth((Integer)evt.getNewValue());
+                } else if (evt.getPropertyName().equals("tileHeight")) {
+                    this.view.setTileHeight((Integer)evt.getNewValue());
+                } else if (evt.getPropertyName().equals("tileMargin")) {
+                    this.view.setTileMargin((Integer)evt.getNewValue());
+                } else if (evt.getPropertyName().equals("tileSpacing")) {
+                    this.view.setTileSpacing((Integer)evt.getNewValue());
+                } else if (evt.getPropertyName().equals("collision")) {
+                    this.view.setCollision(this.model.getLoadedCollision());
+                }
+
                 this.view.refreshProperties();
-                // TODO: Solve this better
-                setViewTiles(this.model.getConvexHulls());
             }
         } else if (evt.getSource() instanceof TileSetModel.ConvexHull) {
             if (evt.getPropertyName().equals("collisionGroup")) {
@@ -136,6 +160,8 @@ public class TileSetPresenter implements TaggedPropertyListener, IOperationHisto
 
     @Override
     public void propertyTag(PropertyTagEvent evt) {
+        if (loading)
+            return;
         if (evt.getSource() instanceof TileSetModel) {
             this.view.refreshProperties();
         }
@@ -164,50 +190,42 @@ public class TileSetPresenter implements TaggedPropertyListener, IOperationHisto
         this.undoRedoCounter = undoRedoCounter;
     }
 
-    private void setViewTiles(List<TileSetModel.ConvexHull> convexHulls) {
-        BufferedImage image = this.model.getLoadedImage();
+    private void setViewHulls(List<TileSetModel.ConvexHull> convexHulls) {
         BufferedImage collision = this.model.getLoadedCollision();
-        if (image == null && collision == null) {
-            this.view.clearTiles();
-            return;
-        }
-        int width = 0;
-        int height = 0;
-        if (image != null) {
-            width = image.getWidth();
-            height = image.getHeight();
-        } else {
-            width = collision.getWidth();
-            height = collision.getHeight();
-        }
-        int tileWidth = this.model.getTileWidth();
-        int tileHeight = this.model.getTileHeight();
-        int tileMargin = this.model.getTileMargin();
-        int tileSpacing = this.model.getTileSpacing();
-        int tilesPerRow = TileSetUtil.calculateTileCount(tileWidth, width, tileMargin, tileSpacing);
-        int tilesPerColumn = TileSetUtil.calculateTileCount(tileHeight, height, tileMargin, tileSpacing);
+        if (collision != null) {
+            int[] hullIndices = null;
+            int[] hullCounts = null;
+            Color[] hullColors = null;
 
-        int tileCount = tilesPerRow * tilesPerColumn;
-        if (tilesPerRow > 0 && tilesPerColumn > 0 && tileCount == this.model.getConvexHulls().size()) {
-            updateCollisionGroupColors(this.model.getCollisionGroups().size());
-            int[] hullIndices = new int[tileCount];
-            int[] hullCounts = new int[tileCount];
-            Color[] hullColors = new Color[tileCount];
-            for (int tile = 0; tile < tileCount; ++tile) {
-                TileSetModel.ConvexHull hull = this.model.getConvexHulls().get(tile);
-                hullIndices[tile] = hull.getIndex();
-                hullCounts[tile] = hull.getCount();
-                hullColors[tile] = Color.white;
-                if (hull.getCount() > 0) {
-                    int collisionGroupIndex = this.model.getCollisionGroups().indexOf(hull.getCollisionGroup());
-                    if (collisionGroupIndex > 0) {
-                        hullColors[tile] = this.collisionGroupColors.get(collisionGroupIndex);
+            int width = collision.getWidth();
+            int height = collision.getHeight();
+            int tileWidth = this.model.getTileWidth();
+            int tileHeight = this.model.getTileHeight();
+            int tileMargin = this.model.getTileMargin();
+            int tileSpacing = this.model.getTileSpacing();
+            int tilesPerRow = TileSetUtil.calculateTileCount(tileWidth, width, tileMargin, tileSpacing);
+            int tilesPerColumn = TileSetUtil.calculateTileCount(tileHeight, height, tileMargin, tileSpacing);
+
+            int tileCount = tilesPerRow * tilesPerColumn;
+            if (tilesPerRow > 0 && tilesPerColumn > 0 && tileCount == this.model.getConvexHulls().size()) {
+                updateCollisionGroupColors(this.model.getCollisionGroups().size());
+                hullIndices = new int[tileCount];
+                hullCounts = new int[tileCount];
+                hullColors = new Color[tileCount];
+                for (int tile = 0; tile < tileCount; ++tile) {
+                    TileSetModel.ConvexHull hull = this.model.getConvexHulls().get(tile);
+                    hullIndices[tile] = hull.getIndex();
+                    hullCounts[tile] = hull.getCount();
+                    hullColors[tile] = Color.white;
+                    if (hull.getCount() > 0) {
+                        int collisionGroupIndex = this.model.getCollisionGroups().indexOf(hull.getCollisionGroup());
+                        if (collisionGroupIndex > 0) {
+                            hullColors[tile] = this.collisionGroupColors.get(collisionGroupIndex);
+                        }
                     }
                 }
             }
-            this.view.setTileData(image, collision, tileWidth, tileHeight, tileMargin, tileSpacing, this.model.getConvexHullPoints(), hullIndices, hullCounts, hullColors);
-        } else {
-            view.clearTiles();
+            this.view.setHulls(this.model.getConvexHullPoints(), hullIndices, hullCounts, hullColors);
         }
     }
 
@@ -222,7 +240,7 @@ public class TileSetPresenter implements TaggedPropertyListener, IOperationHisto
         if (collisionGroupIndex > 0) {
             color = this.collisionGroupColors.get(collisionGroupIndex);
         }
-        this.view.setTileHullColor(tileIndex, color);
+        this.view.setHullColor(tileIndex, color);
     }
 
     private void setViewCollisionGroups(List<String> collisionGroups) {

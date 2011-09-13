@@ -21,6 +21,7 @@ import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.opengl.GLCanvas;
 import org.eclipse.swt.opengl.GLData;
 import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.Listener;
 import org.eclipse.ui.services.IDisposable;
@@ -43,8 +44,8 @@ KeyListener {
     private final static int CAMERA_MODE_DOLLY = 2;
 
     private final TileSetPresenter presenter;
-    private final GLCanvas canvas;
-    private final GLContext context;
+    private GLCanvas canvas;
+    private GLContext context;
     private final int[] viewPort = new int[4];
     private boolean paintRequested = false;
     private boolean mac = false;
@@ -62,15 +63,19 @@ KeyListener {
     private int tileHeight;
     private int tileMargin;
     private int tileSpacing;
-    private float[] hullVertices;
+    private FloatBuffer hullVertices;
     private int[] hullIndices;
     private int[] hullCounts;
     private Color[] hullColors;
-    private final Texture background;
+    private Texture background;
 
-    public TileSetRenderer(TileSetPresenter presenter, Composite parent) {
+    public TileSetRenderer(TileSetPresenter presenter) {
         this.presenter = presenter;
 
+        this.mac = System.getProperty("os.name").equals("Mac OS X");
+    }
+
+    public void createControls(Composite parent) {
         GLData data = new GLData();
         data.doubleBuffer = true;
         data.depthSize = 24;
@@ -88,11 +93,6 @@ KeyListener {
         this.context.makeCurrent();
         GL gl = this.context.getGL();
         gl.glPolygonMode(GL.GL_FRONT, GL.GL_FILL);
-        if (!System.getProperty("os.name").equals("Mac OS X")) {
-            //gl.setSwapInterval(1);
-        } else {
-            this.mac = true;
-        }
 
         BufferedImage backgroundImage = new BufferedImage(2, 2, BufferedImage.TYPE_INT_ARGB);
         backgroundImage.setRGB(0, 0, 0xff999999);
@@ -100,6 +100,11 @@ KeyListener {
         backgroundImage.setRGB(0, 1, 0xff666666);
         backgroundImage.setRGB(1, 1, 0xff999999);
         background = TextureIO.newTexture(backgroundImage, false);
+
+        // if the image is already set, set the corresponding texture
+        if (this.image != null) {
+            this.texture = TextureIO.newTexture(image, false);
+        }
 
         this.context.release();
 
@@ -110,52 +115,92 @@ KeyListener {
         this.canvas.addKeyListener(this);
     }
 
-    public GLCanvas getCanvas() {
-        return canvas;
-    }
-
     @Override
     public void dispose() {
-        this.context.makeCurrent();
-        this.background.dispose();
-        if (this.texture != null) {
-            this.texture.dispose();
-        }
-        this.context.release();
-        canvas.dispose();
-    }
-
-    void setTileData(BufferedImage image, BufferedImage collision,
-            int tileWidth, int tileHeight, int tileMargin, int tileSpacing,
-            float[] hullVertices, int[] hullIndices, int[] hullCounts, Color[] hullColors) {
-        if (image != this.image) {
+        if (this.context != null) {
             this.context.makeCurrent();
+            this.background.dispose();
             if (this.texture != null) {
-                this.texture.updateImage(TextureIO.newTextureData(image, false));
-            } else {
-                this.texture = TextureIO.newTexture(image, false);
+                this.texture.dispose();
             }
-            this.image = image;
             this.context.release();
         }
-        this.collision = collision;
-        this.tileWidth = tileWidth;
-        this.tileHeight = tileHeight;
-        this.tileMargin = tileMargin;
-        this.tileSpacing = tileSpacing;
-        this.hullVertices = hullVertices;
+        if (this.canvas != null) {
+            canvas.dispose();
+        }
+    }
+
+    public void setFocus() {
+        this.canvas.setFocus();
+    }
+
+    void setImage(BufferedImage image) {
+        if (this.image != image) {
+            if (this.context != null) {
+                this.context.makeCurrent();
+                if (this.texture != null) {
+                    this.texture.updateImage(TextureIO.newTextureData(image, false));
+                } else {
+                    this.texture = TextureIO.newTexture(image, false);
+                }
+                this.context.release();
+            }
+            this.image = image;
+            requestPaint();
+        }
+    }
+
+    void setTileWidth(int tileWidth) {
+        if (this.tileWidth != tileWidth) {
+            this.tileWidth = tileWidth;
+            requestPaint();
+        }
+    }
+
+    void setTileHeight(int tileHeight) {
+        if (this.tileHeight != tileHeight) {
+            this.tileHeight = tileHeight;
+            requestPaint();
+        }
+    }
+
+    void setTileMargin(int tileMargin) {
+        if (this.tileMargin != tileMargin) {
+            this.tileMargin = tileMargin;
+            requestPaint();
+        }
+    }
+
+    void setTileSpacing(int tileSpacing) {
+        if (this.tileSpacing != tileSpacing) {
+            this.tileSpacing = tileSpacing;
+            requestPaint();
+        }
+    }
+
+    void setCollision(BufferedImage collision) {
+        if (this.collision != collision) {
+            this.collision = collision;
+            requestPaint();
+        }
+    }
+
+    void setHulls(float[] hullVertices, int[] hullIndices, int[] hullCounts, Color[] hullColors) {
+        // Assume it is different
+        this.hullVertices = BufferUtil.newFloatBuffer(hullVertices.length);
+        this.hullVertices.put(hullVertices);
+        this.hullVertices.flip();
         this.hullIndices = hullIndices;
         this.hullCounts = hullCounts;
         this.hullColors = hullColors;
         requestPaint();
     }
 
-
-    public void clearTiles() {
-    }
-
-    public void setTileHullColor(int tileIndex, Color color) {
-        this.hullColors[tileIndex] = color;
+    public void setHullColor(int tileIndex, Color color) {
+        if (this.hullColors[tileIndex] != color) {
+            this.hullColors[tileIndex] = color;
+            requestPaint();
+        }
     }
 
     // Listener
@@ -246,10 +291,21 @@ KeyListener {
     }
 
     private void requestPaint() {
-        if (this.paintRequested)
+        if (this.paintRequested || this.canvas == null)
             return;
         this.paintRequested = true;
 
+        Display.getDefault().timerExec(10, new Runnable() {
+
+            @Override
+            public void run() {
+                paintRequested = false;
+                paint();
+            }
+        });
+    }
+
+    private void paint() {
         if (!this.canvas.isDisposed()) {
             this.canvas.setCurrent();
             this.context.makeCurrent();
@@ -287,7 +343,6 @@ KeyListener {
                 context.release();
             }
         }
-        paintRequested = false;
     }
 
     private void drawTileSet(GL gl) {
@@ -353,13 +408,9 @@ KeyListener {
 
         int tileCount = tilesPerRow * tilesPerColumn;
         // vertex data is 3 components for position and 2 for uv
-        FloatBuffer hullVertices = null;
         Vector2f[] hullOffsets = null;
-        if (this.hullVertices != null && this.hullVertices.length > 0) {
-            hullVertices = BufferUtil.newFloatBuffer(this.hullVertices.length);
-            hullVertices.put(this.hullVertices);
-            hullVertices.flip();
-            hullOffsets = new Vector2f[tileCount];
+        if (this.hullVertices != null) {
+            hullOffsets = new Vector2f[2 * tileCount];
         }
         int vertexCount = 4 * tileCount;
         FloatBuffer v = BufferUtil.newFloatBuffer(vertexCount * 3);
@@ -427,13 +478,13 @@ KeyListener {
         gl.glDisable(GL.GL_DEPTH_TEST);
 
         float[] color = new float[4];
-        if (hullVertices != null) {
+        if (this.hullVertices != null) {
+            gl.glVertexPointer(2, GL.GL_FLOAT, 0, this.hullVertices);
             for (int i = 0; i < this.hullCounts.length; ++i) {
                 color = hullColors[i].getComponents(color);
                 gl.glPushMatrix();
                 gl.glTranslatef(hullOffsets[i].x + 0.5f, hullOffsets[i].y + 0.5f, 0.0f);
                 gl.glColor4f(color[0], color[1], color[2], color[3]);
-                gl.glVertexPointer(2, GL.GL_FLOAT, 0, hullVertices);
                 gl.glDrawArrays(GL.GL_LINE_LOOP, this.hullIndices[i], this.hullCounts[i]);
                 gl.glPopMatrix();
             }
