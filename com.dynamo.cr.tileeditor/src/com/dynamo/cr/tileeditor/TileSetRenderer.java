@@ -279,7 +279,6 @@ KeyListener {
 
                 drawTileSet(gl);
 
-                //                doDraw(gl);
             } catch (Throwable e) {
                 // Don't show dialog or similar in paint-handle
                 e.printStackTrace();
@@ -369,18 +368,16 @@ KeyListener {
         float recipImageHeight = 1.0f / image.getHeight();
         float recipScale = 1.0f / this.scale;
         float border = borderSize * recipScale;
-        float pixelTexelWidth = recipScale * recipImageWidth;
-        float pixelTexelHeight = recipScale * recipImageHeight;
         for (int row = 0; row < tilesPerColumn; ++row) {
             for (int column = 0; column < tilesPerRow; ++column) {
                 float x0 = column * (tileWidth + border) + border;
                 float x1 = x0 + tileWidth;
                 float y0 = row * (tileHeight + border) + border;
                 float y1 = y0 + tileHeight;
-                float u0 = (column * (tileSpacing + 2*tileMargin + tileWidth) + tileMargin) * recipImageWidth + 0.5f * pixelTexelWidth;
-                float u1 = u0 + tileWidth * recipImageWidth - 0.5f * pixelTexelWidth;
+                float u0 = (column * (tileSpacing + 2*tileMargin + tileWidth) + tileMargin) * recipImageWidth;
+                float u1 = u0 + tileWidth * recipImageWidth;
                 float v1 = ((tilesPerColumn - row - 1) * (tileSpacing + 2*tileMargin + tileHeight) + tileMargin) * recipImageHeight;
-                float v0 = v1 + tileHeight * recipImageHeight - 0.5f * pixelTexelHeight;
+                float v0 = v1 + tileHeight * recipImageHeight;
                 v.put(x0); v.put(y0); v.put(0.0f); t.put(u0); t.put(v0);
                 v.put(x0); v.put(y1); v.put(0.0f); t.put(u0); t.put(v1);
                 v.put(x1); v.put(y1); v.put(0.0f); t.put(u1); t.put(v1);
@@ -414,10 +411,11 @@ KeyListener {
 
         this.texture.disable();
         gl.glDepthMask(false);
+        gl.glDisableClientState(GL.GL_TEXTURE_COORD_ARRAY);
 
         // Overlay
 
-        gl.glColor4f(0.2f, 0.2f, 0.2f, 0.8f);
+        gl.glColor4f(0.2f, 0.2f, 0.2f, 0.7f);
         gl.glBegin(GL.GL_QUADS);
         float z = -0.5f;
         gl.glVertex3f(0.0f, 0.0f, z);
@@ -441,7 +439,6 @@ KeyListener {
             }
         }
         gl.glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
-        gl.glDisableClientState(GL.GL_TEXTURE_COORD_ARRAY);
         gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
         gl.glDisable(GL.GL_BLEND);
     }
