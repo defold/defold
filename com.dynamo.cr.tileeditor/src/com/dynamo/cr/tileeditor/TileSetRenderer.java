@@ -370,8 +370,12 @@ KeyListener {
             width = this.collision.getWidth();
             height = this.collision.getHeight();
         }
+
         int tilesPerRow = TileSetUtil.calculateTileCount(this.tileWidth, width, this.tileMargin, this.tileSpacing);
         int tilesPerColumn = TileSetUtil.calculateTileCount(this.tileHeight, height, this.tileMargin, this.tileSpacing);
+        if (tilesPerRow < 1 || tilesPerColumn < 1) {
+            return;
+        }
 
         final float borderSize = 2.0f;
         float pixelBorderSize = borderSize / this.scale;

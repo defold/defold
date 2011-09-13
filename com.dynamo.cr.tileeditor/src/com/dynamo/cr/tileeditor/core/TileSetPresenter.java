@@ -3,6 +3,7 @@ package com.dynamo.cr.tileeditor.core;
 import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
@@ -11,6 +12,7 @@ import java.util.List;
 import org.eclipse.core.commands.operations.IOperationHistoryListener;
 import org.eclipse.core.commands.operations.OperationHistoryEvent;
 import org.eclipse.core.runtime.IProgressMonitor;
+import org.eclipse.core.runtime.IStatus;
 import org.eclipse.ui.services.IDisposable;
 
 import com.dynamo.cr.tileeditor.operations.AddCollisionGroupOperation;
@@ -19,7 +21,7 @@ import com.dynamo.cr.tileeditor.operations.RenameCollisionGroupsOperation;
 import com.dynamo.cr.tileeditor.operations.SetConvexHullCollisionGroupsOperation;
 import com.dynamo.tile.proto.Tile.TileSet;
 
-public class TileSetPresenter implements TaggedPropertyListener, IOperationHistoryListener, IDisposable {
+public class TileSetPresenter implements PropertyChangeListener, IOperationHistoryListener, IDisposable {
     private final TileSetModel model;
     private final ITileSetView view;
     private List<Color> collisionGroupColors;
@@ -129,41 +131,36 @@ public class TileSetPresenter implements TaggedPropertyListener, IOperationHisto
     public void propertyChange(PropertyChangeEvent evt) {
         if (loading)
             return;
-        if (evt.getSource() instanceof TileSetModel) {
-            if (evt.getPropertyName().equals("collisionGroups")) {
-                setViewCollisionGroups((List<String>)evt.getNewValue());
-            } else if (evt.getPropertyName().equals("convexHulls")) {
-                setViewHulls((List<TileSetModel.ConvexHull>)evt.getNewValue());
-            } else {
-                if (evt.getPropertyName().equals("image")) {
-                    this.view.setImage(this.model.getLoadedImage());
-                } else if (evt.getPropertyName().equals("tileWidth")) {
-                    this.view.setTileWidth((Integer)evt.getNewValue());
-                } else if (evt.getPropertyName().equals("tileHeight")) {
-                    this.view.setTileHeight((Integer)evt.getNewValue());
-                } else if (evt.getPropertyName().equals("tileMargin")) {
-                    this.view.setTileMargin((Integer)evt.getNewValue());
-                } else if (evt.getPropertyName().equals("tileSpacing")) {
-                    this.view.setTileSpacing((Integer)evt.getNewValue());
-                } else if (evt.getPropertyName().equals("collision")) {
-                    this.view.setCollision(this.model.getLoadedCollision());
-                }
-
-                this.view.refreshProperties();
-            }
-        } else if (evt.getSource() instanceof TileSetModel.ConvexHull) {
-            if (evt.getPropertyName().equals("collisionGroup")) {
-                setViewHullColor((TileSetModel.ConvexHull)evt.getSource(), (String)evt.getNewValue());
-            }
-        }
-    }
-
-    @Override
-    public void propertyTag(PropertyTagEvent evt) {
-        if (loading)
-            return;
-        if (evt.getSource() instanceof TileSetModel) {
+        if (evt.getNewValue() instanceof IStatus) {
             this.view.refreshProperties();
+        } else {
+            if (evt.getSource() instanceof TileSetModel) {
+                if (evt.getPropertyName().equals("collisionGroups")) {
+                    setViewCollisionGroups((List<String>)evt.getNewValue());
+                } else if (evt.getPropertyName().equals("convexHulls")) {
+                    setViewHulls((List<TileSetModel.ConvexHull>)evt.getNewValue());
+                } else {
+                    if (evt.getPropertyName().equals("image")) {
+                        this.view.setImage(this.model.getLoadedImage());
+                    } else if (evt.getPropertyName().equals("tileWidth")) {
+                        this.view.setTileWidth((Integer)evt.getNewValue());
+                    } else if (evt.getPropertyName().equals("tileHeight")) {
+                        this.view.setTileHeight((Integer)evt.getNewValue());
+                    } else if (evt.getPropertyName().equals("tileMargin")) {
+                        this.view.setTileMargin((Integer)evt.getNewValue());
+                    } else if (evt.getPropertyName().equals("tileSpacing")) {
+                        this.view.setTileSpacing((Integer)evt.getNewValue());
+                    } else if (evt.getPropertyName().equals("collision")) {
+                        this.view.setCollision(this.model.getLoadedCollision());
+                    }
+
+                    this.view.refreshProperties();
+                }
+            } else if (evt.getSource() instanceof TileSetModel.ConvexHull) {
+                if (evt.getPropertyName().equals("collisionGroup")) {
+                    setViewHullColor((TileSetModel.ConvexHull)evt.getSource(), (String)evt.getNewValue());
+                }
+            }
         }
     }
 
@@ -231,10 +228,6 @@ public class TileSetPresenter implements TaggedPropertyListener, IOperationHisto
 
     private void setViewHullColor(TileSetModel.ConvexHull hull, String collisionGroup) {
         int tileIndex = this.model.getConvexHulls().indexOf(hull);
-        if (tileIndex < 0) {
-            // TODO: Report error? Only cause imo would be an event pointing to an old hull, should never happen.
-            return;
-        }
         int collisionGroupIndex = this.model.getCollisionGroups().indexOf(hull.getCollisionGroup());
         Color color = Color.white;
         if (collisionGroupIndex > 0) {

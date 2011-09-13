@@ -23,8 +23,10 @@ import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.IAdaptable;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.MultiStatus;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Status;
+import org.eclipse.osgi.util.NLS;
 
 import com.dynamo.cr.properties.Entity;
 import com.dynamo.cr.properties.IPropertyModel;
@@ -43,18 +45,6 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
 
     // TODO: Should be configurable
     private static final int PLANE_COUNT = 16;
-
-    public static final Tag TAG_1 = new Tag("1", Tag.TYPE_INFO, Messages.TileSetModel_TAG_1);
-    public static final Tag TAG_2 = new Tag("2", Tag.TYPE_ERROR, Messages.TileSetModel_TAG_2);
-    public static final Tag TAG_3 = new Tag("3", Tag.TYPE_ERROR, Messages.TileSetModel_TAG_3);
-    public static final Tag TAG_4 = new Tag("4", Tag.TYPE_ERROR, Messages.TileSetModel_TAG_4);
-    public static final Tag TAG_5 = new Tag("5", Tag.TYPE_ERROR, Messages.TileSetModel_TAG_5);
-    public static final Tag TAG_6 = new Tag("6", Tag.TYPE_ERROR, Messages.TileSetModel_TAG_6);
-    public static final Tag TAG_7 = new Tag("7", Tag.TYPE_ERROR, Messages.TileSetModel_TAG_7);
-    public static final Tag TAG_8 = new Tag("8", Tag.TYPE_ERROR, Messages.TileSetModel_TAG_8);
-    public static final Tag TAG_9 = new Tag("9", Tag.TYPE_ERROR, Messages.TileSetModel_TAG_9);
-    public static final Tag TAG_10 = new Tag("10", Tag.TYPE_ERROR, Messages.TileSetModel_TAG_10);
-    public static final Tag TAG_11 = new Tag("11", Tag.TYPE_ERROR, Messages.TileSetModel_TAG_11);
 
     @Property(isResource = true)
     String image;
@@ -84,6 +74,8 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
 
     BufferedImage loadedImage;
     BufferedImage loadedCollision;
+
+    Map<String, IStatus> propertyStatuses = new HashMap<String, IStatus>();
 
     public class ConvexHull {
         String collisionGroup = "";
@@ -171,13 +163,13 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
                 try {
                     this.loadedImage = loadImage(image);
                     updateConvexHulls();
-                    clearPropertyTag("image", TAG_2);
+                    clearPropertyStatus("image", Activator.STATUS_TS_IMG_NOT_FOUND);
                 } catch (Exception e) {
-                    setPropertyTag("image", Tag.bind(TAG_2, image));
+                    setPropertyStatus("image", Activator.STATUS_TS_IMG_NOT_FOUND, image);
                 }
-                clearPropertyTag("image", TAG_1);
+                clearPropertyStatus("image", Activator.STATUS_TS_IMG_NOT_SPECIFIED);
             } else {
-                setPropertyTag("image", TAG_1);
+                setPropertyStatus("image", Activator.STATUS_TS_IMG_NOT_SPECIFIED);
             }
             firePropertyChangeEvent(new PropertyChangeEvent(this, "image", oldImage, image));
         }
@@ -193,9 +185,9 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
             this.tileWidth = tileWidth;
             firePropertyChangeEvent(new PropertyChangeEvent(this, "tileWidth", new Integer(oldTileWidth), new Integer(tileWidth)));
             if (tileWidth > 0) {
-                clearPropertyTag("tileWidth", TAG_5);
+                clearPropertyStatus("tileWidth", Activator.STATUS_TS_INVALID_TILE_WIDTH);
             } else {
-                setPropertyTag("tileWidth", TAG_5);
+                setPropertyStatus("tileWidth", Activator.STATUS_TS_INVALID_TILE_WIDTH);
             }
             updateConvexHulls();
         }
@@ -211,9 +203,9 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
             this.tileHeight = tileHeight;
             firePropertyChangeEvent(new PropertyChangeEvent(this, "tileHeight", new Integer(oldTileHeight), new Integer(tileHeight)));
             if (tileHeight > 0) {
-                clearPropertyTag("tileHeight", TAG_6);
+                clearPropertyStatus("tileHeight", Activator.STATUS_TS_INVALID_TILE_HEIGHT);
             } else {
-                setPropertyTag("tileHeight", TAG_6);
+                setPropertyStatus("tileHeight", Activator.STATUS_TS_INVALID_TILE_HEIGHT);
             }
             updateConvexHulls();
         }
@@ -229,9 +221,9 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
             this.tileMargin = tileMargin;
             firePropertyChangeEvent(new PropertyChangeEvent(this, "tileMargin", new Integer(oldTileMargin), new Integer(tileMargin)));
             if (tileMargin >= 0) {
-                clearPropertyTag("tileMargin", TAG_10);
+                clearPropertyStatus("tileMargin", Activator.STATUS_TS_INVALID_TILE_MGN);
             } else {
-                setPropertyTag("tileMargin", TAG_10);
+                setPropertyStatus("tileMargin", Activator.STATUS_TS_INVALID_TILE_MGN);
             }
             updateConvexHulls();
         }
@@ -247,9 +239,9 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
             this.tileSpacing = tileSpacing;
             firePropertyChangeEvent(new PropertyChangeEvent(this, "tileSpacing", new Integer(oldTileSpacing), new Integer(tileSpacing)));
             if (tileSpacing >= 0) {
-                clearPropertyTag("tileSpacing", TAG_11);
+                clearPropertyStatus("tileSpacing", Activator.STATUS_TS_INVALID_TILE_SPCN);
             } else {
-                setPropertyTag("tileSpacing", TAG_11);
+                setPropertyStatus("tileSpacing", Activator.STATUS_TS_INVALID_TILE_SPCN);
             }
             updateConvexHulls();
         }
@@ -267,10 +259,10 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
             if (this.collision != null && !this.collision.equals("")) {
                 try {
                     this.loadedCollision = loadImage(collision);
-                    clearPropertyTag("collision", TAG_3);
+                    clearPropertyStatus("collision", Activator.STATUS_TS_COL_IMG_NOT_FOUND);
                 } catch (Exception e) {
                     this.loadedCollision = null;
-                    setPropertyTag("collision", Tag.bind(TAG_3, collision));
+                    setPropertyStatus("collision", Activator.STATUS_TS_COL_IMG_NOT_FOUND, collision);
                 }
             }
             updateConvexHulls();
@@ -288,9 +280,9 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
             this.materialTag = materialTag;
             firePropertyChangeEvent(new PropertyChangeEvent(this, "materialTag", oldMaterialTag, materialTag));
             if (materialTag == null || materialTag.equals("")) {
-                setPropertyTag("materialTag", TAG_9);
+                setPropertyStatus("materialTag", Activator.STATUS_TS_MAT_NOT_SPECIFIED);
             } else {
-                clearPropertyTag("materialTag", TAG_9);
+                clearPropertyStatus("materialTag", Activator.STATUS_TS_MAT_NOT_SPECIFIED);
             }
         }
     }
@@ -514,7 +506,7 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
         }
 
         if (status != Status.OK_STATUS) {
-            // TODO: Logging or dialog?
+            Activator.logException(status.getException());
         }
     }
 
@@ -527,14 +519,14 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
     private boolean verifyImageDimensions() {
         if (this.loadedImage != null && this.loadedCollision != null) {
             if (this.loadedImage.getWidth() != this.loadedCollision.getWidth() || this.loadedImage.getHeight() != this.loadedCollision.getHeight()) {
-                Tag tag = Tag.bind(TAG_4, new Object[] {this.loadedImage.getWidth(), this.loadedImage.getHeight(), this.loadedCollision.getWidth(), this.loadedCollision.getHeight()});
-                setPropertyTag("image", tag);
-                setPropertyTag("collision", tag);
+                Status status = createStatus(Activator.STATUS_TS_DIFF_IMG_DIMS, new Object[] {this.loadedImage.getWidth(), this.loadedImage.getHeight(), this.loadedCollision.getWidth(), this.loadedCollision.getHeight()});
+                setPropertyStatus("image", status);
+                setPropertyStatus("collision", status);
                 return false;
             }
         }
-        clearPropertyTag("image", TAG_4);
-        clearPropertyTag("collision", TAG_4);
+        clearPropertyStatus("image", Activator.STATUS_TS_DIFF_IMG_DIMS);
+        clearPropertyStatus("collision", Activator.STATUS_TS_DIFF_IMG_DIMS);
         return true;
     }
 
@@ -552,45 +544,45 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
             }
             int totalTileWidth = this.tileWidth + this.tileMargin;
             if (totalTileWidth > imageWidth) {
-                Tag tag = Tag.bind(TAG_7, new Object[] {totalTileWidth, imageWidth});
+                Status status = createStatus(Activator.STATUS_TS_TILE_WIDTH_GT_IMG, new Object[] {totalTileWidth, imageWidth});
                 if (this.loadedImage != null) {
-                    setPropertyTag("image", tag);
+                    setPropertyStatus("image", status);
                 } else {
-                    setPropertyTag("collision", tag);
+                    setPropertyStatus("collision", status);
                 }
-                setPropertyTag("tileWidth", tag);
+                setPropertyStatus("tileWidth", status);
                 if (this.tileMargin > 0) {
-                    setPropertyTag("tileMargin", tag);
+                    setPropertyStatus("tileMargin", status);
                 } else {
-                    clearPropertyTag("tileMargin", tag);
+                    clearPropertyStatus("tileMargin", Activator.STATUS_TS_TILE_WIDTH_GT_IMG);
                 }
                 result = false;
             } else {
-                clearPropertyTag("image", TAG_7);
-                clearPropertyTag("collision", TAG_7);
-                clearPropertyTag("tileWidth", TAG_7);
-                clearPropertyTag("tileMargin", TAG_7);
+                clearPropertyStatus("image", Activator.STATUS_TS_TILE_WIDTH_GT_IMG);
+                clearPropertyStatus("collision", Activator.STATUS_TS_TILE_WIDTH_GT_IMG);
+                clearPropertyStatus("tileWidth", Activator.STATUS_TS_TILE_WIDTH_GT_IMG);
+                clearPropertyStatus("tileMargin", Activator.STATUS_TS_TILE_WIDTH_GT_IMG);
             }
             int totalTileHeight = this.tileHeight + this.tileMargin;
             if (totalTileHeight > imageHeight) {
-                Tag tag = Tag.bind(TAG_8, new Object[] {totalTileHeight, imageHeight});
+                Status status = createStatus(Activator.STATUS_TS_TILE_HEIGHT_GT_IMG, new Object[] {totalTileHeight, imageHeight});
                 if (this.loadedImage != null) {
-                    setPropertyTag("image", tag);
+                    setPropertyStatus("image", status);
                 } else {
-                    setPropertyTag("collision", tag);
+                    setPropertyStatus("collision", status);
                 }
-                setPropertyTag("tileHeight", tag);
+                setPropertyStatus("tileHeight", status);
                 if (this.tileMargin > 0) {
-                    setPropertyTag("tileMargin", tag);
+                    setPropertyStatus("tileMargin", status);
                 } else {
-                    clearPropertyTag("tileMargin", tag);
+                    clearPropertyStatus("tileMargin", Activator.STATUS_TS_TILE_HEIGHT_GT_IMG);
                 }
                 result = false;
             } else {
-                clearPropertyTag("image", TAG_8);
-                clearPropertyTag("collision", TAG_8);
-                clearPropertyTag("tileHeight", TAG_8);
-                clearPropertyTag("tileMargin", TAG_8);
+                clearPropertyStatus("image", Activator.STATUS_TS_TILE_HEIGHT_GT_IMG);
+                clearPropertyStatus("collision", Activator.STATUS_TS_TILE_HEIGHT_GT_IMG);
+                clearPropertyStatus("tileHeight", Activator.STATUS_TS_TILE_HEIGHT_GT_IMG);
+                clearPropertyStatus("tileMargin", Activator.STATUS_TS_TILE_HEIGHT_GT_IMG);
             }
         }
         return result;
@@ -604,7 +596,6 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
             int tilesPerRow = TileSetUtil.calculateTileCount(this.tileWidth, imageWidth, this.tileMargin, this.tileSpacing);
             int tilesPerColumn = TileSetUtil.calculateTileCount(this.tileHeight, imageHeight, this.tileMargin, this.tileSpacing);
             if (tilesPerRow <= 0 || tilesPerColumn <= 0) {
-                // TODO: Report error
                 return;
             }
             int tileCount = tilesPerRow * tilesPerColumn;
@@ -672,47 +663,147 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
         }
     }
 
-    Map<String, List<Tag>> propertyTags = new HashMap<String, List<Tag>>();
-
-    public boolean hasPropertyAnnotation(String property, Tag tag) {
-        List<Tag> tags = propertyTags.get(property);
-        if (tags != null && !tags.isEmpty()) {
-            return tags.contains(tag);
+    public boolean hasPropertyStatus(String property, int code) {
+        IStatus status = this.propertyStatuses.get(property);
+        if (status != null) {
+            if (status.getCode() != code) {
+                if (status.isMultiStatus()) {
+                    MultiStatus multiStatus = (MultiStatus)status;
+                    for (IStatus s : multiStatus.getChildren()) {
+                        if (s.getCode() == code) {
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            } else {
+                return true;
+            }
         }
         return false;
     }
 
-    public List<Tag> getPropertyTags(String property) {
-        return propertyTags.get(property);
+    public IStatus getPropertyStatus(String property) {
+        return this.propertyStatuses.get(property);
     }
 
-    public Tag getPropertyTag(String property, Tag tag) {
-        List<Tag> tags = propertyTags.get(property);
-        if (tags != null && !tags.isEmpty()) {
-            int index = tags.indexOf(tag);
-            return tags.get(index);
+    public IStatus getPropertyStatus(String property, int code) {
+        IStatus status = this.propertyStatuses.get(property);
+        if (status != null) {
+            if (status.getCode() != code) {
+                if (status.isMultiStatus()) {
+                    MultiStatus multiStatus = (MultiStatus)status;
+                    for (IStatus s : multiStatus.getChildren()) {
+                        if (s.getCode() == code) {
+                            return s;
+                        }
+                    }
+                }
+            } else {
+                return status;
+            }
         }
         return null;
     }
 
-    private void setPropertyTag(String property, Tag tag) {
-        List<Tag> tags = propertyTags.get(property);
-        if (tags == null) {
-            tags = new ArrayList<Tag>();
-            propertyTags.put(property, tags);
+    private void setPropertyStatus(String property, Status status) {
+        IStatus oldStatus = this.propertyStatuses.get(property);
+        IStatus newStatus = status;
+        int code = newStatus.getCode();
+        if (oldStatus != null) {
+            if (oldStatus.isMultiStatus()) {
+                MultiStatus multiStatus = (MultiStatus)oldStatus;
+                IStatus[] children = multiStatus.getChildren();
+                boolean exists = false;
+                for (int i = 0; i < children.length; ++i) {
+                    if (children[i].getCode() == code) {
+                        children[i] = newStatus;
+                        exists = true;
+                        break;
+                    }
+                }
+                if (exists) {
+                    newStatus = new MultiStatus(Activator.PLUGIN_ID, 0, children, "multistatus", null);
+                } else {
+                    multiStatus.add(newStatus);
+                    newStatus = multiStatus;
+                }
+            } else {
+                if (oldStatus.getCode() != code) {
+                    MultiStatus multiStatus = new MultiStatus(Activator.PLUGIN_ID, 0, "multistatus", null);
+                    multiStatus.add(newStatus);
+                    multiStatus.add(oldStatus);
+                    newStatus = multiStatus;
+                }
+            }
         }
-        if (tags.contains(tag)) {
-            tags.remove(tag);
-        }
-        tags.add(tag);
-        firePropertyTagEvent(new PropertyTagEvent(this, property, tags));
+        this.propertyStatuses.put(property, newStatus);
+        firePropertyChangeEvent(new PropertyChangeEvent(this, property, oldStatus, newStatus));
     }
 
-    private void clearPropertyTag(String property, Tag tag) {
-        List<Tag> tags = propertyTags.get(property);
-        if (tags != null && tags.contains(tag)) {
-            tags.remove(tag);
-            firePropertyTagEvent(new PropertyTagEvent(this, property, tags));
+    private void setPropertyStatus(String property, int code, Object binding) {
+        setPropertyStatus(property, createStatus(code, binding));
+    }
+
+    private void setPropertyStatus(String property, int code) {
+        setPropertyStatus(property, createStatus(code));
+    }
+
+    private Status createStatus(int code, Object[] binding) {
+        return new Status(Activator.getStatusSeverity(code), Activator.PLUGIN_ID, code, NLS.bind(Activator.getStatusMessage(code), binding), null);
+    }
+
+    private Status createStatus(int code, Object binding) {
+        return new Status(Activator.getStatusSeverity(code), Activator.PLUGIN_ID, code, NLS.bind(Activator.getStatusMessage(code), binding), null);
+    }
+
+    private Status createStatus(int code) {
+        return new Status(Activator.getStatusSeverity(code), Activator.PLUGIN_ID, code, Activator.getStatusMessage(code), null);
+    }
+
+    private void clearPropertyStatus(String property, int code) {
+        IStatus status = this.propertyStatuses.get(property);
+        IStatus oldStatus = status;
+        IStatus newStatus = null;
+        if (status != null) {
+            boolean exists = false;
+            if (status.getCode() == code) {
+                exists = true;
+            } else {
+                if (status.isMultiStatus()) {
+                    MultiStatus multiStatus = (MultiStatus)status;
+                    IStatus[] children = multiStatus.getChildren();
+                    for (int i = 0; i < children.length; ++i) {
+                        // erase swap
+                        if (children[i].getCode() == code) {
+                            exists = true;
+                            children[i] = children[children.length - 1];
+                            break;
+                        }
+                    }
+                    if (exists) {
+                        if (children.length > 2) {
+                            IStatus[] newChildren = new IStatus[children.length - 1];
+                            System.arraycopy(children, 0, newChildren, 0, children.length - 1);
+                            newStatus = new MultiStatus(Activator.PLUGIN_ID, 0, newChildren, "multistatus", null);
+                        } else if (children.length == 2) {
+                            newStatus = children[0];
+                        }
+                    }
+                }
+            }
+            if (exists) {
+                if (newStatus == null) {
+                    this.propertyStatuses.remove(property);
+                } else {
+                    this.propertyStatuses.put(property, newStatus);
+                }
+                // fake ok status
+                if (newStatus == null) {
+                    newStatus = new Status(IStatus.OK, Activator.PLUGIN_ID, "");
+                }
+                firePropertyChangeEvent(new PropertyChangeEvent(this, property, oldStatus, newStatus));
+            }
         }
     }
 
