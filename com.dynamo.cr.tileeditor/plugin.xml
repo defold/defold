@@ -120,7 +120,7 @@
          point="org.eclipse.ui.menus">
       <menuContribution
             allPopups="false"
-            locationURI="menu:com.dynamo.cr.editor.menus.tools?after=com.dynamo.cr.ddfeditor.menus.GameObject">
+            locationURI="menu:org.eclipse.ui.main.menu?after=edit">
          <menu
                id="com.dynamo.cr.tileeditor.menus.TileSet"
                label="Tile Set">
@@ -140,6 +140,12 @@
                   label="Reset Zoom"
                   style="push">
             </command>
+            <visibleWhen
+                  checkEnabled="false">
+               <reference
+                     definitionId="com.dynamo.cr.tileeditor.definitions.tileSetEditorActive">
+               </reference>
+            </visibleWhen>
          </menu>
       </menuContribution>
       <menuContribution

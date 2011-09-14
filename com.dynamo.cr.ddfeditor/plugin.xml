@@ -673,7 +673,7 @@
          point="org.eclipse.ui.menus">
       <menuContribution
             allPopups="false"
-            locationURI="menu:com.dynamo.cr.editor.menus.tools?after=com.dynamo.cr.editor.menus.launch">
+            locationURI="menu:org.eclipse.ui.main.menu?after=edit">
          <menu
                id="com.dynamo.cr.ddfeditor.menus.GameObject"
                label="Game Object">
@@ -695,6 +695,12 @@
                   label="Remove Component"
                   style="push">
             </command>
+            <visibleWhen
+                  checkEnabled="false">
+               <reference
+                     definitionId="com.dynamo.cr.ddfeditor.definitions.gameObjectEditorActive">
+               </reference>
+            </visibleWhen>
          </menu>
       </menuContribution>
    </extension>

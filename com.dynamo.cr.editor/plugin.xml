@@ -163,33 +163,30 @@
       </menuContribution>
       <menuContribution
             allPopups="false"
-            locationURI="menu:org.eclipse.ui.main.menu?after=edit">
+            locationURI="menu:org.eclipse.ui.main.menu?after=navigate">
          <menu
                id="com.dynamo.cr.editor.menus.tools"
                label="Tools">
-            <menu
+            <command
+                  commandId="com.dynamo.crepo.commands.launch"
                   icon="icons/play.png"
-                  id="com.dynamo.cr.editor.menus.launch"
-                  label="Launch">
-               <command
-                     commandId="com.dynamo.crepo.commands.launch"
-                     label="Build"
-                     style="push">
-                  <parameter
-                        name="com.dynamo.crepo.commands.launch.type"
-                        value="build">
-                  </parameter>
-               </command>
-               <command
-                     commandId="com.dynamo.crepo.commands.launch"
-                     label="Rebuild"
-                     style="push">
-                  <parameter
-                        name="com.dynamo.crepo.commands.launch.type"
-                        value="rebuild">
-                  </parameter>
-               </command>
-            </menu>
+                  label="Build"
+                  style="push">
+               <parameter
+                     name="com.dynamo.crepo.commands.launch.type"
+                     value="build">
+               </parameter>
+            </command>
+            <command
+                  commandId="com.dynamo.crepo.commands.launch"
+                  icon="icons/play.png"
+                  label="Rebuild"
+                  style="push">
+               <parameter
+                     name="com.dynamo.crepo.commands.launch.type"
+                     value="rebuild">
+               </parameter>
+            </command>
          </menu>
       </menuContribution>
    </extension>

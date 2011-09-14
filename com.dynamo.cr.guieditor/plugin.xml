@@ -219,6 +219,12 @@
                label="Send Backward"
                style="push">
          </command>
+         <visibleWhen
+               checkEnabled="false">
+            <reference
+                  definitionId="com.dynamo.cr.guieditor.definitions.guiEditorActive">
+            </reference>
+         </visibleWhen>
          </menu>
       </menuContribution>
    </extension>
