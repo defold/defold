@@ -71,6 +71,16 @@
             id="com.dynamo.cr.tileeditor.commands.AddCollisionGroup"
             name="Add Collision Group">
       </command>
+      <command
+            description="Makes all of the tile set visible within the current view port"
+            id="com.dynamo.cr.tileeditor.commands.FrameTileSet"
+            name="Frame Tile Set">
+      </command>
+      <command
+            description="Resets zoom"
+            id="com.dynamo.cr.tileeditor.commands.ResetZoom"
+            name="Reset Zoom">
+      </command>
    </extension>
    <extension
          point="org.eclipse.ui.bindings">
@@ -79,6 +89,18 @@
             contextId="com.dynamo.cr.tileeditor.contexts.TileSetEditor"
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
             sequence="I">
+      </key>
+      <key
+            commandId="com.dynamo.cr.tileeditor.commands.FrameTileSet"
+            contextId="com.dynamo.cr.tileeditor.contexts.TileSetEditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="F">
+      </key>
+      <key
+            commandId="com.dynamo.cr.tileeditor.commands.ResetZoom"
+            contextId="com.dynamo.cr.tileeditor.contexts.TileSetEditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="Z">
       </key>
    </extension>
    <extension
@@ -93,6 +115,16 @@
                   commandId="com.dynamo.cr.tileeditor.commands.AddCollisionGroup"
                   icon="icons/collision_group.png"
                   label="Add Collision Group"
+                  style="push">
+            </command>
+            <command
+                  commandId="com.dynamo.cr.tileeditor.commands.FrameTileSet"
+                  label="Frame Tile Set"
+                  style="push">
+            </command>
+            <command
+                  commandId="com.dynamo.cr.tileeditor.commands.ResetZoom"
+                  label="Reset Zoom"
                   style="push">
             </command>
          </menu>
@@ -174,6 +206,41 @@
             </with>
          </enabledWhen>
       </handler>
+      <handler
+            class="com.dynamo.cr.tileeditor.commands.FrameTileSet"
+            commandId="com.dynamo.cr.tileeditor.commands.FrameTileSet">
+         <activeWhen>
+            <reference
+                  definitionId="com.dynamo.cr.tileeditor.definitions.tileSetEditorActive">
+            </reference>
+         </activeWhen>
+         <enabledWhen>
+            <with
+                  variable="activeEditor">
+               <test
+                     property="com.dynamo.cr.tileeditor.editorProperties.isRenderingEnabled"
+                     value="true">
+               </test>
+            </with></enabledWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.tileeditor.commands.ResetZoom"
+            commandId="com.dynamo.cr.tileeditor.commands.ResetZoom">
+         <activeWhen>
+            <reference
+                  definitionId="com.dynamo.cr.tileeditor.definitions.tileSetEditorActive">
+            </reference>
+         </activeWhen>
+         <enabledWhen>
+            <with
+                  variable="activeEditor">
+               <test
+                     property="com.dynamo.cr.tileeditor.editorProperties.isRenderingEnabled"
+                     value="true">
+               </test>
+            </with>
+         </enabledWhen>
+      </handler>
    </extension>
    <extension
          point="org.eclipse.core.expressions.definitions">
@@ -190,6 +257,16 @@
             </iterate>
          </with>
       </definition>
+   </extension>
+   <extension
+         point="org.eclipse.core.expressions.propertyTesters">
+      <propertyTester
+            class="com.dynamo.cr.tileeditor.TileSetEditorPropertyTester"
+            id="com.dynamo.cr.tileeditor.propertyTesters.TileSetEditor"
+            namespace="com.dynamo.cr.tileeditor.editorProperties"
+            properties="isRenderingEnabled"
+            type="com.dynamo.cr.tileeditor.TileSetEditor">
+      </propertyTester>
    </extension>
 
 </plugin>

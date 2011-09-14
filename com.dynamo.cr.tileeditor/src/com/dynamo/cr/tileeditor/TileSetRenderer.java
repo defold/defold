@@ -217,6 +217,42 @@ KeyListener {
         }
     }
 
+    private void centerCamera(float width, float height) {
+        if (this.image != null || this.collision != null) {
+            this.offset[0] = -width * 0.5f;
+            this.offset[1] = -height * 0.5f;
+        }
+    }
+
+    public void frameTileSet() {
+        if (this.canvas != null && isEnabled()) {
+            TileSetMetrics metrics = new TileSetMetrics();
+            calculateMetrics(metrics);
+            if (metrics.tilesPerColumn > 0 && metrics.tilesPerRow > 0) {
+                Rectangle clientArea = this.canvas.getClientArea();
+                // the metrics are based on the scale.. poor solution but works surprisingly well
+                for (int i = 0; i < 5; ++i) {
+                    this.scale = Math.min(clientArea.width / (metrics.visualWidth * 1.1f), clientArea.height / (metrics.visualHeight * 1.1f));
+                    calculateMetrics(metrics);
+                }
+                centerCamera(metrics.visualWidth, metrics.visualHeight);
+                requestPaint();
+            }
+        }
+    }
+
+    public void resetZoom() {
+        if (this.canvas != null && isEnabled()) {
+            TileSetMetrics metrics = new TileSetMetrics();
+            calculateMetrics(metrics);
+            if (metrics.tilesPerColumn > 0 && metrics.tilesPerRow > 0) {
+                this.scale = 1.0f;
+                centerCamera(metrics.visualWidth, metrics.visualHeight);
+                requestPaint();
+            }
+        }
+    }
+
     // Listener
 
     @Override
@@ -304,6 +340,10 @@ KeyListener {
         this.cameraMode = CAMERA_MODE_NONE;
     }
 
+    public boolean isEnabled() {
+        return this.enabled && (this.image != null || this.collision != null);
+    }
+
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
         requestPaint();
@@ -364,37 +404,55 @@ KeyListener {
         }
     }
 
-    private void drawTileSet(GL gl) {
-        if (!this.enabled || (this.image == null && this.collision == null)) {
+    class TileSetMetrics {
+        public int tilesPerRow;
+        public int tilesPerColumn;
+        public int tileSetWidth;
+        public int tileSetHeight;
+        public float visualWidth;
+        public float visualHeight;
+        public float borderSize;
+    }
+
+    private void calculateMetrics(TileSetMetrics metrics) {
+        if (!isEnabled()) {
             return;
         }
 
-        int width = 0;
-        int height = 0;
         if (this.image != null) {
-            width = this.image.getWidth();
-            height = this.image.getHeight();
+            metrics.tileSetWidth = this.image.getWidth();
+            metrics.tileSetHeight = this.image.getHeight();
         } else {
-            width = this.collision.getWidth();
-            height = this.collision.getHeight();
+            metrics.tileSetWidth = this.collision.getWidth();
+            metrics.tileSetHeight = this.collision.getHeight();
         }
 
-        int tilesPerRow = TileSetUtil.calculateTileCount(this.tileWidth, width, this.tileMargin, this.tileSpacing);
-        int tilesPerColumn = TileSetUtil.calculateTileCount(this.tileHeight, height, this.tileMargin, this.tileSpacing);
-        if (tilesPerRow < 1 || tilesPerColumn < 1) {
+        metrics.tilesPerRow = TileSetUtil.calculateTileCount(this.tileWidth, metrics.tileSetWidth, this.tileMargin, this.tileSpacing);
+        metrics.tilesPerColumn = TileSetUtil.calculateTileCount(this.tileHeight, metrics.tileSetHeight, this.tileMargin, this.tileSpacing);
+
+        metrics.borderSize = 2.0f;
+        float pixelBorderSize = metrics.borderSize / this.scale;
+        metrics.visualWidth = (this.tileWidth + pixelBorderSize) * metrics.tilesPerRow + pixelBorderSize;
+        metrics.visualHeight = (this.tileHeight + pixelBorderSize) * metrics.tilesPerColumn + pixelBorderSize;
+    }
+
+    private void drawTileSet(GL gl) {
+        if (!isEnabled()) {
             return;
         }
 
-        final float borderSize = 2.0f;
-        float pixelBorderSize = borderSize / this.scale;
-        float totalWidth = (this.tileWidth + pixelBorderSize) * tilesPerRow + pixelBorderSize;
-        float totalHeight = (this.tileHeight + pixelBorderSize) * tilesPerColumn + pixelBorderSize;
+        TileSetMetrics metrics = new TileSetMetrics();
+        calculateMetrics(metrics);
+
+        if (metrics.tilesPerRow < 1 || metrics.tilesPerColumn < 1) {
+            return;
+        }
 
         // background
-        drawBackground(gl, totalWidth, totalHeight);
+        drawBackground(gl, metrics.visualWidth, metrics.visualHeight);
 
         // tiles
-        drawTiles(gl, borderSize, tilesPerRow, tilesPerColumn, totalWidth, totalHeight, width, height);
+        drawTiles(gl, metrics.borderSize, metrics.tilesPerRow, metrics.tilesPerColumn, metrics.visualWidth, metrics.visualHeight, metrics.tileSetWidth, metrics.tileSetHeight);
     }
 
     private void drawBackground(GL gl, float width, float height) {

@@ -168,6 +168,10 @@ ITileSetView {
         return this.presenter;
     }
 
+    public boolean isRenderingEnabled() {
+        return this.renderer != null && this.renderer.isEnabled();
+    }
+
     @Override
     public boolean isDirty() {
         return this.dirty;
@@ -310,6 +314,14 @@ ITileSetView {
         } else {
             return super.getAdapter(adapter);
         }
+    }
+
+    public void frameTileSet() {
+        this.renderer.frameTileSet();
+    }
+
+    public void resetZoom() {
+        this.renderer.resetZoom();
     }
 
     private void postRefreshProperties() {
