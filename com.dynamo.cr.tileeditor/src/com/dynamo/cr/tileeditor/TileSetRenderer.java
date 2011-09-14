@@ -50,6 +50,7 @@ KeyListener {
     private boolean mac = false;
     private float scale = 1.0f;
     private boolean enabled = true;
+    private boolean resetView = true;
 
     // Camera data
     private int cameraMode = CAMERA_MODE_NONE;
@@ -159,6 +160,9 @@ KeyListener {
                 }
                 this.context.release();
             }
+            if (this.image == null) {
+                this.resetView = true;
+            }
             this.image = image;
             requestPaint();
         }
@@ -194,6 +198,9 @@ KeyListener {
 
     public void setCollision(BufferedImage collision) {
         if (this.collision != collision) {
+            if (this.collision == null && this.image == null) {
+                this.resetView = true;
+            }
             this.collision = collision;
             requestPaint();
         }
@@ -244,9 +251,9 @@ KeyListener {
     public void resetZoom() {
         if (this.canvas != null && isEnabled()) {
             TileSetMetrics metrics = new TileSetMetrics();
+            this.scale = 1.0f;
             calculateMetrics(metrics);
             if (metrics.tilesPerColumn > 0 && metrics.tilesPerRow > 0) {
-                this.scale = 1.0f;
                 centerCamera(metrics.visualWidth, metrics.visualHeight);
                 requestPaint();
             }
@@ -371,6 +378,11 @@ KeyListener {
             GL gl = this.context.getGL();
             GLU glu = new GLU();
             try {
+                if (this.resetView) {
+                    this.resetView = false;
+                    resetZoom();
+                }
+
                 gl.glDepthMask(true);
                 gl.glEnable(GL.GL_DEPTH_TEST);
                 gl.glClearColor(0.0f, 0.0f, 0.0f, 1);
