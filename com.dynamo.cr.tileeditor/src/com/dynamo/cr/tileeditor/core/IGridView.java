@@ -14,4 +14,10 @@ public interface IGridView {
 
     void setLayers(List<Layer> newValue);
 
+    void refreshProperties();
+
+    void setValid(boolean valid);
+
+    void setDirty(boolean dirty);
+
 }

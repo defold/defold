@@ -13,6 +13,8 @@ public class GridPresenter implements PropertyChangeListener {
 
     private final GridModel model;
     private final IGridView view;
+    private boolean loading = false;
+    private int undoRedoCounter;
 
     public GridPresenter(GridModel model, IGridView view) {
         this.model = model;
@@ -21,14 +23,44 @@ public class GridPresenter implements PropertyChangeListener {
     }
 
     public void load(TileGrid tileGrid) throws IOException {
-        this.model.load(tileGrid);
+        this.loading = true;
+        try {
+            this.model.load(tileGrid);
+        } finally {
+            this.loading = false;
+        }
+        refresh();
+        setUndoRedoCounter(0);
+    }
+
+    public void refresh() {
+        this.view.setTileSetProperty(this.model.getTileSet());
+        this.view.setCellWidthProperty(this.model.getCellWidth());
+        this.view.setCellHeightProperty(this.model.getCellHeight());
+        this.view.setLayers(this.model.getLayers());
+        this.view.refreshProperties();
+    }
+
+    private void setUndoRedoCounter(int undoRedoCounter) {
+        boolean prevDirty = this.undoRedoCounter != 0;
+        boolean dirty = undoRedoCounter != 0;
+        if (prevDirty != dirty) {
+            this.view.setDirty(dirty);
+        }
+        this.undoRedoCounter = undoRedoCounter;
     }
 
     @SuppressWarnings("unchecked")
     @Override
     public void propertyChange(PropertyChangeEvent evt) {
-        // TODO: Control event storm?
-        if (!(evt.getNewValue() instanceof IStatus)) {
+        if (loading)
+            return;
+
+        if (evt.getNewValue() instanceof IStatus) {
+            this.view.refreshProperties();
+            this.view.setValid(this.model.isOk());
+        }
+        else {
             if (evt.getSource() instanceof GridModel) {
                 if (evt.getPropertyName().equals("tileSet")) {
                     view.setTileSetProperty((String)evt.getNewValue());

@@ -3,7 +3,9 @@ package com.dynamo.cr.tileeditor.test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyFloat;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -14,6 +16,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.List;
 
@@ -31,6 +34,7 @@ import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Platform;
+import org.eclipse.osgi.util.NLS;
 import org.junit.Before;
 import org.junit.Test;
 import org.osgi.framework.Bundle;
@@ -40,6 +44,7 @@ import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.core.IResourceType;
 import com.dynamo.cr.editor.core.IResourceTypeRegistry;
 import com.dynamo.cr.properties.IPropertyModel;
+import com.dynamo.cr.tileeditor.Activator;
 import com.dynamo.cr.tileeditor.core.GridModel;
 import com.dynamo.cr.tileeditor.core.GridPresenter;
 import com.dynamo.cr.tileeditor.core.IGridView;
@@ -98,7 +103,7 @@ public class GridTest {
         this.view = mock(IGridView.class);
         this.history = new DefaultOperationHistory();
         this.undoContext = new UndoContext();
-        this.model = new GridModel(this.history, this.undoContext);
+        this.model = new GridModel(this.contentRoot, this.history, this.undoContext);
         this.presenter = new GridPresenter(this.model, this.view);
         propertyModel = (IPropertyModel<GridModel, GridModel>) this.model.getAdapter(IPropertyModel.class);
     }
@@ -107,8 +112,8 @@ public class GridTest {
         // new file
         TileGrid.Builder tileGridBuilder = TileGrid.newBuilder()
                 .setTileSet("")
-                .setCellWidth(0)
-                .setCellHeight(0);
+                .setCellWidth(16)
+                .setCellHeight(16);
         TileLayer.Builder tileLayerBuilder = TileLayer.newBuilder()
                 .setId("layer1")
                 .setZ(0.0f)
@@ -119,14 +124,15 @@ public class GridTest {
         return tileGrid;
     }
 
-    private void newMarioTileSet(IFile file) throws IOException, CoreException {
+    private void newTileSet(String name, String image) throws IOException, CoreException {
+        IFile file = contentRoot.getFile(new Path(name));
         TileSet tileSet = TileSet.newBuilder()
-                .setImage("/test/mario_tileset.png")
+                .setImage(image)
                 .setTileWidth(16)
                 .setTileHeight(16)
                 .setTileSpacing(0)
                 .setTileMargin(1)
-                .setCollision("/test/mario_tileset.png")
+                .setCollision(image)
                 .setMaterialTag("tile")
                 .addCollisionGroups("default")
                 .build();
@@ -134,6 +140,10 @@ public class GridTest {
         byte[] msg = tileSet.toString().getBytes();
         ByteArrayInputStream input = new ByteArrayInputStream(msg);
         file.create(input, true, monitor);
+    }
+
+    private void newMarioTileSet() throws IOException, CoreException {
+        newTileSet("/mario.tileset", "/test/mario_tileset.png");
     }
 
     private TileGrid loadFile(IFile file) throws IOException, CoreException {
@@ -179,8 +189,8 @@ public class GridTest {
         assertTrue(layer.isVisible());
 
         verify(this.view, times(1)).setTileSetProperty(any(String.class));
-        verify(this.view, never()).setCellWidthProperty(anyFloat());
-        verify(this.view, never()).setCellHeightProperty(anyFloat());
+        verify(this.view, times(1)).setCellWidthProperty(anyFloat());
+        verify(this.view, times(1)).setCellHeightProperty(anyFloat());
         verify(this.view, times(1)).setLayers(any(List.class));
     }
 
@@ -190,10 +200,9 @@ public class GridTest {
      */
     @Test
     public void testUseCase211() throws Exception {
-        IFile marioTileSetFile = contentRoot.getFile(new Path("/mario.tileset"));
         IFile levelFile = contentRoot.getFile(new Path("/level.grid"));
 
-        newMarioTileSet(marioTileSetFile);
+        newMarioTileSet();
         newGridFile(levelFile);
 
         @SuppressWarnings("unused")
@@ -205,5 +214,119 @@ public class GridTest {
         assertEquals("/test/mario.tileset", this.model.getTileSet());
         assertEquals(16, this.model.getCellWidth(), 0.0001);
         assertEquals(16, this.model.getCellHeight(), 0.0001);
+    }
+
+    /**
+     * Message 2.1 - Image not specified
+     * @throws IOException
+     * @throws CoreException
+     */
+    @Test
+    public void testMessage21() throws IOException, CoreException {
+        loadEmptyFile();
+
+        int code = Activator.STATUS_GRID_TS_NOT_SPECIFIED;
+
+        assertTrue(this.model.hasPropertyStatus("tileSet", code));
+        assertEquals(Activator.getStatusMessage(code), this.model.getPropertyStatus("tileSet", code).getMessage());
+        verify(this.view, times(1)).refreshProperties();
+
+        this.model.executeOperation(propertyModel.setPropertyValue("tileSet", "/mario.tileset"));
+        assertTrue(!this.model.hasPropertyStatus("tileSet", Activator.STATUS_TS_IMG_NOT_SPECIFIED));
+        verify(this.view, times(3)).refreshProperties();
+    }
+
+    /**
+     * Message 2.2 - Tileset not found
+     * @throws IOException
+     * @throws CoreException
+     */
+    @Test
+    public void testMessage22() throws IOException, CoreException {
+        newMarioTileSet();
+        loadEmptyFile();
+
+        int code = Activator.STATUS_GRID_TS_NOT_FOUND;
+
+        assertTrue(!this.model.hasPropertyStatus("tileSet", code));
+        verify(this.view, times(1)).refreshProperties();
+        verify(this.view, never()).setValid(anyBoolean());
+
+        String invalidPath = "/test";
+        this.model.executeOperation(propertyModel.setPropertyValue("tileSet", invalidPath));
+        assertTrue(this.model.hasPropertyStatus("tileSet", code));
+        assertEquals(NLS.bind(Activator.getStatusMessage(code), invalidPath), this.model.getPropertyStatus("tileSet", code).getMessage());
+        verify(this.view, times(3)).refreshProperties();
+        verify(this.view, times(2)).setValid(eq(false));
+
+        this.model.executeOperation(propertyModel.setPropertyValue("tileSet", "/mario.tileset"));
+        assertTrue(!this.model.hasPropertyStatus("tileSet", code));
+        verify(this.view, times(5)).refreshProperties();
+        verify(this.view, times(1)).setValid(eq(true));
+    }
+
+    /**
+     * Message 2.3 - Invalid tile set
+     * @throws IOException
+     * @throws CoreException
+     */
+    @Test
+    public void testMessage23() throws IOException, CoreException {
+        newTileSet("/missing_image.tileset", "/test/does_not_exists.png");
+        loadEmptyFile();
+
+        int code = Activator.STATUS_GRID_INVALID_TILESET;
+
+        assertTrue(!this.model.hasPropertyStatus("tileSet", code));
+        this.model.executeOperation(propertyModel.setPropertyValue("tileSet", "/missing_image.tileset"));
+        assertTrue(this.model.hasPropertyStatus("tileSet", code));
+    }
+
+    /**
+     * Message 2.4/2.5 - Invalid cell width/height
+     * @throws IOException
+     * @throws CoreException
+     */
+    @Test
+    public void testMessage24_25() throws IOException, CoreException {
+        loadEmptyFile();
+
+        int codeWidth = Activator.STATUS_GRID_INVALID_CELL_WIDTH;
+        int codeHeight = Activator.STATUS_GRID_INVALID_CELL_HEIGHT;
+
+        assertTrue(!this.model.hasPropertyStatus("cellWidth", codeWidth));
+        this.model.executeOperation(propertyModel.setPropertyValue("cellWidth", 0));
+        assertTrue(this.model.hasPropertyStatus("cellWidth", codeWidth));
+
+        assertTrue(!this.model.hasPropertyStatus("cellHeight", codeHeight));
+        this.model.executeOperation(propertyModel.setPropertyValue("cellHeight", 0));
+        assertTrue(this.model.hasPropertyStatus("cellHeight", codeHeight));
+    }
+
+    /**
+     * Message 2.6 - Duplicated layer ids
+     * @throws IOException
+     * @throws CoreException
+     */
+    @Test
+    public void testMessage26() throws IOException, CoreException {
+        loadEmptyFile();
+
+        int code = Activator.STATUS_GRID_DUPLICATED_LAYER_IDS;
+        List<GridModel.Layer> layers = new ArrayList<GridModel.Layer>();
+        GridModel.Layer layer1 = new GridModel.Layer();
+        layer1.setId("layer1");
+        GridModel.Layer layer1_dup = new GridModel.Layer();
+        layer1_dup.setId("layer1");
+
+        layers.add(layer1);
+
+        assertTrue(!this.model.hasPropertyStatus("layers", code));
+        this.model.executeOperation(propertyModel.setPropertyValue("layers", layers));
+        assertTrue(!this.model.hasPropertyStatus("layers", code));
+
+        layers.add(layer1_dup);
+        this.model.executeOperation(propertyModel.setPropertyValue("layers", layers));
+        assertTrue(this.model.hasPropertyStatus("layers", code));
     }
 }

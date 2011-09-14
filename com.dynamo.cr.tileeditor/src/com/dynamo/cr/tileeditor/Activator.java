@@ -36,6 +36,13 @@ public class Activator extends AbstractUIPlugin {
     public static final int STATUS_TS_INVALID_TILE_MGN = 110;
     public static final int STATUS_TS_INVALID_TILE_SPCN = 111;
 
+    public static final int STATUS_GRID_TS_NOT_SPECIFIED = 201;
+    public static final int STATUS_GRID_TS_NOT_FOUND = 202;
+    public static final int STATUS_GRID_INVALID_TILESET = 203;
+    public static final int STATUS_GRID_INVALID_CELL_WIDTH = 204;
+    public static final int STATUS_GRID_INVALID_CELL_HEIGHT = 205;
+    public static final int STATUS_GRID_DUPLICATED_LAYER_IDS = 206;
+
     // The shared instance
     private static Activator plugin;
 

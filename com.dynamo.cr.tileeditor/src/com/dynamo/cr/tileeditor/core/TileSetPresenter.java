@@ -54,8 +54,11 @@ public class TileSetPresenter implements PropertyChangeListener, IOperationHisto
 
     public void load(TileSet tileSet) throws IOException {
         loading = true;
-        this.model.load(tileSet);
-        loading = false;
+        try {
+            this.model.load(tileSet);
+        } finally {
+            loading = false;
+        }
         refresh();
         setUndoRedoCounter(0);
     }
