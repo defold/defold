@@ -6,7 +6,7 @@ import com.dynamo.cr.properties.ICommandFactory;
 import com.dynamo.cr.properties.IPropertyAccessor;
 import com.dynamo.cr.tileeditor.operations.SetPropertiesOperation;
 
-public class UndoableCommandFactory implements
+public class TileSetUndoableCommandFactory implements
 ICommandFactory<Object, TileSetModel> {
     @Override
     public IUndoableOperation create(Object node, String property,
@@ -14,7 +14,7 @@ ICommandFactory<Object, TileSetModel> {
             Object newValue, TileSetModel model) {
 
         if (!newValue.equals(oldValue)) {
-            SetPropertiesOperation<Object> operation = new SetPropertiesOperation<Object>(node,
+            SetPropertiesOperation<Object, TileSetModel> operation = new SetPropertiesOperation<Object, TileSetModel>(node,
                     property, accessor, oldValue,
                     newValue, model);
             return operation;

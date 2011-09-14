@@ -7,9 +7,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.IOperationHistory;
 import org.eclipse.core.commands.operations.IUndoContext;
+import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.core.runtime.IAdaptable;
+import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Status;
 
 import com.dynamo.cr.properties.Entity;
 import com.dynamo.cr.properties.IPropertyModel;
@@ -17,10 +21,11 @@ import com.dynamo.cr.properties.IPropertyObjectWorld;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.PropertyIntrospector;
 import com.dynamo.cr.properties.PropertyIntrospectorModel;
+import com.dynamo.cr.tileeditor.Activator;
 import com.dynamo.tile.proto.Tile;
 import com.dynamo.tile.proto.Tile.TileGrid;
 
-@Entity(commandFactory = UndoableCommandFactory.class)
+@Entity(commandFactory = GridUndoableCommandFactory.class)
 public class GridModel extends Model implements IPropertyObjectWorld, IAdaptable {
 
     private static PropertyIntrospector<Cell, GridModel> cellIntrospector = new PropertyIntrospector<Cell, GridModel>(Cell.class);
@@ -145,11 +150,11 @@ public class GridModel extends Model implements IPropertyObjectWorld, IAdaptable
 
     private List<Layer> layers;
 
-    private final IOperationHistory history;
+    private final IOperationHistory undoHistory;
     private final IUndoContext undoContext;
 
     public GridModel(IOperationHistory history, IUndoContext undoContext) {
-        this.history = history;
+        this.undoHistory = history;
         this.undoContext = undoContext;
 
         this.layers = new ArrayList<Layer>();
@@ -239,6 +244,20 @@ public class GridModel extends Model implements IPropertyObjectWorld, IAdaptable
             return new PropertyIntrospectorModel<GridModel, GridModel>(this, this, introspector);
         }
         return null;
+    }
+
+    public void executeOperation(IUndoableOperation operation) {
+        operation.addContext(this.undoContext);
+        IStatus status = null;
+        try {
+            status = this.undoHistory.execute(operation, null, null);
+        } catch (final ExecutionException e) {
+            Activator.logException(e);
+        }
+
+        if (status != Status.OK_STATUS) {
+            Activator.logException(status.getException());
+        }
     }
 
 }

@@ -29,6 +29,19 @@
             </reference-type-class>
          </references>
       </resource-type>
+      <resource-type
+            file-extension="grid"
+            id="com.dynamo.cr.tileeditor.resourcetypes.TileGrid"
+            name="Tile Grid"
+            proto-message-class="com.dynamo.tile.proto.Tile$TileGrid"
+            template-data="tile_set: &quot;&quot; cell_width: 32 cell_height: 32"
+            type-class="tile_set">
+         <references>
+            <reference-type-class
+                  type-class="image">
+            </reference-type-class>
+         </references>
+      </resource-type>
    </extension>
    <extension
          point="org.eclipse.ui.newWizards">

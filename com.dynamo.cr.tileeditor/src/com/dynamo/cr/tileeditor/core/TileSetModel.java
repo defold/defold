@@ -45,7 +45,7 @@ import com.dynamo.tile.proto.Tile;
 import com.dynamo.tile.proto.Tile.TileSet;
 import com.google.protobuf.TextFormat;
 
-@Entity(commandFactory = UndoableCommandFactory.class, accessor = TileSetPropertyAccessor.class)
+@Entity(commandFactory = TileSetUndoableCommandFactory.class, accessor = TileSetPropertyAccessor.class)
 public class TileSetModel extends Model implements IPropertyObjectWorld, IAdaptable {
 
     // TODO: Should be configurable

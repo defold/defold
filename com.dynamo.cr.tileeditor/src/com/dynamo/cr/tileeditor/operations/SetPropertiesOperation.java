@@ -11,18 +11,19 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 
 import com.dynamo.cr.properties.IPropertyAccessor;
+import com.dynamo.cr.properties.IPropertyObjectWorld;
 import com.dynamo.cr.tileeditor.core.TileSetModel;
 
-public class SetPropertiesOperation<T> extends AbstractOperation {
+public class SetPropertiesOperation<T, U extends IPropertyObjectWorld> extends AbstractOperation {
 
-    private IPropertyAccessor<Object, TileSetModel> accessor;
-    private TileSetModel model;
+    private IPropertyAccessor<Object, U> accessor;
+    private U model;
     private String property;
     private List<T> oldValues;
     private List<T> newValues;
     private List<Object> nodes;
 
-    public SetPropertiesOperation(List<Object> nodes, String property, IPropertyAccessor<Object, TileSetModel> accessor, List<T> oldValues, List<T> newValues, TileSetModel model) {
+    public SetPropertiesOperation(List<Object> nodes, String property, IPropertyAccessor<Object, U> accessor, List<T> oldValues, List<T> newValues, U model) {
         super("Set " + property);
         this.property = property;
         this.nodes = nodes;
@@ -49,7 +50,7 @@ public class SetPropertiesOperation<T> extends AbstractOperation {
     }
 
     @SuppressWarnings("unchecked")
-    public SetPropertiesOperation(Object node, String property, IPropertyAccessor<Object, TileSetModel> accessor, T oldValue, T newValue, TileSetModel scene) {
+    public SetPropertiesOperation(Object node, String property, IPropertyAccessor<Object, U> accessor, T oldValue, T newValue, U scene) {
         this(Arrays.asList(node), property, accessor, Arrays.asList(oldValue), Arrays.asList(newValue), scene);
     }
 
