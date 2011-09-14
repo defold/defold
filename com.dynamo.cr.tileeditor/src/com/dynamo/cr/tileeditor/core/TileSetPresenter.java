@@ -11,6 +11,7 @@ import java.util.List;
 
 import org.eclipse.core.commands.operations.IOperationHistoryListener;
 import org.eclipse.core.commands.operations.OperationHistoryEvent;
+import org.eclipse.core.resources.IResourceChangeEvent;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.ui.services.IDisposable;
@@ -38,6 +39,11 @@ public class TileSetPresenter implements PropertyChangeListener, IOperationHisto
         this.collisionGroupColors = new ArrayList<Color>();
         this.undoRedoCounter = 0;
         this.model.getUndoHistory().addOperationHistoryListener(this);
+    }
+
+    public void handleResourceChanged(IResourceChangeEvent event) {
+        if (this.model.handleResourceChanged(event))
+            refresh();
     }
 
     @Override

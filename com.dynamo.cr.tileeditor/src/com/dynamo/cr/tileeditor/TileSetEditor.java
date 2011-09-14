@@ -8,6 +8,7 @@ import java.util.List;
 
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
+import org.eclipse.core.resources.IResourceChangeEvent;
 import org.eclipse.core.resources.IWorkspace;
 import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
@@ -45,8 +46,7 @@ import com.dynamo.cr.tileeditor.core.ITileSetView;
 import com.dynamo.cr.tileeditor.core.TileSetModel;
 import com.dynamo.cr.tileeditor.core.TileSetPresenter;
 
-public class TileSetEditor extends AbstractDefoldEditor implements
-ITileSetView {
+public class TileSetEditor extends AbstractDefoldEditor implements ITileSetView {
 
     private IContainer contentRoot;
     private TileSetPresenter presenter;
@@ -353,6 +353,18 @@ ITileSetView {
             }
         } catch (Throwable e) {
             Activator.logException(e);
+        }
+    }
+
+    @Override
+    protected void handleResourceChanged(final IResourceChangeEvent event) {
+        if (!inSave) {
+            Display display= getSite().getShell().getDisplay();
+            display.asyncExec(new Runnable() {
+                public void run() {
+                    presenter.handleResourceChanged(event);
+                }
+            });
         }
     }
 
