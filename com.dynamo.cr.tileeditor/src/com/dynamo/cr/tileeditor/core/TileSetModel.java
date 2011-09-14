@@ -829,9 +829,10 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
         }
     }
 
-    public void handleResourceChanged(IResourceChangeEvent event) {
+    public boolean handleResourceChanged(IResourceChangeEvent event) {
 
         final IFile files[] = new IFile[2];
+        final boolean[] reload = new boolean[] { false };
 
         if (image != null && image.length() > 0) {
             files[0] = this.contentRoot.getFile(new Path(image));
@@ -859,6 +860,7 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
                         found = true;
                     }
                     if (found) {
+                        reload[0] = true;
                         return false;
                     }
                     return true;
@@ -867,6 +869,8 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
         } catch (CoreException e) {
             Activator.logException(e);
         }
+
+        return reload[0];
     }
 
 }

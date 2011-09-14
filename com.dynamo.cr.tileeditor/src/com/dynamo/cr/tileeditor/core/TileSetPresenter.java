@@ -42,8 +42,8 @@ public class TileSetPresenter implements PropertyChangeListener, IOperationHisto
     }
 
     public void handleResourceChanged(IResourceChangeEvent event) {
-        this.model.handleResourceChanged(event);
-        refresh();
+        if (this.model.handleResourceChanged(event))
+            refresh();
     }
 
     @Override
