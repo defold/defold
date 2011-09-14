@@ -29,7 +29,7 @@ import org.eclipse.ui.operations.RedoActionHandler;
 import org.eclipse.ui.operations.UndoActionHandler;
 import org.eclipse.ui.part.EditorPart;
 
-public abstract class AbstractDefoldEditor extends EditorPart implements IResourceChangeListener {
+public abstract class AbstractDefoldEditor extends EditorPart {
 
     private long lastModificationStamp;
     private ActivationListener activationListener;
@@ -38,6 +38,7 @@ public abstract class AbstractDefoldEditor extends EditorPart implements IResour
     protected UndoActionHandler undoHandler;
     protected RedoActionHandler redoHandler;
     protected boolean inSave = false;
+    private ResourceChangedListner resourceChangeListener;
     private final static int UNDO_LIMIT = 100;
 
     protected abstract void logException(Throwable e);
@@ -45,17 +46,20 @@ public abstract class AbstractDefoldEditor extends EditorPart implements IResour
     @Override
     public void dispose() {
         super.dispose();
-        ResourcesPlugin.getWorkspace().removeResourceChangeListener(this);
-        this.activationListener.dispose();
+
+        if (this.activationListener != null)
+            this.activationListener.dispose();
+
+        if (this.resourceChangeListener != null)
+            this.resourceChangeListener.dispose();
     }
 
     @Override
     public void init(IEditorSite site, IEditorInput input)
             throws PartInitException {
 
-        ResourcesPlugin.getWorkspace().addResourceChangeListener(this);
-
         this.activationListener = new ActivationListener(getSite().getWorkbenchWindow().getPartService());
+        this.resourceChangeListener = new ResourceChangedListner();
 
         this.undoContext = new UndoContext();
         this.history = PlatformUI.getWorkbench().getOperationSupport()
@@ -121,7 +125,7 @@ public abstract class AbstractDefoldEditor extends EditorPart implements IResour
     }
 
 
-    protected void handleResourceChanged(IResourceChangeEvent event) {
+    protected void handleReloadResourceChanged(IResourceChangeEvent event) {
         IFileEditorInput fileEditorInput = (IFileEditorInput) getEditorInput();
         final IFile file = fileEditorInput.getFile();
 
@@ -132,11 +136,6 @@ public abstract class AbstractDefoldEditor extends EditorPart implements IResour
                 public boolean visit(IResourceDelta delta) throws CoreException {
                     IResource resource = delta.getResource();
                     if (file.equals(resource)) {
-
-                        /*
-                        if (file.exists()) {
-                            lastModificationStamp = file.getModificationStamp();
-                        }*/
 
                         checkFileState();
 
@@ -152,23 +151,36 @@ public abstract class AbstractDefoldEditor extends EditorPart implements IResour
 
     }
 
-    @Override
-    public void resourceChanged(final IResourceChangeEvent event) {
-        if (inSave) {
-            IFileEditorInput fileEditorInput = (IFileEditorInput) getEditorInput();
-            IFile file = fileEditorInput.getFile();
-            lastModificationStamp = file.getModificationStamp();
-        } else {
-            Display display= getSite().getShell().getDisplay();
-            display.asyncExec(new Runnable() {
-                public void run() {
-                    handleResourceChanged(event);
-                }
-            });
+    protected abstract void doReload(IFile file);
+    protected abstract void handleResourceChanged(IResourceChangeEvent event);
+
+    class ResourceChangedListner implements IResourceChangeListener {
+
+        public ResourceChangedListner() {
+            ResourcesPlugin.getWorkspace().addResourceChangeListener(this);
+        }
+
+        public void dispose() {
+            ResourcesPlugin.getWorkspace().removeResourceChangeListener(this);
+        }
+
+        @Override
+        public void resourceChanged(final IResourceChangeEvent event) {
+            if (inSave) {
+                IFileEditorInput fileEditorInput = (IFileEditorInput) getEditorInput();
+                IFile file = fileEditorInput.getFile();
+                lastModificationStamp = file.getModificationStamp();
+            } else {
+                Display display= getSite().getShell().getDisplay();
+                display.asyncExec(new Runnable() {
+                    public void run() {
+                        handleReloadResourceChanged(event);
+                        handleResourceChanged(event);
+                    }
+                });
+            }
         }
     }
-
-    protected abstract void doReload(IFile file);
 
     class ActivationListener implements IPartListener, IWindowListener {
 

@@ -72,8 +72,8 @@ public class TileSetTest implements IResourceChangeListener {
 
     @Override
     public void resourceChanged(IResourceChangeEvent event) {
-        if (model != null) {
-            model.handleResourceChanged(event);
+        if (presenter != null) {
+            presenter.handleResourceChanged(event);
         }
     }
 
@@ -371,14 +371,14 @@ public class TileSetTest implements IResourceChangeListener {
         assertNotSame(preHulls.size(), postHulls.size());
 
         verify(this.view, times(1)).setImage((BufferedImage)isNull());
-        verify(this.view, times(1)).setTileWidth(eq(16));
-        verify(this.view, times(1)).setTileHeight(eq(16));
-        verify(this.view, times(1)).setTileMargin(eq(0));
-        verify(this.view, times(1)).setTileSpacing(eq(0));
+        verify(this.view, times(2)).setTileWidth(eq(16));
+        verify(this.view, times(2)).setTileHeight(eq(16));
+        verify(this.view, times(2)).setTileMargin(eq(0));
+        verify(this.view, times(2)).setTileSpacing(eq(0));
         verify(this.view, times(1)).setCollision((BufferedImage)isNull());
-        verify(this.view, times(8)).refreshProperties();
-        verify(this.view, times(1)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
-        verify(this.view, times(2)).setHulls(any(float[].class), any(int[].class), any(int[].class), any(Color[].class));
+        verify(this.view, times(9)).refreshProperties();
+        verify(this.view, times(2)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
+        verify(this.view, times(3)).setHulls(any(float[].class), any(int[].class), any(int[].class), any(Color[].class));
         verify(this.view, times(0)).setHullColor(anyInt(), any(Color.class));
         verify(this.view, times(1)).setDirty(anyBoolean());
     }
