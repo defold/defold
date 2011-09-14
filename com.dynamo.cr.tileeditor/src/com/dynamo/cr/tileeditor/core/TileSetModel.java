@@ -678,7 +678,7 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
 
     public boolean isOk() {
         for (Map.Entry<String, IStatus> propertyStatus : this.propertyStatuses.entrySet()) {
-            if (!propertyStatus.getValue().isOK()) {
+            if (!(propertyStatus.getValue().isOK() || propertyStatus.getValue().getSeverity() == IStatus.INFO)) {
                 return false;
             }
         }
