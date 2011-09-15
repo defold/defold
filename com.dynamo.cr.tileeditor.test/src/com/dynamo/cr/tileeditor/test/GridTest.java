@@ -217,7 +217,7 @@ public class GridTest {
     }
 
     /**
-     * Message 2.1 - Image not specified
+     * Message 2.1 - Tile set not specified
      * @throws IOException
      * @throws CoreException
      */
@@ -237,7 +237,7 @@ public class GridTest {
     }
 
     /**
-     * Message 2.2 - Tileset not found
+     * Message 2.2 - Tile set not found
      * @throws IOException
      * @throws CoreException
      */
