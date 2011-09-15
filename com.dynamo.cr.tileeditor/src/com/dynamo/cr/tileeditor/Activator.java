@@ -126,8 +126,21 @@ public class Activator extends AbstractUIPlugin {
             return Messages.TS_INVALID_TILE_MGN;
         case STATUS_TS_INVALID_TILE_SPCN:
             return Messages.TS_INVALID_TILE_SPCN;
+        case STATUS_GRID_TS_NOT_SPECIFIED:
+            return Messages.GRID_TS_NOT_SPECIFIED;
+        case STATUS_GRID_TS_NOT_FOUND:
+            return Messages.GRID_TS_NOT_FOUND;
+        case STATUS_GRID_INVALID_TILESET:
+            return Messages.GRID_INVALID_TILESET;
+        case STATUS_GRID_INVALID_CELL_WIDTH:
+            return Messages.GRID_INVALID_CELL_WIDTH;
+        case STATUS_GRID_INVALID_CELL_HEIGHT:
+            return Messages.GRID_INVALID_CELL_HEIGHT;
+        case STATUS_GRID_DUPLICATED_LAYER_IDS:
+            return Messages.GRID_DUPLICATED_LAYER_IDS;
+
         default:
-            return "Unknown system error: " + code;
+            throw new RuntimeException("Unknown system error: " + code);
         }
     }
 }

@@ -214,6 +214,7 @@ public class GridModel extends Model implements IPropertyObjectWorld, IAdaptable
     private void loadTileSet() {
         try {
             clearPropertyStatus("tileSet", Activator.STATUS_GRID_TS_NOT_FOUND);
+            clearPropertyStatus("tileSet", Activator.STATUS_GRID_INVALID_TILESET);
             TileSet tileSetMessage = loadTileSetFile(tileSet);
             this.tileSetModel.load(tileSetMessage);
             IStatus imageStatus = this.tileSetModel.getPropertyStatus("image");
