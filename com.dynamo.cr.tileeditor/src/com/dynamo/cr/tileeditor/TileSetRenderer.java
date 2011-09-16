@@ -312,12 +312,14 @@ KeyListener {
             float recipScale = 1.0f / this.scale;
             this.offset[0] += dx * recipScale;
             this.offset[1] -= dy * recipScale;
+            activeTile = -1;
             requestPaint();
             break;
         case CAMERA_MODE_DOLLY:
             float ds = -dy * 0.005f;
             this.scale += (this.scale > 1.0f) ? ds * this.scale : ds;
             this.scale = Math.max(0.1f, this.scale);
+            activeTile = -1;
             requestPaint();
             break;
         case CAMERA_MODE_NONE:
@@ -371,16 +373,19 @@ KeyListener {
         if ((this.mac && event.stateMask == (SWT.ALT | SWT.CTRL))
                 || (!this.mac && event.button == 2 && event.stateMask == SWT.ALT)) {
             this.cameraMode = CAMERA_MODE_TRACK;
+            this.activeTile = -1;
+            requestPaint();
         } else if ((this.mac && event.stateMask == (SWT.CTRL))
                 || (!this.mac && event.button == 3 && event.stateMask == SWT.ALT)) {
             this.cameraMode = CAMERA_MODE_DOLLY;
+            this.activeTile = -1;
+            requestPaint();
         } else {
             this.cameraMode = CAMERA_MODE_NONE;
             if (event.button == 1) {
                 this.presenter.beginSetConvexHullCollisionGroup(this.brushCollisionGroup);
-                int index = pickTile(event.x, event.y);
-                if (index >= 0) {
-                    this.presenter.setConvexHullCollisionGroup(index);
+                if (this.activeTile >= 0) {
+                    this.presenter.setConvexHullCollisionGroup(this.activeTile);
                 }
             }
         }
@@ -390,6 +395,11 @@ KeyListener {
     public void mouseUp(MouseEvent e) {
         if (this.cameraMode != CAMERA_MODE_NONE) {
             this.cameraMode = CAMERA_MODE_NONE;
+            int activeTile = pickTile(e.x, e.y);
+            if (activeTile != this.activeTile) {
+                this.activeTile = activeTile;
+                requestPaint();
+            }
         } else if (e.button == 1) {
             this.presenter.endSetConvexHullCollisionGroup();
         }
