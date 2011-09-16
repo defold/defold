@@ -3,6 +3,7 @@ package com.dynamo.cr.tileeditor;
 import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.nio.FloatBuffer;
+import java.nio.IntBuffer;
 
 import javax.media.opengl.GL;
 import javax.media.opengl.GLContext;
@@ -45,12 +46,15 @@ KeyListener {
     private final TileSetPresenter presenter;
     private GLCanvas canvas;
     private GLContext context;
-    private final int[] viewPort = new int[4];
+    private final IntBuffer viewPort = BufferUtil.newIntBuffer(4);
     private boolean paintRequested = false;
     private boolean mac = false;
     private float scale = 1.0f;
     private boolean enabled = true;
     private boolean resetView = true;
+    private String brushCollisionGroup = "";
+    private Color brushColor = Color.white;
+    private int activeTile = -1;
 
     // Camera data
     private int cameraMode = CAMERA_MODE_NONE;
@@ -224,6 +228,12 @@ KeyListener {
         }
     }
 
+    public void setBrushCollisionGroup(String brushCollisionGroup, Color brushColor) {
+        this.brushCollisionGroup = brushCollisionGroup;
+        this.brushColor = brushColor;
+        requestPaint();
+    }
+
     private void centerCamera(float width, float height) {
         if (this.image != null || this.collision != null) {
             this.offset[0] = -width * 0.5f;
@@ -266,10 +276,11 @@ KeyListener {
     public void handleEvent(Event event) {
         if (event.type == SWT.Resize) {
             Rectangle client = canvas.getClientArea();
-            viewPort[0] = 0;
-            viewPort[1] = 0;
-            viewPort[2] = client.width;
-            viewPort[3] = client.height;
+            viewPort.put(0);
+            viewPort.put(0);
+            viewPort.put(client.width);
+            viewPort.put(client.height);
+            viewPort.flip();
         } else if (event.type == SWT.Paint) {
             requestPaint();
         }
@@ -295,6 +306,7 @@ KeyListener {
     public void mouseMove(MouseEvent e) {
         int dx = e.x - this.lastX;
         int dy = e.y - this.lastY;
+        int activeTile = pickTile(e.x, e.y);
         switch (this.cameraMode) {
         case CAMERA_MODE_TRACK:
             float recipScale = 1.0f / this.scale;
@@ -308,9 +320,39 @@ KeyListener {
             this.scale = Math.max(0.1f, this.scale);
             requestPaint();
             break;
+        case CAMERA_MODE_NONE:
+            if ((e.stateMask & SWT.BUTTON1) == SWT.BUTTON1) {
+                if (activeTile >= 0) {
+                    this.presenter.setConvexHullCollisionGroup(activeTile);
+                }
+            }
         }
         this.lastX = e.x;
         this.lastY = e.y;
+        if (activeTile != this.activeTile) {
+            this.activeTile = activeTile;
+            requestPaint();
+        }
+    }
+
+    private int pickTile(int x, int y) {
+        if (isEnabled()) {
+            TileSetMetrics metrics = new TileSetMetrics();
+            calculateMetrics(metrics);
+            int viewPortWidth = this.viewPort.get(2);
+            int viewPortHeight = this.viewPort.get(3);
+            float tileX = (x - 0.5f * viewPortWidth) / this.scale - this.offset[0];
+            tileX /= metrics.visualWidth;
+            float tileY = (y - 0.5f * viewPortHeight) / this.scale + this.offset[1];
+            tileY /= metrics.visualHeight;
+            tileY += 1.0f;
+            if (tileX >= 0.0f && tileX < 1.0f && tileY >= 0.0f && tileY < 1.0f) {
+                int column = (int)Math.floor(tileX * metrics.tilesPerRow);
+                int row = (int)Math.floor(tileY * metrics.tilesPerColumn);
+                return row * metrics.tilesPerRow + column;
+            }
+        }
+        return -1;
     }
 
     // MouseListener
@@ -327,24 +369,30 @@ KeyListener {
         this.lastY = event.y;
 
         if ((this.mac && event.stateMask == (SWT.ALT | SWT.CTRL))
-                || (!this.mac && event.button == 2 && event.stateMask == SWT.ALT))
-        {
+                || (!this.mac && event.button == 2 && event.stateMask == SWT.ALT)) {
             this.cameraMode = CAMERA_MODE_TRACK;
-        }
-        else if ((this.mac && event.stateMask == (SWT.CTRL))
-                || (!this.mac && event.button == 3 && event.stateMask == SWT.ALT))
-        {
+        } else if ((this.mac && event.stateMask == (SWT.CTRL))
+                || (!this.mac && event.button == 3 && event.stateMask == SWT.ALT)) {
             this.cameraMode = CAMERA_MODE_DOLLY;
-        }
-        else
-        {
+        } else {
             this.cameraMode = CAMERA_MODE_NONE;
+            if (event.button == 1) {
+                this.presenter.beginSetConvexHullCollisionGroup(this.brushCollisionGroup);
+                int index = pickTile(event.x, event.y);
+                if (index >= 0) {
+                    this.presenter.setConvexHullCollisionGroup(index);
+                }
+            }
         }
     }
 
     @Override
     public void mouseUp(MouseEvent e) {
-        this.cameraMode = CAMERA_MODE_NONE;
+        if (this.cameraMode != CAMERA_MODE_NONE) {
+            this.cameraMode = CAMERA_MODE_NONE;
+        } else if (e.button == 1) {
+            this.presenter.endSetConvexHullCollisionGroup();
+        }
     }
 
     public boolean isEnabled() {
@@ -391,18 +439,9 @@ KeyListener {
                 gl.glDisable(GL.GL_DEPTH_TEST);
                 gl.glDepthMask(false);
 
-                gl.glViewport(this.viewPort[0], this.viewPort[1], this.viewPort[2], this.viewPort[3]);
+                gl.glViewport(this.viewPort.get(0), this.viewPort.get(1), this.viewPort.get(2), this.viewPort.get(3));
 
-                gl.glMatrixMode(GL.GL_PROJECTION);
-                gl.glLoadIdentity();
-                float recipScale = 1.0f / this.scale;
-                float x = 0.5f * this.viewPort[2] * recipScale;
-                float y = 0.5f * this.viewPort[3] * recipScale;
-                glu.gluOrtho2D(-x, x, -y, y);
-
-                gl.glMatrixMode(GL.GL_MODELVIEW);
-                gl.glLoadIdentity();
-                gl.glTranslatef(this.offset[0], this.offset[1], 0.0f);
+                setupViewProj(gl, glu);
 
                 drawTileSet(gl);
 
@@ -414,6 +453,19 @@ KeyListener {
                 context.release();
             }
         }
+    }
+
+    private void setupViewProj(GL gl, GLU glu) {
+        gl.glMatrixMode(GL.GL_PROJECTION);
+        gl.glLoadIdentity();
+        float recipScale = 1.0f / this.scale;
+        float x = 0.5f * this.viewPort.get(2) * recipScale;
+        float y = 0.5f * this.viewPort.get(3) * recipScale;
+        glu.gluOrtho2D(-x, x, -y, y);
+
+        gl.glMatrixMode(GL.GL_MODELVIEW);
+        gl.glLoadIdentity();
+        gl.glTranslatef(this.offset[0], this.offset[1], 0.0f);
     }
 
     class TileSetMetrics {
@@ -511,6 +563,10 @@ KeyListener {
         float recipScale = 1.0f / this.scale;
         float border = borderSize * recipScale;
         float z = 0.5f;
+        float activeX0 = 0.0f;
+        float activeX1 = 0.0f;
+        float activeY0 = 0.0f;
+        float activeY1 = 0.0f;
         for (int row = 0; row < tilesPerColumn; ++row) {
             for (int column = 0; column < tilesPerRow; ++column) {
                 float x0 = column * (tileWidth + border) + border;
@@ -536,6 +592,12 @@ KeyListener {
                             this.hullVertexBuffer.put(y0 + 0.5f + this.hullVertices[hi+1]);
                         }
                     }
+                    if (index == this.activeTile) {
+                        activeX0 = x0 - border;
+                        activeX1 = x1 + border;
+                        activeY0 = y0 - border;
+                        activeY1 = y1 + border;
+                    }
                 }
             }
         }
@@ -543,12 +605,13 @@ KeyListener {
 
         // Tiles
 
+        gl.glEnableClientState(GL.GL_TEXTURE_COORD_ARRAY);
+        gl.glEnableClientState(GL.GL_VERTEX_ARRAY);
+
         gl.glEnable(GL.GL_DEPTH_TEST);
         gl.glDepthMask(true);
         gl.glEnable(GL.GL_BLEND);
         gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
-        gl.glEnableClientState(GL.GL_TEXTURE_COORD_ARRAY);
-        gl.glEnableClientState(GL.GL_VERTEX_ARRAY);
         if (this.texture != null) {
             this.texture.bind();
             this.texture.setTexParameteri(GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST);
@@ -583,6 +646,15 @@ KeyListener {
         gl.glVertex3f(0.0f, height, z);
         gl.glVertex3f(width, height, z);
         gl.glVertex3f(width, 0.0f, z);
+
+        if (this.activeTile >= 0) {
+            float f = 1.0f / 255.0f;
+            gl.glColor4f(brushColor.getRed() * f, brushColor.getBlue() * f, brushColor.getGreen() * f, brushColor.getAlpha() * f);
+            gl.glVertex3f(activeX0, activeY0, z);
+            gl.glVertex3f(activeX0, activeY1, z);
+            gl.glVertex3f(activeX1, activeY1, z);
+            gl.glVertex3f(activeX1, activeY0, z);
+        }
         gl.glEnd();
 
         gl.glDisable(GL.GL_DEPTH_TEST);

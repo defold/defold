@@ -56,6 +56,9 @@ public class TileSetEditor extends AbstractDefoldEditor implements ITileSetView 
     private boolean refreshPropertiesPosted = false;
     // avoids reloading while saving
     private TileSetRenderer renderer;
+    // cache collision groups serve to others
+    List<String> collisionGroups;
+    List<Color> collisionGroupColors;
 
     @Override
     protected void logException(Throwable e) {
@@ -281,6 +284,8 @@ public class TileSetEditor extends AbstractDefoldEditor implements ITileSetView 
 
     @Override
     public void setCollisionGroups(List<String> collisionGroups, List<Color> colors, String[] selectedCollisionGroups) {
+        this.collisionGroups = collisionGroups;
+        this.collisionGroupColors = colors;
         this.outlinePage.setInput(collisionGroups, colors, selectedCollisionGroups);
     }
 
@@ -313,6 +318,18 @@ public class TileSetEditor extends AbstractDefoldEditor implements ITileSetView 
             return this.outlinePage;
         } else {
             return super.getAdapter(adapter);
+        }
+    }
+
+    public List<String> getCollisionGroups() {
+        return this.collisionGroups;
+    }
+
+    public void setBrushCollisionGroup(int index) {
+        if (index < 0) {
+            this.renderer.setBrushCollisionGroup("", Color.white);
+        } else if (index < this.collisionGroups.size()) {
+            this.renderer.setBrushCollisionGroup(this.collisionGroups.get(index), this.collisionGroupColors.get(index));
         }
     }
 
@@ -361,6 +378,7 @@ public class TileSetEditor extends AbstractDefoldEditor implements ITileSetView 
         if (!inSave) {
             Display display= getSite().getShell().getDisplay();
             display.asyncExec(new Runnable() {
+                @Override
                 public void run() {
                     presenter.handleResourceChanged(event);
                 }

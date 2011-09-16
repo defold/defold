@@ -94,6 +94,16 @@
             id="com.dynamo.cr.tileeditor.commands.ResetZoom"
             name="Reset Zoom">
       </command>
+      <command
+            id="com.dynamo.cr.tileeditor.commands.SetBrushCollisionGroup"
+            name="Set Brush Collision Group">
+         <commandParameter
+               id="index"
+               name="index"
+               optional="true"
+               values="com.dynamo.cr.tileeditor.CollisionGroupParameterValues">
+         </commandParameter>
+      </command>
    </extension>
    <extension
          point="org.eclipse.ui.bindings">
@@ -114,6 +124,106 @@
             contextId="com.dynamo.cr.tileeditor.contexts.TileSetEditor"
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
             sequence="Z">
+      </key>
+      <key
+            commandId="com.dynamo.cr.tileeditor.commands.SetBrushCollisionGroup"
+            contextId="com.dynamo.cr.tileeditor.contexts.TileSetEditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="0">
+         <parameter
+               id="index"
+               value="-1">
+         </parameter>
+      </key>
+      <key
+            commandId="com.dynamo.cr.tileeditor.commands.SetBrushCollisionGroup"
+            contextId="com.dynamo.cr.tileeditor.contexts.TileSetEditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="1">
+         <parameter
+               id="index"
+               value="0">
+         </parameter>
+      </key>
+      <key
+            commandId="com.dynamo.cr.tileeditor.commands.SetBrushCollisionGroup"
+            contextId="com.dynamo.cr.tileeditor.contexts.TileSetEditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="2">
+         <parameter
+               id="index"
+               value="1">
+         </parameter>
+      </key>
+      <key
+            commandId="com.dynamo.cr.tileeditor.commands.SetBrushCollisionGroup"
+            contextId="com.dynamo.cr.tileeditor.contexts.TileSetEditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="3">
+         <parameter
+               id="index"
+               value="2">
+         </parameter>
+      </key>
+      <key
+            commandId="com.dynamo.cr.tileeditor.commands.SetBrushCollisionGroup"
+            contextId="com.dynamo.cr.tileeditor.contexts.TileSetEditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="4">
+         <parameter
+               id="index"
+               value="3">
+         </parameter>
+      </key>
+      <key
+            commandId="com.dynamo.cr.tileeditor.commands.SetBrushCollisionGroup"
+            contextId="com.dynamo.cr.tileeditor.contexts.TileSetEditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="5">
+         <parameter
+               id="index"
+               value="4">
+         </parameter>
+      </key>
+      <key
+            commandId="com.dynamo.cr.tileeditor.commands.SetBrushCollisionGroup"
+            contextId="com.dynamo.cr.tileeditor.contexts.TileSetEditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="6">
+         <parameter
+               id="index"
+               value="5">
+         </parameter>
+      </key>
+      <key
+            commandId="com.dynamo.cr.tileeditor.commands.SetBrushCollisionGroup"
+            contextId="com.dynamo.cr.tileeditor.contexts.TileSetEditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="7">
+         <parameter
+               id="index"
+               value="6">
+         </parameter>
+      </key>
+      <key
+            commandId="com.dynamo.cr.tileeditor.commands.SetBrushCollisionGroup"
+            contextId="com.dynamo.cr.tileeditor.contexts.TileSetEditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="8">
+         <parameter
+               id="index"
+               value="7">
+         </parameter>
+      </key>
+      <key
+            commandId="com.dynamo.cr.tileeditor.commands.SetBrushCollisionGroup"
+            contextId="com.dynamo.cr.tileeditor.contexts.TileSetEditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="9">
+         <parameter
+               id="index"
+               value="8">
+         </parameter>
       </key>
    </extension>
    <extension
@@ -245,6 +355,24 @@
       <handler
             class="com.dynamo.cr.tileeditor.commands.ResetZoom"
             commandId="com.dynamo.cr.tileeditor.commands.ResetZoom">
+         <activeWhen>
+            <reference
+                  definitionId="com.dynamo.cr.tileeditor.definitions.tileSetEditorActive">
+            </reference>
+         </activeWhen>
+         <enabledWhen>
+            <with
+                  variable="activeEditor">
+               <test
+                     property="com.dynamo.cr.tileeditor.editorProperties.isRenderingEnabled"
+                     value="true">
+               </test>
+            </with>
+         </enabledWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.tileeditor.commands.SetBrushCollisionGroup"
+            commandId="com.dynamo.cr.tileeditor.commands.SetBrushCollisionGroup">
          <activeWhen>
             <reference
                   definitionId="com.dynamo.cr.tileeditor.definitions.tileSetEditorActive">

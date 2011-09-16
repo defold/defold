@@ -88,7 +88,16 @@ public class TileSetPresenter implements PropertyChangeListener, IOperationHisto
 
     public void endSetConvexHullCollisionGroup() {
         if (this.currentCollisionGroup != null) {
-            this.model.executeOperation(new SetConvexHullCollisionGroupsOperation(this.model, this.oldCollisionGroups, this.currentCollisionGroup));
+            boolean empty = true;
+            for (String group : this.oldCollisionGroups) {
+                if (group != null) {
+                    empty = false;
+                    break;
+                }
+            }
+            if (!empty) {
+                this.model.executeOperation(new SetConvexHullCollisionGroupsOperation(this.model, this.oldCollisionGroups, this.currentCollisionGroup));
+            }
             this.currentCollisionGroup = null;
         }
     }
@@ -226,7 +235,7 @@ public class TileSetPresenter implements PropertyChangeListener, IOperationHisto
                     hullColors[tile] = Color.white;
                     if (hull.getCount() > 0) {
                         int collisionGroupIndex = this.model.getCollisionGroups().indexOf(hull.getCollisionGroup());
-                        if (collisionGroupIndex > 0) {
+                        if (collisionGroupIndex >= 0) {
                             hullColors[tile] = this.collisionGroupColors.get(collisionGroupIndex);
                         }
                     }
@@ -240,7 +249,7 @@ public class TileSetPresenter implements PropertyChangeListener, IOperationHisto
         int tileIndex = this.model.getConvexHulls().indexOf(hull);
         int collisionGroupIndex = this.model.getCollisionGroups().indexOf(hull.getCollisionGroup());
         Color color = Color.white;
-        if (collisionGroupIndex > 0) {
+        if (collisionGroupIndex >= 0) {
             color = this.collisionGroupColors.get(collisionGroupIndex);
         }
         this.view.setHullColor(tileIndex, color);
