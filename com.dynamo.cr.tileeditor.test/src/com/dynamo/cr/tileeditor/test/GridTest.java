@@ -143,7 +143,7 @@ public class GridTest {
     }
 
     private void newMarioTileSet() throws IOException, CoreException {
-        newTileSet("/mario.tileset", "/test/mario_tileset.png");
+        newTileSet("/mario.tileset", "/mario_tileset.png");
     }
 
     private TileGrid loadFile(IFile file) throws IOException, CoreException {
@@ -261,7 +261,7 @@ public class GridTest {
 
         this.model.executeOperation(propertyModel.setPropertyValue("tileSet", "/mario.tileset"));
         assertTrue(!this.model.hasPropertyStatus("tileSet", code));
-        verify(this.view, times(5)).refreshProperties();
+        verify(this.view, times(4)).refreshProperties();
         verify(this.view, times(1)).setValid(eq(true));
     }
 
@@ -273,13 +273,18 @@ public class GridTest {
     @Test
     public void testMessage23() throws IOException, CoreException {
         newTileSet("/missing_image.tileset", "/test/does_not_exists.png");
+        newMarioTileSet();
         loadEmptyFile();
 
         int code = Activator.STATUS_GRID_INVALID_TILESET;
 
         assertTrue(!this.model.hasPropertyStatus("tileSet", code));
         this.model.executeOperation(propertyModel.setPropertyValue("tileSet", "/missing_image.tileset"));
+        assertEquals(Activator.getStatusMessage(code), this.model.getPropertyStatus("tileSet", code).getMessage());
         assertTrue(this.model.hasPropertyStatus("tileSet", code));
+
+        this.model.executeOperation(propertyModel.setPropertyValue("tileSet", "/mario.tileset"));
+        assertTrue(!this.model.hasPropertyStatus("tileSet", code));
     }
 
     /**
@@ -297,10 +302,17 @@ public class GridTest {
         assertTrue(!this.model.hasPropertyStatus("cellWidth", codeWidth));
         this.model.executeOperation(propertyModel.setPropertyValue("cellWidth", 0));
         assertTrue(this.model.hasPropertyStatus("cellWidth", codeWidth));
+        assertEquals(Activator.getStatusMessage(codeWidth), this.model.getPropertyStatus("cellWidth", codeWidth).getMessage());
+        this.model.executeOperation(propertyModel.setPropertyValue("cellWidth", 32));
+        assertTrue(!this.model.hasPropertyStatus("cellWidth", codeWidth));
 
         assertTrue(!this.model.hasPropertyStatus("cellHeight", codeHeight));
         this.model.executeOperation(propertyModel.setPropertyValue("cellHeight", 0));
         assertTrue(this.model.hasPropertyStatus("cellHeight", codeHeight));
+        assertEquals(Activator.getStatusMessage(codeHeight), this.model.getPropertyStatus("cellHeight", codeHeight).getMessage());
+
+        this.model.executeOperation(propertyModel.setPropertyValue("cellHeight", 32));
+        assertTrue(!this.model.hasPropertyStatus("cellHeight", codeHeight));
     }
 
     /**
@@ -327,6 +339,11 @@ public class GridTest {
 
         layers.add(layer1_dup);
         this.model.executeOperation(propertyModel.setPropertyValue("layers", layers));
+        assertEquals(Activator.getStatusMessage(code), this.model.getPropertyStatus("layers", code).getMessage());
         assertTrue(this.model.hasPropertyStatus("layers", code));
+
+        layers.remove(0);
+        this.model.executeOperation(propertyModel.setPropertyValue("layers", layers));
+        assertTrue(!this.model.hasPropertyStatus("layers", code));
     }
 }

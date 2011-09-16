@@ -15,6 +15,14 @@ public class Messages extends NLS {
     public static String TS_MAT_NOT_SPECIFIED;
     public static String TS_INVALID_TILE_MGN;
     public static String TS_INVALID_TILE_SPCN;
+
+    public static String GRID_TS_NOT_SPECIFIED;
+    public static String GRID_TS_NOT_FOUND;
+    public static String GRID_INVALID_TILESET;
+    public static String GRID_INVALID_CELL_WIDTH;
+    public static String GRID_INVALID_CELL_HEIGHT;
+    public static String GRID_DUPLICATED_LAYER_IDS;
+
     static {
         // initialize resource bundle
         NLS.initializeMessages(BUNDLE_NAME, Messages.class);
