@@ -314,6 +314,10 @@
             activityId="com.dynamo.cr.editor.activities.disableEclipseUI"
             pattern="org\.eclipse\.ui\.editors/org\.eclipse\.ui\.edit\.text\.gotoLastEditPosition">
       </activityPatternBinding>
+      <activityPatternBinding
+            activityId="com.dynamo.cr.editor.activities.disableEclipseUI"
+            pattern="org\.eclipse\.search/org\.eclipse\.search\.OpenSearchDialogPage">
+      </activityPatternBinding>
    </extension>
    <extension
          point="org.eclipse.ui.decorators">
