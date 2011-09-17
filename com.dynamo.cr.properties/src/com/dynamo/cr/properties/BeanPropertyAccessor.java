@@ -10,7 +10,6 @@ import javax.vecmath.Quat4d;
 import javax.vecmath.Vector3d;
 import javax.vecmath.Vector4d;
 
-import org.eclipse.core.runtime.IStatus;
 import org.eclipse.swt.graphics.RGB;
 
 public class BeanPropertyAccessor implements IPropertyAccessor<Object, IPropertyObjectWorld> {
@@ -117,12 +116,5 @@ public class BeanPropertyAccessor implements IPropertyAccessor<Object, IProperty
             throw new RuntimeException(String.format("Missing getter for %s#%s", obj.getClass().getName(), property));
         }
         return propertyDescriptor.getReadMethod().invoke(obj);
-    }
-
-    @Override
-    public IStatus getStatus(Object obj, String property,
-            IPropertyObjectWorld world) throws IllegalArgumentException,
-            IllegalAccessException, InvocationTargetException {
-        return null;
     }
 }

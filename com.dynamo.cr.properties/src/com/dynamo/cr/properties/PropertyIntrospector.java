@@ -3,8 +3,12 @@ package com.dynamo.cr.properties;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import javax.vecmath.Quat4d;
 import javax.vecmath.Vector3d;
@@ -12,6 +16,9 @@ import javax.vecmath.Vector4d;
 
 import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.MultiStatus;
+import org.eclipse.core.runtime.Status;
+import org.eclipse.osgi.util.NLS;
 import org.eclipse.swt.graphics.RGB;
 
 import com.dynamo.cr.properties.descriptors.DoublePropertyDesc;
@@ -23,6 +30,8 @@ import com.dynamo.cr.properties.descriptors.ResourcePropertyDesc;
 import com.dynamo.cr.properties.descriptors.TextPropertyDesc;
 import com.dynamo.cr.properties.descriptors.Vector3PropertyDesc;
 import com.dynamo.cr.properties.descriptors.Vector4PropertyDesc;
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Multimap;
 import com.google.protobuf.ProtocolMessageEnum;
 
 public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
@@ -31,6 +40,10 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
     private IPropertyDesc<T, U>[] descriptors;
     private ICommandFactory<T, U> commandFactory;
     private Class<? extends IPropertyAccessor<T, U>> accessorClass;
+    private Multimap<String, Annotation> validators = ArrayListMultimap.create();
+    private Multimap<String, Method> methodValidators = ArrayListMultimap.create();
+    private Set<String> properties = new HashSet<String>();
+    private Class<? extends NLS> nls;
 
     public PropertyIntrospector(Class<?> klass) {
         this.klass = klass;
@@ -39,6 +52,11 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public PropertyIntrospector(Class<?> klass, Class<? extends NLS> nls) {
+        this(klass);
+        this.nls = nls;
     }
 
     public IPropertyDesc<T, U>[] getDescriptors() {
@@ -64,6 +82,7 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
                     if (annotation.annotationType() == Property.class) {
                         field.setAccessible(true);
                         Property property = (Property) annotation;
+                        properties.add(field.getName());
 
                         IPropertyDesc<T, U> descriptor;
                         if (field.getType() == String.class) {
@@ -91,9 +110,22 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
                         }
 
                         descriptors.add(descriptor);
+
+                        try {
+                            String name = field.getName();
+                            Method validatorMethod = klass.getDeclaredMethod(String.format("validate%c%s", Character.toUpperCase(name.charAt(0)), name.substring(1)));
+                            validatorMethod.setAccessible(true);
+                            methodValidators.put(field.getName(), validatorMethod);
+                        } catch (NoSuchMethodException e) {
+                            // Pass
+                        }
+
+                    } else if (annotation.annotationType().isAnnotationPresent(Validator.class)) {
+                        this.validators.put(field.getName(), annotation);
                     }
                 }
             }
+
             klass = klass.getSuperclass();
         }
 
@@ -128,6 +160,7 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
     public IUndoableOperation setPropertyValue(T object, U world, Object id, Object value) {
         try {
             IPropertyAccessor<T, U> accessor = accessorClass.newInstance();
+            //accessor = new PropertyAccessorValidator(accessor);
             Object oldValue = accessor.getValue(object, (String) id, world);
             IUndoableOperation operation = commandFactory.create(object, (String) id, accessor, oldValue, value, world);
             return operation;
@@ -148,10 +181,46 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
         return null;
     }
 
+    private IStatus validate(T obj, IPropertyAccessor<T, U> accessor, String property, U world) throws IllegalArgumentException, IllegalAccessException, InvocationTargetException, InstantiationException {
+
+        Object actualValue = accessor.getValue(obj, property, world);
+        Collection<Annotation> list = validators.get(property);
+        ArrayList<IStatus> statusList = new ArrayList<IStatus>(list.size());
+        for (Annotation annotation : list) {
+            Validator validatorClass = annotation.annotationType().getAnnotation(Validator.class);
+            @SuppressWarnings("unchecked")
+            IValidator<Object, Annotation, U> validator = (IValidator<Object, Annotation, U>) validatorClass.validator().newInstance();
+            IStatus status = validator.validate(annotation, property, actualValue, world, nls);
+            if (!status.isOK()) {
+                statusList.add(status);
+            }
+        }
+
+        Collection<Method> methods = methodValidators.get(property);
+        if (methods != null) {
+            for (Method method : methods) {
+                IStatus status = (IStatus) method.invoke(obj);
+                if (!status.isOK()) {
+                    statusList.add(status);
+                }
+            }
+        }
+
+        if (statusList.size() == 1) {
+            return statusList.get(0);
+        }
+        else if (statusList.size() > 0) {
+            IStatus[] statusArray = statusList.toArray(new IStatus[statusList.size()]);
+            return new MultiStatus(statusArray[0].getPlugin(), 0, statusArray, "Multi status", null);
+        } else {
+            return Status.OK_STATUS;
+        }
+    }
+
     public IStatus getPropertyStatus(T object, U world, Object id) {
         try {
             IPropertyAccessor<T, U> accessor = accessorClass.newInstance();
-            IStatus status = accessor.getStatus(object, (String) id, world);
+            IStatus status = validate(object, accessor, (String) id, world);
             return status;
 
         } catch (IllegalArgumentException e) {
@@ -171,6 +240,35 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
             e.printStackTrace();
             return null;
         }
+    }
+
+    public boolean isOk(T object, U world) {
+        try {
+            IPropertyAccessor<T, U> accessor = accessorClass.newInstance();
+            for (String property : properties) {
+                if (validate(object, accessor, property, world).getSeverity() > IStatus.INFO) {
+                    return false;
+                }
+            }
+            return true;
+        } catch (IllegalArgumentException e) {
+            // Can't use any UI here in a core plugin such as StatusManager
+            e.printStackTrace();
+            return true;
+        } catch (IllegalAccessException e) {
+            // Can't use any UI here in a core plugin such as StatusManager
+            e.printStackTrace();
+            return true;
+        } catch (InvocationTargetException e) {
+            // Can't use any UI here in a core plugin such as StatusManager
+            e.printStackTrace();
+            return true;
+        } catch (InstantiationException e) {
+            // Can't use any UI here in a core plugin such as StatusManager
+            e.printStackTrace();
+            return true;
+        }
+
     }
 
     public ICommandFactory<T, U> getCommandFactory() {

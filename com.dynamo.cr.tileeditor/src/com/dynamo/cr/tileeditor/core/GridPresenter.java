@@ -56,9 +56,9 @@ public class GridPresenter implements PropertyChangeListener {
         if (loading)
             return;
 
+        this.view.setValid(this.model.isOk());
+        this.view.refreshProperties();
         if (evt.getNewValue() instanceof IStatus) {
-            this.view.refreshProperties();
-            this.view.setValid(this.model.isOk());
         }
         else {
             if (evt.getSource() instanceof GridModel) {
