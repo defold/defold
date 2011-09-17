@@ -67,74 +67,16 @@
          point="org.eclipse.ui.menus">
       <menuContribution
             allPopups="false"
-            locationURI="toolbar:org.eclipse.ui.main.toolbar?after=additions">
-         <toolbar
-               id="com.dynamo.crepo.toolbar"
-               label="Content Repository">
-            <command
-                  commandId="org.eclipse.ui.file.save"
-                  icon="icons/save.png"
-                  label="Save"
-                  style="push">
-            </command>
-            <command
-                  commandId="com.dynamo.crepo.commands.connect"
-                  icon="icons/database_connect.png"
-                  label="Connect"
-                  style="push">
-            </command>
-            <command
-                  commandId="com.dynamo.crepo.commands.synchronize"
-                  icon="icons/database_refresh.png"
-                  label="Synchronize"
-                  style="push">
-            </command>
-            <command
-                  commandId="com.dynamo.crepo.commands.launch"
-                  icon="icons/play.png"
-                  id="com.dynamo.crepo.commands.toolbar.launch"
-                  label="Launch"
-                  style="pulldown">
-            </command>
-         </toolbar>
-      </menuContribution>
-      <menuContribution
-            allPopups="false"
-            locationURI="menu:com.dynamo.crepo.commands.toolbar.launch">
-         <command
-               commandId="com.dynamo.crepo.commands.launch"
-               label="Build"
-               style="push">
-            <parameter
-                  name="com.dynamo.crepo.commands.launch.type"
-                  value="build">
-            </parameter>
-         </command>
-         <separator
-               name="com.dynamo.cr.editor.separator1">
-         </separator>
-         <command
-               commandId="com.dynamo.crepo.commands.launch"
-               label="Rebuild"
-               style="push">
-            <parameter
-                  name="com.dynamo.crepo.commands.launch.type"
-                  value="rebuild">
-            </parameter>
-         </command>
-      </menuContribution>
-      <menuContribution
-            allPopups="false"
             locationURI="menu:edit">
          <command
                commandId="com.dynamo.crepo.commands.reloadresource"
-               label="Reload resource"
+               label="Reload Resource"
                style="push"
                tooltip="Reload resources">
          </command>
          <command
                commandId="org.eclipse.ui.navigate.openResource"
-               label="Open resource..."
+               label="Open Resource..."
                style="push"
                tooltip="Open resource">
          </command>
@@ -166,7 +108,7 @@
             locationURI="menu:org.eclipse.ui.main.menu?after=navigate">
          <menu
                id="com.dynamo.cr.editor.menus.tools"
-               label="Tools">
+               label="Project">
             <command
                   commandId="com.dynamo.crepo.commands.launch"
                   icon="icons/play.png"
@@ -359,6 +301,18 @@
       <activityPatternBinding
             activityId="com.dynamo.cr.editor.activities.disableEclipseUI"
             pattern="org\.eclipse\.ui\.editors/org\.eclipse\.ui\.editors\.wizards\.UntitledTextFileWizard">
+      </activityPatternBinding>
+      <activityPatternBinding
+            activityId="com.dynamo.cr.editor.activities.disableEclipseUI"
+            pattern="org\.eclipse\.ui\.editors/org\.eclipse\.ui\.edit\.text\.gotoNextAnnotation">
+      </activityPatternBinding>
+      <activityPatternBinding
+            activityId="com.dynamo.cr.editor.activities.disableEclipseUI"
+            pattern="org\.eclipse\.ui\.editors/org\.eclipse\.ui\.edit\.text\.gotoPreviousAnnotation">
+      </activityPatternBinding>
+      <activityPatternBinding
+            activityId="com.dynamo.cr.editor.activities.disableEclipseUI"
+            pattern="org\.eclipse\.ui\.editors/org\.eclipse\.ui\.edit\.text\.gotoLastEditPosition">
       </activityPatternBinding>
    </extension>
    <extension

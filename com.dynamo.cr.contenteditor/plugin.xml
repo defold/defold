@@ -188,6 +188,18 @@
          <menu
                label="Collection">
             <command
+                  commandId="com.dynamo.cr.contenteditor.commands.addgameobject"
+                  icon="icons/add_att_16x16.gif"
+                  label="Add Game Object"
+                  style="push">
+            </command>
+            <command
+                  commandId="com.dynamo.cr.contenteditor.commands.addsubcollection"
+                  icon="icons/add_att_16x16.gif"
+                  label="Add Sub Collection"
+                  style="push">
+            </command>
+            <command
                   commandId="com.dynamo.cr.contenteditor.commands.parent"
                   icon="icons/bricks.png"
                   label="Parent"
@@ -199,145 +211,136 @@
                   label="Unparent"
                   style="push">
             </command>
-            <command
-                  commandId="com.dynamo.cr.contenteditor.commands.addgameobject"
-                  icon="icons/add_att_16x16.gif"
-                  label="Add GameObject"
-                  style="push">
-            </command>
-            <command
-                  commandId="com.dynamo.cr.contenteditor.commands.addsubcollection"
-                  icon="icons/add_att_16x16.gif"
-                  label="Add Subcollection"
-                  style="push">
-            </command>
-            <command
-                  commandId="com.dynamo.cr.contenteditor.commands.resetCamera"
-                  label="Reset Camera"
-                  style="push">
-            </command>
-            <command
-                  commandId="com.dynamo.cr.contenteditor.commands.frameObjects"
-                  label="Frame Objects"
-                  style="push">
-            </command>
             <visibleWhen
                   checkEnabled="false">
                <reference
                      definitionId="com.dynamo.cr.contenteditor.definitions.collectionEditorActive">
                </reference>
             </visibleWhen>
-         </menu>
-      </menuContribution>
-      <menuContribution
-            allPopups="false"
-            locationURI="toolbar:org.eclipse.ui.main.toolbar?after=com.dynamo.crepo.toolbar">
-         <toolbar
-               id="com.dynamo.cr.contenteditor.toolbars.tools"
-               label="Tools">
-            <command
-                  commandId="com.dynamo.cr.contenteditor.commands.activateTool"
-                  icon="icons/select.png"
-                  label="Select"
-                  style="radio">
-                <parameter
+            <separator
+                  name="com.dynamo.cr.contenteditor.menus.collection.separator1"
+                  visible="true">
+            </separator>
+            <menu
+                  label="Camera">
+               <command
+                     commandId="com.dynamo.cr.contenteditor.commands.resetCamera"
+                     label="Reset Camera"
+                     style="push">
+               </command>
+               <command
+                     commandId="com.dynamo.cr.contenteditor.commands.frameObjects"
+                     label="Frame Objects"
+                     style="push">
+               </command>
+               <menu
+                     label="Mode">
+                  <command
+                        commandId="com.dynamo.cr.contenteditor.commands.activateCamera"
+                        icon="icons/box.png"
+                        label="Perspective"
+                        style="radio">
+                     <parameter
+                           name="org.eclipse.ui.commands.radioStateParameter"
+                           value="perspective">
+                     </parameter>
+                  </command>
+                  <command
+                        commandId="com.dynamo.cr.contenteditor.commands.activateCamera"
+                        icon="icons/box_closed.png"
+                        label="Orthographic"
+                        style="radio">
+                     <parameter
+                           name="org.eclipse.ui.commands.radioStateParameter"
+                           value="orthographic">
+                     </parameter>
+                  </command>
+               </menu>
+            </menu>
+            <separator
+                  name="com.dynamo.cr.contenteditor.menus.collection.separator2"
+                  visible="true">
+            </separator>
+            <menu
+                  label="Tools">
+               <command
+                     commandId="com.dynamo.cr.contenteditor.commands.activateTool"
+                     icon="icons/select.png"
+                     label="Select"
+                     style="radio">
+                  <parameter
                         name="org.eclipse.ui.commands.radioStateParameter"
                         value="select">
-                </parameter>
-            </command>
-            <command
-                  commandId="com.dynamo.cr.contenteditor.commands.activateTool"
-                  icon="icons/move.png"
-                  label="Move"
-                  style="radio">
-                <parameter
+                  </parameter>
+               </command>
+               <command
+                     commandId="com.dynamo.cr.contenteditor.commands.activateTool"
+                     icon="icons/move.png"
+                     label="Move"
+                     style="radio">
+                  <parameter
                         name="org.eclipse.ui.commands.radioStateParameter"
                         value="move">
-                </parameter>
-            </command>
-            <command
-                  commandId="com.dynamo.cr.contenteditor.commands.activateTool"
-                  icon="icons/rotate.png"
-                  label="Rotate"
-                  style="radio">
-                <parameter
+                  </parameter>
+               </command>
+               <command
+                     commandId="com.dynamo.cr.contenteditor.commands.activateTool"
+                     icon="icons/rotate.png"
+                     label="Rotate"
+                     style="radio">
+                  <parameter
                         name="org.eclipse.ui.commands.radioStateParameter"
                         value="rotate">
-                </parameter>
-            </command>
-         </toolbar>
-         <toolbar
-               id="com.dynamo.cr.contenteditor.toolbars.camera"
-               label="Camera">
-            <command
-                  commandId="com.dynamo.cr.contenteditor.commands.activateCamera"
-                  icon="icons/box_closed.png"
-                  label="Orthographic"
-                  style="radio">
-               <parameter
-                     name="org.eclipse.ui.commands.radioStateParameter"
-                     value="orthographic">
-               </parameter>
-            </command>
-            <command
-                  commandId="com.dynamo.cr.contenteditor.commands.activateCamera"
-                  icon="icons/box.png"
-                  label="Perspective"
-                  style="radio">
-               <parameter
-                     name="org.eclipse.ui.commands.radioStateParameter"
-                     value="perspective">
-               </parameter>
-            </command>
-         </toolbar>
-         <toolbar
-               id="com.dynamo.cr.contenteditor.toolbars.orientation"
-               label="Orientation">
-            <command
-                  commandId="com.dynamo.cr.contenteditor.commands.activateOrientation"
-                  icon="icons/local.png"
-                  label="Local Orientation"
-                  style="radio">
-               <parameter
-                     name="org.eclipse.ui.commands.radioStateParameter"
-                     value="local">
-               </parameter>
-            </command>
-            <command
-                  commandId="com.dynamo.cr.contenteditor.commands.activateOrientation"
-                  icon="icons/global.png"
-                  label="Global Orientation"
-                  style="radio">
-               <parameter
-                     name="org.eclipse.ui.commands.radioStateParameter"
-                     value="global">
-               </parameter>
-            </command>
-         </toolbar>
-         <toolbar
-               id="com.dynamo.cr.contenteditor.toolbars.pivot"
-               label="Pivot">
-            <command
-                  commandId="com.dynamo.cr.contenteditor.commands.activatePivot"
-                  icon="icons/pivot_unique.png"
-                  label="Local Pivot"
-                  style="radio">
-               <parameter
-                     name="org.eclipse.ui.commands.radioStateParameter"
-                     value="local">
-               </parameter>
-            </command>
-            <command
-                  commandId="com.dynamo.cr.contenteditor.commands.activatePivot"
-                  icon="icons/pivot_common.png"
-                  label="Global Pivot"
-                  style="radio">
-               <parameter
-                     name="org.eclipse.ui.commands.radioStateParameter"
-                     value="manipulator">
-               </parameter>
-            </command>
-         </toolbar>
+                  </parameter>
+               </command>
+               <menu
+                     label="Orientation">
+                  <command
+                        commandId="com.dynamo.cr.contenteditor.commands.activateOrientation"
+                        icon="icons/local.png"
+                        label="Local"
+                        style="radio">
+                     <parameter
+                           name="org.eclipse.ui.commands.radioStateParameter"
+                           value="local">
+                     </parameter>
+                  </command>
+                  <command
+                        commandId="com.dynamo.cr.contenteditor.commands.activateOrientation"
+                        icon="icons/global.png"
+                        label="Global"
+                        style="radio">
+                     <parameter
+                           name="org.eclipse.ui.commands.radioStateParameter"
+                           value="global">
+                     </parameter>
+                  </command>
+               </menu>
+               <menu
+                     label="Pivot">
+                  <command
+                        commandId="com.dynamo.cr.contenteditor.commands.activatePivot"
+                        icon="icons/pivot_unique.png"
+                        label="Local"
+                        style="radio">
+                     <parameter
+                           name="org.eclipse.ui.commands.radioStateParameter"
+                           value="local">
+                     </parameter>
+                  </command>
+                  <command
+                        commandId="com.dynamo.cr.contenteditor.commands.activatePivot"
+                        icon="icons/pivot_common.png"
+                        label="Global"
+                        style="radio">
+                     <parameter
+                           name="org.eclipse.ui.commands.radioStateParameter"
+                           value="manipulator">
+                     </parameter>
+                  </command>
+               </menu>
+            </menu>
+         </menu>
       </menuContribution>
    </extension>
    <extension
