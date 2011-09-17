@@ -295,11 +295,6 @@ public class TileSetEditor extends AbstractDefoldEditor implements ITileSetView 
     }
 
     @Override
-    public void setHullColor(int index, Color color) {
-        this.renderer.setHullColor(index, color);
-    }
-
-    @Override
     public void setDirty(boolean dirty) {
         this.dirty = dirty;
         firePropertyChange(PROP_DIRTY);

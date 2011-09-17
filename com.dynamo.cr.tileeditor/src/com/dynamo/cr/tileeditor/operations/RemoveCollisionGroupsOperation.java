@@ -16,29 +16,25 @@ import com.dynamo.cr.tileeditor.core.TileSetModel.ConvexHull;
 public class RemoveCollisionGroupsOperation extends AbstractOperation {
     TileSetModel model;
     String[] collisionGroups;
-    List<ConvexHullGroup> convexHulls;
-
-    static class ConvexHullGroup {
-        private int index;
-        private String group;
-    }
+    List<ConvexHull> oldConvexHulls;
+    List<ConvexHull> convexHulls;
 
     public RemoveCollisionGroupsOperation(TileSetModel model) {
         super("delete collision group(s)");
         this.model = model;
         this.collisionGroups = model.getSelectedCollisionGroups();
-        this.convexHulls = new ArrayList<ConvexHullGroup>();
-        int n = model.getConvexHulls().size();
+        this.oldConvexHulls = model.getConvexHulls();
+        int n = this.oldConvexHulls.size();
+        this.convexHulls = new ArrayList<ConvexHull>(n);
         for (int i = 0; i < n; ++i) {
-            ConvexHull convexHull = model.getConvexHulls().get(i);
+            ConvexHull convexHull = new ConvexHull(this.oldConvexHulls.get(i));
             for (String collisionGroup : this.collisionGroups) {
                 if (convexHull.getCollisionGroup().equals(collisionGroup)) {
-                    ConvexHullGroup group = new ConvexHullGroup();
-                    group.index = i;
-                    group.group = collisionGroup;
-                    this.convexHulls.add(group);
+                    convexHull.setCollisionGroup("");
+                    break;
                 }
             }
+            this.convexHulls.add(convexHull);
         }
     }
 
@@ -47,9 +43,7 @@ public class RemoveCollisionGroupsOperation extends AbstractOperation {
             throws ExecutionException {
         this.model.setSelectedCollisionGroups(new String[0]);
         this.model.removeCollisionGroups(this.collisionGroups);
-        for (ConvexHullGroup hull : this.convexHulls) {
-            this.model.getConvexHulls().get(hull.index).setCollisionGroup("");
-        }
+        this.model.setConvexHulls(this.convexHulls);
         return Status.OK_STATUS;
     }
 
@@ -58,9 +52,7 @@ public class RemoveCollisionGroupsOperation extends AbstractOperation {
             throws ExecutionException {
         this.model.setSelectedCollisionGroups(new String[0]);
         this.model.removeCollisionGroups(this.collisionGroups);
-        for (ConvexHullGroup hull : this.convexHulls) {
-            this.model.getConvexHulls().get(hull.index).setCollisionGroup("");
-        }
+        this.model.setConvexHulls(this.convexHulls);
         return Status.OK_STATUS;
     }
 
@@ -69,9 +61,7 @@ public class RemoveCollisionGroupsOperation extends AbstractOperation {
             throws ExecutionException {
         this.model.setSelectedCollisionGroups(this.collisionGroups);
         this.model.addCollisionGroups(this.collisionGroups);
-        for (ConvexHullGroup hull : this.convexHulls) {
-            this.model.getConvexHulls().get(hull.index).setCollisionGroup(hull.group);
-        }
+        this.model.setConvexHulls(this.oldConvexHulls);
         return Status.OK_STATUS;
     }
 

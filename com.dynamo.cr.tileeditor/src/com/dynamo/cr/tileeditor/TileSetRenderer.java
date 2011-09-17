@@ -221,13 +221,6 @@ KeyListener {
         requestPaint();
     }
 
-    public void setHullColor(int tileIndex, Color color) {
-        if (this.hullColors[tileIndex] != color) {
-            this.hullColors[tileIndex] = color;
-            requestPaint();
-        }
-    }
-
     public String getBrushCollisionGroup() {
         return this.brushCollisionGroup;
     }

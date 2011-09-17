@@ -5,7 +5,6 @@ import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
-import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyListOf;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.isNull;
@@ -174,9 +173,8 @@ public class TileSetTest implements IResourceChangeListener {
         verify(this.view, times(1)).refreshProperties();
         verify(this.view, times(1)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
         verify(this.view, never()).setHulls(any(float[].class), any(int[].class), any(int[].class), any(Color[].class));
-        verify(this.view, never()).setHullColor(anyInt(), any(Color.class));
         verify(this.view, never()).setDirty(anyBoolean());
-        verify(this.view, never()).setValid(anyBoolean());
+        verify(this.view, times(1)).setValid(eq(true));
     }
 
     /**
@@ -311,8 +309,7 @@ public class TileSetTest implements IResourceChangeListener {
         assertEquals(tileSetFile, this.model.getCollision());
         verify(this.view, times(2)).setCollision((BufferedImage)notNull());
         verify(this.view, times(22)).refreshProperties();
-        // TODO: HACK
-        verify(this.view, times(1)).setHulls(any(float[].class), any(int[].class), any(int[].class), any(Color[].class));
+        verify(this.view, times(2)).setHulls(any(float[].class), any(int[].class), any(int[].class), any(Color[].class));
 
         for (int i = 0; i < 10; ++i) {
             assertEquals(8, this.model.getConvexHulls().get(i).getCount());
@@ -340,8 +337,6 @@ public class TileSetTest implements IResourceChangeListener {
 
         // reset since we don't want to edit material tag
         this.history.undo(this.undoContext, null, null);
-
-        verify(this.view, never()).setHullColor(anyInt(), any(Color.class));
     }
 
     /**
@@ -383,7 +378,6 @@ public class TileSetTest implements IResourceChangeListener {
         verify(this.view, times(4)).refreshProperties();
         verify(this.view, times(2)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
         verify(this.view, times(3)).setHulls(any(float[].class), any(int[].class), any(int[].class), any(Color[].class));
-        verify(this.view, times(0)).setHullColor(anyInt(), any(Color.class));
         verify(this.view, times(1)).setDirty(anyBoolean());
     }
 
@@ -429,8 +423,7 @@ public class TileSetTest implements IResourceChangeListener {
         // preconditions
         assertEquals("", this.model.getConvexHulls().get(1).getCollisionGroup());
         assertEquals("", this.model.getConvexHulls().get(2).getCollisionGroup());
-        verify(this.view, never()).setHullColor(eq(1), any(Color.class));
-        verify(this.view, never()).setHullColor(eq(2), any(Color.class));
+        verify(this.view, times(2)).setHulls(any(float[].class), any(int[].class), any(int[].class), any(Color[].class));
 
         // simulate painting
         this.presenter.beginSetConvexHullCollisionGroup("hazad");
@@ -441,18 +434,15 @@ public class TileSetTest implements IResourceChangeListener {
         this.presenter.endSetConvexHullCollisionGroup();
         assertEquals("hazad", this.model.getConvexHulls().get(1).getCollisionGroup());
         assertEquals("hazad", this.model.getConvexHulls().get(2).getCollisionGroup());
-        verify(this.view, times(1)).setHullColor(eq(1), any(Color.class));
-        verify(this.view, times(1)).setHullColor(eq(2), any(Color.class));
+        verify(this.view, times(4)).setHulls(any(float[].class), any(int[].class), any(int[].class), any(Color[].class));
         this.history.undo(this.undoContext, null, null);
         assertEquals("", this.model.getConvexHulls().get(1).getCollisionGroup());
         assertEquals("", this.model.getConvexHulls().get(2).getCollisionGroup());
-        verify(this.view, times(2)).setHullColor(eq(1), any(Color.class));
-        verify(this.view, times(2)).setHullColor(eq(2), any(Color.class));
+        verify(this.view, times(5)).setHulls(any(float[].class), any(int[].class), any(int[].class), any(Color[].class));
         this.history.redo(this.undoContext, null, null);
         assertEquals("hazad", this.model.getConvexHulls().get(1).getCollisionGroup());
         assertEquals("hazad", this.model.getConvexHulls().get(2).getCollisionGroup());
-        verify(this.view, times(3)).setHullColor(eq(1), any(Color.class));
-        verify(this.view, times(3)).setHullColor(eq(2), any(Color.class));
+        verify(this.view, times(6)).setHulls(any(float[].class), any(int[].class), any(int[].class), any(Color[].class));
     }
 
     /**
@@ -470,7 +460,7 @@ public class TileSetTest implements IResourceChangeListener {
         assertEquals("hazad", this.model.getCollisionGroups().get(1));
         assertEquals("hazad", this.model.getConvexHulls().get(1).getCollisionGroup());
         verify(this.view, times(4)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
-        verify(this.view, times(3)).setHullColor(eq(1), any(Color.class));
+        verify(this.view, times(6)).setHulls(any(float[].class), any(int[].class), any(int[].class), any(Color[].class));
 
         this.presenter.selectCollisionGroups(new String[] {"hazad"});
         assertEquals(1, this.model.getSelectedCollisionGroups().length);
@@ -481,17 +471,17 @@ public class TileSetTest implements IResourceChangeListener {
         assertEquals("hazard", this.model.getCollisionGroups().get(1));
         assertEquals("hazard", this.model.getConvexHulls().get(1).getCollisionGroup());
         verify(this.view, times(5)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
-        verify(this.view, times(4)).setHullColor(eq(1), any(Color.class));
+        verify(this.view, times(7)).setHulls(any(float[].class), any(int[].class), any(int[].class), any(Color[].class));
         this.history.undo(this.undoContext, null, null);
         assertEquals("hazad", this.model.getCollisionGroups().get(1));
         assertEquals("hazad", this.model.getConvexHulls().get(1).getCollisionGroup());
         verify(this.view, times(6)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
-        verify(this.view, times(5)).setHullColor(eq(1), any(Color.class));
+        verify(this.view, times(8)).setHulls(any(float[].class), any(int[].class), any(int[].class), any(Color[].class));
         this.history.redo(this.undoContext, null, null);
         assertEquals("hazard", this.model.getCollisionGroups().get(1));
         assertEquals("hazard", this.model.getConvexHulls().get(1).getCollisionGroup());
         verify(this.view, times(7)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
-        verify(this.view, times(6)).setHullColor(eq(1), any(Color.class));
+        verify(this.view, times(9)).setHulls(any(float[].class), any(int[].class), any(int[].class), any(Color[].class));
     }
 
     /**
@@ -531,8 +521,7 @@ public class TileSetTest implements IResourceChangeListener {
         assertEquals(1, this.model.getSelectedCollisionGroups().length);
         assertEquals("obstuction", this.model.getSelectedCollisionGroups()[0]);
         verify(this.view, times(3)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
-        verify(this.view, times(1)).setHullColor(eq(2), any(Color.class));
-        verify(this.view, times(1)).setHullColor(eq(3), any(Color.class));
+        verify(this.view, times(4)).setHulls(any(float[].class), any(int[].class), any(int[].class), any(Color[].class));
 
         // test
         this.presenter.renameSelectedCollisionGroups(new String[] {"obstruction"});
@@ -544,7 +533,7 @@ public class TileSetTest implements IResourceChangeListener {
         assertEquals(1, this.model.getSelectedCollisionGroups().length);
         assertEquals("obstruction", this.model.getSelectedCollisionGroups()[0]);
         verify(this.view, times(4)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
-        verify(this.view, times(2)).setHullColor(eq(3), any(Color.class));
+        verify(this.view, times(5)).setHulls(any(float[].class), any(int[].class), any(int[].class), any(Color[].class));
 
         // undo
         this.history.undo(this.undoContext, null, null);
@@ -557,7 +546,7 @@ public class TileSetTest implements IResourceChangeListener {
         assertEquals(1, this.model.getSelectedCollisionGroups().length);
         assertEquals("obstuction", this.model.getSelectedCollisionGroups()[0]);
         verify(this.view, times(5)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
-        verify(this.view, times(3)).setHullColor(eq(3), any(Color.class));
+        verify(this.view, times(6)).setHulls(any(float[].class), any(int[].class), any(int[].class), any(Color[].class));
 
         // redo
         this.history.redo(this.undoContext, null, null);
@@ -569,7 +558,7 @@ public class TileSetTest implements IResourceChangeListener {
         assertEquals(1, this.model.getSelectedCollisionGroups().length);
         assertEquals("obstruction", this.model.getSelectedCollisionGroups()[0]);
         verify(this.view, times(6)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
-        verify(this.view, times(4)).setHullColor(eq(3), any(Color.class));
+        verify(this.view, times(7)).setHulls(any(float[].class), any(int[].class), any(int[].class), any(Color[].class));
     }
 
     /**
@@ -612,8 +601,7 @@ public class TileSetTest implements IResourceChangeListener {
         assertEquals("obstuction", this.model.getSelectedCollisionGroups()[0]);
         assertEquals("obstruction", this.model.getSelectedCollisionGroups()[1]);
         verify(this.view, times(3)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
-        verify(this.view, times(1)).setHullColor(eq(2), any(Color.class));
-        verify(this.view, times(1)).setHullColor(eq(3), any(Color.class));
+        verify(this.view, times(4)).setHulls(any(float[].class), any(int[].class), any(int[].class), any(Color[].class));
 
         // test
         this.presenter.renameSelectedCollisionGroups(new String[] {"obstruction2", "obstruction2"});
@@ -625,7 +613,7 @@ public class TileSetTest implements IResourceChangeListener {
         assertEquals(1, this.model.getSelectedCollisionGroups().length);
         assertEquals("obstruction2", this.model.getSelectedCollisionGroups()[0]);
         verify(this.view, times(4)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
-        verify(this.view, times(2)).setHullColor(eq(3), any(Color.class));
+        verify(this.view, times(5)).setHulls(any(float[].class), any(int[].class), any(int[].class), any(Color[].class));
 
         // undo
         this.history.undo(this.undoContext, null, null);
@@ -639,7 +627,7 @@ public class TileSetTest implements IResourceChangeListener {
         assertEquals("obstuction", this.model.getSelectedCollisionGroups()[0]);
         assertEquals("obstruction", this.model.getSelectedCollisionGroups()[1]);
         verify(this.view, times(6)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
-        verify(this.view, times(3)).setHullColor(eq(3), any(Color.class));
+        verify(this.view, times(6)).setHulls(any(float[].class), any(int[].class), any(int[].class), any(Color[].class));
 
         // redo
         this.history.redo(this.undoContext, null, null);
@@ -651,16 +639,16 @@ public class TileSetTest implements IResourceChangeListener {
         assertEquals(1, this.model.getSelectedCollisionGroups().length);
         assertEquals("obstruction2", this.model.getSelectedCollisionGroups()[0]);
         verify(this.view, times(7)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
-        verify(this.view, times(4)).setHullColor(eq(3), any(Color.class));
+        verify(this.view, times(7)).setHulls(any(float[].class), any(int[].class), any(int[].class), any(Color[].class));
     }
 
     /**
-     * Use Case 1.1.9 - Remove Collision Group
+     * Use Case 1.1.8 - Remove Collision Group
      *
      * @throws IOException
      */
     @Test
-    public void testUseCase119() throws Exception {
+    public void testUseCase118() throws Exception {
 
         // requirements
         testUseCase114();
@@ -677,7 +665,7 @@ public class TileSetTest implements IResourceChangeListener {
         assertEquals(1, this.model.getSelectedCollisionGroups().length);
         assertEquals("obstruction", this.model.getSelectedCollisionGroups()[0]);
         verify(this.view, times(5)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
-        verify(this.view, times(3)).setHullColor(eq(1), any(Color.class));
+        verify(this.view, times(6)).setHulls(any(float[].class), any(int[].class), any(int[].class), any(Color[].class));
 
         this.presenter.selectCollisionGroups(new String[] {"hazad"});
         assertEquals(1, this.model.getSelectedCollisionGroups().length);
@@ -689,7 +677,7 @@ public class TileSetTest implements IResourceChangeListener {
         assertEquals("", this.model.getConvexHulls().get(1).getCollisionGroup());
         assertEquals(0, this.model.getSelectedCollisionGroups().length);
         verify(this.view, times(6)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
-        verify(this.view, times(4)).setHullColor(eq(1), any(Color.class));
+        verify(this.view, times(7)).setHulls(any(float[].class), any(int[].class), any(int[].class), any(Color[].class));
 
         this.history.undo(this.undoContext, null, null);
         assertEquals(3, this.model.getCollisionGroups().size());
@@ -700,7 +688,7 @@ public class TileSetTest implements IResourceChangeListener {
         assertEquals(1, this.model.getSelectedCollisionGroups().length);
         assertEquals("hazad", this.model.getSelectedCollisionGroups()[0]);
         verify(this.view, times(7)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
-        verify(this.view, times(5)).setHullColor(eq(1), any(Color.class));
+        verify(this.view, times(8)).setHulls(any(float[].class), any(int[].class), any(int[].class), any(Color[].class));
 
         this.history.redo(this.undoContext, null, null);
         assertEquals(2, this.model.getCollisionGroups().size());
@@ -709,16 +697,16 @@ public class TileSetTest implements IResourceChangeListener {
         assertEquals("", this.model.getConvexHulls().get(1).getCollisionGroup());
         assertEquals(0, this.model.getSelectedCollisionGroups().length);
         verify(this.view, times(8)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
-        verify(this.view, times(6)).setHullColor(eq(1), any(Color.class));
+        verify(this.view, times(9)).setHulls(any(float[].class), any(int[].class), any(int[].class), any(Color[].class));
     }
 
     /**
-     * Use Case 1.1.8 - Save
+     * Use Case 1.1.9 - Save
      *
      * @throws IOException
      */
     @Test
-    public void testUseCase118() throws Exception {
+    public void testUseCase119() throws Exception {
 
         // requires
         testUseCase114();
@@ -801,7 +789,7 @@ public class TileSetTest implements IResourceChangeListener {
 
         assertTrue(!propertyModel.getPropertyStatus("image").isOK()); // Not specified
         verify(this.view, times(1)).refreshProperties();
-        verify(this.view, never()).setValid(anyBoolean());
+        verify(this.view, times(1)).setValid(eq(true));
 
         String invalidPath = "/test";
         this.model.executeOperation(propertyModel.setPropertyValue("image", invalidPath));
@@ -814,7 +802,7 @@ public class TileSetTest implements IResourceChangeListener {
         assertTrue(propertyModel.getPropertyStatus("image").isOK());
 
         verify(this.view, times(3)).refreshProperties();
-        verify(this.view, times(1)).setValid(eq(true));
+        verify(this.view, times(2)).setValid(eq(true));
     }
 
     /**
@@ -1065,14 +1053,12 @@ public class TileSetTest implements IResourceChangeListener {
 
         verify(this.view, times(26)).refreshProperties();
         verify(this.view, times(4)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
-        verify(this.view, times(2)).setHulls(any(float[].class), any(int[].class), any(int[].class), any(Color[].class));
-        verify(this.view, times(6)).setHullColor(anyInt(), any(Color.class));
+        verify(this.view, times(6)).setHulls(any(float[].class), any(int[].class), any(int[].class), any(Color[].class));
 
         this.presenter.refresh();
 
-        verify(this.view, times(30)).refreshProperties();
+        verify(this.view, times(27)).refreshProperties();
         verify(this.view, times(5)).setCollisionGroups(anyListOf(String.class), anyListOf(Color.class), any(String[].class));
-        verify(this.view, times(3)).setHulls(any(float[].class), any(int[].class), any(int[].class), any(Color[].class));
-        verify(this.view, times(6)).setHullColor(anyInt(), any(Color.class));
+        verify(this.view, times(7)).setHulls(any(float[].class), any(int[].class), any(int[].class), any(Color[].class));
     }
 }

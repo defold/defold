@@ -84,45 +84,41 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
     BufferedImage loadedImage;
     BufferedImage loadedCollision;
 
-    public class ConvexHull {
+    public static class ConvexHull {
         String collisionGroup = "";
         int index = 0;
         int count = 0;
+
+        public ConvexHull(ConvexHull convexHull) {
+            this.collisionGroup = convexHull.collisionGroup;
+            this.index = convexHull.index;
+            this.count = convexHull.count;
+        }
+
+        public ConvexHull(String collisionGroup) {
+            this.collisionGroup = collisionGroup;
+        }
+
+        public ConvexHull(String collisionGroup, int index, int count) {
+            this.collisionGroup = collisionGroup;
+            this.index = index;
+            this.count = count;
+        }
 
         public String getCollisionGroup() {
             return this.collisionGroup;
         }
 
         public void setCollisionGroup(String collisionGroup) {
-            if ((this.collisionGroup == null && collisionGroup != null) || !this.collisionGroup.equals(collisionGroup)) {
-                String oldCollisionGroup = collisionGroup;
-                this.collisionGroup = collisionGroup;
-                firePropertyChangeEvent(new PropertyChangeEvent(this, "collisionGroup", oldCollisionGroup, collisionGroup));
-            }
+            this.collisionGroup = collisionGroup;
         }
 
         public int getIndex() {
             return this.index;
         }
 
-        public void setIndex(int index) {
-            if (this.index != index) {
-                int oldIndex = this.index;
-                this.index = index;
-                firePropertyChangeEvent(new PropertyChangeEvent(this, "index", oldIndex, index));
-            }
-        }
-
         public int getCount() {
             return this.count;
-        }
-
-        public void setCount(int count) {
-            if (this.count != count) {
-                int oldCount = this.count;
-                this.count = count;
-                firePropertyChangeEvent(new PropertyChangeEvent(this, "count", oldCount, count));
-            }
         }
 
         @Override
@@ -291,7 +287,11 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
     }
 
     public List<ConvexHull> getConvexHulls() {
-        return this.convexHulls;
+        List<ConvexHull> copy = new ArrayList<ConvexHull>(this.convexHulls.size());
+        for (ConvexHull convexHull : this.convexHulls) {
+            copy.add(new ConvexHull(convexHull));
+        }
+        return copy;
     }
 
     public void setConvexHulls(List<ConvexHull> convexHulls) {
@@ -299,6 +299,15 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
             List<ConvexHull> oldConvexHulls = this.convexHulls;
             this.convexHulls = convexHulls;
             firePropertyChangeEvent(new PropertyChangeEvent(this, "convexHulls", oldConvexHulls, convexHulls));
+        }
+    }
+
+    public void setConvexHull(int index, ConvexHull convexHull) {
+        ConvexHull oldConvexHull = this.convexHulls.get(index);
+        if (!oldConvexHull.equals(convexHull)) {
+            List<ConvexHull> oldConvexHulls = new ArrayList<ConvexHull>(this.convexHulls);
+            this.convexHulls.set(index, convexHull);
+            firePropertyChangeEvent(new PropertyChangeEvent(this, "convexHulls", oldConvexHulls, this.convexHulls));
         }
     }
 
@@ -457,12 +466,10 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
         // Set convex hulls
         List<ConvexHull> convexHulls = new ArrayList<ConvexHull>(tileSet.getConvexHullsCount());
         for (Tile.ConvexHull convexHullDDF : tileSet.getConvexHullsList()) {
-            ConvexHull convexHull = new ConvexHull();
-            convexHull.setIndex(convexHullDDF.getIndex());
-            convexHull.setCount(convexHullDDF.getCount());
-            convexHull.setCollisionGroup(convexHullDDF.getCollisionGroup());
+            ConvexHull convexHull = new ConvexHull(convexHullDDF.getCollisionGroup(), convexHullDDF.getIndex(), convexHullDDF.getCount());
             convexHulls.add(convexHull);
         }
+        updateConvexHullsData(convexHulls);
         setConvexHulls(convexHulls);
     }
 
@@ -589,28 +596,25 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
             int i;
             int prevTileCount = this.convexHulls.size();
             for (i = 0; i < tileCount && i < prevTileCount; ++i) {
-                ConvexHull convexHull = new ConvexHull();
-                convexHull.setCollisionGroup(this.convexHulls.get(i).getCollisionGroup());
+                ConvexHull convexHull = new ConvexHull(this.convexHulls.get(i).getCollisionGroup());
                 convexHulls.add(convexHull);
             }
             for (; i < tileCount; ++i) {
-                convexHulls.add(new ConvexHull());
+                convexHulls.add(new ConvexHull(""));
             }
             updateConvexHullsData(convexHulls);
         } else {
             convexHulls = new ArrayList<ConvexHull>(this.convexHulls.size());
             for (ConvexHull convexHull : this.convexHulls) {
-                ConvexHull newHull = new ConvexHull();
-                newHull.setCollisionGroup(convexHull.getCollisionGroup());
+                ConvexHull newHull = new ConvexHull(convexHull.getCollisionGroup());
                 convexHulls.add(newHull);
             }
-            this.convexHullPoints = null;
         }
         setConvexHulls(convexHulls);
     }
 
     private void updateConvexHullsData(List<ConvexHull> convexHulls) {
-        if (convexHulls.size() == 0) {
+        if (convexHulls.size() == 0 || this.loadedCollision == null) {
             this.convexHullPoints = null;
             return;
         }
@@ -630,9 +634,8 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
                 mask = loadedCollision.getAlphaRaster().getPixels(x, y, this.tileWidth, this.tileHeight, mask);
                 int index = col + row * tilesPerRow;
                 points[index] = ConvexHull2D.imageConvexHull(mask, this.tileWidth, this.tileHeight, PLANE_COUNT);
-                ConvexHull convexHull = convexHulls.get(index);
-                convexHull.setIndex(pointCount);
-                convexHull.setCount(points[index].length);
+                ConvexHull convexHull = new ConvexHull(convexHulls.get(index).getCollisionGroup(), pointCount, points[index].length);
+                convexHulls.set(index, convexHull);
                 pointCount += points[index].length;
             }
         }

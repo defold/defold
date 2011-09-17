@@ -16,10 +16,11 @@ import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.ui.services.IDisposable;
 
+import com.dynamo.cr.tileeditor.core.TileSetModel.ConvexHull;
 import com.dynamo.cr.tileeditor.operations.AddCollisionGroupOperation;
 import com.dynamo.cr.tileeditor.operations.RemoveCollisionGroupsOperation;
 import com.dynamo.cr.tileeditor.operations.RenameCollisionGroupsOperation;
-import com.dynamo.cr.tileeditor.operations.SetConvexHullCollisionGroupsOperation;
+import com.dynamo.cr.tileeditor.operations.SetConvexHullsOperation;
 import com.dynamo.tile.proto.Tile.TileSet;
 
 public class TileSetPresenter implements PropertyChangeListener, IOperationHistoryListener, IDisposable {
@@ -27,7 +28,7 @@ public class TileSetPresenter implements PropertyChangeListener, IOperationHisto
     private final ITileSetView view;
     private List<Color> collisionGroupColors;
     // Used for painting collision groups onto tiles (convex hulls)
-    private String[] oldCollisionGroups;
+    private List<ConvexHull> oldConvexHulls;
     private String currentCollisionGroup;
     private int undoRedoCounter;
     private boolean loading = false;
@@ -73,42 +74,26 @@ public class TileSetPresenter implements PropertyChangeListener, IOperationHisto
     }
 
     public void beginSetConvexHullCollisionGroup(String collisionGroup) {
-        int n = this.model.getConvexHulls().size();
-        if (n > 0) {
-            if (this.oldCollisionGroups == null || this.oldCollisionGroups.length != n) {
-                this.oldCollisionGroups = new String[n];
-            } else {
-                for (int i = 0; i < n; ++i) {
-                    this.oldCollisionGroups[i] = null;
-                }
-            }
-            this.currentCollisionGroup = collisionGroup;
-        }
+        this.oldConvexHulls = this.model.getConvexHulls();
+        this.currentCollisionGroup = collisionGroup;
     }
 
     public void endSetConvexHullCollisionGroup() {
         if (this.currentCollisionGroup != null) {
-            boolean empty = true;
-            for (String group : this.oldCollisionGroups) {
-                if (group != null) {
-                    empty = false;
-                    break;
-                }
-            }
-            if (!empty) {
-                this.model.executeOperation(new SetConvexHullCollisionGroupsOperation(this.model, this.oldCollisionGroups, this.currentCollisionGroup));
+            List<ConvexHull> convexHulls = this.model.getConvexHulls();
+            if (!this.oldConvexHulls.equals(convexHulls)) {
+                this.model.executeOperation(new SetConvexHullsOperation(this.model, this.oldConvexHulls, convexHulls, this.currentCollisionGroup));
             }
             this.currentCollisionGroup = null;
         }
     }
 
     public void setConvexHullCollisionGroup(int index) {
-        if (this.oldCollisionGroups != null && this.currentCollisionGroup != null) {
-            TileSetModel.ConvexHull convexHull = this.model.getConvexHulls().get(index);
-            if (this.oldCollisionGroups[index] == null) {
-                this.oldCollisionGroups[index] = convexHull.getCollisionGroup();
-            }
-            convexHull.setCollisionGroup(currentCollisionGroup);
+        if (this.currentCollisionGroup != null) {
+            List<ConvexHull> convexHulls = this.model.getConvexHulls();
+            ConvexHull convexHull = convexHulls.get(index);
+            convexHull.setCollisionGroup(this.currentCollisionGroup);
+            this.model.setConvexHull(index, convexHull);
         }
     }
 
@@ -176,10 +161,6 @@ public class TileSetPresenter implements PropertyChangeListener, IOperationHisto
 
                     this.view.refreshProperties();
                 }
-            } else if (evt.getSource() instanceof TileSetModel.ConvexHull) {
-                if (evt.getPropertyName().equals("collisionGroup")) {
-                    setViewHullColor((TileSetModel.ConvexHull)evt.getSource(), (String)evt.getNewValue());
-                }
             }
         }
     }
@@ -224,13 +205,13 @@ public class TileSetPresenter implements PropertyChangeListener, IOperationHisto
             int tilesPerColumn = TileSetUtil.calculateTileCount(tileHeight, height, tileMargin, tileSpacing);
 
             int tileCount = tilesPerRow * tilesPerColumn;
-            if (tilesPerRow > 0 && tilesPerColumn > 0 && tileCount == this.model.getConvexHulls().size()) {
+            if (tilesPerRow > 0 && tilesPerColumn > 0 && tileCount == convexHulls.size()) {
                 updateCollisionGroupColors(this.model.getCollisionGroups().size());
                 hullIndices = new int[tileCount];
                 hullCounts = new int[tileCount];
                 hullColors = new Color[tileCount];
                 for (int tile = 0; tile < tileCount; ++tile) {
-                    TileSetModel.ConvexHull hull = this.model.getConvexHulls().get(tile);
+                    TileSetModel.ConvexHull hull = convexHulls.get(tile);
                     hullIndices[tile] = hull.getIndex();
                     hullCounts[tile] = hull.getCount();
                     hullColors[tile] = Color.white;
@@ -244,16 +225,6 @@ public class TileSetPresenter implements PropertyChangeListener, IOperationHisto
             }
             this.view.setHulls(this.model.getConvexHullPoints(), hullIndices, hullCounts, hullColors);
         }
-    }
-
-    private void setViewHullColor(TileSetModel.ConvexHull hull, String collisionGroup) {
-        int tileIndex = this.model.getConvexHulls().indexOf(hull);
-        int collisionGroupIndex = this.model.getCollisionGroups().indexOf(hull.getCollisionGroup());
-        Color color = Color.white;
-        if (collisionGroupIndex >= 0) {
-            color = this.collisionGroupColors.get(collisionGroupIndex);
-        }
-        this.view.setHullColor(tileIndex, color);
     }
 
     private void setViewCollisionGroups(List<String> collisionGroups) {

@@ -19,7 +19,6 @@ public interface ITileSetView {
     public void setCollisionGroups(List<String> collisionGroups, List<Color> colors, String[] selectedCollisionGroups);
 
     public void setHulls(float[] vertices, int[] indices, int[] counts, Color[] colors);
-    public void setHullColor(int index, Color color);
 
     public void setDirty(boolean dirty);
 
