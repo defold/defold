@@ -228,6 +228,10 @@ KeyListener {
         }
     }
 
+    public String getBrushCollisionGroup() {
+        return this.brushCollisionGroup;
+    }
+
     public void setBrushCollisionGroup(String brushCollisionGroup, Color brushColor) {
         this.brushCollisionGroup = brushCollisionGroup;
         this.brushColor = brushColor;

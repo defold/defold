@@ -142,6 +142,7 @@ public class TileSetPresenter implements PropertyChangeListener, IOperationHisto
         this.view.refreshProperties();
         setViewCollisionGroups(this.model.getCollisionGroups());
         setViewHulls(this.model.getConvexHulls());
+        this.view.setValid(this.model.isOk());
     }
 
     @SuppressWarnings({ "unchecked" })
