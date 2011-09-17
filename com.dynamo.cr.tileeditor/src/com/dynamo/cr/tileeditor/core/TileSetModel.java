@@ -31,38 +31,46 @@ import org.eclipse.core.runtime.Status;
 
 import com.dynamo.cr.properties.Entity;
 import com.dynamo.cr.properties.IPropertyModel;
-import com.dynamo.cr.properties.IPropertyObjectWorld;
+import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.PropertyIntrospector;
 import com.dynamo.cr.properties.PropertyIntrospectorModel;
+import com.dynamo.cr.properties.Range;
 import com.dynamo.cr.tileeditor.Activator;
 import com.dynamo.cr.tileeditor.pipeline.ConvexHull2D;
 import com.dynamo.tile.proto.Tile;
 import com.dynamo.tile.proto.Tile.TileSet;
 import com.google.protobuf.TextFormat;
 
-@Entity(commandFactory = TileSetUndoableCommandFactory.class, accessor = TileSetPropertyAccessor.class)
-public class TileSetModel extends Model implements IPropertyObjectWorld, IAdaptable {
+@Entity(commandFactory = TileSetUndoableCommandFactory.class)
+public class TileSetModel extends Model implements ITileWorld, IAdaptable {
 
     // TODO: Should be configurable
     private static final int PLANE_COUNT = 16;
 
     @Property(isResource = true)
+    @Resource
     String image;
     @Property
+    @Range(min=1)
     int tileWidth;
     @Property
+    @Range(min=1)
     int tileHeight;
     @Property
+    @Range(min=0)
     int tileMargin;
     @Property
+    @Range(min=0)
     int tileSpacing;
     @Property(isResource = true)
+    @Resource
     String collision;
     @Property
+    @NotEmpty
     String materialTag;
 
-    private static PropertyIntrospector<TileSetModel, TileSetModel> introspector = new PropertyIntrospector<TileSetModel, TileSetModel>(TileSetModel.class);
+    private static PropertyIntrospector<TileSetModel, TileSetModel> introspector = new PropertyIntrospector<TileSetModel, TileSetModel>(TileSetModel.class, Messages.class);
 
     private final IContainer contentRoot;
     List<ConvexHull> convexHulls;
@@ -158,9 +166,7 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
         try {
             this.loadedImage = loadImageFile(image);
             updateConvexHulls();
-            clearPropertyStatus("image", Activator.STATUS_TS_IMG_NOT_FOUND);
         } catch (Exception e) {
-            setPropertyStatus("image", Activator.STATUS_TS_IMG_NOT_FOUND, image);
         }
     }
 
@@ -171,9 +177,6 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
             this.loadedImage = null;
             if (this.image != null && !this.image.equals("")) {
                 loadImage();
-                clearPropertyStatus("image", Activator.STATUS_TS_IMG_NOT_SPECIFIED);
-            } else {
-                setPropertyStatus("image", Activator.STATUS_TS_IMG_NOT_SPECIFIED);
             }
             firePropertyChangeEvent(new PropertyChangeEvent(this, "image", oldImage, image));
         }
@@ -183,16 +186,15 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
         return this.tileWidth;
     }
 
+    protected IStatus validateTileWidth() {
+        return verifyTileDimensions();
+    }
+
     public void setTileWidth(int tileWidth) {
         if (this.tileWidth != tileWidth) {
             int oldTileWidth = tileWidth;
             this.tileWidth = tileWidth;
             firePropertyChangeEvent(new PropertyChangeEvent(this, "tileWidth", new Integer(oldTileWidth), new Integer(tileWidth)));
-            if (tileWidth > 0) {
-                clearPropertyStatus("tileWidth", Activator.STATUS_TS_INVALID_TILE_WIDTH);
-            } else {
-                setPropertyStatus("tileWidth", Activator.STATUS_TS_INVALID_TILE_WIDTH);
-            }
             updateConvexHulls();
         }
     }
@@ -201,16 +203,15 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
         return this.tileHeight;
     }
 
+    protected IStatus validateTileHeight() {
+        return verifyTileDimensions();
+    }
+
     public void setTileHeight(int tileHeight) {
         if (this.tileHeight != tileHeight) {
             int oldTileHeight = this.tileHeight;
             this.tileHeight = tileHeight;
             firePropertyChangeEvent(new PropertyChangeEvent(this, "tileHeight", new Integer(oldTileHeight), new Integer(tileHeight)));
-            if (tileHeight > 0) {
-                clearPropertyStatus("tileHeight", Activator.STATUS_TS_INVALID_TILE_HEIGHT);
-            } else {
-                setPropertyStatus("tileHeight", Activator.STATUS_TS_INVALID_TILE_HEIGHT);
-            }
             updateConvexHulls();
         }
     }
@@ -219,16 +220,18 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
         return this.tileMargin;
     }
 
+    protected IStatus validateTileMargin() {
+        if (this.tileMargin > 0)
+            return verifyTileDimensions();
+        else
+            return Status.OK_STATUS;
+    }
+
     public void setTileMargin(int tileMargin) {
         if (this.tileMargin != tileMargin) {
             int oldTileMargin = this.tileMargin;
             this.tileMargin = tileMargin;
             firePropertyChangeEvent(new PropertyChangeEvent(this, "tileMargin", new Integer(oldTileMargin), new Integer(tileMargin)));
-            if (tileMargin >= 0) {
-                clearPropertyStatus("tileMargin", Activator.STATUS_TS_INVALID_TILE_MGN);
-            } else {
-                setPropertyStatus("tileMargin", Activator.STATUS_TS_INVALID_TILE_MGN);
-            }
             updateConvexHulls();
         }
     }
@@ -237,16 +240,15 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
         return this.tileSpacing;
     }
 
+    protected IStatus validateTileSpacing() {
+        return verifyTileDimensions();
+    }
+
     public void setTileSpacing(int tileSpacing) {
         if (this.tileSpacing != tileSpacing) {
             int oldTileSpacing = this.tileSpacing;
             this.tileSpacing = tileSpacing;
             firePropertyChangeEvent(new PropertyChangeEvent(this, "tileSpacing", new Integer(oldTileSpacing), new Integer(tileSpacing)));
-            if (tileSpacing >= 0) {
-                clearPropertyStatus("tileSpacing", Activator.STATUS_TS_INVALID_TILE_SPCN);
-            } else {
-                setPropertyStatus("tileSpacing", Activator.STATUS_TS_INVALID_TILE_SPCN);
-            }
             updateConvexHulls();
         }
     }
@@ -258,10 +260,8 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
     private void loadCollision() {
         try {
             this.loadedCollision = loadImageFile(collision);
-            clearPropertyStatus("collision", Activator.STATUS_TS_COL_IMG_NOT_FOUND);
         } catch (Exception e) {
             this.loadedCollision = null;
-            setPropertyStatus("collision", Activator.STATUS_TS_COL_IMG_NOT_FOUND, collision);
         }
     }
 
@@ -287,11 +287,6 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
             String oldMaterialTag = this.materialTag;
             this.materialTag = materialTag;
             firePropertyChangeEvent(new PropertyChangeEvent(this, "materialTag", oldMaterialTag, materialTag));
-            if (materialTag == null || materialTag.equals("")) {
-                setPropertyStatus("materialTag", Activator.STATUS_TS_MAT_NOT_SPECIFIED);
-            } else {
-                clearPropertyStatus("materialTag", Activator.STATUS_TS_MAT_NOT_SPECIFIED);
-            }
         }
     }
 
@@ -519,27 +514,42 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
     }
 
     private void updateConvexHulls() {
-        if (verifyImageDimensions() && verifyTileDimensions() && isOk()) {
+        if (isOk()) {
             updateConvexHullsList();
         }
     }
 
-    private boolean verifyImageDimensions() {
-        if (this.loadedImage != null && this.loadedCollision != null) {
-            if (this.loadedImage.getWidth() != this.loadedCollision.getWidth() || this.loadedImage.getHeight() != this.loadedCollision.getHeight()) {
-                Status status = createStatus(Activator.STATUS_TS_DIFF_IMG_DIMS, new Object[] {this.loadedImage.getWidth(), this.loadedImage.getHeight(), this.loadedCollision.getWidth(), this.loadedCollision.getHeight()});
-                setPropertyStatus("image", status);
-                setPropertyStatus("collision", status);
-                return false;
-            }
-        }
-        clearPropertyStatus("image", Activator.STATUS_TS_DIFF_IMG_DIMS);
-        clearPropertyStatus("collision", Activator.STATUS_TS_DIFF_IMG_DIMS);
-        return true;
+    public boolean isOk() {
+        PropertyIntrospectorModel<TileSetModel, TileSetModel> propertyModel = new PropertyIntrospectorModel<TileSetModel, TileSetModel>(this, this, introspector);
+        return propertyModel.isOk();
     }
 
-    private boolean verifyTileDimensions() {
-        boolean result = true;
+    protected IStatus validateImage() {
+        IStatus status = verifyImageDimensions();
+        if (!status.isOK())
+            return status;
+        else
+            return verifyTileDimensions();
+    }
+
+    protected IStatus validateCollision() {
+        IStatus status = verifyImageDimensions();
+        if (!status.isOK())
+            return status;
+        else
+            return verifyTileDimensions();
+    }
+
+    private IStatus verifyImageDimensions() {
+        if (this.loadedImage != null && this.loadedCollision != null) {
+            if (this.loadedImage.getWidth() != this.loadedCollision.getWidth() || this.loadedImage.getHeight() != this.loadedCollision.getHeight()) {
+                return createStatus(Messages.TS_DIFF_IMG_DIMS, new Object[] {this.loadedImage.getWidth(), this.loadedImage.getHeight(), this.loadedCollision.getWidth(), this.loadedCollision.getHeight()});
+            }
+        }
+        return Status.OK_STATUS;
+    }
+
+    private IStatus verifyTileDimensions() {
         if (this.loadedImage != null || this.loadedCollision != null) {
             int imageWidth = 0;
             int imageHeight = 0;
@@ -552,48 +562,16 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
             }
             int totalTileWidth = this.tileWidth + this.tileMargin;
             if (totalTileWidth > imageWidth) {
-                Status status = createStatus(Activator.STATUS_TS_TILE_WIDTH_GT_IMG, new Object[] {totalTileWidth, imageWidth});
-                if (this.loadedImage != null) {
-                    setPropertyStatus("image", status);
-                } else {
-                    setPropertyStatus("collision", status);
-                }
-                setPropertyStatus("tileWidth", status);
-                if (this.tileMargin > 0) {
-                    setPropertyStatus("tileMargin", status);
-                } else {
-                    clearPropertyStatus("tileMargin", Activator.STATUS_TS_TILE_WIDTH_GT_IMG);
-                }
-                result = false;
-            } else {
-                clearPropertyStatus("image", Activator.STATUS_TS_TILE_WIDTH_GT_IMG);
-                clearPropertyStatus("collision", Activator.STATUS_TS_TILE_WIDTH_GT_IMG);
-                clearPropertyStatus("tileWidth", Activator.STATUS_TS_TILE_WIDTH_GT_IMG);
-                clearPropertyStatus("tileMargin", Activator.STATUS_TS_TILE_WIDTH_GT_IMG);
+                Status status = createStatus(Messages.TS_TILE_WIDTH_GT_IMG, new Object[] {totalTileWidth, imageWidth});
+                return status;
             }
             int totalTileHeight = this.tileHeight + this.tileMargin;
             if (totalTileHeight > imageHeight) {
-                Status status = createStatus(Activator.STATUS_TS_TILE_HEIGHT_GT_IMG, new Object[] {totalTileHeight, imageHeight});
-                if (this.loadedImage != null) {
-                    setPropertyStatus("image", status);
-                } else {
-                    setPropertyStatus("collision", status);
-                }
-                setPropertyStatus("tileHeight", status);
-                if (this.tileMargin > 0) {
-                    setPropertyStatus("tileMargin", status);
-                } else {
-                    clearPropertyStatus("tileMargin", Activator.STATUS_TS_TILE_HEIGHT_GT_IMG);
-                }
-                result = false;
-            } else {
-                clearPropertyStatus("image", Activator.STATUS_TS_TILE_HEIGHT_GT_IMG);
-                clearPropertyStatus("collision", Activator.STATUS_TS_TILE_HEIGHT_GT_IMG);
-                clearPropertyStatus("tileHeight", Activator.STATUS_TS_TILE_HEIGHT_GT_IMG);
-                clearPropertyStatus("tileMargin", Activator.STATUS_TS_TILE_HEIGHT_GT_IMG);
+                Status status = createStatus(Messages.TS_TILE_HEIGHT_GT_IMG, new Object[] {totalTileHeight, imageHeight});
+                return status;
             }
         }
-        return result;
+        return Status.OK_STATUS;
     }
 
     private void updateConvexHullsList() {
@@ -713,6 +691,11 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
         }
 
         return reload[0];
+    }
+
+    @Override
+    public IContainer getContentRoot() {
+        return this.contentRoot;
     }
 
 }

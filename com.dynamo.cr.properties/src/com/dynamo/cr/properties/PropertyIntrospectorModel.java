@@ -44,4 +44,10 @@ public class PropertyIntrospectorModel<T, U extends IPropertyObjectWorld> implem
     public IStatus getPropertyStatus(Object id) {
         return introspector.getPropertyStatus(object, world, id);
     }
+
+    @Override
+    public boolean isOk() {
+        return introspector.isOk(object, world);
+    }
+
 }

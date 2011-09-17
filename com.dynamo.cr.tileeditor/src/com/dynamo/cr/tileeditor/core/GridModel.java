@@ -25,10 +25,10 @@ import org.eclipse.core.runtime.Status;
 
 import com.dynamo.cr.properties.Entity;
 import com.dynamo.cr.properties.IPropertyModel;
-import com.dynamo.cr.properties.IPropertyObjectWorld;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.PropertyIntrospector;
 import com.dynamo.cr.properties.PropertyIntrospectorModel;
+import com.dynamo.cr.properties.Range;
 import com.dynamo.cr.tileeditor.Activator;
 import com.dynamo.tile.proto.Tile;
 import com.dynamo.tile.proto.Tile.TileGrid;
@@ -36,9 +36,10 @@ import com.dynamo.tile.proto.Tile.TileSet;
 import com.google.protobuf.TextFormat;
 
 @Entity(commandFactory = GridUndoableCommandFactory.class)
-public class GridModel extends Model implements IPropertyObjectWorld, IAdaptable {
+public class GridModel extends Model implements ITileWorld, IAdaptable {
 
     private static PropertyIntrospector<Cell, GridModel> cellIntrospector = new PropertyIntrospector<Cell, GridModel>(Cell.class);
+
     public class Cell implements IAdaptable {
 
         @Override
@@ -157,10 +158,13 @@ public class GridModel extends Model implements IPropertyObjectWorld, IAdaptable
     }
 
     @Property(isResource = true)
+    @Resource
     private String tileSet;
     @Property
+    @Range(min=1)
     private float cellWidth;
     @Property
+    @Range(min=1)
     private float cellHeight;
 
     private List<Layer> layers;
@@ -179,6 +183,16 @@ public class GridModel extends Model implements IPropertyObjectWorld, IAdaptable
         this.tileSetModel = new TileSetModel(contentRoot, null, null);
     }
 
+    @Override
+    public IContainer getContentRoot() {
+        return contentRoot;
+    }
+
+    public boolean isOk() {
+        PropertyIntrospectorModel<GridModel, GridModel> propertyModel = new PropertyIntrospectorModel<GridModel, GridModel>(this, this, introspector);
+        return propertyModel.isOk();
+    }
+
     public String getTileSet() {
         return this.tileSet;
     }
@@ -189,9 +203,7 @@ public class GridModel extends Model implements IPropertyObjectWorld, IAdaptable
             this.tileSet = tileSet;
             if (this.tileSet != null && !this.tileSet.equals("")) {
                 loadTileSet();
-                clearPropertyStatus("tileSet", Activator.STATUS_GRID_TS_NOT_SPECIFIED);
             } else {
-                setPropertyStatus("tileSet", Activator.STATUS_GRID_TS_NOT_SPECIFIED);
             }
             firePropertyChangeEvent(new PropertyChangeEvent(this, "tileSet", oldTileSet, tileSet));
         }
@@ -211,18 +223,22 @@ public class GridModel extends Model implements IPropertyObjectWorld, IAdaptable
         }
     }
 
+    protected IStatus validateTileSet() {
+        @SuppressWarnings("unchecked")
+        IPropertyModel<TileSetModel, TileSetModel> propertyModel = (IPropertyModel<TileSetModel, TileSetModel>) this.tileSetModel.getAdapter(IPropertyModel.class);
+        IStatus imageStatus = propertyModel.getPropertyStatus("image");
+        if (imageStatus != null && !imageStatus.isOK()) {
+            return new Status(IStatus.ERROR, "com.dynamo.cr.tileeditor", Messages.GRID_INVALID_TILESET);
+        } else {
+            return Status.OK_STATUS;
+        }
+    }
+
     private void loadTileSet() {
         try {
-            clearPropertyStatus("tileSet", Activator.STATUS_GRID_TS_NOT_FOUND);
-            clearPropertyStatus("tileSet", Activator.STATUS_GRID_INVALID_TILESET);
             TileSet tileSetMessage = loadTileSetFile(tileSet);
             this.tileSetModel.load(tileSetMessage);
-            IStatus imageStatus = this.tileSetModel.getPropertyStatus("image");
-            if (imageStatus != null && !imageStatus.isOK()) {
-                setPropertyStatus("tileSet", Activator.STATUS_GRID_INVALID_TILESET, tileSet);
-            }
         } catch (Exception e) {
-            setPropertyStatus("tileSet", Activator.STATUS_GRID_TS_NOT_FOUND, tileSet);
         }
     }
 
@@ -237,11 +253,6 @@ public class GridModel extends Model implements IPropertyObjectWorld, IAdaptable
         this.cellWidth = cellWidth;
         if (fire)
             firePropertyChangeEvent(new PropertyChangeEvent(this, "cellWidth", new Float(oldCellWidth), new Float(cellWidth)));
-        if (cellWidth > 0) {
-            clearPropertyStatus("cellWidth", Activator.STATUS_GRID_INVALID_CELL_WIDTH);
-        } else {
-            setPropertyStatus("cellWidth", Activator.STATUS_GRID_INVALID_CELL_WIDTH);
-        }
     }
 
     public float getCellHeight() {
@@ -255,11 +266,6 @@ public class GridModel extends Model implements IPropertyObjectWorld, IAdaptable
         this.cellHeight = cellHeight;
         if (fire)
             firePropertyChangeEvent(new PropertyChangeEvent(this, "cellHeight", new Float(oldCellHeight), new Float(cellHeight)));
-        if (cellHeight > 0) {
-            clearPropertyStatus("cellHeight", Activator.STATUS_GRID_INVALID_CELL_HEIGHT);
-        } else {
-            setPropertyStatus("cellHeight", Activator.STATUS_GRID_INVALID_CELL_HEIGHT);
-        }
     }
 
     public List<Layer> getLayers() {
@@ -284,9 +290,7 @@ public class GridModel extends Model implements IPropertyObjectWorld, IAdaptable
         }
 
         if (duplication) {
-            setPropertyStatus("layers", Activator.STATUS_GRID_DUPLICATED_LAYER_IDS);
-        } else {
-            clearPropertyStatus("layers", Activator.STATUS_GRID_DUPLICATED_LAYER_IDS);
+            // TODO: Do something useful?
         }
 
         if (fire)
@@ -309,7 +313,7 @@ public class GridModel extends Model implements IPropertyObjectWorld, IAdaptable
         setLayers(layers);
     }
 
-    private static PropertyIntrospector<GridModel, GridModel> introspector = new PropertyIntrospector<GridModel, GridModel>(GridModel.class);
+    private static PropertyIntrospector<GridModel, GridModel> introspector = new PropertyIntrospector<GridModel, GridModel>(GridModel.class, Messages.class);
 
     @Override
     public Object getAdapter(@SuppressWarnings("rawtypes") Class adapter) {

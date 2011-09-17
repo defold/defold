@@ -149,9 +149,9 @@ public class TileSetPresenter implements PropertyChangeListener, IOperationHisto
     public void propertyChange(PropertyChangeEvent evt) {
         if (loading)
             return;
+        this.view.setValid(this.model.isOk());
         if (evt.getNewValue() instanceof IStatus) {
             this.view.refreshProperties();
-            this.view.setValid(this.model.isOk());
         } else {
             if (evt.getSource() instanceof TileSetModel) {
                 if (evt.getPropertyName().equals("collisionGroups")) {

@@ -7,8 +7,6 @@ import org.eclipse.ui.plugin.AbstractUIPlugin;
 import org.eclipse.ui.statushandlers.StatusManager;
 import org.osgi.framework.BundleContext;
 
-import com.dynamo.cr.tileeditor.core.Messages;
-
 /**
  * The activator class controls the plug-in life cycle
  */
@@ -22,26 +20,6 @@ public class Activator extends AbstractUIPlugin {
 
     // Image ids
     public static final String COLLISION_GROUP_IMAGE_ID = "COLLISION_GROUP"; //$NON-NLS-1$
-
-    // Status codes
-    public static final int STATUS_TS_IMG_NOT_SPECIFIED = 101;
-    public static final int STATUS_TS_IMG_NOT_FOUND = 102;
-    public static final int STATUS_TS_COL_IMG_NOT_FOUND = 103;
-    public static final int STATUS_TS_DIFF_IMG_DIMS = 104;
-    public static final int STATUS_TS_INVALID_TILE_WIDTH = 105;
-    public static final int STATUS_TS_INVALID_TILE_HEIGHT = 106;
-    public static final int STATUS_TS_TILE_WIDTH_GT_IMG = 107;
-    public static final int STATUS_TS_TILE_HEIGHT_GT_IMG = 108;
-    public static final int STATUS_TS_MAT_NOT_SPECIFIED = 109;
-    public static final int STATUS_TS_INVALID_TILE_MGN = 110;
-    public static final int STATUS_TS_INVALID_TILE_SPCN = 111;
-
-    public static final int STATUS_GRID_TS_NOT_SPECIFIED = 201;
-    public static final int STATUS_GRID_TS_NOT_FOUND = 202;
-    public static final int STATUS_GRID_INVALID_TILESET = 203;
-    public static final int STATUS_GRID_INVALID_CELL_WIDTH = 204;
-    public static final int STATUS_GRID_INVALID_CELL_HEIGHT = 205;
-    public static final int STATUS_GRID_DUPLICATED_LAYER_IDS = 206;
 
     // The shared instance
     private static Activator plugin;
@@ -93,54 +71,4 @@ public class Activator extends AbstractUIPlugin {
         registry.put(COLLISION_GROUP_IMAGE_ID, imageDescriptorFromPlugin(PLUGIN_ID, "icons/collision_group.png"));
     }
 
-    public static int getStatusSeverity(int code) {
-        switch (code) {
-        case STATUS_TS_IMG_NOT_SPECIFIED:
-            return IStatus.INFO;
-        default:
-            return IStatus.ERROR;
-        }
-    }
-
-    public static String getStatusMessage(int code) {
-        switch (code) {
-        case STATUS_TS_IMG_NOT_SPECIFIED:
-            return Messages.TS_IMG_NOT_SPECIFIED;
-        case STATUS_TS_IMG_NOT_FOUND:
-            return Messages.TS_IMG_NOT_FOUND;
-        case STATUS_TS_COL_IMG_NOT_FOUND:
-            return Messages.TS_COL_IMG_NOT_FOUND;
-        case STATUS_TS_DIFF_IMG_DIMS:
-            return Messages.TS_DIFF_IMG_DIMS;
-        case STATUS_TS_INVALID_TILE_WIDTH:
-            return Messages.TS_INVALID_TILE_WIDTH;
-        case STATUS_TS_INVALID_TILE_HEIGHT:
-            return Messages.TS_INVALID_TILE_HEIGHT;
-        case STATUS_TS_TILE_WIDTH_GT_IMG:
-            return Messages.TS_TILE_WIDTH_GT_IMG;
-        case STATUS_TS_TILE_HEIGHT_GT_IMG:
-            return Messages.TS_TILE_HEIGHT_GT_IMG;
-        case STATUS_TS_MAT_NOT_SPECIFIED:
-            return Messages.TS_MAT_NOT_SPECIFIED;
-        case STATUS_TS_INVALID_TILE_MGN:
-            return Messages.TS_INVALID_TILE_MGN;
-        case STATUS_TS_INVALID_TILE_SPCN:
-            return Messages.TS_INVALID_TILE_SPCN;
-        case STATUS_GRID_TS_NOT_SPECIFIED:
-            return Messages.GRID_TS_NOT_SPECIFIED;
-        case STATUS_GRID_TS_NOT_FOUND:
-            return Messages.GRID_TS_NOT_FOUND;
-        case STATUS_GRID_INVALID_TILESET:
-            return Messages.GRID_INVALID_TILESET;
-        case STATUS_GRID_INVALID_CELL_WIDTH:
-            return Messages.GRID_INVALID_CELL_WIDTH;
-        case STATUS_GRID_INVALID_CELL_HEIGHT:
-            return Messages.GRID_INVALID_CELL_HEIGHT;
-        case STATUS_GRID_DUPLICATED_LAYER_IDS:
-            return Messages.GRID_DUPLICATED_LAYER_IDS;
-
-        default:
-            throw new RuntimeException("Unknown system error: " + code);
-        }
-    }
 }

@@ -1,6 +1,7 @@
 package com.dynamo.cr.properties.test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -8,10 +9,13 @@ import java.util.Map;
 import javax.vecmath.Vector4d;
 
 import org.eclipse.core.commands.operations.IUndoableOperation;
+import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Status;
 import org.eclipse.swt.graphics.RGB;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.dynamo.cr.properties.BeanPropertyAccessor;
 import com.dynamo.cr.properties.Entity;
 import com.dynamo.cr.properties.ICommandFactory;
 import com.dynamo.cr.properties.IPropertyAccessor;
@@ -20,6 +24,7 @@ import com.dynamo.cr.properties.IPropertyObjectWorld;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.PropertyIntrospector;
 import com.dynamo.cr.properties.PropertyIntrospectorModel;
+import com.dynamo.cr.properties.Range;
 import com.dynamo.cr.properties.proto.PropertiesTestProto;
 
 public class PropertiesTest {
@@ -61,9 +66,10 @@ public class PropertiesTest {
         }
     }
 
-    @Entity(commandFactory = TestCommandFactory.class)
+    @Entity(commandFactory = TestCommandFactory.class, accessor = BeanPropertyAccessor.class)
     static public class TestClass {
         @Property
+        @Range(min=1, max=10000)
         int integerValue = 123;
 
         @Property
@@ -84,8 +90,26 @@ public class PropertiesTest {
         @Property
         int missingGetterSetter;
 
+        Map<String, IStatus> statusMap = new HashMap<String, IStatus>();
+
+        protected IStatus validateStringValue() {
+            if (stringValue.equals("invalid_string")) {
+                return new Status(IStatus.ERROR, "com.dynami", "Must not be 'invalid_string'");
+            } else {
+                return Status.OK_STATUS;
+            }
+        }
+
         public int getIntegerValue() {
             return integerValue;
+        }
+
+        public IStatus getStatus(String property) {
+            return statusMap.get(property);
+        }
+
+        public void setStatus(String property, IStatus status) {
+            statusMap.put(property, status);
         }
 
         public void setIntegerValue(int integerValue) {
@@ -202,5 +226,42 @@ public class PropertiesTest {
         source.setPropertyValue("missingGetterSetter", 123);
     }
 
+    @Test
+    public void testRangeValidation() throws Exception {
+        source.setPropertyValue("integerValue", 1);
+        assertTrue(source.getPropertyStatus("integerValue").isOK());
 
+        source.setPropertyValue("integerValue", 0);
+        assertEquals(IStatus.ERROR, source.getPropertyStatus("integerValue").getSeverity());
+
+        source.setPropertyValue("integerValue", 1000);
+        assertTrue(source.getPropertyStatus("integerValue").isOK());
+
+        source.setPropertyValue("integerValue", 10001);
+        assertEquals(IStatus.ERROR, source.getPropertyStatus("integerValue").getSeverity());
+
+        source.setPropertyValue("integerValue", 1);
+        assertTrue(source.getPropertyStatus("integerValue").isOK());
+    }
+
+    @Test
+    public void testMethodValidator() throws Exception {
+        source.setPropertyValue("stringValue", "test");
+        assertTrue(source.getPropertyStatus("stringValue").isOK());
+
+        source.setPropertyValue("stringValue", "invalid_string");
+        assertEquals(IStatus.ERROR, source.getPropertyStatus("stringValue").getSeverity());
+
+        source.setPropertyValue("stringValue", "test2");
+        assertTrue(source.getPropertyStatus("stringValue").isOK());
+    }
+
+    @Test
+    public void testInitialValue() throws Exception {
+        test.integerValue = 100000;
+        assertTrue(!source.getPropertyStatus("integerValue").isOK());
+
+        source.setPropertyValue("integerValue", 1);
+        assertTrue(source.getPropertyStatus("integerValue").isOK());
+    }
 }
