@@ -161,8 +161,8 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
     private void loadImage() {
         try {
             this.loadedImage = loadImageFile(image);
-            updateConvexHulls();
         } catch (Exception e) {
+            this.loadedImage = null;
         }
     }
 
@@ -173,6 +173,9 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
             this.loadedImage = null;
             if (this.image != null && !this.image.equals("")) {
                 loadImage();
+                if (this.image != null) {
+                    updateConvexHulls();
+                }
             }
             firePropertyChangeEvent(new PropertyChangeEvent(this, "image", oldImage, image));
         }
@@ -679,10 +682,10 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
                     // NOTE: not else here
                     if (files[1] != null && files[1].equals(resource)) {
                         loadCollision();
-                        updateConvexHulls();
                         found = true;
                     }
                     if (found) {
+                        updateConvexHulls();
                         reload[0] = true;
                         return false;
                     }

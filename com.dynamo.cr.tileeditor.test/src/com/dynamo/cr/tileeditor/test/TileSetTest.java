@@ -359,6 +359,7 @@ public class TileSetTest implements IResourceChangeListener {
         IFile tileSetFilePrim = contentRoot.getFile(new Path(tileSetFilePrimName));
         assertTrue(tileSetFile.exists());
         assertTrue(tileSetFilePrim.exists());
+        verify(this.view, times(1)).setHulls(any(float[].class), any(int[].class), any(int[].class), any(Color[].class));
 
         // Overwrite mario_tileset with mario_half_tileset
         InputStream input = tileSetFilePrim.getContents();
