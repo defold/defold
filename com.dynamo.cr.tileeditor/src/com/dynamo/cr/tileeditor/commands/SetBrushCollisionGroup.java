@@ -10,12 +10,14 @@ import com.dynamo.cr.tileeditor.TileSetEditor;
 
 public class SetBrushCollisionGroup extends AbstractHandler {
 
+    private static final String PARAM_INDEX = "index";
+
     @Override
     public Object execute(ExecutionEvent event) throws ExecutionException {
         IEditorPart activeEditor = HandlerUtil.getActiveEditor(event);
         if (activeEditor instanceof TileSetEditor) {
             TileSetEditor editor = (TileSetEditor)activeEditor;
-            String indexParameter = event.getParameter("index");
+            String indexParameter = event.getParameter(PARAM_INDEX);
             int index = Integer.parseInt(indexParameter);
             editor.setBrushCollisionGroup(index);
         }

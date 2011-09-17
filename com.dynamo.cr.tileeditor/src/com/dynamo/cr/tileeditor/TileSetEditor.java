@@ -325,6 +325,10 @@ public class TileSetEditor extends AbstractDefoldEditor implements ITileSetView 
         return this.collisionGroups;
     }
 
+    public String getBrushCollisionGroup() {
+        return this.renderer.getBrushCollisionGroup();
+    }
+
     public void setBrushCollisionGroup(int index) {
         if (index < 0) {
             this.renderer.setBrushCollisionGroup("", Color.white);
