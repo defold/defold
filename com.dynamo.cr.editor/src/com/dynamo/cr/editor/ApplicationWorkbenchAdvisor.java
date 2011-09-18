@@ -1,9 +1,8 @@
 package com.dynamo.cr.editor;
 
-import java.util.List;
-
 import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.jface.preference.IPreferenceNode;
+import org.eclipse.jface.preference.IPreferenceStore;
 import org.eclipse.jface.preference.PreferenceManager;
 import org.eclipse.ui.IWorkbenchPage;
 import org.eclipse.ui.IWorkbenchWindow;
@@ -12,6 +11,8 @@ import org.eclipse.ui.application.IWorkbenchConfigurer;
 import org.eclipse.ui.application.IWorkbenchWindowConfigurer;
 import org.eclipse.ui.application.WorkbenchAdvisor;
 import org.eclipse.ui.application.WorkbenchWindowAdvisor;
+import org.eclipse.ui.internal.ide.IDEInternalPreferences;
+import org.eclipse.ui.internal.ide.IDEWorkbenchPlugin;
 import org.eclipse.ui.navigator.resources.ProjectExplorer;
 
 public class ApplicationWorkbenchAdvisor extends WorkbenchAdvisor {
@@ -71,6 +72,11 @@ public class ApplicationWorkbenchAdvisor extends WorkbenchAdvisor {
 
         view.getCommonViewer().setInput(
                 ResourcesPlugin.getWorkspace().getRoot());
+
+        // Always copy files to project when files and dropped. Do not prompt for copy/link options (dialog)
+        // NOTE: Internal stuff. There is perhaps a better way?
+        IPreferenceStore store = IDEWorkbenchPlugin.getDefault().getPreferenceStore();
+        store.setValue(IDEInternalPreferences.IMPORT_FILES_AND_FOLDERS_MODE, IDEInternalPreferences.IMPORT_FILES_AND_FOLDERS_MODE_MOVE_COPY);
 
         // Remove unwanted preferences pages
         // TODO: We should perhaps remove these using activities instead?
