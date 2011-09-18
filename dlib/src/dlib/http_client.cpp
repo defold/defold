@@ -672,7 +672,7 @@ bail:
         else
         {
             // Non-cached response
-            if (client->m_HttpCache)
+            if (client->m_HttpCache && response.m_Status == 200 /* OK */)
             {
                 dmHttpCache::Begin(client->m_HttpCache, client->m_URI, response.m_ETag, &response.m_CacheCreator);
             }
