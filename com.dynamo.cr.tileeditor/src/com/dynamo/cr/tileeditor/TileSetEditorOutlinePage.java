@@ -18,6 +18,8 @@ import org.eclipse.jface.viewers.TreeViewer;
 import org.eclipse.jface.viewers.Viewer;
 import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.graphics.ImageData;
+import org.eclipse.swt.graphics.PaletteData;
+import org.eclipse.swt.graphics.RGB;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Menu;
 import org.eclipse.ui.IEditorRegistry;
@@ -273,23 +275,24 @@ public class TileSetEditorOutlinePage extends ContentOutlinePage {
             float s_g = color.getGreen() * f;
             float s_b = color.getBlue() * f;
             float s_a = color.getAlpha() * f;
-            int width = data.width;
-            int height = data.height;
-            int componentCount = data.depth/8;
-            for(int y = 0; y < height; ++y) {
-                for(int x = 0; x < width; ++x) {
-                    int p = x + y * width;
-                    float t_r = (data.data[p * componentCount + 0] & 255) * f;
-                    float t_g = (data.data[p * componentCount + 1] & 255) * f;
-                    float t_b = (data.data[p * componentCount + 2] & 255) * f;
-                    t_r = t_r * (1.0f - s_a) + s_r * s_a;
-                    t_g = t_g * (1.0f - s_a) + s_g * s_a;
-                    t_b = t_b * (1.0f - s_a) + s_b * s_a;
-                    data.data[p * componentCount + 0] = (byte)(t_r * 255.0f);
-                    data.data[p * componentCount + 1] = (byte)(t_g * 255.0f);
-                    data.data[p * componentCount + 2] = (byte)(t_b * 255.0f);
-                }
+            int imgSize = data.width * data.height;
+            int[] pixels = new int[imgSize];
+            data.getPixels(0, 0, imgSize, pixels, 0);
+            PaletteData palette = data.palette;
+            for(int p = 0; p < imgSize; ++p) {
+                RGB rgb = palette.getRGB(pixels[p]);
+                float t_r = rgb.red * f;
+                float t_g = rgb.green * f;
+                float t_b = rgb.blue * f;
+                t_r = t_r * (1.0f - s_a) + s_r * s_a;
+                t_g = t_g * (1.0f - s_a) + s_g * s_a;
+                t_b = t_b * (1.0f - s_a) + s_b * s_a;
+                rgb.red = (int)(t_r * 255.0f);
+                rgb.green = (int)(t_g * 255.0f);
+                rgb.blue = (int)(t_b * 255.0f);
+                pixels[p] = palette.getPixel(rgb);
             }
+            data.setPixels(0, 0, imgSize, pixels, 0);
             items[i].image = new Image(getSite().getShell().getDisplay(), data);
         }
     }
