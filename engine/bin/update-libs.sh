@@ -8,7 +8,7 @@ for lib in $LIBS; do
     echo "Building $lib"
     cd ../$lib
 
-    waf configure --prefix=$DYNAMO_HOME
+    waf configure --prefix=$DYNAMO_HOME $@
     waf clean
 
     tmp=`uname -s`
