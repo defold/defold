@@ -75,6 +75,8 @@ public class ApplicationWorkbenchAdvisor extends WorkbenchAdvisor {
 
         // Always copy files to project when files and dropped. Do not prompt for copy/link options (dialog)
         // NOTE: Internal stuff. There is perhaps a better way?
+        // We could disable linked resources in project nature but currently we link the file-store and not possible
+        // With local pipeline we could set <options allowLinking="false"/> to project nature instead
         IPreferenceStore store = IDEWorkbenchPlugin.getDefault().getPreferenceStore();
         store.setValue(IDEInternalPreferences.IMPORT_FILES_AND_FOLDERS_MODE, IDEInternalPreferences.IMPORT_FILES_AND_FOLDERS_MODE_MOVE_COPY);
 
