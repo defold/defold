@@ -378,6 +378,12 @@ def detect(conf):
     if not platform:
         platform = build_platform
 
+    if platform == 'darwin':
+        # Force gcc without llvm on darwin.
+        # We got strange bugs with http cache with gcc-llvm...
+        os.environ['CC'] = 'gcc-4.2'
+        os.environ['CXX'] = 'g++-4.2'
+
     conf.env['PLATFORM'] = platform
     conf.env['BUILD_PLATFORM'] = build_platform
 
