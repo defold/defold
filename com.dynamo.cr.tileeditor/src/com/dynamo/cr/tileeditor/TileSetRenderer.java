@@ -656,7 +656,7 @@ KeyListener {
 
         if (this.activeTile >= 0) {
             float f = 1.0f / 255.0f;
-            gl.glColor4f(brushColor.getRed() * f, brushColor.getBlue() * f, brushColor.getGreen() * f, brushColor.getAlpha() * f);
+            gl.glColor4f(brushColor.getRed() * f, brushColor.getGreen() * f, brushColor.getBlue() * f, brushColor.getAlpha() * f);
             gl.glVertex3f(activeX0, activeY0, z);
             gl.glVertex3f(activeX0, activeY1, z);
             gl.glVertex3f(activeX1, activeY1, z);
