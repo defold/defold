@@ -381,10 +381,11 @@ namespace dmProfile
             {
                 if (g_Scopes.Size() > 0)
                 {
-                    g_FrameTime = profile->m_ScopesData[0].m_Elapsed / (0.001f * g_TicksPerSecond);
+                    float millisPerTick = (float)(1000.0 / g_TicksPerSecond);
+                    g_FrameTime = profile->m_ScopesData[0].m_Elapsed * millisPerTick;
                     for (uint32_t i = 1; i < g_Scopes.Size(); ++i)
                     {
-                        float time = profile->m_ScopesData[i].m_Elapsed / (0.001f * g_TicksPerSecond);
+                        float time = profile->m_ScopesData[i].m_Elapsed * millisPerTick;
                         g_FrameTime = dmMath::Select(g_FrameTime - time, g_FrameTime, time);
                     }
                     ++g_MaxFrameTimeCounter;

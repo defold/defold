@@ -472,10 +472,7 @@ bail:
     int32_t Run(HEngine engine)
     {
         const float fps = 60.0f;
-        float actual_fps = fps;
         float fixed_dt = 1.0f / fps;
-
-        uint64_t time_stamp = dmTime::GetTime();
 
         engine->m_Alive = true;
         engine->m_ExitCode = 0;
@@ -491,77 +488,70 @@ bail:
                 fflush(stdout);
                 fflush(stderr);
 
-                dmResource::UpdateFactory(engine->m_Factory);
-
-                dmHID::Update(engine->m_HidContext);
-                dmSound::Update();
-
-                dmHID::KeyboardPacket keybdata;
-                dmHID::GetKeyboardPacket(engine->m_HidContext, &keybdata);
-
-                if (dmHID::GetKey(&keybdata, dmHID::KEY_ESC) || !dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_OPENED))
                 {
-                    engine->m_Alive = false;
-                    break;
+                    DM_PROFILE(Engine, "Sim");
+
+                    dmResource::UpdateFactory(engine->m_Factory);
+
+                    dmHID::Update(engine->m_HidContext);
+                    dmSound::Update();
+
+                    dmHID::KeyboardPacket keybdata;
+                    dmHID::GetKeyboardPacket(engine->m_HidContext, &keybdata);
+
+                    if (dmHID::GetKey(&keybdata, dmHID::KEY_ESC) || !dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_OPENED))
+                    {
+                        engine->m_Alive = false;
+                        break;
+                    }
+
+                    dmInput::UpdateBinding(engine->m_GameInputBinding, fixed_dt);
+
+                    engine->m_InputBuffer.SetSize(0);
+                    dmInput::ForEachActive(engine->m_GameInputBinding, GOActionCallback, engine);
+                    dmArray<dmGameObject::InputAction>& input_buffer = engine->m_InputBuffer;
+                    uint32_t input_buffer_size = input_buffer.Size();
+                    if (input_buffer_size > 0)
+                    {
+                        dmGameObject::DispatchInput(engine->m_MainCollection, &input_buffer[0], input_buffer.Size());
+                    }
+
+                    dmGameObject::UpdateContext update_context;
+                    update_context.m_DT = fixed_dt;
+                    dmGameObject::Update(engine->m_MainCollection, &update_context);
+
+                    if (engine->m_RenderScriptPrototype)
+                    {
+                        dmRender::UpdateRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance);
+                    }
+                    else
+                    {
+                        dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
+                        dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT, 0, 0, 0, 0, 1.0, 0);
+                        dmRender::Draw(engine->m_RenderContext, 0x0, 0x0);
+                    }
+
+                    dmGameObject::PostUpdate(engine->m_MainCollection);
+
+                    dmRender::ClearRenderObjects(engine->m_RenderContext);
+
+                    dmMessage::Dispatch(engine->m_SystemSocket, Dispatch, engine);
                 }
 
-                dmInput::UpdateBinding(engine->m_GameInputBinding, fixed_dt);
-
-                engine->m_InputBuffer.SetSize(0);
-                dmInput::ForEachActive(engine->m_GameInputBinding, GOActionCallback, engine);
-                dmArray<dmGameObject::InputAction>& input_buffer = engine->m_InputBuffer;
-                uint32_t input_buffer_size = input_buffer.Size();
-                if (input_buffer_size > 0)
+                if (engine->m_ShowProfile)
                 {
-                    dmGameObject::DispatchInput(engine->m_MainCollection, &input_buffer[0], input_buffer.Size());
-                }
-
-                dmGameObject::UpdateContext update_context;
-                update_context.m_DT = fixed_dt;
-                dmGameObject::Update(engine->m_MainCollection, &update_context);
-
-                if (engine->m_RenderScriptPrototype)
-                {
-                    dmRender::UpdateRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance);
-                }
-                else
-                {
-                    dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
-                    dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT, 0, 0, 0, 0, 1.0, 0);
+                    DM_PROFILE(Profile, "Draw");
+                    dmProfile::Pause(true);
+                    dmProfileRender::Draw(profile, engine->m_RenderContext, engine->m_SystemFontMap);
+                    dmRender::SetViewMatrix(engine->m_RenderContext, Matrix4::identity());
+                    dmRender::SetProjectionMatrix(engine->m_RenderContext, Matrix4::orthographic(0.0f, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), 0.0f, dmGraphics::GetWindowHeight(engine->m_GraphicsContext), 1.0f, -1.0f));
                     dmRender::Draw(engine->m_RenderContext, 0x0, 0x0);
+                    dmRender::ClearRenderObjects(engine->m_RenderContext);
+                    dmProfile::Pause(false);
                 }
-
-                dmGameObject::PostUpdate(engine->m_MainCollection);
-
-                dmRender::ClearRenderObjects(engine->m_RenderContext);
-
-                dmMessage::Dispatch(engine->m_SystemSocket, Dispatch, engine);
+                dmGraphics::Flip(engine->m_GraphicsContext);
             }
-
-            dmProfile::Pause(true);
-            if (engine->m_ShowProfile)
-            {
-                dmProfileRender::Draw(profile, engine->m_RenderContext, engine->m_SystemFontMap);
-                dmRender::SetViewMatrix(engine->m_RenderContext, Matrix4::identity());
-                dmRender::SetProjectionMatrix(engine->m_RenderContext, Matrix4::orthographic(0.0f, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), 0.0f, dmGraphics::GetWindowHeight(engine->m_GraphicsContext), 1.0f, -1.0f));
-                dmRender::Draw(engine->m_RenderContext, 0x0, 0x0);
-                dmRender::ClearRenderObjects(engine->m_RenderContext);
-            }
-            dmProfile::Pause(false);
             dmProfile::Release(profile);
-
-            dmGraphics::Flip(engine->m_GraphicsContext);
-
-            uint64_t new_time_stamp, delta;
-            new_time_stamp = dmTime::GetTime();
-            delta = new_time_stamp - time_stamp;
-            time_stamp = new_time_stamp;
-
-            float actual_dt = delta / 1000000.0f;
-            if (actual_dt > 0.0f)
-                actual_fps = 1.0f / actual_dt;
-            else
-                actual_fps = -1.0f;
 
             ++engine->m_Stats.m_FrameCount;
         }
