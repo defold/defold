@@ -275,18 +275,19 @@ public class TileSetEditorOutlinePage extends ContentOutlinePage {
             float s_a = color.getAlpha() * f;
             int width = data.width;
             int height = data.height;
+            int componentCount = data.depth/8;
             for(int y = 0; y < height; ++y) {
                 for(int x = 0; x < width; ++x) {
                     int p = x + y * width;
-                    float t_r = (data.data[p * 3 + 0] & 255) * f;
-                    float t_g = (data.data[p * 3 + 1] & 255) * f;
-                    float t_b = (data.data[p * 3 + 2] & 255) * f;
+                    float t_r = (data.data[p * componentCount + 0] & 255) * f;
+                    float t_g = (data.data[p * componentCount + 1] & 255) * f;
+                    float t_b = (data.data[p * componentCount + 2] & 255) * f;
                     t_r = t_r * (1.0f - s_a) + s_r * s_a;
                     t_g = t_g * (1.0f - s_a) + s_g * s_a;
                     t_b = t_b * (1.0f - s_a) + s_b * s_a;
-                    data.data[p * 3 + 0] = (byte)(t_r * 255.0f);
-                    data.data[p * 3 + 1] = (byte)(t_g * 255.0f);
-                    data.data[p * 3 + 2] = (byte)(t_b * 255.0f);
+                    data.data[p * componentCount + 0] = (byte)(t_r * 255.0f);
+                    data.data[p * componentCount + 1] = (byte)(t_g * 255.0f);
+                    data.data[p * componentCount + 2] = (byte)(t_b * 255.0f);
                 }
             }
             items[i].image = new Image(getSite().getShell().getDisplay(), data);
