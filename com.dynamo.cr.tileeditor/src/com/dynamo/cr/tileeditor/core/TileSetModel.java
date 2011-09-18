@@ -472,8 +472,8 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
             ConvexHull convexHull = new ConvexHull(convexHullDDF.getCollisionGroup(), convexHullDDF.getIndex(), convexHullDDF.getCount());
             convexHulls.add(convexHull);
         }
-        updateConvexHullsData(convexHulls);
         setConvexHulls(convexHulls);
+        updateConvexHulls();
     }
 
     public void save(OutputStream outputStream, IProgressMonitor monitor) throws IOException {
