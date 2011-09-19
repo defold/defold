@@ -98,11 +98,25 @@
             id="com.dynamo.cr.tileeditor.commands.SetBrushCollisionGroup"
             name="Set Brush Collision Group">
          <commandParameter
-               id="index"
+               id="org.eclipse.ui.commands.radioStateParameter"
                name="index"
-               optional="true"
+               optional="false"
                values="com.dynamo.cr.tileeditor.CollisionGroupParameterValues">
          </commandParameter>
+         <state
+               id="org.eclipse.ui.commands.radioState">
+            <class
+                  class="org.eclipse.ui.handlers.RadioState">
+               <parameter
+                     name="default"
+                     value="-1">
+               </parameter>
+               <parameter
+                     name="persisted"
+                     value="false">
+               </parameter>
+            </class>
+         </state>
       </command>
    </extension>
    <extension
@@ -131,7 +145,7 @@
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
             sequence="0">
          <parameter
-               id="index"
+               id="org.eclipse.ui.commands.radioStateParameter"
                value="-1">
          </parameter>
       </key>
@@ -141,7 +155,7 @@
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
             sequence="1">
          <parameter
-               id="index"
+               id="org.eclipse.ui.commands.radioStateParameter"
                value="0">
          </parameter>
       </key>
@@ -151,7 +165,7 @@
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
             sequence="2">
          <parameter
-               id="index"
+               id="org.eclipse.ui.commands.radioStateParameter"
                value="1">
          </parameter>
       </key>
@@ -161,7 +175,7 @@
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
             sequence="3">
          <parameter
-               id="index"
+               id="org.eclipse.ui.commands.radioStateParameter"
                value="2">
          </parameter>
       </key>
@@ -171,7 +185,7 @@
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
             sequence="4">
          <parameter
-               id="index"
+               id="org.eclipse.ui.commands.radioStateParameter"
                value="3">
          </parameter>
       </key>
@@ -181,7 +195,7 @@
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
             sequence="5">
          <parameter
-               id="index"
+               id="org.eclipse.ui.commands.radioStateParameter"
                value="4">
          </parameter>
       </key>
@@ -191,7 +205,7 @@
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
             sequence="6">
          <parameter
-               id="index"
+               id="org.eclipse.ui.commands.radioStateParameter"
                value="5">
          </parameter>
       </key>
@@ -201,7 +215,7 @@
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
             sequence="7">
          <parameter
-               id="index"
+               id="org.eclipse.ui.commands.radioStateParameter"
                value="6">
          </parameter>
       </key>
@@ -211,7 +225,7 @@
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
             sequence="8">
          <parameter
-               id="index"
+               id="org.eclipse.ui.commands.radioStateParameter"
                value="7">
          </parameter>
       </key>
@@ -221,7 +235,7 @@
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
             sequence="9">
          <parameter
-               id="index"
+               id="org.eclipse.ui.commands.radioStateParameter"
                value="8">
          </parameter>
       </key>

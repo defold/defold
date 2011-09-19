@@ -77,6 +77,7 @@ KeyListener {
     private int[] hullCounts;
     private Color[] hullColors;
     private FloatBuffer hullVertexBuffer;
+    private FloatBuffer hullFrameVertexBuffer;
     private Texture backgroundTexture;
     private Texture transparentTexture;
 
@@ -220,6 +221,9 @@ KeyListener {
             this.hullVertexBuffer = BufferUtil.newFloatBuffer(hullVertices.length);
         }
         this.hullVertices = hullVertices;
+        if (this.hullIndices == null || this.hullIndices.length != hullIndices.length || this.hullFrameVertexBuffer == null) {
+            this.hullFrameVertexBuffer = BufferUtil.newFloatBuffer(hullIndices.length * 6 * 4);
+        }
         this.hullIndices = hullIndices;
         this.hullCounts = hullCounts;
         this.hullColors = hullColors;
@@ -326,7 +330,7 @@ KeyListener {
             break;
         case CAMERA_MODE_NONE:
             if ((e.stateMask & SWT.BUTTON1) == SWT.BUTTON1) {
-                if (activeTile >= 0) {
+                if (activeTile >= 0 && activeTile < this.hullCounts.length && this.hullCounts[activeTile] > 0) {
                     this.presenter.setConvexHullCollisionGroup(activeTile);
                 }
             }
@@ -386,7 +390,7 @@ KeyListener {
             this.cameraMode = CAMERA_MODE_NONE;
             if (event.button == 1) {
                 this.presenter.beginSetConvexHullCollisionGroup(this.brushCollisionGroup);
-                if (this.activeTile >= 0) {
+                if (this.activeTile >= 0 && this.activeTile < this.hullCounts.length && this.hullCounts[this.activeTile] > 0) {
                     this.presenter.setConvexHullCollisionGroup(this.activeTile);
                 }
             }
@@ -506,7 +510,7 @@ KeyListener {
         metrics.tilesPerRow = TileSetUtil.calculateTileCount(this.tileWidth, metrics.tileSetWidth, this.tileMargin, this.tileSpacing);
         metrics.tilesPerColumn = TileSetUtil.calculateTileCount(this.tileHeight, metrics.tileSetHeight, this.tileMargin, this.tileSpacing);
 
-        metrics.borderSize = 2.0f;
+        metrics.borderSize = 3.0f;
         float pixelBorderSize = metrics.borderSize / this.scale;
         metrics.visualWidth = (this.tileWidth + pixelBorderSize) * metrics.tilesPerRow + pixelBorderSize;
         metrics.visualHeight = (this.tileHeight + pixelBorderSize) * metrics.tilesPerColumn + pixelBorderSize;
@@ -570,15 +574,19 @@ KeyListener {
             this.tileVertexBuffer = BufferUtil.newFloatBuffer(componentCount);
         }
         FloatBuffer v = this.tileVertexBuffer;
+        FloatBuffer hv = this.hullFrameVertexBuffer;
         float recipImageWidth = 1.0f / imageWidth;
         float recipImageHeight = 1.0f / imageHeight;
         float recipScale = 1.0f / this.scale;
         float border = borderSize * recipScale;
         float z = 0.5f;
+        float hz = 0.3f;
         float activeX0 = 0.0f;
         float activeX1 = 0.0f;
         float activeY0 = 0.0f;
         float activeY1 = 0.0f;
+        float halfBorder = border / 3.0f;
+        float[] hc = new float[3];
         for (int row = 0; row < tilesPerColumn; ++row) {
             for (int column = 0; column < tilesPerRow; ++column) {
                 float x0 = column * (tileWidth + border) + border;
@@ -603,17 +611,27 @@ KeyListener {
                             this.hullVertexBuffer.put(x0 + 0.5f + this.hullVertices[hi+0]);
                             this.hullVertexBuffer.put(y0 + 0.5f + this.hullVertices[hi+1]);
                         }
+                        this.hullColors[index].getColorComponents(hc);
+                        float hx0 = x0 - halfBorder;
+                        float hx1 = x1 + halfBorder;
+                        float hy0 = y0 - halfBorder;
+                        float hy1 = y1 + halfBorder;
+                        hv.put(hc); hv.put(hx0); hv.put(hy0); hv.put(hz);
+                        hv.put(hc); hv.put(hx0); hv.put(hy1); hv.put(hz);
+                        hv.put(hc); hv.put(hx1); hv.put(hy1); hv.put(hz);
+                        hv.put(hc); hv.put(hx1); hv.put(hy0); hv.put(hz);
                     }
                     if (index == this.activeTile) {
-                        activeX0 = x0 - border;
-                        activeX1 = x1 + border;
-                        activeY0 = y0 - border;
-                        activeY1 = y1 + border;
+                        activeX0 = x0 - halfBorder;
+                        activeX1 = x1 + halfBorder;
+                        activeY0 = y0 - halfBorder;
+                        activeY1 = y1 + halfBorder;
                     }
                 }
             }
         }
         v.flip();
+        hv.flip();
 
         // Tiles
 
@@ -646,27 +664,44 @@ KeyListener {
             this.transparentTexture.disable();
         }
 
-        gl.glDepthMask(false);
         gl.glDisableClientState(GL.GL_TEXTURE_COORD_ARRAY);
 
-        // Overlay
+        // Active tile
 
-        gl.glColor4f(0.2f, 0.2f, 0.2f, 0.7f);
-        gl.glBegin(GL.GL_QUADS);
-        z = 0.0f;
-        gl.glVertex3f(0.0f, 0.0f, z);
-        gl.glVertex3f(0.0f, height, z);
-        gl.glVertex3f(width, height, z);
-        gl.glVertex3f(width, 0.0f, z);
+        z -= 0.1f;
 
         if (this.activeTile >= 0) {
             float f = 1.0f / 255.0f;
+            gl.glBegin(GL.GL_QUADS);
             gl.glColor4f(brushColor.getRed() * f, brushColor.getGreen() * f, brushColor.getBlue() * f, brushColor.getAlpha() * f);
             gl.glVertex3f(activeX0, activeY0, z);
             gl.glVertex3f(activeX0, activeY1, z);
             gl.glVertex3f(activeX1, activeY1, z);
             gl.glVertex3f(activeX1, activeY0, z);
+            gl.glEnd();
         }
+
+        // Hull Frames
+
+        gl.glEnableClientState(GL.GL_COLOR_ARRAY);
+
+        gl.glInterleavedArrays(GL.GL_C3F_V3F, 0, hv);
+
+        gl.glDrawArrays(GL.GL_QUADS, 0, hv.limit() / 6);
+
+        gl.glDisableClientState(GL.GL_COLOR_ARRAY);
+
+        gl.glDepthMask(false);
+
+        // Overlay
+
+        z = 0.0f;
+        gl.glBegin(GL.GL_QUADS);
+        gl.glColor4f(0.2f, 0.2f, 0.2f, 0.7f);
+        gl.glVertex3f(0.0f, 0.0f, z);
+        gl.glVertex3f(0.0f, height, z);
+        gl.glVertex3f(width, height, z);
+        gl.glVertex3f(width, 0.0f, z);
         gl.glEnd();
 
         gl.glDisable(GL.GL_DEPTH_TEST);

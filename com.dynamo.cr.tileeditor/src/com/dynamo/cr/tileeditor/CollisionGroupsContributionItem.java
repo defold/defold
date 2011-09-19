@@ -9,6 +9,7 @@ import org.eclipse.jface.action.IContributionItem;
 import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.actions.CompoundContributionItem;
+import org.eclipse.ui.handlers.RadioState;
 import org.eclipse.ui.menus.CommandContributionItem;
 import org.eclipse.ui.menus.CommandContributionItemParameter;
 
@@ -36,10 +37,10 @@ CompoundContributionItem {
             IContributionItem[] items = new IContributionItem[n];
             for (int i = 0; i < n; ++i) {
                 String id = "com.dynamo.cr.tileeditor.commands.setBrushCollisionGroup" + n;
-                CommandContributionItemParameter param = new CommandContributionItemParameter(PlatformUI.getWorkbench(), id, COMMAND_ID, CommandContributionItem.STYLE_PUSH | CommandContributionItem.STYLE_CHECK);
+                CommandContributionItemParameter param = new CommandContributionItemParameter(PlatformUI.getWorkbench(), id, COMMAND_ID, CommandContributionItem.STYLE_RADIO);
                 param.label = collisionGroups.get(i);
                 Map<String, String> parameters = new HashMap<String, String>();
-                parameters.put("index", Integer.toString(i-1));
+                parameters.put(RadioState.PARAMETER_ID, Integer.toString(i-1));
                 param.parameters = parameters;
                 items[i] = new CommandContributionItem(param);
             }
