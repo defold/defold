@@ -165,7 +165,7 @@ public class TileSetEditor extends AbstractDefoldEditor implements ITileSetView 
     @Override
     public void createPartControl(Composite parent) {
         loadCursors();
-        parent.setCursor(pencilCursor);
+        parent.setCursor(eraserCursor);
 
         this.renderer.createControls(parent);
 
@@ -186,8 +186,8 @@ public class TileSetEditor extends AbstractDefoldEditor implements ITileSetView 
         ImageData[] eraser = loader.load(getClass().getResourceAsStream("/icons/draw_eraser_bw.png"));
 
         Display display = getSite().getShell().getDisplay();
-        pencilCursor = new Cursor(display, pencil[0], 0, 0);
-        eraserCursor = new Cursor(display, eraser[0], 0, 0);
+        pencilCursor = new Cursor(display, pencil[0], 0, 15);
+        eraserCursor = new Cursor(display, eraser[0], 0, 15);
     }
 
     public TileSetPresenter getPresenter() {
