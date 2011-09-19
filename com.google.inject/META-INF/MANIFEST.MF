@@ -1,0 +1,18 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: Google Guice
+Bundle-SymbolicName: com.google.inject
+Bundle-Version: 3.0.0
+Bundle-ClassPath: guice-3.0.jar,
+ javax.inject.jar,
+ aopalliance.jar
+Export-Package: com.google.inject,
+ com.google.inject.binder,
+ com.google.inject.matcher,
+ com.google.inject.name,
+ com.google.inject.spi,
+ com.google.inject.util,
+ javax.inject,
+ org.aopalliance.aop,
+ org.aopalliance.intercept
+Bundle-RequiredExecutionEnvironment: JavaSE-1.6
