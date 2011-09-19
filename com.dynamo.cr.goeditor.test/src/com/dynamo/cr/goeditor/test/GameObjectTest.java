@@ -5,11 +5,14 @@ import static org.junit.Assert.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import javax.inject.Singleton;
+
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.DefaultOperationHistory;
 import org.eclipse.core.commands.operations.IOperationHistory;
 import org.eclipse.core.commands.operations.IUndoContext;
 import org.eclipse.core.commands.operations.UndoContext;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -33,8 +36,9 @@ public class GameObjectTest {
     private GameObjectModel model;
     private DefaultOperationHistory history;
     private UndoContext undoContext;
+    private Injector injector;
 
-    class TestLogger implements ILogger {
+    static class TestLogger implements ILogger {
 
         @Override
         public void logException(Throwable exception) {
@@ -47,12 +51,12 @@ public class GameObjectTest {
         @Override
         protected void configure() {
             bind(IGameObjectView.class).toInstance(view);
-            bind(GameObjectModel.class).toInstance(model);
+            bind(GameObjectModel.class).in(Singleton.class);
 
             bind(IOperationHistory.class).toInstance(history);
             bind(IUndoContext.class).toInstance(undoContext);
 
-            bind(ILogger.class).toInstance(new TestLogger());
+            bind(ILogger.class).to(TestLogger.class);
         }
     }
 
@@ -60,18 +64,17 @@ public class GameObjectTest {
     public void setup() {
         history = new DefaultOperationHistory();
         undoContext = new UndoContext();
-
-
         view = mock(IGameObjectView.class);
-        model = new GameObjectModel();
-
-        presenter = new GameObjectPresenter();
 
         TestModule module = new TestModule();
-        Injector injector = Guice.createInjector(module);
+        injector = Guice.createInjector(module);
         presenter = injector.getInstance(GameObjectPresenter.class);
+        model = injector.getInstance(GameObjectModel.class);
     }
 
+    @After
+    public void shutdown() {
+    }
 
     // Helper functions
     void undo() throws ExecutionException {
@@ -94,20 +97,24 @@ public class GameObjectTest {
         return ((EmbeddedComponent) component(index)).getMessage();
     }
 
+    int componentCount() {
+        return model.getComponents().size();
+    }
+
     // Actual tests
     @Test
     public void testAddResourceComponent() throws Exception {
         when(view.openAddResourceComponentDialog()).thenReturn("test.script");
         presenter.onAddResourceComponent();
 
-        assertThat(model.getComponents().size(), is(1));
+        assertThat(componentCount(), is(1));
         assertThat(resource(0), is("test.script"));
 
         undo();
-        assertThat(model.getComponents().size(), is(0));
+        assertThat(componentCount(), is(0));
 
         redo();
-        assertThat(model.getComponents().size(), is(1));
+        assertThat(componentCount(), is(1));
         assertThat(resource(0), is("test.script"));
     }
 
@@ -120,19 +127,19 @@ public class GameObjectTest {
         presenter.onAddEmbeddedComponent();
         presenter.onAddEmbeddedComponent();
 
-        assertThat(model.getComponents().size(), is(2));
+        assertThat(componentCount(), is(2));
         assertThat(message(0), is(m1));
         assertThat(message(1), is(m2));
 
         undo();
-        assertThat(model.getComponents().size(), is(1));
+        assertThat(componentCount(), is(1));
 
         undo();
-        assertThat(model.getComponents().size(), is(0));
+        assertThat(componentCount(), is(0));
 
         redo();
         redo();
-        assertThat(model.getComponents().size(), is(2));
+        assertThat(componentCount(), is(2));
         assertThat(message(0), is(m1));
         assertThat(message(1), is(m2));
     }
@@ -144,7 +151,7 @@ public class GameObjectTest {
         presenter.onAddResourceComponent();
         presenter.onAddResourceComponent();
 
-        assertThat(model.getComponents().size(), is(3));
+        assertThat(componentCount(), is(3));
         assertThat(resource(0), is("test1.script"));
         assertThat(resource(1), is("test2.script"));
         assertThat(resource(2), is("test3.script"));
@@ -153,18 +160,18 @@ public class GameObjectTest {
         undo();
         redo();
         redo();
-        assertThat(model.getComponents().size(), is(3));
+        assertThat(componentCount(), is(3));
         assertThat(resource(0), is("test1.script"));
         assertThat(resource(1), is("test2.script"));
         assertThat(resource(2), is("test3.script"));
 
         presenter.onRemoveComponent(component(1));
-        assertThat(model.getComponents().size(), is(2));
+        assertThat(componentCount(), is(2));
         assertThat(resource(0), is("test1.script"));
         assertThat(resource(1), is("test3.script"));
 
         undo();
-        assertThat(model.getComponents().size(), is(3));
+        assertThat(componentCount(), is(3));
         assertThat(resource(0), is("test1.script"));
         assertThat(resource(1), is("test2.script"));
         assertThat(resource(2), is("test3.script"));
