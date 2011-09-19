@@ -1,7 +1,8 @@
 package com.dynamo.cr.goeditor;
 
-public class Component {
+public abstract class Component {
     private int index = -1;
+    private String id;
 
     public int getIndex() {
         return index;
@@ -11,5 +12,14 @@ public class Component {
         this.index = index;
     }
 
+    public String getId() {
+        return this.id;
+    }
+
+    public void setId(String id) {
+        this.id = id;
+    }
+
+    public abstract String getFileExtension();
 
 }

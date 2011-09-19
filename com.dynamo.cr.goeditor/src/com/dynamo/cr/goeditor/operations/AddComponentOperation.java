@@ -19,6 +19,7 @@ public class AddComponentOperation extends AbstractOperation {
         super(component.toString());
         this.model = model;
         this.component = component;
+        this.component.setId(model.getUniqueId(component.getFileExtension()));
     }
 
     @Override

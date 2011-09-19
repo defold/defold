@@ -8,6 +8,12 @@ public class ResourceComponent extends Component {
         this.resource = resource;
     }
 
+    @Override
+    public String getFileExtension() {
+        int index = resource.lastIndexOf(".");
+        return resource.substring(index + 1);
+    }
+
     public String getResource() {
         return resource;
     }

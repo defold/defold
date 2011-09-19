@@ -2,8 +2,14 @@ package com.dynamo.cr.goeditor.test;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
+import static org.mockito.Matchers.anyListOf;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+import java.util.Arrays;
+import java.util.HashSet;
 
 import javax.inject.Singleton;
 
@@ -16,6 +22,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.dynamo.cr.editor.core.IResourceType;
 import com.dynamo.cr.goeditor.Component;
 import com.dynamo.cr.goeditor.EmbeddedComponent;
 import com.dynamo.cr.goeditor.GameObjectModel;
@@ -34,8 +41,8 @@ public class GameObjectTest {
     private IGameObjectView view;
     private IGameObjectView.Presenter presenter;
     private GameObjectModel model;
-    private DefaultOperationHistory history;
-    private UndoContext undoContext;
+    private IOperationHistory history;
+    private IUndoContext undoContext;
     private Injector injector;
 
     static class TestLogger implements ILogger {
@@ -74,6 +81,7 @@ public class GameObjectTest {
 
     @After
     public void shutdown() {
+        presenter.dispose();
     }
 
     // Helper functions
@@ -87,6 +95,10 @@ public class GameObjectTest {
 
     Component component(int index) {
         return model.getComponents().get(index);
+    }
+
+    String id(int index) {
+        return component(index).getId();
     }
 
     String resource(int index) {
@@ -123,7 +135,15 @@ public class GameObjectTest {
         Message m1 = DescriptorProtos.FileDescriptorProto.getDefaultInstance();
         Message m2 = DescriptorProtos.ServiceDescriptorProto.getDefaultInstance();
 
-        when(view.openAddEmbeddedComponentDialog()).thenReturn(m1, m2);
+        IResourceType t1 = mock(IResourceType.class);
+        when(t1.createTemplateMessage()).thenReturn(m1);
+        when(t1.getFileExtension()).thenReturn("script");
+
+        IResourceType t2 = mock(IResourceType.class);
+        when(t2.createTemplateMessage()).thenReturn(m2);
+        when(t2.getFileExtension()).thenReturn("sprite");
+
+        when(view.openAddEmbeddedComponentDialog()).thenReturn(t1, t2);
         presenter.onAddEmbeddedComponent();
         presenter.onAddEmbeddedComponent();
 
@@ -142,6 +162,21 @@ public class GameObjectTest {
         assertThat(componentCount(), is(2));
         assertThat(message(0), is(m1));
         assertThat(message(1), is(m2));
+    }
+
+    @Test
+    public void testUpdateView() throws Exception {
+        int setCount = 0;
+        verify(this.view, times(setCount++)).setComponents(anyListOf(Component.class));
+
+        when(view.openAddResourceComponentDialog()).thenReturn("test.script");
+        presenter.onAddResourceComponent();
+
+        verify(this.view, times(setCount++)).setComponents(anyListOf(Component.class));
+        undo();
+        verify(this.view, times(setCount++)).setComponents(anyListOf(Component.class));
+        redo();
+        verify(this.view, times(setCount++)).setComponents(anyListOf(Component.class));
     }
 
     @Test
@@ -175,6 +210,36 @@ public class GameObjectTest {
         assertThat(resource(0), is("test1.script"));
         assertThat(resource(1), is("test2.script"));
         assertThat(resource(2), is("test3.script"));
+    }
+
+    @Test
+    public void testIds() throws Exception {
+        when(view.openAddResourceComponentDialog()).thenReturn("test1.script", "test2.script", "test3.script");
+        presenter.onAddResourceComponent();
+        presenter.onAddResourceComponent();
+        presenter.onAddResourceComponent();
+
+        HashSet<String> ids = new HashSet<String>(Arrays.asList(id(0), id(1), id(2)));
+        assertThat(ids, is(new HashSet<String>(Arrays.asList("script", "script0", "script1"))));
+
+        assertThat(model.isOk(), is(true));
+    }
+
+    @Test
+    public void testDuplicateId() throws Exception {
+        when(view.openAddResourceComponentDialog()).thenReturn("test1.script", "test2.script", "test3.script");
+        presenter.onAddResourceComponent();
+        presenter.onAddResourceComponent();
+        presenter.onAddResourceComponent();
+
+        HashSet<String> ids = new HashSet<String>(Arrays.asList(id(0), id(1), id(2)));
+        assertThat(ids, is(new HashSet<String>(Arrays.asList("script", "script0", "script1"))));
+        assertThat(model.isOk(), is(true));
+
+        presenter.onSetComponentId(component(0), "script0");
+        ids = new HashSet<String>(Arrays.asList(id(0), id(1), id(2)));
+        assertThat(ids, is(new HashSet<String>(Arrays.asList("script0", "script1"))));
+        assertThat(model.isOk(), is(false));
     }
 
 }
