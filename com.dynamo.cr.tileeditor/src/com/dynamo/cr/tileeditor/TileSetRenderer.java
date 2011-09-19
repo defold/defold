@@ -21,6 +21,7 @@ import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.opengl.GLCanvas;
 import org.eclipse.swt.opengl.GLData;
 import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.Listener;
@@ -146,6 +147,10 @@ KeyListener {
 
     public void setFocus() {
         this.canvas.setFocus();
+    }
+
+    public Control getControl() {
+        return this.canvas;
     }
 
     public void setImage(BufferedImage image) {

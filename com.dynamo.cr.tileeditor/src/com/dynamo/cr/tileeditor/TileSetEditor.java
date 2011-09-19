@@ -20,6 +20,9 @@ import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.action.IStatusLineManager;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.window.Window;
+import org.eclipse.swt.graphics.Cursor;
+import org.eclipse.swt.graphics.ImageData;
+import org.eclipse.swt.graphics.ImageLoader;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.ui.IActionBars;
@@ -59,6 +62,8 @@ public class TileSetEditor extends AbstractDefoldEditor implements ITileSetView 
     // cache collision groups serve to others
     List<String> collisionGroups;
     List<Color> collisionGroupColors;
+    private Cursor pencilCursor;
+    private Cursor eraserCursor;
 
     @Override
     protected void logException(Throwable e) {
@@ -149,10 +154,18 @@ public class TileSetEditor extends AbstractDefoldEditor implements ITileSetView 
         if (this.renderer != null) {
             this.renderer.dispose();
         }
+
+        if (this.pencilCursor != null)
+            this.pencilCursor.dispose();
+
+        if (this.eraserCursor != null)
+            this.eraserCursor.dispose();
     }
 
     @Override
     public void createPartControl(Composite parent) {
+        loadCursors();
+        parent.setCursor(pencilCursor);
 
         this.renderer.createControls(parent);
 
@@ -165,6 +178,16 @@ public class TileSetEditor extends AbstractDefoldEditor implements ITileSetView 
         getSite().setSelectionProvider(this.outlinePage);
 
         this.presenter.refresh();
+    }
+
+    private void loadCursors() {
+        ImageLoader loader = new ImageLoader();
+        ImageData[] pencil = loader.load(getClass().getResourceAsStream("/icons/pencil_bw.png"));
+        ImageData[] eraser = loader.load(getClass().getResourceAsStream("/icons/draw_eraser_bw.png"));
+
+        Display display = getSite().getShell().getDisplay();
+        pencilCursor = new Cursor(display, pencil[0], 0, 0);
+        eraserCursor = new Cursor(display, eraser[0], 0, 0);
     }
 
     public TileSetPresenter getPresenter() {
@@ -327,7 +350,9 @@ public class TileSetEditor extends AbstractDefoldEditor implements ITileSetView 
     public void setBrushCollisionGroup(int index) {
         if (index < 0) {
             this.renderer.setBrushCollisionGroup("", Color.white);
+            this.renderer.getControl().setCursor(eraserCursor);
         } else if (index < this.collisionGroups.size()) {
+            this.renderer.getControl().setCursor(pencilCursor);
             this.renderer.setBrushCollisionGroup(this.collisionGroups.get(index), this.collisionGroupColors.get(index));
         }
     }
