@@ -66,7 +66,7 @@ public class GameObjectModel {
         return id;
     }
 
-    public boolean isOk() {
+    public boolean isValid() {
         Set<String> ids = new HashSet<String>();
         for (Component c : components) {
             ids.add(c.getId());

@@ -234,7 +234,7 @@ public class GameObjectTest {
         HashSet<String> ids = new HashSet<String>(Arrays.asList(id(0), id(1), id(2)));
         assertThat(ids, is(new HashSet<String>(Arrays.asList("script", "script0", "script1"))));
 
-        assertThat(model.isOk(), is(true));
+        assertThat(model.isValid(), is(true));
     }
 
     @Test
@@ -246,12 +246,12 @@ public class GameObjectTest {
 
         HashSet<String> ids = new HashSet<String>(Arrays.asList(id(0), id(1), id(2)));
         assertThat(ids, is(new HashSet<String>(Arrays.asList("script", "script0", "script1"))));
-        assertThat(model.isOk(), is(true));
+        assertThat(model.isValid(), is(true));
 
         presenter.onSetComponentId(component(0), "script0");
         ids = new HashSet<String>(Arrays.asList(id(0), id(1), id(2)));
         assertThat(ids, is(new HashSet<String>(Arrays.asList("script0", "script1"))));
-        assertThat(model.isOk(), is(false));
+        assertThat(model.isValid(), is(false));
     }
 
     @Test
