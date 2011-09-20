@@ -12,6 +12,7 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 
 import com.dynamo.cr.editor.core.IResourceType;
+import com.dynamo.cr.editor.core.IResourceTypeRegistry;
 import com.dynamo.cr.goeditor.operations.AddComponentOperation;
 import com.dynamo.cr.goeditor.operations.RemoveComponentOperation;
 
@@ -20,6 +21,8 @@ public class GameObjectPresenter implements IGameObjectView.Presenter, IOperatio
     @Inject private GameObjectModel model;
 
     @Inject private IGameObjectView view;
+
+    @Inject IResourceTypeRegistry resourceTypeRegistry;
 
     @Inject private IOperationHistory undoHistory;
 
@@ -71,7 +74,7 @@ public class GameObjectPresenter implements IGameObjectView.Presenter, IOperatio
     public void onAddResourceComponent() {
         String resource = view.openAddResourceComponentDialog();
         if (resource != null) {
-            AddComponentOperation operation = new AddComponentOperation(new ResourceComponent(resource), model);
+            AddComponentOperation operation = new AddComponentOperation(new ResourceComponent(resourceTypeRegistry, resource), model);
             executeOperation(operation);
         }
     }
@@ -80,7 +83,7 @@ public class GameObjectPresenter implements IGameObjectView.Presenter, IOperatio
     public void onAddEmbeddedComponent() {
         IResourceType resourceType = view.openAddEmbeddedComponentDialog();
         if (resourceType != null) {
-            AddComponentOperation operation = new AddComponentOperation(new EmbeddedComponent(resourceType.createTemplateMessage(), resourceType.getFileExtension()), model);
+            AddComponentOperation operation = new AddComponentOperation(new EmbeddedComponent(resourceTypeRegistry, resourceType.createTemplateMessage(), resourceType.getFileExtension()), model);
             executeOperation(operation);
         }
     }
