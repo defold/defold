@@ -16,12 +16,12 @@ import static org.mockito.Mockito.verify;
 
 import java.awt.Color;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Enumeration;
@@ -140,7 +140,7 @@ public class TileSetTest implements IResourceChangeListener {
                 .setMaterialTag("tile")
                 .addCollisionGroups("default")
                 .build();
-        this.presenter.load(tileSet);
+        this.presenter.load(new ByteArrayInputStream(TextFormat.printToString(tileSet).getBytes()));
         return tileSet;
     }
 
@@ -718,15 +718,20 @@ public class TileSetTest implements IResourceChangeListener {
         String newTileSetPath = "test/tmp.tileset";
         File newTileSetFile = new File(newTileSetPath);
 
-        FileOutputStream outputStream = new FileOutputStream(newTileSetFile);
-        this.presenter.save(outputStream, new NullProgressMonitor());
-        TileSet.Builder tileSetBuilder = TileSet.newBuilder();
-        TextFormat.merge(new InputStreamReader(new FileInputStream(newTileSetPath)), tileSetBuilder);
-        TileSet tileSet = tileSetBuilder.build();
-        newTileSetFile = new File(newTileSetPath);
-        newTileSetFile.delete();
+        FileOutputStream os = new FileOutputStream(newTileSetFile);
+        try {
+            this.presenter.save(os, new NullProgressMonitor());
+        } finally {
+            os.close();
+        }
         TileSetModel newModel = new TileSetModel(this.contentRoot, this.history, this.undoContext);
-        newModel.load(tileSet);
+        InputStream is = new FileInputStream(newTileSetPath);
+        try {
+            newModel.load(is);
+        } finally {
+            is.close();
+        }
+        newTileSetFile.delete();
         assertEquals(this.model.getImage(), newModel.getImage());
         assertEquals(this.model.getTileWidth(), newModel.getTileWidth());
         assertEquals(this.model.getTileHeight(), newModel.getTileHeight());

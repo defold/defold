@@ -16,6 +16,7 @@ Require-Bundle: org.eclipse.ui,
  org.eclipse.ui.navigator;bundle-version="3.5.100",
  org.eclipse.core.expressions,
  javax.media.opengl;bundle-version="1.1.1",
- com.google.common;bundle-version="0.0.9"
+ com.google.common;bundle-version="0.0.9",
+ com.google.inject;bundle-version="3.0.0"
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
 Bundle-ActivationPolicy: lazy

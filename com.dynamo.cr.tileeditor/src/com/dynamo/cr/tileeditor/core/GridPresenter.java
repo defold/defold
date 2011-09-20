@@ -2,35 +2,30 @@ package com.dynamo.cr.tileeditor.core;
 
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
-import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.List;
 
+import javax.inject.Inject;
+
+import org.eclipse.core.commands.operations.IOperationHistory;
+import org.eclipse.core.commands.operations.IUndoContext;
 import org.eclipse.core.runtime.IStatus;
 
-import com.dynamo.tile.proto.Tile.TileGrid;
-
-public class GridPresenter implements PropertyChangeListener {
+public class GridPresenter implements IGridView.Presenter, PropertyChangeListener {
 
     private final GridModel model;
     private final IGridView view;
-    private boolean loading = false;
-    private int undoRedoCounter;
 
-    public GridPresenter(GridModel model, IGridView view) {
+    private boolean loading = false;
+    private int undoRedoCounter = 0;
+
+    @Inject
+    public GridPresenter(GridModel model, IGridView view, IOperationHistory undoHistory, IUndoContext undoContext, ILogger logger) {
         this.model = model;
         this.view = view;
-        this.model.addTaggedPropertyListener(this);
-    }
 
-    public void load(TileGrid tileGrid) throws IOException {
-        this.loading = true;
-        try {
-            this.model.load(tileGrid);
-        } finally {
-            this.loading = false;
-        }
-        refresh();
-        setUndoRedoCounter(0);
+        this.model.addTaggedPropertyListener(this);
     }
 
     public void refresh() {
@@ -73,6 +68,27 @@ public class GridPresenter implements PropertyChangeListener {
                 }
             }
         }
+    }
+
+    @Override
+    public void onTileSelected(int tileIndex) {
+        // TODO Auto-generated method stub
+
+    }
+
+    @Override
+    public void onLoad(InputStream is) {
+        this.loading = true;
+        this.model.load(is);
+        this.loading = false;
+        refresh();
+        setUndoRedoCounter(0);
+    }
+
+    @Override
+    public void onSave(OutputStream os) {
+        // TODO Auto-generated method stub
+
     }
 
 }

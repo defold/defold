@@ -1,10 +1,13 @@
 package com.dynamo.cr.tileeditor.test;
 
+import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyFloat;
+import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -12,14 +15,17 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import java.io.ByteArrayInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Enumeration;
-import java.util.List;
 
+import javax.inject.Singleton;
+
+import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.DefaultOperationHistory;
 import org.eclipse.core.commands.operations.IOperationHistory;
 import org.eclipse.core.commands.operations.IUndoContext;
@@ -32,7 +38,6 @@ import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.IStatus;
-import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.osgi.util.NLS;
@@ -48,42 +53,65 @@ import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.tileeditor.core.GridModel;
 import com.dynamo.cr.tileeditor.core.GridPresenter;
 import com.dynamo.cr.tileeditor.core.IGridView;
+import com.dynamo.cr.tileeditor.core.ILogger;
 import com.dynamo.cr.tileeditor.core.Messages;
-import com.dynamo.tile.proto.Tile.TileGrid;
-import com.dynamo.tile.proto.Tile.TileLayer;
-import com.dynamo.tile.proto.Tile.TileSet;
+import com.dynamo.cr.tileeditor.core.TileSetModel;
 import com.google.common.base.Joiner;
-import com.google.protobuf.Message;
-import com.google.protobuf.TextFormat;
+import com.google.inject.AbstractModule;
+import com.google.inject.Guice;
+import com.google.inject.Injector;
 
 public class GridTest {
 
     private IGridView view;
+    private IGridView.Presenter presenter;
     private GridModel model;
-    private GridPresenter presenter;
     private IOperationHistory history;
-    private IUndoContext undoContext;
     private IProject project;
-    private NullProgressMonitor monitor;
     private IContainer contentRoot;
-    IPropertyModel<GridModel, GridModel> propertyModel;
+    private IPropertyModel<GridModel, GridModel> propertyModel;
+    private Injector injector;
+
+    static class TestLogger implements ILogger {
+
+        @Override
+        public void logException(Throwable exception) {
+            throw new UnsupportedOperationException(exception);
+        }
+
+    }
+
+    class TestModule extends AbstractModule {
+        @Override
+        protected void configure() {
+            bind(IGridView.class).toInstance(view);
+            bind(IGridView.Presenter.class).to(GridPresenter.class).in(Singleton.class);
+            bind(GridModel.class).in(Singleton.class);
+
+            bind(IOperationHistory.class).to(DefaultOperationHistory.class).in(Singleton.class);
+            bind(IUndoContext.class).to(UndoContext.class).in(Singleton.class);
+
+            bind(ILogger.class).to(TestLogger.class);
+
+            bind(IContainer.class).toInstance(contentRoot);
+        }
+    }
 
     @SuppressWarnings("unchecked")
     @Before
     public void setup() throws CoreException, IOException {
         System.setProperty("java.awt.headless", "true");
 
-        project = ResourcesPlugin.getWorkspace().getRoot().getProject("test");
-        monitor = new NullProgressMonitor();
-        if (project.exists()) {
-            project.delete(true, monitor);
+        this.project = ResourcesPlugin.getWorkspace().getRoot().getProject("test");
+        if (this.project.exists()) {
+            this.project.delete(true, null);
         }
-        project.create(monitor);
-        project.open(monitor);
+        this.project.create(null);
+        this.project.open(null);
 
-        IProjectDescription pd = project.getDescription();
+        IProjectDescription pd = this.project.getDescription();
         pd.setNatureIds(new String[] { "com.dynamo.cr.editor.core.crnature" });
-        project.setDescription(pd, monitor);
+        this.project.setDescription(pd, null);
 
         Bundle bundle = Platform.getBundle("com.dynamo.cr.tileeditor.test");
         Enumeration<URL> entries = bundle.findEntries("/test", "*", true);
@@ -92,85 +120,72 @@ public class GridTest {
             IPath path = new Path(url.getPath()).removeFirstSegments(1);
             // Create path of url-path and remove first element, ie /test/sounds/ -> /sounds
             if (url.getFile().endsWith("/")) {
-                project.getFolder(path).create(true, true, monitor);
+                this.project.getFolder(path).create(true, true, null);
             } else {
                 InputStream is = url.openStream();
-                IFile file = project.getFile(path);
-                file.create(is, true, monitor);
+                IFile file = this.project.getFile(path);
+                file.create(is, true, null);
                 is.close();
             }
         }
         this.contentRoot = EditorUtil.findContentRoot(this.project.getFile("game.project"));
 
         this.view = mock(IGridView.class);
-        this.history = new DefaultOperationHistory();
-        this.undoContext = new UndoContext();
-        this.model = new GridModel(this.contentRoot, this.history, this.undoContext);
-        this.presenter = new GridPresenter(this.model, this.view);
-        propertyModel = (IPropertyModel<GridModel, GridModel>) this.model.getAdapter(IPropertyModel.class);
+        TestModule module = new TestModule();
+        this.injector = Guice.createInjector(module);
+        this.history = this.injector.getInstance(IOperationHistory.class);
+        this.model = this.injector.getInstance(GridModel.class);
+        this.presenter = this.injector.getInstance(IGridView.Presenter.class);
+        this.propertyModel = (IPropertyModel<GridModel, GridModel>) this.model.getAdapter(IPropertyModel.class);
     }
 
-    private TileGrid loadEmptyFile() throws IOException {
-        // new file
-        TileGrid.Builder tileGridBuilder = TileGrid.newBuilder()
-                .setTileSet("")
-                .setCellWidth(16)
-                .setCellHeight(16);
-        TileLayer.Builder tileLayerBuilder = TileLayer.newBuilder()
-                .setId("layer1")
-                .setZ(0.0f)
-                .setIsVisible(1);
-        tileGridBuilder.addLayers(tileLayerBuilder);
-        TileGrid tileGrid = tileGridBuilder.build();
-        this.presenter.load(tileGrid);
-        return tileGrid;
+    private void newResourceFile(String path) throws IOException, CoreException {
+        IResourceTypeRegistry registry = EditorCorePlugin.getDefault().getResourceTypeRegistry();
+        IResourceType type = registry.getResourceTypeFromExtension(path.substring(path.lastIndexOf('.') + 1));
+        IFile file = this.contentRoot.getFile(new Path(path));
+        InputStream is = new ByteArrayInputStream(type.getTemplateData());
+        try {
+            if (file.exists()) {
+                file.setContents(is, true, true, null);
+            } else {
+                file.create(is, true, null);
+            }
+        } finally {
+            is.close();
+        }
     }
 
-    private void newTileSet(String name, String image) throws IOException, CoreException {
-        IFile file = contentRoot.getFile(new Path(name));
-        TileSet tileSet = TileSet.newBuilder()
-                .setImage(image)
-                .setTileWidth(16)
-                .setTileHeight(16)
-                .setTileSpacing(0)
-                .setTileMargin(1)
-                .setCollision(image)
-                .setMaterialTag("tile")
-                .addCollisionGroups("default")
-                .build();
+    private void newGrid() throws IOException, CoreException {
+        String path = "/test.grid";
+        newResourceFile(path);
+        IFile file = this.contentRoot.getFile(new Path(path));
+        this.presenter.onLoad(file.getContents());
+    }
 
-        byte[] msg = tileSet.toString().getBytes();
-        ByteArrayInputStream input = new ByteArrayInputStream(msg);
-        file.create(input, true, monitor);
+    private void newTileSet(String path, String image) throws IOException, CoreException {
+        newResourceFile(path);
+        IFile file = this.contentRoot.getFile(new Path(path));
+        TileSetModel tileSetModel = new TileSetModel(this.contentRoot, new DefaultOperationHistory(), new UndoContext());
+        tileSetModel.load(file.getContents());
+        tileSetModel.setImage(image);
+        OutputStream os = new FileOutputStream(file.getLocation().toFile());
+        try {
+            tileSetModel.save(os, null);
+        } finally {
+            os.close();
+        }
     }
 
     private void newMarioTileSet() throws IOException, CoreException {
         newTileSet("/mario.tileset", "/mario_tileset.png");
     }
 
-    private TileGrid loadFile(IFile file) throws IOException, CoreException {
-        TileGrid.Builder tileGridBuilder = TileGrid.newBuilder();
-
-        InputStreamReader input = new InputStreamReader(file.getContents());
-        TextFormat.merge(input, tileGridBuilder);
-        input.close();
-
-        TileGrid tileGrid = tileGridBuilder.build();
-        this.presenter.load(tileGrid);
-        return tileGrid;
+    private void setGridProperty(Object id, Object value) throws ExecutionException {
+        this.history.execute(this.propertyModel.setPropertyValue(id, value), null, null);
     }
 
-    private void newResourceFile(IFile file, String extension) throws CoreException {
-        IResourceTypeRegistry registry = EditorCorePlugin.getDefault().getResourceTypeRegistry();
-        IResourceType resourceType = registry.getResourceTypeFromExtension(extension);
-        Message templateMessage = resourceType.createTemplateMessage();
-        byte[] msg = templateMessage.toString().getBytes();
-        ByteArrayInputStream input = new ByteArrayInputStream(msg);
-        file.create(input, true, monitor);
-    }
-
-    private void newGridFile(IFile file) throws CoreException {
-        newResourceFile(file, "grid");
+    private String tileSet() {
+        return this.model.getTileSet();
     }
 
     /**
@@ -178,12 +193,12 @@ public class GridTest {
      */
     @SuppressWarnings("unchecked")
     @Test
-    public void testLoad() throws IOException {
-        TileGrid tileGrid = loadEmptyFile();
+    public void testLoad() throws Exception {
+        newGrid();
 
-        assertEquals(tileGrid.getTileSet(), this.model.getTileSet());
-        assertEquals(tileGrid.getCellWidth(), this.model.getCellWidth(), 0.000001f);
-        assertEquals(tileGrid.getCellHeight(), this.model.getCellHeight(), 0.000001f);
+        assertEquals("", this.model.getTileSet());
+        assertEquals(16.0f, this.model.getCellWidth(), 0.000001f);
+        assertEquals(16.0f, this.model.getCellHeight(), 0.000001f);
         assertEquals(1, this.model.getLayers().size());
         GridModel.Layer layer = this.model.getLayers().get(0);
         assertEquals("layer1", layer.getId());
@@ -193,7 +208,7 @@ public class GridTest {
         verify(this.view, times(1)).setTileSetProperty(any(String.class));
         verify(this.view, times(1)).setCellWidthProperty(anyFloat());
         verify(this.view, times(1)).setCellHeightProperty(anyFloat());
-        verify(this.view, times(1)).setLayers(any(List.class));
+        verify(this.view, times(1)).setLayers(anyList());
     }
 
     /**
@@ -202,20 +217,18 @@ public class GridTest {
      */
     @Test
     public void testUseCase211() throws Exception {
-        IFile levelFile = contentRoot.getFile(new Path("/level.grid"));
-
         newMarioTileSet();
-        newGridFile(levelFile);
+        newGrid();
 
-        @SuppressWarnings("unused")
-        TileGrid tileGrid = loadFile(levelFile);
-        this.model.executeOperation(propertyModel.setPropertyValue("tileSet", "/test/mario.tileset"));
-        this.model.executeOperation(propertyModel.setPropertyValue("cellHeight", 16));
-        this.model.executeOperation(propertyModel.setPropertyValue("cellWidth", 16));
+        setGridProperty("tileSet", "/test/mario.tileset");
+        setGridProperty("cellHeight", 16);
+        setGridProperty("cellWidth", 16);
 
-        assertEquals("/test/mario.tileset", this.model.getTileSet());
+        assertThat(tileSet(), is("/test/mario.tileset"));
         assertEquals(16, this.model.getCellWidth(), 0.0001);
         assertEquals(16, this.model.getCellHeight(), 0.0001);
+
+        this.presenter.onTileSelected(1);
     }
 
     private void assertMessage(String expectedMessage, String property) {
@@ -244,18 +257,18 @@ public class GridTest {
      * @throws CoreException
      */
     @Test
-    public void testMessage21() throws IOException, CoreException {
-        loadEmptyFile();
+    public void testMessage21() throws Exception {
+        newGrid();
         newMarioTileSet();
 
         assertTrue(!propertyModel.getPropertyStatus("tileSet").isOK());
         assertMessage(Messages.GridModel_ResourceValidator_tileSet_NOT_SPECIFIED, "tileSet");
         verify(this.view, times(1)).refreshProperties();
 
-        this.model.executeOperation(propertyModel.setPropertyValue("tileSet", "/does_not_exists.tileset"));
+        setGridProperty("tileSet", "/does_not_exists.tileset");
         assertMessage(NLS.bind(Messages.GridModel_ResourceValidator_tileSet_NOT_FOUND, "/does_not_exists.tileset"), "tileSet");
 
-        this.model.executeOperation(propertyModel.setPropertyValue("tileSet", "/mario.tileset"));
+        setGridProperty("tileSet", "/mario.tileset");
         assertTrue(propertyModel.getPropertyStatus("tileSet").isOK());
         verify(this.view, times(3)).refreshProperties();
     }
@@ -266,23 +279,23 @@ public class GridTest {
      * @throws CoreException
      */
     @Test
-    public void testMessage22() throws IOException, CoreException {
+    public void testMessage22() throws Exception {
         newMarioTileSet();
-        loadEmptyFile();
+        newGrid();
 
         assertTrue(!propertyModel.getPropertyStatus("tileSet").isOK());
         verify(this.view, times(1)).refreshProperties();
         verify(this.view, never()).setValid(anyBoolean());
 
         String invalidPath = "/test";
-        this.model.executeOperation(propertyModel.setPropertyValue("tileSet", invalidPath));
+        setGridProperty("tileSet", invalidPath);
         assertTrue(!propertyModel.getPropertyStatus("tileSet").isOK());
         assertMessage(NLS.bind(Messages.GridModel_ResourceValidator_tileSet_NOT_FOUND, invalidPath), "tileSet");
 
         verify(this.view, times(2)).refreshProperties();
         verify(this.view, times(1)).setValid(eq(false));
 
-        this.model.executeOperation(propertyModel.setPropertyValue("tileSet", "/mario.tileset"));
+        setGridProperty("tileSet", "/mario.tileset");
         assertTrue(propertyModel.getPropertyStatus("tileSet").isOK());
         verify(this.view, times(3)).refreshProperties();
         verify(this.view, times(1)).setValid(eq(true));
@@ -294,17 +307,17 @@ public class GridTest {
      * @throws CoreException
      */
     @Test
-    public void testMessage23() throws IOException, CoreException {
+    public void testMessage23() throws Exception {
         newTileSet("/missing_image.tileset", "/test/does_not_exists.png");
         newMarioTileSet();
-        loadEmptyFile();
+        newGrid();
 
         assertTrue(!propertyModel.getPropertyStatus("tileSet").isOK());
-        this.model.executeOperation(propertyModel.setPropertyValue("tileSet", "/missing_image.tileset"));
+        setGridProperty("tileSet", "/missing_image.tileset");
         assertEquals(Messages.GRID_INVALID_TILESET, propertyModel.getPropertyStatus("tileSet").getMessage());
         assertTrue(!propertyModel.getPropertyStatus("tileSet").isOK());
 
-        this.model.executeOperation(propertyModel.setPropertyValue("tileSet", "/mario.tileset"));
+        setGridProperty("tileSet", "/mario.tileset");
         assertTrue(propertyModel.getPropertyStatus("tileSet").isOK());
     }
 
@@ -314,22 +327,22 @@ public class GridTest {
      * @throws CoreException
      */
     @Test
-    public void testMessage24_25() throws IOException, CoreException {
-        loadEmptyFile();
+    public void testMessage24_25() throws Exception {
+        newGrid();
 
         assertTrue(propertyModel.getPropertyStatus("cellWidth").isOK());
-        this.model.executeOperation(propertyModel.setPropertyValue("cellWidth", 0));
+        setGridProperty("cellWidth", -1);
         assertTrue(!propertyModel.getPropertyStatus("cellWidth").isOK());
         assertEquals("Value out of range", propertyModel.getPropertyStatus("cellWidth").getMessage());
-        this.model.executeOperation(propertyModel.setPropertyValue("cellWidth", 32));
+        setGridProperty("cellWidth", 32);
         assertTrue(propertyModel.getPropertyStatus("cellWidth").isOK());
 
         assertTrue(propertyModel.getPropertyStatus("cellHeight").isOK());
-        this.model.executeOperation(propertyModel.setPropertyValue("cellHeight", 0));
+        setGridProperty("cellHeight", -1);
         assertTrue(!propertyModel.getPropertyStatus("cellHeight").isOK());
         assertEquals("Value out of range", propertyModel.getPropertyStatus("cellHeight").getMessage());
 
-        this.model.executeOperation(propertyModel.setPropertyValue("cellHeight", 32));
+        setGridProperty("cellHeight", 32);
         assertTrue(propertyModel.getPropertyStatus("cellHeight").isOK());
     }
 

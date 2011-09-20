@@ -5,6 +5,7 @@ import java.awt.image.BufferedImage;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
@@ -21,7 +22,6 @@ import com.dynamo.cr.tileeditor.operations.AddCollisionGroupOperation;
 import com.dynamo.cr.tileeditor.operations.RemoveCollisionGroupsOperation;
 import com.dynamo.cr.tileeditor.operations.RenameCollisionGroupsOperation;
 import com.dynamo.cr.tileeditor.operations.SetConvexHullsOperation;
-import com.dynamo.tile.proto.Tile.TileSet;
 
 public class TileSetPresenter implements PropertyChangeListener, IOperationHistoryListener, IDisposable {
     private final TileSetModel model;
@@ -53,10 +53,10 @@ public class TileSetPresenter implements PropertyChangeListener, IOperationHisto
         this.model.getUndoHistory().removeOperationHistoryListener(this);
     }
 
-    public void load(TileSet tileSet) throws IOException {
+    public void load(InputStream is) throws IOException {
         loading = true;
         try {
-            this.model.load(tileSet);
+            this.model.load(is);
         } finally {
             loading = false;
         }

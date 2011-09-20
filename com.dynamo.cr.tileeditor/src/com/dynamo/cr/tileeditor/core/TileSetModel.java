@@ -4,6 +4,7 @@ import java.awt.image.BufferedImage;
 import java.beans.PropertyChangeEvent;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.util.ArrayList;
@@ -455,7 +456,11 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
         }
     }
 
-    public void load(TileSet tileSet) throws IOException {
+    public void load(InputStream is) throws IOException {
+        // Build message
+        TileSet.Builder tileSetBuilder = TileSet.newBuilder();
+        TextFormat.merge(new InputStreamReader(is), tileSetBuilder);
+        TileSet tileSet = tileSetBuilder.build();
         // Set properties
         setImage(tileSet.getImage());
         setTileWidth(tileSet.getTileWidth());

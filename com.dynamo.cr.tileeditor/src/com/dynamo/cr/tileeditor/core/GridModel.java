@@ -2,8 +2,8 @@ package com.dynamo.cr.tileeditor.core;
 
 import java.beans.PropertyChangeEvent;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.Reader;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -11,13 +11,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import javax.inject.Inject;
+
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.IOperationHistory;
 import org.eclipse.core.commands.operations.IUndoContext;
 import org.eclipse.core.commands.operations.IUndoableOperation;
+import org.eclipse.core.commands.operations.UndoContext;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
-import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IAdaptable;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Path;
@@ -29,32 +31,17 @@ import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.PropertyIntrospector;
 import com.dynamo.cr.properties.PropertyIntrospectorModel;
 import com.dynamo.cr.properties.Range;
-import com.dynamo.cr.tileeditor.Activator;
 import com.dynamo.tile.proto.Tile;
 import com.dynamo.tile.proto.Tile.TileGrid;
-import com.dynamo.tile.proto.Tile.TileSet;
 import com.google.protobuf.TextFormat;
 
 @Entity(commandFactory = GridUndoableCommandFactory.class)
 public class GridModel extends Model implements ITileWorld, IAdaptable {
 
-    private static PropertyIntrospector<Cell, GridModel> cellIntrospector = new PropertyIntrospector<Cell, GridModel>(Cell.class);
+    public class Cell {
 
-    public class Cell implements IAdaptable {
-
-        @Override
-        public Object getAdapter(@SuppressWarnings("rawtypes") Class adapter) {
-            if (adapter == IPropertyModel.class) {
-                return new PropertyIntrospectorModel<Cell, GridModel>(this, GridModel.this, cellIntrospector);
-            }
-            return null;
-        }
-
-        @Property
         private int tile;
-        @Property
         private boolean hFlip;
-        @Property
         private boolean vFlip;
 
         public int getTile() {
@@ -161,23 +148,26 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
     @Resource
     private String tileSet;
     @Property
-    @Range(min=1)
+    @Range(min=0)
     private float cellWidth;
     @Property
-    @Range(min=1)
+    @Range(min=0)
     private float cellHeight;
 
-    private List<Layer> layers;
-    private TileSetModel tileSetModel;
-
-    private IContainer contentRoot;
-    private final IOperationHistory undoHistory;
+    private final IOperationHistory history;
     private final IUndoContext undoContext;
+    private final ILogger logger;
+    private final IContainer contentRoot;
+    private final TileSetModel tileSetModel;
 
-    public GridModel(IContainer contentRoot, IOperationHistory history, IUndoContext undoContext) {
+    private List<Layer> layers;
+
+    @Inject
+    public GridModel(IContainer contentRoot, IOperationHistory history, UndoContext undoContext, ILogger logger) {
         this.contentRoot = contentRoot;
-        this.undoHistory = history;
+        this.history = history;
         this.undoContext = undoContext;
+        this.logger = logger;
 
         this.layers = new ArrayList<Layer>();
         this.tileSetModel = new TileSetModel(contentRoot, null, null);
@@ -202,24 +192,14 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
             String oldTileSet = this.tileSet;
             this.tileSet = tileSet;
             if (this.tileSet != null && !this.tileSet.equals("")) {
-                loadTileSet();
-            } else {
+                IFile file = this.contentRoot.getFile(new Path(this.tileSet));
+                try {
+                    this.tileSetModel.load(file.getContents());
+                } catch (Exception e) {
+                    // TODO: Report error
+                }
             }
             firePropertyChangeEvent(new PropertyChangeEvent(this, "tileSet", oldTileSet, tileSet));
-        }
-    }
-
-    private TileSet loadTileSetFile(String fileName) throws IOException, CoreException {
-        IFile file = this.contentRoot.getFile(new Path(fileName));
-        Reader input = new InputStreamReader(file.getContents());
-
-        TileSet.Builder b = TileSet.newBuilder();
-
-        try {
-            TextFormat.merge(input, b);
-            return b.build();
-        } finally {
-            input.close();
         }
     }
 
@@ -231,14 +211,6 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
             return new Status(IStatus.ERROR, "com.dynamo.cr.tileeditor", Messages.GRID_INVALID_TILESET);
         } else {
             return Status.OK_STATUS;
-        }
-    }
-
-    private void loadTileSet() {
-        try {
-            TileSet tileSetMessage = loadTileSetFile(tileSet);
-            this.tileSetModel.load(tileSetMessage);
-        } catch (Exception e) {
         }
     }
 
@@ -297,20 +269,27 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
             firePropertyChangeEvent(new PropertyChangeEvent(this, "layers", oldLayers, layers));
     }
 
-    public void load(TileGrid tileGrid) throws IOException {
-        setTileSet(tileGrid.getTileSet());
-        setCellWidth(tileGrid.getCellWidth());
-        setCellHeight(tileGrid.getCellHeight());
-        List<Layer> layers = new ArrayList<Layer>(tileGrid.getLayersCount());
-        for (Tile.TileLayer layerDDF : tileGrid.getLayersList()) {
-            Layer layer = new Layer();
-            layer.gridModel = this;
-            layer.setId(layerDDF.getId());
-            layer.setZ(layerDDF.getZ());
-            layer.setVisible(layerDDF.getIsVisible() != 0);
-            layers.add(layer);
+    public void load(InputStream is) {
+        TileGrid.Builder tileGridBuilder = TileGrid.newBuilder();
+        try {
+            TextFormat.merge(new InputStreamReader(is), tileGridBuilder);
+            TileGrid tileGrid = tileGridBuilder.build();
+            setTileSet(tileGrid.getTileSet());
+            setCellWidth(tileGrid.getCellWidth());
+            setCellHeight(tileGrid.getCellHeight());
+            List<Layer> layers = new ArrayList<Layer>(tileGrid.getLayersCount());
+            for (Tile.TileLayer layerDDF : tileGrid.getLayersList()) {
+                Layer layer = new Layer();
+                layer.gridModel = this;
+                layer.setId(layerDDF.getId());
+                layer.setZ(layerDDF.getZ());
+                layer.setVisible(layerDDF.getIsVisible() != 0);
+                layers.add(layer);
+            }
+            setLayers(layers);
+        } catch (IOException e) {
+            logger.logException(e);
         }
-        setLayers(layers);
     }
 
     private static PropertyIntrospector<GridModel, GridModel> introspector = new PropertyIntrospector<GridModel, GridModel>(GridModel.class, Messages.class);
@@ -327,13 +306,13 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
         operation.addContext(this.undoContext);
         IStatus status = null;
         try {
-            status = this.undoHistory.execute(operation, null, null);
+            status = this.history.execute(operation, null, null);
         } catch (final ExecutionException e) {
-            Activator.logException(e);
+            this.logger.logException(e);
         }
 
         if (status != Status.OK_STATUS) {
-            Activator.logException(status.getException());
+            this.logger.logException(status.getException());
         }
     }
 
