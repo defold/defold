@@ -103,6 +103,8 @@
         <module>../com.dynamo.cr.client.test</module>
         <module>../com.dynamo.cr.guieditor</module>
         <module>../com.dynamo.cr.guieditor.test</module>
+        <module>../com.dynamo.cr.goeditor</module>
+        <module>../com.dynamo.cr.goeditor.test</module>
         <module>../com.dynamo.cr.tileeditor</module>
         <module>../com.dynamo.cr.tileeditor.test</module>
         <module>../com.dynamo.cr.properties</module>

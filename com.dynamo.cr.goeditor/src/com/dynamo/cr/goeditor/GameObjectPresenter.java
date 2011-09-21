@@ -4,26 +4,57 @@ import javax.inject.Inject;
 
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.IOperationHistory;
+import org.eclipse.core.commands.operations.IOperationHistoryListener;
 import org.eclipse.core.commands.operations.IUndoContext;
 import org.eclipse.core.commands.operations.IUndoableOperation;
+import org.eclipse.core.commands.operations.OperationHistoryEvent;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 
+import com.dynamo.cr.editor.core.IResourceType;
+import com.dynamo.cr.editor.core.IResourceTypeRegistry;
 import com.dynamo.cr.goeditor.operations.AddComponentOperation;
 import com.dynamo.cr.goeditor.operations.RemoveComponentOperation;
-import com.google.protobuf.Message;
 
-public class GameObjectPresenter implements IGameObjectView.Presenter {
+public class GameObjectPresenter implements IGameObjectView.Presenter, IOperationHistoryListener {
 
     @Inject private GameObjectModel model;
 
     @Inject private IGameObjectView view;
+
+    @Inject IResourceTypeRegistry resourceTypeRegistry;
 
     @Inject private IOperationHistory undoHistory;
 
     @Inject private IUndoContext undoContext;
 
     @Inject private ILogger logger;
+
+    @Override
+    public void dispose() {
+        undoHistory.removeOperationHistoryListener(this);
+    }
+
+    @Inject
+    public void init() {
+        undoHistory.addOperationHistoryListener(this);
+    }
+
+    @Override
+    public void historyNotification(OperationHistoryEvent event) {
+        int type = event.getEventType();
+        switch (type) {
+        case OperationHistoryEvent.DONE:
+        case OperationHistoryEvent.REDONE:
+        case OperationHistoryEvent.UNDONE:
+            refresh();
+            break;
+        }
+    }
+
+    private void refresh() {
+        view.setComponents(model.getComponents());
+    }
 
     private void executeOperation(IUndoableOperation operation) {
         operation.addContext(this.undoContext);
@@ -43,16 +74,16 @@ public class GameObjectPresenter implements IGameObjectView.Presenter {
     public void onAddResourceComponent() {
         String resource = view.openAddResourceComponentDialog();
         if (resource != null) {
-            AddComponentOperation operation = new AddComponentOperation(new ResourceComponent(resource), model);
+            AddComponentOperation operation = new AddComponentOperation(new ResourceComponent(resourceTypeRegistry, resource), model);
             executeOperation(operation);
         }
     }
 
     @Override
     public void onAddEmbeddedComponent() {
-        Message message = view.openAddEmbeddedComponentDialog();
-        if (message != null) {
-            AddComponentOperation operation = new AddComponentOperation(new EmbeddedComponent(message), model);
+        IResourceType resourceType = view.openAddEmbeddedComponentDialog();
+        if (resourceType != null) {
+            AddComponentOperation operation = new AddComponentOperation(new EmbeddedComponent(resourceTypeRegistry, resourceType.createTemplateMessage(), resourceType.getFileExtension()), model);
             executeOperation(operation);
         }
     }
@@ -61,6 +92,11 @@ public class GameObjectPresenter implements IGameObjectView.Presenter {
     public void onRemoveComponent(Component component) {
         RemoveComponentOperation operation = new RemoveComponentOperation(component, model);
         executeOperation(operation);
+    }
+
+    @Override
+    public void onSetComponentId(Component component, String id) {
+        model.setComponentId(component, id);
     }
 
 }
