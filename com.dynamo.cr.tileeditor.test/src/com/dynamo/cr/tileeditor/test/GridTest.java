@@ -4,16 +4,20 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.AdditionalMatchers.eq;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
-import static org.mockito.Matchers.anyFloat;
+import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyList;
+import static org.mockito.Matchers.anyMap;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -22,13 +26,14 @@ import java.io.OutputStream;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Enumeration;
+import java.util.List;
 
 import javax.inject.Singleton;
+import javax.vecmath.Point2f;
 
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.DefaultOperationHistory;
 import org.eclipse.core.commands.operations.IOperationHistory;
-import org.eclipse.core.commands.operations.IUndoContext;
 import org.eclipse.core.commands.operations.UndoContext;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
@@ -41,6 +46,7 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.osgi.util.NLS;
+import org.eclipse.swt.graphics.Rectangle;
 import org.junit.Before;
 import org.junit.Test;
 import org.osgi.framework.Bundle;
@@ -54,6 +60,8 @@ import com.dynamo.cr.tileeditor.core.GridModel;
 import com.dynamo.cr.tileeditor.core.GridPresenter;
 import com.dynamo.cr.tileeditor.core.IGridView;
 import com.dynamo.cr.tileeditor.core.ILogger;
+import com.dynamo.cr.tileeditor.core.Layer;
+import com.dynamo.cr.tileeditor.core.Layer.Cell;
 import com.dynamo.cr.tileeditor.core.Messages;
 import com.dynamo.cr.tileeditor.core.TileSetModel;
 import com.google.common.base.Joiner;
@@ -67,6 +75,7 @@ public class GridTest {
     private IGridView.Presenter presenter;
     private GridModel model;
     private IOperationHistory history;
+    private UndoContext undoContext;
     private IProject project;
     private IContainer contentRoot;
     private IPropertyModel<GridModel, GridModel> propertyModel;
@@ -89,7 +98,7 @@ public class GridTest {
             bind(GridModel.class).in(Singleton.class);
 
             bind(IOperationHistory.class).to(DefaultOperationHistory.class).in(Singleton.class);
-            bind(IUndoContext.class).to(UndoContext.class).in(Singleton.class);
+            bind(UndoContext.class).in(Singleton.class);
 
             bind(ILogger.class).to(TestLogger.class);
 
@@ -134,9 +143,20 @@ public class GridTest {
         TestModule module = new TestModule();
         this.injector = Guice.createInjector(module);
         this.history = this.injector.getInstance(IOperationHistory.class);
+        this.undoContext = this.injector.getInstance(UndoContext.class);
         this.model = this.injector.getInstance(GridModel.class);
         this.presenter = this.injector.getInstance(IGridView.Presenter.class);
         this.propertyModel = (IPropertyModel<GridModel, GridModel>) this.model.getAdapter(IPropertyModel.class);
+    }
+
+    // Helpers
+
+    private void undo() throws ExecutionException {
+        this.history.undo(this.undoContext, null, null);
+    }
+
+    private void redo() throws ExecutionException {
+        this.history.redo(this.undoContext, null, null);
     }
 
     private void newResourceFile(String path) throws IOException, CoreException {
@@ -162,12 +182,13 @@ public class GridTest {
         this.presenter.onLoad(file.getContents());
     }
 
-    private void newTileSet(String path, String image) throws IOException, CoreException {
+    private void newTileSet(String path, String image, int tileSpacing) throws IOException, CoreException {
         newResourceFile(path);
         IFile file = this.contentRoot.getFile(new Path(path));
         TileSetModel tileSetModel = new TileSetModel(this.contentRoot, new DefaultOperationHistory(), new UndoContext());
         tileSetModel.load(file.getContents());
         tileSetModel.setImage(image);
+        tileSetModel.setTileSpacing(tileSpacing);
         OutputStream os = new FileOutputStream(file.getLocation().toFile());
         try {
             tileSetModel.save(os, null);
@@ -177,15 +198,24 @@ public class GridTest {
     }
 
     private void newMarioTileSet() throws IOException, CoreException {
-        newTileSet("/mario.tileset", "/mario_tileset.png");
+        newTileSet("/mario.tileset", "/mario_tileset.png", 1);
     }
 
     private void setGridProperty(Object id, Object value) throws ExecutionException {
-        this.history.execute(this.propertyModel.setPropertyValue(id, value), null, null);
+        this.model.executeOperation(this.propertyModel.setPropertyValue(id, value));
     }
 
     private String tileSet() {
         return this.model.getTileSet();
+    }
+
+    private int cellTile(Layer layer, int x, int y) {
+        Cell cell = layer.getCell(0, 1);
+        if (cell != null) {
+            return cell.getTile();
+        } else {
+            return -1;
+        }
     }
 
     /**
@@ -193,26 +223,31 @@ public class GridTest {
      */
     @SuppressWarnings("unchecked")
     @Test
-    public void testLoad() throws Exception {
+    public void testNewGrid() throws Exception {
         newGrid();
 
         assertEquals("", this.model.getTileSet());
         assertEquals(16.0f, this.model.getCellWidth(), 0.000001f);
         assertEquals(16.0f, this.model.getCellHeight(), 0.000001f);
         assertEquals(1, this.model.getLayers().size());
-        GridModel.Layer layer = this.model.getLayers().get(0);
+        Layer layer = this.model.getLayers().get(0);
         assertEquals("layer1", layer.getId());
         assertEquals(0.0f, layer.getZ(), 0.000001f);
         assertTrue(layer.isVisible());
 
-        verify(this.view, times(1)).setTileSetProperty(any(String.class));
-        verify(this.view, times(1)).setCellWidthProperty(anyFloat());
-        verify(this.view, times(1)).setCellHeightProperty(anyFloat());
+        verify(this.view, never()).setTileSet(any(BufferedImage.class), anyInt(), anyInt(), anyInt(), anyInt());
+        verify(this.view, times(1)).setCellWidth(eq(16.0f));
+        verify(this.view, times(1)).setCellHeight(eq(16.0f));
         verify(this.view, times(1)).setLayers(anyList());
+        verify(this.view, never()).setCell(anyInt(), anyInt(), anyInt(), anyInt(), anyBoolean(), anyBoolean());
+        verify(this.view, times(1)).refreshProperties();
+        verify(this.view, times(1)).setValidModel(eq(false));
+        verify(this.view, never()).setDirty(anyBoolean());
+        verify(this.view, times(1)).setPreview(eq(new Point2f(0.0f, 0.0f)), eq(1.0f));
     }
 
     /**
-     * Test use case 2.1.1
+     * Use Case 2.1.1 - Create a Grid
      * @throws Exception
      */
     @Test
@@ -220,15 +255,86 @@ public class GridTest {
         newMarioTileSet();
         newGrid();
 
-        setGridProperty("tileSet", "/test/mario.tileset");
-        setGridProperty("cellHeight", 16);
-        setGridProperty("cellWidth", 16);
+        setGridProperty("tileSet", "/mario.tileset");
 
-        assertThat(tileSet(), is("/test/mario.tileset"));
-        assertEquals(16, this.model.getCellWidth(), 0.0001);
-        assertEquals(16, this.model.getCellHeight(), 0.0001);
+        assertThat(tileSet(), is("/mario.tileset"));
+        verify(this.view, times(1)).setValidModel(eq(true));
+        verify(this.view, times(1)).setTileSet(any(BufferedImage.class), eq(16), eq(16), eq(0), eq(1));
 
-        this.presenter.onTileSelected(1);
+        undo();
+        assertThat(tileSet(), is(""));
+        verify(this.view, times(2)).setValidModel(eq(false));
+
+        redo();
+        assertThat(tileSet(), is("/mario.tileset"));
+        verify(this.view, times(2)).setValidModel(eq(true));
+        verify(this.view, times(2)).setTileSet(any(BufferedImage.class), eq(16), eq(16), eq(0), eq(1));
+    }
+
+    /**
+     * Use Case 2.3.1 - Paint Tiles Into Cells
+     * @throws Exception
+     * 
+     * TODO: Not complete according to specs
+     */
+    @SuppressWarnings("unchecked")
+    @Test
+    public void testUseCase231() throws Exception {
+        newMarioTileSet();
+        newGrid();
+
+        setGridProperty("tileSet", "/mario.tileset");
+
+        this.presenter.onSelectTile(1, false, false);
+
+        List<Layer> layers = this.model.getLayers();
+        Layer layer = layers.get(0);
+
+        this.presenter.onPaintBegin();
+
+        this.presenter.onPaint(0,1);
+        this.presenter.onPaint(0,1);
+        assertThat(cellTile(layer, 0, 1), is(1));
+        verify(this.view, times(1)).setCell(eq(0), eq(0), eq(1), eq(1), eq(false), eq(false));
+
+        this.presenter.onPaint(1,1);
+        this.presenter.onPaint(1,1);
+        assertThat(cellTile(layer, 1, 1), is(1));
+        verify(this.view, times(1)).setCell(eq(0), eq(1), eq(1), eq(1), eq(false), eq(false));
+
+        this.presenter.onPaintEnd();
+
+        verify(this.view, never()).setCells(eq(0), anyMap());
+
+        undo();
+        assertThat(cellTile(layer, 0, 1), is(-1));
+        assertThat(cellTile(layer, 1, 1), is(-1));
+        verify(this.view, times(1)).setCells(eq(0), anyMap());
+
+        redo();
+        assertThat(cellTile(layer, 0, 1), is(1));
+        assertThat(cellTile(layer, 1, 1), is(1));
+        verify(this.view, times(2)).setCells(eq(0), anyMap());
+    }
+
+    /**
+     * Use Case 2.3.2 - Frame Camera
+     * @throws Exception
+     */
+    @Test
+    public void testUseCase232() throws Exception {
+        testUseCase231();
+
+        when(view.getPreviewRect()).thenReturn(new Rectangle(0, 0, 600, 400));
+
+        this.presenter.onPreviewPan(10, 10);
+        verify(this.view, times(1)).setPreview(eq(new Point2f(-10.0f, -10.0f)), eq(1.0f));
+
+        int d = -10;
+        this.presenter.onPreviewZoom(d);
+        float scale = 1.0f - d * GridPresenter.SCALE_FACTOR;
+        verify(this.view, times(1)).setPreview(eq(new Point2f(-10.0f, -10.0f)), eq(scale, 0.001f));
+
     }
 
     private void assertMessage(String expectedMessage, String property) {
@@ -285,7 +391,7 @@ public class GridTest {
 
         assertTrue(!propertyModel.getPropertyStatus("tileSet").isOK());
         verify(this.view, times(1)).refreshProperties();
-        verify(this.view, never()).setValid(anyBoolean());
+        verify(this.view, times(1)).setValidModel(eq(false));
 
         String invalidPath = "/test";
         setGridProperty("tileSet", invalidPath);
@@ -293,12 +399,12 @@ public class GridTest {
         assertMessage(NLS.bind(Messages.GridModel_ResourceValidator_tileSet_NOT_FOUND, invalidPath), "tileSet");
 
         verify(this.view, times(2)).refreshProperties();
-        verify(this.view, times(1)).setValid(eq(false));
+        verify(this.view, times(2)).setValidModel(eq(false));
 
         setGridProperty("tileSet", "/mario.tileset");
         assertTrue(propertyModel.getPropertyStatus("tileSet").isOK());
         verify(this.view, times(3)).refreshProperties();
-        verify(this.view, times(1)).setValid(eq(true));
+        verify(this.view, times(1)).setValidModel(eq(true));
     }
 
     /**
@@ -308,7 +414,7 @@ public class GridTest {
      */
     @Test
     public void testMessage23() throws Exception {
-        newTileSet("/missing_image.tileset", "/test/does_not_exists.png");
+        newTileSet("/missing_image.tileset", "/test/does_not_exists.png", 0);
         newMarioTileSet();
         newGrid();
 

@@ -17,6 +17,6 @@ public interface IPropertyModel<T, U extends IPropertyObjectWorld> {
 
     public IStatus getPropertyStatus(Object id);
 
-    public boolean isOk();
+    public boolean isValid();
 
 }

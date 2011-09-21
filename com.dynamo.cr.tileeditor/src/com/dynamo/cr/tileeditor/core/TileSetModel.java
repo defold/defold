@@ -529,14 +529,14 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
     }
 
     private void updateConvexHulls() {
-        if (isOk()) {
+        if (isValid()) {
             updateConvexHullsList();
         }
     }
 
-    public boolean isOk() {
+    public boolean isValid() {
         PropertyIntrospectorModel<TileSetModel, TileSetModel> propertyModel = new PropertyIntrospectorModel<TileSetModel, TileSetModel>(this, this, introspector);
-        return propertyModel.isOk();
+        return propertyModel.isValid();
     }
 
     protected IStatus validateImage() {

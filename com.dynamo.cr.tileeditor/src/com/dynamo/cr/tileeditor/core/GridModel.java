@@ -5,7 +5,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +31,8 @@ import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.PropertyIntrospector;
 import com.dynamo.cr.properties.PropertyIntrospectorModel;
 import com.dynamo.cr.properties.Range;
+import com.dynamo.cr.tileeditor.Activator;
+import com.dynamo.cr.tileeditor.core.Layer.Cell;
 import com.dynamo.tile.proto.Tile;
 import com.dynamo.tile.proto.Tile.TileGrid;
 import com.google.protobuf.TextFormat;
@@ -38,111 +40,7 @@ import com.google.protobuf.TextFormat;
 @Entity(commandFactory = GridUndoableCommandFactory.class)
 public class GridModel extends Model implements ITileWorld, IAdaptable {
 
-    public class Cell {
-
-        private int tile;
-        private boolean hFlip;
-        private boolean vFlip;
-
-        public int getTile() {
-            return tile;
-        }
-        public void setTile(int tile) {
-            this.tile = tile;
-        }
-        public boolean ishFlip() {
-            return hFlip;
-        }
-        public void sethFlip(boolean hFlip) {
-            this.hFlip = hFlip;
-        }
-        public boolean isvFlip() {
-            return vFlip;
-        }
-        public void setvFlip(boolean vFlip) {
-            this.vFlip = vFlip;
-        }
-
-    }
-
-    private static PropertyIntrospector<Layer, GridModel> layerIntrospector = new PropertyIntrospector<Layer, GridModel>(Layer.class);
-    public static class Layer implements IAdaptable {
-
-        @Override
-        public Object getAdapter(@SuppressWarnings("rawtypes") Class adapter) {
-            if (adapter == IPropertyModel.class) {
-                return new PropertyIntrospectorModel<Layer, GridModel>(this, gridModel, layerIntrospector);
-            }
-            return null;
-        }
-
-        @Property
-        private String id;
-        @Property
-        private float z;
-        @Property
-        private boolean visible;
-
-        GridModel gridModel;
-
-        // upper 32-bits y, lower 32-bits x
-        private final Map<Long, Cell> cells = new HashMap<Long, GridModel.Cell>();
-
-        public Layer() {
-        }
-
-        public String getId() {
-            return this.id;
-        }
-
-        public void setId(String id) {
-            if ((this.id == null && id != null) || !this.id.equals(id)) {
-                String oldId = this.id;
-                this.id = id;
-                if (gridModel != null)
-                    gridModel.firePropertyChangeEvent(new PropertyChangeEvent(this, "id", oldId, id));
-            }
-        }
-
-        public float getZ() {
-            return this.z;
-        }
-
-        public void setZ(float z) {
-            if (this.z != z) {
-                float oldZ = this.z;
-                this.z = z;
-                if (gridModel != null)
-                    gridModel.firePropertyChangeEvent(new PropertyChangeEvent(this, "z", oldZ, z));
-            }
-        }
-
-        public boolean isVisible() {
-            return this.visible;
-        }
-
-        public void setVisible(boolean visible) {
-            if (this.visible != visible) {
-                boolean oldVisible = this.visible;
-                this.visible = visible;
-                if (gridModel != null)
-                    gridModel.firePropertyChangeEvent(new PropertyChangeEvent(this, "visible", oldVisible, visible));
-            }
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj instanceof Layer) {
-                Layer layer = (Layer)obj;
-                return this.id.equals(layer.id)
-                        && this.z == layer.z
-                        && this.visible == layer.visible;
-            } else {
-                return super.equals(obj);
-            }
-        }
-
-    }
+    public static PropertyIntrospector<Layer, GridModel> layerIntrospector = new PropertyIntrospector<Layer, GridModel>(Layer.class);
 
     @Property(isResource = true)
     @Resource
@@ -158,7 +56,8 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
     private final IUndoContext undoContext;
     private final ILogger logger;
     private final IContainer contentRoot;
-    private final TileSetModel tileSetModel;
+    private TileSetModel tileSetModel;
+    private int selectedLayer;
 
     private List<Layer> layers;
 
@@ -170,7 +69,7 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
         this.logger = logger;
 
         this.layers = new ArrayList<Layer>();
-        this.tileSetModel = new TileSetModel(contentRoot, null, null);
+        this.tileSetModel = null;
     }
 
     @Override
@@ -178,9 +77,13 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
         return contentRoot;
     }
 
-    public boolean isOk() {
+    public TileSetModel getTileSetModel() {
+        return this.tileSetModel;
+    }
+
+    public boolean isValid() {
         PropertyIntrospectorModel<GridModel, GridModel> propertyModel = new PropertyIntrospectorModel<GridModel, GridModel>(this, this, introspector);
-        return propertyModel.isOk();
+        return propertyModel.isValid();
     }
 
     public String getTileSet() {
@@ -192,26 +95,33 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
             String oldTileSet = this.tileSet;
             this.tileSet = tileSet;
             if (this.tileSet != null && !this.tileSet.equals("")) {
+                if (this.tileSetModel == null) {
+                    this.tileSetModel = new TileSetModel(this.contentRoot, null, null);
+                }
                 IFile file = this.contentRoot.getFile(new Path(this.tileSet));
                 try {
                     this.tileSetModel.load(file.getContents());
                 } catch (Exception e) {
                     // TODO: Report error
+                    assert false;
                 }
+            } else {
+                this.tileSetModel = null;
             }
             firePropertyChangeEvent(new PropertyChangeEvent(this, "tileSet", oldTileSet, tileSet));
         }
     }
 
     protected IStatus validateTileSet() {
-        @SuppressWarnings("unchecked")
-        IPropertyModel<TileSetModel, TileSetModel> propertyModel = (IPropertyModel<TileSetModel, TileSetModel>) this.tileSetModel.getAdapter(IPropertyModel.class);
-        IStatus imageStatus = propertyModel.getPropertyStatus("image");
-        if (imageStatus != null && !imageStatus.isOK()) {
-            return new Status(IStatus.ERROR, "com.dynamo.cr.tileeditor", Messages.GRID_INVALID_TILESET);
-        } else {
-            return Status.OK_STATUS;
+        if (this.tileSetModel != null) {
+            @SuppressWarnings("unchecked")
+            IPropertyModel<TileSetModel, TileSetModel> propertyModel = (IPropertyModel<TileSetModel, TileSetModel>) this.tileSetModel.getAdapter(IPropertyModel.class);
+            IStatus imageStatus = propertyModel.getPropertyStatus("image");
+            if (imageStatus == null || imageStatus.isOK()) {
+                return Status.OK_STATUS;
+            }
         }
+        return new Status(IStatus.ERROR, Activator.PLUGIN_ID, Messages.GRID_INVALID_TILESET);
     }
 
     public float getCellWidth() {
@@ -241,7 +151,7 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
     }
 
     public List<Layer> getLayers() {
-        return new ArrayList<Layer>(this.layers);
+        return Collections.unmodifiableList(this.layers);
     }
 
     public void setLayers(List<Layer> layers) {
@@ -253,7 +163,7 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
         Set<String> idSet = new HashSet<String>();
         boolean duplication = false;
         for (Layer layer : this.layers) {
-            layer.gridModel = this;
+            layer.setGridModel(this);
             if (idSet.contains(layer.getId())) {
                 duplication = true;
             } else {
@@ -269,6 +179,31 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
             firePropertyChangeEvent(new PropertyChangeEvent(this, "layers", oldLayers, layers));
     }
 
+    public int getSelectedLayer() {
+        return this.selectedLayer;
+    }
+
+    public Map<Long, Cell> getCells() {
+        return this.layers.get(this.selectedLayer).getCells();
+    }
+
+    public void setCells(Map<Long, Cell> cells) {
+        Layer layer = this.layers.get(this.selectedLayer);
+        Map<Long, Cell> oldCells = layer.getCells();
+        if (!oldCells.equals(cells)) {
+            layer.setCells(cells);
+            firePropertyChangeEvent(new PropertyChangeEvent(layer, "cells", oldCells, cells));
+        }
+    }
+
+    public Cell getCell(long cellIndex) {
+        return this.layers.get(this.selectedLayer).getCell(cellIndex);
+    }
+
+    public void setCell(long cellIndex, Cell cell) {
+        this.layers.get(this.selectedLayer).setCell(cellIndex, cell);
+    }
+
     public void load(InputStream is) {
         TileGrid.Builder tileGridBuilder = TileGrid.newBuilder();
         try {
@@ -280,7 +215,7 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
             List<Layer> layers = new ArrayList<Layer>(tileGrid.getLayersCount());
             for (Tile.TileLayer layerDDF : tileGrid.getLayersList()) {
                 Layer layer = new Layer();
-                layer.gridModel = this;
+                layer.setGridModel(this);
                 layer.setId(layerDDF.getId());
                 layer.setZ(layerDDF.getZ());
                 layer.setVisible(layerDDF.getIsVisible() != 0);

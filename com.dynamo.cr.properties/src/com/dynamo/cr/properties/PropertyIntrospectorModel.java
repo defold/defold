@@ -46,8 +46,8 @@ public class PropertyIntrospectorModel<T, U extends IPropertyObjectWorld> implem
     }
 
     @Override
-    public boolean isOk() {
-        return introspector.isOk(object, world);
+    public boolean isValid() {
+        return introspector.isValid(object, world);
     }
 
 }

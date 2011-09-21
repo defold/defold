@@ -242,7 +242,7 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
         }
     }
 
-    public boolean isOk(T object, U world) {
+    public boolean isValid(T object, U world) {
         try {
             IPropertyAccessor<T, U> accessor = accessorClass.newInstance();
             for (String property : properties) {
