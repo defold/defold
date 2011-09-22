@@ -49,7 +49,7 @@ message TileLayer
 message TileGrid
 {
     required string tile_set    = 1 [(resource)=true];
-    required uint32 cell_width  = 2 [default = 0];
-    required uint32 cell_height = 3 [default = 0];
+    required float cell_width   = 2 [default = 0];
+    required float cell_height  = 3 [default = 0];
     repeated TileLayer layers   = 4;
 }
