@@ -93,7 +93,7 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
     }
 
     public void setTileSet(String tileSet) {
-        if ((this.tileSet == null && tileSet != null) || !this.tileSet.equals(tileSet)) {
+        if ((this.tileSet == null && tileSet != null) || (this.tileSet != null && !this.tileSet.equals(tileSet))) {
             String oldTileSet = this.tileSet;
             this.tileSet = tileSet;
             if (this.tileSet != null && !this.tileSet.equals("")) {

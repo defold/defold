@@ -169,7 +169,7 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
     }
 
     public void setImage(String image) {
-        if ((this.image == null && image != null) || !this.image.equals(image)) {
+        if ((this.image == null && image != null) || (this.image != null && !this.image.equals(image))) {
             String oldImage = this.image;
             this.image = image;
             this.loadedImage = null;
@@ -267,7 +267,7 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
     }
 
     public void setCollision(String collision) {
-        if ((this.collision == null && collision != null) || !this.collision.equals(collision)) {
+        if ((this.collision == null && collision != null) || (this.collision != null && !this.collision.equals(collision))) {
             String oldCollision = this.collision;
             this.collision = collision;
             this.loadedCollision = null;
@@ -284,7 +284,7 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
     }
 
     public void setMaterialTag(String materialTag) {
-        if ((this.materialTag == null && materialTag != null) || !this.materialTag.equals(materialTag)) {
+        if ((this.materialTag == null && materialTag != null) || (this.materialTag != null && !this.materialTag.equals(materialTag))) {
             String oldMaterialTag = this.materialTag;
             this.materialTag = materialTag;
             firePropertyChangeEvent(new PropertyChangeEvent(this, "materialTag", oldMaterialTag, materialTag));

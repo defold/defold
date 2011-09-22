@@ -32,6 +32,7 @@ import org.eclipse.swt.widgets.Listener;
 import org.eclipse.ui.services.IDisposable;
 
 import com.dynamo.cr.tileeditor.core.IGridView;
+import com.dynamo.cr.tileeditor.core.ILogger;
 import com.dynamo.cr.tileeditor.core.Layer;
 import com.sun.opengl.util.BufferUtil;
 import com.sun.opengl.util.texture.Texture;
@@ -47,7 +48,8 @@ Listener {
     private final static int CAMERA_MODE_PAN = 1;
     private final static int CAMERA_MODE_ZOOM = 2;
 
-    @Inject private IGridView.Presenter presenter;
+    private final IGridView.Presenter presenter;
+    private final ILogger logger;
 
     private GLCanvas canvas;
     private GLContext context;
@@ -72,13 +74,19 @@ Listener {
     private int cameraMode = CAMERA_MODE_NONE;
     private int lastX;
     private int lastY;
-    private Point2f position = new Point2f(0.0f, 0.0f);
+    private final Point2f position = new Point2f(0.0f, 0.0f);
     private float scale = 1.0f;
 
     // Render data
     private Texture tileSetTexture;
     private FloatBuffer cellVertexBuffer;
     private Texture backgroundTexture;
+
+    @Inject
+    public GridRenderer(IGridView.Presenter presenter, ILogger logger) {
+        this.presenter = presenter;
+        this.logger = logger;
+    }
 
     public void createControls(Composite parent) {
         GLData data = new GLData();
@@ -158,7 +166,7 @@ Listener {
     public void setCell(int layerIndex, long cellIndex, Layer.Cell cell) {
         Layer layer = this.layers.get(layerIndex);
         Layer.Cell oldCell = layer.getCell(cellIndex);
-        if ((oldCell != cell) || (oldCell != null && !oldCell.equals(cell))) {
+        if ((oldCell == null && cell != null) || (oldCell != null && !oldCell.equals(cell))) {
             layer.setCell(cellIndex, cell);
             requestPaint();
         }
@@ -237,7 +245,7 @@ Listener {
     public void setCamera(Point2f position, float zoom) {
         boolean repaint = false;
         if (!this.position.equals(position)) {
-            this.position = position;
+            this.position.set(position);
             repaint = true;
         }
         if (this.scale != zoom) {
@@ -290,7 +298,7 @@ Listener {
         }
         this.lastX = e.x;
         this.lastY = e.y;
-        if ((this.activeCell != activeCell) || (this.activeCell != null && !this.activeCell.equals(activeCell))) {
+        if ((this.activeCell == null && activeCell != null) || (this.activeCell != null && !this.activeCell.equals(activeCell))) {
             this.activeCell = activeCell;
             requestPaint();
         }
@@ -327,12 +335,10 @@ Listener {
                 || (!this.mac && event.button == 2 && event.stateMask == SWT.ALT)) {
             this.cameraMode = CAMERA_MODE_PAN;
             this.activeCell = null;
-            requestPaint();
         } else if ((this.mac && event.stateMask == (SWT.CTRL))
                 || (!this.mac && event.button == 3 && event.stateMask == SWT.ALT)) {
             this.cameraMode = CAMERA_MODE_ZOOM;
             this.activeCell = null;
-            requestPaint();
         } else {
             this.cameraMode = CAMERA_MODE_NONE;
             if (event.button == 1) {
@@ -349,7 +355,7 @@ Listener {
         if (this.cameraMode != CAMERA_MODE_NONE) {
             this.cameraMode = CAMERA_MODE_NONE;
             Point2i activeCell = pickCell(e.x, e.y);
-            if ((this.activeCell == null && activeCell != null) || !this.activeCell.equals(activeCell)) {
+            if ((this.activeCell == null && activeCell != null) || (this.activeCell != null && !this.activeCell.equals(activeCell))) {
                 this.activeCell = activeCell;
                 requestPaint();
             }
@@ -359,7 +365,8 @@ Listener {
     }
 
     public boolean isEnabled() {
-        return this.enabled && this.tileSetImage != null && this.cellWidth != 0.0f && this.cellHeight != 0.0f;
+        //return this.enabled && this.tileSetImage != null && this.cellWidth != 0.0f && this.cellHeight != 0.0f;
+        return true;
     }
 
     public void setEnabled(boolean enabled) {
@@ -404,8 +411,7 @@ Listener {
                 render(gl);
 
             } catch (Throwable e) {
-                // Don't show dialog or similar in paint-handle
-                e.printStackTrace();
+                logger.logException(e);
             } finally {
                 canvas.swapBuffers();
                 context.release();
@@ -604,6 +610,14 @@ Listener {
     }
 
     private void renderGrid(GL gl) {
+        gl.glBegin(GL.GL_LINES);
+        gl.glColor3f(1.0f, 0.0f, 0.0f);
+        gl.glVertex2f(-100.0f, 0.0f);
+        gl.glVertex2f(100.0f, 0.0f);
+        gl.glColor3f(0.0f, 1.0f, 0.0f);
+        gl.glVertex2f(0.0f, -100.0f);
+        gl.glVertex2f(0.0f, 100.0f);
+        gl.glEnd();
         /*        this.backgroundTexture.bind();
         this.backgroundTexture.setTexParameteri(GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST);
         this.backgroundTexture.setTexParameteri(GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST);

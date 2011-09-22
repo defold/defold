@@ -21,7 +21,7 @@ import com.dynamo.cr.tileeditor.operations.SetCellsOperation;
 
 public class GridPresenter implements IGridView.Presenter, PropertyChangeListener {
 
-    public static final float SCALE_FACTOR = 0.005f;
+    public static final float ZOOM_FACTOR = 0.005f;
 
     private static class SelectedTile {
         public final int tileIndex;
@@ -50,7 +50,7 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
     private SelectedTile selectedTile;
     private Map<Long, Layer.Cell> oldCells;
     private final Point2f previewPosition;
-    private float previewScale;
+    private float previewZoom;
 
     @Inject
     public GridPresenter(GridModel model, IGridView view, ILogger logger) {
@@ -61,7 +61,7 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
         this.selectedTile = new SelectedTile();
 
         this.previewPosition = new Point2f(0.0f, 0.0f);
-        this.previewScale = 1.0f;
+        this.previewZoom = 1.0f;
     }
 
     public void refresh() {
@@ -141,7 +141,7 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
                 cell = new Cell(this.selectedTile.tileIndex, this.selectedTile.hFlip, this.selectedTile.vFlip);
             }
             Cell oldCell = this.model.getCell(cellIndex);
-            if ((cell == null && oldCell != null) || (!cell.equals(oldCell))) {
+            if ((cell == null && oldCell != null) || (cell != null && !cell.equals(oldCell))) {
                 this.model.setCell(cellIndex, cell);
                 cell = this.model.getCell(cellIndex);
                 this.view.setCell(this.model.getSelectedLayer(), cellIndex, cell);
@@ -174,19 +174,18 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
 
     @Override
     public void onPreviewPan(int dx, int dy) {
-        float recipScale = 1.0f / this.previewScale;
-        Vector2f delta = new Vector2f(-dx * recipScale, -dy * recipScale);
-        delta.scale(1.0f / this.previewScale);
+        Vector2f delta = new Vector2f(dx, -dy);
+        delta.scale(1.0f / this.previewZoom);
         this.previewPosition.add(delta);
-        this.view.setPreview(this.previewPosition, this.previewScale);
+        this.view.setPreview(this.previewPosition, this.previewZoom);
     }
 
     @Override
     public void onPreviewZoom(int delta) {
-        float ds = -delta * SCALE_FACTOR;
-        this.previewScale += (this.previewScale > 1.0f) ? ds * this.previewScale : ds;
-        this.previewScale = Math.max(0.1f, this.previewScale);
-        this.view.setPreview(this.previewPosition, this.previewScale);
+        float dz = -delta * ZOOM_FACTOR;
+        this.previewZoom += (this.previewZoom > 1.0f) ? dz * this.previewZoom : dz;
+        this.previewZoom = Math.max(0.1f, this.previewZoom);
+        this.view.setPreview(this.previewPosition, this.previewZoom);
     }
 
     @Override

@@ -331,12 +331,12 @@ public class GridTest {
         when(view.getPreviewRect()).thenReturn(new Rectangle(0, 0, 600, 400));
 
         this.presenter.onPreviewPan(10, 10);
-        verify(this.view, times(1)).setPreview(eq(new Point2f(-10.0f, -10.0f)), eq(1.0f));
+        verify(this.view, times(1)).setPreview(eq(new Point2f(10.0f, -10.0f)), eq(1.0f));
 
         int d = -10;
         this.presenter.onPreviewZoom(d);
-        float scale = 1.0f - d * GridPresenter.SCALE_FACTOR;
-        verify(this.view, times(1)).setPreview(eq(new Point2f(-10.0f, -10.0f)), eq(scale, 0.001f));
+        float scale = 1.0f - d * GridPresenter.ZOOM_FACTOR;
+        verify(this.view, times(1)).setPreview(eq(new Point2f(10.0f, -10.0f)), eq(scale, 0.001f));
 
     }
 

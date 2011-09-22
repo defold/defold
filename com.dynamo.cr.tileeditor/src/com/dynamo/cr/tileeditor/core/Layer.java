@@ -78,7 +78,7 @@ public class Layer implements IAdaptable {
     }
 
     public void setId(String id) {
-        if ((this.id == null && id != null) || !this.id.equals(id)) {
+        if ((this.id == null && id != null) || (this.id != null && !this.id.equals(id))) {
             String oldId = this.id;
             this.id = id;
             if (this.gridModel != null)
