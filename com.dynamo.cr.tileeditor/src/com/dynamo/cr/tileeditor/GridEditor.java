@@ -19,12 +19,15 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.action.IStatusLineManager;
+import org.eclipse.jface.viewers.ISelection;
+import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.window.Window;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.ui.IActionBars;
 import org.eclipse.ui.IEditorInput;
 import org.eclipse.ui.IEditorSite;
 import org.eclipse.ui.IFileEditorInput;
+import org.eclipse.ui.IWorkbenchPart;
 import org.eclipse.ui.PartInitException;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.actions.ActionFactory;
@@ -44,13 +47,14 @@ import com.dynamo.cr.tileeditor.core.GridModel;
 import com.dynamo.cr.tileeditor.core.GridPresenter;
 import com.dynamo.cr.tileeditor.core.IGridView;
 import com.dynamo.cr.tileeditor.core.ILogger;
+import com.dynamo.cr.tileeditor.core.Layer;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
 
 public class GridEditor extends AbstractDefoldEditor {
 
-    private IContentOutlinePage outlinePage;
+    private IGridEditorOutlinePage outlinePage;
     private IPropertySheetPage propertySheetPage;
 
     private IGridView view;
@@ -62,8 +66,7 @@ public class GridEditor extends AbstractDefoldEditor {
     class Module extends AbstractModule {
         @Override
         protected void configure() {
-            bind(IContentOutlinePage.class).to(GridEditorOutlinePage.class);
-
+            bind(IGridEditorOutlinePage.class).to(GridEditorOutlinePage.class).in(Singleton.class);
             bind(IGridView.class).to(GridView.class).in(Singleton.class);
             bind(IGridView.Presenter.class).to(GridPresenter.class).in(Singleton.class);
             bind(GridModel.class).in(Singleton.class);
@@ -105,8 +108,9 @@ public class GridEditor extends AbstractDefoldEditor {
         actionBars.setGlobalActionHandler(undoId, undoHandler);
         actionBars.setGlobalActionHandler(redoId, redoHandler);
 
-        this.outlinePage = injector.getInstance(IContentOutlinePage.class);
+        this.outlinePage = injector.getInstance(GridEditorOutlinePage.class);
 
+        final GridModel model = injector.getInstance(GridModel.class);
         this.propertySheetPage = new FormPropertySheetPage(this.contentRoot) {
             @Override
             public void setActionBars(IActionBars actionBars) {
@@ -115,6 +119,20 @@ public class GridEditor extends AbstractDefoldEditor {
                 actionBars.setGlobalActionHandler(redoId, redoHandler);
             }
 
+            @Override
+            public void selectionChanged(IWorkbenchPart part,
+                    ISelection selection) {
+                if (selection instanceof IStructuredSelection) {
+                    IStructuredSelection structuredSelection = (IStructuredSelection)selection;
+                    for (Object object : structuredSelection.toArray()) {
+                        if (!(object instanceof Layer)) {
+                            getViewer().setInput(new Object[] {model});
+                            return;
+                        }
+                    }
+                }
+                super.selectionChanged(part, selection);
+            }
         };
 
         this.view = injector.getInstance(IGridView.class);

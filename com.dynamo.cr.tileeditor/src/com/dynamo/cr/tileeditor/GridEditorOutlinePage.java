@@ -35,7 +35,7 @@ import org.eclipse.ui.views.contentoutline.ContentOutlinePage;
 import com.dynamo.cr.tileeditor.core.IGridView;
 import com.dynamo.cr.tileeditor.core.Layer;
 
-public class GridEditorOutlinePage extends ContentOutlinePage {
+public class GridEditorOutlinePage extends ContentOutlinePage implements IGridEditorOutlinePage {
 
     private static final String MENU_ID = "com.dynamo.cr.tileeditor.menus.TileSetOutlineContext";
 
@@ -71,21 +71,25 @@ public class GridEditorOutlinePage extends ContentOutlinePage {
         actionBars.setGlobalActionHandler(ActionFactory.REDO.getId(), redoHandler);
     }
 
+    /* (non-Javadoc)
+     * @see com.dynamo.cr.tileeditor.IGridEditorOutlinePage#setInput(java.util.List, int)
+     */
+    @Override
     public void setInput(List<Layer> layers, int selectedLayer) {
         int n = layers.size();
-        LayerItem[] items = new LayerItem[n];
-        for (int i = 0; i < n; ++i) {
-            items[i] = new LayerItem();
-            items[i].id = layers.get(i).getId();
+        LayersItem layersItem = this.root.grid.layers;
+        if (layersItem.items == null || layersItem.items.length != n) {
+            layersItem.items = new Layer[n];
         }
+        layers.toArray(layersItem.items);
         TreeViewer viewer = getTreeViewer();
         if (viewer != null) {
             this.ignoreSelection = true;
             viewer.setInput(this.root);
             viewer.expandToLevel(2);
             if (selectedLayer >= 0) {
-                List<LayerItem> selectedItems = new ArrayList<LayerItem>(1);
-                selectedItems.add(items[selectedLayer]);
+                List<Layer> selectedItems = new ArrayList<Layer>(1);
+                selectedItems.add(this.root.grid.layers.items[selectedLayer]);
                 viewer.setSelection(new StructuredSelection(selectedItems));
             } else {
                 List<GridItem> selectedItems = new ArrayList<GridItem>(1);
@@ -113,12 +117,7 @@ public class GridEditorOutlinePage extends ContentOutlinePage {
     }
 
     private static class LayersItem {
-        public LayerItem[] items;
-    }
-
-    private static class LayerItem
-    {
-        public String id;
+        public Layer[] items;
     }
 
     class OutlineContentProvider implements ITreeContentProvider {
@@ -155,7 +154,7 @@ public class GridEditorOutlinePage extends ContentOutlinePage {
                 return root;
             } else if (element instanceof LayersItem) {
                 return root.grid;
-            } else if (element instanceof LayerItem) {
+            } else if (element instanceof Layer) {
                 return root.grid.layers;
             }
             return null;
@@ -187,10 +186,10 @@ public class GridEditorOutlinePage extends ContentOutlinePage {
             Image image = null;
 
             if (element instanceof RootItem || element instanceof GridItem) {
-                image = this.registry.getImageDescriptor(".grid").createImage();
+                image = gridImage;
             } else if (element instanceof LayersItem) {
                 image = sharedImages.getImage(ISharedImages.IMG_OBJ_FOLDER);
-            } else if (element instanceof LayerItem) {
+            } else if (element instanceof Layer) {
                 image = layerImage;
             }
 
@@ -206,8 +205,8 @@ public class GridEditorOutlinePage extends ContentOutlinePage {
                 return "Grid";
             } else if (element instanceof LayersItem) {
                 return "Layers";
-            } else if (element instanceof LayerItem) {
-                return ((LayerItem)element).id;
+            } else if (element instanceof Layer) {
+                return ((Layer)element).getId();
             } else {
                 return super.getText(element);
             }
@@ -250,9 +249,9 @@ public class GridEditorOutlinePage extends ContentOutlinePage {
                 List<String> selectedItems = new ArrayList<String>();
                 Object[] selection = ((IStructuredSelection)event.getSelection()).toArray();
                 for (Object object : selection) {
-                    if (object instanceof LayerItem) {
-                        LayerItem item = (LayerItem)object;
-                        selectedItems.add(item.id);
+                    if (object instanceof Layer) {
+                        Layer item = (Layer)object;
+                        selectedItems.add(item.getId());
                     }
                 }
                 // TODO: Perform selection

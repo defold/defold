@@ -17,6 +17,7 @@ public class GridView implements IGridView {
 
     @Inject private IGridView.Presenter presenter;
     @Inject private GridRenderer renderer;
+    @Inject private IGridEditorOutlinePage outline;
 
     @Override
     public void setTileSet(BufferedImage image, int tileWidth, int tileHeight,
@@ -37,6 +38,7 @@ public class GridView implements IGridView {
     @Override
     public void setLayers(List<Layer> layers) {
         this.renderer.setLayers(layers);
+        this.outline.setInput(layers, -1);
     }
 
     @Override

@@ -7,10 +7,12 @@ import java.util.Map;
 
 import org.eclipse.core.runtime.IAdaptable;
 
+import com.dynamo.cr.properties.Entity;
 import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.PropertyIntrospectorModel;
 
+@Entity(commandFactory = GridUndoableCommandFactory.class)
 public class Layer implements IAdaptable {
 
     public static class Cell {
