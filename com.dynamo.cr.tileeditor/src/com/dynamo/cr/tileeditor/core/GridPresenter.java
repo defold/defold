@@ -72,6 +72,14 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
         boolean validModel = this.model.isValid();
         this.view.setValidModel(validModel);
         this.view.setPreview(new Point2f(0.0f, 0.0f), 1.0f);
+        TileSetModel tileSetModel = this.model.getTileSetModel();
+        if (tileSetModel != null) {
+            this.view.setTileSet(tileSetModel.getLoadedImage(),
+                    tileSetModel.getTileWidth(),
+                    tileSetModel.getTileHeight(),
+                    tileSetModel.getTileMargin(),
+                    tileSetModel.getTileSpacing());
+        }
     }
 
     private void setUndoRedoCounter(int undoRedoCounter) {

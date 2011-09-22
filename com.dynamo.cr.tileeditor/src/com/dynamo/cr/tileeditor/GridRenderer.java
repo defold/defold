@@ -263,12 +263,12 @@ Listener {
     @Override
     public void handleEvent(Event event) {
         if (event.type == SWT.Resize) {
-            Rectangle client = canvas.getClientArea();
-            viewPort.put(0);
-            viewPort.put(0);
-            viewPort.put(client.width);
-            viewPort.put(client.height);
-            viewPort.flip();
+            Rectangle client = this.canvas.getClientArea();
+            this.viewPort.put(0);
+            this.viewPort.put(0);
+            this.viewPort.put(client.width);
+            this.viewPort.put(client.height);
+            this.viewPort.flip();
         } else if (event.type == SWT.Paint) {
             requestPaint();
         }
@@ -409,7 +409,7 @@ Listener {
 
                 setupViewProj(gl, glu);
 
-                render(gl);
+                render(gl, glu);
 
             } catch (Throwable e) {
                 logger.logException(e);
@@ -433,7 +433,7 @@ Listener {
         gl.glTranslatef(this.position.getX(), this.position.getY(), 0.0f);
     }
 
-    private void render(GL gl) {
+    private void render(GL gl, GLU glu) {
         if (!isEnabled()) {
             return;
         }
@@ -443,6 +443,8 @@ Listener {
 
         // grid (cell-dividing lines)
         renderGrid(gl);
+
+        renderTileSet(gl, glu);
     }
 
     private void renderCells(GL gl) {
@@ -674,6 +676,45 @@ Listener {
 
         gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
         gl.glDisableClientState(GL.GL_COLOR_ARRAY);
+    }
+
+    private void renderTileSet(GL gl, GLU glu) {
+        if (this.tileSetTexture == null) {
+            return;
+        }
+
+        setupTileSetViewProj(gl, glu);
+
+        gl.glDisable(GL.GL_DEPTH);
+
+        float screenRatio = 0.28f;
+        float extent = Math.max(this.viewPort.get(2) * screenRatio, this.viewPort.get(3) * screenRatio);
+
+        this.tileSetTexture.bind();
+        this.tileSetTexture.enable();
+
+        gl.glColor3f(1.0f, 1.0f, 1.0f);
+        gl.glBegin(GL.GL_QUADS);
+        gl.glTexCoord2f(0.0f, 0.0f);
+        gl.glVertex2f(0.0f, 0.0f);
+        gl.glTexCoord2f(1.0f, 0.0f);
+        gl.glVertex2f(extent, 0.0f);
+        gl.glTexCoord2f(1.0f, 1.0f);
+        gl.glVertex2f(extent, extent);
+        gl.glTexCoord2f(0.0f, 1.0f);
+        gl.glVertex2f(0.0f, extent);
+        gl.glEnd();
+
+        this.tileSetTexture.disable();
+    }
+
+    private void setupTileSetViewProj(GL gl, GLU glu) {
+        gl.glMatrixMode(GL.GL_PROJECTION);
+        gl.glLoadIdentity();
+        glu.gluOrtho2D(0, this.viewPort.get(2), this.viewPort.get(3), 0);
+
+        gl.glMatrixMode(GL.GL_MODELVIEW);
+        gl.glLoadIdentity();
     }
 
 }
