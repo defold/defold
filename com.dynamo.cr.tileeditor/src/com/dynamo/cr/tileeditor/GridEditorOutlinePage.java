@@ -261,4 +261,11 @@ public class GridEditorOutlinePage extends ContentOutlinePage implements IGridEd
         }
     }
 
+    @Override
+    public void refresh() {
+        if (getTreeViewer() != null) {
+            getTreeViewer().refresh();
+        }
+    }
+
 }

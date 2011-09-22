@@ -53,8 +53,7 @@ public class GridView implements IGridView {
 
     @Override
     public void refreshProperties() {
-        // TODO Auto-generated method stub
-
+        this.outline.refresh();
     }
 
     @Override
