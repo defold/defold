@@ -65,20 +65,11 @@ public class TileSetEditor extends AbstractDefoldEditor implements ITileSetView 
     private Cursor pencilCursor;
     private Cursor eraserCursor;
 
-    @Override
-    protected void logException(Throwable e) {
-        Activator.logException(e);
-    }
-
     // EditorPart
 
     @Override
     public void init(IEditorSite site, IEditorInput input)
             throws PartInitException {
-
-        setSite(site);
-        setInput(input);
-        setPartName(input.getName());
 
         super.init(site, input);
 
@@ -90,7 +81,7 @@ public class TileSetEditor extends AbstractDefoldEditor implements ITileSetView 
                     "Unable to locate content root for project");
         }
 
-        final TileSetModel model = new TileSetModel(this.contentRoot, this.history, this.undoContext);
+        final TileSetModel model = new TileSetModel(this.contentRoot, this.history, this.undoContext, new Logger());
         this.presenter = new TileSetPresenter(model, this);
 
         final String undoId = ActionFactory.UNDO.getId();
@@ -390,10 +381,10 @@ public class TileSetEditor extends AbstractDefoldEditor implements ITileSetView 
         try {
             service.runInUI(service, loader, null);
             if (loader.exception != null) {
-                Activator.logException(loader.exception);
+                this.logger.logException(loader.exception);
             }
         } catch (Throwable e) {
-            Activator.logException(e);
+            this.logger.logException(e);
         }
     }
 

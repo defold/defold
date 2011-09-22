@@ -1,6 +1,7 @@
 package com.dynamo.cr.tileeditor.core;
 
 import java.awt.image.BufferedImage;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.List;
@@ -8,6 +9,7 @@ import java.util.Map;
 
 import javax.vecmath.Point2f;
 
+import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.swt.graphics.Rectangle;
 
 import com.dynamo.cr.tileeditor.core.Layer.Cell;
@@ -24,12 +26,13 @@ public interface IGridView {
 
         void onLoad(InputStream is);
 
-        void onSave(OutputStream os);
+        void onSave(OutputStream os, IProgressMonitor monitor) throws IOException;
 
         void onPreviewPan(int dx, int dy);
 
         void onPreviewZoom(int delta);
 
+        void onRefresh();
     }
 
     void setTileSet(BufferedImage image, int tileWidth, int tileHeight, int tileMargin, int tileSpacing);

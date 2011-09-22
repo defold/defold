@@ -2,6 +2,7 @@ package com.dynamo.cr.tileeditor.core;
 
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.HashMap;
@@ -12,6 +13,7 @@ import javax.inject.Inject;
 import javax.vecmath.Point2f;
 import javax.vecmath.Vector2f;
 
+import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 
 import com.dynamo.cr.tileeditor.core.Layer.Cell;
@@ -166,9 +168,8 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
     }
 
     @Override
-    public void onSave(OutputStream os) {
-        // TODO Auto-generated method stub
-
+    public void onSave(OutputStream os, IProgressMonitor monitor) throws IOException {
+        this.model.save(os, monitor);
     }
 
     @Override
@@ -188,4 +189,8 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
         this.view.setPreview(this.previewPosition, this.previewScale);
     }
 
+    @Override
+    public void onRefresh() {
+        refresh();
+    }
 }

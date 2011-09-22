@@ -1,5 +1,7 @@
 package com.dynamo.cr.tileeditor;
 
+import javax.inject.Inject;
+
 import org.eclipse.core.commands.operations.IOperationApprover;
 import org.eclipse.core.commands.operations.IOperationHistory;
 import org.eclipse.core.commands.operations.UndoContext;
@@ -29,6 +31,8 @@ import org.eclipse.ui.operations.RedoActionHandler;
 import org.eclipse.ui.operations.UndoActionHandler;
 import org.eclipse.ui.part.EditorPart;
 
+import com.dynamo.cr.tileeditor.core.ILogger;
+
 public abstract class AbstractDefoldEditor extends EditorPart {
 
     private long lastModificationStamp;
@@ -40,8 +44,7 @@ public abstract class AbstractDefoldEditor extends EditorPart {
     protected boolean inSave = false;
     private ResourceChangedListner resourceChangeListener;
     private final static int UNDO_LIMIT = 100;
-
-    protected abstract void logException(Throwable e);
+    @Inject protected ILogger logger;
 
     @Override
     public void dispose() {
@@ -57,6 +60,10 @@ public abstract class AbstractDefoldEditor extends EditorPart {
     @Override
     public void init(IEditorSite site, IEditorInput input)
             throws PartInitException {
+
+        setSite(site);
+        setInput(input);
+        setPartName(input.getName());
 
         this.activationListener = new ActivationListener(getSite().getWorkbenchWindow().getPartService());
         this.resourceChangeListener = new ResourceChangedListner();
@@ -85,13 +92,14 @@ public abstract class AbstractDefoldEditor extends EditorPart {
             // Refresh if changed externally
             file.refreshLocal(IFile.DEPTH_ZERO, new NullProgressMonitor());
         } catch (CoreException e) {
-            Activator.logException(e);
+            logger.logException(e);
             // We continue here. Not much todo if we an error here.
         }
 
         if (!file.exists()) {
             Display display= getSite().getShell().getDisplay();
             display.asyncExec(new Runnable() {
+                @Override
                 public void run() {
                     getSite().getPage().closeEditor(AbstractDefoldEditor.this, false);
                 }
@@ -146,7 +154,7 @@ public abstract class AbstractDefoldEditor extends EditorPart {
                 }
             });
         } catch (CoreException e) {
-            logException(e);
+            this.logger.logException(e);
         }
 
     }
@@ -173,6 +181,7 @@ public abstract class AbstractDefoldEditor extends EditorPart {
             } else {
                 Display display= getSite().getShell().getDisplay();
                 display.asyncExec(new Runnable() {
+                    @Override
                     public void run() {
                         handleReloadResourceChanged(event);
                         handleResourceChanged(event);
@@ -184,7 +193,7 @@ public abstract class AbstractDefoldEditor extends EditorPart {
 
     class ActivationListener implements IPartListener, IWindowListener {
 
-        private IPartService partService;
+        private final IPartService partService;
 
         public ActivationListener(IPartService partService) {
             this.partService = partService;

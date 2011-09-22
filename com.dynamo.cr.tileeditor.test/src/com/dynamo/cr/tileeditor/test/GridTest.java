@@ -176,7 +176,7 @@ public class GridTest {
     }
 
     private void newGrid() throws IOException, CoreException {
-        String path = "/test.grid";
+        String path = "/test.tilegrid";
         newResourceFile(path);
         IFile file = this.contentRoot.getFile(new Path(path));
         this.presenter.onLoad(file.getContents());
@@ -185,7 +185,7 @@ public class GridTest {
     private void newTileSet(String path, String image, int tileSpacing) throws IOException, CoreException {
         newResourceFile(path);
         IFile file = this.contentRoot.getFile(new Path(path));
-        TileSetModel tileSetModel = new TileSetModel(this.contentRoot, new DefaultOperationHistory(), new UndoContext());
+        TileSetModel tileSetModel = new TileSetModel(this.contentRoot, null, null, new TestLogger());
         tileSetModel.load(file.getContents());
         tileSetModel.setImage(image);
         tileSetModel.setTileSpacing(tileSpacing);

@@ -1,10 +1,8 @@
+
 package com.dynamo.cr.tileeditor;
 
-import org.eclipse.core.runtime.IStatus;
-import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.resource.ImageRegistry;
 import org.eclipse.ui.plugin.AbstractUIPlugin;
-import org.eclipse.ui.statushandlers.StatusManager;
 import org.osgi.framework.BundleContext;
 
 /**
@@ -20,6 +18,8 @@ public class Activator extends AbstractUIPlugin {
 
     // Image ids
     public static final String COLLISION_GROUP_IMAGE_ID = "COLLISION_GROUP"; //$NON-NLS-1$
+    public static final String GRID_IMAGE_ID = "GRID"; //$NON-NLS-1$
+    public static final String LAYER_IMAGE_ID = "LAYER"; //$NON-NLS-1$
 
     // The shared instance
     private static Activator plugin;
@@ -50,11 +50,6 @@ public class Activator extends AbstractUIPlugin {
         super.stop(context);
     }
 
-    public static void logException(Throwable e) {
-        Status status = new Status(IStatus.ERROR, PLUGIN_ID, e.getMessage(), e);
-        StatusManager.getManager().handle(status, StatusManager.LOG);
-    }
-
     /**
      * Returns the shared instance
      *
@@ -68,7 +63,9 @@ public class Activator extends AbstractUIPlugin {
     protected void initializeImageRegistry(ImageRegistry registry) {
         super.initializeImageRegistry(registry);
 
-        registry.put(COLLISION_GROUP_IMAGE_ID, imageDescriptorFromPlugin(PLUGIN_ID, "icons/collision_group.png"));
+        registry.put(COLLISION_GROUP_IMAGE_ID, imageDescriptorFromPlugin(PLUGIN_ID, "icons/tile_grid.png"));
+        registry.put(GRID_IMAGE_ID, imageDescriptorFromPlugin(PLUGIN_ID, "icons/tile_grid.png"));
+        registry.put(LAYER_IMAGE_ID, imageDescriptorFromPlugin(PLUGIN_ID, "icons/layer.png"));
     }
 
 }

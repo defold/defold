@@ -4,6 +4,8 @@ import java.beans.PropertyChangeEvent;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -21,6 +23,7 @@ import org.eclipse.core.commands.operations.UndoContext;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.IAdaptable;
+import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Status;
@@ -34,7 +37,9 @@ import com.dynamo.cr.properties.Range;
 import com.dynamo.cr.tileeditor.Activator;
 import com.dynamo.cr.tileeditor.core.Layer.Cell;
 import com.dynamo.tile.proto.Tile;
+import com.dynamo.tile.proto.Tile.TileCell;
 import com.dynamo.tile.proto.Tile.TileGrid;
+import com.dynamo.tile.proto.Tile.TileLayer;
 import com.google.protobuf.TextFormat;
 
 @Entity(commandFactory = GridUndoableCommandFactory.class)
@@ -59,7 +64,7 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
     private TileSetModel tileSetModel;
     private int selectedLayer;
 
-    private List<Layer> layers;
+    private List<Layer> layers = new ArrayList<Layer>();
 
     @Inject
     public GridModel(IContainer contentRoot, IOperationHistory history, UndoContext undoContext, ILogger logger) {
@@ -67,9 +72,6 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
         this.history = history;
         this.undoContext = undoContext;
         this.logger = logger;
-
-        this.layers = new ArrayList<Layer>();
-        this.tileSetModel = null;
     }
 
     @Override
@@ -96,7 +98,7 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
             this.tileSet = tileSet;
             if (this.tileSet != null && !this.tileSet.equals("")) {
                 if (this.tileSetModel == null) {
-                    this.tileSetModel = new TileSetModel(this.contentRoot, null, null);
+                    this.tileSetModel = new TileSetModel(this.contentRoot, null, null, this.logger);
                 }
                 IFile file = this.contentRoot.getFile(new Path(this.tileSet));
                 try {
@@ -224,6 +226,44 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
             setLayers(layers);
         } catch (IOException e) {
             logger.logException(e);
+        }
+    }
+
+    public void save(OutputStream os, IProgressMonitor monitor) throws IOException {
+        TileGrid.Builder tileGridBuilder = TileGrid.newBuilder()
+                .setTileSet(this.tileSet)
+                .setCellWidth(this.cellWidth)
+                .setCellHeight(this.cellHeight);
+        for (Layer layer : this.layers) {
+            TileLayer.Builder layerBuilder = TileLayer.newBuilder()
+                    .setId(layer.getId())
+                    .setZ(layer.getZ())
+                    .setIsVisible(layer.isVisible() ? 1 : 0);
+            for (Map.Entry<Long, Cell> entry : layer.getCells().entrySet()) {
+                long key = entry.getKey();
+                int x = Layer.toCellX(key);
+                int y = Layer.toCellY(key);
+                Cell cell = entry.getValue();
+                TileCell.Builder cellBuilder = TileCell.newBuilder()
+                        .setX(x)
+                        .setY(y)
+                        .setTile(cell.getTile())
+                        .setHFlip(cell.isHFlip() ? 1 : 0)
+                        .setVFlip(cell.isVFlip() ? 1 : 0);
+                layerBuilder.addCell(cellBuilder);
+            }
+        }
+        TileGrid tileGrid = tileGridBuilder.build();
+        try {
+            OutputStreamWriter writer = new OutputStreamWriter(os);
+            try {
+                TextFormat.print(tileGrid, writer);
+                writer.flush();
+            } finally {
+                writer.close();
+            }
+        } catch (IOException e) {
+            throw e;
         }
     }
 

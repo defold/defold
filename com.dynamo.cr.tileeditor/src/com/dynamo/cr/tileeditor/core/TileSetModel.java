@@ -37,7 +37,6 @@ import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.PropertyIntrospector;
 import com.dynamo.cr.properties.PropertyIntrospectorModel;
 import com.dynamo.cr.properties.Range;
-import com.dynamo.cr.tileeditor.Activator;
 import com.dynamo.cr.tileeditor.pipeline.ConvexHull2D;
 import com.dynamo.tile.proto.Tile;
 import com.dynamo.tile.proto.Tile.TileSet;
@@ -81,6 +80,8 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
 
     IOperationHistory undoHistory;
     IUndoContext undoContext;
+
+    private final ILogger logger;
 
     BufferedImage loadedImage;
     BufferedImage loadedCollision;
@@ -136,15 +137,15 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
         }
     }
 
-    public TileSetModel(IContainer contentRoot, IOperationHistory undoHistory, IUndoContext undoContext) {
+    public TileSetModel(IContainer contentRoot, IOperationHistory undoHistory, IUndoContext undoContext, ILogger logger) {
         this.contentRoot = contentRoot;
+        this.undoHistory = undoHistory;
+        this.undoContext = undoContext;
+        this.logger = logger;
+
         this.convexHulls = new ArrayList<ConvexHull>();
         this.collisionGroups = new ArrayList<String>();
         this.selectedCollisionGroups = new String[0];
-        this.undoHistory = undoHistory;
-        this.undoContext = undoContext;
-        if (undoHistory != null)
-            this.undoHistory.setLimit(this.undoContext, 100);
     }
 
     @Override
@@ -373,7 +374,7 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
         List<String> oldCollisionGroups = new ArrayList<String>(this.collisionGroups);
         for (String collisionGroup : collisionGroups) {
             if (this.collisionGroups.contains(collisionGroup)) {
-                Activator.logException(new IllegalArgumentException(collisionGroup));
+                this.logger.logException(new IllegalArgumentException(collisionGroup));
             } else {
                 added = true;
                 this.collisionGroups.add(collisionGroup);
@@ -394,7 +395,7 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
         List<String> oldCollisionGroups = new ArrayList<String>(this.collisionGroups);
         for (String collisionGroup : collisionGroups) {
             if (!this.collisionGroups.contains(collisionGroup)) {
-                Activator.logException(new IllegalArgumentException(collisionGroup));
+                this.logger.logException(new IllegalArgumentException(collisionGroup));
             } else {
                 removed = true;
                 this.collisionGroups.remove(collisionGroup);
@@ -415,7 +416,7 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
         int n = oldCollisionGroups.length;
         for (int i = 0; i < n; ++i) {
             if (!tmpCollisionGroups.contains(oldCollisionGroups[i])) {
-                Activator.logException(new IllegalArgumentException(oldCollisionGroups[i]));
+                this.logger.logException(new IllegalArgumentException(oldCollisionGroups[i]));
             } else {
                 renamed = true;
                 this.collisionGroups.remove(oldCollisionGroups[i]);
@@ -520,11 +521,11 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
         try {
             status = this.undoHistory.execute(operation, null, null);
         } catch (final ExecutionException e) {
-            Activator.logException(e);
+            this.logger.logException(e);
         }
 
         if (status != Status.OK_STATUS) {
-            Activator.logException(status.getException());
+            this.logger.logException(status.getException());
         }
     }
 
@@ -698,7 +699,7 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
                 }
             });
         } catch (CoreException e) {
-            Activator.logException(e);
+            this.logger.logException(e);
         }
 
         return reload[0];
