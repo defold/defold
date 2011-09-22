@@ -59,6 +59,7 @@ Listener {
     private final boolean mac = System.getProperty("os.name").equals("Mac OS X");
     private boolean enabled = true;
     private Point2i activeCell = null;
+    private boolean showPalette;
 
     // Model replication
     private List<Layer> layers;
@@ -149,6 +150,11 @@ Listener {
 
     public Control getControl() {
         return this.canvas;
+    }
+
+    public void showPalette(boolean show) {
+        this.showPalette = show;
+        requestPaint();
     }
 
     public void setLayers(List<Layer> layers) {
@@ -679,7 +685,7 @@ Listener {
     }
 
     private void renderTileSet(GL gl, GLU glu) {
-        if (this.tileSetTexture == null) {
+        if (this.tileSetTexture == null || !this.showPalette) {
             return;
         }
 

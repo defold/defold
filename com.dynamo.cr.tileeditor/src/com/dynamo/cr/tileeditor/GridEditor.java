@@ -280,4 +280,8 @@ public class GridEditor extends AbstractDefoldEditor {
         }
     }
 
+    public void showPalette(boolean show) {
+        this.renderer.showPalette(show);
+    }
+
 }

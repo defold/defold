@@ -143,6 +143,15 @@
             </class>
          </state>
       </command>
+      <command
+            description="Toggles the tile set palette"
+            id="com.dynamo.cr.tileeditor.commands.ShowPalette"
+            name="Show Palette">
+         <state
+               class="org.eclipse.ui.handlers.RegistryToggleState:true"
+               id="org.eclipse.ui.commands.toggleState">
+         </state>
+      </command>
    </extension>
    <extension
          point="org.eclipse.ui.bindings">
@@ -264,6 +273,12 @@
                value="8">
          </parameter>
       </key>
+      <key
+            commandId="com.dynamo.cr.tileeditor.commands.ShowPalette"
+            contextId="com.dynamo.cr.tileeditor.contexts.GridEditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="SPACE">
+      </key>
    </extension>
    <extension
          point="org.eclipse.ui.menus">
@@ -326,6 +341,25 @@
                label="Delete"
                style="push">
          </command>
+      </menuContribution>
+      <menuContribution
+            allPopups="false"
+            locationURI="menu:org.eclipse.ui.main.menu?after=edit">
+         <menu
+               id="com.dynamo.cr.tileeditor.menus.TileGrid"
+               label="Tile Grid">
+            <visibleWhen
+                  checkEnabled="false">
+               <reference
+                     definitionId="com.dynamo.cr.tileeditor.definitions.gridEditorActive">
+               </reference>
+            </visibleWhen>
+            <command
+                  commandId="com.dynamo.cr.tileeditor.commands.ShowPalette"
+                  label="Show Palette"
+                  style="toggle">
+            </command>
+         </menu>
       </menuContribution>  </extension>
    <extension
          point="org.eclipse.ui.handlers">
@@ -432,6 +466,15 @@
                </test>
             </with>
          </enabledWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.tileeditor.commands.ShowPalette"
+            commandId="com.dynamo.cr.tileeditor.commands.ShowPalette">
+         <activeWhen>
+            <reference
+                  definitionId="com.dynamo.cr.tileeditor.definitions.gridEditorActive">
+            </reference>
+         </activeWhen>
       </handler>
    </extension>
    <extension
