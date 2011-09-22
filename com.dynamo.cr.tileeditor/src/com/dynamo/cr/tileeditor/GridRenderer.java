@@ -15,6 +15,7 @@ import javax.media.opengl.GLDrawableFactory;
 import javax.media.opengl.glu.GLU;
 import javax.vecmath.Point2f;
 import javax.vecmath.Point2i;
+import javax.vecmath.Vector2f;
 
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.MouseEvent;
@@ -610,38 +611,69 @@ Listener {
     }
 
     private void renderGrid(GL gl) {
-        gl.glBegin(GL.GL_LINES);
-        gl.glColor3f(1.0f, 0.0f, 0.0f);
-        gl.glVertex2f(-100.0f, 0.0f);
-        gl.glVertex2f(100.0f, 0.0f);
-        gl.glColor3f(0.0f, 1.0f, 0.0f);
-        gl.glVertex2f(0.0f, -100.0f);
-        gl.glVertex2f(0.0f, 100.0f);
-        gl.glEnd();
-        /*        this.backgroundTexture.bind();
-        this.backgroundTexture.setTexParameteri(GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST);
-        this.backgroundTexture.setTexParameteri(GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST);
-        this.backgroundTexture.setTexParameteri(GL.GL_TEXTURE_WRAP_S, GL.GL_REPEAT);
-        this.backgroundTexture.setTexParameteri(GL.GL_TEXTURE_WRAP_T, GL.GL_REPEAT);
-        this.backgroundTexture.enable();
-        final float recipTileSize = 0.0625f;
-        float recipTexelWidth = width * recipTileSize;
-        float recipTexelHeight = height * recipTileSize;
-        float u0 = (0.5f / width + recipTileSize * this.offset[0]) * this.scale;
-        float u1 = u0 + recipTexelWidth * this.scale;
-        float v0 = (0.5f / height + recipTileSize * this.offset[1]) * this.scale;
-        float v1 = v0 + recipTexelHeight * this.scale;
-        gl.glBegin(GL.GL_QUADS);
-        gl.glTexCoord2f(u0, v0);
-        gl.glVertex2f(0.0f, 0.0f);
-        gl.glTexCoord2f(u0, v1);
-        gl.glVertex2f(0.0f, height);
-        gl.glTexCoord2f(u1, v1);
-        gl.glVertex2f(width, height);
-        gl.glTexCoord2f(u1, v0);
-        gl.glVertex2f(width, 0.0f);
-        gl.glEnd();
-        this.backgroundTexture.disable();*/
+        if (this.cellWidth <= 0.0f || this.cellHeight <= 0.0f) {
+            return;
+        }
+
+        Vector2f offset = new Vector2f(this.position);
+        offset.negate();
+        Vector2f extent = new Vector2f(this.viewPort.get(2), this.viewPort.get(3));
+        extent.scale(0.5f / this.scale);
+        Point2f min = new Point2f(offset);
+        min.sub(extent);
+        Point2f minNorm = new Point2f(min);
+        minNorm.scale(1.0f / this.cellWidth);
+        Point2f max = new Point2f(offset);
+        max.add(extent);
+        Point2f maxNorm = new Point2f(max);
+        maxNorm.scale(1.0f / this.cellHeight);
+
+        float byteRecip = 1.0f / 255.0f;
+        float[] redColor = new float[] {1.0f, 0.0f, 0.0f};
+        float[] greenColor = new float[] {0.0f, 1.0f, 0.0f};
+        float[] gridColor = new float[] {114.0f * byteRecip, 123.0f * byteRecip, 130.0f * byteRecip};
+
+        int xMin = (int)Math.ceil(minNorm.getX());
+        int xMax = (int)Math.ceil(maxNorm.getX());
+        int yMin = (int)Math.ceil(minNorm.getY());
+        int yMax = (int)Math.ceil(maxNorm.getY());
+
+        final int vertexCount = 2 * ((xMax - xMin) + (yMax - yMin));
+        if (vertexCount == 0) {
+            return;
+        }
+        final int componentCount = 6;
+        FloatBuffer v = BufferUtil.newFloatBuffer(vertexCount * componentCount);
+        for (int i = xMin; i < xMax; ++i) {
+            float[] color = gridColor;
+            if (i == 0) {
+                color = greenColor;
+            }
+            float x = i * this.cellWidth;
+            v.put(color); v.put(x); v.put(min.getY()); v.put(0.0f);
+            v.put(color); v.put(x); v.put(max.getY()); v.put(0.0f);
+        }
+
+        for (int i = yMin; i < yMax; ++i) {
+            float[] color = gridColor;
+            if (i == 0) {
+                color = redColor;
+            }
+            float y = i * this.cellHeight;
+            v.put(color); v.put(min.getX()); v.put(y); v.put(0.0f);
+            v.put(color); v.put(max.getX()); v.put(y); v.put(0.0f);
+        }
+        v.flip();
+
+        gl.glEnableClientState(GL.GL_VERTEX_ARRAY);
+        gl.glEnableClientState(GL.GL_COLOR_ARRAY);
+
+        gl.glInterleavedArrays(GL.GL_C3F_V3F, 0, v);
+
+        gl.glDrawArrays(GL.GL_LINES, 0, vertexCount);
+
+        gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
+        gl.glDisableClientState(GL.GL_COLOR_ARRAY);
     }
 
 }
