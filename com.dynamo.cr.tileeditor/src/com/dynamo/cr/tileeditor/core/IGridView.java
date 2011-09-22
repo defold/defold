@@ -45,7 +45,7 @@ public interface IGridView {
 
     void setCells(int layerIndex, Map<Long, Cell> cells);
 
-    void setCell(int layerIndex, int cellX, int cellY, int tileIndex, boolean hFlip, boolean vFlip);
+    void setCell(int layerIndex, long cellIndex, Cell cell);
 
     void refreshProperties();
 

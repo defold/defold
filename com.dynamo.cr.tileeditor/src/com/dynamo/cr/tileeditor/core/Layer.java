@@ -65,6 +65,14 @@ public class Layer implements IAdaptable {
     public Layer() {
     }
 
+    public Layer(Layer layer) {
+        this.id = layer.id;
+        this.z = layer.z;
+        this.visible = layer.visible;
+        this.gridModel = layer.gridModel;
+        this.cells = new HashMap<Long, Cell>(layer.cells);
+    }
+
     public String getId() {
         return this.id;
     }

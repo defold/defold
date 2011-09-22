@@ -3,12 +3,17 @@ package com.dynamo.cr.tileeditor;
 import java.awt.image.BufferedImage;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import javax.inject.Inject;
 import javax.media.opengl.GL;
 import javax.media.opengl.GLContext;
 import javax.media.opengl.GLDrawableFactory;
 import javax.media.opengl.glu.GLU;
+import javax.vecmath.Point2f;
 import javax.vecmath.Point2i;
 
 import org.eclipse.swt.SWT;
@@ -27,6 +32,7 @@ import org.eclipse.swt.widgets.Listener;
 import org.eclipse.ui.services.IDisposable;
 
 import com.dynamo.cr.tileeditor.core.IGridView;
+import com.dynamo.cr.tileeditor.core.Layer;
 import com.sun.opengl.util.BufferUtil;
 import com.sun.opengl.util.texture.Texture;
 import com.sun.opengl.util.texture.TextureIO;
@@ -48,26 +54,29 @@ Listener {
     private final IntBuffer viewPort = BufferUtil.newIntBuffer(4);
     private boolean paintRequested = false;
     private final boolean mac = System.getProperty("os.name").equals("Mac OS X");
-    private float scale = 1.0f;
     private boolean enabled = true;
-    private int brushTile = -1;
     private Point2i activeCell = null;
+
+    // Model replication
+    private List<Layer> layers;
+    private float cellWidth;
+    private float cellHeight;
+    private BufferedImage tileSetImage;
+    private int tileWidth;
+    private int tileHeight;
+    private int tileMargin;
+    private int tileSpacing;
+    private int brushTile = -1; // -1 is clear tile
 
     // Camera data
     private int cameraMode = CAMERA_MODE_NONE;
     private int lastX;
     private int lastY;
-    private final float[] offset = new float[2];
+    private Point2f position = new Point2f(0.0f, 0.0f);
+    private float scale = 1.0f;
 
     // Render data
-    private float cellWidth;
-    private float cellHeight;
-    private BufferedImage tileSetImage;
     private Texture tileSetTexture;
-    private int tileWidth;
-    private int tileHeight;
-    private int tileMargin;
-    private int tileSpacing;
     private FloatBuffer cellVertexBuffer;
     private Texture backgroundTexture;
 
@@ -131,6 +140,28 @@ Listener {
 
     public Control getControl() {
         return this.canvas;
+    }
+
+    public void setLayers(List<Layer> layers) {
+        this.layers = new ArrayList<Layer>(layers.size());
+        for (Layer layer : layers) {
+            this.layers.add(new Layer(layer));
+        }
+        requestPaint();
+    }
+
+    public void setCells(int layerIndex, Map<Long, Layer.Cell> cells) {
+        this.layers.get(layerIndex).setCells(new HashMap<Long, Layer.Cell>(cells));
+        requestPaint();
+    }
+
+    public void setCell(int layerIndex, long cellIndex, Layer.Cell cell) {
+        Layer layer = this.layers.get(layerIndex);
+        Layer.Cell oldCell = layer.getCell(cellIndex);
+        if ((oldCell != cell) || (oldCell != null && !oldCell.equals(cell))) {
+            layer.setCell(cellIndex, cell);
+            requestPaint();
+        }
     }
 
     public void setCellWidth(float cellWidth) {
@@ -199,6 +230,25 @@ Listener {
         }
     }
 
+    public Rectangle getViewRect() {
+        return new Rectangle(0, 0, this.viewPort.get(2), this.viewPort.get(3));
+    }
+
+    public void setCamera(Point2f position, float zoom) {
+        boolean repaint = false;
+        if (!this.position.equals(position)) {
+            this.position = position;
+            repaint = true;
+        }
+        if (this.scale != zoom) {
+            this.scale = zoom;
+            repaint = true;
+        }
+        if (repaint) {
+            requestPaint();
+        }
+    }
+
     // Listener
 
     @Override
@@ -221,21 +271,15 @@ Listener {
     public void mouseMove(MouseEvent e) {
         int dx = e.x - this.lastX;
         int dy = e.y - this.lastY;
-        Point2i activeCell = pickTile(e.x, e.y);
+        Point2i activeCell = pickCell(e.x, e.y);
         switch (this.cameraMode) {
         case CAMERA_MODE_PAN:
-            float recipScale = 1.0f / this.scale;
-            this.offset[0] += dx * recipScale;
-            this.offset[1] -= dy * recipScale;
             activeCell = null;
-            requestPaint();
+            this.presenter.onPreviewPan(dx, dy);
             break;
         case CAMERA_MODE_ZOOM:
-            float ds = -dy * 0.005f;
-            this.scale += (this.scale > 1.0f) ? ds * this.scale : ds;
-            this.scale = Math.max(0.1f, this.scale);
             activeCell = null;
-            requestPaint();
+            this.presenter.onPreviewZoom(dy);
             break;
         case CAMERA_MODE_NONE:
             if ((e.stateMask & SWT.BUTTON1) == SWT.BUTTON1) {
@@ -252,13 +296,13 @@ Listener {
         }
     }
 
-    private Point2i pickTile(int x, int y) {
+    private Point2i pickCell(int x, int y) {
         if (isEnabled()) {
             int viewPortWidth = this.viewPort.get(2);
             int viewPortHeight = this.viewPort.get(3);
-            float cellX = (x - 0.5f * viewPortWidth) / this.scale - this.offset[0];
+            float cellX = (x - 0.5f * viewPortWidth) / this.scale - this.position.getX();
             cellX /= this.cellWidth;
-            float cellY = (y - 0.5f * viewPortHeight) / this.scale + this.offset[1];
+            float cellY = (y - 0.5f * viewPortHeight) / this.scale + this.position.getY();
             cellY /= this.cellHeight;
             cellY += 1.0f;
             return new Point2i((int)Math.floor(cellX), (int)Math.floor(cellY));
@@ -304,7 +348,7 @@ Listener {
     public void mouseUp(MouseEvent e) {
         if (this.cameraMode != CAMERA_MODE_NONE) {
             this.cameraMode = CAMERA_MODE_NONE;
-            Point2i activeCell = pickTile(e.x, e.y);
+            Point2i activeCell = pickCell(e.x, e.y);
             if ((this.activeCell == null && activeCell != null) || !this.activeCell.equals(activeCell)) {
                 this.activeCell = activeCell;
                 requestPaint();
@@ -379,7 +423,7 @@ Listener {
 
         gl.glMatrixMode(GL.GL_MODELVIEW);
         gl.glLoadIdentity();
-        gl.glTranslatef(this.offset[0], this.offset[1], 0.0f);
+        gl.glTranslatef(this.position.getX(), this.position.getY(), 0.0f);
     }
 
     private void render(GL gl) {

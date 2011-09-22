@@ -144,7 +144,7 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
             if ((cell == null && oldCell != null) || (!cell.equals(oldCell))) {
                 this.model.setCell(cellIndex, cell);
                 cell = this.model.getCell(cellIndex);
-                this.view.setCell(this.model.getSelectedLayer(), x, y, cell.getTile(), cell.isHFlip(), cell.isVFlip());
+                this.view.setCell(this.model.getSelectedLayer(), cellIndex, cell);
                 this.oldCells.put(cellIndex, oldCell);
             }
         }

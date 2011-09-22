@@ -9,6 +9,7 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyList;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyMap;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
@@ -239,7 +240,7 @@ public class GridTest {
         verify(this.view, times(1)).setCellWidth(eq(16.0f));
         verify(this.view, times(1)).setCellHeight(eq(16.0f));
         verify(this.view, times(1)).setLayers(anyList());
-        verify(this.view, never()).setCell(anyInt(), anyInt(), anyInt(), anyInt(), anyBoolean(), anyBoolean());
+        verify(this.view, never()).setCell(anyInt(), anyLong(), any(Cell.class));
         verify(this.view, times(1)).refreshProperties();
         verify(this.view, times(1)).setValidModel(eq(false));
         verify(this.view, never()).setDirty(anyBoolean());
@@ -295,12 +296,14 @@ public class GridTest {
         this.presenter.onPaint(0,1);
         this.presenter.onPaint(0,1);
         assertThat(cellTile(layer, 0, 1), is(1));
-        verify(this.view, times(1)).setCell(eq(0), eq(0), eq(1), eq(1), eq(false), eq(false));
+        long cellIndex = Layer.toCellIndex(0, 1);
+        verify(this.view, times(1)).setCell(eq(0), eq(cellIndex), any(Cell.class));
 
         this.presenter.onPaint(1,1);
         this.presenter.onPaint(1,1);
         assertThat(cellTile(layer, 1, 1), is(1));
-        verify(this.view, times(1)).setCell(eq(0), eq(1), eq(1), eq(1), eq(false), eq(false));
+        cellIndex = Layer.toCellIndex(1, 1);
+        verify(this.view, times(1)).setCell(eq(0), eq(cellIndex), any(Cell.class));
 
         this.presenter.onPaintEnd();
 

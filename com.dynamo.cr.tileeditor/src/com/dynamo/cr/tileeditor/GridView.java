@@ -16,43 +16,37 @@ import com.dynamo.cr.tileeditor.core.Layer.Cell;
 public class GridView implements IGridView {
 
     @Inject private IGridView.Presenter presenter;
+    @Inject private GridRenderer renderer;
 
     @Override
     public void setTileSet(BufferedImage image, int tileWidth, int tileHeight,
             int tileMargin, int tileSpacing) {
-        // TODO Auto-generated method stub
-
+        this.renderer.setTileSet(image, tileWidth, tileHeight, tileMargin, tileSpacing);
     }
 
     @Override
     public void setCellWidth(float cellWidth) {
-        // TODO Auto-generated method stub
-
+        this.renderer.setCellWidth(cellWidth);
     }
 
     @Override
     public void setCellHeight(float cellHeight) {
-        // TODO Auto-generated method stub
-
+        this.renderer.setCellHeight(cellHeight);
     }
 
     @Override
     public void setLayers(List<Layer> layers) {
-        // TODO Auto-generated method stub
-
+        this.renderer.setLayers(layers);
     }
 
     @Override
     public void setCells(int layerIndex, Map<Long, Cell> cells) {
-        // TODO Auto-generated method stub
-
+        this.renderer.setCells(layerIndex, cells);
     }
 
     @Override
-    public void setCell(int layerIndex, int cellX, int cellY, int tileIndex,
-            boolean hFlip, boolean vFlip) {
-        // TODO Auto-generated method stub
-
+    public void setCell(int layerIndex, long cellIndex, Cell cell) {
+        this.renderer.setCell(layerIndex, cellIndex, cell);
     }
 
     @Override
@@ -75,14 +69,12 @@ public class GridView implements IGridView {
 
     @Override
     public Rectangle getPreviewRect() {
-        // TODO Auto-generated method stub
-        return null;
+        return this.renderer.getViewRect();
     }
 
     @Override
     public void setPreview(Point2f position, float zoom) {
-        // TODO Auto-generated method stub
-
+        this.renderer.setCamera(position, zoom);
     }
 
 }
