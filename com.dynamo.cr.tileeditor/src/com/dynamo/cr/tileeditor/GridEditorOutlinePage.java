@@ -236,7 +236,7 @@ public class GridEditorOutlinePage extends ContentOutlinePage implements IGridEd
         // This makes sure the context will be active while this component is
         IContextService contextService = (IContextService) getSite()
                 .getService(IContextService.class);
-        contextService.activateContext(Activator.CONTEXT_ID);
+        contextService.activateContext(Activator.GRID_CONTEXT_ID);
 
         this.presenter.onRefresh();
     }
