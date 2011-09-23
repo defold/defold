@@ -20,6 +20,7 @@ import static org.mockito.Mockito.when;
 
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -35,6 +36,7 @@ import javax.vecmath.Point2f;
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.DefaultOperationHistory;
 import org.eclipse.core.commands.operations.IOperationHistory;
+import org.eclipse.core.commands.operations.IUndoContext;
 import org.eclipse.core.commands.operations.UndoContext;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
@@ -44,6 +46,7 @@ import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.osgi.util.NLS;
@@ -76,7 +79,7 @@ public class GridTest {
     private IGridView.Presenter presenter;
     private GridModel model;
     private IOperationHistory history;
-    private UndoContext undoContext;
+    private IUndoContext undoContext;
     private IProject project;
     private IContainer contentRoot;
     private IPropertyModel<GridModel, GridModel> propertyModel;
@@ -99,7 +102,7 @@ public class GridTest {
             bind(GridModel.class).in(Singleton.class);
 
             bind(IOperationHistory.class).to(DefaultOperationHistory.class).in(Singleton.class);
-            bind(UndoContext.class).in(Singleton.class);
+            bind(IUndoContext.class).to(UndoContext.class).in(Singleton.class);
 
             bind(ILogger.class).to(TestLogger.class);
 
@@ -144,7 +147,7 @@ public class GridTest {
         TestModule module = new TestModule();
         this.injector = Guice.createInjector(module);
         this.history = this.injector.getInstance(IOperationHistory.class);
-        this.undoContext = this.injector.getInstance(UndoContext.class);
+        this.undoContext = this.injector.getInstance(IUndoContext.class);
         this.model = this.injector.getInstance(GridModel.class);
         this.presenter = this.injector.getInstance(IGridView.Presenter.class);
         this.propertyModel = (IPropertyModel<GridModel, GridModel>) this.model.getAdapter(IPropertyModel.class);
@@ -275,7 +278,7 @@ public class GridTest {
     /**
      * Use Case 2.3.1 - Paint Tiles Into Cells
      * @throws Exception
-     * 
+     *
      * TODO: Not complete according to specs
      */
     @SuppressWarnings("unchecked")
@@ -489,4 +492,40 @@ public class GridTest {
         this.model.executeOperation(propertyModel.setPropertyValue("layers", layers));
         assertTrue(!this.model.hasPropertyStatus("layers", code));*/
     }
+
+    @Test
+    public void testDirty() throws Exception {
+        int dirtyTrueCount = 0;
+        int dirtyFalseCount = 0;
+
+        newMarioTileSet();
+        newGrid();
+        assertThat(presenter.isDirty(), is(false));
+        verify(this.view, times(dirtyFalseCount)).setDirty(false);
+
+        setGridProperty("tileSet", "/mario.tileset");
+        assertThat(presenter.isDirty(), is(true));
+        verify(this.view, times(++dirtyTrueCount)).setDirty(true);
+
+        presenter.onSave(new ByteArrayOutputStream(), new NullProgressMonitor());
+        assertThat(presenter.isDirty(), is(false));
+        verify(this.view, times(++dirtyFalseCount)).setDirty(false);
+
+        this.presenter.onSelectTile(1, false, false);
+        assertThat(presenter.isDirty(), is(false));
+        verify(this.view, times(dirtyFalseCount)).setDirty(false);
+
+        this.presenter.onPaintBegin();
+        this.presenter.onPaint(0,1);
+        assertThat(presenter.isDirty(), is(false));
+        verify(this.view, times(dirtyFalseCount)).setDirty(false);
+        this.presenter.onPaintEnd();
+        assertThat(presenter.isDirty(), is(true));
+        verify(this.view, times(++dirtyTrueCount)).setDirty(true);
+
+        undo();
+        verify(this.view, times(++dirtyFalseCount)).setDirty(false);
+        assertThat(presenter.isDirty(), is(false));
+    }
+
 }

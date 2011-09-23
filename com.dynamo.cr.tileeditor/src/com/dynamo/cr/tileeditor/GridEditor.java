@@ -6,7 +6,7 @@ import java.io.ByteArrayOutputStream;
 import javax.inject.Singleton;
 
 import org.eclipse.core.commands.operations.IOperationHistory;
-import org.eclipse.core.commands.operations.UndoContext;
+import org.eclipse.core.commands.operations.IUndoContext;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IResourceChangeEvent;
@@ -55,7 +55,7 @@ import com.google.inject.Injector;
 public class GridEditor extends AbstractDefoldEditor {
 
     private IGridEditorOutlinePage outlinePage;
-    private IPropertySheetPage propertySheetPage;
+    private FormPropertySheetPage propertySheetPage;
 
     private IGridView view;
     private IGridView.Presenter presenter;
@@ -71,9 +71,10 @@ public class GridEditor extends AbstractDefoldEditor {
             bind(IGridView.Presenter.class).to(GridPresenter.class).in(Singleton.class);
             bind(GridModel.class).in(Singleton.class);
             bind(GridRenderer.class).in(Singleton.class);
+            bind(GridEditor.class).toInstance(GridEditor.this);
 
             bind(IOperationHistory.class).toInstance(history);
-            bind(UndoContext.class).toInstance(undoContext);
+            bind(IUndoContext.class).toInstance(undoContext);
             bind(UndoActionHandler.class).toInstance(undoHandler);
             bind(RedoActionHandler.class).toInstance(redoHandler);
 
@@ -254,8 +255,7 @@ public class GridEditor extends AbstractDefoldEditor {
 
     @Override
     public boolean isDirty() {
-        // TODO Auto-generated method stub
-        return false;
+        return presenter.isDirty();
     }
 
     @Override
@@ -266,7 +266,6 @@ public class GridEditor extends AbstractDefoldEditor {
     @Override
     public void setFocus() {
         this.renderer.setFocus();
-
     }
 
     @Override
@@ -282,6 +281,14 @@ public class GridEditor extends AbstractDefoldEditor {
 
     public void showPalette(boolean show) {
         this.renderer.showPalette(show);
+    }
+
+    public void fireDirty() {
+        firePropertyChange(PROP_DIRTY);
+    }
+
+    public void refreshProperties() {
+        this.propertySheetPage.refresh();
     }
 
 }

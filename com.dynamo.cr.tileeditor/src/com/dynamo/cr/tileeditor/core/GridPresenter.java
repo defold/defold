@@ -6,20 +6,22 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
+import javax.annotation.PreDestroy;
 import javax.inject.Inject;
 import javax.vecmath.Point2f;
 import javax.vecmath.Vector2f;
 
+import org.eclipse.core.commands.operations.IOperationHistory;
+import org.eclipse.core.commands.operations.IOperationHistoryListener;
+import org.eclipse.core.commands.operations.OperationHistoryEvent;
 import org.eclipse.core.runtime.IProgressMonitor;
-import org.eclipse.core.runtime.IStatus;
 
 import com.dynamo.cr.tileeditor.core.Layer.Cell;
 import com.dynamo.cr.tileeditor.operations.SetCellsOperation;
 
-public class GridPresenter implements IGridView.Presenter, PropertyChangeListener {
+public class GridPresenter implements IGridView.Presenter, PropertyChangeListener, IOperationHistoryListener {
 
     public static final float ZOOM_FACTOR = 0.005f;
 
@@ -41,6 +43,8 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
         }
 
     }
+
+    @Inject private IOperationHistory undoHistory;
 
     private final GridModel model;
     private final IGridView view;
@@ -64,6 +68,16 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
         this.previewZoom = 1.0f;
     }
 
+    @PreDestroy
+    public void dispose() {
+        undoHistory.removeOperationHistoryListener(this);
+    }
+
+    @Inject
+    public void init() {
+        undoHistory.addOperationHistoryListener(this);
+    }
+
     public void refresh() {
         this.view.setCellWidth(this.model.getCellWidth());
         this.view.setCellHeight(this.model.getCellHeight());
@@ -85,10 +99,12 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
     private void setUndoRedoCounter(int undoRedoCounter) {
         boolean prevDirty = this.undoRedoCounter != 0;
         boolean dirty = undoRedoCounter != 0;
+        // NOTE: We must set undoRedoCounter before we call setDirty.
+        // The "framework" might as for isDirty()
+        this.undoRedoCounter = undoRedoCounter;
         if (prevDirty != dirty) {
             this.view.setDirty(dirty);
         }
-        this.undoRedoCounter = undoRedoCounter;
     }
 
     @SuppressWarnings("unchecked")
@@ -97,35 +113,13 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
         if (this.loading)
             return;
 
-        boolean validModel = this.model.isValid();
-        this.view.setValidModel(validModel);
-        this.view.refreshProperties();
-        if (evt.getNewValue() instanceof IStatus) {
-        } else {
-            Object source = evt.getSource();
-            String propName = evt.getPropertyName();
-            if (source instanceof GridModel) {
-                if (propName.equals("tileSet")) {
-                    TileSetModel tileSetModel = this.model.getTileSetModel();
-                    if (tileSetModel != null && tileSetModel.isValid()) {
-                        this.view.setTileSet(tileSetModel.getLoadedImage(),
-                                tileSetModel.getTileWidth(),
-                                tileSetModel.getTileHeight(),
-                                tileSetModel.getTileMargin(),
-                                tileSetModel.getTileSpacing());
-                    }
-                } else if (propName.equals("cellWidth")) {
-                    this.view.setCellWidth((Float)evt.getNewValue());
-                } else if (propName.equals("cellHeight")) {
-                    this.view.setCellHeight((Float)evt.getNewValue());
-                } else if (propName.equals("layers")) {
-                    this.view.setLayers((List<Layer>)evt.getNewValue());
-                }
-            } else if (source instanceof Layer) {
-                if (propName.equals("cells")) {
-                    int layerIndex = this.model.getLayers().indexOf(source);
-                    this.view.setCells(layerIndex, (Map<Long, Cell>)evt.getNewValue());
-                }
+
+        String propName = evt.getPropertyName();
+        Object source = evt.getSource();
+        if (source instanceof Layer) {
+            if (propName.equals("cells")) {
+                int layerIndex = this.model.getLayers().indexOf(source);
+                this.view.setCells(layerIndex, (Map<Long, Cell>)evt.getNewValue());
             }
         }
     }
@@ -183,6 +177,7 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
     @Override
     public void onSave(OutputStream os, IProgressMonitor monitor) throws IOException {
         this.model.save(os, monitor);
+        setUndoRedoCounter(0);
     }
 
     @Override
@@ -204,5 +199,31 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
     @Override
     public void onRefresh() {
         refresh();
+    }
+
+    @Override
+    public boolean isDirty() {
+        return undoRedoCounter != 0;
+    }
+
+    @Override
+    public void historyNotification(OperationHistoryEvent event) {
+        int type = event.getEventType();
+        boolean refresh = false;
+        switch (type) {
+        case OperationHistoryEvent.DONE:
+        case OperationHistoryEvent.REDONE:
+            setUndoRedoCounter(undoRedoCounter + 1);
+            refresh = true;
+            break;
+        case OperationHistoryEvent.UNDONE:
+            setUndoRedoCounter(undoRedoCounter - 1);
+            refresh = true;
+            break;
+        }
+
+        if (refresh) {
+            refresh();
+        }
     }
 }

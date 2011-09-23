@@ -19,7 +19,6 @@ import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.IOperationHistory;
 import org.eclipse.core.commands.operations.IUndoContext;
 import org.eclipse.core.commands.operations.IUndoableOperation;
-import org.eclipse.core.commands.operations.UndoContext;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.IAdaptable;
@@ -67,7 +66,7 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
     private List<Layer> layers = new ArrayList<Layer>();
 
     @Inject
-    public GridModel(IContainer contentRoot, IOperationHistory history, UndoContext undoContext, ILogger logger) {
+    public GridModel(IContainer contentRoot, IOperationHistory history, IUndoContext undoContext, ILogger logger) {
         this.contentRoot = contentRoot;
         this.history = history;
         this.undoContext = undoContext;

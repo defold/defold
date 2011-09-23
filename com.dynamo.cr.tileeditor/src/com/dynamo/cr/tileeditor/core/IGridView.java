@@ -33,6 +33,8 @@ public interface IGridView {
         void onPreviewZoom(int delta);
 
         void onRefresh();
+
+        boolean isDirty();
     }
 
     void setTileSet(BufferedImage image, int tileWidth, int tileHeight, int tileMargin, int tileSpacing);

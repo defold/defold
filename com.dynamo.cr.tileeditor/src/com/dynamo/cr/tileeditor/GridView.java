@@ -18,6 +18,7 @@ public class GridView implements IGridView {
     @Inject private IGridView.Presenter presenter;
     @Inject private GridRenderer renderer;
     @Inject private IGridEditorOutlinePage outline;
+    @Inject private GridEditor gridEditor;
 
     @Override
     public void setTileSet(BufferedImage image, int tileWidth, int tileHeight,
@@ -54,6 +55,7 @@ public class GridView implements IGridView {
     @Override
     public void refreshProperties() {
         this.outline.refresh();
+        this.gridEditor.refreshProperties();
     }
 
     @Override
@@ -64,8 +66,7 @@ public class GridView implements IGridView {
 
     @Override
     public void setDirty(boolean dirty) {
-        // TODO Auto-generated method stub
-
+        gridEditor.fireDirty();
     }
 
     @Override
