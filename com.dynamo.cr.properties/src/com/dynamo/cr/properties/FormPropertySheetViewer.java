@@ -172,12 +172,12 @@ public class FormPropertySheetViewer extends Viewer {
                 label.setText(niceifyLabel(desc.getName()));
 
                 IPropertyEditor editor = desc.createEditor(c, contentRoot);
-                this.editors.add(editor);
                 Control control;
                 if (editor == null) {
                     control = new Label(c, SWT.NONE);
                 } else {
                     control = editor.getControl();
+                    this.editors.add(editor);
                 }
                 GridData gd = new GridData(GridData.FILL_HORIZONTAL);
                 gd.widthHint = 50;
