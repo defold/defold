@@ -7,7 +7,12 @@ import java.util.Map;
 import javax.inject.Inject;
 import javax.vecmath.Point2f;
 
+import org.eclipse.core.commands.Command;
+import org.eclipse.core.commands.State;
 import org.eclipse.swt.graphics.Rectangle;
+import org.eclipse.ui.PlatformUI;
+import org.eclipse.ui.commands.ICommandService;
+import org.eclipse.ui.handlers.RegistryToggleState;
 
 import com.dynamo.cr.tileeditor.core.IGridView;
 import com.dynamo.cr.tileeditor.core.Layer;
@@ -82,6 +87,12 @@ public class GridView implements IGridView {
     @Override
     public void setSelectedTile(int tileIndex, boolean hFlip, boolean vFlip) {
         this.renderer.setBrush(tileIndex, hFlip, vFlip);
+
+        ICommandService service = (ICommandService) PlatformUI.getWorkbench().getService(ICommandService.class);
+        Command command = service.getCommand("com.dynamo.cr.tileeditor.commands.ShowPalette");
+        State state = command.getState(RegistryToggleState.STATE_ID);
+        state.setValue(false);
+        this.renderer.showPalette(false);
     }
 
 }
