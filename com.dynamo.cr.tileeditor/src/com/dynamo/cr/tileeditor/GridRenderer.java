@@ -23,6 +23,7 @@ import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.MouseEvent;
 import org.eclipse.swt.events.MouseListener;
 import org.eclipse.swt.events.MouseMoveListener;
+import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.graphics.Rectangle;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.opengl.GLCanvas;
@@ -162,8 +163,23 @@ Listener {
     }
 
     public void showPalette(boolean show) {
-        this.showPalette = show;
-        requestPaint();
+        if (this.showPalette != show) {
+            this.showPalette = show;
+            Display display = this.canvas.getDisplay();
+            Control cursor = display.getCursorControl();
+            if (cursor != null) {
+                Point p = this.canvas.getDisplay().getCursorLocation();
+                p = display.map(null, this.canvas, p);
+                if (show) {
+                    this.activeCell = null;
+                    this.activeTile = pickTile(p.x, p.y);
+                } else {
+                    this.activeTile = -1;
+                    this.activeCell = pickCell(p.x, p.y);
+                }
+            }
+            requestPaint();
+        }
     }
 
     public void setLayers(List<Layer> layers) {
