@@ -562,8 +562,8 @@ Listener {
             for (Map.Entry<Long, Cell> entry : layer.getCells().entrySet()) {
                 if (entry.getValue() != null) {
                     int x = Layer.toCellX(entry.getKey());
-                    int y = Layer.toCellX(entry.getKey());
-                    if (x >= cellMin.getX() && x <= cellMax.getX() && y >= cellMin.getY() && y <= cellMax.getY()) {
+                    int y = Layer.toCellY(entry.getKey());
+                    if ((x + 1) >= cellMin.getX() && x <= cellMax.getX() && (y + 1) >= cellMin.getY() && y <= cellMax.getY()) {
                         cells.put(entry.getKey(), entry.getValue());
                     }
                 }
