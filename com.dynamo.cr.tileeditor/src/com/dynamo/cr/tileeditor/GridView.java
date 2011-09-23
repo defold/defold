@@ -78,4 +78,9 @@ public class GridView implements IGridView {
         this.renderer.setCamera(position, zoom);
     }
 
+    @Override
+    public void setSelectedTile(int tileIndex, boolean hFlip, boolean vFlip) {
+        this.renderer.setBrush(tileIndex, hFlip, vFlip);
+    }
+
 }

@@ -148,7 +148,7 @@
             id="com.dynamo.cr.tileeditor.commands.ShowPalette"
             name="Show Palette">
          <state
-               class="org.eclipse.ui.handlers.RegistryToggleState:true"
+               class="org.eclipse.ui.handlers.RegistryToggleState:false"
                id="org.eclipse.ui.commands.toggleState">
          </state>
       </command>

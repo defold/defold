@@ -132,7 +132,12 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
 
     @Override
     public void onSelectTile(int tileIndex, boolean hFlip, boolean vFlip) {
-        this.selectedTile = new SelectedTile(tileIndex, hFlip, vFlip);
+        int selectedTile = tileIndex;
+        if (this.selectedTile != null && this.selectedTile.tileIndex == tileIndex) {
+            selectedTile = -1;
+        }
+        this.selectedTile = new SelectedTile(selectedTile, hFlip, vFlip);
+        this.view.setSelectedTile(selectedTile, hFlip, vFlip);
     }
 
     @Override

@@ -57,4 +57,6 @@ public interface IGridView {
 
     void setPreview(Point2f position, float zoom);
 
+    void setSelectedTile(int tileIndex, boolean hFlip, boolean vFlip);
+
 }

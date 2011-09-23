@@ -16,6 +16,8 @@ import javax.media.opengl.glu.GLU;
 import javax.vecmath.Point2f;
 import javax.vecmath.Point2i;
 import javax.vecmath.Vector2f;
+import javax.vecmath.Vector3f;
+import javax.vecmath.Vector4f;
 
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.MouseEvent;
@@ -35,6 +37,7 @@ import org.eclipse.ui.services.IDisposable;
 import com.dynamo.cr.tileeditor.core.IGridView;
 import com.dynamo.cr.tileeditor.core.ILogger;
 import com.dynamo.cr.tileeditor.core.Layer;
+import com.dynamo.cr.tileeditor.core.TileSetUtil;
 import com.sun.opengl.util.BufferUtil;
 import com.sun.opengl.util.texture.Texture;
 import com.sun.opengl.util.texture.TextureIO;
@@ -48,6 +51,7 @@ Listener {
     private final static int CAMERA_MODE_NONE = 0;
     private final static int CAMERA_MODE_PAN = 1;
     private final static int CAMERA_MODE_ZOOM = 2;
+    private final static float BORDER_SIZE = 1.0f;
 
     private final IGridView.Presenter presenter;
     private final ILogger logger;
@@ -59,6 +63,7 @@ Listener {
     private final boolean mac = System.getProperty("os.name").equals("Mac OS X");
     private boolean enabled = true;
     private Point2i activeCell = null;
+    private int activeTile = -1;
     private boolean showPalette;
 
     // Model replication
@@ -71,6 +76,8 @@ Listener {
     private int tileMargin;
     private int tileSpacing;
     private int brushTile = -1; // -1 is clear tile
+    private boolean hFlip = false;
+    private boolean vFlip = false;
 
     // Camera data
     private int cameraMode = CAMERA_MODE_NONE;
@@ -238,9 +245,21 @@ Listener {
         return this.brushTile;
     }
 
-    public void setBrushTile(int brushTile) {
+    public void setBrush(int brushTile, boolean hFlip, boolean vFlip) {
+        boolean repaint = false;
         if (this.brushTile != brushTile) {
             this.brushTile = brushTile;
+            repaint = true;
+        }
+        if (this.hFlip != hFlip) {
+            this.hFlip = hFlip;
+            repaint = true;
+        }
+        if (this.vFlip != vFlip) {
+            this.vFlip = vFlip;
+            repaint = true;
+        }
+        if (repaint) {
             requestPaint();
         }
     }
@@ -286,29 +305,56 @@ Listener {
     public void mouseMove(MouseEvent e) {
         int dx = e.x - this.lastX;
         int dy = e.y - this.lastY;
-        Point2i activeCell = pickCell(e.x, e.y);
-        switch (this.cameraMode) {
-        case CAMERA_MODE_PAN:
-            activeCell = null;
-            this.presenter.onPreviewPan(dx, dy);
-            break;
-        case CAMERA_MODE_ZOOM:
-            activeCell = null;
-            this.presenter.onPreviewZoom(dy);
-            break;
-        case CAMERA_MODE_NONE:
-            if ((e.stateMask & SWT.BUTTON1) == SWT.BUTTON1) {
-                if (activeCell != null) {
-                    this.presenter.onPaint(activeCell.getX(), activeCell.getY());
+        if (this.showPalette) {
+            int activeTile = pickTile(e.x, e.y);
+            if (this.activeTile != activeTile) {
+                this.activeTile = activeTile;
+                requestPaint();
+            }
+        } else {
+            Point2i activeCell = pickCell(e.x, e.y);
+            switch (this.cameraMode) {
+            case CAMERA_MODE_PAN:
+                activeCell = null;
+                this.presenter.onPreviewPan(dx, dy);
+                break;
+            case CAMERA_MODE_ZOOM:
+                activeCell = null;
+                this.presenter.onPreviewZoom(dy);
+                break;
+            case CAMERA_MODE_NONE:
+                if ((e.stateMask & SWT.BUTTON1) == SWT.BUTTON1) {
+                    if (activeCell != null) {
+                        this.presenter.onPaint(activeCell.getX(), activeCell.getY());
+                    }
+                }
+            }
+            this.lastX = e.x;
+            this.lastY = e.y;
+            if ((this.activeCell == null && activeCell != null) || (this.activeCell != null && !this.activeCell.equals(activeCell))) {
+                this.activeCell = activeCell;
+                requestPaint();
+            }
+        }
+    }
+
+    private int pickTile(int x, int y) {
+        if (isEnabled()) {
+            TileSetUtil.Metrics metrics = calculateMetrics();
+            if (metrics != null) {
+                int viewPortWidth = this.viewPort.get(2);
+                int viewPortHeight = this.viewPort.get(3);
+                int tileX = (int)Math.floor((x - 0.5f * (viewPortWidth - metrics.visualWidth) - BORDER_SIZE)/(this.tileWidth + BORDER_SIZE));
+                int tileY = (int)Math.floor((y - 0.5f * (viewPortHeight - metrics.visualHeight) - BORDER_SIZE)/(this.tileHeight + BORDER_SIZE));
+                if (tileX >= 0
+                        && tileX < metrics.tilesPerRow
+                        && tileY >= 0
+                        && tileY < metrics.tilesPerColumn) {
+                    return tileX + tileY * metrics.tilesPerRow;
                 }
             }
         }
-        this.lastX = e.x;
-        this.lastY = e.y;
-        if ((this.activeCell == null && activeCell != null) || (this.activeCell != null && !this.activeCell.equals(activeCell))) {
-            this.activeCell = activeCell;
-            requestPaint();
-        }
+        return -1;
     }
 
     private Point2i pickCell(int x, int y) {
@@ -338,20 +384,26 @@ Listener {
         this.lastX = event.x;
         this.lastY = event.y;
 
-        if ((this.mac && event.stateMask == (SWT.ALT | SWT.CTRL))
-                || (!this.mac && event.button == 2 && event.stateMask == SWT.ALT)) {
-            this.cameraMode = CAMERA_MODE_PAN;
-            this.activeCell = null;
-        } else if ((this.mac && event.stateMask == (SWT.CTRL))
-                || (!this.mac && event.button == 3 && event.stateMask == SWT.ALT)) {
-            this.cameraMode = CAMERA_MODE_ZOOM;
-            this.activeCell = null;
+        if (this.showPalette) {
+            if (event.button == 1 && this.activeTile != -1) {
+                this.presenter.onSelectTile(this.activeTile, false, false);
+            }
         } else {
-            this.cameraMode = CAMERA_MODE_NONE;
-            if (event.button == 1) {
-                this.presenter.onPaintBegin();
-                if (this.activeCell != null) {
-                    this.presenter.onPaint(this.activeCell.getX(), this.activeCell.getY());
+            if ((this.mac && event.stateMask == (SWT.ALT | SWT.CTRL))
+                    || (!this.mac && event.button == 2 && event.stateMask == SWT.ALT)) {
+                this.cameraMode = CAMERA_MODE_PAN;
+                this.activeCell = null;
+            } else if ((this.mac && event.stateMask == (SWT.CTRL))
+                    || (!this.mac && event.button == 3 && event.stateMask == SWT.ALT)) {
+                this.cameraMode = CAMERA_MODE_ZOOM;
+                this.activeCell = null;
+            } else {
+                this.cameraMode = CAMERA_MODE_NONE;
+                if (event.button == 1) {
+                    this.presenter.onPaintBegin();
+                    if (this.activeCell != null) {
+                        this.presenter.onPaint(this.activeCell.getX(), this.activeCell.getY());
+                    }
                 }
             }
         }
@@ -406,7 +458,6 @@ Listener {
                 gl.glDepthMask(true);
                 gl.glEnable(GL.GL_DEPTH_TEST);
                 gl.glClearColor(0.0f, 0.0f, 0.0f, 1);
-                gl.glClearDepth(1.0);
                 gl.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT);
                 gl.glDisable(GL.GL_DEPTH_TEST);
                 gl.glDepthMask(false);
@@ -650,6 +701,7 @@ Listener {
         if (vertexCount == 0) {
             return;
         }
+        final float z = 0.0f;
         final int componentCount = 6;
         FloatBuffer v = BufferUtil.newFloatBuffer(vertexCount * componentCount);
         for (int i = xMin; i < xMax; ++i) {
@@ -658,8 +710,8 @@ Listener {
                 color = greenColor;
             }
             float x = i * this.cellWidth;
-            v.put(color); v.put(x); v.put(min.getY()); v.put(0.0f);
-            v.put(color); v.put(x); v.put(max.getY()); v.put(0.0f);
+            v.put(color); v.put(x); v.put(min.getY()); v.put(z);
+            v.put(color); v.put(x); v.put(max.getY()); v.put(z);
         }
 
         for (int i = yMin; i < yMax; ++i) {
@@ -668,8 +720,8 @@ Listener {
                 color = redColor;
             }
             float y = i * this.cellHeight;
-            v.put(color); v.put(min.getX()); v.put(y); v.put(0.0f);
-            v.put(color); v.put(max.getX()); v.put(y); v.put(0.0f);
+            v.put(color); v.put(min.getX()); v.put(y); v.put(z);
+            v.put(color); v.put(max.getX()); v.put(y); v.put(z);
         }
         v.flip();
 
@@ -689,38 +741,138 @@ Listener {
             return;
         }
 
-        setupTileSetViewProj(gl, glu);
+        TileSetUtil.Metrics metrics = calculateMetrics();
 
-        gl.glDisable(GL.GL_DEPTH);
+        if (metrics == null) {
+            return;
+        }
 
-        float screenRatio = 0.28f;
-        float extent = Math.max(this.viewPort.get(2) * screenRatio, this.viewPort.get(3) * screenRatio);
+        float viewPortWidth = this.viewPort.get(2);
+        float viewPortHeight = this.viewPort.get(3);
 
-        this.tileSetTexture.bind();
-        this.tileSetTexture.enable();
-
-        gl.glColor3f(1.0f, 1.0f, 1.0f);
-        gl.glBegin(GL.GL_QUADS);
-        gl.glTexCoord2f(0.0f, 0.0f);
-        gl.glVertex2f(0.0f, 0.0f);
-        gl.glTexCoord2f(1.0f, 0.0f);
-        gl.glVertex2f(extent, 0.0f);
-        gl.glTexCoord2f(1.0f, 1.0f);
-        gl.glVertex2f(extent, extent);
-        gl.glTexCoord2f(0.0f, 1.0f);
-        gl.glVertex2f(0.0f, extent);
-        gl.glEnd();
-
-        this.tileSetTexture.disable();
-    }
-
-    private void setupTileSetViewProj(GL gl, GLU glu) {
         gl.glMatrixMode(GL.GL_PROJECTION);
         gl.glLoadIdentity();
-        glu.gluOrtho2D(0, this.viewPort.get(2), this.viewPort.get(3), 0);
+        glu.gluOrtho2D(0, viewPortWidth, viewPortHeight, 0);
 
         gl.glMatrixMode(GL.GL_MODELVIEW);
         gl.glLoadIdentity();
+
+        // Render dim
+
+        gl.glEnable(GL.GL_BLEND);
+        gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
+
+        gl.glColor4f(0.0f, 0.0f, 0.0f, 0.7f);
+
+        gl.glBegin(GL.GL_QUADS);
+        gl.glVertex2f(0.0f, 0.0f);
+        gl.glVertex2f(viewPortWidth, 0.0f);
+        gl.glVertex2f(viewPortWidth, viewPortHeight);
+        gl.glVertex2f(0.0f, viewPortHeight);
+        gl.glEnd();
+
+        gl.glDisable(GL.GL_BLEND);
+
+        // Build tile set data
+
+        Vector3f offset = new Vector3f((float)Math.floor(0.5f * (viewPortWidth - metrics.visualWidth)), (float)Math.floor(0.5f * (viewPortHeight - metrics.visualHeight)), 0.0f);
+        gl.glTranslatef(offset.x, offset.y, offset.z);
+
+        final int vertexCount = metrics.tilesPerRow * metrics.tilesPerColumn * 4;
+        final int componentCount = 5;
+        FloatBuffer v = BufferUtil.newFloatBuffer(vertexCount * componentCount);
+
+        float z = 0.9f;
+
+        float recipImageWidth = 1.0f / metrics.tileSetWidth;
+        float recipImageHeight = 1.0f / metrics.tileSetHeight;
+
+        Vector4f[] overlays = new Vector4f[3];
+        float[] overlayColors = new float[3];
+        overlays[0] = new Vector4f(0.0f, 0.0f, metrics.visualWidth, metrics.visualHeight);
+        overlayColors[0] = 0.4f;
+        overlayColors[1] = 1.0f;
+        overlayColors[2] = 1.0f;
+
+        for (int y = 0; y < metrics.tilesPerColumn; ++y) {
+            for (int x = 0; x < metrics.tilesPerRow; ++x) {
+                float x0 = x * (tileWidth + BORDER_SIZE) + BORDER_SIZE;
+                float x1 = x0 + tileWidth;
+                float y0 = y * (tileHeight + BORDER_SIZE) + BORDER_SIZE;
+                float y1 = y0 + tileHeight;
+                float u0 = (x * (tileSpacing + 2*tileMargin + tileWidth) + tileMargin) * recipImageWidth;
+                float u1 = u0 + tileWidth * recipImageWidth;
+                float v0 = (y * (tileSpacing + 2*tileMargin + tileHeight) + tileMargin) * recipImageHeight;
+                float v1 = v0 + tileHeight * recipImageHeight;
+                v.put(u0); v.put(v0); v.put(x0); v.put(y0); v.put(z);
+                v.put(u0); v.put(v1); v.put(x0); v.put(y1); v.put(z);
+                v.put(u1); v.put(v1); v.put(x1); v.put(y1); v.put(z);
+                v.put(u1); v.put(v0); v.put(x1); v.put(y0); v.put(z);
+                int tileIndex = x + y * metrics.tilesPerRow;
+                if (this.activeTile == tileIndex) {
+                    overlays[1] = new Vector4f(x0 - BORDER_SIZE, y0 - BORDER_SIZE, x1 + BORDER_SIZE, y1 + BORDER_SIZE);
+                }
+                if (this.brushTile == tileIndex) {
+                    overlays[2] = new Vector4f(x0 - BORDER_SIZE, y0 - BORDER_SIZE, x1 + BORDER_SIZE, y1 + BORDER_SIZE);
+                }
+            }
+        }
+        v.flip();
+
+        this.tileSetTexture.bind();
+        this.tileSetTexture.setTexParameteri(GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST);
+        this.tileSetTexture.setTexParameteri(GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST);
+        this.tileSetTexture.setTexParameteri(GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP);
+        this.tileSetTexture.setTexParameteri(GL.GL_TEXTURE_WRAP_T, GL.GL_CLAMP);
+        this.tileSetTexture.enable();
+
+        gl.glEnable(GL.GL_DEPTH_TEST);
+        gl.glDepthMask(true);
+        gl.glClear(GL.GL_DEPTH_BUFFER_BIT);
+
+        gl.glEnableClientState(GL.GL_TEXTURE_COORD_ARRAY);
+        gl.glEnableClientState(GL.GL_VERTEX_ARRAY);
+        gl.glColor3f(1.0f, 1.0f, 1.0f);
+
+        gl.glInterleavedArrays(GL.GL_T2F_V3F, 0, v);
+
+        gl.glDrawArrays(GL.GL_QUADS, 0, vertexCount);
+
+        gl.glDisableClientState(GL.GL_TEXTURE_COORD_ARRAY);
+        gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
+
+        this.tileSetTexture.disable();
+
+        // tile set overlays
+
+        gl.glDepthMask(false);
+
+        z = 0.0f;
+
+        gl.glBegin(GL.GL_QUADS);
+
+        for (int i = 0; i < overlays.length; ++i) {
+            Vector4f o = overlays[i];
+            if (o != null) {
+                gl.glColor3f(overlayColors[i], overlayColors[i], overlayColors[i]);
+                float x0 = o.getX();
+                float y0 = o.getY();
+                float x1 = o.getZ();
+                float y1 = o.getW();
+                gl.glVertex3f(x0, y0, z);
+                gl.glVertex3f(x1, y0, z);
+                gl.glVertex3f(x1, y1, z);
+                gl.glVertex3f(x0, y1, z);
+            }
+        }
+
+        gl.glEnd();
+
+        gl.glDisable(GL.GL_DEPTH_TEST);
+
     }
 
+    private TileSetUtil.Metrics calculateMetrics() {
+        return TileSetUtil.calculateMetrics(this.tileSetImage, this.tileWidth, this.tileHeight, this.tileMargin, this.tileSpacing, null, 1.0f, 1.0f);
+    }
 }

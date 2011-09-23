@@ -287,6 +287,7 @@ public class GridTest {
         setGridProperty("tileSet", "/mario.tileset");
 
         this.presenter.onSelectTile(1, false, false);
+        verify(this.view, times(1)).setSelectedTile(1, false, false);
 
         List<Layer> layers = this.model.getLayers();
         Layer layer = layers.get(0);
