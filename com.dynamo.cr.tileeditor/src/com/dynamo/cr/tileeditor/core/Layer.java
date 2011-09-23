@@ -159,7 +159,7 @@ public class Layer implements IAdaptable {
     }
 
     public static long toCellIndex(int x, int y) {
-        return (((long)y) << Integer.SIZE) | x;
+        return (((long)y) << Integer.SIZE) | (x & 0xFFFFFFFFL);
     }
 
     public static int toCellX(long index) {

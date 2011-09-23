@@ -37,6 +37,7 @@ import org.eclipse.ui.services.IDisposable;
 import com.dynamo.cr.tileeditor.core.IGridView;
 import com.dynamo.cr.tileeditor.core.ILogger;
 import com.dynamo.cr.tileeditor.core.Layer;
+import com.dynamo.cr.tileeditor.core.Layer.Cell;
 import com.dynamo.cr.tileeditor.core.TileSetUtil;
 import com.sun.opengl.util.BufferUtil;
 import com.sun.opengl.util.texture.Texture;
@@ -331,7 +332,7 @@ Listener {
             }
             this.lastX = e.x;
             this.lastY = e.y;
-            if ((this.activeCell == null && activeCell != null) || (this.activeCell != null && !this.activeCell.equals(activeCell))) {
+            if ((this.activeCell != activeCell) && (this.activeCell == null || activeCell == null || !this.activeCell.equals(activeCell))) {
                 this.activeCell = activeCell;
                 requestPaint();
             }
@@ -363,9 +364,8 @@ Listener {
             int viewPortHeight = this.viewPort.get(3);
             float cellX = (x - 0.5f * viewPortWidth) / this.scale - this.position.getX();
             cellX /= this.cellWidth;
-            float cellY = (y - 0.5f * viewPortHeight) / this.scale + this.position.getY();
+            float cellY = (0.5f * viewPortHeight - y) / this.scale - this.position.getY();
             cellY /= this.cellHeight;
-            cellY += 1.0f;
             return new Point2i((int)Math.floor(cellX), (int)Math.floor(cellY));
         }
         return null;
@@ -424,8 +424,7 @@ Listener {
     }
 
     public boolean isEnabled() {
-        //return this.enabled && this.tileSetImage != null && this.cellWidth != 0.0f && this.cellHeight != 0.0f;
-        return true;
+        return this.enabled && this.cellWidth > 0.0f && this.cellHeight > 0.0f;
     }
 
     public void setEnabled(boolean enabled) {
@@ -501,210 +500,138 @@ Listener {
         // grid (cell-dividing lines)
         renderGrid(gl);
 
+        // tile set palette
         renderTileSet(gl, glu);
     }
 
     private void renderCells(GL gl) {
-        /*        int tileCount = tilesPerRow * tilesPerColumn;
-
-        // Construct vertex data
-
-        int vertexCount = 4 * tileCount;
-        // tile vertex data is 2 uv + 3 pos
-        int componentCount = 5 * vertexCount;
-        if (this.cellVertexBuffer == null || this.cellVertexBuffer.capacity() != componentCount) {
-            this.cellVertexBuffer = BufferUtil.newFloatBuffer(componentCount);
-        }
-        FloatBuffer v = this.cellVertexBuffer;
-        FloatBuffer hv = this.hullFrameVertexBuffer;
-        float recipImageWidth = 1.0f / imageWidth;
-        float recipImageHeight = 1.0f / imageHeight;
-        float recipScale = 1.0f / this.scale;
-        float border = borderSize * recipScale;
-        float z = 0.5f;
-        float hz = 0.3f;
-        float activeX0 = 0.0f;
-        float activeX1 = 0.0f;
-        float activeY0 = 0.0f;
-        float activeY1 = 0.0f;
-        float halfBorder = border / 3.0f;
-        float[] hc = new float[3];
-        for (int row = 0; row < tilesPerColumn; ++row) {
-            for (int column = 0; column < tilesPerRow; ++column) {
-                float x0 = column * (tileWidth + border) + border;
-                float x1 = x0 + tileWidth;
-                float y0 = (tilesPerColumn - row - 1) * (tileHeight + border) + border;
-                float y1 = y0 + tileHeight;
-                float u0 = (column * (tileSpacing + 2*tileMargin + tileWidth) + tileMargin) * recipImageWidth;
-                float u1 = u0 + tileWidth * recipImageWidth;
-                float v1 = (row * (tileSpacing + 2*tileMargin + tileHeight) + tileMargin) * recipImageHeight;
-                float v0 = v1 + tileHeight * recipImageHeight;
-                v.put(u0); v.put(v0); v.put(x0); v.put(y0); v.put(z);
-                v.put(u0); v.put(v1); v.put(x0); v.put(y1); v.put(z);
-                v.put(u1); v.put(v1); v.put(x1); v.put(y1); v.put(z);
-                v.put(u1); v.put(v0); v.put(x1); v.put(y0); v.put(z);
-                if (this.collision != null) {
-                    int index = column + row * tilesPerRow;
-                    int hullCount = this.hullCounts[index];
-                    if (hullCount > 0) {
-                        int hullIndex = this.hullIndices[index];
-                        for (int i = 0; i < hullCount; ++i) {
-                            int hi = 2 * (hullIndex + i);
-                            this.hullVertexBuffer.put(x0 + 0.5f + this.hullVertices[hi+0]);
-                            this.hullVertexBuffer.put(y0 + 0.5f + this.hullVertices[hi+1]);
-                        }
-                        this.hullColors[index].getColorComponents(hc);
-                        float hx0 = x0 - halfBorder;
-                        float hx1 = x1 + halfBorder;
-                        float hy0 = y0 - halfBorder;
-                        float hy1 = y1 + halfBorder;
-                        hv.put(hc); hv.put(hx0); hv.put(hy0); hv.put(hz);
-                        hv.put(hc); hv.put(hx0); hv.put(hy1); hv.put(hz);
-                        hv.put(hc); hv.put(hx1); hv.put(hy1); hv.put(hz);
-                        hv.put(hc); hv.put(hx1); hv.put(hy0); hv.put(hz);
-                    }
-                    if (index == this.activeCell) {
-                        activeX0 = x0 - halfBorder;
-                        activeX1 = x1 + halfBorder;
-                        activeY0 = y0 - halfBorder;
-                        activeY1 = y1 + halfBorder;
-                    }
-                }
-            }
-        }
-        v.flip();
-        hv.flip();
-
-        // Tiles
-
-        gl.glEnableClientState(GL.GL_TEXTURE_COORD_ARRAY);
-        gl.glEnableClientState(GL.GL_VERTEX_ARRAY);
-
-        gl.glEnable(GL.GL_DEPTH_TEST);
-        gl.glDepthMask(true);
-        gl.glEnable(GL.GL_BLEND);
-        gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
-        if (this.tileSetTexture != null) {
-            this.tileSetTexture.bind();
-            this.tileSetTexture.setTexParameteri(GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST);
-            this.tileSetTexture.setTexParameteri(GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST);
-            this.tileSetTexture.setTexParameteri(GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP);
-            this.tileSetTexture.setTexParameteri(GL.GL_TEXTURE_WRAP_T, GL.GL_CLAMP);
-            this.tileSetTexture.enable();
-        } else {
-            this.transparentTexture.bind();
-            this.transparentTexture.enable();
-        }
-
-        gl.glInterleavedArrays(GL.GL_T2F_V3F, 0, v);
-
-        gl.glDrawArrays(GL.GL_QUADS, 0, vertexCount);
-
-        if (this.tileSetTexture != null) {
-            this.tileSetTexture.disable();
-        } else {
-            this.transparentTexture.disable();
-        }
-
-        gl.glDisableClientState(GL.GL_TEXTURE_COORD_ARRAY);
-
-        // Active tile
-
-        z -= 0.1f;
-
-        if (this.activeCell >= 0) {
-            float f = 1.0f / 255.0f;
-            gl.glBegin(GL.GL_QUADS);
-            gl.glColor4f(brushColor.getRed() * f, brushColor.getGreen() * f, brushColor.getBlue() * f, brushColor.getAlpha() * f);
-            gl.glVertex3f(activeX0, activeY0, z);
-            gl.glVertex3f(activeX0, activeY1, z);
-            gl.glVertex3f(activeX1, activeY1, z);
-            gl.glVertex3f(activeX1, activeY0, z);
-            gl.glEnd();
-        }
-
-        // Hull Frames
-
-        gl.glEnableClientState(GL.GL_COLOR_ARRAY);
-
-        gl.glInterleavedArrays(GL.GL_C3F_V3F, 0, hv);
-
-        gl.glDrawArrays(GL.GL_QUADS, 0, hv.limit() / 6);
-
-        gl.glDisableClientState(GL.GL_COLOR_ARRAY);
-
-        gl.glDepthMask(false);
-
-        // Overlay
-
-        z = 0.0f;
-        gl.glBegin(GL.GL_QUADS);
-        gl.glColor4f(0.2f, 0.2f, 0.2f, 0.7f);
-        gl.glVertex3f(0.0f, 0.0f, z);
-        gl.glVertex3f(0.0f, height, z);
-        gl.glVertex3f(width, height, z);
-        gl.glVertex3f(width, 0.0f, z);
-        gl.glEnd();
-
-        gl.glDisable(GL.GL_DEPTH_TEST);
-
-        // Hulls
-
-        if (this.collision != null) {
-            this.hullVertexBuffer.flip();
-            gl.glVertexPointer(2, GL.GL_FLOAT, 0, this.hullVertexBuffer);
-
-            Color c = null;
-            float f = 1.0f / 255.0f;
-            for (int i = 0; i < this.hullCounts.length; ++i) {
-                c = hullColors[i];
-                gl.glColor4f(c.getRed() * f, c.getGreen() * f, c.getBlue() * f, c.getAlpha() * f);
-                gl.glDrawArrays(GL.GL_LINE_LOOP, this.hullIndices[i], this.hullCounts[i]);
-            }
-        }
-
-        // Clean up
-        gl.glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
-        gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
-        gl.glDisable(GL.GL_BLEND);*/
-    }
-
-    private void renderGrid(GL gl) {
-        if (this.cellWidth <= 0.0f || this.cellHeight <= 0.0f) {
+        TileSetUtil.Metrics metrics = calculateMetrics();
+        if (metrics == null) {
             return;
         }
 
-        Vector2f offset = new Vector2f(this.position);
-        offset.negate();
-        Vector2f extent = new Vector2f(this.viewPort.get(2), this.viewPort.get(3));
-        extent.scale(0.5f / this.scale);
-        Point2f min = new Point2f(offset);
-        min.sub(extent);
-        Point2f minNorm = new Point2f(min);
-        minNorm.scale(1.0f / this.cellWidth);
-        Point2f max = new Point2f(offset);
-        max.add(extent);
-        Point2f maxNorm = new Point2f(max);
-        maxNorm.scale(1.0f / this.cellHeight);
+        float recipImageWidth = 1.0f / metrics.tileSetWidth;
+        float recipImageHeight = 1.0f / metrics.tileSetHeight;
+
+        this.tileSetTexture.bind();
+        this.tileSetTexture.setTexParameteri(GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST);
+        this.tileSetTexture.setTexParameteri(GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST);
+        this.tileSetTexture.setTexParameteri(GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP);
+        this.tileSetTexture.setTexParameteri(GL.GL_TEXTURE_WRAP_T, GL.GL_CLAMP);
+        this.tileSetTexture.enable();
+
+        gl.glColor3f(1.0f, 1.0f, 1.0f);
+
+        if (this.activeCell != null && this.brushTile != -1) {
+            int x = this.activeCell.x;
+            int y = this.activeCell.y;
+            float x0 = x * cellWidth;
+            float x1 = x0 + cellWidth;
+            float y0 = y * cellHeight;
+            float y1 = y0 + cellHeight;
+            x = this.brushTile % metrics.tilesPerRow;
+            y = this.brushTile / metrics.tilesPerRow;
+            float u0 = (x * (tileSpacing + 2*tileMargin + tileWidth) + tileMargin) * recipImageWidth;
+            float u1 = u0 + tileWidth * recipImageWidth;
+            float v0 = (y * (tileSpacing + 2*tileMargin + tileHeight) + tileMargin) * recipImageHeight;
+            float v1 = v0 + tileHeight * recipImageHeight;
+
+            gl.glBegin(GL.GL_QUADS);
+            gl.glTexCoord2f(u0, v1);
+            gl.glVertex2f(x0, y0);
+            gl.glTexCoord2f(u0, v0);
+            gl.glVertex2f(x0, y1);
+            gl.glTexCoord2f(u1, v0);
+            gl.glVertex2f(x1, y1);
+            gl.glTexCoord2f(u1, v1);
+            gl.glVertex2f(x1, y0);
+            gl.glEnd();
+        }
+
+        Point2f min = new Point2f();
+        Point2f max = new Point2f();
+        Point2i cellMin = new Point2i();
+        Point2i cellMax = new Point2i();
+        calculateCellBounds(min, max, cellMin, cellMax);
+
+        float z = 0.0f;
+
+        Map<Long, Cell> cells = new HashMap<Long, Cell>();
+        for (Layer layer : this.layers) {
+            cells.clear();
+            for (Map.Entry<Long, Cell> entry : layer.getCells().entrySet()) {
+                if (entry.getValue() != null) {
+                    int x = Layer.toCellX(entry.getKey());
+                    int y = Layer.toCellX(entry.getKey());
+                    if (x >= cellMin.getX() && x <= cellMax.getX() && y >= cellMin.getY() && y <= cellMax.getY()) {
+                        cells.put(entry.getKey(), entry.getValue());
+                    }
+                }
+            }
+            int n = cells.size();
+
+            if (n > 0) {
+                int vertexCount = n * 4;
+                int componentCount = 5;
+                FloatBuffer v = BufferUtil.newFloatBuffer(vertexCount * componentCount);
+                for (Map.Entry<Long, Cell> entry : cells.entrySet()) {
+                    int x = Layer.toCellX(entry.getKey());
+                    int y = Layer.toCellY(entry.getKey());
+                    float x0 = x * this.cellWidth;
+                    float x1 = x0 + this.cellWidth;
+                    float y0 = y * this.cellHeight;
+                    float y1 = y0 + this.cellHeight;
+                    int tile = entry.getValue().getTile();
+                    x = tile % metrics.tilesPerRow;
+                    y = tile / metrics.tilesPerRow;
+                    float u0 = (x * (tileSpacing + 2*tileMargin + tileWidth) + tileMargin) * recipImageWidth;
+                    float u1 = u0 + tileWidth * recipImageWidth;
+                    float v0 = (y * (tileSpacing + 2*tileMargin + tileHeight) + tileMargin) * recipImageHeight;
+                    float v1 = v0 + tileHeight * recipImageHeight;
+
+                    v.put(u0); v.put(v1); v.put(x0); v.put(y0); v.put(z);
+                    v.put(u0); v.put(v0); v.put(x0); v.put(y1); v.put(z);
+                    v.put(u1); v.put(v0); v.put(x1); v.put(y1); v.put(z);
+                    v.put(u1); v.put(v1); v.put(x1); v.put(y0); v.put(z);
+                }
+                v.flip();
+
+                gl.glEnableClientState(GL.GL_VERTEX_ARRAY);
+                gl.glEnableClientState(GL.GL_TEXTURE_COORD_ARRAY);
+
+                gl.glInterleavedArrays(GL.GL_T2F_V3F, 0, v);
+
+                gl.glDrawArrays(GL.GL_QUADS, 0, vertexCount);
+
+                gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
+                gl.glDisableClientState(GL.GL_TEXTURE_COORD_ARRAY);
+            }
+
+        }
+
+        this.tileSetTexture.disable();
+    }
+
+    private void renderGrid(GL gl) {
+        Point2f min = new Point2f();
+        Point2f max = new Point2f();
+        Point2i cellMin = new Point2i();
+        Point2i cellMax = new Point2i();
+        calculateCellBounds(min, max, cellMin, cellMax);
 
         float byteRecip = 1.0f / 255.0f;
         float[] redColor = new float[] {1.0f, 0.0f, 0.0f};
         float[] greenColor = new float[] {0.0f, 1.0f, 0.0f};
         float[] gridColor = new float[] {114.0f * byteRecip, 123.0f * byteRecip, 130.0f * byteRecip};
 
-        int xMin = (int)Math.ceil(minNorm.getX());
-        int xMax = (int)Math.ceil(maxNorm.getX());
-        int yMin = (int)Math.ceil(minNorm.getY());
-        int yMax = (int)Math.ceil(maxNorm.getY());
-
-        final int vertexCount = 2 * ((xMax - xMin) + (yMax - yMin));
+        final int vertexCount = 2 * ((cellMax.getX() - cellMin.getX()) + (cellMax.getY() - cellMin.getY()));
         if (vertexCount == 0) {
             return;
         }
         final float z = 0.0f;
         final int componentCount = 6;
         FloatBuffer v = BufferUtil.newFloatBuffer(vertexCount * componentCount);
-        for (int i = xMin; i < xMax; ++i) {
+        for (int i = cellMin.getX(); i < cellMax.getX(); ++i) {
             float[] color = gridColor;
             if (i == 0) {
                 color = greenColor;
@@ -714,7 +641,7 @@ Listener {
             v.put(color); v.put(x); v.put(max.getY()); v.put(z);
         }
 
-        for (int i = yMin; i < yMax; ++i) {
+        for (int i = cellMin.getY(); i < cellMax.getY(); ++i) {
             float[] color = gridColor;
             if (i == 0) {
                 color = redColor;
@@ -868,11 +795,31 @@ Listener {
 
         gl.glEnd();
 
+        gl.glColor3f(1.0f, 1.0f, 1.0f);
         gl.glDisable(GL.GL_DEPTH_TEST);
 
     }
 
     private TileSetUtil.Metrics calculateMetrics() {
         return TileSetUtil.calculateMetrics(this.tileSetImage, this.tileWidth, this.tileHeight, this.tileMargin, this.tileSpacing, null, 1.0f, 1.0f);
+    }
+
+    private void calculateCellBounds(Point2f outMin, Point2f outMax, Point2i outCellMin, Point2i outCellMax) {
+        Vector2f offset = new Vector2f(this.position);
+        offset.negate();
+        Vector2f extent = new Vector2f(this.viewPort.get(2), this.viewPort.get(3));
+        extent.scale(0.5f / this.scale);
+        outMin.set(offset);
+        outMin.sub(extent);
+        Point2f minNorm = new Point2f(outMin);
+        minNorm.scale(1.0f / this.cellWidth);
+        outMax.set(offset);
+        outMax.add(extent);
+        Point2f maxNorm = new Point2f(outMax);
+        maxNorm.scale(1.0f / this.cellHeight);
+
+        outCellMin.set((int)Math.ceil(minNorm.getX()), (int)Math.ceil(minNorm.getY()));
+        outCellMax.set((int)Math.ceil(maxNorm.getX()), (int)Math.ceil(maxNorm.getY()));
+
     }
 }
