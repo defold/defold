@@ -10,7 +10,9 @@ Require-Bundle: org.eclipse.core.runtime,
  org.eclipse.core.resources;bundle-version="3.6.0",
  org.eclipse.ltk.core.refactoring;bundle-version="3.5.100",
  org.eclipse.text;bundle-version="3.5.0",
- com.dynamo.cr.protobind;bundle-version="1.0.0"
+ com.dynamo.cr.protobind;bundle-version="1.0.0",
+ com.google.inject;bundle-version="3.0.0"
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
 Bundle-ActivationPolicy: lazy
-Export-Package: com.dynamo.cr.editor.core
+Export-Package: com.dynamo.cr.editor.core,
+ com.dynamo.cr.editor.core.inject

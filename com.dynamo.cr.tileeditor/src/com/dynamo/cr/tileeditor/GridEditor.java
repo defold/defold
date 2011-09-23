@@ -42,6 +42,7 @@ import org.eclipse.ui.views.contentoutline.IContentOutlinePage;
 import org.eclipse.ui.views.properties.IPropertySheetPage;
 
 import com.dynamo.cr.editor.core.EditorUtil;
+import com.dynamo.cr.editor.core.inject.LifecycleModule;
 import com.dynamo.cr.properties.FormPropertySheetPage;
 import com.dynamo.cr.tileeditor.core.GridModel;
 import com.dynamo.cr.tileeditor.core.GridPresenter;
@@ -62,6 +63,7 @@ public class GridEditor extends AbstractDefoldEditor {
     private GridRenderer renderer;
 
     private IContainer contentRoot;
+    private LifecycleModule module;
 
     class Module extends AbstractModule {
         @Override
@@ -99,7 +101,7 @@ public class GridEditor extends AbstractDefoldEditor {
                     "Unable to locate content root for project");
         }
 
-        Module module = new Module();
+        module = new LifecycleModule(new Module());
         Injector injector = Guice.createInjector(module);
 
         final String undoId = ActionFactory.UNDO.getId();
@@ -157,7 +159,7 @@ public class GridEditor extends AbstractDefoldEditor {
     @Override
     public void dispose() {
         super.dispose();
-
+        module.close();
         if (this.renderer != null) {
             this.renderer.dispose();
         }
