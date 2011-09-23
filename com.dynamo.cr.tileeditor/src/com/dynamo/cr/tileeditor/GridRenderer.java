@@ -133,6 +133,7 @@ Listener {
 
         this.canvas.addListener(SWT.Resize, this);
         this.canvas.addListener(SWT.Paint, this);
+        this.canvas.addListener(SWT.MouseExit, this);
         this.canvas.addMouseListener(this);
         this.canvas.addMouseMoveListener(this);
     }
@@ -297,6 +298,11 @@ Listener {
             this.viewPort.flip();
         } else if (event.type == SWT.Paint) {
             requestPaint();
+        } else if (event.type == SWT.MouseExit) {
+            if (this.activeCell != null) {
+                this.activeCell = null;
+                requestPaint();
+            }
         }
     }
 
