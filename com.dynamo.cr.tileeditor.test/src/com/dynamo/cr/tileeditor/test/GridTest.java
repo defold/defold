@@ -25,6 +25,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.StringReader;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Enumeration;
@@ -68,10 +69,14 @@ import com.dynamo.cr.tileeditor.core.Layer;
 import com.dynamo.cr.tileeditor.core.Layer.Cell;
 import com.dynamo.cr.tileeditor.core.Messages;
 import com.dynamo.cr.tileeditor.core.TileSetModel;
+import com.dynamo.tile.proto.Tile.TileCell;
+import com.dynamo.tile.proto.Tile.TileGrid;
+import com.dynamo.tile.proto.Tile.TileLayer;
 import com.google.common.base.Joiner;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
+import com.google.protobuf.TextFormat;
 
 public class GridTest {
 
@@ -528,4 +533,29 @@ public class GridTest {
         assertThat(presenter.isDirty(), is(false));
     }
 
+    @Test
+    public void testLoadSave() throws Exception {
+        TileGrid tileGrid  = TileGrid.newBuilder()
+            .setTileSet("my.tileset")
+            .setCellWidth(16)
+            .setCellHeight(32)
+            .addLayers(TileLayer.newBuilder()
+                        .setId("some_id")
+                        .setIsVisible(1)
+                        .setZ(123)
+                        .addCell(TileCell.newBuilder().setTile(12).setX(1).setY(2).setHFlip(0).setVFlip(1))
+                        .build())
+                        .build();
+
+        String tileSetFileData = TextFormat.printToString(tileGrid);
+
+        this.presenter.onLoad(new ByteArrayInputStream(tileSetFileData.getBytes()));
+        ByteArrayOutputStream os = new ByteArrayOutputStream();
+        this.presenter.onSave(os, new NullProgressMonitor());
+
+        TileGrid.Builder loadedTileGridBuilder = TileGrid.newBuilder();
+        TextFormat.merge(new StringReader(new String(os.toByteArray())), loadedTileGridBuilder);
+        TileGrid loadedTileGrid = loadedTileGridBuilder.build();
+        assertEquals(tileGrid, loadedTileGrid);
+    }
 }

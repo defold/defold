@@ -220,6 +220,12 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
                 layer.setId(layerDDF.getId());
                 layer.setZ(layerDDF.getZ());
                 layer.setVisible(layerDDF.getIsVisible() != 0);
+
+                for (TileCell cellDDF : layerDDF.getCellList()) {
+                    long cellIndex = (long) cellDDF.getY() << Integer.SIZE | (long) cellDDF.getX();
+                    Cell cell = new Cell(cellDDF.getTile(), cellDDF.getHFlip() != 0 ? true : false, cellDDF.getVFlip() != 0 ? true : false);
+                    layer.setCell(cellIndex, cell);
+                }
                 layers.add(layer);
             }
             setLayers(layers);
@@ -251,6 +257,7 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
                         .setVFlip(cell.isVFlip() ? 1 : 0);
                 layerBuilder.addCell(cellBuilder);
             }
+            tileGridBuilder.addLayers(layerBuilder);
         }
         TileGrid tileGrid = tileGridBuilder.build();
         try {
