@@ -294,6 +294,7 @@ def tileset_file(self, node):
                  self.env['DYNAMO_HOME'] + '/share/java/ddf.jar',
                  self.env['DYNAMO_HOME'] + '/share/java/gamesys.jar',
                  self.env['DYNAMO_HOME'] + '/share/java/tile.jar',
+                 self.env['DYNAMO_HOME'] + '/ext/share/java/vecmath.jar',
                  # NOTE: Only needed when running within gamesys-project.
                  # Should be fixed somehow... in configure perhaps?
                  'default/src/java',
