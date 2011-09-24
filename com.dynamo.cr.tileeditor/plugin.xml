@@ -29,7 +29,7 @@
             id="com.dynamo.cr.tileeditor.resourcetypes.TileSet"
             name="Tile Set"
             proto-message-class="com.dynamo.tile.proto.Tile$TileSet"
-            resource-refactor-participant-class="com.dynamo.cr.tileeditor.core.refactoring.TilesetRefactorParticipant"
+            resource-refactor-participant-class="com.dynamo.cr.tileeditor.core.refactoring.TileSetRefactorParticipant"
             template-data="image: &apos;&apos; tile_width: 16 tile_height: 16 tile_margin: 0 tile_spacing: 0 collision: &apos;&apos; material_tag: &apos;tile&apos; collision_groups: &apos;foreground&apos;"
             type-class="tile_set">
          <references>
