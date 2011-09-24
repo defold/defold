@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import javax.annotation.PreDestroy;
@@ -17,6 +18,7 @@ import org.eclipse.core.commands.operations.IOperationHistory;
 import org.eclipse.core.commands.operations.IOperationHistoryListener;
 import org.eclipse.core.commands.operations.OperationHistoryEvent;
 import org.eclipse.core.runtime.IProgressMonitor;
+import org.eclipse.core.runtime.IStatus;
 
 import com.dynamo.cr.tileeditor.core.Layer.Cell;
 import com.dynamo.cr.tileeditor.operations.SetCellsOperation;
@@ -114,12 +116,35 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
             return;
 
 
-        String propName = evt.getPropertyName();
-        Object source = evt.getSource();
-        if (source instanceof Layer) {
-            if (propName.equals("cells")) {
-                int layerIndex = this.model.getLayers().indexOf(source);
-                this.view.setCells(layerIndex, (Map<Long, Cell>)evt.getNewValue());
+        boolean validModel = this.model.isValid();
+        this.view.setValidModel(validModel);
+        this.view.refreshProperties();
+        if (evt.getNewValue() instanceof IStatus) {
+        } else {
+            Object source = evt.getSource();
+            String propName = evt.getPropertyName();
+            if (source instanceof GridModel) {
+                if (propName.equals("tileSet")) {
+                    TileSetModel tileSetModel = this.model.getTileSetModel();
+                    if (tileSetModel != null && tileSetModel.isValid()) {
+                        this.view.setTileSet(tileSetModel.getLoadedImage(),
+                                tileSetModel.getTileWidth(),
+                                tileSetModel.getTileHeight(),
+                                tileSetModel.getTileMargin(),
+                                tileSetModel.getTileSpacing());
+                    }
+                } else if (propName.equals("cellWidth")) {
+                    this.view.setCellWidth((Float)evt.getNewValue());
+                } else if (propName.equals("cellHeight")) {
+                    this.view.setCellHeight((Float)evt.getNewValue());
+                } else if (propName.equals("layers")) {
+                    this.view.setLayers((List<Layer>)evt.getNewValue());
+                }
+            } else if (source instanceof Layer) {
+                if (propName.equals("cells")) {
+                    int layerIndex = this.model.getLayers().indexOf(source);
+                    this.view.setCells(layerIndex, (Map<Long, Cell>)evt.getNewValue());
+                }
             }
         }
     }
@@ -209,21 +234,14 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
     @Override
     public void historyNotification(OperationHistoryEvent event) {
         int type = event.getEventType();
-        boolean refresh = false;
         switch (type) {
         case OperationHistoryEvent.DONE:
         case OperationHistoryEvent.REDONE:
             setUndoRedoCounter(undoRedoCounter + 1);
-            refresh = true;
             break;
         case OperationHistoryEvent.UNDONE:
             setUndoRedoCounter(undoRedoCounter - 1);
-            refresh = true;
             break;
-        }
-
-        if (refresh) {
-            refresh();
         }
     }
 }
