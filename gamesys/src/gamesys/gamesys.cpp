@@ -26,6 +26,8 @@
 #include "resources/res_render_script.h"
 #include "resources/res_render_prototype.h"
 #include "resources/res_sprite.h"
+#include "resources/res_tileset.h"
+#include "resources/res_tilegrid.h"
 
 #include "components/comp_collection_proxy.h"
 #include "components/comp_collision_object.h"
@@ -37,6 +39,7 @@
 #include "components/comp_spawn_point.h"
 #include "components/comp_light.h"
 #include "components/comp_sprite.h"
+#include "components/comp_tilegrid.h"
 
 #include "camera_ddf.h"
 #include "physics_ddf.h"
@@ -104,6 +107,8 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("render_scriptc", render_context, ResRenderScriptCreate, ResRenderScriptDestroy, ResRenderScriptRecreate);
         REGISTER_RESOURCE_TYPE("renderc", render_context, ResRenderPrototypeCreate, ResRenderPrototypeDestroy, ResRenderPrototypeRecreate);
         REGISTER_RESOURCE_TYPE("spritec", 0, ResSpriteCreate, ResSpriteDestroy, ResSpriteRecreate);
+        REGISTER_RESOURCE_TYPE("tilesetc", 0, ResTileSetCreate, ResTileSetDestroy, ResTileSetRecreate);
+        REGISTER_RESOURCE_TYPE("tilegridc", 0, ResTileGridCreate, ResTileGridDestroy, ResTileGridRecreate);
 
 #undef REGISTER_RESOURCE_TYPE
 
@@ -207,6 +212,11 @@ namespace dmGameSystem
                 CompSpriteNewWorld, CompSpriteDeleteWorld,
                 CompSpriteCreate, CompSpriteDestroy, 0, 0,
                 CompSpriteUpdate, 0, CompSpriteOnMessage, 0, CompSpriteOnReload);
+
+        REGISTER_COMPONENT_TYPE("tilegridc", 1200, 0,
+                CompTileGridNewWorld, CompTileGridDeleteWorld,
+                CompTileGridCreate, CompTileGridDestroy, 0, 0,
+                CompTileGridUpdate, 0, CompTileGridOnMessage, 0, 0);
 
         #undef REGISTER_COMPONENT_TYPE
 
