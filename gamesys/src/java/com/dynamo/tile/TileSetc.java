@@ -53,6 +53,11 @@ public class TileSetc {
             int width = collisionImage.getWidth();
             int height = collisionImage.getHeight();
 
+            if (collisionImage.getAlphaRaster() == null) {
+                System.err.format("Collision image '%s' is missing alpha channel%n");
+                System.exit(5);
+            }
+
             ConvexHulls convexHulls = TileSetUtil.calculateConvexHulls(
                     collisionImage.getAlphaRaster(), 16, width, height,
                     tileSet.getTileWidth(), tileSet.getTileHeight(),
@@ -81,6 +86,11 @@ public class TileSetc {
             for (int i = 0; i < convexHulls.points.length; ++i) {
                 outBuilder.addConvexHullPoints(convexHulls.points[i]);
             }
+
+            String compiledImageName = tileSet.getImage();
+            int index = compiledImageName.lastIndexOf('.');
+            compiledImageName = compiledImageName.substring(0, index) + ".texturec";
+            outBuilder.setImage(compiledImageName);
 
             TileSet outTileSet = outBuilder.build();
             outTileSet.writeTo(output);

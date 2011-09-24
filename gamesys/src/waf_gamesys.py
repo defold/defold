@@ -282,7 +282,7 @@ def testresourcecont_file(self, node):
     out = node.change_ext(obj_ext)
     task.set_outputs(out)
 
-Task.simple_task_type('tileset', '${JAVA} -classpath ${CLASSPATH} com.dynamo.cr.tile.TileSetc ${SRC} ${TGT}',
+Task.simple_task_type('tileset', '${JAVA} -classpath ${CLASSPATH} com.dynamo.tile.TileSetc ${SRC} ${TGT}',
                       color='PINK',
                       after='proto_gen_py',
                       before='cc cxx',
