@@ -135,7 +135,11 @@ public class Layer implements IAdaptable {
     }
 
     public void setCell(long cellIndex, Cell cell) {
-        this.cells.put(cellIndex, cell);
+        if (cell != null) {
+            this.cells.put(cellIndex, cell);
+        } else {
+            this.cells.remove(cellIndex);
+        }
     }
 
     @Override
