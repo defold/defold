@@ -318,6 +318,14 @@
             activityId="com.dynamo.cr.editor.activities.disableEclipseUI"
             pattern="org\.eclipse\.search/org\.eclipse\.search\.OpenSearchDialogPage">
       </activityPatternBinding>
+      <activityPatternBinding
+            activityId="com.dynamo.cr.editor.activities.disableEclipseUI"
+            pattern="org\.eclipse\.ui\.ide/org\.eclipse\.ui\.ide\.OpenMarkersView">
+      </activityPatternBinding>
+      <activityPatternBinding
+            activityId="com.dynamo.cr.editor.activities.disableEclipseUI"
+            pattern="_org\.eclipse\.ui\.views/org\.eclipse\.ui\.views\.properties\.NewPropertySheetCommand">
+      </activityPatternBinding>
    </extension>
    <extension
          point="org.eclipse.ui.decorators">
