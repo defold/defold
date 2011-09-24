@@ -46,6 +46,8 @@ def transform_gameobject(msg):
         c.component = c.component.replace('.spawnpoint', '.spawnpointc')
         c.component = c.component.replace('.light', '.lightc')
         c.component = c.component.replace('.sprite', '.spritec')
+        c.component = c.component.replace('.tileset', '.tilesetc')
+        c.component = c.component.replace('.tilegrid', '.tilegridc')
     return msg
 
 def transform_model(msg):
@@ -86,6 +88,10 @@ def transform_render(msg):
 
 def transform_sprite(msg):
     msg.texture = transform_texture_name(msg.texture)
+    return msg
+
+def transform_tilegrid(msg):
+    msg.tile_set = msg.tile_set + 'c'
     return msg
 
 def write_embedded(task):
@@ -206,6 +212,7 @@ proto_compile_task('spawnpoint', 'gamesys_ddf_pb2', 'SpawnPointDesc', '.spawnpoi
 proto_compile_task('light', 'gamesys_ddf_pb2', 'LightDesc', '.light', '.lightc')
 proto_compile_task('render', 'render.render_ddf_pb2', 'render_ddf_pb2.RenderPrototypeDesc', '.render', '.renderc', transform_render)
 proto_compile_task('sprite', 'sprite_ddf_pb2', 'SpriteDesc', '.sprite', '.spritec', transform_sprite)
+proto_compile_task('tilegrid', 'tile_ddf_pb2', 'TileGrid', '.tilegrid', '.tilegridc', transform_tilegrid)
 
 TaskGen.declare_chain('project', 'cat < ${SRC} > ${TGT}', ext_in='.project', ext_out='.projectc', reentrant = False)
 
@@ -274,3 +281,22 @@ def testresourcecont_file(self, node):
     task.set_inputs(node)
     out = node.change_ext(obj_ext)
     task.set_outputs(out)
+
+Task.simple_task_type('tileset', '${JAVA} -classpath ${CLASSPATH} com.dynamo.cr.tile.TileSetc ${SRC} ${TGT}',
+                      color='PINK',
+                      after='proto_gen_py',
+                      before='cc cxx',
+                      shell=False)
+
+@extension('.tileset')
+def tileset_file(self, node):
+    classpath = [self.env['DYNAMO_HOME'] + '/ext/share/java/protobuf-java-2.3.0.jar',
+                 self.env['DYNAMO_HOME'] + '/share/java/ddf.jar',
+                 self.env['DYNAMO_HOME'] + '/share/java/gamesys.jar',
+                 self.env['DYNAMO_HOME'] + '/share/java/tile.jar']
+    tileset = self.create_task('tileset')
+    tileset.env['CLASSPATH'] = os.pathsep.join(classpath)
+    tileset.set_inputs(node)
+    obj_ext = '.tilesetc'
+    out = node.change_ext(obj_ext)
+    tileset.set_outputs(out)

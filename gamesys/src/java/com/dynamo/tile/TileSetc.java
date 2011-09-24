@@ -1,0 +1,124 @@
+package com.dynamo.tile;
+
+import java.awt.image.BufferedImage;
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.Reader;
+
+import javax.imageio.ImageIO;
+
+import com.dynamo.tile.TileSetUtil.ConvexHulls;
+import com.dynamo.tile.proto.Tile;
+import com.dynamo.tile.proto.Tile.ConvexHull.Builder;
+import com.dynamo.tile.proto.Tile.TileSet;
+import com.google.protobuf.TextFormat;
+
+public class TileSetc {
+
+    private File contentRoot;
+
+    public TileSetc(File contentRoot) {
+        this.contentRoot = contentRoot;
+    }
+
+    BufferedImage loadImageFile(String fileName) throws IOException {
+        File file = new File(this.contentRoot.getCanonicalPath()
+                + File.separator + fileName);
+        InputStream is = new BufferedInputStream(new FileInputStream(file));
+        try {
+            return ImageIO.read(is);
+        } finally {
+            is.close();
+        }
+    }
+
+    public void compile(File inFile, File outFile) throws IOException {
+        Reader reader = new BufferedReader(new FileReader(inFile));
+        OutputStream output = new BufferedOutputStream(new FileOutputStream(outFile));
+
+        try {
+            TileSet.Builder builder = TileSet.newBuilder();
+            TextFormat.merge(reader, builder);
+            TileSet tileSet = builder.build();
+
+            BufferedImage collisionImage = loadImageFile(tileSet.getCollision());
+            int width = collisionImage.getWidth();
+            int height = collisionImage.getHeight();
+
+            ConvexHulls convexHulls = TileSetUtil.calculateConvexHulls(
+                    collisionImage.getAlphaRaster(), 16, width, height,
+                    tileSet.getTileWidth(), tileSet.getTileHeight(),
+                    tileSet.getTileMargin(), tileSet.getTileSpacing());
+
+            TileSet.Builder outBuilder = TileSet.newBuilder();
+            outBuilder.mergeFrom(tileSet);
+
+            outBuilder.clearConvexHulls();
+            for (int i = 0; i < convexHulls.hulls.length; ++i) {
+                ConvexHull convexHull = convexHulls.hulls[i];
+                Builder hullBuilder = Tile.ConvexHull.newBuilder();
+                String collisionGroup = "";
+                if (i < tileSet.getConvexHullsCount()) {
+                    collisionGroup = tileSet.getConvexHulls(i).getCollisionGroup();
+                }
+                hullBuilder
+                    .setCollisionGroup(collisionGroup)
+                    .setCount(convexHull.getCount())
+                    .setIndex(convexHull.getIndex());
+
+                outBuilder.addConvexHulls(hullBuilder);
+            }
+
+            outBuilder.clearConvexHullPoints();
+            for (int i = 0; i < convexHulls.points.length; ++i) {
+                outBuilder.addConvexHullPoints(convexHulls.points[i]);
+            }
+
+            TileSet outTileSet = outBuilder.build();
+            outTileSet.writeTo(output);
+        } finally {
+            reader.close();
+            output.close();
+        }
+    }
+
+    static File locateGameProjectDirectory(String start) throws IOException {
+
+        File current = new File(start).getCanonicalFile();
+        File game_project;
+        while (true) {
+            game_project = new File(current.getPath() + File.separator
+                    + "game.project");
+            if (game_project.exists()) {
+                return current;
+            }
+            String parent = current.getParent();
+            if (parent == null) {
+                System.err.println("game.project cound not be located");
+                System.exit(5);
+            }
+            current = new File(current.getParent());
+        }
+    }
+
+    public static void main(String[] args) throws IOException {
+        System.setProperty("java.awt.headless", "true");
+
+        String inFileName = args[0];
+        String outFileName = args[1];
+
+        File inFile = new File(inFileName);
+        File outFile = new File(outFileName);
+        File contentRoot = locateGameProjectDirectory(inFileName);
+        TileSetc tileSetC = new TileSetc(contentRoot);
+        tileSetC.compile(inFile, outFile);
+    }
+}
