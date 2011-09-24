@@ -466,6 +466,17 @@ INSTANTIATE_TEST_CASE_P(Sprite, ComponentTest, ::testing::ValuesIn(valid_sprite_
 const char* invalid_sprite_gos[] = {"/sprite/invalid_sprite.goc"};
 INSTANTIATE_TEST_CASE_P(Sprite, ComponentFailTest, ::testing::ValuesIn(invalid_sprite_gos));
 
+/* TileSet */
+const char* valid_tileset_resources[] = {"/tile/valid.tilesetc"};
+INSTANTIATE_TEST_CASE_P(TileSet, ResourceTest, ::testing::ValuesIn(valid_tileset_resources));
+
+/* TileGrid */
+const char* valid_tilegrid_resources[] = {"/tile/valid.tilegridc"};
+INSTANTIATE_TEST_CASE_P(TileGrid, ResourceTest, ::testing::ValuesIn(valid_tilegrid_resources));
+
+const char* valid_tileset_gos[] = {"/tile/valid_tilegrid.goc"};
+INSTANTIATE_TEST_CASE_P(TileSet, ComponentTest, ::testing::ValuesIn(valid_tileset_gos));
+
 /* Texture */
 
 const char* valid_texture_resources[] = {"/texture/valid_jpg.texturec", "/texture/valid_png.texturec"};
