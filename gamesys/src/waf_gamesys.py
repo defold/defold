@@ -293,7 +293,11 @@ def tileset_file(self, node):
     classpath = [self.env['DYNAMO_HOME'] + '/ext/share/java/protobuf-java-2.3.0.jar',
                  self.env['DYNAMO_HOME'] + '/share/java/ddf.jar',
                  self.env['DYNAMO_HOME'] + '/share/java/gamesys.jar',
-                 self.env['DYNAMO_HOME'] + '/share/java/tile.jar']
+                 self.env['DYNAMO_HOME'] + '/share/java/tile.jar',
+                 # NOTE: Only needed when running within gamesys-project.
+                 # Should be fixed somehow... in configure perhaps?
+                 'default/src/java',
+                 'default/src/gamesys/gamesys.jar']
     tileset = self.create_task('tileset')
     tileset.env['CLASSPATH'] = os.pathsep.join(classpath)
     tileset.set_inputs(node)
