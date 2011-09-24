@@ -60,6 +60,10 @@ namespace dmGameSystem
                 }
             }
         }
+        else
+        {
+            result = false;
+        }
         dmDDF::FreeMessage(prototype_desc);
         return result;
     }
