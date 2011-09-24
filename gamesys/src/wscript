@@ -10,18 +10,3 @@ def build(bld):
     bld.add_subdirs('gamesys')
     bld.install_files('${PREFIX}/lib/python', 'waf_gamesys.py')
     bld.install_files('${PREFIX}/lib/python/colladaImEx', 'colladaImEx/*.py')
-
-    classpath = [bld.env['DYNAMO_HOME'] + '/ext/share/java/protobuf-java-2.3.0.jar',
-                 bld.env['DYNAMO_HOME'] + '/share/java/ddf.jar',
-                 'default/src/gamesys/gamesys.jar']
-
-    bld.new_task_gen(features='javac seq',
-                     classpath=os.pathsep.join(classpath),
-                     source_root='java')
-    bld.env["JAVACFLAGS"] = '-g'
-
-    bld.add_group()
-    bld.new_task_gen(features='jar seq',
-                     basedir='java',
-                     destfile='tile.jar')
-    bld.install_files('${PREFIX}/share/java', 'tile.jar')
