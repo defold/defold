@@ -33,6 +33,8 @@ import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.Listener;
+import org.eclipse.ui.PlatformUI;
+import org.eclipse.ui.handlers.IHandlerService;
 import org.eclipse.ui.services.IDisposable;
 
 import com.dynamo.cr.tileeditor.core.IGridView;
@@ -409,6 +411,13 @@ Listener {
         if (this.showPalette) {
             if (event.button == 1 && this.activeTile != -1) {
                 this.presenter.onSelectTile(this.activeTile, false, false);
+
+                IHandlerService service = (IHandlerService) PlatformUI.getWorkbench().getService(IHandlerService.class);
+                try {
+                    service.executeCommand("com.dynamo.cr.tileeditor.commands.ShowPalette", null);
+                } catch (Exception e) {
+                    logger.logException(e);
+                }
             }
         } else {
             if ((this.mac && event.stateMask == (SWT.ALT | SWT.CTRL))
