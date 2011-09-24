@@ -21,6 +21,7 @@ def build(bld):
 
     classpath = [bld.env['DYNAMO_HOME'] + '/ext/share/java/protobuf-java-2.3.0.jar',
                  bld.env['DYNAMO_HOME'] + '/share/java/ddf.jar',
+                 bld.env['DYNAMO_HOME'] + '/ext/share/java/vecmath.jar',
                  'default/src/gamesys/gamesys.jar']
 
     bld.new_task_gen(features='javac seq',
