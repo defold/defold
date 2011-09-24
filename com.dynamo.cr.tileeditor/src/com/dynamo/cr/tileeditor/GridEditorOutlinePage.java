@@ -37,7 +37,7 @@ import com.dynamo.cr.tileeditor.core.Layer;
 
 public class GridEditorOutlinePage extends ContentOutlinePage implements IGridEditorOutlinePage {
 
-    private static final String MENU_ID = "com.dynamo.cr.tileeditor.menus.TileSetOutlineContext";
+    private static final String MENU_ID = "com.dynamo.cr.tileeditor.menus.GridOutlineContext";
 
     private final IGridView.Presenter presenter;
     private final UndoActionHandler undoHandler;

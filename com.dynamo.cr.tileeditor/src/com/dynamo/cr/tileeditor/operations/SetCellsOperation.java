@@ -22,7 +22,7 @@ public class SetCellsOperation extends AbstractOperation {
     public SetCellsOperation(GridModel model, Map<Long, Cell> oldCells) {
         super("Paint Cells");
         this.model = model;
-        this.cells = this.model.getCells();
+        this.cells = new HashMap<Long, Cell>(this.model.getCells());
         this.oldCells = new HashMap<Long, Cell>(this.cells);
         this.oldCells.putAll(oldCells);
     }
