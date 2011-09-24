@@ -349,6 +349,22 @@ namespace dmPhysics
     void DeleteCollisionShape2D(HCollisionShape2D shape);
 
     /**
+     * Set the group of a 3D shape
+     *
+     * @param shape Shape
+     * @param group Group
+     */
+    void SetCollisionShapeGroup3D(HCollisionShape3D shape, uint16_t group);
+
+    /**
+     * Set the group of a 2D shape
+     *
+     * @param shape Shape
+     * @param group Group
+     */
+    void SetCollisionShapeGroup2D(HCollisionShape2D shape, uint16_t group);
+
+    /**
      * Data for collision object construction.
      */
     struct CollisionObjectData
@@ -378,9 +394,11 @@ namespace dmPhysics
      *
      * @param world Physics world
      * @param data @see CollisionObjectData
+     * @param shapes pointer to a c-array of shapes
+     * @param shape_count number of shapes in the array
      * @return A new collision object
      */
-    HCollisionObject3D NewCollisionObject3D(HWorld3D world, const CollisionObjectData& data, HCollisionShape3D shape);
+    HCollisionObject3D NewCollisionObject3D(HWorld3D world, const CollisionObjectData& data, HCollisionShape3D* shapes, uint32_t shape_count);
 
     /**
      * Create a new 2D collision object
@@ -389,9 +407,11 @@ namespace dmPhysics
      *
      * @param world Physics world
      * @param data @see CollisionObjectData
+     * @param shapes pointer to a c-array of shapes
+     * @param shape_count number of shapes in the array
      * @return A new collision object
      */
-    HCollisionObject2D NewCollisionObject2D(HWorld2D world, const CollisionObjectData& data, HCollisionShape2D shape);
+    HCollisionObject2D NewCollisionObject2D(HWorld2D world, const CollisionObjectData& data, HCollisionShape2D* shapes, uint32_t shape_count);
 
     /**
      * Delete a 3D collision object
@@ -410,20 +430,24 @@ namespace dmPhysics
     void DeleteCollisionObject2D(HWorld2D world, HCollisionObject2D collision_object);
 
     /**
-     * Retrieve the shape of a 3D collision object.
+     * Retrieve the shapes of a 3D collision object.
      *
      * @param collision_object Collision object
-     * @return Collision shape
+     * @param out_buffer buffer into which the shapes will be written
+     * @param buffer_size the maximum size of the buffer
+     * @return The number of shapes returned
      */
-    HCollisionShape3D GetCollisionShape3D(HCollisionObject3D collision_object);
+    uint32_t GetCollisionShapes3D(HCollisionObject3D collision_object, HCollisionShape3D* out_buffer, uint32_t buffer_size);
 
     /**
-     * Retrieve the shape of a 2D collision object.
+     * Retrieve the shapes of a 2D collision object.
      *
      * @param collision_object Collision object
-     * @return Collision shape
+     * @param out_buffer buffer into which the shapes will be written
+     * @param buffer_size the maximum size of the buffer
+     * @return The number of shapes returned
      */
-    HCollisionShape2D GetCollisionShape2D(HCollisionObject2D collision_object);
+    uint32_t GetCollisionShapes2D(HCollisionObject2D collision_object, HCollisionShape2D* out_buffer, uint32_t buffer_size);
 
     /**
      * Set 3D collision object user data

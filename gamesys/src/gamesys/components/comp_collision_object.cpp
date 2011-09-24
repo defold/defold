@@ -172,7 +172,7 @@ namespace dmGameSystem
             if (physics_context->m_3D)
             {
                 dmPhysics::HWorld3D physics_world = world->m_World3D;
-                component->m_Object3D = dmPhysics::NewCollisionObject3D(physics_world, data, component->m_Resource->m_ConvexShape->m_Shape3D);
+                component->m_Object3D = dmPhysics::NewCollisionObject3D(physics_world, data, &component->m_Resource->m_ConvexShape->m_Shape3D, 1);
                 if (component->m_Object3D != 0x0)
                 {
                     return dmGameObject::CREATE_RESULT_OK;
@@ -181,7 +181,7 @@ namespace dmGameSystem
             else
             {
                 dmPhysics::HWorld2D physics_world = world->m_World2D;
-                component->m_Object2D = dmPhysics::NewCollisionObject2D(physics_world, data, component->m_Resource->m_ConvexShape->m_Shape2D);
+                component->m_Object2D = dmPhysics::NewCollisionObject2D(physics_world, data, &component->m_Resource->m_ConvexShape->m_Shape2D, 1);
                 if (component->m_Object2D != 0x0)
                 {
                     return dmGameObject::CREATE_RESULT_OK;
@@ -589,7 +589,7 @@ namespace dmGameSystem
         if (physics_context->m_3D)
         {
             dmPhysics::HWorld3D physics_world = world->m_World3D;
-            dmPhysics::HCollisionObject3D collision_object = dmPhysics::NewCollisionObject3D(physics_world, data, co_resource->m_ConvexShape->m_Shape3D);
+            dmPhysics::HCollisionObject3D collision_object = dmPhysics::NewCollisionObject3D(physics_world, data, &co_resource->m_ConvexShape->m_Shape3D, 1);
             if (collision_object != 0x0)
             {
                 dmPhysics::DeleteCollisionObject3D(physics_world, component->m_Object3D);
@@ -600,7 +600,7 @@ namespace dmGameSystem
         else
         {
             dmPhysics::HWorld2D physics_world = world->m_World2D;
-            dmPhysics::HCollisionObject2D collision_object = dmPhysics::NewCollisionObject2D(physics_world, data, co_resource->m_ConvexShape->m_Shape2D);
+            dmPhysics::HCollisionObject2D collision_object = dmPhysics::NewCollisionObject2D(physics_world, data, &co_resource->m_ConvexShape->m_Shape2D, 1);
             if (collision_object != 0x0)
             {
                 dmPhysics::DeleteCollisionObject2D(physics_world, component->m_Object2D);

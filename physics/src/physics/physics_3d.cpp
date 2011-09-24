@@ -370,9 +370,20 @@ namespace dmPhysics
         delete (btConvexShape*)shape;
     }
 
-    HCollisionObject3D NewCollisionObject3D(HWorld3D world, const CollisionObjectData& data, HCollisionShape3D shape)
+    bool g_ShapeGroupWarning = false;
+
+    void SetCollisionShapeGroup3D(HCollisionShape3D shape, uint16_t group)
     {
-        if (shape == 0x0)
+        if (!g_ShapeGroupWarning)
+        {
+            dmLogWarning("Setting group per shape is not supported for 3D physics.");
+            g_ShapeGroupWarning = true;
+        }
+    }
+
+    HCollisionObject3D NewCollisionObject3D(HWorld3D world, const CollisionObjectData& data, HCollisionShape3D* shapes, uint32_t shape_count)
+    {
+        if (shape_count == 0)
         {
             dmLogError("Collision objects must have a shape.");
             return 0x0;
@@ -395,7 +406,16 @@ namespace dmPhysics
             break;
         }
 
-        btConvexShape* bt_shape = (btConvexShape*)shape;
+        btCollisionShape* bt_shape = (btCollisionShape*)shapes[0];
+        if (shape_count > 1)
+        {
+            btCompoundShape* compound_shape = new btCompoundShape(false);
+            for (uint32_t i = 0; i < shape_count; ++i)
+            {
+                compound_shape->addChildShape(btTransform::getIdentity(), (btConvexShape*)shapes[i]);
+            }
+            bt_shape = compound_shape;
+        }
         btVector3 local_inertia(0.0f, 0.0f, 0.0f);
         if (data.m_Type == COLLISION_OBJECT_TYPE_DYNAMIC)
         {
@@ -458,6 +478,11 @@ namespace dmPhysics
         btCollisionObject* bt_co = (btCollisionObject*)collision_object;
         if (bt_co == 0x0)
             return;
+        btCollisionShape* shape = bt_co->getCollisionShape();
+        if (shape->isCompound())
+        {
+            delete shape;
+        }
         btRigidBody* rigid_body = btRigidBody::upcast(bt_co);
         if (rigid_body != 0x0 && rigid_body->getMotionState())
             delete rigid_body->getMotionState();
@@ -466,9 +491,24 @@ namespace dmPhysics
         delete (btCollisionObject*)collision_object;
     }
 
-    HCollisionShape3D GetCollisionShape3D(HCollisionObject3D collision_object)
+    uint32_t GetCollisionShapes3D(HCollisionObject3D collision_object, HCollisionShape3D* out_buffer, uint32_t buffer_size)
     {
-        return ((btCollisionObject*)collision_object)->getCollisionShape();
+        btCollisionShape* shape = ((btCollisionObject*)collision_object)->getCollisionShape();
+        uint32_t n = 1;
+        if (shape->isCompound())
+        {
+            btCompoundShape* compound = (btCompoundShape*)shape;
+            n = compound->getNumChildShapes();
+            for (uint32_t i = 0; i < n && i < buffer_size; ++i)
+            {
+                out_buffer[i] = compound->getChildShape(i);
+            }
+        }
+        else if (buffer_size > 0)
+        {
+            out_buffer[0] = shape;
+        }
+        return n;
     }
 
     void SetCollisionObjectUserData3D(HCollisionObject3D collision_object, void* user_data)
@@ -565,7 +605,24 @@ namespace dmPhysics
             btCollisionObjectArray& objects = context->m_Worlds[i]->m_DynamicsWorld->getCollisionObjectArray();
             for (int j = 0; j < objects.size(); ++j)
             {
-                if (objects[j]->getCollisionShape() == old_shape)
+                btCollisionShape* shape = objects[j]->getCollisionShape();
+                if (shape->isCompound())
+                {
+                    btCompoundShape* compound_shape = (btCompoundShape*)shape;
+                    uint32_t n = compound_shape->getNumChildShapes();
+                    for (uint32_t k = 0; k < n; ++k)
+                    {
+                        btCollisionShape* child = compound_shape->getChildShape(k);
+                        if (child == old_shape)
+                        {
+                            btTransform t = compound_shape->getChildTransform(k);
+                            compound_shape->removeChildShape(child);
+                            compound_shape->addChildShape(t, (btConvexShape*)new_shape);
+                            break;
+                        }
+                    }
+                }
+                else if (shape == old_shape)
                 {
                     objects[j]->setCollisionShape((btConvexShape*)new_shape);
                     objects[j]->activate(true);

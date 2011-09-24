@@ -51,11 +51,11 @@ namespace dmPhysics
             return -1.f;
         if (fixture->GetBody()->GetUserData() == m_IgnoredUserData)
             return -1.f;
-        else if ((fixture->GetFilterData().groupIndex & m_CollisionMask) && (fixture->GetFilterData().maskBits & m_CollisionGroup))
+        else if ((fixture->GetFilterData().categoryBits & m_CollisionMask) && (fixture->GetFilterData().maskBits & m_CollisionGroup))
         {
             m_Response.m_Hit = 1;
             m_Response.m_Fraction = fraction;
-            m_Response.m_CollisionObjectGroup = fixture->GetFilterData().groupIndex;
+            m_Response.m_CollisionObjectGroup = fixture->GetFilterData().categoryBits;
             m_Response.m_CollisionObjectUserData = fixture->GetBody()->GetUserData();
             m_Response.m_Normal = Vectormath::Aos::Vector3(normal.x, normal.y, 0.0f);
             m_Response.m_Position = Vectormath::Aos::Point3(point.x, point.y, 0.0f);
@@ -80,7 +80,7 @@ namespace dmPhysics
             if (contact->IsTouching())
             {
                 if (collision_callback)
-                    collision_callback(contact->GetFixtureA()->GetUserData(), contact->GetFixtureA()->GetFilterData().groupIndex, contact->GetFixtureB()->GetUserData(), contact->GetFixtureB()->GetFilterData().groupIndex, m_TempStepWorldContext->m_CollisionUserData);
+                    collision_callback(contact->GetFixtureA()->GetUserData(), contact->GetFixtureA()->GetFilterData().categoryBits, contact->GetFixtureB()->GetUserData(), contact->GetFixtureB()->GetFilterData().categoryBits, m_TempStepWorldContext->m_CollisionUserData);
                 if (contact_point_callback)
                 {
                     b2WorldManifold world_manifold;
@@ -97,8 +97,8 @@ namespace dmPhysics
                     cp.m_AppliedImpulse = impulse->normalImpulses[0];
                     cp.m_InvMassA = 1.0f / contact->GetFixtureA()->GetBody()->GetMass();
                     cp.m_InvMassB = 1.0f / contact->GetFixtureB()->GetBody()->GetMass();
-                    cp.m_GroupA = contact->GetFixtureA()->GetFilterData().groupIndex;
-                    cp.m_GroupB = contact->GetFixtureB()->GetFilterData().groupIndex;
+                    cp.m_GroupA = contact->GetFixtureA()->GetFilterData().categoryBits;
+                    cp.m_GroupB = contact->GetFixtureB()->GetFilterData().categoryBits;
                     contact_point_callback(cp, m_TempStepWorldContext->m_ContactPointUserData);
                 }
             }
@@ -261,9 +261,14 @@ namespace dmPhysics
         delete (b2Shape*)shape;
     }
 
-    HCollisionObject2D NewCollisionObject2D(HWorld2D world, const CollisionObjectData& data, HCollisionShape2D shape)
+    void SetCollisionShapeGroup2D(HCollisionShape2D shape, uint16_t group)
     {
-        if (shape == 0x0)
+        ((b2Shape*)shape)->SetUserData((void*)group);
+    }
+
+    HCollisionObject2D NewCollisionObject2D(HWorld2D world, const CollisionObjectData& data, HCollisionShape2D* shapes, uint32_t shape_count)
+    {
+        if (shape_count == 0)
         {
             dmLogError("Collision objects must have a shape.");
             return 0x0;
@@ -316,19 +321,26 @@ namespace dmPhysics
         }
         def.userData = data.m_UserData;
         b2Body* body = world->m_World.CreateBody(&def);
-        b2FixtureDef f_def;
-        f_def.userData = data.m_UserData;
-        f_def.filter.groupIndex = data.m_Group;
-        f_def.filter.maskBits = data.m_Mask;
-        f_def.shape = (b2Shape*)shape;
-        b2MassData mass_data;
-        f_def.shape->ComputeMass(&mass_data, 1.0f);
-        f_def.density = data.m_Mass / mass_data.mass;
-        f_def.friction = data.m_Friction;
-        f_def.restitution = data.m_Restitution;
-        f_def.isSensor = data.m_Type == COLLISION_OBJECT_TYPE_TRIGGER;
-        b2Fixture* fixture = body->CreateFixture(&f_def);
-        (void)fixture;
+        for (uint32_t i = 0; i < shape_count; ++i) {
+            b2Shape* s = (b2Shape*)shapes[i];
+            b2FixtureDef f_def;
+            f_def.userData = data.m_UserData;
+            uint16_t group = (uint16_t)(((uintptr_t)s->GetUserData()) & 0xFFFF);
+            if (group != 0)
+                f_def.filter.categoryBits = group;
+            else
+                f_def.filter.categoryBits = data.m_Group;
+            f_def.filter.maskBits = data.m_Mask;
+            f_def.shape = s;
+            b2MassData mass_data;
+            f_def.shape->ComputeMass(&mass_data, 1.0f);
+            f_def.density = data.m_Mass / mass_data.mass;
+            f_def.friction = data.m_Friction;
+            f_def.restitution = data.m_Restitution;
+            f_def.isSensor = data.m_Type == COLLISION_OBJECT_TYPE_TRIGGER;
+            b2Fixture* fixture = body->CreateFixture(&f_def);
+            (void)fixture;
+        }
         return body;
     }
 
@@ -342,9 +354,16 @@ namespace dmPhysics
         world->m_World.DestroyBody(body);
     }
 
-    HCollisionShape2D GetCollisionShape2D(HCollisionObject2D collision_object)
+    uint32_t GetCollisionShapes2D(HCollisionObject2D collision_object, HCollisionShape2D* out_buffer, uint32_t buffer_size)
     {
-        return ((b2Body*)collision_object)->GetFixtureList()->GetShape();
+        b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
+        uint32_t i;
+        for (i = 0; i < buffer_size && fixture != 0x0; ++i)
+        {
+            out_buffer[i] = fixture->GetShape();
+            fixture = fixture->GetNext();
+        }
+        return i;
     }
 
     void SetCollisionObjectUserData2D(HCollisionObject2D collision_object, void* user_data)
@@ -411,21 +430,24 @@ namespace dmPhysics
         {
             for (b2Body* body = context->m_Worlds[i]->m_World.GetBodyList(); body; body = body->GetNext())
             {
-                if (body->GetFixtureList()->GetShape() == old_shape)
+                for (b2Fixture* fixture = body->GetFixtureList(); fixture; fixture = fixture->GetNext())
                 {
-                    b2MassData mass_data;
-                    ((b2Shape*)new_shape)->ComputeMass(&mass_data, 1.0f);
-                    b2FixtureDef def;
-                    def.density = body->GetMass() / mass_data.mass;
-                    def.filter = body->GetFixtureList()->GetFilterData();
-                    def.friction = body->GetFixtureList()->GetFriction();
-                    def.isSensor = body->GetFixtureList()->IsSensor();
-                    def.restitution = body->GetFixtureList()->GetRestitution();
-                    def.shape = (b2Shape*)new_shape;
-                    def.userData = body->GetFixtureList()->GetUserData();
-                    body->DestroyFixture(body->GetFixtureList());
-                    body->CreateFixture(&def);
-                    body->SetActive(true);
+                    if (fixture->GetShape() == old_shape)
+                    {
+                        b2MassData mass_data;
+                        ((b2Shape*)new_shape)->ComputeMass(&mass_data, 1.0f);
+                        b2FixtureDef def;
+                        def.density = body->GetMass() / mass_data.mass;
+                        def.filter = body->GetFixtureList()->GetFilterData();
+                        def.friction = body->GetFixtureList()->GetFriction();
+                        def.isSensor = body->GetFixtureList()->IsSensor();
+                        def.restitution = body->GetFixtureList()->GetRestitution();
+                        def.shape = (b2Shape*)new_shape;
+                        def.userData = body->GetFixtureList()->GetUserData();
+                        body->DestroyFixture(fixture);
+                        body->CreateFixture(&def);
+                        body->SetActive(true);
+                    }
                 }
             }
         }

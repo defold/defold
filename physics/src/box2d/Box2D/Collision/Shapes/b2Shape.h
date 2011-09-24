@@ -91,6 +91,14 @@ public:
 
 	Type m_type;
 	float32 m_radius;
+
+	// Defold modifications
+
+	void* m_userData;
+
+    b2Shape() : m_userData(0) {}
+    void* GetUserData() { return this->m_userData; }
+    void SetUserData(void* userData) { this->m_userData = userData; }
 };
 
 inline b2Shape::Type b2Shape::GetType() const
