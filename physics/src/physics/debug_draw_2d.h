@@ -7,7 +7,7 @@
 
 namespace dmPhysics
 {
-    class DebugDraw2D : public b2DebugDraw
+    class DebugDraw2D : public b2Draw
     {
     public:
         DebugDraw2D(DebugCallbacks* callbacks);

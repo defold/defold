@@ -20,7 +20,7 @@ namespace dmPhysics
     }
 
     World2D::World2D(HContext2D context, const NewWorldParams& params)
-    : m_World(b2Vec2(context->m_Gravity.getX(), context->m_Gravity.getY()), true)
+    : m_World(b2Vec2(context->m_Gravity.getX(), context->m_Gravity.getY()))
     , m_RayCastRequests()
     , m_DebugDraw(&context->m_DebugCallbacks)
     , m_ContactListener(this)
