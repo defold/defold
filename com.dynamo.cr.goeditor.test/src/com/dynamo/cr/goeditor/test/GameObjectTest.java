@@ -2,6 +2,7 @@ package com.dynamo.cr.goeditor.test;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyListOf;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -27,6 +28,7 @@ import org.junit.Test;
 
 import com.dynamo.cr.editor.core.IResourceType;
 import com.dynamo.cr.editor.core.IResourceTypeRegistry;
+import com.dynamo.cr.editor.core.inject.LifecycleModule;
 import com.dynamo.cr.goeditor.Component;
 import com.dynamo.cr.goeditor.EmbeddedComponent;
 import com.dynamo.cr.goeditor.GameObjectModel;
@@ -51,6 +53,7 @@ public class GameObjectTest {
     private SpriteDesc templateSprite;
     private IResourceTypeRegistry resourceTypeRegistry;
     private IResourceType spriteResourceType;
+    private LifecycleModule module;
 
     static class TestLogger implements ILogger {
 
@@ -62,6 +65,7 @@ public class GameObjectTest {
     }
 
     class TestModule extends AbstractModule {
+
         @Override
         protected void configure() {
             bind(IGameObjectView.class).toInstance(view);
@@ -82,7 +86,7 @@ public class GameObjectTest {
         view = mock(IGameObjectView.class);
         resourceTypeRegistry = mock(IResourceTypeRegistry.class);
 
-        TestModule module = new TestModule();
+        module = new LifecycleModule(new TestModule());
         injector = Guice.createInjector(module);
         presenter = injector.getInstance(GameObjectPresenter.class);
         model = injector.getInstance(GameObjectModel.class);
@@ -100,11 +104,15 @@ public class GameObjectTest {
 
         when(resourceTypeRegistry.getResourceTypeFromExtension(anyString()))
             .thenReturn(spriteResourceType);
+
+        when(resourceTypeRegistry.getResourceTypes())
+            .thenReturn(new IResourceType[] { spriteResourceType });
+
     }
 
     @After
     public void shutdown() {
-        presenter.dispose();
+        module.close();
     }
 
     // Helper functions
@@ -154,8 +162,21 @@ public class GameObjectTest {
     }
 
     @Test
+    public void testUndoBug() throws Exception {
+        when(view.openAddResourceComponentDialog()).thenReturn("test.script");
+        presenter.onAddResourceComponent();
+
+        presenter.onRemoveComponent(component(0));
+        assertThat(componentCount(), is(0));
+        undo();
+        assertThat(componentCount(), is(1));
+        redo();
+        assertThat(componentCount(), is(0));
+    }
+
+    @Test
     public void testAddEmbeddedComponent() throws Exception {
-        when(view.openAddEmbeddedComponentDialog()).thenReturn(spriteResourceType, spriteResourceType);
+        when(view.openAddEmbeddedComponentDialog(any(IResourceType[].class))).thenReturn(spriteResourceType, spriteResourceType);
         presenter.onAddEmbeddedComponent();
         presenter.onAddEmbeddedComponent();
 
@@ -234,6 +255,18 @@ public class GameObjectTest {
         HashSet<String> ids = new HashSet<String>(Arrays.asList(id(0), id(1), id(2)));
         assertThat(ids, is(new HashSet<String>(Arrays.asList("script", "script0", "script1"))));
 
+        presenter.onSetComponentId(component(0), "test");
+        ids = new HashSet<String>(Arrays.asList(id(0), id(1), id(2)));
+        assertThat(ids, is(new HashSet<String>(Arrays.asList("test", "script0", "script1"))));
+
+        undo();
+        ids = new HashSet<String>(Arrays.asList(id(0), id(1), id(2)));
+        assertThat(ids, is(new HashSet<String>(Arrays.asList("script", "script0", "script1"))));
+
+        redo();
+        ids = new HashSet<String>(Arrays.asList(id(0), id(1), id(2)));
+        assertThat(ids, is(new HashSet<String>(Arrays.asList("test", "script0", "script1"))));
+
         assertThat(model.isValid(), is(true));
     }
 
@@ -257,14 +290,14 @@ public class GameObjectTest {
     @Test
     public void testLoadSave() throws Exception {
         when(view.openAddResourceComponentDialog()).thenReturn("test1.script");
-        when(view.openAddEmbeddedComponentDialog()).thenReturn(spriteResourceType, spriteResourceType);
+        when(view.openAddEmbeddedComponentDialog(any(IResourceType[].class))).thenReturn(spriteResourceType, spriteResourceType);
 
         presenter.onAddResourceComponent();
         presenter.onAddEmbeddedComponent();
         presenter.onAddEmbeddedComponent();
 
         ByteArrayOutputStream output = new ByteArrayOutputStream();
-        model.save(output);
+        presenter.onSave(output);
         output.close();
 
         presenter.onRemoveComponent(component(0));
@@ -273,12 +306,58 @@ public class GameObjectTest {
         assertThat(componentCount(), is(0));
 
         ByteArrayInputStream input = new ByteArrayInputStream(output.toByteArray());
-        model.load(input);
+        presenter.onLoad(input);
 
         assertThat(componentCount(), is(3));
         assertThat(resource(0), is("test1.script"));
         assertThat(message(1), is((Message) templateSprite));
         assertThat(message(2), is((Message) templateSprite));
+
+        assertThat(id(0), is("script"));
+        assertThat(id(1), is("sprite"));
+        assertThat(id(2), is("sprite0"));
     }
 
+    @Test
+    public void testDirty() throws Exception {
+        when(view.openAddResourceComponentDialog()).thenReturn("test1.script", "test2.script", "test3.script");
+
+        int dirtyTrueCount = 0;
+        int dirtyFalseCount = 0;
+
+        assertThat(presenter.isDirty(), is(false));
+        presenter.onAddResourceComponent();
+        assertThat(presenter.isDirty(), is(true));
+        verify(this.view, times(++dirtyTrueCount)).setDirty(true);
+
+        presenter.onAddResourceComponent();
+        assertThat(presenter.isDirty(), is(true));
+        verify(this.view, times(++dirtyTrueCount)).setDirty(true);
+        presenter.onAddResourceComponent();
+        assertThat(presenter.isDirty(), is(true));
+        verify(this.view, times(++dirtyTrueCount)).setDirty(true);
+
+        undo();
+        verify(this.view, times(++dirtyTrueCount)).setDirty(true);
+        assertThat(presenter.isDirty(), is(true));
+
+        undo();
+        verify(this.view, times(++dirtyTrueCount)).setDirty(true);
+        assertThat(presenter.isDirty(), is(true));
+
+        undo();
+        verify(this.view, times(++dirtyFalseCount)).setDirty(false);
+        assertThat(presenter.isDirty(), is(false));
+
+        redo();
+        verify(this.view, times(++dirtyTrueCount)).setDirty(true);
+        assertThat(presenter.isDirty(), is(true));
+
+        presenter.onSave(new ByteArrayOutputStream());
+        verify(this.view, times(++dirtyFalseCount)).setDirty(false);
+        assertThat(presenter.isDirty(), is(false));
+        undo();
+        verify(this.view, times(++dirtyTrueCount)).setDirty(true);
+        assertThat(presenter.isDirty(), is(true));
+    }
 }

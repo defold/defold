@@ -5,7 +5,7 @@ import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 
 public abstract class Component {
     private int index = -1;
-    private String id;
+    private String id = "";
     protected IResourceTypeRegistry resourceTypeRegistry;
 
     public Component(IResourceTypeRegistry resourceTypeRegistry) {

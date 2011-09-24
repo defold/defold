@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+   <extension
+         point="org.eclipse.ui.editors">
+      <editor
+            class="com.dynamo.cr.goeditor.GameObjectEditor2"
+            contributorClass="com.dynamo.cr.goeditor.GameObjectEditorActionBarContributor2"
+            default="false"
+            extensions="go2"
+            filenames="go2"
+            icon="icons/brick.png"
+            id="com.dynamo.cr.goeditor.gameObjectEditor"
+            name="Game Object Editor">
+      </editor>
+   </extension>
+   <extension
+         point="org.eclipse.ui.contexts">
+      <context
+            id="com.dynamo.cr.goeditor.contexts.gameObjectEditor"
+            name="Game Object Editor">
+      </context>
+   </extension>
+   <extension
+         point="org.eclipse.core.expressions.definitions">
+      <definition
+            id="com.dynamo.cr.goeditor.definitions.gameObjectEditorActive">
+         <with
+               variable="activeContexts">
+            <iterate
+                  ifEmpty="false"
+                  operator="or">
+               <equals
+                     value="com.dynamo.cr.goeditor.contexts.gameObjectEditor">
+               </equals>
+            </iterate>
+         </with>
+      </definition>
+   </extension>
+   <extension
+         point="org.eclipse.ui.handlers">
+      <handler
+            class="com.dynamo.cr.goeditor.commands.AddResourceComponent"
+            commandId="com.dynamo.cr.goeditor.commands.addResourceComponent">
+         <enabledWhen>
+            <reference
+                  definitionId="com.dynamo.cr.goeditor.definitions.gameObjectEditorActive">
+            </reference>
+         </enabledWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.goeditor.commands.AddEmbeddedComponent"
+            commandId="com.dynamo.cr.goeditor.commands.addEmbeddedComponent">
+         <enabledWhen>
+            <reference
+                  definitionId="com.dynamo.cr.goeditor.definitions.gameObjectEditorActive">
+            </reference>
+         </enabledWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.goeditor.commands.RemoveComponent"
+            commandId="com.dynamo.cr.goeditor.commands.removeComponent">
+         <enabledWhen>
+            <and>
+               <reference
+                     definitionId="com.dynamo.cr.goeditor.definitions.gameObjectEditorActive">
+               </reference>
+               <iterate
+                     ifEmpty="false"
+                     operator="and">
+                  <instanceof
+                        value="com.dynamo.cr.goeditor.Component">
+                  </instanceof>
+               </iterate>
+            </and>
+         </enabledWhen>
+      </handler>
+   </extension>
+   <extension
+         point="org.eclipse.ui.commands">
+      <command
+            categoryId="com.dynamo.crepo.category"
+            description="Add Reference Component"
+            id="com.dynamo.cr.goeditor.commands.addResourceComponent"
+            name="Add Reference Component">
+      </command>
+      <command
+            categoryId="com.dynamo.crepo.category"
+            description="Add Component"
+            id="com.dynamo.cr.goeditor.commands.addEmbeddedComponent"
+            name="Add Component">
+      </command>
+      <command
+            categoryId="com.dynamo.crepo.category"
+            description="Remove Component"
+            id="com.dynamo.cr.goeditor.commands.removeComponent"
+            name="Remove Component">
+      </command>
+   </extension>
+   <extension
+         point="org.eclipse.ui.menus">
+      <menuContribution
+            allPopups="false"
+            locationURI="menu:org.eclipse.ui.main.menu?after=edit">
+         <menu
+               id="com.dynamo.cr.goeditor.menus.GameObject"
+               label="Game Object">
+            <command
+                  commandId="com.dynamo.cr.goeditor.commands.addEmbeddedComponent"
+                  icon="icons/page_add.png"
+                  label="Add Component..."
+                  style="push">
+            </command>
+            <command
+                  commandId="com.dynamo.cr.goeditor.commands.addResourceComponent"
+                  icon="icons/link_add.png"
+                  label="Add Reference Component..."
+                  style="push">
+            </command>
+            <command
+                  commandId="com.dynamo.cr.goeditor.commands.removeComponent"
+                  icon="icons/page_delete.png"
+                  label="Remove Component"
+                  style="push">
+            </command>
+            <visibleWhen
+                  checkEnabled="false">
+               <reference
+                     definitionId="com.dynamo.cr.goeditor.definitions.gameObjectEditorActive">
+               </reference>
+            </visibleWhen>
+         </menu>
+      </menuContribution>
+   </extension>
+
+</plugin>

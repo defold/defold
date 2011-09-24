@@ -36,4 +36,9 @@ public class ResourceComponent extends Component {
         builder.addComponents(component);
     }
 
+    @Override
+    public String toString() {
+        return getId() + " (" + getResource() + ")";
+    }
+
 }

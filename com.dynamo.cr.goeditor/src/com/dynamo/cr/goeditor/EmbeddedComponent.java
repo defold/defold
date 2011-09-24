@@ -25,6 +25,7 @@ public class EmbeddedComponent extends Component {
 
     public EmbeddedComponent(IResourceTypeRegistry resourceTypeRegistry, EmbeddedComponentDesc component) {
         super(resourceTypeRegistry);
+        setId(component.getId());
         this.type = component.getType();
 
         IResourceType resourceType = resourceTypeRegistry.getResourceTypeFromExtension(getFileExtension());
@@ -57,6 +58,11 @@ public class EmbeddedComponent extends Component {
                 .build();
 
         builder.addEmbeddedComponents(component);
+    }
+
+    @Override
+    public String toString() {
+        return getId();
     }
 
 }

@@ -16,7 +16,7 @@ public class AddComponentOperation extends AbstractOperation {
     private Component component;
 
     public AddComponentOperation(Component component, GameObjectModel model) {
-        super(component.toString());
+        super("Add Component");
         this.model = model;
         this.component = component;
         this.component.setId(model.getUniqueId(component.getFileExtension()));

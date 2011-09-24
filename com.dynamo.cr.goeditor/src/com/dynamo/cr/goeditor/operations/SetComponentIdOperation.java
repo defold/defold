@@ -10,35 +10,40 @@ import org.eclipse.core.runtime.Status;
 import com.dynamo.cr.goeditor.Component;
 import com.dynamo.cr.goeditor.GameObjectModel;
 
-public class RemoveComponentOperation extends AbstractOperation {
+public class SetComponentIdOperation extends AbstractOperation {
 
     private GameObjectModel model;
     private Component component;
+    private String newId;
+    private String oldId;
 
-    public RemoveComponentOperation(Component component, GameObjectModel model) {
-        super("Removed Component");
+    public SetComponentIdOperation(Component component, String newId, GameObjectModel model) {
+        super("Set id to " + newId);
         this.model = model;
         this.component = component;
+        this.newId = newId;
+        this.oldId = component.getId();
+        this.component.setId(model.getUniqueId(component.getFileExtension()));
     }
 
     @Override
     public IStatus execute(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
-        model.removeComponent(component);
+        model.setComponentId(component, newId);
         return Status.OK_STATUS;
     }
 
     @Override
     public IStatus redo(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
-        model.removeComponent(component);
+        model.setComponentId(component, newId);
         return Status.OK_STATUS;
     }
 
     @Override
     public IStatus undo(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
-        model.addComponent(component);
+        model.setComponentId(component, oldId);
         return Status.OK_STATUS;
     }
 

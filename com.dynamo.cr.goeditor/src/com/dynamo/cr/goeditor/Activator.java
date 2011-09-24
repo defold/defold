@@ -1,19 +1,24 @@
 package com.dynamo.cr.goeditor;
 
+import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Status;
 import org.eclipse.ui.plugin.AbstractUIPlugin;
+import org.eclipse.ui.statushandlers.StatusManager;
 import org.osgi.framework.BundleContext;
 
 /**
  * The activator class controls the plug-in life cycle
  */
-public class Activator extends AbstractUIPlugin {
+public class Activator extends AbstractUIPlugin implements ILogger {
 
 	// The plug-in ID
 	public static final String PLUGIN_ID = "com.dynamo.cr.goeditor"; //$NON-NLS-1$
 
 	// The shared instance
 	private static Activator plugin;
-	
+
+    private InjectImageModule injectImageModule;
+
 	/**
 	 * The constructor
 	 */
@@ -27,6 +32,7 @@ public class Activator extends AbstractUIPlugin {
 	public void start(BundleContext context) throws Exception {
 		super.start(context);
 		plugin = this;
+		this.injectImageModule = new InjectImageModule(PLUGIN_ID, getImageRegistry());
 	}
 
 	/*
@@ -45,6 +51,16 @@ public class Activator extends AbstractUIPlugin {
 	 */
 	public static Activator getDefault() {
 		return plugin;
+	}
+
+	public InjectImageModule getInjectImageModule() {
+        return injectImageModule;
+    }
+
+	@Override
+	public void logException(Throwable e) {
+        Status status = new Status(IStatus.ERROR, PLUGIN_ID, e.getMessage(), e);
+        StatusManager.getManager().handle(status, StatusManager.LOG);
 	}
 
 }
