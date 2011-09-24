@@ -38,7 +38,9 @@ import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.PropertyIntrospector;
 import com.dynamo.cr.properties.PropertyIntrospectorModel;
 import com.dynamo.cr.properties.Range;
-import com.dynamo.cr.tileeditor.core.TileSetUtil.ConvexHulls;
+import com.dynamo.tile.ConvexHull;
+import com.dynamo.tile.TileSetUtil;
+import com.dynamo.tile.TileSetUtil.ConvexHulls;
 import com.dynamo.tile.proto.Tile;
 import com.dynamo.tile.proto.Tile.TileSet;
 import com.google.protobuf.TextFormat;
@@ -86,57 +88,6 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
 
     BufferedImage loadedImage;
     BufferedImage loadedCollision;
-
-    public static class ConvexHull {
-        String collisionGroup = "";
-        int index = 0;
-        int count = 0;
-
-        public ConvexHull(ConvexHull convexHull) {
-            this.collisionGroup = convexHull.collisionGroup;
-            this.index = convexHull.index;
-            this.count = convexHull.count;
-        }
-
-        public ConvexHull(String collisionGroup) {
-            this.collisionGroup = collisionGroup;
-        }
-
-        public ConvexHull(String collisionGroup, int index, int count) {
-            this.collisionGroup = collisionGroup;
-            this.index = index;
-            this.count = count;
-        }
-
-        public String getCollisionGroup() {
-            return this.collisionGroup;
-        }
-
-        public void setCollisionGroup(String collisionGroup) {
-            this.collisionGroup = collisionGroup;
-        }
-
-        public int getIndex() {
-            return this.index;
-        }
-
-        public int getCount() {
-            return this.count;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (o instanceof ConvexHull) {
-                ConvexHull tile = (ConvexHull)o;
-                return ((this.collisionGroup == tile.collisionGroup)
-                        || (this.collisionGroup != null && this.collisionGroup.equals(tile.collisionGroup)))
-                        && this.index == tile.index
-                        && this.count == tile.count;
-            } else {
-                return super.equals(o);
-            }
-        }
-    }
 
     public TileSetModel(IContainer contentRoot, IOperationHistory undoHistory, IUndoContext undoContext, ILogger logger) {
         this.contentRoot = contentRoot;
@@ -592,7 +543,7 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
 
     private void updateConvexHulls() {
         if (!isValid() || this.loadedCollision == null) {
-            setConvexHulls(new ArrayList<TileSetModel.ConvexHull>(), new float[0]);
+            setConvexHulls(new ArrayList<ConvexHull>(), new float[0]);
             return;
         }
 
@@ -600,17 +551,17 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
                 loadedCollision.getWidth(), loadedCollision.getHeight(),
                 tileWidth, tileHeight, tileMargin, tileSpacing);
 
-        int tileCount = result.convexHulls.length;
+        int tileCount = result.hulls.length;
         int prevTileCount = this.convexHulls.size();
         int i = 0;
         for (i = 0; i < tileCount && i < prevTileCount; ++i) {
-            result.convexHulls[i].setCollisionGroup(this.convexHulls.get(i).getCollisionGroup());
+            result.hulls[i].setCollisionGroup(this.convexHulls.get(i).getCollisionGroup());
         }
         for (; i < tileCount; ++i) {
-            result.convexHulls[i].setCollisionGroup("");
+            result.hulls[i].setCollisionGroup("");
         }
 
-        setConvexHulls(Arrays.asList(result.convexHulls), result.convexHullPoints);
+        setConvexHulls(Arrays.asList(result.hulls), result.points);
     }
 
     public boolean handleResourceChanged(IResourceChangeEvent event) {

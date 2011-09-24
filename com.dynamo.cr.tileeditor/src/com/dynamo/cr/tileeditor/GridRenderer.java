@@ -37,11 +37,11 @@ import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.handlers.IHandlerService;
 import org.eclipse.ui.services.IDisposable;
 
+import com.dynamo.tile.TileSetUtil;
 import com.dynamo.cr.tileeditor.core.IGridView;
 import com.dynamo.cr.tileeditor.core.ILogger;
 import com.dynamo.cr.tileeditor.core.Layer;
 import com.dynamo.cr.tileeditor.core.Layer.Cell;
-import com.dynamo.cr.tileeditor.core.TileSetUtil;
 import com.sun.opengl.util.BufferUtil;
 import com.sun.opengl.util.texture.Texture;
 import com.sun.opengl.util.texture.TextureIO;

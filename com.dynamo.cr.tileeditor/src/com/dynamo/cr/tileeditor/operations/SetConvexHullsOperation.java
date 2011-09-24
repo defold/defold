@@ -9,8 +9,8 @@ import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 
+import com.dynamo.tile.ConvexHull;
 import com.dynamo.cr.tileeditor.core.TileSetModel;
-import com.dynamo.cr.tileeditor.core.TileSetModel.ConvexHull;
 
 public class SetConvexHullsOperation extends AbstractOperation {
     TileSetModel model;

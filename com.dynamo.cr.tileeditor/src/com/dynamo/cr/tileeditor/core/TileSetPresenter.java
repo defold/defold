@@ -17,7 +17,8 @@ import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.ui.services.IDisposable;
 
-import com.dynamo.cr.tileeditor.core.TileSetModel.ConvexHull;
+import com.dynamo.tile.ConvexHull;
+import com.dynamo.tile.TileSetUtil;
 import com.dynamo.cr.tileeditor.operations.AddCollisionGroupOperation;
 import com.dynamo.cr.tileeditor.operations.RemoveCollisionGroupsOperation;
 import com.dynamo.cr.tileeditor.operations.RenameCollisionGroupsOperation;
@@ -143,7 +144,7 @@ public class TileSetPresenter implements PropertyChangeListener, IOperationHisto
                 if (evt.getPropertyName().equals("collisionGroups")) {
                     setViewCollisionGroups((List<String>)evt.getNewValue());
                 } else if (evt.getPropertyName().equals("convexHulls")) {
-                    setViewHulls((List<TileSetModel.ConvexHull>)evt.getNewValue());
+                    setViewHulls((List<ConvexHull>)evt.getNewValue());
                 } else {
                     if (evt.getPropertyName().equals("image")) {
                         this.view.setImage(this.model.getLoadedImage());
@@ -188,7 +189,7 @@ public class TileSetPresenter implements PropertyChangeListener, IOperationHisto
         this.undoRedoCounter = undoRedoCounter;
     }
 
-    private void setViewHulls(List<TileSetModel.ConvexHull> convexHulls) {
+    private void setViewHulls(List<ConvexHull> convexHulls) {
         BufferedImage collision = this.model.getLoadedCollision();
         if (collision != null) {
             int[] hullIndices = null;
@@ -211,7 +212,7 @@ public class TileSetPresenter implements PropertyChangeListener, IOperationHisto
                 hullCounts = new int[tileCount];
                 hullColors = new Color[tileCount];
                 for (int tile = 0; tile < tileCount; ++tile) {
-                    TileSetModel.ConvexHull hull = convexHulls.get(tile);
+                    ConvexHull hull = convexHulls.get(tile);
                     hullIndices[tile] = hull.getIndex();
                     hullCounts[tile] = hull.getCount();
                     hullColors[tile] = Color.white;
