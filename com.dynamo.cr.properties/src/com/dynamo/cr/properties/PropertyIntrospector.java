@@ -21,7 +21,9 @@ import org.eclipse.core.runtime.Status;
 import org.eclipse.osgi.util.NLS;
 import org.eclipse.swt.graphics.RGB;
 
+import com.dynamo.cr.properties.descriptors.BooleanPropertyDesc;
 import com.dynamo.cr.properties.descriptors.DoublePropertyDesc;
+import com.dynamo.cr.properties.descriptors.FloatPropertyDesc;
 import com.dynamo.cr.properties.descriptors.IntegerPropertyDesc;
 import com.dynamo.cr.properties.descriptors.ProtoEnumDesc;
 import com.dynamo.cr.properties.descriptors.Quat4PropertyDesc;
@@ -101,8 +103,12 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
                             descriptor = new RGBPropertyDesc<T, U>(field.getName(), field.getName());
                         } else if (field.getType() == Double.TYPE) {
                             descriptor = new DoublePropertyDesc<T, U>(field.getName(), field.getName());
+                        } else if (field.getType() == Float.TYPE) {
+                            descriptor = new FloatPropertyDesc<T, U>(field.getName(), field.getName());
                         } else if (field.getType() == Integer.TYPE) {
                             descriptor = new IntegerPropertyDesc<T, U>(field.getName(), field.getName());
+                        } else if (field.getType() == Boolean.TYPE) {
+                            descriptor = new BooleanPropertyDesc<T, U>(field.getName(), field.getName());
                         } else if (ProtocolMessageEnum.class.isAssignableFrom(field.getType())) {
                             descriptor = new ProtoEnumDesc<T, U>((Class<? extends ProtocolMessageEnum>) field.getType(), field.getName(), field.getName());
                         } else {
