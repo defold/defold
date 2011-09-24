@@ -163,7 +163,7 @@ public class TileSetTest implements IResourceChangeListener {
         assertEquals(1, this.model.getCollisionGroups().size());
         assertEquals(tileSet.getCollisionGroups(0), this.model.getCollisionGroups().get(0));
         assertEquals(0, this.model.getConvexHulls().size());
-        assertEquals(null, this.model.getConvexHullPoints());
+        assertEquals(0, this.model.getConvexHullPoints().length);
 
         verify(this.view, times(1)).setImage((BufferedImage)isNull());
         verify(this.view, times(1)).setTileWidth(eq(16));
@@ -292,7 +292,7 @@ public class TileSetTest implements IResourceChangeListener {
 
         assertEquals(0, this.model.getConvexHulls().size());
         assertEquals(emptyTileSet.getCollision(), this.model.getCollision());
-        assertEquals(null, this.model.getConvexHullPoints());
+        assertEquals(0, this.model.getConvexHullPoints().length);
         verify(this.view, times(1)).setCollision((BufferedImage)isNull());
         verify(this.view, times(19)).refreshProperties();
         verify(this.view, never()).setHulls(any(float[].class), any(int[].class), any(int[].class), any(Color[].class));

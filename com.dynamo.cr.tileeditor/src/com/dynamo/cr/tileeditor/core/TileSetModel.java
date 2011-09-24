@@ -8,6 +8,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -37,7 +38,7 @@ import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.PropertyIntrospector;
 import com.dynamo.cr.properties.PropertyIntrospectorModel;
 import com.dynamo.cr.properties.Range;
-import com.dynamo.cr.tileeditor.pipeline.ConvexHull2D;
+import com.dynamo.cr.tileeditor.core.TileSetUtil.ConvexHulls;
 import com.dynamo.tile.proto.Tile;
 import com.dynamo.tile.proto.Tile.TileSet;
 import com.google.protobuf.TextFormat;
@@ -74,7 +75,7 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
 
     private final IContainer contentRoot;
     List<ConvexHull> convexHulls;
-    float[] convexHullPoints;
+    float[] convexHullPoints = new float[0];
     List<String> collisionGroups;
     String[] selectedCollisionGroups;
 
@@ -299,6 +300,15 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
         return copy;
     }
 
+    public void setConvexHulls(List<ConvexHull> convexHulls, float[] convexHullPoints) {
+        if (!this.convexHulls.equals(convexHulls) || !Arrays.equals(this.convexHullPoints, convexHullPoints)) {
+            List<ConvexHull> oldConvexHulls = this.convexHulls;
+            this.convexHulls = convexHulls;
+            this.convexHullPoints = convexHullPoints;
+            firePropertyChangeEvent(new PropertyChangeEvent(this, "convexHulls", oldConvexHulls, convexHulls));
+        }
+    }
+
     public void setConvexHulls(List<ConvexHull> convexHulls) {
         if (!this.convexHulls.equals(convexHulls)) {
             List<ConvexHull> oldConvexHulls = this.convexHulls;
@@ -318,10 +328,6 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
 
     public float[] getConvexHullPoints() {
         return this.convexHullPoints;
-    }
-
-    public void setConvexHullPoints(float[] convexHullPoints) {
-        this.convexHullPoints = convexHullPoints;
     }
 
     public List<String> getCollisionGroups() {
@@ -478,7 +484,7 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
             ConvexHull convexHull = new ConvexHull(convexHullDDF.getCollisionGroup(), convexHullDDF.getIndex(), convexHullDDF.getCount());
             convexHulls.add(convexHull);
         }
-        setConvexHulls(convexHulls);
+        setConvexHulls(convexHulls, new float[0]);
         updateConvexHulls();
     }
 
@@ -526,12 +532,6 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
 
         if (status != Status.OK_STATUS) {
             this.logger.logException(status.getException());
-        }
-    }
-
-    private void updateConvexHulls() {
-        if (isValid()) {
-            updateConvexHullsList();
         }
     }
 
@@ -590,75 +590,27 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
         return Status.OK_STATUS;
     }
 
-    private void updateConvexHullsList() {
-        List<ConvexHull> convexHulls = null;
-        if (this.loadedCollision != null) {
-            int imageWidth = this.loadedCollision.getWidth();
-            int imageHeight = this.loadedCollision.getHeight();
-            int tilesPerRow = TileSetUtil.calculateTileCount(this.tileWidth, imageWidth, this.tileMargin, this.tileSpacing);
-            int tilesPerColumn = TileSetUtil.calculateTileCount(this.tileHeight, imageHeight, this.tileMargin, this.tileSpacing);
-            if (tilesPerRow <= 0 || tilesPerColumn <= 0) {
-                return;
-            }
-            int tileCount = tilesPerRow * tilesPerColumn;
-            convexHulls = new ArrayList<TileSetModel.ConvexHull>(tileCount);
-            int i;
-            int prevTileCount = this.convexHulls.size();
-            for (i = 0; i < tileCount && i < prevTileCount; ++i) {
-                ConvexHull convexHull = new ConvexHull(this.convexHulls.get(i).getCollisionGroup());
-                convexHulls.add(convexHull);
-            }
-            for (; i < tileCount; ++i) {
-                convexHulls.add(new ConvexHull(""));
-            }
-            updateConvexHullsData(convexHulls);
-        } else {
-            convexHulls = new ArrayList<ConvexHull>(this.convexHulls.size());
-            for (ConvexHull convexHull : this.convexHulls) {
-                ConvexHull newHull = new ConvexHull(convexHull.getCollisionGroup());
-                convexHulls.add(newHull);
-            }
-        }
-        setConvexHulls(convexHulls);
-    }
-
-    private void updateConvexHullsData(List<ConvexHull> convexHulls) {
-        if (convexHulls.size() == 0 || this.loadedCollision == null) {
-            this.convexHullPoints = null;
+    private void updateConvexHulls() {
+        if (!isValid() || this.loadedCollision == null) {
+            setConvexHulls(new ArrayList<TileSetModel.ConvexHull>(), new float[0]);
             return;
         }
 
-        int width = this.loadedCollision.getWidth();
-        int height = this.loadedCollision.getHeight();
+        ConvexHulls result = TileSetUtil.calculateConvexHulls(loadedCollision.getAlphaRaster(), PLANE_COUNT,
+                loadedCollision.getWidth(), loadedCollision.getHeight(),
+                tileWidth, tileHeight, tileMargin, tileSpacing);
 
-        int tilesPerRow = TileSetUtil.calculateTileCount(this.tileWidth, width, this.tileMargin, this.tileSpacing);
-        int tilesPerColumn = TileSetUtil.calculateTileCount(this.tileHeight, height, this.tileMargin, this.tileSpacing);
-        ConvexHull2D.Point[][] points = new ConvexHull2D.Point[tilesPerRow * tilesPerColumn][];
-        int pointCount = 0;
-        int[] mask = new int[this.tileWidth * this.tileHeight];
-        for (int row = 0; row < tilesPerColumn; ++row) {
-            for (int col = 0; col < tilesPerRow; ++col) {
-                int x = this.tileMargin + col * (2 * this.tileMargin + this.tileSpacing + this.tileWidth);
-                int y = this.tileMargin + row * (2 * this.tileMargin + this.tileSpacing + this.tileHeight);
-                mask = loadedCollision.getAlphaRaster().getPixels(x, y, this.tileWidth, this.tileHeight, mask);
-                int index = col + row * tilesPerRow;
-                points[index] = ConvexHull2D.imageConvexHull(mask, this.tileWidth, this.tileHeight, PLANE_COUNT);
-                ConvexHull convexHull = new ConvexHull(convexHulls.get(index).getCollisionGroup(), pointCount, points[index].length);
-                convexHulls.set(index, convexHull);
-                pointCount += points[index].length;
-            }
+        int tileCount = result.convexHulls.length;
+        int prevTileCount = this.convexHulls.size();
+        int i = 0;
+        for (i = 0; i < tileCount && i < prevTileCount; ++i) {
+            result.convexHulls[i].setCollisionGroup(this.convexHulls.get(i).getCollisionGroup());
         }
-        this.convexHullPoints = new float[pointCount * 2];
-        int totalIndex = 0;
-        for (int row = 0; row < tilesPerColumn; ++row) {
-            for (int col = 0; col < tilesPerRow; ++col) {
-                int index = col + row * tilesPerRow;
-                for (int i = 0; i < points[index].length; ++i) {
-                    this.convexHullPoints[totalIndex++] = points[index][i].getX();
-                    this.convexHullPoints[totalIndex++] = points[index][i].getY();
-                }
-            }
+        for (; i < tileCount; ++i) {
+            result.convexHulls[i].setCollisionGroup("");
         }
+
+        setConvexHulls(Arrays.asList(result.convexHulls), result.convexHullPoints);
     }
 
     public boolean handleResourceChanged(IResourceChangeEvent event) {

@@ -20,7 +20,7 @@ public class RemoveCollisionGroupsOperation extends AbstractOperation {
     List<ConvexHull> convexHulls;
 
     public RemoveCollisionGroupsOperation(TileSetModel model) {
-        super("delete collision group(s)");
+        super("Delete Collision Group(s)");
         this.model = model;
         this.collisionGroups = model.getSelectedCollisionGroups();
         this.oldConvexHulls = model.getConvexHulls();

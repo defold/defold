@@ -1,6 +1,10 @@
 package com.dynamo.cr.tileeditor.core;
 
 import java.awt.image.BufferedImage;
+import java.awt.image.Raster;
+
+import com.dynamo.cr.tileeditor.core.TileSetModel.ConvexHull;
+import com.dynamo.cr.tileeditor.pipeline.ConvexHull2D;
 
 public class TileSetUtil {
     public static int calculateTileCount(int tileSize, int imageSize, int tileMargin, int tileSpacing) {
@@ -45,6 +49,63 @@ public class TileSetUtil {
         metrics.visualWidth = (tileWidth + pixelBorderSize) * metrics.tilesPerRow + pixelBorderSize;
         metrics.visualHeight = (tileHeight + pixelBorderSize) * metrics.tilesPerColumn + pixelBorderSize;
         return metrics;
+    }
+
+    public static class ConvexHulls {
+        public ConvexHulls() {
+        }
+        public ConvexHulls(ConvexHull[] convexHulls, float[] convexHullPoints) {
+            this.convexHulls = convexHulls;
+            this.convexHullPoints = convexHullPoints;
+        }
+        public ConvexHulls(ConvexHulls convexHulls) {
+            this.convexHulls = new ConvexHull[convexHulls.convexHulls.length];
+            this.convexHullPoints = new float[convexHulls.convexHullPoints.length];
+            System.arraycopy(convexHulls.convexHulls, 0, this.convexHulls, 0, convexHulls.convexHulls.length);
+            System.arraycopy(convexHulls.convexHullPoints, 0, this.convexHullPoints, 0, convexHulls.convexHullPoints.length);
+        }
+        public ConvexHull[] convexHulls;
+        public float[]   convexHullPoints;
+    }
+
+    public static ConvexHulls calculateConvexHulls(
+            Raster alphaRaster, int planeCount,
+            int width, int height, int tileWidth, int tileHeight,
+            int tileMargin, int tileSpacing) {
+
+        int tilesPerRow = TileSetUtil.calculateTileCount(tileWidth, width, tileMargin, tileSpacing);
+        int tilesPerColumn = TileSetUtil.calculateTileCount(tileHeight, height, tileMargin, tileSpacing);
+        ConvexHull2D.Point[][] points = new ConvexHull2D.Point[tilesPerRow * tilesPerColumn][];
+        int pointCount = 0;
+        int[] mask = new int[tileWidth * tileHeight];
+
+        ConvexHull[] convexHulls = new ConvexHull[tilesPerColumn * tilesPerRow];
+
+        for (int row = 0; row < tilesPerColumn; ++row) {
+            for (int col = 0; col < tilesPerRow; ++col) {
+                int x = tileMargin + col * (2 * tileMargin + tileSpacing + tileWidth);
+                int y = tileMargin + row * (2 * tileMargin + tileSpacing + tileHeight);
+                mask = alphaRaster.getPixels(x, y, tileWidth, tileHeight, mask);
+                int index = col + row * tilesPerRow;
+                points[index] = ConvexHull2D.imageConvexHull(mask, tileWidth, tileHeight, planeCount);
+                ConvexHull convexHull = new ConvexHull(null, pointCount, points[index].length);
+                convexHulls[index] = convexHull;
+                pointCount += points[index].length;
+            }
+        }
+        float[] convexHullPoints = new float[pointCount * 2];
+        int totalIndex = 0;
+        for (int row = 0; row < tilesPerColumn; ++row) {
+            for (int col = 0; col < tilesPerRow; ++col) {
+                int index = col + row * tilesPerRow;
+                for (int i = 0; i < points[index].length; ++i) {
+                    convexHullPoints[totalIndex++] = points[index][i].getX();
+                    convexHullPoints[totalIndex++] = points[index][i].getY();
+                }
+            }
+        }
+
+        return new ConvexHulls(convexHulls, convexHullPoints);
     }
 
 }

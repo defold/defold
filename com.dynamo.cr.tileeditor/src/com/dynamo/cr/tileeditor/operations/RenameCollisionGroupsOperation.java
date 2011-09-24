@@ -23,7 +23,7 @@ public class RenameCollisionGroupsOperation extends AbstractOperation {
     List<ConvexHull> convexHulls;
 
     public RenameCollisionGroupsOperation(TileSetModel model, String[] newCollisionGroups) {
-        super("rename collision group(s)");
+        super("Rename Collision Group(s)");
         this.model = model;
         this.oldCollisionGroups = model.getSelectedCollisionGroups();
         this.newCollisionGroups = newCollisionGroups;

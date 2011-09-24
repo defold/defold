@@ -18,7 +18,7 @@ public class AddCollisionGroupOperation extends AbstractOperation {
     String[] selectedCollisionGroups;
 
     public AddCollisionGroupOperation(TileSetModel model, String collisionGroup) {
-        super("add " + collisionGroup);
+        super("Add " + collisionGroup);
         List<String> collisionGroups = model.getCollisionGroups();
         if (collisionGroups != null) {
             String pattern = collisionGroup + "{0}";

@@ -12,7 +12,6 @@ import org.eclipse.core.runtime.Status;
 
 import com.dynamo.cr.properties.IPropertyAccessor;
 import com.dynamo.cr.properties.IPropertyObjectWorld;
-import com.dynamo.cr.tileeditor.core.TileSetModel;
 
 public class SetPropertiesOperation<T, U extends IPropertyObjectWorld> extends AbstractOperation {
 
