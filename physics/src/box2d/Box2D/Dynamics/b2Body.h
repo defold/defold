@@ -194,10 +194,6 @@ public:
     /// @return the angular velocity in radians/second.
     float32 GetAngularVelocity() const;
 
-    /// Get the force.
-    /// @return the force in Newtons (N).
-    b2Vec2 GetForce() const;
-
 	/// Apply a force at a world point. If the force is not
 	/// applied at the center of mass, it will generate a torque and
 	/// affect the angular velocity. This wakes up the body.
@@ -381,6 +377,11 @@ public:
 
 	/// Dump this body to a log file
 	void Dump();
+
+    /* The following functions are added by defold */
+
+    /// Get the total force
+    const b2Vec2& GetForce() const;
 
 private:
 
@@ -746,11 +747,6 @@ inline void* b2Body::GetUserData() const
     return m_userData;
 }
 
-inline b2Vec2 b2Body::GetForce() const
-{
-    return m_force;
-}
-
 inline void b2Body::ApplyForce(const b2Vec2& force, const b2Vec2& point)
 {
 	if (m_type != b2_dynamicBody)
@@ -850,6 +846,13 @@ inline b2World* b2Body::GetWorld()
 inline const b2World* b2Body::GetWorld() const
 {
 	return m_world;
+}
+
+/* Defold additions */
+
+inline const b2Vec2& b2Body::GetForce() const
+{
+    return m_force;
 }
 
 #endif

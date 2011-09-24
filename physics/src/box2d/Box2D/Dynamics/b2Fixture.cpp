@@ -51,7 +51,9 @@ void b2Fixture::Create(b2BlockAllocator* allocator, b2Body* body, const b2Fixtur
 
 	m_isSensor = def->isSensor;
 
-	m_shape = def->shape->Clone(allocator);
+    // Defold mod: Don't take ownership of shape
+    //m_shape = def->shape->Clone(allocator);
+    m_shape = (b2Shape*)def->shape;
 
 	// Reserve proxy space
 	int32 childCount = m_shape->GetChildCount();
@@ -76,45 +78,46 @@ void b2Fixture::Destroy(b2BlockAllocator* allocator)
 	allocator->Free(m_proxies, childCount * sizeof(b2FixtureProxy));
 	m_proxies = NULL;
 
-	// Free the child shape.
-	switch (m_shape->m_type)
-	{
-	case b2Shape::e_circle:
-		{
-			b2CircleShape* s = (b2CircleShape*)m_shape;
-			s->~b2CircleShape();
-			allocator->Free(s, sizeof(b2CircleShape));
-		}
-		break;
-
-	case b2Shape::e_edge:
-		{
-			b2EdgeShape* s = (b2EdgeShape*)m_shape;
-			s->~b2EdgeShape();
-			allocator->Free(s, sizeof(b2EdgeShape));
-		}
-		break;
-
-	case b2Shape::e_polygon:
-		{
-			b2PolygonShape* s = (b2PolygonShape*)m_shape;
-			s->~b2PolygonShape();
-			allocator->Free(s, sizeof(b2PolygonShape));
-		}
-		break;
-
-	case b2Shape::e_chain:
-		{
-			b2ChainShape* s = (b2ChainShape*)m_shape;
-			s->~b2ChainShape();
-			allocator->Free(s, sizeof(b2ChainShape));
-		}
-		break;
-
-	default:
-		b2Assert(false);
-		break;
-	}
+    // Defold mod: Don't take ownership of shape
+//	// Free the child shape.
+//	switch (m_shape->m_type)
+//	{
+//	case b2Shape::e_circle:
+//		{
+//			b2CircleShape* s = (b2CircleShape*)m_shape;
+//			s->~b2CircleShape();
+//			allocator->Free(s, sizeof(b2CircleShape));
+//		}
+//		break;
+//
+//	case b2Shape::e_edge:
+//		{
+//			b2EdgeShape* s = (b2EdgeShape*)m_shape;
+//			s->~b2EdgeShape();
+//			allocator->Free(s, sizeof(b2EdgeShape));
+//		}
+//		break;
+//
+//	case b2Shape::e_polygon:
+//		{
+//			b2PolygonShape* s = (b2PolygonShape*)m_shape;
+//			s->~b2PolygonShape();
+//			allocator->Free(s, sizeof(b2PolygonShape));
+//		}
+//		break;
+//
+//	case b2Shape::e_chain:
+//		{
+//			b2ChainShape* s = (b2ChainShape*)m_shape;
+//			s->~b2ChainShape();
+//			allocator->Free(s, sizeof(b2ChainShape));
+//		}
+//		break;
+//
+//	default:
+//		b2Assert(false);
+//		break;
+//	}
 
 	m_shape = NULL;
 }
