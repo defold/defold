@@ -61,6 +61,7 @@ public class ReloadResourceTest {
 
     @Before
     public void setUp() throws Exception {
+        System.setProperty("java.awt.headless", "true");
         project = ResourcesPlugin.getWorkspace().getRoot().getProject("test");
         monitor = new NullProgressMonitor();
         if (project.exists()) {
@@ -218,9 +219,6 @@ public class ReloadResourceTest {
     }
 
     private boolean equals(BufferedImage lhs, BufferedImage rhs) {
-        if (lhs.getType() != rhs.getType()) {
-            return false;
-        }
         if (lhs.getWidth() != rhs.getWidth() || lhs.getHeight() != rhs.getHeight()) {
             return false;
         }
@@ -238,7 +236,7 @@ public class ReloadResourceTest {
     public void testTexture() throws CoreException, CreateException, IOException {
         String path = "graphics/ball.png";
         TextureResource resource = (TextureResource)factory.load(monitor, path);
-        BufferedImage newImage = new BufferedImage(1, 1, resource.getImage().getType());
+        BufferedImage newImage = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
         newImage.setRGB(0, 0, 1);
         assertNotNull(resource);
         BufferedImage oldImage = resource.getImage();
