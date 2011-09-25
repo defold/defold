@@ -32,7 +32,6 @@ public class Activator extends AbstractUIPlugin implements ILogger {
 	public void start(BundleContext context) throws Exception {
 		super.start(context);
 		plugin = this;
-		this.injectImageModule = new InjectImageModule(PLUGIN_ID, getImageRegistry());
 	}
 
 	/*
@@ -54,6 +53,10 @@ public class Activator extends AbstractUIPlugin implements ILogger {
 	}
 
 	public InjectImageModule getInjectImageModule() {
+	    if (this.injectImageModule == null) {
+	       this.injectImageModule = new InjectImageModule(PLUGIN_ID, getImageRegistry());
+	    }
+
         return injectImageModule;
     }
 
