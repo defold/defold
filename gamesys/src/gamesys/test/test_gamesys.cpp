@@ -479,7 +479,7 @@ INSTANTIATE_TEST_CASE_P(TileSet, ComponentTest, ::testing::ValuesIn(valid_tilese
 
 /* Texture */
 
-const char* valid_texture_resources[] = {"/texture/valid_jpg.texturec", "/texture/valid_png.texturec"};
+const char* valid_texture_resources[] = {"/texture/valid_png.texturec"};
 INSTANTIATE_TEST_CASE_P(Texture, ResourceTest, ::testing::ValuesIn(valid_texture_resources));
 
 ResourceFailParams invalid_texture_resources[] =
