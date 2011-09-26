@@ -14,4 +14,11 @@ namespace dmGraphics
     {
 
     }
+
+    ContextParams::ContextParams()
+    : m_DefaultTextureMinFilter(TEXTURE_FILTER_LINEAR)
+    , m_DefaultTextureMagFilter(TEXTURE_FILTER_LINEAR)
+    {
+
+    }
 }

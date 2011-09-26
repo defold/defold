@@ -122,13 +122,14 @@ if __name__ == "__main__":
         source_image = source_image.convert('RGBA')
     width, height = source_image.size
 
-    compile_dds(args[0], source_image, texture_image)
-    # Only compile power of 2, min width/height 16 and square images
-    if is_pow2(width) and is_pow2(height) and width >= 16 and height >= 16 and width == height:
-        compile_pvrtc(args[0], source_image, texture_image)
-    else:
-        # Fallback to uncompressed
-        compile_uncompressed(args[0], source_image, texture_image)
+#    compile_dds(args[0], source_image, texture_image)
+#    # Only compile power of 2, min width/height 16 and square images
+#    if is_pow2(width) and is_pow2(height) and width >= 16 and height >= 16 and width == height:
+#        compile_pvrtc(args[0], source_image, texture_image)
+#    else:
+    # Fallback to uncompressed
+    # TODO currently only compile uncompressed due to compression artifacts for pixel-sensitive images
+    compile_uncompressed(args[0], source_image, texture_image)
 
     f = open(options.output_file, "wb")
     f.write(texture_image.SerializeToString())

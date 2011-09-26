@@ -195,6 +195,18 @@ namespace dmEngine
         delete engine;
     }
 
+    dmGraphics::TextureFilter ConvertTextureFilter(const char* filter)
+    {
+        if (strcmp(filter, "linear") == 0)
+        {
+            return dmGraphics::TEXTURE_FILTER_LINEAR;
+        }
+        else
+        {
+            return dmGraphics::TEXTURE_FILTER_NEAREST;
+        }
+    }
+
     bool Init(HEngine engine, int argc, char *argv[])
     {
         const char* default_project_files[] =
@@ -240,7 +252,10 @@ namespace dmEngine
         // This scope is mainly here to make sure the "Main" scope is created first.
         DM_PROFILE(Engine, "Init");
 
-        engine->m_GraphicsContext = dmGraphics::NewContext();
+        dmGraphics::ContextParams graphics_context_params;
+        graphics_context_params.m_DefaultTextureMinFilter = ConvertTextureFilter(dmConfigFile::GetString(config, "graphics.default_texture_min_filter", "nearest"));
+        graphics_context_params.m_DefaultTextureMagFilter = ConvertTextureFilter(dmConfigFile::GetString(config, "graphics.default_texture_mag_filter", "nearest"));
+        engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
         if (engine->m_GraphicsContext == 0x0)
         {
             dmLogFatal("Unable to create the graphics context.");

@@ -59,6 +59,7 @@ namespace dmGameSystem
 
             found_match = true;
             dmGraphics::TextureParams params;
+            dmGraphics::GetDefaultTextureFilters(context, params.m_MinFilter, params.m_MagFilter);
             params.m_Format = format;
             params.m_Width = image->m_Width;
             params.m_Height = image->m_Height;

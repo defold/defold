@@ -1,7 +1,6 @@
 #include "res_tileset.h"
 
 #include <render/render_ddf.h>
-#include "tile_ddf.h"
 
 #include "../gamesys.h"
 
@@ -20,6 +19,7 @@ namespace dmGameSystem
         bool result = true;
         if (dmResource::FACTORY_RESULT_OK == dmResource::Get(factory, tile_set_ddf->m_Image, (void**)&tile_set->m_Texture))
         {
+            tile_set->m_TileSet = tile_set_ddf;
             uint32_t n_hulls = tile_set_ddf->m_ConvexHulls.m_Count;
             tile_set->m_ConvexHulls = new TileSetResource::ConvexHull[n_hulls];
             for (uint32_t i = 0; i < n_hulls; ++i)
@@ -37,9 +37,9 @@ namespace dmGameSystem
         }
         else
         {
+            dmDDF::FreeMessage(tile_set_ddf);
             result = false;
         }
-        dmDDF::FreeMessage(tile_set_ddf);
         return result;
     }
 
@@ -47,6 +47,9 @@ namespace dmGameSystem
     {
         if (tile_set->m_Texture)
             dmResource::Release(factory, tile_set->m_Texture);
+
+        if (tile_set->m_TileSet)
+            dmDDF::FreeMessage(tile_set->m_TileSet);
 
         if (tile_set->m_ConvexHulls)
             delete[] tile_set->m_ConvexHulls;
@@ -97,6 +100,7 @@ namespace dmGameSystem
         if (AcquireResources(factory, buffer, buffer_size, &tmp_tile_set, filename))
         {
             ReleaseResources(factory, tile_set);
+            tile_set->m_TileSet = tmp_tile_set.m_TileSet;
             tile_set->m_Texture = tmp_tile_set.m_Texture;
             tile_set->m_ConvexHulls = tmp_tile_set.m_ConvexHulls;
             tile_set->m_ConvexHullPoints = tmp_tile_set.m_ConvexHullPoints;

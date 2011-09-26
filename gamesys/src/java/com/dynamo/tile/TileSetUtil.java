@@ -24,10 +24,10 @@ public class TileSetUtil {
     }
 
     public static Metrics calculateMetrics(BufferedImage image, int tileWidth, int tileHeight, int tileMargin, int tileSpacing, BufferedImage collisionImage, float scale, float border) {
-        Metrics metrics = new Metrics();
         if (image == null && collisionImage == null) {
-            return metrics;
+            return null;
         }
+        Metrics metrics = new Metrics();
         if (image != null) {
             metrics.tileSetWidth = image.getWidth();
             metrics.tileSetHeight = image.getHeight();

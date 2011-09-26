@@ -7,6 +7,8 @@
 
 #include <render/render.h>
 
+#include "tile_ddf.h"
+
 namespace dmGameSystem
 {
     struct TileSetResource
@@ -22,9 +24,10 @@ namespace dmGameSystem
             dmhash_t m_CollisionGroupHash;
         };
 
-        dmGraphics::HTexture m_Texture;
-        ConvexHull*          m_ConvexHulls;
-        float*               m_ConvexHullPoints;
+        dmGraphics::HTexture        m_Texture;
+        dmGameSystemDDF::TileSet*   m_TileSet;
+        ConvexHull*                 m_ConvexHulls;
+        float*                      m_ConvexHullPoints;
     };
 
     dmResource::CreateResult ResTileSetCreate(dmResource::HFactory factory,

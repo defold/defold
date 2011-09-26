@@ -8,7 +8,7 @@ namespace dmGraphics
 {
     struct Context
     {
-        Context();
+        Context(const ContextParams& params);
 
         WindowResizeCallback    m_WindowResizeCallback;
         void*                   m_WindowResizeCallbackUserData;
@@ -16,6 +16,8 @@ namespace dmGraphics
         uint32_t                m_Height;
         uint32_t                m_WindowWidth;
         uint32_t                m_WindowHeight;
+        TextureFilter           m_DefaultTextureMinFilter;
+        TextureFilter           m_DefaultTextureMagFilter;
         // Counter to keep track of various modifications. Used for cache flush etc
         // Version zero is never used
         uint32_t                m_ModificationVersion;

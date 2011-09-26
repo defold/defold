@@ -26,7 +26,7 @@ protected:
     {
         m_ScriptContext = dmScript::NewContext();
         dmScript::RegisterDDFType(m_ScriptContext, dmRenderDDF::DrawText::m_DDFDescriptor);
-        m_GraphicsContext = dmGraphics::NewContext();
+        m_GraphicsContext = dmGraphics::NewContext(dmGraphics::ContextParams());
         dmRender::FontMapParams font_map_params;
         font_map_params.m_Glyphs.SetCapacity(128);
         font_map_params.m_Glyphs.SetSize(128);
