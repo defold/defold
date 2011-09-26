@@ -127,10 +127,12 @@ public:
 	/// Set the contact filtering data. This will not update contacts until the next time
 	/// step when either parent body is active and awake.
 	/// This automatically calls Refilter.
-	void SetFilterData(const b2Filter& filter);
+    // Defold modifications. Added index
+	void SetFilterData(const b2Filter& filter, int32 index);
 
 	/// Get the contact filtering data.
-	const b2Filter& GetFilterData() const;
+	// Defold modifications. Added index
+	const b2Filter& GetFilterData(int32 index) const;
 
 	/// Call this if you want to establish collision that was previously disabled by b2ContactFilter::ShouldCollide.
 	void Refilter();
@@ -201,6 +203,7 @@ protected:
 	friend class b2World;
 	friend class b2Contact;
 	friend class b2ContactManager;
+    friend class b2GridShape;
 
 	b2Fixture();
 
@@ -214,6 +217,7 @@ protected:
 	void DestroyProxies(b2BroadPhase* broadPhase);
 
 	void Synchronize(b2BroadPhase* broadPhase, const b2Transform& xf1, const b2Transform& xf2);
+	void SynchronizeSingle(b2BroadPhase* broadPhase, int32 index, const b2Transform& transform1, const b2Transform& transform2);
 
 	float32 m_density;
 
@@ -228,7 +232,8 @@ protected:
 	b2FixtureProxy* m_proxies;
 	int32 m_proxyCount;
 
-	b2Filter m_filter;
+	b2Filter m_singleFilter;
+    b2Filter* m_filters;
 
 	bool m_isSensor;
 
@@ -255,9 +260,12 @@ inline bool b2Fixture::IsSensor() const
 	return m_isSensor;
 }
 
-inline const b2Filter& b2Fixture::GetFilterData() const
+inline const b2Filter& b2Fixture::GetFilterData(int32 index) const
 {
-	return m_filter;
+    // Defold modifications. Added index
+    // NOTE: Multiply with m_filterPerChild to force index to zero
+    // when filtering is *not* performed per child shape
+	return m_filters[index * m_shape->m_filterPerChild];
 }
 
 inline void* b2Fixture::GetUserData() const

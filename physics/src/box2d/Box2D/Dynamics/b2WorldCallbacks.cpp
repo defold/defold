@@ -21,10 +21,10 @@
 
 // Return true if contact calculations should be performed between these two shapes.
 // If you implement your own collision filter you may want to build from this implementation.
-bool b2ContactFilter::ShouldCollide(b2Fixture* fixtureA, b2Fixture* fixtureB)
+bool b2ContactFilter::ShouldCollide(b2Fixture* fixtureA, int32 indexA, b2Fixture* fixtureB, int32 indexB)
 {
-	const b2Filter& filterA = fixtureA->GetFilterData();
-	const b2Filter& filterB = fixtureB->GetFilterData();
+	const b2Filter& filterA = fixtureA->GetFilterData(indexA);
+	const b2Filter& filterB = fixtureB->GetFilterData(indexB);
 
 	if (filterA.groupIndex == filterB.groupIndex && filterA.groupIndex != 0)
 	{

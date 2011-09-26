@@ -839,7 +839,7 @@ void b2World::SolveTOI(const b2TimeStep& step)
 					{
 						continue;
 					}
-					
+
 					// Add the other body to the island.
 					other->m_flags |= b2Body::e_islandFlag;
 
@@ -923,7 +923,7 @@ void b2World::Step(float32 dt, int32 velocityIterations, int32 positionIteration
 	step.dtRatio = m_inv_dt0 * dt;
 
 	step.warmStarting = m_warmStarting;
-	
+
 	// Update contacts. This is where some contacts are destroyed.
 	{
 		b2Timer timer;
@@ -1006,7 +1006,7 @@ struct b2WorldRayCastWrapper
 		{
 			float32 fraction = output.fraction;
 			b2Vec2 point = (1.0f - fraction) * input.p1 + fraction * input.p2;
-			return callback->ReportFixture(fixture, point, output.normal, fraction);
+			return callback->ReportFixture(fixture, index, point, output.normal, fraction);
 		}
 
 		return input.maxFraction;
@@ -1085,7 +1085,7 @@ void b2World::DrawShape(b2Fixture* fixture, const b2Transform& xf, const b2Color
 			m_debugDraw->DrawSolidPolygon(vertices, vertexCount, color);
 		}
 		break;
-            
+
     default:
         break;
 	}

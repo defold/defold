@@ -39,6 +39,7 @@ For discussion please visit http://box2d.org/forum
 #include <Box2D/Collision/Shapes/b2EdgeShape.h>
 #include <Box2D/Collision/Shapes/b2ChainShape.h>
 #include <Box2D/Collision/Shapes/b2PolygonShape.h>
+#include <Box2D/Collision/Shapes/b2GridShape.h>
 
 #include <Box2D/Collision/b2BroadPhase.h>
 #include <Box2D/Collision/b2Distance.h>

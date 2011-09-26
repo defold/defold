@@ -8,6 +8,7 @@ VisualObject::VisualObject()
 : m_Position(0.0f, 0.0f, 0.0f)
 , m_Rotation(0.0f, 0.0f, 0.0f, 1.0f)
 , m_CollisionCount(0)
+, m_FirstCollisionGroup(0)
 {
 
 }
@@ -38,8 +39,12 @@ void SetWorldTransform(void* visual_object, const Vectormath::Aos::Point3& posit
 bool CollisionCallback(void* user_data_a, uint16_t group_a, void* user_data_b, uint16_t group_b, void* user_data)
 {
     VisualObject* vo = (VisualObject*)user_data_a;
+    if (vo->m_CollisionCount == 0)
+        vo->m_FirstCollisionGroup = group_a;
     ++vo->m_CollisionCount;
     vo = (VisualObject*)user_data_b;
+    if (vo->m_CollisionCount == 0)
+        vo->m_FirstCollisionGroup = group_b;
     ++vo->m_CollisionCount;
     int* count = (int*)user_data;
     if (*count < 20)
@@ -79,7 +84,6 @@ Test3D::Test3D()
 , m_NewCapsuleShapeFunc(dmPhysics::NewCapsuleShape3D)
 , m_NewConvexHullShapeFunc(dmPhysics::NewConvexHullShape3D)
 , m_DeleteCollisionShapeFunc(dmPhysics::DeleteCollisionShape3D)
-, m_SetCollisionShapeGroupFunc(dmPhysics::SetCollisionShapeGroup3D)
 , m_NewCollisionObjectFunc(dmPhysics::NewCollisionObject3D)
 , m_DeleteCollisionObjectFunc(dmPhysics::DeleteCollisionObject3D)
 , m_GetCollisionShapesFunc(dmPhysics::GetCollisionShapes3D)
@@ -121,7 +125,6 @@ Test2D::Test2D()
 , m_NewCapsuleShapeFunc(0x0)
 , m_NewConvexHullShapeFunc(dmPhysics::NewPolygonShape2D)
 , m_DeleteCollisionShapeFunc(dmPhysics::DeleteCollisionShape2D)
-, m_SetCollisionShapeGroupFunc(dmPhysics::SetCollisionShapeGroup2D)
 , m_NewCollisionObjectFunc(dmPhysics::NewCollisionObject2D)
 , m_DeleteCollisionObjectFunc(dmPhysics::DeleteCollisionObject2D)
 , m_GetCollisionShapesFunc(dmPhysics::GetCollisionShapes2D)

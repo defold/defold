@@ -24,6 +24,8 @@
 #include <Box2D/Dynamics/Contacts/b2EdgeAndPolygonContact.h>
 #include <Box2D/Dynamics/Contacts/b2ChainAndCircleContact.h>
 #include <Box2D/Dynamics/Contacts/b2ChainAndPolygonContact.h>
+#include <Box2D/Dynamics/Contacts/b2GridAndPolygonContact.h>
+#include <Box2D/Dynamics/Contacts/b2GridAndCircleContact.h>
 #include <Box2D/Dynamics/Contacts/b2ContactSolver.h>
 
 #include <Box2D/Collision/b2Collision.h>
@@ -46,6 +48,9 @@ void b2Contact::InitializeRegisters()
 	AddType(b2EdgeAndPolygonContact::Create, b2EdgeAndPolygonContact::Destroy, b2Shape::e_edge, b2Shape::e_polygon);
 	AddType(b2ChainAndCircleContact::Create, b2ChainAndCircleContact::Destroy, b2Shape::e_chain, b2Shape::e_circle);
 	AddType(b2ChainAndPolygonContact::Create, b2ChainAndPolygonContact::Destroy, b2Shape::e_chain, b2Shape::e_polygon);
+	// Defold additions
+	AddType(b2GridAndPolygonContact::Create, b2GridAndPolygonContact::Destroy, b2Shape::e_grid, b2Shape::e_polygon);
+    AddType(b2GridAndCircleContact::Create, b2GridAndCircleContact::Destroy, b2Shape::e_grid, b2Shape::e_circle);
 }
 
 void b2Contact::AddType(b2ContactCreateFcn* createFcn, b2ContactDestroyFcn* destoryFcn,
@@ -53,7 +58,7 @@ void b2Contact::AddType(b2ContactCreateFcn* createFcn, b2ContactDestroyFcn* dest
 {
 	b2Assert(0 <= type1 && type1 < b2Shape::e_typeCount);
 	b2Assert(0 <= type2 && type2 < b2Shape::e_typeCount);
-	
+
 	s_registers[type1][type2].createFcn = createFcn;
 	s_registers[type1][type2].destroyFcn = destoryFcn;
 	s_registers[type1][type2].primary = true;
@@ -79,7 +84,7 @@ b2Contact* b2Contact::Create(b2Fixture* fixtureA, int32 indexA, b2Fixture* fixtu
 
 	b2Assert(0 <= type1 && type1 < b2Shape::e_typeCount);
 	b2Assert(0 <= type2 && type2 < b2Shape::e_typeCount);
-	
+
 	b2ContactCreateFcn* createFcn = s_registers[type1][type2].createFcn;
 	if (createFcn)
 	{

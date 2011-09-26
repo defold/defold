@@ -36,6 +36,7 @@ b2Fixture::b2Fixture()
 	m_proxyCount = 0;
 	m_shape = NULL;
 	m_density = 0.0f;
+	m_filters = &m_singleFilter;
 }
 
 void b2Fixture::Create(b2BlockAllocator* allocator, b2Body* body, const b2FixtureDef* def)
@@ -47,7 +48,8 @@ void b2Fixture::Create(b2BlockAllocator* allocator, b2Body* body, const b2Fixtur
 	m_body = body;
 	m_next = NULL;
 
-	m_filter = def->filter;
+	// Defold modification. Set first filter as default
+	m_filters[0] = def->filter;
 
 	m_isSensor = def->isSensor;
 
@@ -58,10 +60,20 @@ void b2Fixture::Create(b2BlockAllocator* allocator, b2Body* body, const b2Fixtur
 	// Reserve proxy space
 	int32 childCount = m_shape->GetChildCount();
 	m_proxies = (b2FixtureProxy*)allocator->Allocate(childCount * sizeof(b2FixtureProxy));
+    // Defold modification. Allocate filters per child-shape
+	if (m_shape->m_filterPerChild)
+	{
+	    m_filters = (b2Filter*)allocator->Allocate(childCount * sizeof(b2Filter));
+	}
 	for (int32 i = 0; i < childCount; ++i)
 	{
 		m_proxies[i].fixture = NULL;
 		m_proxies[i].proxyId = b2BroadPhase::e_nullProxy;
+	    // Defold modification. Set filter per child shape
+	    if (m_shape->m_filterPerChild)
+	    {
+	        m_filters[i] = def->filter;
+	    }
 	}
 	m_proxyCount = 0;
 
@@ -77,6 +89,10 @@ void b2Fixture::Destroy(b2BlockAllocator* allocator)
 	int32 childCount = m_shape->GetChildCount();
 	allocator->Free(m_proxies, childCount * sizeof(b2FixtureProxy));
 	m_proxies = NULL;
+	if (m_shape->m_filterPerChild)
+	{
+	    allocator->Free(m_filters, childCount * sizeof(b2Filter));
+	}
 
     // Defold mod: Don't take ownership of shape
 //	// Free the child shape.
@@ -155,7 +171,7 @@ void b2Fixture::DestroyProxies(b2BroadPhase* broadPhase)
 void b2Fixture::Synchronize(b2BroadPhase* broadPhase, const b2Transform& transform1, const b2Transform& transform2)
 {
 	if (m_proxyCount == 0)
-	{	
+	{
 		return;
 	}
 
@@ -167,7 +183,7 @@ void b2Fixture::Synchronize(b2BroadPhase* broadPhase, const b2Transform& transfo
 		b2AABB aabb1, aabb2;
 		m_shape->ComputeAABB(&aabb1, transform1, proxy->childIndex);
 		m_shape->ComputeAABB(&aabb2, transform2, proxy->childIndex);
-	
+
 		proxy->aabb.Combine(aabb1, aabb2);
 
 		b2Vec2 displacement = transform2.p - transform1.p;
@@ -176,9 +192,27 @@ void b2Fixture::Synchronize(b2BroadPhase* broadPhase, const b2Transform& transfo
 	}
 }
 
-void b2Fixture::SetFilterData(const b2Filter& filter)
+void b2Fixture::SynchronizeSingle(b2BroadPhase* broadPhase, int32 index, const b2Transform& transform1, const b2Transform& transform2)
 {
-	m_filter = filter;
+    b2Assert(index < m_proxyCount);
+
+    b2FixtureProxy* proxy = m_proxies + index;
+
+    b2AABB aabb1, aabb2;
+    m_shape->ComputeAABB(&aabb1, transform1, proxy->childIndex);
+    m_shape->ComputeAABB(&aabb2, transform2, proxy->childIndex);
+
+    proxy->aabb.Combine(aabb1, aabb2);
+
+    b2Vec2 displacement = transform2.p - transform1.p;
+
+    broadPhase->MoveProxy(proxy->proxyId, proxy->aabb, displacement);
+}
+
+void b2Fixture::SetFilterData(const b2Filter& filter, int32 index)
+{
+    // Defold modifications. Added index
+    m_filters[index * m_shape->m_filterPerChild] = filter;
 
 	Refilter();
 }
@@ -236,9 +270,22 @@ void b2Fixture::Dump(int32 bodyIndex)
 	b2Log("    fd.restitution = %.15lef;\n", m_restitution);
 	b2Log("    fd.density = %.15lef;\n", m_density);
 	b2Log("    fd.isSensor = bool(%d);\n", m_isSensor);
-	b2Log("    fd.filter.categoryBits = uint16(%d);\n", m_filter.categoryBits);
-	b2Log("    fd.filter.maskBits = uint16(%d);\n", m_filter.maskBits);
-	b2Log("    fd.filter.groupIndex = int16(%d);\n", m_filter.groupIndex);
+	if (m_shape->m_filterPerChild)
+	{
+	    int32 childCount = m_shape->GetChildCount();
+	    for (int32 i = 0; i < childCount; ++i)
+	    {
+	        b2Log("    fd.filter[%d].categoryBits = uint16(%d);\n", i, m_filters[i].categoryBits);
+	        b2Log("    fd.filter[%d].maskBits = uint16(%d);\n", i, m_filters[i].maskBits);
+	        b2Log("    fd.filter[%d].groupIndex = int16(%d);\n", i, m_filters[i].groupIndex);
+	    }
+	}
+	else
+	{
+	    b2Log("    fd.filter.categoryBits = uint16(%d);\n", m_filters[0].categoryBits);
+	    b2Log("    fd.filter.maskBits = uint16(%d);\n", m_filters[0].maskBits);
+	    b2Log("    fd.filter.groupIndex = int16(%d);\n", m_filters[0].groupIndex);
+	}
 
 	switch (m_shape->m_type)
 	{

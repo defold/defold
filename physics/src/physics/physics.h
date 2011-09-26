@@ -38,6 +38,22 @@ namespace dmPhysics
     typedef void* HCollisionShape2D;
     /// 2D collision object handle.
     typedef void* HCollisionObject2D;
+    /// 2D cull-set handle
+    typedef void* HHullSet2D;
+
+    /// Empty cell value, see SetGridShapeHull
+    const uint32_t GRIDSHAPE_EMPTY_CELL = 0xffffffff;
+
+    /**
+     * HullDesc structure
+     */
+    struct HullDesc
+    {
+        /// First vertex in hull
+        uint16_t m_Index;
+        /// Vertex count
+        uint16_t m_Count;
+    };
 
     /**
      * Callback used to propagate the world transform of an external object into the physics simulation.
@@ -335,6 +351,63 @@ namespace dmPhysics
     HCollisionShape2D NewPolygonShape2D(const float* vertices, uint32_t vertex_count);
 
     /**
+     * Create a new hull set. A hull set is a set of hulls
+     * that can be shared by several grid-shapes
+     * @param vertices vertices [x0, y0, x1, ...]
+     * @param vertex_count vertex count
+     * @param hulls hulls
+     * @param hull_count hull count
+     * @return new hull set
+     */
+    HHullSet2D NewHullSet2D(const float* vertices, uint32_t vertex_count,
+                            const HullDesc* hulls, uint32_t hull_count);
+
+    /**
+     * Delete a hull set
+     * @param hull_set hull-set
+     */
+    void DeleteHullSet2D(HHullSet2D hull_set);
+
+    /**
+     * Create a new grid-shape
+     * @param hull_set hull set to use. The handle to hull-set is
+     * stored in grid-shape and the handle must be valid throughout the
+     * life-time of the grid-shape
+     * @param position local offset. when zero the boundary AABB is symmetric around local origin
+     * @param cell_width cell width
+     * @param cell_height cell height
+     * @param cells_per_row
+     * @param cells_per_column
+     * @return new grid-snape
+     */
+    HCollisionShape2D NewGridShape2D(HHullSet2D hull_set,
+                                     const Vectormath::Aos::Point3& position,
+                                     uint32_t cell_width, uint32_t cell_height,
+                                     uint32_t row_count, uint32_t column_count);
+
+    /**
+     * Set hull for cell in grid-shape
+     * @param collision_object collision object
+     * @param collision_shape collision shape
+     * @param row row
+     * @param column column
+     * @param hull hull index. Use GRIDSHAPE_EMPTY_CELL to clear the cell.
+     */
+    void SetGridShapeHull(HCollisionObject2D collision_object, HCollisionShape2D collision_shape, uint32_t row, uint32_t column, uint32_t hull);
+
+    /**
+     * Set group and mask for collision object
+     * @param collision_object collsion object
+     * @param shape shape index.
+     * @param child sub-shape index
+     * @param group group to set
+     * @param mask mask to set
+     */
+    void SetCollisionObjectFilter(HCollisionObject2D collision_object,
+                                  uint32_t shape, uint32_t child,
+                                  uint16_t group, uint16_t mask);
+
+    /**
      * Delete a 3D shape
      *
      * @param shape Shape
@@ -347,22 +420,6 @@ namespace dmPhysics
      * @param shape Shape
      */
     void DeleteCollisionShape2D(HCollisionShape2D shape);
-
-    /**
-     * Set the group of a 3D shape
-     *
-     * @param shape Shape
-     * @param group Group
-     */
-    void SetCollisionShapeGroup3D(HCollisionShape3D shape, uint16_t group);
-
-    /**
-     * Set the group of a 2D shape
-     *
-     * @param shape Shape
-     * @param group Group
-     */
-    void SetCollisionShapeGroup2D(HCollisionShape2D shape, uint16_t group);
 
     /**
      * Data for collision object construction.

@@ -42,14 +42,15 @@ struct b2MassData
 class b2Shape
 {
 public:
-	
+
 	enum Type
 	{
 		e_circle = 0,
 		e_edge = 1,
 		e_polygon = 2,
 		e_chain = 3,
-		e_typeCount = 4
+		e_grid = 4,
+		e_typeCount = 5
 	};
 
 	virtual ~b2Shape() {}
@@ -94,11 +95,9 @@ public:
 
 	// Defold modifications
 
-	void* m_userData;
+	uint8 m_filterPerChild : 1;
 
-    b2Shape() : m_userData(0) {}
-    void* GetUserData() { return this->m_userData; }
-    void SetUserData(void* userData) { this->m_userData = userData; }
+    b2Shape() : m_filterPerChild(0) {}
 };
 
 inline b2Shape::Type b2Shape::GetType() const

@@ -77,6 +77,17 @@ void b2DistanceProxy::Set(const b2Shape* shape, int32 index)
 		}
 		break;
 
+    case b2Shape::e_grid:
+        {
+            /*
+             * TODO: We can't support this in grid-shape.
+             * Currently the vertices are instantiated in the contact, eg b2GridAndPolygonContact
+             * Hence, we have no data in the shape to set. We could increase the memory footprint
+             * and bake all cells in order to support continuous collision detection
+             */
+        }
+        break;
+
 	default:
 		b2Assert(false);
 	}
@@ -100,7 +111,7 @@ struct b2Simplex
 					const b2DistanceProxy* proxyB, const b2Transform& transformB)
 	{
 		b2Assert(cache->count <= 3);
-		
+
 		// Copy data from cache.
 		m_count = cache->count;
 		b2SimplexVertex* vertices = &m_v1;
@@ -366,7 +377,7 @@ void b2Simplex::Solve3()
 	float32 w3e23 = b2Dot(w3, e23);
 	float32 d23_1 = w3e23;
 	float32 d23_2 = -w2e23;
-	
+
 	// Triangle123
 	float32 n123 = b2Cross(e12, e13);
 

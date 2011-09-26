@@ -114,7 +114,7 @@ void b2ContactManager::Collide()
 		int32 indexB = c->GetChildIndexB();
 		b2Body* bodyA = fixtureA->GetBody();
 		b2Body* bodyB = fixtureB->GetBody();
-		 
+
 		// Is this contact flagged for filtering?
 		if (c->m_flags & b2Contact::e_filterFlag)
 		{
@@ -128,7 +128,7 @@ void b2ContactManager::Collide()
 			}
 
 			// Check user filtering.
-			if (m_contactFilter && m_contactFilter->ShouldCollide(fixtureA, fixtureB) == false)
+			if (m_contactFilter && m_contactFilter->ShouldCollide(fixtureA, indexA, fixtureB, indexB) == false)
 			{
 				b2Contact* cNuke = c;
 				c = cNuke->GetNext();
@@ -230,7 +230,7 @@ void b2ContactManager::AddPair(void* proxyUserDataA, void* proxyUserDataB)
 	}
 
 	// Check user filtering.
-	if (m_contactFilter && m_contactFilter->ShouldCollide(fixtureA, fixtureB) == false)
+	if (m_contactFilter && m_contactFilter->ShouldCollide(fixtureA, indexA, fixtureB, indexB) == false)
 	{
 		return;
 	}

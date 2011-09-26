@@ -390,7 +390,7 @@ private:
 	friend class b2ContactManager;
 	friend class b2ContactSolver;
 	friend class b2Contact;
-	
+
 	friend class b2DistanceJoint;
 	friend class b2GearJoint;
 	friend class b2WheelJoint;
@@ -401,6 +401,8 @@ private:
 	friend class b2WeldJoint;
 	friend class b2FrictionJoint;
 	friend class b2RopeJoint;
+
+    friend class b2GridShape;
 
 	// m_flags
 	enum
@@ -417,8 +419,9 @@ private:
 	b2Body(const b2BodyDef* bd, b2World* world);
 	~b2Body();
 
-	void SynchronizeFixtures();
-	void SynchronizeTransform();
+    void SynchronizeFixtures();
+    void SynchronizeSingle(int32 index);
+    void SynchronizeTransform();
 
 	// This is used to prevent connected bodies from colliding.
 	// It may lie, depending on the collideConnected flag.

@@ -44,18 +44,18 @@ namespace dmPhysics
 
     }
 
-    float32 ProcessRayCastResultCallback2D::ReportFixture(b2Fixture* fixture, const b2Vec2& point, const b2Vec2& normal, float32 fraction)
+    float32 ProcessRayCastResultCallback2D::ReportFixture(b2Fixture* fixture, int32_t index, const b2Vec2& point, const b2Vec2& normal, float32 fraction)
     {
         // Never hit triggers
         if (fixture->IsSensor())
             return -1.f;
         if (fixture->GetBody()->GetUserData() == m_IgnoredUserData)
             return -1.f;
-        else if ((fixture->GetFilterData().categoryBits & m_CollisionMask) && (fixture->GetFilterData().maskBits & m_CollisionGroup))
+        else if ((fixture->GetFilterData(index).categoryBits & m_CollisionMask) && (fixture->GetFilterData(index).maskBits & m_CollisionGroup))
         {
             m_Response.m_Hit = 1;
             m_Response.m_Fraction = fraction;
-            m_Response.m_CollisionObjectGroup = fixture->GetFilterData().categoryBits;
+            m_Response.m_CollisionObjectGroup = fixture->GetFilterData(index).categoryBits;
             m_Response.m_CollisionObjectUserData = fixture->GetBody()->GetUserData();
             m_Response.m_Normal = Vectormath::Aos::Vector3(normal.x, normal.y, 0.0f);
             m_Response.m_Position = Vectormath::Aos::Point3(point.x, point.y, 0.0f);
@@ -79,8 +79,19 @@ namespace dmPhysics
         {
             if (contact->IsTouching())
             {
+                b2Fixture* fixture_a = contact->GetFixtureA();
+                b2Fixture* fixture_b = contact->GetFixtureB();
+                int32_t index_a = contact->GetChildIndexA();
+                int32_t index_b = contact->GetChildIndexB();
+
                 if (collision_callback)
-                    collision_callback(contact->GetFixtureA()->GetUserData(), contact->GetFixtureA()->GetFilterData().categoryBits, contact->GetFixtureB()->GetUserData(), contact->GetFixtureB()->GetFilterData().categoryBits, m_TempStepWorldContext->m_CollisionUserData);
+                {
+                    collision_callback(fixture_a->GetUserData(),
+                                       fixture_a->GetFilterData(index_a).categoryBits,
+                                       fixture_b->GetUserData(),
+                                       fixture_b->GetFilterData(index_b).categoryBits,
+                                       m_TempStepWorldContext->m_CollisionUserData);
+                }
                 if (contact_point_callback)
                 {
                     b2WorldManifold world_manifold;
@@ -88,17 +99,17 @@ namespace dmPhysics
                     ContactPoint cp;
                     cp.m_PositionA = Vectormath::Aos::Point3(world_manifold.points[0].x, world_manifold.points[0].y, 0.0f);
                     cp.m_PositionB = Vectormath::Aos::Point3(world_manifold.points[1].x, world_manifold.points[1].y, 0.0f);
-                    cp.m_UserDataA = contact->GetFixtureA()->GetBody()->GetUserData();
-                    cp.m_UserDataB = contact->GetFixtureB()->GetBody()->GetUserData();
+                    cp.m_UserDataA = fixture_a->GetBody()->GetUserData();
+                    cp.m_UserDataB = fixture_b->GetBody()->GetUserData();
                     cp.m_Normal = Vectormath::Aos::Vector3(world_manifold.normal.x, world_manifold.normal.y, 0.0f);
-                    b2Vec2 rv = contact->GetFixtureB()->GetBody()->GetLinearVelocity() - contact->GetFixtureA()->GetBody()->GetLinearVelocity();
+                    b2Vec2 rv = fixture_b->GetBody()->GetLinearVelocity() - fixture_b->GetBody()->GetLinearVelocity();
                     cp.m_RelativeVelocity = Vectormath::Aos::Vector3(rv.x, rv.y, 0.0f);
                     cp.m_Distance = Vectormath::Aos::dist(cp.m_PositionA, cp.m_PositionB);
                     cp.m_AppliedImpulse = impulse->normalImpulses[0];
-                    cp.m_InvMassA = 1.0f / contact->GetFixtureA()->GetBody()->GetMass();
-                    cp.m_InvMassB = 1.0f / contact->GetFixtureB()->GetBody()->GetMass();
-                    cp.m_GroupA = contact->GetFixtureA()->GetFilterData().categoryBits;
-                    cp.m_GroupB = contact->GetFixtureB()->GetFilterData().categoryBits;
+                    cp.m_InvMassA = 1.0f / fixture_a->GetBody()->GetMass();
+                    cp.m_InvMassB = 1.0f / fixture_b->GetBody()->GetMass();
+                    cp.m_GroupA = fixture_a->GetFilterData(index_a).categoryBits;
+                    cp.m_GroupB = fixture_b->GetFilterData(index_b).categoryBits;
                     contact_point_callback(cp, m_TempStepWorldContext->m_ContactPointUserData);
                 }
             }
@@ -153,6 +164,7 @@ namespace dmPhysics
         World2D* world = new World2D(context, params);
         world->m_World.SetDebugDraw(&world->m_DebugDraw);
         world->m_World.SetContactListener(&world->m_ContactListener);
+        world->m_World.SetContinuousPhysics(false);
         context->m_Worlds.Push(world);
         return world;
     }
@@ -221,9 +233,18 @@ namespace dmPhysics
         {
             for (b2Contact* contact = world->m_World.GetContactList(); contact; contact = contact->GetNext())
             {
-                if (contact->IsTouching() && (contact->GetFixtureA()->IsSensor() || contact->GetFixtureB()->IsSensor()))
+                b2Fixture* fixture_a = contact->GetFixtureA();
+                b2Fixture* fixture_b = contact->GetFixtureB();
+                int32_t index_a = contact->GetChildIndexA();
+                int32_t index_b = contact->GetChildIndexB();
+
+                if (contact->IsTouching() && (fixture_a->IsSensor() || fixture_b->IsSensor()))
                 {
-                    context.m_CollisionCallback(contact->GetFixtureA()->GetUserData(), contact->GetFixtureA()->GetFilterData().groupIndex, contact->GetFixtureB()->GetUserData(), contact->GetFixtureB()->GetFilterData().groupIndex, context.m_CollisionUserData);
+                    context.m_CollisionCallback(fixture_a->GetUserData(),
+                                                fixture_a->GetFilterData(index_a).groupIndex,
+                                                fixture_b->GetUserData(),
+                                                fixture_b->GetFilterData(index_b).groupIndex,
+                                                context.m_CollisionUserData);
                 }
             }
         }
@@ -256,14 +277,57 @@ namespace dmPhysics
         return shape;
     }
 
+    HHullSet2D NewHullSet2D(const float* vertices, uint32_t vertex_count,
+                            const HullDesc* hulls, uint32_t hull_count)
+    {
+        assert(sizeof(HullDesc) == sizeof(const b2HullSet::Hull));
+        // NOTE: We cast HullDesc* to const b2HullSet::Hull* here
+        // We assume that they have the same physical layout
+        return new b2HullSet((const b2Vec2*) vertices, vertex_count,
+                             (const b2HullSet::Hull*) hulls, hull_count);
+    }
+
+    void DeleteHullSet2D(HHullSet2D hull_set)
+    {
+        delete (b2HullSet*) hull_set;
+    }
+
+    HCollisionShape2D NewGridShape2D(HHullSet2D hull_set,
+                                     const Vectormath::Aos::Point3& position,
+                                     uint32_t cell_width, uint32_t cell_height,
+                                     uint32 row_count, uint32 column_count)
+    {
+        b2Vec2 p(position.getX(), position.getY());
+        return new b2GridShape((b2HullSet*) hull_set, p, cell_width, cell_height, row_count, column_count);
+    }
+
+    void SetGridShapeHull(HCollisionObject2D collision_object, HCollisionShape2D collision_shape, uint32_t row, uint32_t column, uint32_t hull)
+    {
+        b2Body* body = (b2Body*) collision_object;
+        b2GridShape* grid_shape = (b2GridShape*) collision_shape;
+        grid_shape->SetCellHull(body, row, column, hull);
+    }
+
+    void SetCollisionObjectFilter(HCollisionObject2D collision_shape,
+                                  uint32_t shape, uint32_t child,
+                                  uint16_t group, uint16_t mask)
+    {
+        b2Body* body = (b2Body*) collision_shape;
+        b2Fixture* fixture = body->GetFixtureList();
+        for (uint32_t i = 0; i < shape; ++i)
+        {
+            fixture = fixture->GetNext();
+        }
+
+        b2Filter filter = fixture->GetFilterData(child);
+        filter.categoryBits = group;
+        filter.maskBits = mask;
+        fixture->SetFilterData(filter, child);
+    }
+
     void DeleteCollisionShape2D(HCollisionShape2D shape)
     {
         delete (b2Shape*)shape;
-    }
-
-    void SetCollisionShapeGroup2D(HCollisionShape2D shape, uint16_t group)
-    {
-        ((b2Shape*)shape)->SetUserData((void*)group);
     }
 
     HCollisionObject2D NewCollisionObject2D(HWorld2D world, const CollisionObjectData& data, HCollisionShape2D* shapes, uint32_t shape_count)
@@ -322,14 +386,12 @@ namespace dmPhysics
         def.userData = data.m_UserData;
         b2Body* body = world->m_World.CreateBody(&def);
         for (uint32_t i = 0; i < shape_count; ++i) {
-            b2Shape* s = (b2Shape*)shapes[i];
+            // Add shapes in reverse order. The fixture list in the body
+            // is a single linked list and cells are prepended.
+            b2Shape* s = (b2Shape*)shapes[shape_count - i - 1];
             b2FixtureDef f_def;
             f_def.userData = data.m_UserData;
-            uint16_t group = (uint16_t)(((uintptr_t)s->GetUserData()) & 0xFFFF);
-            if (group != 0)
-                f_def.filter.categoryBits = group;
-            else
-                f_def.filter.categoryBits = data.m_Group;
+            f_def.filter.categoryBits = data.m_Group;
             f_def.filter.maskBits = data.m_Mask;
             f_def.shape = s;
             b2MassData mass_data;
@@ -430,24 +492,54 @@ namespace dmPhysics
         {
             for (b2Body* body = context->m_Worlds[i]->m_World.GetBodyList(); body; body = body->GetNext())
             {
-                for (b2Fixture* fixture = body->GetFixtureList(); fixture; fixture = fixture->GetNext())
+                b2Fixture* fixture = body->GetFixtureList();
+                while (fixture)
                 {
+                    b2Fixture* next_fixture = fixture->GetNext();
                     if (fixture->GetShape() == old_shape)
                     {
                         b2MassData mass_data;
                         ((b2Shape*)new_shape)->ComputeMass(&mass_data, 1.0f);
                         b2FixtureDef def;
                         def.density = body->GetMass() / mass_data.mass;
-                        def.filter = body->GetFixtureList()->GetFilterData();
-                        def.friction = body->GetFixtureList()->GetFriction();
-                        def.isSensor = body->GetFixtureList()->IsSensor();
-                        def.restitution = body->GetFixtureList()->GetRestitution();
+                        def.filter = fixture->GetFilterData(0);
+                        def.friction = fixture->GetFriction();
+                        def.isSensor = fixture->IsSensor();
+                        def.restitution = fixture->GetRestitution();
                         def.shape = (b2Shape*)new_shape;
-                        def.userData = body->GetFixtureList()->GetUserData();
+                        def.userData = fixture->GetUserData();
+                        b2Fixture* new_fixture = body->CreateFixture(&def);
+
+                        // Copy filter data per child
+                        b2Shape* new_b2_shape = (b2Shape*) new_shape;
+                        b2Shape* old_b2_shape = fixture->GetShape();
+                        if (new_b2_shape->m_filterPerChild)
+                        {
+                            uint32_t new_child_count = new_b2_shape->GetChildCount();
+                            uint32_t old_child_count = old_b2_shape->GetChildCount();
+                            for (uint32_t c = 0; c < new_child_count; ++c)
+                            {
+                                b2Filter filter;
+
+                                if (c < old_child_count)
+                                {
+                                    filter = fixture->GetFilterData(c);
+                                }
+                                else
+                                {
+                                    // The new shape has more children than the old
+                                    // Use filter data from the first child
+                                    filter = fixture->GetFilterData(0);
+                                }
+
+                                new_fixture->SetFilterData(filter, c);
+                            }
+                        }
+
                         body->DestroyFixture(fixture);
-                        body->CreateFixture(&def);
                         body->SetActive(true);
                     }
+                    fixture = next_fixture;
                 }
             }
         }

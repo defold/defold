@@ -56,7 +56,7 @@ public:
 
 	/// Return true if contact calculations should be performed between these two shapes.
 	/// @warning for performance reasons this is only called when the AABBs begin to overlap.
-	virtual bool ShouldCollide(b2Fixture* fixtureA, b2Fixture* fixtureB);
+	virtual bool ShouldCollide(b2Fixture* fixtureA, int32 indexA, b2Fixture* fixtureB, int32 indexB);
 };
 
 /// Contact impulses for reporting. Impulses are used instead of forces because
@@ -148,7 +148,7 @@ public:
 	/// @param normal the normal vector at the point of intersection
 	/// @return -1 to filter, 0 to terminate, fraction to clip the ray for
 	/// closest hit, 1 to continue
-	virtual float32 ReportFixture(	b2Fixture* fixture, const b2Vec2& point,
+	virtual float32 ReportFixture(	b2Fixture* fixture, int32 index, const b2Vec2& point,
 									const b2Vec2& normal, float32 fraction) = 0;
 };
 

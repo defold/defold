@@ -372,15 +372,6 @@ namespace dmPhysics
 
     bool g_ShapeGroupWarning = false;
 
-    void SetCollisionShapeGroup3D(HCollisionShape3D shape, uint16_t group)
-    {
-        if (!g_ShapeGroupWarning)
-        {
-            dmLogWarning("Setting group per shape is not supported for 3D physics.");
-            g_ShapeGroupWarning = true;
-        }
-    }
-
     HCollisionObject3D NewCollisionObject3D(HWorld3D world, const CollisionObjectData& data, HCollisionShape3D* shapes, uint32_t shape_count)
     {
         if (shape_count == 0)

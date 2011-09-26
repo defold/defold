@@ -7,6 +7,7 @@
 #include "../physics_2d.h"
 #include "../physics_3d.h"
 
+
 struct VisualObject
 {
     VisualObject();
@@ -14,6 +15,7 @@ struct VisualObject
     Vectormath::Aos::Point3 m_Position;
     Vectormath::Aos::Quat   m_Rotation;
     int                     m_CollisionCount;
+    uint16_t                m_FirstCollisionGroup;
 };
 
 void GetWorldTransform(void* visual_object, Vectormath::Aos::Point3& position, Vectormath::Aos::Quat& rotation);
@@ -71,7 +73,6 @@ struct Funcs
     typedef typename T::CollisionShapeType (*NewCapsuleShapeFunc)(float radius, float height);
     typedef typename T::CollisionShapeType (*NewConvexHullShapeFunc)(const float* vertices, uint32_t vertex_count);
     typedef void (*DeleteCollisionShapeFunc)(typename T::CollisionShapeType shape);
-    typedef void (*SetCollisionShapeGroupFunc)(typename T::CollisionShapeType shape, uint16_t group);
     typedef typename T::CollisionObjectType (*NewCollisionObjectFunc)(typename T::WorldType world, const dmPhysics::CollisionObjectData& data, typename T::CollisionShapeType* shapes, uint32_t shape_count);
     typedef void (*DeleteCollisionObjectFunc)(typename T::WorldType world, typename T::CollisionObjectType collision_object);
     typedef uint32_t (*GetCollisionShapesFunc)(typename T::CollisionObjectType collision_object, typename T::CollisionShapeType* out_buffer, uint32_t buffer_size);
@@ -111,7 +112,6 @@ struct Test3D
     Funcs<Test3D>::NewCapsuleShapeFunc              m_NewCapsuleShapeFunc;
     Funcs<Test3D>::NewConvexHullShapeFunc           m_NewConvexHullShapeFunc;
     Funcs<Test3D>::DeleteCollisionShapeFunc         m_DeleteCollisionShapeFunc;
-    Funcs<Test3D>::SetCollisionShapeGroupFunc       m_SetCollisionShapeGroupFunc;
     Funcs<Test3D>::NewCollisionObjectFunc           m_NewCollisionObjectFunc;
     Funcs<Test3D>::DeleteCollisionObjectFunc        m_DeleteCollisionObjectFunc;
     Funcs<Test3D>::GetCollisionShapesFunc           m_GetCollisionShapesFunc;
@@ -153,7 +153,6 @@ struct Test2D
     Funcs<Test2D>::NewCapsuleShapeFunc              m_NewCapsuleShapeFunc;
     Funcs<Test2D>::NewConvexHullShapeFunc           m_NewConvexHullShapeFunc;
     Funcs<Test2D>::DeleteCollisionShapeFunc         m_DeleteCollisionShapeFunc;
-    Funcs<Test2D>::SetCollisionShapeGroupFunc       m_SetCollisionShapeGroupFunc;
     Funcs<Test2D>::NewCollisionObjectFunc           m_NewCollisionObjectFunc;
     Funcs<Test2D>::DeleteCollisionObjectFunc        m_DeleteCollisionObjectFunc;
     Funcs<Test2D>::GetCollisionShapesFunc           m_GetCollisionShapesFunc;
