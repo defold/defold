@@ -217,13 +217,15 @@ static void LogFrameBufferError(GLenum status)
 
     Context* g_Context = 0x0;
 
-    Context::Context()
+    Context::Context(const ContextParams& params)
     {
         memset(this, 0, sizeof(*this));
         m_ModificationVersion = 1;
+        m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
+        m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
     }
 
-    HContext NewContext()
+    HContext NewContext(const ContextParams& params)
     {
         if (g_Context == 0x0)
         {
@@ -232,7 +234,7 @@ static void LogFrameBufferError(GLenum status)
                 dmLogError("Could not initialize glfw.");
                 return 0x0;
             }
-            g_Context = new Context();
+            g_Context = new Context(params);
             return g_Context;
         }
         return 0x0;
@@ -426,6 +428,12 @@ static void LogFrameBufferError(GLenum status)
                 context->m_WindowResizeCallback(context->m_WindowResizeCallbackUserData, window_width, window_height);
             }
         }
+    }
+
+    void GetDefaultTextureFilters(HContext context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter)
+    {
+        out_min_filter = context->m_DefaultTextureMinFilter;
+        out_mag_filter = context->m_DefaultTextureMagFilter;
     }
 
     void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)

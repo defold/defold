@@ -3,24 +3,40 @@
 
 #include <dlib/array.h>
 #include <gameobject/gameobject.h>
+#include "../resources/res_tilegrid.h"
 #include "tile_ddf.h"
 
 namespace dmGameSystem
 {
     struct TileGrid
     {
-        dmGameObject::HInstance      m_Instance;
-        dmGameSystemDDF::TileGrid**  m_TileGridResource;
-        TileGrid(dmGameObject::HInstance instance, dmGameSystemDDF::TileGrid** tile_grid_resource)
+        TileGrid(dmGameObject::HInstance instance, TileGridResource* tile_grid_resource)
         {
             m_Instance = instance;
             m_TileGridResource = tile_grid_resource;
         }
+
+        dmGameObject::HInstance     m_Instance;
+        TileGridResource*           m_TileGridResource;
+        // TODO: Batch multiple grids into shared ROs
+        dmRender::RenderObject      m_RenderObject;
     };
 
     struct TileGridWorld
     {
-        dmArray<TileGrid*> m_TileGrids;
+        TileGridWorld()
+        {
+            memset(this, 0, sizeof(TileGridWorld));
+        }
+
+        dmArray<TileGrid*>              m_TileGrids;
+        dmGraphics::HVertexBuffer       m_VertexBuffer;
+        dmGraphics::HVertexDeclaration  m_VertexDeclaration;
+        dmRender::HMaterial             m_Material;
+        dmGraphics::HVertexProgram      m_VertexProgram;
+        dmGraphics::HFragmentProgram    m_FragmentProgram;
+        void*                           m_ClientBuffer;
+        uint32_t                        m_ClientBufferSize;
     };
 
     dmGameObject::CreateResult CompTileGridNewWorld(const dmGameObject::ComponentNewWorldParams& params);

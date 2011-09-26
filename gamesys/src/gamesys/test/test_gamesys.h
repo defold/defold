@@ -90,7 +90,7 @@ void GamesysTest<T>::SetUp()
     dmGameObject::RegisterResourceTypes(m_Factory, m_Register);
     dmGameObject::RegisterComponentTypes(m_Factory, m_Register);
 
-    m_GraphicsContext = dmGraphics::NewContext();
+    m_GraphicsContext = dmGraphics::NewContext(dmGraphics::ContextParams());
     dmRender::RenderContextParams render_params;
     render_params.m_MaxRenderTypes = 10;
     render_params.m_MaxInstances = 1000;

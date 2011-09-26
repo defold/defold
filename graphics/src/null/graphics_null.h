@@ -61,7 +61,7 @@ namespace dmGraphics
 
     struct Context
     {
-        Context();
+        Context(const ContextParams& params);
 
         VertexStream                m_VertexStreams[MAX_VERTEX_STREAM_COUNT];
         Vectormath::Aos::Vector4    m_ProgramRegisters[MAX_REGISTER_COUNT];
@@ -71,6 +71,8 @@ namespace dmGraphics
         void*                       m_Program;
         WindowResizeCallback        m_WindowResizeCallback;
         void*                       m_WindowResizeCallbackUserData;
+        TextureFilter               m_DefaultTextureMinFilter;
+        TextureFilter               m_DefaultTextureMagFilter;
         uint32_t                    m_Width;
         uint32_t                    m_Height;
         uint32_t                    m_WindowWidth;

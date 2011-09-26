@@ -7,7 +7,7 @@
 
 TEST(dmMaterialTest, TestTags)
 {
-    dmGraphics::HContext context = dmGraphics::NewContext();
+    dmGraphics::HContext context = dmGraphics::NewContext(dmGraphics::ContextParams());
     dmRender::RenderContextParams params;
     dmRender::HRenderContext render_context = dmRender::NewRenderContext(context, params);
 

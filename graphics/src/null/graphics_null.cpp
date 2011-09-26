@@ -35,17 +35,19 @@ namespace dmGraphics
 
     bool g_ContextCreated = false;
 
-    Context::Context()
+    Context::Context(const ContextParams& params)
     {
         memset(this, 0, sizeof(*this));
+        m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
+        m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
     }
 
-    HContext NewContext()
+    HContext NewContext(const ContextParams& params)
     {
         if (!g_ContextCreated)
         {
             g_ContextCreated = true;
-            return new Context();
+            return new Context(params);
         }
         else
         {
@@ -163,6 +165,12 @@ namespace dmGraphics
             if (context->m_WindowResizeCallback)
                 context->m_WindowResizeCallback(context->m_WindowResizeCallbackUserData, width, height);
         }
+    }
+
+    void GetDefaultTextureFilters(HContext context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter)
+    {
+        out_min_filter = context->m_DefaultTextureMinFilter;
+        out_mag_filter = context->m_DefaultTextureMagFilter;
     }
 
     void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)

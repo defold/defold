@@ -245,11 +245,20 @@ namespace dmGraphics
         bool                    m_PrintDeviceInfo;
     };
 
+    // Parameters structure for NewContext
+    struct ContextParams
+    {
+        ContextParams();
+
+        TextureFilter m_DefaultTextureMinFilter;
+        TextureFilter m_DefaultTextureMagFilter;
+    };
+
     /** Creates a graphics context
      * Currently, there can only be one context active at a time.
      * @return New graphics context
      */
-    HContext NewContext();
+    HContext NewContext(const ContextParams& params);
 
     /**
      * Destroy device
@@ -316,6 +325,14 @@ namespace dmGraphics
      * @param height New height of the window
      */
     void SetWindowSize(HContext context, uint32_t width, uint32_t height);
+
+    /**
+     * Return the default texture filtering modes.
+     * @param context Graphics context handle
+     * @param out_min_filter Out parameter to write the default min filtering mode to
+     * @param out_mag_filter Out parameter to write the default mag filtering mode to
+     */
+    void GetDefaultTextureFilters(HContext context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter);
 
     /**
      * Flip screen buffers.

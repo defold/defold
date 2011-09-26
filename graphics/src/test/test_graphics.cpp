@@ -34,7 +34,7 @@ protected:
 
     virtual void SetUp()
     {
-        m_Context = dmGraphics::NewContext();
+        m_Context = dmGraphics::NewContext(dmGraphics::ContextParams());
         dmGraphics::WindowParams params;
         params.m_ResizeCallback = OnWindowResize;
         params.m_ResizeCallbackUserData = &m_ResizeData;
@@ -64,7 +64,7 @@ TEST_F(dmGraphicsTest, NewDeleteContext)
 TEST_F(dmGraphicsTest, DoubleNewContext)
 {
     ASSERT_NE((void*)0, m_Context);
-    ASSERT_EQ((dmGraphics::HContext)0, dmGraphics::NewContext());
+    ASSERT_EQ((dmGraphics::HContext)0, dmGraphics::NewContext(dmGraphics::ContextParams()));
 }
 
 TEST_F(dmGraphicsTest, DoubleOpenWindow)
@@ -122,6 +122,14 @@ TEST_F(dmGraphicsTest, TestWindowSize)
     ASSERT_EQ(height, m_ResizeData.m_Height);
 }
 
+TEST_F(dmGraphicsTest, TestDefaultTextureFilters)
+{
+    dmGraphics::TextureFilter min_filter;
+    dmGraphics::TextureFilter mag_filter;
+    dmGraphics::GetDefaultTextureFilters(m_Context, min_filter, mag_filter);
+    ASSERT_EQ(dmGraphics::TEXTURE_FILTER_LINEAR, min_filter);
+    ASSERT_EQ(dmGraphics::TEXTURE_FILTER_LINEAR, mag_filter);
+}
 TEST_F(dmGraphicsTest, Flip)
 {
     dmGraphics::Flip(m_Context);
