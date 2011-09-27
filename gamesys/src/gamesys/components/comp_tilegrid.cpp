@@ -235,6 +235,8 @@ namespace dmGameSystem
                     dmRender::AddToRender(render_context, ro);
                 }
             }
+            // Clear the data to avoid locks (according to internet rumors)
+            dmGraphics::SetVertexBufferData(world->m_VertexBuffer, 0, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
             dmGraphics::SetVertexBufferData(world->m_VertexBuffer, vertex_index * sizeof(Vertex), world->m_ClientBuffer, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         }
         return dmGameObject::UPDATE_RESULT_OK;
