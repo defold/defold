@@ -102,7 +102,7 @@ namespace dmPhysics
                     cp.m_UserDataA = fixture_a->GetBody()->GetUserData();
                     cp.m_UserDataB = fixture_b->GetBody()->GetUserData();
                     cp.m_Normal = Vectormath::Aos::Vector3(world_manifold.normal.x, world_manifold.normal.y, 0.0f);
-                    b2Vec2 rv = fixture_b->GetBody()->GetLinearVelocity() - fixture_b->GetBody()->GetLinearVelocity();
+                    b2Vec2 rv = fixture_b->GetBody()->GetLinearVelocity() - fixture_a->GetBody()->GetLinearVelocity();
                     cp.m_RelativeVelocity = Vectormath::Aos::Vector3(rv.x, rv.y, 0.0f);
                     cp.m_Distance = Vectormath::Aos::dist(cp.m_PositionA, cp.m_PositionB);
                     cp.m_AppliedImpulse = impulse->normalImpulses[0];
