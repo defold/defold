@@ -134,7 +134,7 @@ void b2GridShape::SetCellHull(b2Body* body, uint32 row, uint32 column, uint32 hu
 {
     assert(m_type == b2Shape::e_grid);
 
-    uint32_t index = row * m_columnCount + column;
+    uint32 index = row * m_columnCount + column;
     b2Assert(index < m_rowCount * m_columnCount);
     b2GridShape::Cell* cell = &m_cells[index];
     cell->m_Index = hull;
