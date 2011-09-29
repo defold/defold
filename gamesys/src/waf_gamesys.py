@@ -26,6 +26,7 @@ def transform_collectionproxy(msg):
 
 def transform_collisionobject(msg):
     msg.collision_shape = msg.collision_shape.replace('.convexshape', '.convexshapec')
+    msg.collision_shape = msg.collision_shape.replace('.tilegrid', '.tilegridc')
     return msg
 
 def transform_emitter(msg):
