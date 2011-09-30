@@ -409,6 +409,49 @@ TYPED_TEST(PhysicsTest, GroundBoxCollision)
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(box_shape);
 }
 
+TYPED_TEST(PhysicsTest, KinematicStaticCollision)
+{
+    float ground_height_half_ext = 1.0f;
+    float box_half_ext = 0.5f;
+
+    VisualObject ground_visual_object;
+    dmPhysics::CollisionObjectData ground_data;
+    typename TypeParam::CollisionShapeType ground_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(100, ground_height_half_ext, 100));
+    ground_data.m_Mass = 0.0f;
+    ground_data.m_Restitution = 0.0f;
+    ground_data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
+    ground_data.m_UserData = &ground_visual_object;
+    typename TypeParam::CollisionObjectType ground_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, ground_data, &ground_shape, 1u);
+
+    Point3 start_position(0.0f, 2.0f, 0.0f);
+    VisualObject box_visual_object;
+    box_visual_object.m_Position = start_position;
+    dmPhysics::CollisionObjectData box_data;
+    box_data.m_Mass = 0.0f;
+    box_data.m_Restitution = 0.0f;
+    box_data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
+    box_data.m_UserData = &box_visual_object;
+    typename TypeParam::CollisionShapeType box_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    typename TypeParam::CollisionObjectType box_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, box_data, &box_shape, 1u);
+
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+
+    ASSERT_EQ(0, TestFixture::m_CollisionCount);
+    ASSERT_EQ(0, TestFixture::m_ContactPointCount);
+
+    box_visual_object.m_Position.setY(1.0f);
+
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+
+    ASSERT_LT(0, TestFixture::m_CollisionCount);
+    ASSERT_LT(0, TestFixture::m_ContactPointCount);
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, ground_co);
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, box_co);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(ground_shape);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(box_shape);
+}
+
 TYPED_TEST(PhysicsTest, CollisionCallbacks)
 {
     float ground_height_half_ext = 1.0f;

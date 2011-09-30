@@ -379,26 +379,9 @@ void b2Body::SetMassData(const b2MassData* massData)
 bool b2Body::ShouldCollide(const b2Body* other) const
 {
 	// At least one body should be dynamic.
-    // Defold mod: At least one body should be dynamic or be a sensor.
-    bool first_sensor = false;
-    for (const b2Fixture* fixture = this->GetFixtureList(); fixture; fixture = fixture->GetNext())
-    {
-        if (fixture->IsSensor())
-        {
-            first_sensor = true;
-            break;
-        }
-    }
-    bool second_sensor = false;
-    for (const b2Fixture* fixture = other->GetFixtureList(); fixture; fixture = fixture->GetNext())
-    {
-        if (fixture->IsSensor())
-        {
-            second_sensor = true;
-            break;
-        }
-    }
-    if ((m_type != b2_dynamicBody && !first_sensor) && (other->m_type != b2_dynamicBody && !second_sensor))
+    // Defold mod: At least one body should be dynamic or kinematic
+    if (m_type != b2_dynamicBody && other->m_type != b2_dynamicBody
+            && m_type != b2_kinematicBody && other->m_type != b2_kinematicBody)
     {
         return false;
     }
