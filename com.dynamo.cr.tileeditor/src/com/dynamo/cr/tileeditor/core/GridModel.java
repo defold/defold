@@ -32,7 +32,6 @@ import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.PropertyIntrospector;
 import com.dynamo.cr.properties.PropertyIntrospectorModel;
-import com.dynamo.cr.properties.Range;
 import com.dynamo.cr.tileeditor.Activator;
 import com.dynamo.cr.tileeditor.core.Layer.Cell;
 import com.dynamo.tile.proto.Tile;
@@ -49,12 +48,6 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
     @Property(isResource = true)
     @Resource
     private String tileSet;
-    @Property
-    @Range(min=0)
-    private float cellWidth;
-    @Property
-    @Range(min=0)
-    private float cellHeight;
 
     private final IOperationHistory history;
     private final IUndoContext undoContext;
@@ -125,32 +118,6 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
         return new Status(IStatus.ERROR, Activator.PLUGIN_ID, Messages.GRID_INVALID_TILESET);
     }
 
-    public float getCellWidth() {
-        return this.cellWidth;
-    }
-
-    public void setCellWidth(float cellWidth) {
-        boolean fire = this.cellWidth != cellWidth;
-
-        float oldCellWidth = this.cellWidth;
-        this.cellWidth = cellWidth;
-        if (fire)
-            firePropertyChangeEvent(new PropertyChangeEvent(this, "cellWidth", new Float(oldCellWidth), new Float(cellWidth)));
-    }
-
-    public float getCellHeight() {
-        return this.cellHeight;
-    }
-
-    public void setCellHeight(float cellHeight) {
-        boolean fire = this.cellHeight != cellHeight;
-
-        float oldCellHeight = this.cellHeight;
-        this.cellHeight = cellHeight;
-        if (fire)
-            firePropertyChangeEvent(new PropertyChangeEvent(this, "cellHeight", new Float(oldCellHeight), new Float(cellHeight)));
-    }
-
     public List<Layer> getLayers() {
         return Collections.unmodifiableList(this.layers);
     }
@@ -211,8 +178,6 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
             TextFormat.merge(new InputStreamReader(is), tileGridBuilder);
             TileGrid tileGrid = tileGridBuilder.build();
             setTileSet(tileGrid.getTileSet());
-            setCellWidth(tileGrid.getCellWidth());
-            setCellHeight(tileGrid.getCellHeight());
             List<Layer> layers = new ArrayList<Layer>(tileGrid.getLayersCount());
             for (Tile.TileLayer layerDDF : tileGrid.getLayersList()) {
                 Layer layer = new Layer();
@@ -222,7 +187,7 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
                 layer.setVisible(layerDDF.getIsVisible() != 0);
 
                 for (TileCell cellDDF : layerDDF.getCellList()) {
-                    long cellIndex = (long) cellDDF.getY() << Integer.SIZE | (long) cellDDF.getX();
+                    long cellIndex = Layer.toCellIndex(cellDDF.getX(), cellDDF.getY());
                     Cell cell = new Cell(cellDDF.getTile(), cellDDF.getHFlip() != 0 ? true : false, cellDDF.getVFlip() != 0 ? true : false);
                     layer.setCell(cellIndex, cell);
                 }
@@ -236,9 +201,7 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
 
     public void save(OutputStream os, IProgressMonitor monitor) throws IOException {
         TileGrid.Builder tileGridBuilder = TileGrid.newBuilder()
-                .setTileSet(this.tileSet)
-                .setCellWidth(this.cellWidth)
-                .setCellHeight(this.cellHeight);
+                .setTileSet(this.tileSet);
         for (Layer layer : this.layers) {
             TileLayer.Builder layerBuilder = TileLayer.newBuilder()
                     .setId(layer.getId())

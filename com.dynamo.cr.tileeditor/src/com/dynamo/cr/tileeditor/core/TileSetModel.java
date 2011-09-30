@@ -392,6 +392,10 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
         return undoHistory;
     }
 
+    public IUndoContext getUndoContext() {
+        return undoContext;
+    }
+
     public BufferedImage getLoadedImage() {
         return this.loadedImage;
     }

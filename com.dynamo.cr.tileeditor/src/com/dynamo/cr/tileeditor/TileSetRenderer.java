@@ -27,8 +27,8 @@ import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.Listener;
 import org.eclipse.ui.services.IDisposable;
 
-import com.dynamo.tile.TileSetUtil;
 import com.dynamo.cr.tileeditor.core.TileSetPresenter;
+import com.dynamo.tile.TileSetUtil;
 import com.sun.opengl.util.BufferUtil;
 import com.sun.opengl.util.texture.Texture;
 import com.sun.opengl.util.texture.TextureIO;
@@ -599,7 +599,6 @@ KeyListener {
             }
         }
         v.flip();
-        hv.flip();
 
         // Tiles
 
@@ -651,13 +650,17 @@ KeyListener {
 
         // Hull Frames
 
-        gl.glEnableClientState(GL.GL_COLOR_ARRAY);
+        if (this.collision != null) {
+            hv.flip();
 
-        gl.glInterleavedArrays(GL.GL_C3F_V3F, 0, hv);
+            gl.glEnableClientState(GL.GL_COLOR_ARRAY);
 
-        gl.glDrawArrays(GL.GL_QUADS, 0, hv.limit() / 6);
+            gl.glInterleavedArrays(GL.GL_C3F_V3F, 0, hv);
 
-        gl.glDisableClientState(GL.GL_COLOR_ARRAY);
+            gl.glDrawArrays(GL.GL_QUADS, 0, hv.limit() / 6);
+
+            gl.glDisableClientState(GL.GL_COLOR_ARRAY);
+        }
 
         gl.glDepthMask(false);
 

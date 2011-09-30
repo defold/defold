@@ -39,10 +39,6 @@ public interface IGridView {
 
     void setTileSet(BufferedImage image, int tileWidth, int tileHeight, int tileMargin, int tileSpacing);
 
-    void setCellWidth(float cellWidth);
-
-    void setCellHeight(float cellHeight);
-
     void setLayers(List<Layer> layers);
 
     void setCells(int layerIndex, Map<Long, Cell> cells);

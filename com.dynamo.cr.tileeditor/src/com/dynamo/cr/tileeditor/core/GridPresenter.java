@@ -16,6 +16,7 @@ import javax.vecmath.Vector2f;
 
 import org.eclipse.core.commands.operations.IOperationHistory;
 import org.eclipse.core.commands.operations.IOperationHistoryListener;
+import org.eclipse.core.commands.operations.IUndoContext;
 import org.eclipse.core.commands.operations.OperationHistoryEvent;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
@@ -47,6 +48,7 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
     }
 
     @Inject private IOperationHistory undoHistory;
+    @Inject private IUndoContext undoContext;
 
     private final GridModel model;
     private final IGridView view;
@@ -81,8 +83,6 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
     }
 
     public void refresh() {
-        this.view.setCellWidth(this.model.getCellWidth());
-        this.view.setCellHeight(this.model.getCellHeight());
         this.view.setLayers(this.model.getLayers());
         this.view.refreshProperties();
         boolean validModel = this.model.isValid();
@@ -133,10 +133,6 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
                                 tileSetModel.getTileMargin(),
                                 tileSetModel.getTileSpacing());
                     }
-                } else if (propName.equals("cellWidth")) {
-                    this.view.setCellWidth((Float)evt.getNewValue());
-                } else if (propName.equals("cellHeight")) {
-                    this.view.setCellHeight((Float)evt.getNewValue());
                 } else if (propName.equals("layers")) {
                     this.view.setLayers((List<Layer>)evt.getNewValue());
                 }
@@ -233,6 +229,10 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
 
     @Override
     public void historyNotification(OperationHistoryEvent event) {
+        if (!event.getOperation().hasContext(this.undoContext)) {
+            // Only handle operations related to this editor
+            return;
+        }
         int type = event.getEventType();
         switch (type) {
         case OperationHistoryEvent.DONE:

@@ -236,8 +236,6 @@ public class GridTest {
         newGrid();
 
         assertEquals("", this.model.getTileSet());
-        assertEquals(16.0f, this.model.getCellWidth(), 0.000001f);
-        assertEquals(16.0f, this.model.getCellHeight(), 0.000001f);
         assertEquals(1, this.model.getLayers().size());
         Layer layer = this.model.getLayers().get(0);
         assertEquals("layer1", layer.getId());
@@ -245,8 +243,6 @@ public class GridTest {
         assertTrue(layer.isVisible());
 
         verify(this.view, never()).setTileSet(any(BufferedImage.class), anyInt(), anyInt(), anyInt(), anyInt());
-        verify(this.view, times(1)).setCellWidth(eq(16.0f));
-        verify(this.view, times(1)).setCellHeight(eq(16.0f));
         verify(this.view, times(1)).setLayers(anyList());
         verify(this.view, never()).setCell(anyInt(), anyLong(), any(Cell.class));
         verify(this.view, times(1)).refreshProperties();
@@ -440,37 +436,12 @@ public class GridTest {
     }
 
     /**
-     * Message 2.4/2.5 - Invalid cell width/height
+     * Message 2.4 - Duplicated layer ids
      * @throws IOException
      * @throws CoreException
      */
     @Test
-    public void testMessage24_25() throws Exception {
-        newGrid();
-
-        assertTrue(propertyModel.getPropertyStatus("cellWidth").isOK());
-        setGridProperty("cellWidth", -1);
-        assertTrue(!propertyModel.getPropertyStatus("cellWidth").isOK());
-        assertEquals("Value out of range", propertyModel.getPropertyStatus("cellWidth").getMessage());
-        setGridProperty("cellWidth", 32);
-        assertTrue(propertyModel.getPropertyStatus("cellWidth").isOK());
-
-        assertTrue(propertyModel.getPropertyStatus("cellHeight").isOK());
-        setGridProperty("cellHeight", -1);
-        assertTrue(!propertyModel.getPropertyStatus("cellHeight").isOK());
-        assertEquals("Value out of range", propertyModel.getPropertyStatus("cellHeight").getMessage());
-
-        setGridProperty("cellHeight", 32);
-        assertTrue(propertyModel.getPropertyStatus("cellHeight").isOK());
-    }
-
-    /**
-     * Message 2.6 - Duplicated layer ids
-     * @throws IOException
-     * @throws CoreException
-     */
-    @Test
-    public void testMessage26() throws IOException, CoreException {
+    public void testMessage24() throws IOException, CoreException {
         /*
          * TODO
         loadEmptyFile();
@@ -536,10 +507,8 @@ public class GridTest {
     @Test
     public void testLoadSave() throws Exception {
         TileGrid tileGrid  = TileGrid.newBuilder()
-            .setTileSet("my.tileset")
-            .setCellWidth(16)
-            .setCellHeight(32)
-            .addLayers(TileLayer.newBuilder()
+                .setTileSet("my.tileset")
+                .addLayers(TileLayer.newBuilder()
                         .setId("some_id")
                         .setIsVisible(1)
                         .setZ(123)

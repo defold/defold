@@ -43,7 +43,7 @@
             id="com.dynamo.cr.tileeditor.resourcetypes.TileGrid"
             name="Tile Grid"
             proto-message-class="com.dynamo.tile.proto.Tile$TileGrid"
-            template-data="tile_set: &quot;&quot; cell_width: 16 cell_height: 16 layers: {id: &quot;layer1&quot; z: 0 is_visible: 1}"
+            template-data="tile_set: &quot;&quot; layers: {id: &quot;layer1&quot; z: 0 is_visible: 1}"
             type-class="tile_grid">
          <references>
             <reference-type-class

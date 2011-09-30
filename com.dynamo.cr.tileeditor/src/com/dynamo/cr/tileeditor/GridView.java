@@ -27,16 +27,6 @@ public class GridView implements IGridView {
     }
 
     @Override
-    public void setCellWidth(float cellWidth) {
-        this.renderer.setCellWidth(cellWidth);
-    }
-
-    @Override
-    public void setCellHeight(float cellHeight) {
-        this.renderer.setCellHeight(cellHeight);
-    }
-
-    @Override
     public void setLayers(List<Layer> layers) {
         this.renderer.setLayers(layers);
         this.outline.setInput(layers, -1);

@@ -17,12 +17,12 @@ import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.ui.services.IDisposable;
 
-import com.dynamo.tile.ConvexHull;
-import com.dynamo.tile.TileSetUtil;
 import com.dynamo.cr.tileeditor.operations.AddCollisionGroupOperation;
 import com.dynamo.cr.tileeditor.operations.RemoveCollisionGroupsOperation;
 import com.dynamo.cr.tileeditor.operations.RenameCollisionGroupsOperation;
 import com.dynamo.cr.tileeditor.operations.SetConvexHullsOperation;
+import com.dynamo.tile.ConvexHull;
+import com.dynamo.tile.TileSetUtil;
 
 public class TileSetPresenter implements PropertyChangeListener, IOperationHistoryListener, IDisposable {
     private final TileSetModel model;
@@ -168,6 +168,10 @@ public class TileSetPresenter implements PropertyChangeListener, IOperationHisto
 
     @Override
     public void historyNotification(OperationHistoryEvent event) {
+        if (!event.getOperation().hasContext(this.model.getUndoContext())) {
+            // Only handle operations related to this editor
+            return;
+        }
         int type = event.getEventType();
         switch (type) {
         case OperationHistoryEvent.DONE:

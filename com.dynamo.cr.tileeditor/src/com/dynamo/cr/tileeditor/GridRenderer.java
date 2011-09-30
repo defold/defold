@@ -37,11 +37,11 @@ import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.handlers.IHandlerService;
 import org.eclipse.ui.services.IDisposable;
 
-import com.dynamo.tile.TileSetUtil;
 import com.dynamo.cr.tileeditor.core.IGridView;
 import com.dynamo.cr.tileeditor.core.ILogger;
 import com.dynamo.cr.tileeditor.core.Layer;
 import com.dynamo.cr.tileeditor.core.Layer.Cell;
+import com.dynamo.tile.TileSetUtil;
 import com.sun.opengl.util.BufferUtil;
 import com.sun.opengl.util.texture.Texture;
 import com.sun.opengl.util.texture.TextureIO;
@@ -72,8 +72,6 @@ Listener {
 
     // Model replication
     private List<Layer> layers;
-    private float cellWidth;
-    private float cellHeight;
     private BufferedImage tileSetImage;
     private int tileWidth;
     private int tileHeight;
@@ -92,7 +90,6 @@ Listener {
 
     // Render data
     private Texture tileSetTexture;
-    private FloatBuffer cellVertexBuffer;
     private Texture backgroundTexture;
 
     @Inject
@@ -202,20 +199,6 @@ Listener {
         Layer.Cell oldCell = layer.getCell(cellIndex);
         if ((oldCell == null && cell != null) || (oldCell != null && !oldCell.equals(cell))) {
             layer.setCell(cellIndex, cell);
-            requestPaint();
-        }
-    }
-
-    public void setCellWidth(float cellWidth) {
-        if (this.cellWidth != cellWidth) {
-            this.cellWidth = cellWidth;
-            requestPaint();
-        }
-    }
-
-    public void setCellHeight(float cellHeight) {
-        if (this.cellHeight != cellHeight) {
-            this.cellHeight = cellHeight;
             requestPaint();
         }
     }
@@ -387,9 +370,9 @@ Listener {
             int viewPortWidth = this.viewPort.get(2);
             int viewPortHeight = this.viewPort.get(3);
             float cellX = (x - 0.5f * viewPortWidth) / this.scale - this.position.getX();
-            cellX /= this.cellWidth;
+            cellX /= this.tileWidth;
             float cellY = (0.5f * viewPortHeight - y) / this.scale - this.position.getY();
-            cellY /= this.cellHeight;
+            cellY /= this.tileHeight;
             return new Point2i((int)Math.floor(cellX), (int)Math.floor(cellY));
         }
         return null;
@@ -455,7 +438,7 @@ Listener {
     }
 
     public boolean isEnabled() {
-        return this.enabled && this.cellWidth > 0.0f && this.cellHeight > 0.0f;
+        return this.enabled;
     }
 
     public void setEnabled(boolean enabled) {
@@ -556,10 +539,10 @@ Listener {
         if (this.activeCell != null && this.brushTile != -1) {
             int x = this.activeCell.x;
             int y = this.activeCell.y;
-            float x0 = x * cellWidth;
-            float x1 = x0 + cellWidth;
-            float y0 = y * cellHeight;
-            float y1 = y0 + cellHeight;
+            float x0 = x * this.tileWidth;
+            float x1 = x0 + this.tileWidth;
+            float y0 = y * this.tileHeight;
+            float y1 = y0 + this.tileHeight;
             x = this.brushTile % metrics.tilesPerRow;
             y = this.brushTile / metrics.tilesPerRow;
             float u0 = (x * (tileSpacing + 2*tileMargin + tileWidth) + tileMargin) * recipImageWidth;
@@ -608,10 +591,10 @@ Listener {
                 for (Map.Entry<Long, Cell> entry : cells.entrySet()) {
                     int x = Layer.toCellX(entry.getKey());
                     int y = Layer.toCellY(entry.getKey());
-                    float x0 = x * this.cellWidth;
-                    float x1 = x0 + this.cellWidth;
-                    float y0 = y * this.cellHeight;
-                    float y1 = y0 + this.cellHeight;
+                    float x0 = x * this.tileWidth;
+                    float x1 = x0 + this.tileWidth;
+                    float y0 = y * this.tileHeight;
+                    float y1 = y0 + this.tileHeight;
                     int tile = entry.getValue().getTile();
                     x = tile % metrics.tilesPerRow;
                     y = tile / metrics.tilesPerRow;
@@ -667,7 +650,7 @@ Listener {
             if (i == 0) {
                 color = greenColor;
             }
-            float x = i * this.cellWidth;
+            float x = i * this.tileWidth;
             v.put(color); v.put(x); v.put(min.getY()); v.put(z);
             v.put(color); v.put(x); v.put(max.getY()); v.put(z);
         }
@@ -677,7 +660,7 @@ Listener {
             if (i == 0) {
                 color = redColor;
             }
-            float y = i * this.cellHeight;
+            float y = i * this.tileHeight;
             v.put(color); v.put(min.getX()); v.put(y); v.put(z);
             v.put(color); v.put(max.getX()); v.put(y); v.put(z);
         }
@@ -843,11 +826,11 @@ Listener {
         outMin.set(offset);
         outMin.sub(extent);
         Point2f minNorm = new Point2f(outMin);
-        minNorm.scale(1.0f / this.cellWidth);
+        minNorm.scale(1.0f / this.tileWidth);
         outMax.set(offset);
         outMax.add(extent);
         Point2f maxNorm = new Point2f(outMax);
-        maxNorm.scale(1.0f / this.cellHeight);
+        maxNorm.scale(1.0f / this.tileHeight);
 
         outCellMin.set((int)Math.ceil(minNorm.getX()), (int)Math.ceil(minNorm.getY()));
         outCellMax.set((int)Math.ceil(maxNorm.getX()), (int)Math.ceil(maxNorm.getY()));
