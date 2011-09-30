@@ -130,6 +130,7 @@ namespace dmGameObject
     void DeleteCollection(HCollection collection)
     {
         HRegister regist = collection->m_Register;
+        Final(collection);
         DoDeleteAll(collection);
         for (uint32_t i = 0; i < regist->m_ComponentTypeCount; ++i)
         {
@@ -692,7 +693,7 @@ namespace dmGameObject
         for (uint32_t i = 0; i < n_objects; ++i)
         {
             Instance* instance = collection->m_Instances[i];
-            if ( ! Final(collection, instance) )
+            if (instance != 0x0 && instance->m_Initialized && ! Final(collection, instance))
             {
                 result = false;
             }
