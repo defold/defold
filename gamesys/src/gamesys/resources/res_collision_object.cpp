@@ -7,10 +7,8 @@
 
 namespace dmGameSystem
 {
-    static const uint32_t MAX_PATH_LENGTH = 128;
-
     bool AcquireResources(dmResource::HFactory factory, const void* buffer, uint32_t buffer_size,
-        CollisionObjectResource* resource, const char* previous_shape_path, const char* filename)
+        CollisionObjectResource* resource, const char* filename)
     {
         dmDDF::Result e = dmDDF::LoadMessage<dmPhysicsDDF::CollisionObjectDesc>(buffer, buffer_size, &resource->m_DDF);
         if ( e != dmDDF::RESULT_OK )
@@ -29,26 +27,44 @@ namespace dmGameSystem
             resource->m_Mask[i] = dmHashString64(resource->m_DDF->m_Mask[i]);
         }
 
-        bool reload_shape = true;
-        if (previous_shape_path != 0x0)
+        void* res;
+        dmResource::FactoryResult factory_result = dmResource::Get(factory, resource->m_DDF->m_CollisionShape, &res);
+        if (factory_result == dmResource::FACTORY_RESULT_OK)
         {
-            reload_shape = 0 != strncmp(previous_shape_path, resource->m_DDF->m_CollisionShape, MAX_PATH_LENGTH);
+            uint32_t tile_grid_type;
+            factory_result = dmResource::GetTypeFromExtension(factory, "tilegridc", &tile_grid_type);
+            if (factory_result == dmResource::FACTORY_RESULT_OK)
+            {
+                uint32_t res_type;
+                factory_result = dmResource::GetType(factory, res, &res_type);
+                if (factory_result == dmResource::FACTORY_RESULT_OK && res_type == tile_grid_type)
+                {
+                    resource->m_TileGridResource = (TileGridResource*)res;
+                    resource->m_TileGrid = 1;
+                    return true;
+                }
+            }
+            resource->m_ConvexShapeResource = (ConvexShapeResource*)res;
+            return true;
         }
-        bool result = true;
-        if (reload_shape)
+        else
         {
-            dmResource::FactoryResult factory_result = dmResource::Get(factory, resource->m_DDF->m_CollisionShape, (void**) &resource->m_ConvexShape);
-            if (factory_result != dmResource::FACTORY_RESULT_OK)
-                result = false;
+            return false;
         }
-
-        return result;
     }
 
     void ReleaseResources(dmResource::HFactory factory, CollisionObjectResource* resource)
     {
-        if (resource->m_ConvexShape)
-            dmResource::Release(factory, resource->m_ConvexShape);
+        if (resource->m_TileGrid)
+        {
+            if (resource->m_TileGridResource)
+                dmResource::Release(factory, resource->m_TileGridResource);
+        }
+        else
+        {
+            if (resource->m_ConvexShapeResource)
+                dmResource::Release(factory, resource->m_ConvexShapeResource);
+        }
         if (resource->m_DDF)
             dmDDF::FreeMessage(resource->m_DDF);
     }
@@ -61,7 +77,7 @@ namespace dmGameSystem
     {
         CollisionObjectResource* collision_object = new CollisionObjectResource();
         memset(collision_object, 0, sizeof(CollisionObjectResource));
-        if (AcquireResources(factory, buffer, buffer_size, collision_object, 0x0, filename))
+        if (AcquireResources(factory, buffer, buffer_size, collision_object, filename))
         {
             resource->m_Resource = collision_object;
             return dmResource::CREATE_RESULT_OK;
@@ -93,14 +109,9 @@ namespace dmGameSystem
         CollisionObjectResource* collision_object = (CollisionObjectResource*)resource->m_Resource;
         CollisionObjectResource tmp_collision_object;
         memset(&tmp_collision_object, 0, sizeof(CollisionObjectResource));
-        if (AcquireResources(factory, buffer, buffer_size, &tmp_collision_object, collision_object->m_DDF->m_CollisionShape, filename))
+        if (AcquireResources(factory, buffer, buffer_size, &tmp_collision_object, filename))
         {
-            if (tmp_collision_object.m_ConvexShape)
-                dmResource::Release(factory, collision_object->m_ConvexShape);
-            else
-                tmp_collision_object.m_ConvexShape = collision_object->m_ConvexShape;
-            if (collision_object->m_DDF)
-                dmDDF::FreeMessage(collision_object->m_DDF);
+            ReleaseResources(factory, collision_object);
             *collision_object = tmp_collision_object;
             return dmResource::CREATE_RESULT_OK;
         }

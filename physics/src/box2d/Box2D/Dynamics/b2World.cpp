@@ -29,6 +29,7 @@
 #include <Box2D/Collision/Shapes/b2EdgeShape.h>
 #include <Box2D/Collision/Shapes/b2ChainShape.h>
 #include <Box2D/Collision/Shapes/b2PolygonShape.h>
+#include <Box2D/Collision/Shapes/b2GridShape.h>
 #include <Box2D/Collision/b2TimeOfImpact.h>
 #include <Box2D/Common/b2Draw.h>
 #include <Box2D/Common/b2Timer.h>
@@ -1028,6 +1029,20 @@ void b2World::RayCast(b2RayCastCallback* callback, const b2Vec2& point1, const b
 	m_contactManager.m_broadPhase.RayCast(&wrapper, input);
 }
 
+void b2World::DrawPolygon(const b2Transform& xf, const b2PolygonShape& poly, const b2Color& color)
+{
+    int32 vertexCount = poly.m_vertexCount;
+    b2Assert(vertexCount <= b2_maxPolygonVertices);
+    b2Vec2 vertices[b2_maxPolygonVertices];
+
+    for (int32 i = 0; i < vertexCount; ++i)
+    {
+        vertices[i] = b2Mul(xf, poly.m_vertices[i]);
+    }
+
+    m_debugDraw->DrawSolidPolygon(vertices, vertexCount, color);
+}
+
 void b2World::DrawShape(b2Fixture* fixture, const b2Transform& xf, const b2Color& color)
 {
 	switch (fixture->GetType())
@@ -1070,21 +1085,29 @@ void b2World::DrawShape(b2Fixture* fixture, const b2Transform& xf, const b2Color
 		}
 		break;
 
-	case b2Shape::e_polygon:
-		{
-			b2PolygonShape* poly = (b2PolygonShape*)fixture->GetShape();
-			int32 vertexCount = poly->m_vertexCount;
-			b2Assert(vertexCount <= b2_maxPolygonVertices);
-			b2Vec2 vertices[b2_maxPolygonVertices];
+    case b2Shape::e_polygon:
+        {
+            b2PolygonShape* poly = (b2PolygonShape*)fixture->GetShape();
+            DrawPolygon(xf, *poly, color);
+        }
+        break;
 
-			for (int32 i = 0; i < vertexCount; ++i)
-			{
-				vertices[i] = b2Mul(xf, poly->m_vertices[i]);
-			}
-
-			m_debugDraw->DrawSolidPolygon(vertices, vertexCount, color);
-		}
-		break;
+    case b2Shape::e_grid:
+        {
+            b2GridShape* grid = (b2GridShape*)fixture->GetShape();
+            uint32 cellCount = grid->m_columnCount * grid->m_rowCount;
+            for (uint32 i = 0; i < cellCount; ++i)
+            {
+                uint32 index = grid->m_cells[i].m_Index;
+                if (index != B2GRIDSHAPE_EMPTY_CELL)
+                {
+                    b2PolygonShape poly;
+                    grid->GetPolygonShapeForCell(i, poly);
+                    DrawPolygon(xf, poly, color);
+                }
+            }
+        }
+        break;
 
     default:
         break;
@@ -1129,6 +1152,7 @@ void b2World::DrawJoint(b2Joint* joint)
 		m_debugDraw->DrawSegment(x1, p1, color);
 		m_debugDraw->DrawSegment(p1, p2, color);
 		m_debugDraw->DrawSegment(x2, p2, color);
+		break;
 	}
 }
 

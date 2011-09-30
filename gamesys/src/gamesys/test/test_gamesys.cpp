@@ -188,7 +188,7 @@ INSTANTIATE_TEST_CASE_P(CollectionProxy, ComponentTest, ::testing::ValuesIn(vali
 
 /* Collision Object */
 
-const char* valid_collision_object_resources[] = {"/collision_object/valid.collisionobjectc"};
+const char* valid_collision_object_resources[] = {"/collision_object/valid.collisionobjectc", "/collision_object/valid_tilegrid.collisionobjectc"};
 INSTANTIATE_TEST_CASE_P(CollisionObject, ResourceTest, ::testing::ValuesIn(valid_collision_object_resources));
 
 ResourceFailParams invalid_collision_object_resources[] =

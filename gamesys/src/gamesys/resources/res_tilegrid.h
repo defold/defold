@@ -11,8 +11,17 @@ namespace dmGameSystem
 {
     struct TileGridResource
     {
-        TileSetResource*           m_TileSet;
-        dmGameSystemDDF::TileGrid* m_TileGrid;
+        inline TileGridResource()
+        {
+            memset(this, 0, sizeof(TileGridResource));
+        }
+
+        TileSetResource*                m_TileSet;
+        dmGameSystemDDF::TileGrid*      m_TileGrid;
+        dmPhysics::HCollisionShape2D    m_GridShape;
+        uint32_t                        m_ColumnCount;
+        int32_t                         m_MinCellX;
+        int32_t                         m_MinCellY;
     };
 
     dmResource::CreateResult ResTileGridCreate(dmResource::HFactory factory,

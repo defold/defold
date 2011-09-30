@@ -21,19 +21,29 @@ namespace dmGameSystem
         {
             tile_set->m_TileSet = tile_set_ddf;
             uint32_t n_hulls = tile_set_ddf->m_ConvexHulls.m_Count;
-            tile_set->m_ConvexHulls = new TileSetResource::ConvexHull[n_hulls];
+            tile_set->m_HullCollisionGroups.SetCapacity(n_hulls);
+            tile_set->m_HullCollisionGroups.SetSize(n_hulls);
+            dmPhysics::HullDesc* hull_descs = new dmPhysics::HullDesc[n_hulls];
             for (uint32_t i = 0; i < n_hulls; ++i)
             {
-                TileSetResource::ConvexHull* hull = &tile_set->m_ConvexHulls[i];
                 dmGameSystemDDF::ConvexHull* hull_ddf = &tile_set_ddf->m_ConvexHulls[i];
-                hull->m_Index = hull_ddf->m_Index;
-                hull->m_Count = hull_ddf->m_Count;
-                hull->m_CollisionGroupHash = dmHashString64(hull_ddf->m_CollisionGroup);
+                tile_set->m_HullCollisionGroups[i] = dmHashString64(hull_ddf->m_CollisionGroup);
+                hull_descs[i].m_Index = (uint16_t)hull_ddf->m_Index;
+                hull_descs[i].m_Count = (uint16_t)hull_ddf->m_Count;
             }
-
-            uint32_t n_points = tile_set_ddf->m_ConvexHullPoints.m_Count;
-            tile_set->m_ConvexHullPoints = new float[n_points];
-            memcpy(tile_set->m_ConvexHullPoints, tile_set_ddf->m_ConvexHullPoints.m_Data, sizeof(tile_set->m_ConvexHullPoints[0] * n_points));
+            uint32_t n_points = tile_set_ddf->m_ConvexHullPoints.m_Count / 2;
+            float recip_tile_width = 1.0f / tile_set_ddf->m_TileWidth;
+            float recip_tile_height = 1.0f / tile_set_ddf->m_TileHeight;
+            float* points = tile_set_ddf->m_ConvexHullPoints.m_Data;
+            float* norm_points = new float[n_points * 2];
+            for (uint32_t i = 0; i < n_points; ++i)
+            {
+                norm_points[i*2] = points[i*2] * recip_tile_width - 0.5f;
+                norm_points[i*2+1] = points[i*2+1] * recip_tile_height - 0.5f;
+            }
+            tile_set->m_HullSet = dmPhysics::NewHullSet2D(norm_points, n_points, hull_descs, n_hulls);
+            delete [] hull_descs;
+            delete [] norm_points;
         }
         else
         {
@@ -51,11 +61,8 @@ namespace dmGameSystem
         if (tile_set->m_TileSet)
             dmDDF::FreeMessage(tile_set->m_TileSet);
 
-        if (tile_set->m_ConvexHulls)
-            delete[] tile_set->m_ConvexHulls;
-
-        if (tile_set->m_ConvexHullPoints)
-            delete[] tile_set->m_ConvexHullPoints;
+        if (tile_set->m_HullSet)
+            dmPhysics::DeleteHullSet2D(tile_set->m_HullSet);
     }
 
     dmResource::CreateResult ResTileSetCreate(dmResource::HFactory factory,
@@ -102,8 +109,8 @@ namespace dmGameSystem
             ReleaseResources(factory, tile_set);
             tile_set->m_TileSet = tmp_tile_set.m_TileSet;
             tile_set->m_Texture = tmp_tile_set.m_Texture;
-            tile_set->m_ConvexHulls = tmp_tile_set.m_ConvexHulls;
-            tile_set->m_ConvexHullPoints = tmp_tile_set.m_ConvexHullPoints;
+            tile_set->m_HullCollisionGroups.Swap(tmp_tile_set.m_HullCollisionGroups);
+            tile_set->m_HullSet = tmp_tile_set.m_HullSet;
             return dmResource::CREATE_RESULT_OK;
         }
         else

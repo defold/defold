@@ -52,6 +52,8 @@ namespace dmGameSystem
     {
         dmRender::HRenderContext render_context = (dmRender::HRenderContext)params.m_Context;
         TileGridWorld* world = (TileGridWorld*) params.m_World;
+        if (world->m_ClientBuffer != 0x0)
+            delete [] (char*)world->m_ClientBuffer;
         dmRender::DeleteMaterial(render_context, world->m_Material);
         dmGraphics::DeleteVertexDeclaration(world->m_VertexDeclaration);
         dmGraphics::DeleteVertexBuffer(world->m_VertexBuffer);

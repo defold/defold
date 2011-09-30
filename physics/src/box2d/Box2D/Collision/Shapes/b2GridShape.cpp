@@ -11,7 +11,7 @@ using namespace std;
 
 b2GridShape::b2GridShape(const b2HullSet* hullSet,
                          const b2Vec2 position,
-                         uint32 cellWidth, uint32 cellHeight,
+                         float cellWidth, float cellHeight,
                          uint32 rowCount, uint32 columnCount)
     : m_hullSet(hullSet),
       m_cellWidth(cellWidth), m_cellHeight(cellHeight),
@@ -104,12 +104,14 @@ void b2GridShape::ComputeMass(b2MassData* massData, float32 density) const
     massData->I = massData->mass * (w * w + h * h + b2Dot(m_position, m_position)) / 12.0f;
 }
 
-void b2GridShape::GetPolygonShapeForCell(int index, b2PolygonShape& polyShape) const
+void b2GridShape::GetPolygonShapeForCell(uint32 index, b2PolygonShape& polyShape) const
 {
     const b2GridShape::Cell& cell = m_cells[index];
     const b2HullSet::Hull& hull = m_hullSet->m_hulls[cell.m_Index];
 
-    polyShape.Set(&m_hullSet->m_vertices[hull.m_Index], hull.m_Count);
+    b2Assert(hull.m_Count <= b2_maxPolygonVertices);
+
+    b2Vec2 vertices[b2_maxPolygonVertices];
 
     int row = index / m_columnCount;
     int col = index - (m_columnCount * row);
@@ -124,10 +126,13 @@ void b2GridShape::GetPolygonShapeForCell(int index, b2PolygonShape& polyShape) c
 
     for (uint32 i = 0; i < hull.m_Count; ++i)
     {
-        polyShape.m_vertices[i].x *= m_cellWidth;
-        polyShape.m_vertices[i].y *= m_cellHeight;
-        polyShape.m_vertices[i] += t;
+        vertices[i] = m_hullSet->m_vertices[hull.m_Index + i];
+        vertices[i].x *= m_cellWidth;
+        vertices[i].y *= m_cellHeight;
+        vertices[i] += t;
     }
+
+    polyShape.Set(vertices, hull.m_Count);
 }
 
 void b2GridShape::SetCellHull(b2Body* body, uint32 row, uint32 column, uint32 hull)

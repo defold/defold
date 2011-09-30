@@ -1,9 +1,12 @@
 #include "res_tilegrid.h"
 
+#include <vectormath/ppu/cpp/vec_aos.h>
 #include "gamesys_ddf.h"
 
 namespace dmGameSystem
 {
+    using namespace Vectormath::Aos;
+
     bool AcquireResources(dmResource::HFactory factory, const void* buffer, uint32_t buffer_size,
                           TileGridResource* tile_grid, const char* filename)
     {
@@ -14,17 +17,57 @@ namespace dmGameSystem
             return false;
         }
 
-        bool result = true;
         if (dmResource::FACTORY_RESULT_OK == dmResource::Get(factory, tile_grid_ddf->m_TileSet, (void**)&tile_grid->m_TileSet))
         {
             tile_grid->m_TileGrid = tile_grid_ddf;
+            dmPhysics::HHullSet2D hull_set = tile_grid->m_TileSet->m_HullSet;
+            if (hull_set != 0x0)
+            {
+                // Calculate AABB for offset
+                Point3 offset(0.0f, 0.0f, 0.0f);
+                int32_t min_x = INT32_MAX;
+                int32_t min_y = INT32_MAX;
+                int32_t max_x = INT32_MIN;
+                int32_t max_y = INT32_MIN;
+                uint32_t layer_count = tile_grid_ddf->m_Layers.m_Count;
+                uint32_t total_cell_count = 0;
+                for (uint32_t i = 0; i < layer_count; ++i)
+                {
+                    dmGameSystemDDF::TileLayer* layer = &tile_grid_ddf->m_Layers[i];
+                    uint32_t cell_count = layer->m_Cell.m_Count;
+                    total_cell_count += cell_count;
+                    for (uint32_t j = 0; j < cell_count; ++j)
+                    {
+                        dmGameSystemDDF::TileCell* cell = &layer->m_Cell[j];
+                        if (min_x > cell->m_X)
+                            min_x = cell->m_X;
+                        if (min_y > cell->m_Y)
+                            min_y = cell->m_Y;
+                        if (max_x < cell->m_X + 1)
+                            max_x = cell->m_X + 1;
+                        if (max_y < cell->m_Y + 1)
+                            max_y = cell->m_Y + 1;
+                    }
+                }
+                if (total_cell_count > 0)
+                {
+                    float cell_width = tile_grid_ddf->m_CellWidth;
+                    float cell_height = tile_grid_ddf->m_CellHeight;
+                    tile_grid->m_ColumnCount = max_x - min_x;
+                    tile_grid->m_MinCellX = min_x;
+                    tile_grid->m_MinCellY = min_y;
+                    offset.setX(cell_width * 0.5f * (min_x + max_x));
+                    offset.setY(cell_height * 0.5f * (min_y + max_y));
+                    tile_grid->m_GridShape = dmPhysics::NewGridShape2D(hull_set, offset, cell_width, cell_height, max_y - min_y, tile_grid->m_ColumnCount);
+                    return true;
+                }
+            }
         }
         else
         {
             dmDDF::FreeMessage(tile_grid_ddf);
-            result = false;
         }
-        return result;
+        return false;
     }
 
     void ReleaseResources(dmResource::HFactory factory, TileGridResource* tile_grid)
@@ -34,6 +77,9 @@ namespace dmGameSystem
 
         if (tile_grid->m_TileGrid)
             dmDDF::FreeMessage(tile_grid->m_TileGrid);
+
+        if (tile_grid->m_GridShape)
+            dmPhysics::DeleteCollisionShape2D(tile_grid->m_GridShape);
     }
 
     dmResource::CreateResult ResTileGridCreate(dmResource::HFactory factory,
@@ -80,6 +126,7 @@ namespace dmGameSystem
             ReleaseResources(factory, tile_grid);
             tile_grid->m_TileGrid = tmp_tile_grid.m_TileGrid;
             tile_grid->m_TileSet = tmp_tile_grid.m_TileSet;
+            tile_grid->m_GridShape = tmp_tile_grid.m_GridShape;
             return dmResource::CREATE_RESULT_OK;
         }
         else

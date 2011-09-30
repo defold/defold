@@ -118,7 +118,7 @@ namespace dmEngine
 
         m_PhysicsContext.m_Context3D = 0x0;
         m_PhysicsContext.m_Debug = false;
-        m_PhysicsContext.m_3D = true;
+        m_PhysicsContext.m_3D = false;
         m_EmitterContext.m_Debug = false;
         m_GuiContext.m_GuiContext = 0x0;
         m_GuiContext.m_RenderContext = 0x0;
@@ -357,7 +357,7 @@ namespace dmEngine
         engine->m_GuiContext.m_RenderContext = engine->m_RenderContext;
         dmPhysics::NewContextParams physics_params;
         physics_params.m_WorldCount = dmConfigFile::GetInt(config, "physics.world_count", 4);
-        const char* physics_type = dmConfigFile::GetString(config, "physics.type", "3D");
+        const char* physics_type = dmConfigFile::GetString(config, "physics.type", "2D");
         physics_params.m_Gravity.setX(dmConfigFile::GetFloat(config, "physics.gravity_x", 0.0f));
         physics_params.m_Gravity.setY(dmConfigFile::GetFloat(config, "physics.gravity_y", -10.0f));
         physics_params.m_Gravity.setZ(dmConfigFile::GetFloat(config, "physics.gravity_z", 0.0f));

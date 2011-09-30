@@ -7,6 +7,8 @@
 
 #include <render/render.h>
 
+#include <physics/physics.h>
+
 #include "tile_ddf.h"
 
 namespace dmGameSystem
@@ -17,17 +19,11 @@ namespace dmGameSystem
         {
             memset(this, 0, sizeof(*this));
         }
-        struct ConvexHull
-        {
-            uint32_t m_Index;
-            uint32_t m_Count;
-            dmhash_t m_CollisionGroupHash;
-        };
 
+        dmArray<dmhash_t>           m_HullCollisionGroups;
         dmGraphics::HTexture        m_Texture;
         dmGameSystemDDF::TileSet*   m_TileSet;
-        ConvexHull*                 m_ConvexHulls;
-        float*                      m_ConvexHullPoints;
+        dmPhysics::HHullSet2D       m_HullSet;
     };
 
     dmResource::CreateResult ResTileSetCreate(dmResource::HFactory factory,

@@ -1,10 +1,13 @@
 #ifndef DM_GAMESYS_RES_COLLISION_OBJECT_H
 #define DM_GAMESYS_RES_COLLISION_OBJECT_H
 
+#include <string.h>
+
 #include <resource/resource.h>
 #include <physics/physics.h>
 
 #include "res_convex_shape.h"
+#include "res_tilegrid.h"
 
 #include "../proto/physics_ddf.h"
 
@@ -12,10 +15,20 @@ namespace dmGameSystem
 {
     struct CollisionObjectResource
     {
+        inline CollisionObjectResource()
+        {
+            memset(this, 0, sizeof(CollisionObjectResource));
+        }
+
         uint64_t m_Mask[16];
         uint64_t m_Group;
-        ConvexShapeResource* m_ConvexShape;
+        union
+        {
+            ConvexShapeResource* m_ConvexShapeResource;
+            TileGridResource* m_TileGridResource;
+        };
         dmPhysicsDDF::CollisionObjectDesc* m_DDF;
+        uint32_t m_TileGrid : 1;
     };
 
     dmResource::CreateResult ResCollisionObjectCreate(dmResource::HFactory factory,

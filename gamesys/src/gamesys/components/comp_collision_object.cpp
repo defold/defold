@@ -88,7 +88,7 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompCollisionObjectCreate(const dmGameObject::ComponentCreateParams& params)
     {
         CollisionObjectResource* co_res = (CollisionObjectResource*)params.m_Resource;
-        if (co_res == 0x0 || co_res->m_ConvexShape == 0x0 || co_res->m_DDF == 0x0)
+        if (co_res == 0x0 || co_res->m_ConvexShapeResource == 0x0 || co_res->m_DDF == 0x0)
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         if ((co_res->m_DDF->m_Mass == 0.0f && co_res->m_DDF->m_Type == dmPhysicsDDF::COLLISION_OBJECT_TYPE_DYNAMIC)
             || (co_res->m_DDF->m_Mass > 0.0f && co_res->m_DDF->m_Type != dmPhysicsDDF::COLLISION_OBJECT_TYPE_DYNAMIC))
@@ -150,6 +150,96 @@ namespace dmGameSystem
         return 0;
     }
 
+    bool CreateCollisionObject(PhysicsContext* physics_context, World* world, dmGameObject::HInstance instance, Component* component)
+    {
+        CollisionObjectResource* resource = component->m_Resource;
+        dmPhysicsDDF::CollisionObjectDesc* ddf = resource->m_DDF;
+        dmPhysics::CollisionObjectData data;
+        data.m_UserData = instance;
+        data.m_Type = (dmPhysics::CollisionObjectType)ddf->m_Type;
+        data.m_Mass = ddf->m_Mass;
+        data.m_Friction = ddf->m_Friction;
+        data.m_Restitution = ddf->m_Restitution;
+        data.m_Group = GetGroupBitIndex(world, resource->m_Group);
+        data.m_Mask = 0;
+        for (uint32_t i = 0; i < 16 && resource->m_Mask[i] != 0; ++i)
+        {
+            data.m_Mask |= GetGroupBitIndex(world, resource->m_Mask[i]);
+        }
+        if (physics_context->m_3D)
+        {
+            if (resource->m_TileGrid)
+            {
+                dmLogError("Collision objects in 3D can not have a tile grid as shape.");
+                return false;
+            }
+            dmPhysics::HWorld3D physics_world = world->m_World3D;
+            dmPhysics::HCollisionObject3D collision_object = dmPhysics::NewCollisionObject3D(physics_world, data, &resource->m_ConvexShapeResource->m_Shape3D, 1);
+            if (collision_object != 0x0)
+            {
+                if (component->m_Object3D != 0x0)
+                    dmPhysics::DeleteCollisionObject3D(physics_world, component->m_Object3D);
+                component->m_Object3D = collision_object;
+            }
+            else
+            {
+                return false;
+            }
+        }
+        else
+        {
+            dmPhysics::HWorld2D physics_world = world->m_World2D;
+            dmPhysics::HCollisionShape2D shape;
+            if (resource->m_TileGrid)
+            {
+                shape = resource->m_TileGridResource->m_GridShape;
+            }
+            else
+            {
+                shape = resource->m_ConvexShapeResource->m_Shape2D;
+            }
+            dmPhysics::HCollisionObject2D collision_object = dmPhysics::NewCollisionObject2D(physics_world, data, &shape, 1);
+            if (collision_object != 0x0)
+            {
+                if (component->m_Object2D != 0x0)
+                    dmPhysics::DeleteCollisionObject2D(physics_world, component->m_Object2D);
+                component->m_Object2D = collision_object;
+                if (component->m_Resource->m_TileGrid)
+                {
+                    TileGridResource* tile_grid_resource = component->m_Resource->m_TileGridResource;
+                    dmGameSystemDDF::TileGrid* tile_grid = tile_grid_resource->m_TileGrid;
+                    TileSetResource* tile_set_resource = tile_grid_resource->m_TileSet;
+                    dmGameSystemDDF::TileSet* tile_set = tile_set_resource->m_TileSet;
+                    uint32_t layer_count = tile_grid->m_Layers.m_Count;
+                    for (uint32_t i = 0; i < layer_count; ++i)
+                    {
+                        dmGameSystemDDF::TileLayer* layer = &tile_grid->m_Layers[i];
+                        uint32_t cell_count = layer->m_Cell.m_Count;
+                        for (uint32_t j = 0; j < cell_count; ++j)
+                        {
+                            dmGameSystemDDF::TileCell* cell = &layer->m_Cell[j];
+                            uint32_t tile = cell->m_Tile;
+                            if (tile_set->m_ConvexHulls[tile].m_Count > 0)
+                            {
+                                uint32_t cell_x = cell->m_X - tile_grid_resource->m_MinCellX;
+                                uint32_t cell_y = cell->m_Y - tile_grid_resource->m_MinCellY;
+                                dmPhysics::SetGridShapeHull(component->m_Object2D, shape, cell_y, cell_x, tile);
+                                uint16_t child = cell_x + tile_grid_resource->m_ColumnCount * cell_y;
+                                uint16_t group = GetGroupBitIndex(world, tile_set_resource->m_HullCollisionGroups[tile]);
+                                dmPhysics::SetCollisionObjectFilter(component->m_Object2D, 0, child, group, data.m_Mask);
+                            }
+                        }
+                    }
+                }
+            }
+            else
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
     dmGameObject::CreateResult CompCollisionObjectInit(const dmGameObject::ComponentInitParams& params)
     {
         PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
@@ -157,37 +247,10 @@ namespace dmGameSystem
         if (component->m_Object2D == 0)
         {
             World* world = (World*)params.m_World;
-            dmPhysics::CollisionObjectData data;
-            data.m_UserData = params.m_Instance;
-            data.m_Type = (dmPhysics::CollisionObjectType)component->m_Resource->m_DDF->m_Type;
-            data.m_Mass = component->m_Resource->m_DDF->m_Mass;
-            data.m_Friction = component->m_Resource->m_DDF->m_Friction;
-            data.m_Restitution = component->m_Resource->m_DDF->m_Restitution;
-            data.m_Group = GetGroupBitIndex(world, component->m_Resource->m_Group);
-            data.m_Mask = 0;
-            for (uint32_t i = 0; i < 16 && component->m_Resource->m_Mask[i] != 0; ++i)
+            if (!CreateCollisionObject(physics_context, world, params.m_Instance, component))
             {
-                data.m_Mask |= GetGroupBitIndex(world, component->m_Resource->m_Mask[i]);
+                return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
             }
-            if (physics_context->m_3D)
-            {
-                dmPhysics::HWorld3D physics_world = world->m_World3D;
-                component->m_Object3D = dmPhysics::NewCollisionObject3D(physics_world, data, &component->m_Resource->m_ConvexShape->m_Shape3D, 1);
-                if (component->m_Object3D != 0x0)
-                {
-                    return dmGameObject::CREATE_RESULT_OK;
-                }
-            }
-            else
-            {
-                dmPhysics::HWorld2D physics_world = world->m_World2D;
-                component->m_Object2D = dmPhysics::NewCollisionObject2D(physics_world, data, &component->m_Resource->m_ConvexShape->m_Shape2D, 1);
-                if (component->m_Object2D != 0x0)
-                {
-                    return dmGameObject::CREATE_RESULT_OK;
-                }
-            }
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -570,46 +633,13 @@ namespace dmGameSystem
     void CompCollisionObjectOnReload(const dmGameObject::ComponentOnReloadParams& params)
     {
         PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
-        CollisionObjectResource* co_resource = (CollisionObjectResource*) params.m_Resource;
         World* world = (World*)params.m_World;
         Component* component = (Component*)*params.m_UserData;
-        dmPhysics::CollisionObjectData data;
-        data.m_UserData = params.m_Instance;
-        data.m_Type = (dmPhysics::CollisionObjectType)co_resource->m_DDF->m_Type;
-        data.m_Mass = co_resource->m_DDF->m_Mass;
-        data.m_Friction = co_resource->m_DDF->m_Friction;
-        data.m_Restitution = co_resource->m_DDF->m_Restitution;
-        data.m_Group = GetGroupBitIndex(world, co_resource->m_Group);
-        data.m_Mask = 0;
-        for (uint32_t i = 0; i < 16 && co_resource->m_Mask[i] != 0; ++i)
+        component->m_Resource = (CollisionObjectResource*)params.m_Resource;
+        if (!CreateCollisionObject(physics_context, world, params.m_Instance, component))
         {
-            data.m_Mask |= GetGroupBitIndex(world, co_resource->m_Mask[i]);
-        }
-        bool result = false;
-        if (physics_context->m_3D)
-        {
-            dmPhysics::HWorld3D physics_world = world->m_World3D;
-            dmPhysics::HCollisionObject3D collision_object = dmPhysics::NewCollisionObject3D(physics_world, data, &co_resource->m_ConvexShape->m_Shape3D, 1);
-            if (collision_object != 0x0)
-            {
-                dmPhysics::DeleteCollisionObject3D(physics_world, component->m_Object3D);
-                component->m_Object3D = collision_object;
-                result = true;
-            }
-        }
-        else
-        {
-            dmPhysics::HWorld2D physics_world = world->m_World2D;
-            dmPhysics::HCollisionObject2D collision_object = dmPhysics::NewCollisionObject2D(physics_world, data, &co_resource->m_ConvexShape->m_Shape2D, 1);
-            if (collision_object != 0x0)
-            {
-                dmPhysics::DeleteCollisionObject2D(physics_world, component->m_Object2D);
-                component->m_Object2D = collision_object;
-                result = true;
-            }
-        }
-        if (!result)
             dmLogError("%s", "Could not recreate collision object component, not reloaded.");
+        }
     }
 
     uint16_t CompCollisionGetGroupBitIndex(void* world, uint64_t group_hash)

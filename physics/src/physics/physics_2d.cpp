@@ -294,7 +294,7 @@ namespace dmPhysics
 
     HCollisionShape2D NewGridShape2D(HHullSet2D hull_set,
                                      const Vectormath::Aos::Point3& position,
-                                     uint32_t cell_width, uint32_t cell_height,
+                                     float cell_width, float cell_height,
                                      uint32 row_count, uint32 column_count)
     {
         b2Vec2 p(position.getX(), position.getY());
