@@ -382,7 +382,7 @@ namespace dmPhysics
      */
     HCollisionShape2D NewGridShape2D(HHullSet2D hull_set,
                                      const Vectormath::Aos::Point3& position,
-                                     float cell_width, float cell_height,
+                                     uint32_t cell_width, uint32_t cell_height,
                                      uint32_t row_count, uint32_t column_count);
 
     /**

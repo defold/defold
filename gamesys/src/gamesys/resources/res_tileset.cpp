@@ -38,8 +38,8 @@ namespace dmGameSystem
             float* norm_points = new float[n_points * 2];
             for (uint32_t i = 0; i < n_points; ++i)
             {
-                norm_points[i*2] = points[i*2] * recip_tile_width - 0.5f;
-                norm_points[i*2+1] = points[i*2+1] * recip_tile_height - 0.5f;
+                norm_points[i*2] = (points[i*2] + 0.5f) * recip_tile_width - 0.5f;
+                norm_points[i*2+1] = (points[i*2+1] + 0.5f) * recip_tile_height - 0.5f;
             }
             tile_set->m_HullSet = dmPhysics::NewHullSet2D(norm_points, n_points, hull_descs, n_hulls);
             delete [] hull_descs;

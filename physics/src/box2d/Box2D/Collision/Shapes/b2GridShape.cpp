@@ -11,7 +11,7 @@ using namespace std;
 
 b2GridShape::b2GridShape(const b2HullSet* hullSet,
                          const b2Vec2 position,
-                         float cellWidth, float cellHeight,
+                         uint32 cellWidth, uint32 cellHeight,
                          uint32 rowCount, uint32 columnCount)
     : m_hullSet(hullSet),
       m_cellWidth(cellWidth), m_cellHeight(cellHeight),
@@ -23,7 +23,7 @@ b2GridShape::b2GridShape(const b2HullSet* hullSet,
 
     m_position = position;
     m_type = e_grid;
-    m_radius = b2_polygonRadius;
+    m_radius = 0.5f;
     m_filterPerChild = 1;
 }
 
@@ -133,6 +133,7 @@ void b2GridShape::GetPolygonShapeForCell(uint32 index, b2PolygonShape& polyShape
     }
 
     polyShape.Set(vertices, hull.m_Count);
+    polyShape.m_radius = m_radius;
 }
 
 void b2GridShape::SetCellHull(b2Body* body, uint32 row, uint32 column, uint32 hull)

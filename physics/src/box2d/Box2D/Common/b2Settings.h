@@ -50,7 +50,9 @@ typedef double float64;
 
 /// The maximum number of vertices on a convex polygon. You cannot increase
 /// this too much because b2BlockAllocator has a maximum object size.
-#define b2_maxPolygonVertices	16
+//#define b2_maxPolygonVertices   8
+// Defold modification
+#define b2_maxPolygonVertices   16
 
 /// This is used to fatten AABBs in the dynamic tree. This allows proxies
 /// to move by a small amount without triggering a tree adjustment.
@@ -73,7 +75,7 @@ typedef double float64;
 /// The radius of the polygon/edge shape skin. This should not be modified. Making
 /// this smaller means polygons will have an insufficient buffer for continuous collision.
 /// Making it larger may create artifacts for vertex collision.
-#define b2_polygonRadius		(2.0f * b2_linearSlop)
+#define b2_polygonRadius        (2.0f * b2_linearSlop)
 
 /// Maximum number of sub-steps per contact in continuous physics simulation.
 #define b2_maxSubSteps			8

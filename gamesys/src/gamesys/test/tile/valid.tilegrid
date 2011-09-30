@@ -1,6 +1,4 @@
 tile_set: "/tile/valid.tileset"
-cell_width: 16
-cell_height: 16
 layers
 {
     id: "layer1"

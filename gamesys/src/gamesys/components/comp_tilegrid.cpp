@@ -114,12 +114,12 @@ namespace dmGameSystem
         }
     }
 
-    void CalculateCellBounds(dmGameSystemDDF::TileCell* cell_ddf, dmGameSystemDDF::TileGrid* grid_ddf, float out_v[4])
+    void CalculateCellBounds(dmGameSystemDDF::TileCell* cell_ddf, dmGameSystemDDF::TileSet* tile_set, float out_v[4])
     {
-        out_v[0] = grid_ddf->m_CellWidth * cell_ddf->m_X;
-        out_v[1] = grid_ddf->m_CellHeight * cell_ddf->m_Y;
-        out_v[2] = out_v[0] + grid_ddf->m_CellWidth;
-        out_v[3] = out_v[1] + grid_ddf->m_CellHeight;
+        out_v[0] = tile_set->m_TileWidth * cell_ddf->m_X;
+        out_v[1] = tile_set->m_TileHeight * cell_ddf->m_Y;
+        out_v[2] = out_v[0] + tile_set->m_TileWidth;
+        out_v[3] = out_v[1] + tile_set->m_TileHeight;
     }
 
     void CalculateTileTexCoords(uint32_t tile_index, dmGameSystemDDF::TileSet* tile_set_ddf, uint32_t tiles_per_row, float recip_tex_width, float recip_tex_height, float out_v[4])
@@ -212,7 +212,7 @@ namespace dmGameSystem
                         for (uint32_t k = 0; k < cell_count; ++k)
                         {
                             dmGameSystemDDF::TileCell* cell_ddf = &layer_ddf->m_Cell[k];
-                            CalculateCellBounds(cell_ddf, tile_grid_ddf, p);
+                            CalculateCellBounds(cell_ddf, tile_set_ddf, p);
                             CalculateTileTexCoords(cell_ddf->m_Tile, tile_set_ddf, tiles_per_row, recip_tex_width, recip_tex_height, t);
                             v->x = p[0]; v->y = p[1]; v->z = z; v->u = t[0]; v->v = t[1]; ++v;
                             v->x = p[0]; v->y = p[3]; v->z = z; v->u = t[0]; v->v = t[3]; ++v;

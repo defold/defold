@@ -51,7 +51,7 @@ class b2GridShape : public b2Shape
 public:
     b2GridShape(const b2HullSet* hullSet,
                 const b2Vec2 position,
-                float32 cellWidth, float32 cellHeight,
+                uint32 cellWidth, uint32 cellHeight,
                 uint32 rowCount, uint32 columnCount);
 
     virtual ~b2GridShape();
@@ -85,8 +85,8 @@ public:
     b2Vec2  m_position;
     Cell*   m_cells;
     const b2HullSet* m_hullSet;
-    float32 m_cellWidth;
-    float32 m_cellHeight;
+    uint32  m_cellWidth;
+    uint32  m_cellHeight;
     uint32  m_rowCount;
     uint32  m_columnCount;
 };

@@ -20,7 +20,9 @@ namespace dmGameSystem
         if (dmResource::FACTORY_RESULT_OK == dmResource::Get(factory, tile_grid_ddf->m_TileSet, (void**)&tile_grid->m_TileSet))
         {
             tile_grid->m_TileGrid = tile_grid_ddf;
-            dmPhysics::HHullSet2D hull_set = tile_grid->m_TileSet->m_HullSet;
+            TileSetResource* tile_set = tile_grid->m_TileSet;
+            dmGameSystemDDF::TileSet* tile_set_ddf = tile_set->m_TileSet;
+            dmPhysics::HHullSet2D hull_set = tile_set->m_HullSet;
             if (hull_set != 0x0)
             {
                 // Calculate AABB for offset
@@ -51,8 +53,8 @@ namespace dmGameSystem
                 }
                 if (total_cell_count > 0)
                 {
-                    float cell_width = tile_grid_ddf->m_CellWidth;
-                    float cell_height = tile_grid_ddf->m_CellHeight;
+                    uint32_t cell_width = tile_set_ddf->m_TileWidth;
+                    uint32_t cell_height = tile_set_ddf->m_TileHeight;
                     tile_grid->m_ColumnCount = max_x - min_x;
                     tile_grid->m_MinCellX = min_x;
                     tile_grid->m_MinCellY = min_y;

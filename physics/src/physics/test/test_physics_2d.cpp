@@ -161,6 +161,7 @@ TYPED_TEST(PhysicsTest, GridShapePolygon)
     int32_t columns = 10;
     int32_t cell_width = 16;
     int32_t cell_height = 16;
+    float grid_radius = 0.5f;
 
     for (int32_t j = 0; j < columns; ++j)
     {
@@ -240,7 +241,7 @@ TYPED_TEST(PhysicsTest, GridShapePolygon)
         if (j == 0)
         {
             // Box should fall through last row to next
-            ASSERT_NEAR(16.0f + 0.5f, vo_b.m_Position.getY(), 0.05f);
+            ASSERT_NEAR(16.0f + grid_radius + 0.5f, vo_b.m_Position.getY(), 0.05f);
             ASSERT_EQ(0xffff, vo_a.m_FirstCollisionGroup);
         }
         else
@@ -250,18 +251,18 @@ TYPED_TEST(PhysicsTest, GridShapePolygon)
             if (j == columns - 1)
             {
                 // Special case for last cell, the smaller hull
-                ASSERT_NEAR(24.0f + 0.5f, vo_b.m_Position.getY(), 0.05f);
+                ASSERT_NEAR(24.0f + grid_radius + 0.5f, vo_b.m_Position.getY(), 0.05f);
             }
             else if (j == columns - 2)
             {
                 // Special case for the cell just before the last cell. The cell is removed
                 // and the box should fall-through
-                ASSERT_NEAR(16.0f + 0.5f, vo_b.m_Position.getY(), 0.05f);
+                ASSERT_NEAR(16.0f + grid_radius + 0.5f, vo_b.m_Position.getY(), 0.05f);
             }
             else
             {
                 // "General" case
-                ASSERT_NEAR(32.0f + 0.5f, vo_b.m_Position.getY(), 0.05f);
+                ASSERT_NEAR(32.0f + grid_radius + 0.5f, vo_b.m_Position.getY(), 0.05f);
             }
 
             if (j == columns - 2)
