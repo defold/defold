@@ -140,8 +140,8 @@ void b2ContactManager::Collide()
 			c->m_flags &= ~b2Contact::e_filterFlag;
 		}
 
-		bool activeA = bodyA->IsAwake() && bodyA->m_type != b2_staticBody;
-		bool activeB = bodyB->IsAwake() && bodyB->m_type != b2_staticBody;
+		bool activeA = (bodyA->IsAwake() || bodyA->GetType() == b2_kinematicBody) && bodyA->m_type != b2_staticBody;
+		bool activeB = (bodyB->IsAwake() || bodyB->GetType() == b2_kinematicBody) && bodyB->m_type != b2_staticBody;
 
 		// At least one body must be awake and it must be dynamic or kinematic.
 		if (activeA == false && activeB == false)
@@ -241,13 +241,6 @@ void b2ContactManager::AddPair(void* proxyUserDataA, void* proxyUserDataB)
 	if (c == NULL)
 	{
 		return;
-	}
-
-	// Defold modification
-	// Disable contacts without any dynamic bodies to avoid solving for them (see above)
-	if (bodyA->GetType() != b2_dynamicBody && bodyB->GetType() != b2_dynamicBody)
-	{
-	    c->SetEnabled(false);
 	}
 
 	// Contact creation may swap fixtures.

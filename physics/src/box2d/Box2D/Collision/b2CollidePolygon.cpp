@@ -215,6 +215,7 @@ void b2CollidePolygons(b2Manifold* manifold,
 	const float32 k_relativeTol = 0.98f;
 	const float32 k_absoluteTol = 0.001f;
 
+	float max_separation = 0.0f;
 	if (separationB > k_relativeTol * separationA + k_absoluteTol)
 	{
 		poly1 = polyB;
@@ -222,6 +223,7 @@ void b2CollidePolygons(b2Manifold* manifold,
 		xf1 = xfB;
 		xf2 = xfA;
 		edge1 = edgeB;
+		max_separation = separationB;
 		manifold->type = b2Manifold::e_faceB;
 		flip = 1;
 	}
@@ -232,6 +234,7 @@ void b2CollidePolygons(b2Manifold* manifold,
 		xf1 = xfA;
 		xf2 = xfB;
 		edge1 = edgeA;
+		max_separation = separationA;
 		manifold->type = b2Manifold::e_faceA;
 		flip = 0;
 	}
@@ -298,6 +301,7 @@ void b2CollidePolygons(b2Manifold* manifold,
 		if (separation <= totalRadius)
 		{
 			b2ManifoldPoint* cp = manifold->points + pointCount;
+			cp->distance = -max_separation;
 			cp->localPoint = b2MulT(xf2, clipPoints2[i].v);
 			cp->id = clipPoints2[i].id;
 			if (flip)

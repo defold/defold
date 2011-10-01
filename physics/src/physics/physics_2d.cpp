@@ -96,21 +96,25 @@ namespace dmPhysics
                 {
                     b2WorldManifold world_manifold;
                     contact->GetWorldManifold(&world_manifold);
-                    ContactPoint cp;
-                    cp.m_PositionA = Vectormath::Aos::Point3(world_manifold.points[0].x, world_manifold.points[0].y, 0.0f);
-                    cp.m_PositionB = Vectormath::Aos::Point3(world_manifold.points[1].x, world_manifold.points[1].y, 0.0f);
-                    cp.m_UserDataA = fixture_a->GetBody()->GetUserData();
-                    cp.m_UserDataB = fixture_b->GetBody()->GetUserData();
-                    cp.m_Normal = Vectormath::Aos::Vector3(world_manifold.normal.x, world_manifold.normal.y, 0.0f);
-                    b2Vec2 rv = fixture_b->GetBody()->GetLinearVelocity() - fixture_a->GetBody()->GetLinearVelocity();
-                    cp.m_RelativeVelocity = Vectormath::Aos::Vector3(rv.x, rv.y, 0.0f);
-                    cp.m_Distance = Vectormath::Aos::dist(cp.m_PositionA, cp.m_PositionB);
-                    cp.m_AppliedImpulse = impulse->normalImpulses[0];
-                    cp.m_InvMassA = 1.0f / fixture_a->GetBody()->GetMass();
-                    cp.m_InvMassB = 1.0f / fixture_b->GetBody()->GetMass();
-                    cp.m_GroupA = fixture_a->GetFilterData(index_a).categoryBits;
-                    cp.m_GroupB = fixture_b->GetFilterData(index_b).categoryBits;
-                    contact_point_callback(cp, m_TempStepWorldContext->m_ContactPointUserData);
+                    int32 n_p = contact->GetManifold()->pointCount;
+                    for (int32 i = 0; i < n_p; ++i)
+                    {
+                        ContactPoint cp;
+                        cp.m_PositionA = Vectormath::Aos::Point3(world_manifold.points[i].x, world_manifold.points[i].y, 0.0f);
+                        cp.m_PositionB = Vectormath::Aos::Point3(world_manifold.points[i].x, world_manifold.points[i].y, 0.0f);
+                        cp.m_UserDataA = fixture_a->GetBody()->GetUserData();
+                        cp.m_UserDataB = fixture_b->GetBody()->GetUserData();
+                        cp.m_Normal = Vectormath::Aos::Vector3(world_manifold.normal.x, world_manifold.normal.y, 0.0f);
+                        b2Vec2 rv = fixture_b->GetBody()->GetLinearVelocity() - fixture_a->GetBody()->GetLinearVelocity();
+                        cp.m_RelativeVelocity = Vectormath::Aos::Vector3(rv.x, rv.y, 0.0f);
+                        cp.m_Distance = contact->GetManifold()->points[i].distance;
+                        cp.m_AppliedImpulse = impulse->normalImpulses[0];
+                        cp.m_InvMassA = 1.0f / fixture_a->GetBody()->GetMass();
+                        cp.m_InvMassB = 1.0f / fixture_b->GetBody()->GetMass();
+                        cp.m_GroupA = fixture_a->GetFilterData(index_a).categoryBits;
+                        cp.m_GroupB = fixture_b->GetFilterData(index_b).categoryBits;
+                        contact_point_callback(cp, m_TempStepWorldContext->m_ContactPointUserData);
+                    }
                 }
             }
         }

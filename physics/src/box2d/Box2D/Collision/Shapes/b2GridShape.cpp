@@ -23,7 +23,7 @@ b2GridShape::b2GridShape(const b2HullSet* hullSet,
 
     m_position = position;
     m_type = e_grid;
-    m_radius = 0.5f;
+    m_radius = b2_polygonRadius;
     m_filterPerChild = 1;
 }
 
