@@ -224,6 +224,7 @@ void b2ContactManager::AddPair(void* proxyUserDataA, void* proxyUserDataB)
 	}
 
 	// Does a joint override collision? Is at least one body dynamic?
+	// Defold modification: Is at least one body dynamic or kinematic. We disable contacts with no dynamic body after creation below.
 	if (bodyB->ShouldCollide(bodyA) == false)
 	{
 		return;
@@ -240,6 +241,13 @@ void b2ContactManager::AddPair(void* proxyUserDataA, void* proxyUserDataB)
 	if (c == NULL)
 	{
 		return;
+	}
+
+	// Defold modification
+	// Disable contacts without any dynamic bodies to avoid solving for them (see above)
+	if (bodyA->GetType() != b2_dynamicBody && bodyB->GetType() != b2_dynamicBody)
+	{
+	    c->SetEnabled(false);
 	}
 
 	// Contact creation may swap fixtures.
