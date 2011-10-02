@@ -604,7 +604,7 @@ namespace dmGameSystem
                 dmPhysics::ApplyForce2D(component->m_Object2D, af->m_Force, af->m_Position);
             }
         }
-        if (params.m_Message->m_Id == dmHashString64(dmPhysicsDDF::RequestVelocity::m_DDFDescriptor->m_Name))
+        else if (params.m_Message->m_Id == dmHashString64(dmPhysicsDDF::RequestVelocity::m_DDFDescriptor->m_Name))
         {
             dmPhysicsDDF::VelocityResponse response;
             if (physics_context->m_3D)
@@ -626,6 +626,24 @@ namespace dmGameSystem
                 dmLogError("Could not send %s to component, result: %d.", dmPhysicsDDF::VelocityResponse::m_DDFDescriptor->m_Name, result);
                 return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
             }
+        }
+        else if (params.m_Message->m_Id == dmHashString64(dmPhysicsDDF::SetGridShapeHull::m_DDFDescriptor->m_Name))
+        {
+            if (physics_context->m_3D)
+            {
+                dmLogError("Grid shape hulls can only be set for 2D physics.");
+                return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+            }
+            if (component->m_Resource->m_TileGrid == 0)
+            {
+                dmLogError("Hulls can only be set for collision objects with tile grids as shape.");
+                return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+            }
+            dmPhysicsDDF::SetGridShapeHull* ddf = (dmPhysicsDDF::SetGridShapeHull*) params.m_Message->m_Data;
+            uint32_t column = ddf->m_Column;
+            uint32_t row = ddf->m_Row;
+            uint32_t hull = ddf->m_Hull;
+            dmPhysics::SetGridShapeHull(component->m_Object2D, component->m_Resource->m_TileGridResource->m_GridShape, row, column, hull);
         }
         return dmGameObject::UPDATE_RESULT_OK;
     }

@@ -43,6 +43,7 @@
 
 #include "camera_ddf.h"
 #include "physics_ddf.h"
+#include "tile_ddf.h"
 
 namespace dmGameSystem
 {
@@ -64,11 +65,13 @@ namespace dmGameSystem
         dmScript::RegisterDDFType(script_context, dmPhysicsDDF::ApplyForce::m_DDFDescriptor);
         dmScript::RegisterDDFType(script_context, dmPhysicsDDF::CollisionResponse::m_DDFDescriptor);
         dmScript::RegisterDDFType(script_context, dmPhysicsDDF::ContactPointResponse::m_DDFDescriptor);
+        dmScript::RegisterDDFType(script_context, dmPhysicsDDF::SetGridShapeHull::m_DDFDescriptor);
         dmScript::RegisterDDFType(script_context, dmGameSystemDDF::Spawn::m_DDFDescriptor);
         dmScript::RegisterDDFType(script_context, dmGameSystemDDF::SetTimeStep::m_DDFDescriptor);
         dmScript::RegisterDDFType(script_context, dmGameSystemDDF::PlayAnimation::m_DDFDescriptor);
         dmScript::RegisterDDFType(script_context, dmGameSystemDDF::AnimationDone::m_DDFDescriptor);
         dmScript::RegisterDDFType(script_context, dmGameSystemDDF::PlaySound::m_DDFDescriptor);
+        dmScript::RegisterDDFType(script_context, dmGameSystemDDF::SetTile::m_DDFDescriptor);
     }
 
     dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory, dmRender::HRenderContext render_context, GuiContext* gui_context, dmInput::HContext input_context, PhysicsContext* physics_context)
@@ -216,7 +219,7 @@ namespace dmGameSystem
         REGISTER_COMPONENT_TYPE("tilegridc", 1200, render_context,
                 CompTileGridNewWorld, CompTileGridDeleteWorld,
                 CompTileGridCreate, CompTileGridDestroy, 0, 0,
-                CompTileGridUpdate, 0, CompTileGridOnMessage, 0, 0);
+                CompTileGridUpdate, 0, CompTileGridOnMessage, 0, CompTileGridOnReload);
 
         #undef REGISTER_COMPONENT_TYPE
 

@@ -20,6 +20,7 @@ namespace dmGameSystem
         dmGameSystemDDF::TileGrid*      m_TileGrid;
         dmPhysics::HCollisionShape2D    m_GridShape;
         uint32_t                        m_ColumnCount;
+        uint32_t                        m_RowCount;
         int32_t                         m_MinCellX;
         int32_t                         m_MinCellY;
     };

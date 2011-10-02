@@ -10,16 +10,20 @@ namespace dmGameSystem
 {
     struct TileGrid
     {
-        TileGrid(dmGameObject::HInstance instance, TileGridResource* tile_grid_resource)
+        struct Layer
         {
-            m_Instance = instance;
-            m_TileGridResource = tile_grid_resource;
-        }
+            dmhash_t    m_Id;
+            uint32_t    m_Visible : 1;
+        };
 
-        dmGameObject::HInstance     m_Instance;
-        TileGridResource*           m_TileGridResource;
+        TileGrid();
+
         // TODO: Batch multiple grids into shared ROs
         dmRender::RenderObject      m_RenderObject;
+        dmArray<Layer>              m_Layers;
+        dmGameObject::HInstance     m_Instance;
+        TileGridResource*           m_TileGridResource;
+        uint16_t*                   m_Cells;
     };
 
     struct TileGridWorld
@@ -50,6 +54,8 @@ namespace dmGameSystem
     dmGameObject::UpdateResult CompTileGridUpdate(const dmGameObject::ComponentsUpdateParams& params);
 
     dmGameObject::UpdateResult CompTileGridOnMessage(const dmGameObject::ComponentOnMessageParams& params);
+
+    void CompTileGridOnReload(const dmGameObject::ComponentOnReloadParams& params);
 }
 
 #endif

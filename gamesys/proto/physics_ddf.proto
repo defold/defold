@@ -227,3 +227,11 @@ message VelocityResponse
     required dmMath.Vector3 linear_velocity     = 1;
     required dmMath.Vector3 angular_velocity    = 2;
 }
+
+// System message (TileGrid=>CollisionObject)
+message SetGridShapeHull
+{
+    required uint32 row = 1;
+    required uint32 column = 2;
+    required uint32 hull = 3;
+}

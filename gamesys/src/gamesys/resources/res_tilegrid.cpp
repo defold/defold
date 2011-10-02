@@ -56,11 +56,12 @@ namespace dmGameSystem
                     uint32_t cell_width = tile_set_ddf->m_TileWidth;
                     uint32_t cell_height = tile_set_ddf->m_TileHeight;
                     tile_grid->m_ColumnCount = max_x - min_x;
+                    tile_grid->m_RowCount = max_y - min_y;
                     tile_grid->m_MinCellX = min_x;
                     tile_grid->m_MinCellY = min_y;
                     offset.setX(cell_width * 0.5f * (min_x + max_x));
                     offset.setY(cell_height * 0.5f * (min_y + max_y));
-                    tile_grid->m_GridShape = dmPhysics::NewGridShape2D(hull_set, offset, cell_width, cell_height, max_y - min_y, tile_grid->m_ColumnCount);
+                    tile_grid->m_GridShape = dmPhysics::NewGridShape2D(hull_set, offset, cell_width, cell_height, tile_grid->m_RowCount, tile_grid->m_ColumnCount);
                     return true;
                 }
             }

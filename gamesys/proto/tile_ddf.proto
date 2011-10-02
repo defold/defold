@@ -51,3 +51,39 @@ message TileGrid
     required string tile_set    = 1 [(resource)=true];
     repeated TileLayer layers   = 2;
 }
+
+/*# changes a tile in a tile grid
+ * Send this message to a tile grid component to change the tile in one of its cells.
+ *
+ * @examples
+ * This example demonstrates how to clear the tile above the instance when it collides with that tile from underneath,
+ * i.e. the same thing that would happen in Super Mario Bros.
+ *
+ * Assuming the instance we collide with has a tile-grid-component with id "tilegrid", which has a layer with id "layer1":
+ * <pre>
+ * function on_message(self, message_id, message, sender)
+ *     if message_id == hash("contact_point_response") then
+ *         -- check if the normal points down-wards
+ *         if message.normal.y < -0.5 then
+ *             msg.post(msg.url(nil, message.other_id, "tilegrid"), "set_tile", {layer_id = hash("layer1"), position = go.get_position(), dy = 1})
+ *         end
+ *     end
+ * end
+ * </pre>
+ *
+ * @message
+ * @name set_tile
+ * @param layer_id id of the layer for which to change a tile
+ * @param position the position of the cell for which to change the tile (world space)
+ * @param tile index of the tile to change to in the tile set, 1 for the first tile and 0 to clear the tile (0 by default)
+ * @param dx horizontal offset from the supplied position to the requested cell (grid space, 0 by default)
+ * @param dy vertical offset from the supplied position to the requested cell (grid space, 0 by default)
+ */
+message SetTile
+{
+    required uint64 layer_id        = 1;
+    required dmMath.Point3 position = 2;
+    optional uint32 tile            = 3 [default = 0];
+    optional uint32 dx              = 4 [default = 0];
+    optional uint32 dy              = 5 [default = 0];
+}
