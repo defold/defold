@@ -198,7 +198,7 @@ ResourceFailParams invalid_collision_object_resources[] =
 };
 INSTANTIATE_TEST_CASE_P(CollisionObject, ResourceFailTest, ::testing::ValuesIn(invalid_collision_object_resources));
 
-const char* valid_collision_object_gos[] = {"/collision_object/valid_collision_object.goc"};
+const char* valid_collision_object_gos[] = {"/collision_object/valid_collision_object.goc", "/collision_object/valid_tilegrid.goc"};
 INSTANTIATE_TEST_CASE_P(CollisionObject, ComponentTest, ::testing::ValuesIn(valid_collision_object_gos));
 
 const char* invalid_collision_object_gos[] =
@@ -213,7 +213,7 @@ INSTANTIATE_TEST_CASE_P(CollisionObject, ComponentFailTest, ::testing::ValuesIn(
 const char* valid_cs_resources[] =
 {
     "/convex_shape/box.convexshapec",
-    "/convex_shape/capsule.convexshapec",
+    /*"/convex_shape/capsule.convexshapec",*/ // Temporarily disabling capsule since we are more interested in 2D atm
     "/convex_shape/hull.convexshapec",
     "/convex_shape/sphere.convexshapec",
 };
@@ -474,7 +474,7 @@ INSTANTIATE_TEST_CASE_P(TileSet, ResourceTest, ::testing::ValuesIn(valid_tileset
 const char* valid_tilegrid_resources[] = {"/tile/valid.tilegridc"};
 INSTANTIATE_TEST_CASE_P(TileGrid, ResourceTest, ::testing::ValuesIn(valid_tilegrid_resources));
 
-const char* valid_tileset_gos[] = {"/tile/valid_tilegrid.goc"};
+const char* valid_tileset_gos[] = {"/tile/valid_tilegrid.goc", "/tile/valid_tilegrid_collisionobject.goc"};
 INSTANTIATE_TEST_CASE_P(TileSet, ComponentTest, ::testing::ValuesIn(valid_tileset_gos));
 
 /* Texture */

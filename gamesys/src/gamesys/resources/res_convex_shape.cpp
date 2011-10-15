@@ -83,7 +83,7 @@ namespace dmGameSystem
                     {
                         data_2d[i] = convex_shape->m_Data[i/2*3 + i%2];
                     }
-                    resource->m_Shape2D = dmPhysics::NewPolygonShape2D(data_2d, data_size);
+                    resource->m_Shape2D = dmPhysics::NewPolygonShape2D(data_2d, data_size/2);
                     delete [] data_2d;
                 }
             }

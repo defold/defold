@@ -122,20 +122,22 @@ namespace dmGameSystem
             dmResource::SResourceDescriptor* resource,
             const char* filename)
     {
-        TileGridResource* tile_grid = (TileGridResource*)resource->m_Resource;
-        TileGridResource tmp_tile_grid;
-        if (AcquireResources(factory, buffer, buffer_size, &tmp_tile_grid, filename))
-        {
-            ReleaseResources(factory, tile_grid);
-            tile_grid->m_TileGrid = tmp_tile_grid.m_TileGrid;
-            tile_grid->m_TileSet = tmp_tile_grid.m_TileSet;
-            tile_grid->m_GridShape = tmp_tile_grid.m_GridShape;
-            return dmResource::CREATE_RESULT_OK;
-        }
-        else
-        {
-            ReleaseResources(factory, &tmp_tile_grid);
-            return dmResource::CREATE_RESULT_UNKNOWN;
-        }
+        // TODO: Reload is temporarily disabled until issue 678 is fixed
+//        TileGridResource* tile_grid = (TileGridResource*)resource->m_Resource;
+//        TileGridResource tmp_tile_grid;
+//        if (AcquireResources(factory, buffer, buffer_size, &tmp_tile_grid, filename))
+//        {
+//            ReleaseResources(factory, tile_grid);
+//            tile_grid->m_TileGrid = tmp_tile_grid.m_TileGrid;
+//            tile_grid->m_TileSet = tmp_tile_grid.m_TileSet;
+//            tile_grid->m_GridShape = tmp_tile_grid.m_GridShape;
+//            return dmResource::CREATE_RESULT_OK;
+//        }
+//        else
+//        {
+//            ReleaseResources(factory, &tmp_tile_grid);
+//            return dmResource::CREATE_RESULT_UNKNOWN;
+//        }
+                    return dmResource::CREATE_RESULT_OK;
     }
 }

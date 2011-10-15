@@ -113,8 +113,8 @@ void GamesysTest<T>::SetUp()
     m_InputContext = dmInput::NewContext(input_params);
 
     memset(&m_PhysicsContext, 0, sizeof(m_PhysicsContext));
-    m_PhysicsContext.m_3D = true;
-    m_PhysicsContext.m_Context3D = dmPhysics::NewContext3D(dmPhysics::NewContextParams());
+    m_PhysicsContext.m_3D = false;
+    m_PhysicsContext.m_Context2D = dmPhysics::NewContext2D(dmPhysics::NewContextParams());
 
     memset(&m_EmitterContext, 0, sizeof(m_EmitterContext));
     m_EmitterContext.m_RenderContext = m_RenderContext;
