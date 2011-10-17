@@ -6,6 +6,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
+import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -21,6 +22,11 @@ import org.eclipse.core.commands.operations.IUndoContext;
 import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
+import org.eclipse.core.resources.IResource;
+import org.eclipse.core.resources.IResourceChangeEvent;
+import org.eclipse.core.resources.IResourceDelta;
+import org.eclipse.core.resources.IResourceDeltaVisitor;
+import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IAdaptable;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
@@ -54,7 +60,7 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
     private final ILogger logger;
     private final IContainer contentRoot;
     private TileSetModel tileSetModel;
-    private int selectedLayer;
+    private Layer selectedLayer;
 
     private List<Layer> layers = new ArrayList<Layer>();
 
@@ -147,29 +153,88 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
             firePropertyChangeEvent(new PropertyChangeEvent(this, "layers", oldLayers, layers));
     }
 
-    public int getSelectedLayer() {
+    public Layer createLayer() {
+        Layer layer = new Layer();
+        String pattern = "layer{0}";
+        List<String> layerIds = new ArrayList<String>(this.layers.size());
+        for (Layer l : this.layers) {
+            layerIds.add(l.getId());
+        }
+        int i = 1;
+        String layerId = MessageFormat.format(pattern, i++);
+        while (layerIds.contains(layerId)) {
+            layerId = MessageFormat.format(pattern, i++);
+        }
+        layer.setId(layerId);
+        return layer;
+    }
+
+    public void addLayer(Layer layer) {
+        if (!this.layers.contains(layer)) {
+            layer.setGridModel(this);
+            List<Layer> oldLayers = this.layers;
+            this.layers = new ArrayList<Layer>(oldLayers);
+            this.layers.add(layer);
+            Collections.sort(this.layers);
+            firePropertyChangeEvent(new PropertyChangeEvent(this, "layers", oldLayers, this.layers));
+            setSelectedLayer(layer);
+        }
+    }
+
+    public void removeLayer(Layer layer) {
+        if (this.layers.contains(layer)) {
+            List<Layer> oldLayers = this.layers;
+            this.layers = new ArrayList<Layer>(oldLayers);
+            this.layers.remove(layer);
+            firePropertyChangeEvent(new PropertyChangeEvent(this, "layers", oldLayers, this.layers));
+            if (this.selectedLayer == layer) {
+                if (this.layers.size() > 0) {
+                    setSelectedLayer(this.layers.get(0));
+                } else {
+                    setSelectedLayer(null);
+                }
+            }
+        }
+    }
+
+    public void sortLayers() {
+        List<Layer> oldLayers = new ArrayList<Layer>(this.layers);
+        Collections.sort(this.layers);
+        if (!oldLayers.equals(this.layers)) {
+            firePropertyChangeEvent(new PropertyChangeEvent(this, "layers", oldLayers, this.layers));
+        }
+    }
+
+    public Layer getSelectedLayer() {
         return this.selectedLayer;
     }
 
+    public void setSelectedLayer(Layer selectedLayer) {
+        if (this.selectedLayer != selectedLayer) {
+            Layer oldSelectedLayer = this.selectedLayer;
+            this.selectedLayer = selectedLayer;
+            firePropertyChangeEvent(new PropertyChangeEvent(this, "selectedLayer", oldSelectedLayer, this.selectedLayer));
+        }
+    }
+
     public Map<Long, Cell> getCells() {
-        return this.layers.get(this.selectedLayer).getCells();
+        return this.selectedLayer.getCells();
     }
 
     public void setCells(Map<Long, Cell> cells) {
-        Layer layer = this.layers.get(this.selectedLayer);
-        Map<Long, Cell> oldCells = layer.getCells();
+        Map<Long, Cell> oldCells = this.selectedLayer.getCells();
         if (!oldCells.equals(cells)) {
-            layer.setCells(cells);
-            firePropertyChangeEvent(new PropertyChangeEvent(layer, "cells", oldCells, cells));
+            this.selectedLayer.setCells(cells);
+            firePropertyChangeEvent(new PropertyChangeEvent(this.selectedLayer, "cells", oldCells, cells));
         }
     }
 
     public Cell getCell(long cellIndex) {
-        return this.layers.get(this.selectedLayer).getCell(cellIndex);
+        return this.selectedLayer.getCell(cellIndex);
     }
 
     public void setCell(long cellIndex, Cell cell) {
-        this.layers.get(this.selectedLayer).setCell(cellIndex, cell);
+        this.selectedLayer.setCell(cellIndex, cell);
     }
 
     public void load(InputStream is) {
@@ -194,6 +259,11 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
                 layers.add(layer);
             }
             setLayers(layers);
+            if (layers.size() > 0) {
+                setSelectedLayer(layers.get(0));
+            } else {
+                setSelectedLayer(null);
+            }
         } catch (IOException e) {
             logger.logException(e);
         }
@@ -257,6 +327,42 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
 
         if (status != Status.OK_STATUS) {
             this.logger.logException(status.getException());
+        }
+    }
+
+    public boolean handleResourceChanged(IResourceChangeEvent event) throws CoreException, IOException {
+        if (this.tileSetModel != null && this.tileSetModel.handleResourceChanged(event)) {
+            return true;
+        } else {
+            if (this.tileSet != null && this.tileSet.length() > 0) {
+                final IFile file = this.contentRoot.getFile(new Path(this.tileSet));
+                final boolean[] reload = new boolean[] {false};
+
+                try {
+                    event.getDelta().accept(new IResourceDeltaVisitor() {
+
+                        @Override
+                        public boolean visit(IResourceDelta delta) throws CoreException {
+                            IResource resource = delta.getResource();
+
+                            if (file.equals(resource)) {
+                                reload[0] = true;
+                                return false;
+                            }
+                            return true;
+                        }
+                    });
+                } catch (CoreException e) {
+                    this.logger.logException(e);
+                }
+
+                if (reload[0]) {
+                    this.tileSetModel.load(file.getContents());
+                }
+                return reload[0];
+            } else {
+                return false;
+            }
         }
     }
 

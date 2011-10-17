@@ -18,10 +18,15 @@ import org.eclipse.core.commands.operations.IOperationHistory;
 import org.eclipse.core.commands.operations.IOperationHistoryListener;
 import org.eclipse.core.commands.operations.IUndoContext;
 import org.eclipse.core.commands.operations.OperationHistoryEvent;
+import org.eclipse.core.resources.IResourceChangeEvent;
+import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
+import org.eclipse.swt.graphics.Rectangle;
 
 import com.dynamo.cr.tileeditor.core.Layer.Cell;
+import com.dynamo.cr.tileeditor.operations.AddLayerOperation;
+import com.dynamo.cr.tileeditor.operations.RemoveLayerOperation;
 import com.dynamo.cr.tileeditor.operations.SetCellsOperation;
 
 public class GridPresenter implements IGridView.Presenter, PropertyChangeListener, IOperationHistoryListener {
@@ -135,6 +140,9 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
                     }
                 } else if (propName.equals("layers")) {
                     this.view.setLayers((List<Layer>)evt.getNewValue());
+                } else if (propName.equals("selectedLayer")) {
+                    Layer selectedLayer = (Layer)evt.getNewValue();
+                    this.view.setSelectedLayer(this.model.getLayers().indexOf(selectedLayer));
                 }
             } else if (source instanceof Layer) {
                 if (propName.equals("cells")) {
@@ -156,6 +164,21 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
     }
 
     @Override
+    public void onAddLayer() {
+        this.model.executeOperation(new AddLayerOperation(this.model));
+    }
+
+    @Override
+    public void onSelectLayer(int index) {
+        this.model.setSelectedLayer(this.model.getLayers().get(index));
+    }
+
+    @Override
+    public void onRemoveLayer() {
+        this.model.executeOperation(new RemoveLayerOperation(this.model));
+    }
+
+    @Override
     public void onPaintBegin() {
         this.oldCells = new HashMap<Long, Layer.Cell>();
     }
@@ -172,7 +195,7 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
             if ((cell == null && oldCell != null) || (cell != null && !cell.equals(oldCell))) {
                 this.model.setCell(cellIndex, cell);
                 cell = this.model.getCell(cellIndex);
-                this.view.setCell(this.model.getSelectedLayer(), cellIndex, cell);
+                this.view.setCell(this.model.getLayers().indexOf(this.model.getSelectedLayer()), cellIndex, cell);
                 this.oldCells.put(cellIndex, oldCell);
             }
         }
@@ -218,6 +241,55 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
     }
 
     @Override
+    public void onPreviewFrame() {
+        TileSetModel tileSetModel = this.model.getTileSetModel();
+        if (tileSetModel != null) {
+            Vector2f dim = new Vector2f(this.model.getTileSetModel().getTileWidth(),
+                    this.model.getTileSetModel().getTileHeight());
+            Point2f bb_min = new Point2f(Float.MAX_VALUE, Float.MAX_VALUE);
+            Point2f bb_max = new Point2f(-Float.MAX_VALUE, -Float.MAX_VALUE);
+            for (Layer layer : this.model.getLayers()) {
+                for (Map.Entry<Long, Cell> entry : layer.getCells().entrySet()) {
+                    long index = entry.getKey().longValue();
+                    int x = Layer.toCellX(index);
+                    int y = Layer.toCellY(index);
+                    Vector2f p = new Vector2f(dim.getX() * x, dim.getY() * y);
+                    if (p.getX() < bb_min.getX()) {
+                        bb_min.setX(p.getX());
+                    }
+                    if (p.getY() < bb_min.getY()) {
+                        bb_min.setY(p.getY());
+                    }
+                    p.add(dim);
+                    if (p.getX() > bb_max.getX()) {
+                        bb_max.setX(p.getX());
+                    }
+                    if (p.getY() > bb_max.getY()) {
+                        bb_max.setY(p.getY());
+                    }
+                }
+            }
+            Vector2f bb_dim = new Vector2f(bb_max);
+            bb_dim.sub(bb_min);
+            this.previewPosition.set(bb_min);
+            this.previewPosition.scaleAdd(0.5f, bb_dim);
+            Rectangle clientRect = this.view.getPreviewRect();
+            Vector2f clientDim = new Vector2f(clientRect.width, clientRect.height);
+            clientDim.scale(0.8f);
+            this.previewZoom = Math.max(clientDim.getX() / bb_dim.getX(), clientDim.getY() / bb_dim.getY());
+            this.view.setPreview(this.previewPosition, this.previewZoom);
+        }
+    }
+
+    @Override
+    public void onPreviewResetZoom() {
+        if (this.previewZoom != 1.0f) {
+            this.previewZoom = 1.0f;
+            this.view.setPreview(this.previewPosition, this.previewZoom);
+        }
+    }
+
+    @Override
     public void onRefresh() {
         refresh();
     }
@@ -244,4 +316,12 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
             break;
         }
     }
+
+    @Override
+    public void onResourceChanged(IResourceChangeEvent e) throws CoreException, IOException {
+        if (this.model.handleResourceChanged(e)) {
+            refresh();
+        }
+    }
+
 }

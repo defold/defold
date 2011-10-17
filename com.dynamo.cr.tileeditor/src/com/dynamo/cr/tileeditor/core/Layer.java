@@ -3,17 +3,21 @@ package com.dynamo.cr.tileeditor.core;
 import java.beans.PropertyChangeEvent;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.eclipse.core.runtime.IAdaptable;
+import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Status;
 
 import com.dynamo.cr.properties.Entity;
 import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.PropertyIntrospectorModel;
+import com.dynamo.cr.tileeditor.Activator;
 
 @Entity(commandFactory = GridUndoableCommandFactory.class)
-public class Layer implements IAdaptable {
+public class Layer implements IAdaptable, Comparable<Layer> {
 
     public static class Cell {
 
@@ -88,6 +92,18 @@ public class Layer implements IAdaptable {
         }
     }
 
+    protected IStatus validateId() {
+        List<Layer> layers = this.gridModel.getLayers();
+        if (this.gridModel != null && layers.size() > 1) {
+            for (Layer layer : layers) {
+                if (layer != this && layer.getId().equals(this.id)) {
+                    return new Status(IStatus.ERROR, Activator.PLUGIN_ID, Messages.GRID_DUPLICATED_LAYER_IDS);
+                }
+            }
+        }
+        return Status.OK_STATUS;
+    }
+
     public float getZ() {
         return this.z;
     }
@@ -96,8 +112,10 @@ public class Layer implements IAdaptable {
         if (this.z != z) {
             float oldZ = this.z;
             this.z = z;
-            if (gridModel != null)
+            if (gridModel != null) {
                 gridModel.firePropertyChangeEvent(new PropertyChangeEvent(this, "z", oldZ, z));
+                gridModel.sortLayers();
+            }
         }
     }
 
@@ -172,6 +190,11 @@ public class Layer implements IAdaptable {
 
     public static int toCellY(long index) {
         return (int)(index >>> Integer.SIZE);
+    }
+
+    @Override
+    public int compareTo(Layer arg0) {
+        return (int)Math.signum(this.z - arg0.z);
     }
 
 }

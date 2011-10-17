@@ -9,6 +9,8 @@ import java.util.Map;
 
 import javax.vecmath.Point2f;
 
+import org.eclipse.core.resources.IResourceChangeEvent;
+import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.swt.graphics.Rectangle;
 
@@ -20,26 +22,34 @@ public interface IGridView {
 
         void onSelectTile(int tileIndex, boolean hFlip, boolean vFlip);
 
+        void onAddLayer();
+        void onSelectLayer(int index);
+        void onRemoveLayer();
+
         void onPaintBegin();
         void onPaint(int x, int y);
         void onPaintEnd();
 
         void onLoad(InputStream is);
-
         void onSave(OutputStream os, IProgressMonitor monitor) throws IOException;
 
         void onPreviewPan(int dx, int dy);
-
         void onPreviewZoom(int delta);
+        void onPreviewFrame();
+        void onPreviewResetZoom();
 
         void onRefresh();
 
         boolean isDirty();
+
+        void onResourceChanged(IResourceChangeEvent e) throws CoreException, IOException;
+
     }
 
     void setTileSet(BufferedImage image, int tileWidth, int tileHeight, int tileMargin, int tileSpacing);
 
     void setLayers(List<Layer> layers);
+    void setSelectedLayer(int index);
 
     void setCells(int layerIndex, Map<Long, Cell> cells);
 

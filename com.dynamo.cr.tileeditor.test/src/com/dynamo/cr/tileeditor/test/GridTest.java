@@ -9,6 +9,7 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyList;
+import static org.mockito.Matchers.anyListOf;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyMap;
 import static org.mockito.Matchers.eq;
@@ -33,6 +34,7 @@ import java.util.List;
 
 import javax.inject.Singleton;
 import javax.vecmath.Point2f;
+import javax.vecmath.Vector2f;
 
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.DefaultOperationHistory;
@@ -43,6 +45,9 @@ import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.IProjectDescription;
+import org.eclipse.core.resources.IResourceChangeEvent;
+import org.eclipse.core.resources.IResourceChangeListener;
+import org.eclipse.core.resources.IWorkspace;
 import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IPath;
@@ -52,6 +57,7 @@ import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.osgi.util.NLS;
 import org.eclipse.swt.graphics.Rectangle;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.osgi.framework.Bundle;
@@ -78,7 +84,7 @@ import com.google.inject.Guice;
 import com.google.inject.Injector;
 import com.google.protobuf.TextFormat;
 
-public class GridTest {
+public class GridTest implements IResourceChangeListener {
 
     private IGridView view;
     private IGridView.Presenter presenter;
@@ -120,7 +126,8 @@ public class GridTest {
     public void setup() throws CoreException, IOException {
         System.setProperty("java.awt.headless", "true");
 
-        this.project = ResourcesPlugin.getWorkspace().getRoot().getProject("test");
+        IWorkspace workspace = ResourcesPlugin.getWorkspace();
+        this.project = workspace.getRoot().getProject("test");
         if (this.project.exists()) {
             this.project.delete(true, null);
         }
@@ -156,6 +163,14 @@ public class GridTest {
         this.model = this.injector.getInstance(GridModel.class);
         this.presenter = this.injector.getInstance(IGridView.Presenter.class);
         this.propertyModel = (IPropertyModel<GridModel, GridModel>) this.model.getAdapter(IPropertyModel.class);
+
+        workspace.addResourceChangeListener(this);
+    }
+
+    @After
+    public void teardown() {
+        IWorkspace workspace = ResourcesPlugin.getWorkspace();
+        workspace.removeResourceChangeListener(this);
     }
 
     // Helpers
@@ -210,8 +225,17 @@ public class GridTest {
         newTileSet("/mario.tileset", "/mario_tileset.png", 1);
     }
 
+    private void setProperty(IPropertyModel<?,?> propertyModel, Object id, Object value) {
+        this.model.executeOperation(propertyModel.setPropertyValue(id, value));
+    }
+
     private void setGridProperty(Object id, Object value) throws ExecutionException {
-        this.model.executeOperation(this.propertyModel.setPropertyValue(id, value));
+        setProperty(this.propertyModel, id, value);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void setLayerProperty(Layer layer, Object id, Object value) {
+        setProperty((IPropertyModel<Layer, GridModel>)layer.getAdapter(IPropertyModel.class), id, value);
     }
 
     private String tileSet() {
@@ -244,6 +268,7 @@ public class GridTest {
 
         verify(this.view, never()).setTileSet(any(BufferedImage.class), anyInt(), anyInt(), anyInt(), anyInt());
         verify(this.view, times(1)).setLayers(anyList());
+        verify(this.view, never()).setSelectedLayer(anyInt());
         verify(this.view, never()).setCell(anyInt(), anyLong(), any(Cell.class));
         verify(this.view, times(1)).refreshProperties();
         verify(this.view, times(1)).setValidModel(eq(false));
@@ -277,24 +302,23 @@ public class GridTest {
     }
 
     /**
-     * Use Case 2.3.1 - Paint Tiles Into Cells
+     * Use Case 2.2.1 - Paint Tiles Into Cells
      * @throws Exception
      *
      * TODO: Not complete according to specs
      */
     @SuppressWarnings("unchecked")
     @Test
-    public void testUseCase231() throws Exception {
-        newMarioTileSet();
-        newGrid();
-
-        setGridProperty("tileSet", "/mario.tileset");
-
-        this.presenter.onSelectTile(1, false, false);
-        verify(this.view, times(1)).setSelectedTile(1, false, false);
+    public void testUseCase221() throws Exception {
+        testUseCase211();
 
         List<Layer> layers = this.model.getLayers();
         Layer layer = layers.get(0);
+
+        // Paint
+
+        this.presenter.onSelectTile(1, false, false);
+        verify(this.view, times(1)).setSelectedTile(1, false, false);
 
         this.presenter.onPaintBegin();
 
@@ -323,16 +347,132 @@ public class GridTest {
         assertThat(cellTile(layer, 0, 1), is(1));
         assertThat(cellTile(layer, 1, 1), is(1));
         verify(this.view, times(2)).setCells(eq(0), anyMap());
+
+        // Erase
+
+        this.presenter.onSelectTile(-1, false, false);
+        verify(this.view, times(1)).setSelectedTile(-1, false, false);
+
+        this.presenter.onPaintBegin();
+
+        this.presenter.onPaint(0,1);
+        this.presenter.onPaint(0,1);
+        assertThat(cellTile(layer, 0, 1), is(-1));
+        cellIndex = Layer.toCellIndex(0, 1);
+        verify(this.view, times(2)).setCell(eq(0), eq(cellIndex), any(Cell.class));
+
+        this.presenter.onPaintEnd();
+
+        verify(this.view, times(2)).setCells(eq(0), anyMap());
+
+        undo();
+        assertThat(cellTile(layer, 0, 1), is(1));
+        verify(this.view, times(3)).setCells(eq(0), anyMap());
+
+        redo();
+        assertThat(cellTile(layer, 0, 1), is(-1));
+        verify(this.view, times(4)).setCells(eq(0), anyMap());
     }
 
     /**
-     * Use Case 2.3.2 - Frame Camera
+     * Use Case 2.3.1 - Create a Layer
+     * @throws Exception
+     */
+    @Test
+    public void testUseCase231() throws Exception {
+        testUseCase211();
+
+        presenter.onAddLayer();
+        List<Layer> layers = this.model.getLayers();
+        assertEquals(2, layers.size());
+        Layer layer = layers.get(1);
+        assertEquals("layer2", layer.getId());
+        verify(this.view, times(2)).setLayers(anyListOf(Layer.class));
+        verify(this.view, times(1)).setSelectedLayer(1);
+
+        undo();
+        assertEquals(1, this.model.getLayers().size());
+        verify(this.view, times(1)).setSelectedLayer(0);
+
+        redo();
+        assertEquals(2, this.model.getLayers().size());
+        verify(this.view, times(2)).setSelectedLayer(1);
+
+        setLayerProperty(layer, "z", new Float(0.5f));
+        assertEquals("layer1", this.model.getLayers().get(0).getId());
+
+        setLayerProperty(layer, "z", new Float(-0.5f));
+        assertEquals("layer2", this.model.getLayers().get(0).getId());
+
+        undo();
+        assertEquals("layer1", this.model.getLayers().get(0).getId());
+
+        redo();
+        assertEquals("layer2", this.model.getLayers().get(0).getId());
+    }
+
+    /**
+     * Use Case 2.3.2 - Remove a Layer
      * @throws Exception
      */
     @Test
     public void testUseCase232() throws Exception {
         testUseCase231();
 
+        presenter.onSelectLayer(1);
+        presenter.onRemoveLayer();
+        assertEquals(1, this.model.getLayers().size());
+        assertEquals("layer2", this.model.getLayers().get(0).getId());
+
+        undo();
+        assertEquals(2, this.model.getLayers().size());
+
+        redo();
+        assertEquals(1, this.model.getLayers().size());
+    }
+
+    /**
+     * Use Case 2.4.1 - Reload Tile Set Image
+     * @throws Exception
+     */
+    @Test
+    public void testUseCase241() throws Exception {
+        testUseCase211();
+
+        verify(this.view, times(2)).setTileSet(any(BufferedImage.class), anyInt(), anyInt(), anyInt(), anyInt());
+
+        IFile originalImage = this.project.getFile("/mario_tileset.png");
+        IFile newImage = this.project.getFile("/mario_half_tileset.png");
+        originalImage.setContents(newImage.getContents(), false, true, null);
+
+        verify(this.view, times(3)).setTileSet(any(BufferedImage.class), anyInt(), anyInt(), anyInt(), anyInt());
+
+        originalImage.setContents(originalImage.getHistory(null)[0], false, false, null);
+
+        verify(this.view, times(4)).setTileSet(any(BufferedImage.class), anyInt(), anyInt(), anyInt(), anyInt());
+    }
+
+    /**
+     * Use Case 2.4.2 - Reload Tile Set
+     * @throws Exception
+     */
+    @Test
+    public void testUseCase242() throws Exception {
+        testUseCase211();
+
+        verify(this.view, times(2)).setTileSet(any(BufferedImage.class), anyInt(), anyInt(), anyInt(), anyInt());
+
+        newTileSet("/mario.tileset", "/mario_half_tileset.png", 1);
+
+        verify(this.view, times(3)).setTileSet(any(BufferedImage.class), anyInt(), anyInt(), anyInt(), anyInt());
+    }
+
+    /**
+     * Use Case 2.5.1 - Pan/Zoom Camera
+     * @throws Exception
+     */
+    @Test
+    public void testUseCase251() throws Exception {
         when(view.getPreviewRect()).thenReturn(new Rectangle(0, 0, 600, 400));
 
         this.presenter.onPreviewPan(10, 10);
@@ -343,6 +483,39 @@ public class GridTest {
         float scale = 1.0f - d * GridPresenter.ZOOM_FACTOR;
         verify(this.view, times(1)).setPreview(eq(new Point2f(10.0f, -10.0f)), eq(scale, 0.001f));
 
+    }
+
+    /**
+     * Use Case 2.5.2 - Frame Camera
+     * @throws Exception
+     */
+    @Test
+    public void testUseCase252() throws Exception {
+        testUseCase221();
+        testUseCase251();
+
+        this.presenter.onPreviewFrame();
+        int tileWidth = this.model.getTileSetModel().getTileWidth();
+        int tileHeight = this.model.getTileSetModel().getTileHeight();
+
+        Rectangle clientRect = this.view.getPreviewRect();
+        Vector2f clientDim = new Vector2f(clientRect.width, clientRect.height);
+        clientDim.scale(0.8f);
+        float zoom = Math.max(clientDim.getX() / tileWidth, clientDim.getY() / tileHeight);
+        verify(this.view, times(1)).setPreview(eq(new Point2f(tileWidth * 1.5f, tileHeight * 1.5f)), eq(zoom, 0.001f));
+    }
+
+    /**
+     * Use Case 2.5.3 - Reset Camera
+     * @throws Exception
+     */
+    @Test
+    public void testUseCase253() throws Exception {
+        testUseCase221();
+        testUseCase251();
+
+        this.presenter.onPreviewResetZoom();
+        verify(this.view, times(2)).setPreview(eq(new Point2f(10.0f, -10.0f)), eq(1.0f, 0.001f));
     }
 
     private void assertMessage(String expectedMessage, String property) {
@@ -437,36 +610,22 @@ public class GridTest {
 
     /**
      * Message 2.4 - Duplicated layer ids
-     * @throws IOException
-     * @throws CoreException
+     * @throws Exception
      */
     @Test
-    public void testMessage24() throws IOException, CoreException {
-        /*
-         * TODO
-        loadEmptyFile();
+    public void testMessage24() throws Exception {
+        testUseCase231();
 
-        int code = Activator.STATUS_GRID_DUPLICATED_LAYER_IDS;
-        List<GridModel.Layer> layers = new ArrayList<GridModel.Layer>();
-        GridModel.Layer layer1 = new GridModel.Layer();
-        layer1.setId("layer1");
-        GridModel.Layer layer1_dup = new GridModel.Layer();
-        layer1_dup.setId("layer1");
+        Layer layer = this.model.getLayers().get(0);
+        @SuppressWarnings("unchecked")
+        IPropertyModel<Layer, GridModel> propertyModel = (IPropertyModel<Layer, GridModel>)layer.getAdapter(IPropertyModel.class);
 
-        layers.add(layer1);
+        assertTrue(propertyModel.getPropertyStatus("id").isOK());
+        verify(this.view, times(17)).refreshProperties();
 
-        assertTrue(!this.model.hasPropertyStatus("layers", code));
-        this.model.executeOperation(propertyModel.setPropertyValue("layers", layers));
-        assertTrue(!this.model.hasPropertyStatus("layers", code));
-
-        layers.add(layer1_dup);
-        this.model.executeOperation(propertyModel.setPropertyValue("layers", layers));
-        assertEquals(Activator.getStatusMessage(code), this.model.getPropertyStatus("layers", code).getMessage());
-        assertTrue(this.model.hasPropertyStatus("layers", code));
-
-        layers.remove(0);
-        this.model.executeOperation(propertyModel.setPropertyValue("layers", layers));
-        assertTrue(!this.model.hasPropertyStatus("layers", code));*/
+        setProperty(propertyModel, "id", "layer1");
+        assertEquals(Messages.GRID_DUPLICATED_LAYER_IDS, propertyModel.getPropertyStatus("id").getMessage());
+        verify(this.view, times(18)).refreshProperties();
     }
 
     @Test
@@ -526,5 +685,16 @@ public class GridTest {
         TextFormat.merge(new StringReader(new String(os.toByteArray())), loadedTileGridBuilder);
         TileGrid loadedTileGrid = loadedTileGridBuilder.build();
         assertEquals(tileGrid, loadedTileGrid);
+    }
+
+    @Override
+    public void resourceChanged(IResourceChangeEvent event) {
+        if (this.presenter != null) {
+            try {
+                this.presenter.onResourceChanged(event);
+            } catch (Throwable e) {
+                throw new RuntimeException(e);
+            }
+        }
     }
 }

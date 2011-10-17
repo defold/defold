@@ -33,6 +33,12 @@ public class GridView implements IGridView {
     }
 
     @Override
+    public void setSelectedLayer(int index) {
+        // TODO Auto-generated method stub
+
+    }
+
+    @Override
     public void setCells(int layerIndex, Map<Long, Cell> cells) {
         this.renderer.setCells(layerIndex, cells);
     }
