@@ -23,6 +23,7 @@ import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.window.Window;
 import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Display;
 import org.eclipse.ui.IActionBars;
 import org.eclipse.ui.IEditorInput;
 import org.eclipse.ui.IEditorSite;
@@ -197,9 +198,20 @@ public class GridEditor extends AbstractDefoldEditor {
     }
 
     @Override
-    protected void handleResourceChanged(IResourceChangeEvent event) {
-        // TODO Auto-generated method stub
-
+    protected void handleResourceChanged(final IResourceChangeEvent event) {
+        if (!this.inSave) {
+            Display display= getSite().getShell().getDisplay();
+            display.asyncExec(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        presenter.onResourceChanged(event);
+                    } catch (Throwable e) {
+                        logger.logException(e);
+                    }
+                }
+            });
+        }
     }
 
     @Override
