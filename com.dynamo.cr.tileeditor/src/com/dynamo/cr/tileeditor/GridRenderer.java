@@ -819,6 +819,9 @@ Listener {
     }
 
     private void calculateCellBounds(Point2f outMin, Point2f outMax, Point2i outCellMin, Point2i outCellMax) {
+        if (this.scale == 0.0f || this.tileWidth == 0.0f || this.tileHeight == 0.0f) {
+            return;
+        }
         Vector2f offset = new Vector2f(this.position);
         offset.negate();
         Vector2f extent = new Vector2f(this.viewPort.get(2), this.viewPort.get(3));
