@@ -117,11 +117,11 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
             @SuppressWarnings("unchecked")
             IPropertyModel<TileSetModel, TileSetModel> propertyModel = (IPropertyModel<TileSetModel, TileSetModel>) this.tileSetModel.getAdapter(IPropertyModel.class);
             IStatus imageStatus = propertyModel.getPropertyStatus("image");
-            if (imageStatus == null || imageStatus.isOK()) {
-                return Status.OK_STATUS;
+            if (imageStatus != null && !imageStatus.isOK()) {
+                return new Status(IStatus.ERROR, Activator.PLUGIN_ID, Messages.GRID_INVALID_TILESET);
             }
         }
-        return new Status(IStatus.ERROR, Activator.PLUGIN_ID, Messages.GRID_INVALID_TILESET);
+        return Status.OK_STATUS;
     }
 
     public List<Layer> getLayers() {

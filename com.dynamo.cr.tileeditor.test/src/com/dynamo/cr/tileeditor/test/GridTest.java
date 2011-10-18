@@ -538,6 +538,23 @@ public class GridTest implements IResourceChangeListener {
         assertTrue(String.format("Expected message '%s' not present in status. Found %s", expectedMessage, found), false);
     }
 
+    private void assertMessageSeverity(int severity, String property) {
+        IStatus status = this.propertyModel.getPropertyStatus(property);
+        int maxSeverity = -1;
+        if (status.isMultiStatus()) {
+            for (IStatus s : status.getChildren()) {
+                if (s.getSeverity() > maxSeverity) {
+                    maxSeverity = s.getSeverity();
+                }
+            }
+        } else {
+            if (status.getSeverity() > maxSeverity) {
+                maxSeverity = status.getSeverity();
+            }
+        }
+        assertEquals(severity, maxSeverity);
+    }
+
     /**
      * Message 2.1 - Tile set not specified
      * @throws IOException
@@ -550,14 +567,12 @@ public class GridTest implements IResourceChangeListener {
 
         assertTrue(!propertyModel.getPropertyStatus("tileSet").isOK());
         assertMessage(Messages.GridModel_ResourceValidator_tileSet_NOT_SPECIFIED, "tileSet");
+        assertMessageSeverity(IStatus.INFO, "tileSet");
         verify(this.view, times(1)).refreshProperties();
-
-        setGridProperty("tileSet", "/does_not_exists.tileset");
-        assertMessage(NLS.bind(Messages.GridModel_ResourceValidator_tileSet_NOT_FOUND, "/does_not_exists.tileset"), "tileSet");
 
         setGridProperty("tileSet", "/mario.tileset");
         assertTrue(propertyModel.getPropertyStatus("tileSet").isOK());
-        verify(this.view, times(3)).refreshProperties();
+        verify(this.view, times(2)).refreshProperties();
     }
 
     /**
