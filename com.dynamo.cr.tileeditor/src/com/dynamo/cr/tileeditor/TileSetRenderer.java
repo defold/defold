@@ -423,8 +423,14 @@ KeyListener {
     }
 
     public void setEnabled(boolean enabled) {
-        this.enabled = enabled;
-        requestPaint();
+        if (this.enabled != enabled) {
+            this.enabled = enabled;
+            if (enabled) {
+                resetZoom();
+            } else {
+                requestPaint();
+            }
+        }
     }
 
     private void requestPaint() {
