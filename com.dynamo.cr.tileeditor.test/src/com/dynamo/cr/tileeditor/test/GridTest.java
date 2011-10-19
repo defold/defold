@@ -57,6 +57,7 @@ import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.osgi.util.NLS;
 import org.eclipse.swt.graphics.Rectangle;
+import org.hamcrest.core.IsNull;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -271,7 +272,7 @@ public class GridTest implements IResourceChangeListener {
         verify(this.view, never()).setSelectedLayer(anyInt());
         verify(this.view, never()).setCell(anyInt(), anyLong(), any(Cell.class));
         verify(this.view, times(1)).refreshProperties();
-        verify(this.view, times(1)).setValidModel(eq(false));
+        verify(this.view, times(1)).setValidModel(eq(true));
         verify(this.view, never()).setDirty(anyBoolean());
         verify(this.view, times(1)).setPreview(eq(new Point2f(0.0f, 0.0f)), eq(1.0f));
     }
@@ -285,19 +286,19 @@ public class GridTest implements IResourceChangeListener {
         newMarioTileSet();
         newGrid();
 
+        verify(this.view, times(1)).setValidModel(eq(true));
+
         setGridProperty("tileSet", "/mario.tileset");
 
         assertThat(tileSet(), is("/mario.tileset"));
-        verify(this.view, times(1)).setValidModel(eq(true));
         verify(this.view, times(1)).setTileSet(any(BufferedImage.class), eq(16), eq(16), eq(0), eq(1));
 
         undo();
         assertThat(tileSet(), is(""));
-        verify(this.view, times(2)).setValidModel(eq(false));
+        verify(this.view, times(1)).setTileSet((BufferedImage)eq(null), eq(0), eq(0), eq(0), eq(0));
 
         redo();
         assertThat(tileSet(), is("/mario.tileset"));
-        verify(this.view, times(2)).setValidModel(eq(true));
         verify(this.view, times(2)).setTileSet(any(BufferedImage.class), eq(16), eq(16), eq(0), eq(1));
     }
 
@@ -439,17 +440,17 @@ public class GridTest implements IResourceChangeListener {
     public void testUseCase241() throws Exception {
         testUseCase211();
 
-        verify(this.view, times(2)).setTileSet(any(BufferedImage.class), anyInt(), anyInt(), anyInt(), anyInt());
+        verify(this.view, times(3)).setTileSet(any(BufferedImage.class), anyInt(), anyInt(), anyInt(), anyInt());
 
         IFile originalImage = this.project.getFile("/mario_tileset.png");
         IFile newImage = this.project.getFile("/mario_half_tileset.png");
         originalImage.setContents(newImage.getContents(), false, true, null);
 
-        verify(this.view, times(3)).setTileSet(any(BufferedImage.class), anyInt(), anyInt(), anyInt(), anyInt());
+        verify(this.view, times(4)).setTileSet(any(BufferedImage.class), anyInt(), anyInt(), anyInt(), anyInt());
 
         originalImage.setContents(originalImage.getHistory(null)[0], false, false, null);
 
-        verify(this.view, times(4)).setTileSet(any(BufferedImage.class), anyInt(), anyInt(), anyInt(), anyInt());
+        verify(this.view, times(5)).setTileSet(any(BufferedImage.class), anyInt(), anyInt(), anyInt(), anyInt());
     }
 
     /**
@@ -460,11 +461,11 @@ public class GridTest implements IResourceChangeListener {
     public void testUseCase242() throws Exception {
         testUseCase211();
 
-        verify(this.view, times(2)).setTileSet(any(BufferedImage.class), anyInt(), anyInt(), anyInt(), anyInt());
+        verify(this.view, times(3)).setTileSet(any(BufferedImage.class), anyInt(), anyInt(), anyInt(), anyInt());
 
         newTileSet("/mario.tileset", "/mario_half_tileset.png", 1);
 
-        verify(this.view, times(3)).setTileSet(any(BufferedImage.class), anyInt(), anyInt(), anyInt(), anyInt());
+        verify(this.view, times(4)).setTileSet(any(BufferedImage.class), anyInt(), anyInt(), anyInt(), anyInt());
     }
 
     /**
@@ -587,7 +588,7 @@ public class GridTest implements IResourceChangeListener {
 
         assertTrue(!propertyModel.getPropertyStatus("tileSet").isOK());
         verify(this.view, times(1)).refreshProperties();
-        verify(this.view, times(1)).setValidModel(eq(false));
+        verify(this.view, times(1)).setValidModel(eq(true));
 
         String invalidPath = "/test";
         setGridProperty("tileSet", invalidPath);
@@ -595,12 +596,12 @@ public class GridTest implements IResourceChangeListener {
         assertMessage(NLS.bind(Messages.GridModel_ResourceValidator_tileSet_NOT_FOUND, invalidPath), "tileSet");
 
         verify(this.view, times(2)).refreshProperties();
-        verify(this.view, times(2)).setValidModel(eq(false));
+        verify(this.view, times(1)).setValidModel(eq(false));
 
         setGridProperty("tileSet", "/mario.tileset");
         assertTrue(propertyModel.getPropertyStatus("tileSet").isOK());
         verify(this.view, times(3)).refreshProperties();
-        verify(this.view, times(1)).setValidModel(eq(true));
+        verify(this.view, times(2)).setValidModel(eq(true));
     }
 
     /**

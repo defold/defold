@@ -137,6 +137,8 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
                                 tileSetModel.getTileHeight(),
                                 tileSetModel.getTileMargin(),
                                 tileSetModel.getTileSpacing());
+                    } else {
+                        this.view.setTileSet(null, 0, 0, 0, 0);
                     }
                 } else if (propName.equals("layers")) {
                     this.view.setLayers((List<Layer>)evt.getNewValue());
