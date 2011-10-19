@@ -222,8 +222,12 @@ KeyListener {
             this.hullVertexBuffer = BufferUtil.newFloatBuffer(hullVertices.length);
         }
         this.hullVertices = hullVertices;
-        if (this.hullIndices == null || this.hullIndices.length != hullIndices.length || this.hullFrameVertexBuffer == null) {
-            this.hullFrameVertexBuffer = BufferUtil.newFloatBuffer(hullIndices.length * 6 * 4);
+        if (hullIndices != null) {
+            if (this.hullIndices == null || this.hullIndices.length != hullIndices.length || this.hullFrameVertexBuffer == null) {
+                this.hullFrameVertexBuffer = BufferUtil.newFloatBuffer(hullIndices.length * 6 * 4);
+            }
+        } else {
+            this.hullFrameVertexBuffer = null;
         }
         this.hullIndices = hullIndices;
         this.hullCounts = hullCounts;
