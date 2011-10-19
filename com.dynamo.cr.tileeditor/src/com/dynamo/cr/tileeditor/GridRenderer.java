@@ -206,7 +206,8 @@ Listener {
     public void setTileSet(BufferedImage tileSetImage, int tileWidth, int tileHeight, int tileMargin, int tileSpacing) {
         boolean repaint = false;
         if (this.tileSetImage != tileSetImage) {
-            if (this.context != null) {
+            if (this.context != null && this.canvas != null) {
+                this.canvas.setCurrent();
                 this.context.makeCurrent();
                 if (this.tileSetTexture != null) {
                     if (tileSetImage != null) {
