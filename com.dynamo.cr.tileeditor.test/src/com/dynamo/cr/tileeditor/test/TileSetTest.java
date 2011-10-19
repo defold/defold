@@ -903,6 +903,19 @@ public class TileSetTest implements IResourceChangeListener {
         verify(this.view, times(3)).refreshProperties();
     }
 
+    void assertStatusOK(String[] properties) {
+        for (String property : properties) {
+            assertTrue(this.propertyModel.getPropertyStatus(property).isOK());
+        }
+    }
+
+    void assertStatusMessage(String[] properties, String message) {
+        for (String property : properties) {
+            assertTrue(!this.propertyModel.getPropertyStatus(property).isOK());
+            assertEquals(message, this.propertyModel.getPropertyStatus(property).getMessage());
+        }
+    }
+
     /**
      * Message 1.7 - Total tile width is greater than image width
      * @throws IOException
@@ -914,36 +927,27 @@ public class TileSetTest implements IResourceChangeListener {
         verify(this.view, times(1)).refreshProperties();
 
         this.model.executeOperation(propertyModel.setPropertyValue("image", "/mario_tileset.png"));
+        this.model.executeOperation(propertyModel.setPropertyValue("collision", "/mario_tileset.png"));
 
-        assertTrue(propertyModel.getPropertyStatus("image").isOK());;
-        assertTrue(propertyModel.getPropertyStatus("tileWidth").isOK());;
-        verify(this.view, times(2)).refreshProperties();
+        assertStatusOK(new String[] {"image", "tileWidth", "tileHeight", "tileMargin", "tileSpacing", "collision"});
+        verify(this.view, times(3)).refreshProperties();
 
         String message = NLS.bind(Messages.TS_TILE_WIDTH_GT_IMG, new Object[] {86, 84});
         this.model.executeOperation(propertyModel.setPropertyValue("tileWidth", 85));
         this.model.executeOperation(propertyModel.setPropertyValue("tileMargin", 1));
-        assertTrue(!propertyModel.getPropertyStatus("image").isOK());;
-        assertEquals(message, propertyModel.getPropertyStatus("image").getMessage());
-        assertTrue(!propertyModel.getPropertyStatus("tileWidth").isOK());;
-        assertEquals(message, propertyModel.getPropertyStatus("tileWidth").getMessage());
-        assertTrue(!propertyModel.getPropertyStatus("tileMargin").isOK());;
-        assertEquals(message, propertyModel.getPropertyStatus("tileMargin").getMessage());
-        verify(this.view, times(4)).refreshProperties();
+        assertStatusMessage(new String[] {"image", "tileWidth", "tileMargin", "collision"}, message);
+        assertStatusOK(new String[] {"tileHeight", "tileSpacing"});
+        verify(this.view, times(5)).refreshProperties();
 
         message = NLS.bind(Messages.TS_TILE_WIDTH_GT_IMG, new Object[] {85, 84});
         this.model.executeOperation(propertyModel.setPropertyValue("tileMargin", 0));
-        assertTrue(!propertyModel.getPropertyStatus("image").isOK());;
-        assertEquals(message, propertyModel.getPropertyStatus("image").getMessage());
-        assertTrue(!propertyModel.getPropertyStatus("tileWidth").isOK());;
-        assertEquals(message, propertyModel.getPropertyStatus("tileWidth").getMessage());
-        assertTrue(propertyModel.getPropertyStatus("tileMargin").isOK());;
-        verify(this.view, times(5)).refreshProperties();
+        assertStatusMessage(new String[] {"image", "tileWidth", "collision"}, message);
+        assertStatusOK(new String[] {"tileHeight", "tileMargin", "tileSpacing"});
+        verify(this.view, times(6)).refreshProperties();
 
         this.model.executeOperation(propertyModel.setPropertyValue("tileWidth", 16));
-        assertTrue(propertyModel.getPropertyStatus("image").isOK());;
-        assertTrue(propertyModel.getPropertyStatus("tileWidth").isOK());;
-        assertTrue(propertyModel.getPropertyStatus("tileMargin").isOK());;
-        verify(this.view, times(6)).refreshProperties();
+        assertStatusOK(new String[] {"image", "tileWidth", "tileHeight", "tileMargin", "tileSpacing", "collision"});
+        verify(this.view, times(7)).refreshProperties();
     }
 
     /**
@@ -957,36 +961,27 @@ public class TileSetTest implements IResourceChangeListener {
         verify(this.view, times(1)).refreshProperties();
 
         this.model.executeOperation(propertyModel.setPropertyValue("image", "/mario_tileset.png"));
+        this.model.executeOperation(propertyModel.setPropertyValue("collision", "/mario_tileset.png"));
 
-        assertTrue(propertyModel.getPropertyStatus("tileHeight").isOK());;
-        assertTrue(propertyModel.getPropertyStatus("tileWidth").isOK());;
-        verify(this.view, times(2)).refreshProperties();
+        assertStatusOK(new String[] {"image", "tileWidth", "tileHeight", "tileMargin", "tileSpacing", "collision"});
+        verify(this.view, times(3)).refreshProperties();
 
         String message = NLS.bind(Messages.TS_TILE_HEIGHT_GT_IMG, new Object[] {69, 67});
         this.model.executeOperation(propertyModel.setPropertyValue("tileHeight", 68));
         this.model.executeOperation(propertyModel.setPropertyValue("tileMargin", 1));
-        assertTrue(!propertyModel.getPropertyStatus("image").isOK());;
-        assertEquals(message, propertyModel.getPropertyStatus("image").getMessage());
-        assertTrue(!propertyModel.getPropertyStatus("tileHeight").isOK());;
-        assertEquals(message, propertyModel.getPropertyStatus("tileHeight").getMessage());
-        assertTrue(!propertyModel.getPropertyStatus("tileWidth").isOK());;
-        assertEquals(message, propertyModel.getPropertyStatus("tileMargin").getMessage());
-        verify(this.view, times(4)).refreshProperties();
+        assertStatusMessage(new String[] {"image", "tileHeight", "tileMargin", "collision"}, message);
+        assertStatusOK(new String[] {"tileWidth", "tileSpacing"});
+        verify(this.view, times(5)).refreshProperties();
 
         message = NLS.bind(Messages.TS_TILE_HEIGHT_GT_IMG, new Object[] {68, 67});
         this.model.executeOperation(propertyModel.setPropertyValue("tileMargin", 0));
-        assertTrue(!propertyModel.getPropertyStatus("image").isOK());;
-        assertEquals(message, propertyModel.getPropertyStatus("image").getMessage());
-        assertTrue(!propertyModel.getPropertyStatus("tileHeight").isOK());;
-        assertEquals(message, propertyModel.getPropertyStatus("tileHeight").getMessage());
-        assertTrue(propertyModel.getPropertyStatus("tileMargin").isOK());;
-        verify(this.view, times(5)).refreshProperties();
+        assertStatusMessage(new String[] {"image", "tileHeight", "collision"}, message);
+        assertStatusOK(new String[] {"tileWidth", "tileMargin", "tileSpacing"});
+        verify(this.view, times(6)).refreshProperties();
 
         this.model.executeOperation(propertyModel.setPropertyValue("tileHeight", 16));
-        assertTrue(propertyModel.getPropertyStatus("image").isOK());;
-        assertTrue(propertyModel.getPropertyStatus("tileHeight").isOK());;
-        assertTrue(propertyModel.getPropertyStatus("tileMargin").isOK());;
-        verify(this.view, times(6)).refreshProperties();
+        assertStatusOK(new String[] {"image", "tileWidth", "tileHeight", "tileMargin", "tileSpacing", "collision"});
+        verify(this.view, times(7)).refreshProperties();
     }
 
     /**

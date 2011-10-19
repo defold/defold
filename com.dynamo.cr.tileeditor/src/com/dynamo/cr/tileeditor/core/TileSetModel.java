@@ -140,7 +140,7 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
     }
 
     protected IStatus validateTileWidth() {
-        return verifyTileDimensions();
+        return verifyTileDimensions(true, false);
     }
 
     public void setTileWidth(int tileWidth) {
@@ -157,7 +157,7 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
     }
 
     protected IStatus validateTileHeight() {
-        return verifyTileDimensions();
+        return verifyTileDimensions(false, true);
     }
 
     public void setTileHeight(int tileHeight) {
@@ -175,7 +175,7 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
 
     protected IStatus validateTileMargin() {
         if (this.tileMargin > 0)
-            return verifyTileDimensions();
+            return verifyTileDimensions(true, true);
         else
             return Status.OK_STATUS;
     }
@@ -191,10 +191,6 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
 
     public int getTileSpacing() {
         return this.tileSpacing;
-    }
-
-    protected IStatus validateTileSpacing() {
-        return verifyTileDimensions();
     }
 
     public void setTileSpacing(int tileSpacing) {
@@ -500,7 +496,7 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
         if (!status.isOK())
             return status;
         else
-            return verifyTileDimensions();
+            return verifyTileDimensions(true, true);
     }
 
     protected IStatus validateCollision() {
@@ -508,7 +504,7 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
         if (!status.isOK())
             return status;
         else
-            return verifyTileDimensions();
+            return verifyTileDimensions(true, true);
     }
 
     private IStatus verifyImageDimensions() {
@@ -520,8 +516,8 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
         return Status.OK_STATUS;
     }
 
-    private IStatus verifyTileDimensions() {
-        if (this.loadedImage != null || this.loadedCollision != null) {
+    private IStatus verifyTileDimensions(boolean verifyWidth, boolean verifyHeight) {
+        if ((verifyWidth || verifyHeight) && (this.loadedImage != null || this.loadedCollision != null)) {
             int imageWidth = 0;
             int imageHeight = 0;
             if (this.loadedImage != null) {
@@ -531,15 +527,19 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
                 imageWidth = this.loadedCollision.getWidth();
                 imageHeight = this.loadedCollision.getHeight();
             }
-            int totalTileWidth = this.tileWidth + this.tileMargin;
-            if (totalTileWidth > imageWidth) {
-                Status status = createStatus(Messages.TS_TILE_WIDTH_GT_IMG, new Object[] {totalTileWidth, imageWidth});
-                return status;
+            if (verifyWidth) {
+                int totalTileWidth = this.tileWidth + this.tileMargin;
+                if (totalTileWidth > imageWidth) {
+                    Status status = createStatus(Messages.TS_TILE_WIDTH_GT_IMG, new Object[] {totalTileWidth, imageWidth});
+                    return status;
+                }
             }
-            int totalTileHeight = this.tileHeight + this.tileMargin;
-            if (totalTileHeight > imageHeight) {
-                Status status = createStatus(Messages.TS_TILE_HEIGHT_GT_IMG, new Object[] {totalTileHeight, imageHeight});
-                return status;
+            if (verifyHeight) {
+                int totalTileHeight = this.tileHeight + this.tileMargin;
+                if (totalTileHeight > imageHeight) {
+                    Status status = createStatus(Messages.TS_TILE_HEIGHT_GT_IMG, new Object[] {totalTileHeight, imageHeight});
+                    return status;
+                }
             }
         }
         return Status.OK_STATUS;
