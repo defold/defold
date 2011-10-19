@@ -59,7 +59,6 @@ public class GridEditor extends AbstractDefoldEditor {
     private IGridEditorOutlinePage outlinePage;
     private FormPropertySheetPage propertySheetPage;
 
-    private IGridView view;
     private IGridView.Presenter presenter;
     private GridRenderer renderer;
 
@@ -139,7 +138,6 @@ public class GridEditor extends AbstractDefoldEditor {
             }
         };
 
-        this.view = injector.getInstance(IGridView.class);
         this.presenter = injector.getInstance(IGridView.Presenter.class);
         this.renderer = injector.getInstance(GridRenderer.class);
 

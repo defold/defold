@@ -16,6 +16,7 @@ import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.swt.widgets.Display;
+import org.eclipse.ui.IActionBars;
 import org.eclipse.ui.IEditorInput;
 import org.eclipse.ui.IEditorSite;
 import org.eclipse.ui.IFileEditorInput;
@@ -26,6 +27,7 @@ import org.eclipse.ui.IWorkbenchPart;
 import org.eclipse.ui.IWorkbenchWindow;
 import org.eclipse.ui.PartInitException;
 import org.eclipse.ui.PlatformUI;
+import org.eclipse.ui.actions.ActionFactory;
 import org.eclipse.ui.operations.LinearUndoViolationUserApprover;
 import org.eclipse.ui.operations.RedoActionHandler;
 import org.eclipse.ui.operations.UndoActionHandler;
@@ -79,6 +81,14 @@ public abstract class AbstractDefoldEditor extends EditorPart {
 
         undoHandler = new UndoActionHandler(this.getEditorSite(), undoContext);
         redoHandler = new RedoActionHandler(this.getEditorSite(), undoContext);
+    }
+
+    public void updateActions() {
+        IActionBars actionBars = this.getEditorSite().getActionBars();
+        actionBars.updateActionBars();
+
+        actionBars.setGlobalActionHandler(ActionFactory.UNDO.getId(), this.undoHandler);
+        actionBars.setGlobalActionHandler(ActionFactory.REDO.getId(), this.redoHandler);
     }
 
     private void checkFileState() {
