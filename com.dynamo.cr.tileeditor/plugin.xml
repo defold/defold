@@ -157,6 +157,11 @@
             id="com.dynamo.cr.tileeditor.commands.AddLayer"
             name="Add Layer">
       </command>
+      <command
+            description="Makes all of the tile set visible within the current view port"
+            id="com.dynamo.cr.tileeditor.commands.FrameGrid"
+            name="Frame Tile Grid">
+      </command>
    </extension>
    <extension
          point="org.eclipse.ui.bindings">
@@ -290,6 +295,12 @@
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
             sequence="I">
       </key>
+      <key
+            commandId="com.dynamo.cr.tileeditor.commands.FrameGrid"
+            contextId="com.dynamo.cr.tileeditor.contexts.GridEditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="F">
+      </key>
    </extension>
    <extension
          point="org.eclipse.ui.menus">
@@ -359,23 +370,28 @@
          <menu
                id="com.dynamo.cr.tileeditor.menus.TileGrid"
                label="Tile Grid">
-            <visibleWhen
-                  checkEnabled="false">
-               <reference
-                     definitionId="com.dynamo.cr.tileeditor.definitions.gridEditorActive">
-               </reference>
-            </visibleWhen>
-            <command
-                  commandId="com.dynamo.cr.tileeditor.commands.ShowPalette"
-                  label="Show Palette"
-                  style="toggle">
-            </command>
             <command
                   commandId="com.dynamo.cr.tileeditor.commands.AddLayer"
                   icon="icons/layer.png"
                   label="Add Layer"
                   style="push">
             </command>
+            <command
+                  commandId="com.dynamo.cr.tileeditor.commands.FrameGrid"
+                  label="Frame Tile Grid"
+                  style="push">
+            </command>
+            <command
+                  commandId="com.dynamo.cr.tileeditor.commands.ShowPalette"
+                  label="Show Palette"
+                  style="toggle">
+            </command>
+            <visibleWhen
+                  checkEnabled="false">
+               <reference
+                     definitionId="com.dynamo.cr.tileeditor.definitions.gridEditorActive">
+               </reference>
+            </visibleWhen>
          </menu>
       </menuContribution>
       <menuContribution
@@ -541,6 +557,24 @@
             </reference>
          </activeWhen>
       </handler>
+      <handler
+            class="com.dynamo.cr.tileeditor.commands.FrameGrid"
+            commandId="com.dynamo.cr.tileeditor.commands.FrameGrid">
+         <activeWhen>
+            <reference
+                  definitionId="com.dynamo.cr.tileeditor.definitions.gridEditorActive">
+            </reference>
+         </activeWhen>
+         <enabledWhen>
+            <with
+                  variable="activeEditor">
+               <test
+                     property="com.dynamo.cr.tileeditor.editorProperties.isRenderingEnabled"
+                     value="true">
+               </test>
+            </with>
+         </enabledWhen>
+      </handler>
    </extension>
    <extension
          point="org.eclipse.core.expressions.definitions">
@@ -574,11 +608,18 @@
    <extension
          point="org.eclipse.core.expressions.propertyTesters">
       <propertyTester
-            class="com.dynamo.cr.tileeditor.TileSetEditorPropertyTester"
+            class="com.dynamo.cr.tileeditor.TileEditorPropertyTester"
             id="com.dynamo.cr.tileeditor.propertyTesters.TileSetEditor"
             namespace="com.dynamo.cr.tileeditor.editorProperties"
             properties="isRenderingEnabled"
             type="com.dynamo.cr.tileeditor.TileSetEditor">
+      </propertyTester>
+      <propertyTester
+            class="com.dynamo.cr.tileeditor.TileEditorPropertyTester"
+            id="com.dynamo.cr.tileeditor.propertyTesters.GridEditor"
+            namespace="com.dynamo.cr.tileeditor.editorProperties"
+            properties="isRenderingEnabled"
+            type="com.dynamo.cr.tileeditor.GridEditor">
       </propertyTester>
    </extension>
 

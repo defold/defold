@@ -228,7 +228,7 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
 
     @Override
     public void onPreviewPan(int dx, int dy) {
-        Vector2f delta = new Vector2f(dx, -dy);
+        Vector2f delta = new Vector2f(-dx, dy);
         delta.scale(1.0f / this.previewZoom);
         this.previewPosition.add(delta);
         this.view.setPreview(this.previewPosition, this.previewZoom);
@@ -273,8 +273,8 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
             }
             Vector2f bb_dim = new Vector2f(bb_max);
             bb_dim.sub(bb_min);
-            this.previewPosition.set(bb_min);
-            this.previewPosition.scaleAdd(0.5f, bb_dim);
+            this.previewPosition.set(bb_dim);
+            this.previewPosition.scaleAdd(0.5f, bb_min);
             Rectangle clientRect = this.view.getPreviewRect();
             Vector2f clientDim = new Vector2f(clientRect.width, clientRect.height);
             clientDim.scale(0.8f);

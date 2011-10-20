@@ -55,8 +55,7 @@ public class GridView implements IGridView {
 
     @Override
     public void setValidModel(boolean valid) {
-        // TODO Auto-generated method stub
-
+        this.renderer.setEnabled(valid);
     }
 
     @Override

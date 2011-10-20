@@ -308,4 +308,8 @@ public class GridEditor extends AbstractDefoldEditor {
         return this.presenter;
     }
 
+    public boolean isRenderingEnabled() {
+        return this.renderer.isEnabled();
+    }
+
 }

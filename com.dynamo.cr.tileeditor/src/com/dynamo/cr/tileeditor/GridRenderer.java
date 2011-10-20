@@ -376,9 +376,9 @@ Listener {
         if (isEnabled()) {
             int viewPortWidth = this.viewPort.get(2);
             int viewPortHeight = this.viewPort.get(3);
-            float cellX = (x - 0.5f * viewPortWidth) / this.scale - this.position.getX();
+            float cellX = (x - 0.5f * viewPortWidth) / this.scale + this.position.getX();
             cellX /= this.tileWidth;
-            float cellY = (0.5f * viewPortHeight - y) / this.scale - this.position.getY();
+            float cellY = (0.5f * viewPortHeight - y) / this.scale + this.position.getY();
             cellY /= this.tileHeight;
             return new Point2i((int)Math.floor(cellX), (int)Math.floor(cellY));
         }
@@ -507,7 +507,7 @@ Listener {
 
         gl.glMatrixMode(GL.GL_MODELVIEW);
         gl.glLoadIdentity();
-        gl.glTranslatef(this.position.getX(), this.position.getY(), 0.0f);
+        gl.glTranslatef(-this.position.getX(), -this.position.getY(), 0.0f);
     }
 
     private void render(GL gl, GLU glu) {
@@ -840,7 +840,6 @@ Listener {
             return;
         }
         Vector2f offset = new Vector2f(this.position);
-        offset.negate();
         Vector2f extent = new Vector2f(this.viewPort.get(2), this.viewPort.get(3));
         extent.scale(0.5f / this.scale);
         outMin.set(offset);
