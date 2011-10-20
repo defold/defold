@@ -334,7 +334,7 @@ KeyListener {
             requestPaint();
             break;
         case CAMERA_MODE_NONE:
-            if ((e.stateMask & SWT.BUTTON1) == SWT.BUTTON1) {
+            if ((e.stateMask & SWT.BUTTON1) == SWT.BUTTON1 && this.hullCounts != null) {
                 if (activeTile >= 0 && activeTile < this.hullCounts.length && this.hullCounts[activeTile] > 0) {
                     this.presenter.setConvexHullCollisionGroup(activeTile);
                 }
@@ -395,7 +395,7 @@ KeyListener {
             requestPaint();
         } else {
             this.cameraMode = CAMERA_MODE_NONE;
-            if (event.button == 1) {
+            if (event.button == 1 && this.hullCounts != null) {
                 this.presenter.beginSetConvexHullCollisionGroup(this.brushCollisionGroup);
                 if (this.activeTile >= 0 && this.activeTile < this.hullCounts.length && this.hullCounts[this.activeTile] > 0) {
                     this.presenter.setConvexHullCollisionGroup(this.activeTile);
@@ -413,7 +413,7 @@ KeyListener {
                 this.activeTile = activeTile;
                 requestPaint();
             }
-        } else if (e.button == 1) {
+        } else if (e.button == 1 && this.hullCounts != null) {
             this.presenter.endSetConvexHullCollisionGroup();
         }
     }
