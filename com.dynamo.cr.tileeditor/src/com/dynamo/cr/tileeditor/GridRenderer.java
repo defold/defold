@@ -72,6 +72,7 @@ Listener {
 
     // Model replication
     private List<Layer> layers;
+    private Layer selectedLayer;
     private BufferedImage tileSetImage;
     private int tileWidth;
     private int tileHeight;
@@ -186,6 +187,11 @@ Listener {
         for (Layer layer : layers) {
             this.layers.add(new Layer(layer));
         }
+        requestPaint();
+    }
+
+    public void setSelectedLayer(Layer layer) {
+        this.selectedLayer = layer;
         requestPaint();
     }
 
@@ -571,6 +577,9 @@ Listener {
 
         float z = 0.0f;
 
+        gl.glEnable(GL.GL_BLEND);
+        gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
+
         Map<Long, Cell> cells = new HashMap<Long, Cell>();
         for (Layer layer : this.layers) {
             cells.clear();
@@ -586,6 +595,7 @@ Listener {
             int n = cells.size();
 
             if (n > 0) {
+                z = layer.getZ();
                 int vertexCount = n * 4;
                 int componentCount = 5;
                 FloatBuffer v = BufferUtil.newFloatBuffer(vertexCount * componentCount);
@@ -611,6 +621,9 @@ Listener {
                 }
                 v.flip();
 
+                if (this.selectedLayer != null && !layer.equals(this.selectedLayer)) {
+                    gl.glColor4f(1.0f, 1.0f, 1.0f, 0.5f);
+                }
                 gl.glEnableClientState(GL.GL_VERTEX_ARRAY);
                 gl.glEnableClientState(GL.GL_TEXTURE_COORD_ARRAY);
 
@@ -620,9 +633,12 @@ Listener {
 
                 gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
                 gl.glDisableClientState(GL.GL_TEXTURE_COORD_ARRAY);
+                gl.glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
             }
 
         }
+
+        gl.glDisable(GL.GL_BLEND);
 
         this.tileSetTexture.disable();
     }

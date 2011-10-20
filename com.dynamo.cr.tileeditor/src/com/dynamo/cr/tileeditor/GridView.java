@@ -34,6 +34,7 @@ public class GridView implements IGridView {
     @Override
     public void setSelectedLayer(Layer layer) {
         this.outline.setSelectedLayer(layer);
+        this.renderer.setSelectedLayer(layer);
     }
 
     @Override
