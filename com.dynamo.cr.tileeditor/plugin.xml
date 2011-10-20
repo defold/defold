@@ -301,6 +301,12 @@
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
             sequence="F">
       </key>
+      <key
+            commandId="com.dynamo.cr.tileeditor.commands.ResetZoom"
+            contextId="com.dynamo.cr.tileeditor.contexts.GridEditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="Z">
+      </key>
    </extension>
    <extension
          point="org.eclipse.ui.menus">
@@ -379,6 +385,11 @@
             <command
                   commandId="com.dynamo.cr.tileeditor.commands.FrameGrid"
                   label="Frame Tile Grid"
+                  style="push">
+            </command>
+            <command
+                  commandId="com.dynamo.cr.tileeditor.commands.ResetZoom"
+                  label="Reset Zoom"
                   style="push">
             </command>
             <command
@@ -486,9 +497,14 @@
             class="com.dynamo.cr.tileeditor.commands.ResetZoom"
             commandId="com.dynamo.cr.tileeditor.commands.ResetZoom">
          <activeWhen>
-            <reference
-                  definitionId="com.dynamo.cr.tileeditor.definitions.tileSetEditorActive">
-            </reference>
+            <or>
+               <reference
+                     definitionId="com.dynamo.cr.tileeditor.definitions.tileSetEditorActive">
+               </reference>
+               <reference
+                     definitionId="com.dynamo.cr.tileeditor.definitions.gridEditorActive">
+               </reference>
+            </or>
          </activeWhen>
          <enabledWhen>
             <with
