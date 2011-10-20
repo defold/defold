@@ -127,6 +127,7 @@ public class FormPropertySheetViewer extends Viewer {
         if (changed) {
             currentComposite.pack();
             currentComposite.layout(true);
+            propertiesComposite.layout(true);
 
             this.form.reflow(true);
         }
