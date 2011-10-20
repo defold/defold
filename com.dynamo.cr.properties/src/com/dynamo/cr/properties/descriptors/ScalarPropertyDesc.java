@@ -68,7 +68,7 @@ public abstract class ScalarPropertyDesc<S, T, U extends IPropertyObjectWorld> e
         public void handleEvent(Event event) {
             S value = fromString(text.getText());
             if (value == null)
-                return;
+                value = fromString("0");
 
             boolean updateValue = false;
             if (event.type == SWT.KeyDown && (event.character == '\r' || event.character == '\n')) {
