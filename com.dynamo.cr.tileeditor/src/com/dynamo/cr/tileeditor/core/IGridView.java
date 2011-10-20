@@ -23,7 +23,7 @@ public interface IGridView {
         void onSelectTile(int tileIndex, boolean hFlip, boolean vFlip);
 
         void onAddLayer();
-        void onSelectLayer(int index);
+        void onSelectLayer(Layer layer);
         void onRemoveLayer();
 
         void onPaintBegin();
@@ -49,7 +49,7 @@ public interface IGridView {
     void setTileSet(BufferedImage image, int tileWidth, int tileHeight, int tileMargin, int tileSpacing);
 
     void setLayers(List<Layer> layers);
-    void setSelectedLayer(int index);
+    void setSelectedLayer(Layer layer);
 
     void setCells(int layerIndex, Map<Long, Cell> cells);
 

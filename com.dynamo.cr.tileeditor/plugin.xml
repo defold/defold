@@ -152,6 +152,11 @@
                id="org.eclipse.ui.commands.toggleState">
          </state>
       </command>
+      <command
+            description="Adds a layer"
+            id="com.dynamo.cr.tileeditor.commands.AddLayer"
+            name="Add Layer">
+      </command>
    </extension>
    <extension
          point="org.eclipse.ui.bindings">
@@ -279,6 +284,12 @@
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
             sequence="SPACE">
       </key>
+      <key
+            commandId="com.dynamo.cr.tileeditor.commands.AddLayer"
+            contextId="com.dynamo.cr.tileeditor.contexts.GridEditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="I">
+      </key>
    </extension>
    <extension
          point="org.eclipse.ui.menus">
@@ -359,7 +370,31 @@
                   label="Show Palette"
                   style="toggle">
             </command>
+            <command
+                  commandId="com.dynamo.cr.tileeditor.commands.AddLayer"
+                  icon="icons/layer.png"
+                  label="Add Layer"
+                  style="push">
+            </command>
          </menu>
+      </menuContribution>
+      <menuContribution
+            allPopups="false"
+            locationURI="popup:com.dynamo.cr.tileeditor.menus.GridOutlineContext">
+         <command
+               commandId="com.dynamo.cr.tileeditor.commands.AddLayer"
+               label="Add"
+               style="push">
+         </command>
+         <separator
+               name="com.dynamo.cr.tileeditor.separator1"
+               visible="true">
+         </separator>
+         <command
+               commandId="org.eclipse.ui.edit.delete"
+               label="Delete"
+               style="push">
+         </command>
       </menuContribution>  </extension>
    <extension
          point="org.eclipse.ui.handlers">
@@ -470,6 +505,36 @@
       <handler
             class="com.dynamo.cr.tileeditor.commands.ShowPalette"
             commandId="com.dynamo.cr.tileeditor.commands.ShowPalette">
+         <activeWhen>
+            <reference
+                  definitionId="com.dynamo.cr.tileeditor.definitions.gridEditorActive">
+            </reference>
+         </activeWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.tileeditor.commands.RemoveLayer"
+            commandId="org.eclipse.ui.edit.delete">
+         <activeWhen>
+            <reference
+                  definitionId="com.dynamo.cr.tileeditor.definitions.gridEditorActive">
+            </reference>
+         </activeWhen>
+         <enabledWhen>
+            <with
+                  variable="selection">
+               <iterate
+                     ifEmpty="false"
+                     operator="and">
+                  <instanceof
+                        value="com.dynamo.cr.tileeditor.core.Layer">
+                  </instanceof>
+               </iterate>
+            </with>
+         </enabledWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.tileeditor.commands.AddLayer"
+            commandId="com.dynamo.cr.tileeditor.commands.AddLayer">
          <activeWhen>
             <reference
                   definitionId="com.dynamo.cr.tileeditor.definitions.gridEditorActive">

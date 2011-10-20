@@ -177,7 +177,6 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
             this.layers.add(layer);
             Collections.sort(this.layers);
             firePropertyChangeEvent(new PropertyChangeEvent(this, "layers", oldLayers, this.layers));
-            setSelectedLayer(layer);
         }
     }
 
@@ -187,13 +186,6 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
             this.layers = new ArrayList<Layer>(oldLayers);
             this.layers.remove(layer);
             firePropertyChangeEvent(new PropertyChangeEvent(this, "layers", oldLayers, this.layers));
-            if (this.selectedLayer == layer) {
-                if (this.layers.size() > 0) {
-                    setSelectedLayer(this.layers.get(0));
-                } else {
-                    setSelectedLayer(null);
-                }
-            }
         }
     }
 
@@ -211,9 +203,9 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
 
     public void setSelectedLayer(Layer selectedLayer) {
         if (this.selectedLayer != selectedLayer) {
-            Layer oldSelectedLayer = this.selectedLayer;
+            Layer prevSelectedLayer = this.selectedLayer;
             this.selectedLayer = selectedLayer;
-            firePropertyChangeEvent(new PropertyChangeEvent(this, "selectedLayer", oldSelectedLayer, this.selectedLayer));
+            firePropertyChangeEvent(new PropertyChangeEvent(this, "selectedLayer", prevSelectedLayer, this.selectedLayer));
         }
     }
 

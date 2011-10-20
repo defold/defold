@@ -48,6 +48,7 @@ import com.dynamo.cr.properties.FormPropertySheetPage;
 import com.dynamo.cr.tileeditor.core.GridModel;
 import com.dynamo.cr.tileeditor.core.GridPresenter;
 import com.dynamo.cr.tileeditor.core.IGridView;
+import com.dynamo.cr.tileeditor.core.IGridView.Presenter;
 import com.dynamo.cr.tileeditor.core.ILogger;
 import com.dynamo.cr.tileeditor.core.Layer;
 import com.google.inject.AbstractModule;
@@ -301,6 +302,10 @@ public class GridEditor extends AbstractDefoldEditor {
 
     public void refreshProperties() {
         this.propertySheetPage.refresh();
+    }
+
+    public Presenter getPresenter() {
+        return this.presenter;
     }
 
 }

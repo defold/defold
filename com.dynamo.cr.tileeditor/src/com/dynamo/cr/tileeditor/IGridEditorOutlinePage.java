@@ -10,6 +10,8 @@ public interface IGridEditorOutlinePage extends IContentOutlinePage {
 
     public void setInput(List<Layer> layers, int selectedLayer);
 
+    public void setSelectedLayer(Layer layer);
+
     public void refresh();
 
 }

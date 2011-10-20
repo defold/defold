@@ -57,7 +57,6 @@ import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.osgi.util.NLS;
 import org.eclipse.swt.graphics.Rectangle;
-import org.hamcrest.core.IsNull;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -269,7 +268,7 @@ public class GridTest implements IResourceChangeListener {
 
         verify(this.view, never()).setTileSet(any(BufferedImage.class), anyInt(), anyInt(), anyInt(), anyInt());
         verify(this.view, times(1)).setLayers(anyList());
-        verify(this.view, never()).setSelectedLayer(anyInt());
+        verify(this.view, never()).setSelectedLayer(any(Layer.class));
         verify(this.view, never()).setCell(anyInt(), anyLong(), any(Cell.class));
         verify(this.view, times(1)).refreshProperties();
         verify(this.view, times(1)).setValidModel(eq(true));
@@ -389,15 +388,15 @@ public class GridTest implements IResourceChangeListener {
         Layer layer = layers.get(1);
         assertEquals("layer2", layer.getId());
         verify(this.view, times(2)).setLayers(anyListOf(Layer.class));
-        verify(this.view, times(1)).setSelectedLayer(1);
+        verify(this.view, times(1)).setSelectedLayer(layers.get(1));
 
         undo();
         assertEquals(1, this.model.getLayers().size());
-        verify(this.view, times(1)).setSelectedLayer(0);
+        verify(this.view, times(1)).setSelectedLayer(layers.get(0));
 
         redo();
         assertEquals(2, this.model.getLayers().size());
-        verify(this.view, times(2)).setSelectedLayer(1);
+        verify(this.view, times(2)).setSelectedLayer(layers.get(1));
 
         setLayerProperty(layer, "z", new Float(0.5f));
         assertEquals("layer1", this.model.getLayers().get(0).getId());
@@ -420,7 +419,7 @@ public class GridTest implements IResourceChangeListener {
     public void testUseCase232() throws Exception {
         testUseCase231();
 
-        presenter.onSelectLayer(1);
+        presenter.onSelectLayer(this.model.getLayers().get(1));
         presenter.onRemoveLayer();
         assertEquals(1, this.model.getLayers().size());
         assertEquals("layer2", this.model.getLayers().get(0).getId());

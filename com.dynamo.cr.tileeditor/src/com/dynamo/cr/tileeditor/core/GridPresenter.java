@@ -144,7 +144,7 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
                     this.view.setLayers((List<Layer>)evt.getNewValue());
                 } else if (propName.equals("selectedLayer")) {
                     Layer selectedLayer = (Layer)evt.getNewValue();
-                    this.view.setSelectedLayer(this.model.getLayers().indexOf(selectedLayer));
+                    this.view.setSelectedLayer(selectedLayer);
                 }
             } else if (source instanceof Layer) {
                 if (propName.equals("cells")) {
@@ -171,8 +171,8 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
     }
 
     @Override
-    public void onSelectLayer(int index) {
-        this.model.setSelectedLayer(this.model.getLayers().get(index));
+    public void onSelectLayer(Layer layer) {
+        this.model.setSelectedLayer(layer);
     }
 
     @Override

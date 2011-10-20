@@ -17,11 +17,11 @@ import org.eclipse.jface.viewers.SelectionChangedEvent;
 import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.jface.viewers.TreeViewer;
 import org.eclipse.jface.viewers.Viewer;
+import org.eclipse.swt.SWT;
 import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Menu;
 import org.eclipse.ui.IActionBars;
-import org.eclipse.ui.IEditorRegistry;
 import org.eclipse.ui.ISharedImages;
 import org.eclipse.ui.IWorkbenchActionConstants;
 import org.eclipse.ui.PlatformUI;
@@ -100,6 +100,13 @@ public class GridEditorOutlinePage extends ContentOutlinePage implements IGridEd
         }
     }
 
+    @Override
+    public void setSelectedLayer(Layer layer) {
+        if (layer != null) {
+            getTreeViewer().setSelection(new StructuredSelection(layer), true);
+        }
+    }
+
     private static class RootItem {
         public GridItem grid;
 
@@ -174,12 +181,6 @@ public class GridEditorOutlinePage extends ContentOutlinePage implements IGridEd
 
     class OutlineColumnLabelProvider extends ColumnLabelProvider {
 
-        private final IEditorRegistry registry;
-
-        public OutlineColumnLabelProvider() {
-            this.registry = PlatformUI.getWorkbench().getEditorRegistry();
-        }
-
         @Override
         public Image getImage(Object element) {
             ISharedImages sharedImages = PlatformUI.getWorkbench().getSharedImages();
@@ -242,21 +243,24 @@ public class GridEditorOutlinePage extends ContentOutlinePage implements IGridEd
     }
 
     @Override
+    protected int getTreeStyle() {
+        return SWT.SINGLE | SWT.H_SCROLL | SWT.V_SCROLL;
+    }
+
+    @Override
     public void selectionChanged(SelectionChangedEvent event) {
         super.selectionChanged(event);
         if (!this.ignoreSelection) {
             if (event.getSelection() instanceof IStructuredSelection) {
-                List<String> selectedItems = new ArrayList<String>();
                 Object[] selection = ((IStructuredSelection)event.getSelection()).toArray();
+                Layer layer = null;
                 for (Object object : selection) {
                     if (object instanceof Layer) {
-                        Layer item = (Layer)object;
-                        selectedItems.add(item.getId());
+                        layer = (Layer)object;
+                        break;
                     }
                 }
-                // TODO: Perform selection
-                //                String[] selectedCollisionGroups = selectedItems.toArray(new String[selectedItems.size()]);
-                //                this.presenter.selectCollisionGroups(selectedCollisionGroups);
+                this.presenter.onSelectLayer(layer);
             }
         }
     }

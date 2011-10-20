@@ -15,7 +15,6 @@ import com.dynamo.cr.tileeditor.core.Layer.Cell;
 
 public class GridView implements IGridView {
 
-    @Inject private IGridView.Presenter presenter;
     @Inject private GridRenderer renderer;
     @Inject private IGridEditorOutlinePage outline;
     @Inject private GridEditor gridEditor;
@@ -33,9 +32,8 @@ public class GridView implements IGridView {
     }
 
     @Override
-    public void setSelectedLayer(int index) {
-        // TODO Auto-generated method stub
-
+    public void setSelectedLayer(Layer layer) {
+        this.outline.setSelectedLayer(layer);
     }
 
     @Override
