@@ -6,6 +6,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.util.List;
 
+import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IResourceChangeEvent;
@@ -33,8 +34,10 @@ import org.eclipse.ui.IWorkbenchPart;
 import org.eclipse.ui.PartInitException;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.actions.ActionFactory;
+import org.eclipse.ui.commands.ICommandService;
 import org.eclipse.ui.contexts.IContextService;
 import org.eclipse.ui.dialogs.SaveAsDialog;
+import org.eclipse.ui.handlers.HandlerUtil;
 import org.eclipse.ui.part.FileEditorInput;
 import org.eclipse.ui.part.IPageSite;
 import org.eclipse.ui.progress.IProgressService;
@@ -45,6 +48,7 @@ import org.eclipse.ui.views.properties.IPropertySheetPage;
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.properties.FormPropertySheetPage;
 import com.dynamo.cr.properties.FormPropertySheetViewer;
+import com.dynamo.cr.tileeditor.commands.SetBrushCollisionGroup;
 import com.dynamo.cr.tileeditor.core.ITileSetView;
 import com.dynamo.cr.tileeditor.core.TileSetModel;
 import com.dynamo.cr.tileeditor.core.TileSetPresenter;
@@ -169,6 +173,22 @@ public class TileSetEditor extends AbstractDefoldEditor implements ITileSetView 
         getSite().setSelectionProvider(this.outlinePage);
 
         this.presenter.refresh();
+    }
+
+    @Override
+    public void updateActions() {
+        super.updateActions();
+
+        // Make sure the state of the command is updated when switching between multiple editor instances
+        // Maybe not the best solution, but the only known one so far
+        ICommandService commandService = (ICommandService)getSite().getService(ICommandService.class);
+        int index = this.getCollisionGroups().indexOf(getBrushCollisionGroup());
+        try {
+            HandlerUtil.updateRadioState(commandService.getCommand(SetBrushCollisionGroup.COMMAND_ID), new Integer(index).toString());
+            commandService.refreshElements(SetBrushCollisionGroup.COMMAND_ID, null);
+        } catch (ExecutionException e) {
+            this.logger.logException(e);
+        }
     }
 
     private void loadCursors() {

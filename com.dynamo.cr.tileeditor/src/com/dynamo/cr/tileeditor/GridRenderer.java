@@ -162,6 +162,10 @@ Listener {
         return this.canvas;
     }
 
+    public boolean isShowingPalette() {
+        return this.showPalette;
+    }
+
     public void showPalette(boolean show) {
         if (this.showPalette != show) {
             this.showPalette = show;

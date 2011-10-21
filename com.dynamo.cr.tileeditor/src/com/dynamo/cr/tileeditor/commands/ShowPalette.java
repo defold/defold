@@ -10,6 +10,8 @@ import com.dynamo.cr.tileeditor.GridEditor;
 
 public class ShowPalette extends AbstractHandler {
 
+    public static final String COMMAND_ID = "com.dynamo.cr.tileeditor.commands.ShowPalette";
+
     @Override
     public Object execute(ExecutionEvent event) throws ExecutionException {
         IEditorPart editorPart = HandlerUtil.getActiveEditor(event);

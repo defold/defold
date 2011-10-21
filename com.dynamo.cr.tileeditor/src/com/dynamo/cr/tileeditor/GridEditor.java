@@ -5,6 +5,8 @@ import java.io.ByteArrayOutputStream;
 
 import javax.inject.Singleton;
 
+import org.eclipse.core.commands.Command;
+import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.IOperationHistory;
 import org.eclipse.core.commands.operations.IUndoContext;
 import org.eclipse.core.resources.IContainer;
@@ -32,8 +34,10 @@ import org.eclipse.ui.IWorkbenchPart;
 import org.eclipse.ui.PartInitException;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.actions.ActionFactory;
+import org.eclipse.ui.commands.ICommandService;
 import org.eclipse.ui.contexts.IContextService;
 import org.eclipse.ui.dialogs.SaveAsDialog;
+import org.eclipse.ui.handlers.HandlerUtil;
 import org.eclipse.ui.operations.RedoActionHandler;
 import org.eclipse.ui.operations.UndoActionHandler;
 import org.eclipse.ui.part.FileEditorInput;
@@ -45,6 +49,7 @@ import org.eclipse.ui.views.properties.IPropertySheetPage;
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.core.inject.LifecycleModule;
 import com.dynamo.cr.properties.FormPropertySheetPage;
+import com.dynamo.cr.tileeditor.commands.ShowPalette;
 import com.dynamo.cr.tileeditor.core.GridModel;
 import com.dynamo.cr.tileeditor.core.GridPresenter;
 import com.dynamo.cr.tileeditor.core.IGridView;
@@ -179,6 +184,25 @@ public class GridEditor extends AbstractDefoldEditor {
         getSite().setSelectionProvider(this.outlinePage);
 
         this.presenter.onRefresh();
+    }
+
+    @Override
+    public void updateActions() {
+        super.updateActions();
+
+        // Make sure the state of the command is updated when switching between multiple editor instances
+        // Maybe not the best solution, but the only known one so far
+        ICommandService commandService = (ICommandService)getSite().getService(ICommandService.class);
+        Command command = commandService.getCommand(ShowPalette.COMMAND_ID);
+        boolean isShowing = this.renderer.isShowingPalette();
+        try {
+            boolean prevValue = HandlerUtil.toggleCommandState(command);
+            if (prevValue == isShowing) {
+                HandlerUtil.toggleCommandState(command);
+            }
+        } catch (ExecutionException e) {
+            this.logger.logException(e);
+        }
     }
 
     @Override
