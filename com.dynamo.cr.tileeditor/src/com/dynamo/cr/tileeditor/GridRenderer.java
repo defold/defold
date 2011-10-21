@@ -142,12 +142,7 @@ Listener {
     @Override
     public void dispose() {
         if (this.context != null) {
-            this.context.makeCurrent();
-            this.backgroundTexture.dispose();
-            if (this.tileSetTexture != null) {
-                this.tileSetTexture.dispose();
-            }
-            this.context.release();
+            this.context.destroy();
         }
         if (this.canvas != null) {
             canvas.dispose();

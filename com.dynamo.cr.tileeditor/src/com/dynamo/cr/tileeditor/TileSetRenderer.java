@@ -134,13 +134,7 @@ KeyListener {
     @Override
     public void dispose() {
         if (this.context != null) {
-            this.context.makeCurrent();
-            this.backgroundTexture.dispose();
-            this.transparentTexture.dispose();
-            if (this.texture != null) {
-                this.texture.dispose();
-            }
-            this.context.release();
+            this.context.destroy();
         }
         if (this.canvas != null) {
             canvas.dispose();
