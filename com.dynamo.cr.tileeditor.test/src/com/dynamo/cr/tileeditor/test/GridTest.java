@@ -268,7 +268,7 @@ public class GridTest implements IResourceChangeListener {
 
         verify(this.view, never()).setTileSet(any(BufferedImage.class), anyInt(), anyInt(), anyInt(), anyInt());
         verify(this.view, times(1)).setLayers(anyList());
-        verify(this.view, never()).setSelectedLayer(any(Layer.class));
+        verify(this.view, times(1)).setSelectedLayer(any(Layer.class));
         verify(this.view, never()).setCell(anyInt(), anyLong(), any(Cell.class));
         verify(this.view, times(1)).refreshProperties();
         verify(this.view, times(1)).setValidModel(eq(true));
@@ -399,7 +399,7 @@ public class GridTest implements IResourceChangeListener {
 
         undo();
         assertEquals(1, this.model.getLayers().size());
-        verify(this.view, times(1)).setSelectedLayer(layers.get(0));
+        verify(this.view, times(2)).setSelectedLayer(layers.get(0));
 
         redo();
         assertEquals(2, this.model.getLayers().size());

@@ -23,6 +23,7 @@ import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.MouseEvent;
 import org.eclipse.swt.events.MouseListener;
 import org.eclipse.swt.events.MouseMoveListener;
+import org.eclipse.swt.graphics.Cursor;
 import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.graphics.Rectangle;
 import org.eclipse.swt.layout.GridData;
@@ -59,6 +60,7 @@ Listener {
 
     private final IGridView.Presenter presenter;
     private final ILogger logger;
+    private final GridEditor gridEditor;
 
     private GLCanvas canvas;
     private GLContext context;
@@ -69,6 +71,7 @@ Listener {
     private Point2i activeCell = null;
     private int activeTile = -1;
     private boolean showPalette;
+    private Cursor defaultCursor;
 
     // Model replication
     private List<Layer> layers;
@@ -91,12 +94,12 @@ Listener {
 
     // Render data
     private Texture tileSetTexture;
-    private Texture backgroundTexture;
 
     @Inject
-    public GridRenderer(IGridView.Presenter presenter, ILogger logger) {
+    public GridRenderer(IGridView.Presenter presenter, ILogger logger, GridEditor gridEditor) {
         this.presenter = presenter;
         this.logger = logger;
+        this.gridEditor = gridEditor;
     }
 
     public void createControls(Composite parent) {
@@ -123,7 +126,6 @@ Listener {
         backgroundImage.setRGB(1, 0, 0xff666666);
         backgroundImage.setRGB(0, 1, 0xff666666);
         backgroundImage.setRGB(1, 1, 0xff999999);
-        this.backgroundTexture = TextureIO.newTexture(backgroundImage, false);
 
         // if the image is already set, set the corresponding texture
         if (this.tileSetImage != null) {
@@ -137,6 +139,9 @@ Listener {
         this.canvas.addListener(SWT.MouseExit, this);
         this.canvas.addMouseListener(this);
         this.canvas.addMouseMoveListener(this);
+
+        this.defaultCursor = this.canvas.getCursor();
+        updateCursor();
     }
 
     @Override
@@ -178,6 +183,7 @@ Listener {
                 }
             }
             requestPaint();
+            updateCursor();
         }
     }
 
@@ -192,6 +198,7 @@ Listener {
     public void setSelectedLayer(Layer layer) {
         this.selectedLayer = layer;
         requestPaint();
+        updateCursor();
     }
 
     public void setCells(int layerIndex, Map<Long, Layer.Cell> cells) {
@@ -270,6 +277,7 @@ Listener {
         }
         if (repaint) {
             requestPaint();
+            updateCursor();
         }
     }
 
@@ -345,7 +353,7 @@ Listener {
             }
             this.lastX = e.x;
             this.lastY = e.y;
-            if ((this.activeCell != activeCell) && (this.activeCell == null || activeCell == null || !this.activeCell.equals(activeCell))) {
+            if (this.activeCell != activeCell && (this.activeCell == null || activeCell == null || !this.activeCell.equals(activeCell))) {
                 this.activeCell = activeCell;
                 requestPaint();
             }
@@ -372,7 +380,7 @@ Listener {
     }
 
     private Point2i pickCell(int x, int y) {
-        if (isEnabled()) {
+        if (this.selectedLayer != null && isEnabled()) {
             int viewPortWidth = this.viewPort.get(2);
             int viewPortHeight = this.viewPort.get(3);
             float cellX = (x - 0.5f * viewPortWidth) / this.scale + this.position.getX();
@@ -420,8 +428,8 @@ Listener {
             } else {
                 this.cameraMode = CAMERA_MODE_NONE;
                 if (event.button == 1) {
-                    this.presenter.onPaintBegin();
                     if (this.activeCell != null) {
+                        this.presenter.onPaintBegin();
                         this.presenter.onPaint(this.activeCell.getX(), this.activeCell.getY());
                     }
                 }
@@ -439,7 +447,9 @@ Listener {
                 requestPaint();
             }
         } else if (e.button == 1) {
-            this.presenter.onPaintEnd();
+            if (this.activeCell != null) {
+                this.presenter.onPaintEnd();
+            }
         }
     }
 
@@ -854,4 +864,27 @@ Listener {
         outCellMax.set((int)Math.ceil(maxNorm.getX()), (int)Math.ceil(maxNorm.getY()));
 
     }
+
+    private void updateCursor() {
+        if (this.canvas != null) {
+            int cursorType = -1;
+            if (!this.showPalette) {
+                if (this.selectedLayer != null) {
+                    if (this.brushTile >= 0) {
+                        cursorType = GridEditor.CURSOR_TYPE_PENCIL;
+                    } else {
+                        cursorType = GridEditor.CURSOR_TYPE_ERASER;
+                    }
+                } else {
+                    cursorType = GridEditor.CURSOR_TYPE_CROSS;
+                }
+            }
+            Cursor cursor = this.defaultCursor;
+            if (cursorType > -1) {
+                cursor = this.gridEditor.getCursor(cursorType);
+            }
+            this.canvas.setCursor(cursor);
+        }
+    }
+
 }

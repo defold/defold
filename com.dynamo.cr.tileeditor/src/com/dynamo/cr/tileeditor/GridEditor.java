@@ -24,6 +24,9 @@ import org.eclipse.jface.action.IStatusLineManager;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.window.Window;
+import org.eclipse.swt.graphics.Cursor;
+import org.eclipse.swt.graphics.ImageData;
+import org.eclipse.swt.graphics.ImageLoader;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.ui.IActionBars;
@@ -62,6 +65,11 @@ import com.google.inject.Injector;
 
 public class GridEditor extends AbstractDefoldEditor {
 
+    public static final int CURSOR_TYPE_PENCIL = 0;
+    public static final int CURSOR_TYPE_ERASER = 1;
+    public static final int CURSOR_TYPE_CROSS = 2;
+    public static final int CURSOR_TYPE_COUNT = 3;
+
     private IGridEditorOutlinePage outlinePage;
     private FormPropertySheetPage propertySheetPage;
 
@@ -70,6 +78,13 @@ public class GridEditor extends AbstractDefoldEditor {
 
     private IContainer contentRoot;
     private LifecycleModule module;
+
+    private Cursor[] cursors = new Cursor[CURSOR_TYPE_COUNT];
+    private String[] cursorPaths = new String[] {
+            "/icons/pencil.png",
+            "/icons/draw_eraser.png",
+            "/icons/cross.png"
+    };
 
     class Module extends AbstractModule {
         @Override
@@ -147,6 +162,13 @@ public class GridEditor extends AbstractDefoldEditor {
         this.presenter = injector.getInstance(IGridView.Presenter.class);
         this.renderer = injector.getInstance(GridRenderer.class);
 
+        ImageLoader imageLoader = new ImageLoader();
+        Display display = this.getSite().getShell().getDisplay();
+        for (int i = 0; i < CURSOR_TYPE_COUNT; ++i) {
+            ImageData[] data = imageLoader.load(getClass().getResourceAsStream(this.cursorPaths[i]));
+            this.cursors[i] = new Cursor(display, data[0], 0, 15);
+        }
+
         IProgressService service = PlatformUI.getWorkbench()
                 .getProgressService();
         GridLoader loader = new GridLoader(file, this.presenter);
@@ -167,6 +189,11 @@ public class GridEditor extends AbstractDefoldEditor {
         module.close();
         if (this.renderer != null) {
             this.renderer.dispose();
+        }
+        for (int i = 0; i < CURSOR_TYPE_COUNT; ++i) {
+            if (this.cursors[i] != null) {
+                this.cursors[i].dispose();
+            }
         }
     }
 
@@ -334,6 +361,10 @@ public class GridEditor extends AbstractDefoldEditor {
 
     public boolean isRenderingEnabled() {
         return this.renderer.isEnabled();
+    }
+
+    public Cursor getCursor(int cursorType) {
+        return this.cursors[cursorType];
     }
 
 }

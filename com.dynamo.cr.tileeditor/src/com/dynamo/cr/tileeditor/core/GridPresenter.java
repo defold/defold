@@ -89,6 +89,7 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
 
     public void refresh() {
         this.view.setLayers(this.model.getLayers());
+        this.view.setSelectedLayer(this.model.getSelectedLayer());
         this.view.refreshProperties();
         boolean validModel = this.model.isValid();
         this.view.setValidModel(validModel);

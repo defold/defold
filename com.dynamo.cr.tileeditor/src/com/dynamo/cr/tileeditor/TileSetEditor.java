@@ -193,8 +193,8 @@ public class TileSetEditor extends AbstractDefoldEditor implements ITileSetView 
 
     private void loadCursors() {
         ImageLoader loader = new ImageLoader();
-        ImageData[] pencil = loader.load(getClass().getResourceAsStream("/icons/pencil_bw.png"));
-        ImageData[] eraser = loader.load(getClass().getResourceAsStream("/icons/draw_eraser_bw.png"));
+        ImageData[] pencil = loader.load(getClass().getResourceAsStream("/icons/pencil.png"));
+        ImageData[] eraser = loader.load(getClass().getResourceAsStream("/icons/draw_eraser.png"));
 
         Display display = getSite().getShell().getDisplay();
         pencilCursor = new Cursor(display, pencil[0], 0, 15);
