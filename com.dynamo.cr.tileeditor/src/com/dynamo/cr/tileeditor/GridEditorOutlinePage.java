@@ -84,16 +84,20 @@ public class GridEditorOutlinePage extends ContentOutlinePage implements IGridEd
         TreeViewer viewer = getTreeViewer();
         if (viewer != null) {
             viewer.setInput(this.root);
-            viewer.expandToLevel(2);
+            viewer.expandAll();
         }
     }
 
     @Override
     public void setSelectedLayer(Layer layer) {
+        TreeViewer viewer = getTreeViewer();
         if (layer != null) {
             this.ignoreSelection = true;
-            getTreeViewer().setSelection(new StructuredSelection(layer), true);
+            viewer.setSelection(new StructuredSelection(layer), true);
             this.ignoreSelection = false;
+        } else {
+            viewer.setSelection(new StructuredSelection(this.root.grid), true);
+            viewer.expandAll();
         }
     }
 
