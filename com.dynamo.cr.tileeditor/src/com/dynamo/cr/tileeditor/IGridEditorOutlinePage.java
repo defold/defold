@@ -8,7 +8,7 @@ import com.dynamo.cr.tileeditor.core.Layer;
 
 public interface IGridEditorOutlinePage extends IContentOutlinePage {
 
-    public void setInput(List<Layer> layers, int selectedLayer);
+    public void setInput(List<Layer> layers);
 
     public void setSelectedLayer(Layer layer);
 

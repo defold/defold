@@ -28,13 +28,13 @@ public class GridView implements IGridView {
     @Override
     public void setLayers(List<Layer> layers) {
         this.renderer.setLayers(layers);
-        this.outline.setInput(layers, -1);
+        this.outline.setInput(layers);
     }
 
     @Override
     public void setSelectedLayer(Layer layer) {
-        this.outline.setSelectedLayer(layer);
         this.renderer.setSelectedLayer(layer);
+        this.outline.setSelectedLayer(layer);
     }
 
     @Override

@@ -202,9 +202,14 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
     }
 
     public void setSelectedLayer(Layer selectedLayer) {
-        if (this.selectedLayer != selectedLayer) {
+        int index = this.layers.indexOf(selectedLayer);
+        Layer newSelectedLayer = null;
+        if (index >= 0) {
+            newSelectedLayer = this.layers.get(index);
+        }
+        if (this.selectedLayer != newSelectedLayer) {
             Layer prevSelectedLayer = this.selectedLayer;
-            this.selectedLayer = selectedLayer;
+            this.selectedLayer = newSelectedLayer;
             firePropertyChangeEvent(new PropertyChangeEvent(this, "selectedLayer", prevSelectedLayer, this.selectedLayer));
         }
     }

@@ -143,7 +143,6 @@ public class TileSetPresenter implements PropertyChangeListener, IOperationHisto
             if (evt.getSource() instanceof TileSetModel) {
                 if (evt.getPropertyName().equals("collisionGroups")) {
                     List<String> newGroups = (List<String>)evt.getNewValue();
-                    List<String> oldGroups = (List<String>)evt.getOldValue();
                     setViewCollisionGroups(newGroups);
                     setViewHulls(this.model.getConvexHulls());
                 } else if (evt.getPropertyName().equals("convexHulls")) {

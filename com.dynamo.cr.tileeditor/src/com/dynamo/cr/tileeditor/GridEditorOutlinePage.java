@@ -1,6 +1,5 @@
 package com.dynamo.cr.tileeditor;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import javax.inject.Inject;
@@ -75,7 +74,7 @@ public class GridEditorOutlinePage extends ContentOutlinePage implements IGridEd
      * @see com.dynamo.cr.tileeditor.IGridEditorOutlinePage#setInput(java.util.List, int)
      */
     @Override
-    public void setInput(List<Layer> layers, int selectedLayer) {
+    public void setInput(List<Layer> layers) {
         int n = layers.size();
         LayersItem layersItem = this.root.grid.layers;
         if (layersItem.items == null || layersItem.items.length != n) {
@@ -84,26 +83,17 @@ public class GridEditorOutlinePage extends ContentOutlinePage implements IGridEd
         layers.toArray(layersItem.items);
         TreeViewer viewer = getTreeViewer();
         if (viewer != null) {
-            this.ignoreSelection = true;
             viewer.setInput(this.root);
             viewer.expandToLevel(2);
-            if (selectedLayer >= 0) {
-                List<Layer> selectedItems = new ArrayList<Layer>(1);
-                selectedItems.add(this.root.grid.layers.items[selectedLayer]);
-                viewer.setSelection(new StructuredSelection(selectedItems));
-            } else {
-                List<GridItem> selectedItems = new ArrayList<GridItem>(1);
-                selectedItems.add(this.root.grid);
-                viewer.setSelection(new StructuredSelection(selectedItems));
-            }
-            ignoreSelection = false;
         }
     }
 
     @Override
     public void setSelectedLayer(Layer layer) {
         if (layer != null) {
+            this.ignoreSelection = true;
             getTreeViewer().setSelection(new StructuredSelection(layer), true);
+            this.ignoreSelection = false;
         }
     }
 
