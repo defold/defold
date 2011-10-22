@@ -279,7 +279,7 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
             Rectangle clientRect = this.view.getPreviewRect();
             Vector2f clientDim = new Vector2f(clientRect.width, clientRect.height);
             clientDim.scale(0.8f);
-            this.previewZoom = Math.max(clientDim.getX() / bb_dim.getX(), clientDim.getY() / bb_dim.getY());
+            this.previewZoom = Math.min(clientDim.getX() / bb_dim.getX(), clientDim.getY() / bb_dim.getY());
             this.view.setPreview(this.previewPosition, this.previewZoom);
         }
     }

@@ -508,7 +508,7 @@ public class GridTest implements IResourceChangeListener {
         Rectangle clientRect = this.view.getPreviewRect();
         Vector2f clientDim = new Vector2f(clientRect.width, clientRect.height);
         clientDim.scale(0.8f);
-        float zoom = Math.max(clientDim.getX() / tileWidth, clientDim.getY() / tileHeight);
+        float zoom = Math.min(clientDim.getX() / tileWidth, clientDim.getY() / tileHeight);
         verify(this.view, times(1)).setPreview(eq(new Point2f(tileWidth * 1.5f, tileHeight * 1.5f)), eq(zoom, 0.001f));
     }
 
