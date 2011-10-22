@@ -387,6 +387,7 @@ public class GridTest implements IResourceChangeListener {
         assertEquals(2, layers.size());
         Layer layer = layers.get(1);
         assertEquals("layer2", layer.getId());
+        assertTrue(layer.isVisible());
         verify(this.view, times(2)).setLayers(anyListOf(Layer.class));
         verify(this.view, times(1)).setSelectedLayer(layers.get(1));
 

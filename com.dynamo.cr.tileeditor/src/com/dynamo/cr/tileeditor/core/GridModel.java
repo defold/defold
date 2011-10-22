@@ -166,6 +166,7 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
             layerId = MessageFormat.format(pattern, i++);
         }
         layer.setId(layerId);
+        layer.setVisible(true);
         return layer;
     }
 
