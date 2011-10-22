@@ -142,6 +142,11 @@ public class Layer implements IAdaptable, Comparable<Layer> {
 
     public void setCells(Map<Long, Cell> cells) {
         this.cells = new HashMap<Long, Cell>(cells);
+        for (Map.Entry<Long, Cell> entry : cells.entrySet()) {
+            if (entry.getValue() == null) {
+                this.cells.remove(entry.getKey());
+            }
+        }
     }
 
     public Cell getCell(long cellIndex) {

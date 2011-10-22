@@ -338,10 +338,16 @@ public class GridTest implements IResourceChangeListener {
 
         verify(this.view, never()).setCells(eq(0), anyMap());
 
+        // There was a NPE related to this, hence it is tested here
+        this.presenter.onSave(new ByteArrayOutputStream(), null);
+
         undo();
         assertThat(cellTile(layer, 0, 1), is(-1));
         assertThat(cellTile(layer, 1, 1), is(-1));
         verify(this.view, times(1)).setCells(eq(0), anyMap());
+
+        // There was a NPE related to this, hence it is tested here
+        this.presenter.onSave(new ByteArrayOutputStream(), null);
 
         redo();
         assertThat(cellTile(layer, 0, 1), is(1));
