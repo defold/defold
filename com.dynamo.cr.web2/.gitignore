@@ -6,4 +6,5 @@ war/defold
 war/site/*.html
 war/doc/*.json
 test-classes/*
+gwt-unitCache/*
 

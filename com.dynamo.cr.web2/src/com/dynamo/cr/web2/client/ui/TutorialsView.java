@@ -1,5 +1,6 @@
 package com.dynamo.cr.web2.client.ui;
 
+import com.dynamo.cr.web2.client.AsciiDocUtil;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.regexp.shared.MatchResult;
@@ -60,14 +61,7 @@ public class TutorialsView extends Composite {
          */
         tutorial.clear();
         loader.setVisible(false);
-
-        RegExp pattern = RegExp.compile("[\\s\\S]*?<body[\\s\\S]*?>([\\s\\S]*?)</body>[\\s\\S]*?");
-        MatchResult result = pattern.exec(html);
-        if (result != null) {
-            tutorial.add(new HTML("<div class=\"asciidoc\">"  + result.getGroup(1) + "</div>"));
-        } else {
-            tutorial.add(new HTML("Invalid file."));
-        }
+        tutorial.add(AsciiDocUtil.extractBody(html));
     }
 
     public void setLoading(boolean loading) {

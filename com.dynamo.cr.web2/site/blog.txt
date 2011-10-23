@@ -1,0 +1,18 @@
+:max-width: 45em
+
+How to play impact sounds
+-------------------------
+*_October 23, 2011_*
+
+[source,lua]
+----
+-- Play sound snippet
+function on_message(self, message_id, message, sender)
+    -- check for contact points
+    -- *and* that the impact in them is hard enough
+    if message_id == hash("contact_point_response") and message.applied_impulse > 1 then
+        -- play sound
+        msg.post("#thud", "play_sound")
+    end
+end
+----

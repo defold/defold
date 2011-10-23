@@ -7,6 +7,7 @@ import java.util.Date;
 
 import com.dynamo.cr.web2.client.mvp.AppActivityMapper;
 import com.dynamo.cr.web2.client.mvp.AppPlaceHistoryMapper;
+import com.dynamo.cr.web2.client.place.BlogPlace;
 import com.dynamo.cr.web2.client.place.DashboardPlace;
 import com.dynamo.cr.web2.client.place.DocumentationPlace;
 import com.dynamo.cr.web2.client.place.LoginPlace;
@@ -38,6 +39,7 @@ import com.google.gwt.user.client.ui.Anchor;
 import com.google.gwt.user.client.ui.DockLayoutPanel;
 import com.google.gwt.user.client.ui.RootLayoutPanel;
 import com.google.gwt.user.client.ui.ScrollPanel;
+import com.google.web.bindery.event.shared.EventBus;
 
 /**
  * @author chmu
@@ -56,7 +58,7 @@ public class Defold implements EntryPoint {
     @UiField EditableLabel editableLabel;
     private MessageNotification messageNotification;
 
-    private com.google.gwt.event.shared.EventBus eventBus;
+    private EventBus eventBus;
 
     private String url = "http://cr.defold.se:9998";
 
@@ -305,6 +307,11 @@ public class Defold implements EntryPoint {
     @UiHandler("tutorials")
     void onTutorialsClick(ClickEvent event) {
         clientFactory.getPlaceController().goTo(new TutorialsPlace(""));
+    }
+
+    @UiHandler("blog")
+    void onBlogClick(ClickEvent event) {
+        clientFactory.getPlaceController().goTo(new BlogPlace());
     }
 
     @UiHandler("editableLabel")
