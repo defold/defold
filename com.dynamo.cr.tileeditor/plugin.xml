@@ -43,6 +43,7 @@
             id="com.dynamo.cr.tileeditor.resourcetypes.TileGrid"
             name="Tile Grid"
             proto-message-class="com.dynamo.tile.proto.Tile$TileGrid"
+            resource-refactor-participant-class="com.dynamo.cr.tileeditor.core.refactoring.TileGridRefactorParticipant"
             template-data="tile_set: &quot;&quot; layers: {id: &quot;layer1&quot; z: 0 is_visible: 1}"
             type-class="tile_grid">
          <references>
