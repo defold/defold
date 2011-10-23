@@ -24,6 +24,7 @@ import org.eclipse.jface.action.IStatusLineManager;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.window.Window;
+import org.eclipse.swt.SWT;
 import org.eclipse.swt.graphics.Cursor;
 import org.eclipse.swt.graphics.ImageData;
 import org.eclipse.swt.graphics.ImageLoader;
@@ -83,7 +84,9 @@ public class GridEditor extends AbstractDefoldEditor {
     private String[] cursorPaths = new String[] {
             "/icons/pencil.png",
             "/icons/draw_eraser.png",
-            "/icons/cross.png"
+            // NOTE: Icons from http://gitorious.org/opensuse/art/trees/master/cursors/dmz/pngs/24x24
+            // MIT license
+            "/icons/unavailable.png"
     };
 
     class Module extends AbstractModule {
@@ -167,6 +170,7 @@ public class GridEditor extends AbstractDefoldEditor {
         for (int i = 0; i < CURSOR_TYPE_COUNT; ++i) {
             ImageData[] data = imageLoader.load(getClass().getResourceAsStream(this.cursorPaths[i]));
             this.cursors[i] = new Cursor(display, data[0], 0, 15);
+            //this.cursors[i] = new Cursor(display, SWT.CURSOR_CROSS);
         }
 
         IProgressService service = PlatformUI.getWorkbench()
