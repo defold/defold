@@ -362,9 +362,9 @@ namespace dmSound
             ALuint source = sound->m_Sources[sound_instance->m_SourceIndex];
             alSourceStop(source);
             CheckAndPrintError();
-            if (sound_instance->m_BufferIndices[0] != 0xffff);
+            if (sound_instance->m_BufferIndices[0] != 0xffff)
                 sound->m_BuffersPool.Push(sound_instance->m_BufferIndices[0]);
-            if (sound_instance->m_BufferIndices[1] != 0xffff);
+            if (sound_instance->m_BufferIndices[1] != 0xffff)
                 sound->m_BuffersPool.Push(sound_instance->m_BufferIndices[1]);
         }
         uint16_t index = sound_instance->m_Index;
