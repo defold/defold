@@ -1,42 +1,97 @@
 :max-width: 45em
 
-How to play impact sounds
--------------------------
+Update - Tiles & Properties
+--------------------------
 *_October 23, 2011_*
 
-Tile Set Editing
-~~~~~~~~~~~~~~~~
+Welcome to the first update-post from Defold!
+This is a way for us to tell you a bit about what has happened lately and what lies ahead.
+
+Tiles
+~~~~~
+
+We are very excited to have completed the first iteration of our tile-system.
+Tiles are typically used whenever you want to place a lot of images in a grid based fashion,
+for example in platformers, RTS- and TD-games.
+
+To start putting tiles into your game, you first need to create a 'tile set' (.tileset).
+In the tile set, you specify the image containing the tiles, as well as metrics on how you have ordered your tiles inside the image.
+If you also specify an image for collision, collision hulls will be automatically generated for the tiles.
+
 image:images/blog/tile_1.0/tileset_editor.png["Tile set editor", width=880]
 
-Tile Grid Editing
-~~~~~~~~~~~~~~~~~
-image:images/blog/tile_1.0/tilegrid_editor.png["Tile set editor", width=880]
+Please see the new menu *Tile Set* in the top menu bar for more of the features available when you are working with tile sets.
+    
+The next step is to create a 'tile grid'.
+The tile grid is a new component that takes care of rendering and physics for the tiles in-game.
+To be able to do this, the system needs to know which tile set you want to fetch the tiles from.
+To start painting tiles into your grid, select a layer in the outline view.
+If you look at the top menu bar, there is now a new menu called *Tile Grid* available.
+Select *Tile Grid > Show Palette* to bring up the tile set you specified.
 
 image:images/blog/tile_1.0/tilegrid_edior_brush.png["Tile set brush selection", width=880]
 
-Tile Grid Placement in Collection Editor
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Click on a tile you want to use, which will turn the cursor into a brush with that tile selected.
+Paint your tiles, rinse and repeat.
+To erase painted tiles, open the palette again.
+Click on the selected tile, which will turn the cursor into an eraser.
+
+image:images/blog/tile_1.0/tilegrid_editor.png["Tile set editor", width=880]
+
+To finally bring your newly painted tiles into the game, add the tile grid as a component to a game object present in the game.
+If you also want to have collision on the tiles, add a collision object component to the same game object and specify
+the tile grid as its collision shape.
+
 image:images/blog/tile_1.0/collection_editor.png["Collection editor", width=880]
 
-New Property Editor
-~~~~~~~~~~~~~~~~~~~
+Another cool thing is that you can change the tiles in-game from your logic scripts.
+Check out the new 'set_tile' message in the documentation ('GameSys').
+
+Properties
+~~~~~~~~~~
+
+We have also completely revamped the property system used by the editor.
+The most noticable thing is that the layout has changed from grid-based to form-based.
+We have also started to employ a new usage-philosophy, which is that all user input should be accepted.
+The input is still validated, but any errors or other message is now displayed in a non-intrusive way next to the related input fields.
+No more annoying popup dialogs! :-)
+
 image:images/blog/tile_1.0/property_messages.png["Property editor", width=880]
 
-The Game
-~~~~~~~~
-image:images/blog/tile_1.0/the_game.png["Property editor", width=880]
+All of this new editor functionality is of course up to Defold-standards, which means complete support for:
 
+* Undo/redo
+* Reload
+* Refactoring
 
+What we haven't fixed yet however (among others) are:
+
+* More convenient tools for painting/editing tiles (please contribute with your own suggestions!)
+* Reload of tile grids in-game
+* Sprites are still created/animated as usual
+
+Roadmap
+~~~~~~~
+
+This is our roadmap, as it looks at this very moment, ordered from sooner to later.
+
+. Sprite re-design - How to incorporate sprites better with the new tile system
+. Tile Usability - Any known and new issues, workflow improvements, etc
+. Game Object editor - Better preview and editing support for components inside the game object editor
+. Documentation - User Manual, Tutorials, etc
+. Website - Re-designed layout and structure
+
+We really hope you enjoyed reading this.
+As always, we would love to hear any feedback, change requests, complaints or other issues you experience while using Defold.
+Direct them to the usual cases-mail.
+Now go ahead and make a more original game than we did! ;-)
+
+image:images/blog/tile_1.0/the_game.png["Tiles in-game", width=880]
 
 [source,lua]
 ----
--- Play sound snippet
-function on_message(self, message_id, message, sender)
-    -- check for contact points
-    -- *and* that the impact in them is hard enough
-    if message_id == hash("contact_point_response") and message.applied_impulse > 1 then
-        -- play sound
-        msg.post("#thud", "play_sound")
-    end
+-- clean termination
+function final(self)
+    print("The Defold-Team thanks you for your support!")
 end
 ----
