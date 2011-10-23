@@ -34,6 +34,44 @@ message ConvexShape
     repeated float data = 2;
 }
 
+// Format not in use. Just a sketch how we could replace ConvexShape with something more general
+message PhysicsShape
+{
+    enum Type
+    {
+        TYPE_SPHERE = 0;
+        TYPE_BOX = 1;
+        TYPE_CAPSULE = 2;
+        TYPE_HULL = 3;
+    }
+
+    /*
+        ShapeType == SPHERE
+        Data = [radius]
+
+        ShapeType == BOX
+        Data = [ext_x, ext_y, ext_z]
+
+        ShapeType == CAPSULE
+        Data = [radius, height]
+
+        ShapeType == HULL
+        Data = [x0, y0, z0, x1, ...]
+    */
+
+    message Shape
+    {
+        required Type shape_type        = 1;
+        required dmMath.Point3 position = 2;
+        required dmMath.Quat rotation   = 3;
+        required uint32 index           = 4;
+        required uint32 count           = 5;
+    }
+
+    repeated Shape shapes = 1;
+    repeated float data   = 2;
+}
+
 /* This should coincide with CollisionObjectType in physics-lib */
 enum CollisionObjectType
 {
