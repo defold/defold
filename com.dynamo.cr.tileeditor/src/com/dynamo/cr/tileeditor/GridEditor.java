@@ -67,7 +67,7 @@ public class GridEditor extends AbstractDefoldEditor {
 
     public static final int CURSOR_TYPE_PENCIL = 0;
     public static final int CURSOR_TYPE_ERASER = 1;
-    public static final int CURSOR_TYPE_CROSS = 2;
+    public static final int CURSOR_TYPE_UNAVAILABLE = 2;
     public static final int CURSOR_TYPE_COUNT = 3;
 
     private IGridEditorOutlinePage outlinePage;
@@ -83,7 +83,9 @@ public class GridEditor extends AbstractDefoldEditor {
     private String[] cursorPaths = new String[] {
             "/icons/pencil.png",
             "/icons/draw_eraser.png",
-            "/icons/cross.png"
+            // NOTE: Icons from http://gitorious.org/opensuse/art/trees/master/cursors/dmz/pngs/24x24
+            // MIT license
+            "/icons/unavailable.png"
     };
 
     class Module extends AbstractModule {
