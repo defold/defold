@@ -4,6 +4,30 @@ How to play impact sounds
 -------------------------
 *_October 23, 2011_*
 
+Tile Set Editing
+~~~~~~~~~~~~~~~~
+image:images/blog/tile_1.0/tileset_editor.png["Tile set editor", width=880]
+
+Tile Grid Editing
+~~~~~~~~~~~~~~~~~
+image:images/blog/tile_1.0/tilegrid_editor.png["Tile set editor", width=880]
+
+image:images/blog/tile_1.0/tilegrid_edior_brush.png["Tile set brush selection", width=880]
+
+Tile Grid Placement in Collection Editor
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+image:images/blog/tile_1.0/collection_editor.png["Collection editor", width=880]
+
+New Property Editor
+~~~~~~~~~~~~~~~~~~~
+image:images/blog/tile_1.0/property_messages.png["Property editor", width=880]
+
+The Game
+~~~~~~~~
+image:images/blog/tile_1.0/the_game.png["Property editor", width=880]
+
+
+
 [source,lua]
 ----
 -- Play sound snippet
