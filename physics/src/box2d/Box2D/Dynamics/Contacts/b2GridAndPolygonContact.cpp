@@ -27,6 +27,11 @@ b2GridAndPolygonContact::b2GridAndPolygonContact(b2Fixture* fixtureA, int32 inde
 {
 	b2Assert(m_fixtureA->GetType() == b2Shape::e_grid);
 	b2Assert(m_fixtureB->GetType() == b2Shape::e_polygon);
+
+    b2GridShape* gridShape = (b2GridShape*)m_fixtureA->GetShape();
+    int32 row = m_indexA / gridShape->m_columnCount;
+    int32 col = m_indexA - (gridShape->m_columnCount * row);
+    m_edgeMask = gridShape->CalculateCellMask(m_fixtureA, row, col);
 }
 
 void b2GridAndPolygonContact::Evaluate(b2Manifold* manifold, const b2Transform& xfA, const b2Transform& xfB)
@@ -44,4 +49,21 @@ void b2GridAndPolygonContact::Evaluate(b2Manifold* manifold, const b2Transform& 
     gridShape->GetPolygonShapeForCell(m_indexA, polyA);
 
     b2CollidePolygons(manifold, &polyA, xfA, polyB, xfB);
+
+    if (manifold->pointCount > 0)
+    {
+        // Remove points not present in edge-mask, ie internal and adjacent edges
+        uint32 vc = polyA.m_vertexCount;
+        for (uint32 i = 0; i < vc; ++i)
+        {
+            const b2Vec2 n = polyA.m_normals[i];
+            float32 x = b2Dot(n, manifold->localNormal);
+            // NOTE: constant epsilon is ok here as the magniute is constant
+            if (x > 0.999f && !(m_edgeMask & (1 << i)))
+            {
+                manifold->pointCount = 0;
+                break;
+            }
+        }
+    }
 }

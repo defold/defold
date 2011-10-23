@@ -104,14 +104,15 @@ void b2GridShape::ComputeMass(b2MassData* massData, float32 density) const
     massData->I = massData->mass * (w * w + h * h + b2Dot(m_position, m_position)) / 12.0f;
 }
 
-void b2GridShape::GetPolygonShapeForCell(uint32 index, b2PolygonShape& polyShape) const
+uint32 b2GridShape::GetCellVertices(uint32 index, b2Vec2* vertices) const
 {
     const b2GridShape::Cell& cell = m_cells[index];
+    if (cell.m_Index == B2GRIDSHAPE_EMPTY_CELL)
+        return 0;
+
     const b2HullSet::Hull& hull = m_hullSet->m_hulls[cell.m_Index];
 
     b2Assert(hull.m_Count <= b2_maxPolygonVertices);
-
-    b2Vec2 vertices[b2_maxPolygonVertices];
 
     int row = index / m_columnCount;
     int col = index - (m_columnCount * row);
@@ -132,8 +133,90 @@ void b2GridShape::GetPolygonShapeForCell(uint32 index, b2PolygonShape& polyShape
         vertices[i] += t;
     }
 
+    return hull.m_Count;
+}
+
+void b2GridShape::GetPolygonShapeForCell(uint32 index, b2PolygonShape& polyShape) const
+{
+    const b2GridShape::Cell& cell = m_cells[index];
+    const b2HullSet::Hull& hull = m_hullSet->m_hulls[cell.m_Index];
+    b2Assert(hull.m_Count <= b2_maxPolygonVertices);
+
+    b2Vec2 vertices[b2_maxPolygonVertices];
+    GetCellVertices(index, vertices);
+
     polyShape.Set(vertices, hull.m_Count);
     polyShape.m_radius = m_radius;
+}
+
+static bool hasEdge(b2Vec2 p0, b2Vec2 p1, b2Vec2* vertices, uint32 n)
+{
+    const float32 epsilon = 0.01f;
+    // Calculate absolute tolerance values by scaling epsilon with the magnitude
+    // of the compared. We assume that b2Max(p0.x, p0.y) is closed to b2Max of all vertices compared
+    const float32 absTol = epsilon * b2Max(1.0f, b2Max(p0.x, p0.y));
+
+    for (uint32 i = 0; i < n; ++i)
+    {
+        uint32 i1 = i % n;
+        uint32 i2 = (i+1) % n;
+        float32 d1 = b2DistanceSquared(p0, vertices[i1]);
+        float32 d2 = b2DistanceSquared(p1, vertices[i2]);
+
+        if (d1 < absTol && d2 < absTol)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+uint32 b2GridShape::CalculateCellMask(b2Fixture* fixture, uint32 row, uint32 column)
+{
+    uint32 index = row * m_columnCount + column;
+    const b2Filter& filter = fixture->GetFilterData(index);
+    uint32 mask = 0xffffffff;
+
+    b2Vec2 vertices[b2_maxPolygonVertices];
+    b2Vec2 neighbourVertices[b2_maxPolygonVertices];
+
+    uint32 nv = GetCellVertices(index, vertices);
+
+    static const int32 deltas[4][2] = { {0, 1}, {1, 0}, {0, -1}, {-1, 0} };
+
+    for (uint32 idelta = 0; idelta < 4; ++idelta)
+    {
+        int32 dr = deltas[idelta][0];
+        int32 dc = deltas[idelta][1];
+
+        int32 r = ((int32) row) + dr;
+        int32 c = ((int32) column) + dc;
+        if (r >= 0 && r < (int32) m_rowCount &&
+            c >= 0 && c < (int32) m_columnCount)
+        {
+            uint32 neighbourIndex = r * m_columnCount + c;
+            uint32 nnv = GetCellVertices(neighbourIndex, neighbourVertices);
+
+            const b2Filter& neighbourFilter = fixture->GetFilterData(neighbourIndex);
+
+            if (filter.categoryBits == neighbourFilter.categoryBits)
+            {
+                for (uint32 i = 0; i < nv; ++i)
+                {
+                    uint32 i1 = i % nv;
+                    uint32 i2 = (i+1) % nv;
+
+                    if (hasEdge(vertices[i2], vertices[i1], neighbourVertices, nnv))
+                    {
+                        mask &= ~(1 << i);
+                    }
+                }
+            }
+        }
+    }
+
+    return mask;
 }
 
 void b2GridShape::SetCellHull(b2Body* body, uint32 row, uint32 column, uint32 hull)

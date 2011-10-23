@@ -75,6 +75,8 @@ public:
 
     void SetCellHull(b2Body* body, uint32 row, uint32 column, uint32 hull);
 
+    uint32 CalculateCellMask(b2Fixture* fixture, uint32 row, uint32 column);
+
     struct Cell
     {
         // Index to hull in hull-set
@@ -89,6 +91,9 @@ public:
     uint32  m_cellHeight;
     uint32  m_rowCount;
     uint32  m_columnCount;
+
+private:
+    uint32 GetCellVertices(uint32 index, b2Vec2* vertices) const;
 };
 
 #endif // B2_TILE_SHAPE_H
