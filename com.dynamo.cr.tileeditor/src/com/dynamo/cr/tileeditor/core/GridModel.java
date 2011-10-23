@@ -260,7 +260,7 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
                 layers.add(layer);
             }
             setLayers(layers);
-            if (layers.size() > 0) {
+            if (layers.size() > 0 && isValid() && this.tileSetModel != null) {
                 setSelectedLayer(layers.get(0));
             } else {
                 setSelectedLayer(null);

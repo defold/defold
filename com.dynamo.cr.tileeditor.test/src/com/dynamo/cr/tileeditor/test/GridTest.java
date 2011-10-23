@@ -325,6 +325,8 @@ public class GridTest implements IResourceChangeListener {
 
         // Paint
 
+        this.presenter.onSelectLayer(layer);
+
         this.presenter.onSelectTile(1, false, false);
         verify(this.view, times(1)).setSelectedTile(1, false, false);
 
@@ -407,7 +409,7 @@ public class GridTest implements IResourceChangeListener {
 
         undo();
         assertEquals(1, this.model.getLayers().size());
-        verify(this.view, times(2)).setSelectedLayer(layers.get(0));
+        verify(this.view, times(2)).setSelectedLayer(eq((Layer)null));
 
         redo();
         assertEquals(2, this.model.getLayers().size());
@@ -732,6 +734,8 @@ public class GridTest implements IResourceChangeListener {
         presenter.onSave(new ByteArrayOutputStream(), new NullProgressMonitor());
         assertThat(presenter.isDirty(), is(false));
         verify(this.view, times(++dirtyFalseCount)).setDirty(false);
+
+        this.presenter.onSelectLayer(this.model.getLayers().get(0));
 
         this.presenter.onSelectTile(1, false, false);
         assertThat(presenter.isDirty(), is(false));
