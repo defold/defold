@@ -32,14 +32,14 @@ namespace dmGameSystem
                 hull_descs[i].m_Count = (uint16_t)hull_ddf->m_Count;
             }
             uint32_t n_points = tile_set_ddf->m_ConvexHullPoints.m_Count / 2;
-            float recip_tile_width = 1.0f / tile_set_ddf->m_TileWidth;
-            float recip_tile_height = 1.0f / tile_set_ddf->m_TileHeight;
+            float recip_tile_width = 1.0f / (tile_set_ddf->m_TileWidth - 1);
+            float recip_tile_height = 1.0f / (tile_set_ddf->m_TileHeight - 1);
             float* points = tile_set_ddf->m_ConvexHullPoints.m_Data;
             float* norm_points = new float[n_points * 2];
             for (uint32_t i = 0; i < n_points; ++i)
             {
-                norm_points[i*2] = (points[i*2] + 0.5f) * recip_tile_width - 0.5f;
-                norm_points[i*2+1] = (points[i*2+1] + 0.5f) * recip_tile_height - 0.5f;
+                norm_points[i*2] = (points[i*2]) * recip_tile_width - 0.5f;
+                norm_points[i*2+1] = (points[i*2+1]) * recip_tile_height - 0.5f;
             }
             tile_set->m_HullSet = dmPhysics::NewHullSet2D(norm_points, n_points, hull_descs, n_hulls);
             delete [] hull_descs;
