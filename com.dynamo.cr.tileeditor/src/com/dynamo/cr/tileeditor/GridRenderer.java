@@ -876,7 +876,7 @@ Listener {
                         cursorType = GridEditor.CURSOR_TYPE_ERASER;
                     }
                 } else {
-                    cursorType = GridEditor.CURSOR_TYPE_CROSS;
+                    cursorType = GridEditor.CURSOR_TYPE_UNAVAILABLE;
                 }
             }
             Cursor cursor = this.defaultCursor;

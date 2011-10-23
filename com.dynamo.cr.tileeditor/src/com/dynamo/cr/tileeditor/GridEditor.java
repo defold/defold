@@ -24,7 +24,6 @@ import org.eclipse.jface.action.IStatusLineManager;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.window.Window;
-import org.eclipse.swt.SWT;
 import org.eclipse.swt.graphics.Cursor;
 import org.eclipse.swt.graphics.ImageData;
 import org.eclipse.swt.graphics.ImageLoader;
@@ -68,7 +67,7 @@ public class GridEditor extends AbstractDefoldEditor {
 
     public static final int CURSOR_TYPE_PENCIL = 0;
     public static final int CURSOR_TYPE_ERASER = 1;
-    public static final int CURSOR_TYPE_CROSS = 2;
+    public static final int CURSOR_TYPE_UNAVAILABLE = 2;
     public static final int CURSOR_TYPE_COUNT = 3;
 
     private IGridEditorOutlinePage outlinePage;
@@ -170,7 +169,6 @@ public class GridEditor extends AbstractDefoldEditor {
         for (int i = 0; i < CURSOR_TYPE_COUNT; ++i) {
             ImageData[] data = imageLoader.load(getClass().getResourceAsStream(this.cursorPaths[i]));
             this.cursors[i] = new Cursor(display, data[0], 0, 15);
-            //this.cursors[i] = new Cursor(display, SWT.CURSOR_CROSS);
         }
 
         IProgressService service = PlatformUI.getWorkbench()
