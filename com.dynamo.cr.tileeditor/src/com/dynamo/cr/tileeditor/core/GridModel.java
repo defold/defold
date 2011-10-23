@@ -114,10 +114,13 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
 
     protected IStatus validateTileSet() {
         if (this.tileSetModel != null) {
-            @SuppressWarnings("unchecked")
-            IPropertyModel<TileSetModel, TileSetModel> propertyModel = (IPropertyModel<TileSetModel, TileSetModel>) this.tileSetModel.getAdapter(IPropertyModel.class);
-            IStatus imageStatus = propertyModel.getPropertyStatus("image");
-            if (imageStatus != null && !imageStatus.isOK()) {
+            boolean valid = this.tileSetModel.isValid();
+            if (valid) {
+                if (this.tileSetModel.getImage().equals("") && this.tileSetModel.getCollision().equals("")) {
+                    valid = false;
+                }
+            }
+            if (!valid) {
                 return new Status(IStatus.ERROR, Activator.PLUGIN_ID, Messages.GRID_INVALID_TILESET);
             }
         }

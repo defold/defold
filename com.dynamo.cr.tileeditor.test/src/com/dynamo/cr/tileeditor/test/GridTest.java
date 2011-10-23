@@ -22,6 +22,7 @@ import static org.mockito.Mockito.when;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -40,6 +41,7 @@ import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.DefaultOperationHistory;
 import org.eclipse.core.commands.operations.IOperationHistory;
 import org.eclipse.core.commands.operations.IUndoContext;
+import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.core.commands.operations.UndoContext;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
@@ -206,7 +208,7 @@ public class GridTest implements IResourceChangeListener {
         this.presenter.onLoad(file.getContents());
     }
 
-    private void newTileSet(String path, String image, int tileSpacing) throws IOException, CoreException {
+    private TileSetModel newTileSet(String path, String image, int tileSpacing) throws IOException, CoreException {
         newResourceFile(path);
         IFile file = this.contentRoot.getFile(new Path(path));
         TileSetModel tileSetModel = new TileSetModel(this.contentRoot, null, null, new TestLogger());
@@ -219,10 +221,11 @@ public class GridTest implements IResourceChangeListener {
         } finally {
             os.close();
         }
+        return tileSetModel;
     }
 
-    private void newMarioTileSet() throws IOException, CoreException {
-        newTileSet("/mario.tileset", "/mario_tileset.png", 1);
+    private TileSetModel newMarioTileSet() throws IOException, CoreException {
+        return newTileSet("/mario.tileset", "/mario_tileset.png", 1);
     }
 
     private void setProperty(IPropertyModel<?,?> propertyModel, Object id, Object value) {
@@ -231,6 +234,11 @@ public class GridTest implements IResourceChangeListener {
 
     private void setGridProperty(Object id, Object value) throws ExecutionException {
         setProperty(this.propertyModel, id, value);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void setTileSetProperty(TileSetModel model, Object id, Object value) {
+        setProperty((IPropertyModel<TileSetModel, TileSetModel>)model.getAdapter(IPropertyModel.class), id, value);
     }
 
     @SuppressWarnings("unchecked")
@@ -610,24 +618,81 @@ public class GridTest implements IResourceChangeListener {
         verify(this.view, times(2)).setValidModel(eq(true));
     }
 
+    private void saveTileSet(IFile file, TileSetModel tileSetModel) throws Exception {
+        OutputStream os = new FileOutputStream(file.getLocation().toFile());
+        try {
+            tileSetModel.save(os, null);
+        } finally {
+            os.close();
+        }
+    }
+
+    private void assertInvalidTileSet(IFile file, Object id, Object value) throws Exception {
+        TileSetModel tileSetModel = this.model.getTileSetModel();
+        setTileSetProperty(tileSetModel, id, value);
+
+        saveTileSet(file, tileSetModel);
+
+        assertEquals(Messages.GRID_INVALID_TILESET, this.propertyModel.getPropertyStatus("tileSet").getMessage());
+        assertTrue(!this.propertyModel.getPropertyStatus("tileSet").isOK());
+
+        undo();
+
+        saveTileSet(file, tileSetModel);
+
+        assertTrue(this.propertyModel.getPropertyStatus("tileSet").isOK());
+    }
+
     /**
      * Message 2.3 - Invalid tile set
      * @throws IOException
      * @throws CoreException
      */
     @Test
-    public void testMessage23() throws Exception {
-        newTileSet("/missing_image.tileset", "/test/does_not_exists.png", 0);
+    public void testMessage23() throws Throwable {
         newMarioTileSet();
         newGrid();
 
-        assertTrue(!propertyModel.getPropertyStatus("tileSet").isOK());
-        setGridProperty("tileSet", "/missing_image.tileset");
-        assertEquals(Messages.GRID_INVALID_TILESET, propertyModel.getPropertyStatus("tileSet").getMessage());
-        assertTrue(!propertyModel.getPropertyStatus("tileSet").isOK());
+        String tileSetPath = "/mario.tileset";
 
-        setGridProperty("tileSet", "/mario.tileset");
+        assertTrue(!propertyModel.getPropertyStatus("tileSet").isOK());
+        setGridProperty("tileSet", tileSetPath);
         assertTrue(propertyModel.getPropertyStatus("tileSet").isOK());
+
+        IFile tileSetFile = this.contentRoot.getFile(new Path(tileSetPath));
+
+        // no image and no collision
+        assertInvalidTileSet(tileSetFile, "image", "");
+
+        // image not found
+        assertInvalidTileSet(tileSetFile, "image", "non_existing.png");
+
+        // collision not found
+        assertInvalidTileSet(tileSetFile, "collision", "non_existing.png");
+
+        // image/collision different dimensions
+        assertInvalidTileSet(tileSetFile, "collision", "/mario_half_tileset.png");
+
+        // invalid tile width
+        assertInvalidTileSet(tileSetFile, "tileWidth", new Integer(-1));
+
+        // invalid tile height
+        assertInvalidTileSet(tileSetFile, "tileHeight", new Integer(-1));
+
+        // total tile width
+        assertInvalidTileSet(tileSetFile, "tileWidth", new Integer(10000));
+
+        // total tile height
+        assertInvalidTileSet(tileSetFile, "tileHeight", new Integer(10000));
+
+        // empty material
+        assertInvalidTileSet(tileSetFile, "materialTag", "");
+
+        // invalid tile margin
+        assertInvalidTileSet(tileSetFile, "tileMargin", new Integer(-1));
+
+        // invalid tile spacing
+        assertInvalidTileSet(tileSetFile, "tileSpacing", new Integer(-1));
     }
 
     /**
