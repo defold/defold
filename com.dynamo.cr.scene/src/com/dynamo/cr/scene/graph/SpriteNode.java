@@ -65,6 +65,9 @@ public class SpriteNode extends ComponentNode<SpriteResource> {
 
             float[] uvs = { 1.0f, 1.0f };
             if (texture != null) {
+                gl.glEnable(GL.GL_BLEND);
+                gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
+
                 texture.enable();
                 gl.glTexEnvf(GL.GL_TEXTURE_ENV, GL.GL_TEXTURE_ENV_MODE, GL.GL_REPLACE);
                 gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST);
@@ -91,6 +94,7 @@ public class SpriteNode extends ComponentNode<SpriteResource> {
 
             if (texture != null) {
                 texture.disable();
+                gl.glDisable(GL.GL_BLEND);
             }
 
             gl.glPolygonMode(GL.GL_FRONT, GL.GL_LINE);

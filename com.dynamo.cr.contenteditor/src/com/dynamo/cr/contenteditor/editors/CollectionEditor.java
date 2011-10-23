@@ -128,6 +128,7 @@ import com.dynamo.cr.scene.graph.PrototypeNode;
 import com.dynamo.cr.scene.graph.Scene;
 import com.dynamo.cr.scene.graph.SceneEvent;
 import com.dynamo.cr.scene.graph.SpriteNode;
+import com.dynamo.cr.scene.graph.TileGridNode;
 import com.dynamo.cr.scene.math.AABB;
 import com.dynamo.cr.scene.resource.CameraLoader;
 import com.dynamo.cr.scene.resource.CollectionLoader;
@@ -143,6 +144,8 @@ import com.dynamo.cr.scene.resource.Resource;
 import com.dynamo.cr.scene.resource.ResourceFactory;
 import com.dynamo.cr.scene.resource.SpriteLoader;
 import com.dynamo.cr.scene.resource.TextureLoader;
+import com.dynamo.cr.scene.resource.TileGridLoader;
+import com.dynamo.cr.scene.resource.TileSetLoader;
 import com.dynamo.cr.scene.util.Constants;
 import com.dynamo.cr.scene.util.GLUtil;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
@@ -192,6 +195,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         m_SelectBuffer = ByteBuffer.allocateDirect(4 * MAX_MODELS).order(ByteOrder.nativeOrder()).asIntBuffer();
 
         propertySheetPage = new FormPropertySheetPage(contentRoot) {
+            @Override
             public void setActionBars(IActionBars actionBars) {
                 super.setActionBars(actionBars);
                 String undoId = ActionFactory.UNDO.getId();
@@ -391,6 +395,8 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         resourceFactory.addLoader("model", new ModelLoader());
         resourceFactory.addLoader("go", new PrototypeLoader());
         resourceFactory.addLoader("dae", new MeshLoader());
+        resourceFactory.addLoader("tileset", new TileSetLoader());
+        resourceFactory.addLoader("tilegrid", new TileGridLoader());
         ResourcesPlugin.getWorkspace().addResourceChangeListener(resourceFactory);
         factory = new NodeFactory();
         factory.addCreator("collection", CollectionNode.getCreator());
@@ -401,6 +407,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         factory.addCreator("light", LightNode.getCreator());
         factory.addCreator("sprite", SpriteNode.getCreator());
         factory.addCreator("collisionobject", CollisionNode.getCreator());
+        factory.addCreator("tilegrid", TileGridNode.getCreator());
 
         try
         {
@@ -425,12 +432,12 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
                         errorMessage.append("\n");
                     }
                     MessageDialog dialog = new MessageDialog(getSite().getShell(),
-                                            "Open Collection",
-                                            null,
-                                            "The following errors occurred while opening the collection",
-                                            MessageDialog.WARNING,
-                                            new String[] { "Ok" },
-                                            0) {
+                            "Open Collection",
+                            null,
+                            "The following errors occurred while opening the collection",
+                            MessageDialog.WARNING,
+                            new String[] { "Ok" },
+                            0) {
                         @Override
                         protected Control createCustomArea(Composite parent) {
 
@@ -616,6 +623,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         }
     }
 
+    @Override
     public UndoContext getUndoContext() {
         return m_UndoContext;
     }
@@ -729,7 +737,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
 
         IPreferenceStore store = Activator.getDefault().getPreferenceStore();
         boolean autoGrid = store.getString(PreferenceConstants.P_GRID).equals(PreferenceConstants.P_GRID_AUTO_VALUE);
-        double gridSize = (double)store.getInt(PreferenceConstants.P_GRID_SIZE);
+        double gridSize = store.getInt(PreferenceConstants.P_GRID_SIZE);
 
         gl.glDisable(GL.GL_LIGHTING);
         gl.glEnable(GL.GL_BLEND);
@@ -1078,16 +1086,16 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         ptr = 0;
         for (int i = 0; i < hits; i++)
         {
-           names = m_SelectBuffer.get(ptr);
-           ptr++;
-           {
-               numberOfNames = names;
-               minz = toUnsignedInt(m_SelectBuffer.get(ptr));
-               ptrNames = ptr+2;
-               selected.add(new SelectResult.Pair(minz, m_SelectBuffer.get(ptrNames)));
-           }
+            names = m_SelectBuffer.get(ptr);
+            ptr++;
+            {
+                numberOfNames = names;
+                minz = toUnsignedInt(m_SelectBuffer.get(ptr));
+                ptrNames = ptr+2;
+                selected.add(new SelectResult.Pair(minz, m_SelectBuffer.get(ptrNames)));
+            }
 
-           ptr += names+2;
+            ptr += names+2;
         }
         ptr = ptrNames;
 
@@ -1103,6 +1111,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         }
     }
 
+    @Override
     public void setSelectedNodes(Node[] nodes)
     {
         // Remove duplicates and children. Perhaps not optimal. Loop below does not handle duplicates
@@ -1144,6 +1153,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         }
     }
 
+    @Override
     public Node[] getSelectedNodes() {
         return m_SelectedNodes;
     }
@@ -1165,6 +1175,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         return result.m_Selected.size() > 0;
     }
 
+    @Override
     public Node[] selectNode(int x, int y, int w, int h, boolean multi_select, boolean add_to_selection, boolean update_ui) throws GLException
     {
         if (w == 0 || h == 0)
@@ -1266,6 +1277,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         postRedraw();
     }
 
+    @Override
     public Node getRoot() {
         return m_Root;
     }

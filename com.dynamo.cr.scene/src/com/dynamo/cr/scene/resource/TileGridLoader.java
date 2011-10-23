@@ -6,14 +6,13 @@ import java.io.InputStreamReader;
 
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
-import org.eclipse.core.runtime.SubProgressMonitor;
 
 import com.dynamo.cr.scene.graph.CreateException;
-import com.dynamo.physics.proto.Physics.CollisionObjectDesc;
-import com.dynamo.physics.proto.Physics.CollisionObjectDesc.Builder;
+import com.dynamo.tile.proto.Tile.TileGrid;
+import com.dynamo.tile.proto.Tile.TileGrid.Builder;
 import com.google.protobuf.TextFormat;
 
-public class CollisionLoader implements IResourceLoader {
+public class TileGridLoader implements IResourceLoader {
 
     @Override
     public Resource load(IProgressMonitor monitor, String name,
@@ -21,20 +20,22 @@ public class CollisionLoader implements IResourceLoader {
                     throws IOException, CreateException, CoreException {
 
         InputStreamReader reader = new InputStreamReader(stream);
-        Builder builder = CollisionObjectDesc.newBuilder();
+        Builder builder = TileGrid.newBuilder();
         TextFormat.merge(reader, builder);
-        CollisionObjectDesc desc = builder.build();
-        Resource shapeResource = factory.load(new SubProgressMonitor(monitor, 1), desc.getCollisionShape());
-        return new CollisionResource(name, desc, shapeResource);
+        TileGrid tileGrid = builder.build();
+        return new TileGridResource(name, tileGrid, (TileSetResource)factory.load(monitor, tileGrid.getTileSet()));
     }
 
     @Override
     public void reload(Resource resource, IProgressMonitor monitor, String name,
             InputStream stream, IResourceFactory factory)
-                    throws IOException, CreateException {
+                    throws IOException, CreateException, CoreException {
         InputStreamReader reader = new InputStreamReader(stream);
-        Builder builder = CollisionObjectDesc.newBuilder();
+        Builder builder = TileGrid.newBuilder();
         TextFormat.merge(reader, builder);
-        ((CollisionResource)resource).setCollisionDesc(builder.build());
+        TileGrid tileGrid = builder.build();
+        TileGridResource tileGridResource = (TileGridResource)resource;
+        tileGridResource.setTileGrid(tileGrid);
+        tileGridResource.setTileSetResource((TileSetResource)factory.load(monitor, tileGrid.getTileSet()));
     }
 }

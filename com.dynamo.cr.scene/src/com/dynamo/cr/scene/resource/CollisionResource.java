@@ -5,12 +5,12 @@ import com.dynamo.physics.proto.Physics.CollisionObjectDesc;
 public class CollisionResource extends Resource {
 
     private CollisionObjectDesc collisionObjectDesc;
-    private ConvexShapeResource convexShapeResource;
+    private Resource collisionShapeResource;
 
-    public CollisionResource(String path, CollisionObjectDesc collisionObjectDesc, ConvexShapeResource convexShapeResource) {
+    public CollisionResource(String path, CollisionObjectDesc collisionObjectDesc, Resource collisionShapeResource) {
         super(path);
         this.collisionObjectDesc = collisionObjectDesc;
-        this.convexShapeResource = convexShapeResource;
+        this.collisionShapeResource = collisionShapeResource;
     }
 
     public CollisionObjectDesc getCollisionDesc() {
@@ -21,8 +21,8 @@ public class CollisionResource extends Resource {
         this.collisionObjectDesc = collisionObjectDesc;
     }
 
-    public ConvexShapeResource getConvexShapeResource() {
-        return convexShapeResource;
+    public Resource getCollisionShapeResource() {
+        return collisionShapeResource;
     }
 
 }
