@@ -1,4 +1,5 @@
 function init(self)
+    self.tile_pred = render.predicate({"tile"})
     self.sprite_pred = render.predicate({"sprite"})
     self.gui_pred = render.predicate({"gui"})
     self.text_pred = render.predicate({"text"})
@@ -18,6 +19,7 @@ function update(self)
 
     render.set_projection(vmath.matrix4_orthographic(0, render.get_width(), 0, render.get_height(), -1, 1))
 
+    render.draw(self.tile_pred)
     render.draw(self.sprite_pred)
     render.draw_debug3d()
 
