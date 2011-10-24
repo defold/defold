@@ -94,6 +94,7 @@ Listener {
 
     // Render data
     private Texture tileSetTexture;
+    private Texture backgroundTexture;
 
     @Inject
     public GridRenderer(IGridView.Presenter presenter, ILogger logger, GridEditor gridEditor) {
@@ -126,6 +127,7 @@ Listener {
         backgroundImage.setRGB(1, 0, 0xff666666);
         backgroundImage.setRGB(0, 1, 0xff666666);
         backgroundImage.setRGB(1, 1, 0xff999999);
+        this.backgroundTexture = TextureIO.newTexture(backgroundImage, false);
 
         // if the image is already set, set the corresponding texture
         if (this.tileSetImage != null) {
@@ -493,8 +495,6 @@ Listener {
 
                 gl.glViewport(this.viewPort.get(0), this.viewPort.get(1), this.viewPort.get(2), this.viewPort.get(3));
 
-                setupViewProj(gl, glu);
-
                 render(gl, glu);
 
             } catch (Throwable e) {
@@ -506,23 +506,34 @@ Listener {
         }
     }
 
-    private void setupViewProj(GL gl, GLU glu) {
+    private void render(GL gl, GLU glu) {
+        if (!isEnabled()) {
+            return;
+        }
+
+        int viewPortWidth = this.viewPort.get(2);
+        int viewPortHeight = this.viewPort.get(3);
+
         gl.glMatrixMode(GL.GL_PROJECTION);
         gl.glLoadIdentity();
+        glu.gluOrtho2D(-1.0f, 1.0f, -1.0f, 1.0f);
+
+        gl.glMatrixMode(GL.GL_MODELVIEW);
+        gl.glLoadIdentity();
+
+        // background
+        renderBackground(gl, viewPortWidth, viewPortHeight);
+
         float recipScale = 1.0f / this.scale;
-        float x = 0.5f * this.viewPort.get(2) * recipScale;
-        float y = 0.5f * this.viewPort.get(3) * recipScale;
+        float x = 0.5f * viewPortWidth * recipScale;
+        float y = 0.5f * viewPortHeight * recipScale;
+        gl.glMatrixMode(GL.GL_PROJECTION);
+        gl.glLoadIdentity();
         glu.gluOrtho2D(-x, x, -y, y);
 
         gl.glMatrixMode(GL.GL_MODELVIEW);
         gl.glLoadIdentity();
         gl.glTranslatef(-this.position.getX(), -this.position.getY(), 0.0f);
-    }
-
-    private void render(GL gl, GLU glu) {
-        if (!isEnabled()) {
-            return;
-        }
 
         // tiles
         renderCells(gl);
@@ -532,6 +543,37 @@ Listener {
 
         // tile set palette
         renderTileSet(gl, glu);
+    }
+
+    private void renderBackground(GL gl, int width, int height) {
+        this.backgroundTexture.bind();
+        this.backgroundTexture.setTexParameteri(GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST);
+        this.backgroundTexture.setTexParameteri(GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST);
+        this.backgroundTexture.setTexParameteri(GL.GL_TEXTURE_WRAP_S, GL.GL_REPEAT);
+        this.backgroundTexture.setTexParameteri(GL.GL_TEXTURE_WRAP_T, GL.GL_REPEAT);
+        this.backgroundTexture.enable();
+        final float recipTileSize = 0.0625f;
+        float x0 = -1.0f;
+        float x1 = 1.0f;
+        float y0 = -1.0f;
+        float y1 = 1.0f;
+        float u0 = 0.0f;
+        float u1 = width * recipTileSize;
+        float v0 = 0.0f;
+        float v1 = height * recipTileSize;
+        float l = 0.4f;
+        gl.glColor3f(l, l, l);
+        gl.glBegin(GL.GL_QUADS);
+        gl.glTexCoord2f(u0, v0);
+        gl.glVertex2f(x0, y0);
+        gl.glTexCoord2f(u0, v1);
+        gl.glVertex2f(x0, y1);
+        gl.glTexCoord2f(u1, v1);
+        gl.glVertex2f(x1, y1);
+        gl.glTexCoord2f(u1, v0);
+        gl.glVertex2f(x1, y0);
+        gl.glEnd();
+        this.backgroundTexture.disable();
     }
 
     private void renderCells(GL gl) {
