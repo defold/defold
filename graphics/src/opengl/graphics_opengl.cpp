@@ -616,6 +616,7 @@ static void LogFrameBufferError(GLenum status)
     HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count)
     {
         VertexDeclaration* vd = new VertexDeclaration;
+        memset(vd, 0, sizeof(VertexDeclaration));
 
         vd->m_Stride = 0;
         assert(count < (sizeof(vd->m_Streams) / sizeof(vd->m_Streams[0]) ) );
