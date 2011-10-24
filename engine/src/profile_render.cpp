@@ -99,7 +99,7 @@ namespace dmProfileRender
         dmRender::Square2d(c->m_RenderContext, x, y, x + w, y + c->m_BarHeight, Vector4(col[0], col[1], col[2], 1));
 
         HashState64 hash_state;
-        dmHashInit64(&hash_state);
+        dmHashInit64(&hash_state, false);
         dmHashUpdateBuffer64(&hash_state, sample->m_Scope->m_Name, strlen(sample->m_Scope->m_Name));
         dmHashUpdateBuffer64(&hash_state, sample->m_Name, strlen(sample->m_Name));
         uint64_t hash = dmHashFinal64(&hash_state);

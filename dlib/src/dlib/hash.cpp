@@ -168,7 +168,7 @@ uint32_t dmHashBuffer32(const void * key, uint32_t len)
 {
     uint32_t h = dmHashBufferNoReverse32(key, len);
 
-    if (g_dmHashInitializer.m_ReverseHashEnabled)
+    if (g_dmHashInitializer.m_ReverseHashEnabled && len <= DMHASH_MAX_REVERSE_LENGTH)
     {
         dmMutex::Lock(g_dmHashInitializer.m_Mutex);
         dmHashTable32<dmReverseHashEntry>* hash_table = &g_dmHashInitializer.m_ReverseHashTable32;
@@ -242,7 +242,7 @@ uint64_t dmHashBuffer64(const void * key, uint32_t len)
     h *= m;
     h ^= h >> r;
 
-    if (g_dmHashInitializer.m_ReverseHashEnabled)
+    if (g_dmHashInitializer.m_ReverseHashEnabled && original_len <= DMHASH_MAX_REVERSE_LENGTH)
     {
         dmMutex::Lock(g_dmHashInitializer.m_Mutex);
         dmHashTable64<dmReverseHashEntry>* hash_table = &g_dmHashInitializer.m_ReverseHashTable64;
@@ -277,9 +277,13 @@ uint64_t DM_DLLEXPORT dmHashString64(const char* string)
 }
 
 // Based on CMurmurHash2A
-void dmHashInit32(HashState32* hash_state)
+void dmHashInit32(HashState32* hash_state, bool reverse_hash)
 {
     memset(hash_state, 0, sizeof(*hash_state));
+    if (!reverse_hash)
+    {
+        hash_state->m_ReverseEntry.m_Length = 0xffffffff;
+    }
 }
 
 static void MixTail32(HashState32* hash_state, const unsigned char * & data, int & len)
@@ -333,7 +337,9 @@ void dmHashUpdateBuffer32(HashState32* hash_state, const void* buffer, uint32_t 
 
     MixTail32(hash_state, data, len);
 
-    if (g_dmHashInitializer.m_ReverseHashEnabled)
+    if (g_dmHashInitializer.m_ReverseHashEnabled &&
+        hash_state->m_ReverseEntry.m_Length != 0xffffffff &&
+        hash_state->m_Size <= DMHASH_MAX_REVERSE_LENGTH)
     {
         dmMutex::Lock(g_dmHashInitializer.m_Mutex);
         dmHashTable<dmHashIncrementalStateKey32, dmReverseHashEntry>* hash_table = &g_dmHashInitializer.m_ReverseStateHashTable32;
@@ -375,6 +381,7 @@ uint32_t dmHashFinal32(HashState32* hash_state)
     const uint32_t m = 0x5bd1e995;
     const int r = 24;
 
+    uint32_t size = hash_state->m_Size;
     mmix(hash_state->m_Hash, hash_state->m_Tail);
     mmix(hash_state->m_Hash, hash_state->m_Size);
 
@@ -382,7 +389,9 @@ uint32_t dmHashFinal32(HashState32* hash_state)
     hash_state->m_Hash *= m;
     hash_state->m_Hash ^= hash_state->m_Hash >> 15;
 
-    if (g_dmHashInitializer.m_ReverseHashEnabled)
+    if (g_dmHashInitializer.m_ReverseHashEnabled &&
+        hash_state->m_ReverseEntry.m_Length != 0xffffffff &&
+        size <= DMHASH_MAX_REVERSE_LENGTH)
     {
         dmMutex::Lock(g_dmHashInitializer.m_Mutex);
 
@@ -405,9 +414,13 @@ uint32_t dmHashFinal32(HashState32* hash_state)
 }
 
 // Based on CMurmurHash2A
-void dmHashInit64(HashState64* hash_state)
+void dmHashInit64(HashState64* hash_state, bool reverse_hash)
 {
     memset(hash_state, 0, sizeof(*hash_state));
+    if (!reverse_hash)
+    {
+        hash_state->m_ReverseEntry.m_Length = 0xffffffff;
+    }
 }
 
 static void MixTail64(HashState64* hash_state, const unsigned char * & data, int & len)
@@ -465,7 +478,9 @@ void dmHashUpdateBuffer64(HashState64* hash_state, const void* buffer, uint32_t 
 
     MixTail64(hash_state, data, len);
 
-    if (g_dmHashInitializer.m_ReverseHashEnabled)
+    if (g_dmHashInitializer.m_ReverseHashEnabled &&
+       hash_state->m_ReverseEntry.m_Length != 0xffffffff &&
+       hash_state->m_Size <= DMHASH_MAX_REVERSE_LENGTH)
     {
         dmMutex::Lock(g_dmHashInitializer.m_Mutex);
         dmHashTable<dmHashIncrementalStateKey64, dmReverseHashEntry>* hash_table = &g_dmHashInitializer.m_ReverseStateHashTable64;
@@ -509,6 +524,7 @@ uint64_t dmHashFinal64(HashState64* hash_state)
 
     uint64_t s = hash_state->m_Size;
 
+    uint32_t size = hash_state->m_Size;
     mmix(hash_state->m_Hash, hash_state->m_Tail);
     mmix(hash_state->m_Hash, s);
 
@@ -516,7 +532,9 @@ uint64_t dmHashFinal64(HashState64* hash_state)
     hash_state->m_Hash *= m;
     hash_state->m_Hash ^= hash_state->m_Hash >> r;
 
-    if (g_dmHashInitializer.m_ReverseHashEnabled)
+    if (g_dmHashInitializer.m_ReverseHashEnabled &&
+        hash_state->m_ReverseEntry.m_Length != 0xffffffff &&
+        size <= DMHASH_MAX_REVERSE_LENGTH)
     {
         dmMutex::Lock(g_dmHashInitializer.m_Mutex);
 

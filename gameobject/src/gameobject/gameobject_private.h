@@ -63,7 +63,7 @@ namespace dmGameObject
             m_Position = Point3(0,0,0);
             m_Prototype = prototype;
             m_Identifier = UNNAMED_IDENTIFIER;
-            dmHashInit64(&m_CollectionPathHashState);
+            dmHashInit64(&m_CollectionPathHashState, true);
             m_Depth = 0;
             m_Initialized = 0;
             m_Parent = INVALID_INSTANCE_INDEX;

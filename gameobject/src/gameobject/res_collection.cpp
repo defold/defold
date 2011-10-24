@@ -71,7 +71,7 @@ namespace dmGameObject
                 dmGameObject::SetPosition(instance, Point3(pos));
                 dmGameObject::SetRotation(instance, rot);
 
-                dmHashInit64(&instance->m_CollectionPathHashState);
+                dmHashInit64(&instance->m_CollectionPathHashState, true);
                 dmHashUpdateBuffer64(&instance->m_CollectionPathHashState, regist->m_CurrentIdentifierPath, strlen(regist->m_CurrentIdentifierPath));
 
                 dmStrlCpy(tmp_ident, regist->m_CurrentIdentifierPath, sizeof(tmp_ident));

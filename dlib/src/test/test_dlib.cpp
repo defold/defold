@@ -12,14 +12,14 @@ TEST(dlib, Hash)
     uint64_t h2 = dmHashBuffer64("foo", 3);
 
     HashState32 hs32;
-    dmHashInit32(&hs32);
+    dmHashInit32(&hs32, true);
     dmHashUpdateBuffer32(&hs32, "f", 1);
     dmHashUpdateBuffer32(&hs32, "o", 1);
     dmHashUpdateBuffer32(&hs32, "o", 1);
     uint32_t h1_i = dmHashFinal32(&hs32);
 
     HashState64 hs64;
-    dmHashInit64(&hs64);
+    dmHashInit64(&hs64, true);
     dmHashUpdateBuffer64(&hs64, "f", 1);
     dmHashUpdateBuffer64(&hs64, "o", 1);
     dmHashUpdateBuffer64(&hs64, "o", 1);
@@ -45,11 +45,11 @@ TEST(dlib, HashIncremental32)
         uint32_t h1 = dmHashString32(s.c_str());
 
         HashState32 hs;
-        dmHashInit32(&hs);
+        dmHashInit32(&hs, true);
         dmHashUpdateBuffer32(&hs, s.c_str(), s.size());
         uint32_t h2 = dmHashFinal32(&hs);
 
-        dmHashInit32(&hs);
+        dmHashInit32(&hs, true);
         while (s.size() > 0)
         {
             int nchars = (rand() % s.size()) + 1;
@@ -78,11 +78,11 @@ TEST(dlib, HashIncremental64)
         uint64_t h1 = dmHashString64(s.c_str());
 
         HashState64 hs;
-        dmHashInit64(&hs);
+        dmHashInit64(&hs, true);
         dmHashUpdateBuffer64(&hs, s.c_str(), s.size());
         uint64_t h2 = dmHashFinal64(&hs);
 
-        dmHashInit64(&hs);
+        dmHashInit64(&hs, true);
         while (s.size() > 0)
         {
             int nchars = (rand() % s.size()) + 1;
@@ -164,7 +164,7 @@ TEST(dlib, HashToString64)
 TEST(dlib, HashToStringIncremental32Simple)
 {
     HashState32 hs;
-    dmHashInit32(&hs);
+    dmHashInit32(&hs, true);
     dmHashUpdateBuffer32(&hs, "foo", 3);
     dmHashUpdateBuffer32(&hs, "bar", 3);
     uint32_t h = dmHashFinal32(&hs);
@@ -179,7 +179,7 @@ TEST(dlib, HashToStringIncremental32Simple)
 TEST(dlib, HashToStringIncremental64Simple)
 {
     HashState64 hs;
-    dmHashInit64(&hs);
+    dmHashInit64(&hs, true);
     dmHashUpdateBuffer64(&hs, "foo", 3);
     dmHashUpdateBuffer64(&hs, "bar", 3);
     uint64_t h = dmHashFinal64(&hs);
@@ -207,7 +207,7 @@ TEST(dlib, HashToStringIncremental32)
 
         std::string s_copy = s;
         HashState32 hs;
-        dmHashInit32(&hs);
+        dmHashInit32(&hs, true);
         while (s.size() > 0)
         {
             int nchars = (rand() % s.size()) + 1;
@@ -251,7 +251,7 @@ TEST(dlib, HashToStringIncremental64)
 
         std::string s_copy = s;
         HashState64 hs;
-        dmHashInit64(&hs);
+        dmHashInit64(&hs, true);
         while (s.size() > 0)
         {
             int nchars = (rand() % s.size()) + 1;
@@ -277,6 +277,113 @@ TEST(dlib, HashToStringIncremental64)
         ASSERT_STREQ(expected.c_str(), reverse);
         ++iter;
     }
+}
+
+TEST(dlib, HashMaxReverse)
+{
+    char* buffer = (char*) malloc(DMHASH_MAX_REVERSE_LENGTH + 1);
+    for (uint32_t i = 0; i < DMHASH_MAX_REVERSE_LENGTH + 1; ++i)
+    {
+        // NOTE: We hash value must be unique and differ other tests (reverse hashing test)
+        // Therefore we add 10 here
+        buffer[i] = (i + 10) % 255;
+    }
+
+    uint32_t h1 = dmHashBuffer32(buffer, DMHASH_MAX_REVERSE_LENGTH);
+    uint64_t h2 = dmHashBuffer64(buffer, DMHASH_MAX_REVERSE_LENGTH);
+
+    uint32_t h1_to_large = dmHashBuffer32(buffer, DMHASH_MAX_REVERSE_LENGTH + 1);
+    uint64_t h2_to_large = dmHashBuffer64(buffer, DMHASH_MAX_REVERSE_LENGTH + 1);
+
+    ASSERT_NE((const void*) 0, dmHashReverse32(h1, 0));
+    ASSERT_NE((const void*) 0, dmHashReverse64(h2, 0));
+
+    ASSERT_EQ((const void*) 0, dmHashReverse32(h1_to_large, 0));
+    ASSERT_EQ((const void*) 0, dmHashReverse64(h2_to_large, 0));
+
+    free((void*) buffer);
+}
+
+TEST(dlib, HashIncrementalReverse)
+{
+    char* buffer = (char*) malloc(DMHASH_MAX_REVERSE_LENGTH + 1);
+    for (uint32_t i = 0; i < DMHASH_MAX_REVERSE_LENGTH + 1; ++i)
+    {
+        // NOTE: We hash value must be unique and differ other tests (reverse hashing test)
+        // Therefore we add 11 here
+        buffer[i] = (11 + i) % 255;
+    }
+
+    HashState32 state32;
+    dmHashInit32(&state32, true);
+    dmHashUpdateBuffer32(&state32, buffer, 16);
+    dmHashUpdateBuffer32(&state32, buffer + 16, DMHASH_MAX_REVERSE_LENGTH - 16);
+    uint32_t h1 = dmHashFinal32(&state32);
+
+    HashState64 state64;
+    dmHashInit64(&state64, true);
+    dmHashUpdateBuffer64(&state64, buffer, 16);
+    dmHashUpdateBuffer64(&state64, buffer + 16, DMHASH_MAX_REVERSE_LENGTH - 16);
+    uint64_t h2 = dmHashFinal64(&state64);
+
+    dmHashInit32(&state32, true);
+    dmHashUpdateBuffer32(&state32, buffer, 16);
+    dmHashUpdateBuffer32(&state32, buffer + 16, DMHASH_MAX_REVERSE_LENGTH + 1 - 16);
+    uint32_t h1_to_large = dmHashFinal32(&state32);
+
+    dmHashInit64(&state64, true);
+    dmHashUpdateBuffer64(&state64, buffer, 16);
+    dmHashUpdateBuffer64(&state64, buffer + 16, DMHASH_MAX_REVERSE_LENGTH + 1 - 16);
+    uint64_t h2_to_large = dmHashFinal64(&state64);
+
+    ASSERT_NE((const void*) 0, dmHashReverse32(h1, 0));
+    ASSERT_NE((const void*) 0, dmHashReverse64(h2, 0));
+
+    ASSERT_EQ((const void*) 0, dmHashReverse32(h1_to_large, 0));
+    ASSERT_EQ((const void*) 0, dmHashReverse64(h2_to_large, 0));
+
+    free((void*) buffer);
+}
+
+TEST(dlib, HashIncrementalNoReverse)
+{
+    char* buffer = (char*) malloc(DMHASH_MAX_REVERSE_LENGTH + 1);
+    for (uint32_t i = 0; i < DMHASH_MAX_REVERSE_LENGTH + 1; ++i)
+    {
+        // NOTE: We hash value must be unique and differ other tests (reverse hashing test)
+        // Therefore we add 12 here
+        buffer[i] = (12 + i) % 255;
+    }
+
+    HashState32 state32;
+    dmHashInit32(&state32, false);
+    dmHashUpdateBuffer32(&state32, buffer, 16);
+    dmHashUpdateBuffer32(&state32, buffer + 16, DMHASH_MAX_REVERSE_LENGTH - 16);
+    uint32_t h1 = dmHashFinal32(&state32);
+
+    HashState64 state64;
+    dmHashInit64(&state64, false);
+    dmHashUpdateBuffer64(&state64, buffer, 16);
+    dmHashUpdateBuffer64(&state64, buffer + 16, DMHASH_MAX_REVERSE_LENGTH - 16);
+    uint64_t h2 = dmHashFinal64(&state64);
+
+    dmHashInit32(&state32, false);
+    dmHashUpdateBuffer32(&state32, buffer, 16);
+    dmHashUpdateBuffer32(&state32, buffer + 16, DMHASH_MAX_REVERSE_LENGTH + 1 - 16);
+    uint32_t h1_to_large = dmHashFinal32(&state32);
+
+    dmHashInit64(&state64, false);
+    dmHashUpdateBuffer64(&state64, buffer, 16);
+    dmHashUpdateBuffer64(&state64, buffer + 16, DMHASH_MAX_REVERSE_LENGTH + 1 - 16);
+    uint64_t h2_to_large = dmHashFinal64(&state64);
+
+    ASSERT_EQ((const void*) 0, dmHashReverse32(h1, 0));
+    ASSERT_EQ((const void*) 0, dmHashReverse64(h2, 0));
+
+    ASSERT_EQ((const void*) 0, dmHashReverse32(h1_to_large, 0));
+    ASSERT_EQ((const void*) 0, dmHashReverse64(h2_to_large, 0));
+
+    free((void*) buffer);
 }
 
 TEST(dlib, Log)

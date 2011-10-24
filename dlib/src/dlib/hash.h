@@ -9,6 +9,7 @@ typedef uint64_t dmhash_t;
 struct dmReverseHashEntry
 {
     void*    m_Value;
+    // If set to 0xffffffff reverse hashing is disabled
     uint32_t m_Length;
 
     inline dmReverseHashEntry() {}
@@ -19,6 +20,8 @@ struct dmReverseHashEntry
         m_Length = length;
     }
 };
+
+const uint32_t DMHASH_MAX_REVERSE_LENGTH = 1024U;
 
 extern "C"
 {
@@ -47,11 +50,13 @@ struct HashState64
     dmReverseHashEntry m_ReverseEntry;
 };
 
+
 /**
  * Initialize hash-state for 32-bit incremental hashing
  * @param hash_state Hash state
+ * @param reverse_hash true to enable reverse hashing of buffers up to ::DMHASH_MAX_REVERSE_LENGTH
  */
-DM_DLLEXPORT void dmHashInit32(HashState32* hash_state);
+DM_DLLEXPORT void dmHashInit32(HashState32* hash_state, bool reverse_hash);
 
 /**
  * Incremental hashing
@@ -71,8 +76,9 @@ DM_DLLEXPORT uint32_t dmHashFinal32(HashState32* hash_state);
 /**
  * Initialize hash-state for 64-bit incremental hashing
  * @param hash_state Hash state
+ * @param reverse_hash true to enable reverse hashing of buffers up to ::DMHASH_MAX_REVERSE_LENGTH
  */
-DM_DLLEXPORT void dmHashInit64(HashState64* hash_state);
+DM_DLLEXPORT void dmHashInit64(HashState64* hash_state, bool reverse_hash);
 
 /**
  * Incremental hashing
