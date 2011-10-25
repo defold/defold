@@ -270,7 +270,7 @@ namespace dmHttpCache
             m_File = f;
             m_Filename = file_name;
             m_Error = false;
-            dmHashInit64(&m_HashState);
+            dmHashInit64(&m_HashState, false);
         }
     };
 
@@ -382,7 +382,7 @@ namespace dmHttpCache
         uint64_t uri_hash = dmHashString64(uri);
 
         HashState64 hash_state;
-        dmHashInit64(&hash_state);
+        dmHashInit64(&hash_state, false);
         dmHashUpdateBuffer64(&hash_state, uri, strlen(uri));
         dmHashUpdateBuffer64(&hash_state, etag, strlen(etag));
         uint64_t identifier_hash = dmHashFinal64(&hash_state);
@@ -448,7 +448,7 @@ namespace dmHttpCache
 
         CacheCreator* handle = &cache->m_CacheCreators[index];
         handle->m_Index = index;
-        dmHashInit64(&handle->m_ChecksumState);
+        dmHashInit64(&handle->m_ChecksumState, false);
         handle->m_File = f;
         handle->m_Filename = file_name;
         handle->m_IdentifierHash = identifier_hash;
@@ -618,7 +618,7 @@ namespace dmHttpCache
         dmMutex::ScopedLock lock(cache->m_Mutex);
 
         HashState64 hash_state;
-        dmHashInit64(&hash_state);
+        dmHashInit64(&hash_state, false);
         dmHashUpdateBuffer64(&hash_state, uri, strlen(uri));
         dmHashUpdateBuffer64(&hash_state, etag, strlen(etag));
         uint64_t identifier_hash = dmHashFinal64(&hash_state);
@@ -679,7 +679,7 @@ namespace dmHttpCache
         dmMutex::ScopedLock lock(cache->m_Mutex);
 
         HashState64 hash_state;
-        dmHashInit64(&hash_state);
+        dmHashInit64(&hash_state, false);
         dmHashUpdateBuffer64(&hash_state, uri, strlen(uri));
         dmHashUpdateBuffer64(&hash_state, etag, strlen(etag));
         uint64_t identifier_hash = dmHashFinal64(&hash_state);
