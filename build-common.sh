@@ -32,7 +32,7 @@ function gitclone {
 
     mkdir -p $BUILD_DIRECTORY/plugins
     mkdir -p $BUILD_DIRECTORY/features
-    git clone overrated.dyndns.org:/repo/com.dynamo.cr $BUILD_DIRECTORY/plugins
+    git clone git@github.com:defold/com.dynamo.cr.git $BUILD_DIRECTORY/plugins
 }
 
 function build {
