@@ -3,7 +3,8 @@ local test_duration = 3
 function init(self)
     self.timer = test_duration
     self.loading_proxy = "#loading_proxy"
-    self.test_proxies = {"#gui_proxy", "#attacker_target_proxy", "#identifiers_proxy"}
+    self.test_proxies = {"#physics_proxy"}
+    --self.test_proxies = {"#gui_proxy", "#attacker_target_proxy", "#identifiers_proxy"}
     self.test_index = 1
     msg.post(self.loading_proxy, "load")
 end

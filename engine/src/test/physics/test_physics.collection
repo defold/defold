@@ -1,0 +1,29 @@
+name: "test_physics"
+instances {
+  id: "kinematic"
+  prototype: "/physics/kinematic.go"
+  position {
+    x: 0.0
+    y: 5.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 1.0
+  }
+}
+instances {
+  id: "static"
+  prototype: "/physics/static.go"
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 1.0
+  }
+}

@@ -31,10 +31,10 @@ void b2CollideCircles(
 	b2Vec2 pB = b2Mul(xfB, circleB->m_p);
 
 	b2Vec2 d = pB - pA;
-	float32 distSqr = b2Dot(d, d);
+	float32 distSq = b2Dot(d, d);
 	float32 rA = circleA->m_radius, rB = circleB->m_radius;
 	float32 radius = rA + rB;
-	if (distSqr > radius * radius)
+	if (distSq > radius * radius)
 	{
 		return;
 	}
@@ -46,6 +46,7 @@ void b2CollideCircles(
 
 	manifold->points[0].localPoint = circleB->m_p;
 	manifold->points[0].id.key = 0;
+	manifold->points[0].distance = radius - b2Sqrt(distSq);
 }
 
 void b2CollidePolygonAndCircle(
@@ -99,6 +100,7 @@ void b2CollidePolygonAndCircle(
 		manifold->localPoint = 0.5f * (v1 + v2);
 		manifold->points[0].localPoint = circleB->m_p;
 		manifold->points[0].id.key = 0;
+		manifold->points[0].distance = circleB->m_radius + b2Sqrt(b2_epsilon) - b2Sqrt(separation);
 		return;
 	}
 
@@ -107,7 +109,8 @@ void b2CollidePolygonAndCircle(
 	float32 u2 = b2Dot(cLocal - v2, v1 - v2);
 	if (u1 <= 0.0f)
 	{
-		if (b2DistanceSquared(cLocal, v1) > radius * radius)
+		float distSq = b2DistanceSquared(cLocal, v1);
+		if (distSq > radius * radius)
 		{
 			return;
 		}
@@ -119,10 +122,12 @@ void b2CollidePolygonAndCircle(
 		manifold->localPoint = v1;
 		manifold->points[0].localPoint = circleB->m_p;
 		manifold->points[0].id.key = 0;
+		manifold->points[0].distance = circleB->m_radius - b2Sqrt(distSq);
 	}
 	else if (u2 <= 0.0f)
 	{
-		if (b2DistanceSquared(cLocal, v2) > radius * radius)
+		float distSq = b2DistanceSquared(cLocal, v2);
+		if (distSq > radius * radius)
 		{
 			return;
 		}
@@ -134,6 +139,7 @@ void b2CollidePolygonAndCircle(
 		manifold->localPoint = v2;
 		manifold->points[0].localPoint = circleB->m_p;
 		manifold->points[0].id.key = 0;
+		manifold->points[0].distance = circleB->m_radius - b2Sqrt(distSq);
 	}
 	else
 	{
@@ -150,5 +156,6 @@ void b2CollidePolygonAndCircle(
 		manifold->localPoint = faceCenter;
 		manifold->points[0].localPoint = circleB->m_p;
 		manifold->points[0].id.key = 0;
+		manifold->points[0].distance = circleB->m_radius - separation;
 	}
 }

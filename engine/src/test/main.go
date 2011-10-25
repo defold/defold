@@ -26,3 +26,8 @@ embedded_components {
   type: "collectionproxy"
   data: "collection: \"/identifiers/test_identifiers.collection\"\n"
 }
+embedded_components {
+  id: "physics_proxy"
+  type: "collectionproxy"
+  data: "collection: \"/physics/test_physics.collection\"\n"
+}

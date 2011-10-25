@@ -1,0 +1,22 @@
+function init(self)
+    self.velocity = vmath.vector3(0, -1, 0)
+end
+
+function update(self, dt)
+    local p = go.get_position()
+    p = p + dt * self.velocity
+    go.set_position(p)
+end
+
+function on_message(self, message_id, message)
+    if message_id == hash("contact_point_response") then
+        -- test uninitialized data
+        --local intersect = message.normal --* message.distance
+        local lsq = message.distance --vmath.length_sqr(intersect)
+        print(lsq)
+        assert(lsq < 1, "major intersection")
+        if (lsq < 1) then
+            msg.post("main:/main#script", "done")
+        end
+    end
+end
