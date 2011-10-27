@@ -6,6 +6,7 @@
 #include <Box2D/Collision/b2TimeOfImpact.h>
 #include <Box2D/Collision/Shapes/b2GridShape.h>
 #include <Box2D/Collision/Shapes/b2PolygonShape.h>
+#include <Box2D/Collision/Shapes/b2EdgeShape.h>
 
 #include <new>
 using namespace std;
@@ -47,23 +48,62 @@ void b2GridAndPolygonContact::Evaluate(b2Manifold* manifold, const b2Transform& 
 
     b2PolygonShape polyA;
     gridShape->GetPolygonShapeForCell(m_indexA, polyA);
-
-    b2CollidePolygons(manifold, &polyA, xfA, polyB, xfB);
-
-    if (manifold->pointCount > 0)
+    uint32 completeHull = ~0u;
+    if (m_edgeMask == completeHull)
     {
-        // Remove points not present in edge-mask, ie internal and adjacent edges
-        uint32 vc = polyA.m_vertexCount;
+        b2CollidePolygons(manifold, &polyA, xfA, polyB, xfB);
+    }
+    else
+    {
+        b2Manifold bestManifold = *manifold;
+        float minDistance = b2_maxFloat;
+        uint32 vc = (uint32)polyA.m_vertexCount;
+        b2Vec2* v = polyA.m_vertices;
+        uint32 vp = vc - 1;
+        uint32 v0 = 0;
+        uint32 v1 = 1;
+        uint32 vn = 2;
+        b2EdgeShape edge;
         for (uint32 i = 0; i < vc; ++i)
         {
-            const b2Vec2 n = polyA.m_normals[i];
-            float32 x = b2Dot(n, manifold->localNormal);
-            // NOTE: constant epsilon is ok here as the magniute is constant
-            if (x > 0.999f && !(m_edgeMask & (1 << i)))
+            if (m_edgeMask & (1 << v0))
             {
-                manifold->pointCount = 0;
-                break;
+                edge.Set(v[v0], v[v1]);
+                edge.m_hasVertex0 = true;
+                if (m_edgeMask & (1 << vp))
+                {
+                    edge.m_vertex0 = v[vp];
+                }
+                else
+                {
+                    edge.m_vertex0 = 2.0f * v[v0] - v[v1];
+                }
+                edge.m_hasVertex3 = true;
+                if (m_edgeMask & (1 << v1))
+                {
+                    edge.m_vertex3 = v[vn];
+                }
+                else
+                {
+                    edge.m_vertex3 = 2.0f * v[v1] - v[v0];
+                }
+                b2CollideEdgeAndPolygon(manifold, &edge, xfA, polyB, xfB);
+                int32 pc = manifold->pointCount;
+                for (int32 j = 0; j < pc; ++j)
+                {
+                    float distance = manifold->points[j].distance;
+                    if (distance < minDistance)
+                    {
+                        minDistance = distance;
+                        bestManifold = *manifold;
+                    }
+                }
             }
+            vp = v0;
+            v0 = v1;
+            v1 = vn;
+            vn = (vn + 1) % vc;
         }
+        *manifold = bestManifold;
     }
 }

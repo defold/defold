@@ -609,6 +609,7 @@ void b2EPCollider::Collide(b2Manifold* manifold, const b2EdgeShape* edgeA, const
 				cp->id.cf.indexA = clipPoints2[i].id.cf.indexB;
 				cp->id.cf.indexB = clipPoints2[i].id.cf.indexA;
 			}
+			cp->distance = -separation;
 			
 			++pointCount;
 		}
