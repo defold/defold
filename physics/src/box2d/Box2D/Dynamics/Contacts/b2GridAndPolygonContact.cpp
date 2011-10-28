@@ -56,6 +56,7 @@ void b2GridAndPolygonContact::Evaluate(b2Manifold* manifold, const b2Transform& 
     else
     {
         b2Manifold bestManifold = *manifold;
+        bestManifold.pointCount = 0;
         float minDistance = b2_maxFloat;
         uint32 vc = (uint32)polyA.m_vertexCount;
         b2Vec2* v = polyA.m_vertices;
@@ -87,6 +88,7 @@ void b2GridAndPolygonContact::Evaluate(b2Manifold* manifold, const b2Transform& 
                 {
                     edge.m_vertex3 = 2.0f * v[v1] - v[v0];
                 }
+                manifold->pointCount = 0;
                 b2CollideEdgeAndPolygon(manifold, &edge, xfA, polyB, xfB);
                 int32 pc = manifold->pointCount;
                 for (int32 j = 0; j < pc; ++j)
