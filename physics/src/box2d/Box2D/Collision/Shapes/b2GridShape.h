@@ -72,6 +72,7 @@ public:
     virtual void ComputeMass(b2MassData* massData, float32 density) const;
 
     void GetPolygonShapeForCell(uint32 index, b2PolygonShape& polyShape) const;
+    uint32 GetEdgeShapesForCell(uint32 index, b2EdgeShape* edgeShapes, uint32 edgeShapeCount, uint32 edgeMask) const;
 
     void SetCellHull(b2Body* body, uint32 row, uint32 column, uint32 hull);
 

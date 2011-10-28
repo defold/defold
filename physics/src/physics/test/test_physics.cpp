@@ -1092,11 +1092,18 @@ void DrawLines(Vectormath::Aos::Point3* points, uint32_t point_count, Vectormath
     *drew = true;
 }
 
+void DrawTriangles(Vectormath::Aos::Point3* points, uint32_t point_count, Vectormath::Aos::Vector4 color, void* user_data)
+{
+    bool* drew = (bool*)user_data;
+    *drew = true;
+}
+
 TYPED_TEST(PhysicsTest, DrawDebug)
 {
     bool drew = false;
     dmPhysics::DebugCallbacks callbacks;
     callbacks.m_DrawLines = DrawLines;
+    callbacks.m_DrawTriangles = DrawTriangles;
     callbacks.m_UserData = &drew;
     (*TestFixture::m_Test.m_SetDebugCallbacksFunc)(TestFixture::m_Context, callbacks);
 

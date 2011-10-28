@@ -3,6 +3,7 @@
 #include <Box2D/Common/b2Settings.h>
 #include <Box2D/Collision/Shapes/b2GridShape.h>
 #include <Box2D/Collision/Shapes/b2PolygonShape.h>
+#include <Box2D/Collision/Shapes/b2EdgeShape.h>
 #include <Box2D/Collision/b2BroadPhase.h>
 #include <Box2D/Dynamics/b2Fixture.h>
 #include <Box2D/Dynamics/b2World.h>
@@ -147,6 +148,54 @@ void b2GridShape::GetPolygonShapeForCell(uint32 index, b2PolygonShape& polyShape
 
     polyShape.Set(vertices, hull.m_Count);
     polyShape.m_radius = m_radius;
+}
+
+uint32 b2GridShape::GetEdgeShapesForCell(uint32 index, b2EdgeShape* edgeShapes, uint32 edgeShapeCount, uint32 edgeMask) const
+{
+    const b2GridShape::Cell& cell = m_cells[index];
+    const b2HullSet::Hull& hull = m_hullSet->m_hulls[cell.m_Index];
+    b2Assert(hull.m_Count <= b2_maxPolygonVertices);
+
+    b2Vec2 v[b2_maxPolygonVertices];
+    uint32 vc = GetCellVertices(index, v);
+
+    uint32 vp = vc - 1;
+    uint32 v0 = 0;
+    uint32 v1 = 1;
+    uint32 vn = 2;
+    uint32 edgeCount = 0;
+    for (uint32 i = 0; i < vc && i < edgeShapeCount; ++i)
+    {
+        if (edgeMask & (1 << v0))
+        {
+            b2EdgeShape& edge = edgeShapes[edgeCount];
+            edge.Set(v[v0], v[v1]);
+            edge.m_hasVertex0 = true;
+            if (edgeMask & (1 << vp))
+            {
+                edge.m_vertex0 = v[vp];
+            }
+            else
+            {
+                edge.m_vertex0 = 2.0f * v[v0] - v[v1];
+            }
+            edge.m_hasVertex3 = true;
+            if (edgeMask & (1 << v1))
+            {
+                edge.m_vertex3 = v[vn];
+            }
+            else
+            {
+                edge.m_vertex3 = 2.0f * v[v1] - v[v0];
+            }
+            ++edgeCount;
+        }
+        vp = v0;
+        v0 = v1;
+        v1 = vn;
+        vn = (vn + 1) % vc;
+    }
+    return edgeCount;
 }
 
 static bool hasEdge(b2Vec2 p0, b2Vec2 p1, b2Vec2* vertices, uint32 n)

@@ -376,7 +376,9 @@ namespace dmEngine
         dmPhysics::DebugCallbacks debug_callbacks;
         debug_callbacks.m_UserData = engine->m_RenderContext;
         debug_callbacks.m_DrawLines = PhysicsDebugRender::DrawLines;
-        debug_callbacks.m_DrawTriangles = 0x0;
+        debug_callbacks.m_DrawTriangles = PhysicsDebugRender::DrawTriangles;
+        debug_callbacks.m_Alpha = dmConfigFile::GetFloat(config, "physics.debug_alpha", 0.9f);
+        debug_callbacks.m_Scale = dmConfigFile::GetFloat(config, "physics.debug_scale", 30.0f);
         if (engine->m_PhysicsContext.m_3D)
             dmPhysics::SetDebugCallbacks3D(engine->m_PhysicsContext.m_Context3D, debug_callbacks);
         else

@@ -74,6 +74,7 @@ namespace dmPhysics
     : m_DrawLines(0x0)
     , m_DrawTriangles(0x0)
     , m_UserData(0x0)
+    , m_Alpha(1.0f)
     {
 
     }

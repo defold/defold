@@ -27,7 +27,7 @@ namespace dmPhysics
     , m_GetWorldTransformCallback(params.m_GetWorldTransformCallback)
     , m_SetWorldTransformCallback(params.m_SetWorldTransformCallback)
     {
-        m_DebugDraw.SetFlags(~0u);
+        m_DebugDraw.SetFlags(b2Draw::e_jointBit | b2Draw::e_pairBit | b2Draw::e_shapeBit);
         m_RayCastRequests.SetCapacity(64);
     }
 

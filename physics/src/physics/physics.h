@@ -721,6 +721,10 @@ namespace dmPhysics
         void (*m_DrawTriangles)(Vectormath::Aos::Point3* points, uint32_t point_count, Vectormath::Aos::Vector4 color, void* user_data);
         /// User data to be supplied to the callbacks
         void* m_UserData;
+        /// Alpha to use for everything rendered
+        float m_Alpha;
+        /// Scale to use for rendered transforms
+        float m_Scale;
     };
 
     /**

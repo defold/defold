@@ -72,9 +72,14 @@ public:
 	/// Draw a line segment.
 	virtual void DrawSegment(const b2Vec2& p1, const b2Vec2& p2, const b2Color& color) = 0;
 
-	/// Draw a transform. Choose your own length scale.
-	/// @param xf a transform.
-	virtual void DrawTransform(const b2Transform& xf) = 0;
+    /// Draw a transform. Choose your own length scale.
+    /// @param xf a transform.
+    virtual void DrawTransform(const b2Transform& xf) = 0;
+
+    /// Draw an arrow. Choose your own length scale.
+    /// @param p position.
+    /// @param d direction.
+    virtual void DrawArrow(const b2Vec2& p, const b2Vec2& d, const b2Color& color) = 0;
 
 protected:
 	uint32 m_drawFlags;

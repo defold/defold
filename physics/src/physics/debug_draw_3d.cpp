@@ -37,7 +37,7 @@ namespace dmPhysics
                 Vectormath::Aos::Point3(from.getX(), from.getY(), from.getZ()),
                 Vectormath::Aos::Point3(to.getX(), to.getY(), to.getZ())
             };
-            (*m_Callbacks->m_DrawLines)(points, 2, Vectormath::Aos::Vector4(color.getX(), color.getY(), color.getZ(), 1.0f), m_Callbacks->m_UserData);
+            (*m_Callbacks->m_DrawLines)(points, 2, Vectormath::Aos::Vector4(color.getX(), color.getY(), color.getZ(), m_Callbacks->m_Alpha), m_Callbacks->m_UserData);
         }
     }
 
@@ -62,7 +62,7 @@ namespace dmPhysics
         t2 = normalize(t2);
         t1 = cross(t2, n);
         // lifetime measures number of frames the contact point has existed (max 127)
-        float alpha = 1.0f - (lifeTime/255.0f);
+        float alpha = m_Callbacks->m_Alpha * (1.0f - (lifeTime/255.0f));
         Vector4 c(color.getX(), color.getY(), color.getZ(), alpha);
         Vectormath::Aos::Point3 points[10] =
         {

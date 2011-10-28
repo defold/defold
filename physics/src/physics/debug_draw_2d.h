@@ -31,6 +31,11 @@ namespace dmPhysics
         /// @param xf a transform.
         virtual void DrawTransform(const b2Transform& xf);
 
+        /// Draw an arrow. Choose your own length scale.
+        /// @param p position.
+        /// @param d direction.
+        virtual void DrawArrow(const b2Vec2& p, const b2Vec2& d, const b2Color& color);
+
     private:
         DebugCallbacks* m_Callbacks;
     };

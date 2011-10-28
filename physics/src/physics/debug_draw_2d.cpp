@@ -25,7 +25,7 @@ namespace dmPhysics
                 uint32_t j = (i + 1) % segment_count;
                 points[2*i + 1] = Vectormath::Aos::Point3(vertices[j].x, vertices[j].y, 0.0f);
             }
-            (*m_Callbacks->m_DrawLines)(points, segment_count * 2, Vectormath::Aos::Vector4(color.r, color.g, color.b, 1.0f), m_Callbacks->m_UserData);
+            (*m_Callbacks->m_DrawLines)(points, segment_count * 2, Vectormath::Aos::Vector4(color.r, color.g, color.b, m_Callbacks->m_Alpha), m_Callbacks->m_UserData);
         }
     }
 
@@ -45,12 +45,12 @@ namespace dmPhysics
             center.y /= triangle_count;
             for (uint32_t i = 0; i < triangle_count; ++i)
             {
-                points[3*i] = Vectormath::Aos::Point3(vertices[i].x, vertices[i].y, 0.0f);
+                points[3*i + 0] = Vectormath::Aos::Point3(vertices[i].x, vertices[i].y, 0.0f);
+                points[3*i + 1] = Vectormath::Aos::Point3(center.x, center.y, 0.0f);
                 uint32_t j = (i + 1) % triangle_count;
-                points[3*i + 1] = Vectormath::Aos::Point3(vertices[j].x, vertices[j].y, 0.0f);
-                points[3*i + 2] = Vectormath::Aos::Point3(center.x, center.y, 0.0f);
+                points[3*i + 2] = Vectormath::Aos::Point3(vertices[j].x, vertices[j].y, 0.0f);
             }
-            (*m_Callbacks->m_DrawTriangles)(points, triangle_count * 3, Vectormath::Aos::Vector4(color.r, color.g, color.b, 1.0f), m_Callbacks->m_UserData);
+            (*m_Callbacks->m_DrawTriangles)(points, triangle_count * 3, Vectormath::Aos::Vector4(color.r, color.g, color.b, m_Callbacks->m_Alpha), m_Callbacks->m_UserData);
         }
     }
 
@@ -73,7 +73,7 @@ namespace dmPhysics
                 c_a = cosf(angle);
                 points[i*2 + 1] = c + Vectormath::Aos::Vector3(c_a * radius, s_a * radius, 0.0f);
             }
-            (*m_Callbacks->m_DrawLines)(points, MAX_SEGMENT_COUNT * 2, Vectormath::Aos::Vector4(color.r, color.g, color.b, 1.0f), m_Callbacks->m_UserData);
+            (*m_Callbacks->m_DrawLines)(points, MAX_SEGMENT_COUNT * 2, Vectormath::Aos::Vector4(color.r, color.g, color.b, m_Callbacks->m_Alpha), m_Callbacks->m_UserData);
         }
     }
 
@@ -97,7 +97,7 @@ namespace dmPhysics
                 c_a = cosf(angle);
                 points[i*3 + 2] = c + Vectormath::Aos::Vector3(c_a * radius, s_a * radius, 0.0f);
             }
-            (*m_Callbacks->m_DrawTriangles)(points, MAX_TRI_COUNT * 3, Vectormath::Aos::Vector4(color.r, color.g, color.b, 1.0f), m_Callbacks->m_UserData);
+            (*m_Callbacks->m_DrawTriangles)(points, MAX_TRI_COUNT * 3, Vectormath::Aos::Vector4(color.r, color.g, color.b, m_Callbacks->m_Alpha), m_Callbacks->m_UserData);
         }
     }
 
@@ -110,7 +110,7 @@ namespace dmPhysics
                 Vectormath::Aos::Point3(p1.x, p1.y, 0.0f),
                 Vectormath::Aos::Point3(p2.x, p2.y, 0.0f)
             };
-            (*m_Callbacks->m_DrawLines)(points, 2, Vectormath::Aos::Vector4(color.r, color.g, color.b, 1.0f), m_Callbacks->m_UserData);
+            (*m_Callbacks->m_DrawLines)(points, 2, Vectormath::Aos::Vector4(color.r, color.g, color.b, m_Callbacks->m_Alpha), m_Callbacks->m_UserData);
         }
     }
 
@@ -119,10 +119,28 @@ namespace dmPhysics
         if (m_Callbacks->m_DrawLines)
         {
             b2Vec2 origin = b2Mul(xf, b2Vec2(0.0f, 0.0f));
-            b2Vec2 x = b2Mul(xf, b2Vec2(1.0f, 0.0f));
-            b2Vec2 y = b2Mul(xf, b2Vec2(0.0f, 1.0f));
+            b2Vec2 x = b2Mul(xf, b2Vec2(m_Callbacks->m_Scale, 0.0f));
+            b2Vec2 y = b2Mul(xf, b2Vec2(0.0f, m_Callbacks->m_Scale));
             DrawSegment(origin, x, b2Color(1.0f, 0.0f, 0.0f));
             DrawSegment(origin, y, b2Color(0.0f, 1.0f, 0.0f));
+        }
+    }
+
+    void DebugDraw2D::DrawArrow(const b2Vec2& p, const b2Vec2& d, const b2Color& color)
+    {
+        if (m_Callbacks->m_DrawLines)
+        {
+            b2Vec2 dp = m_Callbacks->m_Scale * d;
+            b2Vec2 n(dp.y, -dp.x);
+            n *= 0.15f;
+            b2Vec2 head = 0.35f * dp;
+            b2Vec2 top = p + dp;
+            DrawSegment(p, top, color);
+            b2Vec2 v[3];
+            v[0] = top;
+            v[1] = top - head - n;
+            v[2] = top - head + n;
+            DrawSolidPolygon(v, 3, color);
         }
     }
 }
