@@ -61,25 +61,30 @@ namespace dmRender
         uint64_t                                m_UserData2;
     };
 
+    // The order of this enum also defines the order in which the corresponding ROs should be rendered
     enum DebugRenderType
     {
-        DEBUG_RENDER_TYPE_FACE,
-        DEBUG_RENDER_TYPE_LINE,
+        DEBUG_RENDER_TYPE_FACE_3D,
+        DEBUG_RENDER_TYPE_LINE_3D,
+        DEBUG_RENDER_TYPE_FACE_2D,
+        DEBUG_RENDER_TYPE_LINE_2D,
         MAX_DEBUG_RENDER_TYPE_COUNT
+    };
+
+    struct DebugRenderTypeData
+    {
+        dmRender::RenderObject  m_RenderObject;
+        void*                   m_ClientBuffer;
     };
 
     struct DebugRenderer
     {
+        DebugRenderTypeData             m_TypeData[MAX_DEBUG_RENDER_TYPE_COUNT];
         Predicate                       m_3dPredicate;
         Predicate                       m_2dPredicate;
         dmRender::HRenderContext        m_RenderContext;
-        dmRender::RenderObject          m_RenderObject3d[MAX_DEBUG_RENDER_TYPE_COUNT];
-        dmRender::RenderObject          m_RenderObject2d[MAX_DEBUG_RENDER_TYPE_COUNT];
         dmGraphics::HVertexBuffer       m_VertexBuffer;
-        void*                           m_ClientBuffer;
         dmGraphics::HVertexDeclaration  m_VertexDeclaration;
-        uint32_t                        m_VertexIndex;
-        uint32_t                        m_NextZ;
     };
 
     struct TextContext

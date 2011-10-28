@@ -167,6 +167,14 @@ namespace dmRender
     void Square2d(HRenderContext context, float x0, float y0, float x1, float y1, Vector4 color);
 
     /**
+     * Render debug triangle in world space.
+     * @param context Render context handle
+     * @param vertices Vertices of the triangle, CW winding
+     * @param color Color
+     */
+    void Triangle3d(HRenderContext context, Point3 vertices[3], Vector4 color);
+
+    /**
      * Render debug line. The upper left corner of the screen is (-1,-1) and the bottom right is (1,1).
      * @param context Render context handle
      * @param x0 x coordinate of the start of the line

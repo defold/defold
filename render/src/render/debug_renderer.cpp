@@ -15,7 +15,7 @@ using namespace Vectormath::Aos;
 
 namespace dmRender
 {
-    static const uint32_t MAX_VERTEX_COUNT = 40000;
+    static const uint32_t MAX_VERTEX_COUNT = 10000;
 
     struct DebugVertex
     {
@@ -28,10 +28,9 @@ namespace dmRender
         DebugRenderer& debug_renderer = render_context->m_DebugRenderer;
 
         debug_renderer.m_RenderContext = render_context;
-        debug_renderer.m_VertexIndex = 0;
-        uint32_t buffer_size = MAX_VERTEX_COUNT * sizeof(DebugVertex);
-        debug_renderer.m_VertexBuffer = dmGraphics::NewVertexBuffer(render_context->m_GraphicsContext, buffer_size, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-        debug_renderer.m_ClientBuffer = new char[buffer_size];
+        const uint32_t buffer_size = MAX_VERTEX_COUNT * sizeof(DebugVertex);
+        const uint32_t total_buffer_size = MAX_DEBUG_RENDER_TYPE_COUNT * buffer_size;
+        debug_renderer.m_VertexBuffer = dmGraphics::NewVertexBuffer(render_context->m_GraphicsContext, total_buffer_size, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         dmGraphics::VertexElement ve[] =
         {
             {"position", 0, 4, dmGraphics::TYPE_FLOAT },
@@ -54,26 +53,21 @@ namespace dmRender
         SetMaterialProgramConstantType(material2d, dmHashString64("view_proj"), dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ);
         AddMaterialTag(material2d, dmHashString32(DEBUG_2D_NAME));
 
-        dmGraphics::PrimitiveType primitive_types[MAX_DEBUG_RENDER_TYPE_COUNT] = {dmGraphics::PRIMITIVE_TRIANGLES, dmGraphics::PRIMITIVE_LINES};
+        dmGraphics::PrimitiveType primitive_types[MAX_DEBUG_RENDER_TYPE_COUNT] = {dmGraphics::PRIMITIVE_TRIANGLES, dmGraphics::PRIMITIVE_LINES, dmGraphics::PRIMITIVE_TRIANGLES, dmGraphics::PRIMITIVE_LINES};
+        HMaterial materials[MAX_DEBUG_RENDER_TYPE_COUNT] = {material3d, material3d, material2d, material2d};
 
         for (uint32_t i = 0; i < MAX_DEBUG_RENDER_TYPE_COUNT; ++i)
         {
             RenderObject ro;
-            ro.m_Material = material3d;
+            ro.m_Material = materials[i];
             ro.m_PrimitiveType = primitive_types[i];
             ro.m_VertexBuffer = debug_renderer.m_VertexBuffer;
             ro.m_VertexDeclaration = debug_renderer.m_VertexDeclaration;
-            debug_renderer.m_RenderObject3d[i] = ro;
-        }
-
-        for (uint32_t i = 0; i < MAX_DEBUG_RENDER_TYPE_COUNT; ++i)
-        {
-            RenderObject ro;
-            ro.m_Material = material2d;
-            ro.m_PrimitiveType = primitive_types[i];
-            ro.m_VertexBuffer = debug_renderer.m_VertexBuffer;
-            ro.m_VertexDeclaration = debug_renderer.m_VertexDeclaration;
-            debug_renderer.m_RenderObject2d[i] = ro;
+            ro.m_VertexCount = 0;
+            ro.m_RenderKey.m_Depth = i;
+            DebugRenderTypeData& type_data = debug_renderer.m_TypeData[i];
+            type_data.m_RenderObject = ro;
+            type_data.m_ClientBuffer = new char[buffer_size];
         }
 
         debug_renderer.m_3dPredicate.m_Tags[0] = dmHashString32(DEBUG_3D_NAME);
@@ -84,7 +78,8 @@ namespace dmRender
 
     void FinalizeDebugRenderer(HRenderContext context)
     {
-        HMaterial material = context->m_DebugRenderer.m_RenderObject3d[0].m_Material;
+        DebugRenderer& debug_renderer = context->m_DebugRenderer;
+        HMaterial material = debug_renderer.m_TypeData[DEBUG_RENDER_TYPE_FACE_3D].m_RenderObject.m_Material;
 
         dmGraphics::HVertexProgram vp = GetMaterialVertexProgram(material);
         if (vp != dmGraphics::INVALID_VERTEX_PROGRAM_HANDLE)
@@ -94,51 +89,51 @@ namespace dmRender
             dmGraphics::DeleteFragmentProgram(fp);
 
         DeleteMaterial(context, material);
-        material = context->m_DebugRenderer.m_RenderObject2d[0].m_Material;
+        material = debug_renderer.m_TypeData[DEBUG_RENDER_TYPE_FACE_2D].m_RenderObject.m_Material;
         DeleteMaterial(context, material);
 
-        delete [] (char*)context->m_DebugRenderer.m_ClientBuffer;
-        dmGraphics::DeleteVertexBuffer(context->m_DebugRenderer.m_VertexBuffer);
-        dmGraphics::DeleteVertexDeclaration(context->m_DebugRenderer.m_VertexDeclaration);
+        for (uint32_t i = 0; i < MAX_DEBUG_RENDER_TYPE_COUNT; ++i)
+        {
+            delete [] (char*)debug_renderer.m_TypeData[i].m_ClientBuffer;
+        }
+        dmGraphics::DeleteVertexBuffer(debug_renderer.m_VertexBuffer);
+        dmGraphics::DeleteVertexDeclaration(debug_renderer.m_VertexDeclaration);
     }
 
     void ClearDebugRenderObjects(HRenderContext context)
     {
         for (uint32_t i = 0; i < MAX_DEBUG_RENDER_TYPE_COUNT; ++i)
         {
-            context->m_DebugRenderer.m_RenderObject3d[i].m_VertexCount = 0;
-            context->m_DebugRenderer.m_RenderObject2d[i].m_VertexCount = 0;
+            context->m_DebugRenderer.m_TypeData[i].m_RenderObject.m_VertexCount = 0;
         }
-        context->m_DebugRenderer.m_VertexIndex = 0;
-        context->m_DebugRenderer.m_NextZ = 0;
     }
 
 #define ADD_TO_RENDER(object)\
     if (object.m_VertexCount == 0)\
     {\
         dmRender::AddToRender(context, &object);\
-        ro.m_RenderKey.m_Depth = context->m_DebugRenderer.m_NextZ++;\
     }\
 
     void Square2d(HRenderContext context, float x0, float y0, float x1, float y1, Vector4 color)
     {
-        RenderObject& ro = context->m_DebugRenderer.m_RenderObject2d[DEBUG_RENDER_TYPE_FACE];
+        DebugRenderTypeData& type_data = context->m_DebugRenderer.m_TypeData[DEBUG_RENDER_TYPE_FACE_2D];
+        RenderObject& ro = type_data.m_RenderObject;
+        const uint32_t vertex_count = 6;
         ADD_TO_RENDER(ro);
-        if (context->m_DebugRenderer.m_VertexIndex + 6 < MAX_VERTEX_COUNT)
+        if (ro.m_VertexCount + vertex_count < MAX_VERTEX_COUNT)
         {
-            DebugVertex v[6];
+            DebugVertex v[vertex_count];
             v[0].m_Position = Vector4(x0, y0, 0.0f, 0.0f);
             v[1].m_Position = Vector4(x0, y1, 0.0f, 0.0f);
             v[2].m_Position = Vector4(x1, y0, 0.0f, 0.0f);
             v[5].m_Position = Vector4(x1, y1, 0.0f, 0.0f);
             v[3].m_Position = v[2].m_Position;
             v[4].m_Position = v[1].m_Position;
-            for (uint32_t i = 0; i < 6; ++i)
+            for (uint32_t i = 0; i < vertex_count; ++i)
                 v[i].m_Color = color;
-            char* buffer = (char*)context->m_DebugRenderer.m_ClientBuffer;
-            memcpy(&buffer[ro.m_VertexCount * sizeof(DebugVertex)], (const void*)v, 6 * sizeof(DebugVertex));
-            ro.m_VertexCount += 6;
-            context->m_DebugRenderer.m_VertexIndex += 6;
+            char* buffer = (char*)type_data.m_ClientBuffer;
+            memcpy(&buffer[ro.m_VertexCount * sizeof(DebugVertex)], (const void*)v, vertex_count * sizeof(DebugVertex));
+            ro.m_VertexCount += vertex_count;
         }
         else
         {
@@ -146,21 +141,46 @@ namespace dmRender
         }
     }
 
+    void Triangle3d(HRenderContext context, Point3 vertices[3], Vector4 color)
+    {
+        DebugRenderTypeData& type_data = context->m_DebugRenderer.m_TypeData[DEBUG_RENDER_TYPE_FACE_3D];
+        RenderObject& ro = type_data.m_RenderObject;
+        const uint32_t vertex_count = 3;
+        ADD_TO_RENDER(ro);
+        if (ro.m_VertexCount + vertex_count < MAX_VERTEX_COUNT)
+        {
+            DebugVertex v[vertex_count];
+            for (uint32_t i = 0; i < vertex_count; ++i)
+            {
+                v[i].m_Position = Vector4(vertices[i]);
+                v[i].m_Color = color;
+            }
+            char* buffer = (char*)type_data.m_ClientBuffer;
+            memcpy(&buffer[ro.m_VertexCount * sizeof(DebugVertex)], (const void*)v, vertex_count * sizeof(DebugVertex));
+            ro.m_VertexCount += vertex_count;
+        }
+        else
+        {
+            dmLogWarning("Out of Triangle3d vertex data");
+        }
+    }
+
     void Line2D(HRenderContext context, float x0, float y0, float x1, float y1, Vector4 color0, Vector4 color1)
     {
-        RenderObject& ro = context->m_DebugRenderer.m_RenderObject2d[DEBUG_RENDER_TYPE_LINE];
+        DebugRenderTypeData& type_data = context->m_DebugRenderer.m_TypeData[DEBUG_RENDER_TYPE_LINE_2D];
+        RenderObject& ro = type_data.m_RenderObject;
+        const uint32_t vertex_count = 2;
         ADD_TO_RENDER(ro);
-        if (context->m_DebugRenderer.m_VertexIndex + 2 < MAX_VERTEX_COUNT)
+        if (ro.m_VertexCount + vertex_count < MAX_VERTEX_COUNT)
         {
-            DebugVertex v[2];
+            DebugVertex v[vertex_count];
             v[0].m_Position = Vector4(x0, y0, 0.0f, 0.0f);
             v[0].m_Color = color0;
             v[1].m_Position = Vector4(x1, y1, 0.0f, 0.0f);
             v[1].m_Color = color1;
-            char* buffer = (char*)context->m_DebugRenderer.m_ClientBuffer;
-            memcpy(&buffer[ro.m_VertexCount * sizeof(DebugVertex)], (const void*)v, 2 * sizeof(DebugVertex));
-            ro.m_VertexCount += 2;
-            context->m_DebugRenderer.m_VertexIndex += 2;
+            char* buffer = (char*)type_data.m_ClientBuffer;
+            memcpy(&buffer[ro.m_VertexCount * sizeof(DebugVertex)], (const void*)v, vertex_count * sizeof(DebugVertex));
+            ro.m_VertexCount += vertex_count;
         }
         else
         {
@@ -170,19 +190,20 @@ namespace dmRender
 
     void Line3D(HRenderContext context, Point3 start, Point3 end, Vector4 start_color, Vector4 end_color)
     {
-        RenderObject& ro = context->m_DebugRenderer.m_RenderObject3d[DEBUG_RENDER_TYPE_LINE];
+        DebugRenderTypeData& type_data = context->m_DebugRenderer.m_TypeData[DEBUG_RENDER_TYPE_LINE_3D];
+        RenderObject& ro = type_data.m_RenderObject;
+        const uint32_t vertex_count = 2;
         ADD_TO_RENDER(ro);
-        if (context->m_DebugRenderer.m_VertexIndex + 2 < MAX_VERTEX_COUNT)
+        if (ro.m_VertexCount + vertex_count < MAX_VERTEX_COUNT)
         {
-            DebugVertex v[2];
+            DebugVertex v[vertex_count];
             v[0].m_Position = Vector4(start);
             v[0].m_Color = start_color;
             v[1].m_Position = Vector4(end);
             v[1].m_Color = end_color;
-            char* buffer = (char*)context->m_DebugRenderer.m_ClientBuffer;
-            memcpy(&buffer[ro.m_VertexCount * sizeof(DebugVertex)], (const void*)v, 2 * sizeof(DebugVertex));
-            ro.m_VertexCount += 2;
-            context->m_DebugRenderer.m_VertexIndex += 2;
+            char* buffer = (char*)type_data.m_ClientBuffer;
+            memcpy(&buffer[ro.m_VertexCount * sizeof(DebugVertex)], (const void*)v, vertex_count * sizeof(DebugVertex));
+            ro.m_VertexCount += vertex_count;
         }
         else
         {
@@ -190,16 +211,34 @@ namespace dmRender
         }
     }
 
+#undef ADD_TO_RENDER
+
     void FlushDebug(HRenderContext render_context)
     {
         DebugRenderer& debug_renderer = render_context->m_DebugRenderer;
-        if (debug_renderer.m_VertexIndex > 0)
+        uint32_t total_vertex_count = 0;
+        dmGraphics::SetVertexBufferData(debug_renderer.m_VertexBuffer, 0, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        for (uint32_t i = 0; i < MAX_DEBUG_RENDER_TYPE_COUNT; ++i)
         {
-            uint32_t buffer_size = sizeof(DebugVertex) * debug_renderer.m_VertexIndex;
-            dmGraphics::SetVertexBufferData(debug_renderer.m_VertexBuffer, 0, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-            dmGraphics::SetVertexBufferData(debug_renderer.m_VertexBuffer, buffer_size, debug_renderer.m_ClientBuffer, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+            DebugRenderTypeData& type_data = debug_renderer.m_TypeData[i];
+            RenderObject& ro = type_data.m_RenderObject;
+            uint32_t vertex_count = ro.m_VertexCount;
+            if (vertex_count > 0)
+            {
+                ro.m_VertexStart = total_vertex_count;
+                total_vertex_count += vertex_count;
+            }
+        }
+        dmGraphics::SetVertexBufferData(debug_renderer.m_VertexBuffer, total_vertex_count * sizeof(DebugVertex), 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        for (uint32_t i = 0; i < MAX_DEBUG_RENDER_TYPE_COUNT; ++i)
+        {
+            DebugRenderTypeData& type_data = debug_renderer.m_TypeData[i];
+            RenderObject& ro = type_data.m_RenderObject;
+            uint32_t vertex_count = ro.m_VertexCount;
+            if (vertex_count > 0)
+            {
+                dmGraphics::SetVertexBufferSubData(debug_renderer.m_VertexBuffer, ro.m_VertexStart * sizeof(DebugVertex), vertex_count * sizeof(DebugVertex), type_data.m_ClientBuffer);
+            }
         }
     }
-
-#undef ADD_TO_RENDER
 }
