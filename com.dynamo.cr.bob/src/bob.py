@@ -84,7 +84,7 @@ def scan(p):
         s = t['scanner']
         d = s(p, t)
         deps = deps.union(set(d))
-    t['dependencies'] = list(deps)
+        t['dependencies'] = list(deps)
 
 def sha1_file(name):
     f = open(name, 'rb')
