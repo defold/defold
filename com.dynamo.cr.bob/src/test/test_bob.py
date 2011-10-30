@@ -49,13 +49,24 @@ build(p)
         self.assertSetEquals(['test_data/util.h', 'test_data/include/misc.h'],
                              t['dependencies'])
 
-        if False:
-            tasks = l['p']['tasks']
-            self.assertEqual(1, len(tasks))
-            t = tasks[0]
+    def test_file_signatures(self):
+        script = '''
+p = project(bld_dir = "build",
+            globs = ['test_data/*.c'],
+            includes = ['test_data/include'])
+build(p)
+'''
+        l = bob.exec_script(script)
+        sigs = l['p']['file_signatures']
+        files = set(['test_data/util.c',
+                     'test_data/util.h',
+                     'test_data/main.c',
+                     'test_data/include/misc.h'])
 
-            self.assertSetEquals(['test_data/main.c'], t['inputs'])
-            self.assertSetEquals(['build/test_data/main.o'], t['outputs'])
+        self.assertSetEquals(files, sigs.keys())
+        from bob import sha1_file
+        for x in files:
+            self.assertEquals(sha1_file(x), sigs[x])
 
 if __name__ == '__main__':
     unittest.main()

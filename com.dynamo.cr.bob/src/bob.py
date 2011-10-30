@@ -1,5 +1,6 @@
 from glob import glob
 from os.path import splitext, join, exists, dirname, normpath
+from hashlib import sha1
 import re, logging
 
 def exec_script(s):
@@ -32,6 +33,7 @@ def build(p):
     collect_inputs(p)
     create_tasks(p)
     scan(p)
+    file_signatures(p)
 
 def collect_inputs(p):
     '''Collection input files for project. Input files are collected
@@ -58,6 +60,21 @@ def scan(p):
         d = s(p, t)
         deps = deps.union(set(d))
     t['dependencies'] = list(deps)
+
+def sha1_file(name):
+    f = open(name, 'rb')
+    d = sha1(f.read()).hexdigest()
+    f.close()
+    return d
+
+def file_signatures(p):
+    sigs = {}
+    for t in p['tasks']:
+        for i in p['inputs']:
+            sigs[i] = sha1_file(i)
+        for i in t['dependencies']:
+            sigs[i] = sha1_file(i)
+    p['file_signatures'] = sigs
 
 # Builtin tasks
 
