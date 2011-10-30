@@ -6,7 +6,7 @@ APPNAME = 'bob'
 srcdir = '.'
 blddir = 'build'
 
-import os, sys
+import os
 import Options
 
 def init():

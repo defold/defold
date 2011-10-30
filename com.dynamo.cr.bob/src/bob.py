@@ -1,7 +1,10 @@
 from glob import glob
+from os import makedirs
 from os.path import splitext, join, exists, dirname, normpath
 from hashlib import sha1
+from subprocess import Popen, PIPE
 import re, logging
+import cPickle
 
 def exec_script(s):
     l = {}
@@ -28,14 +31,24 @@ def task(**kwargs):
                                      options = [])
 
 def change_ext(p, input, ext):
-    return join(p['bld_dir'], splitext(input)[0] + ext)
+    new = join(p['bld_dir'], splitext(input)[0] + ext)
+    dir = dirname(new)
+    if not exists(dir): makedirs(dir)
+    return join(new)
 
-def build(p):
+def build(p, run = True):
+    load_state(p)
     collect_inputs(p)
     create_tasks(p)
     scan(p)
     file_signatures(p)
     task_signatures(p)
+    info_lst = []
+    if run:
+        info_lst = run_tasks(p)
+
+    save_state(p)
+    return info_lst
 
 def collect_inputs(p):
     '''Collection input files for project. Input files are collected
@@ -90,10 +103,74 @@ def task_signatures(p):
         s.update(str(t['options']))
         t['sig'] = s.hexdigest()
 
+def run_tasks(p):
+    ret = []
+    state = p['state']
+
+    for t in p['tasks']:
+        # do all output files exist?
+        all_exists = all([ exists(x) for x in t['outputs'] ])
+
+        # compare all task signature. current task signature between previous
+        # signature from state on disk
+        all_sigs = [ state['out_to_sig'].get(x, None) for x in t['outputs'] ]
+        sigs_equal = reduce(lambda x,y: x and (y == t['sig']), all_sigs, True)
+
+        run = not all_exists or not sigs_equal
+
+        info = { 'task' : t,
+                 'run' : run,
+                 'code' : 0,
+                 'stdout' : '',
+                 'stderr' : '' }
+
+        t['info'] = info
+
+        ret.append(info)
+
+        code = 0
+        if run:
+            t['function'](p, t)
+
+        if info['code'] == 0:
+            # store new signatures for output files
+            for x in t['outputs']:
+                if not exists(x):
+                    logging.warn('output file "%s" does not exists', x)
+                state['out_to_sig'][x] = t['sig']
+
+    return ret
+
+def load_state(p):
+    name = join(p['bld_dir'], 'state')
+    if exists(name):
+        f = open(name, 'rb')
+        p['state'] = cPickle.load(f)
+        f.close()
+    else:
+        p['state'] = { 'out_to_sig' : {} }
+
+def save_state(p):
+    name = join(p['bld_dir'], 'state')
+    f = open(name, 'wb')
+    cPickle.dump(p['state'], f)
+    f.close()
+
 # Builtin tasks
 
-def c_lang_file(input, output, transform):
-    pass
+def c_lang_file(p, t):
+    args = ['gcc', '-c'] + t['options'] + [t['inputs'][0]] + ['-o', t['outputs'][0]]
+    p = Popen(args,
+              shell = False,
+              stdout = PIPE,
+              stderr = PIPE)
+    out, err = p.communicate()
+    code = p.returncode
+
+    info = t['info']
+    info['code'] = code
+    info['stdout'] = out
+    info['stderr'] = err
 
 header_pattern = re.compile('.*?#include.*?[<"](.+?)[>"].*')
 def c_scanner(p, t):
