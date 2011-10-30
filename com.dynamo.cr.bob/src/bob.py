@@ -200,8 +200,9 @@ def c_scanner(p, t):
         ret = set()
         f = open(fname)
         for line in f:
-            if header_pattern.match(line):
-                i = header_pattern.match(line).groups()[0]
+            m = header_pattern.match(line)
+            if m:
+                i = m.groups()[0]
                 qual, path = find_include(i, this_paths)
                 if qual:
                     ret.add(qual)
