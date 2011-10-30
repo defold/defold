@@ -5,6 +5,16 @@ from hashlib import sha1
 from subprocess import Popen, PIPE
 import re, logging
 import cPickle
+import sys
+
+if sys.platform.find('java') != -1:
+    # setuptools is typically not available in jython
+    # We fake the pkg_resources module. Hopefully this
+    # hack will work. Google Protocol Buffers requires
+    # pkg_resources
+    class pkg_resources(object):
+        def declare_namespace(self, x): pass
+    sys.modules['pkg_resources'] = pkg_resources()
 
 def exec_script(s):
     l = {}
