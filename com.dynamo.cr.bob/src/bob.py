@@ -147,7 +147,8 @@ def run_tasks(p):
             for x in t['outputs']:
                 if not exists(x):
                     logging.warn('output file "%s" does not exists', x)
-                state['out_to_sig'][x] = t['sig']
+                else:
+                    state['out_to_sig'][x] = t['sig']
 
     return ret
 
