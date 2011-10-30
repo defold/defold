@@ -5,6 +5,9 @@ from pprint import pprint
 sys.path.append('src')
 import bob
 
+sys.path.append('build/default')
+import test_bob_ddf_pb2
+
 class TestBob(unittest.TestCase):
 
     def assertSetEquals(self, l1, l2):
@@ -159,6 +162,28 @@ r = build(p)
 
         self.assertEquals('', info['stdout'])
         self.assertEquals('', info['stderr'])
+
+    def test_proto_task(self):
+        script = '''
+
+def transform_bob(msg):
+    msg.resource = msg.resource + 'c'
+
+p = project(bld_dir = "tmp_build",
+            globs = ['tmp/test_data/*.bob'])
+p['task_gens']['.bob'] = make_proto('test_bob_ddf_pb2', 'TestBob', transform_bob)
+r = build(p)
+'''
+        l = bob.exec_script(script)
+        r = l['r']
+        info = l['r']
+
+        tb = test_bob_ddf_pb2.TestBob()
+        f = open('tmp_build/tmp/test_data/test.bobc', 'rb')
+        tb.MergeFromString(f.read())
+        f.close()
+
+        self.assertEquals(tb.resource, u'some_resource.extc')
 
 if __name__ == '__main__':
     import os, shutil

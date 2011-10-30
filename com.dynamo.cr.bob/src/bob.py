@@ -222,6 +222,35 @@ def c_lang(p, input):
     options = [ '-I%s' % x for x in p['includes']]
     return task(function = c_lang_file,
                 inputs = [input],
-                outputs = [change_ext(p, input, ".o")],
+                outputs = [change_ext(p, input, '.o')],
                 scanner = c_scanner,
                 options = options)
+
+def make_proto_file(module, msg_type, transform):
+
+    def proto_file(p, t):
+        mod = __import__(module)
+        # NOTE: We can't use getattr. msg_type could of form "foo.bar"
+        msg = eval('mod.' + msg_type)() # Call constructor on message type
+        from google.protobuf.text_format import Merge
+        in_f = open(t['inputs'][0], 'rb')
+        Merge(in_f.read(), msg)
+        in_f.close()
+
+        transform(msg)
+
+        out_f = open(t['outputs'][0], 'wb')
+        out_f.write(msg.SerializeToString())
+        out_f.close()
+
+    return proto_file
+
+def unity_transform(msg): return msg
+
+def make_proto(module, msg_type, transform = unity_transform):
+    def proto(p, input):
+        ext = splitext(input)[1]
+        return task(function = make_proto_file(module, msg_type, transform),
+                    inputs = [input],
+                    outputs = [change_ext(p, input, ext + 'c')])
+    return proto
