@@ -24,7 +24,8 @@ def null_scanner(p, t): return []
 
 def task(**kwargs):
     return set_default(dict(kwargs), dependencies = [],
-                                     scanner = null_scanner)
+                                     scanner = null_scanner,
+                                     options = [])
 
 def change_ext(p, input, ext):
     return join(p['bld_dir'], splitext(input)[0] + ext)
@@ -34,6 +35,7 @@ def build(p):
     create_tasks(p)
     scan(p)
     file_signatures(p)
+    task_signatures(p)
 
 def collect_inputs(p):
     '''Collection input files for project. Input files are collected
@@ -76,6 +78,18 @@ def file_signatures(p):
             sigs[i] = sha1_file(i)
     p['file_signatures'] = sigs
 
+def task_signatures(p):
+    sigs = {}
+    file_sigs = p['file_signatures']
+    for t in p['tasks']:
+        s = sha1()
+        for i in p['inputs']:
+            s.update(file_sigs[i])
+        for i in t['dependencies']:
+            s.update(file_sigs[i])
+        s.update(str(t['options']))
+        t['sig'] = s.hexdigest()
+
 # Builtin tasks
 
 def c_lang_file(input, output, transform):
@@ -116,7 +130,9 @@ def c_scanner(p, t):
     return list(deps)
 
 def c_lang(p, input):
+    options = [ '-I%s' % x for x in p['includes']]
     return task(function = c_lang_file,
                 inputs = [input],
                 outputs = [change_ext(p, input, ".o")],
-                scanner = c_scanner)
+                scanner = c_scanner,
+                options = options)

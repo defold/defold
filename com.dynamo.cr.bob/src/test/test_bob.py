@@ -68,5 +68,26 @@ build(p)
         for x in files:
             self.assertEquals(sha1_file(x), sigs[x])
 
+    def test_task_signatures(self):
+        script1 = '''
+p = project(bld_dir = "build",
+            globs = ['test_data/main.c'],
+            includes = ['test_data/include'])
+build(p)
+'''
+        l1 = bob.exec_script(script1)
+
+        script2 = '''
+p = project(bld_dir = "build",
+            globs = ['test_data/main.c'],
+            includes = ['test_data/include', '/opt/include'])
+build(p)
+'''
+        l2 = bob.exec_script(script2)
+
+        t1 = l1['p']['tasks'][0]
+        t2 = l2['p']['tasks'][0]
+        self.assertNotEquals(t1['sig'], t2['sig'])
+
 if __name__ == '__main__':
     unittest.main()
