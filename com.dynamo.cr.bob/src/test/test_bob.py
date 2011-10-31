@@ -25,6 +25,56 @@ build(p, run=False)
         self.assertEqual(set(['tmp/test_data/main.c', 'tmp/test_data/util.c', 'tmp/test_data/error.c']),
                          set(p['inputs']))
 
+    def test_ant_glob1(self):
+        def mklist(*names):
+            return [ 'tmp/test_data/' + x for x in names ]
+
+        lst = bob.ant_glob('tmp/test_data/main.c')
+        self.assertSetEquals(mklist('main.c'), lst)
+
+        lst = bob.ant_glob('tmp/test_data/*.c')
+        self.assertSetEquals(mklist('main.c', 'util.c', 'error.c'), lst)
+
+        lst = bob.ant_glob('tmp/test_data/*.[ch]')
+        self.assertSetEquals(mklist('main.c', 'util.c', 'util.h', 'error.c'), lst)
+
+        lst = bob.ant_glob('tmp/**/*.h')
+        self.assertSetEquals(mklist('util.h', 'include/misc.h'), lst)
+
+        lst = bob.ant_glob('**/*.h')
+        self.assertSetEquals(['test_data/util.h',
+                              'tmp/test_data/util.h',
+                              'tmp/test_data/include/misc.h',
+                              'test_data/include/misc.h'],
+                             lst)
+
+        lst = bob.ant_glob('tmp/**/include/*.h')
+        self.assertSetEquals(mklist('include/misc.h'), lst)
+
+        lst = bob.ant_glob('tmp/test_data/**')
+        self.assertSetEquals(mklist(*'error.c main.c test.bob test_bob_ddf.proto util.c util.h include/misc.h'.split()),
+                             lst)
+
+        # exclude test
+        lst = bob.ant_glob('tmp/test_data/**', '**/*.h')
+        self.assertSetEquals(mklist(*'error.c main.c test.bob test_bob_ddf.proto util.c'.split()),
+                             lst)
+
+    def test_ant_glob2(self):
+        lst = bob.ant_glob('tmp')
+        self.assertSetEquals([], lst)
+
+        lst = bob.ant_glob('does_not_exists')
+        self.assertSetEquals([], lst)
+
+        lst = bob.ant_glob('does_not_exists/**')
+        self.assertSetEquals([], lst)
+
+        lst = bob.ant_glob('tmp/does_not_exists/**')
+        self.assertSetEquals([], lst)
+
+        lst = bob.ant_glob('tmp/**/does_not_exists')
+        self.assertSetEquals([], lst)
 
     def test_create_tasks(self):
         script = '''

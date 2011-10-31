@@ -1,11 +1,13 @@
 from glob import glob
-from os import makedirs
-from os.path import splitext, join, exists, dirname, normpath
+import re
+from os import makedirs, listdir, walk
+from os.path import splitext, join, exists, dirname, normpath, isdir, isfile
 from hashlib import sha1
 from subprocess import Popen, PIPE
 import re, logging
 import cPickle
 import sys
+from fnmatch import fnmatch
 
 if sys.platform.find('java') != -1:
     # setuptools is typically not available in jython
@@ -15,6 +17,80 @@ if sys.platform.find('java') != -1:
     class pkg_resources(object):
         def declare_namespace(self, x): pass
     sys.modules['pkg_resources'] = pkg_resources()
+
+glob_pattern = re.compile('[*?[]')
+
+def do_ant_glob(base, elements, recurse):
+    '''Do "ant globbing" given a base directory
+    and a list of path elements, i.e. a path split by /
+    recurse is set to true if ** previously is found
+    '''
+
+    def match_single(full, last):
+        if not exists(full):
+            return []
+        elif isdir(full):
+            return do_ant_glob(full, elements[1:], recurse)
+        elif last:
+            return [full]
+
+        return []
+
+    if elements == []:
+        # base recursion case: empty list of path elements
+        return []
+    else:
+        # general recursion case. match first element
+        # in path element list
+        last = len(elements) == 1
+
+        ret = []
+        if elements[0] == '**' and last:
+            # special case that conflicts with base recursion case 'empty list'
+            # last element is '**'. find all files and short circuit
+            for root, dirs, files in walk(base):
+                ret += [ join(root, x) for x in files ]
+            return ret
+        elif elements[0] == '**':
+            recurse = True
+        elif glob_pattern.match(elements[0]):
+            lst = listdir(base)
+            for f in lst:
+                if fnmatch(f, elements[0]):
+                    ret += match_single(join(base, f), last)
+        else:
+            ret = match_single(join(base, elements[0]), last)
+
+        if recurse:
+            lst = listdir(base)
+            for f in lst:
+                if isdir(join(base, f)):
+                    if elements[0] == '**':
+                        # only remove first element for '**'
+                        # otherwise we should just recurse
+                        elements = elements[1:]
+                    ret += do_ant_glob(join(base, f), elements, True)
+
+        return ret
+
+def ant_glob(inc, excl = ''):
+    def do(s):
+        s = s.replace('\\', '/')
+        elem_lst = s.split('/')
+        lst = do_ant_glob('.', elem_lst, False)
+        # remove leading ./
+        lst = map(normpath, lst)
+        return lst
+
+    lst = do(inc)
+
+    if excl:
+        excl_lst = do(excl)
+        s = set(lst)
+        s = s.difference(set(excl_lst))
+        lst = list(s)
+
+    return lst
 
 def exec_script(s):
     l = {}
