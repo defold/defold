@@ -1,0 +1,29 @@
+#! /usr/bin/env python
+
+VERSION = '0.1'
+APPNAME = 'bob'
+
+srcdir = '.'
+blddir = 'build'
+
+import os
+import Options
+
+def init():
+    pass
+
+def set_options(opt):
+    pass
+
+def configure(conf):
+    pass
+
+def build(bld):
+    bld.new_task_gen(rule = 'protoc ${SRC} --python_out=${TGT[0].dir(env)} -I../test_data',
+                     source = 'test_data/test_bob_ddf.proto',
+                     target = 'test_bob_ddf_pb2.py')
+
+def shutdown():
+    if not Options.commands['build'] or getattr(Options.options, 'skip_tests', False):
+        return
+    os.system('python src/test/test_bob.py')
