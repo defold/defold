@@ -1,5 +1,103 @@
 :max-width: 45em
 
+Update - Sprite Design, Tile Fixes & Content Pipeline
+-----------------------------------------------------
+*_October 31, 2011_*
+
+Sprites
+~~~~~~~
+
+We have completed the first iteration of how sprites should be integrated with the tile sets.
+Here is a list of the features included in the first version:
+
+* Predefined animations in the sprite component
+* Play animations for previewing in the editor
+* Play animations in-game from scripts
+* "Animation done" notification message to scripts
+* Animated collision geometry
+* User-defined cues at specified frames (to trigger sounds etc)
+* Color tinting from scripts
+
+To achieve better efficiency and higher quality, we are also trying out a modified development process for new features.
+It looks roughly like this:
+
+. Initial design (Phase 1)
+. Feedback
+. Revise design
+. _Pause_
+. Design (Phase 2)
+. Planning - Break down into use-cases/stories/cases
+. Implement with TDD (Test Driven Development)
+. Initial Deployment
+. Testing
+. Bug reports and feature requests
+. Prioritize
+. Fix bugs and implement feature requests
+. Deployment of 1.0
+
+Right now we have come to the _Pause_ stage.
+The idea is to let the design settle and be able to come back to it later with a fresh mind.
+In the mean-time, we will continue to work on the design for the new Game Object editor.
+
+Tiles
+~~~~~
+
+We had some collision issues with the new tile system.
+It turned out that when aligning blocks to form ground and other continuous shapes that span over several cells, objects could fall through between the cells.
+This issue has been fixed.
+
+Another related problem is that not all of such cells are properly stitched together.
+This causes little "bumps" to remain in the collision geometry, sometimes causing objects that slide across the surface to get stuck.
+(The images are by courtesy of Mikael Säker.)
+
+image:images/blog/platform_tutorial/character_stuck.png["Character getting stuck against the edge of new collision geometry"]
+
+We are still working on a solution for this, but we did improve the in-game physics debugging.
+It is much easier to see what's going on, physics-wise, in the games now.
+
+image:images/blog/platform_tutorial/character_stuck_debug.png["Improved physics debug rendering"]
+
+To enable and control the debugging, the following options are now available in the game.project-files:
+
+* physics.debug - 1 to enable, 0 to disable
+* physics.debug_alpha - alpha value to use for all physics debug rendering, 0.0-1.0
+* physics.debug_scale - how big things like normals should appear on screen
+
+Here is a sample of a game.project-file:
+
+[source,txt]
+----
+[physics]
+debug = 1
+debug_alpha = 0.8
+debug_scale = 30
+----
+
+Content Pipeline
+~~~~~~~~~~~~~~~~
+
+A long term goal we have is to enable users to build content locally on their own machines, in addition to the Defold-servers.
+The biggest advantage of this is that build times would be lower, since we wouldn't have to send data back and forth over the internet.
+Another advantage is that users can work and build content off-line.
+It also means that we can integrate the pipeline into the editor, which in turn means better and more unified error handling.
+
+The work has come a long way already and we are implementing a prototype at the moment to run tests on.
+
+Roadmap
+~~~~~~~
+
+Currently, our roadmap looks like this:
+
+. Tile Usability - Any known and new issues, workflow improvements, etc
+. Game Object Editor Design - Better preview and editing support for components inside the game object editor
+. Sprite Planning & Implementation
+. Content Pipeline Prototype
+. Documentation - User Manual, Tutorials, etc
+. Website - Re-designed layout and structure
+
+That's it at this time!
+Hope you enjoyed reading and, as usual, let us know if you have any feedback or suggestions.
+
 Update - Tiles & Properties
 --------------------------
 *_October 23, 2011_*
