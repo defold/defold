@@ -175,8 +175,6 @@ p['task_gens']['.bob'] = make_proto('test_bob_ddf_pb2', 'TestBob', transform_bob
 r = build(p)
 '''
         l = bob.exec_script(script)
-        r = l['r']
-        info = l['r']
 
         tb = test_bob_ddf_pb2.TestBob()
         f = open('tmp_build/tmp/test_data/test.bobc', 'rb')
