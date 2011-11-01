@@ -330,5 +330,13 @@ r = build(p, listener = null_listener)
         for i, x in enumerate([10, 20, 30]):
             self.assertEquals(x * scale, int(read_file('tmp_build/tmp/test_data/test_%d.numberc' % i)))
 
+    def test_substitute(self):
+        d1 = { 'cc' : 'gcc', 'coptim' : '-O2'}
+        d2 = { 'inputs' : [ 'a.c', 'b.c'],
+               'outputs' : [ 'x.o' ],
+               'coptim' : '-O0' }
+        lst = bob.substitute('${CC} ${COPTIM} -c ${INPUTS} -o ${OUTPUTS[0]}', d1, d2)
+        self.assertEquals('gcc -O0 -c a.c b.c -o x.o'.split(), lst)
+
 if __name__ == '__main__':
     unittest.main()

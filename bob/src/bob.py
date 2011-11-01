@@ -21,6 +21,43 @@ if sys.platform.find('java') != -1:
         def declare_namespace(self, x): pass
     sys.modules['pkg_resources'] = pkg_resources()
 
+def substitute(string, *dicts):
+    lst = [ x for x in string.split(' ') if x != '']
+    def repl(m):
+        # replace ${FOO} type of pattern
+        val = None
+        key = m.groups()[0]
+        key = key.lower()
+        for d in dicts:
+            val = d.get(key, val)
+        if type(val) == list:
+            # We need to be able to split
+            # the value into a list later
+            # '\0' is unique enough :-)
+            val = '\0'.join(val)
+        return val
+
+    def repl_index(m):
+        # replace ${FOO[0]} type of pattern
+        val = None
+        key, index = m.groups()
+        key = key.lower()
+        index = int(index)
+        for d in dicts:
+            val = d.get(key, val)
+        if val:
+            return val[index]
+        else:
+            return None
+
+    new_lst = []
+    for x in lst:
+        x = re.sub('\${(\w*?)}', repl, x)
+        x = re.sub('\${(\w*?)\[(\d+)\]}', repl_index, x)
+        x = x.split('\0')
+        new_lst.extend(x)
+    return new_lst
+
 glob_pattern = re.compile('[*?[]')
 
 def do_ant_glob(base, elements, recurse):
@@ -323,10 +360,8 @@ def save_state(p):
     with open(name, 'wb') as f:
         cPickle.dump(p['state'], f)
 
-# Builtin tasks
-
-def c_lang_file(p, t):
-    args = ['gcc', '-c'] + t['options'] + [t['inputs'][0]] + ['-o', t['outputs'][0]]
+def execute_command(p, t, cmd):
+    args = substitute(cmd, p, t)
     p = Popen(args,
               shell = False,
               stdout = PIPE,
@@ -338,6 +373,11 @@ def c_lang_file(p, t):
     info['code'] = code
     info['stdout'] = out
     info['stderr'] = err
+
+# Builtin tasks
+
+def c_lang_file(p, t):
+    execute_command(p, t, '${CC} -c ${OPTIONS} ${INPUTS[0]} -o ${OUTPUTS[0]}')
 
 header_pattern = re.compile('.*?#include.*?[<"](.+?)[>"].*')
 def c_scanner(p, t):
@@ -376,6 +416,7 @@ def c_scanner(p, t):
 def c_lang(p, input):
     options = [ '-I%s' % x for x in p['includes']]
     return add_task(p, task(function = c_lang_file,
+                            cc = 'gcc',
                             name = 'c',
                             inputs = [input],
                             outputs = [change_ext(p, input, '.o')],
