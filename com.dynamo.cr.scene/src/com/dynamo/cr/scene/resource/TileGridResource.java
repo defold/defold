@@ -124,7 +124,7 @@ public class TileGridResource extends Resource {
 
                         int tile = cell.getTile();
                         x = tile % tileColumnCount;
-                        y = tile / tileRowCount;
+                        y = tile / tileColumnCount;
                         float u0 = (x * (tileSpacing + 2*tileMargin + tileWidth) + tileMargin) * recipImageWidth;
                         float u1 = u0 + tileWidth * recipImageWidth;
                         float v1 = (y * (tileSpacing + 2*tileMargin + tileHeight) + tileMargin) * recipImageHeight;
