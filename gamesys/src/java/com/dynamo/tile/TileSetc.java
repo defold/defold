@@ -49,42 +49,46 @@ public class TileSetc {
             TextFormat.merge(reader, builder);
             TileSet tileSet = builder.build();
 
-            BufferedImage collisionImage = loadImageFile(tileSet.getCollision());
-            int width = collisionImage.getWidth();
-            int height = collisionImage.getHeight();
-
-            if (collisionImage.getAlphaRaster() == null) {
-                System.err.format("Collision image '%s' is missing alpha channel%n");
-                System.exit(5);
-            }
-
-            ConvexHulls convexHulls = TileSetUtil.calculateConvexHulls(
-                    collisionImage.getAlphaRaster(), 16, width, height,
-                    tileSet.getTileWidth(), tileSet.getTileHeight(),
-                    tileSet.getTileMargin(), tileSet.getTileSpacing());
-
             TileSet.Builder outBuilder = TileSet.newBuilder();
             outBuilder.mergeFrom(tileSet);
 
             outBuilder.clearConvexHulls();
-            for (int i = 0; i < convexHulls.hulls.length; ++i) {
-                ConvexHull convexHull = convexHulls.hulls[i];
-                Builder hullBuilder = Tile.ConvexHull.newBuilder();
-                String collisionGroup = "";
-                if (i < tileSet.getConvexHullsCount()) {
-                    collisionGroup = tileSet.getConvexHulls(i).getCollisionGroup();
-                }
-                hullBuilder
-                    .setCollisionGroup(collisionGroup)
-                    .setCount(convexHull.getCount())
-                    .setIndex(convexHull.getIndex());
-
-                outBuilder.addConvexHulls(hullBuilder);
-            }
-
             outBuilder.clearConvexHullPoints();
-            for (int i = 0; i < convexHulls.points.length; ++i) {
-                outBuilder.addConvexHullPoints(convexHulls.points[i]);
+
+            String collisionPath = tileSet.getCollision();
+            if (!collisionPath.equals("")) {
+                BufferedImage collisionImage = loadImageFile(collisionPath);
+                int width = collisionImage.getWidth();
+                int height = collisionImage.getHeight();
+
+                if (collisionImage.getAlphaRaster() == null) {
+                    System.err.format("Collision image '%s' is missing alpha channel%n");
+                    System.exit(5);
+                }
+
+                ConvexHulls convexHulls = TileSetUtil.calculateConvexHulls(
+                        collisionImage.getAlphaRaster(), 16, width, height,
+                        tileSet.getTileWidth(), tileSet.getTileHeight(),
+                        tileSet.getTileMargin(), tileSet.getTileSpacing());
+
+                for (int i = 0; i < convexHulls.hulls.length; ++i) {
+                    ConvexHull convexHull = convexHulls.hulls[i];
+                    Builder hullBuilder = Tile.ConvexHull.newBuilder();
+                    String collisionGroup = "";
+                    if (i < tileSet.getConvexHullsCount()) {
+                        collisionGroup = tileSet.getConvexHulls(i).getCollisionGroup();
+                    }
+                    hullBuilder
+                        .setCollisionGroup(collisionGroup)
+                        .setCount(convexHull.getCount())
+                        .setIndex(convexHull.getIndex());
+
+                    outBuilder.addConvexHulls(hullBuilder);
+                }
+
+                for (int i = 0; i < convexHulls.points.length; ++i) {
+                    outBuilder.addConvexHullPoints(convexHulls.points[i]);
+                }
             }
 
             String compiledImageName = tileSet.getImage();
