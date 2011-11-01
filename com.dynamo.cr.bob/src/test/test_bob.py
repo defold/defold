@@ -1,5 +1,7 @@
 import unittest, sys
-from os import unlink
+from os import unlink, mkdir
+from os.path import exists
+from shutil import rmtree, copytree
 from pprint import pprint
 
 sys.path.append('src')
@@ -9,6 +11,15 @@ sys.path.append('build/default')
 import test_bob_ddf_pb2
 
 class TestBob(unittest.TestCase):
+
+    def setUp(self):
+        if exists('tmp'):
+            rmtree('tmp')
+        mkdir('tmp')
+        mkdir('tmp/build')
+        if exists('tmp_build'):
+            rmtree('tmp_build')
+        copytree('test_data', 'tmp/test_data')
 
     def assertSetEquals(self, l1, l2):
         self.assertEquals(set(l1), set(l2))
@@ -21,7 +32,7 @@ p = project(bld_dir = "tmp_build",
 build(p, run=False)
 '''
         l = bob.exec_script(script)
-        p = l['p']
+        p = l.p
         self.assertEqual(set(['tmp/test_data/main.c', 'tmp/test_data/util.c', 'tmp/test_data/error.c']),
                          set(p['inputs']))
 
@@ -84,7 +95,7 @@ p = project(bld_dir = "tmp_build",
 build(p, run=False)
 '''
         l = bob.exec_script(script)
-        tasks = l['p']['tasks']
+        tasks = l.p['tasks']
         self.assertEqual(1, len(tasks))
         t = tasks[0]
 
@@ -99,7 +110,7 @@ p = project(bld_dir = "tmp_build",
 build(p, run=False)
 '''
         l = bob.exec_script(script)
-        t = l['p']['tasks'][0]
+        t = l.p['tasks'][0]
 
         self.assertSetEquals(['tmp/test_data/util.h', 'tmp/test_data/include/misc.h'],
                              t['dependencies'])
@@ -112,7 +123,7 @@ p = project(bld_dir = "tmp_build",
 build(p, run=False)
 '''
         l = bob.exec_script(script)
-        sigs = l['p']['file_signatures']
+        sigs = l.p['file_signatures']
         files = set(['tmp/test_data/util.c',
                      'tmp/test_data/util.h',
                      'tmp/test_data/main.c',
@@ -141,8 +152,8 @@ build(p, run=False)
 '''
         l2 = bob.exec_script(script2)
 
-        t1 = l1['p']['tasks'][0]
-        t2 = l2['p']['tasks'][0]
+        t1 = l1.p['tasks'][0]
+        t2 = l2.p['tasks'][0]
         self.assertNotEquals(t1['sig'], t2['sig'])
 
     def test_c_compile(self):
@@ -153,18 +164,18 @@ p = project(bld_dir = "tmp_build",
 r = build(p)
 '''
         l = bob.exec_script(script)
-        info = l['r'][0]
+        info = l.r[0]
         self.assertEquals(True, info['run'])
         self.assertEquals(0, info['code'])
 
         l = bob.exec_script(script)
-        info = l['r'][0]
+        info = l.r[0]
         self.assertEquals(False, info['run'])
         self.assertEquals(0, info['code'])
 
         unlink('tmp_build/tmp/test_data/main.o')
         l = bob.exec_script(script)
-        info = l['r'][0]
+        info = l.r[0]
         self.assertEquals(True, info['run'])
         self.assertEquals(0, info['code'])
 
@@ -174,7 +185,7 @@ r = build(p)
         f.close()
 
         l = bob.exec_script(script)
-        info = l['r'][0]
+        info = l.r[0]
         self.assertEquals(True, info['run'])
         self.assertEquals(0, info['code'])
 
@@ -186,8 +197,8 @@ p = project(bld_dir = "tmp_build",
 r = build(p)
 '''
         l = bob.exec_script(script)
-        r = l['r']
-        info = l['r'][0]
+        r = l.r
+        info = l.r[0]
         self.assertEquals(True, info['run'])
         self.assert_(info['code'] > 0, 'code > 0')
         self.assertEquals('', info['stdout'])
@@ -195,8 +206,8 @@ r = build(p)
 
         # run again. File file so it should recompile
         l = bob.exec_script(script)
-        r = l['r']
-        info = l['r'][0]
+        r = l.r
+        info = l.r[0]
         self.assertEquals(True, info['run'])
 
         # "fix" file
@@ -205,8 +216,8 @@ r = build(p)
         f.close()
 
         l = bob.exec_script(script)
-        r = l['r']
-        info = l['r'][0]
+        r = l.r
+        info = l.r[0]
         self.assertEquals(True, info['run'])
         self.assertEquals(0, info['code'])
 
@@ -233,13 +244,64 @@ r = build(p)
 
         self.assertEquals(tb.resource, u'some_resource.extc')
 
+
+    def test_listener(self):
+        script = '''
+
+class Listener(object):
+    def __init__(self):
+        self.invocations = 0
+
+    def __call__(self, prj, task):
+        self.invocations += 1
+        pass
+
+listener = Listener()
+
+def test_file(prj, tsk):
+    f = open(tsk["outputs"][0], "wb")
+    f.write("test data")
+    f.close()
+
+def test_factory(prj, input):
+    return task(function = test_file,
+                inputs = [input],
+                outputs = [change_ext(p, input, '.bobc')])
+
+p = project(bld_dir = "tmp_build",
+            globs = ['tmp/test_data/test.bob'])
+p['task_gens']['.bob'] = test_factory
+r = build(p, listener = listener)
+'''
+        l = bob.exec_script(script)
+
+        listener = l.p['listener']
+        self.assertEqual(1, listener.invocations)
+
+        l = bob.exec_script(script)
+        listener = l.p['listener']
+        self.assertEqual(0, listener.invocations)
+
+    def test_exception(self):
+        script = '''
+
+def test_file(prj, tsk):
+    raise Exception("Some error occurred")
+
+def test_factory(prj, input):
+    return task(function = test_file,
+                inputs = [input],
+                outputs = [change_ext(p, input, '.bobc')])
+
+p = project(bld_dir = "tmp_build",
+            globs = ['tmp/test_data/test.bob'])
+p['task_gens']['.bob'] = test_factory
+r = build(p)
+'''
+        l = bob.exec_script(script)
+        info = l.r[0]
+        self.assertEquals(10, info['code'])
+        self.assertTrue(info['stderr'].find('Exception:') != -1, 'String "Exception:" not found in stderr')
+
 if __name__ == '__main__':
-    import os, shutil
-    if os.path.exists('tmp'):
-        shutil.rmtree('tmp')
-    os.mkdir('tmp')
-    os.mkdir('tmp/build')
-    if os.path.exists('tmp_build'):
-        shutil.rmtree('tmp_build')
-    shutil.copytree('test_data', 'tmp/test_data')
     unittest.main()
