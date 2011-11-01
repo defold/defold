@@ -10,11 +10,7 @@ import org.eclipse.core.runtime.CoreException;
 
 import com.dynamo.cr.scene.resource.Resource;
 import com.dynamo.cr.scene.resource.TileGridResource;
-import com.dynamo.cr.scene.resource.TileSetResource;
 import com.dynamo.cr.scene.util.Constants;
-import com.dynamo.tile.proto.Tile.TileCell;
-import com.dynamo.tile.proto.Tile.TileGrid;
-import com.dynamo.tile.proto.Tile.TileLayer;
 import com.sun.opengl.util.texture.Texture;
 
 public class TileGridNode extends ComponentNode<TileGridResource> {
@@ -41,8 +37,6 @@ public class TileGridNode extends ComponentNode<TileGridResource> {
 
     @Override
     public void draw(DrawContext context) {
-
-        TileGrid tileGrid = this.resource.getTileGrid();
 
         GL gl = context.m_GL;
 
