@@ -1,0 +1,8 @@
+.DS_Store
+.lock-wscript
+build
+tmp
+tmp_build
+
+
+

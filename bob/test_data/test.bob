@@ -1,0 +1,2 @@
+resource: "some_resource.ext"
+id: "my_id"
