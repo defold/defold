@@ -10,6 +10,10 @@ import bob
 sys.path.append('build/default')
 import test_bob_ddf_pb2
 
+def read_file(name):
+    with open(name, 'rb') as f:
+        return f.read()
+
 class TestBob(unittest.TestCase):
 
     def setUp(self):
@@ -63,12 +67,12 @@ build(p, run=False)
         self.assertSetEquals(mklist('include/misc.h'), lst)
 
         lst = bob.ant_glob('tmp/test_data/**')
-        self.assertSetEquals(mklist(*'error.c main.c test.bob test_bob_ddf.proto util.c util.h include/misc.h'.split()),
+        self.assertSetEquals(mklist(*'error.c main.c test.bob test_bob_ddf.proto util.c util.h include/misc.h test.dynamic'.split()),
                              lst)
 
         # exclude test
         lst = bob.ant_glob('tmp/test_data/**', '**/*.h')
-        self.assertSetEquals(mklist(*'error.c main.c test.bob test_bob_ddf.proto util.c'.split()),
+        self.assertSetEquals(mklist(*'error.c main.c test.bob test_bob_ddf.proto util.c test.dynamic'.split()),
                              lst)
 
     def test_ant_glob2(self):
@@ -180,9 +184,8 @@ r = build(p)
         self.assertEquals(0, info['code'])
 
         # update header
-        f = open('tmp/test_data/include/misc.h', 'wb')
-        f.write('//some new data')
-        f.close()
+        with open('tmp/test_data/include/misc.h', 'wb') as f:
+            f.write('//some new data')
 
         l = bob.exec_script(script)
         info = l.r[0]
@@ -211,9 +214,8 @@ r = build(p)
         self.assertEquals(True, info['run'])
 
         # "fix" file
-        f = open('tmp/test_data/error.c', 'wb')
-        f.write('\n')
-        f.close()
+        with open('tmp/test_data/error.c', 'wb') as f:
+            f.write('\n')
 
         l = bob.exec_script(script)
         r = l.r
@@ -238,9 +240,8 @@ r = build(p)
         l = bob.exec_script(script)
 
         tb = test_bob_ddf_pb2.TestBob()
-        f = open('tmp_build/tmp/test_data/test.bobc', 'rb')
-        tb.MergeFromString(f.read())
-        f.close()
+        with open('tmp_build/tmp/test_data/test.bobc', 'rb') as f:
+            tb.MergeFromString(f.read())
 
         self.assertEquals(tb.resource, u'some_resource.extc')
 
@@ -259,14 +260,14 @@ class Listener(object):
 listener = Listener()
 
 def test_file(prj, tsk):
-    f = open(tsk["outputs"][0], "wb")
-    f.write("test data")
-    f.close()
+    with open(tsk["outputs"][0], "wb") as f:
+        f.write("test data")
 
 def test_factory(prj, input):
-    return task(function = test_file,
-                inputs = [input],
-                outputs = [change_ext(p, input, '.bobc')])
+    return add_task(prj, task(function = test_file,
+                              name = 'test',
+                              inputs = [input],
+                              outputs = [change_ext(p, input, '.bobc')]))
 
 p = project(bld_dir = "tmp_build",
             globs = ['tmp/test_data/test.bob'])
@@ -289,9 +290,10 @@ def test_file(prj, tsk):
     raise Exception("Some error occurred")
 
 def test_factory(prj, input):
-    return task(function = test_file,
-                inputs = [input],
-                outputs = [change_ext(p, input, '.bobc')])
+    return add_task(prj, task(function = test_file,
+                              name = 'test',
+                              inputs = [input],
+                              outputs = [change_ext(p, input, '.bobc')]))
 
 p = project(bld_dir = "tmp_build",
             globs = ['tmp/test_data/test.bob'])
@@ -302,6 +304,31 @@ r = build(p)
         info = l.r[0]
         self.assertEquals(10, info['code'])
         self.assertTrue(info['stderr'].find('Exception:') != -1, 'String "Exception:" not found in stderr')
+
+    def test_dynamic_task(self):
+        script = '''
+
+from test_bob_util import dynamic_factory, number_factory
+
+p = project(bld_dir = "tmp_build",
+            globs = ['tmp/test_data/test.dynamic'])
+p['task_gens']['.dynamic'] = dynamic_factory
+p['task_gens']['.number'] = number_factory
+r = build(p)
+'''
+        l = bob.exec_script(script)
+
+        for info in l.r:
+            if info['task']['name'] != 'dynamic':
+                # assert that number tasks originates from the dynamic task
+                self.assertEquals(info['task']['product_of']['inputs'][0], 'tmp/test_data/test.dynamic')
+
+        for i, x in enumerate([10, 20, 30]):
+            self.assertEquals(x, int(read_file('tmp_build/tmp/test_data/test_%d.number' % i)))
+
+        scale = 100
+        for i, x in enumerate([10, 20, 30]):
+            self.assertEquals(x * scale, int(read_file('tmp_build/tmp/test_data/test_%d.numberc' % i)))
 
 if __name__ == '__main__':
     unittest.main()
