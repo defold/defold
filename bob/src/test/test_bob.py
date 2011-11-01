@@ -33,7 +33,7 @@ class TestBob(unittest.TestCase):
 p = project(bld_dir = "tmp_build",
             globs = ['tmp/test_data/*.c'],
             includes = ['tmp/test_data/include'])
-build(p, run=False)
+build(p, run=False, listener = null_listener)
 '''
         l = bob.exec_script(script)
         p = l.p
@@ -96,7 +96,7 @@ build(p, run=False)
 p = project(bld_dir = "tmp_build",
             globs = ['tmp/test_data/main.c'],
             includes = ['tmp/test_data/include'])
-build(p, run=False)
+build(p, run=False, listener = null_listener)
 '''
         l = bob.exec_script(script)
         tasks = l.p['tasks']
@@ -111,7 +111,7 @@ build(p, run=False)
 p = project(bld_dir = "tmp_build",
             globs = ['tmp/test_data/util.c'],
             includes = ['tmp/test_data/include'])
-build(p, run=False)
+build(p, run=False, listener = null_listener)
 '''
         l = bob.exec_script(script)
         t = l.p['tasks'][0]
@@ -124,7 +124,7 @@ build(p, run=False)
 p = project(bld_dir = "tmp_build",
             globs = ['tmp/test_data/*.c'],
             includes = ['tmp/test_data/include'])
-build(p, run=False)
+build(p, run=False, listener = null_listener)
 '''
         l = bob.exec_script(script)
         sigs = l.p['file_signatures']
@@ -144,7 +144,7 @@ build(p, run=False)
 p = project(bld_dir = "tmp_build",
             globs = ['tmp/test_data/main.c'],
             includes = ['tmp/test_data/include'])
-build(p, run=False)
+build(p, run=True, listener = null_listener)
 '''
         l1 = bob.exec_script(script1)
 
@@ -152,7 +152,7 @@ build(p, run=False)
 p = project(bld_dir = "tmp_build",
             globs = ['tmp/test_data/main.c'],
             includes = ['tmp/test_data/include', '/opt/include'])
-build(p, run=False)
+build(p, run=True, listener = null_listener)
 '''
         l2 = bob.exec_script(script2)
 
@@ -165,7 +165,7 @@ build(p, run=False)
 p = project(bld_dir = "tmp_build",
             globs = ['tmp/test_data/main.c'],
             includes = ['tmp/test_data/include'])
-r = build(p)
+r = build(p, listener = null_listener)
 '''
         l = bob.exec_script(script)
         info = l.r[0]
@@ -197,7 +197,7 @@ r = build(p)
 p = project(bld_dir = "tmp_build",
             globs = ['tmp/test_data/error.c'],
             includes = ['tmp/test_data/include'])
-r = build(p)
+r = build(p, listener = null_listener)
 '''
         l = bob.exec_script(script)
         r = l.r
@@ -235,7 +235,7 @@ def transform_bob(msg):
 p = project(bld_dir = "tmp_build",
             globs = ['tmp/test_data/*.bob'])
 p['task_gens']['.bob'] = make_proto('test_bob_ddf_pb2', 'TestBob', transform_bob)
-r = build(p)
+r = build(p, listener = null_listener)
 '''
         l = bob.exec_script(script)
 
@@ -298,7 +298,7 @@ def test_factory(prj, input):
 p = project(bld_dir = "tmp_build",
             globs = ['tmp/test_data/test.bob'])
 p['task_gens']['.bob'] = test_factory
-r = build(p)
+r = build(p, listener = null_listener)
 '''
         l = bob.exec_script(script)
         info = l.r[0]
@@ -314,7 +314,7 @@ p = project(bld_dir = "tmp_build",
             globs = ['tmp/test_data/test.dynamic'])
 p['task_gens']['.dynamic'] = dynamic_factory
 p['task_gens']['.number'] = number_factory
-r = build(p)
+r = build(p, listener = null_listener)
 '''
         l = bob.exec_script(script)
 

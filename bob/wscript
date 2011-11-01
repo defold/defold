@@ -23,6 +23,14 @@ def build(bld):
                      source = 'test_data/test_bob_ddf.proto',
                      target = 'test_bob_ddf_pb2.py')
 
+    # copy bob.py to bob for later installation below
+    bld.new_task_gen(rule = 'cat < ${SRC} > ${TGT}',
+                     source = 'src/bob.py',
+                     target = 'bob')
+
+    bld.install_files('${PREFIX}/bin', 'bob', chmod=493)
+
+
 def shutdown():
     if not Options.commands['build'] or getattr(Options.options, 'skip_tests', False):
         return
