@@ -1,11 +1,13 @@
 from glob import glob
-from os import makedirs
-from os.path import splitext, join, exists, dirname, normpath
+import re
+from os import makedirs, listdir, walk
+from os.path import splitext, join, exists, dirname, normpath, isdir, isfile
 from hashlib import sha1
 from subprocess import Popen, PIPE
 import re, logging
 import cPickle
 import sys
+from fnmatch import fnmatch
 
 if sys.platform.find('java') != -1:
     # setuptools is typically not available in jython
@@ -16,10 +18,88 @@ if sys.platform.find('java') != -1:
         def declare_namespace(self, x): pass
     sys.modules['pkg_resources'] = pkg_resources()
 
+glob_pattern = re.compile('[*?[]')
+
+def do_ant_glob(base, elements, recurse):
+    '''Do "ant globbing" given a base directory
+    and a list of path elements, i.e. a path split by /
+    recurse is set to true if ** previously is found
+    '''
+
+    def match_single(full, last):
+        if not exists(full):
+            return []
+        elif isdir(full):
+            return do_ant_glob(full, elements[1:], recurse)
+        elif last:
+            return [full]
+
+        return []
+
+    if elements == []:
+        # base recursion case: empty list of path elements
+        return []
+    else:
+        # general recursion case. match first element
+        # in path element list
+        last = len(elements) == 1
+
+        ret = []
+        if elements[0] == '**' and last:
+            # special case that conflicts with base recursion case 'empty list'
+            # last element is '**'. find all files and short circuit
+            for root, dirs, files in walk(base):
+                ret += [ join(root, x) for x in files ]
+            return ret
+        elif elements[0] == '**':
+            recurse = True
+        elif glob_pattern.match(elements[0]):
+            lst = listdir(base)
+            for f in lst:
+                if fnmatch(f, elements[0]):
+                    ret += match_single(join(base, f), last)
+        else:
+            ret = match_single(join(base, elements[0]), last)
+
+        if recurse:
+            lst = listdir(base)
+            for f in lst:
+                if isdir(join(base, f)):
+                    if elements[0] == '**':
+                        # only remove first element for '**'
+                        # otherwise we should just recurse
+                        elements = elements[1:]
+                    ret += do_ant_glob(join(base, f), elements, True)
+
+        return ret
+
+def ant_glob(inc, excl = ''):
+    def do(s):
+        s = s.replace('\\', '/')
+        elem_lst = s.split('/')
+        lst = do_ant_glob('.', elem_lst, False)
+        # remove leading ./
+        lst = map(normpath, lst)
+        return lst
+
+    lst = do(inc)
+
+    if excl:
+        excl_lst = do(excl)
+        s = set(lst)
+        s = s.difference(set(excl_lst))
+        lst = list(s)
+
+    return lst
+
 def exec_script(s):
-    l = {}
-    exec(s, globals(), l)
-    return l
+    from imp import new_module
+    m = new_module('bscript')
+    # expose function to script module
+    for k in ['project', 'task', 'build', 'change_ext', 'make_proto']:
+        setattr(m, k, globals()[k])
+    exec(s, m.__dict__)
+    return m
 
 def set_default(d, **kwargs):
     for k, v in kwargs.iteritems():
@@ -38,7 +118,8 @@ def null_scanner(p, t): return []
 def task(**kwargs):
     return set_default(dict(kwargs), dependencies = [],
                                      scanner = null_scanner,
-                                     options = [])
+                                     options = [],
+                                     index = -1)
 
 def change_ext(p, input, ext):
     new = join(p['bld_dir'], splitext(input)[0] + ext)
@@ -46,7 +127,22 @@ def change_ext(p, input, ext):
     if not exists(dir): makedirs(dir)
     return join(new)
 
-def build(p, run = True):
+def null_listener(prj, task): pass
+
+def console_listener(prj, task):
+    print '[%d/%d] \x1b[33m%s: %s -> %s\x1b[0m' % (task['index'] + 1,
+                                 len(prj['tasks']),
+                                 task['name'],
+                                 ', '.join(task['inputs']),
+                                 ', '.join(task['outputs']))
+    info = task['info']
+    code = info['code']
+    if code != 0:
+        print '\x1b[01;91mtask failed'
+        print '%s\x1b[0m' % info['stderr']
+
+def build(p, run = True, listener = null_listener):
+    p['listener'] = listener
     load_state(p)
     collect_inputs(p)
     create_tasks(p)
@@ -71,10 +167,16 @@ def collect_inputs(p):
 
 def create_tasks(p):
     tasks = []
+    index = 0
     for input in p['inputs']:
         try:
-            tg = p['task_gens'][splitext(input)[1]]
-            tasks.append(tg(p, input))
+            ext = splitext(input)[1]
+            tg = p['task_gens'][ext]
+            tsk = tg(p, input)
+            tsk['index'] = index
+            tsk['name'] = ext
+            index += 1
+            tasks.append(tsk)
         except KeyError: pass
     p['tasks'] = tasks
 
@@ -140,7 +242,12 @@ def run_tasks(p):
 
         code = 0
         if run:
-            t['function'](p, t)
+            try:
+                t['function'](p, t)
+            except Exception, e:
+                from traceback import format_exc
+                info['stderr'] = format_exc(e)
+                info['code'] = 10
 
         if info['code'] == 0:
             # store new signatures for output files
@@ -149,6 +256,9 @@ def run_tasks(p):
                     logging.warn('output file "%s" does not exists', x)
                 else:
                     state['out_to_sig'][x] = t['sig']
+
+        if run:
+            p['listener'](p, t)
 
     return ret
 
