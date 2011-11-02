@@ -2,8 +2,8 @@
 
 from __future__ import with_statement
 
-import re
-from os import makedirs, listdir, walk
+import re, os
+from os import makedirs, listdir, walk, linesep, pathsep
 from os.path import splitext, join, exists, dirname, normpath, isdir, isfile
 from hashlib import sha1
 from subprocess import Popen, PIPE
@@ -20,6 +20,19 @@ if sys.platform.find('java') != -1:
     class pkg_resources(object):
         def declare_namespace(self, x): pass
     sys.modules['pkg_resources'] = pkg_resources()
+
+def do_find_cmd(file_name, path_list):
+    for directory in path_list:
+        found_file_name = os.path.join(directory,file_name)
+        if os.path.exists(found_file_name):
+            return found_file_name
+
+def find_cmd(prj, file_name, var):
+    path_list = os.environ['PATH'].split(pathsep)
+    ret = do_find_cmd(file_name, path_list)
+    if not ret: raise Exception('The file %s could not be found' % file_name)
+    prj[var] = ret
+    return ret
 
 def substitute(string, *dicts):
     lst = [ x for x in string.split(' ') if x != '']
@@ -136,7 +149,7 @@ def exec_script(s):
     from imp import new_module
     m = new_module('bscript')
     # expose function to script module
-    for k in ['project', 'task', 'build', 'change_ext', 'make_proto', 'create_task', 'add_task', 'console_listener', 'null_listener']:
+    for k in ['project', 'task', 'build', 'change_ext', 'make_proto', 'create_task', 'add_task', 'console_listener', 'null_listener', 'register']:
         setattr(m, k, globals()[k])
     exec(s, m.__dict__)
     return m
@@ -147,10 +160,14 @@ def set_default(d, **kwargs):
             d[k] = v
     return d
 
+def register(prj, ext, fact_func):
+    for e in ext.split(' '):
+        prj['task_gens'][e] = fact_func
+
 def project(**kwargs):
     return set_default(dict(kwargs),
                        globs = [],
-                       task_gens = {'.c' : c_lang},
+                       task_gens = {},
                        includes = [])
 
 def null_scanner(p, t): return []
@@ -193,6 +210,8 @@ def console_listener(prj, task):
 
 def build(p, run = True, listener = console_listener):
     p['listener'] = listener
+    if not exists(p['bld_dir']):
+        makedirs(p['bld_dir'])
     load_state(p)
     collect_inputs(p)
     create_tasks(p)
@@ -362,66 +381,26 @@ def save_state(p):
 
 def execute_command(p, t, cmd):
     args = substitute(cmd, p, t)
-    p = Popen(args,
-              shell = False,
-              stdout = PIPE,
-              stderr = PIPE)
-    out, err = p.communicate()
-    code = p.returncode
+    try:
+        p = Popen(args,
+                  shell = False,
+                  stdout = PIPE,
+                  stderr = PIPE)
+        out, err = p.communicate()
+        code = p.returncode
+    except Exception,e:
+        out, err = '', str(e)
+        code = 10
 
     info = t['info']
     info['code'] = code
     info['stdout'] = out
+    if code > 0:
+        err = 'command failed: %s%s' % (' '.join(args), linesep) + err
     info['stderr'] = err
 
 # Builtin tasks
 
-def c_lang_file(p, t):
-    execute_command(p, t, '${CC} -c ${OPTIONS} ${INPUTS[0]} -o ${OUTPUTS[0]}')
-
-header_pattern = re.compile('.*?#include.*?[<"](.+?)[>"].*')
-def c_scanner(p, t):
-    def find_include(fname, include_paths):
-        for i in include_paths:
-            full = join(i, fname)
-            if exists(full): return normpath(full), i
-        return None, None
-
-    def scan(fname, include_paths, scanned):
-        if fname in scanned:
-            return set()
-        scanned.add(fname)
-        this_paths = [dirname(fname)] + include_paths
-
-        ret = set()
-        with open(fname) as f:
-            for line in f:
-                m = header_pattern.match(line)
-                if m:
-                    i = m.groups()[0]
-                    qual, path = find_include(i, this_paths)
-                    if qual:
-                        ret.add(qual)
-                        ret = ret.union(scan(qual, include_paths, scanned))
-                    else:
-                        logging.warn('include "%s" not found in %s', i, this_paths)
-        return ret
-
-    deps = set()
-    includes = list(p['includes'])
-    for i in t['inputs']:
-        deps = deps.union(scan(i, includes, set()))
-    return list(deps)
-
-def c_lang(p, input):
-    options = [ '-I%s' % x for x in p['includes']]
-    return add_task(p, task(function = c_lang_file,
-                            cc = 'gcc',
-                            name = 'c',
-                            inputs = [input],
-                            outputs = [change_ext(p, input, '.o')],
-                            scanner = c_scanner,
-                            options = options))
 
 def make_proto_file(module, msg_type, transform):
 

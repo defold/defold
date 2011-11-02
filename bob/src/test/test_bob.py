@@ -96,6 +96,8 @@ build(p, run=False, listener = null_listener)
 p = project(bld_dir = "tmp_build",
             globs = ['tmp/test_data/main.c'],
             includes = ['tmp/test_data/include'])
+import bob_cc
+bob_cc.config(p)
 build(p, run=False, listener = null_listener)
 '''
         l = bob.exec_script(script)
@@ -111,6 +113,8 @@ build(p, run=False, listener = null_listener)
 p = project(bld_dir = "tmp_build",
             globs = ['tmp/test_data/util.c'],
             includes = ['tmp/test_data/include'])
+import bob_cc
+bob_cc.config(p)
 build(p, run=False, listener = null_listener)
 '''
         l = bob.exec_script(script)
@@ -124,6 +128,8 @@ build(p, run=False, listener = null_listener)
 p = project(bld_dir = "tmp_build",
             globs = ['tmp/test_data/*.c'],
             includes = ['tmp/test_data/include'])
+import bob_cc
+bob_cc.config(p)
 build(p, run=False, listener = null_listener)
 '''
         l = bob.exec_script(script)
@@ -144,6 +150,8 @@ build(p, run=False, listener = null_listener)
 p = project(bld_dir = "tmp_build",
             globs = ['tmp/test_data/main.c'],
             includes = ['tmp/test_data/include'])
+import bob_cc
+bob_cc.config(p)
 build(p, run=True, listener = null_listener)
 '''
         l1 = bob.exec_script(script1)
@@ -152,6 +160,8 @@ build(p, run=True, listener = null_listener)
 p = project(bld_dir = "tmp_build",
             globs = ['tmp/test_data/main.c'],
             includes = ['tmp/test_data/include', '/opt/include'])
+import bob_cc
+bob_cc.config(p)
 build(p, run=True, listener = null_listener)
 '''
         l2 = bob.exec_script(script2)
@@ -165,6 +175,8 @@ build(p, run=True, listener = null_listener)
 p = project(bld_dir = "tmp_build",
             globs = ['tmp/test_data/main.c'],
             includes = ['tmp/test_data/include'])
+import bob_cc
+bob_cc.config(p)
 r = build(p, listener = null_listener)
 '''
         l = bob.exec_script(script)
@@ -197,6 +209,8 @@ r = build(p, listener = null_listener)
 p = project(bld_dir = "tmp_build",
             globs = ['tmp/test_data/error.c'],
             includes = ['tmp/test_data/include'])
+import bob_cc
+bob_cc.config(p)
 r = build(p, listener = null_listener)
 '''
         l = bob.exec_script(script)
