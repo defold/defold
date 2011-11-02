@@ -13,7 +13,7 @@ import cPickle
 import sys
 from fnmatch import fnmatch
 
-exposed_vars = ['project', 'task', 'build', 'change_ext', 'make_proto', 'create_task', 'add_task', 'console_listener', 'null_listener', 'register', 'find_cmd', 'execute_command']
+exposed_vars = ['project', 'task', 'build', 'change_ext', 'make_proto', 'create_task', 'add_task', 'console_listener', 'null_listener', 'register', 'find_cmd', 'execute_command', 'supported_exts']
 
 if sys.platform.find('java') != -1:
     # setuptools is typically not available in jython
@@ -168,9 +168,13 @@ def register(prj, ext, fact_func):
 
 def project(**kwargs):
     return set_default(dict(kwargs),
+                       bld_dir = 'build',
                        globs = [],
                        task_gens = {},
                        includes = [])
+
+def supported_exts(prj):
+    return prj['task_gens'].keys()
 
 def null_scanner(p, t): return []
 
@@ -427,7 +431,7 @@ def make_proto(module, msg_type, transform = unity_transform):
     def proto(p, input):
         ext = splitext(input)[1]
         return add_task(p, task(function = make_proto_file(module, msg_type, transform),
-                                name = ext,
+                                name = ext[1:],
                                 inputs = [input],
                                 outputs = [change_ext(p, input, ext + 'c')]))
     return proto
