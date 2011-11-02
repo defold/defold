@@ -3,6 +3,7 @@
 from __future__ import with_statement
 
 import re, os
+from imp import new_module
 from os import makedirs, listdir, walk, linesep, pathsep
 from os.path import splitext, join, exists, dirname, normpath, isdir, isfile
 from hashlib import sha1
@@ -11,6 +12,8 @@ import re, logging
 import cPickle
 import sys
 from fnmatch import fnmatch
+
+exposed_vars = ['project', 'task', 'build', 'change_ext', 'make_proto', 'create_task', 'add_task', 'console_listener', 'null_listener', 'register', 'find_cmd', 'execute_command']
 
 if sys.platform.find('java') != -1:
     # setuptools is typically not available in jython
@@ -146,10 +149,9 @@ def ant_glob(inc, excl = ''):
     return lst
 
 def exec_script(s):
-    from imp import new_module
     m = new_module('bscript')
     # expose function to script module
-    for k in ['project', 'task', 'build', 'change_ext', 'make_proto', 'create_task', 'add_task', 'console_listener', 'null_listener', 'register']:
+    for k in exposed_vars:
         setattr(m, k, globals()[k])
     exec(s, m.__dict__)
     return m
@@ -434,6 +436,17 @@ if __name__ == '__main__':
     if not exists('bscript'):
         print >>sys.stderr, '\x1b[01;91mno bscript file found\x1b[0m'
         sys.exit(5)
+
+    # create a fake bob module so that
+    # import bob works in bob_x.py files
+    # bob doesn't end with .py and is therefore
+    # not importable
+    # we could change that and add dir(__file__) to
+    # sys.path instead
+    bob_mod = new_module('bob')
+    for k in exposed_vars:
+        setattr(bob_mod, k, globals()[k])
+    sys.modules['bob'] = bob_mod
 
     with open('bscript') as f:
         exec_script(f.read())

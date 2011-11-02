@@ -29,7 +29,7 @@ def build(bld):
                      target = 'bob')
 
     bld.install_files('${PREFIX}/bin', 'bob', chmod=493)
-
+    bld.install_files('${PREFIX}/lib/python', 'src/bob_pipeline.py')
 
 def shutdown():
     if not Options.commands['build'] or getattr(Options.options, 'skip_tests', False):
