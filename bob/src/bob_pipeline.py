@@ -1,7 +1,21 @@
 # This file will be moved to gamesys or similar
 
 import os
-from bob import add_task, task, change_ext, execute_command, find_cmd, register, make_proto
+from os.path import basename, splitext
+from bob import add_task, task, change_ext, execute_command, find_cmd, register, make_proto, create_task
+from bob import log_error
+import shutil
+
+def make_copy_task(name, ext_out):
+    def copy_file(prj, tsk):
+        shutil.copy(tsk['inputs'][0], tsk['outputs'][0])
+
+    def copy_factory(prj, input):
+        return add_task(prj, task(function = copy_file,
+                                  name = name,
+                                  inputs = [input],
+                                  outputs = [change_ext(prj, input, ext_out)]))
+    return copy_factory
 
 def texture_file(prj, tsk):
     execute_command(prj, tsk, 'python ${texc} ${inputs[0]} -o ${outputs[0]}')
@@ -12,6 +26,82 @@ def texture_factory(prj, input):
                               inputs = [input],
                               outputs = [change_ext(prj, input, '.texturec')]))
 
+def go_file(prj, tsk):
+    code = 0
+
+    err = ''
+    try:
+        import google.protobuf.text_format
+        import gameobject_ddf_pb2
+        msg = gameobject_ddf_pb2.PrototypeDesc()
+        with open(tsk['inputs'][0], 'rb') as in_f:
+            google.protobuf.text_format.Merge(in_f.read(), msg)
+
+        for i, c in enumerate(msg.embedded_components):
+            with open(tsk['outputs'][i+1], 'wb') as out_f:
+                out_f.write(c.data)
+
+            desc = msg.components.add()
+            if c.id == '':
+                raise Exception('Message is missing required field: id')
+            desc.id = c.id
+
+            # NOTE: This is a bit budget. We "calculate" relative
+            # path by chopping the length of bld_dir
+            # relpath is not available in python 2.5 (jython)
+            # As long as we have "sensible" paths this will continue to work
+            bld_dir_len = len(prj['bld_dir'])
+            desc.component = tsk['outputs'][i+1][bld_dir_len:]
+
+        msg = transform_gameobject(msg)
+        while len(msg.embedded_components) > 0:
+            del(msg.embedded_components[0])
+
+        with open(tsk['outputs'][0], 'wb') as out_f:
+            out_f.write(msg.SerializeToString())
+
+    except Exception, e:
+        err = '%s: %s' % (task.inputs[0].srcpath(task.env), str(e))
+        code = 5
+
+    info = tsk['info']
+    info['code'] = code
+    info['stdout'] = ''
+    info['stderr'] = err
+
+def go_factory(prj, input):
+
+    try:
+        import google.protobuf.text_format
+        import gameobject_ddf_pb2
+        msg = gameobject_ddf_pb2.PrototypeDesc()
+        with open(input, 'rb') as in_f:
+            google.protobuf.text_format.Merge(in_f.read(), msg)
+
+        embed_outputs = []
+        embed_tsks = []
+        for i, c in enumerate(msg.embedded_components):
+            name, ext = splitext(input)
+            embed_output = change_ext(prj, '%s_generated_%d' % (name, i), '.' + c.type)
+            embed_outputs.append(embed_output)
+            sub_tsk = create_task(prj, embed_output)
+            embed_tsks.append(sub_tsk)
+    except Exception, e:
+        log_error('%s: %s' % (input, str(e)))
+        return 1
+
+    tsk = task(function = go_file,
+               name = 'go',
+               inputs = [input],
+               outputs = [change_ext(prj, input, '.goc')] + embed_outputs)
+
+    for sb in embed_tsks:
+        # Use for to tracking the originating file, i.e. the .go-file
+        sb['product_of'] = tsk
+
+    add_task(prj, tsk)
+    return tsk
+
 def fontmap_file(prj, tsk):
     execute_command(prj, tsk, 'java -classpath ${classpath} com.dynamo.render.Fontc ${inputs[0]} ${content_root} ${outputs[0]}')
 
@@ -19,7 +109,7 @@ def fontmap_factory(prj, input):
     return add_task(prj, task(function = fontmap_file,
                               name = 'fontmap',
                               inputs = [input],
-                              outputs = [change_ext(prj, input, '.fontmapc')]))
+                              outputs = [change_ext(prj, input, '.fontc')]))
 
 def transform_texture_name(name):
     name = name.replace('.png', '.texturec')
@@ -123,6 +213,7 @@ def conf(prj):
     register(prj, '.font', fontmap_factory)
 
     # proto formats
+    register(prj, '.collection', make_proto('gameobject_ddf_pb2', 'CollectionDesc', transform_collection))
     register(prj, '.collectionproxy', make_proto('gamesys_ddf_pb2', 'CollectionProxyDesc', transform_collectionproxy))
     register(prj, '.emitter', make_proto('particle.particle_ddf_pb2', 'particle_ddf_pb2.Emitter', transform_emitter))
     register(prj, '.model', make_proto('model_ddf_pb2', 'ModelDesc', transform_model))
@@ -139,6 +230,14 @@ def conf(prj):
     register(prj, '.tilegrid', make_proto('tile_ddf_pb2', 'TileGrid', transform_tilegrid))
     register(prj, '.material', make_proto('render.material_ddf_pb2', 'material_ddf_pb2.MaterialDesc', transform_material))
 
+    # gameobject
+    register(prj, '.go', go_factory)
+
+    register(prj, '.project', make_copy_task('project', '.projectc'))
+    register(prj, '.script', make_copy_task('script', '.scriptc'))
+    register(prj, '.gui_script', make_copy_task('gui_script', '.gui_scriptc'))
+    register(prj, '.wav', make_copy_task('wav', '.wavc'))
+
     dynamo_home = os.getenv('DYNAMO_HOME')
     if not dynamo_home:
         raise Exception('DYNAMO_HOME not set')
@@ -151,4 +250,3 @@ def conf(prj):
                                             '/share/java/fontc.jar']]
     prj['classpath'] = os.pathsep.join(classpath)
     prj['content_root'] = '.'
-

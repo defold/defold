@@ -13,7 +13,10 @@ import cPickle
 import sys
 from fnmatch import fnmatch
 
-exposed_vars = ['project', 'task', 'build', 'change_ext', 'make_proto', 'create_task', 'add_task', 'console_listener', 'null_listener', 'register', 'find_cmd', 'execute_command', 'supported_exts']
+exposed_vars = ['project', 'task', 'build', 'change_ext', 'make_proto',
+                'create_task', 'add_task',  'console_listener', 'null_listener',
+                'register', 'find_cmd', 'execute_command', 'supported_exts',
+                'log_warning', 'log_error']
 
 if sys.platform.find('java') != -1:
     # setuptools is typically not available in jython
@@ -189,6 +192,8 @@ def task(**kwargs):
                                      product_of = None,
                                      index = -1)
 
+# TODO: Change to more appropriate name. This function both
+# change extension *and* change path to build directory.
 def change_ext(p, input, ext):
     if input.startswith(p['bld_dir'] + '/'):
         # Do not prepend bld_dir for files
@@ -203,7 +208,7 @@ def change_ext(p, input, ext):
 def null_listener(prj, task): pass
 
 def console_listener(prj, task):
-    print '[%d/%d] \x1b[33m%s: %s -> %s\x1b[0m' % (task['index'] + 1,
+    print '[%d/%d] \x1b[32m%s: %s -> %s\x1b[0m' % (task['index'] + 1,
                                  len(prj['tasks']),
                                  task['name'],
                                  ', '.join(task['inputs']),
@@ -241,6 +246,7 @@ def collect_inputs(p):
     p['inputs'] = list(inputs)
 
 def add_task(p, tsk):
+    assert type(tsk) == dict
     p['tasks'].append(tsk)
     return tsk
 
@@ -249,6 +255,7 @@ def create_task(p, input):
     try:
         tg = p['task_gens'][ext]
     except KeyError,e:
+        log_warning('No factory found for "%s"' % input)
         return None
     tsk = tg(p, input)
     assert tsk != None
@@ -291,6 +298,7 @@ def task_signature(p, t):
         s.update(file_sigs[i])
     for i in t['dependencies']:
         s.update(file_sigs[i])
+    s.update(t['function'].func_code.co_code)
     s.update(str(t['options']))
     t['sig'] = s.hexdigest()
 
@@ -435,6 +443,12 @@ def make_proto(module, msg_type, transform = unity_transform):
                                 inputs = [input],
                                 outputs = [change_ext(p, input, ext + 'c')]))
     return proto
+
+def log_error(msg):
+    print >>sys.stderr, '\x1b[01;91m%s\x1b[0m' % msg
+
+def log_warning(msg):
+    print >>sys.stderr, '\x1b[33m%s\x1b[0m' % msg
 
 if __name__ == '__main__':
     if not exists('bscript'):
