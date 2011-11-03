@@ -13,7 +13,7 @@ public class Node {
 
     public void setSelected(boolean selected) {
         if (this.selected != selected) {
-            notifyChange("selected", new Boolean(this.selected), new Boolean(selected));
+            notifyChange();
             this.selected = selected;
         }
     }
@@ -26,9 +26,9 @@ public class Node {
         this.model = model;
     }
 
-    protected void notifyChange(String propertyName, Object oldValue, Object newValue) {
+    protected void notifyChange() {
         if (this.model != null) {
-            this.model.firePropertyChangeEvent(new PropertyChangeEvent(this, propertyName, oldValue, newValue));
+            this.model.firePropertyChangeEvent(new PropertyChangeEvent(this, null, null, null));
         }
     }
 }
