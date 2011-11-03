@@ -28,7 +28,7 @@ DYNAMO_EXT=$DYNAMO_HOME/ext
 mkdir -p $DYNAMO_EXT/cache
 
 REMOTE_PATH="$USER_OVERRATED@overrated.dyndns.org:/repo/packages"
-PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.2.1 vectormathlibrary-r1649 nvidia-texture-tools-2.0.6 PIL-1.1.6 SDL-1.2.13 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 vecmath"
+PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.2.1 vectormathlibrary-r1649 nvidia-texture-tools-2.0.6 PIL-1.1.6 SDL-1.2.13 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 vecmath jython-2.5.2"
 PACKAGES_HOST="protobuf-2.3.0 gtest-1.2.1 glut-3.7.6 cg-2.1 nvidia-texture-tools-2.0.6 PIL-1.1.6 SDL-1.2.13 openal-1.1 PVRTexToolCL-2.08.28.0634"
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg"
 PACKAGES_IOS="protobuf-2.3.0 gtest-1.2.1"
