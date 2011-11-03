@@ -1,34 +1,17 @@
 package com.dynamo.cr.goprot.test;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
 import org.eclipse.core.commands.ExecutionException;
-import org.eclipse.core.commands.operations.DefaultOperationHistory;
-import org.eclipse.core.commands.operations.IOperationHistory;
-import org.eclipse.core.commands.operations.IUndoContext;
-import org.eclipse.core.commands.operations.UndoContext;
 import org.eclipse.core.runtime.CoreException;
 import org.junit.Before;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 
-import com.dynamo.cr.goprot.core.INodeView;
-import com.dynamo.cr.goprot.core.Node;
-import com.dynamo.cr.goprot.core.NodeManager;
-import com.dynamo.cr.goprot.core.NodeModel;
 import com.dynamo.cr.goprot.sprite.AnimationNode;
 import com.dynamo.cr.goprot.sprite.SpriteNode;
 import com.dynamo.cr.goprot.sprite.SpritePresenter;
-import com.dynamo.cr.goprot.core.ILogger;
-import com.google.inject.AbstractModule;
-import com.google.inject.Guice;
-import com.google.inject.Injector;
 import com.google.inject.Module;
 import com.google.inject.Singleton;
 
