@@ -74,29 +74,6 @@ build(p, run=False, listener = null_listener)
         self.assertSetEquals(['tmp/test_data/util.h', 'tmp/test_data/include/misc.h'],
                              t['dependencies'])
 
-    def test_file_signatures(self):
-        script = '''
-from glob import glob
-p = project(bld_dir = "tmp_build",
-            inputs = glob('tmp/test_data/*.c'),
-            includes = ['tmp/test_data/include'])
-import bob_cc
-bob_cc.config(p)
-build(p, run=False, listener = null_listener)
-'''
-        l = bob.exec_script(script)
-        sigs = l.p['file_signatures']
-        files = set(['tmp/test_data/util.c',
-                     'tmp/test_data/util.h',
-                     'tmp/test_data/main.c',
-                     'tmp/test_data/error.c',
-                     'tmp/test_data/include/misc.h'])
-
-        self.assertSetEquals(files, sigs.keys())
-        from bob import sha1_file
-        for x in files:
-            self.assertEquals(sha1_file(x), sigs[x])
-
     def test_task_signatures(self):
         script1 = '''
 p = project(bld_dir = "tmp_build",

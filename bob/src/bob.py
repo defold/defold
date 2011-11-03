@@ -2,7 +2,7 @@
 
 from __future__ import with_statement
 
-import re, os
+import re, os, stat
 from imp import new_module
 from os import makedirs, listdir, walk, linesep, pathsep
 from os.path import splitext, join, exists, dirname, normpath, isdir, isfile
@@ -188,7 +188,6 @@ def build(p, run = True, listener = console_listener):
     load_state(p)
     create_tasks(p)
     scan(p)
-    file_signatures(p)
     info_lst = []
     if run:
         info_lst = run_tasks(p)
@@ -228,27 +227,25 @@ def scan(p):
         deps = deps.union(set(d))
         t['dependencies'] = list(deps)
 
-def sha1_file(name):
+def sha1_file(prj, name):
+    state = prj['state']
+    mtime = os.stat(name)[stat.ST_MTIME]
+    cached_sig, cached_mtime = state['file_signatures'].get(name, (None, None))
+
+    if cached_sig and mtime == cached_mtime:
+        return cached_sig
+
     with open(name, 'rb') as f:
         d = sha1(f.read()).hexdigest()
+    state['file_signatures'][name] = (d, mtime)
     return d
 
-def file_signatures(p):
-    sigs = {}
-    for t in p['tasks']:
-        for i in p['inputs']:
-            sigs[i] = sha1_file(i)
-        for i in t['dependencies']:
-            sigs[i] = sha1_file(i)
-    p['file_signatures'] = sigs
-
-def task_signature(p, t):
-    file_sigs = p['file_signatures']
+def task_signature(prj, t):
     s = sha1()
     for i in t['inputs']:
-        s.update(file_sigs[i])
+        s.update(sha1_file(prj, i))
     for i in t['dependencies']:
-        s.update(file_sigs[i])
+        s.update(sha1_file(prj, i))
     s.update(t['function'].func_code.co_code)
     s.update(str(t['options']))
     t['sig'] = s.hexdigest()
@@ -321,7 +318,6 @@ def run_tasks(p):
                     if not exists(x):
                         logging.warn('output file "%s" does not exists', x)
                     else:
-                        p['file_signatures'][x] = sha1_file(x)
                         state['out_to_sig'][x] = t['sig']
 
             if run:
@@ -337,7 +333,7 @@ def load_state(p):
         with open(name, 'rb') as f:
             p['state'] = cPickle.load(f)
     else:
-        p['state'] = { 'out_to_sig' : {} }
+        p['state'] = { 'out_to_sig' : {}, 'file_signatures' : {} }
 
 def save_state(p):
     name = join(p['bld_dir'], 'state')
