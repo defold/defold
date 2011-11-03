@@ -167,19 +167,21 @@ def change_ext(p, input, ext):
     if not exists(dir): makedirs(dir)
     return join(new)
 
-def null_listener(prj, task): pass
+def null_listener(prj, task, evt): pass
 
-def console_listener(prj, task):
-    print '[%d/%d] \x1b[32m%s: %s -> %s\x1b[0m' % (task['index'] + 1,
-                                 len(prj['tasks']),
-                                 task['name'],
-                                 ', '.join(task['inputs']),
-                                 ', '.join(task['outputs']))
-    info = task['info']
-    code = info['code']
-    if code != 0:
-        print '\x1b[01;91mtask failed'
-        print '%s\x1b[0m' % info['stderr']
+def console_listener(prj, task, evt):
+    if evt == 'start':
+        print '[%d/%d] \x1b[32m%s: %s -> %s\x1b[0m' % (task['index'] + 1,
+                                     len(prj['tasks']),
+                                     task['name'],
+                                     ', '.join(task['inputs']),
+                                     ', '.join(task['outputs']))
+    elif evt == 'done':
+        info = task['info']
+        code = info['code']
+        if code != 0:
+            print '\x1b[01;91mtask failed'
+            print '%s\x1b[0m' % info['stderr']
 
 def build(p, run = True, listener = console_listener):
     p['listener'] = listener
@@ -306,6 +308,7 @@ def run_tasks(p):
             code = 0
             if run:
                 try:
+                    p['listener'](p, t, 'start')
                     t['function'](p, t)
                 except Exception, e:
                     from traceback import format_exc
@@ -321,7 +324,7 @@ def run_tasks(p):
                         state['out_to_sig'][x] = t['sig']
 
             if run:
-                p['listener'](p, t)
+                p['listener'](p, t, 'done')
 
             completed_outputs = completed_outputs.union(set(t['outputs']))
 

@@ -194,10 +194,10 @@ r = build(p, listener = null_listener)
 
 class Listener(object):
     def __init__(self):
-        self.invocations = 0
+        self.invocations = { 'start' : 0, 'done' : 0 }
 
-    def __call__(self, prj, task):
-        self.invocations += 1
+    def __call__(self, prj, task, evt):
+        self.invocations[evt] += 1
         pass
 
 listener = Listener()
@@ -220,11 +220,13 @@ r = build(p, listener = listener)
         l = bob.exec_script(script)
 
         listener = l.p['listener']
-        self.assertEqual(1, listener.invocations)
+        self.assertEqual(1, listener.invocations['start'])
+        self.assertEqual(1, listener.invocations['done'])
 
         l = bob.exec_script(script)
         listener = l.p['listener']
-        self.assertEqual(0, listener.invocations)
+        self.assertEqual(0, listener.invocations['start'])
+        self.assertEqual(0, listener.invocations['done'])
 
     def test_exception(self):
         script = '''
