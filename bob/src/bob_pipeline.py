@@ -1,5 +1,6 @@
 # This file will be moved to gamesys or similar
 
+from __future__ import with_statement
 import os
 from os.path import basename, splitext
 from bob import add_task, task, change_ext, execute_command, find_cmd, register, make_proto, create_task

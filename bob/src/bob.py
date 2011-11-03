@@ -16,7 +16,7 @@ from fnmatch import fnmatch
 exposed_vars = ['project', 'task', 'build', 'change_ext', 'make_proto',
                 'create_task', 'add_task',  'console_listener', 'null_listener',
                 'register', 'find_cmd', 'execute_command', 'supported_exts',
-                'log_warning', 'log_error']
+                'log_warning', 'log_error', 'find_sources']
 
 if sys.platform.find('java') != -1:
     # setuptools is typically not available in jython
@@ -77,80 +77,6 @@ def substitute(string, *dicts):
         new_lst.extend(x)
     return new_lst
 
-glob_pattern = re.compile('[*?[]')
-
-def do_ant_glob(base, elements, recurse):
-    '''Do "ant globbing" given a base directory
-    and a list of path elements, i.e. a path split by /
-    recurse is set to true if ** previously is found
-    '''
-
-    def match_single(full, last):
-        if not exists(full):
-            return []
-        elif isdir(full):
-            return do_ant_glob(full, elements[1:], recurse)
-        elif last:
-            return [full]
-
-        return []
-
-    if elements == []:
-        # base recursion case: empty list of path elements
-        return []
-    else:
-        # general recursion case. match first element
-        # in path element list
-        last = len(elements) == 1
-
-        ret = []
-        if elements[0] == '**' and last:
-            # special case that conflicts with base recursion case 'empty list'
-            # last element is '**'. find all files and short circuit
-            for root, dirs, files in walk(base):
-                ret += [ join(root, x) for x in files ]
-            return ret
-        elif elements[0] == '**':
-            recurse = True
-        elif glob_pattern.match(elements[0]):
-            lst = listdir(base)
-            for f in lst:
-                if fnmatch(f, elements[0]):
-                    ret += match_single(join(base, f), last)
-        else:
-            ret = match_single(join(base, elements[0]), last)
-
-        if recurse:
-            lst = listdir(base)
-            for f in lst:
-                if isdir(join(base, f)):
-                    if elements[0] == '**':
-                        # only remove first element for '**'
-                        # otherwise we should just recurse
-                        elements = elements[1:]
-                    ret += do_ant_glob(join(base, f), elements, True)
-
-        return ret
-
-def ant_glob(inc, excl = ''):
-    def do(s):
-        s = s.replace('\\', '/')
-        elem_lst = s.split('/')
-        lst = do_ant_glob('.', elem_lst, False)
-        # remove leading ./
-        lst = map(normpath, lst)
-        return lst
-
-    lst = do(inc)
-
-    if excl:
-        excl_lst = do(excl)
-        s = set(lst)
-        s = s.difference(set(excl_lst))
-        lst = list(s)
-
-    return lst
-
 def exec_script(s):
     m = new_module('bscript')
     # expose function to script module
@@ -169,10 +95,46 @@ def register(prj, ext, fact_func):
     for e in ext.split(' '):
         prj['task_gens'][e] = fact_func
 
+def find_sources(prj, dir):
+    # find_sources is the union of prj['inputs']
+    # and files gathered
+    sources = set(prj['inputs'])
+
+    # skip special dirs
+    skip_dirs = ['.git']
+
+    # first element in bld_dir
+    first_bld_dir = os.path.split(prj['bld_dir'])[0]
+
+    for root, dirs, files in walk(dir):
+        # check for special directories
+        for sd in skip_dirs:
+            if sd in dirs: dirs.remove(sd)
+
+        for d in dirs:
+            # NOTE: We use normpath to remove leading ./
+            # dir is typically '.'
+            tmp = normpath(join(root, d))
+            # Do not walk down in build directory
+            if tmp.startswith(first_bld_dir):
+                dirs.remove(d)
+                break
+
+        if not root.startswith(prj['bld_dir']):
+            for f in files:
+                name, ext = splitext(f)
+                if name:
+                    # NOTE: We use normpath to remove leading ./
+                    # dir is typically '.'
+                    full = normpath(join(root, f))
+                    if ext in prj['task_gens']:
+                        sources.add(full)
+    prj['inputs'] = list(sources)
+
 def project(**kwargs):
     return set_default(dict(kwargs),
                        bld_dir = 'build',
-                       globs = [],
+                       inputs = [],
                        task_gens = {},
                        includes = [])
 
@@ -224,7 +186,6 @@ def build(p, run = True, listener = console_listener):
     if not exists(p['bld_dir']):
         makedirs(p['bld_dir'])
     load_state(p)
-    collect_inputs(p)
     create_tasks(p)
     scan(p)
     file_signatures(p)
@@ -234,16 +195,6 @@ def build(p, run = True, listener = console_listener):
 
     save_state(p)
     return info_lst
-
-def collect_inputs(p):
-    '''Collection input files for project. Input files are collected
-    for every glob pattern in the project.globs list'''
-
-    inputs = set()
-    for g in p["globs"]:
-        inputs = inputs.union(set(ant_glob(g)))
-    inputs = filter(lambda x: not x.startswith('%s/' % p['bld_dir']), inputs)
-    p['inputs'] = list(inputs)
 
 def add_task(p, tsk):
     assert type(tsk) == dict

@@ -30,8 +30,9 @@ class TestBob(unittest.TestCase):
 
     def test_collect_inputs(self):
         script = '''
+from glob import glob
 p = project(bld_dir = "tmp_build",
-            globs = ['tmp/test_data/*.c'],
+            inputs = glob('tmp/test_data/*.c'),
             includes = ['tmp/test_data/include'])
 build(p, run=False, listener = null_listener)
 '''
@@ -40,61 +41,11 @@ build(p, run=False, listener = null_listener)
         self.assertEqual(set(['tmp/test_data/main.c', 'tmp/test_data/util.c', 'tmp/test_data/error.c']),
                          set(p['inputs']))
 
-    def test_ant_glob1(self):
-        def mklist(*names):
-            return [ 'tmp/test_data/' + x for x in names ]
-
-        lst = bob.ant_glob('tmp/test_data/main.c')
-        self.assertSetEquals(mklist('main.c'), lst)
-
-        lst = bob.ant_glob('tmp/test_data/*.c')
-        self.assertSetEquals(mklist('main.c', 'util.c', 'error.c'), lst)
-
-        lst = bob.ant_glob('tmp/test_data/*.[ch]')
-        self.assertSetEquals(mklist('main.c', 'util.c', 'util.h', 'error.c'), lst)
-
-        lst = bob.ant_glob('tmp/**/*.h')
-        self.assertSetEquals(mklist('util.h', 'include/misc.h'), lst)
-
-        lst = bob.ant_glob('**/*.h')
-        self.assertSetEquals(['test_data/util.h',
-                              'tmp/test_data/util.h',
-                              'tmp/test_data/include/misc.h',
-                              'test_data/include/misc.h'],
-                             lst)
-
-        lst = bob.ant_glob('tmp/**/include/*.h')
-        self.assertSetEquals(mklist('include/misc.h'), lst)
-
-        lst = bob.ant_glob('tmp/test_data/**')
-        self.assertSetEquals(mklist(*'error.c main.c test.bob test_bob_ddf.proto util.c util.h include/misc.h test.dynamic'.split()),
-                             lst)
-
-        # exclude test
-        lst = bob.ant_glob('tmp/test_data/**', '**/*.h')
-        self.assertSetEquals(mklist(*'error.c main.c test.bob test_bob_ddf.proto util.c test.dynamic'.split()),
-                             lst)
-
-    def test_ant_glob2(self):
-        lst = bob.ant_glob('tmp')
-        self.assertSetEquals([], lst)
-
-        lst = bob.ant_glob('does_not_exists')
-        self.assertSetEquals([], lst)
-
-        lst = bob.ant_glob('does_not_exists/**')
-        self.assertSetEquals([], lst)
-
-        lst = bob.ant_glob('tmp/does_not_exists/**')
-        self.assertSetEquals([], lst)
-
-        lst = bob.ant_glob('tmp/**/does_not_exists')
-        self.assertSetEquals([], lst)
 
     def test_create_tasks(self):
         script = '''
 p = project(bld_dir = "tmp_build",
-            globs = ['tmp/test_data/main.c'],
+            inputs = ['tmp/test_data/main.c'],
             includes = ['tmp/test_data/include'])
 import bob_cc
 bob_cc.config(p)
@@ -111,7 +62,7 @@ build(p, run=False, listener = null_listener)
     def test_scan(self):
         script = '''
 p = project(bld_dir = "tmp_build",
-            globs = ['tmp/test_data/util.c'],
+            inputs = ['tmp/test_data/util.c'],
             includes = ['tmp/test_data/include'])
 import bob_cc
 bob_cc.config(p)
@@ -125,8 +76,9 @@ build(p, run=False, listener = null_listener)
 
     def test_file_signatures(self):
         script = '''
+from glob import glob
 p = project(bld_dir = "tmp_build",
-            globs = ['tmp/test_data/*.c'],
+            inputs = glob('tmp/test_data/*.c'),
             includes = ['tmp/test_data/include'])
 import bob_cc
 bob_cc.config(p)
@@ -148,7 +100,7 @@ build(p, run=False, listener = null_listener)
     def test_task_signatures(self):
         script1 = '''
 p = project(bld_dir = "tmp_build",
-            globs = ['tmp/test_data/main.c'],
+            inputs = ['tmp/test_data/main.c'],
             includes = ['tmp/test_data/include'])
 import bob_cc
 bob_cc.config(p)
@@ -158,7 +110,7 @@ build(p, run=True, listener = null_listener)
 
         script2 = '''
 p = project(bld_dir = "tmp_build",
-            globs = ['tmp/test_data/main.c'],
+            inputs = ['tmp/test_data/main.c'],
             includes = ['tmp/test_data/include', '/opt/include'])
 import bob_cc
 bob_cc.config(p)
@@ -173,7 +125,7 @@ build(p, run=True, listener = null_listener)
     def test_c_compile(self):
         script = '''
 p = project(bld_dir = "tmp_build",
-            globs = ['tmp/test_data/main.c'],
+            inputs = ['tmp/test_data/main.c'],
             includes = ['tmp/test_data/include'])
 import bob_cc
 bob_cc.config(p)
@@ -207,7 +159,7 @@ r = build(p, listener = null_listener)
     def test_c_compile_error(self):
         script = '''
 p = project(bld_dir = "tmp_build",
-            globs = ['tmp/test_data/error.c'],
+            inputs = ['tmp/test_data/error.c'],
             includes = ['tmp/test_data/include'])
 import bob_cc
 bob_cc.config(p)
@@ -242,12 +194,12 @@ r = build(p, listener = null_listener)
 
     def test_proto_task(self):
         script = '''
-
+from glob import glob
 def transform_bob(msg):
     msg.resource = msg.resource + 'c'
 
 p = project(bld_dir = "tmp_build",
-            globs = ['tmp/test_data/*.bob'])
+            inputs = glob('tmp/test_data/*.bob'))
 p['task_gens']['.bob'] = make_proto('test_bob_ddf_pb2', 'TestBob', transform_bob)
 r = build(p, listener = null_listener)
 '''
@@ -284,7 +236,7 @@ def test_factory(prj, input):
                               outputs = [change_ext(p, input, '.bobc')]))
 
 p = project(bld_dir = "tmp_build",
-            globs = ['tmp/test_data/test.bob'])
+            inputs = ['tmp/test_data/test.bob'])
 p['task_gens']['.bob'] = test_factory
 r = build(p, listener = listener)
 '''
@@ -310,7 +262,7 @@ def test_factory(prj, input):
                               outputs = [change_ext(p, input, '.bobc')]))
 
 p = project(bld_dir = "tmp_build",
-            globs = ['tmp/test_data/test.bob'])
+            inputs = ['tmp/test_data/test.bob'])
 p['task_gens']['.bob'] = test_factory
 r = build(p, listener = null_listener)
 '''
@@ -325,7 +277,7 @@ r = build(p, listener = null_listener)
 from test_bob_util import dynamic_factory, number_factory
 
 p = project(bld_dir = "tmp_build",
-            globs = ['tmp/test_data/test.dynamic'])
+            inputs = ['tmp/test_data/test.dynamic'])
 p['task_gens']['.dynamic'] = dynamic_factory
 p['task_gens']['.number'] = number_factory
 r = build(p, listener = null_listener)
