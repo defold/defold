@@ -21,21 +21,21 @@ public class RemoveComponentOperation extends AbstractOperation {
     @Override
     public IStatus execute(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
-        this.gameObject.removeComponent(component);
+        this.gameObject.removeComponent(this.component);
         return Status.OK_STATUS;
     }
 
     @Override
     public IStatus redo(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
-        this.gameObject.removeComponent(component);
+        this.gameObject.removeComponent(this.component);
         return Status.OK_STATUS;
     }
 
     @Override
     public IStatus undo(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
-        this.gameObject.addComponent(component);
+        this.gameObject.addComponent(this.component);
         return Status.OK_STATUS;
     }
 

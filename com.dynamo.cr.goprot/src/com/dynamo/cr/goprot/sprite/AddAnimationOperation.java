@@ -1,4 +1,4 @@
-package com.dynamo.cr.goprot.gameobject;
+package com.dynamo.cr.goprot.sprite;
 
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.AbstractOperation;
@@ -7,35 +7,35 @@ import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 
-public class AddComponentOperation extends AbstractOperation {
+public class AddAnimationOperation extends AbstractOperation {
 
-    final private GameObjectNode gameObject;
-    final private ComponentNode component;
+    final private SpriteNode sprite;
+    final private AnimationNode animation;
 
-    public AddComponentOperation(GameObjectNode gameObject, ComponentNode component) {
-        super("Add Component");
-        this.gameObject = gameObject;
-        this.component = component;
+    public AddAnimationOperation(SpriteNode sprite, AnimationNode animation) {
+        super("Add Animation");
+        this.sprite = sprite;
+        this.animation = animation;
     }
 
     @Override
     public IStatus execute(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
-        this.gameObject.addComponent(this.component);
+        this.sprite.addAnimation(this.animation);
         return Status.OK_STATUS;
     }
 
     @Override
     public IStatus redo(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
-        this.gameObject.addComponent(this.component);
+        this.sprite.addAnimation(this.animation);
         return Status.OK_STATUS;
     }
 
     @Override
     public IStatus undo(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
-        this.gameObject.removeComponent(this.component);
+        this.sprite.removeAnimation(this.animation);
         return Status.OK_STATUS;
     }
 
