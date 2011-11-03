@@ -343,11 +343,15 @@ def save_state(p):
     with open(name, 'wb') as f:
         cPickle.dump(p['state'], f)
 
-def execute_command(p, t, cmd):
+def execute_command(p, t, cmd, shell = False):
     args = substitute(cmd, p, t)
     try:
-        p = Popen(args,
-                  shell = False,
+        if shell:
+            real_args = ' '.join(args)
+        else:
+            real_args = args
+        p = Popen(real_args,
+                  shell = shell,
                   stdout = PIPE,
                   stderr = PIPE)
         out, err = p.communicate()

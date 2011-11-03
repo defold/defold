@@ -18,14 +18,17 @@ def make_copy_task(name, ext_out):
                                   outputs = [change_ext(prj, input, ext_out)]))
     return copy_factory
 
-def texture_file(prj, tsk):
-    execute_command(prj, tsk, 'python ${texc} ${inputs[0]} -o ${outputs[0]}')
+def make_command_task(name, cmd_str, ext_out, shell = False):
+    def command_file(prj, tsk):
+        execute_command(prj, tsk, cmd_str, shell = shell)
 
-def texture_factory(prj, input):
-    return add_task(prj, task(function = texture_file,
-                              name = 'texture',
-                              inputs = [input],
-                              outputs = [change_ext(prj, input, '.texturec')]))
+    def command_factory(prj, input):
+        return add_task(prj, task(function = command_file,
+                                  name = name,
+                                  inputs = [input],
+                                  outputs = [change_ext(prj, input, ext_out)]))
+
+    return command_factory
 
 def go_file(prj, tsk):
     code = 0
@@ -205,10 +208,19 @@ def transform_material(msg):
     return msg
 
 def conf(prj):
+    # shaders
+    find_cmd(prj, 'glslvc', var='glslvc')
+    find_cmd(prj, 'glslfc', var='glslfc')
+    register(prj, '.vp', make_command_task('vp', '${glslvc} ${inputs[0]} ${outputs[0]}', '.vpc', shell = True))
+    register(prj, '.fp', make_command_task('fp', '${glslfc} ${inputs[0]} ${outputs[0]}', '.fpc', shell = True))
+
+    # mesh
+    find_cmd(prj, 'meshc.py', var='meshc')
+    register(prj, '.dae', make_command_task('mesh', 'python ${meshc} ${inputs[0]} -o ${outputs[0]}', '.meshc'))
 
     # textures
     find_cmd(prj, 'texc.py', var='texc')
-    register(prj, '.png .tga', texture_factory)
+    register(prj, '.png .tga', make_command_task('texture', 'python ${texc} ${inputs[0]} -o ${outputs[0]}', '.texturec'))
 
     # fonts
     register(prj, '.font', fontmap_factory)
@@ -238,6 +250,7 @@ def conf(prj):
     register(prj, '.script', make_copy_task('script', '.scriptc'))
     register(prj, '.gui_script', make_copy_task('gui_script', '.gui_scriptc'))
     register(prj, '.wav', make_copy_task('wav', '.wavc'))
+    register(prj, '.render_script', make_copy_task('render_script', '.render_scriptc'))
 
     dynamo_home = os.getenv('DYNAMO_HOME')
     if not dynamo_home:
