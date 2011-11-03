@@ -2,6 +2,10 @@ package com.dynamo.cr.goprot.test;
 
 import java.io.IOException;
 
+import org.eclipse.core.commands.operations.DefaultOperationHistory;
+import org.eclipse.core.commands.operations.IOperationHistory;
+import org.eclipse.core.commands.operations.IUndoContext;
+import org.eclipse.core.commands.operations.UndoContext;
 import org.eclipse.core.runtime.CoreException;
 import org.junit.Before;
 import org.junit.Test;
@@ -13,9 +17,11 @@ import static org.mockito.Mockito.verify;
 
 import com.dynamo.cr.goprot.core.INodeView;
 import com.dynamo.cr.goprot.core.INodeView.Presenter;
+import com.dynamo.cr.goprot.core.ILogger;
 import com.dynamo.cr.goprot.core.Node;
 import com.dynamo.cr.goprot.core.NodeModel;
 import com.dynamo.cr.goprot.core.NodePresenter;
+import com.dynamo.cr.goprot.test.GameObjectTest.TestLogger;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.Inject;
@@ -28,12 +34,24 @@ public class NodeTest {
     private Injector injector;
     private INodeView view;
 
+    static class TestLogger implements ILogger {
+
+        @Override
+        public void logException(Throwable exception) {
+            throw new UnsupportedOperationException(exception);
+        }
+
+    }
+
     class TestModule extends AbstractModule {
         @Override
         protected void configure() {
             bind(Presenter.class).to(NodePresenter.class);
             bind(NodeModel.class).in(Singleton.class);
             bind(INodeView.class).toInstance(view);
+            bind(IOperationHistory.class).to(DefaultOperationHistory.class).in(Singleton.class);
+            bind(IUndoContext.class).to(UndoContext.class).in(Singleton.class);
+            bind(ILogger.class).to(TestLogger.class);
         }
     }
 

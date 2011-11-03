@@ -8,7 +8,7 @@ import com.google.inject.Inject;
 
 public class NodePresenter implements Presenter, PropertyChangeListener {
 
-    final private NodeModel model;
+    final protected NodeModel model;
     final private INodeView view;
 
     @Inject
