@@ -19,6 +19,7 @@ import org.eclipse.ui.actions.ActionFactory;
 import org.eclipse.ui.operations.RedoActionHandler;
 import org.eclipse.ui.operations.UndoActionHandler;
 import org.eclipse.ui.progress.IProgressService;
+import org.eclipse.ui.views.contentoutline.IContentOutlinePage;
 
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.core.inject.LifecycleModule;
@@ -36,6 +37,8 @@ import com.google.inject.Injector;
 
 public class Editor extends AbstractDefoldEditor {
 
+    private INodeOutlinePage outlinePage;
+
     private IContainer contentRoot;
     private LifecycleModule module;
     private NodeManager manager;
@@ -43,9 +46,13 @@ public class Editor extends AbstractDefoldEditor {
     class Module extends AbstractModule {
         @Override
         protected void configure() {
+            bind(INodeOutlinePage.class).to(NodeOutlinePage.class).in(Singleton.class);
             bind(INodeView.class).to(NodeView.class).in(Singleton.class);
             bind(NodeModel.class).in(Singleton.class);
             bind(NodeManager.class).in(Singleton.class);
+            bind(DefaultNodePresenter.class).in(Singleton.class);
+            bind(GameObjectPresenter.class).in(Singleton.class);
+            bind(SpritePresenter.class).in(Singleton.class);
             bind(Editor.class).toInstance(Editor.this);
 
             bind(IOperationHistory.class).toInstance(history);
@@ -84,7 +91,9 @@ public class Editor extends AbstractDefoldEditor {
         actionBars.setGlobalActionHandler(undoId, undoHandler);
         actionBars.setGlobalActionHandler(redoId, redoHandler);
 
+        this.outlinePage = injector.getInstance(INodeOutlinePage.class);
         this.manager = injector.getInstance(NodeManager.class);
+        this.manager.setDefaultPresenter(injector.getInstance(DefaultNodePresenter.class));
         // TODO: Replace with extension point
         this.manager.registerPresenter(GameObjectNode.class, injector.getInstance(GameObjectPresenter.class));
         this.manager.registerPresenter(SpriteNode.class, injector.getInstance(SpritePresenter.class));
@@ -153,14 +162,26 @@ public class Editor extends AbstractDefoldEditor {
 
     @Override
     public void createPartControl(Composite parent) {
-        // TODO Auto-generated method stub
+        // Set the outline as selection provider
+        getSite().setSelectionProvider(this.outlinePage);
 
+        INodeView.Presenter presenter = this.manager.getDefaultPresenter();
+        presenter.onRefresh();
     }
 
     @Override
     public void setFocus() {
         // TODO Auto-generated method stub
 
+    }
+
+    @Override
+    public Object getAdapter(@SuppressWarnings("rawtypes") Class adapter) {
+        if (adapter == IContentOutlinePage.class) {
+            return this.outlinePage;
+        } else {
+            return super.getAdapter(adapter);
+        }
     }
 
 }

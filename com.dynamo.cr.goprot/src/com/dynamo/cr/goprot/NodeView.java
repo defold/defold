@@ -9,11 +9,11 @@ public class NodeView implements INodeView {
 
     @SuppressWarnings("unused")
     @Inject private Editor editor;
+    @Inject private INodeOutlinePage outline;
 
     @Override
     public void updateNode(Node node) {
-        // TODO Auto-generated method stub
-
+        outline.update(node);
     }
 
 }

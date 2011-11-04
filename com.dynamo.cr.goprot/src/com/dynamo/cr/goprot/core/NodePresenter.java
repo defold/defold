@@ -6,26 +6,28 @@ import java.beans.PropertyChangeListener;
 import com.dynamo.cr.goprot.core.INodeView.Presenter;
 import com.google.inject.Inject;
 
-public abstract class NodePresenter implements Presenter, PropertyChangeListener {
+public abstract class NodePresenter implements Presenter {
 
     final protected NodeModel model;
-    final private INodeView view;
+    final protected INodeView view;
 
     @Inject
     public NodePresenter(NodeModel model, INodeView view) {
         this.model = model;
-        this.model.addListener(this);
         this.view = view;
     }
 
     @Override
-    public void onSelect(Node node) {
-        node.setSelected(true);
+    public void onSelect(Node[] nodes) {
+        // TODO: Selection will probably be handled in another way
+        for (Node node : nodes) {
+            node.setSelected(true);
+        }
     }
 
     @Override
-    public void propertyChange(PropertyChangeEvent event) {
-        this.view.updateNode((Node)event.getSource());
+    public void onRefresh() {
+        this.view.updateNode(this.model.getRoot());
     }
 
 }

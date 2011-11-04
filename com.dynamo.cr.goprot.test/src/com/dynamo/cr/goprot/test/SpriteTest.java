@@ -31,7 +31,9 @@ public class SpriteTest extends AbstractTest {
     @Before
     public void setup() throws CoreException, IOException {
         super.setup();
-        this.model.setRoot(new SpriteNode());
+        SpriteNode sprite = new SpriteNode();
+        this.model.setRoot(sprite);
+        verifyUpdate(sprite);
         this.manager.registerPresenter(SpriteNode.class, this.injector.getInstance(SpritePresenter.class));
     }
 
@@ -45,15 +47,18 @@ public class SpriteTest extends AbstractTest {
         presenter.onAddAnimation(sprite, animation);
         assertEquals(1, sprite.getChildren().size());
         assertEquals(animation, sprite.getChildren().get(0));
+        assertEquals(sprite, animation.getParent());
         verifyUpdate(sprite);
 
         undo();
         assertEquals(0, sprite.getChildren().size());
+        assertEquals(null, animation.getParent());
         verifyUpdate(sprite);
 
         redo();
         assertEquals(1, sprite.getChildren().size());
         assertEquals(animation, sprite.getChildren().get(0));
+        assertEquals(sprite, animation.getParent());
         verifyUpdate(sprite);
     }
 
@@ -62,18 +67,23 @@ public class SpriteTest extends AbstractTest {
         SpriteNode sprite = (SpriteNode)this.model.getRoot();
         SpritePresenter presenter = (SpritePresenter)this.manager.getPresenter(SpriteNode.class);
         AnimationNode animation = new AnimationNode();
-        presenter.onAddAnimation(sprite, animation);
-        assertEquals(1, sprite.getChildren().size());
-        assertEquals(animation, sprite.getChildren().get(0));
+        sprite.addAnimation(animation);
+        verifyUpdate(sprite);
+
+        presenter.onRemoveAnimation(sprite, animation);
+        assertEquals(0, sprite.getChildren().size());
+        assertEquals(null, animation.getParent());
         verifyUpdate(sprite);
 
         undo();
-        assertEquals(0, sprite.getChildren().size());
+        assertEquals(1, sprite.getChildren().size());
+        assertEquals(animation, sprite.getChildren().get(0));
+        assertEquals(sprite, animation.getParent());
         verifyUpdate(sprite);
 
         redo();
-        assertEquals(1, sprite.getChildren().size());
-        assertEquals(animation, sprite.getChildren().get(0));
+        assertEquals(0, sprite.getChildren().size());
+        assertEquals(null, animation.getParent());
         verifyUpdate(sprite);
     }
 

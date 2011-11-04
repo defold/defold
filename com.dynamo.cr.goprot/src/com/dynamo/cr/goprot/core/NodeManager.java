@@ -6,6 +6,7 @@ import java.util.Map;
 public class NodeManager {
     @SuppressWarnings("rawtypes")
     private Map<Class, INodeView.Presenter> presenters;
+    private INodeView.Presenter defaultPresenter;
 
     @SuppressWarnings("rawtypes")
     public NodeManager() {
@@ -20,5 +21,13 @@ public class NodeManager {
     @SuppressWarnings("rawtypes")
     public INodeView.Presenter getPresenter(Class c) {
         return this.presenters.get(c);
+    }
+
+    public INodeView.Presenter getDefaultPresenter() {
+        return this.defaultPresenter;
+    }
+
+    public void setDefaultPresenter(INodeView.Presenter defaultPresenter) {
+        this.defaultPresenter = defaultPresenter;
     }
 }

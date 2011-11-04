@@ -31,7 +31,9 @@ public class GameObjectTest extends AbstractTest {
     @Before
     public void setup() throws CoreException, IOException {
         super.setup();
-        this.model.setRoot(new GameObjectNode());
+        GameObjectNode gameObject = new GameObjectNode();
+        this.model.setRoot(gameObject);
+        verifyUpdate(gameObject);
         this.manager.registerPresenter(GameObjectNode.class, this.injector.getInstance(GameObjectPresenter.class));
     }
 
@@ -45,15 +47,18 @@ public class GameObjectTest extends AbstractTest {
         presenter.onAddComponent(node, component);
         assertEquals(1, node.getChildren().size());
         assertEquals(component, node.getChildren().get(0));
+        assertEquals(node, component.getParent());
         verifyUpdate(node);
 
         undo();
         assertEquals(0, node.getChildren().size());
+        assertEquals(null, component.getParent());
         verifyUpdate(node);
 
         redo();
         assertEquals(1, node.getChildren().size());
         assertEquals(component, node.getChildren().get(0));
+        assertEquals(node, component.getParent());
         verifyUpdate(node);
     }
 
@@ -62,18 +67,23 @@ public class GameObjectTest extends AbstractTest {
         GameObjectNode node = (GameObjectNode)this.model.getRoot();
         GameObjectPresenter presenter = (GameObjectPresenter)this.manager.getPresenter(GameObjectNode.class);
         ComponentNode component = new ComponentNode();
-        presenter.onAddComponent(node, component);
-        assertEquals(1, node.getChildren().size());
-        assertEquals(component, node.getChildren().get(0));
+        node.addComponent(component);
+        verifyUpdate(node);
+
+        presenter.onRemoveComponent(node, component);
+        assertEquals(0, node.getChildren().size());
+        assertEquals(null, component.getParent());
         verifyUpdate(node);
 
         undo();
-        assertEquals(0, node.getChildren().size());
+        assertEquals(1, node.getChildren().size());
+        assertEquals(component, node.getChildren().get(0));
+        assertEquals(node, component.getParent());
         verifyUpdate(node);
 
         redo();
-        assertEquals(1, node.getChildren().size());
-        assertEquals(component, node.getChildren().get(0));
+        assertEquals(0, node.getChildren().size());
+        assertEquals(null, component.getParent());
         verifyUpdate(node);
     }
 

@@ -1,10 +1,5 @@
 package com.dynamo.cr.goprot.core;
 
-import java.beans.PropertyChangeEvent;
-import java.beans.PropertyChangeListener;
-import java.util.ArrayList;
-import java.util.List;
-
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.IOperationHistory;
 import org.eclipse.core.commands.operations.IUndoContext;
@@ -17,14 +12,14 @@ import com.google.inject.Inject;
 
 public class NodeModel {
     private Node root;
-    private List<PropertyChangeListener> listeners;
+    private final INodeView view;
     private final IOperationHistory history;
     private final IUndoContext undoContext;
     private final ILogger logger;
 
     @Inject
-    public NodeModel(IOperationHistory history, IUndoContext undoContext, ILogger logger) {
-        this.listeners = new ArrayList<PropertyChangeListener>();
+    public NodeModel(INodeView view, IOperationHistory history, IUndoContext undoContext, ILogger logger) {
+        this.view = view;
         this.history = history;
         this.undoContext = undoContext;
         this.logger = logger;
@@ -38,23 +33,12 @@ public class NodeModel {
         if (this.root != root) {
             this.root = root;
             root.setModel(this);
+            notifyChange(root);
         }
     }
 
-    public void addListener(PropertyChangeListener listener) {
-        if (!this.listeners.contains(listener)) {
-            this.listeners.add(listener);
-        }
-    }
-
-    public void removeListener(PropertyChangeListener listener) {
-        this.listeners.remove(listener);
-    }
-
-    public void firePropertyChangeEvent(PropertyChangeEvent propertyChangeEvent) {
-        for (PropertyChangeListener listener : this.listeners) {
-            listener.propertyChange(propertyChangeEvent);
-        }
+    public void notifyChange(Node node) {
+        this.view.updateNode(node);
     }
 
     public void executeOperation(IUndoableOperation operation) {

@@ -11,5 +11,33 @@
             name="GoProt Editor">
       </editor>
    </extension>
+   <extension
+         point="org.eclipse.ui.menus">
+      <menuContribution
+            allPopups="false"
+            locationURI="popup:com.dynamo.cr.goprot.menus.NodeOutlineContext">
+         <command
+               commandId="com.dynamo.cr.goprot.commands.AddComponent"
+               label="Add Component"
+               style="push">
+         </command>
+         <separator
+               name="com.dynamo.cr.tileeditor.separator1"
+               visible="true">
+         </separator>
+         <command
+               commandId="org.eclipse.ui.edit.delete"
+               label="Delete"
+               style="push">
+         </command>
+      </menuContribution>
+   </extension>
+   <extension
+         point="org.eclipse.ui.contexts">
+      <context
+            id="com.dynamo.cr.goprot.contexts.Editor"
+            name="GoProt Editor">
+      </context>
+   </extension>
 
 </plugin>

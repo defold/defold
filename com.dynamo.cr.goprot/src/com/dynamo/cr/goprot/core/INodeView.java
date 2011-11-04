@@ -6,7 +6,8 @@ import java.io.InputStream;
 public interface INodeView {
 
     public interface Presenter {
-        void onSelect(Node node);
+        void onSelect(Node[] nodes);
+        void onRefresh();
 
         void onLoad(InputStream contents) throws IOException;
     }

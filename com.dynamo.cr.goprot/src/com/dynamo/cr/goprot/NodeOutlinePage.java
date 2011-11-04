@@ -1,0 +1,211 @@
+package com.dynamo.cr.goprot;
+
+import javax.inject.Inject;
+
+import org.eclipse.jface.action.MenuManager;
+import org.eclipse.jface.action.Separator;
+import org.eclipse.jface.viewers.ColumnLabelProvider;
+import org.eclipse.jface.viewers.ColumnViewerToolTipSupport;
+import org.eclipse.jface.viewers.IStructuredSelection;
+import org.eclipse.jface.viewers.ITreeContentProvider;
+import org.eclipse.jface.viewers.LabelProvider;
+import org.eclipse.jface.viewers.SelectionChangedEvent;
+import org.eclipse.jface.viewers.TreeViewer;
+import org.eclipse.jface.viewers.Viewer;
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.graphics.Image;
+import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Menu;
+import org.eclipse.ui.IActionBars;
+import org.eclipse.ui.IWorkbenchActionConstants;
+import org.eclipse.ui.actions.ActionFactory;
+import org.eclipse.ui.contexts.IContextService;
+import org.eclipse.ui.operations.RedoActionHandler;
+import org.eclipse.ui.operations.UndoActionHandler;
+import org.eclipse.ui.part.IPageSite;
+import org.eclipse.ui.views.contentoutline.ContentOutlinePage;
+
+import com.dynamo.cr.goprot.core.INodeView;
+import com.dynamo.cr.goprot.core.Node;
+import com.dynamo.cr.goprot.core.NodeManager;
+
+public class NodeOutlinePage extends ContentOutlinePage implements INodeOutlinePage {
+
+    private static final String MENU_ID = "com.dynamo.cr.goprot.menus.NodeOutlineContext";
+
+    private final NodeManager manager;
+    private final UndoActionHandler undoHandler;
+    private final RedoActionHandler redoHandler;
+    private final RootItem root;
+    // needed to avoid circumference when selecting programatically vs manually
+    private boolean ignoreSelection = false;
+
+    @Inject
+    public NodeOutlinePage(NodeManager manager, UndoActionHandler undoHandler, RedoActionHandler redoHandler) {
+        this.manager = manager;
+        this.undoHandler = undoHandler;
+        this.redoHandler = redoHandler;
+        this.root = new RootItem();
+    }
+
+    @Override
+    public void init(IPageSite pageSite) {
+        super.init(pageSite);
+        IActionBars actionBars = pageSite.getActionBars();
+        actionBars.setGlobalActionHandler(ActionFactory.UNDO.getId(), undoHandler);
+        actionBars.setGlobalActionHandler(ActionFactory.REDO.getId(), redoHandler);
+    }
+
+    @Override
+    public void setInput(Node node) {
+        TreeViewer viewer = getTreeViewer();
+        if (viewer != null) {
+            this.root.node = node;
+            viewer.setInput(this.root);
+            viewer.expandAll();
+        }
+    }
+
+    @Override
+    public void update(Node node) {
+        TreeViewer viewer = getTreeViewer();
+        if (viewer != null) {
+            if (node != null && node.getParent() != null) {
+                viewer.refresh(node);
+            } else {
+                if (node != null && this.root.node == null) {
+                    setInput(node);
+                } else {
+                    viewer.refresh();
+                }
+            }
+        }
+    }
+
+    private static class RootItem {
+        public Node node;
+    }
+
+    class OutlineContentProvider implements ITreeContentProvider {
+        @Override
+        public void dispose() {
+        }
+
+        @Override
+        public void inputChanged(Viewer viewer, Object oldInput, Object newInput) {
+        }
+
+        @Override
+        public Object[] getElements(Object inputElement) {
+            if (inputElement instanceof RootItem && root.node != null) {
+                return new Object[] {root.node};
+            } else if (inputElement instanceof Node) {
+                Node node = (Node)inputElement;
+                return node.getChildren().toArray();
+            }
+
+            return new Object[0];
+        }
+
+        @Override
+        public Object[] getChildren(Object parentElement) {
+            return getElements(parentElement);
+        }
+
+        @Override
+        public Object getParent(Object element) {
+            if (element instanceof Node) {
+                Node node = (Node)element;
+                Node parent = node.getParent();
+                if (parent != null) {
+                    return parent;
+                } else {
+                    return root;
+                }
+            }
+            return null;
+        }
+
+        @Override
+        public boolean hasChildren(Object element) {
+            if (element instanceof RootItem) {
+                return root.node != null;
+            } else if (element instanceof Node) {
+                Node node = (Node)element;
+                return node.hasChildren();
+            }
+            return false;
+        }
+    }
+
+    class OutlineColumnLabelProvider extends ColumnLabelProvider {
+
+        @Override
+        public Image getImage(Object element) {
+            Image image = null;
+
+            if (element instanceof Node) {
+                Node node = (Node)element;
+                image = node.getImage();
+            }
+
+            if (image != null)
+                return image;
+            else
+                return super.getImage(element);
+        }
+
+    }
+
+    @Override
+    public void createControl(Composite parent) {
+        super.createControl(parent);
+
+        final TreeViewer viewer = getTreeViewer();
+        ColumnViewerToolTipSupport.enableFor(viewer);
+        viewer.getTree().setHeaderVisible(false);
+        viewer.setContentProvider(new OutlineContentProvider());
+        viewer.setLabelProvider(new LabelProvider());
+        viewer.setLabelProvider(new OutlineColumnLabelProvider());
+        viewer.setInput(this.root);
+        viewer.expandToLevel(2);
+
+        // Pop-up context menu
+        MenuManager menuManager = new MenuManager();
+        menuManager.add(new Separator(IWorkbenchActionConstants.MB_ADDITIONS));
+        Menu menu = menuManager.createContextMenu(viewer.getTree());
+        viewer.getTree().setMenu(menu);
+        getSite().registerContextMenu(MENU_ID, menuManager, viewer);
+
+        // This makes sure the context will be active while this component is
+        IContextService contextService = (IContextService) getSite()
+                .getService(IContextService.class);
+        contextService.activateContext(Activator.GOPROT_CONTEXT_ID);
+
+        INodeView.Presenter presenter = manager.getDefaultPresenter();
+        presenter.onRefresh();
+    }
+
+    @Override
+    protected int getTreeStyle() {
+        return SWT.SINGLE | SWT.H_SCROLL | SWT.V_SCROLL;
+    }
+
+    @Override
+    public void selectionChanged(SelectionChangedEvent event) {
+        super.selectionChanged(event);
+        if (!this.ignoreSelection) {
+            if (event.getSelection() instanceof IStructuredSelection) {
+                Object[] selection = ((IStructuredSelection)event.getSelection()).toArray();
+                Node[] nodes = new Node[selection.length];
+                int n = selection.length;
+                for (int i = 0; i < n; ++i) {
+                    nodes[i] = (Node)selection[i];
+                }
+                INodeView.Presenter presenter = manager.getDefaultPresenter();
+                presenter.onSelect(nodes);
+            }
+        }
+    }
+
+}

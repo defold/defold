@@ -36,7 +36,7 @@ public class GameObjectPresenter extends NodePresenter {
         @SuppressWarnings("unused")
         PrototypeDesc desc = builder.build();
         GameObjectNode gameObject = new GameObjectNode();
-        this.model.setRoot(gameObject);
         // TODO: Fill out game object
+        this.model.setRoot(gameObject);
     }
 }
