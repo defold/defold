@@ -8,7 +8,7 @@ import com.dynamo.cr.goprot.core.Node;
 public class NodeView implements INodeView {
 
     @SuppressWarnings("unused")
-    @Inject private Editor editor;
+    @Inject private NodeEditor editor;
     @Inject private INodeOutlinePage outline;
 
     @Override

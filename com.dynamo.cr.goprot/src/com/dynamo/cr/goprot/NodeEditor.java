@@ -35,7 +35,7 @@ import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
 
-public class Editor extends AbstractDefoldEditor {
+public class NodeEditor extends AbstractDefoldEditor {
 
     private INodeOutlinePage outlinePage;
 
@@ -53,7 +53,7 @@ public class Editor extends AbstractDefoldEditor {
             bind(DefaultNodePresenter.class).in(Singleton.class);
             bind(GameObjectPresenter.class).in(Singleton.class);
             bind(SpritePresenter.class).in(Singleton.class);
-            bind(Editor.class).toInstance(Editor.this);
+            bind(NodeEditor.class).toInstance(NodeEditor.this);
 
             bind(IOperationHistory.class).toInstance(history);
             bind(IUndoContext.class).toInstance(undoContext);

@@ -4,7 +4,7 @@
    <extension
          point="org.eclipse.ui.editors">
       <editor
-            class="com.dynamo.cr.goprot.Editor"
+            class="com.dynamo.cr.goprot.NodeEditor"
             default="false"
             extensions="go, sprite"
             id="com.dynamo.cr.goprot.editor"
