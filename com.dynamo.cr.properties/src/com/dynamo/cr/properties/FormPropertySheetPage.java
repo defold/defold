@@ -8,9 +8,8 @@ import org.eclipse.swt.widgets.Control;
 import org.eclipse.ui.IActionBars;
 import org.eclipse.ui.IPartListener;
 import org.eclipse.ui.IWorkbenchPart;
-import org.eclipse.ui.views.properties.IPropertySheetPage;
 
-public class FormPropertySheetPage implements IPropertySheetPage {
+public class FormPropertySheetPage implements IFormPropertySheetPage {
 
     private IWorkbenchPart sourcePart;
     private FormPropertySheetViewer viewer;
@@ -93,6 +92,7 @@ public class FormPropertySheetPage implements IPropertySheetPage {
         }
     }
 
+    @Override
     public void refresh() {
         if (viewer != null) {
             viewer.refresh();

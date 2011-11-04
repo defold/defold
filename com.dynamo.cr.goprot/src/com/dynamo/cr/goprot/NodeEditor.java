@@ -20,6 +20,7 @@ import org.eclipse.ui.operations.RedoActionHandler;
 import org.eclipse.ui.operations.UndoActionHandler;
 import org.eclipse.ui.progress.IProgressService;
 import org.eclipse.ui.views.contentoutline.IContentOutlinePage;
+import org.eclipse.ui.views.properties.IPropertySheetPage;
 
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.core.inject.LifecycleModule;
@@ -31,6 +32,7 @@ import com.dynamo.cr.goprot.gameobject.GameObjectNode;
 import com.dynamo.cr.goprot.gameobject.GameObjectPresenter;
 import com.dynamo.cr.goprot.sprite.SpriteNode;
 import com.dynamo.cr.goprot.sprite.SpritePresenter;
+import com.dynamo.cr.properties.IFormPropertySheetPage;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
@@ -38,6 +40,7 @@ import com.google.inject.Injector;
 public class NodeEditor extends AbstractDefoldEditor {
 
     private INodeOutlinePage outlinePage;
+    private IFormPropertySheetPage propertySheetPage;
 
     private IContainer contentRoot;
     private LifecycleModule module;
@@ -47,6 +50,7 @@ public class NodeEditor extends AbstractDefoldEditor {
         @Override
         protected void configure() {
             bind(INodeOutlinePage.class).to(NodeOutlinePage.class).in(Singleton.class);
+            bind(IFormPropertySheetPage.class).to(NodePropertySheetPage.class).in(Singleton.class);
             bind(INodeView.class).to(NodeView.class).in(Singleton.class);
             bind(NodeModel.class).in(Singleton.class);
             bind(NodeManager.class).in(Singleton.class);
@@ -92,6 +96,8 @@ public class NodeEditor extends AbstractDefoldEditor {
         actionBars.setGlobalActionHandler(redoId, redoHandler);
 
         this.outlinePage = injector.getInstance(INodeOutlinePage.class);
+        this.propertySheetPage = injector.getInstance(IFormPropertySheetPage.class);
+
         this.manager = injector.getInstance(NodeManager.class);
         this.manager.setDefaultPresenter(injector.getInstance(DefaultNodePresenter.class));
         // TODO: Replace with extension point
@@ -177,7 +183,9 @@ public class NodeEditor extends AbstractDefoldEditor {
 
     @Override
     public Object getAdapter(@SuppressWarnings("rawtypes") Class adapter) {
-        if (adapter == IContentOutlinePage.class) {
+        if (adapter == IPropertySheetPage.class) {
+            return this.propertySheetPage;
+        } else if (adapter == IContentOutlinePage.class) {
             return this.outlinePage;
         } else {
             return super.getAdapter(adapter);

@@ -4,9 +4,15 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import org.eclipse.core.runtime.IAdaptable;
 import org.eclipse.swt.graphics.Image;
 
-public class Node {
+import com.dynamo.cr.properties.Entity;
+import com.dynamo.cr.properties.IPropertyModel;
+import com.dynamo.cr.properties.PropertyIntrospectorModel;
+
+@Entity(commandFactory = NodeUndoableCommandFactory.class)
+public class Node implements IAdaptable {
 
     private NodeModel model;
     private boolean selected;
@@ -73,4 +79,13 @@ public class Node {
     public Image getImage() {
         return null;
     }
+
+    @Override
+    public Object getAdapter(@SuppressWarnings("rawtypes") Class adapter) {
+        if (adapter == IPropertyModel.class) {
+            return new PropertyIntrospectorModel<Node, NodeModel>(this, this.model, NodeModel.nodeIntrospector);
+        }
+        return null;
+    }
+
 }

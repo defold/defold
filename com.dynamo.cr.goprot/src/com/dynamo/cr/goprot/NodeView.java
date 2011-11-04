@@ -4,16 +4,17 @@ import javax.inject.Inject;
 
 import com.dynamo.cr.goprot.core.INodeView;
 import com.dynamo.cr.goprot.core.Node;
+import com.dynamo.cr.properties.IFormPropertySheetPage;
 
 public class NodeView implements INodeView {
 
-    @SuppressWarnings("unused")
-    @Inject private NodeEditor editor;
     @Inject private INodeOutlinePage outline;
+    @Inject private IFormPropertySheetPage propertySheetPage;
 
     @Override
     public void updateNode(Node node) {
-        outline.update(node);
+        this.outline.update(node);
+        this.propertySheetPage.refresh();
     }
 
 }

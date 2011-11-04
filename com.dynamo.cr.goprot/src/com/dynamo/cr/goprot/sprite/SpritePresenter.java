@@ -36,7 +36,8 @@ public class SpritePresenter extends NodePresenter {
         @SuppressWarnings("unused")
         SpriteDesc desc = builder.build();
         SpriteNode sprite = new SpriteNode();
-        // TODO: Fill out sprite
+        // TODO: Fill out sprite correctly
+        sprite.setTileSet("");
         this.model.setRoot(sprite);
     }
 

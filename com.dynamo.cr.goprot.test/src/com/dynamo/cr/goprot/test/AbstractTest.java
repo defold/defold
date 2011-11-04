@@ -1,6 +1,9 @@
 package com.dynamo.cr.goprot.test;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -9,13 +12,24 @@ import org.eclipse.core.commands.operations.DefaultOperationHistory;
 import org.eclipse.core.commands.operations.IOperationHistory;
 import org.eclipse.core.commands.operations.IUndoContext;
 import org.eclipse.core.commands.operations.UndoContext;
+import org.eclipse.core.resources.IContainer;
+import org.eclipse.core.resources.IFile;
+import org.eclipse.core.resources.IProject;
+import org.eclipse.core.resources.IProjectDescription;
+import org.eclipse.core.resources.IWorkspace;
+import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
+import org.eclipse.core.runtime.IPath;
+import org.eclipse.core.runtime.Path;
+import org.eclipse.core.runtime.Platform;
 import org.junit.Before;
+import org.osgi.framework.Bundle;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.goprot.core.INodeView;
 import com.dynamo.cr.goprot.core.Node;
 import com.dynamo.cr.goprot.core.NodeManager;
@@ -35,6 +49,8 @@ public abstract class AbstractTest {
     protected IOperationHistory history;
     protected IUndoContext undoContext;
     protected Map<Node, Integer> updateCounts;
+    private IContainer contentRoot;
+    private IProject project;
 
     protected static class TestLogger implements ILogger {
 
@@ -54,6 +70,7 @@ public abstract class AbstractTest {
             bind(IOperationHistory.class).to(DefaultOperationHistory.class).in(Singleton.class);
             bind(IUndoContext.class).to(UndoContext.class).in(Singleton.class);
             bind(ILogger.class).to(TestLogger.class);
+            bind(IContainer.class).toInstance(contentRoot);
         }
     }
 
@@ -62,6 +79,35 @@ public abstract class AbstractTest {
     @Before
     public void setup() throws CoreException, IOException {
         System.setProperty("java.awt.headless", "true");
+
+        IWorkspace workspace = ResourcesPlugin.getWorkspace();
+        this.project = workspace.getRoot().getProject("test");
+        if (this.project.exists()) {
+            this.project.delete(true, null);
+        }
+        this.project.create(null);
+        this.project.open(null);
+
+        IProjectDescription pd = this.project.getDescription();
+        pd.setNatureIds(new String[] { "com.dynamo.cr.editor.core.crnature" });
+        this.project.setDescription(pd, null);
+
+        Bundle bundle = Platform.getBundle("com.dynamo.cr.goprot.test");
+        Enumeration<URL> entries = bundle.findEntries("/test", "*", true);
+        while (entries.hasMoreElements()) {
+            URL url = entries.nextElement();
+            IPath path = new Path(url.getPath()).removeFirstSegments(1);
+            // Create path of url-path and remove first element, ie /test/sounds/ -> /sounds
+            if (url.getFile().endsWith("/")) {
+                this.project.getFolder(path).create(true, true, null);
+            } else {
+                InputStream is = url.openStream();
+                IFile file = this.project.getFile(path);
+                file.create(is, true, null);
+                is.close();
+            }
+        }
+        this.contentRoot = EditorUtil.findContentRoot(this.project.getFile("game.project"));
 
         this.view = mock(INodeView.class);
 
