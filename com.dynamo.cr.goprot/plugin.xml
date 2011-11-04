@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+   <extension
+         point="org.eclipse.ui.editors">
+      <editor
+            class="com.dynamo.cr.goprot.Editor"
+            default="false"
+            extensions="go, sprite"
+            id="com.dynamo.cr.goprot.editor"
+            name="GoProt Editor">
+      </editor>
+   </extension>
+
+</plugin>

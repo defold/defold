@@ -1,5 +1,6 @@
 package com.dynamo.cr.goprot.test;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 
 import org.eclipse.core.commands.ExecutionException;
@@ -8,6 +9,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import com.dynamo.cr.goprot.gameobject.ComponentNode;
 import com.dynamo.cr.goprot.gameobject.GameObjectNode;
@@ -73,6 +75,14 @@ public class GameObjectTest extends AbstractTest {
         assertEquals(1, node.getChildren().size());
         assertEquals(component, node.getChildren().get(0));
         verifyUpdate(node);
+    }
+
+    @Test
+    public void testLoading() throws IOException {
+        String ddf = "";
+        GameObjectPresenter presenter = (GameObjectPresenter)this.manager.getPresenter(GameObjectNode.class);
+        presenter.onLoad(new ByteArrayInputStream(ddf.getBytes()));
+        assertTrue(this.model.getRoot() instanceof GameObjectNode);
     }
 
     @Override

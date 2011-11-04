@@ -6,7 +6,7 @@ import java.beans.PropertyChangeListener;
 import com.dynamo.cr.goprot.core.INodeView.Presenter;
 import com.google.inject.Inject;
 
-public class NodePresenter implements Presenter, PropertyChangeListener {
+public abstract class NodePresenter implements Presenter, PropertyChangeListener {
 
     final protected NodeModel model;
     final private INodeView view;

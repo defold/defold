@@ -1,5 +1,6 @@
 package com.dynamo.cr.goprot.test;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 
 import org.eclipse.core.commands.ExecutionException;
@@ -8,6 +9,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import com.dynamo.cr.goprot.sprite.AnimationNode;
 import com.dynamo.cr.goprot.sprite.SpriteNode;
@@ -73,6 +75,14 @@ public class SpriteTest extends AbstractTest {
         assertEquals(1, sprite.getChildren().size());
         assertEquals(animation, sprite.getChildren().get(0));
         verifyUpdate(sprite);
+    }
+
+    @Test
+    public void testLoading() throws IOException {
+        String ddf = "texture: '' width: 1 height: 1";
+        SpritePresenter presenter = (SpritePresenter)this.manager.getPresenter(SpriteNode.class);
+        presenter.onLoad(new ByteArrayInputStream(ddf.getBytes()));
+        assertTrue(this.model.getRoot() instanceof SpriteNode);
     }
 
     @Override
