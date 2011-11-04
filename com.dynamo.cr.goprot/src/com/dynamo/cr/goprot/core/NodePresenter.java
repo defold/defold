@@ -1,8 +1,5 @@
 package com.dynamo.cr.goprot.core;
 
-import java.beans.PropertyChangeEvent;
-import java.beans.PropertyChangeListener;
-
 import com.dynamo.cr.goprot.core.INodeView.Presenter;
 import com.google.inject.Inject;
 
