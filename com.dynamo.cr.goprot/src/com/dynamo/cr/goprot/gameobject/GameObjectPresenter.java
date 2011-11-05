@@ -4,7 +4,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 
+import org.eclipse.jface.viewers.IStructuredSelection;
+
 import com.dynamo.cr.goprot.core.INodeView;
+import com.dynamo.cr.goprot.core.Node;
 import com.dynamo.cr.goprot.core.NodeModel;
 import com.dynamo.cr.goprot.core.NodePresenter;
 import com.dynamo.cr.goprot.sprite.SpriteNode;
@@ -20,7 +23,24 @@ public class GameObjectPresenter extends NodePresenter {
         super(model, view);
     }
 
-    public void onAddComponent(GameObjectNode parent, String componentType) {
+    public void onAddComponent(String componentType) {
+        // Find selected game objects
+        // TODO: Support multi selection
+        IStructuredSelection structuredSelection = this.model.getSelection();
+        Object[] nodes = structuredSelection.toArray();
+        GameObjectNode parent = null;
+        for (Object node : nodes) {
+            if (node instanceof GameObjectNode) {
+                parent = (GameObjectNode)node;
+                break;
+            } else if (node instanceof ComponentNode) {
+                parent = (GameObjectNode)((Node)node).getParent();
+                break;
+            }
+        }
+        if (parent == null) {
+            throw new UnsupportedOperationException("No game object in selection.");
+        }
         // TODO: Use node factory
         ComponentNode child = null;
         if (componentType.equals("sprite")) {
@@ -33,8 +53,19 @@ public class GameObjectPresenter extends NodePresenter {
         }
     }
 
-    public void onRemoveComponent(ComponentNode child) {
-        this.model.executeOperation(new RemoveComponentOperation(child));
+    public void onRemoveComponent() {
+        // Find selected components
+        // TODO: Support multi selection
+        IStructuredSelection structuredSelection = this.model.getSelection();
+        Object[] nodes = structuredSelection.toArray();
+        ComponentNode component = null;
+        for (Object node : nodes) {
+            if (node instanceof ComponentNode) {
+                component = (ComponentNode)node;
+                break;
+            }
+        }
+        this.model.executeOperation(new RemoveComponentOperation(component));
     }
 
     @Override

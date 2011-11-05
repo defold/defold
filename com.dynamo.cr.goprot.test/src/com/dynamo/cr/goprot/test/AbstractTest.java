@@ -22,14 +22,17 @@ import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Platform;
+import org.eclipse.jface.viewers.IStructuredSelection;
 import org.junit.Before;
 import org.osgi.framework.Bundle;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.any;
 
 import com.dynamo.cr.editor.core.EditorUtil;
+import com.dynamo.cr.goprot.DefaultNodePresenter;
 import com.dynamo.cr.goprot.core.INodeView;
 import com.dynamo.cr.goprot.core.Node;
 import com.dynamo.cr.goprot.core.NodeManager;
@@ -49,7 +52,8 @@ public abstract class AbstractTest {
     protected NodeManager manager;
     protected IOperationHistory history;
     protected IUndoContext undoContext;
-    protected Map<Node, Integer> updateCounts;
+    private Map<Node, Integer> updateCounts;
+    private int selectCount;
     private IContainer contentRoot;
     private IProject project;
 
@@ -67,6 +71,7 @@ public abstract class AbstractTest {
         protected void configure() {
             bind(NodeModel.class).in(Singleton.class);
             bind(NodeManager.class).in(Singleton.class);
+            bind(DefaultNodePresenter.class).in(Singleton.class);
             bind(INodeView.class).toInstance(view);
             bind(IOperationHistory.class).to(DefaultOperationHistory.class).in(Singleton.class);
             bind(IUndoContext.class).to(UndoContext.class).in(Singleton.class);
@@ -115,10 +120,12 @@ public abstract class AbstractTest {
         this.injector = Guice.createInjector(getModule());
         this.model = this.injector.getInstance(NodeModel.class);
         this.manager = this.injector.getInstance(NodeManager.class);
+        this.manager.setDefaultPresenter(this.injector.getInstance(DefaultNodePresenter.class));
         this.history = this.injector.getInstance(IOperationHistory.class);
         this.undoContext = this.injector.getInstance(IUndoContext.class);
 
         this.updateCounts = new HashMap<Node, Integer>();
+        this.selectCount = 0;
     }
 
     // Helpers
@@ -140,6 +147,15 @@ public abstract class AbstractTest {
         }
         this.updateCounts.put(node, count);
         verify(this.view, times(count.intValue())).updateNode(node);
+    }
+
+    protected void verifySelection() {
+        ++this.selectCount;
+        verify(this.view, times(this.selectCount)).updateSelection(any(IStructuredSelection.class));
+    }
+
+    protected void verifyNoSelection() {
+        verify(this.view, times(this.selectCount)).updateSelection(any(IStructuredSelection.class));
     }
 
     @SuppressWarnings("unchecked")

@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 
+import org.eclipse.jface.viewers.IStructuredSelection;
+
 import com.dynamo.cr.goprot.core.INodeView;
 import com.dynamo.cr.goprot.core.NodeModel;
 import com.dynamo.cr.goprot.core.NodePresenter;
@@ -19,11 +21,33 @@ public class SpritePresenter extends NodePresenter {
         super(model, view);
     }
 
-    public void onAddAnimation(SpriteNode sprite) {
+    public void onAddAnimation() {
+        // Find selected sprite
+        // TODO: Support multi selection
+        IStructuredSelection structuredSelection = this.model.getSelection();
+        Object[] nodes = structuredSelection.toArray();
+        SpriteNode sprite = null;
+        for (Object node : nodes) {
+            if (node instanceof SpriteNode) {
+                sprite = (SpriteNode)node;
+                break;
+            }
+        }
         this.model.executeOperation(new AddAnimationOperation(sprite));
     }
 
-    public void onRemoveAnimation(AnimationNode animation) {
+    public void onRemoveAnimation() {
+        // Find selected components
+        // TODO: Support multi selection
+        IStructuredSelection structuredSelection = this.model.getSelection();
+        Object[] nodes = structuredSelection.toArray();
+        AnimationNode animation = null;
+        for (Object node : nodes) {
+            if (node instanceof AnimationNode) {
+                animation = (AnimationNode)node;
+                break;
+            }
+        }
         this.model.executeOperation(new RemoveAnimationOperation(animation));
     }
 

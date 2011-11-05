@@ -4,6 +4,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 
 import org.eclipse.core.runtime.CoreException;
+import org.eclipse.jface.viewers.StructuredSelection;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -44,6 +45,7 @@ public class SpriteTest extends AbstractTest {
         Node root = this.model.getRoot();
         assertTrue(root instanceof SpriteNode);
         verifyUpdate(root);
+        verifySelection();
     }
 
     @Test
@@ -52,19 +54,22 @@ public class SpriteTest extends AbstractTest {
 
         SpriteNode sprite = (SpriteNode)this.model.getRoot();
         SpritePresenter presenter = (SpritePresenter)this.manager.getPresenter(SpriteNode.class);
-        presenter.onAddAnimation(sprite);
+        presenter.onAddAnimation();
         assertEquals(1, sprite.getChildren().size());
         assertTrue(sprite.getChildren().get(0) instanceof AnimationNode);
         verifyUpdate(sprite);
+        verifySelection();
 
         undo();
         assertEquals(0, sprite.getChildren().size());
         verifyUpdate(sprite);
+        verifySelection();
 
         redo();
         assertEquals(1, sprite.getChildren().size());
         assertTrue(sprite.getChildren().get(0) instanceof AnimationNode);
         verifyUpdate(sprite);
+        verifySelection();
     }
 
     @Test
@@ -75,21 +80,24 @@ public class SpriteTest extends AbstractTest {
         AnimationNode animation = (AnimationNode)sprite.getChildren().get(0);
         SpritePresenter presenter = (SpritePresenter)this.manager.getPresenter(SpriteNode.class);
 
-        presenter.onRemoveAnimation(animation);
+        presenter.onRemoveAnimation();
         assertEquals(0, sprite.getChildren().size());
         assertEquals(null, animation.getParent());
         verifyUpdate(sprite);
+        verifySelection();
 
         undo();
         assertEquals(1, sprite.getChildren().size());
         assertEquals(animation, sprite.getChildren().get(0));
         assertEquals(sprite, animation.getParent());
         verifyUpdate(sprite);
+        verifySelection();
 
         redo();
         assertEquals(0, sprite.getChildren().size());
         assertEquals(null, animation.getParent());
         verifyUpdate(sprite);
+        verifySelection();
     }
 
     @Test

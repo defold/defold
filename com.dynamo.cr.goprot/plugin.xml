@@ -119,9 +119,14 @@
             class="com.dynamo.cr.goprot.gameobject.AddComponentHandler"
             commandId="com.dynamo.cr.goprot.commands.add">
          <activeWhen>
-            <reference
-                  definitionId="com.dynamo.cr.goprot.definitions.gameObjectSelected">
-            </reference>
+            <or>
+               <reference
+                     definitionId="com.dynamo.cr.goprot.definitions.gameObjectSelected">
+               </reference>
+               <reference
+                     definitionId="com.dynamo.cr.goprot.definitions.componentSelected">
+               </reference>
+            </or>
          </activeWhen>
       </handler>
       <handler

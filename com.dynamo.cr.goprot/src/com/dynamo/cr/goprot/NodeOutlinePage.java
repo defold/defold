@@ -6,10 +6,10 @@ import org.eclipse.jface.action.MenuManager;
 import org.eclipse.jface.action.Separator;
 import org.eclipse.jface.viewers.ColumnLabelProvider;
 import org.eclipse.jface.viewers.ColumnViewerToolTipSupport;
-import org.eclipse.jface.viewers.IStructuredSelection;
+import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.ITreeContentProvider;
 import org.eclipse.jface.viewers.LabelProvider;
-import org.eclipse.jface.viewers.SelectionChangedEvent;
+import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.jface.viewers.TreeViewer;
 import org.eclipse.jface.viewers.Viewer;
 import org.eclipse.swt.SWT;
@@ -17,7 +17,9 @@ import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Menu;
 import org.eclipse.ui.IActionBars;
+import org.eclipse.ui.ISelectionListener;
 import org.eclipse.ui.IWorkbenchActionConstants;
+import org.eclipse.ui.IWorkbenchPart;
 import org.eclipse.ui.actions.ActionFactory;
 import org.eclipse.ui.contexts.IContextService;
 import org.eclipse.ui.operations.RedoActionHandler;
@@ -29,7 +31,7 @@ import com.dynamo.cr.goprot.core.INodeView;
 import com.dynamo.cr.goprot.core.Node;
 import com.dynamo.cr.goprot.core.NodeManager;
 
-public class NodeOutlinePage extends ContentOutlinePage implements INodeOutlinePage {
+public class NodeOutlinePage extends ContentOutlinePage implements INodeOutlinePage, ISelectionListener {
 
     private static final String MENU_ID = "com.dynamo.cr.goprot.menus.NodeOutlineContext";
 
@@ -37,8 +39,6 @@ public class NodeOutlinePage extends ContentOutlinePage implements INodeOutlineP
     private final UndoActionHandler undoHandler;
     private final RedoActionHandler redoHandler;
     private final RootItem root;
-    // needed to avoid circumference when selecting programatically vs manually
-    private boolean ignoreSelection = false;
 
     @Inject
     public NodeOutlinePage(NodeManager manager, UndoActionHandler undoHandler, RedoActionHandler redoHandler) {
@@ -57,12 +57,19 @@ public class NodeOutlinePage extends ContentOutlinePage implements INodeOutlineP
     }
 
     @Override
+    public void dispose() {
+        super.dispose();
+        getSite().getPage().removeSelectionListener(this);
+    }
+
+    @Override
     public void setInput(Node node) {
         TreeViewer viewer = getTreeViewer();
         if (viewer != null) {
             this.root.node = node;
             viewer.setInput(this.root);
-            viewer.expandAll();
+            viewer.setSelection(new StructuredSelection(node));
+            viewer.expandToLevel(2);
         }
     }
 
@@ -182,6 +189,8 @@ public class NodeOutlinePage extends ContentOutlinePage implements INodeOutlineP
                 .getService(IContextService.class);
         contextService.activateContext(Activator.GOPROT_CONTEXT_ID);
 
+        getSite().getPage().addSelectionListener(this);
+
         INodeView.Presenter presenter = manager.getDefaultPresenter();
         presenter.onRefresh();
     }
@@ -192,19 +201,10 @@ public class NodeOutlinePage extends ContentOutlinePage implements INodeOutlineP
     }
 
     @Override
-    public void selectionChanged(SelectionChangedEvent event) {
-        super.selectionChanged(event);
-        if (!this.ignoreSelection) {
-            if (event.getSelection() instanceof IStructuredSelection) {
-                Object[] selection = ((IStructuredSelection)event.getSelection()).toArray();
-                Node[] nodes = new Node[selection.length];
-                int n = selection.length;
-                for (int i = 0; i < n; ++i) {
-                    nodes[i] = (Node)selection[i];
-                }
-                INodeView.Presenter presenter = manager.getDefaultPresenter();
-                presenter.onSelect(nodes);
-            }
+    public void selectionChanged(IWorkbenchPart part, ISelection selection) {
+        if (part instanceof NodeEditor) {
+            TreeViewer viewer = getTreeViewer();
+            viewer.setSelection(selection, true);
         }
     }
 

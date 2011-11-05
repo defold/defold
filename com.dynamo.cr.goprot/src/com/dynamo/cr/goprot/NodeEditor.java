@@ -8,17 +8,23 @@ import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IResourceChangeEvent;
 import org.eclipse.core.runtime.IProgressMonitor;
+import org.eclipse.jface.viewers.ISelection;
+import org.eclipse.jface.viewers.ISelectionProvider;
+import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.ui.IActionBars;
 import org.eclipse.ui.IEditorInput;
 import org.eclipse.ui.IEditorSite;
 import org.eclipse.ui.IFileEditorInput;
+import org.eclipse.ui.ISelectionListener;
+import org.eclipse.ui.IWorkbenchPart;
 import org.eclipse.ui.PartInitException;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.actions.ActionFactory;
 import org.eclipse.ui.operations.RedoActionHandler;
 import org.eclipse.ui.operations.UndoActionHandler;
 import org.eclipse.ui.progress.IProgressService;
+import org.eclipse.ui.views.contentoutline.ContentOutline;
 import org.eclipse.ui.views.contentoutline.IContentOutlinePage;
 import org.eclipse.ui.views.properties.IPropertySheetPage;
 
@@ -37,10 +43,11 @@ import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
 
-public class NodeEditor extends AbstractDefoldEditor {
+public class NodeEditor extends AbstractDefoldEditor implements ISelectionListener {
 
     private INodeOutlinePage outlinePage;
     private IFormPropertySheetPage propertySheetPage;
+    private ISelectionProvider selectionProvider;
 
     private IContainer contentRoot;
     private LifecycleModule module;
@@ -52,6 +59,7 @@ public class NodeEditor extends AbstractDefoldEditor {
             bind(INodeOutlinePage.class).to(NodeOutlinePage.class).in(Singleton.class);
             bind(IFormPropertySheetPage.class).to(NodePropertySheetPage.class).in(Singleton.class);
             bind(INodeView.class).to(NodeView.class).in(Singleton.class);
+            bind(ISelectionProvider.class).to(NodeSelectionProvider.class).in(Singleton.class);
             bind(NodeModel.class).in(Singleton.class);
             bind(NodeManager.class).in(Singleton.class);
             bind(DefaultNodePresenter.class).in(Singleton.class);
@@ -97,6 +105,7 @@ public class NodeEditor extends AbstractDefoldEditor {
 
         this.outlinePage = injector.getInstance(INodeOutlinePage.class);
         this.propertySheetPage = injector.getInstance(IFormPropertySheetPage.class);
+        this.selectionProvider = injector.getInstance(ISelectionProvider.class);
 
         this.manager = injector.getInstance(NodeManager.class);
         this.manager.setDefaultPresenter(injector.getInstance(DefaultNodePresenter.class));
@@ -128,6 +137,13 @@ public class NodeEditor extends AbstractDefoldEditor {
         } catch (Throwable e) {
             throw new PartInitException(e.getMessage(), e);
         }
+    }
+
+    @Override
+    public void dispose() {
+        super.dispose();
+
+        getSite().getPage().removeSelectionListener(this);
     }
 
     @Override
@@ -169,7 +185,8 @@ public class NodeEditor extends AbstractDefoldEditor {
     @Override
     public void createPartControl(Composite parent) {
         // Set the outline as selection provider
-        getSite().setSelectionProvider(this.outlinePage);
+        getSite().setSelectionProvider(this.selectionProvider);
+        getSite().getPage().addSelectionListener(this);
 
         INodeView.Presenter presenter = this.manager.getDefaultPresenter();
         presenter.onRefresh();
@@ -195,6 +212,14 @@ public class NodeEditor extends AbstractDefoldEditor {
     @SuppressWarnings("rawtypes")
     public INodeView.Presenter getPresenter(Class c) {
         return this.manager.getPresenter(c);
+    }
+
+    @Override
+    public void selectionChanged(IWorkbenchPart part, ISelection selection) {
+        if ((part instanceof NodeEditor || part instanceof ContentOutline)
+                && selection instanceof IStructuredSelection) {
+            this.manager.getDefaultPresenter().onSelect((IStructuredSelection)selection);
+        }
     }
 
 }

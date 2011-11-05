@@ -8,6 +8,8 @@ import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.runtime.IAdaptable;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
+import org.eclipse.jface.viewers.IStructuredSelection;
+import org.eclipse.jface.viewers.StructuredSelection;
 
 import com.dynamo.cr.goprot.core.ILogger;
 import com.dynamo.cr.properties.Entity;
@@ -25,6 +27,7 @@ public class NodeModel implements INodeWorld, IAdaptable {
     private final IUndoContext undoContext;
     private final ILogger logger;
     private final IContainer contentRoot;
+    private IStructuredSelection selection;
 
     private static PropertyIntrospector<NodeModel, NodeModel> introspector = new PropertyIntrospector<NodeModel, NodeModel>(NodeModel.class, Messages.class);
     public static PropertyIntrospector<Node, NodeModel> nodeIntrospector = new PropertyIntrospector<Node, NodeModel>(Node.class);
@@ -36,6 +39,7 @@ public class NodeModel implements INodeWorld, IAdaptable {
         this.undoContext = undoContext;
         this.logger = logger;
         this.contentRoot = contentRoot;
+        this.selection = new StructuredSelection();
     }
 
     public Node getRoot() {
@@ -47,6 +51,18 @@ public class NodeModel implements INodeWorld, IAdaptable {
             this.root = root;
             root.setModel(this);
             notifyChange(root);
+            setSelection(new StructuredSelection(this.root));
+        }
+    }
+
+    public IStructuredSelection getSelection() {
+        return this.selection;
+    }
+
+    public void setSelection(IStructuredSelection selection) {
+        if (!this.selection.equals(selection)) {
+            this.selection = selection;
+            this.view.updateSelection(this.selection);
         }
     }
 
