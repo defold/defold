@@ -19,12 +19,12 @@ public class SpritePresenter extends NodePresenter {
         super(model, view);
     }
 
-    public void onAddAnimation(SpriteNode sprite, AnimationNode animation) {
-        this.model.executeOperation(new AddAnimationOperation(sprite, animation));
+    public void onAddAnimation(SpriteNode sprite) {
+        this.model.executeOperation(new AddAnimationOperation(sprite));
     }
 
-    public void onRemoveAnimation(SpriteNode sprite, AnimationNode animation) {
-        this.model.executeOperation(new RemoveAnimationOperation(sprite, animation));
+    public void onRemoveAnimation(AnimationNode animation) {
+        this.model.executeOperation(new RemoveAnimationOperation(animation));
     }
 
     @Override

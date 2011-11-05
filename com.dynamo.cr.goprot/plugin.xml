@@ -17,9 +17,26 @@
             allPopups="false"
             locationURI="popup:com.dynamo.cr.goprot.menus.NodeOutlineContext">
          <command
-               commandId="com.dynamo.cr.goprot.commands.addComponent"
+               commandId="com.dynamo.cr.goprot.commands.add"
                label="Add Component"
                style="push">
+            <visibleWhen
+                  checkEnabled="false">
+               <reference
+                     definitionId="com.dynamo.cr.goprot.definitions.gameObjectSelected">
+               </reference>
+            </visibleWhen>
+         </command>
+         <command
+               commandId="com.dynamo.cr.goprot.commands.add"
+               label="Add Animation"
+               style="push">
+            <visibleWhen
+                  checkEnabled="false">
+               <reference
+                     definitionId="com.dynamo.cr.goprot.definitions.spriteSelected">
+               </reference>
+            </visibleWhen>
          </command>
          <separator
                name="com.dynamo.cr.tileeditor.separator1"
@@ -37,25 +54,49 @@
          <menu
                label="Game Object">
             <command
-                  commandId="com.dynamo.cr.goprot.commands.addComponent"
+                  commandId="com.dynamo.cr.goprot.commands.add"
                   label="Add Component"
                   style="push">
             </command>
             <visibleWhen
                   checkEnabled="false">
-               <iterate
-                     operator="or">
-                  <or>
-                     <instanceof
-                           value="com.dynamo.cr.goprot.gameobject.GameObjectNode">
-                     </instanceof>
-                     <instanceof
-                           value="com.dynamo.cr.goprot.gameobject.ComponentNode">
-                     </instanceof>
-                  </or>
-               </iterate>
+               <or>
+                  <reference
+                        definitionId="com.dynamo.cr.goprot.definitions.gameObjectSelected">
+                  </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.goprot.definitions.componentSelected">
+                  </reference>
+               </or>
             </visibleWhen>
          </menu>
+      </menuContribution>
+      <menuContribution
+            allPopups="false"
+            locationURI="menu:org.eclipse.ui.main.menu?after=edit">
+         <menu
+               label="Sprite">
+            <command
+                  commandId="com.dynamo.cr.goprot.commands.add"
+                  label="Add Animation"
+                  style="push">
+            </command>
+            <visibleWhen
+                  checkEnabled="false">
+               <or>
+                  <reference
+                        definitionId="com.dynamo.cr.goprot.definitions.spriteSelected">
+                  </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.goprot.definitions.animationSelected">
+                  </reference>
+               </or>
+            </visibleWhen>
+         </menu>
+      </menuContribution>
+      <menuContribution
+            allPopups="false"
+            locationURI="menu:org.eclipse.ui.main.menu?after=edit">
       </menuContribution>
    </extension>
    <extension
@@ -68,46 +109,108 @@
    <extension
          point="org.eclipse.ui.commands">
       <command
-            description="Adds a component"
-            id="com.dynamo.cr.goprot.commands.addComponent"
-            name="Add Component">
+            id="com.dynamo.cr.goprot.commands.add"
+            name="Add">
       </command>
    </extension>
    <extension
          point="org.eclipse.ui.handlers">
       <handler
             class="com.dynamo.cr.goprot.gameobject.AddComponentHandler"
-            commandId="com.dynamo.cr.goprot.commands.addComponent">
+            commandId="com.dynamo.cr.goprot.commands.add">
          <activeWhen>
-            <iterate
-                  operator="or">
-               <instanceof
-                     value="com.dynamo.cr.goprot.gameobject.GameObjectNode">
-               </instanceof>
-            </iterate>
+            <reference
+                  definitionId="com.dynamo.cr.goprot.definitions.gameObjectSelected">
+            </reference>
          </activeWhen>
       </handler>
       <handler
             class="com.dynamo.cr.goprot.gameobject.RemoveComponentHandler"
             commandId="org.eclipse.ui.edit.delete">
          <activeWhen>
-            <iterate
-                  operator="and">
-               <instanceof
-                     value="com.dynamo.cr.goprot.gameobject.ComponentNode">
-               </instanceof>
-            </iterate>
+            <reference
+                  definitionId="com.dynamo.cr.goprot.definitions.componentSelected">
+            </reference>
+         </activeWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.goprot.sprite.AddAnimationHandler"
+            commandId="com.dynamo.cr.goprot.commands.add">
+         <activeWhen>
+            <reference
+                  definitionId="com.dynamo.cr.goprot.definitions.spriteSelected">
+            </reference>
+         </activeWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.goprot.sprite.RemoveAnimationHandler"
+            commandId="org.eclipse.ui.edit.delete">
+         <activeWhen>
+            <reference
+                  definitionId="com.dynamo.cr.goprot.definitions.animationSelected">
+            </reference>
          </activeWhen>
       </handler>
    </extension>
    <extension
          point="org.eclipse.ui.bindings">
       <key
-            commandId="com.dynamo.cr.goprot.commands.addComponent"
+            commandId="com.dynamo.cr.goprot.commands.add"
             contextId="com.dynamo.cr.goprot.contexts.nodeEditor"
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
             sequence="I">
       </key>
+   </extension>
+   <extension
+         point="org.eclipse.core.expressions.definitions">
+      <definition
+            id="com.dynamo.cr.goprot.definitions.gameObjectSelected">
+         <with
+               variable="selection">
+            <iterate
+                  operator="or">
+               <instanceof
+                     value="com.dynamo.cr.goprot.gameobject.GameObjectNode">
+               </instanceof>
+            </iterate>
+         </with>
+      </definition>
+      <definition
+            id="com.dynamo.cr.goprot.definitions.componentSelected">
+         <with
+               variable="selection">
+            <iterate
+                  operator="or">
+               <instanceof
+                     value="com.dynamo.cr.goprot.gameobject.ComponentNode">
+               </instanceof>
+            </iterate>
+         </with>
+      </definition>
+      <definition
+            id="com.dynamo.cr.goprot.definitions.spriteSelected">
+         <with
+               variable="selection">
+            <iterate
+                  operator="or">
+               <instanceof
+                     value="com.dynamo.cr.goprot.sprite.SpriteNode">
+               </instanceof>
+            </iterate>
+         </with>
+      </definition>
+      <definition
+            id="com.dynamo.cr.goprot.definitions.animationSelected">
+         <with
+               variable="selection">
+            <iterate
+                  operator="or">
+               <instanceof
+                     value="com.dynamo.cr.goprot.sprite.AnimationNode">
+               </instanceof>
+            </iterate>
+         </with>
+      </definition>
    </extension>
 
 </plugin>

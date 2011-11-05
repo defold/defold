@@ -43,22 +43,18 @@ public class SpriteTest extends AbstractTest {
     public void testAddAnimation() throws ExecutionException {
         SpriteNode sprite = (SpriteNode)this.model.getRoot();
         SpritePresenter presenter = (SpritePresenter)this.manager.getPresenter(SpriteNode.class);
-        AnimationNode animation = new AnimationNode();
-        presenter.onAddAnimation(sprite, animation);
+        presenter.onAddAnimation(sprite);
         assertEquals(1, sprite.getChildren().size());
-        assertEquals(animation, sprite.getChildren().get(0));
-        assertEquals(sprite, animation.getParent());
+        assertTrue(sprite.getChildren().get(0) instanceof AnimationNode);
         verifyUpdate(sprite);
 
         undo();
         assertEquals(0, sprite.getChildren().size());
-        assertEquals(null, animation.getParent());
         verifyUpdate(sprite);
 
         redo();
         assertEquals(1, sprite.getChildren().size());
-        assertEquals(animation, sprite.getChildren().get(0));
-        assertEquals(sprite, animation.getParent());
+        assertTrue(sprite.getChildren().get(0) instanceof AnimationNode);
         verifyUpdate(sprite);
     }
 
@@ -70,7 +66,7 @@ public class SpriteTest extends AbstractTest {
         sprite.addAnimation(animation);
         verifyUpdate(sprite);
 
-        presenter.onRemoveAnimation(sprite, animation);
+        presenter.onRemoveAnimation(animation);
         assertEquals(0, sprite.getChildren().size());
         assertEquals(null, animation.getParent());
         verifyUpdate(sprite);

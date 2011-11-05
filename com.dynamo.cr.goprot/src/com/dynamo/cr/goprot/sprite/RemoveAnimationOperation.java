@@ -12,9 +12,9 @@ public class RemoveAnimationOperation extends AbstractOperation {
     final private SpriteNode sprite;
     final private AnimationNode animation;
 
-    public RemoveAnimationOperation(SpriteNode sprite, AnimationNode animation) {
+    public RemoveAnimationOperation(AnimationNode animation) {
         super("Remove Component");
-        this.sprite = sprite;
+        this.sprite = (SpriteNode)animation.getParent();
         this.animation = animation;
     }
 

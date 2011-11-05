@@ -12,10 +12,11 @@ public class AddAnimationOperation extends AbstractOperation {
     final private SpriteNode sprite;
     final private AnimationNode animation;
 
-    public AddAnimationOperation(SpriteNode sprite, AnimationNode animation) {
+    public AddAnimationOperation(SpriteNode sprite) {
         super("Add Animation");
         this.sprite = sprite;
-        this.animation = animation;
+        this.animation = new AnimationNode();
+        this.animation.setId("animation");
     }
 
     @Override
