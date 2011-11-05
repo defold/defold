@@ -17,7 +17,7 @@
             allPopups="false"
             locationURI="popup:com.dynamo.cr.goprot.menus.NodeOutlineContext">
          <command
-               commandId="com.dynamo.cr.goprot.commands.AddComponent"
+               commandId="com.dynamo.cr.goprot.commands.addComponent"
                label="Add Component"
                style="push">
          </command>
@@ -31,13 +31,83 @@
                style="push">
          </command>
       </menuContribution>
+      <menuContribution
+            allPopups="false"
+            locationURI="menu:org.eclipse.ui.main.menu?after=edit">
+         <menu
+               label="Game Object">
+            <command
+                  commandId="com.dynamo.cr.goprot.commands.addComponent"
+                  label="Add Component"
+                  style="push">
+            </command>
+            <visibleWhen
+                  checkEnabled="false">
+               <iterate
+                     operator="or">
+                  <or>
+                     <instanceof
+                           value="com.dynamo.cr.goprot.gameobject.GameObjectNode">
+                     </instanceof>
+                     <instanceof
+                           value="com.dynamo.cr.goprot.gameobject.ComponentNode">
+                     </instanceof>
+                  </or>
+               </iterate>
+            </visibleWhen>
+         </menu>
+      </menuContribution>
    </extension>
    <extension
          point="org.eclipse.ui.contexts">
       <context
-            id="com.dynamo.cr.goprot.contexts.Editor"
+            id="com.dynamo.cr.goprot.contexts.nodeEditor"
             name="GoProt Editor">
       </context>
+   </extension>
+   <extension
+         point="org.eclipse.ui.commands">
+      <command
+            description="Adds a component"
+            id="com.dynamo.cr.goprot.commands.addComponent"
+            name="Add Component">
+      </command>
+   </extension>
+   <extension
+         point="org.eclipse.ui.handlers">
+      <handler
+            class="com.dynamo.cr.goprot.gameobject.AddComponentHandler"
+            commandId="com.dynamo.cr.goprot.commands.addComponent">
+         <activeWhen>
+            <iterate
+                  operator="or">
+               <instanceof
+                     value="com.dynamo.cr.goprot.gameobject.GameObjectNode">
+               </instanceof>
+            </iterate>
+         </activeWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.goprot.gameobject.RemoveComponentHandler"
+            commandId="org.eclipse.ui.edit.delete">
+         <activeWhen>
+            <iterate
+                  operator="and">
+               <instanceof
+                     value="com.dynamo.cr.goprot.gameobject.ComponentNode">
+               </instanceof>
+            </iterate>
+         </activeWhen>
+      </handler>
+   </extension>
+   <extension
+         point="org.eclipse.ui.bindings">
+      <key
+            commandId="com.dynamo.cr.goprot.commands.addComponent"
+            contextId="com.dynamo.cr.goprot.contexts.nodeEditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="I">
+      </key>
    </extension>
 
 </plugin>

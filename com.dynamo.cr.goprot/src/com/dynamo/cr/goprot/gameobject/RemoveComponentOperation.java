@@ -12,9 +12,9 @@ public class RemoveComponentOperation extends AbstractOperation {
     final private GameObjectNode gameObject;
     final private ComponentNode component;
 
-    public RemoveComponentOperation(GameObjectNode gameObject, ComponentNode component) {
+    public RemoveComponentOperation(ComponentNode component) {
         super("Remove Component");
-        this.gameObject = gameObject;
+        this.gameObject = (GameObjectNode)component.getParent();
         this.component = component;
     }
 

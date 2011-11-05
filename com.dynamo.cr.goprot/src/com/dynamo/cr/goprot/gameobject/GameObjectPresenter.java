@@ -7,6 +7,7 @@ import java.io.InputStreamReader;
 import com.dynamo.cr.goprot.core.INodeView;
 import com.dynamo.cr.goprot.core.NodeModel;
 import com.dynamo.cr.goprot.core.NodePresenter;
+import com.dynamo.cr.goprot.sprite.SpriteNode;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc.Builder;
 import com.google.inject.Inject;
@@ -19,12 +20,21 @@ public class GameObjectPresenter extends NodePresenter {
         super(model, view);
     }
 
-    public void onAddComponent(GameObjectNode parent, ComponentNode child) {
-        this.model.executeOperation(new AddComponentOperation(parent, child));
+    public void onAddComponent(GameObjectNode parent, String componentType) {
+        // TODO: Use node factory
+        ComponentNode child = null;
+        if (componentType.equals("sprite")) {
+            child = new SpriteNode();
+        }
+        if (child != null) {
+            this.model.executeOperation(new AddComponentOperation(parent, child));
+        } else {
+            throw new UnsupportedOperationException("Component type " + componentType + " not registered.");
+        }
     }
 
-    public void onRemoveComponent(GameObjectNode parent, ComponentNode child) {
-        this.model.executeOperation(new RemoveComponentOperation(parent, child));
+    public void onRemoveComponent(ComponentNode child) {
+        this.model.executeOperation(new RemoveComponentOperation(child));
     }
 
     @Override

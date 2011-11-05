@@ -12,7 +12,7 @@ public class Activator extends AbstractUIPlugin {
     public static final String PLUGIN_ID = "com.dynamo.cr.goprot"; //$NON-NLS-1$
 
     // Context IDs
-    public static final String GOPROT_CONTEXT_ID = "com.dynamo.cr.goprot.contexts.Editor"; //$NON-NLS-1$
+    public static final String GOPROT_CONTEXT_ID = "com.dynamo.cr.goprot.contexts.nodeEditor"; //$NON-NLS-1$
 
     // The shared instance
     private static Activator plugin;

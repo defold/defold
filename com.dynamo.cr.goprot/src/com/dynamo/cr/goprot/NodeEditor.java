@@ -192,4 +192,9 @@ public class NodeEditor extends AbstractDefoldEditor {
         }
     }
 
+    @SuppressWarnings("rawtypes")
+    public INodeView.Presenter getPresenter(Class c) {
+        return this.manager.getPresenter(c);
+    }
+
 }

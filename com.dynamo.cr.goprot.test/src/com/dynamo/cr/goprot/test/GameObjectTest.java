@@ -43,22 +43,19 @@ public class GameObjectTest extends AbstractTest {
     public void testAddComponent() throws ExecutionException {
         GameObjectNode node = (GameObjectNode)this.model.getRoot();
         GameObjectPresenter presenter = (GameObjectPresenter)this.manager.getPresenter(GameObjectNode.class);
-        ComponentNode component = new ComponentNode();
-        presenter.onAddComponent(node, component);
+        String componentType = "sprite";
+        presenter.onAddComponent(node, componentType);
         assertEquals(1, node.getChildren().size());
-        assertEquals(component, node.getChildren().get(0));
-        assertEquals(node, component.getParent());
+        assertTrue(node.getChildren().get(0) instanceof ComponentNode);
         verifyUpdate(node);
 
         undo();
         assertEquals(0, node.getChildren().size());
-        assertEquals(null, component.getParent());
         verifyUpdate(node);
 
         redo();
         assertEquals(1, node.getChildren().size());
-        assertEquals(component, node.getChildren().get(0));
-        assertEquals(node, component.getParent());
+        assertTrue(node.getChildren().get(0) instanceof ComponentNode);
         verifyUpdate(node);
     }
 
@@ -70,7 +67,7 @@ public class GameObjectTest extends AbstractTest {
         node.addComponent(component);
         verifyUpdate(node);
 
-        presenter.onRemoveComponent(node, component);
+        presenter.onRemoveComponent(component);
         assertEquals(0, node.getChildren().size());
         assertEquals(null, component.getParent());
         verifyUpdate(node);

@@ -13,7 +13,7 @@ public class SpriteNode extends ComponentNode {
 
     @Property(isResource = true)
     @Resource
-    private String tileSet;
+    private String tileSet = "";
 
     public String getTileSet() {
         return this.tileSet;

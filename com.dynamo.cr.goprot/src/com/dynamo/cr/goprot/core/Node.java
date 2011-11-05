@@ -54,6 +54,7 @@ public class Node implements IAdaptable {
         if (!this.children.contains(child)) {
             children.add(child);
             child.parent = this;
+            child.model = this.model;
             notifyChange();
         }
     }
