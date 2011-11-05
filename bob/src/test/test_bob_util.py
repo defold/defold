@@ -1,3 +1,4 @@
+from __future__ import with_statement
 from bob import change_ext, task, create_task, add_task
 from os.path import splitext
 

@@ -1,3 +1,4 @@
+from __future__ import with_statement
 import re
 from os.path import join, normpath, exists, dirname
 from bob import add_task, task, change_ext, execute_command, find_cmd, register

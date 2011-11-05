@@ -6,7 +6,7 @@ APPNAME = 'bob'
 srcdir = '.'
 blddir = 'build'
 
-import os
+import os, sys
 import Options
 
 def init():
@@ -34,4 +34,19 @@ def build(bld):
 def shutdown():
     if not Options.commands['build'] or getattr(Options.options, 'skip_tests', False):
         return
-    os.system('python src/test/test_bob.py')
+
+    # unit-test currently requires gcc
+    if sys.platform == 'win32':
+        return
+
+    ret = os.system('python src/test/test_bob.py')
+    if ret != 0: raise Exception('unit-test failed')
+
+    dynamo_home = os.getenv('DYNAMO_HOME')
+    classpath = ['lib/jython.jar',
+                 'src',
+                 os.path.join(dynamo_home, 'ext/lib/python/protobuf-2.3.0-py2.5.egg')]
+
+    ret = os.system('java -cp %s org.python.util.jython src/test/test_bob.py' %
+                    os.pathsep.join(classpath))
+    if ret != 0: raise Exception('unit-test failed')

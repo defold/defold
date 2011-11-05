@@ -1,3 +1,4 @@
+from __future__ import with_statement
 import unittest, sys
 from os import unlink, mkdir
 from os.path import exists
@@ -191,6 +192,7 @@ r = build(p, listener = null_listener)
 
     def test_listener(self):
         script = '''
+from __future__ import with_statement
 
 class Listener(object):
     def __init__(self):
