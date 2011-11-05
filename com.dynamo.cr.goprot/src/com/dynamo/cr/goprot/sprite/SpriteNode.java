@@ -1,15 +1,10 @@
 package com.dynamo.cr.goprot.sprite;
 
-import com.dynamo.cr.goprot.core.Messages;
-import com.dynamo.cr.goprot.core.NodeModel;
 import com.dynamo.cr.goprot.core.Resource;
-import com.dynamo.cr.goprot.gameobject.ComponentNode;
-import com.dynamo.cr.properties.IPropertyModel;
+import com.dynamo.cr.goprot.gameobject.ComponentTypeNode;
 import com.dynamo.cr.properties.Property;
-import com.dynamo.cr.properties.PropertyIntrospector;
-import com.dynamo.cr.properties.PropertyIntrospectorModel;
 
-public class SpriteNode extends ComponentNode {
+public class SpriteNode extends ComponentTypeNode {
 
     @Property(isResource = true)
     @Resource
@@ -20,7 +15,10 @@ public class SpriteNode extends ComponentNode {
     }
 
     public void setTileSet(String tileSet) {
-        this.tileSet = tileSet;
+        if (this.tileSet != null ? !this.tileSet.equals(tileSet) : tileSet != null) {
+            this.tileSet = tileSet;
+            notifyChange();
+        }
     }
 
     public void addAnimation(AnimationNode animation) {
@@ -31,13 +29,14 @@ public class SpriteNode extends ComponentNode {
         removeChild(animation);
     }
 
-    private static PropertyIntrospector<SpriteNode, NodeModel> introspector = new PropertyIntrospector<SpriteNode, NodeModel>(SpriteNode.class, Messages.class);
+    @Override
+    public String getTypeName() {
+        return "Sprite";
+    }
 
     @Override
-    public Object getAdapter(@SuppressWarnings("rawtypes") Class adapter) {
-        if (adapter == IPropertyModel.class) {
-            return new PropertyIntrospectorModel<SpriteNode, NodeModel>(this, getModel(), introspector);
-        }
-        return null;
+    public String toString() {
+        return getTypeName();
     }
+
 }

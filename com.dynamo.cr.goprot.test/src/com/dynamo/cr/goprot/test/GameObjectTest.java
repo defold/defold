@@ -14,6 +14,7 @@ import static org.junit.Assert.assertTrue;
 import com.dynamo.cr.goprot.gameobject.ComponentNode;
 import com.dynamo.cr.goprot.gameobject.GameObjectNode;
 import com.dynamo.cr.goprot.gameobject.GameObjectPresenter;
+import com.dynamo.cr.goprot.sprite.SpriteNode;
 import com.google.inject.Module;
 import com.google.inject.Singleton;
 
@@ -46,7 +47,7 @@ public class GameObjectTest extends AbstractTest {
         String componentType = "sprite";
         presenter.onAddComponent(node, componentType);
         assertEquals(1, node.getChildren().size());
-        assertTrue(node.getChildren().get(0) instanceof ComponentNode);
+        assertEquals("sprite", node.getChildren().get(0).toString());
         verifyUpdate(node);
 
         undo();
@@ -55,7 +56,7 @@ public class GameObjectTest extends AbstractTest {
 
         redo();
         assertEquals(1, node.getChildren().size());
-        assertTrue(node.getChildren().get(0) instanceof ComponentNode);
+        assertEquals("sprite", node.getChildren().get(0).toString());
         verifyUpdate(node);
     }
 
@@ -63,7 +64,7 @@ public class GameObjectTest extends AbstractTest {
     public void testRemoveComponent() throws ExecutionException {
         GameObjectNode node = (GameObjectNode)this.model.getRoot();
         GameObjectPresenter presenter = (GameObjectPresenter)this.manager.getPresenter(GameObjectNode.class);
-        ComponentNode component = new ComponentNode();
+        ComponentNode component = new ComponentNode(new SpriteNode());
         node.addComponent(component);
         verifyUpdate(node);
 
@@ -82,6 +83,27 @@ public class GameObjectTest extends AbstractTest {
         assertEquals(0, node.getChildren().size());
         assertEquals(null, component.getParent());
         verifyUpdate(node);
+    }
+
+    @Test
+    public void testSetId() throws ExecutionException {
+        testAddComponent();
+
+        ComponentNode component = (ComponentNode)this.model.getRoot().getChildren().get(0);
+        String oldId = component.getId();
+        String newId = "sprite1";
+
+        setNodeProperty(component, "id", newId);
+        assertEquals(newId, component.getId());
+        verifyUpdate(component);
+
+        undo();
+        assertEquals(oldId, component.getId());
+        verifyUpdate(component);
+
+        redo();
+        assertEquals(newId, component.getId());
+        verifyUpdate(component);
     }
 
     @Test

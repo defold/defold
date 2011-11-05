@@ -16,6 +16,8 @@ public class AddComponentOperation extends AbstractOperation {
         super("Add Component");
         this.gameObject = gameObject;
         this.component = component;
+        ComponentTypeNode componentType = (ComponentTypeNode)component.getChildren().get(0);
+        this.component.setId(componentType.getTypeName().toLowerCase());
     }
 
     @Override

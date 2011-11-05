@@ -88,6 +88,25 @@ public class SpriteTest extends AbstractTest {
     }
 
     @Test
+    public void testSetTileSet() throws ExecutionException {
+        SpriteNode sprite = (SpriteNode)this.model.getRoot();
+        String oldTileSet = sprite.getTileSet();
+        String newTileSet = "test.tileset";
+
+        setNodeProperty(sprite, "tileSet", newTileSet);
+        assertEquals(newTileSet, sprite.getTileSet());
+        verifyUpdate(sprite);
+
+        undo();
+        assertEquals(oldTileSet, sprite.getTileSet());
+        verifyUpdate(sprite);
+
+        redo();
+        assertEquals(newTileSet, sprite.getTileSet());
+        verifyUpdate(sprite);
+    }
+
+    @Test
     public void testLoading() throws IOException {
         String ddf = "texture: '' width: 1 height: 1";
         SpritePresenter presenter = (SpritePresenter)this.manager.getPresenter(SpriteNode.class);

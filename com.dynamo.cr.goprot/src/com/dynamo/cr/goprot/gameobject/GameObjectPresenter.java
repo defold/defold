@@ -24,7 +24,7 @@ public class GameObjectPresenter extends NodePresenter {
         // TODO: Use node factory
         ComponentNode child = null;
         if (componentType.equals("sprite")) {
-            child = new SpriteNode();
+            child = new ComponentNode(new SpriteNode());
         }
         if (child != null) {
             this.model.executeOperation(new AddComponentOperation(parent, child));

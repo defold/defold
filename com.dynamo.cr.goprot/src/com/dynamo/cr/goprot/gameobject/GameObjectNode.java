@@ -12,4 +12,9 @@ public class GameObjectNode extends Node {
         removeChild(component);
     }
 
+    @Override
+    public String toString() {
+        return "Game Object";
+    }
+
 }

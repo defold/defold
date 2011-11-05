@@ -35,6 +35,7 @@ import com.dynamo.cr.goprot.core.Node;
 import com.dynamo.cr.goprot.core.NodeManager;
 import com.dynamo.cr.goprot.core.NodeModel;
 import com.dynamo.cr.goprot.core.ILogger;
+import com.dynamo.cr.properties.IPropertyModel;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
@@ -139,6 +140,12 @@ public abstract class AbstractTest {
         }
         this.updateCounts.put(node, count);
         verify(this.view, times(count.intValue())).updateNode(node);
+    }
+
+    @SuppressWarnings("unchecked")
+    protected void setNodeProperty(Node node, Object id, Object value) {
+        IPropertyModel<? extends Node, NodeModel> propertyModel = (IPropertyModel<? extends Node, NodeModel>)node.getAdapter(IPropertyModel.class);
+        this.model.executeOperation(propertyModel.setPropertyValue(id, value));
     }
 
 }
