@@ -43,7 +43,7 @@ def shutdown():
     if ret != 0: raise Exception('unit-test failed')
 
     dynamo_home = os.getenv('DYNAMO_HOME')
-    classpath = ['lib/jython.jar',
+    classpath = [os.path.join(dynamo_home,'ext/share/java/jython.jar'),
                  'src',
                  os.path.join(dynamo_home, 'ext/lib/python/protobuf-2.3.0-py2.5.egg')]
 
