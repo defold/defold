@@ -3,7 +3,6 @@ package com.dynamo.cr.goprot.test;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 
-import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.runtime.CoreException;
 import org.junit.Before;
 import org.junit.Test;
