@@ -11,6 +11,7 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import com.dynamo.cr.goprot.core.Node;
 import com.dynamo.cr.goprot.sprite.AnimationNode;
 import com.dynamo.cr.goprot.sprite.SpriteNode;
 import com.dynamo.cr.goprot.sprite.SpritePresenter;
@@ -31,16 +32,25 @@ public class SpriteTest extends AbstractTest {
     @Before
     public void setup() throws CoreException, IOException {
         super.setup();
-        SpriteNode sprite = new SpriteNode();
-        this.model.setRoot(sprite);
-        verifyUpdate(sprite);
         this.manager.registerPresenter(SpriteNode.class, this.injector.getInstance(SpritePresenter.class));
     }
 
     // Tests
 
     @Test
-    public void testAddAnimation() throws ExecutionException {
+    public void testLoad() throws IOException {
+        String ddf = "texture: '' width: 1 height: 1";
+        SpritePresenter presenter = (SpritePresenter)this.manager.getPresenter(SpriteNode.class);
+        presenter.onLoad(new ByteArrayInputStream(ddf.getBytes()));
+        Node root = this.model.getRoot();
+        assertTrue(root instanceof SpriteNode);
+        verifyUpdate(root);
+    }
+
+    @Test
+    public void testAddAnimation() throws Exception {
+        testLoad();
+
         SpriteNode sprite = (SpriteNode)this.model.getRoot();
         SpritePresenter presenter = (SpritePresenter)this.manager.getPresenter(SpriteNode.class);
         presenter.onAddAnimation(sprite);
@@ -59,12 +69,12 @@ public class SpriteTest extends AbstractTest {
     }
 
     @Test
-    public void testRemoveAnimation() throws ExecutionException {
+    public void testRemoveAnimation() throws Exception {
+        testAddAnimation();
+
         SpriteNode sprite = (SpriteNode)this.model.getRoot();
+        AnimationNode animation = (AnimationNode)sprite.getChildren().get(0);
         SpritePresenter presenter = (SpritePresenter)this.manager.getPresenter(SpriteNode.class);
-        AnimationNode animation = new AnimationNode();
-        sprite.addAnimation(animation);
-        verifyUpdate(sprite);
 
         presenter.onRemoveAnimation(animation);
         assertEquals(0, sprite.getChildren().size());
@@ -84,7 +94,9 @@ public class SpriteTest extends AbstractTest {
     }
 
     @Test
-    public void testSetTileSet() throws ExecutionException {
+    public void testSetTileSet() throws Exception {
+        testLoad();
+
         SpriteNode sprite = (SpriteNode)this.model.getRoot();
         String oldTileSet = sprite.getTileSet();
         String newTileSet = "test.tileset";
@@ -100,14 +112,6 @@ public class SpriteTest extends AbstractTest {
         redo();
         assertEquals(newTileSet, sprite.getTileSet());
         verifyUpdate(sprite);
-    }
-
-    @Test
-    public void testLoading() throws IOException {
-        String ddf = "texture: '' width: 1 height: 1";
-        SpritePresenter presenter = (SpritePresenter)this.manager.getPresenter(SpriteNode.class);
-        presenter.onLoad(new ByteArrayInputStream(ddf.getBytes()));
-        assertTrue(this.model.getRoot() instanceof SpriteNode);
     }
 
     @Override

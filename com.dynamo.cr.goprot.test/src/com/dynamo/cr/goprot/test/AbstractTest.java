@@ -134,9 +134,9 @@ public abstract class AbstractTest {
     protected void verifyUpdate(Node node) {
         Integer count = this.updateCounts.get(node);
         if (count == null) {
-            count = new Integer(1);
+            count = 1;
         } else {
-            count = new Integer(count.intValue() + 1);
+            count = count + 1;
         }
         this.updateCounts.put(node, count);
         verify(this.view, times(count.intValue())).updateNode(node);
