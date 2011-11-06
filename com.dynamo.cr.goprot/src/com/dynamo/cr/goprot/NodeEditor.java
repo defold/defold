@@ -32,12 +32,14 @@ import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.core.inject.LifecycleModule;
 import com.dynamo.cr.goprot.core.ILogger;
 import com.dynamo.cr.goprot.core.INodeView;
+import com.dynamo.cr.goprot.core.Node;
 import com.dynamo.cr.goprot.core.NodeManager;
 import com.dynamo.cr.goprot.core.NodeModel;
 import com.dynamo.cr.goprot.gameobject.GameObjectNode;
 import com.dynamo.cr.goprot.gameobject.GameObjectPresenter;
 import com.dynamo.cr.goprot.sprite.SpriteNode;
 import com.dynamo.cr.goprot.sprite.SpritePresenter;
+import com.dynamo.cr.goprot.sprite.SpriteRenderer;
 import com.dynamo.cr.properties.IFormPropertySheetPage;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
@@ -48,6 +50,7 @@ public class NodeEditor extends AbstractDefoldEditor implements ISelectionListen
     private INodeOutlinePage outlinePage;
     private IFormPropertySheetPage propertySheetPage;
     private ISelectionProvider selectionProvider;
+    private SceneView sceneView;
 
     private IContainer contentRoot;
     private LifecycleModule module;
@@ -59,6 +62,7 @@ public class NodeEditor extends AbstractDefoldEditor implements ISelectionListen
             bind(INodeOutlinePage.class).to(NodeOutlinePage.class).in(Singleton.class);
             bind(IFormPropertySheetPage.class).to(NodePropertySheetPage.class).in(Singleton.class);
             bind(INodeView.class).to(NodeView.class).in(Singleton.class);
+            bind(SceneView.class).in(Singleton.class);
             bind(ISelectionProvider.class).to(NodeSelectionProvider.class).in(Singleton.class);
             bind(NodeModel.class).in(Singleton.class);
             bind(NodeManager.class).in(Singleton.class);
@@ -106,12 +110,13 @@ public class NodeEditor extends AbstractDefoldEditor implements ISelectionListen
         this.outlinePage = injector.getInstance(INodeOutlinePage.class);
         this.propertySheetPage = injector.getInstance(IFormPropertySheetPage.class);
         this.selectionProvider = injector.getInstance(ISelectionProvider.class);
+        this.sceneView = injector.getInstance(SceneView.class);
 
         this.manager = injector.getInstance(NodeManager.class);
         this.manager.setDefaultPresenter(injector.getInstance(DefaultNodePresenter.class));
         // TODO: Replace with extension point
-        this.manager.registerPresenter(GameObjectNode.class, injector.getInstance(GameObjectPresenter.class));
-        this.manager.registerPresenter(SpriteNode.class, injector.getInstance(SpritePresenter.class));
+        this.manager.registerNodeType(GameObjectNode.class, injector.getInstance(GameObjectPresenter.class), null);
+        this.manager.registerNodeType(SpriteNode.class, injector.getInstance(SpritePresenter.class), new SpriteRenderer());
 
         IProgressService service = PlatformUI.getWorkbench().getProgressService();
 
@@ -142,6 +147,10 @@ public class NodeEditor extends AbstractDefoldEditor implements ISelectionListen
     @Override
     public void dispose() {
         super.dispose();
+        module.close();
+        if (this.sceneView != null) {
+            this.sceneView.dispose();
+        }
 
         getSite().getPage().removeSelectionListener(this);
     }
@@ -184,6 +193,8 @@ public class NodeEditor extends AbstractDefoldEditor implements ISelectionListen
 
     @Override
     public void createPartControl(Composite parent) {
+        this.sceneView.createControls(parent);
+
         // Set the outline as selection provider
         getSite().setSelectionProvider(this.selectionProvider);
         getSite().getPage().addSelectionListener(this);
@@ -194,8 +205,7 @@ public class NodeEditor extends AbstractDefoldEditor implements ISelectionListen
 
     @Override
     public void setFocus() {
-        // TODO Auto-generated method stub
-
+        this.sceneView.setFocus();
     }
 
     @Override
@@ -209,8 +219,7 @@ public class NodeEditor extends AbstractDefoldEditor implements ISelectionListen
         }
     }
 
-    @SuppressWarnings("rawtypes")
-    public INodeView.Presenter getPresenter(Class c) {
+    public INodeView.Presenter getPresenter(Class<? extends Node> c) {
         return this.manager.getPresenter(c);
     }
 

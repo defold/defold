@@ -77,15 +77,7 @@ public class NodeOutlinePage extends ContentOutlinePage implements INodeOutlineP
     public void update(Node node) {
         TreeViewer viewer = getTreeViewer();
         if (viewer != null) {
-            if (node != null && node.getParent() != null) {
-                viewer.refresh(node);
-            } else {
-                if (node != null && this.root.node == null) {
-                    setInput(node);
-                } else {
-                    viewer.refresh();
-                }
-            }
+            viewer.refresh(node);
         }
     }
 

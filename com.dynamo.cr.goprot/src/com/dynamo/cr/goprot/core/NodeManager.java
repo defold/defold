@@ -3,23 +3,24 @@ package com.dynamo.cr.goprot.core;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.dynamo.cr.goprot.INodeRenderer;
+
 public class NodeManager {
-    @SuppressWarnings("rawtypes")
-    private Map<Class, INodeView.Presenter> presenters;
+    private Map<Class<? extends Node>, INodeView.Presenter> presenters;
     private INodeView.Presenter defaultPresenter;
+    private Map<Class<? extends Node>, INodeRenderer> renderers;
 
-    @SuppressWarnings("rawtypes")
     public NodeManager() {
-        this.presenters = new HashMap<Class, INodeView.Presenter>();
+        this.presenters = new HashMap<Class<? extends Node>, INodeView.Presenter>();
+        this.renderers = new HashMap<Class<? extends Node>, INodeRenderer>();
     }
 
-    @SuppressWarnings("rawtypes")
-    public void registerPresenter(Class c, INodeView.Presenter presenter) {
+    public void registerNodeType(Class<? extends Node> c, INodeView.Presenter presenter, INodeRenderer renderer) {
         this.presenters.put(c, presenter);
+        this.renderers.put(c, renderer);
     }
 
-    @SuppressWarnings("rawtypes")
-    public INodeView.Presenter getPresenter(Class c) {
+    public INodeView.Presenter getPresenter(Class<? extends Node> c) {
         return this.presenters.get(c);
     }
 
@@ -29,5 +30,9 @@ public class NodeManager {
 
     public void setDefaultPresenter(INodeView.Presenter defaultPresenter) {
         this.defaultPresenter = defaultPresenter;
+    }
+
+    public INodeRenderer getRenderer(Class<? extends Node> c) {
+        return this.renderers.get(c);
     }
 }

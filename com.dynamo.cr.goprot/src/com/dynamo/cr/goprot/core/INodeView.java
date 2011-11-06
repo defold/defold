@@ -14,6 +14,7 @@ public interface INodeView {
         void onLoad(InputStream contents) throws IOException;
     }
 
+    void setRoot(Node root);
     void updateNode(Node node);
 
     void updateSelection(IStructuredSelection selection);

@@ -4,12 +4,13 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 
 import org.eclipse.core.runtime.CoreException;
-import org.eclipse.jface.viewers.StructuredSelection;
 import org.junit.Before;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 import com.dynamo.cr.goprot.core.Node;
 import com.dynamo.cr.goprot.sprite.AnimationNode;
@@ -32,7 +33,7 @@ public class SpriteTest extends AbstractTest {
     @Before
     public void setup() throws CoreException, IOException {
         super.setup();
-        this.manager.registerPresenter(SpriteNode.class, this.injector.getInstance(SpritePresenter.class));
+        this.manager.registerNodeType(SpriteNode.class, this.injector.getInstance(SpritePresenter.class), null);
     }
 
     // Tests
@@ -44,7 +45,7 @@ public class SpriteTest extends AbstractTest {
         presenter.onLoad(new ByteArrayInputStream(ddf.getBytes()));
         Node root = this.model.getRoot();
         assertTrue(root instanceof SpriteNode);
-        verifyUpdate(root);
+        verify(this.view, times(1)).setRoot(root);
         verifySelection();
     }
 

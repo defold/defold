@@ -50,7 +50,7 @@ public class NodeModel implements INodeWorld, IAdaptable {
         if (this.root != root) {
             this.root = root;
             root.setModel(this);
-            notifyChange(root);
+            this.view.setRoot(root);
             setSelection(new StructuredSelection(this.root));
         }
     }

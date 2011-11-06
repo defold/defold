@@ -23,7 +23,7 @@ public abstract class NodePresenter implements Presenter {
 
     @Override
     public void onRefresh() {
-        this.view.updateNode(this.model.getRoot());
+        this.view.setRoot(this.model.getRoot());
         this.view.updateSelection(this.model.getSelection());
     }
 

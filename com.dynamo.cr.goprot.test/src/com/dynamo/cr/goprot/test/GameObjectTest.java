@@ -11,6 +11,9 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+
 import com.dynamo.cr.goprot.core.INodeView;
 import com.dynamo.cr.goprot.core.Node;
 import com.dynamo.cr.goprot.gameobject.ComponentNode;
@@ -33,7 +36,7 @@ public class GameObjectTest extends AbstractTest {
     @Before
     public void setup() throws CoreException, IOException {
         super.setup();
-        this.manager.registerPresenter(GameObjectNode.class, this.injector.getInstance(GameObjectPresenter.class));
+        this.manager.registerNodeType(GameObjectNode.class, this.injector.getInstance(GameObjectPresenter.class), null);
     }
 
     // Tests
@@ -46,7 +49,7 @@ public class GameObjectTest extends AbstractTest {
         Node root = this.model.getRoot();
         assertTrue(root instanceof GameObjectNode);
         assertTrue(this.model.getSelection().toList().contains(root));
-        verifyUpdate(root);
+        verify(this.view, times(1)).setRoot(root);
         verifySelection();
     }
 
