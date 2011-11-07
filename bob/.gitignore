@@ -4,5 +4,5 @@ build
 tmp
 tmp_build
 *.pyc
-
+*.class
 

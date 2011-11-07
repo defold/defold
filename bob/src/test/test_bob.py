@@ -32,28 +32,32 @@ class TestBob(unittest.TestCase):
     def test_collect_inputs(self):
         script = '''
 from glob import glob
-p = project(bld_dir = "tmp_build",
-            inputs = glob('tmp/test_data/*.c'),
-            includes = ['tmp/test_data/include'])
-build(p, run=False, listener = null_listener)
+
+def build(p):
+    global prj
+    prj = p
+    p['bld_dir'] = 'tmp_build'
+    p['inputs'] = glob('tmp/test_data/*.c')
+    p['includes'] = ['tmp/test_data/include']
 '''
-        l = bob.exec_script(script)
-        p = l.p
+        r,m = bob.exec_script(script)
+        p = m.prj
         self.assertEqual(set(['tmp/test_data/main.c', 'tmp/test_data/util.c', 'tmp/test_data/error.c']),
                          set(p['inputs']))
 
-
     def test_create_tasks(self):
         script = '''
-p = project(bld_dir = "tmp_build",
-            inputs = ['tmp/test_data/main.c'],
-            includes = ['tmp/test_data/include'])
-import bob_cc
-bob_cc.config(p)
-build(p, run=False, listener = null_listener)
+def build(p):
+    global prj
+    prj = p
+    p['bld_dir'] = "tmp_build"
+    p['inputs'] = ['tmp/test_data/main.c']
+    p['includes'] = ['tmp/test_data/include']
+    import bob_cc
+    bob_cc.config(p)
 '''
-        l = bob.exec_script(script)
-        tasks = l.p['tasks']
+        r, m = bob.exec_script(script)
+        tasks = m.prj['tasks']
         self.assertEqual(1, len(tasks))
         t = tasks[0]
 
@@ -62,66 +66,73 @@ build(p, run=False, listener = null_listener)
 
     def test_scan(self):
         script = '''
-p = project(bld_dir = "tmp_build",
-            inputs = ['tmp/test_data/util.c'],
-            includes = ['tmp/test_data/include'])
-import bob_cc
-bob_cc.config(p)
-build(p, run=False, listener = null_listener)
+def build(p):
+    global prj
+    prj = p
+    p['bld_dir'] = 'tmp_build'
+    p['inputs'] = ['tmp/test_data/util.c']
+    p['includes'] = ['tmp/test_data/include']
+    import bob_cc
+    bob_cc.config(p)
 '''
-        l = bob.exec_script(script)
-        t = l.p['tasks'][0]
+        r,m = bob.exec_script(script)
+        t = m.prj['tasks'][0]
 
         self.assertSetEquals(['tmp/test_data/util.h', 'tmp/test_data/include/misc.h'],
                              t['dependencies'])
 
     def test_task_signatures(self):
         script1 = '''
-p = project(bld_dir = "tmp_build",
-            inputs = ['tmp/test_data/main.c'],
-            includes = ['tmp/test_data/include'])
-import bob_cc
-bob_cc.config(p)
-build(p, run=True, listener = null_listener)
+def build(p):
+    global prj
+    prj = p
+    p['bld_dir'] = "tmp_build"
+    p['inputs'] = ['tmp/test_data/main.c']
+    p['includes'] = ['tmp/test_data/include']
+    import bob_cc
+    bob_cc.config(p)
 '''
-        l1 = bob.exec_script(script1)
+        r1,m1 = bob.exec_script(script1)
 
         script2 = '''
-p = project(bld_dir = "tmp_build",
-            inputs = ['tmp/test_data/main.c'],
-            includes = ['tmp/test_data/include', '/opt/include'])
-import bob_cc
-bob_cc.config(p)
-build(p, run=True, listener = null_listener)
+def build(p):
+    global prj
+    prj = p
+    p['bld_dir'] = "tmp_build"
+    p['inputs'] = ['tmp/test_data/main.c']
+    p['includes'] = ['tmp/test_data/include', '/opt/include']
+    import bob_cc
+    bob_cc.config(p)
 '''
-        l2 = bob.exec_script(script2)
+        r1,m2 = bob.exec_script(script2)
 
-        t1 = l1.p['tasks'][0]
-        t2 = l2.p['tasks'][0]
+        t1 = m1.prj['tasks'][0]
+        t2 = m2.prj['tasks'][0]
         self.assertNotEquals(t1['sig'], t2['sig'])
 
     def test_c_compile(self):
         script = '''
-p = project(bld_dir = "tmp_build",
-            inputs = ['tmp/test_data/main.c'],
-            includes = ['tmp/test_data/include'])
-import bob_cc
-bob_cc.config(p)
-r = build(p, listener = null_listener)
+
+def build(p):
+    p['bld_dir'] = 'tmp_build'
+    p['inputs'] = ['tmp/test_data/main.c']
+    p['includes'] = ['tmp/test_data/include']
+    import bob_cc
+    bob_cc.config(p)
 '''
-        l = bob.exec_script(script)
-        info = l.r[0]
+        r, m = bob.exec_script(script)
+        info = r[0]
         self.assertEquals(True, info['run'])
         self.assertEquals(0, info['code'])
 
-        l = bob.exec_script(script)
-        info = l.r[0]
+        r, m = bob.exec_script(script)
+        info = r[0]
         self.assertEquals(False, info['run'])
         self.assertEquals(0, info['code'])
 
         unlink('tmp_build/tmp/test_data/main.o')
-        l = bob.exec_script(script)
-        info = l.r[0]
+        r, m = bob.exec_script(script)
+        info = r[0]
         self.assertEquals(True, info['run'])
         self.assertEquals(0, info['code'])
 
@@ -129,41 +140,39 @@ r = build(p, listener = null_listener)
         with open('tmp/test_data/include/misc.h', 'wb') as f:
             f.write('//some new data')
 
-        l = bob.exec_script(script)
-        info = l.r[0]
+        r, m = bob.exec_script(script)
+        info = r[0]
         self.assertEquals(True, info['run'])
         self.assertEquals(0, info['code'])
 
     def test_c_compile_error(self):
         script = '''
-p = project(bld_dir = "tmp_build",
-            inputs = ['tmp/test_data/error.c'],
-            includes = ['tmp/test_data/include'])
-import bob_cc
-bob_cc.config(p)
-r = build(p, listener = null_listener)
+def build(p):
+    p['bld_dir'] = 'tmp_build'
+    p['inputs'] = ['tmp/test_data/error.c']
+    p['includes'] = ['tmp/test_data/include']
+    import bob_cc
+    bob_cc.config(p)
+    #r = build(p, listener = null_listener)
 '''
-        l = bob.exec_script(script)
-        r = l.r
-        info = l.r[0]
+        r, m = bob.exec_script(script)
+        info = r[0]
         self.assertEquals(True, info['run'])
         self.assert_(info['code'] > 0, 'code > 0')
         self.assertEquals('', info['stdout'])
         self.assertNotEquals('', info['stderr'])
 
         # run again. File file so it should recompile
-        l = bob.exec_script(script)
-        r = l.r
-        info = l.r[0]
+        r, m = bob.exec_script(script)
+        info = r[0]
         self.assertEquals(True, info['run'])
 
         # "fix" file
         with open('tmp/test_data/error.c', 'wb') as f:
             f.write('\n')
 
-        l = bob.exec_script(script)
-        r = l.r
-        info = l.r[0]
+        r, m = bob.exec_script(script)
+        info = r[0]
         self.assertEquals(True, info['run'])
         self.assertEquals(0, info['code'])
 
@@ -176,19 +185,18 @@ from glob import glob
 def transform_bob(msg):
     msg.resource = msg.resource + 'c'
 
-p = project(bld_dir = "tmp_build",
-            inputs = glob('tmp/test_data/*.bob'))
-p['task_gens']['.bob'] = make_proto('test_bob_ddf_pb2', 'TestBob', transform_bob)
-r = build(p, listener = null_listener)
+def build(p):
+    p['bld_dir'] = "tmp_build"
+    p['inputs'] = glob('tmp/test_data/*.bob')
+    p['task_gens']['.bob'] = make_proto('test_bob_ddf_pb2', 'TestBob', transform_bob)
 '''
-        l = bob.exec_script(script)
+        r,m = bob.exec_script(script)
 
         tb = test_bob_ddf_pb2.TestBob()
         with open('tmp_build/tmp/test_data/test.bobc', 'rb') as f:
             tb.MergeFromString(f.read())
 
         self.assertEquals(tb.resource, u'some_resource.extc')
-
 
     def test_listener(self):
         script = '''
@@ -212,21 +220,24 @@ def test_factory(prj, input):
     return add_task(prj, task(function = test_file,
                               name = 'test',
                               inputs = [input],
-                              outputs = [change_ext(p, input, '.bobc')]))
+                              outputs = [change_ext(prj, input, '.bobc')]))
 
-p = project(bld_dir = "tmp_build",
-            inputs = ['tmp/test_data/test.bob'])
-p['task_gens']['.bob'] = test_factory
-r = build(p, listener = listener)
+def build(p):
+    global prj
+    prj = p
+    p['listener'] = listener
+    p['bld_dir'] = 'tmp_build'
+    p['inputs'] = ['tmp/test_data/test.bob']
+    p['task_gens']['.bob'] = test_factory
 '''
-        l = bob.exec_script(script)
+        r,m= bob.exec_script(script)
 
-        listener = l.p['listener']
+        listener = m.listener
         self.assertEqual(1, listener.invocations['start'])
         self.assertEqual(1, listener.invocations['done'])
 
-        l = bob.exec_script(script)
-        listener = l.p['listener']
+        r,m = bob.exec_script(script)
+        listener = m.listener
         self.assertEqual(0, listener.invocations['start'])
         self.assertEqual(0, listener.invocations['done'])
 
@@ -240,15 +251,15 @@ def test_factory(prj, input):
     return add_task(prj, task(function = test_file,
                               name = 'test',
                               inputs = [input],
-                              outputs = [change_ext(p, input, '.bobc')]))
+                              outputs = [change_ext(prj, input, '.bobc')]))
 
-p = project(bld_dir = "tmp_build",
-            inputs = ['tmp/test_data/test.bob'])
-p['task_gens']['.bob'] = test_factory
-r = build(p, listener = null_listener)
+def build(p):
+    p['bld_dir'] = 'tmp_build'
+    p['inputs'] = ['tmp/test_data/test.bob']
+    p['task_gens']['.bob'] = test_factory
 '''
-        l = bob.exec_script(script)
-        info = l.r[0]
+        r,m = bob.exec_script(script)
+        info = r[0]
         self.assertEquals(10, info['code'])
         self.assertTrue(info['stderr'].find('Exception:') != -1, 'String "Exception:" not found in stderr')
 
@@ -257,15 +268,15 @@ r = build(p, listener = null_listener)
 
 from test_bob_util import dynamic_factory, number_factory
 
-p = project(bld_dir = "tmp_build",
-            inputs = ['tmp/test_data/test.dynamic'])
-p['task_gens']['.dynamic'] = dynamic_factory
-p['task_gens']['.number'] = number_factory
-r = build(p, listener = null_listener)
+def build(p):
+    p['bld_dir'] = 'tmp_build'
+    p['inputs'] = ['tmp/test_data/test.dynamic']
+    p['task_gens']['.dynamic'] = dynamic_factory
+    p['task_gens']['.number'] = number_factory
 '''
-        l = bob.exec_script(script)
+        r,m = bob.exec_script(script)
 
-        for info in l.r:
+        for info in r:
             if info['task']['name'] != 'dynamic':
                 # assert that number tasks originates from the dynamic task
                 self.assertEquals(info['task']['product_of']['inputs'][0], 'tmp/test_data/test.dynamic')
@@ -277,6 +288,11 @@ r = build(p, listener = null_listener)
         for i, x in enumerate([10, 20, 30]):
             self.assertEquals(x * scale, int(read_file('tmp_build/tmp/test_data/test_%d.numberc' % i)))
 
+        r,m = bob.exec_script(script, cmd = 'clean')
+        for i, x in enumerate([10, 20, 30]):
+            self.assertFalse(exists('tmp_build/tmp/test_data/test_%d.number' % i))
+            self.assertFalse(exists('tmp_build/tmp/test_data/test_%d.numberc' % i))
+
     def test_substitute(self):
         d1 = { 'cc' : 'gcc', 'coptim' : '-O2'}
         d2 = { 'inputs' : [ 'a.c', 'b.c'],
@@ -286,4 +302,6 @@ r = build(p, listener = null_listener)
         self.assertEquals('gcc -O0 -c a.c b.c -o x.o'.split(), lst)
 
 if __name__ == '__main__':
+    # To run a single test
+    # unittest.main(defaultTest = 'TestBob.test_dynamic_task')
     unittest.main()

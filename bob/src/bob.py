@@ -13,7 +13,7 @@ import cPickle
 import sys
 from fnmatch import fnmatch
 
-exposed_vars = ['project', 'task', 'build', 'change_ext', 'make_proto',
+exposed_vars = ['project', 'task', 'change_ext', 'make_proto',
                 'create_task', 'add_task',  'console_listener', 'null_listener',
                 'register', 'find_cmd', 'execute_command', 'supported_exts',
                 'log_warning', 'log_error', 'find_sources']
@@ -77,13 +77,19 @@ def substitute(string, *dicts):
         new_lst.extend(x)
     return new_lst
 
-def exec_script(s):
+def exec_script(s, cmd = 'build'):
+    """Runs a bscript. The tuple (result_list, module)
+    is returned. The module is a python module created
+    for the bscript"""
     m = new_module('bscript')
     # expose function to script module
     for k in exposed_vars:
         setattr(m, k, globals()[k])
+    prj = project()
     exec(s, m.__dict__)
-    return m
+    m.build(prj)
+    res = build(prj, cmd)
+    return res, m
 
 def set_default(d, **kwargs):
     for k, v in kwargs.iteritems():
@@ -136,7 +142,8 @@ def project(**kwargs):
                        bld_dir = 'build',
                        inputs = [],
                        task_gens = {},
-                       includes = [])
+                       includes = [],
+                       listener = console_listener)
 
 def supported_exts(prj):
     return prj['task_gens'].keys()
@@ -183,16 +190,20 @@ def console_listener(prj, task, evt):
             print '\x1b[01;91mtask failed'
             print '%s\x1b[0m' % info['stderr']
 
-def build(p, run = True, listener = console_listener):
-    p['listener'] = listener
+def build(p, cmd):
     if not exists(p['bld_dir']):
         makedirs(p['bld_dir'])
     load_state(p)
     create_tasks(p)
     scan(p)
     info_lst = []
-    if run:
+
+    if cmd == 'build':
         info_lst = run_tasks(p)
+    elif cmd == 'clean':
+        clean_tasks(p)
+    else:
+        assert 'Unknown command "%s"' % cmd
 
     save_state(p)
     return info_lst
@@ -330,6 +341,12 @@ def run_tasks(p):
 
     return ret
 
+def clean_tasks(p):
+    for t in p['tasks']:
+        for f in t['outputs']:
+            if exists(f):
+                os.unlink(f)
+
 def load_state(p):
     name = join(p['bld_dir'], 'state')
     if exists(name):
@@ -420,6 +437,10 @@ if __name__ == '__main__':
         setattr(bob_mod, k, globals()[k])
     sys.modules['bob'] = bob_mod
 
+    cmds = ['build']
+    if len(sys.argv) > 1:
+        cmds = sys.argv[1:]
     with open('bscript') as f:
-        exec_script(f.read())
-
+        s = f.read()
+        for cmd in cmds:
+            exec_script(s, cmd)
