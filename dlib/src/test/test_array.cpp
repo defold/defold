@@ -29,7 +29,7 @@ TEST(dmArray, Dynamic_int32)
     ar.Pop();
     EXPECT_EQ(array_size-3, ar[ ar.Size()-1]);
     EXPECT_EQ(array_size-2, ar.Size());
-    EXPECT_EQ(false, ar.Full());
+    EXPECT_FALSE(ar.Full());
     EXPECT_EQ((uint32_t) 1, ar.Remaining());
 
     ar.OffsetCapacity(1);
@@ -87,7 +87,7 @@ TEST(dmArray, Static_int32)
     ar.Pop();
     EXPECT_EQ(array_size-3, ar[ ar.Size()-1]);
     EXPECT_EQ(array_size-2, ar.Size());
-    EXPECT_EQ(false, ar.Full());
+    EXPECT_FALSE(ar.Full());
     EXPECT_EQ((uint32_t) 2, ar.Remaining());
 
     ar.SetSize(array_size/2);
