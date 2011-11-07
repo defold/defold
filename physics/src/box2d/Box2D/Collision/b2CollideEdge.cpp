@@ -80,7 +80,8 @@ void b2CollideEdgeAndCircle(b2Manifold* manifold,
 		manifold->localPoint = P;
 		manifold->points[0].id.key = 0;
 		manifold->points[0].id.cf = cf;
-		manifold->points[0].localPoint = circleB->m_p;
+        manifold->points[0].localPoint = circleB->m_p;
+        manifold->points[0].distance = circleB->m_radius - b2Sqrt(dd);
 		return;
 	}
 	
@@ -118,7 +119,8 @@ void b2CollideEdgeAndCircle(b2Manifold* manifold,
 		manifold->localPoint = P;
 		manifold->points[0].id.key = 0;
 		manifold->points[0].id.cf = cf;
-		manifold->points[0].localPoint = circleB->m_p;
+        manifold->points[0].localPoint = circleB->m_p;
+        manifold->points[0].distance = circleB->m_radius - b2Sqrt(dd);
 		return;
 	}
 	
@@ -148,7 +150,8 @@ void b2CollideEdgeAndCircle(b2Manifold* manifold,
 	manifold->localPoint = A;
 	manifold->points[0].id.key = 0;
 	manifold->points[0].id.cf = cf;
-	manifold->points[0].localPoint = circleB->m_p;
+    manifold->points[0].localPoint = circleB->m_p;
+    manifold->points[0].distance = circleB->m_radius - b2Sqrt(dd);
 }
 
 // This structure is used to keep track of the best separating axis.

@@ -6,6 +6,7 @@
 #include <Box2D/Collision/b2TimeOfImpact.h>
 #include <Box2D/Collision/Shapes/b2GridShape.h>
 #include <Box2D/Collision/Shapes/b2PolygonShape.h>
+#include <Box2D/Collision/Shapes/b2EdgeShape.h>
 
 #include <new>
 using namespace std;
@@ -45,25 +46,36 @@ void b2GridAndCircleContact::Evaluate(b2Manifold* manifold, const b2Transform& x
         return;
     }
 
-    b2PolygonShape polyA;
-    gridShape->GetPolygonShapeForCell(m_indexA, polyA);
-
-    b2CollidePolygonAndCircle(manifold, &polyA, xfA, circleB, xfB);
-
-    if (manifold->pointCount > 0)
+    const uint32 completeHull = ~0u;
+    if (m_edgeMask == completeHull)
     {
-        // Remove points not present in edge-mask, ie internal and adjacent edges
-        uint32 vc = polyA.m_vertexCount;
-        for (uint32 i = 0; i < vc; ++i)
+        b2PolygonShape polyA;
+        gridShape->GetPolygonShapeForCell(m_indexA, polyA);
+        b2CollidePolygonAndCircle(manifold, &polyA, xfA, circleB, xfB);
+    }
+    else
+    {
+        b2Manifold bestManifold = *manifold;
+        bestManifold.pointCount = 0;
+        float minDistance = b2_maxFloat;
+        b2EdgeShape edgeShapes[b2_maxPolygonVertices];
+        uint32 edgeCount = gridShape->GetEdgeShapesForCell(m_indexA, edgeShapes, b2_maxPolygonVertices, m_edgeMask);
+        for (uint32 i = 0; i < edgeCount; ++i)
         {
-            const b2Vec2 n = polyA.m_normals[i];
-            float32 x = b2Dot(n, manifold->localNormal);
-            // NOTE: constant epsilon is ok here as the magniute is constant
-            if (x > 0.999f && !(m_edgeMask & (1 << i)))
+            b2EdgeShape& edge = edgeShapes[i];
+            manifold->pointCount = 0;
+            b2CollideEdgeAndCircle(manifold, &edge, xfA, circleB, xfB);
+            int32 pc = manifold->pointCount;
+            for (int32 j = 0; j < pc; ++j)
             {
-                manifold->pointCount = 0;
-                break;
+                float distance = manifold->points[j].distance;
+                if (distance < minDistance)
+                {
+                    minDistance = distance;
+                    bestManifold = *manifold;
+                }
             }
         }
+        *manifold = bestManifold;
     }
 }

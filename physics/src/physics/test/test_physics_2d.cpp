@@ -459,7 +459,7 @@ TYPED_TEST(PhysicsTest, GridShapeCrack)
     dmPhysics::DeleteHullSet2D(hull_set);
 }
 
-// Tests colliding a thin box between two cells of a grid shape, due to a bug that disregards such collisions
+// Tests colliding a thin box at the corner of a cell of a grid shape
 TYPED_TEST(PhysicsTest, GridShapeCorner)
 {
     /*
@@ -519,6 +519,76 @@ TYPED_TEST(PhysicsTest, GridShapeCorner)
     ASSERT_EQ(1.0f, crack_data.m_Normal.getY());
     ASSERT_EQ(0.0f, crack_data.m_Normal.getZ());
     ASSERT_NEAR(0.1f, crack_data.m_Distance, eps);
+    ASSERT_EQ(1, vo_a.m_CollisionCount);
+    ASSERT_EQ(1, vo_b.m_CollisionCount);
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, grid_co);
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, dynamic_co);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(grid_shape);
+    dmPhysics::DeleteHullSet2D(hull_set);
+}
+
+// Tests colliding a sphere against a grid shape (edge) to verify collision distance
+TYPED_TEST(PhysicsTest, GridShapeSphereDistance)
+{
+    /*
+     * Simplified version of GridShapePolygon
+     */
+    int32_t rows = 1;
+    int32_t columns = 3;
+    int32_t cell_width = 16;
+    int32_t cell_height = 16;
+
+    VisualObject vo_a;
+    vo_a.m_Position = Point3(0, 0, 0);
+    dmPhysics::CollisionObjectData data;
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
+    data.m_Mass = 0.0f;
+    data.m_UserData = &vo_a;
+    data.m_Group = 0xffff;
+    data.m_Mask = 0xffff;
+
+    const float hull_vertices[] = {-0.5f, -0.5f,
+                                    0.5f, -0.5f,
+                                    0.5f,  0.5f,
+                                   -0.5f,  0.5f};
+
+    const dmPhysics::HullDesc hulls[] = { {0, 4}, {0, 4}, {0, 4} };
+    dmPhysics::HHullSet2D hull_set = dmPhysics::NewHullSet2D(hull_vertices, 4, hulls, 3);
+    dmPhysics::HCollisionShape2D grid_shape = dmPhysics::NewGridShape2D(hull_set, Point3(0,0,0), cell_width, cell_height, rows, columns);
+    typename TypeParam::CollisionObjectType grid_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &grid_shape, 1u);
+
+    for (int32_t row = 0; row < rows; ++row)
+    {
+        for (int32_t col = 0; col < columns; ++col)
+        {
+            dmPhysics::SetGridShapeHull(grid_co, grid_shape, row, col, 0);
+        }
+    }
+
+    VisualObject vo_b;
+    vo_b.m_Position = Point3(0.0f, 14.0f, 0.0f);
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
+    data.m_Mass = 0.0f;
+    data.m_UserData = &vo_b;
+    data.m_Group = 0xffff;
+    data.m_Mask = 0xffff;
+    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewSphereShapeFunc)(8.0f);
+    typename TypeParam::CollisionObjectType dynamic_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
+
+    CrackUserData crack_data;
+    crack_data.m_Target = &vo_b;
+    TestFixture::m_StepWorldContext.m_ContactPointCallback = CrackContactPointCallback;
+    TestFixture::m_StepWorldContext.m_ContactPointUserData = &crack_data;
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+
+    float eps = 0.000001f;
+    ASSERT_EQ(1u, crack_data.m_Count);
+    ASSERT_EQ(0.0f, crack_data.m_Normal.getX());
+    ASSERT_EQ(1.0f, crack_data.m_Normal.getY());
+    ASSERT_EQ(0.0f, crack_data.m_Normal.getZ());
+    ASSERT_NEAR(2.0f, crack_data.m_Distance, eps);
     ASSERT_EQ(1, vo_a.m_CollisionCount);
     ASSERT_EQ(1, vo_b.m_CollisionCount);
 
