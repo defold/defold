@@ -12,6 +12,7 @@ import re, logging
 import cPickle
 import sys
 from fnmatch import fnmatch
+import shutil
 
 exposed_vars = ['project', 'task', 'change_ext', 'make_proto',
                 'create_task', 'add_task',  'console_listener', 'null_listener',
@@ -202,14 +203,21 @@ def build(p, cmd):
         info_lst = run_tasks(p)
     elif cmd == 'clean':
         clean_tasks(p)
+    elif cmd == 'distclean':
+        distclean(p)
     elif cmd == 'configure':
         # waf compatibility
         pass
     else:
         assert False, 'Unknown command "%s"' % cmd
 
-    save_state(p)
+    if cmd != 'distclean':
+        # Do not save state for special case "distclean"
+        save_state(p)
     return info_lst
+
+def distclean(p):
+    shutil.rmtree(p['bld_dir'])
 
 def add_task(p, tsk):
     assert type(tsk) == dict
