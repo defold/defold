@@ -32,41 +32,42 @@ def make_command_task(name, cmd_str, ext_out, shell = False):
 
 def go_file(prj, tsk):
     code = 0
-
     err = ''
-    try:
-        import google.protobuf.text_format
-        import gameobject_ddf_pb2
-        msg = gameobject_ddf_pb2.PrototypeDesc()
-        with open(tsk['inputs'][0], 'rb') as in_f:
-            google.protobuf.text_format.Merge(in_f.read(), msg)
+    import google.protobuf.text_format
+    import gameobject_ddf_pb2
+    msg = gameobject_ddf_pb2.PrototypeDesc()
+    with open(tsk['inputs'][0], 'rb') as in_f:
+        google.protobuf.text_format.Merge(in_f.read(), msg)
 
-        for i, c in enumerate(msg.embedded_components):
-            with open(tsk['outputs'][i+1], 'wb') as out_f:
-                out_f.write(c.data)
+    for i, c in enumerate(msg.components):
+        if not os.path.exists(c.component[1:]):
+            #import pdb
+            #pdb.set_trace()
+            raise Exception('%s:0: error: is missing dependent resource file "%s"' % (tsk['inputs'][0], c.component))
 
-            desc = msg.components.add()
-            if c.id == '':
-                raise Exception('Message is missing required field: id')
-            desc.id = c.id
+    for i, c in enumerate(msg.embedded_components):
+        with open(tsk['outputs'][i+1], 'wb') as out_f:
+            out_f.write(c.data)
 
-            # NOTE: This is a bit budget. We "calculate" relative
-            # path by chopping the length of bld_dir
-            # relpath is not available in python 2.5 (jython)
-            # As long as we have "sensible" paths this will continue to work
-            bld_dir_len = len(prj['bld_dir'])
-            desc.component = tsk['outputs'][i+1][bld_dir_len:]
+        desc = msg.components.add()
+        if c.id == '':
+            raise Exception('Message is missing required field: id')
+        desc.id = c.id
 
-        msg = transform_gameobject(msg)
-        while len(msg.embedded_components) > 0:
-            del(msg.embedded_components[0])
+        # NOTE: This is a bit budget. We "calculate" relative
+        # path by chopping the length of bld_dir
+        # relpath is not available in python 2.5 (jython)
+        # As long as we have "sensible" paths this will continue to work
+        bld_dir_len = len(prj['bld_dir'])
+        desc.component = tsk['outputs'][i+1][bld_dir_len:]
 
-        with open(tsk['outputs'][0], 'wb') as out_f:
-            out_f.write(msg.SerializeToString())
+    msg = transform_gameobject(msg)
+    while len(msg.embedded_components) > 0:
+        del(msg.embedded_components[0])
 
-    except Exception, e:
-        err = '%s: %s' % (task.inputs[0].srcpath(task.env), str(e))
-        code = 5
+    with open(tsk['outputs'][0], 'wb') as out_f:
+        out_f.write(msg.SerializeToString())
+
 
     info = tsk['info']
     info['code'] = code
