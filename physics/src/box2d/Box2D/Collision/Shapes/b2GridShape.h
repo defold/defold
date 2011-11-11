@@ -95,6 +95,7 @@ public:
 
 private:
     uint32 GetCellVertices(uint32 index, b2Vec2* vertices) const;
+    b2Vec2 GetGhostPoint(uint32 index, b2Vec2 v0, b2Vec2 v1, bool fwdDirection) const;
 };
 
 #endif // B2_TILE_SHAPE_H

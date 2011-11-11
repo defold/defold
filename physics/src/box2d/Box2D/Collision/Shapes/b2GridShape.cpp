@@ -150,6 +150,70 @@ void b2GridShape::GetPolygonShapeForCell(uint32 index, b2PolygonShape& polyShape
     polyShape.m_radius = m_radius;
 }
 
+b2Vec2 b2GridShape::GetGhostPoint(uint32 index, b2Vec2 v0, b2Vec2 v1, bool fwdDirection) const
+{
+    int32 row = index / m_columnCount;
+    int32 col = index - m_columnCount * row;
+    b2Vec2 delta = v1 - v0;
+    // the negated normal will point in the direction of the neighboring cell which has the ghost point in its edge
+    b2Vec2 negNormal = b2Vec2(delta.y, -delta.x);
+    b2Vec2 mag = b2Vec2(negNormal.x * negNormal.x, negNormal.y * negNormal.y);
+    int32 dRow = 0;
+    int32 dCol = 0;
+    if (mag.x == b2Max(mag.x, mag.y))
+    {
+        // no b2Select
+        if (negNormal.x >= 0.0f)
+            dCol = 1;
+        else
+            dCol = -1;
+    }
+    else
+    {
+        // no b2Select
+        if (negNormal.y >= 0.0f)
+            dRow = 1;
+        else
+            dRow = -1;
+    }
+    row += dRow;
+    col += dCol;
+
+    uint32 neighborIndex = row * m_columnCount + col;
+    const b2GridShape::Cell& cell = m_cells[neighborIndex];
+    if (cell.m_Index == B2GRIDSHAPE_EMPTY_CELL)
+    {
+        if (fwdDirection)
+        {
+            return 2.0f * (v0 - v1);
+        }
+        else
+        {
+            return 2.0f * (v1 - v0);
+        }
+    }
+    const b2HullSet::Hull& hull = m_hullSet->m_hulls[cell.m_Index];
+
+    // find the closes hull point
+    b2Vec2 vn[b2_maxPolygonVertices];
+    uint32 vnCount = GetCellVertices(neighborIndex, vn);
+    float minD = b2_maxFloat;
+    b2Vec2 orig = fwdDirection ? v1 : v0;
+    uint32 ghostIndex = 0;
+    for (uint16 i = 0; i < hull.m_Count; ++i)
+    {
+        b2Vec2 diff = vn[i] - orig;
+        float d = b2Dot(diff, diff);
+        if (d < minD)
+        {
+            ghostIndex = i;
+            minD = d;
+        }
+    }
+    int32 deltaIndex = fwdDirection ? -1 : 1;
+    return vn[(ghostIndex + vnCount + deltaIndex) % vnCount];
+}
+
 uint32 b2GridShape::GetEdgeShapesForCell(uint32 index, b2EdgeShape* edgeShapes, uint32 edgeShapeCount, uint32 edgeMask) const
 {
     const b2GridShape::Cell& cell = m_cells[index];
@@ -157,53 +221,53 @@ uint32 b2GridShape::GetEdgeShapesForCell(uint32 index, b2EdgeShape* edgeShapes, 
     b2Assert(hull.m_Count <= b2_maxPolygonVertices);
 
     b2Vec2 v[b2_maxPolygonVertices];
-    uint32 vc = GetCellVertices(index, v);
+    uint32 vCount = GetCellVertices(index, v);
 
-    uint32 vp = vc - 1;
+    uint32 vPrev = vCount - 1;
     uint32 v0 = 0;
     uint32 v1 = 1;
-    uint32 vn = 2;
+    uint32 vNext = 2;
     uint32 edgeCount = 0;
-    for (uint32 i = 0; i < vc && i < edgeShapeCount; ++i)
+    for (uint32 i = 0; i < vCount && i < edgeShapeCount; ++i)
     {
         if (edgeMask & (1 << v0))
         {
             b2EdgeShape& edge = edgeShapes[edgeCount];
             edge.Set(v[v0], v[v1]);
             edge.m_hasVertex0 = true;
-            if (edgeMask & (1 << vp))
+            if (edgeMask & (1 << vPrev))
             {
-                edge.m_vertex0 = v[vp];
+                edge.m_vertex0 = v[vPrev];
             }
             else
             {
-                edge.m_vertex0 = 2.0f * v[v0] - v[v1];
+                edge.m_vertex0 = GetGhostPoint(index, v[vPrev], v[v0], true);
             }
             edge.m_hasVertex3 = true;
             if (edgeMask & (1 << v1))
             {
-                edge.m_vertex3 = v[vn];
+                edge.m_vertex3 = v[vNext];
             }
             else
             {
-                edge.m_vertex3 = 2.0f * v[v1] - v[v0];
+                edge.m_vertex3 = GetGhostPoint(index, v[v1], v[vNext], false);
             }
             ++edgeCount;
         }
-        vp = v0;
+        vPrev = v0;
         v0 = v1;
-        v1 = vn;
-        vn = (vn + 1) % vc;
+        v1 = vNext;
+        vNext = (vNext + 1) % vCount;
     }
     return edgeCount;
 }
 
-static bool hasEdge(b2Vec2 p0, b2Vec2 p1, b2Vec2* vertices, uint32 n)
+static bool hasEdge(b2Vec2 p0, b2Vec2 p1, b2Vec2* vertices, uint32 n, uint32 cellWidth, uint32 cellHeight)
 {
     const float32 epsilon = 0.01f;
     // Calculate absolute tolerance values by scaling epsilon with the magnitude
-    // of the compared. We assume that b2Max(p0.x, p0.y) is closed to b2Max of all vertices compared
-    const float32 absTol = epsilon * b2Max(1.0f, b2Max(p0.x, p0.y));
+    // of the compared. We assume that the cell dimensions will be close to the max magnitude of the compared values
+    const float32 absTol = epsilon * b2Max(cellWidth, cellHeight);
 
     for (uint32 i = 0; i < n; ++i)
     {
@@ -256,7 +320,7 @@ uint32 b2GridShape::CalculateCellMask(b2Fixture* fixture, uint32 row, uint32 col
                     uint32 i1 = i % nv;
                     uint32 i2 = (i+1) % nv;
 
-                    if (hasEdge(vertices[i2], vertices[i1], neighbourVertices, nnv))
+                    if (hasEdge(vertices[i2], vertices[i1], neighbourVertices, nnv, m_cellWidth, m_cellHeight))
                     {
                         mask &= ~(1 << i);
                     }
