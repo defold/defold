@@ -110,8 +110,8 @@
         <module>../com.dynamo.cr.tileeditor.test</module>
         <module>../com.dynamo.cr.properties</module>
         <module>../com.dynamo.cr.properties.test</module>
-        <module>../com.dynamo.cr.goprot</module>
-        <module>../com.dynamo.cr.goprot.test</module>
+        <module>../com.dynamo.cr.sceneed</module>
+        <module>../com.dynamo.cr.sceneed.test</module>
         <module>../javax.media.opengl</module>
     </modules>
 
