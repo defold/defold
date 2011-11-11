@@ -1,5 +1,51 @@
 :max-width: 45em
 
+Update - Scene Editor & Content Pipeline
+----------------------------------------
+*_November 6, 2011_*
+
+Scene Editor
+~~~~~~~~~~~~
+
+A new editor has spawned as a result from the design work on game object editing, it is called the _Scene Editor_.
+It will ultimately replace all the other editors, with the exception of text (scripts and shaders) and 2D (tile sets and guis) editors.
+
+It has a mix of behaviours and functionality from the current editors, but all put into one.
+It will support in-place items and items referenced from files, like the current game object editor does.
+It will also support the structural and visual overview that the current collection editor has.
+This makes it suitable for editing any item present in the scene graph, such as collections, game objects, sprites, cameras, etc.
+
+It was tricky to design because of its complexity, so we made a prototype to get a better understanding of the problem.
+The prototype has been completed and we really feel we are onto something interesting now.
+Below is a screen-shot of the prototype, please note that presentation was not a priority. :-)
+
+image:images/blog/scene_ed_prot.png["Scene editor prototype", width=880]
+
+There are a bit more design-knots to untie, but we hope to be able to release a working version in a week, hopefully replacing the current game object editor altogether.
+That release will still be limited feature-wise relative the ultimate goal of course, but would cover the features currently available.
+
+Content Pipeline
+~~~~~~~~~~~~~~~~
+
+The content pipeline now satisfies all the requirements we currently have on building content.
+The next step is to install it on the server and let it run there silently for an extended period of time.
+It is crucial that a content pipeline have high stability, since bugs in them can appear as changes not making it to the running game or even broken builds.
+Such bugs can be hard to track down too.
+
+Once we feel it's stable enough, using real content as test data, we will continue working on the local build feature.
+There are a few more things needed to actually make it work, regarding security and so on.
+
+Roadmap
+~~~~~~~
+
+. Tile Usability - Any known and new issues, workflow improvements, etc
+. Scene Editor - Limited release supporting game objects, sprites and "simple types"
+. Content Pipeline - To only be used for testing at the moment
+. Documentation - User Manual, Tutorials, etc
+. Website - Re-designed layout and structure
+
+Thanks for reading and hope you will enjoy the upcoming features!
+
 Update - Sprite Design, Tile Fixes & Content Pipeline
 -----------------------------------------------------
 *_October 31, 2011_*
