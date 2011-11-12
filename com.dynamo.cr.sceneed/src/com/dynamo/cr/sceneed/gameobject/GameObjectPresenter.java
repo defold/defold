@@ -22,11 +22,8 @@ public class GameObjectPresenter extends NodePresenter {
 
     @Inject private NodeManager manager;
 
-    public void onAddComponent() {
-        // Find selected game objects
-        // TODO: Support multi selection
-        IStructuredSelection structuredSelection = this.model.getSelection();
-        Object[] nodes = structuredSelection.toArray();
+    private GameObjectNode findGameObjectFromSelection(IStructuredSelection selection) {
+        Object[] nodes = selection.toArray();
         GameObjectNode parent = null;
         for (Object node : nodes) {
             if (node instanceof GameObjectNode) {
@@ -37,22 +34,54 @@ public class GameObjectPresenter extends NodePresenter {
                 break;
             }
         }
+        return parent;
+    }
+
+    public void onAddComponent() {
+        // Find selected game objects
+        // TODO: Support multi selection
+        GameObjectNode parent = findGameObjectFromSelection(this.model.getSelection());
         if (parent == null) {
             throw new UnsupportedOperationException("No game object in selection.");
         }
-        ComponentTypeNode child = null;
         String componentType = this.view.selectComponentType();
         if (componentType != null) {
+            ComponentTypeNode child = null;
             try {
                 child = (ComponentTypeNode)this.manager.getPresenter(componentType).create(componentType);
             } catch (Exception e) {
                 logException(e);
             }
+            if (child != null) {
+                this.model.executeOperation(new AddComponentOperation(parent, new ComponentNode(child)));
+            } else {
+                throw new UnsupportedOperationException("Component type " + componentType + " not registered.");
+            }
         }
-        if (child != null) {
-            this.model.executeOperation(new AddComponentOperation(parent, new ComponentNode(child)));
-        } else {
-            throw new UnsupportedOperationException("Component type " + componentType + " not registered.");
+    }
+
+    public void onAddComponentFromFile() {
+        // Find selected game objects
+        // TODO: Support multi selection
+        GameObjectNode parent = findGameObjectFromSelection(this.model.getSelection());
+        if (parent == null) {
+            throw new UnsupportedOperationException("No game object in selection.");
+        }
+        String path = this.view.selectComponentFromFile();
+        if (path != null) {
+            ComponentTypeNode child = null;
+            try {
+                child = (ComponentTypeNode)this.loader.load(path);
+            } catch (Exception e) {
+                logException(e);
+            }
+            if (child != null) {
+                RefComponentNode component = new RefComponentNode(child);
+                component.setReference(path);
+                this.model.executeOperation(new AddComponentOperation(parent, component));
+            } else {
+                throw new UnsupportedOperationException("Component " + path + " has unknown type.");
+            }
         }
     }
 

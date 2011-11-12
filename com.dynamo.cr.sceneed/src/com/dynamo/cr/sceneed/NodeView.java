@@ -7,6 +7,8 @@ import java.util.Map;
 
 import javax.inject.Inject;
 
+import org.eclipse.core.resources.IContainer;
+import org.eclipse.core.resources.IResource;
 import org.eclipse.jface.dialogs.Dialog;
 import org.eclipse.jface.resource.ImageDescriptor;
 import org.eclipse.jface.viewers.ArrayContentProvider;
@@ -16,8 +18,10 @@ import org.eclipse.jface.viewers.LabelProvider;
 import org.eclipse.swt.graphics.Image;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.dialogs.ListDialog;
+import org.eclipse.ui.dialogs.ResourceListSelectionDialog;
 
 import com.dynamo.cr.editor.core.EditorCorePlugin;
+import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.core.IResourceType;
 import com.dynamo.cr.editor.core.IResourceTypeRegistry;
 import com.dynamo.cr.properties.IFormPropertySheetPage;
@@ -31,6 +35,7 @@ public class NodeView implements INodeView {
     @Inject private ISelectionProvider selectionProvider;
     @Inject private SceneView sceneView;
     @Inject private NodeEditor editor;
+    @Inject private IContainer contentRoot;
     private final Map<ImageDescriptor, Image> imageDescToImage = new HashMap<ImageDescriptor, Image>();
 
     @Override
@@ -103,4 +108,16 @@ public class NodeView implements INodeView {
         return null;
     }
 
+    @Override
+    public String selectComponentFromFile() {
+        ResourceListSelectionDialog dialog = new ResourceListSelectionDialog(this.editor.getSite().getShell(), this.contentRoot, IResource.FILE | IResource.DEPTH_INFINITE);
+        dialog.setTitle("Add Component From File");
+
+        int ret = dialog.open();
+        if (ret == Dialog.OK) {
+            IResource r = (IResource) dialog.getResult()[0];
+            return EditorUtil.makeResourcePath(r);
+        }
+        return null;
+    }
 }

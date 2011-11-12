@@ -28,6 +28,17 @@
             </visibleWhen>
          </command>
          <command
+               commandId="com.dynamo.cr.sceneed.commands.addLink"
+               label="Add Component From File"
+               style="push">
+            <visibleWhen
+                  checkEnabled="false">
+               <reference
+                     definitionId="com.dynamo.cr.sceneed.definitions.gameObjectSelected">
+               </reference>
+            </visibleWhen>
+         </command>
+         <command
                commandId="com.dynamo.cr.sceneed.commands.add"
                label="Add Animation"
                style="push">
@@ -56,6 +67,11 @@
             <command
                   commandId="com.dynamo.cr.sceneed.commands.add"
                   label="Add Component"
+                  style="push">
+            </command>
+            <command
+                  commandId="com.dynamo.cr.sceneed.commands.addLink"
+                  label="Add Component From File"
                   style="push">
             </command>
             <visibleWhen
@@ -112,6 +128,10 @@
             id="com.dynamo.cr.sceneed.commands.add"
             name="Add">
       </command>
+      <command
+            id="com.dynamo.cr.sceneed.commands.addLink"
+            name="Add Link">
+      </command>
    </extension>
    <extension
          point="org.eclipse.ui.handlers">
@@ -156,6 +176,20 @@
             </reference>
          </activeWhen>
       </handler>
+      <handler
+            class="com.dynamo.cr.sceneed.gameobject.AddComponentFromFileHandler"
+            commandId="com.dynamo.cr.sceneed.commands.addLink">
+         <activeWhen>
+            <or>
+               <reference
+                     definitionId="com.dynamo.cr.sceneed.definitions.gameObjectSelected">
+               </reference>
+               <reference
+                     definitionId="com.dynamo.cr.sceneed.definitions.componentSelected">
+               </reference>
+            </or>
+         </activeWhen>
+      </handler>
    </extension>
    <extension
          point="org.eclipse.ui.bindings">
@@ -164,6 +198,12 @@
             contextId="com.dynamo.cr.sceneed.contexts.nodeEditor"
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
             sequence="I">
+      </key>
+      <key
+            commandId="com.dynamo.cr.sceneed.commands.addLink"
+            contextId="com.dynamo.cr.sceneed.contexts.nodeEditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="O">
       </key>
    </extension>
    <extension

@@ -84,6 +84,32 @@ public class GameObjectTest extends AbstractTest {
     }
 
     @Test
+    public void testAddComponentFromFile() throws Exception {
+        testLoad();
+
+        when(this.view.selectComponentFromFile()).thenReturn("/test.sprite");
+
+        GameObjectNode node = (GameObjectNode)this.model.getRoot();
+        GameObjectPresenter presenter = (GameObjectPresenter)this.manager.getPresenter(GameObjectNode.class);
+        presenter.onAddComponentFromFile();
+        assertEquals(1, node.getChildren().size());
+        assertTrue(node.getChildren().get(0).getChildren().get(0) instanceof SpriteNode);
+        verifyUpdate(node);
+        verifySelection();
+
+        undo();
+        assertEquals(0, node.getChildren().size());
+        verifyUpdate(node);
+        verifySelection();
+
+        redo();
+        assertEquals(1, node.getChildren().size());
+        assertTrue(node.getChildren().get(0).getChildren().get(0) instanceof SpriteNode);
+        verifyUpdate(node);
+        verifySelection();
+    }
+
+    @Test
     public void testRemoveComponent() throws Exception {
         testAddComponent();
 

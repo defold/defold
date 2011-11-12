@@ -21,4 +21,5 @@ public interface INodeView {
     void updateSelection(IStructuredSelection selection);
 
     String selectComponentType();
+    String selectComponentFromFile();
 }
