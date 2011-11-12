@@ -6,33 +6,62 @@ import java.util.Map;
 import com.dynamo.cr.sceneed.INodeRenderer;
 
 public class NodeManager {
-    private Map<Class<? extends Node>, INodeView.Presenter> presenters;
-    private INodeView.Presenter defaultPresenter;
-    private Map<Class<? extends Node>, INodeRenderer> renderers;
+    private static class NodeImpl {
+        public NodePresenter presenter;
+        public INodeRenderer renderer;
+
+        public NodeImpl(NodePresenter presenter, INodeRenderer renderer) {
+            this.presenter = presenter;
+            this.renderer = renderer;
+        }
+    }
+
+    private Map<String, NodeImpl> typeToImpl;
+    private Map<Class<? extends Node>, NodeImpl> classToImpl;
+    private NodePresenter defaultPresenter;
 
     public NodeManager() {
-        this.presenters = new HashMap<Class<? extends Node>, INodeView.Presenter>();
-        this.renderers = new HashMap<Class<? extends Node>, INodeRenderer>();
+        this.typeToImpl = new HashMap<String, NodeImpl>();
+        this.classToImpl = new HashMap<Class<? extends Node>, NodeImpl>();
     }
 
-    public void registerNodeType(Class<? extends Node> c, INodeView.Presenter presenter, INodeRenderer renderer) {
-        this.presenters.put(c, presenter);
-        this.renderers.put(c, renderer);
+    public void registerNodeType(String type, Class<? extends Node> c, NodePresenter presenter, INodeRenderer renderer) {
+        NodeImpl impl = new NodeImpl(presenter, renderer);
+        this.typeToImpl.put(type, impl);
+        this.classToImpl.put(c, impl);
     }
 
-    public INodeView.Presenter getPresenter(Class<? extends Node> c) {
-        return this.presenters.get(c);
+    public NodePresenter getPresenter(String type) {
+        return this.typeToImpl.get(type).presenter;
     }
 
-    public INodeView.Presenter getDefaultPresenter() {
+    public NodePresenter getPresenter(Class<? extends Node> c) {
+        return this.classToImpl.get(c).presenter;
+    }
+
+    public NodePresenter getDefaultPresenter() {
         return this.defaultPresenter;
     }
 
-    public void setDefaultPresenter(INodeView.Presenter defaultPresenter) {
+    public void setDefaultPresenter(NodePresenter defaultPresenter) {
         this.defaultPresenter = defaultPresenter;
     }
 
+    public INodeRenderer getRenderer(String type) {
+        NodeImpl impl = this.typeToImpl.get(type);
+        if (impl != null) {
+            return impl.renderer;
+        } else {
+            return null;
+        }
+    }
+
     public INodeRenderer getRenderer(Class<? extends Node> c) {
-        return this.renderers.get(c);
+        NodeImpl impl = this.classToImpl.get(c);
+        if (impl != null) {
+            return impl.renderer;
+        } else {
+            return null;
+        }
     }
 }

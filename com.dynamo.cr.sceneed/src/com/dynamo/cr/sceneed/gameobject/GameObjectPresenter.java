@@ -1,16 +1,18 @@
 package com.dynamo.cr.sceneed.gameobject;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 
+import org.eclipse.core.runtime.CoreException;
 import org.eclipse.jface.viewers.IStructuredSelection;
 
-import com.dynamo.cr.sceneed.core.INodeView;
 import com.dynamo.cr.sceneed.core.Node;
-import com.dynamo.cr.sceneed.core.NodeModel;
+import com.dynamo.cr.sceneed.core.NodeManager;
 import com.dynamo.cr.sceneed.core.NodePresenter;
-import com.dynamo.cr.sceneed.sprite.SpriteNode;
+import com.dynamo.gameobject.proto.GameObject.ComponentDesc;
+import com.dynamo.gameobject.proto.GameObject.EmbeddedComponentDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc.Builder;
 import com.google.inject.Inject;
@@ -18,10 +20,7 @@ import com.google.protobuf.TextFormat;
 
 public class GameObjectPresenter extends NodePresenter {
 
-    @Inject
-    public GameObjectPresenter(NodeModel model, INodeView view) {
-        super(model, view);
-    }
+    @Inject private NodeManager manager;
 
     public void onAddComponent(String componentType) {
         // Find selected game objects
@@ -41,13 +40,14 @@ public class GameObjectPresenter extends NodePresenter {
         if (parent == null) {
             throw new UnsupportedOperationException("No game object in selection.");
         }
-        // TODO: Use node factory
-        ComponentNode child = null;
-        if (componentType.equals("sprite")) {
-            child = new ComponentNode(new SpriteNode());
+        ComponentTypeNode child = null;
+        try {
+            child = (ComponentTypeNode)this.manager.getPresenter(componentType).create(componentType);
+        } catch (Exception e) {
+            logException(e);
         }
         if (child != null) {
-            this.model.executeOperation(new AddComponentOperation(parent, child));
+            this.model.executeOperation(new AddComponentOperation(parent, new ComponentNode(child)));
         } else {
             throw new UnsupportedOperationException("Component type " + componentType + " not registered.");
         }
@@ -69,15 +69,35 @@ public class GameObjectPresenter extends NodePresenter {
     }
 
     @Override
-    public void onLoad(InputStream contents) throws IOException {
-        // TODO: Move to loader
+    public Node load(String type, InputStream contents) throws IOException, CoreException {
         InputStreamReader reader = new InputStreamReader(contents);
         Builder builder = PrototypeDesc.newBuilder();
         TextFormat.merge(reader, builder);
-        @SuppressWarnings("unused")
         PrototypeDesc desc = builder.build();
         GameObjectNode gameObject = new GameObjectNode();
-        // TODO: Fill out game object
-        this.model.setRoot(gameObject);
+        int n = desc.getComponentsCount();
+        for (int i = 0; i < n; ++i) {
+            ComponentDesc componentDesc = desc.getComponents(i);
+            String path = componentDesc.getComponent();
+            ComponentTypeNode componentType = (ComponentTypeNode)this.loader.load(path);
+            RefComponentNode componentNode = new RefComponentNode(componentType);
+            componentNode.setId(componentDesc.getId());
+            componentNode.setReference(path);
+            gameObject.addComponent(componentNode);
+        }
+        n = desc.getEmbeddedComponentsCount();
+        for (int i = 0; i < n; ++i) {
+            EmbeddedComponentDesc componentDesc = desc.getEmbeddedComponents(i);
+            ComponentTypeNode componentType = (ComponentTypeNode)this.loader.load(componentDesc.getType(), new ByteArrayInputStream(componentDesc.getData().getBytes()));
+            ComponentNode component = new ComponentNode(componentType);
+            component.setId(componentDesc.getId());
+            gameObject.addComponent(component);
+        }
+        return gameObject;
+    }
+
+    @Override
+    public Node create(String type) throws IOException, CoreException {
+        return new GameObjectNode();
     }
 }

@@ -17,8 +17,10 @@ import static org.mockito.Mockito.verify;
 import com.dynamo.cr.sceneed.core.INodeView;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.gameobject.ComponentNode;
+import com.dynamo.cr.sceneed.gameobject.ComponentPresenter;
 import com.dynamo.cr.sceneed.gameobject.GameObjectNode;
 import com.dynamo.cr.sceneed.gameobject.GameObjectPresenter;
+import com.dynamo.cr.sceneed.gameobject.SpriteNode;
 import com.google.inject.Module;
 import com.google.inject.Singleton;
 
@@ -36,16 +38,17 @@ public class GameObjectTest extends AbstractTest {
     @Before
     public void setup() throws CoreException, IOException {
         super.setup();
-        this.manager.registerNodeType(GameObjectNode.class, this.injector.getInstance(GameObjectPresenter.class), null);
+        this.manager.registerNodeType("go", GameObjectNode.class, this.injector.getInstance(GameObjectPresenter.class), null);
+        this.manager.registerNodeType("sprite", SpriteNode.class, this.injector.getInstance(ComponentPresenter.class), null);
     }
 
     // Tests
 
     @Test
-    public void testLoad() throws IOException {
+    public void testLoad() throws Exception {
         String ddf = "";
         GameObjectPresenter presenter = (GameObjectPresenter)this.manager.getPresenter(GameObjectNode.class);
-        presenter.onLoad(new ByteArrayInputStream(ddf.getBytes()));
+        presenter.onLoad("go", new ByteArrayInputStream(ddf.getBytes()));
         Node root = this.model.getRoot();
         assertTrue(root instanceof GameObjectNode);
         assertTrue(this.model.getSelection().toList().contains(root));

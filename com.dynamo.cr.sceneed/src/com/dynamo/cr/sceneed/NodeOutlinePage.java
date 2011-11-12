@@ -68,7 +68,9 @@ public class NodeOutlinePage extends ContentOutlinePage implements INodeOutlineP
         if (viewer != null) {
             this.root.node = node;
             viewer.setInput(this.root);
-            viewer.setSelection(new StructuredSelection(node));
+            if (node != null) {
+                viewer.setSelection(new StructuredSelection(node));
+            }
             viewer.expandToLevel(2);
         }
     }

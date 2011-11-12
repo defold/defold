@@ -34,13 +34,14 @@ import com.dynamo.cr.properties.IFormPropertySheetPage;
 import com.dynamo.cr.sceneed.core.ILogger;
 import com.dynamo.cr.sceneed.core.INodeView;
 import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.sceneed.core.NodeLoader;
 import com.dynamo.cr.sceneed.core.NodeManager;
 import com.dynamo.cr.sceneed.core.NodeModel;
+import com.dynamo.cr.sceneed.gameobject.ComponentPresenter;
 import com.dynamo.cr.sceneed.gameobject.GameObjectNode;
 import com.dynamo.cr.sceneed.gameobject.GameObjectPresenter;
-import com.dynamo.cr.sceneed.sprite.SpriteNode;
-import com.dynamo.cr.sceneed.sprite.SpritePresenter;
-import com.dynamo.cr.sceneed.sprite.SpriteRenderer;
+import com.dynamo.cr.sceneed.gameobject.GenericComponentTypeNode;
+import com.dynamo.cr.sceneed.gameobject.SpriteNode;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
@@ -66,9 +67,9 @@ public class NodeEditor extends AbstractDefoldEditor implements ISelectionListen
             bind(ISelectionProvider.class).to(NodeSelectionProvider.class).in(Singleton.class);
             bind(NodeModel.class).in(Singleton.class);
             bind(NodeManager.class).in(Singleton.class);
+            bind(NodeLoader.class).in(Singleton.class);
             bind(DefaultNodePresenter.class).in(Singleton.class);
             bind(GameObjectPresenter.class).in(Singleton.class);
-            bind(SpritePresenter.class).in(Singleton.class);
             bind(NodeEditor.class).toInstance(NodeEditor.this);
 
             bind(IOperationHistory.class).toInstance(history);
@@ -115,24 +116,21 @@ public class NodeEditor extends AbstractDefoldEditor implements ISelectionListen
         this.manager = injector.getInstance(NodeManager.class);
         this.manager.setDefaultPresenter(injector.getInstance(DefaultNodePresenter.class));
         // TODO: Replace with extension point
-        this.manager.registerNodeType(GameObjectNode.class, injector.getInstance(GameObjectPresenter.class), null);
-        this.manager.registerNodeType(SpriteNode.class, injector.getInstance(SpritePresenter.class), new SpriteRenderer());
+        this.manager.registerNodeType("go", GameObjectNode.class, injector.getInstance(GameObjectPresenter.class), null);
+        this.manager.registerNodeType("sprite", SpriteNode.class, injector.getInstance(ComponentPresenter.class), null);
+        this.manager.registerNodeType("spawnpoint", GenericComponentTypeNode.class, injector.getInstance(ComponentPresenter.class), null);
+        this.manager.registerNodeType("collisionobject", GenericComponentTypeNode.class, injector.getInstance(ComponentPresenter.class), null);
+        this.manager.registerNodeType("collectionproxy", GenericComponentTypeNode.class, injector.getInstance(ComponentPresenter.class), null);
+        this.manager.registerNodeType("script", GenericComponentTypeNode.class, injector.getInstance(ComponentPresenter.class), null);
+        this.manager.registerNodeType("tilegrid", GenericComponentTypeNode.class, injector.getInstance(ComponentPresenter.class), null);
+        this.manager.registerNodeType("camera", GenericComponentTypeNode.class, injector.getInstance(ComponentPresenter.class), null);
+        this.manager.registerNodeType("gui", GenericComponentTypeNode.class, injector.getInstance(ComponentPresenter.class), null);
+        this.manager.registerNodeType("light", GenericComponentTypeNode.class, injector.getInstance(ComponentPresenter.class), null);
+        this.manager.registerNodeType("model", GenericComponentTypeNode.class, injector.getInstance(ComponentPresenter.class), null);
 
         IProgressService service = PlatformUI.getWorkbench().getProgressService();
 
-        // TODO: Replace with extension point
-        String extension = file.getProjectRelativePath().getFileExtension();
-        INodeView.Presenter presenter = null;
-        String type = null;
-        if (extension.equals("go")) {
-            presenter = this.manager.getPresenter(GameObjectNode.class);
-            type = "Game Object";
-        } else if (extension.equals("sprite")) {
-            presenter = this.manager.getPresenter(SpriteNode.class);
-            type = "Sprite";
-        }
-
-        NodeLoaderRunnable loader = new NodeLoaderRunnable(file, presenter, type);
+        NodeLoaderRunnable loader = new NodeLoaderRunnable(file, injector.getInstance(DefaultNodePresenter.class));
         try {
             service.runInUI(service, loader, null);
             if (loader.exception != null) {

@@ -3,6 +3,7 @@ package com.dynamo.cr.sceneed.core;
 import java.io.IOException;
 import java.io.InputStream;
 
+import org.eclipse.core.runtime.CoreException;
 import org.eclipse.jface.viewers.IStructuredSelection;
 
 public interface INodeView {
@@ -11,7 +12,7 @@ public interface INodeView {
         void onSelect(IStructuredSelection selection);
         void onRefresh();
 
-        void onLoad(InputStream contents) throws IOException;
+        void onLoad(String type, InputStream contents) throws IOException, CoreException;
     }
 
     void setRoot(Node root);
