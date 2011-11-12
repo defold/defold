@@ -5,4 +5,9 @@ import com.dynamo.cr.sceneed.core.Node;
 public abstract class ComponentTypeNode extends Node {
 
     public abstract String getTypeName();
+
+    @Override
+    public final String toString() {
+        return getTypeName();
+    }
 }

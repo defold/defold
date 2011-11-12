@@ -13,8 +13,4 @@ public class GenericComponentTypeNode extends ComponentTypeNode {
         return this.typeName;
     }
 
-    @Override
-    public String toString() {
-        return getTypeName();
-    }
 }

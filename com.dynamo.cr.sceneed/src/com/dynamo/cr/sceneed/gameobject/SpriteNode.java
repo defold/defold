@@ -5,7 +5,7 @@ import com.dynamo.cr.properties.Property;
 public class SpriteNode extends ComponentTypeNode {
 
     @Property(isResource=true)
-    private String texture;
+    private String texture = "";
 
     @Property
     private float width;
@@ -83,11 +83,7 @@ public class SpriteNode extends ComponentTypeNode {
 
     @Override
     public String getTypeName() {
-        return "sprite";
-    }
-
-    @Override
-    public String toString() {
         return "Sprite";
     }
+
 }

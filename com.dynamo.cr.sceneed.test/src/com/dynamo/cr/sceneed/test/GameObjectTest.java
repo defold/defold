@@ -13,6 +13,7 @@ import static org.junit.Assert.assertTrue;
 
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.dynamo.cr.sceneed.core.INodeView;
 import com.dynamo.cr.sceneed.core.Node;
@@ -60,10 +61,11 @@ public class GameObjectTest extends AbstractTest {
     public void testAddComponent() throws Exception {
         testLoad();
 
+        when(this.view.selectComponentType()).thenReturn("sprite");
+
         GameObjectNode node = (GameObjectNode)this.model.getRoot();
         GameObjectPresenter presenter = (GameObjectPresenter)this.manager.getPresenter(GameObjectNode.class);
-        String componentType = "sprite";
-        presenter.onAddComponent(componentType);
+        presenter.onAddComponent();
         assertEquals(1, node.getChildren().size());
         assertEquals("sprite", node.getChildren().get(0).toString());
         verifyUpdate(node);

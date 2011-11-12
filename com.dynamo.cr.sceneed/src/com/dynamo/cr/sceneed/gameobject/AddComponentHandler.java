@@ -14,12 +14,9 @@ public class AddComponentHandler extends AbstractHandler {
     public Object execute(ExecutionEvent event) throws ExecutionException {
         IEditorPart editorPart = HandlerUtil.getActiveEditor(event);
         if (editorPart instanceof NodeEditor) {
-            // TODO: Retrieve component type
-            String componentType = "sprite";
-
             NodeEditor nodeEditor = (NodeEditor)editorPart;
             GameObjectPresenter presenter = (GameObjectPresenter)nodeEditor.getPresenter(GameObjectNode.class);
-            presenter.onAddComponent(componentType);
+            presenter.onAddComponent();
         }
         return null;
     }

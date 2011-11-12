@@ -22,7 +22,7 @@ public class GameObjectPresenter extends NodePresenter {
 
     @Inject private NodeManager manager;
 
-    public void onAddComponent(String componentType) {
+    public void onAddComponent() {
         // Find selected game objects
         // TODO: Support multi selection
         IStructuredSelection structuredSelection = this.model.getSelection();
@@ -41,10 +41,13 @@ public class GameObjectPresenter extends NodePresenter {
             throw new UnsupportedOperationException("No game object in selection.");
         }
         ComponentTypeNode child = null;
-        try {
-            child = (ComponentTypeNode)this.manager.getPresenter(componentType).create(componentType);
-        } catch (Exception e) {
-            logException(e);
+        String componentType = this.view.selectComponentType();
+        if (componentType != null) {
+            try {
+                child = (ComponentTypeNode)this.manager.getPresenter(componentType).create(componentType);
+            } catch (Exception e) {
+                logException(e);
+            }
         }
         if (child != null) {
             this.model.executeOperation(new AddComponentOperation(parent, new ComponentNode(child)));

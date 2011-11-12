@@ -19,4 +19,6 @@ public interface INodeView {
     void updateNode(Node node);
 
     void updateSelection(IStructuredSelection selection);
+
+    String selectComponentType();
 }
