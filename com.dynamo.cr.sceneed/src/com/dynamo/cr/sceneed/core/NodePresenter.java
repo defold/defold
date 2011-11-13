@@ -38,10 +38,39 @@ public abstract class NodePresenter implements Presenter {
 
     @Override
     public final void onLoad(String type, InputStream contents) throws IOException, CoreException {
-        this.model.setRoot(this.manager.getPresenter(type).load(type, contents));
+        this.model.setRoot(this.manager.getPresenter(type).doLoad(type, contents));
     }
 
-    protected void doSave(Message message, OutputStream contents, IProgressMonitor monitor) throws IOException, CoreException {
+    @Override
+    public void onSave(OutputStream contents, IProgressMonitor monitor) throws IOException, CoreException {
+        Node node = this.model.getRoot();
+        Message message = this.manager.getPresenter(node.getClass()).buildMessage(node, monitor);
+        saveMessage(message, contents, monitor);
+        this.model.setUndoRedoCounter(0);
+    }
+
+    public abstract Node doLoad(String type, InputStream contents) throws IOException, CoreException;
+    public abstract Message buildMessage(Node node, IProgressMonitor monitor) throws IOException, CoreException;
+    public abstract Node createNode(String type) throws IOException, CoreException;
+
+    public Node loadNode(String path) throws IOException, CoreException {
+        return loadNode(this.contentRoot.getFile(new Path(path)));
+    }
+
+    public Node loadNode(IFile f) throws IOException, CoreException {
+        return loadNode(f.getFileExtension(), f.getContents());
+    }
+
+    public Node loadNode(String type, InputStream is) throws IOException, CoreException {
+        NodePresenter presenter = this.manager.getPresenter(type);
+        if (presenter != null) {
+            return presenter.doLoad(type, is);
+        } else {
+            return null;
+        }
+    }
+
+    protected void saveMessage(Message message, OutputStream contents, IProgressMonitor monitor) throws IOException, CoreException {
         try {
             OutputStreamWriter writer = new OutputStreamWriter(contents);
             try {
@@ -55,31 +84,8 @@ public abstract class NodePresenter implements Presenter {
         }
     }
 
-    @Override
-    public void onSave(OutputStream contents, IProgressMonitor monitor) throws IOException, CoreException {
-        Node node = this.model.getRoot();
-        Message message = this.manager.getPresenter(node.getClass()).save(node, monitor);
-        doSave(message, contents, monitor);
-        this.model.setUndoRedoCounter(0);
-    }
-
-    public abstract Node load(String type, InputStream contents) throws IOException, CoreException;
-    public abstract Message save(Node node, IProgressMonitor monitor) throws IOException, CoreException;
-    public abstract Node create(String type) throws IOException, CoreException;
-
     protected final void logException(Throwable e) {
         this.logger.logException(e);
     }
 
-    protected static Node load(NodeManager manager, IContainer contentRoot, String path) throws IOException, CoreException {
-        return load(manager, contentRoot.getFile(new Path(path)));
-    }
-
-    protected static Node load(NodeManager manager, IFile f) throws IOException, CoreException {
-        return load(manager, f.getFileExtension(), f.getContents());
-    }
-
-    protected static Node load(NodeManager manager, String type, InputStream is) throws IOException, CoreException {
-        return manager.getPresenter(type).load(type, is);
-    }
 }

@@ -32,6 +32,8 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.any;
 
+import static org.junit.Assert.assertTrue;
+
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.sceneed.DefaultNodePresenter;
@@ -193,4 +195,21 @@ public abstract class AbstractTest {
         return propertyModel.getPropertyStatus(id);
     }
 
+    protected void assertNodePropertyStatus(Node node, Object id, int severity, String message) {
+        IStatus status = getNodePropertyStatus(node, id);
+        assertTrue(testStatus(status, severity, message));
+    }
+
+    private boolean testStatus(IStatus status, int severity, String message) {
+        if (status.isMultiStatus()) {
+            for (IStatus child : status.getChildren()) {
+                if (testStatus(child, severity, message)) {
+                    return true;
+                }
+            }
+            return false;
+        } else {
+            return status.getSeverity() == severity && (message == null || message.equals(status.getMessage()));
+        }
+    }
 }

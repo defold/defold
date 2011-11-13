@@ -10,6 +10,7 @@ import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.jface.viewers.StructuredSelection;
+import org.eclipse.osgi.util.NLS;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -22,12 +23,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.dynamo.cr.sceneed.core.INodeView;
+import com.dynamo.cr.sceneed.core.Messages;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.NodePresenter;
 import com.dynamo.cr.sceneed.gameobject.ComponentNode;
 import com.dynamo.cr.sceneed.gameobject.ComponentPresenter;
 import com.dynamo.cr.sceneed.gameobject.GameObjectNode;
 import com.dynamo.cr.sceneed.gameobject.GameObjectPresenter;
+import com.dynamo.cr.sceneed.gameobject.RefComponentNode;
 import com.dynamo.cr.sceneed.gameobject.SpriteNode;
 import com.google.inject.Module;
 import com.google.inject.Singleton;
@@ -105,7 +108,7 @@ public class GameObjectTest extends AbstractTest {
         GameObjectPresenter presenter = (GameObjectPresenter)this.manager.getPresenter(GameObjectNode.class);
         presenter.onAddComponentFromFile();
         assertEquals(1, node.getChildren().size());
-        assertTrue(node.getChildren().get(0).getChildren().get(0) instanceof SpriteNode);
+        assertEquals("sprite", ((ComponentNode)node.getChildren().get(0)).getId());
         verifyUpdate(node);
         verifySelection();
 
@@ -116,7 +119,7 @@ public class GameObjectTest extends AbstractTest {
 
         redo();
         assertEquals(1, node.getChildren().size());
-        assertTrue(node.getChildren().get(0).getChildren().get(0) instanceof SpriteNode);
+        assertEquals("sprite", ((ComponentNode)node.getChildren().get(0)).getId());
         verifyUpdate(node);
         verifySelection();
     }
@@ -209,19 +212,37 @@ public class GameObjectTest extends AbstractTest {
         testAddComponent();
 
         ComponentNode component = (ComponentNode)this.model.getRoot().getChildren().get(0);
-        assertEquals(IStatus.OK, getNodePropertyStatus(component, "id").getSeverity());
+        assertNodePropertyStatus(component, "id", IStatus.OK, null);
 
         setNodeProperty(component, "id", "");
-        assertEquals(IStatus.ERROR, getNodePropertyStatus(component, "id").getSeverity());
+        assertNodePropertyStatus(component, "id", IStatus.ERROR, Messages.ComponentNode_id_NOT_SPECIFIED);
 
         setNodeProperty(component, "id", "sprite");
-        assertEquals(IStatus.OK, getNodePropertyStatus(component, "id").getSeverity());
+        assertNodePropertyStatus(component, "id", IStatus.OK, null);
 
         GameObjectPresenter presenter = (GameObjectPresenter)this.manager.getPresenter(GameObjectNode.class);
         presenter.onAddComponent();
 
         component = (ComponentNode)this.model.getRoot().getChildren().get(1);
-        assertEquals(IStatus.ERROR, getNodePropertyStatus(component, "id").getSeverity());
+        assertNodePropertyStatus(component, "id", IStatus.ERROR, NLS.bind(Messages.ComponentNode_id_DUPLICATED, "sprite"));
+    }
+
+    @Test
+    public void testComponentFromFileMessages() throws Exception {
+        testAddComponentFromFile();
+
+        RefComponentNode component = (RefComponentNode)this.model.getRoot().getChildren().get(0);
+        assertNodePropertyStatus(component, "component", IStatus.ERROR, Messages.RefComponentNode_component_INVALID_REFERENCE);
+
+        setNodeProperty(component, "component", "");
+        assertNodePropertyStatus(component, "component", IStatus.INFO, Messages.NodeModel_ResourceValidator_component_NOT_SPECIFIED);
+
+        String path = "/test.dummy";
+        setNodeProperty(component, "component", path);
+        assertNodePropertyStatus(component, "component", IStatus.ERROR, NLS.bind(Messages.NodeModel_ResourceValidator_component_NOT_FOUND, path));
+
+        setNodeProperty(component, "component", "/test.tileset");
+        assertNodePropertyStatus(component, "component", IStatus.ERROR, NLS.bind(Messages.RefComponentNode_component_INVALID_TYPE, "tileset"));
     }
 
     @Override

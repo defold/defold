@@ -24,13 +24,13 @@ import com.google.protobuf.TextFormat;
 public class ComponentPresenter extends NodePresenter {
 
     @Override
-    public Node load(String type, InputStream contents) throws IOException, CoreException {
+    public Node doLoad(String type, InputStream contents) throws IOException, CoreException {
         if (type.equals("sprite")) {
             InputStreamReader reader = new InputStreamReader(contents);
             SpriteDesc.Builder builder = SpriteDesc.newBuilder();
             TextFormat.merge(reader, builder);
             SpriteDesc desc = builder.build();
-            SpriteNode sprite = new SpriteNode();
+            SpriteNode sprite = new SpriteNode(this);
             sprite.setTexture(desc.getTexture());
             sprite.setWidth(desc.getWidth());
             sprite.setHeight(desc.getHeight());
@@ -44,7 +44,7 @@ public class ComponentPresenter extends NodePresenter {
             SpawnPointDesc.Builder builder = SpawnPointDesc.newBuilder();
             TextFormat.merge(reader, builder);
             SpawnPointDesc desc = builder.build();
-            SpawnPointNode spawnPoint = new SpawnPointNode();
+            SpawnPointNode spawnPoint = new SpawnPointNode(this);
             spawnPoint.setPrototype(desc.getPrototype());
             return spawnPoint;
         } else if (type.equals("collisionobject")) {
@@ -52,7 +52,7 @@ public class ComponentPresenter extends NodePresenter {
             CollisionObjectDesc.Builder builder = CollisionObjectDesc.newBuilder();
             TextFormat.merge(reader, builder);
             CollisionObjectDesc desc = builder.build();
-            CollisionObjectNode collisionObject = new CollisionObjectNode();
+            CollisionObjectNode collisionObject = new CollisionObjectNode(this);
             collisionObject.setCollisionShape(desc.getCollisionShape());
             collisionObject.setType(desc.getType());
             collisionObject.setMass(desc.getMass());
@@ -74,30 +74,30 @@ public class ComponentPresenter extends NodePresenter {
             CollectionProxyDesc.Builder builder = CollectionProxyDesc.newBuilder();
             TextFormat.merge(reader, builder);
             CollectionProxyDesc desc = builder.build();
-            CollectionProxyNode collectionProxy = new CollectionProxyNode();
+            CollectionProxyNode collectionProxy = new CollectionProxyNode(this);
             collectionProxy.setCollection(desc.getCollection());
             return collectionProxy;
         }
-        return new GenericComponentTypeNode(type);
+        return new GenericComponentTypeNode(this, type);
     }
 
     @Override
-    public Node create(String type) throws IOException, CoreException {
+    public Node createNode(String type) throws IOException, CoreException {
         if (type.equals("sprite")) {
-            return new SpriteNode();
+            return new SpriteNode(this);
         } else if (type.equals("spawnpoint")) {
-            return new SpawnPointNode();
+            return new SpawnPointNode(this);
         } else if (type.equals("collisionobject")) {
-            return new CollisionObjectNode();
+            return new CollisionObjectNode(this);
         } else if (type.equals("collectionproxy")) {
-            return new CollectionProxyNode();
+            return new CollectionProxyNode(this);
         } else {
-            return new GenericComponentTypeNode(type);
+            return new GenericComponentTypeNode(this, type);
         }
     }
 
     @Override
-    public Message save(Node node, IProgressMonitor monitor) throws IOException, CoreException {
+    public Message buildMessage(Node node, IProgressMonitor monitor) throws IOException, CoreException {
         if (node instanceof SpriteNode) {
             SpriteDesc.Builder builder = SpriteDesc.newBuilder();
             SpriteNode sprite = (SpriteNode)node;

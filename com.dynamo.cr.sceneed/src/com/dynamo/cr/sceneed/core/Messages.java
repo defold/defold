@@ -14,6 +14,10 @@ public class Messages extends NLS {
     public static String ComponentNode_id_NOT_SPECIFIED;
     public static String ComponentNode_id_DUPLICATED;
 
+    public static String RefComponentNode_component_INVALID_REFERENCE;
+    public static String RefComponentNode_component_INVALID_TYPE;
+    public static String RefComponentNode_component_UNKNOWN_TYPE;
+
     static {
         // initialize resource bundle
         NLS.initializeMessages(BUNDLE_NAME, Messages.class);

@@ -1,6 +1,7 @@
 package com.dynamo.cr.sceneed.gameobject;
 
 import com.dynamo.cr.properties.Property;
+import com.dynamo.cr.sceneed.core.NodePresenter;
 import com.dynamo.cr.sceneed.core.Resource;
 
 public class SpawnPointNode extends ComponentTypeNode {
@@ -8,6 +9,10 @@ public class SpawnPointNode extends ComponentTypeNode {
     @Property(isResource=true)
     @Resource
     private String prototype = "";
+
+    public SpawnPointNode(NodePresenter presenter) {
+        super(presenter);
+    }
 
     public String getPrototype() {
         return this.prototype;

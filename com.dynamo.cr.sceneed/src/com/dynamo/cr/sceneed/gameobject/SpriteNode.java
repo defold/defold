@@ -1,6 +1,10 @@
 package com.dynamo.cr.sceneed.gameobject;
 
+import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.MultiStatus;
+
 import com.dynamo.cr.properties.Property;
+import com.dynamo.cr.sceneed.core.NodePresenter;
 import com.dynamo.cr.sceneed.core.Resource;
 
 public class SpriteNode extends ComponentTypeNode {
@@ -26,6 +30,10 @@ public class SpriteNode extends ComponentTypeNode {
 
     @Property
     private int tileCount;
+
+    public SpriteNode(NodePresenter presenter) {
+        super(presenter);
+    }
 
     public String getTexture() {
         return this.texture;
@@ -91,6 +99,13 @@ public class SpriteNode extends ComponentTypeNode {
     @Override
     public String getTypeName() {
         return "Sprite";
+    }
+
+    @Override
+    public IStatus validate() {
+        MultiStatus status = validateProperties(new String[] {"texture"});
+        status.merge(super.validate());
+        return status;
     }
 
 }

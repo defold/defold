@@ -1,6 +1,7 @@
 package com.dynamo.cr.sceneed.gameobject;
 
 import com.dynamo.cr.properties.Property;
+import com.dynamo.cr.sceneed.core.NodePresenter;
 import com.dynamo.cr.sceneed.core.Resource;
 
 public class CollectionProxyNode extends ComponentTypeNode {
@@ -8,6 +9,10 @@ public class CollectionProxyNode extends ComponentTypeNode {
     @Property(isResource=true)
     @Resource
     private String collection = "";
+
+    public CollectionProxyNode(NodePresenter presenter) {
+        super(presenter);
+    }
 
     public String getCollection() {
         return this.collection;

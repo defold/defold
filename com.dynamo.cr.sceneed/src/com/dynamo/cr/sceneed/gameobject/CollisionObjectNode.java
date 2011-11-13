@@ -1,6 +1,7 @@
 package com.dynamo.cr.sceneed.gameobject;
 
 import com.dynamo.cr.properties.Property;
+import com.dynamo.cr.sceneed.core.NodePresenter;
 import com.dynamo.cr.sceneed.core.Resource;
 import com.dynamo.physics.proto.Physics.CollisionObjectType;
 
@@ -15,6 +16,10 @@ public class CollisionObjectNode extends ComponentTypeNode {
     @Property private float restitution;
     @Property private String group = "";
     @Property private String mask = "";
+
+    public CollisionObjectNode(NodePresenter presenter) {
+        super(presenter);
+    }
 
     public String getCollisionShape() {
         return this.collisionShape;

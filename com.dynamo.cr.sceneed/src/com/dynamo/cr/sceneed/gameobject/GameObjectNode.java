@@ -3,8 +3,13 @@ package com.dynamo.cr.sceneed.gameobject;
 import java.util.Comparator;
 
 import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.sceneed.core.NodePresenter;
 
 public class GameObjectNode extends Node {
+
+    public GameObjectNode(NodePresenter presenter) {
+        super(presenter);
+    }
 
     public void addComponent(ComponentNode component) {
         addChild(component);

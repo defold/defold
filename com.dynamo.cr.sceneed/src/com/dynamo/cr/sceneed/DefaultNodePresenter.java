@@ -13,17 +13,17 @@ import com.google.protobuf.Message;
 public class DefaultNodePresenter extends NodePresenter {
 
     @Override
-    public Node load(String type, InputStream contents) throws IOException, CoreException {
+    public Node doLoad(String type, InputStream contents) throws IOException, CoreException {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public Node create(String type) throws IOException, CoreException {
+    public Node createNode(String type) throws IOException, CoreException {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public Message save(Node node, IProgressMonitor monitor) throws IOException, CoreException {
+    public Message buildMessage(Node node, IProgressMonitor monitor) throws IOException, CoreException {
         throw new UnsupportedOperationException();
     }
 

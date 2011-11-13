@@ -32,11 +32,21 @@ public class NodeManager {
     }
 
     public NodePresenter getPresenter(String type) {
-        return this.typeToImpl.get(type).presenter;
+        NodeImpl impl = this.typeToImpl.get(type);
+        if (impl != null) {
+            return impl.presenter;
+        } else {
+            return null;
+        }
     }
 
     public NodePresenter getPresenter(Class<? extends Node> c) {
-        return this.classToImpl.get(c).presenter;
+        NodeImpl impl = this.classToImpl.get(c);
+        if (impl != null) {
+            return impl.presenter;
+        } else {
+            return null;
+        }
     }
 
     public NodePresenter getDefaultPresenter() {

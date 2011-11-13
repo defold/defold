@@ -8,12 +8,16 @@ import java.util.List;
 import java.util.Map;
 
 import org.eclipse.core.runtime.IAdaptable;
+import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.MultiStatus;
+import org.eclipse.core.runtime.Status;
 import org.eclipse.swt.graphics.Image;
 
 import com.dynamo.cr.properties.Entity;
 import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.properties.PropertyIntrospector;
 import com.dynamo.cr.properties.PropertyIntrospectorModel;
+import com.dynamo.cr.sceneed.Activator;
 
 @Entity(commandFactory = NodeUndoableCommandFactory.class)
 public class Node implements IAdaptable {
@@ -21,12 +25,18 @@ public class Node implements IAdaptable {
     private NodeModel model;
     private List<Node> children;
     private Node parent;
+    private final NodePresenter presenter;
 
     private static Map<Class<? extends Node>, PropertyIntrospector<Node, NodeModel>> introspectors =
             new HashMap<Class<? extends Node>, PropertyIntrospector<Node,NodeModel>>();
 
-    public Node() {
+    public Node(NodePresenter presenter) {
+        this.presenter = presenter;
         this.children = new ArrayList<Node>();
+    }
+
+    public NodePresenter getPresenter() {
+        return this.presenter;
     }
 
     public NodeModel getModel() {
@@ -65,8 +75,12 @@ public class Node implements IAdaptable {
     }
 
     protected void sortChildren(Comparator<? super Node> comparator) {
-        Collections.sort(this.children, comparator);
-        notifyChange();
+        List<Node> sortedChildren = new ArrayList<Node>(this.children);
+        Collections.sort(sortedChildren, comparator);
+        if (!sortedChildren.equals(this.children)) {
+            this.children = sortedChildren;
+            notifyChange();
+        }
     }
 
     protected void notifyChange() {
@@ -86,6 +100,27 @@ public class Node implements IAdaptable {
 
     public Image getImage() {
         return null;
+    }
+
+    public IStatus validate() {
+        if (!this.children.isEmpty()) {
+            MultiStatus status = new MultiStatus(Activator.PLUGIN_ID, 0, null, null);
+            for (Node child : this.children) {
+                status.merge(child.validate());
+            }
+            return status;
+        }
+        return Status.OK_STATUS;
+    }
+
+    protected MultiStatus validateProperties(String[] properties) {
+        MultiStatus status = new MultiStatus(Activator.PLUGIN_ID, 0, null, null);
+        @SuppressWarnings("unchecked")
+        IPropertyModel<? extends Node, NodeModel> model = (IPropertyModel<? extends Node, NodeModel>) getAdapter(IPropertyModel.class);
+        for (String property : properties) {
+            status.merge(model.getPropertyStatus(property));
+        }
+        return status;
     }
 
     @Override

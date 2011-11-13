@@ -52,12 +52,12 @@ public class GameObjectPresenter extends NodePresenter {
         if (componentType != null) {
             ComponentTypeNode child = null;
             try {
-                child = (ComponentTypeNode)this.manager.getPresenter(componentType).create(componentType);
+                child = (ComponentTypeNode)this.manager.getPresenter(componentType).createNode(componentType);
             } catch (Exception e) {
                 logException(e);
             }
             if (child != null) {
-                this.model.executeOperation(new AddComponentOperation(parent, new ComponentNode(child)));
+                this.model.executeOperation(new AddComponentOperation(parent, new ComponentNode(this, child)));
             } else {
                 throw new UnsupportedOperationException("Component type " + componentType + " not registered.");
             }
@@ -75,12 +75,12 @@ public class GameObjectPresenter extends NodePresenter {
         if (path != null) {
             ComponentTypeNode child = null;
             try {
-                child = (ComponentTypeNode)load(this.manager, this.contentRoot, path);
+                child = (ComponentTypeNode)loadNode(path);
             } catch (Exception e) {
                 logException(e);
             }
             if (child != null) {
-                RefComponentNode component = new RefComponentNode(child);
+                RefComponentNode component = new RefComponentNode(this, child);
                 component.setComponent(path);
                 this.model.executeOperation(new AddComponentOperation(parent, component));
             } else {
@@ -105,18 +105,18 @@ public class GameObjectPresenter extends NodePresenter {
     }
 
     @Override
-    public Node load(String type, InputStream contents) throws IOException, CoreException {
+    public Node doLoad(String type, InputStream contents) throws IOException, CoreException {
         InputStreamReader reader = new InputStreamReader(contents);
         Builder builder = PrototypeDesc.newBuilder();
         TextFormat.merge(reader, builder);
         PrototypeDesc desc = builder.build();
-        GameObjectNode gameObject = new GameObjectNode();
+        GameObjectNode gameObject = new GameObjectNode(this);
         int n = desc.getComponentsCount();
         for (int i = 0; i < n; ++i) {
             ComponentDesc componentDesc = desc.getComponents(i);
             String path = componentDesc.getComponent();
-            ComponentTypeNode componentType = (ComponentTypeNode)load(this.manager, this.contentRoot, path);
-            RefComponentNode componentNode = new RefComponentNode(componentType);
+            ComponentTypeNode componentType = (ComponentTypeNode)loadNode(path);
+            RefComponentNode componentNode = new RefComponentNode(this, componentType);
             componentNode.setId(componentDesc.getId());
             componentNode.setComponent(path);
             gameObject.addComponent(componentNode);
@@ -124,8 +124,8 @@ public class GameObjectPresenter extends NodePresenter {
         n = desc.getEmbeddedComponentsCount();
         for (int i = 0; i < n; ++i) {
             EmbeddedComponentDesc componentDesc = desc.getEmbeddedComponents(i);
-            ComponentTypeNode componentType = (ComponentTypeNode)load(this.manager, componentDesc.getType(), new ByteArrayInputStream(componentDesc.getData().getBytes()));
-            ComponentNode component = new ComponentNode(componentType);
+            ComponentTypeNode componentType = (ComponentTypeNode)loadNode(componentDesc.getType(), new ByteArrayInputStream(componentDesc.getData().getBytes()));
+            ComponentNode component = new ComponentNode(this, componentType);
             component.setId(componentDesc.getId());
             gameObject.addComponent(component);
         }
@@ -133,7 +133,7 @@ public class GameObjectPresenter extends NodePresenter {
     }
 
     @Override
-    public Message save(Node node, IProgressMonitor monitor) throws IOException, CoreException {
+    public Message buildMessage(Node node, IProgressMonitor monitor) throws IOException, CoreException {
         GameObjectNode gameObject = (GameObjectNode)node;
         Builder builder = PrototypeDesc.newBuilder();
         SubMonitor progress = SubMonitor.convert(monitor, gameObject.getChildren().size());
@@ -152,8 +152,8 @@ public class GameObjectPresenter extends NodePresenter {
                 ComponentTypeNode componentType = (ComponentTypeNode)component.getChildren().get(0);
                 ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
                 SubMonitor partProgress = progress.newChild(1).setWorkRemaining(2);
-                Message message = this.manager.getPresenter(componentType.getClass()).save(componentType, partProgress.newChild(1));
-                doSave(message, byteStream, partProgress.newChild(1));
+                Message message = this.manager.getPresenter(componentType.getClass()).buildMessage(componentType, partProgress.newChild(1));
+                saveMessage(message, byteStream, partProgress.newChild(1));
                 componentBuilder.setType(componentType.getTypeId());
                 componentBuilder.setData(byteStream.toString());
                 builder.addEmbeddedComponents(componentBuilder);
@@ -163,7 +163,7 @@ public class GameObjectPresenter extends NodePresenter {
     }
 
     @Override
-    public Node create(String type) throws IOException, CoreException {
-        return new GameObjectNode();
+    public Node createNode(String type) throws IOException, CoreException {
+        return new GameObjectNode(this);
     }
 }

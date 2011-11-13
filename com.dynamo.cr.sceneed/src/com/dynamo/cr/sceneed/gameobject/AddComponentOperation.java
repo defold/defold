@@ -20,9 +20,17 @@ public class AddComponentOperation extends AbstractOperation {
         this.gameObject = gameObject;
         this.component = component;
         this.oldSelection = this.gameObject.getModel().getSelection();
-        ComponentTypeNode componentType = (ComponentTypeNode)component.getChildren().get(0);
-        String id = componentType.getTypeName().toLowerCase();
-        id.replace(' ', '_');
+        String id = "";
+        if (component instanceof RefComponentNode) {
+            String path = ((RefComponentNode)component).getComponent();
+            int index = path.lastIndexOf('.');
+            if (index >= 0) {
+                id = path.substring(index + 1);
+            }
+        } else {
+            ComponentTypeNode componentType = (ComponentTypeNode)component.getChildren().get(0);
+            id = componentType.getTypeId();
+        }
         this.component.setId(id);
     }
 
