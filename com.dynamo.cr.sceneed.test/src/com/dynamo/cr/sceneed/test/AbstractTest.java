@@ -20,6 +20,7 @@ import org.eclipse.core.resources.IWorkspace;
 import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IPath;
+import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.jface.viewers.IStructuredSelection;
@@ -184,6 +185,12 @@ public abstract class AbstractTest {
     protected void setNodeProperty(Node node, Object id, Object value) {
         IPropertyModel<? extends Node, NodeModel> propertyModel = (IPropertyModel<? extends Node, NodeModel>)node.getAdapter(IPropertyModel.class);
         this.model.executeOperation(propertyModel.setPropertyValue(id, value));
+    }
+
+    @SuppressWarnings("unchecked")
+    protected IStatus getNodePropertyStatus(Node node, Object id) {
+        IPropertyModel<? extends Node, NodeModel> propertyModel = (IPropertyModel<? extends Node, NodeModel>)node.getAdapter(IPropertyModel.class);
+        return propertyModel.getPropertyStatus(id);
     }
 
 }

@@ -1,6 +1,12 @@
 package com.dynamo.cr.sceneed.gameobject;
 
+import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Status;
+import org.eclipse.osgi.util.NLS;
+
 import com.dynamo.cr.properties.Property;
+import com.dynamo.cr.sceneed.Activator;
+import com.dynamo.cr.sceneed.core.Messages;
 import com.dynamo.cr.sceneed.core.Node;
 
 public class ComponentNode extends Node {
@@ -21,6 +27,21 @@ public class ComponentNode extends Node {
             this.id = id;
             notifyChange();
         }
+    }
+
+    public IStatus validateId() {
+        if (this.id == null || this.id.equals("")) {
+            return new Status(IStatus.ERROR, Activator.PLUGIN_ID, Messages.ComponentNode_id_NOT_SPECIFIED);
+        } else if (getParent() != null) {
+            for (Node sibling : getParent().getChildren()) {
+                if (sibling != this) {
+                    if (this.id.equals(((ComponentNode)sibling).getId())) {
+                        return new Status(IStatus.ERROR, Activator.PLUGIN_ID, NLS.bind(Messages.ComponentNode_id_DUPLICATED, this.id));
+                    }
+                }
+            }
+        }
+        return Status.OK_STATUS;
     }
 
     @Override

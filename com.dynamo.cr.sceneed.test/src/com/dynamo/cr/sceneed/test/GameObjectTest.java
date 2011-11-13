@@ -7,6 +7,7 @@ import java.io.OutputStream;
 
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.CoreException;
+import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.jface.viewers.StructuredSelection;
 import org.junit.Before;
@@ -201,6 +202,26 @@ public class GameObjectTest extends AbstractTest {
         assertEquals(root.getClass(), this.model.getRoot().getClass());
         assertNotSame(0, this.model.getRoot().getChildren().size());
         assertEquals(root.getChildren().size(), this.model.getRoot().getChildren().size());
+    }
+
+    @Test
+    public void testComponentMessages() throws Exception {
+        testAddComponent();
+
+        ComponentNode component = (ComponentNode)this.model.getRoot().getChildren().get(0);
+        assertEquals(IStatus.OK, getNodePropertyStatus(component, "id").getSeverity());
+
+        setNodeProperty(component, "id", "");
+        assertEquals(IStatus.ERROR, getNodePropertyStatus(component, "id").getSeverity());
+
+        setNodeProperty(component, "id", "sprite");
+        assertEquals(IStatus.OK, getNodePropertyStatus(component, "id").getSeverity());
+
+        GameObjectPresenter presenter = (GameObjectPresenter)this.manager.getPresenter(GameObjectNode.class);
+        presenter.onAddComponent();
+
+        component = (ComponentNode)this.model.getRoot().getChildren().get(1);
+        assertEquals(IStatus.ERROR, getNodePropertyStatus(component, "id").getSeverity());
     }
 
     @Override
