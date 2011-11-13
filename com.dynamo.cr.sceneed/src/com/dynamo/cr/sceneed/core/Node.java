@@ -2,6 +2,7 @@ package com.dynamo.cr.sceneed.core;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -61,6 +62,11 @@ public class Node implements IAdaptable {
             child.parent = null;
             notifyChange();
         }
+    }
+
+    protected void sortChildren(Comparator<? super Node> comparator) {
+        Collections.sort(this.children, comparator);
+        notifyChange();
     }
 
     protected void notifyChange() {

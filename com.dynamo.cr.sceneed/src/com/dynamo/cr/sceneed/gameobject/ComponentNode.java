@@ -26,6 +26,9 @@ public class ComponentNode extends Node {
         if (this.id != null ? !this.id.equals(id) : id != null) {
             this.id = id;
             notifyChange();
+            if (getParent() != null) {
+                ((GameObjectNode)getParent()).sortComponents();
+            }
         }
     }
 
