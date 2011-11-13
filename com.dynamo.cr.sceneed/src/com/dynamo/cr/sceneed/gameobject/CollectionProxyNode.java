@@ -16,6 +16,11 @@ public class CollectionProxyNode extends ComponentTypeNode {
     }
 
     @Override
+    public String getTypeId() {
+        return "collectionproxy";
+    }
+
+    @Override
     public String getTypeName() {
         return "Collection Proxy";
     }

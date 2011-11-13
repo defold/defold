@@ -1,5 +1,8 @@
 package com.dynamo.cr.sceneed;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+
 import javax.inject.Singleton;
 
 import org.eclipse.core.commands.operations.IOperationHistory;
@@ -7,10 +10,19 @@ import org.eclipse.core.commands.operations.IUndoContext;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IResourceChangeEvent;
+import org.eclipse.core.resources.IWorkspace;
+import org.eclipse.core.resources.ResourcesPlugin;
+import org.eclipse.core.runtime.CoreException;
+import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.IProgressMonitor;
+import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.NullProgressMonitor;
+import org.eclipse.core.runtime.Status;
+import org.eclipse.jface.action.IStatusLineManager;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.ISelectionProvider;
 import org.eclipse.jface.viewers.IStructuredSelection;
+import org.eclipse.jface.window.Window;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.ui.IActionBars;
 import org.eclipse.ui.IEditorInput;
@@ -21,9 +33,12 @@ import org.eclipse.ui.IWorkbenchPart;
 import org.eclipse.ui.PartInitException;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.actions.ActionFactory;
+import org.eclipse.ui.dialogs.SaveAsDialog;
 import org.eclipse.ui.operations.RedoActionHandler;
 import org.eclipse.ui.operations.UndoActionHandler;
+import org.eclipse.ui.part.FileEditorInput;
 import org.eclipse.ui.progress.IProgressService;
+import org.eclipse.ui.statushandlers.StatusManager;
 import org.eclipse.ui.views.contentoutline.ContentOutline;
 import org.eclipse.ui.views.contentoutline.IContentOutlinePage;
 import org.eclipse.ui.views.properties.IPropertySheetPage;
@@ -34,13 +49,15 @@ import com.dynamo.cr.properties.IFormPropertySheetPage;
 import com.dynamo.cr.sceneed.core.ILogger;
 import com.dynamo.cr.sceneed.core.INodeView;
 import com.dynamo.cr.sceneed.core.Node;
-import com.dynamo.cr.sceneed.core.NodeLoader;
 import com.dynamo.cr.sceneed.core.NodeManager;
 import com.dynamo.cr.sceneed.core.NodeModel;
+import com.dynamo.cr.sceneed.gameobject.CollectionProxyNode;
+import com.dynamo.cr.sceneed.gameobject.CollisionObjectNode;
 import com.dynamo.cr.sceneed.gameobject.ComponentPresenter;
 import com.dynamo.cr.sceneed.gameobject.GameObjectNode;
 import com.dynamo.cr.sceneed.gameobject.GameObjectPresenter;
 import com.dynamo.cr.sceneed.gameobject.GenericComponentTypeNode;
+import com.dynamo.cr.sceneed.gameobject.SpawnPointNode;
 import com.dynamo.cr.sceneed.gameobject.SpriteNode;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
@@ -56,6 +73,7 @@ public class NodeEditor extends AbstractDefoldEditor implements ISelectionListen
     private IContainer contentRoot;
     private LifecycleModule module;
     private NodeManager manager;
+    private boolean dirty;
 
     class Module extends AbstractModule {
         @Override
@@ -67,7 +85,6 @@ public class NodeEditor extends AbstractDefoldEditor implements ISelectionListen
             bind(ISelectionProvider.class).to(NodeSelectionProvider.class).in(Singleton.class);
             bind(NodeModel.class).in(Singleton.class);
             bind(NodeManager.class).in(Singleton.class);
-            bind(NodeLoader.class).in(Singleton.class);
             bind(DefaultNodePresenter.class).in(Singleton.class);
             bind(GameObjectPresenter.class).in(Singleton.class);
             bind(NodeEditor.class).toInstance(NodeEditor.this);
@@ -118,9 +135,9 @@ public class NodeEditor extends AbstractDefoldEditor implements ISelectionListen
         // TODO: Replace with extension point
         this.manager.registerNodeType("go", GameObjectNode.class, injector.getInstance(GameObjectPresenter.class), null);
         this.manager.registerNodeType("sprite", SpriteNode.class, injector.getInstance(ComponentPresenter.class), null);
-        this.manager.registerNodeType("spawnpoint", GenericComponentTypeNode.class, injector.getInstance(ComponentPresenter.class), null);
-        this.manager.registerNodeType("collisionobject", GenericComponentTypeNode.class, injector.getInstance(ComponentPresenter.class), null);
-        this.manager.registerNodeType("collectionproxy", GenericComponentTypeNode.class, injector.getInstance(ComponentPresenter.class), null);
+        this.manager.registerNodeType("spawnpoint", SpawnPointNode.class, injector.getInstance(ComponentPresenter.class), null);
+        this.manager.registerNodeType("collisionobject", CollisionObjectNode.class, injector.getInstance(ComponentPresenter.class), null);
+        this.manager.registerNodeType("collectionproxy", CollectionProxyNode.class, injector.getInstance(ComponentPresenter.class), null);
         this.manager.registerNodeType("script", GenericComponentTypeNode.class, injector.getInstance(ComponentPresenter.class), null);
         this.manager.registerNodeType("tilegrid", GenericComponentTypeNode.class, injector.getInstance(ComponentPresenter.class), null);
         this.manager.registerNodeType("camera", GenericComponentTypeNode.class, injector.getInstance(ComponentPresenter.class), null);
@@ -129,6 +146,8 @@ public class NodeEditor extends AbstractDefoldEditor implements ISelectionListen
         this.manager.registerNodeType("model", GenericComponentTypeNode.class, injector.getInstance(ComponentPresenter.class), null);
 
         IProgressService service = PlatformUI.getWorkbench().getProgressService();
+
+        this.dirty = false;
 
         NodeLoaderRunnable loader = new NodeLoaderRunnable(file, injector.getInstance(DefaultNodePresenter.class));
         try {
@@ -167,26 +186,65 @@ public class NodeEditor extends AbstractDefoldEditor implements ISelectionListen
 
     @Override
     public void doSave(IProgressMonitor monitor) {
-        // TODO Auto-generated method stub
-
+        IFileEditorInput input = (IFileEditorInput) getEditorInput();
+        IFile file = input.getFile();
+        this.inSave = true;
+        try {
+            ByteArrayOutputStream stream = new ByteArrayOutputStream();
+            this.manager.getDefaultPresenter().onSave(stream, monitor);
+            file.setContents(
+                    new ByteArrayInputStream(stream.toByteArray()), false,
+                    true, monitor);
+        } catch (Throwable e) {
+            logger.logException(e);
+        } finally {
+            this.inSave = false;
+        }
     }
 
     @Override
     public void doSaveAs() {
-        // TODO Auto-generated method stub
+        IFileEditorInput input= (IFileEditorInput) getEditorInput();
+        IFile file = input.getFile();
+        SaveAsDialog dialog = new SaveAsDialog(getSite().getShell());
+        dialog.setOriginalFile(file);
+        dialog.create();
 
+        if (dialog.open() == Window.OK) {
+            IPath filePath = dialog.getResult();
+            if (filePath == null) {
+                return;
+            }
+
+            IWorkspace workspace = ResourcesPlugin.getWorkspace();
+            IFile newFile= workspace.getRoot().getFile(filePath);
+
+            try {
+                newFile.create(new ByteArrayInputStream(new byte[0]), IFile.FORCE, new NullProgressMonitor());
+            } catch (CoreException e) {
+                Status status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, 0,
+                        e.getMessage(), null);
+                StatusManager.getManager().handle(status, StatusManager.LOG | StatusManager.SHOW);
+                return;
+            }
+            FileEditorInput newInput = new FileEditorInput(newFile);
+            setInput(newInput);
+            setPartName(newInput.getName());
+
+            IStatusLineManager lineManager = getEditorSite().getActionBars().getStatusLineManager();
+            IProgressMonitor pm = lineManager.getProgressMonitor();
+            doSave(pm);
+        }
     }
 
     @Override
     public boolean isDirty() {
-        // TODO Auto-generated method stub
-        return false;
+        return this.dirty;
     }
 
     @Override
     public boolean isSaveAsAllowed() {
-        // TODO Auto-generated method stub
-        return false;
+        return true;
     }
 
     @Override
@@ -226,6 +284,13 @@ public class NodeEditor extends AbstractDefoldEditor implements ISelectionListen
         if ((part instanceof NodeEditor || part instanceof ContentOutline)
                 && selection instanceof IStructuredSelection) {
             this.manager.getDefaultPresenter().onSelect((IStructuredSelection)selection);
+        }
+    }
+
+    public void setDirty(boolean dirty) {
+        if (this.dirty != dirty) {
+            this.dirty = dirty;
+            firePropertyChange(PROP_DIRTY);
         }
     }
 

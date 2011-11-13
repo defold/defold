@@ -82,6 +82,11 @@ public class SpriteNode extends ComponentTypeNode {
     }
 
     @Override
+    public String getTypeId() {
+        return "sprite";
+    }
+
+    @Override
     public String getTypeName() {
         return "Sprite";
     }

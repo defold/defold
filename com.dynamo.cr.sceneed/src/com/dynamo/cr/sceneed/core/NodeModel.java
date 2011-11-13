@@ -1,9 +1,13 @@
 package com.dynamo.cr.sceneed.core;
 
+import javax.annotation.PreDestroy;
+
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.IOperationHistory;
+import org.eclipse.core.commands.operations.IOperationHistoryListener;
 import org.eclipse.core.commands.operations.IUndoContext;
 import org.eclipse.core.commands.operations.IUndoableOperation;
+import org.eclipse.core.commands.operations.OperationHistoryEvent;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.runtime.IAdaptable;
 import org.eclipse.core.runtime.IStatus;
@@ -19,7 +23,7 @@ import com.dynamo.cr.sceneed.core.ILogger;
 import com.google.inject.Inject;
 
 @Entity(commandFactory = NodeUndoableCommandFactory.class)
-public class NodeModel implements INodeWorld, IAdaptable {
+public class NodeModel implements INodeWorld, IAdaptable, IOperationHistoryListener {
 
     private Node root;
     private final INodeView view;
@@ -28,6 +32,7 @@ public class NodeModel implements INodeWorld, IAdaptable {
     private final ILogger logger;
     private final IContainer contentRoot;
     private IStructuredSelection selection;
+    private int undoRedoCounter;
 
     private static PropertyIntrospector<NodeModel, NodeModel> introspector = new PropertyIntrospector<NodeModel, NodeModel>(NodeModel.class, Messages.class);
     public static PropertyIntrospector<Node, NodeModel> nodeIntrospector = new PropertyIntrospector<Node, NodeModel>(Node.class);
@@ -40,6 +45,17 @@ public class NodeModel implements INodeWorld, IAdaptable {
         this.logger = logger;
         this.contentRoot = contentRoot;
         this.selection = new StructuredSelection();
+        this.undoRedoCounter = 0;
+    }
+
+    @PreDestroy
+    public void dispose() {
+        this.history.removeOperationHistoryListener(this);
+    }
+
+    @Inject
+    public void init() {
+        this.history.addOperationHistoryListener(this);
     }
 
     public Node getRoot() {
@@ -49,9 +65,16 @@ public class NodeModel implements INodeWorld, IAdaptable {
     public void setRoot(Node root) {
         if (this.root != root) {
             this.root = root;
-            root.setModel(this);
+            if (root != null) {
+                root.setModel(this);
+            }
             this.view.setRoot(root);
-            setSelection(new StructuredSelection(this.root));
+            if (root != null) {
+                setSelection(new StructuredSelection(this.root));
+            } else {
+                setSelection(new StructuredSelection());
+            }
+            setUndoRedoCounter(0);
         }
     }
 
@@ -96,4 +119,34 @@ public class NodeModel implements INodeWorld, IAdaptable {
     public IContainer getContentRoot() {
         return this.contentRoot;
     }
+
+    public void setUndoRedoCounter(int undoRedoCounter) {
+        boolean prevDirty = this.undoRedoCounter != 0;
+        boolean dirty = undoRedoCounter != 0;
+        // NOTE: We must set undoRedoCounter before we call setDirty.
+        // The "framework" might as for isDirty()
+        this.undoRedoCounter = undoRedoCounter;
+        if (prevDirty != dirty) {
+            this.view.setDirty(dirty);
+        }
+    }
+
+    @Override
+    public void historyNotification(OperationHistoryEvent event) {
+        if (!event.getOperation().hasContext(this.undoContext)) {
+            // Only handle operations related to this editor
+            return;
+        }
+        int type = event.getEventType();
+        switch (type) {
+        case OperationHistoryEvent.DONE:
+        case OperationHistoryEvent.REDONE:
+            setUndoRedoCounter(undoRedoCounter + 1);
+            break;
+        case OperationHistoryEvent.UNDONE:
+            setUndoRedoCounter(undoRedoCounter - 1);
+            break;
+        }
+    }
+
 }

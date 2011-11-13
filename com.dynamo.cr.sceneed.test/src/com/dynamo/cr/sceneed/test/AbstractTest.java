@@ -52,9 +52,11 @@ public abstract class AbstractTest {
     protected NodeManager manager;
     protected IOperationHistory history;
     protected IUndoContext undoContext;
+    protected IContainer contentRoot;
     private Map<Node, Integer> updateCounts;
     private int selectCount;
-    private IContainer contentRoot;
+    private int dirtyCount;
+    private int cleanCount;
     private IProject project;
 
     protected static class TestLogger implements ILogger {
@@ -126,6 +128,8 @@ public abstract class AbstractTest {
 
         this.updateCounts = new HashMap<Node, Integer>();
         this.selectCount = 0;
+        this.dirtyCount = 0;
+        this.cleanCount = 0;
     }
 
     // Helpers
@@ -156,6 +160,24 @@ public abstract class AbstractTest {
 
     protected void verifyNoSelection() {
         verify(this.view, times(this.selectCount)).updateSelection(any(IStructuredSelection.class));
+    }
+
+    protected void verifyDirty() {
+        ++this.dirtyCount;
+        verify(this.view, times(this.dirtyCount)).setDirty(true);
+    }
+
+    protected void verifyNoDirty() {
+        verify(this.view, times(this.dirtyCount)).setDirty(true);
+    }
+
+    protected void verifyClean() {
+        ++this.cleanCount;
+        verify(this.view, times(this.cleanCount)).setDirty(false);
+    }
+
+    protected void verifyNoClean() {
+        verify(this.view, times(this.cleanCount)).setDirty(false);
     }
 
     @SuppressWarnings("unchecked")

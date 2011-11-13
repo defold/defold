@@ -120,4 +120,9 @@ public class NodeView implements INodeView {
         }
         return null;
     }
+
+    @Override
+    public void setDirty(boolean dirty) {
+        this.editor.setDirty(dirty);
+    }
 }

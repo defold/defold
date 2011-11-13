@@ -7,12 +7,12 @@ public class CollisionObjectNode extends ComponentTypeNode {
 
     @Property(isResource=true)
     private String collisionShape = "";
-    @Property private CollisionObjectType type;
+    @Property private CollisionObjectType type = CollisionObjectType.COLLISION_OBJECT_TYPE_DYNAMIC;
     @Property private float mass;
     @Property private float friction;
     @Property private float restitution;
-    @Property private String group;
-    @Property private String mask;
+    @Property private String group = "";
+    @Property private String mask = "";
 
     public String getCollisionShape() {
         return this.collisionShape;
@@ -68,6 +68,11 @@ public class CollisionObjectNode extends ComponentTypeNode {
 
     public void setMask(String mask) {
         this.mask = mask;
+    }
+
+    @Override
+    public String getTypeId() {
+        return "collisionobject";
     }
 
     @Override

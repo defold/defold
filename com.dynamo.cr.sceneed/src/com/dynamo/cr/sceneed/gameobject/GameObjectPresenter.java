@@ -1,11 +1,14 @@
 package com.dynamo.cr.sceneed.gameobject;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 
 import org.eclipse.core.runtime.CoreException;
+import org.eclipse.core.runtime.IProgressMonitor;
+import org.eclipse.core.runtime.SubMonitor;
 import org.eclipse.jface.viewers.IStructuredSelection;
 
 import com.dynamo.cr.sceneed.core.Node;
@@ -16,6 +19,7 @@ import com.dynamo.gameobject.proto.GameObject.EmbeddedComponentDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc.Builder;
 import com.google.inject.Inject;
+import com.google.protobuf.Message;
 import com.google.protobuf.TextFormat;
 
 public class GameObjectPresenter extends NodePresenter {
@@ -71,7 +75,7 @@ public class GameObjectPresenter extends NodePresenter {
         if (path != null) {
             ComponentTypeNode child = null;
             try {
-                child = (ComponentTypeNode)this.loader.load(path);
+                child = (ComponentTypeNode)load(this.manager, this.contentRoot, path);
             } catch (Exception e) {
                 logException(e);
             }
@@ -111,7 +115,7 @@ public class GameObjectPresenter extends NodePresenter {
         for (int i = 0; i < n; ++i) {
             ComponentDesc componentDesc = desc.getComponents(i);
             String path = componentDesc.getComponent();
-            ComponentTypeNode componentType = (ComponentTypeNode)this.loader.load(path);
+            ComponentTypeNode componentType = (ComponentTypeNode)load(this.manager, this.contentRoot, path);
             RefComponentNode componentNode = new RefComponentNode(componentType);
             componentNode.setId(componentDesc.getId());
             componentNode.setReference(path);
@@ -120,12 +124,42 @@ public class GameObjectPresenter extends NodePresenter {
         n = desc.getEmbeddedComponentsCount();
         for (int i = 0; i < n; ++i) {
             EmbeddedComponentDesc componentDesc = desc.getEmbeddedComponents(i);
-            ComponentTypeNode componentType = (ComponentTypeNode)this.loader.load(componentDesc.getType(), new ByteArrayInputStream(componentDesc.getData().getBytes()));
+            ComponentTypeNode componentType = (ComponentTypeNode)load(this.manager, componentDesc.getType(), new ByteArrayInputStream(componentDesc.getData().getBytes()));
             ComponentNode component = new ComponentNode(componentType);
             component.setId(componentDesc.getId());
             gameObject.addComponent(component);
         }
         return gameObject;
+    }
+
+    @Override
+    public Message save(Node node, IProgressMonitor monitor) throws IOException, CoreException {
+        GameObjectNode gameObject = (GameObjectNode)node;
+        Builder builder = PrototypeDesc.newBuilder();
+        SubMonitor progress = SubMonitor.convert(monitor, gameObject.getChildren().size());
+        for (Node child : gameObject.getChildren()) {
+            if (child instanceof RefComponentNode) {
+                RefComponentNode component = (RefComponentNode)child;
+                ComponentDesc.Builder componentBuilder = ComponentDesc.newBuilder();
+                componentBuilder.setId(component.getId());
+                componentBuilder.setComponent(component.getReference());
+                builder.addComponents(componentBuilder);
+                progress.worked(1);
+            } else if (child instanceof ComponentNode) {
+                ComponentNode component = (ComponentNode)child;
+                EmbeddedComponentDesc.Builder componentBuilder = EmbeddedComponentDesc.newBuilder();
+                componentBuilder.setId(component.getId());
+                ComponentTypeNode componentType = (ComponentTypeNode)component.getChildren().get(0);
+                ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
+                SubMonitor partProgress = progress.newChild(1).setWorkRemaining(2);
+                Message message = this.manager.getPresenter(componentType.getClass()).save(componentType, partProgress.newChild(1));
+                doSave(message, byteStream, partProgress.newChild(1));
+                componentBuilder.setType(componentType.getTypeId());
+                componentBuilder.setData(byteStream.toString());
+                builder.addEmbeddedComponents(componentBuilder);
+            }
+        }
+        return builder.build();
     }
 
     @Override

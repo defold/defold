@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 
 import org.eclipse.core.runtime.CoreException;
+import org.eclipse.core.runtime.IProgressMonitor;
 
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.NodePresenter;
@@ -12,6 +13,7 @@ import com.dynamo.gamesystem.proto.GameSystem.CollectionProxyDesc;
 import com.dynamo.gamesystem.proto.GameSystem.SpawnPointDesc;
 import com.dynamo.physics.proto.Physics.CollisionObjectDesc;
 import com.dynamo.sprite.proto.Sprite.SpriteDesc;
+import com.google.protobuf.Message;
 import com.google.protobuf.TextFormat;
 
 /**
@@ -92,6 +94,50 @@ public class ComponentPresenter extends NodePresenter {
         } else {
             return new GenericComponentTypeNode(type);
         }
+    }
+
+    @Override
+    public Message save(Node node, IProgressMonitor monitor) throws IOException, CoreException {
+        if (node instanceof SpriteNode) {
+            SpriteDesc.Builder builder = SpriteDesc.newBuilder();
+            SpriteNode sprite = (SpriteNode)node;
+            builder.setTexture(sprite.getTexture());
+            builder.setWidth(sprite.getWidth());
+            builder.setHeight(sprite.getHeight());
+            builder.setTileWidth(sprite.getTileWidth());
+            builder.setTileHeight(sprite.getTileHeight());
+            builder.setTilesPerRow(sprite.getTilesPerRow());
+            builder.setTileCount(sprite.getTileCount());
+            return builder.build();
+        } else if (node instanceof SpawnPointNode) {
+            SpawnPointDesc.Builder builder = SpawnPointDesc.newBuilder();
+            SpawnPointNode spawnPoint = (SpawnPointNode)node;
+            builder.setPrototype(spawnPoint.getPrototype());
+            return builder.build();
+        } else if (node instanceof CollisionObjectNode) {
+            CollisionObjectDesc.Builder builder = CollisionObjectDesc.newBuilder();
+            CollisionObjectNode collisionObject = (CollisionObjectNode)node;
+            builder.setCollisionShape(collisionObject.getCollisionShape());
+            builder.setType(collisionObject.getType());
+            builder.setMass(collisionObject.getMass());
+            builder.setFriction(collisionObject.getFriction());
+            builder.setRestitution(collisionObject.getRestitution());
+            builder.setGroup(collisionObject.getGroup());
+            String[] masks = collisionObject.getMask().split("[ ,]+");
+            for (String mask : masks) {
+                builder.addMask(mask);
+            }
+            return builder.build();
+        } else if (node instanceof CollectionProxyNode) {
+            CollectionProxyDesc.Builder builder = CollectionProxyDesc.newBuilder();
+            CollectionProxyNode collectionProxy = (CollectionProxyNode)node;
+            builder.setCollection(collectionProxy.getCollection());
+            return builder.build();
+        }
+        if (monitor != null) {
+            monitor.done();
+        }
+        return null;
     }
 
 }

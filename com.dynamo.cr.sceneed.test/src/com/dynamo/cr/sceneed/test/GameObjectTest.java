@@ -1,14 +1,19 @@
 package com.dynamo.cr.sceneed.test;
 
 import java.io.ByteArrayInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 
+import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.CoreException;
+import org.eclipse.core.runtime.Path;
 import org.eclipse.jface.viewers.StructuredSelection;
 import org.junit.Before;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertTrue;
 
 import static org.mockito.Mockito.times;
@@ -17,6 +22,7 @@ import static org.mockito.Mockito.when;
 
 import com.dynamo.cr.sceneed.core.INodeView;
 import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.sceneed.core.NodePresenter;
 import com.dynamo.cr.sceneed.gameobject.ComponentNode;
 import com.dynamo.cr.sceneed.gameobject.ComponentPresenter;
 import com.dynamo.cr.sceneed.gameobject.GameObjectNode;
@@ -55,6 +61,8 @@ public class GameObjectTest extends AbstractTest {
         assertTrue(this.model.getSelection().toList().contains(root));
         verify(this.view, times(1)).setRoot(root);
         verifySelection();
+        verifyNoClean();
+        verifyNoDirty();
     }
 
     @Test
@@ -70,17 +78,20 @@ public class GameObjectTest extends AbstractTest {
         assertEquals("sprite", node.getChildren().get(0).toString());
         verifyUpdate(node);
         verifySelection();
+        verifyDirty();
 
         undo();
         assertEquals(0, node.getChildren().size());
         verifyUpdate(node);
         verifySelection();
+        verifyClean();
 
         redo();
         assertEquals(1, node.getChildren().size());
         assertEquals("sprite", node.getChildren().get(0).toString());
         verifyUpdate(node);
         verifySelection();
+        verifyDirty();
     }
 
     @Test
@@ -167,6 +178,29 @@ public class GameObjectTest extends AbstractTest {
         redo();
         assertEquals(newId, component.getId());
         verifyUpdate(component);
+    }
+
+    @Test
+    public void testSave() throws Exception {
+        testAddComponent();
+
+        String path = "/test.go";
+        IFile file = this.contentRoot.getFile(new Path(path));
+        if (file.exists()) {
+            file.delete(true, null);
+        }
+        OutputStream os = new FileOutputStream(file.getLocation().toFile());
+        NodePresenter presenter = this.manager.getDefaultPresenter();
+        Node root = this.model.getRoot();
+        presenter.onSave(os, null);
+        file = this.contentRoot.getFile(new Path(path));
+        this.model.setRoot(null);
+        file.refreshLocal(0, null);
+        presenter.onLoad(file.getFileExtension(), file.getContents());
+        assertNotSame(root, this.model.getRoot());
+        assertEquals(root.getClass(), this.model.getRoot().getClass());
+        assertNotSame(0, this.model.getRoot().getChildren().size());
+        assertEquals(root.getChildren().size(), this.model.getRoot().getChildren().size());
     }
 
     @Override
