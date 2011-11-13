@@ -4,7 +4,6 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.MultiStatus;
 
 import com.dynamo.cr.properties.Property;
-import com.dynamo.cr.sceneed.core.NodePresenter;
 import com.dynamo.cr.sceneed.core.Resource;
 
 public class SpriteNode extends ComponentTypeNode {
@@ -31,8 +30,8 @@ public class SpriteNode extends ComponentTypeNode {
     @Property
     private int tileCount;
 
-    public SpriteNode(NodePresenter presenter) {
-        super(presenter);
+    public SpriteNode() {
+        super();
     }
 
     public String getTexture() {
@@ -40,7 +39,10 @@ public class SpriteNode extends ComponentTypeNode {
     }
 
     public void setTexture(String texture) {
-        this.texture = texture;
+        if (!this.texture.equals(texture)) {
+            this.texture = texture;
+            notifyChange();
+        }
     }
 
     public float getWidth() {
@@ -48,7 +50,10 @@ public class SpriteNode extends ComponentTypeNode {
     }
 
     public void setWidth(float width) {
-        this.width = width;
+        if (this.width != width) {
+            this.width = width;
+            notifyChange();
+        }
     }
 
     public float getHeight() {
@@ -56,7 +61,10 @@ public class SpriteNode extends ComponentTypeNode {
     }
 
     public void setHeight(float height) {
-        this.height = height;
+        if (this.height != height) {
+            this.height = height;
+            notifyChange();
+        }
     }
 
     public int getTileWidth() {
@@ -64,7 +72,10 @@ public class SpriteNode extends ComponentTypeNode {
     }
 
     public void setTileWidth(int tileWidth) {
-        this.tileWidth = tileWidth;
+        if (this.tileWidth != tileWidth) {
+            this.tileWidth = tileWidth;
+            notifyChange();
+        }
     }
 
     public int getTileHeight() {
@@ -72,7 +83,10 @@ public class SpriteNode extends ComponentTypeNode {
     }
 
     public void setTileHeight(int tileHeight) {
-        this.tileHeight = tileHeight;
+        if (this.tileHeight != tileHeight) {
+            this.tileHeight = tileHeight;
+            notifyChange();
+        }
     }
 
     public int getTilesPerRow() {
@@ -80,7 +94,10 @@ public class SpriteNode extends ComponentTypeNode {
     }
 
     public void setTilesPerRow(int tilesPerRow) {
-        this.tilesPerRow = tilesPerRow;
+        if (this.tilesPerRow != tilesPerRow) {
+            this.tilesPerRow = tilesPerRow;
+            notifyChange();
+        }
     }
 
     public int getTileCount() {
@@ -88,7 +105,10 @@ public class SpriteNode extends ComponentTypeNode {
     }
 
     public void setTileCount(int tileCount) {
-        this.tileCount = tileCount;
+        if (this.tileCount != tileCount) {
+            this.tileCount = tileCount;
+            notifyChange();
+        }
     }
 
     @Override

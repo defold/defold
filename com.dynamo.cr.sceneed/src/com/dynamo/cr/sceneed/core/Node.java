@@ -25,18 +25,12 @@ public class Node implements IAdaptable {
     private NodeModel model;
     private List<Node> children;
     private Node parent;
-    private final NodePresenter presenter;
 
     private static Map<Class<? extends Node>, PropertyIntrospector<Node, NodeModel>> introspectors =
             new HashMap<Class<? extends Node>, PropertyIntrospector<Node,NodeModel>>();
 
-    public Node(NodePresenter presenter) {
-        this.presenter = presenter;
+    public Node() {
         this.children = new ArrayList<Node>();
-    }
-
-    public NodePresenter getPresenter() {
-        return this.presenter;
     }
 
     public NodeModel getModel() {

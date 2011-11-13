@@ -57,7 +57,7 @@ public class GameObjectPresenter extends NodePresenter {
                 logException(e);
             }
             if (child != null) {
-                this.model.executeOperation(new AddComponentOperation(parent, new ComponentNode(this, child)));
+                this.model.executeOperation(new AddComponentOperation(parent, new ComponentNode(child)));
             } else {
                 throw new UnsupportedOperationException("Component type " + componentType + " not registered.");
             }
@@ -110,7 +110,7 @@ public class GameObjectPresenter extends NodePresenter {
         Builder builder = PrototypeDesc.newBuilder();
         TextFormat.merge(reader, builder);
         PrototypeDesc desc = builder.build();
-        GameObjectNode gameObject = new GameObjectNode(this);
+        GameObjectNode gameObject = new GameObjectNode();
         int n = desc.getComponentsCount();
         for (int i = 0; i < n; ++i) {
             ComponentDesc componentDesc = desc.getComponents(i);
@@ -125,7 +125,7 @@ public class GameObjectPresenter extends NodePresenter {
         for (int i = 0; i < n; ++i) {
             EmbeddedComponentDesc componentDesc = desc.getEmbeddedComponents(i);
             ComponentTypeNode componentType = (ComponentTypeNode)loadNode(componentDesc.getType(), new ByteArrayInputStream(componentDesc.getData().getBytes()));
-            ComponentNode component = new ComponentNode(this, componentType);
+            ComponentNode component = new ComponentNode(componentType);
             component.setId(componentDesc.getId());
             gameObject.addComponent(component);
         }
@@ -164,6 +164,6 @@ public class GameObjectPresenter extends NodePresenter {
 
     @Override
     public Node createNode(String type) throws IOException, CoreException {
-        return new GameObjectNode(this);
+        return new GameObjectNode();
     }
 }

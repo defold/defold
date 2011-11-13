@@ -18,11 +18,13 @@ public class RefComponentNode extends ComponentNode {
     @Resource
     private String component;
 
+    private NodePresenter presenter;
     private ComponentTypeNode type;
 
     public RefComponentNode(NodePresenter presenter, ComponentTypeNode type) {
-        super(presenter);
+        super();
 
+        this.presenter = presenter;
         this.type = type;
     }
 
@@ -43,7 +45,7 @@ public class RefComponentNode extends ComponentNode {
             this.component = component;
             this.type = null;
             try {
-                this.type = (ComponentTypeNode)getPresenter().loadNode(this.component);
+                this.type = (ComponentTypeNode)this.presenter.loadNode(this.component);
                 if (this.type != null) {
                     this.type.setModel(getModel());
                 }

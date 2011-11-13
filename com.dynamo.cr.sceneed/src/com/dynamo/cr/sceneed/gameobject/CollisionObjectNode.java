@@ -1,7 +1,6 @@
 package com.dynamo.cr.sceneed.gameobject;
 
 import com.dynamo.cr.properties.Property;
-import com.dynamo.cr.sceneed.core.NodePresenter;
 import com.dynamo.cr.sceneed.core.Resource;
 import com.dynamo.physics.proto.Physics.CollisionObjectType;
 
@@ -17,8 +16,8 @@ public class CollisionObjectNode extends ComponentTypeNode {
     @Property private String group = "";
     @Property private String mask = "";
 
-    public CollisionObjectNode(NodePresenter presenter) {
-        super(presenter);
+    public CollisionObjectNode() {
+        super();
     }
 
     public String getCollisionShape() {
@@ -26,7 +25,10 @@ public class CollisionObjectNode extends ComponentTypeNode {
     }
 
     public void setCollisionShape(String collisionShape) {
-        this.collisionShape = collisionShape;
+        if (!this.collisionShape.equals(collisionShape)) {
+            this.collisionShape = collisionShape;
+            notifyChange();
+        }
     }
 
     public CollisionObjectType getType() {
@@ -34,7 +36,10 @@ public class CollisionObjectNode extends ComponentTypeNode {
     }
 
     public void setType(CollisionObjectType type) {
-        this.type = type;
+        if (this.type != type) {
+            this.type = type;
+            notifyChange();
+        }
     }
 
     public float getMass() {
@@ -42,7 +47,10 @@ public class CollisionObjectNode extends ComponentTypeNode {
     }
 
     public void setMass(float mass) {
-        this.mass = mass;
+        if (this.mass != mass) {
+            this.mass = mass;
+            notifyChange();
+        }
     }
 
     public float getFriction() {
@@ -50,7 +58,10 @@ public class CollisionObjectNode extends ComponentTypeNode {
     }
 
     public void setFriction(float friction) {
-        this.friction = friction;
+        if (this.friction != friction) {
+            this.friction = friction;
+            notifyChange();
+        }
     }
 
     public float getRestitution() {
@@ -58,7 +69,10 @@ public class CollisionObjectNode extends ComponentTypeNode {
     }
 
     public void setRestitution(float restitution) {
-        this.restitution = restitution;
+        if (this.restitution != restitution) {
+            this.restitution = restitution;
+            notifyChange();
+        }
     }
 
     public String getGroup() {
@@ -66,7 +80,10 @@ public class CollisionObjectNode extends ComponentTypeNode {
     }
 
     public void setGroup(String group) {
-        this.group = group;
+        if (!this.group.equals(group)) {
+            this.group = group;
+            notifyChange();
+        }
     }
 
     public String getMask() {
@@ -74,7 +91,10 @@ public class CollisionObjectNode extends ComponentTypeNode {
     }
 
     public void setMask(String mask) {
-        this.mask = mask;
+        if (!this.mask.equals(mask)) {
+            this.mask = mask;
+            notifyChange();
+        }
     }
 
     @Override

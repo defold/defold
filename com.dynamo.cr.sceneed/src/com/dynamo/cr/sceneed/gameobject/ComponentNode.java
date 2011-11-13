@@ -8,19 +8,18 @@ import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.sceneed.Activator;
 import com.dynamo.cr.sceneed.core.Messages;
 import com.dynamo.cr.sceneed.core.Node;
-import com.dynamo.cr.sceneed.core.NodePresenter;
 
 public class ComponentNode extends Node {
 
     @Property
     private String id;
 
-    public ComponentNode(NodePresenter presenter) {
-        super(presenter);
+    public ComponentNode() {
+        super();
     }
 
-    public ComponentNode(NodePresenter presenter, ComponentTypeNode type) {
-        super(presenter);
+    public ComponentNode(ComponentTypeNode type) {
+        super();
         addChild(type);
     }
 

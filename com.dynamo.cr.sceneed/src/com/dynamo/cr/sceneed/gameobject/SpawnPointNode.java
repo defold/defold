@@ -1,7 +1,6 @@
 package com.dynamo.cr.sceneed.gameobject;
 
 import com.dynamo.cr.properties.Property;
-import com.dynamo.cr.sceneed.core.NodePresenter;
 import com.dynamo.cr.sceneed.core.Resource;
 
 public class SpawnPointNode extends ComponentTypeNode {
@@ -10,8 +9,8 @@ public class SpawnPointNode extends ComponentTypeNode {
     @Resource
     private String prototype = "";
 
-    public SpawnPointNode(NodePresenter presenter) {
-        super(presenter);
+    public SpawnPointNode() {
+        super();
     }
 
     public String getPrototype() {
@@ -19,7 +18,10 @@ public class SpawnPointNode extends ComponentTypeNode {
     }
 
     public void setPrototype(String prototype) {
-        this.prototype = prototype;
+        if (!this.prototype.equals(prototype)) {
+            this.prototype = prototype;
+            notifyChange();
+        }
     }
 
     @Override
