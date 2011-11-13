@@ -1,11 +1,13 @@
 package com.dynamo.cr.sceneed.gameobject;
 
 import com.dynamo.cr.properties.Property;
+import com.dynamo.cr.sceneed.core.Resource;
 import com.dynamo.physics.proto.Physics.CollisionObjectType;
 
 public class CollisionObjectNode extends ComponentTypeNode {
 
     @Property(isResource=true)
+    @Resource
     private String collisionShape = "";
     @Property private CollisionObjectType type = CollisionObjectType.COLLISION_OBJECT_TYPE_DYNAMIC;
     @Property private float mass;

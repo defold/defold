@@ -1,10 +1,12 @@
 package com.dynamo.cr.sceneed.gameobject;
 
 import com.dynamo.cr.properties.Property;
+import com.dynamo.cr.sceneed.core.Resource;
 
 public class CollectionProxyNode extends ComponentTypeNode {
 
     @Property(isResource=true)
+    @Resource
     private String collection = "";
 
     public String getCollection() {

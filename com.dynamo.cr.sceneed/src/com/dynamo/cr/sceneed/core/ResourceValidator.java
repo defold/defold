@@ -12,7 +12,6 @@ import com.dynamo.cr.properties.ValidateUtil;
 
 public class ResourceValidator implements IValidator<String, Resource, INodeWorld> {
 
-
     @Override
     public IStatus validate(Resource validationParameters, String property, String value, INodeWorld world, Class<? extends NLS> nls) {
         if (value != null && value.length() > 0) {
@@ -29,4 +28,5 @@ public class ResourceValidator implements IValidator<String, Resource, INodeWorl
             return new Status(IStatus.INFO, "com.dynamo.cr.tileeditor", ValidateUtil.bind(nls, messageKey, value, "No resource specified"));
         }
     }
+
 }

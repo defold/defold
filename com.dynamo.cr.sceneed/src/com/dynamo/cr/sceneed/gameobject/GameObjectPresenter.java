@@ -81,7 +81,7 @@ public class GameObjectPresenter extends NodePresenter {
             }
             if (child != null) {
                 RefComponentNode component = new RefComponentNode(child);
-                component.setReference(path);
+                component.setComponent(path);
                 this.model.executeOperation(new AddComponentOperation(parent, component));
             } else {
                 throw new UnsupportedOperationException("Component " + path + " has unknown type.");
@@ -118,7 +118,7 @@ public class GameObjectPresenter extends NodePresenter {
             ComponentTypeNode componentType = (ComponentTypeNode)load(this.manager, this.contentRoot, path);
             RefComponentNode componentNode = new RefComponentNode(componentType);
             componentNode.setId(componentDesc.getId());
-            componentNode.setReference(path);
+            componentNode.setComponent(path);
             gameObject.addComponent(componentNode);
         }
         n = desc.getEmbeddedComponentsCount();
@@ -142,7 +142,7 @@ public class GameObjectPresenter extends NodePresenter {
                 RefComponentNode component = (RefComponentNode)child;
                 ComponentDesc.Builder componentBuilder = ComponentDesc.newBuilder();
                 componentBuilder.setId(component.getId());
-                componentBuilder.setComponent(component.getReference());
+                componentBuilder.setComponent(component.getComponent());
                 builder.addComponents(componentBuilder);
                 progress.worked(1);
             } else if (child instanceof ComponentNode) {
