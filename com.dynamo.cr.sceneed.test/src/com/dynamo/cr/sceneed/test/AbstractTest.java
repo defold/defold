@@ -16,6 +16,8 @@ import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.IProjectDescription;
+import org.eclipse.core.resources.IResourceChangeEvent;
+import org.eclipse.core.resources.IResourceChangeListener;
 import org.eclipse.core.resources.IWorkspace;
 import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
@@ -24,6 +26,7 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.jface.viewers.IStructuredSelection;
+import org.junit.After;
 import org.junit.Before;
 import org.osgi.framework.Bundle;
 
@@ -128,6 +131,18 @@ public abstract class AbstractTest {
         this.manager.setDefaultPresenter(this.injector.getInstance(DefaultNodePresenter.class));
         this.history = this.injector.getInstance(IOperationHistory.class);
         this.undoContext = this.injector.getInstance(IUndoContext.class);
+
+        final NodeManager manager = this.manager;
+        ResourcesPlugin.getWorkspace().addResourceChangeListener(new IResourceChangeListener() {
+            @Override
+            public void resourceChanged(IResourceChangeEvent event) {
+                try {
+                    manager.getDefaultPresenter().onResourceChanged(event);
+                } catch (CoreException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        }, IResourceChangeEvent.POST_CHANGE);
 
         this.updateCounts = new HashMap<Node, Integer>();
         this.selectCount = 0;

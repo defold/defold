@@ -24,6 +24,7 @@ import org.eclipse.jface.viewers.ISelectionProvider;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.window.Window;
 import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Display;
 import org.eclipse.ui.IActionBars;
 import org.eclipse.ui.IEditorInput;
 import org.eclipse.ui.IEditorSite;
@@ -179,9 +180,18 @@ public class NodeEditor extends AbstractDefoldEditor implements ISelectionListen
     }
 
     @Override
-    protected void handleResourceChanged(IResourceChangeEvent event) {
-        // TODO Auto-generated method stub
-
+    protected void handleResourceChanged(final IResourceChangeEvent event) {
+        Display display= getSite().getShell().getDisplay();
+        display.asyncExec(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    manager.getDefaultPresenter().onResourceChanged(event);
+                } catch (Throwable e) {
+                    logger.logException(e);
+                }
+            }
+        });
     }
 
     @Override

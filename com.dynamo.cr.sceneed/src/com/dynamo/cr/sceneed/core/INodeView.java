@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
+import org.eclipse.core.resources.IResourceChangeEvent;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.jface.viewers.IStructuredSelection;
@@ -16,6 +17,7 @@ public interface INodeView {
 
         void onLoad(String type, InputStream contents) throws IOException, CoreException;
         void onSave(OutputStream contents, IProgressMonitor monitor) throws IOException, CoreException;
+        void onResourceChanged(IResourceChangeEvent event) throws CoreException;
     }
 
     void setRoot(Node root);

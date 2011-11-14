@@ -1,5 +1,8 @@
 package com.dynamo.cr.sceneed.gameobject;
 
+import org.eclipse.core.resources.IFile;
+import org.eclipse.core.resources.IResource;
+import org.eclipse.core.resources.IResourceDelta;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.MultiStatus;
 import org.eclipse.core.runtime.Status;
@@ -43,17 +46,13 @@ public class RefComponentNode extends ComponentNode {
     public void setComponent(String component) {
         if (this.component != null ? !this.component.equals(component) : component != null) {
             this.component = component;
-            this.type = null;
-            try {
-                this.type = (ComponentTypeNode)this.presenter.loadNode(this.component);
-                if (this.type != null) {
-                    this.type.setModel(getModel());
-                }
-            } catch (Throwable e) {
-                // no reason to handle exception since having a null type is invalid state, will be caught in validateComponent below
-            }
+            reloadType();
             notifyChange();
         }
+    }
+
+    public ComponentTypeNode getType() {
+        return this.type;
     }
 
     public IStatus validateComponent() {
@@ -88,6 +87,30 @@ public class RefComponentNode extends ComponentNode {
     @Override
     public String toString() {
         return String.format("%s (%s)", getId(), this.component);
+    }
+
+    @Override
+    public boolean handleResourceChanged(IResourceDelta delta) {
+        IResource resource = delta.getResource();
+        IFile file = getModel().getFile(this.component);
+        if (file.exists() && file.equals(resource)) {
+            reloadType();
+            notifyChange();
+            return false;
+        }
+        return true;
+    }
+
+    private void reloadType() {
+        this.type = null;
+        try {
+            this.type = (ComponentTypeNode)this.presenter.loadNode(this.component);
+            if (this.type != null) {
+                this.type.setModel(getModel());
+            }
+        } catch (Throwable e) {
+            // no reason to handle exception since having a null type is invalid state, will be caught in validateComponent below
+        }
     }
 
 }

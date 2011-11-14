@@ -7,6 +7,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.eclipse.core.resources.IResourceDelta;
+import org.eclipse.core.resources.IResourceDeltaVisitor;
+import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IAdaptable;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.MultiStatus;
@@ -20,7 +23,7 @@ import com.dynamo.cr.properties.PropertyIntrospectorModel;
 import com.dynamo.cr.sceneed.Activator;
 
 @Entity(commandFactory = NodeUndoableCommandFactory.class)
-public class Node implements IAdaptable {
+public class Node implements IAdaptable, IResourceDeltaVisitor {
 
     private NodeModel model;
     private List<Node> children;
@@ -130,6 +133,22 @@ public class Node implements IAdaptable {
             return new PropertyIntrospectorModel<Node, NodeModel>(this, getModel(), introspector);
         }
         return null;
+    }
+
+    @Override
+    public final boolean visit(IResourceDelta delta) throws CoreException {
+        for (Node child : this.children) {
+            delta.accept(child);
+        }
+        return handleResourceChanged(delta);
+    }
+
+    /**
+     * Override this to handle resource changes
+     * @param delta
+     */
+    public boolean handleResourceChanged(IResourceDelta delta) {
+        return false;
     }
 
 }

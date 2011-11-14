@@ -44,7 +44,7 @@ public abstract class AbstractDefoldEditor extends EditorPart {
     protected UndoActionHandler undoHandler;
     protected RedoActionHandler redoHandler;
     protected boolean inSave = false;
-    private ResourceChangedListner resourceChangeListener;
+    private ResourceChangedListener resourceChangeListener;
     private final static int UNDO_LIMIT = 100;
     @Inject protected ILogger logger;
 
@@ -68,7 +68,7 @@ public abstract class AbstractDefoldEditor extends EditorPart {
         setPartName(input.getName());
 
         this.activationListener = new ActivationListener(getSite().getWorkbenchWindow().getPartService());
-        this.resourceChangeListener = new ResourceChangedListner();
+        this.resourceChangeListener = new ResourceChangedListener();
 
         this.undoContext = new UndoContext();
         this.history = PlatformUI.getWorkbench().getOperationSupport()
@@ -172,9 +172,9 @@ public abstract class AbstractDefoldEditor extends EditorPart {
     protected abstract void doReload(IFile file);
     protected abstract void handleResourceChanged(IResourceChangeEvent event);
 
-    class ResourceChangedListner implements IResourceChangeListener {
+    class ResourceChangedListener implements IResourceChangeListener {
 
-        public ResourceChangedListner() {
+        public ResourceChangedListener() {
             ResourcesPlugin.getWorkspace().addResourceChangeListener(this);
         }
 

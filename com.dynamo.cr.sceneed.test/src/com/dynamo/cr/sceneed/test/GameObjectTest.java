@@ -1,8 +1,20 @@
 package com.dynamo.cr.sceneed.test;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.not;
+
 import java.io.ByteArrayInputStream;
+import java.io.CharArrayWriter;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 
 import org.eclipse.core.resources.IFile;
@@ -14,26 +26,21 @@ import org.eclipse.osgi.util.NLS;
 import org.junit.Before;
 import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotSame;
-import static org.junit.Assert.assertTrue;
-
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
 import com.dynamo.cr.sceneed.core.INodeView;
 import com.dynamo.cr.sceneed.core.Messages;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.NodePresenter;
 import com.dynamo.cr.sceneed.gameobject.ComponentNode;
 import com.dynamo.cr.sceneed.gameobject.ComponentPresenter;
+import com.dynamo.cr.sceneed.gameobject.ComponentTypeNode;
 import com.dynamo.cr.sceneed.gameobject.GameObjectNode;
 import com.dynamo.cr.sceneed.gameobject.GameObjectPresenter;
 import com.dynamo.cr.sceneed.gameobject.RefComponentNode;
 import com.dynamo.cr.sceneed.gameobject.SpriteNode;
+import com.dynamo.sprite.proto.Sprite.SpriteDesc;
 import com.google.inject.Module;
 import com.google.inject.Singleton;
+import com.google.protobuf.TextFormat;
 
 public class GameObjectTest extends AbstractTest {
 
@@ -205,6 +212,53 @@ public class GameObjectTest extends AbstractTest {
         assertEquals(root.getClass(), this.model.getRoot().getClass());
         assertNotSame(0, this.model.getRoot().getChildren().size());
         assertEquals(root.getChildren().size(), this.model.getRoot().getChildren().size());
+    }
+
+    private void saveSprite(String path, String texture, float width, float height) throws IOException, CoreException {
+        SpriteDesc.Builder builder = SpriteDesc.newBuilder();
+        builder.setTexture(texture).setWidth(width).setHeight(height);
+        IFile file = this.contentRoot.getFile(new Path(path));
+        CharArrayWriter output = new CharArrayWriter();
+        TextFormat.print(builder.build(), output);
+        output.close();
+        InputStream stream = new ByteArrayInputStream(output.toString().getBytes());
+        if (!file.exists()) {
+            file.create(stream, true, null);
+        } else {
+            file.setContents(stream, 0, null);
+        }
+    }
+
+    /**
+     * This test should be in the integrationtest in the future.
+     * @throws Exception
+     */
+    @Test
+    public void testReloadComponentFromFile() throws Exception {
+        String path = "/reload.sprite";
+        float width = 1.0f;
+        float height = 1.0f;
+
+        when(this.view.selectComponentFromFile()).thenReturn(path);
+
+        saveSprite(path, "", width, height);
+
+        testLoad();
+
+        GameObjectNode node = (GameObjectNode)this.model.getRoot();
+        GameObjectPresenter presenter = (GameObjectPresenter)this.manager.getPresenter(GameObjectNode.class);
+        presenter.onAddComponentFromFile();
+        assertEquals(1, node.getChildren().size());
+        RefComponentNode component = (RefComponentNode)node.getChildren().get(0);
+        assertNodePropertyStatus(component, "component", IStatus.ERROR, null);
+        ComponentTypeNode type = component.getType();
+
+        saveSprite(path, "/test.png", width, height);
+
+        assertNodePropertyStatus(component, "component", IStatus.OK, null);
+        assertEquals(component, node.getChildren().get(0));
+        assertThat(type, is(not(component.getType())));
+        verifyUpdate(component);
     }
 
     @Test

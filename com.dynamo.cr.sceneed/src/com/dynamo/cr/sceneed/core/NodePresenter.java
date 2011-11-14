@@ -7,6 +7,7 @@ import java.io.OutputStreamWriter;
 
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
+import org.eclipse.core.resources.IResourceChangeEvent;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.Path;
@@ -47,6 +48,11 @@ public abstract class NodePresenter implements Presenter {
         Message message = this.manager.getPresenter(node.getClass()).buildMessage(node, monitor);
         saveMessage(message, contents, monitor);
         this.model.setUndoRedoCounter(0);
+    }
+
+    @Override
+    public void onResourceChanged(IResourceChangeEvent event) throws CoreException {
+        this.model.handleResourceChanged(event);
     }
 
     public abstract Node doLoad(String type, InputStream contents) throws IOException, CoreException;

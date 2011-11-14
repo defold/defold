@@ -9,8 +9,12 @@ import org.eclipse.core.commands.operations.IUndoContext;
 import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.core.commands.operations.OperationHistoryEvent;
 import org.eclipse.core.resources.IContainer;
+import org.eclipse.core.resources.IFile;
+import org.eclipse.core.resources.IResourceChangeEvent;
+import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IAdaptable;
 import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.StructuredSelection;
@@ -147,6 +151,16 @@ public class NodeModel implements INodeWorld, IAdaptable, IOperationHistoryListe
             setUndoRedoCounter(undoRedoCounter - 1);
             break;
         }
+    }
+
+    public void handleResourceChanged(IResourceChangeEvent event) throws CoreException {
+        if (this.root != null) {
+            event.getDelta().accept(this.root);
+        }
+    }
+
+    public IFile getFile(String path) {
+        return this.contentRoot.getFile(new Path(path));
     }
 
 }
