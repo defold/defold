@@ -38,6 +38,7 @@ import org.eclipse.ui.dialogs.SaveAsDialog;
 import org.eclipse.ui.operations.RedoActionHandler;
 import org.eclipse.ui.operations.UndoActionHandler;
 import org.eclipse.ui.part.FileEditorInput;
+import org.eclipse.ui.part.IContributedContentsView;
 import org.eclipse.ui.progress.IProgressService;
 import org.eclipse.ui.statushandlers.StatusManager;
 import org.eclipse.ui.views.contentoutline.ContentOutline;
@@ -291,8 +292,14 @@ public class NodeEditor extends AbstractDefoldEditor implements ISelectionListen
 
     @Override
     public void selectionChanged(IWorkbenchPart part, ISelection selection) {
-        if ((part instanceof NodeEditor || part instanceof ContentOutline)
-                && selection instanceof IStructuredSelection) {
+        boolean currentSelection = false;
+        if (part == this) {
+            currentSelection = true;
+        } else if (part instanceof ContentOutline) {
+            IContributedContentsView view = (IContributedContentsView)((ContentOutline)part).getAdapter(IContributedContentsView.class);
+            currentSelection = view.getContributingPart() == this;
+        }
+        if (currentSelection && selection instanceof IStructuredSelection) {
             this.manager.getDefaultPresenter().onSelect((IStructuredSelection)selection);
         }
     }
