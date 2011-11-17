@@ -6,17 +6,19 @@ import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.handlers.HandlerUtil;
 
-import com.dynamo.cr.sceneed.NodeEditor;
+import com.dynamo.cr.sceneed.SceneEditor;
+import com.dynamo.cr.sceneed.core.ISceneView.Context;
 
 public class RemoveComponentHandler extends AbstractHandler {
 
     @Override
     public Object execute(ExecutionEvent event) throws ExecutionException {
         IEditorPart editorPart = HandlerUtil.getActiveEditor(event);
-        if (editorPart instanceof NodeEditor) {
-            NodeEditor nodeEditor = (NodeEditor)editorPart;
-            GameObjectPresenter presenter = (GameObjectPresenter)nodeEditor.getPresenter(GameObjectNode.class);
-            presenter.onRemoveComponent();
+        if (editorPart instanceof SceneEditor) {
+            SceneEditor sceneEditor = (SceneEditor)editorPart;
+            Context context = sceneEditor.getContext();
+            GameObjectPresenter presenter = (GameObjectPresenter)sceneEditor.getNodePresenter(GameObjectNode.class);
+            presenter.onRemoveComponent(context);
         }
         return null;
     }

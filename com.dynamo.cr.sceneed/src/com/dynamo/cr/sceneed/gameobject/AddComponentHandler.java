@@ -6,17 +6,17 @@ import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.handlers.HandlerUtil;
 
-import com.dynamo.cr.sceneed.NodeEditor;
+import com.dynamo.cr.sceneed.SceneEditor;
 
 public class AddComponentHandler extends AbstractHandler {
 
     @Override
     public Object execute(ExecutionEvent event) throws ExecutionException {
         IEditorPart editorPart = HandlerUtil.getActiveEditor(event);
-        if (editorPart instanceof NodeEditor) {
-            NodeEditor nodeEditor = (NodeEditor)editorPart;
-            GameObjectPresenter presenter = (GameObjectPresenter)nodeEditor.getPresenter(GameObjectNode.class);
-            presenter.onAddComponent();
+        if (editorPart instanceof SceneEditor) {
+            SceneEditor sceneEditor = (SceneEditor)editorPart;
+            GameObjectPresenter presenter = (GameObjectPresenter)sceneEditor.getNodePresenter(GameObjectNode.class);
+            presenter.onAddComponent(sceneEditor.getContext());
         }
         return null;
     }

@@ -27,22 +27,21 @@ import org.eclipse.ui.operations.UndoActionHandler;
 import org.eclipse.ui.part.IPageSite;
 import org.eclipse.ui.views.contentoutline.ContentOutlinePage;
 
-import com.dynamo.cr.sceneed.core.INodeView;
+import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.Node;
-import com.dynamo.cr.sceneed.core.NodeManager;
 
-public class NodeOutlinePage extends ContentOutlinePage implements INodeOutlinePage, ISelectionListener {
+public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlinePage, ISelectionListener {
 
-    private static final String MENU_ID = "com.dynamo.cr.sceneed.menus.NodeOutlineContext";
+    private static final String MENU_ID = "com.dynamo.cr.sceneed.menus.sceneOutlineContext";
 
-    private final NodeManager manager;
+    private final ISceneView.Presenter presenter;
     private final UndoActionHandler undoHandler;
     private final RedoActionHandler redoHandler;
     private final RootItem root;
 
     @Inject
-    public NodeOutlinePage(NodeManager manager, UndoActionHandler undoHandler, RedoActionHandler redoHandler) {
-        this.manager = manager;
+    public SceneOutlinePage(ISceneView.Presenter presenter, UndoActionHandler undoHandler, RedoActionHandler redoHandler) {
+        this.presenter = presenter;
         this.undoHandler = undoHandler;
         this.redoHandler = redoHandler;
         this.root = new RootItem();
@@ -185,8 +184,7 @@ public class NodeOutlinePage extends ContentOutlinePage implements INodeOutlineP
 
         getSite().getPage().addSelectionListener(this);
 
-        INodeView.Presenter presenter = manager.getDefaultPresenter();
-        presenter.onRefresh();
+        this.presenter.onRefresh();
     }
 
     @Override
@@ -196,7 +194,7 @@ public class NodeOutlinePage extends ContentOutlinePage implements INodeOutlineP
 
     @Override
     public void selectionChanged(IWorkbenchPart part, ISelection selection) {
-        if (part instanceof NodeEditor) {
+        if (part instanceof SceneEditor) {
             TreeViewer viewer = getTreeViewer();
             viewer.setSelection(selection, true);
         }

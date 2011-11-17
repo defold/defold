@@ -26,7 +26,6 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.jface.viewers.IStructuredSelection;
-import org.junit.After;
 import org.junit.Before;
 import org.osgi.framework.Bundle;
 
@@ -39,12 +38,13 @@ import static org.junit.Assert.assertTrue;
 
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.properties.IPropertyModel;
-import com.dynamo.cr.sceneed.DefaultNodePresenter;
+import com.dynamo.cr.sceneed.NodeManager;
+import com.dynamo.cr.sceneed.SceneModel;
+import com.dynamo.cr.sceneed.ScenePresenter;
 import com.dynamo.cr.sceneed.core.ILogger;
-import com.dynamo.cr.sceneed.core.INodeView;
+import com.dynamo.cr.sceneed.core.ISceneModel;
+import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.Node;
-import com.dynamo.cr.sceneed.core.NodeManager;
-import com.dynamo.cr.sceneed.core.NodeModel;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
@@ -52,9 +52,10 @@ import com.google.inject.Module;
 import com.google.inject.Singleton;
 
 public abstract class AbstractTest {
-    protected NodeModel model;
+    protected ISceneModel model;
     protected Injector injector;
-    protected INodeView view;
+    protected ISceneView view;
+    protected ISceneView.Presenter presenter;
     protected NodeManager manager;
     protected IOperationHistory history;
     protected IUndoContext undoContext;
@@ -77,10 +78,10 @@ public abstract class AbstractTest {
     protected class GenericTestModule extends AbstractModule {
         @Override
         protected void configure() {
-            bind(NodeModel.class).in(Singleton.class);
+            bind(ISceneModel.class).to(SceneModel.class).in(Singleton.class);
             bind(NodeManager.class).in(Singleton.class);
-            bind(DefaultNodePresenter.class).in(Singleton.class);
-            bind(INodeView.class).toInstance(view);
+            bind(ISceneView.class).toInstance(view);
+            bind(ISceneView.Presenter.class).to(ScenePresenter.class).in(Singleton.class);
             bind(IOperationHistory.class).to(DefaultOperationHistory.class).in(Singleton.class);
             bind(IUndoContext.class).to(UndoContext.class).in(Singleton.class);
             bind(ILogger.class).to(TestLogger.class);
@@ -123,21 +124,20 @@ public abstract class AbstractTest {
         }
         this.contentRoot = EditorUtil.findContentRoot(this.project.getFile("game.project"));
 
-        this.view = mock(INodeView.class);
+        this.view = mock(ISceneView.class);
 
         this.injector = Guice.createInjector(getModule());
-        this.model = this.injector.getInstance(NodeModel.class);
+        this.model = this.injector.getInstance(ISceneModel.class);
+        this.presenter = this.injector.getInstance(ISceneView.Presenter.class);
         this.manager = this.injector.getInstance(NodeManager.class);
-        this.manager.setDefaultPresenter(this.injector.getInstance(DefaultNodePresenter.class));
         this.history = this.injector.getInstance(IOperationHistory.class);
         this.undoContext = this.injector.getInstance(IUndoContext.class);
 
-        final NodeManager manager = this.manager;
         ResourcesPlugin.getWorkspace().addResourceChangeListener(new IResourceChangeListener() {
             @Override
             public void resourceChanged(IResourceChangeEvent event) {
                 try {
-                    manager.getDefaultPresenter().onResourceChanged(event);
+                    presenter.onResourceChanged(event);
                 } catch (CoreException e) {
                     throw new RuntimeException(e);
                 }
@@ -200,13 +200,13 @@ public abstract class AbstractTest {
 
     @SuppressWarnings("unchecked")
     protected void setNodeProperty(Node node, Object id, Object value) {
-        IPropertyModel<? extends Node, NodeModel> propertyModel = (IPropertyModel<? extends Node, NodeModel>)node.getAdapter(IPropertyModel.class);
+        IPropertyModel<? extends Node, ISceneModel> propertyModel = (IPropertyModel<? extends Node, ISceneModel>)node.getAdapter(IPropertyModel.class);
         this.model.executeOperation(propertyModel.setPropertyValue(id, value));
     }
 
     @SuppressWarnings("unchecked")
     protected IStatus getNodePropertyStatus(Node node, Object id) {
-        IPropertyModel<? extends Node, NodeModel> propertyModel = (IPropertyModel<? extends Node, NodeModel>)node.getAdapter(IPropertyModel.class);
+        IPropertyModel<? extends Node, ISceneModel> propertyModel = (IPropertyModel<? extends Node, ISceneModel>)node.getAdapter(IPropertyModel.class);
         return propertyModel.getPropertyStatus(id);
     }
 

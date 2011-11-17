@@ -7,9 +7,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.eclipse.core.resources.IResourceDelta;
-import org.eclipse.core.resources.IResourceDeltaVisitor;
-import org.eclipse.core.runtime.CoreException;
+import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.IAdaptable;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.MultiStatus;
@@ -21,57 +19,59 @@ import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.properties.PropertyIntrospector;
 import com.dynamo.cr.properties.PropertyIntrospectorModel;
 import com.dynamo.cr.sceneed.Activator;
+import com.dynamo.cr.sceneed.Messages;
+import com.dynamo.cr.sceneed.SceneModel;
 
-@Entity(commandFactory = NodeUndoableCommandFactory.class)
-public class Node implements IAdaptable, IResourceDeltaVisitor {
+@Entity(commandFactory = SceneUndoableCommandFactory.class)
+public class Node implements IAdaptable {
 
-    private NodeModel model;
-    private List<Node> children;
+    private ISceneModel model;
+    private List<Node> children = new ArrayList<Node>();
     private Node parent;
 
-    private static Map<Class<? extends Node>, PropertyIntrospector<Node, NodeModel>> introspectors =
-            new HashMap<Class<? extends Node>, PropertyIntrospector<Node,NodeModel>>();
+    private static Map<Class<? extends Node>, PropertyIntrospector<Node, ISceneModel>> introspectors =
+            new HashMap<Class<? extends Node>, PropertyIntrospector<Node, ISceneModel>>();
 
-    public Node() {
-        this.children = new ArrayList<Node>();
-    }
-
-    public NodeModel getModel() {
+    public final ISceneModel getModel() {
         return this.model;
     }
 
-    public void setModel(NodeModel model) {
+    public final void setModel(ISceneModel model) {
         this.model = model;
         for (Node child : this.children) {
             child.setModel(model);
         }
     }
 
-    public List<Node> getChildren() {
+    public final List<Node> getChildren() {
         return Collections.unmodifiableList(this.children);
     }
 
-    public boolean hasChildren() {
+    public final boolean hasChildren() {
         return !this.children.isEmpty();
     }
 
-    protected void addChild(Node child) {
-        if (!this.children.contains(child)) {
+    protected final void addChild(Node child) {
+        if (child != null && !this.children.contains(child)) {
             children.add(child);
             child.setParent(this);
             notifyChange();
         }
     }
 
-    protected void removeChild(Node child) {
-        if (this.children.contains(child)) {
+    protected final void removeChild(Node child) {
+        if (child != null && this.children.contains(child)) {
             children.remove(child);
             child.parent = null;
             notifyChange();
         }
     }
 
-    protected void sortChildren(Comparator<? super Node> comparator) {
+    protected final void clearChildren() {
+        this.children.clear();
+    }
+
+    protected final void sortChildren(Comparator<? super Node> comparator) {
         List<Node> sortedChildren = new ArrayList<Node>(this.children);
         Collections.sort(sortedChildren, comparator);
         if (!sortedChildren.equals(this.children)) {
@@ -80,17 +80,17 @@ public class Node implements IAdaptable, IResourceDeltaVisitor {
         }
     }
 
-    protected void notifyChange() {
+    protected final void notifyChange() {
         if (this.model != null) {
             this.model.notifyChange(this);
         }
     }
 
-    public Node getParent() {
+    public final Node getParent() {
         return this.parent;
     }
 
-    private void setParent(Node parent) {
+    private final void setParent(Node parent) {
         this.parent = parent;
         setModel(parent.getModel());
     }
@@ -99,56 +99,65 @@ public class Node implements IAdaptable, IResourceDeltaVisitor {
         return null;
     }
 
-    public IStatus validate() {
+    public final IStatus validate() {
+        IStatus status = null;
         if (!this.children.isEmpty()) {
-            MultiStatus status = new MultiStatus(Activator.PLUGIN_ID, 0, null, null);
+            MultiStatus multiStatus = new MultiStatus(Activator.PLUGIN_ID, 0, null, null);
             for (Node child : this.children) {
-                status.merge(child.validate());
+                multiStatus.merge(child.validate());
             }
-            return status;
+            status = multiStatus;
         }
-        return Status.OK_STATUS;
+        IStatus ownStatus = doValidate();
+        if (status != null) {
+            ((MultiStatus)status).merge(ownStatus);
+        } else {
+            status = ownStatus;
+        }
+        return status;
     }
 
-    protected MultiStatus validateProperties(String[] properties) {
+    protected final IStatus validateProperties(String[] properties) {
         MultiStatus status = new MultiStatus(Activator.PLUGIN_ID, 0, null, null);
         @SuppressWarnings("unchecked")
-        IPropertyModel<? extends Node, NodeModel> model = (IPropertyModel<? extends Node, NodeModel>) getAdapter(IPropertyModel.class);
+        IPropertyModel<? extends Node, SceneModel> model = (IPropertyModel<? extends Node, SceneModel>) getAdapter(IPropertyModel.class);
         for (String property : properties) {
             status.merge(model.getPropertyStatus(property));
         }
         return status;
     }
 
+    protected IStatus doValidate() {
+        return Status.OK_STATUS;
+    }
+
     @Override
     public Object getAdapter(@SuppressWarnings("rawtypes") Class adapter) {
-        PropertyIntrospector<Node, NodeModel> introspector = introspectors.get(this.getClass());
+        PropertyIntrospector<Node, ISceneModel> introspector = introspectors.get(this.getClass());
 
         if (introspector == null) {
-            introspector = new PropertyIntrospector<Node, NodeModel>(this.getClass(), Messages.class);
+            introspector = new PropertyIntrospector<Node, ISceneModel>(this.getClass(), Messages.class);
             introspectors.put(this.getClass(), introspector);
         }
 
         if (adapter == IPropertyModel.class) {
-            return new PropertyIntrospectorModel<Node, NodeModel>(this, getModel(), introspector);
+            return new PropertyIntrospectorModel<Node, ISceneModel>(this, getModel(), introspector);
         }
         return null;
     }
 
-    @Override
-    public final boolean visit(IResourceDelta delta) throws CoreException {
-        for (Node child : this.children) {
-            delta.accept(child);
-        }
-        return handleResourceChanged(delta);
-    }
-
     /**
      * Override this to handle resource changes
-     * @param delta
      */
-    public boolean handleResourceChanged(IResourceDelta delta) {
-        return false;
+    public final void handleFileChanged(IFile file) {
+        for (Node child : this.children) {
+            child.handleReload(file);
+        }
+        handleReload(file);
+    }
+
+    public void handleReload(IFile file) {
+
     }
 
 }

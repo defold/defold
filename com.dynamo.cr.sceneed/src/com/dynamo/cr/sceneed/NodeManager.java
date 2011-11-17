@@ -1,9 +1,11 @@
-package com.dynamo.cr.sceneed.core;
+package com.dynamo.cr.sceneed;
 
 import java.util.HashMap;
 import java.util.Map;
 
-import com.dynamo.cr.sceneed.INodeRenderer;
+import com.dynamo.cr.sceneed.core.INodeRenderer;
+import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.sceneed.core.NodePresenter;
 
 public class NodeManager {
     private static class NodeImpl {
@@ -18,7 +20,6 @@ public class NodeManager {
 
     private Map<String, NodeImpl> typeToImpl;
     private Map<Class<? extends Node>, NodeImpl> classToImpl;
-    private NodePresenter defaultPresenter;
 
     public NodeManager() {
         this.typeToImpl = new HashMap<String, NodeImpl>();
@@ -47,14 +48,6 @@ public class NodeManager {
         } else {
             return null;
         }
-    }
-
-    public NodePresenter getDefaultPresenter() {
-        return this.defaultPresenter;
-    }
-
-    public void setDefaultPresenter(NodePresenter defaultPresenter) {
-        this.defaultPresenter = defaultPresenter;
     }
 
     public INodeRenderer getRenderer(String type) {

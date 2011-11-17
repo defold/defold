@@ -6,10 +6,6 @@ import com.dynamo.cr.sceneed.core.Node;
 
 public class GameObjectNode extends Node {
 
-    public GameObjectNode() {
-        super();
-    }
-
     public void addComponent(ComponentNode component) {
         addChild(component);
         sortComponents();

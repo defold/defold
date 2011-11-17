@@ -11,20 +11,17 @@ import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.SubMonitor;
 import org.eclipse.jface.viewers.IStructuredSelection;
 
+import com.dynamo.cr.sceneed.core.ISceneView.Context;
 import com.dynamo.cr.sceneed.core.Node;
-import com.dynamo.cr.sceneed.core.NodeManager;
 import com.dynamo.cr.sceneed.core.NodePresenter;
 import com.dynamo.gameobject.proto.GameObject.ComponentDesc;
 import com.dynamo.gameobject.proto.GameObject.EmbeddedComponentDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc.Builder;
-import com.google.inject.Inject;
 import com.google.protobuf.Message;
 import com.google.protobuf.TextFormat;
 
 public class GameObjectPresenter extends NodePresenter {
-
-    @Inject private NodeManager manager;
 
     private GameObjectNode findGameObjectFromSelection(IStructuredSelection selection) {
         Object[] nodes = selection.toArray();
@@ -41,58 +38,58 @@ public class GameObjectPresenter extends NodePresenter {
         return parent;
     }
 
-    public void onAddComponent() {
+    public void onAddComponent(Context context) {
         // Find selected game objects
         // TODO: Support multi selection
-        GameObjectNode parent = findGameObjectFromSelection(this.model.getSelection());
+        GameObjectNode parent = findGameObjectFromSelection(context.getSelection());
         if (parent == null) {
             throw new UnsupportedOperationException("No game object in selection.");
         }
-        String componentType = this.view.selectComponentType();
+        String componentType = context.getView().selectComponentType();
         if (componentType != null) {
             ComponentTypeNode child = null;
             try {
-                child = (ComponentTypeNode)this.manager.getPresenter(componentType).createNode(componentType);
+                child = (ComponentTypeNode)context.getPresenter(componentType).onCreateNode(context, componentType);
             } catch (Exception e) {
-                logException(e);
+                context.logException(e);
             }
             if (child != null) {
-                this.model.executeOperation(new AddComponentOperation(parent, new ComponentNode(child)));
+                context.executeOperation(new AddComponentOperation(parent, new ComponentNode(child)));
             } else {
                 throw new UnsupportedOperationException("Component type " + componentType + " not registered.");
             }
         }
     }
 
-    public void onAddComponentFromFile() {
+    public void onAddComponentFromFile(Context context) {
         // Find selected game objects
         // TODO: Support multi selection
-        GameObjectNode parent = findGameObjectFromSelection(this.model.getSelection());
+        GameObjectNode parent = findGameObjectFromSelection(context.getSelection());
         if (parent == null) {
             throw new UnsupportedOperationException("No game object in selection.");
         }
-        String path = this.view.selectComponentFromFile();
+        String path = context.getView().selectComponentFromFile();
         if (path != null) {
             ComponentTypeNode child = null;
             try {
-                child = (ComponentTypeNode)loadNode(path);
+                child = (ComponentTypeNode)context.loadNode(path);
             } catch (Exception e) {
-                logException(e);
+                context.logException(e);
             }
             if (child != null) {
-                RefComponentNode component = new RefComponentNode(this, child);
+                RefComponentNode component = new RefComponentNode(child);
                 component.setComponent(path);
-                this.model.executeOperation(new AddComponentOperation(parent, component));
+                context.executeOperation(new AddComponentOperation(parent, component));
             } else {
                 throw new UnsupportedOperationException("Component " + path + " has unknown type.");
             }
         }
     }
 
-    public void onRemoveComponent() {
+    public void onRemoveComponent(Context context) {
         // Find selected components
         // TODO: Support multi selection
-        IStructuredSelection structuredSelection = this.model.getSelection();
+        IStructuredSelection structuredSelection = context.getSelection();
         Object[] nodes = structuredSelection.toArray();
         ComponentNode component = null;
         for (Object node : nodes) {
@@ -101,11 +98,11 @@ public class GameObjectPresenter extends NodePresenter {
                 break;
             }
         }
-        this.model.executeOperation(new RemoveComponentOperation(component));
+        context.executeOperation(new RemoveComponentOperation(component));
     }
 
     @Override
-    public Node doLoad(String type, InputStream contents) throws IOException, CoreException {
+    public Node onLoad(Context context, String type, InputStream contents) throws IOException, CoreException {
         InputStreamReader reader = new InputStreamReader(contents);
         Builder builder = PrototypeDesc.newBuilder();
         TextFormat.merge(reader, builder);
@@ -115,8 +112,8 @@ public class GameObjectPresenter extends NodePresenter {
         for (int i = 0; i < n; ++i) {
             ComponentDesc componentDesc = desc.getComponents(i);
             String path = componentDesc.getComponent();
-            ComponentTypeNode componentType = (ComponentTypeNode)loadNode(path);
-            RefComponentNode componentNode = new RefComponentNode(this, componentType);
+            ComponentTypeNode componentType = (ComponentTypeNode)context.loadNode(path);
+            RefComponentNode componentNode = new RefComponentNode(componentType);
             componentNode.setId(componentDesc.getId());
             componentNode.setComponent(path);
             gameObject.addComponent(componentNode);
@@ -124,7 +121,7 @@ public class GameObjectPresenter extends NodePresenter {
         n = desc.getEmbeddedComponentsCount();
         for (int i = 0; i < n; ++i) {
             EmbeddedComponentDesc componentDesc = desc.getEmbeddedComponents(i);
-            ComponentTypeNode componentType = (ComponentTypeNode)loadNode(componentDesc.getType(), new ByteArrayInputStream(componentDesc.getData().getBytes()));
+            ComponentTypeNode componentType = (ComponentTypeNode)context.loadNode(componentDesc.getType(), new ByteArrayInputStream(componentDesc.getData().getBytes()));
             ComponentNode component = new ComponentNode(componentType);
             component.setId(componentDesc.getId());
             gameObject.addComponent(component);
@@ -133,7 +130,7 @@ public class GameObjectPresenter extends NodePresenter {
     }
 
     @Override
-    public Message buildMessage(Node node, IProgressMonitor monitor) throws IOException, CoreException {
+    public Message onBuildMessage(Context context, Node node, IProgressMonitor monitor) throws IOException, CoreException {
         GameObjectNode gameObject = (GameObjectNode)node;
         Builder builder = PrototypeDesc.newBuilder();
         SubMonitor progress = SubMonitor.convert(monitor, gameObject.getChildren().size());
@@ -152,8 +149,8 @@ public class GameObjectPresenter extends NodePresenter {
                 ComponentTypeNode componentType = (ComponentTypeNode)component.getChildren().get(0);
                 ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
                 SubMonitor partProgress = progress.newChild(1).setWorkRemaining(2);
-                Message message = this.manager.getPresenter(componentType.getClass()).buildMessage(componentType, partProgress.newChild(1));
-                saveMessage(message, byteStream, partProgress.newChild(1));
+                Message message = context.buildMessage(componentType, partProgress.newChild(1));
+                onSaveMessage(context, message, byteStream, partProgress.newChild(1));
                 componentBuilder.setType(componentType.getTypeId());
                 componentBuilder.setData(byteStream.toString());
                 builder.addEmbeddedComponents(componentBuilder);
@@ -163,7 +160,7 @@ public class GameObjectPresenter extends NodePresenter {
     }
 
     @Override
-    public Node createNode(String type) throws IOException, CoreException {
+    public Node onCreateNode(Context context, String type) throws IOException, CoreException {
         return new GameObjectNode();
     }
 }

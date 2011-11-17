@@ -20,7 +20,6 @@ import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.action.IStatusLineManager;
 import org.eclipse.jface.viewers.ISelection;
-import org.eclipse.jface.viewers.ISelectionProvider;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.window.Window;
 import org.eclipse.swt.widgets.Composite;
@@ -34,6 +33,7 @@ import org.eclipse.ui.IWorkbenchPart;
 import org.eclipse.ui.PartInitException;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.actions.ActionFactory;
+import org.eclipse.ui.contexts.IContextService;
 import org.eclipse.ui.dialogs.SaveAsDialog;
 import org.eclipse.ui.operations.RedoActionHandler;
 import org.eclipse.ui.operations.UndoActionHandler;
@@ -49,10 +49,10 @@ import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.core.inject.LifecycleModule;
 import com.dynamo.cr.properties.IFormPropertySheetPage;
 import com.dynamo.cr.sceneed.core.ILogger;
-import com.dynamo.cr.sceneed.core.INodeView;
+import com.dynamo.cr.sceneed.core.ISceneModel;
+import com.dynamo.cr.sceneed.core.ISceneView;
+import com.dynamo.cr.sceneed.core.ISceneView.Context;
 import com.dynamo.cr.sceneed.core.Node;
-import com.dynamo.cr.sceneed.core.NodeManager;
-import com.dynamo.cr.sceneed.core.NodeModel;
 import com.dynamo.cr.sceneed.gameobject.CollectionProxyNode;
 import com.dynamo.cr.sceneed.gameobject.CollisionObjectNode;
 import com.dynamo.cr.sceneed.gameobject.ComponentPresenter;
@@ -65,31 +65,30 @@ import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
 
-public class NodeEditor extends AbstractDefoldEditor implements ISelectionListener {
+public class SceneEditor extends AbstractDefoldEditor implements ISelectionListener {
 
-    private INodeOutlinePage outlinePage;
+    private ISceneOutlinePage outlinePage;
     private IFormPropertySheetPage propertySheetPage;
-    private ISelectionProvider selectionProvider;
-    private SceneView sceneView;
+    private RenderView renderView;
 
     private IContainer contentRoot;
     private LifecycleModule module;
+    private ISceneView.Presenter presenter;
     private NodeManager manager;
     private boolean dirty;
 
     class Module extends AbstractModule {
         @Override
         protected void configure() {
-            bind(INodeOutlinePage.class).to(NodeOutlinePage.class).in(Singleton.class);
-            bind(IFormPropertySheetPage.class).to(NodePropertySheetPage.class).in(Singleton.class);
-            bind(INodeView.class).to(NodeView.class).in(Singleton.class);
-            bind(SceneView.class).in(Singleton.class);
-            bind(ISelectionProvider.class).to(NodeSelectionProvider.class).in(Singleton.class);
-            bind(NodeModel.class).in(Singleton.class);
+            bind(ISceneOutlinePage.class).to(SceneOutlinePage.class).in(Singleton.class);
+            bind(IFormPropertySheetPage.class).to(ScenePropertySheetPage.class).in(Singleton.class);
+            bind(ISceneView.class).to(SceneView.class).in(Singleton.class);
+            bind(RenderView.class).in(Singleton.class);
+            bind(ISceneModel.class).to(SceneModel.class).in(Singleton.class);
             bind(NodeManager.class).in(Singleton.class);
-            bind(DefaultNodePresenter.class).in(Singleton.class);
+            bind(ISceneView.Presenter.class).to(ScenePresenter.class).in(Singleton.class);
             bind(GameObjectPresenter.class).in(Singleton.class);
-            bind(NodeEditor.class).toInstance(NodeEditor.this);
+            bind(SceneEditor.class).toInstance(SceneEditor.this);
 
             bind(IOperationHistory.class).toInstance(history);
             bind(IUndoContext.class).toInstance(undoContext);
@@ -127,13 +126,12 @@ public class NodeEditor extends AbstractDefoldEditor implements ISelectionListen
         actionBars.setGlobalActionHandler(undoId, undoHandler);
         actionBars.setGlobalActionHandler(redoId, redoHandler);
 
-        this.outlinePage = injector.getInstance(INodeOutlinePage.class);
+        this.outlinePage = injector.getInstance(ISceneOutlinePage.class);
         this.propertySheetPage = injector.getInstance(IFormPropertySheetPage.class);
-        this.selectionProvider = injector.getInstance(ISelectionProvider.class);
-        this.sceneView = injector.getInstance(SceneView.class);
+        this.renderView = injector.getInstance(RenderView.class);
 
+        this.presenter = injector.getInstance(ISceneView.Presenter.class);
         this.manager = injector.getInstance(NodeManager.class);
-        this.manager.setDefaultPresenter(injector.getInstance(DefaultNodePresenter.class));
         // TODO: Replace with extension point
         this.manager.registerNodeType("go", GameObjectNode.class, injector.getInstance(GameObjectPresenter.class), null);
         this.manager.registerNodeType("sprite", SpriteNode.class, injector.getInstance(ComponentPresenter.class), null);
@@ -151,7 +149,7 @@ public class NodeEditor extends AbstractDefoldEditor implements ISelectionListen
 
         this.dirty = false;
 
-        NodeLoaderRunnable loader = new NodeLoaderRunnable(file, injector.getInstance(DefaultNodePresenter.class));
+        SceneLoader loader = new SceneLoader(file, this.presenter);
         try {
             service.runInUI(service, loader, null);
             if (loader.exception != null) {
@@ -167,8 +165,8 @@ public class NodeEditor extends AbstractDefoldEditor implements ISelectionListen
     public void dispose() {
         super.dispose();
         module.close();
-        if (this.sceneView != null) {
-            this.sceneView.dispose();
+        if (this.renderView != null) {
+            this.renderView.dispose();
         }
 
         getSite().getPage().removeSelectionListener(this);
@@ -187,7 +185,7 @@ public class NodeEditor extends AbstractDefoldEditor implements ISelectionListen
             @Override
             public void run() {
                 try {
-                    manager.getDefaultPresenter().onResourceChanged(event);
+                    presenter.onResourceChanged(event);
                 } catch (Throwable e) {
                     logger.logException(e);
                 }
@@ -202,7 +200,7 @@ public class NodeEditor extends AbstractDefoldEditor implements ISelectionListen
         this.inSave = true;
         try {
             ByteArrayOutputStream stream = new ByteArrayOutputStream();
-            this.manager.getDefaultPresenter().onSave(stream, monitor);
+            this.presenter.onSave(stream, monitor);
             file.setContents(
                     new ByteArrayInputStream(stream.toByteArray()), false,
                     true, monitor);
@@ -260,19 +258,23 @@ public class NodeEditor extends AbstractDefoldEditor implements ISelectionListen
 
     @Override
     public void createPartControl(Composite parent) {
-        this.sceneView.createControls(parent);
+        this.renderView.createControls(parent);
+
+        // This makes sure the context will be active while this component is
+        IContextService contextService = (IContextService) getSite()
+                .getService(IContextService.class);
+        contextService.activateContext(Activator.SCENEED_CONTEXT_ID);
 
         // Set the outline as selection provider
-        getSite().setSelectionProvider(this.selectionProvider);
+        getSite().setSelectionProvider(this.renderView);
         getSite().getPage().addSelectionListener(this);
 
-        INodeView.Presenter presenter = this.manager.getDefaultPresenter();
-        presenter.onRefresh();
+        this.presenter.onRefresh();
     }
 
     @Override
     public void setFocus() {
-        this.sceneView.setFocus();
+        this.renderView.setFocus();
     }
 
     @Override
@@ -286,7 +288,11 @@ public class NodeEditor extends AbstractDefoldEditor implements ISelectionListen
         }
     }
 
-    public INodeView.Presenter getPresenter(Class<? extends Node> c) {
+    public ISceneView.Presenter getPresenter() {
+        return this.presenter;
+    }
+
+    public ISceneView.NodePresenter getNodePresenter(Class<? extends Node> c) {
         return this.manager.getPresenter(c);
     }
 
@@ -300,7 +306,7 @@ public class NodeEditor extends AbstractDefoldEditor implements ISelectionListen
             currentSelection = view.getContributingPart() == this;
         }
         if (currentSelection && selection instanceof IStructuredSelection) {
-            this.manager.getDefaultPresenter().onSelect((IStructuredSelection)selection);
+            this.presenter.onSelect((IStructuredSelection)selection);
         }
     }
 
@@ -309,6 +315,10 @@ public class NodeEditor extends AbstractDefoldEditor implements ISelectionListen
             this.dirty = dirty;
             firePropertyChange(PROP_DIRTY);
         }
+    }
+
+    public Context getContext() {
+        return this.presenter.getContext();
     }
 
 }

@@ -12,7 +12,7 @@ public class Activator extends AbstractUIPlugin {
     public static final String PLUGIN_ID = "com.dynamo.cr.sceneed"; //$NON-NLS-1$
 
     // Context IDs
-    public static final String SCENEED_CONTEXT_ID = "com.dynamo.cr.sceneed.contexts.nodeEditor"; //$NON-NLS-1$
+    public static final String SCENEED_CONTEXT_ID = "com.dynamo.cr.sceneed.contexts.sceneEditor"; //$NON-NLS-1$
 
     // The shared instance
     private static Activator plugin;

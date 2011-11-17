@@ -1,8 +1,8 @@
 package com.dynamo.cr.sceneed.gameobject;
 
+import java.util.List;
+
 import org.eclipse.core.resources.IFile;
-import org.eclipse.core.resources.IResource;
-import org.eclipse.core.resources.IResourceDelta;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.MultiStatus;
 import org.eclipse.core.runtime.Status;
@@ -10,9 +10,9 @@ import org.eclipse.osgi.util.NLS;
 
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.sceneed.Activator;
-import com.dynamo.cr.sceneed.core.Messages;
-import com.dynamo.cr.sceneed.core.NodeModel;
-import com.dynamo.cr.sceneed.core.NodePresenter;
+import com.dynamo.cr.sceneed.Messages;
+import com.dynamo.cr.sceneed.core.ISceneModel;
+import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.Resource;
 
 public class RefComponentNode extends ComponentNode {
@@ -21,22 +21,8 @@ public class RefComponentNode extends ComponentNode {
     @Resource
     private String component;
 
-    private NodePresenter presenter;
-    private ComponentTypeNode type;
-
-    public RefComponentNode(NodePresenter presenter, ComponentTypeNode type) {
-        super();
-
-        this.presenter = presenter;
-        this.type = type;
-    }
-
-    @Override
-    public void setModel(NodeModel model) {
-        super.setModel(model);
-        if (this.type != null) {
-            this.type.setModel(model);
-        }
+    public RefComponentNode(ComponentTypeNode type) {
+        super(type);
     }
 
     public String getComponent() {
@@ -52,13 +38,19 @@ public class RefComponentNode extends ComponentNode {
     }
 
     public ComponentTypeNode getType() {
-        return this.type;
+        ComponentTypeNode type = (ComponentTypeNode)getChildren().get(0);
+        return type;
     }
 
     public IStatus validateComponent() {
         if (this.component != null && !this.component.equals("")) {
-            if (this.type != null) {
-                IStatus status = this.type.validate();
+            ComponentTypeNode type = null;
+            List<Node> children = getChildren();
+            if (!children.isEmpty()) {
+                type = (ComponentTypeNode)children.get(0);
+            }
+            if (type != null) {
+                IStatus status = type.validate();
                 if (!status.isOK()) {
                     return new Status(IStatus.ERROR, Activator.PLUGIN_ID, Messages.RefComponentNode_component_INVALID_REFERENCE);
                 }
@@ -78,10 +70,17 @@ public class RefComponentNode extends ComponentNode {
     }
 
     @Override
-    public IStatus validate() {
-        MultiStatus status = validateProperties(new String[] {"component"});
-        status.merge(super.validate());
-        return status;
+    public IStatus doValidate() {
+        IStatus status = validateProperties(new String[] {"component"});
+        MultiStatus multiStatus= null;
+        if (status.isMultiStatus()) {
+            multiStatus = (MultiStatus)status;
+        } else {
+            multiStatus = new MultiStatus(Activator.PLUGIN_ID, 0, null, null);
+            multiStatus.merge(status);
+        }
+        multiStatus.merge(super.doValidate());
+        return multiStatus;
     }
 
     @Override
@@ -90,26 +89,30 @@ public class RefComponentNode extends ComponentNode {
     }
 
     @Override
-    public boolean handleResourceChanged(IResourceDelta delta) {
-        IResource resource = delta.getResource();
-        IFile file = getModel().getFile(this.component);
-        if (file.exists() && file.equals(resource)) {
+    public void handleReload(IFile file) {
+        IFile componentFile = getModel().getFile(this.component);
+        if (componentFile.exists() && componentFile.equals(file)) {
             reloadType();
-            notifyChange();
-            return false;
         }
-        return true;
     }
 
     private void reloadType() {
-        this.type = null;
-        try {
-            this.type = (ComponentTypeNode)this.presenter.loadNode(this.component);
-            if (this.type != null) {
-                this.type.setModel(getModel());
+        ISceneModel model = getModel();
+        if (model != null) {
+            try {
+                clearChildren();
+                ComponentTypeNode type = null;
+                type = (ComponentTypeNode)getModel().loadNode(this.component);
+                if (type != null) {
+                    clearChildren();
+                    addChild(type);
+                } else {
+                    notifyChange();
+                }
+                addChild(type);
+            } catch (Throwable e) {
+                // no reason to handle exception since having a null type is invalid state, will be caught in validateComponent below
             }
-        } catch (Throwable e) {
-            // no reason to handle exception since having a null type is invalid state, will be caught in validateComponent below
         }
     }
 

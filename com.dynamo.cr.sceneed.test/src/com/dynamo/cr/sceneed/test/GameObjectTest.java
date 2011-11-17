@@ -26,10 +26,8 @@ import org.eclipse.osgi.util.NLS;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.dynamo.cr.sceneed.core.INodeView;
-import com.dynamo.cr.sceneed.core.Messages;
+import com.dynamo.cr.sceneed.Messages;
 import com.dynamo.cr.sceneed.core.Node;
-import com.dynamo.cr.sceneed.core.NodePresenter;
 import com.dynamo.cr.sceneed.gameobject.ComponentNode;
 import com.dynamo.cr.sceneed.gameobject.ComponentPresenter;
 import com.dynamo.cr.sceneed.gameobject.ComponentTypeNode;
@@ -65,8 +63,7 @@ public class GameObjectTest extends AbstractTest {
     @Test
     public void testLoad() throws Exception {
         String ddf = "";
-        GameObjectPresenter presenter = (GameObjectPresenter)this.manager.getPresenter(GameObjectNode.class);
-        presenter.onLoad("go", new ByteArrayInputStream(ddf.getBytes()));
+        this.presenter.onLoad("go", new ByteArrayInputStream(ddf.getBytes()));
         Node root = this.model.getRoot();
         assertTrue(root instanceof GameObjectNode);
         assertTrue(this.model.getSelection().toList().contains(root));
@@ -84,7 +81,7 @@ public class GameObjectTest extends AbstractTest {
 
         GameObjectNode node = (GameObjectNode)this.model.getRoot();
         GameObjectPresenter presenter = (GameObjectPresenter)this.manager.getPresenter(GameObjectNode.class);
-        presenter.onAddComponent();
+        presenter.onAddComponent(this.presenter.getContext());
         assertEquals(1, node.getChildren().size());
         assertEquals("sprite", node.getChildren().get(0).toString());
         verifyUpdate(node);
@@ -113,7 +110,7 @@ public class GameObjectTest extends AbstractTest {
 
         GameObjectNode node = (GameObjectNode)this.model.getRoot();
         GameObjectPresenter presenter = (GameObjectPresenter)this.manager.getPresenter(GameObjectNode.class);
-        presenter.onAddComponentFromFile();
+        presenter.onAddComponentFromFile(this.presenter.getContext());
         assertEquals(1, node.getChildren().size());
         assertEquals("sprite", ((ComponentNode)node.getChildren().get(0)).getId());
         verifyUpdate(node);
@@ -139,7 +136,7 @@ public class GameObjectTest extends AbstractTest {
         ComponentNode component = (ComponentNode)node.getChildren().get(0);
         GameObjectPresenter presenter = (GameObjectPresenter)this.manager.getPresenter(GameObjectNode.class);
 
-        presenter.onRemoveComponent();
+        presenter.onRemoveComponent(this.presenter.getContext());
         assertEquals(0, node.getChildren().size());
         assertEquals(null, component.getParent());
         verifyUpdate(node);
@@ -163,10 +160,9 @@ public class GameObjectTest extends AbstractTest {
     public void testSelection() throws Exception {
         testAddComponent();
 
-        INodeView.Presenter presenter = this.manager.getDefaultPresenter();
-        presenter.onSelect(new StructuredSelection(this.model.getRoot().getChildren().get(0)));
+        this.presenter.onSelect(new StructuredSelection(this.model.getRoot().getChildren().get(0)));
         verifyNoSelection();
-        presenter.onSelect(new StructuredSelection(this.model.getRoot()));
+        this.presenter.onSelect(new StructuredSelection(this.model.getRoot()));
         verifySelection();
     }
 
@@ -201,13 +197,12 @@ public class GameObjectTest extends AbstractTest {
             file.delete(true, null);
         }
         OutputStream os = new FileOutputStream(file.getLocation().toFile());
-        NodePresenter presenter = this.manager.getDefaultPresenter();
         Node root = this.model.getRoot();
-        presenter.onSave(os, null);
+        this.presenter.onSave(os, null);
         file = this.contentRoot.getFile(new Path(path));
         this.model.setRoot(null);
         file.refreshLocal(0, null);
-        presenter.onLoad(file.getFileExtension(), file.getContents());
+        this.presenter.onLoad(file.getFileExtension(), file.getContents());
         assertNotSame(root, this.model.getRoot());
         assertEquals(root.getClass(), this.model.getRoot().getClass());
         assertNotSame(0, this.model.getRoot().getChildren().size());
@@ -247,7 +242,7 @@ public class GameObjectTest extends AbstractTest {
 
         GameObjectNode node = (GameObjectNode)this.model.getRoot();
         GameObjectPresenter presenter = (GameObjectPresenter)this.manager.getPresenter(GameObjectNode.class);
-        presenter.onAddComponentFromFile();
+        presenter.onAddComponentFromFile(this.presenter.getContext());
         assertEquals(1, node.getChildren().size());
         RefComponentNode component = (RefComponentNode)node.getChildren().get(0);
         assertNodePropertyStatus(component, "component", IStatus.ERROR, null);
@@ -275,7 +270,7 @@ public class GameObjectTest extends AbstractTest {
         assertNodePropertyStatus(component, "id", IStatus.OK, null);
 
         GameObjectPresenter presenter = (GameObjectPresenter)this.manager.getPresenter(GameObjectNode.class);
-        presenter.onAddComponent();
+        presenter.onAddComponent(this.presenter.getContext());
 
         component = (ComponentNode)this.model.getRoot().getChildren().get(1);
         assertNodePropertyStatus(component, "id", IStatus.ERROR, NLS.bind(Messages.ComponentNode_id_DUPLICATED, "sprite"));
@@ -289,11 +284,11 @@ public class GameObjectTest extends AbstractTest {
         assertNodePropertyStatus(component, "component", IStatus.ERROR, Messages.RefComponentNode_component_INVALID_REFERENCE);
 
         setNodeProperty(component, "component", "");
-        assertNodePropertyStatus(component, "component", IStatus.INFO, Messages.NodeModel_ResourceValidator_component_NOT_SPECIFIED);
+        assertNodePropertyStatus(component, "component", IStatus.INFO, Messages.SceneModel_ResourceValidator_component_NOT_SPECIFIED);
 
         String path = "/test.dummy";
         setNodeProperty(component, "component", path);
-        assertNodePropertyStatus(component, "component", IStatus.ERROR, NLS.bind(Messages.NodeModel_ResourceValidator_component_NOT_FOUND, path));
+        assertNodePropertyStatus(component, "component", IStatus.ERROR, NLS.bind(Messages.SceneModel_ResourceValidator_component_NOT_FOUND, path));
 
         setNodeProperty(component, "component", "/test.tileset");
         assertNodePropertyStatus(component, "component", IStatus.ERROR, NLS.bind(Messages.RefComponentNode_component_INVALID_TYPE, "tileset"));

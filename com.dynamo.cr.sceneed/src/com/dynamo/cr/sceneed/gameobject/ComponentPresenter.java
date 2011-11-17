@@ -7,6 +7,7 @@ import java.io.InputStreamReader;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 
+import com.dynamo.cr.sceneed.core.ISceneView.Context;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.NodePresenter;
 import com.dynamo.gamesystem.proto.GameSystem.CollectionProxyDesc;
@@ -24,7 +25,7 @@ import com.google.protobuf.TextFormat;
 public class ComponentPresenter extends NodePresenter {
 
     @Override
-    public Node doLoad(String type, InputStream contents) throws IOException, CoreException {
+    public Node onLoad(Context context, String type, InputStream contents) throws IOException, CoreException {
         if (type.equals("sprite")) {
             InputStreamReader reader = new InputStreamReader(contents);
             SpriteDesc.Builder builder = SpriteDesc.newBuilder();
@@ -82,7 +83,7 @@ public class ComponentPresenter extends NodePresenter {
     }
 
     @Override
-    public Node createNode(String type) throws IOException, CoreException {
+    public Node onCreateNode(Context context, String type) throws IOException, CoreException {
         if (type.equals("sprite")) {
             return new SpriteNode();
         } else if (type.equals("spawnpoint")) {
@@ -97,7 +98,7 @@ public class ComponentPresenter extends NodePresenter {
     }
 
     @Override
-    public Message buildMessage(Node node, IProgressMonitor monitor) throws IOException, CoreException {
+    public Message onBuildMessage(Context context, Node node, IProgressMonitor monitor) throws IOException, CoreException {
         if (node instanceof SpriteNode) {
             SpriteDesc.Builder builder = SpriteDesc.newBuilder();
             SpriteNode sprite = (SpriteNode)node;

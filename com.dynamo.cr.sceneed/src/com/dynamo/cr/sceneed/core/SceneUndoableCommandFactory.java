@@ -6,15 +6,15 @@ import com.dynamo.cr.properties.ICommandFactory;
 import com.dynamo.cr.properties.IPropertyAccessor;
 import com.dynamo.cr.sceneed.operations.SetPropertiesOperation;
 
-public class NodeUndoableCommandFactory implements
-ICommandFactory<Object, NodeModel> {
+public class SceneUndoableCommandFactory implements
+ICommandFactory<Object, ISceneModel> {
     @Override
-    public IUndoableOperation create(Object node, String property,
-            IPropertyAccessor<Object, NodeModel> accessor, Object oldValue,
-            Object newValue, NodeModel model) {
+    public IUndoableOperation create(Object object, String property,
+            IPropertyAccessor<Object, ISceneModel> accessor, Object oldValue,
+            Object newValue, ISceneModel model) {
 
         if (!newValue.equals(oldValue)) {
-            SetPropertiesOperation<Object, NodeModel> operation = new SetPropertiesOperation<Object, NodeModel>(node,
+            SetPropertiesOperation<Object, ISceneModel> operation = new SetPropertiesOperation<Object, ISceneModel>(object,
                     property, accessor, oldValue,
                     newValue, model);
             return operation;
@@ -23,7 +23,7 @@ ICommandFactory<Object, NodeModel> {
     }
 
     @Override
-    public void execute(IUndoableOperation operation, NodeModel world) {
+    public void execute(IUndoableOperation operation, ISceneModel world) {
         world.executeOperation(operation);
     }
 }

@@ -1,4 +1,4 @@
-package com.dynamo.cr.sceneed.core;
+package com.dynamo.cr.sceneed;
 
 import javax.annotation.PreDestroy;
 
@@ -10,7 +10,10 @@ import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.core.commands.operations.OperationHistoryEvent;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
+import org.eclipse.core.resources.IResource;
 import org.eclipse.core.resources.IResourceChangeEvent;
+import org.eclipse.core.resources.IResourceDelta;
+import org.eclipse.core.resources.IResourceDeltaVisitor;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IAdaptable;
 import org.eclipse.core.runtime.IStatus;
@@ -24,13 +27,18 @@ import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.properties.PropertyIntrospector;
 import com.dynamo.cr.properties.PropertyIntrospectorModel;
 import com.dynamo.cr.sceneed.core.ILogger;
+import com.dynamo.cr.sceneed.core.ISceneModel;
+import com.dynamo.cr.sceneed.core.ISceneView;
+import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.sceneed.core.SceneUndoableCommandFactory;
 import com.google.inject.Inject;
 
-@Entity(commandFactory = NodeUndoableCommandFactory.class)
-public class NodeModel implements INodeWorld, IAdaptable, IOperationHistoryListener {
+@Entity(commandFactory = SceneUndoableCommandFactory.class)
+public class SceneModel implements IAdaptable, IOperationHistoryListener, IResourceDeltaVisitor, ISceneModel {
 
     private Node root;
-    private final INodeView view;
+    private final ISceneView view;
+    private final ISceneView.Presenter presenter;
     private final IOperationHistory history;
     private final IUndoContext undoContext;
     private final ILogger logger;
@@ -38,12 +46,13 @@ public class NodeModel implements INodeWorld, IAdaptable, IOperationHistoryListe
     private IStructuredSelection selection;
     private int undoRedoCounter;
 
-    private static PropertyIntrospector<NodeModel, NodeModel> introspector = new PropertyIntrospector<NodeModel, NodeModel>(NodeModel.class, Messages.class);
-    public static PropertyIntrospector<Node, NodeModel> nodeIntrospector = new PropertyIntrospector<Node, NodeModel>(Node.class);
+    private static PropertyIntrospector<SceneModel, SceneModel> introspector = new PropertyIntrospector<SceneModel, SceneModel>(SceneModel.class, Messages.class);
+    public static PropertyIntrospector<Node, SceneModel> nodeIntrospector = new PropertyIntrospector<Node, SceneModel>(Node.class);
 
     @Inject
-    public NodeModel(INodeView view, IOperationHistory history, IUndoContext undoContext, ILogger logger, IContainer contentRoot) {
+    public SceneModel(ISceneView view, ISceneView.Presenter presenter, IOperationHistory history, IUndoContext undoContext, ILogger logger, IContainer contentRoot) {
         this.view = view;
+        this.presenter = presenter;
         this.history = history;
         this.undoContext = undoContext;
         this.logger = logger;
@@ -62,10 +71,18 @@ public class NodeModel implements INodeWorld, IAdaptable, IOperationHistoryListe
         this.history.addOperationHistoryListener(this);
     }
 
+    /* (non-Javadoc)
+     * @see com.dynamo.cr.sceneed.core.ISceneModel#getRoot()
+     */
+    @Override
     public Node getRoot() {
         return this.root;
     }
 
+    /* (non-Javadoc)
+     * @see com.dynamo.cr.sceneed.core.ISceneModel#setRoot(com.dynamo.cr.sceneed.core.Node)
+     */
+    @Override
     public void setRoot(Node root) {
         if (this.root != root) {
             this.root = root;
@@ -82,10 +99,18 @@ public class NodeModel implements INodeWorld, IAdaptable, IOperationHistoryListe
         }
     }
 
+    /* (non-Javadoc)
+     * @see com.dynamo.cr.sceneed.core.ISceneModel#getSelection()
+     */
+    @Override
     public IStructuredSelection getSelection() {
         return this.selection;
     }
 
+    /* (non-Javadoc)
+     * @see com.dynamo.cr.sceneed.core.ISceneModel#setSelection(org.eclipse.jface.viewers.IStructuredSelection)
+     */
+    @Override
     public void setSelection(IStructuredSelection selection) {
         if (!this.selection.equals(selection)) {
             this.selection = selection;
@@ -93,10 +118,15 @@ public class NodeModel implements INodeWorld, IAdaptable, IOperationHistoryListe
         }
     }
 
+    @Override
     public void notifyChange(Node node) {
         this.view.updateNode(node);
     }
 
+    /* (non-Javadoc)
+     * @see com.dynamo.cr.sceneed.core.ISceneModel#executeOperation(org.eclipse.core.commands.operations.IUndoableOperation)
+     */
+    @Override
     public void executeOperation(IUndoableOperation operation) {
         operation.addContext(this.undoContext);
         IStatus status = null;
@@ -114,16 +144,20 @@ public class NodeModel implements INodeWorld, IAdaptable, IOperationHistoryListe
     @Override
     public Object getAdapter(@SuppressWarnings("rawtypes") Class adapter) {
         if (adapter == IPropertyModel.class) {
-            return new PropertyIntrospectorModel<NodeModel, NodeModel>(this, this, introspector);
+            return new PropertyIntrospectorModel<SceneModel, SceneModel>(this, this, introspector);
         }
         return null;
     }
 
+    /* (non-Javadoc)
+     * @see com.dynamo.cr.sceneed.core.ISceneModel#getContentRoot()
+     */
     @Override
     public IContainer getContentRoot() {
         return this.contentRoot;
     }
 
+    @Override
     public void setUndoRedoCounter(int undoRedoCounter) {
         boolean prevDirty = this.undoRedoCounter != 0;
         boolean dirty = undoRedoCounter != 0;
@@ -153,14 +187,45 @@ public class NodeModel implements INodeWorld, IAdaptable, IOperationHistoryListe
         }
     }
 
+    /* (non-Javadoc)
+     * @see com.dynamo.cr.sceneed.core.ISceneModel#handleResourceChanged(org.eclipse.core.resources.IResourceChangeEvent)
+     */
+    @Override
     public void handleResourceChanged(IResourceChangeEvent event) throws CoreException {
         if (this.root != null) {
-            event.getDelta().accept(this.root);
+            event.getDelta().accept(this);
         }
     }
 
+    @Override
+    public boolean visit(IResourceDelta delta) throws CoreException {
+        IResource resource = delta.getResource();
+        if (resource instanceof IFile) {
+            this.root.handleFileChanged((IFile)resource);
+            return false;
+        }
+        return true;
+    }
+
+    /* (non-Javadoc)
+     * @see com.dynamo.cr.sceneed.core.ISceneModel#getFile(java.lang.String)
+     */
+    @Override
     public IFile getFile(String path) {
         return this.contentRoot.getFile(new Path(path));
+    }
+
+    /* (non-Javadoc)
+     * @see com.dynamo.cr.sceneed.core.ISceneModel#loadNode(java.lang.String)
+     */
+    @Override
+    public Node loadNode(String path) {
+        try {
+            return this.presenter.getContext().loadNode(path);
+        } catch (Throwable e) {
+            this.logger.logException(e);
+            return null;
+        }
     }
 
 }

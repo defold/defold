@@ -10,18 +10,18 @@ import org.eclipse.ui.operations.RedoActionHandler;
 import org.eclipse.ui.operations.UndoActionHandler;
 
 import com.dynamo.cr.properties.FormPropertySheetPage;
+import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Node;
-import com.dynamo.cr.sceneed.core.NodeModel;
 import com.google.inject.Inject;
 
-public class NodePropertySheetPage extends FormPropertySheetPage {
+public class ScenePropertySheetPage extends FormPropertySheetPage {
 
-    private final NodeModel model;
+    private final ISceneModel model;
     private final UndoActionHandler undoHandler;
     private final RedoActionHandler redoHandler;
 
     @Inject
-    public NodePropertySheetPage(IContainer contentRoot, NodeModel model, UndoActionHandler undoHandler, RedoActionHandler redoHandler) {
+    public ScenePropertySheetPage(IContainer contentRoot, ISceneModel model, UndoActionHandler undoHandler, RedoActionHandler redoHandler) {
         super(contentRoot);
         this.model = model;
         this.undoHandler = undoHandler;

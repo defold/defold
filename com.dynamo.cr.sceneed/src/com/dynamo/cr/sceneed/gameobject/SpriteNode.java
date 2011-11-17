@@ -4,6 +4,7 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.MultiStatus;
 
 import com.dynamo.cr.properties.Property;
+import com.dynamo.cr.sceneed.Activator;
 import com.dynamo.cr.sceneed.core.Resource;
 
 public class SpriteNode extends ComponentTypeNode {
@@ -122,10 +123,17 @@ public class SpriteNode extends ComponentTypeNode {
     }
 
     @Override
-    public IStatus validate() {
-        MultiStatus status = validateProperties(new String[] {"texture"});
-        status.merge(super.validate());
-        return status;
+    public IStatus doValidate() {
+        IStatus status = validateProperties(new String[] {"texture"});
+        MultiStatus multiStatus= null;
+        if (status.isMultiStatus()) {
+            multiStatus = (MultiStatus)status;
+        } else {
+            multiStatus = new MultiStatus(Activator.PLUGIN_ID, 0, null, null);
+            multiStatus.merge(status);
+        }
+        multiStatus.merge(super.doValidate());
+        return multiStatus;
     }
 
 }

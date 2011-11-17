@@ -4,7 +4,7 @@ import org.eclipse.core.resources.IContainer;
 
 import com.dynamo.cr.properties.IPropertyObjectWorld;
 
-public interface INodeWorld extends IPropertyObjectWorld {
+public interface ISceneWorld extends IPropertyObjectWorld {
 
     IContainer getContentRoot();
 
