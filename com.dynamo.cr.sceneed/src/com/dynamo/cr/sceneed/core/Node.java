@@ -36,7 +36,7 @@ public class Node implements IAdaptable {
         return this.model;
     }
 
-    public final void setModel(ISceneModel model) {
+    public void setModel(ISceneModel model) {
         this.model = model;
         for (Node child : this.children) {
             child.setModel(model);

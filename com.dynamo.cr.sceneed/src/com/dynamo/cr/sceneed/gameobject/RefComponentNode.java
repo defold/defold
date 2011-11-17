@@ -1,7 +1,5 @@
 package com.dynamo.cr.sceneed.gameobject;
 
-import java.util.List;
-
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.MultiStatus;
@@ -12,7 +10,6 @@ import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.sceneed.Activator;
 import com.dynamo.cr.sceneed.Messages;
 import com.dynamo.cr.sceneed.core.ISceneModel;
-import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.Resource;
 
 public class RefComponentNode extends ComponentNode {
@@ -42,6 +39,14 @@ public class RefComponentNode extends ComponentNode {
 
     public ComponentTypeNode getType() {
         return this.type;
+    }
+
+    @Override
+    public void setModel(ISceneModel model) {
+        super.setModel(model);
+        if (this.type != null) {
+            this.type.setModel(model);
+        }
     }
 
     public IStatus validateComponent() {
@@ -98,7 +103,9 @@ public class RefComponentNode extends ComponentNode {
         if (model != null) {
             try {
                 this.type = (ComponentTypeNode)getModel().loadNode(this.component);
-                this.type.setModel(this.getModel());
+                if (this.type != null) {
+                    this.type.setModel(this.getModel());
+                }
                 notifyChange();
             } catch (Throwable e) {
                 // no reason to handle exception since having a null type is invalid state, will be caught in validateComponent below
