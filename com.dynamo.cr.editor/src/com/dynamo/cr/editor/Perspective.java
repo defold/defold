@@ -9,7 +9,8 @@ import com.dynamo.cr.editor.compare.ChangedFilesView;
 
 public class Perspective implements IPerspectiveFactory {
 
-	public void createInitialLayout(IPageLayout layout) {
+    @Override
+    public void createInitialLayout(IPageLayout layout) {
         String editorArea = layout.getEditorArea();
         layout.setEditorAreaVisible(true); // We use standard editors now so true
 
@@ -18,11 +19,14 @@ public class Perspective implements IPerspectiveFactory {
 
         IFolderLayout left_folder = layout.createFolder("com.dynamo.cr.editor.left", IPageLayout.BOTTOM, 0.7f, IPageLayout.ID_PROJECT_EXPLORER);
 
-        left_folder.addView(IPageLayout.ID_OUTLINE);
-        layout.getViewLayout(IPageLayout.ID_OUTLINE).setCloseable(false);
-
         left_folder.addView(ChangedFilesView.ID);
         layout.getViewLayout(ChangedFilesView.ID).setCloseable(false);
+
+        layout.addView(IPageLayout.ID_OUTLINE, IPageLayout.RIGHT, 0.65f, editorArea);
+        layout.getViewLayout(IPageLayout.ID_OUTLINE).setCloseable(false);
+
+        layout.addView(IPageLayout.ID_PROP_SHEET, IPageLayout.BOTTOM, 0.5f, IPageLayout.ID_OUTLINE);
+        layout.getViewLayout(IPageLayout.ID_PROP_SHEET).setCloseable(false);
 
         IFolderLayout folder = layout.createFolder("com.dynamo.cr.editor.bottom", IPageLayout.BOTTOM, 0.7f, editorArea);
         folder.addView(IConsoleConstants.ID_CONSOLE_VIEW);
@@ -30,10 +34,7 @@ public class Perspective implements IPerspectiveFactory {
         folder.addView("org.eclipse.ui.views.ProblemView");
         layout.getViewLayout("org.eclipse.ui.views.ProblemView").setCloseable(false);
 
-        layout.addStandaloneView(IPageLayout.ID_PROP_SHEET,  true, IPageLayout.RIGHT, 0.65f, editorArea);
-        layout.getViewLayout(IPageLayout.ID_PROP_SHEET).setCloseable(false);
-
         folder.addView("org.eclipse.pde.runtime.LogView");
         layout.getViewLayout("org.eclipse.pde.runtime.LogView").setCloseable(false);
-	}
+    }
 }
