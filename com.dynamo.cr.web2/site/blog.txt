@@ -1,5 +1,58 @@
 :max-width: 45em
 
+Update - Scene Editor
+---------------------
+*_November 17, 2011_*
+
+Scene Editor
+~~~~~~~~~~~~
+
+Progress on the new Scene Editor has been a bit slower than we hoped, but now it has finally been released for you to try out!
+Update the editor to 1.0.44 and it should be activated whenever you open a game object.
+There is still more work needed to be done regarding presentation and visualization, but at least it now supports the functionality of the old version.
+
+It has become apparent that a lot of tasks in the editor involves going back and forth between the outline view and the properties view.
+Because of this, we have moved the outline view to be right above the properties way.
+It also felt natural to have the views related to file resources to the left (Project Explorer and Changed Files) and content related views to the right.
+Please comment if you have any other ideas on how the views should be restructured.
+
+image:images/blog/scene_ed_go.png["Scene Editor", width=880]
+
+Sprites
+~~~~~~~
+
+As soon as the game object editing and the basic functionality of the Scene Editor has been completed, we will implement the new sprite editing in it.
+We made several passes on the design and it feels promising now.
+A feature worth mentioning are predefined animations and cues.
+When a cue is hit during an animation, the sprite component will broadcast a message to the other components.
+This makes it easy to trigger sounds and other effects, register hits during attack animations in action games and lots of other possibilities.
+
+Tiles
+~~~~~
+
+We have fixed a few more tile-related issues last weeks and how now deemed that system stable.
+There are probably a few more bugs lurking around, but hopefully not too many.
+Don't forget to report any issues to the case-mail.
+
+Content Pipeline
+~~~~~~~~~~~~~~~~
+
+The new content pipeline has been installed on the server.
+We have been given the permission from one of the projects to use it as a test bed.
+Then we can verify stability in a real production environment.
+We really appreciate that, thanks a lot!
+
+Roadmap
+~~~~~~~
+
+. Scene Editor - Limited release supporting game objects, sprites and "simple types"
+. Sprite Editing - Improved 
+. Content Pipeline - To only be used for testing at the moment
+. Documentation - User Manual, Tutorials, etc
+. Website - Re-designed layout and structure
+
+Thanks for reading and don't forget to use the case-mail!
+
 Update - Scene Editor & Content Pipeline
 ----------------------------------------
 *_November 6, 2011_*
