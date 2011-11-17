@@ -186,8 +186,9 @@ namespace dmGameSystem
 
 
                 // Generate vertex data
-                Matrix4 world = Matrix4::scale(Vector3(ddf->m_Width, ddf->m_Height, 1.0f));
-                world *= Matrix4::rotation(dmGameObject::GetWorldRotation(component->m_Instance));
+
+                Matrix4 world = Matrix4::rotation(dmGameObject::GetWorldRotation(component->m_Instance));
+                world *= Matrix4::scale(Vector3(ddf->m_Width, ddf->m_Height, 1.0f));
                 Point3 position = dmGameObject::GetWorldPosition(component->m_Instance);
                 world.setCol3(Vector4(position));
 
