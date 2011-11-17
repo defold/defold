@@ -11,6 +11,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.CharArrayWriter;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -28,13 +29,17 @@ import org.junit.Test;
 
 import com.dynamo.cr.sceneed.Messages;
 import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.sceneed.gameobject.CollectionProxyNode;
+import com.dynamo.cr.sceneed.gameobject.CollisionObjectNode;
 import com.dynamo.cr.sceneed.gameobject.ComponentNode;
 import com.dynamo.cr.sceneed.gameobject.ComponentPresenter;
 import com.dynamo.cr.sceneed.gameobject.ComponentTypeNode;
 import com.dynamo.cr.sceneed.gameobject.GameObjectNode;
 import com.dynamo.cr.sceneed.gameobject.GameObjectPresenter;
 import com.dynamo.cr.sceneed.gameobject.RefComponentNode;
+import com.dynamo.cr.sceneed.gameobject.SpawnPointNode;
 import com.dynamo.cr.sceneed.gameobject.SpriteNode;
+import com.dynamo.physics.proto.Physics.CollisionObjectType;
 import com.dynamo.sprite.proto.Sprite.SpriteDesc;
 import com.google.inject.Module;
 import com.google.inject.Singleton;
@@ -56,6 +61,9 @@ public class GameObjectTest extends AbstractTest {
         super.setup();
         this.manager.registerNodeType("go", GameObjectNode.class, this.injector.getInstance(GameObjectPresenter.class), null);
         this.manager.registerNodeType("sprite", SpriteNode.class, this.injector.getInstance(ComponentPresenter.class), null);
+        this.manager.registerNodeType("spawnpoint", SpawnPointNode.class, this.injector.getInstance(ComponentPresenter.class), null);
+        this.manager.registerNodeType("collectionproxy", CollectionProxyNode.class, this.injector.getInstance(ComponentPresenter.class), null);
+        this.manager.registerNodeType("collisionobject", CollisionObjectNode.class, this.injector.getInstance(ComponentPresenter.class), null);
     }
 
     // Tests
@@ -292,6 +300,55 @@ public class GameObjectTest extends AbstractTest {
 
         setNodeProperty(component, "component", "/test.tileset");
         assertNodePropertyStatus(component, "component", IStatus.ERROR, NLS.bind(Messages.RefComponentNode_component_INVALID_TYPE, "tileset"));
+    }
+
+    public void testEmbeddedComponent(String type, String[] properties, Object[] values) throws Exception {
+        testLoad();
+
+        when(this.view.selectComponentType()).thenReturn(type);
+
+        GameObjectNode node = (GameObjectNode)this.model.getRoot();
+        GameObjectPresenter presenter = (GameObjectPresenter)this.manager.getPresenter(GameObjectNode.class);
+        presenter.onAddComponent(this.presenter.getContext());
+        assertEquals(1, node.getChildren().size());
+        Node component = node.getChildren().get(0);
+        assertEquals(type, component.toString());
+        verifyUpdate(node);
+        verifySelection();
+        verifyDirty();
+
+        this.presenter.onSave(new ByteArrayOutputStream(), null);
+
+        Node componentType = component.getChildren().get(0);
+        for (int i = 0; i < properties.length; ++i) {
+            verifyClean();
+            setNodeProperty(componentType, properties[i], values[i]);
+            assertNodePropertyStatus(componentType, properties[i], IStatus.OK, null);
+            verifyDirty();
+            undo();
+        }
+    }
+
+    @Test
+    public void testSprite() throws Exception {
+        testEmbeddedComponent("sprite", new String[] {"texture", "width", "height", "tileWidth", "tileHeight", "tilesPerRow", "tileCount"},
+                new Object[] {"test.png", 10, 10, 10, 10, 10, 10});
+    }
+
+    @Test
+    public void testSpawnPoint() throws Exception {
+        testEmbeddedComponent("spawnpoint", new String[] {"prototype"}, new Object[] {"test.png"});
+    }
+
+    @Test
+    public void testCollectionProxy() throws Exception {
+        testEmbeddedComponent("collectionproxy", new String[] {"collection"}, new Object[] {"test.png"});
+    }
+
+    @Test
+    public void testCollisionObject() throws Exception {
+        testEmbeddedComponent("collisionobject", new String[] {"collisionShape", "type", "mass", "friction", "restitution", "group", "mask"},
+                new Object[] {"test.png", CollisionObjectType.COLLISION_OBJECT_TYPE_STATIC, 10, 10, 10, "a_group", "a_group, b_group"});
     }
 
     @Override
