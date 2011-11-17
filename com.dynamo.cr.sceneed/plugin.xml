@@ -7,6 +7,7 @@
             class="com.dynamo.cr.sceneed.SceneEditor"
             default="false"
             extensions="go, sprite"
+            icon="icons/brick.png"
             id="com.dynamo.cr.sceneed.editor"
             name="Scene Editor">
       </editor>

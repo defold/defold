@@ -13,15 +13,6 @@
             name="Model Editor">
       </editor>
       <editor
-            class="com.dynamo.cr.ddfeditor.GameObjectEditor"
-            contributorClass="com.dynamo.cr.ddfeditor.GameObjectEditorActionBarContributor"
-            default="false"
-            extensions="go"
-            icon="icons/brick.png"
-            id="com.dynamo.cr.ddfeditor.gameobjecteditor"
-            name="Game Object Editor">
-      </editor>
-      <editor
             class="com.dynamo.cr.ddfeditor.CameraEditor"
             contributorClass="com.dynamo.cr.ddfeditor.DdfEditorActionBarContributor"
             default="false"
