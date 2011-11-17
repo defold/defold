@@ -14,6 +14,9 @@ public class ComponentNode extends Node {
     @Property
     private String id;
 
+    public ComponentNode() {
+    }
+
     public ComponentNode(ComponentTypeNode type) {
         addChild(type);
     }

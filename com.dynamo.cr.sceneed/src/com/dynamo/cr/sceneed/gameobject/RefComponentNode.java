@@ -20,9 +20,12 @@ public class RefComponentNode extends ComponentNode {
     @Property(isResource=true)
     @Resource
     private String component;
+    private ComponentTypeNode type;
 
     public RefComponentNode(ComponentTypeNode type) {
-        super(type);
+        super();
+        this.type = type;
+        this.type.setModel(this.getModel());
     }
 
     public String getComponent() {
@@ -38,19 +41,13 @@ public class RefComponentNode extends ComponentNode {
     }
 
     public ComponentTypeNode getType() {
-        ComponentTypeNode type = (ComponentTypeNode)getChildren().get(0);
-        return type;
+        return this.type;
     }
 
     public IStatus validateComponent() {
         if (this.component != null && !this.component.equals("")) {
-            ComponentTypeNode type = null;
-            List<Node> children = getChildren();
-            if (!children.isEmpty()) {
-                type = (ComponentTypeNode)children.get(0);
-            }
-            if (type != null) {
-                IStatus status = type.validate();
+            if (this.type != null) {
+                IStatus status = this.type.validate();
                 if (!status.isOK()) {
                     return new Status(IStatus.ERROR, Activator.PLUGIN_ID, Messages.RefComponentNode_component_INVALID_REFERENCE);
                 }
@@ -100,16 +97,9 @@ public class RefComponentNode extends ComponentNode {
         ISceneModel model = getModel();
         if (model != null) {
             try {
-                clearChildren();
-                ComponentTypeNode type = null;
-                type = (ComponentTypeNode)getModel().loadNode(this.component);
-                if (type != null) {
-                    clearChildren();
-                    addChild(type);
-                } else {
-                    notifyChange();
-                }
-                addChild(type);
+                this.type = (ComponentTypeNode)getModel().loadNode(this.component);
+                this.type.setModel(this.getModel());
+                notifyChange();
             } catch (Throwable e) {
                 // no reason to handle exception since having a null type is invalid state, will be caught in validateComponent below
             }
