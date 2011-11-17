@@ -2,6 +2,7 @@ package com.dynamo.cr.sceneed;
 
 import javax.inject.Inject;
 
+import org.eclipse.core.commands.NotHandledException;
 import org.eclipse.jface.action.MenuManager;
 import org.eclipse.jface.action.Separator;
 import org.eclipse.jface.viewers.ColumnLabelProvider;
@@ -12,9 +13,14 @@ import org.eclipse.jface.viewers.LabelProvider;
 import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.jface.viewers.TreeViewer;
 import org.eclipse.jface.viewers.Viewer;
+import org.eclipse.jface.viewers.ViewerCell;
 import org.eclipse.swt.SWT;
+import org.eclipse.swt.events.MouseAdapter;
+import org.eclipse.swt.events.MouseEvent;
 import org.eclipse.swt.graphics.Image;
+import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.Menu;
 import org.eclipse.ui.IActionBars;
 import org.eclipse.ui.ISelectionListener;
@@ -22,11 +28,13 @@ import org.eclipse.ui.IWorkbenchActionConstants;
 import org.eclipse.ui.IWorkbenchPart;
 import org.eclipse.ui.actions.ActionFactory;
 import org.eclipse.ui.contexts.IContextService;
+import org.eclipse.ui.handlers.IHandlerService;
 import org.eclipse.ui.operations.RedoActionHandler;
 import org.eclipse.ui.operations.UndoActionHandler;
 import org.eclipse.ui.part.IPageSite;
 import org.eclipse.ui.views.contentoutline.ContentOutlinePage;
 
+import com.dynamo.cr.sceneed.core.ILogger;
 import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.Node;
 
@@ -38,13 +46,15 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
     private final UndoActionHandler undoHandler;
     private final RedoActionHandler redoHandler;
     private final RootItem root;
+    private final ILogger logger;
 
     @Inject
-    public SceneOutlinePage(ISceneView.Presenter presenter, UndoActionHandler undoHandler, RedoActionHandler redoHandler) {
+    public SceneOutlinePage(ISceneView.Presenter presenter, UndoActionHandler undoHandler, RedoActionHandler redoHandler, ILogger logger) {
         this.presenter = presenter;
         this.undoHandler = undoHandler;
         this.redoHandler = redoHandler;
         this.root = new RootItem();
+        this.logger = logger;
     }
 
     @Override
@@ -183,6 +193,26 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
         contextService.activateContext(Activator.SCENEED_CONTEXT_ID);
 
         getSite().getPage().addSelectionListener(this);
+
+        viewer.getTree().addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseDoubleClick(MouseEvent event) {
+                ViewerCell cell = viewer.getCell(new Point(event.x, event.y));
+                if (cell == null)
+                    return;
+
+                IHandlerService handlerService = (IHandlerService)getSite().getService(IHandlerService.class);
+                try {
+                    Event e = new Event();
+                    e.widget = viewer.getTree();
+                    handlerService.executeCommand(Activator.ENTER_COMMAND_ID, e);
+                } catch (NotHandledException e) {
+                    // Completely fine
+                } catch (Throwable e) {
+                    logger.logException(e);
+                }
+            }
+        });
 
         this.presenter.onRefresh();
     }

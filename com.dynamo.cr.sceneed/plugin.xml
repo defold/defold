@@ -99,6 +99,10 @@
             id="com.dynamo.cr.sceneed.commands.addLink"
             name="Add Link">
       </command>
+      <command
+            id="com.dynamo.cr.sceneed.commands.enter"
+            name="Enter">
+      </command>
    </extension>
    <extension
          point="org.eclipse.ui.handlers">
@@ -139,6 +143,26 @@
             </or>
          </activeWhen>
       </handler>
+      <handler
+            class="com.dynamo.cr.sceneed.gameobject.EnterRefComponentHandler"
+            commandId="com.dynamo.cr.sceneed.commands.enter">
+         <activeWhen>
+            <with
+                  variable="selection">
+               <and>
+                  <count
+                        value="1">
+                  </count>
+                  <iterate
+                        operator="or">
+                     <instanceof
+                           value="com.dynamo.cr.sceneed.gameobject.RefComponentNode">
+                     </instanceof>
+                  </iterate>
+               </and>
+            </with>
+         </activeWhen>
+      </handler>
    </extension>
    <extension
          point="org.eclipse.ui.bindings">
@@ -153,6 +177,12 @@
             contextId="com.dynamo.cr.sceneed.contexts.sceneEditor"
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
             sequence="O">
+      </key>
+      <key
+            commandId="com.dynamo.cr.sceneed.commands.enter"
+            contextId="com.dynamo.cr.sceneed.contexts.sceneEditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="ENTER">
       </key>
    </extension>
    <extension

@@ -14,6 +14,9 @@ public class Activator extends AbstractUIPlugin {
     // Context IDs
     public static final String SCENEED_CONTEXT_ID = "com.dynamo.cr.sceneed.contexts.sceneEditor"; //$NON-NLS-1$
 
+    // Command IDs
+    public static final String ENTER_COMMAND_ID = "com.dynamo.cr.sceneed.commands.enter"; //$NON-NLS-1$
+
     // The shared instance
     private static Activator plugin;
 
