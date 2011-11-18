@@ -10,6 +10,7 @@ import javax.media.opengl.GLContext;
 import javax.media.opengl.GLDrawableFactory;
 import javax.media.opengl.glu.GLU;
 
+import org.eclipse.jface.preference.IPreferenceStore;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.ISelectionChangedListener;
 import org.eclipse.jface.viewers.ISelectionProvider;
@@ -35,6 +36,7 @@ import com.dynamo.cr.sceneed.core.ILogger;
 import com.dynamo.cr.sceneed.core.INodeRenderer;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
 import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.sceneed.ui.preferences.PreferenceConstants;
 import com.sun.opengl.util.BufferUtil;
 
 public class RenderView implements
@@ -284,18 +286,38 @@ ISelectionProvider {
         }
     }
 
+    private float[] parseColor(String preferenceName) {
+        IPreferenceStore store = Activator.getDefault().getPreferenceStore();
+        String color = store.getString(preferenceName);
+        String[] components = color.split(",");
+        float[] c = new float[3];
+        float recip = 1.0f / 255.0f;
+        if (components.length == 3) {
+            c[0] = Integer.parseInt(components[0]) * recip;
+            c[1] = Integer.parseInt(components[1]) * recip;
+            c[2] = Integer.parseInt(components[2]) * recip;
+        } else {
+            c[0] = 0.0f; c[1] = 0.0f; c[2] = 0.0f;
+        }
+        return c;
+    }
+
     private void renderBackground(GL gl, int width, int height) {
+        // Fetch colors
+        float[] topColor = parseColor(PreferenceConstants.P_TOP_BKGD_COLOR);
+        float[] bottomColor = parseColor(PreferenceConstants.P_BOTTOM_BKGD_COLOR);
+
         float x0 = -1.0f;
         float x1 = 1.0f;
         float y0 = -1.0f;
         float y1 = 1.0f;
-        float l = 0.4f;
-        gl.glColor3f(l, l, l);
         gl.glBegin(GL.GL_QUADS);
-        gl.glVertex2f(x0, y0);
+        gl.glColor3fv(topColor, 0);
         gl.glVertex2f(x0, y1);
         gl.glVertex2f(x1, y1);
+        gl.glColor3fv(bottomColor, 0);
         gl.glVertex2f(x1, y0);
+        gl.glVertex2f(x0, y0);
         gl.glEnd();
     }
 

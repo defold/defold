@@ -32,7 +32,6 @@ public class SceneView implements ISceneView {
     @Inject private ISceneOutlinePage outline;
     @Inject private IFormPropertySheetPage propertySheetPage;
     @Inject private RenderView renderView;
-    @Inject private RenderView sceneView;
     @Inject private SceneEditor editor;
     @Inject private IContainer contentRoot;
     private final Map<ImageDescriptor, Image> imageDescToImage = new HashMap<ImageDescriptor, Image>();
@@ -40,14 +39,14 @@ public class SceneView implements ISceneView {
     @Override
     public void setRoot(Node root) {
         this.outline.setInput(root);
-        this.sceneView.setRoot(root);
+        this.renderView.setRoot(root);
     }
 
     @Override
     public void updateNode(Node node) {
         this.outline.update(node);
         this.propertySheetPage.refresh();
-        this.sceneView.refresh();
+        this.renderView.refresh();
     }
 
     @Override

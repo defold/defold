@@ -19,6 +19,9 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.action.IStatusLineManager;
+import org.eclipse.jface.preference.IPreferenceStore;
+import org.eclipse.jface.util.IPropertyChangeListener;
+import org.eclipse.jface.util.PropertyChangeEvent;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.window.Window;
@@ -55,11 +58,12 @@ import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.ISceneView.Context;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.ui.gameobject.GameObjectPresenter;
+import com.dynamo.cr.sceneed.ui.preferences.PreferenceConstants;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
 
-public class SceneEditor extends AbstractDefoldEditor implements ISelectionListener {
+public class SceneEditor extends AbstractDefoldEditor implements ISelectionListener, IPropertyChangeListener {
 
     private ISceneOutlinePage outlinePage;
     private IFormPropertySheetPage propertySheetPage;
@@ -125,6 +129,9 @@ public class SceneEditor extends AbstractDefoldEditor implements ISelectionListe
 
         this.presenter = injector.getInstance(ISceneView.Presenter.class);
 
+        IPreferenceStore store = Activator.getDefault().getPreferenceStore();
+        store.addPropertyChangeListener(this);
+
         IProgressService service = PlatformUI.getWorkbench().getProgressService();
 
         this.dirty = false;
@@ -148,6 +155,8 @@ public class SceneEditor extends AbstractDefoldEditor implements ISelectionListe
         if (this.renderView != null) {
             this.renderView.dispose();
         }
+        IPreferenceStore store = Activator.getDefault().getPreferenceStore();
+        store.removePropertyChangeListener(this);
 
         getSite().getPage().removeSelectionListener(this);
     }
@@ -299,6 +308,16 @@ public class SceneEditor extends AbstractDefoldEditor implements ISelectionListe
 
     public Context getContext() {
         return this.presenter.getContext();
+    }
+
+    @Override
+    public void propertyChange(PropertyChangeEvent event) {
+        if (event.getSource().equals(Activator.getDefault().getPreferenceStore())) {
+            if (event.getProperty().equals(PreferenceConstants.P_TOP_BKGD_COLOR)
+                    || event.getProperty().equals(PreferenceConstants.P_BOTTOM_BKGD_COLOR)) {
+                this.renderView.refresh();
+            }
+        }
     }
 
 }
