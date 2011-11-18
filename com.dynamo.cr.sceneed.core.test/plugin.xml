@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+   <extension
+         point="com.dynamo.cr.resourcetypes">
+      <resource-type
+            file-extension="parent"
+            id="com.dynamo.cr.sceneed.core.test.parent"
+            name="Parent">
+      </resource-type>
+      <resource-type
+            file-extension="child"
+            id="com.dynamo.cr.sceneed.core.test.child"
+            name="Child">
+      </resource-type>
+   </extension>
+   <extension
+         point="com.dynamo.cr.nodetypes">
+      <node-type
+            node="com.dynamo.cr.sceneed.core.test.ParentNode"
+            presenter="com.dynamo.cr.sceneed.core.test.ParentPresenter"
+            resource-type="com.dynamo.cr.sceneed.core.test.parent">
+      </node-type>
+      <node-type
+            node="com.dynamo.cr.sceneed.core.test.ChildNode"
+            presenter="com.dynamo.cr.sceneed.core.test.ChildPresenter"
+            resource-type="com.dynamo.cr.sceneed.core.test.child">
+      </node-type>
+   </extension>
+
+</plugin>

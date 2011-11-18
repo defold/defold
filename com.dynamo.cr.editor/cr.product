@@ -44,13 +44,16 @@
       <plugin id="com.dynamo.cr.properties"/>
       <plugin id="com.dynamo.cr.protobind"/>
       <plugin id="com.dynamo.cr.scene"/>
-      <plugin id="com.dynamo.cr.sceneed"/>
+      <plugin id="com.dynamo.cr.sceneed.core"/>
+      <plugin id="com.dynamo.cr.sceneed.ui"/>
       <plugin id="com.dynamo.cr.tileeditor"/>
       <plugin id="com.google.common"/>
       <plugin id="com.google.inject"/>
       <plugin id="com.ibm.icu"/>
       <plugin id="javax.media.opengl"/>
       <plugin id="javax.persistence"/>
+      <plugin id="javax.servlet"/>
+      <plugin id="javax.transaction" fragment="true"/>
       <plugin id="org.eclipse.compare"/>
       <plugin id="org.eclipse.compare.core"/>
       <plugin id="org.eclipse.core.commands"/>
@@ -125,7 +128,11 @@
       <plugin id="org.eclipse.osgi.services"/>
       <plugin id="org.eclipse.persistence.antlr"/>
       <plugin id="org.eclipse.persistence.asm"/>
+      <plugin id="org.eclipse.persistence.core"/>
       <plugin id="org.eclipse.persistence.jpa"/>
+      <plugin id="org.eclipse.persistence.jpa.equinox.weaving" fragment="true"/>
+      <plugin id="org.eclipse.persistence.oracle" fragment="true"/>
+      <plugin id="org.eclipse.search"/>
       <plugin id="org.eclipse.swt"/>
       <plugin id="org.eclipse.swt.carbon.macosx" fragment="true"/>
       <plugin id="org.eclipse.swt.cocoa.macosx" fragment="true"/>
@@ -153,10 +160,15 @@
       <plugin id="org.eclipse.ui.navigator.resources"/>
       <plugin id="org.eclipse.ui.net"/>
       <plugin id="org.eclipse.ui.views"/>
+      <plugin id="org.eclipse.ui.views.log"/>
       <plugin id="org.eclipse.ui.views.properties.tabbed"/>
       <plugin id="org.eclipse.ui.win32" fragment="true"/>
       <plugin id="org.eclipse.ui.workbench"/>
       <plugin id="org.eclipse.ui.workbench.texteditor"/>
+      <plugin id="org.hamcrest.core"/>
+      <plugin id="org.junit"/>
+      <plugin id="org.junit4"/>
+      <plugin id="org.mockito"/>
       <plugin id="org.sat4j.core"/>
       <plugin id="org.sat4j.pb"/>
    </plugins>
