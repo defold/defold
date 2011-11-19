@@ -139,52 +139,38 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
     }
 
     public Object getPropertyValue(T object, U world, Object id) {
+        IPropertyAccessor<T, U> accessor;
         try {
-            IPropertyAccessor<T, U> accessor = accessorClass.newInstance();
-            Object value = accessor.getValue(object, (String) id, world);
-            return value;
-
-        } catch (IllegalArgumentException e) {
-            // Can't use any UI here in a core plugin such as StatusManager
-            e.printStackTrace();
-            return null;
-        } catch (IllegalAccessException e) {
-            // Can't use any UI here in a core plugin such as StatusManager
-            e.printStackTrace();
-            return null;
-        } catch (InvocationTargetException e) {
-            // Can't use any UI here in a core plugin such as StatusManager
-            e.printStackTrace();
-            return null;
-        } catch (InstantiationException e) {
-            // Can't use any UI here in a core plugin such as StatusManager
-            e.printStackTrace();
-            return null;
+            accessor = accessorClass.newInstance();
+        } catch (Throwable e) {
+            throw new RuntimeException(e);
         }
+        Object value = accessor.getValue(object, (String) id, world);
+        return value;
     }
 
     public IUndoableOperation setPropertyValue(T object, U world, Object id, Object value) {
+        IPropertyAccessor<T, U> accessor;
         try {
-            IPropertyAccessor<T, U> accessor = accessorClass.newInstance();
-            //accessor = new PropertyAccessorValidator(accessor);
-            Object oldValue = accessor.getValue(object, (String) id, world);
-            IUndoableOperation operation = commandFactory.create(object, (String) id, accessor, oldValue, value, world);
-            return operation;
-
-        } catch (InstantiationException e) {
-            // Can't use any UI here in a core plugin such as StatusManager
-            e.printStackTrace();
-        } catch (IllegalAccessException e) {
-            // Can't use any UI here in a core plugin such as StatusManager
-            e.printStackTrace();
-        } catch (IllegalArgumentException e) {
-            // Can't use any UI here in a core plugin such as StatusManager
-            e.printStackTrace();
-        } catch (InvocationTargetException e) {
-            // Can't use any UI here in a core plugin such as StatusManager
-            e.printStackTrace();
+            accessor = accessorClass.newInstance();
+        } catch (Throwable e) {
+            throw new RuntimeException(e);
         }
-        return null;
+        //accessor = new PropertyAccessorValidator(accessor);
+        Object oldValue = accessor.getValue(object, (String) id, world);
+        IUndoableOperation operation = commandFactory.create(object, (String) id, accessor, oldValue, value, world);
+        return operation;
+    }
+
+    public boolean isPropertyEditable(T object, U world, Object id) {
+        IPropertyAccessor<T, U> accessor;
+        try {
+            accessor = accessorClass.newInstance();
+        } catch (Throwable e) {
+            throw new RuntimeException(e);
+        }
+        boolean editable = accessor.isEditable(object, (String) id, world);
+        return editable;
     }
 
     private IStatus validate(T obj, IPropertyAccessor<T, U> accessor, String property, U world) throws IllegalArgumentException, IllegalAccessException, InvocationTargetException, InstantiationException {

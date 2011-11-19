@@ -125,6 +125,9 @@ public class RGBPropertyDesc<T, U extends IPropertyObjectWorld> extends Property
 
         @Override
         public void refresh() {
+            boolean editable = models[0].isPropertyEditable(getId());
+            getControl().setEnabled(editable);
+
             oldValue = null;
             RGB firstValue = (RGB) models[0].getPropertyValue(getId());
             for (int i = 1; i < models.length; ++i) {

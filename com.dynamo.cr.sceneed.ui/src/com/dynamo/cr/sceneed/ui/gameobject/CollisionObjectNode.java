@@ -43,7 +43,10 @@ public class CollisionObjectNode extends ComponentTypeNode {
     }
 
     public float getMass() {
-        return this.mass;
+        if (isMassEditable())
+            return this.mass;
+        else
+            return 0.0f;
     }
 
     public void setMass(float mass) {
@@ -51,6 +54,10 @@ public class CollisionObjectNode extends ComponentTypeNode {
             this.mass = mass;
             notifyChange();
         }
+    }
+
+    public boolean isMassEditable() {
+        return getType() == CollisionObjectType.COLLISION_OBJECT_TYPE_DYNAMIC;
     }
 
     public float getFriction() {

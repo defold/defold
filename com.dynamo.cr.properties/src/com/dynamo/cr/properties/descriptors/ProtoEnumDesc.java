@@ -59,6 +59,9 @@ public class ProtoEnumDesc<T, U extends IPropertyObjectWorld> extends PropertyDe
 
         @Override
         public void refresh() {
+            boolean editable = models[0].isPropertyEditable(getId());
+            getControl().setEnabled(editable);
+
             Enum<?> firstValue = (Enum<?>) models[0].getPropertyValue(getId());
             for (int i = 1; i < models.length; ++i) {
                 Enum<?> value = (Enum<?>) models[i].getPropertyValue(getId());
