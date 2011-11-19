@@ -9,6 +9,7 @@ import org.eclipse.jface.viewers.ComboViewer;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.ISelectionChangedListener;
 import org.eclipse.jface.viewers.IStructuredSelection;
+import org.eclipse.jface.viewers.LabelProvider;
 import org.eclipse.jface.viewers.SelectionChangedEvent;
 import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.swt.SWT;
@@ -20,6 +21,7 @@ import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.properties.IPropertyObjectWorld;
 import com.dynamo.cr.properties.PropertyDesc;
 import com.dynamo.cr.properties.PropertyUtil;
+import com.dynamo.proto.DdfExtensions;
 import com.google.protobuf.ProtocolMessageEnum;
 
 
@@ -46,6 +48,18 @@ public class ProtoEnumDesc<T, U extends IPropertyObjectWorld> extends PropertyDe
             viewer.addSelectionChangedListener(this);
             viewer.setContentProvider(new ArrayContentProvider());
             viewer.setInput(enumValues);
+            viewer.setLabelProvider(new LabelProvider() {
+               @Override
+                public String getText(Object element) {
+                   ProtocolMessageEnum enumValue = (ProtocolMessageEnum) element;
+                   String displayName = enumValue.getValueDescriptor().getOptions().getExtension(DdfExtensions.displayName);
+                   if (displayName != null && displayName.length() > 0) {
+                       return displayName;
+                   } else {
+                       return super.getText(element);
+                   }
+                }
+            });
         }
 
         @Override
