@@ -64,5 +64,12 @@
             type-class="render_script">
       </resource-type>
    </extension>
+   <extension
+         point="org.eclipse.core.filebuffers.documentSetup">
+      <participant
+            class="com.dynamo.cr.luaeditor.LuaDocumentSetupParticipant"
+            extensions="lua,script,gui_script,render_script">
+      </participant>
+   </extension>
 
 </plugin>

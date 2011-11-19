@@ -10,8 +10,6 @@ public class LuaEditor extends TextEditor {
 		super();
 		colorManager = new ColorManager();
 		setSourceViewerConfiguration(new LuaConfiguration(colorManager));
-		// TODO: Problem with save and crepo with this...
-		//setDocumentProvider(new LuaDocumentProvider());
 	}
 
 	public void dispose() {
