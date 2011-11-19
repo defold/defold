@@ -152,15 +152,9 @@ public abstract class Node implements IAdaptable {
     }
 
     /**
-     * Override this to handle resource changes
+     * Override to handle reload
+     * @param file
      */
-    public final void handleFileChanged(IFile file) {
-        for (Node child : this.children) {
-            child.handleReload(file);
-        }
-        handleReload(file);
-    }
-
     public void handleReload(IFile file) {
 
     }

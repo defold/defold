@@ -57,7 +57,6 @@ import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.ISceneView.Context;
 import com.dynamo.cr.sceneed.core.Node;
-import com.dynamo.cr.sceneed.ui.gameobject.GameObjectPresenter;
 import com.dynamo.cr.sceneed.ui.preferences.PreferenceConstants;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
@@ -84,7 +83,6 @@ public class SceneEditor extends AbstractDefoldEditor implements ISelectionListe
             bind(ISceneModel.class).to(SceneModel.class).in(Singleton.class);
             bind(INodeTypeRegistry.class).toInstance(com.dynamo.cr.sceneed.core.Activator.getDefault());
             bind(ISceneView.Presenter.class).to(ScenePresenter.class).in(Singleton.class);
-            bind(GameObjectPresenter.class).in(Singleton.class);
             bind(SceneEditor.class).toInstance(SceneEditor.this);
 
             bind(IOperationHistory.class).toInstance(history);

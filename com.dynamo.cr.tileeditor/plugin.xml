@@ -639,5 +639,13 @@
             type="com.dynamo.cr.tileeditor.GridEditor">
       </propertyTester>
    </extension>
+   <extension
+         point="com.dynamo.cr.nodetypes">
+      <node-type
+            node="com.dynamo.cr.sceneed.go.TileGridNode"
+            presenter="com.dynamo.cr.sceneed.go.ComponentPresenter"
+            resource-type="com.dynamo.cr.tileeditor.resourcetypes.TileGrid">
+      </node-type>
+   </extension>
 
 </plugin>

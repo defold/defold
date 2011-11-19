@@ -16,6 +16,7 @@ import com.dynamo.cr.sceneed.core.ILogger;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.ISceneView;
+import com.dynamo.cr.sceneed.core.SceneUtil;
 import com.dynamo.cr.sceneed.core.ISceneView.NodePresenter;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.ISceneView.Presenter;
@@ -130,7 +131,7 @@ public class ScenePresenter implements Presenter {
         Node node = this.model.getRoot();
         NodePresenter nodePresenter = this.nodeTypeRegistry.getPresenter(node.getClass());
         Message message = nodePresenter.onBuildMessage(this.context, node, monitor);
-        nodePresenter.onSaveMessage(this.context, message, contents, monitor);
+        SceneUtil.saveMessage(message, contents, monitor);
         this.model.setUndoRedoCounter(0);
     }
 

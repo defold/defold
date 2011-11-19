@@ -87,6 +87,7 @@
         <module>../com.dynamo.cr.editor.core</module>
         <module>../com.dynamo.cr.editor.fs</module>
         <module>../com.dynamo.cr.editor.fs.test</module>
+        <module>../com.dynamo.cr.editor.ui</module>
         <module>../com.dynamo.cr.scene</module>
         <module>../com.dynamo.cr.scene.test</module>
         <module>../com.dynamo.cr.contenteditor</module>
@@ -112,6 +113,8 @@
         <module>../com.dynamo.cr.properties.test</module>
         <module>../com.dynamo.cr.sceneed.core</module>
         <module>../com.dynamo.cr.sceneed.core.test</module>
+        <module>../com.dynamo.cr.sceneed.go</module>
+        <module>../com.dynamo.cr.sceneed.go.test</module>
         <module>../com.dynamo.cr.sceneed.ui</module>
         <module>../com.dynamo.cr.sceneed.ui.test</module>
         <module>../javax.media.opengl</module>
