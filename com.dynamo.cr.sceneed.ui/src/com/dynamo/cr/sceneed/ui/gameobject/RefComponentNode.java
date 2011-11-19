@@ -23,7 +23,9 @@ public class RefComponentNode extends ComponentNode {
     public RefComponentNode(ComponentTypeNode type) {
         super();
         this.type = type;
-        this.type.setModel(this.getModel());
+        if (this.type != null) {
+            this.type.setModel(this.getModel());
+        }
     }
 
     public String getComponent() {
