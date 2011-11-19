@@ -26,6 +26,7 @@ public class ComponentPresenter extends NodePresenter {
 
     @Override
     public Node onLoad(Context context, String type, InputStream contents) throws IOException, CoreException {
+        // TODO: Solve this better through extension point
         if (type.equals("sprite")) {
             InputStreamReader reader = new InputStreamReader(contents);
             SpriteDesc.Builder builder = SpriteDesc.newBuilder();
@@ -79,11 +80,12 @@ public class ComponentPresenter extends NodePresenter {
             collectionProxy.setCollection(desc.getCollection());
             return collectionProxy;
         }
-        return new GenericComponentTypeNode(type);
+        return onCreateNode(context, type);
     }
 
     @Override
     public Node onCreateNode(Context context, String type) throws IOException, CoreException {
+        // TODO: Solve this better through extension point
         if (type.equals("sprite")) {
             return new SpriteNode();
         } else if (type.equals("spawnpoint")) {
@@ -92,6 +94,20 @@ public class ComponentPresenter extends NodePresenter {
             return new CollisionObjectNode();
         } else if (type.equals("collectionproxy")) {
             return new CollectionProxyNode();
+        } else if (type.equals("camera")) {
+            return new CameraNode(type);
+        } else if (type.equals("emitter")) {
+            return new EmitterNode(type);
+        } else if (type.equals("gui")) {
+            return new GuiNode(type);
+        } else if (type.equals("light")) {
+            return new LightNode(type);
+        } else if (type.equals("model")) {
+            return new ModelNode(type);
+        } else if (type.equals("script")) {
+            return new ScriptNode(type);
+        } else if (type.equals("tilegrid")) {
+            return new TileGridNode(type);
         } else {
             return new GenericComponentTypeNode(type);
         }

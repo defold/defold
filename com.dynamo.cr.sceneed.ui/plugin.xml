@@ -248,37 +248,37 @@
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.CollectionProxy">
       </node-type>
       <node-type
-            node="com.dynamo.cr.sceneed.ui.gameobject.GenericComponentTypeNode"
+            node="com.dynamo.cr.sceneed.ui.gameobject.CameraNode"
             presenter="com.dynamo.cr.sceneed.ui.gameobject.ComponentPresenter"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Camera">
       </node-type>
       <node-type
-            node="com.dynamo.cr.sceneed.ui.gameobject.GenericComponentTypeNode"
+            node="com.dynamo.cr.sceneed.ui.gameobject.EmitterNode"
             presenter="com.dynamo.cr.sceneed.ui.gameobject.ComponentPresenter"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Emitter">
       </node-type>
       <node-type
-            node="com.dynamo.cr.sceneed.ui.gameobject.GenericComponentTypeNode"
+            node="com.dynamo.cr.sceneed.ui.gameobject.GuiNode"
             presenter="com.dynamo.cr.sceneed.ui.gameobject.ComponentPresenter"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Gui">
       </node-type>
       <node-type
-            node="com.dynamo.cr.sceneed.ui.gameobject.GenericComponentTypeNode"
+            node="com.dynamo.cr.sceneed.ui.gameobject.LightNode"
             presenter="com.dynamo.cr.sceneed.ui.gameobject.ComponentPresenter"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Light">
       </node-type>
       <node-type
-            node="com.dynamo.cr.sceneed.ui.gameobject.GenericComponentTypeNode"
+            node="com.dynamo.cr.sceneed.ui.gameobject.ModelNode"
             presenter="com.dynamo.cr.sceneed.ui.gameobject.ComponentPresenter"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Model">
       </node-type>
       <node-type
-            node="com.dynamo.cr.sceneed.ui.gameobject.GenericComponentTypeNode"
+            node="com.dynamo.cr.sceneed.ui.gameobject.ScriptNode"
             presenter="com.dynamo.cr.sceneed.ui.gameobject.ComponentPresenter"
             resource-type="com.dynamo.cr.luaeditor.resourcetypes.Script">
       </node-type>
       <node-type
-            node="com.dynamo.cr.sceneed.ui.gameobject.GenericComponentTypeNode"
+            node="com.dynamo.cr.sceneed.ui.gameobject.TileGridNode"
             presenter="com.dynamo.cr.sceneed.ui.gameobject.ComponentPresenter"
             resource-type="com.dynamo.cr.tileeditor.resourcetypes.TileGrid">
       </node-type>
