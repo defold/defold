@@ -13,6 +13,11 @@ extend google.protobuf.FieldOptions
     optional bool resource = 50100;
 }
 
+extend google.protobuf.EnumValueOptions
+{
+    optional string displayName = 50200;
+}
+
 extend google.protobuf.FileOptions
 {
     optional string ddf_namespace = 50001;

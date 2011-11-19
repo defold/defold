@@ -10,10 +10,10 @@ message ConvexShape
 {
     enum Type
     {
-        TYPE_SPHERE = 0;
-        TYPE_BOX = 1;
-        TYPE_CAPSULE = 2;
-        TYPE_HULL = 3;
+        TYPE_SPHERE = 0 [(displayName) = "Sphere"];
+        TYPE_BOX = 1 [(displayName) = "Box"];
+        TYPE_CAPSULE = 2 [(displayName) = "Capsule"];
+        TYPE_HULL = 3 [(displayName) = "Hull"];
     }
 
     required Type shape_type = 1;
@@ -75,10 +75,10 @@ message PhysicsShape
 /* This should coincide with CollisionObjectType in physics-lib */
 enum CollisionObjectType
 {
-    COLLISION_OBJECT_TYPE_DYNAMIC = 0;
-    COLLISION_OBJECT_TYPE_KINEMATIC = 1;
-    COLLISION_OBJECT_TYPE_STATIC = 2;
-    COLLISION_OBJECT_TYPE_TRIGGER = 3;
+    COLLISION_OBJECT_TYPE_DYNAMIC = 0 [(displayName) = "Dynamic"];
+    COLLISION_OBJECT_TYPE_KINEMATIC = 1 [(displayName) = "Kinematic"];
+    COLLISION_OBJECT_TYPE_STATIC = 2 [(displayName) = "Static"];
+    COLLISION_OBJECT_TYPE_TRIGGER = 3 [(displayName) = "Trigger"];
 }
 
 message CollisionObjectDesc

@@ -11,46 +11,46 @@ message NodeDesc
     // NOTE: Enum values must correspond to the enum values in dmGui
     enum Type
     {
-        TYPE_BOX  = 0;
-        TYPE_TEXT = 1;
+        TYPE_BOX  = 0 [(displayName) = "Box"];
+        TYPE_TEXT = 1 [(displayName) = "Text"];
     }
 
     // NOTE: Enum values must correspond to the enum values in dmGui
     enum BlendMode
     {
-        BLEND_MODE_ALPHA     = 0;
-        BLEND_MODE_ADD       = 1;
-        BLEND_MODE_ADD_ALPHA = 2;
-        BLEND_MODE_MULT      = 3;
+        BLEND_MODE_ALPHA     = 0 [(displayName) = "Alpha"];
+        BLEND_MODE_ADD       = 1 [(displayName) = "Add"];
+        BLEND_MODE_ADD_ALPHA = 2 [(displayName) = "Add Alpha"];
+        BLEND_MODE_MULT      = 3 [(displayName) = "Multiply"];
     }
 
     // NOTE: Enum values must correspond to the enum values in dmGui
     enum XAnchor
     {
-        XANCHOR_NONE  = 0;
-        XANCHOR_LEFT  = 1;
-        XANCHOR_RIGHT = 2;
+        XANCHOR_NONE  = 0 [(displayName) = "None"];
+        XANCHOR_LEFT  = 1 [(displayName) = "Left"];
+        XANCHOR_RIGHT = 2 [(displayName) = "Right"];
     };
 
     // NOTE: Enum values must correspond to the enum values in dmGui
     enum YAnchor
     {
-        YANCHOR_NONE   = 0;
-        YANCHOR_TOP    = 1;
-        YANCHOR_BOTTOM = 2;
+        YANCHOR_NONE   = 0 [(displayName) = "None"];
+        YANCHOR_TOP    = 1 [(displayName) = "Top"];
+        YANCHOR_BOTTOM = 2 [(displayName) = "Bottom"];
     };
 
     enum Pivot
     {
-        PIVOT_CENTER = 0;
-        PIVOT_N      = 1;
-        PIVOT_NE     = 2;
-        PIVOT_E      = 3;
-        PIVOT_SE     = 4;
-        PIVOT_S      = 5;
-        PIVOT_SW     = 6;
-        PIVOT_W      = 7;
-        PIVOT_NW     = 8;
+        PIVOT_CENTER = 0 [(displayName) = "Center"];
+        PIVOT_N      = 1 [(displayName) = "North"];
+        PIVOT_NE     = 2 [(displayName) = "North East"];
+        PIVOT_E      = 3 [(displayName) = "East"];
+        PIVOT_SE     = 4 [(displayName) = "South East"];
+        PIVOT_S      = 5 [(displayName) = "South"];
+        PIVOT_SW     = 6 [(displayName) = "South West"];
+        PIVOT_W      = 7 [(displayName) = "West"];
+        PIVOT_NW     = 8 [(displayName) = "North West"];
     };
 
     required dmMath.Vector4 position = 1;
