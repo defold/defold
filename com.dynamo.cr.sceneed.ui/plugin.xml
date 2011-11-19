@@ -2,286 +2,47 @@
 <?eclipse version="3.4"?>
 <plugin>
    <extension
-         point="org.eclipse.ui.editors">
-      <editor
-            class="com.dynamo.cr.sceneed.ui.SceneEditor"
-            default="false"
-            extensions="go"
-            icon="icons/brick.png"
-            id="com.dynamo.cr.sceneed.goEditor"
-            name="Scene Editor">
-      </editor>
-      <editor
-            class="com.dynamo.cr.sceneed.ui.SceneEditor"
-            default="false"
-            extensions="sprite"
-            icon="icons/penguin.png"
-            id="com.dynamo.cr.sceneed.spriteEditor"
-            name="Scene Editor">
-      </editor>
-   </extension>
-   <extension
-         point="org.eclipse.ui.menus">
-      <menuContribution
-            allPopups="false"
-            locationURI="popup:com.dynamo.cr.sceneed.menus.sceneOutlineContext">
-         <command
-               commandId="com.dynamo.cr.sceneed.commands.add"
-               label="Add Component"
-               style="push">
-            <visibleWhen
-                  checkEnabled="false">
-               <reference
-                     definitionId="com.dynamo.cr.sceneed.definitions.gameObjectSelected">
-               </reference>
-            </visibleWhen>
-         </command>
-         <command
-               commandId="com.dynamo.cr.sceneed.commands.addLink"
-               label="Add Component From File"
-               style="push">
-            <visibleWhen
-                  checkEnabled="false">
-               <reference
-                     definitionId="com.dynamo.cr.sceneed.definitions.gameObjectSelected">
-               </reference>
-            </visibleWhen>
-         </command>
-         <separator
-               name="com.dynamo.cr.tileeditor.separator1"
-               visible="true">
-         </separator>
-         <command
-               commandId="org.eclipse.ui.edit.delete"
-               label="Delete"
-               style="push">
-         </command>
-      </menuContribution>
-      <menuContribution
-            allPopups="false"
-            locationURI="menu:org.eclipse.ui.main.menu?after=edit">
-         <menu
-               label="Game Object">
-            <command
-                  commandId="com.dynamo.cr.sceneed.commands.add"
-                  label="Add Component"
-                  style="push">
-            </command>
-            <command
-                  commandId="com.dynamo.cr.sceneed.commands.addLink"
-                  label="Add Component From File"
-                  style="push">
-            </command>
-            <visibleWhen
-                  checkEnabled="false">
-               <or>
-                  <reference
-                        definitionId="com.dynamo.cr.sceneed.definitions.gameObjectSelected">
-                  </reference>
-                  <reference
-                        definitionId="com.dynamo.cr.sceneed.definitions.componentSelected">
-                  </reference>
-               </or>
-            </visibleWhen>
-         </menu>
-      </menuContribution>
-      <menuContribution
-            allPopups="false"
-            locationURI="menu:org.eclipse.ui.main.menu?after=edit">
-      </menuContribution>
-   </extension>
-   <extension
          point="org.eclipse.ui.contexts">
       <context
-            id="com.dynamo.cr.sceneed.contexts.sceneEditor"
+            id="com.dynamo.cr.sceneed.ui.contexts.sceneEditor"
             name="Scene Editor">
       </context>
    </extension>
    <extension
          point="org.eclipse.ui.commands">
       <command
-            id="com.dynamo.cr.sceneed.commands.add"
+            id="com.dynamo.cr.sceneed.ui.commands.add"
             name="Add">
       </command>
       <command
-            id="com.dynamo.cr.sceneed.commands.addLink"
+            id="com.dynamo.cr.sceneed.ui.commands.addLink"
             name="Add Link">
       </command>
       <command
-            id="com.dynamo.cr.sceneed.commands.enter"
+            id="com.dynamo.cr.sceneed.ui.commands.enter"
             name="Enter">
       </command>
    </extension>
    <extension
-         point="org.eclipse.ui.handlers">
-      <handler
-            class="com.dynamo.cr.sceneed.ui.gameobject.AddComponentHandler"
-            commandId="com.dynamo.cr.sceneed.commands.add">
-         <activeWhen>
-            <or>
-               <reference
-                     definitionId="com.dynamo.cr.sceneed.definitions.gameObjectSelected">
-               </reference>
-               <reference
-                     definitionId="com.dynamo.cr.sceneed.definitions.componentSelected">
-               </reference>
-            </or>
-         </activeWhen>
-      </handler>
-      <handler
-            class="com.dynamo.cr.sceneed.ui.gameobject.RemoveComponentHandler"
-            commandId="org.eclipse.ui.edit.delete">
-         <activeWhen>
-            <reference
-                  definitionId="com.dynamo.cr.sceneed.definitions.componentSelected">
-            </reference>
-         </activeWhen>
-      </handler>
-      <handler
-            class="com.dynamo.cr.sceneed.ui.gameobject.AddComponentFromFileHandler"
-            commandId="com.dynamo.cr.sceneed.commands.addLink">
-         <activeWhen>
-            <or>
-               <reference
-                     definitionId="com.dynamo.cr.sceneed.definitions.gameObjectSelected">
-               </reference>
-               <reference
-                     definitionId="com.dynamo.cr.sceneed.definitions.componentSelected">
-               </reference>
-            </or>
-         </activeWhen>
-      </handler>
-      <handler
-            class="com.dynamo.cr.sceneed.ui.gameobject.EnterRefComponentHandler"
-            commandId="com.dynamo.cr.sceneed.commands.enter">
-         <activeWhen>
-            <with
-                  variable="selection">
-               <and>
-                  <count
-                        value="1">
-                  </count>
-                  <iterate
-                        operator="or">
-                     <instanceof
-                           value="com.dynamo.cr.sceneed.ui.gameobject.RefComponentNode">
-                     </instanceof>
-                  </iterate>
-               </and>
-            </with>
-         </activeWhen>
-      </handler>
-   </extension>
-   <extension
          point="org.eclipse.ui.bindings">
       <key
-            commandId="com.dynamo.cr.sceneed.commands.add"
-            contextId="com.dynamo.cr.sceneed.contexts.sceneEditor"
+            commandId="com.dynamo.cr.sceneed.ui.commands.add"
+            contextId="com.dynamo.cr.sceneed.ui.contexts.sceneEditor"
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
             sequence="I">
       </key>
       <key
-            commandId="com.dynamo.cr.sceneed.commands.addLink"
-            contextId="com.dynamo.cr.sceneed.contexts.sceneEditor"
+            commandId="com.dynamo.cr.sceneed.ui.commands.addLink"
+            contextId="com.dynamo.cr.sceneed.ui.contexts.sceneEditor"
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
             sequence="O">
       </key>
       <key
-            commandId="com.dynamo.cr.sceneed.commands.enter"
-            contextId="com.dynamo.cr.sceneed.contexts.sceneEditor"
+            commandId="com.dynamo.cr.sceneed.ui.commands.enter"
+            contextId="com.dynamo.cr.sceneed.ui.contexts.sceneEditor"
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
             sequence="ENTER">
       </key>
-   </extension>
-   <extension
-         point="org.eclipse.core.expressions.definitions">
-      <definition
-            id="com.dynamo.cr.sceneed.definitions.gameObjectSelected">
-         <with
-               variable="selection">
-            <iterate
-                  operator="or">
-               <instanceof
-                     value="com.dynamo.cr.sceneed.ui.gameobject.GameObjectNode">
-               </instanceof>
-            </iterate>
-         </with>
-      </definition>
-      <definition
-            id="com.dynamo.cr.sceneed.definitions.componentSelected">
-         <with
-               variable="selection">
-            <iterate
-                  operator="or">
-               <instanceof
-                     value="com.dynamo.cr.sceneed.ui.gameobject.ComponentNode">
-               </instanceof>
-            </iterate>
-         </with>
-      </definition>
-   </extension>
-   <extension
-         point="com.dynamo.cr.nodetypes">
-      <node-type
-            node="com.dynamo.cr.sceneed.ui.gameobject.GameObjectNode"
-            presenter="com.dynamo.cr.sceneed.ui.gameobject.GameObjectPresenter"
-            resource-type="com.dynamo.cr.ddfeditor.resourcetypes.GameObject">
-      </node-type>
-      <node-type
-            node="com.dynamo.cr.sceneed.ui.gameobject.SpawnPointNode"
-            presenter="com.dynamo.cr.sceneed.ui.gameobject.ComponentPresenter"
-            resource-type="com.dynamo.cr.ddfeditor.resourcetypes.SpawnPoint">
-      </node-type>
-      <node-type
-            node="com.dynamo.cr.sceneed.ui.gameobject.SpriteNode"
-            presenter="com.dynamo.cr.sceneed.ui.gameobject.ComponentPresenter"
-            resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Sprite">
-      </node-type>
-      <node-type
-            node="com.dynamo.cr.sceneed.ui.gameobject.CollisionObjectNode"
-            presenter="com.dynamo.cr.sceneed.ui.gameobject.ComponentPresenter"
-            resource-type="com.dynamo.cr.ddfeditor.resourcetypes.CollisionObject">
-      </node-type>
-      <node-type
-            node="com.dynamo.cr.sceneed.ui.gameobject.CollectionProxyNode"
-            presenter="com.dynamo.cr.sceneed.ui.gameobject.ComponentPresenter"
-            resource-type="com.dynamo.cr.ddfeditor.resourcetypes.CollectionProxy">
-      </node-type>
-      <node-type
-            node="com.dynamo.cr.sceneed.ui.gameobject.CameraNode"
-            presenter="com.dynamo.cr.sceneed.ui.gameobject.ComponentPresenter"
-            resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Camera">
-      </node-type>
-      <node-type
-            node="com.dynamo.cr.sceneed.ui.gameobject.EmitterNode"
-            presenter="com.dynamo.cr.sceneed.ui.gameobject.ComponentPresenter"
-            resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Emitter">
-      </node-type>
-      <node-type
-            node="com.dynamo.cr.sceneed.ui.gameobject.GuiNode"
-            presenter="com.dynamo.cr.sceneed.ui.gameobject.ComponentPresenter"
-            resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Gui">
-      </node-type>
-      <node-type
-            node="com.dynamo.cr.sceneed.ui.gameobject.LightNode"
-            presenter="com.dynamo.cr.sceneed.ui.gameobject.ComponentPresenter"
-            resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Light">
-      </node-type>
-      <node-type
-            node="com.dynamo.cr.sceneed.ui.gameobject.ModelNode"
-            presenter="com.dynamo.cr.sceneed.ui.gameobject.ComponentPresenter"
-            resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Model">
-      </node-type>
-      <node-type
-            node="com.dynamo.cr.sceneed.ui.gameobject.ScriptNode"
-            presenter="com.dynamo.cr.sceneed.ui.gameobject.ComponentPresenter"
-            resource-type="com.dynamo.cr.luaeditor.resourcetypes.Script">
-      </node-type>
-      <node-type
-            node="com.dynamo.cr.sceneed.ui.gameobject.TileGridNode"
-            presenter="com.dynamo.cr.sceneed.ui.gameobject.ComponentPresenter"
-            resource-type="com.dynamo.cr.tileeditor.resourcetypes.TileGrid">
-      </node-type>
    </extension>
    <extension
          point="org.eclipse.ui.preferencePages">

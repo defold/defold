@@ -1,6 +1,6 @@
 Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
-Bundle-Name: Test
+Bundle-Name: Scene Editor UI Test
 Bundle-SymbolicName: com.dynamo.cr.sceneed.ui.test
 Bundle-Version: 1.0.0.qualifier
 Bundle-Vendor: DYNAMO

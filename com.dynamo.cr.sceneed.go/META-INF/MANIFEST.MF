@@ -1,0 +1,24 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: Scene Editor Game Object
+Bundle-SymbolicName: com.dynamo.cr.sceneed.go;singleton:=true
+Bundle-Version: 1.0.0.qualifier
+Bundle-Activator: com.dynamo.cr.sceneed.go.Activator
+Bundle-Vendor: DYNAMO
+Require-Bundle: org.eclipse.ui,
+ org.eclipse.core.runtime,
+ com.dynamo.cr.sceneed.ui;bundle-version="1.0.0",
+ com.dynamo.cr.sceneed.core;bundle-version="1.0.0",
+ com.dynamo.cr.properties;bundle-version="1.0.0",
+ org.eclipse.core.resources;bundle-version="3.7.100",
+ com.google.common;bundle-version="0.0.9",
+ com.dynamo.cr.common;bundle-version="1.0.0",
+ org.eclipse.ui.ide;bundle-version="3.7.0",
+ org.eclipse.core.expressions;bundle-version="3.4.300",
+ com.dynamo.cr.editor.core;bundle-version="1.0.0",
+ com.dynamo.cr.protobind;bundle-version="1.0.0",
+ org.eclipse.ui.navigator;bundle-version="3.5.100",
+ com.dynamo.cr.editor.ui;bundle-version="1.0.0"
+Bundle-RequiredExecutionEnvironment: JavaSE-1.6
+Bundle-ActivationPolicy: lazy
+Export-Package: com.dynamo.cr.sceneed.go

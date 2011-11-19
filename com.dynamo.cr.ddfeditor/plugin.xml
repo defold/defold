@@ -123,13 +123,6 @@
       </wizard>
       <wizard
             category="com.dynamo.cr.editor.wizardCategory"
-            class="com.dynamo.cr.ddfeditor.wizards.GameObjectNewWizard"
-            icon="icons/brick.png"
-            id="com.dynamo.cr.ddfeditor.wizards.GameObjectNewWizard"
-            name="Game Object File">
-      </wizard>
-      <wizard
-            category="com.dynamo.cr.editor.wizardCategory"
             class="com.dynamo.cr.ddfeditor.wizards.CameraNewWizard"
             icon="icons/camera.png"
             id="com.dynamo.cr.ddfeditor.wizards.CameraNewWizard"
@@ -207,13 +200,6 @@
       </wizard>
       <wizard
             category="com.dynamo.cr.editor.wizardCategory"
-            class="com.dynamo.cr.ddfeditor.wizards.SpriteNewWizard"
-            icon="icons/penguin.png"
-            id="com.dynamo.cr.ddfeditor.wizards.SpriteNewWizard"
-            name="Sprite File">
-      </wizard>
-      <wizard
-            category="com.dynamo.cr.editor.wizardCategory"
             class="com.dynamo.cr.ddfeditor.wizards.ConvexShapeNewWizard"
             icon="icons/contrast_high.png"
             id="com.dynamo.cr.ddfeditor.wizards.ConvexShapeNewWizard"
@@ -225,11 +211,6 @@
       <commonWizard
             type="new"
             wizardId="com.dynamo.cr.ddfeditor.wizards.ModelNewWizard">
-         <enablement></enablement>
-      </commonWizard>
-      <commonWizard
-            type="new"
-            wizardId="com.dynamo.cr.ddfeditor.wizards.GameObjectNewWizard">
          <enablement></enablement>
       </commonWizard>
       <commonWizard
@@ -284,11 +265,6 @@
       </commonWizard>
       <commonWizard
             type="new"
-            wizardId="com.dynamo.cr.ddfeditor.wizards.SpriteNewWizard">
-         <enablement></enablement>
-      </commonWizard>
-      <commonWizard
-            type="new"
             wizardId="com.dynamo.cr.ddfeditor.wizards.ConvexShapeNewWizard">
          <enablement></enablement>
       </commonWizard>
@@ -312,20 +288,6 @@
             </reference-type-class>
             <reference-type-class
                   type-class="mesh">
-            </reference-type-class>
-         </references>
-      </resource-type>
-      <resource-type
-            file-extension="go"
-            id="com.dynamo.cr.ddfeditor.resourcetypes.GameObject"
-            name="Game Object"
-            proto-message-class="com.dynamo.gameobject.proto.GameObject$PrototypeDesc"
-            resource-refactor-participant-class="com.dynamo.cr.ddfeditor.refactoring.GameObjectRefactorParticipant"
-            template-data=" "
-            type-class="gameobject">
-         <references>
-            <reference-type-class
-                  type-class="component">
             </reference-type-class>
          </references>
       </resource-type>
@@ -473,7 +435,7 @@
             template-data="name: &apos;unnamed&apos;">
          <references>
             <reference-resource-type
-                  resource-type="com.dynamo.cr.ddfeditor.resourcetypes.GameObject">
+                  resource-type="com.dynamo.cr.sceneed.go.resourcetypes.gameObject">
             </reference-resource-type>
             <reference-resource-type
                   resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Collection">
@@ -488,21 +450,6 @@
             proto-message-class="com.dynamo.particle.proto.Particle$Emitter"
             template-data="mode: PLAY_MODE_ONCE duration: 0.2 space: EMISSION_SPACE_WORLD rotation { x: 0.0 y: 0.0 z: 0.0 w: 1.0 } texture { name: &apos;unnamed&apos; t_x: 1 t_y: 1 } material: &apos;unnamed&apos; max_particle_count: 8 type: EMITTER_TYPE_CONE"
             type-class="component">
-      </resource-type>
-      <resource-type
-            embeddable="true"
-            file-extension="sprite"
-            id="com.dynamo.cr.ddfeditor.resourcetypes.Sprite"
-            name="Sprite"
-            proto-message-class="com.dynamo.sprite.proto.Sprite$SpriteDesc"
-            resource-refactor-participant-class="com.dynamo.cr.ddfeditor.refactoring.SpriteRefactorParticipant"
-            template-data="texture: &apos;&apos; width: 1 height: 1"
-            type-class="component">
-         <references>
-            <reference-type-class
-                  type-class="image">
-            </reference-type-class>
-         </references>
       </resource-type>
       <resource-type
             file-extension="convexshape"
@@ -546,21 +493,11 @@
       </resource-type>
     </extension>
    <extension
-         point="org.eclipse.ui.contexts">
-      <context
-            id="com.dynamo.cr.ddfeditor.contexts.gameobjecteditor"
-            name="Game Object Editor">
-      </context>
-   </extension>
-   <extension
          point="org.eclipse.ui.perspectiveExtensions">
       <perspectiveExtension
             targetID="*">
          <newWizardShortcut
                id="com.dynamo.cr.ddfeditor.wizards.ModelNewWizard">
-         </newWizardShortcut>
-         <newWizardShortcut
-               id="com.dynamo.cr.ddfeditor.wizards.GameObjectNewWizard">
          </newWizardShortcut>
          <newWizardShortcut
                id="com.dynamo.cr.ddfeditor.wizards.CameraNewWizard">
@@ -593,114 +530,52 @@
                id="com.dynamo.cr.ddfeditor.wizards.EmitterNewWizard">
          </newWizardShortcut>
          <newWizardShortcut
-               id="com.dynamo.cr.ddfeditor.wizards.SpriteNewWizard">
-         </newWizardShortcut>
-         <newWizardShortcut
                id="com.dynamo.cr.ddfeditor.wizards.ConvexShapeNewWizard">
          </newWizardShortcut>
       </perspectiveExtension>
    </extension>
    <extension
-         point="org.eclipse.ui.handlers">
-      <handler
-            class="com.dynamo.cr.ddfeditor.commands.AddResourceComponent"
-            commandId="com.dynamo.cr.ddfeditor.commands.addResourceComponent">
-         <enabledWhen>
-            <reference
-                  definitionId="com.dynamo.cr.ddfeditor.definitions.gameObjectEditorActive">
-            </reference>
-         </enabledWhen>
-      </handler>
-      <handler
-            class="com.dynamo.cr.ddfeditor.commands.AddEmbeddedComponent"
-            commandId="com.dynamo.cr.ddfeditor.commands.addEmbeddedComponent">
-         <enabledWhen>
-            <reference
-                  definitionId="com.dynamo.cr.ddfeditor.definitions.gameObjectEditorActive">
-            </reference>
-         </enabledWhen>
-      </handler>
-      <handler
-            class="com.dynamo.cr.ddfeditor.commands.RemoveComponent"
-            commandId="com.dynamo.cr.ddfeditor.commands.removeComponent">
-         <enabledWhen>
-            <reference
-                  definitionId="com.dynamo.cr.ddfeditor.definitions.gameObjectEditorActive">
-            </reference>
-         </enabledWhen>
-      </handler>
-   </extension>
-   <extension
-         point="org.eclipse.ui.commands">
-      <command
-            categoryId="com.dynamo.crepo.category"
-            description="Add Component From Resource"
-            id="com.dynamo.cr.ddfeditor.commands.addResourceComponent"
-            name="Add Component From Resource">
-      </command>
-      <command
-            categoryId="com.dynamo.crepo.category"
-            description="Add Embedded Component"
-            id="com.dynamo.cr.ddfeditor.commands.addEmbeddedComponent"
-            name="Add Embedded Component">
-      </command>
-      <command
-            categoryId="com.dynamo.crepo.category"
-            description="Remove Component"
-            id="com.dynamo.cr.ddfeditor.commands.removeComponent"
-            name="Remove Component">
-      </command>
-   </extension>
-   <extension
-         point="org.eclipse.ui.menus">
-      <menuContribution
-            allPopups="false"
-            locationURI="menu:org.eclipse.ui.main.menu?after=edit">
-         <menu
-               id="com.dynamo.cr.ddfeditor.menus.GameObject"
-               label="Game Object">
-            <command
-                  commandId="com.dynamo.cr.ddfeditor.commands.addResourceComponent"
-                  icon="icons/link_add.png"
-                  label="Add Component From Resource"
-                  style="push">
-            </command>
-            <command
-                  commandId="com.dynamo.cr.ddfeditor.commands.addEmbeddedComponent"
-                  icon="icons/link_add.png"
-                  label="Add Embedded Component"
-                  style="push">
-            </command>
-            <command
-                  commandId="com.dynamo.cr.ddfeditor.commands.removeComponent"
-                  icon="icons/page_delete.png"
-                  label="Remove Component"
-                  style="push">
-            </command>
-            <visibleWhen
-                  checkEnabled="false">
-               <reference
-                     definitionId="com.dynamo.cr.ddfeditor.definitions.gameObjectEditorActive">
-               </reference>
-            </visibleWhen>
-         </menu>
-      </menuContribution>
-   </extension>
-   <extension
-         point="org.eclipse.core.expressions.definitions">
-      <definition
-            id="com.dynamo.cr.ddfeditor.definitions.gameObjectEditorActive">
-         <with
-               variable="activeContexts">
-            <iterate
-                  ifEmpty="false"
-                  operator="or">
-               <equals
-                     value="com.dynamo.cr.ddfeditor.contexts.gameobjecteditor">
-               </equals>
-            </iterate>
-         </with>
-      </definition>
+         point="com.dynamo.cr.nodetypes">
+      <node-type
+            node="com.dynamo.cr.ddfeditor.scene.SpawnPointNode"
+            presenter="com.dynamo.cr.ddfeditor.scene.DdfComponentPresenter"
+            resource-type="com.dynamo.cr.ddfeditor.resourcetypes.SpawnPoint">
+      </node-type>
+      <node-type
+            node="com.dynamo.cr.ddfeditor.scene.CollisionObjectNode"
+            presenter="com.dynamo.cr.ddfeditor.scene.DdfComponentPresenter"
+            resource-type="com.dynamo.cr.ddfeditor.resourcetypes.CollisionObject">
+      </node-type>
+      <node-type
+            node="com.dynamo.cr.ddfeditor.scene.CollectionProxyNode"
+            presenter="com.dynamo.cr.ddfeditor.scene.DdfComponentPresenter"
+            resource-type="com.dynamo.cr.ddfeditor.resourcetypes.CollectionProxy">
+      </node-type>
+      <node-type
+            node="com.dynamo.cr.ddfeditor.scene.CameraNode"
+            presenter="com.dynamo.cr.ddfeditor.scene.DdfComponentPresenter"
+            resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Camera">
+      </node-type>
+      <node-type
+            node="com.dynamo.cr.ddfeditor.scene.EmitterNode"
+            presenter="com.dynamo.cr.ddfeditor.scene.DdfComponentPresenter"
+            resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Emitter">
+      </node-type>
+      <node-type
+            node="com.dynamo.cr.ddfeditor.scene.LightNode"
+            presenter="com.dynamo.cr.ddfeditor.scene.DdfComponentPresenter"
+            resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Light">
+      </node-type>
+      <node-type
+            node="com.dynamo.cr.ddfeditor.scene.GuiNode"
+            presenter="com.dynamo.cr.ddfeditor.scene.DdfComponentPresenter"
+            resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Gui">
+      </node-type>
+      <node-type
+            node="com.dynamo.cr.ddfeditor.scene.ModelNode"
+            presenter="com.dynamo.cr.ddfeditor.scene.DdfComponentPresenter"
+            resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Model">
+      </node-type>
    </extension>
 
 </plugin>

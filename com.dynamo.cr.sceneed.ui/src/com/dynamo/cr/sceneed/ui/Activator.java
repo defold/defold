@@ -16,16 +16,15 @@ public class Activator extends AbstractUIPlugin {
     public static final String PLUGIN_ID = "com.dynamo.cr.sceneed.ui"; //$NON-NLS-1$
 
     // Context IDs
-    public static final String SCENEED_CONTEXT_ID = "com.dynamo.cr.sceneed.contexts.sceneEditor"; //$NON-NLS-1$
+    public static final String SCENEED_CONTEXT_ID = "com.dynamo.cr.sceneed.ui.contexts.sceneEditor"; //$NON-NLS-1$
 
     // Command IDs
-    public static final String ENTER_COMMAND_ID = "com.dynamo.cr.sceneed.commands.enter"; //$NON-NLS-1$
+    public static final String ENTER_COMMAND_ID = "com.dynamo.cr.sceneed.ui.commands.enter"; //$NON-NLS-1$
 
     // Image IDs
     public static final String IMG_OVERLAY_INFO = "IMG_OVERLAY_INFO";
     public static final String IMG_OVERLAY_WARNING = "IMG_OVERLAY_WARNING";
     public static final String IMG_OVERLAY_ERROR = "IMG_OVERLAY_ERROR";
-    public static final String IMG_COMPONENT = "IMG_COMPONENT";
 
     // The shared instance
     private static Activator plugin;
@@ -81,7 +80,6 @@ public class Activator extends AbstractUIPlugin {
         reg.put(IMG_OVERLAY_INFO, getImageDescriptor("icons/overlay_info.png"));
         reg.put(IMG_OVERLAY_WARNING, getImageDescriptor("icons/overlay_warning.png"));
         reg.put(IMG_OVERLAY_ERROR, getImageDescriptor("icons/overlay_error.png"));
-        reg.put(IMG_COMPONENT, getImageDescriptor("icons/component.png"));
     }
 
     private static ImageDescriptor getImageDescriptor(String path) {

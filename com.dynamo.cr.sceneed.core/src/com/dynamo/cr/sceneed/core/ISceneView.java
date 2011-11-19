@@ -50,6 +50,7 @@ public interface ISceneView {
 
     void setDirty(boolean dirty);
 
+    // TODO: Game object specific methods, how to extract into proper package?
     String selectComponentType();
     String selectComponentFromFile();
 }

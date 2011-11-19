@@ -64,5 +64,13 @@
             type-class="render_script">
       </resource-type>
    </extension>
+   <extension
+         point="com.dynamo.cr.nodetypes">
+      <node-type
+            node="com.dynamo.cr.luaeditor.scene.ScriptNode"
+            presenter="com.dynamo.cr.luaeditor.scene.ScriptPresenter"
+            resource-type="com.dynamo.cr.luaeditor.resourcetypes.Script">
+      </node-type>
+   </extension>
 
 </plugin>

@@ -1,5 +1,7 @@
 package com.dynamo.cr.ddfeditor.wizards;
 
+import com.dynamo.cr.editor.ui.AbstractNewDdfWizard;
+
 
 public class EmitterNewWizard extends AbstractNewDdfWizard {
     @Override

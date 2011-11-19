@@ -1,6 +1,6 @@
 Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
-Bundle-Name: goprot
+Bundle-Name: Scene Editor UI
 Bundle-SymbolicName: com.dynamo.cr.sceneed.ui;singleton:=true
 Bundle-Version: 1.0.0.qualifier
 Bundle-Activator: com.dynamo.cr.sceneed.ui.Activator
