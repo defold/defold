@@ -1,7 +1,6 @@
 package com.dynamo.cr.properties;
 
 import java.lang.annotation.Annotation;
-import java.util.ResourceBundle;
 
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.osgi.util.NLS;

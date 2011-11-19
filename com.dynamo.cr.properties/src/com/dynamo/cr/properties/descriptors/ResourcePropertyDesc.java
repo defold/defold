@@ -69,6 +69,9 @@ public class ResourcePropertyDesc<T, U extends IPropertyObjectWorld> extends Pro
 
         @Override
         public void refresh() {
+            boolean editable = models[0].isPropertyEditable(getId());
+            getControl().setEnabled(editable);
+
             String firstValue = (String) models[0].getPropertyValue(getId());
             for (int i = 1; i < models.length; ++i) {
                 String value = (String) models[i].getPropertyValue(getId());

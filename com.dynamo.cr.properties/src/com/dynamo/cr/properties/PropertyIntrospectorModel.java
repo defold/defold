@@ -41,6 +41,11 @@ public class PropertyIntrospectorModel<T, U extends IPropertyObjectWorld> implem
     }
 
     @Override
+    public boolean isPropertyEditable(Object id) {
+        return introspector.isPropertyEditable(object, world, id);
+    }
+
+    @Override
     public IStatus getPropertyStatus(Object id) {
         return introspector.getPropertyStatus(object, world, id);
     }

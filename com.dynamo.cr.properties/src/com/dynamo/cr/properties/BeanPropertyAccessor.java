@@ -5,6 +5,7 @@ import java.beans.IntrospectionException;
 import java.beans.Introspector;
 import java.beans.PropertyDescriptor;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 
 import javax.vecmath.Quat4d;
 import javax.vecmath.Vector3d;
@@ -15,6 +16,7 @@ import org.eclipse.swt.graphics.RGB;
 public class BeanPropertyAccessor implements IPropertyAccessor<Object, IPropertyObjectWorld> {
 
     private PropertyDescriptor propertyDescriptor;
+    private Method isEditable;
 
     private void init(Object obj, String property) {
 
@@ -32,34 +34,43 @@ public class BeanPropertyAccessor implements IPropertyAccessor<Object, IProperty
         } catch (IntrospectionException e) {
             throw new RuntimeException(e);
         }
+
+        try {
+            String capProperty = Character.toUpperCase(property.charAt(0)) + property.substring(1);
+            isEditable = obj.getClass().getMethod(String.format("is%sEditable", capProperty));
+        } catch (NoSuchMethodException e) {
+            // pass
+        }
     }
 
     @Override
     public void setValue(Object obj, String property, Object newValue,
-            IPropertyObjectWorld world)
-                    throws IllegalArgumentException, IllegalAccessException,
-                    InvocationTargetException {
+            IPropertyObjectWorld world) {
         init(obj, property);
         if (propertyDescriptor == null) {
             throw new RuntimeException(String.format("Missing setter for %s#%s", obj.getClass().getName(), property));
         }
 
-        Object oldValue = propertyDescriptor.getReadMethod().invoke(obj);
-
-        // TODO: This merging is rather static. We should perhaps
-        // make it more dynamic in the future.
-        if (oldValue instanceof Vector4d && newValue instanceof Double[]) {
-            mergeVector4dValue(obj, (Vector4d) oldValue, (Double[]) newValue);
-        } else if (oldValue instanceof Vector3d && newValue instanceof Double[]) {
-            mergeVector3dValue(obj, (Vector3d) oldValue, (Double[]) newValue);
-        } else if (oldValue instanceof Quat4d && newValue instanceof Double[]) {
-            mergeQuat4dValue(obj, (Quat4d) oldValue, (Double[]) newValue);
-        } else if (oldValue instanceof RGB && newValue instanceof Double[]) {
-            mergeRGBValue(obj, (RGB) oldValue, (Double[]) newValue);
-        }
-        else {
-            // Generic set
-            propertyDescriptor.getWriteMethod().invoke(obj, newValue);
+        Object oldValue;
+        try {
+            oldValue = propertyDescriptor.getReadMethod().invoke(obj);
+            // TODO: This merging is rather static. We should perhaps
+            // make it more dynamic in the future.
+            if (oldValue instanceof Vector4d && newValue instanceof Double[]) {
+                mergeVector4dValue(obj, (Vector4d) oldValue, (Double[]) newValue);
+            } else if (oldValue instanceof Vector3d && newValue instanceof Double[]) {
+                mergeVector3dValue(obj, (Vector3d) oldValue, (Double[]) newValue);
+            } else if (oldValue instanceof Quat4d && newValue instanceof Double[]) {
+                mergeQuat4dValue(obj, (Quat4d) oldValue, (Double[]) newValue);
+            } else if (oldValue instanceof RGB && newValue instanceof Double[]) {
+                mergeRGBValue(obj, (RGB) oldValue, (Double[]) newValue);
+            }
+            else {
+                // Generic set
+                propertyDescriptor.getWriteMethod().invoke(obj, newValue);
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -108,13 +119,30 @@ public class BeanPropertyAccessor implements IPropertyAccessor<Object, IProperty
 
     @Override
     public Object getValue(Object obj, String property,
-            IPropertyObjectWorld world)
-                    throws IllegalArgumentException, IllegalAccessException,
-                    InvocationTargetException {
+            IPropertyObjectWorld world) {
         init(obj, property);
         if (propertyDescriptor == null) {
             throw new RuntimeException(String.format("Missing getter for %s#%s", obj.getClass().getName(), property));
         }
-        return propertyDescriptor.getReadMethod().invoke(obj);
+        try {
+            return propertyDescriptor.getReadMethod().invoke(obj);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    public boolean isEditable(Object obj, String property,
+            IPropertyObjectWorld world) {
+        init(obj, property);
+        if (isEditable != null) {
+            try {
+                return (Boolean) isEditable.invoke(obj);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        } else {
+            return true;
+        }
     }
 }

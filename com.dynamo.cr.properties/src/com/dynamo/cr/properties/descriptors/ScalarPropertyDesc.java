@@ -46,6 +46,8 @@ public abstract class ScalarPropertyDesc<S, T, U extends IPropertyObjectWorld> e
         @SuppressWarnings("unchecked")
         @Override
         public void refresh() {
+            boolean editable = models[0].isPropertyEditable(getId());
+            getControl().setEnabled(editable);
             S firstValue = (S) models[0].getPropertyValue(getId());
             for (int i = 1; i < models.length; ++i) {
                 S value = (S) models[i].getPropertyValue(getId());

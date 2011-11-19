@@ -1,6 +1,7 @@
 package com.dynamo.cr.properties.test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import java.util.HashMap;
@@ -89,6 +90,13 @@ public class PropertiesTest {
 
         @Property
         int missingGetterSetter;
+
+        @Property
+        int notEditable;
+
+        public boolean isNotEditableEditable() {
+            return false;
+        }
 
         Map<String, IStatus> statusMap = new HashMap<String, IStatus>();
 
@@ -212,6 +220,17 @@ public class PropertiesTest {
         doTestSet(source, "enumValue", PropertiesTestProto.EnumType.VAL_A);
 
         assertEquals(totalCommands++, world.totalCommands);
+    }
+
+    @Test
+    public void testEditable() throws Exception {
+        assertTrue(source.isPropertyEditable("integerValue"));
+        assertTrue(source.isPropertyEditable("doubleValue"));
+        assertTrue(source.isPropertyEditable("stringValue"));
+        assertTrue(source.isPropertyEditable("rgbValue"));
+        assertTrue(source.isPropertyEditable("vector4Value"));
+        assertTrue(source.isPropertyEditable("enumValue"));
+        assertFalse(source.isPropertyEditable("notEditable"));
     }
 
     // Currently RuntimeException is thrown. This behavior might change in the future

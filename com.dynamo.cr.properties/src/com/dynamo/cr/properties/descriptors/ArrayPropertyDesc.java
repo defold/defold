@@ -77,6 +77,8 @@ public abstract class ArrayPropertyDesc<V, T, U extends IPropertyObjectWorld> ex
         @SuppressWarnings("unchecked")
         @Override
         public void refresh() {
+            boolean editable = models[0].isPropertyEditable(getId());
+            getControl().setEnabled(editable);
 
             boolean[] equal = new boolean[count];
             for (int i = 0; i < count; ++i) {
