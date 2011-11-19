@@ -116,7 +116,11 @@ public class RefComponentNode extends ComponentNode {
 
     @Override
     public Image getImage() {
-        return this.type.getImage();
+        if (this.type != null) {
+            return this.type.getImage();
+        } else {
+            return super.getImage();
+        }
     }
 
 }

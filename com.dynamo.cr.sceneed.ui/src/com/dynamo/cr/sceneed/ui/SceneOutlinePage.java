@@ -3,17 +3,20 @@ package com.dynamo.cr.sceneed.ui;
 import javax.inject.Inject;
 
 import org.eclipse.core.commands.NotHandledException;
+import org.eclipse.core.runtime.IStatus;
 import org.eclipse.jface.action.MenuManager;
 import org.eclipse.jface.action.Separator;
 import org.eclipse.jface.viewers.ColumnLabelProvider;
 import org.eclipse.jface.viewers.ColumnViewerToolTipSupport;
+import org.eclipse.jface.viewers.DecorationContext;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.ITreeContentProvider;
-import org.eclipse.jface.viewers.LabelProvider;
 import org.eclipse.jface.viewers.StructuredSelection;
+import org.eclipse.jface.viewers.StyledString;
 import org.eclipse.jface.viewers.TreeViewer;
 import org.eclipse.jface.viewers.Viewer;
 import org.eclipse.jface.viewers.ViewerCell;
+import org.eclipse.jface.viewers.DelegatingStyledCellLabelProvider.IStyledLabelProvider;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.MouseAdapter;
 import org.eclipse.swt.events.MouseEvent;
@@ -148,7 +151,7 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
         }
     }
 
-    class OutlineColumnLabelProvider extends ColumnLabelProvider {
+    class OutlineLabelProvider extends ColumnLabelProvider implements IStyledLabelProvider {
 
         @Override
         public Image getImage(Object element) {
@@ -165,6 +168,59 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
                 return super.getImage(element);
         }
 
+        private String getMostSevereStatusText(IStatus status) {
+            if (status.getSeverity() != IStatus.OK) {
+                String text = status.getMessage();
+                IStatus[] children = status.getChildren();
+                if (children.length > 0) {
+                    for (int i = 0; i < children.length; ++i) {
+                        if (children[i].getSeverity() == status.getSeverity()) {
+                            return getMostSevereStatusText(children[i]);
+                        }
+                    }
+                }
+                return text;
+            }
+            return null;
+        }
+
+        @Override
+        public String getToolTipText(Object element) {
+            if (element instanceof Node) {
+                Node node = (Node)element;
+                IStatus status = node.validate();
+                return getMostSevereStatusText(status);
+            }
+            return super.getToolTipText(element);
+        }
+
+        @Override
+        public Image getToolTipImage(Object object) {
+            if (object instanceof Node) {
+                Node node = (Node)object;
+                IStatus status = node.validate();
+                switch (status.getSeverity()) {
+                case IStatus.INFO:
+                    return Activator.getDefault().getImageRegistry().get(Activator.IMG_OVERLAY_INFO);
+                case IStatus.WARNING:
+                    return Activator.getDefault().getImageRegistry().get(Activator.IMG_OVERLAY_WARNING);
+                case IStatus.ERROR:
+                    return Activator.getDefault().getImageRegistry().get(Activator.IMG_OVERLAY_ERROR);
+                }
+            }
+            return super.getToolTipImage(object);
+        }
+
+        @Override
+        public boolean isLabelProperty(Object element, String property) {
+            return true;
+        }
+
+        @Override
+        public StyledString getStyledText(Object element) {
+            return new StyledString(getText(element));
+        }
+
     }
 
     @Override
@@ -175,8 +231,7 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
         ColumnViewerToolTipSupport.enableFor(viewer);
         viewer.getTree().setHeaderVisible(false);
         viewer.setContentProvider(new OutlineContentProvider());
-        viewer.setLabelProvider(new LabelProvider());
-        viewer.setLabelProvider(new OutlineColumnLabelProvider());
+        viewer.setLabelProvider(new DecoratingDefoldLabelProvider(new OutlineLabelProvider(), Activator.getDefault().getWorkbench().getDecoratorManager().getLabelDecorator(), DecorationContext.DEFAULT_CONTEXT));
         viewer.setInput(this.root);
         viewer.expandToLevel(2);
 

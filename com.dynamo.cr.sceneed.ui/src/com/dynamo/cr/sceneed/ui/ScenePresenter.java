@@ -45,7 +45,11 @@ public class ScenePresenter implements Presenter {
         @Override
         public Node loadNode(String path) throws IOException, CoreException {
             IFile file = this.model.getContentRoot().getFile(new Path(path));
-            return loadNode(file.getFileExtension(), file.getContents());
+            if (file.exists()) {
+                return loadNode(file.getFileExtension(), file.getContents());
+            } else {
+                return null;
+            }
         }
 
         @Override

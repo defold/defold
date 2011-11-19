@@ -298,5 +298,22 @@
             class="com.dynamo.cr.sceneed.ui.preferences.PreferenceInitializer">
       </initializer>
    </extension>
+   <extension
+         point="org.eclipse.ui.decorators">
+      <decorator
+            adaptable="true"
+            class="com.dynamo.cr.sceneed.ui.decorators.SceneDecorator"
+            id="com.dynamo.cr.sceneed.ui.sceneDecorator"
+            label="Scene Decorator"
+            lightweight="true"
+            location="BOTTOM_LEFT"
+            state="true">
+         <enablement>
+            <objectClass
+                  name="com.dynamo.cr.sceneed.core.Node">
+            </objectClass>
+         </enablement>
+      </decorator>
+   </extension>
 
 </plugin>

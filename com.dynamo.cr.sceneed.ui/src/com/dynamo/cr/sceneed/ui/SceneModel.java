@@ -1,8 +1,5 @@
 package com.dynamo.cr.sceneed.ui;
 
-import java.util.HashMap;
-import java.util.Map;
-
 import javax.annotation.PreDestroy;
 
 import org.eclipse.core.commands.ExecutionException;
@@ -25,7 +22,6 @@ import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.swt.graphics.Image;
-import org.eclipse.ui.PlatformUI;
 
 import com.dynamo.cr.properties.Entity;
 import com.dynamo.cr.properties.IPropertyModel;
@@ -127,7 +123,8 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IResou
 
     @Override
     public void notifyChange(Node node) {
-        this.view.updateNode(node);
+        // Always update the root for now
+        this.view.updateNode(this.root);
     }
 
     /* (non-Javadoc)

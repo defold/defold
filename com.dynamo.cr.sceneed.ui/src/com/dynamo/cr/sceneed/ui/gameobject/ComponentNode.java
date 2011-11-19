@@ -63,6 +63,10 @@ public class ComponentNode extends Node {
 
     @Override
     public Image getImage() {
-        return getChildren().get(0).getImage();
+        if (hasChildren()) {
+            return this.getChildren().get(0).getImage();
+        } else {
+            return Activator.getDefault().getImageRegistry().get(Activator.IMG_COMPONENT);
+        }
     }
 }
