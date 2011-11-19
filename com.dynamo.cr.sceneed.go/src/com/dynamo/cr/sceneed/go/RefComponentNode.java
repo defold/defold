@@ -103,9 +103,9 @@ public class RefComponentNode extends ComponentNode {
         ISceneModel model = getModel();
         if (model != null) {
             try {
-                this.type = (ComponentTypeNode)getModel().loadNode(this.component);
+                this.type = (ComponentTypeNode)model.loadNode(this.component);
                 if (this.type != null) {
-                    this.type.setModel(this.getModel());
+                    this.type.setModel(model);
                 }
                 notifyChange();
             } catch (Throwable e) {

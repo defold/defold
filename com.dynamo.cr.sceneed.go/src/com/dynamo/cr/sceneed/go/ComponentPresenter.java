@@ -7,9 +7,9 @@ import java.io.InputStreamReader;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 
+import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.ISceneView.Context;
 import com.dynamo.cr.sceneed.core.Node;
-import com.dynamo.cr.sceneed.ui.NodePresenter;
 import com.dynamo.sprite.proto.Sprite.SpriteDesc;
 import com.google.protobuf.Message;
 import com.google.protobuf.TextFormat;
@@ -19,7 +19,7 @@ import com.google.protobuf.TextFormat;
  * @author rasv
  *
  */
-public class ComponentPresenter extends NodePresenter {
+public class ComponentPresenter implements ISceneView.NodePresenter {
 
     @Override
     public Node onLoad(Context context, String type, InputStream contents) throws IOException, CoreException {

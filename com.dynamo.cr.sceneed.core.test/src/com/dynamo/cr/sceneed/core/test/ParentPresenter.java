@@ -2,7 +2,6 @@ package com.dynamo.cr.sceneed.core.test;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
@@ -39,12 +38,6 @@ public class ParentPresenter implements NodePresenter {
     public Message onBuildMessage(Context context, Node node,
             IProgressMonitor monitor) throws IOException, CoreException {
         return null;
-    }
-
-    @Override
-    public void onSaveMessage(Context context, Message message,
-            OutputStream contents, IProgressMonitor monitor)
-                    throws IOException, CoreException {
     }
 
 }

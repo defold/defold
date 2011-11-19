@@ -39,7 +39,6 @@ public interface ISceneView {
     public interface NodePresenter {
         Node onLoad(Context context, String type, InputStream contents) throws IOException, CoreException;
         Message onBuildMessage(Context context, Node node, IProgressMonitor monitor) throws IOException, CoreException;
-        void onSaveMessage(Context context, Message message, OutputStream contents, IProgressMonitor monitor) throws IOException, CoreException;
         Node onCreateNode(Context context, String type) throws IOException, CoreException;
     }
 

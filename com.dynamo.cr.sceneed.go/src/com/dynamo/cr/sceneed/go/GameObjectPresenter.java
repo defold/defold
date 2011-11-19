@@ -11,11 +11,12 @@ import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.SubMonitor;
 import org.eclipse.jface.viewers.IStructuredSelection;
 
+import com.dynamo.cr.sceneed.core.ISceneView;
+import com.dynamo.cr.sceneed.core.SceneUtil;
 import com.dynamo.cr.sceneed.core.ISceneView.Context;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.go.operations.AddComponentOperation;
 import com.dynamo.cr.sceneed.go.operations.RemoveComponentOperation;
-import com.dynamo.cr.sceneed.ui.NodePresenter;
 import com.dynamo.gameobject.proto.GameObject.ComponentDesc;
 import com.dynamo.gameobject.proto.GameObject.EmbeddedComponentDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
@@ -23,7 +24,7 @@ import com.dynamo.gameobject.proto.GameObject.PrototypeDesc.Builder;
 import com.google.protobuf.Message;
 import com.google.protobuf.TextFormat;
 
-public class GameObjectPresenter extends NodePresenter {
+public class GameObjectPresenter implements ISceneView.NodePresenter {
 
     private GameObjectNode findGameObjectFromSelection(IStructuredSelection selection) {
         Object[] nodes = selection.toArray();
@@ -152,7 +153,7 @@ public class GameObjectPresenter extends NodePresenter {
                 ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
                 SubMonitor partProgress = progress.newChild(1).setWorkRemaining(2);
                 Message message = context.buildMessage(componentType, partProgress.newChild(1));
-                onSaveMessage(context, message, byteStream, partProgress.newChild(1));
+                SceneUtil.saveMessage(message, byteStream, partProgress.newChild(1));
                 componentBuilder.setType(componentType.getTypeId());
                 componentBuilder.setData(byteStream.toString());
                 builder.addEmbeddedComponents(componentBuilder);

@@ -205,10 +205,17 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IResou
     public boolean visit(IResourceDelta delta) throws CoreException {
         IResource resource = delta.getResource();
         if (resource instanceof IFile) {
-            this.root.handleFileChanged((IFile)resource);
+            handleReload(this.root, (IFile)resource);
             return false;
         }
         return true;
+    }
+
+    private void handleReload(Node node, IFile file) {
+        for (Node child : node.getChildren()) {
+            handleReload(child, file);
+        }
+        node.handleReload(file);
     }
 
     /* (non-Javadoc)
