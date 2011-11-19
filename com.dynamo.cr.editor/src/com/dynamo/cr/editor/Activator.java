@@ -92,13 +92,13 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
     // The shared instance
     private static Activator plugin;
 
-	private static BundleContext context;
+    private static BundleContext context;
 
-	boolean branchListenerAdded = false;
+    boolean branchListenerAdded = false;
 
-	static BundleContext getContext() {
-		return context;
-	}
+    static BundleContext getContext() {
+        return context;
+    }
 
     /**
      * Returns the shared instance
@@ -170,21 +170,22 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
     }
 
     /*
-	 * (non-Javadoc)
-	 * @see org.osgi.framework.BundleActivator#start(org.osgi.framework.BundleContext)
-	 */
-	@SuppressWarnings({ "unchecked", "rawtypes" })
+     * (non-Javadoc)
+     * @see org.osgi.framework.BundleActivator#start(org.osgi.framework.BundleContext)
+     */
+    @Override
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void start(BundleContext bundleContext) throws Exception {
-	    super.start(bundleContext);
-	    this.logger = Logger.getLogger(Activator.PLUGIN_ID);
+        super.start(bundleContext);
+        this.logger = Logger.getLogger(Activator.PLUGIN_ID);
 
         proxyTracker = new ServiceTracker(bundleContext, IProxyService.class
                 .getName(), null);
         proxyTracker.open();
 
         plugin = this;
-		Activator.context = bundleContext;
-		//connectProjectClient();
+        Activator.context = bundleContext;
+        //connectProjectClient();
         IPreferenceStore store = getPreferenceStore();
         store.addPropertyChangeListener(this);
         updateSocksProxy();
@@ -203,7 +204,7 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
         ResourcesPlugin.getWorkspace().addResourceChangeListener(this, IResourceChangeEvent.POST_CHANGE);
     }
 
-	private void updateSocksProxy() {
+    private void updateSocksProxy() {
         IPreferenceStore store = getPreferenceStore();
         String socks_proxy = store.getString(PreferenceConstants.P_SOCKS_PROXY);
         int socks_proxy_port = store.getInt(PreferenceConstants.P_SOCKS_PROXY_PORT);
@@ -235,28 +236,28 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
             Activator.logException(e);
         }
 
-	}
+    }
 
-	public IClientFactory getClientFactory() {
-	    return factory;
-	}
+    public IClientFactory getClientFactory() {
+        return factory;
+    }
 
-	public boolean connectProjectClient() {
+    public boolean connectProjectClient() {
 
-	    /*
-	     * NOTE: We can't invoke getWorkbench() in start. The workbench is not started yet.
-	     * Should we really use workspace services for this? (IBranchClient)
-	     */
-		if (!branchListenerAdded) {
-	        IBranchService branchService = (IBranchService)PlatformUI.getWorkbench().getService(IBranchService.class);
-	        if (branchService != null) {
+        /*
+         * NOTE: We can't invoke getWorkbench() in start. The workbench is not started yet.
+         * Should we really use workspace services for this? (IBranchClient)
+         */
+        if (!branchListenerAdded) {
+            IBranchService branchService = (IBranchService)PlatformUI.getWorkbench().getService(IBranchService.class);
+            if (branchService != null) {
                 branchListenerAdded = true;
-	            branchService.addBranchListener(this);
-	        } else {
-	            Status status = new Status(IStatus.ERROR, PLUGIN_ID, "Unable to locate IBranchService");
-	            StatusManager.getManager().handle(status, StatusManager.LOG);
-	        }
-		}
+                branchService.addBranchListener(this);
+            } else {
+                Status status = new Status(IStatus.ERROR, PLUGIN_ID, "Unable to locate IBranchService");
+                StatusManager.getManager().handle(status, StatusManager.LOG);
+            }
+        }
 
         ClientConfig cc = new DefaultClientConfig();
         cc.getClasses().add(ProtobufProviders.ProtobufMessageBodyReader.class);
@@ -322,16 +323,16 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
         projectsClient = factory.getProjectsClient(projectsUri);
 
         return true;
-	}
+    }
 
-	void setProjectExplorerInput(Object container) {
+    void setProjectExplorerInput(Object container) {
         ProjectExplorer view = findProjectExplorer();
         if (view != null) {
             view.getCommonViewer().setInput(container);
         }
-	}
+    }
 
-	public ProjectExplorer findProjectExplorer() {
+    public ProjectExplorer findProjectExplorer() {
         ProjectExplorer view = null;
         IWorkbenchWindow[] workbenches = PlatformUI.getWorkbench().getWorkbenchWindows();
         for (IWorkbenchWindow workbench : workbenches) {
@@ -342,11 +343,11 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
             }
         }
         return view;
-	}
+    }
 
-	public void disconnectFromBranch() throws RepositoryException {
-	    if (projectClient != null) {
-    	    ProjectInfo projectInfo = projectClient.getProjectInfo();
+    public void disconnectFromBranch() throws RepositoryException {
+        if (projectClient != null) {
+            ProjectInfo projectInfo = projectClient.getProjectInfo();
             IProject cr_project = ResourcesPlugin.getWorkspace().getRoot().getProject(projectInfo.getName());
             if (cr_project.exists())
             {
@@ -362,11 +363,11 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
                     branchService.updateBranchStatus(null);
                 }
             }
-	    }
+        }
 
-	    this.branchClient = null;
-	    this.activeBranch = null;
-	}
+        this.branchClient = null;
+        this.activeBranch = null;
+    }
 
     public void connectToBranch(IProjectClient projectClient, String branch) throws RepositoryException {
         this.projectClient = projectClient;
@@ -392,7 +393,7 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
 
                 @Override
                 public void run(IProgressMonitor monitor) throws InvocationTargetException,
-                        InterruptedException {
+                InterruptedException {
                     try {
                         if (p.exists())
                             p.delete(true, monitor);
@@ -432,15 +433,16 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
     }
 
 
-	/*
-	 * (non-Javadoc)
-	 * @see org.osgi.framework.BundleActivator#stop(org.osgi.framework.BundleContext)
-	 */
-	public void stop(BundleContext bundleContext) throws Exception {
+    /*
+     * (non-Javadoc)
+     * @see org.osgi.framework.BundleActivator#stop(org.osgi.framework.BundleContext)
+     */
+    @Override
+    public void stop(BundleContext bundleContext) throws Exception {
         super.stop(bundleContext);
         ResourcesPlugin.getWorkspace().removeResourceChangeListener(this);
         plugin = null;
-		Activator.context = null;
+        Activator.context = null;
         IPreferenceStore store = getPreferenceStore();
         store.removePropertyChangeListener(this);
 
@@ -448,7 +450,7 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
         if (branchService != null) {
             branchService.removeBranchListener(this);
         }
-	}
+    }
 
     @Override
     public void propertyChange(PropertyChangeEvent event) {
@@ -457,7 +459,7 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
             connectProjectClient();
         }
         else if (p.equals(PreferenceConstants.P_SOCKS_PROXY) ||
-        		 p.equals(PreferenceConstants.P_SOCKS_PROXY_PORT)) {
+                p.equals(PreferenceConstants.P_SOCKS_PROXY_PORT)) {
             updateSocksProxy();
         }
     }
@@ -487,8 +489,8 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
 
         // Mask of interesting resource kind change flags
         final int mask = IResourceDelta.ADDED
-                       | IResourceDelta.REMOVED
-                       | IResourceDelta.CHANGED;
+                | IResourceDelta.REMOVED
+                | IResourceDelta.CHANGED;
 
         // Set of changed resources
         final Set<IResource> changedResources = new HashSet<IResource>();

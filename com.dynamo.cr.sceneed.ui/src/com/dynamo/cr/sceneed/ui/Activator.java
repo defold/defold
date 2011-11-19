@@ -1,5 +1,9 @@
 package com.dynamo.cr.sceneed.ui;
 
+import org.eclipse.jface.resource.ImageDescriptor;
+import org.eclipse.jface.resource.ImageRegistry;
+import org.eclipse.swt.graphics.Image;
+import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.plugin.AbstractUIPlugin;
 import org.osgi.framework.BundleContext;
 
@@ -49,4 +53,18 @@ public class Activator extends AbstractUIPlugin {
         return plugin;
     }
 
+    public Image getImage(String extension) {
+        ImageRegistry imageRegistry = getImageRegistry();
+        ImageDescriptor descriptor = imageRegistry.getDescriptor(extension);
+        if (descriptor == null) {
+            descriptor = PlatformUI.getWorkbench().getEditorRegistry().getImageDescriptor("." + extension);
+            if (descriptor != null) {
+                imageRegistry.put(extension, descriptor);
+            }
+        }
+        if (descriptor != null) {
+            return imageRegistry.get(extension);
+        }
+        return null;
+    }
 }

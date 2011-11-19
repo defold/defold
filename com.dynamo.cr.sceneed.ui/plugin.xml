@@ -6,9 +6,17 @@
       <editor
             class="com.dynamo.cr.sceneed.ui.SceneEditor"
             default="false"
-            extensions="go, sprite"
+            extensions="go"
             icon="icons/brick.png"
-            id="com.dynamo.cr.sceneed.editor"
+            id="com.dynamo.cr.sceneed.goEditor"
+            name="Scene Editor">
+      </editor>
+      <editor
+            class="com.dynamo.cr.sceneed.ui.SceneEditor"
+            default="false"
+            extensions="sprite"
+            icon="icons/penguin.png"
+            id="com.dynamo.cr.sceneed.spriteEditor"
             name="Scene Editor">
       </editor>
    </extension>

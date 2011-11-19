@@ -5,6 +5,7 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.MultiStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.osgi.util.NLS;
+import org.eclipse.swt.graphics.Image;
 
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.sceneed.core.ISceneModel;
@@ -111,6 +112,11 @@ public class RefComponentNode extends ComponentNode {
                 // no reason to handle exception since having a null type is invalid state, will be caught in validateComponent below
             }
         }
+    }
+
+    @Override
+    public Image getImage() {
+        return this.type.getImage();
     }
 
 }

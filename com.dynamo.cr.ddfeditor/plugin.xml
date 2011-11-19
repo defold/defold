@@ -103,15 +103,6 @@
             name="Emitter Editor">
       </editor>
       <editor
-            class="com.dynamo.cr.ddfeditor.SpriteEditor"
-            contributorClass="com.dynamo.cr.ddfeditor.DdfEditorActionBarContributor"
-            default="false"
-            extensions="sprite"
-            icon="icons/penguin.png"
-            id="com.dynamo.cr.ddfeditor.spriteeditor"
-            name="Sprite Editor">
-      </editor>
-      <editor
             class="com.dynamo.cr.ddfeditor.ConvexShapeEditor"
             contributorClass="com.dynamo.cr.ddfeditor.DdfEditorActionBarContributor"
             default="false"

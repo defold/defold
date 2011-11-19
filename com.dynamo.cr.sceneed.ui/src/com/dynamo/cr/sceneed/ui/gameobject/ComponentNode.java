@@ -3,6 +3,7 @@ package com.dynamo.cr.sceneed.ui.gameobject;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.osgi.util.NLS;
+import org.eclipse.swt.graphics.Image;
 
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.sceneed.core.Node;
@@ -60,4 +61,8 @@ public class ComponentNode extends Node {
         return Messages.class;
     }
 
+    @Override
+    public Image getImage() {
+        return getChildren().get(0).getImage();
+    }
 }

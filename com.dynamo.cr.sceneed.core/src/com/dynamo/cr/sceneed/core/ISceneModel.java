@@ -6,6 +6,7 @@ import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IResourceChangeEvent;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.jface.viewers.IStructuredSelection;
+import org.eclipse.swt.graphics.Image;
 
 public interface ISceneModel extends ISceneWorld {
 
@@ -32,5 +33,7 @@ public interface ISceneModel extends ISceneWorld {
     void setUndoRedoCounter(int undoRedoCounter);
 
     void notifyChange(Node node);
+
+    Image getImage(Class<? extends Node> nodeClass);
 
 }

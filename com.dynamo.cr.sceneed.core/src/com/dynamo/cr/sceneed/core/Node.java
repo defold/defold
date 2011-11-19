@@ -95,7 +95,11 @@ public abstract class Node implements IAdaptable {
     }
 
     public Image getImage() {
-        return null;
+        if (this.model != null) {
+            return this.model.getImage(getClass());
+        } else {
+            return null;
+        }
     }
 
     public final IStatus validate() {
