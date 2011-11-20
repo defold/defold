@@ -1,6 +1,8 @@
 package com.dynamo.cr.go.core;
 
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.List;
 
 import org.eclipse.osgi.util.NLS;
 
@@ -36,6 +38,22 @@ public class GameObjectNode extends Node {
     @Override
     protected Class<? extends NLS> getMessages() {
         return Messages.class;
+    }
+
+    public String getUniqueId(String baseId) {
+        List<Node> children = getChildren();
+        List<String> ids = new ArrayList<String>(children.size());
+        for (Node child : children) {
+            ids.add(((ComponentNode)child).getId());
+        }
+        String id = baseId;
+        String format = "%s%d";
+        int i = 1;
+        while (ids.contains(id)) {
+            id = String.format(format, baseId, i);
+            ++i;
+        }
+        return id;
     }
 
 }

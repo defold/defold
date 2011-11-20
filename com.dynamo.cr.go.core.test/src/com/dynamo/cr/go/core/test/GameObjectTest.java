@@ -330,6 +330,28 @@ public class GameObjectTest extends AbstractTest {
         verifyUpdate(go);
     }
 
+    private ComponentNode addSprite() {
+        GameObjectNode go = (GameObjectNode)this.model.getRoot();
+        ComponentNode component = new ComponentNode(new SpriteNode());
+        AddComponentOperation op = new AddComponentOperation(go, component);
+        this.model.executeOperation(op);
+        return component;
+    }
+
+    @Test
+    public void testUniqueId() throws Exception {
+        testLoad();
+
+        ComponentNode component = addSprite();
+        assertThat(component.getId(), is("sprite"));
+
+        component = addSprite();
+        assertThat(component.getId(), is("sprite1"));
+
+        component = addSprite();
+        assertThat(component.getId(), is("sprite2"));
+    }
+
     @Test
     public void testComponentMessages() throws Exception {
         testAddComponentOperation();
@@ -348,6 +370,7 @@ public class GameObjectTest extends AbstractTest {
         component = new ComponentNode(sprite);
         AddComponentOperation op = new AddComponentOperation(go, component);
         this.model.executeOperation(op);
+        component.setId("sprite");
 
         assertNodePropertyStatus(component, "id", IStatus.ERROR, NLS.bind(Messages.ComponentNode_id_DUPLICATED, "sprite"));
     }
