@@ -52,6 +52,7 @@ public class LuaConfiguration extends SourceViewerConfiguration {
 
 	public IPresentationReconciler getPresentationReconciler(ISourceViewer sourceViewer) {
 		PresentationReconciler reconciler = new PresentationReconciler();
+		reconciler.setDocumentPartitioning(getConfiguredDocumentPartitioning(sourceViewer));
 
 		DefaultDamagerRepairer dr;
 
@@ -68,6 +69,11 @@ public class LuaConfiguration extends SourceViewerConfiguration {
         reconciler.setRepairer(dr, IDocument.DEFAULT_CONTENT_TYPE);
 
 		return reconciler;
+	}
+
+	@Override
+	public String getConfiguredDocumentPartitioning(ISourceViewer sourceViewer) {
+	    return "com.dynamo.cr.luaeditor.partitioning";
 	}
 
 	@Override
