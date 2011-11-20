@@ -67,4 +67,10 @@ public class ComponentNode extends Node {
             return Activator.getDefault().getImageRegistry().get(Activator.IMG_COMPONENT);
         }
     }
+
+    @Override
+    protected IStatus doValidate() {
+        return validateProperties(new String[] {"id"});
+    }
+
 }

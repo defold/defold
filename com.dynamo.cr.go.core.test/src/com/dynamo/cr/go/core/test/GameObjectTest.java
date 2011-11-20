@@ -373,6 +373,7 @@ public class GameObjectTest extends AbstractTest {
         component.setId("sprite");
 
         assertNodePropertyStatus(component, "id", IStatus.ERROR, NLS.bind(Messages.ComponentNode_id_DUPLICATED, "sprite"));
+        assertThat(component.validate().getSeverity(), is(IStatus.ERROR));
     }
 
     @Test
