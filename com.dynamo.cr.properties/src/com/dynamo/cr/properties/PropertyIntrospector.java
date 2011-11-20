@@ -51,7 +51,7 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
         this.klass = klass;
         try {
             introspect();
-        } catch (Throwable e) {
+        } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
@@ -142,7 +142,7 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
         IPropertyAccessor<T, U> accessor;
         try {
             accessor = accessorClass.newInstance();
-        } catch (Throwable e) {
+        } catch (Exception e) {
             throw new RuntimeException(e);
         }
         Object value = accessor.getValue(object, (String) id, world);
@@ -153,7 +153,7 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
         IPropertyAccessor<T, U> accessor;
         try {
             accessor = accessorClass.newInstance();
-        } catch (Throwable e) {
+        } catch (Exception e) {
             throw new RuntimeException(e);
         }
         //accessor = new PropertyAccessorValidator(accessor);
@@ -166,7 +166,7 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
         IPropertyAccessor<T, U> accessor;
         try {
             accessor = accessorClass.newInstance();
-        } catch (Throwable e) {
+        } catch (Exception e) {
             throw new RuntimeException(e);
         }
         boolean editable = accessor.isEditable(object, (String) id, world);
