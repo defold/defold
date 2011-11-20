@@ -1,4 +1,4 @@
-package com.dynamo.cr.tileeditor;
+package com.dynamo.cr.editor.ui;
 import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.part.EditorActionBarContributor;
 

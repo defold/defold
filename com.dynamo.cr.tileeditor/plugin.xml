@@ -5,7 +5,7 @@
          point="org.eclipse.ui.editors">
       <editor
             class="com.dynamo.cr.tileeditor.TileSetEditor"
-            contributorClass="com.dynamo.cr.tileeditor.DefoldEditorActionBarContributor"
+            contributorClass="com.dynamo.cr.editor.ui.DefoldEditorActionBarContributor"
             default="false"
             extensions="tileset"
             icon="icons/tile_set.png"
@@ -14,7 +14,7 @@
       </editor>
       <editor
             class="com.dynamo.cr.tileeditor.GridEditor"
-            contributorClass="com.dynamo.cr.tileeditor.DefoldEditorActionBarContributor"
+            contributorClass="com.dynamo.cr.editor.ui.DefoldEditorActionBarContributor"
             default="false"
             extensions="tilegrid"
             icon="icons/tile_grid.png"
