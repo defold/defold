@@ -105,18 +105,17 @@
         <module>../com.dynamo.cr.client.test</module>
         <module>../com.dynamo.cr.guieditor</module>
         <module>../com.dynamo.cr.guieditor.test</module>
-        <module>../com.dynamo.cr.goeditor</module>
-        <module>../com.dynamo.cr.goeditor.test</module>
         <module>../com.dynamo.cr.tileeditor</module>
         <module>../com.dynamo.cr.tileeditor.test</module>
         <module>../com.dynamo.cr.properties</module>
         <module>../com.dynamo.cr.properties.test</module>
         <module>../com.dynamo.cr.sceneed.core</module>
         <module>../com.dynamo.cr.sceneed.core.test</module>
-        <module>../com.dynamo.cr.sceneed.go</module>
-        <module>../com.dynamo.cr.sceneed.go.test</module>
         <module>../com.dynamo.cr.sceneed.ui</module>
         <module>../com.dynamo.cr.sceneed.ui.test</module>
+        <module>../com.dynamo.cr.go.core</module>
+        <module>../com.dynamo.cr.go.core.test</module>
+        <module>../com.dynamo.cr.go.ui</module>
         <module>../javax.media.opengl</module>
     </modules>
 

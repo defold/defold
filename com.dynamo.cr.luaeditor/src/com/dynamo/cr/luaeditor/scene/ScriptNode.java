@@ -1,6 +1,6 @@
 package com.dynamo.cr.luaeditor.scene;
 
-import com.dynamo.cr.sceneed.go.GenericComponentTypeNode;
+import com.dynamo.cr.go.core.GenericComponentTypeNode;
 
 public class ScriptNode extends GenericComponentTypeNode {
 

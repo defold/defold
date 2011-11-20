@@ -7,9 +7,9 @@ import java.io.InputStreamReader;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 
+import com.dynamo.cr.go.core.ComponentLoader;
 import com.dynamo.cr.sceneed.core.ISceneView.ILoaderContext;
 import com.dynamo.cr.sceneed.core.Node;
-import com.dynamo.cr.sceneed.go.ComponentLoader;
 import com.dynamo.gamesystem.proto.GameSystem.CollectionProxyDesc;
 import com.dynamo.gamesystem.proto.GameSystem.SpawnPointDesc;
 import com.dynamo.physics.proto.Physics.CollisionObjectDesc;
