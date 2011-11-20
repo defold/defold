@@ -203,7 +203,6 @@ INSTANTIATE_TEST_CASE_P(CollisionObject, ComponentTest, ::testing::ValuesIn(vali
 
 const char* invalid_collision_object_gos[] =
 {
-    "/collision_object/invalid_mass.goc",
     "/collision_object/invalid_shape.goc"
 };
 INSTANTIATE_TEST_CASE_P(CollisionObject, ComponentFailTest, ::testing::ValuesIn(invalid_collision_object_gos));
