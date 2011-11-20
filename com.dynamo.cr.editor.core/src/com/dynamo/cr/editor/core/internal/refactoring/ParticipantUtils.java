@@ -221,13 +221,15 @@ public class ParticipantUtils {
             }
         }
 
+        Set<IResourceType> newResourceTypes = new HashSet<IResourceType>();
         for (IResourceType rt : candidateResourceTypes) {
             // If embeddable continue searching in hierarchy
             if (rt.isEmbeddable()) {
                 Set<IResourceType> tmp = findCandidateResourceTypes(rt);
-                candidateResourceTypes.addAll(tmp);
+                newResourceTypes.addAll(tmp);
             }
         }
+        candidateResourceTypes.addAll(newResourceTypes);
 
         return candidateResourceTypes;
     }
