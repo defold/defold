@@ -5,9 +5,9 @@ import java.io.InputStream;
 
 import org.eclipse.core.runtime.CoreException;
 
+import com.dynamo.cr.go.core.ComponentLoader;
 import com.dynamo.cr.sceneed.core.ISceneView.ILoaderContext;
 import com.dynamo.cr.sceneed.core.Node;
-import com.dynamo.cr.sceneed.go.ComponentLoader;
 
 public class ScriptLoader extends ComponentLoader {
     @Override

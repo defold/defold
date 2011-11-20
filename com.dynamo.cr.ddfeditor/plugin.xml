@@ -435,7 +435,7 @@
             template-data="name: &apos;unnamed&apos;">
          <references>
             <reference-resource-type
-                  resource-type="com.dynamo.cr.sceneed.go.resourcetypes.gameObject">
+                  resource-type="com.dynamo.cr.go.core.resourcetypes.gameObject">
             </reference-resource-type>
             <reference-resource-type
                   resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Collection">

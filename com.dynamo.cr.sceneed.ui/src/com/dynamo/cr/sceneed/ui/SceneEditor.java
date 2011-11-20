@@ -56,6 +56,7 @@ import com.dynamo.cr.properties.IFormPropertySheetPage;
 import com.dynamo.cr.sceneed.core.IImageProvider;
 import com.dynamo.cr.sceneed.core.IModelListener;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
+import com.dynamo.cr.sceneed.core.ISceneEditor;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.ISceneView.ILoaderContext;
@@ -68,7 +69,7 @@ import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
 
-public class SceneEditor extends AbstractDefoldEditor implements ISelectionListener, IPropertyChangeListener {
+public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, ISelectionListener, IPropertyChangeListener {
 
     private ISceneOutlinePage outlinePage;
     private IFormPropertySheetPage propertySheetPage;

@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+   <extension
+         point="com.dynamo.cr.nodetypes">
+      <node-type
+            node="com.dynamo.cr.go.core.GameObjectNode"
+            loader="com.dynamo.cr.go.core.GameObjectLoader"
+            presenter="com.dynamo.cr.go.core.GameObjectPresenter"
+            resource-type="com.dynamo.cr.go.core.resourcetypes.gameObject">
+      </node-type>
+      <node-type
+            node="com.dynamo.cr.go.core.SpriteNode"
+            loader="com.dynamo.cr.go.core.ComponentLoader"
+            resource-type="com.dynamo.cr.go.core.resourcetypes.sprite">
+      </node-type>
+   </extension>
+   <extension
+         point="org.eclipse.core.expressions.definitions">
+      <definition
+            id="com.dynamo.cr.go.core.definitions.gameObjectSelected">
+         <with
+               variable="selection">
+            <iterate
+                  operator="or">
+               <instanceof
+                     value="com.dynamo.cr.go.core.GameObjectNode">
+               </instanceof>
+            </iterate>
+         </with>
+      </definition>
+      <definition
+            id="com.dynamo.cr.go.core.definitions.componentSelected">
+         <with
+               variable="selection">
+            <iterate
+                  operator="or">
+               <instanceof
+                     value="com.dynamo.cr.go.core.ComponentNode">
+               </instanceof>
+            </iterate>
+         </with>
+      </definition>
+   </extension>
+   <extension
+         point="com.dynamo.cr.resourcetypes">
+      <resource-type
+            file-extension="go"
+            id="com.dynamo.cr.go.core.resourcetypes.gameObject"
+            name="Game Object"
+            proto-message-class="com.dynamo.gameobject.proto.GameObject$PrototypeDesc"
+            resource-refactor-participant-class="com.dynamo.cr.go.core.refactoring.GameObjectRefactorParticipant"
+            template-data=" "
+            type-class="gameobject">
+         <references>
+            <reference-type-class
+                  type-class="component">
+            </reference-type-class>
+         </references>
+      </resource-type>
+      <resource-type
+            embeddable="true"
+            file-extension="sprite"
+            id="com.dynamo.cr.go.core.resourcetypes.sprite"
+            name="Sprite"
+            proto-message-class="com.dynamo.sprite.proto.Sprite$SpriteDesc"
+            resource-refactor-participant-class="com.dynamo.cr.go.core.refactoring.SpriteRefactorParticipant"
+            template-data="texture: &apos;&apos; width: 1 height: 1"
+            type-class="component">
+         <references>
+            <reference-type-class
+                  type-class="image">
+            </reference-type-class>
+         </references>
+      </resource-type>
+   </extension>
+</plugin>
