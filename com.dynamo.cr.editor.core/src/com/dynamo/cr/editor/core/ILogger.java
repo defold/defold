@@ -1,4 +1,4 @@
-package com.dynamo.cr.sceneed.core;
+package com.dynamo.cr.editor.core;
 
 public interface ILogger {
 

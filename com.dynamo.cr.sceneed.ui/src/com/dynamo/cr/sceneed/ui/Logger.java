@@ -4,7 +4,7 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.ui.statushandlers.StatusManager;
 
-import com.dynamo.cr.sceneed.core.ILogger;
+import com.dynamo.cr.editor.core.ILogger;
 
 public class Logger implements ILogger {
 

@@ -37,9 +37,9 @@ import static org.mockito.Mockito.any;
 import static org.junit.Assert.assertTrue;
 
 import com.dynamo.cr.editor.core.EditorUtil;
+import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.sceneed.core.Activator;
-import com.dynamo.cr.sceneed.core.ILogger;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.ISceneView;

@@ -2,6 +2,8 @@ package com.dynamo.cr.tileeditor;
 import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.part.EditorActionBarContributor;
 
+import com.dynamo.cr.editor.ui.AbstractDefoldEditor;
+
 
 
 public class DefoldEditorActionBarContributor extends

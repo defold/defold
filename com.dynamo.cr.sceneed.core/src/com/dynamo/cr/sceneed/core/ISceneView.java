@@ -10,6 +10,7 @@ import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.jface.viewers.IStructuredSelection;
 
+import com.dynamo.cr.editor.core.ILogger;
 import com.google.protobuf.Message;
 
 public interface ISceneView {

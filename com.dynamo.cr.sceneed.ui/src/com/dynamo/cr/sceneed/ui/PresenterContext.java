@@ -3,7 +3,7 @@ package com.dynamo.cr.sceneed.ui;
 import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.jface.viewers.IStructuredSelection;
 
-import com.dynamo.cr.sceneed.core.ILogger;
+import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.ISceneView;
 import com.google.inject.Inject;

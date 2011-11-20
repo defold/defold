@@ -50,14 +50,15 @@ import org.eclipse.ui.views.contentoutline.IContentOutlinePage;
 import org.eclipse.ui.views.properties.IPropertySheetPage;
 
 import com.dynamo.cr.editor.core.EditorUtil;
+import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.editor.core.inject.LifecycleModule;
+import com.dynamo.cr.editor.ui.AbstractDefoldEditor;
 import com.dynamo.cr.properties.FormPropertySheetPage;
 import com.dynamo.cr.tileeditor.commands.ShowPalette;
 import com.dynamo.cr.tileeditor.core.GridModel;
 import com.dynamo.cr.tileeditor.core.GridPresenter;
 import com.dynamo.cr.tileeditor.core.IGridView;
 import com.dynamo.cr.tileeditor.core.IGridView.Presenter;
-import com.dynamo.cr.tileeditor.core.ILogger;
 import com.dynamo.cr.tileeditor.core.Layer;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;

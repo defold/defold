@@ -46,6 +46,7 @@ import org.eclipse.ui.views.contentoutline.IContentOutlinePage;
 import org.eclipse.ui.views.properties.IPropertySheetPage;
 
 import com.dynamo.cr.editor.core.EditorUtil;
+import com.dynamo.cr.editor.ui.AbstractDefoldEditor;
 import com.dynamo.cr.properties.FormPropertySheetPage;
 import com.dynamo.cr.properties.FormPropertySheetViewer;
 import com.dynamo.cr.tileeditor.commands.SetBrushCollisionGroup;

@@ -24,6 +24,7 @@ import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.swt.graphics.Rectangle;
 
+import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.tileeditor.core.Layer.Cell;
 import com.dynamo.cr.tileeditor.operations.AddLayerOperation;
 import com.dynamo.cr.tileeditor.operations.RemoveLayerOperation;

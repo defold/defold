@@ -1,6 +1,4 @@
-package com.dynamo.cr.sceneed.ui;
-
-import javax.inject.Inject;
+package com.dynamo.cr.editor.ui;
 
 import org.eclipse.core.commands.operations.IOperationApprover;
 import org.eclipse.core.commands.operations.IOperationHistory;
@@ -33,7 +31,8 @@ import org.eclipse.ui.operations.RedoActionHandler;
 import org.eclipse.ui.operations.UndoActionHandler;
 import org.eclipse.ui.part.EditorPart;
 
-import com.dynamo.cr.sceneed.core.ILogger;
+import com.dynamo.cr.editor.core.ILogger;
+import com.google.inject.Inject;
 
 public abstract class AbstractDefoldEditor extends EditorPart {
 

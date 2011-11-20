@@ -38,8 +38,8 @@ import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.handlers.IHandlerService;
 import org.eclipse.ui.services.IDisposable;
 
+import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.tileeditor.core.IGridView;
-import com.dynamo.cr.tileeditor.core.ILogger;
 import com.dynamo.cr.tileeditor.core.Layer;
 import com.dynamo.cr.tileeditor.core.Layer.Cell;
 import com.dynamo.tile.TileSetUtil;
