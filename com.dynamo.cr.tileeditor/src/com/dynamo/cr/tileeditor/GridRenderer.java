@@ -639,7 +639,10 @@ Listener {
                     int x = Layer.toCellX(entry.getKey());
                     int y = Layer.toCellY(entry.getKey());
                     if ((x + 1) >= cellMin.getX() && x <= cellMax.getX() && (y + 1) >= cellMin.getY() && y <= cellMax.getY()) {
-                        cells.put(entry.getKey(), entry.getValue());
+                        // Do not draw over active cell
+                        if (!(activeCell != null && activeCell.x == x && activeCell.y == y)) {
+                            cells.put(entry.getKey(), entry.getValue());
+                        }
                     }
                 }
             }
