@@ -41,8 +41,6 @@ def go_file(prj, tsk):
 
     for i, c in enumerate(msg.components):
         if not os.path.exists(c.component[1:]):
-            #import pdb
-            #pdb.set_trace()
             raise Exception('%s:0: error: is missing dependent resource file "%s"' % (tsk['inputs'][0], c.component))
 
     for i, c in enumerate(msg.embedded_components):
@@ -133,6 +131,9 @@ def transform_collectionproxy(msg):
     return msg
 
 def transform_collisionobject(msg):
+    import physics_ddf_pb2
+    if msg.type != physics_ddf_pb2.COLLISION_OBJECT_TYPE_DYNAMIC:
+        msg.mass = 0
     msg.collision_shape = msg.collision_shape.replace('.convexshape', '.convexshapec')
     msg.collision_shape = msg.collision_shape.replace('.tilegrid', '.tilegridc')
     return msg

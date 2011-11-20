@@ -92,7 +92,10 @@ namespace dmGameSystem
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         if ((co_res->m_DDF->m_Mass == 0.0f && co_res->m_DDF->m_Type == dmPhysicsDDF::COLLISION_OBJECT_TYPE_DYNAMIC)
             || (co_res->m_DDF->m_Mass > 0.0f && co_res->m_DDF->m_Type != dmPhysicsDDF::COLLISION_OBJECT_TYPE_DYNAMIC))
+        {
+            dmLogError("Invalid mass %f for shape type %d", co_res->m_DDF->m_Mass, co_res->m_DDF->m_Type);
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+        }
         Component* component = new Component();
         component->m_Resource = (CollisionObjectResource*)params.m_Resource;
         component->m_Object2D = 0;
