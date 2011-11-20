@@ -403,7 +403,7 @@ public class GameObjectTest extends AbstractTest {
 
     @Override
     protected String getBundleName() {
-        return "com.dynamo.cr.sceneed.go.test";
+        return "com.dynamo.cr.go.core.test";
     }
 
 }
