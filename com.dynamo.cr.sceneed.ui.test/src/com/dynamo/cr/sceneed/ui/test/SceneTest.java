@@ -57,8 +57,8 @@ public class SceneTest extends AbstractTest {
 
     @Test
     public void testSelection() throws Exception {
-        TestNode root = new TestNode();
-        TestNode child = new TestNode();
+        DummyNode root = new DummyNode();
+        DummyNode child = new DummyNode();
         root.addChild(child);
 
         select(root);

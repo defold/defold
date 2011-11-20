@@ -4,9 +4,9 @@ import org.eclipse.osgi.util.NLS;
 
 import com.dynamo.cr.sceneed.core.Node;
 
-public class TestNode extends Node {
+public class DummyNode extends Node {
 
-    public void addChild(TestNode child) {
+    public void addChild(DummyNode child) {
         super.addChild(child);
     }
 
