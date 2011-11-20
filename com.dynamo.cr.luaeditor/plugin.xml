@@ -65,6 +65,13 @@
       </resource-type>
    </extension>
    <extension
+         point="org.eclipse.core.filebuffers.documentSetup">
+      <participant
+            class="com.dynamo.cr.luaeditor.LuaDocumentSetupParticipant"
+            extensions="lua,script,gui_script,render_script">
+      </participant>
+   </extension>
+   <extension
          point="com.dynamo.cr.nodetypes">
       <node-type
             node="com.dynamo.cr.luaeditor.scene.ScriptNode"
@@ -72,5 +79,4 @@
             resource-type="com.dynamo.cr.luaeditor.resourcetypes.Script">
       </node-type>
    </extension>
-
 </plugin>

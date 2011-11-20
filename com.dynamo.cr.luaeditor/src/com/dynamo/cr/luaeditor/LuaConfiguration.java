@@ -28,7 +28,8 @@ public class LuaConfiguration extends SourceViewerConfiguration {
 	public String[] getConfiguredContentTypes(ISourceViewer sourceViewer) {
 		return new String[] {
 			IDocument.DEFAULT_CONTENT_TYPE,
-			LuaPartitionScanner.LUA_COMMENT };
+			LuaPartitionScanner.LUA_COMMENT_SINGLE,
+			LuaPartitionScanner.LUA_COMMENT_MULTI };
 	}
 	public ITextDoubleClickStrategy getDoubleClickStrategy(
 		ISourceViewer sourceViewer,
@@ -52,17 +53,19 @@ public class LuaConfiguration extends SourceViewerConfiguration {
 	public IPresentationReconciler getPresentationReconciler(ISourceViewer sourceViewer) {
 		PresentationReconciler reconciler = new PresentationReconciler();
 
-	      DefaultDamagerRepairer dr =
-	            new DefaultDamagerRepairer(getLuaScanner());
-	        reconciler.setDamager(dr, IDocument.DEFAULT_CONTENT_TYPE);
-	        reconciler.setRepairer(dr, IDocument.DEFAULT_CONTENT_TYPE);
+		DefaultDamagerRepairer dr;
 
-		NonRuleBasedDamagerRepairer ndr =
-			new NonRuleBasedDamagerRepairer(
-				new TextAttribute(
-					colorManager.getColor(ILuaColorConstants.COMMENT)));
-		reconciler.setDamager(ndr, LuaPartitionScanner.LUA_COMMENT);
-		reconciler.setRepairer(ndr, LuaPartitionScanner.LUA_COMMENT);
+        dr = new DefaultDamagerRepairer(new LuaSingleCommentScanner(colorManager));
+        reconciler.setDamager(dr, LuaPartitionScanner.LUA_COMMENT_SINGLE);
+        reconciler.setRepairer(dr, LuaPartitionScanner.LUA_COMMENT_SINGLE);
+
+        dr = new DefaultDamagerRepairer(new LuaMultiCommentScanner(colorManager));
+        reconciler.setDamager(dr, LuaPartitionScanner.LUA_COMMENT_MULTI);
+        reconciler.setRepairer(dr, LuaPartitionScanner.LUA_COMMENT_MULTI);
+
+        dr = new DefaultDamagerRepairer(getLuaScanner());
+        reconciler.setDamager(dr, IDocument.DEFAULT_CONTENT_TYPE);
+        reconciler.setRepairer(dr, IDocument.DEFAULT_CONTENT_TYPE);
 
 		return reconciler;
 	}

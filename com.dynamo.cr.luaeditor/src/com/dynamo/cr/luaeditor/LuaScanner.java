@@ -5,7 +5,6 @@ import org.eclipse.jface.text.rules.IRule;
 import org.eclipse.jface.text.rules.IToken;
 import org.eclipse.jface.text.rules.IWordDetector;
 import org.eclipse.jface.text.rules.RuleBasedScanner;
-import org.eclipse.jface.text.rules.SingleLineRule;
 import org.eclipse.jface.text.rules.Token;
 import org.eclipse.jface.text.rules.WhitespaceRule;
 import org.eclipse.jface.text.rules.WordRule;
@@ -14,36 +13,25 @@ import org.eclipse.swt.SWT;
 public class LuaScanner extends RuleBasedScanner {
 
     public LuaScanner(ColorManager manager) {
-        IToken string =
-            new Token(
-                    new TextAttribute(manager.getColor(ILuaColorConstants.STRING)));
+        IToken keyword = new Token(new TextAttribute(
+                manager.getColor(ILuaColorConstants.KEYWORD), null, SWT.BOLD));
 
-        IToken keyword =
-            new Token(
-                new TextAttribute(manager.getColor(ILuaColorConstants.KEYWORD), null, SWT.BOLD));
+        IToken defaultToken = new Token(new TextAttribute(
+                manager.getColor(ILuaColorConstants.DEFAULT)));
 
-        IToken defaultToken =
-            new Token(
-                new TextAttribute(manager.getColor(ILuaColorConstants.DEFAULT)));
+        IRule[] rules = new IRule[3];
 
-        IRule[] rules = new IRule[5];
+        rules[0] = new WhitespaceRule(new LuaWhitespaceDetector());
 
-        // Add rule for double quotes
-        rules[0] = new SingleLineRule("\"", "\"", string, '\\');
-        // Add a rule for single-line comment
-        rules[1] = new CommentRule(manager);
-        // Add generic whitespace rule.
-        rules[2] = new WhitespaceRule(new LuaWhitespaceDetector());
+        IWordDetector nameDetector = new IWordDetector() {
+            public boolean isWordStart(char c) {
+                return Character.isLetter(c) || c == '_' || c == ':';
+            }
 
-         IWordDetector nameDetector = new IWordDetector() {
-             public boolean isWordStart(char c) {
-                 return Character.isLetter(c) || c == '_' || c == ':';
-             }
-
-             public boolean isWordPart(char c) {
-                 return isWordStart(c) || Character.isDigit(c) || c == '-';
-             }
-         };
+            public boolean isWordPart(char c) {
+                return isWordStart(c) || Character.isDigit(c) || c == '-';
+            }
+        };
 
         WordRule name_rule = new WordRule(nameDetector);
 
@@ -69,9 +57,9 @@ public class LuaScanner extends RuleBasedScanner {
         name_rule.addWord("until", keyword);
         name_rule.addWord("while", keyword);
         name_rule.addWord("self", keyword);
-        rules[3] = name_rule;
+        rules[1] = name_rule;
 
-        rules[4] = new WordRule(nameDetector, defaultToken);
+        rules[2] = new WordRule(nameDetector, defaultToken);
 
         setRules(rules);
     }
