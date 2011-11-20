@@ -53,12 +53,16 @@ import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.editor.core.inject.LifecycleModule;
 import com.dynamo.cr.editor.ui.AbstractDefoldEditor;
 import com.dynamo.cr.properties.IFormPropertySheetPage;
+import com.dynamo.cr.sceneed.core.IImageProvider;
+import com.dynamo.cr.sceneed.core.IModelListener;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.ISceneView.ILoaderContext;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.sceneed.core.SceneModel;
+import com.dynamo.cr.sceneed.core.ScenePresenter;
 import com.dynamo.cr.sceneed.ui.preferences.PreferenceConstants;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
@@ -87,9 +91,11 @@ public class SceneEditor extends AbstractDefoldEditor implements ISelectionListe
             bind(ISceneModel.class).to(SceneModel.class).in(Singleton.class);
             bind(INodeTypeRegistry.class).toInstance(com.dynamo.cr.sceneed.core.Activator.getDefault());
             bind(ISceneView.IPresenter.class).to(ScenePresenter.class).in(Singleton.class);
+            bind(IModelListener.class).to(ScenePresenter.class).in(Singleton.class);
             bind(SceneEditor.class).toInstance(SceneEditor.this);
             bind(ILoaderContext.class).to(LoaderContext.class).in(Singleton.class);
             bind(IPresenterContext.class).to(PresenterContext.class).in(Singleton.class);
+            bind(IImageProvider.class).toInstance(Activator.getDefault());
 
             bind(IOperationHistory.class).toInstance(history);
             bind(IUndoContext.class).toInstance(undoContext);

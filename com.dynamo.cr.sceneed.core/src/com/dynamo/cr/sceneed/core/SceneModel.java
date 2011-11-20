@@ -1,4 +1,4 @@
-package com.dynamo.cr.sceneed.ui;
+package com.dynamo.cr.sceneed.core;
 
 import java.io.IOException;
 
@@ -30,8 +30,8 @@ import com.dynamo.cr.properties.Entity;
 import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.properties.PropertyIntrospector;
 import com.dynamo.cr.properties.PropertyIntrospectorModel;
+import com.dynamo.cr.sceneed.core.IModelListener;
 import com.dynamo.cr.sceneed.core.ISceneModel;
-import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.ISceneView.ILoaderContext;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.SceneUndoableCommandFactory;
@@ -40,12 +40,13 @@ import com.google.inject.Inject;
 @Entity(commandFactory = SceneUndoableCommandFactory.class)
 public class SceneModel implements IAdaptable, IOperationHistoryListener, IResourceDeltaVisitor, ISceneModel {
 
-    private final ISceneView view;
+    private final IModelListener listener;
     private final IOperationHistory history;
     private final IUndoContext undoContext;
     private final ILogger logger;
     private final IContainer contentRoot;
     private final ILoaderContext loaderContext;
+    private final IImageProvider imageProvider;
 
     private Node root;
     private IStructuredSelection selection;
@@ -54,13 +55,15 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IResou
     private static PropertyIntrospector<SceneModel, SceneModel> introspector = new PropertyIntrospector<SceneModel, SceneModel>(SceneModel.class, Messages.class);
 
     @Inject
-    public SceneModel(ISceneView view, IOperationHistory history, IUndoContext undoContext, ILogger logger, IContainer contentRoot, ILoaderContext loaderContext) {
-        this.view = view;
+    public SceneModel(IModelListener listener, IOperationHistory history, IUndoContext undoContext, ILogger logger, IContainer contentRoot, ILoaderContext loaderContext, IImageProvider imageProvider) {
+        this.listener = listener;
         this.history = history;
         this.undoContext = undoContext;
         this.logger = logger;
         this.contentRoot = contentRoot;
         this.loaderContext = loaderContext;
+        this.imageProvider = imageProvider;
+
         this.selection = new StructuredSelection();
         this.undoRedoCounter = 0;
     }
@@ -93,7 +96,7 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IResou
             if (root != null) {
                 root.setModel(this);
             }
-            this.view.setRoot(root);
+            this.listener.rootChanged(root);
             if (root != null) {
                 setSelection(new StructuredSelection(this.root));
             } else {
@@ -118,14 +121,14 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IResou
     public void setSelection(IStructuredSelection selection) {
         if (!this.selection.equals(selection)) {
             this.selection = selection;
-            this.view.updateSelection(this.selection);
+            this.listener.selectionChanged(this.selection);
         }
     }
 
     @Override
     public void notifyChange(Node node) {
         // Always update the root for now
-        this.view.updateNode(this.root);
+        this.listener.nodeChanged(this.root);
     }
 
     /* (non-Javadoc)
@@ -170,7 +173,7 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IResou
         // The "framework" might as for isDirty()
         this.undoRedoCounter = undoRedoCounter;
         if (prevDirty != dirty) {
-            this.view.setDirty(dirty);
+            this.listener.dirtyChanged(dirty);
         }
     }
 
@@ -239,7 +242,7 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IResou
     public Image getImage(Class<? extends Node> nodeClass) {
         String extension = this.loaderContext.getNodeTypeRegistry().getExtension(nodeClass);
         if (extension != null) {
-            return Activator.getDefault().getImage(extension);
+            return this.imageProvider.getImage(extension);
         }
         return null;
     }

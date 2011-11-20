@@ -33,11 +33,15 @@ import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
 import com.dynamo.cr.sceneed.core.Activator;
+import com.dynamo.cr.sceneed.core.IImageProvider;
+import com.dynamo.cr.sceneed.core.IModelListener;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.ISceneView.ILoaderContext;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.sceneed.core.SceneModel;
+import com.dynamo.cr.sceneed.core.ScenePresenter;
 import com.dynamo.cr.sceneed.core.test.AbstractTest;
 import com.dynamo.cr.sceneed.go.ComponentNode;
 import com.dynamo.cr.sceneed.go.ComponentTypeNode;
@@ -48,8 +52,6 @@ import com.dynamo.cr.sceneed.go.RefComponentNode;
 import com.dynamo.cr.sceneed.go.SpriteNode;
 import com.dynamo.cr.sceneed.go.operations.AddComponentOperation;
 import com.dynamo.cr.sceneed.go.operations.RemoveComponentOperation;
-import com.dynamo.cr.sceneed.ui.SceneModel;
-import com.dynamo.cr.sceneed.ui.ScenePresenter;
 import com.dynamo.sprite.proto.Sprite.SpriteDesc;
 import com.google.inject.Module;
 import com.google.inject.Singleton;
@@ -59,6 +61,7 @@ public class GameObjectTest extends AbstractTest {
 
     private ILoaderContext loaderContext;
     private IPresenterContext presenterContext;
+    private IImageProvider imageProvider;
 
     class TestModule extends GenericTestModule {
         @Override
@@ -67,8 +70,10 @@ public class GameObjectTest extends AbstractTest {
             bind(ISceneModel.class).to(SceneModel.class).in(Singleton.class);
             bind(ISceneView.class).toInstance(view);
             bind(ISceneView.IPresenter.class).to(ScenePresenter.class).in(Singleton.class);
+            bind(IModelListener.class).to(ScenePresenter.class).in(Singleton.class);
             bind(ISceneView.ILoaderContext.class).toInstance(loaderContext);
             bind(ISceneView.IPresenterContext.class).toInstance(presenterContext);
+            bind(IImageProvider.class).toInstance(imageProvider);
         }
     }
 
@@ -78,6 +83,7 @@ public class GameObjectTest extends AbstractTest {
         this.view = mock(ISceneView.class);
         this.loaderContext = mock(ILoaderContext.class);
         this.presenterContext = mock(IPresenterContext.class);
+        this.imageProvider = mock(IImageProvider.class);
 
         super.setup();
         this.model = this.injector.getInstance(ISceneModel.class);

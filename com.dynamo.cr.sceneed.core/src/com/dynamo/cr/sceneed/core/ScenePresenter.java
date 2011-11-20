@@ -1,4 +1,4 @@
-package com.dynamo.cr.sceneed.ui;
+package com.dynamo.cr.sceneed.core;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -10,6 +10,7 @@ import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.jface.viewers.IStructuredSelection;
 
 import com.dynamo.cr.editor.core.ILogger;
+import com.dynamo.cr.sceneed.core.IModelListener;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.ISceneView;
@@ -21,7 +22,7 @@ import com.dynamo.cr.sceneed.core.SceneUtil;
 import com.google.inject.Inject;
 import com.google.protobuf.Message;
 
-public class ScenePresenter implements IPresenter {
+public class ScenePresenter implements IPresenter, IModelListener {
 
     private final ISceneModel model;
     private final ISceneView view;
@@ -66,6 +67,26 @@ public class ScenePresenter implements IPresenter {
     @Override
     public void onResourceChanged(IResourceChangeEvent event) throws CoreException {
         this.model.handleResourceChanged(event);
+    }
+
+    @Override
+    public void rootChanged(Node root) {
+        this.view.setRoot(root);
+    }
+
+    @Override
+    public void selectionChanged(IStructuredSelection selection) {
+        this.view.updateSelection(selection);
+    }
+
+    @Override
+    public void nodeChanged(Node node) {
+        this.view.updateNode(node);
+    }
+
+    @Override
+    public void dirtyChanged(boolean dirty) {
+        this.view.setDirty(dirty);
     }
 
 }

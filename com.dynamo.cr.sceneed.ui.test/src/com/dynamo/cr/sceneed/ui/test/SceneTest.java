@@ -9,14 +9,17 @@ import org.eclipse.jface.viewers.StructuredSelection;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.dynamo.cr.sceneed.core.IImageProvider;
+import com.dynamo.cr.sceneed.core.IModelListener;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.ISceneView.ILoaderContext;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.sceneed.core.SceneModel;
+import com.dynamo.cr.sceneed.core.ScenePresenter;
 import com.dynamo.cr.sceneed.core.test.AbstractTest;
-import com.dynamo.cr.sceneed.ui.SceneModel;
-import com.dynamo.cr.sceneed.ui.ScenePresenter;
+import com.dynamo.cr.sceneed.ui.Activator;
 import com.google.inject.Module;
 import com.google.inject.Singleton;
 
@@ -32,8 +35,10 @@ public class SceneTest extends AbstractTest {
             bind(ISceneModel.class).to(SceneModel.class).in(Singleton.class);
             bind(ISceneView.class).toInstance(view);
             bind(ISceneView.IPresenter.class).to(ScenePresenter.class).in(Singleton.class);
+            bind(IModelListener.class).to(ScenePresenter.class).in(Singleton.class);
             bind(ILoaderContext.class).toInstance(loaderContext);
             bind(IPresenterContext.class).toInstance(presenterContext);
+            bind(IImageProvider.class).toInstance(Activator.getDefault());
         }
     }
 

@@ -7,10 +7,12 @@ import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.plugin.AbstractUIPlugin;
 import org.osgi.framework.BundleContext;
 
+import com.dynamo.cr.sceneed.core.IImageProvider;
+
 /**
  * The activator class controls the plug-in life cycle
  */
-public class Activator extends AbstractUIPlugin {
+public class Activator extends AbstractUIPlugin implements IImageProvider {
 
     // The plug-in ID
     public static final String PLUGIN_ID = "com.dynamo.cr.sceneed.ui"; //$NON-NLS-1$
@@ -58,6 +60,7 @@ public class Activator extends AbstractUIPlugin {
         return plugin;
     }
 
+    @Override
     public Image getImage(String extension) {
         ImageRegistry imageRegistry = getImageRegistry();
         ImageDescriptor descriptor = imageRegistry.getDescriptor(extension);
