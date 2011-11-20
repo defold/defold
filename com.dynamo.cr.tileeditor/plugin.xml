@@ -643,7 +643,7 @@
          point="com.dynamo.cr.nodetypes">
       <node-type
             node="com.dynamo.cr.sceneed.go.TileGridNode"
-            presenter="com.dynamo.cr.sceneed.go.ComponentPresenter"
+            loader="com.dynamo.cr.tileeditor.scene.TileComponentLoader"
             resource-type="com.dynamo.cr.tileeditor.resourcetypes.TileGrid">
       </node-type>
    </extension>

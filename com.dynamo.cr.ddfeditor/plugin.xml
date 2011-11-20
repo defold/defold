@@ -538,42 +538,42 @@
          point="com.dynamo.cr.nodetypes">
       <node-type
             node="com.dynamo.cr.ddfeditor.scene.SpawnPointNode"
-            presenter="com.dynamo.cr.ddfeditor.scene.DdfComponentPresenter"
+            loader="com.dynamo.cr.ddfeditor.scene.DdfComponentLoader"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.SpawnPoint">
       </node-type>
       <node-type
             node="com.dynamo.cr.ddfeditor.scene.CollisionObjectNode"
-            presenter="com.dynamo.cr.ddfeditor.scene.DdfComponentPresenter"
+            loader="com.dynamo.cr.ddfeditor.scene.DdfComponentLoader"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.CollisionObject">
       </node-type>
       <node-type
             node="com.dynamo.cr.ddfeditor.scene.CollectionProxyNode"
-            presenter="com.dynamo.cr.ddfeditor.scene.DdfComponentPresenter"
+            loader="com.dynamo.cr.ddfeditor.scene.DdfComponentLoader"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.CollectionProxy">
       </node-type>
       <node-type
             node="com.dynamo.cr.ddfeditor.scene.CameraNode"
-            presenter="com.dynamo.cr.ddfeditor.scene.DdfComponentPresenter"
+            loader="com.dynamo.cr.ddfeditor.scene.DdfComponentLoader"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Camera">
       </node-type>
       <node-type
             node="com.dynamo.cr.ddfeditor.scene.EmitterNode"
-            presenter="com.dynamo.cr.ddfeditor.scene.DdfComponentPresenter"
+            loader="com.dynamo.cr.ddfeditor.scene.DdfComponentLoader"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Emitter">
       </node-type>
       <node-type
             node="com.dynamo.cr.ddfeditor.scene.LightNode"
-            presenter="com.dynamo.cr.ddfeditor.scene.DdfComponentPresenter"
+            loader="com.dynamo.cr.ddfeditor.scene.DdfComponentLoader"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Light">
       </node-type>
       <node-type
             node="com.dynamo.cr.ddfeditor.scene.GuiNode"
-            presenter="com.dynamo.cr.ddfeditor.scene.DdfComponentPresenter"
+            loader="com.dynamo.cr.ddfeditor.scene.DdfComponentLoader"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Gui">
       </node-type>
       <node-type
             node="com.dynamo.cr.ddfeditor.scene.ModelNode"
-            presenter="com.dynamo.cr.ddfeditor.scene.DdfComponentPresenter"
+            loader="com.dynamo.cr.ddfeditor.scene.DdfComponentLoader"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Model">
       </node-type>
    </extension>

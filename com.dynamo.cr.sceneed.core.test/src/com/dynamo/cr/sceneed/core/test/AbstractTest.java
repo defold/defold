@@ -54,7 +54,7 @@ public abstract class AbstractTest {
     protected ISceneModel model;
     protected Injector injector;
     protected ISceneView view;
-    protected ISceneView.Presenter presenter;
+    protected ISceneView.IPresenter presenter;
     protected IOperationHistory history;
     protected IUndoContext undoContext;
     protected IContainer contentRoot;
@@ -127,7 +127,7 @@ public abstract class AbstractTest {
 
         this.injector = Guice.createInjector(getModule());
         this.model = this.injector.getInstance(ISceneModel.class);
-        this.presenter = this.injector.getInstance(ISceneView.Presenter.class);
+        this.presenter = this.injector.getInstance(ISceneView.IPresenter.class);
         this.history = this.injector.getInstance(IOperationHistory.class);
         this.undoContext = this.injector.getInstance(IUndoContext.class);
 

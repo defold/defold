@@ -51,7 +51,7 @@
 
    <element name="node-type">
       <complexType>
-         <attribute name="presenter" type="string" use="required">
+         <attribute name="presenter" type="string">
             <annotation>
                <documentation>
                   
@@ -88,6 +88,16 @@
                </documentation>
                <appinfo>
                   <meta.attribute kind="java" basedOn="com.dynamo.cr.sceneed.core.Node:"/>
+               </appinfo>
+            </annotation>
+         </attribute>
+         <attribute name="loader" type="string" use="required">
+            <annotation>
+               <documentation>
+                  
+               </documentation>
+               <appinfo>
+                  <meta.attribute kind="java" basedOn=":com.dynamo.cr.sceneed.core.ISceneView.NodeLoader"/>
                </appinfo>
             </annotation>
          </attribute>

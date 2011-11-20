@@ -7,18 +7,18 @@ import java.io.InputStreamReader;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 
+import com.dynamo.cr.sceneed.core.ISceneView.ILoaderContext;
 import com.dynamo.cr.sceneed.core.Node;
-import com.dynamo.cr.sceneed.core.ISceneView.Context;
-import com.dynamo.cr.sceneed.go.ComponentPresenter;
+import com.dynamo.cr.sceneed.go.ComponentLoader;
 import com.dynamo.gamesystem.proto.GameSystem.CollectionProxyDesc;
 import com.dynamo.gamesystem.proto.GameSystem.SpawnPointDesc;
 import com.dynamo.physics.proto.Physics.CollisionObjectDesc;
 import com.google.protobuf.Message;
 import com.google.protobuf.TextFormat;
 
-public class DdfComponentPresenter extends ComponentPresenter {
+public class DdfComponentLoader extends ComponentLoader {
     @Override
-    public Node onLoad(Context context, String type, InputStream contents)
+    public Node load(ILoaderContext context, String type, InputStream contents)
             throws IOException, CoreException {
         if (type.equals("spawnpoint")) {
             InputStreamReader reader = new InputStreamReader(contents);
@@ -59,10 +59,10 @@ public class DdfComponentPresenter extends ComponentPresenter {
             collectionProxy.setCollection(desc.getCollection());
             return collectionProxy;
         }
-        return super.onLoad(context, type, contents);
+        return super.load(context, type, contents);
     }
     @Override
-    public Node onCreateNode(Context context, String type) throws IOException,
+    public Node createNode(String type) throws IOException,
     CoreException {
         if (type.equals("spawnpoint")) {
             return new SpawnPointNode();
@@ -81,11 +81,11 @@ public class DdfComponentPresenter extends ComponentPresenter {
         } else if (type.equals("model")) {
             return new ModelNode(type);
         }
-        return super.onCreateNode(context, type);
+        return super.createNode(type);
     }
 
     @Override
-    public Message onBuildMessage(Context context, Node node,
+    public Message buildMessage(ILoaderContext context, Node node,
             IProgressMonitor monitor) throws IOException, CoreException {
         if (node instanceof SpawnPointNode) {
             SpawnPointDesc.Builder builder = SpawnPointDesc.newBuilder();
@@ -112,6 +112,6 @@ public class DdfComponentPresenter extends ComponentPresenter {
             builder.setCollection(collectionProxy.getCollection());
             return builder.build();
         }
-        return super.onBuildMessage(context, node, monitor);
+        return super.buildMessage(context, node, monitor);
     }
 }

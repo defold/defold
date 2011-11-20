@@ -1,5 +1,7 @@
 package com.dynamo.cr.sceneed.ui;
 
+import java.io.IOException;
+
 import javax.annotation.PreDestroy;
 
 import org.eclipse.core.commands.ExecutionException;
@@ -28,9 +30,9 @@ import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.properties.PropertyIntrospector;
 import com.dynamo.cr.properties.PropertyIntrospectorModel;
 import com.dynamo.cr.sceneed.core.ILogger;
-import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.ISceneView;
+import com.dynamo.cr.sceneed.core.ISceneView.ILoaderContext;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.SceneUndoableCommandFactory;
 import com.google.inject.Inject;
@@ -38,28 +40,27 @@ import com.google.inject.Inject;
 @Entity(commandFactory = SceneUndoableCommandFactory.class)
 public class SceneModel implements IAdaptable, IOperationHistoryListener, IResourceDeltaVisitor, ISceneModel {
 
-    private Node root;
     private final ISceneView view;
-    private final ISceneView.Presenter presenter;
     private final IOperationHistory history;
     private final IUndoContext undoContext;
     private final ILogger logger;
     private final IContainer contentRoot;
-    private final INodeTypeRegistry nodeTypeRegistry;
+    private final ILoaderContext loaderContext;
+
+    private Node root;
     private IStructuredSelection selection;
     private int undoRedoCounter;
 
     private static PropertyIntrospector<SceneModel, SceneModel> introspector = new PropertyIntrospector<SceneModel, SceneModel>(SceneModel.class, Messages.class);
 
     @Inject
-    public SceneModel(ISceneView view, ISceneView.Presenter presenter, IOperationHistory history, IUndoContext undoContext, ILogger logger, IContainer contentRoot, INodeTypeRegistry nodeTypeRegistry) {
+    public SceneModel(ISceneView view, IOperationHistory history, IUndoContext undoContext, ILogger logger, IContainer contentRoot, ILoaderContext loaderContext) {
         this.view = view;
-        this.presenter = presenter;
         this.history = history;
         this.undoContext = undoContext;
         this.logger = logger;
         this.contentRoot = contentRoot;
-        this.nodeTypeRegistry = nodeTypeRegistry;
+        this.loaderContext = loaderContext;
         this.selection = new StructuredSelection();
         this.undoRedoCounter = 0;
     }
@@ -230,18 +231,13 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IResou
      * @see com.dynamo.cr.sceneed.core.ISceneModel#loadNode(java.lang.String)
      */
     @Override
-    public Node loadNode(String path) {
-        try {
-            return this.presenter.getContext().loadNode(path);
-        } catch (Throwable e) {
-            this.logger.logException(e);
-            return null;
-        }
+    public Node loadNode(String path) throws IOException, CoreException {
+        return this.loaderContext.loadNode(path);
     }
 
     @Override
     public Image getImage(Class<? extends Node> nodeClass) {
-        String extension = this.nodeTypeRegistry.getExtension(nodeClass);
+        String extension = this.loaderContext.getNodeTypeRegistry().getExtension(nodeClass);
         if (extension != null) {
             return Activator.getDefault().getImage(extension);
         }

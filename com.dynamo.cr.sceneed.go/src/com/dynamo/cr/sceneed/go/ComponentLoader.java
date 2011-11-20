@@ -8,7 +8,7 @@ import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 
 import com.dynamo.cr.sceneed.core.ISceneView;
-import com.dynamo.cr.sceneed.core.ISceneView.Context;
+import com.dynamo.cr.sceneed.core.ISceneView.ILoaderContext;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.sprite.proto.Sprite.SpriteDesc;
 import com.google.protobuf.Message;
@@ -19,10 +19,10 @@ import com.google.protobuf.TextFormat;
  * @author rasv
  *
  */
-public class ComponentPresenter implements ISceneView.NodePresenter {
+public class ComponentLoader implements ISceneView.INodeLoader {
 
     @Override
-    public Node onLoad(Context context, String type, InputStream contents) throws IOException, CoreException {
+    public Node load(ILoaderContext context, String type, InputStream contents) throws IOException, CoreException {
         // TODO: Solve this better through extension point
         if (type.equals("sprite")) {
             InputStreamReader reader = new InputStreamReader(contents);
@@ -39,11 +39,11 @@ public class ComponentPresenter implements ISceneView.NodePresenter {
             sprite.setTileCount(desc.getTileCount());
             return sprite;
         }
-        return onCreateNode(context, type);
+        return createNode(type);
     }
 
     @Override
-    public Node onCreateNode(Context context, String type) throws IOException, CoreException {
+    public Node createNode(String type) throws IOException, CoreException {
         // TODO: Solve this better through extension point
         if (type.equals("sprite")) {
             return new SpriteNode();
@@ -53,7 +53,7 @@ public class ComponentPresenter implements ISceneView.NodePresenter {
     }
 
     @Override
-    public Message onBuildMessage(Context context, Node node, IProgressMonitor monitor) throws IOException, CoreException {
+    public Message buildMessage(ILoaderContext context, Node node, IProgressMonitor monitor) throws IOException, CoreException {
         if (node instanceof SpriteNode) {
             SpriteDesc.Builder builder = SpriteDesc.newBuilder();
             SpriteNode sprite = (SpriteNode)node;

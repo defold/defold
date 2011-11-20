@@ -24,12 +24,14 @@ public class Activator implements BundleActivator, INodeTypeRegistry {
     }
 
     private static class NodeImpl {
-        public String extension;
-        public ISceneView.NodePresenter presenter;
-        public INodeRenderer renderer;
+        public final String extension;
+        public final ISceneView.INodeLoader loader;
+        public final ISceneView.INodePresenter presenter;
+        public final INodeRenderer renderer;
 
-        public NodeImpl(String extension, ISceneView.NodePresenter presenter, INodeRenderer renderer) {
+        public NodeImpl(String extension, ISceneView.INodeLoader loader, ISceneView.INodePresenter presenter, INodeRenderer renderer) {
             this.extension = extension;
+            this.loader = loader;
             this.presenter = presenter;
             this.renderer = renderer;
         }
@@ -65,14 +67,20 @@ public class Activator implements BundleActivator, INodeTypeRegistry {
 
             @SuppressWarnings("unchecked")
             Class<? extends Node> nodeClass = (Class<? extends Node>)bundle.loadClass(e.getAttribute("node"));
-            ISceneView.NodePresenter nodePresenter = (ISceneView.NodePresenter)e.createExecutableExtension("presenter");
+
+            ISceneView.INodeLoader nodeLoader = (ISceneView.INodeLoader)e.createExecutableExtension("loader");
+
+            ISceneView.INodePresenter nodePresenter = null;
+            if (e.getAttribute("presenter") != null) {
+                nodePresenter = (ISceneView.INodePresenter)e.createExecutableExtension("presenter");
+            }
 
             INodeRenderer nodeRenderer = null;
             if (e.getAttribute("renderer") != null) {
                 nodeRenderer = (INodeRenderer) e.createExecutableExtension("renderer");
             }
 
-            registerNodeType(extension, nodeClass, nodePresenter, nodeRenderer);
+            registerNodeType(extension, nodeClass, nodeLoader, nodePresenter, nodeRenderer);
         }
     }
 
@@ -87,14 +95,33 @@ public class Activator implements BundleActivator, INodeTypeRegistry {
 
     }
 
-    public void registerNodeType(String extension, Class<? extends Node> c, ISceneView.NodePresenter presenter, INodeRenderer renderer) {
-        NodeImpl impl = new NodeImpl(extension, presenter, renderer);
+    public void registerNodeType(String extension, Class<? extends Node> c, ISceneView.INodeLoader loader, ISceneView.INodePresenter presenter, INodeRenderer renderer) {
+        NodeImpl impl = new NodeImpl(extension, loader, presenter, renderer);
         this.extToClass.put(extension, c);
         this.classToImpl.put(c, impl);
     }
 
     @Override
-    public ISceneView.NodePresenter getPresenter(String extension) {
+    public ISceneView.INodeLoader getLoader(String extension) {
+        NodeImpl impl = getImpl(extension);
+        if (impl != null) {
+            return impl.loader;
+        }
+        return null;
+    }
+
+    @Override
+    public ISceneView.INodeLoader getLoader(Class<? extends Node> c) {
+        NodeImpl impl = this.classToImpl.get(c);
+        if (impl != null) {
+            return impl.loader;
+        } else {
+            return null;
+        }
+    }
+
+    @Override
+    public ISceneView.INodePresenter getPresenter(String extension) {
         NodeImpl impl = getImpl(extension);
         if (impl != null) {
             return impl.presenter;
@@ -103,7 +130,7 @@ public class Activator implements BundleActivator, INodeTypeRegistry {
     }
 
     @Override
-    public ISceneView.NodePresenter getPresenter(Class<? extends Node> c) {
+    public ISceneView.INodePresenter getPresenter(Class<? extends Node> c) {
         NodeImpl impl = this.classToImpl.get(c);
         if (impl != null) {
             return impl.presenter;

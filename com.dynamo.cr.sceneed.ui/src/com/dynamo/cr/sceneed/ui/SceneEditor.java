@@ -55,7 +55,8 @@ import com.dynamo.cr.sceneed.core.ILogger;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.ISceneView;
-import com.dynamo.cr.sceneed.core.ISceneView.Context;
+import com.dynamo.cr.sceneed.core.ISceneView.ILoaderContext;
+import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.ui.preferences.PreferenceConstants;
 import com.google.inject.AbstractModule;
@@ -70,7 +71,9 @@ public class SceneEditor extends AbstractDefoldEditor implements ISelectionListe
 
     private IContainer contentRoot;
     private LifecycleModule module;
-    private ISceneView.Presenter presenter;
+    private ISceneView.IPresenter presenter;
+    private ISceneView.IPresenterContext presenterContext;
+    private ISceneView.ILoaderContext loaderContext;
     private boolean dirty;
 
     class Module extends AbstractModule {
@@ -82,8 +85,10 @@ public class SceneEditor extends AbstractDefoldEditor implements ISelectionListe
             bind(RenderView.class).in(Singleton.class);
             bind(ISceneModel.class).to(SceneModel.class).in(Singleton.class);
             bind(INodeTypeRegistry.class).toInstance(com.dynamo.cr.sceneed.core.Activator.getDefault());
-            bind(ISceneView.Presenter.class).to(ScenePresenter.class).in(Singleton.class);
+            bind(ISceneView.IPresenter.class).to(ScenePresenter.class).in(Singleton.class);
             bind(SceneEditor.class).toInstance(SceneEditor.this);
+            bind(ILoaderContext.class).to(LoaderContext.class).in(Singleton.class);
+            bind(IPresenterContext.class).to(PresenterContext.class).in(Singleton.class);
 
             bind(IOperationHistory.class).toInstance(history);
             bind(IUndoContext.class).toInstance(undoContext);
@@ -125,7 +130,9 @@ public class SceneEditor extends AbstractDefoldEditor implements ISelectionListe
         this.propertySheetPage = injector.getInstance(IFormPropertySheetPage.class);
         this.renderView = injector.getInstance(RenderView.class);
 
-        this.presenter = injector.getInstance(ISceneView.Presenter.class);
+        this.presenter = injector.getInstance(ISceneView.IPresenter.class);
+        this.presenterContext = injector.getInstance(ISceneView.IPresenterContext.class);
+        this.loaderContext = injector.getInstance(ISceneView.ILoaderContext.class);
 
         IPreferenceStore store = Activator.getDefault().getPreferenceStore();
         store.addPropertyChangeListener(this);
@@ -275,11 +282,19 @@ public class SceneEditor extends AbstractDefoldEditor implements ISelectionListe
         }
     }
 
-    public ISceneView.Presenter getPresenter() {
+    public ISceneView.IPresenter getPresenter() {
         return this.presenter;
     }
 
-    public ISceneView.NodePresenter getNodePresenter(Class<? extends Node> c) {
+    public ISceneView.ILoaderContext getLoaderContext() {
+        return this.loaderContext;
+    }
+
+    public ISceneView.IPresenterContext getPresenterContext() {
+        return this.presenterContext;
+    }
+
+    public ISceneView.INodePresenter getNodePresenter(Class<? extends Node> c) {
         return com.dynamo.cr.sceneed.core.Activator.getDefault().getPresenter(c);
     }
 
@@ -302,10 +317,6 @@ public class SceneEditor extends AbstractDefoldEditor implements ISelectionListe
             this.dirty = dirty;
             firePropertyChange(PROP_DIRTY);
         }
-    }
-
-    public Context getContext() {
-        return this.presenter.getContext();
     }
 
     @Override

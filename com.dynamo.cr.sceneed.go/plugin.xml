@@ -5,12 +5,13 @@
          point="com.dynamo.cr.nodetypes">
       <node-type
             node="com.dynamo.cr.sceneed.go.GameObjectNode"
+            loader="com.dynamo.cr.sceneed.go.GameObjectLoader"
             presenter="com.dynamo.cr.sceneed.go.GameObjectPresenter"
             resource-type="com.dynamo.cr.sceneed.go.resourcetypes.gameObject">
       </node-type>
       <node-type
             node="com.dynamo.cr.sceneed.go.SpriteNode"
-            presenter="com.dynamo.cr.sceneed.go.ComponentPresenter"
+            loader="com.dynamo.cr.sceneed.go.ComponentLoader"
             resource-type="com.dynamo.cr.sceneed.go.resourcetypes.sprite">
       </node-type>
    </extension>

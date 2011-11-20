@@ -1,5 +1,7 @@
 package com.dynamo.cr.sceneed.core;
 
+import java.io.IOException;
+
 import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IResourceChangeEvent;
@@ -24,7 +26,7 @@ public interface ISceneModel extends ISceneWorld {
 
     IFile getFile(String path);
 
-    Node loadNode(String path);
+    Node loadNode(String path) throws IOException, CoreException;
 
     void setUndoRedoCounter(int undoRedoCounter);
 

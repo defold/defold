@@ -18,7 +18,7 @@ public class AddComponentHandler extends AbstractHandler {
         if (editorPart instanceof SceneEditor) {
             SceneEditor sceneEditor = (SceneEditor)editorPart;
             GameObjectPresenter presenter = (GameObjectPresenter)sceneEditor.getNodePresenter(GameObjectNode.class);
-            presenter.onAddComponent(sceneEditor.getContext());
+            presenter.onAddComponent(sceneEditor.getPresenterContext(), sceneEditor.getLoaderContext());
         }
         return null;
     }

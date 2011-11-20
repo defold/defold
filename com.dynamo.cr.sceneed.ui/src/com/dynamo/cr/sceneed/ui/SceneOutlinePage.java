@@ -45,14 +45,14 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
 
     private static final String MENU_ID = "com.dynamo.cr.sceneed.menus.sceneOutlineContext";
 
-    private final ISceneView.Presenter presenter;
+    private final ISceneView.IPresenter presenter;
     private final UndoActionHandler undoHandler;
     private final RedoActionHandler redoHandler;
     private final RootItem root;
     private final ILogger logger;
 
     @Inject
-    public SceneOutlinePage(ISceneView.Presenter presenter, UndoActionHandler undoHandler, RedoActionHandler redoHandler, ILogger logger) {
+    public SceneOutlinePage(ISceneView.IPresenter presenter, UndoActionHandler undoHandler, RedoActionHandler redoHandler, ILogger logger) {
         this.presenter = presenter;
         this.undoHandler = undoHandler;
         this.redoHandler = redoHandler;

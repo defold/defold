@@ -9,10 +9,10 @@ import com.dynamo.cr.sceneed.core.ISceneView;
 class SceneLoader implements IRunnableWithProgress {
 
     IFile file;
-    ISceneView.Presenter presenter;
+    ISceneView.IPresenter presenter;
     Throwable exception;
 
-    public SceneLoader(IFile file, ISceneView.Presenter presenter) {
+    public SceneLoader(IFile file, ISceneView.IPresenter presenter) {
         this.file = file;
         this.presenter = presenter;
     }

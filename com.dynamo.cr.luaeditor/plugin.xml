@@ -68,7 +68,7 @@
          point="com.dynamo.cr.nodetypes">
       <node-type
             node="com.dynamo.cr.luaeditor.scene.ScriptNode"
-            presenter="com.dynamo.cr.luaeditor.scene.ScriptPresenter"
+            loader="com.dynamo.cr.luaeditor.scene.ScriptLoader"
             resource-type="com.dynamo.cr.luaeditor.resourcetypes.Script">
       </node-type>
    </extension>

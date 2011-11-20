@@ -22,7 +22,7 @@ public class NodeTypeTest extends AbstractTest {
             super.configure();
             bind(ISceneModel.class).toInstance(model);
             bind(ISceneView.class).toInstance(view);
-            bind(ISceneView.Presenter.class).toInstance(presenter);
+            bind(ISceneView.IPresenter.class).toInstance(presenter);
         }
     }
 
@@ -31,15 +31,15 @@ public class NodeTypeTest extends AbstractTest {
     public void setup() throws CoreException, IOException {
         this.model = mock(ISceneModel.class);
         this.view = mock(ISceneView.class);
-        this.presenter = mock(ISceneView.Presenter.class);
+        this.presenter = mock(ISceneView.IPresenter.class);
 
         super.setup();
     }
 
     @Test
     public void testRegistry() throws Exception {
-        assertTrue(this.nodeTypeRegistry.getPresenter("parent") instanceof ParentPresenter);
-        assertTrue(this.nodeTypeRegistry.getPresenter("child") instanceof ChildPresenter);
+        assertTrue(this.nodeTypeRegistry.getLoader("parent") instanceof ParentLoader);
+        assertTrue(this.nodeTypeRegistry.getLoader("child") instanceof ChildLoader);
     }
 
     @Override

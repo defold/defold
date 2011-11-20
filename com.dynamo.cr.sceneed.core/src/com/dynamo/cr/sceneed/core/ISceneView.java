@@ -14,17 +14,7 @@ import com.google.protobuf.Message;
 
 public interface ISceneView {
 
-    public interface Context extends ILogger {
-        Node loadNode(String path) throws IOException, CoreException;
-        Node loadNode(String type, InputStream contents) throws IOException, CoreException;
-        Message buildMessage(Node node, IProgressMonitor monitor) throws IOException, CoreException;
-        ISceneView getView();
-        IStructuredSelection getSelection();
-        void executeOperation(IUndoableOperation operation);
-        NodePresenter getPresenter(String nodeType);
-    }
-
-    public interface Presenter {
+    public interface IPresenter {
         void onSelect(IStructuredSelection selection);
         void onRefresh();
 
@@ -32,14 +22,26 @@ public interface ISceneView {
 
         void onSave(OutputStream contents, IProgressMonitor monitor) throws IOException, CoreException;
         void onResourceChanged(IResourceChangeEvent event) throws CoreException;
-
-        Context getContext();
     }
 
-    public interface NodePresenter {
-        Node onLoad(Context context, String type, InputStream contents) throws IOException, CoreException;
-        Message onBuildMessage(Context context, Node node, IProgressMonitor monitor) throws IOException, CoreException;
-        Node onCreateNode(Context context, String type) throws IOException, CoreException;
+    public interface IPresenterContext extends ILogger {
+        ISceneView getView();
+        IStructuredSelection getSelection();
+        void executeOperation(IUndoableOperation operation);
+    }
+
+    public interface INodePresenter {}
+
+    public interface ILoaderContext extends ILogger {
+        Node loadNode(String path) throws IOException, CoreException;
+        Node loadNode(String extension, InputStream contents) throws IOException, CoreException;
+        INodeTypeRegistry getNodeTypeRegistry();
+    }
+
+    public interface INodeLoader {
+        Node load(ILoaderContext context, String type, InputStream contents) throws IOException, CoreException;
+        Message buildMessage(ILoaderContext context, Node node, IProgressMonitor monitor) throws IOException, CoreException;
+        Node createNode(String type) throws IOException, CoreException;
     }
 
     void setRoot(Node root);
