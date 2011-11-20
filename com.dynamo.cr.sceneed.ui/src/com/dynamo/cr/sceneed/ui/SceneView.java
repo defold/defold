@@ -1,21 +1,17 @@
 package com.dynamo.cr.sceneed.ui;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import javax.inject.Inject;
 
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IResource;
 import org.eclipse.jface.dialogs.Dialog;
-import org.eclipse.jface.resource.ImageDescriptor;
 import org.eclipse.jface.viewers.ArrayContentProvider;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.LabelProvider;
 import org.eclipse.swt.graphics.Image;
-import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.dialogs.ListDialog;
 import org.eclipse.ui.dialogs.ResourceListSelectionDialog;
 
@@ -34,7 +30,6 @@ public class SceneView implements ISceneView {
     @Inject private RenderView renderView;
     @Inject private SceneEditor editor;
     @Inject private IContainer contentRoot;
-    private final Map<ImageDescriptor, Image> imageDescToImage = new HashMap<ImageDescriptor, Image>();
 
     @Override
     public void setRoot(Node root) {
@@ -54,17 +49,6 @@ public class SceneView implements ISceneView {
         // Update all selection providers
         this.renderView.setSelection(selection);
         this.outline.setSelection(selection);
-    }
-
-    private Image getImageFromFilename(String filename) {
-        ImageDescriptor imageDesc = PlatformUI.getWorkbench().getEditorRegistry().getImageDescriptor(filename);
-
-        if (!this.imageDescToImage.containsKey(imageDesc)) {
-            Image image = imageDesc.createImage();
-            this.imageDescToImage.put(imageDesc, image);
-        }
-
-        return this.imageDescToImage.get(imageDesc);
     }
 
     @Override
@@ -87,7 +71,7 @@ public class SceneView implements ISceneView {
             @Override
             public Image getImage(Object element) {
                 IResourceType resourceType = (IResourceType) element;
-                return getImageFromFilename("dummy." + resourceType.getFileExtension());
+                return Activator.getDefault().getImage(resourceType.getFileExtension());
             }
 
             @Override
