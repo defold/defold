@@ -1,8 +1,8 @@
 package com.dynamo.cr.ddfeditor.scene;
 
 import com.dynamo.cr.properties.Property;
+import com.dynamo.cr.properties.Resource;
 import com.dynamo.cr.sceneed.go.ComponentTypeNode;
-import com.dynamo.cr.sceneed.ui.Resource;
 
 public class SpawnPointNode extends ComponentTypeNode {
 

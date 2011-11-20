@@ -10,6 +10,7 @@ import java.util.Map;
 import javax.vecmath.Vector4d;
 
 import org.eclipse.core.commands.operations.IUndoableOperation;
+import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.swt.graphics.RGB;
@@ -33,6 +34,11 @@ public class PropertiesTest {
     static class TestWorld implements IPropertyObjectWorld {
         Map<String, Integer> commandsCreated = new HashMap<String, Integer>();
         int totalCommands = 0;
+
+        @Override
+        public IContainer getContentRoot() {
+            return null;
+        }
     }
 
     static public class TestCommandFactory implements ICommandFactory<TestClass, TestWorld> {

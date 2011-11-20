@@ -1,4 +1,4 @@
-package com.dynamo.cr.sceneed.ui;
+package com.dynamo.cr.properties;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;

@@ -1,4 +1,4 @@
-package com.dynamo.cr.sceneed.ui;
+package com.dynamo.cr.properties;
 
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
@@ -7,14 +7,10 @@ import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.osgi.util.NLS;
 
-import com.dynamo.cr.properties.IValidator;
-import com.dynamo.cr.properties.ValidateUtil;
-import com.dynamo.cr.sceneed.core.ISceneWorld;
-
-public class ResourceValidator implements IValidator<String, Resource, ISceneWorld> {
+public class ResourceValidator implements IValidator<String, Resource, IPropertyObjectWorld> {
 
     @Override
-    public IStatus validate(Resource validationParameters, String property, String value, ISceneWorld world, Class<? extends NLS> nls) {
+    public IStatus validate(Resource validationParameters, String property, String value, IPropertyObjectWorld world, Class<? extends NLS> nls) {
         if (value != null && value.length() > 0) {
             IContainer contentRoot = world.getContentRoot();
             IFile file = contentRoot.getFile(new Path(value));

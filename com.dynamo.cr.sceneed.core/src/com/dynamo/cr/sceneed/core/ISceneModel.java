@@ -9,7 +9,9 @@ import org.eclipse.core.runtime.CoreException;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.swt.graphics.Image;
 
-public interface ISceneModel extends ISceneWorld {
+import com.dynamo.cr.properties.IPropertyObjectWorld;
+
+public interface ISceneModel extends IPropertyObjectWorld {
 
     Node getRoot();
 

@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.eclipse.core.commands.operations.IUndoableOperation;
+import org.eclipse.core.resources.IContainer;
 
 import com.dynamo.cr.properties.IPropertyObjectWorld;
 
@@ -57,6 +58,11 @@ public class Scene implements IPropertyObjectWorld
 
     public void executeOperation(IUndoableOperation operation) {
         this.executeOperationDelegate.executeOperation(operation);
+    }
+
+    @Override
+    public IContainer getContentRoot() {
+        return null;
     }
 }
 

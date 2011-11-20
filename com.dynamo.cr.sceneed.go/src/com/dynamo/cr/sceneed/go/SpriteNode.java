@@ -4,7 +4,7 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.MultiStatus;
 
 import com.dynamo.cr.properties.Property;
-import com.dynamo.cr.sceneed.ui.Resource;
+import com.dynamo.cr.properties.Resource;
 
 public class SpriteNode extends ComponentTypeNode {
 

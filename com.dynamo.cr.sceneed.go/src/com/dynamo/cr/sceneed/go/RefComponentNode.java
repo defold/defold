@@ -8,8 +8,8 @@ import org.eclipse.osgi.util.NLS;
 import org.eclipse.swt.graphics.Image;
 
 import com.dynamo.cr.properties.Property;
+import com.dynamo.cr.properties.Resource;
 import com.dynamo.cr.sceneed.core.ISceneModel;
-import com.dynamo.cr.sceneed.ui.Resource;
 
 public class RefComponentNode extends ComponentNode {
 
