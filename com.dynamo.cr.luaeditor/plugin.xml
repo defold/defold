@@ -7,7 +7,7 @@
       <editor
             name="Lua Editor"
             extensions="lua,script,gui_script,render_script"
-            icon="icons/lua.gif"
+            icon="icons/cog.png"
             contributorClass="org.eclipse.ui.texteditor.BasicTextEditorActionContributor"
             class="com.dynamo.cr.luaeditor.LuaEditor"
             id="com.dynamo.cr.luaeditor.LuaEditor">
@@ -18,14 +18,14 @@
       <wizard
             category="com.dynamo.cr.editor.wizardCategory"
             class="com.dynamo.cr.luaeditor.wizards.GameObjectScriptNewWizard"
-            icon="icons/lua.gif"
+            icon="icons/cog.png"
             id="com.dynamo.cr.luaeditor.NewGameObjectScriptWizard"
             name="Script File">
       </wizard>
       <wizard
             category="com.dynamo.cr.editor.wizardCategory"
             class="com.dynamo.cr.luaeditor.wizards.GuiScriptNewWizard"
-            icon="icons/lua.gif"
+            icon="icons/cog.png"
             id="com.dynamo.cr.luaeditor.NewGuiScriptWizard"
             name="Gui Script File">
       </wizard>

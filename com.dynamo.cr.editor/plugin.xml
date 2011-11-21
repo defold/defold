@@ -204,9 +204,10 @@
       <page
             class="com.dynamo.cr.editor.preferences.PreferencePage"
             id="com.dynamo.rclient.preferences.PreferencePage"
-            name="Content Repository">
+            name="Defold">
       </page>
       <page
+            category="com.dynamo.rclient.preferences.PreferencePage"
             class="com.dynamo.cr.editor.preferences.DebugPreferencePage"
             id="com.dynamo.rclient.preferences.DebugPreferencePage"
             name="Debug">

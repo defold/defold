@@ -38,6 +38,7 @@ import org.eclipse.ui.part.IPageSite;
 import org.eclipse.ui.views.contentoutline.ContentOutlinePage;
 
 import com.dynamo.cr.editor.core.ILogger;
+import com.dynamo.cr.editor.ui.DecoratingDefoldLabelProvider;
 import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.Node;
 

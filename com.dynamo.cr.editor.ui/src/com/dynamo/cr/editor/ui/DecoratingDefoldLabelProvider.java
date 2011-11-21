@@ -1,4 +1,4 @@
-package com.dynamo.cr.sceneed.ui;
+package com.dynamo.cr.editor.ui;
 
 import org.eclipse.jface.viewers.CellLabelProvider;
 import org.eclipse.jface.viewers.DecoratingStyledCellLabelProvider;

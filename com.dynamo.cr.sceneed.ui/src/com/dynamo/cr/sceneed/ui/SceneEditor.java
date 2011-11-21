@@ -176,8 +176,17 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
 
     @Override
     protected void doReload(IFile file) {
-        // TODO Auto-generated method stub
-
+        IProgressService service = PlatformUI.getWorkbench()
+                .getProgressService();
+        SceneLoader loader = new SceneLoader(file, this.presenter);
+        try {
+            service.runInUI(service, loader, null);
+            if (loader.exception != null) {
+                this.logger.logException(loader.exception);
+            }
+        } catch (Throwable e) {
+            this.logger.logException(e);
+        }
     }
 
     @Override
@@ -294,14 +303,17 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
         return this.presenter;
     }
 
+    @Override
     public ISceneView.ILoaderContext getLoaderContext() {
         return this.loaderContext;
     }
 
+    @Override
     public ISceneView.IPresenterContext getPresenterContext() {
         return this.presenterContext;
     }
 
+    @Override
     public ISceneView.INodePresenter getNodePresenter(Class<? extends Node> c) {
         return com.dynamo.cr.sceneed.core.Activator.getDefault().getPresenter(c);
     }

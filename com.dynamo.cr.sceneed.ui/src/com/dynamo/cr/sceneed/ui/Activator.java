@@ -27,6 +27,7 @@ public class Activator extends AbstractUIPlugin implements IImageProvider {
     public static final String IMG_OVERLAY_INFO = "IMG_OVERLAY_INFO";
     public static final String IMG_OVERLAY_WARNING = "IMG_OVERLAY_WARNING";
     public static final String IMG_OVERLAY_ERROR = "IMG_OVERLAY_ERROR";
+    public static final String IMG_UNKNOWN = "UNKNOWN";
 
     // The shared instance
     private static Activator plugin;
@@ -63,17 +64,19 @@ public class Activator extends AbstractUIPlugin implements IImageProvider {
     @Override
     public Image getImage(String extension) {
         ImageRegistry imageRegistry = getImageRegistry();
-        ImageDescriptor descriptor = imageRegistry.getDescriptor(extension);
-        if (descriptor == null) {
-            descriptor = PlatformUI.getWorkbench().getEditorRegistry().getImageDescriptor("." + extension);
+        if (extension != null) {
+            ImageDescriptor descriptor = imageRegistry.getDescriptor(extension);
+            if (descriptor == null) {
+                descriptor = PlatformUI.getWorkbench().getEditorRegistry().getImageDescriptor("." + extension);
+                if (descriptor != null) {
+                    imageRegistry.put(extension, descriptor);
+                }
+            }
             if (descriptor != null) {
-                imageRegistry.put(extension, descriptor);
+                return imageRegistry.get(extension);
             }
         }
-        if (descriptor != null) {
-            return imageRegistry.get(extension);
-        }
-        return null;
+        return imageRegistry.get(IMG_UNKNOWN);
     }
 
     @Override
@@ -83,6 +86,7 @@ public class Activator extends AbstractUIPlugin implements IImageProvider {
         reg.put(IMG_OVERLAY_INFO, getImageDescriptor("icons/overlay_info.png"));
         reg.put(IMG_OVERLAY_WARNING, getImageDescriptor("icons/overlay_warning.png"));
         reg.put(IMG_OVERLAY_ERROR, getImageDescriptor("icons/overlay_error.png"));
+        reg.put(IMG_UNKNOWN, getImageDescriptor("icons/unknown.png"));
     }
 
     private static ImageDescriptor getImageDescriptor(String path) {

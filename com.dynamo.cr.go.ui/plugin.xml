@@ -139,7 +139,7 @@
       <wizard
             category="com.dynamo.cr.editor.wizardCategory"
             class="com.dynamo.cr.go.ui.wizards.SpriteNewWizard"
-            icon="icons/penguin.png"
+            icon="icons/pictures.png"
             id="com.dynamo.cr.go.ui.wizards.spriteNewWizard"
             name="Sprite File">
       </wizard>
@@ -173,6 +173,7 @@
          point="org.eclipse.ui.editors">
       <editor
             class="com.dynamo.cr.sceneed.ui.SceneEditor"
+            contributorClass="com.dynamo.cr.editor.ui.DefoldEditorActionBarContributor"
             default="false"
             extensions="go"
             icon="icons/brick.png"
@@ -181,9 +182,10 @@
       </editor>
       <editor
             class="com.dynamo.cr.sceneed.ui.SceneEditor"
+            contributorClass="com.dynamo.cr.editor.ui.DefoldEditorActionBarContributor"
             default="false"
             extensions="sprite"
-            icon="icons/penguin.png"
+            icon="icons/pictures.png"
             id="com.dynamo.cr.go.ui.spriteEditor"
             name="Scene Editor">
       </editor>

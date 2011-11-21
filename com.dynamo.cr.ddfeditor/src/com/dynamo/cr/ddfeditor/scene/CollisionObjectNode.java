@@ -1,5 +1,7 @@
 package com.dynamo.cr.ddfeditor.scene;
 
+import org.eclipse.core.runtime.IStatus;
+
 import com.dynamo.cr.go.core.ComponentTypeNode;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Resource;
@@ -115,4 +117,16 @@ public class CollisionObjectNode extends ComponentTypeNode {
         return "Collision Object";
     }
 
+    @Override
+    protected IStatus doValidate() {
+        return validateProperties(new String[] {
+                "collisionShape",
+                "type",
+                "mass",
+                "friction",
+                "restitution",
+                "group",
+                "mask"
+        });
+    }
 }

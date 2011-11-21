@@ -2,6 +2,68 @@
 
 Update - Scene Editor
 ---------------------
+*_November 21, 2011_*
+
+Scene Editor
+~~~~~~~~~~~~
+
+We have made lots of changes in the Scene Editor during the week.
+First we did some major restructuring of the code, to make the foundation as stable and clean as possible.
+Clean code means faster development cycles and less bugs, so we really hope this will get us up to speed when implementing new editing functionality, without sacrificing stability.
+
+We also did more work on the presentation, to give you an idea of how we want it to be like.
+
+The background in the Scene Editor is now a nice gradient (like the collection editor), which can be configured through File > Preferences.
+Select Defold > Scene Editor in the dialog.
+
+The outline view now displays icons for the items, along with markers if there are any issues in the data.
+If you hover with the mouse over such a marker, a tooltip is displayed.
+
+image:images/blog/20111121/sceneed_markers.png["Outline markers", width=880]
+
+You can also open referenced files in the outline view by double-clicking the items (or hitting enter while they are selected).
+
+The property view has been extended with the ability for us to disable irrelevant fields.
+An example of this is when you have a collision object with its type set to anything else than dynamic.
+Its mass is then irrelevant, since it should always be zero.
+This is now taken care of by the editor and pipeline.
+
+image:images/blog/20111121/sceneed_icons.png["Outline markers", width=880]
+
+We have also made the values in drop-down lists more readable.
+
+We have updated the icons for some of the file types and items.
+We hope they not only look better, but also more clearly reflects their type now.
+
+Lua Editor
+~~~~~~~~~~
+
+The Lua Editor was not very good at handling comments before.
+This has now been fixed and it colors both multi-line comments and single line comments correctly now.
+
+[source,lua]
+----
+local my_var = 1 -- this is a single line comment
+
+--[[
+This is a multi-line comment
+--]]
+----
+
+Please let us know about any other fixes or suggestions through the cases-mail.
+
+In the coming week we will work on sprite editing and collision object editing in parallel.
+
+Roadmap
+~~~~~~~
+
+. Scene Editor - Sprite and collision object editing
+. Documentation - User Manual, Tutorials, etc
+. Rendering Improvements
+. Website - Re-designed layout and structure
+
+Update - Scene Editor
+---------------------
 *_November 17, 2011_*
 
 Scene Editor
