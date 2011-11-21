@@ -1,20 +1,15 @@
 package com.dynamo.cr.go.core;
 
-import org.eclipse.jface.resource.ImageDescriptor;
-import org.eclipse.jface.resource.ImageRegistry;
-import org.eclipse.ui.plugin.AbstractUIPlugin;
+import org.eclipse.core.runtime.Plugin;
 import org.osgi.framework.BundleContext;
 
 /**
  * The activator class controls the plug-in life cycle
  */
-public class Activator extends AbstractUIPlugin {
+public class Activator extends Plugin {
 
     // The plug-in ID
     public static final String PLUGIN_ID = "com.dynamo.cr.go.core"; //$NON-NLS-1$
-
-    // Image IDs
-    public static final String IMG_COMPONENT = "IMG_COMPONENT"; //$NON-NLS-1$
 
     // The shared instance
     private static Activator plugin;
@@ -52,17 +47,6 @@ public class Activator extends AbstractUIPlugin {
      */
     public static Activator getDefault() {
         return plugin;
-    }
-
-    @Override
-    protected void initializeImageRegistry(ImageRegistry reg) {
-        super.initializeImageRegistry(reg);
-
-        reg.put(IMG_COMPONENT, getImageDescriptor("icons/component.png"));
-    }
-
-    private static ImageDescriptor getImageDescriptor(String path) {
-        return imageDescriptorFromPlugin(PLUGIN_ID, path);
     }
 
 }

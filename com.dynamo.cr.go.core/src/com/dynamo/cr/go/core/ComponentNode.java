@@ -63,9 +63,8 @@ public class ComponentNode extends Node {
     public Image getImage() {
         if (hasChildren()) {
             return this.getChildren().get(0).getImage();
-        } else {
-            return Activator.getDefault().getImageRegistry().get(Activator.IMG_COMPONENT);
         }
+        return super.getImage();
     }
 
     @Override

@@ -147,7 +147,7 @@
       <wizard
             category="com.dynamo.cr.editor.wizardCategory"
             class="com.dynamo.cr.ddfeditor.wizards.SpawnPointNewWizard"
-            icon="icons/table_multiple.png"
+            icon="icons/lightning.png"
             id="com.dynamo.cr.ddfeditor.wizards.SpawnPointNewWizard"
             name="Spawn Point File">
       </wizard>
@@ -210,7 +210,7 @@
       <wizard
             category="com.dynamo.cr.editor.wizardCategory"
             class="com.dynamo.cr.ddfeditor.wizards.ConvexShapeNewWizard"
-            icon="icons/contrast_high.png"
+            icon="icons/draw_ellipse.png"
             id="com.dynamo.cr.ddfeditor.wizards.ConvexShapeNewWizard"
             name="Convex Shape File">
       </wizard>

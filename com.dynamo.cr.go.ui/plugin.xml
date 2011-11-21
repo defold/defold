@@ -139,7 +139,7 @@
       <wizard
             category="com.dynamo.cr.editor.wizardCategory"
             class="com.dynamo.cr.go.ui.wizards.SpriteNewWizard"
-            icon="icons/penguin.png"
+            icon="icons/pictures.png"
             id="com.dynamo.cr.go.ui.wizards.spriteNewWizard"
             name="Sprite File">
       </wizard>
