@@ -80,9 +80,16 @@ public class CachingBranchClient implements IBranchClient {
             return cache.get(p);
         }
         else {
-            ResourceInfo info = client.getResourceInfo(path);
-            cache.put(p, info);
-            return info;
+            try {
+                ResourceInfo info = client.getResourceInfo(path);
+                cache.put(p, info);
+                return info;
+            } catch (RepositoryException e) {
+                // If there was problems retrieving the info, such as the resource does not yet exist on disk,
+                // we want to flush the parent since it caches child-info
+                flushPathAndChildren(p.removeLastSegments(1));
+                throw e;
+            }
         }
     }
 
