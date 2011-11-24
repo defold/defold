@@ -88,11 +88,10 @@ public class RenderContext {
     /**
      * Select color based on pass. If not default color is selected objectColor is returned
      * @param node node to render
-     * @param pass current pass
      * @param objectColor object color to fallback to
      * @return color as float[4]
      */
-    public float[] selectColor(Node node, Pass pass, float[] objectColor) {
+    public float[] selectColor(Node node, float[] objectColor) {
         switch (pass) {
         case OPAQUE:
             return objectColor;

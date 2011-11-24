@@ -39,7 +39,7 @@ public class CollisionObjectRenderer implements INodeRenderer<CollisionObjectNod
 
         ConvexShapeNode shapeNode = (ConvexShapeNode) node.getCollisionShapeNode();
         ConvexShape shape = shapeNode.getConvexShape();
-        gl.glColor4fv(renderContext.selectColor(node, renderContext.getPass(), COLOR), 0);
+        gl.glColor4fv(renderContext.selectColor(node, COLOR), 0);
         final int slices = 16;
         final int stacks = 6;
 
