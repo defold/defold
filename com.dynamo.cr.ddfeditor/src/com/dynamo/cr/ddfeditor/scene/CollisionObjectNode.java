@@ -31,11 +31,11 @@ public class CollisionObjectNode extends ComponentTypeNode {
     public void handleReload(IFile file) {
         IFile componentFile = getModel().getFile(this.collisionShape);
         if (componentFile.exists() && componentFile.equals(file)) {
-            reloadType();
+            reloadCollisionShape();
         }
     }
 
-    private void reloadType() {
+    private void reloadCollisionShape() {
         ISceneModel model = getModel();
         if (model != null) {
             try {
@@ -45,7 +45,7 @@ public class CollisionObjectNode extends ComponentTypeNode {
                 }
                 notifyChange();
             } catch (Throwable e) {
-                // no reason to handle exception since having a null type is invalid state, will be caught in resource validation
+                // no reason to handle exception since having a null collision shape is invalid state, will be caught in resource validation
             }
         }
     }
