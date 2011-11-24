@@ -27,9 +27,9 @@ public class Activator implements BundleActivator, INodeTypeRegistry {
         public final String extension;
         public final ISceneView.INodeLoader loader;
         public final ISceneView.INodePresenter presenter;
-        public final INodeRenderer renderer;
+        public final INodeRenderer<Node> renderer;
 
-        public NodeImpl(String extension, ISceneView.INodeLoader loader, ISceneView.INodePresenter presenter, INodeRenderer renderer) {
+        public NodeImpl(String extension, ISceneView.INodeLoader loader, ISceneView.INodePresenter presenter, INodeRenderer<Node> renderer) {
             this.extension = extension;
             this.loader = loader;
             this.presenter = presenter;
@@ -37,12 +37,12 @@ public class Activator implements BundleActivator, INodeTypeRegistry {
         }
     }
 
-    private Map<String, Class<? extends Node>> extToClass;
-    private Map<Class<? extends Node>, NodeImpl> classToImpl;
+    private Map<String, Class<?>> extToClass;
+    private Map<Class<?>, NodeImpl> classToImpl;
 
     public Activator() {
-        this.extToClass = new HashMap<String, Class<? extends Node>>();
-        this.classToImpl = new HashMap<Class<? extends Node>, NodeImpl>();
+        this.extToClass = new HashMap<String, Class<?>>();
+        this.classToImpl = new HashMap<Class<?>, NodeImpl>();
     }
 
     // The shared instance
@@ -52,6 +52,7 @@ public class Activator implements BundleActivator, INodeTypeRegistry {
      * (non-Javadoc)
      * @see org.osgi.framework.BundleActivator#start(org.osgi.framework.BundleContext)
      */
+    @SuppressWarnings("unchecked")
     @Override
     public void start(BundleContext bundleContext) throws Exception {
         Activator.context = bundleContext;
@@ -65,8 +66,7 @@ public class Activator implements BundleActivator, INodeTypeRegistry {
             IResourceType resourceType = EditorCorePlugin.getDefault().getResourceTypeFromId(resourceTypeAttribute);
             String extension = resourceType.getFileExtension();
 
-            @SuppressWarnings("unchecked")
-            Class<? extends Node> nodeClass = (Class<? extends Node>)bundle.loadClass(e.getAttribute("node"));
+            Class<?> nodeClass = (Class<?>) bundle.loadClass(e.getAttribute("node"));
 
             ISceneView.INodeLoader nodeLoader = (ISceneView.INodeLoader)e.createExecutableExtension("loader");
 
@@ -75,9 +75,9 @@ public class Activator implements BundleActivator, INodeTypeRegistry {
                 nodePresenter = (ISceneView.INodePresenter)e.createExecutableExtension("presenter");
             }
 
-            INodeRenderer nodeRenderer = null;
+            INodeRenderer<Node> nodeRenderer = null;
             if (e.getAttribute("renderer") != null) {
-                nodeRenderer = (INodeRenderer) e.createExecutableExtension("renderer");
+                nodeRenderer = (INodeRenderer<Node>) e.createExecutableExtension("renderer");
             }
 
             registerNodeType(extension, nodeClass, nodeLoader, nodePresenter, nodeRenderer);
@@ -95,7 +95,7 @@ public class Activator implements BundleActivator, INodeTypeRegistry {
 
     }
 
-    public void registerNodeType(String extension, Class<? extends Node> c, ISceneView.INodeLoader loader, ISceneView.INodePresenter presenter, INodeRenderer renderer) {
+    public void registerNodeType(String extension, Class<?> c, ISceneView.INodeLoader loader, ISceneView.INodePresenter presenter, INodeRenderer<Node> renderer) {
         NodeImpl impl = new NodeImpl(extension, loader, presenter, renderer);
         this.extToClass.put(extension, c);
         this.classToImpl.put(c, impl);
@@ -140,7 +140,7 @@ public class Activator implements BundleActivator, INodeTypeRegistry {
     }
 
     @Override
-    public INodeRenderer getRenderer(String extension) {
+    public INodeRenderer<Node> getRenderer(String extension) {
         NodeImpl impl = getImpl(extension);
         if (impl != null) {
             return impl.renderer;
@@ -150,7 +150,7 @@ public class Activator implements BundleActivator, INodeTypeRegistry {
     }
 
     @Override
-    public INodeRenderer getRenderer(Class<? extends Node> c) {
+    public INodeRenderer<Node> getRenderer(Class<? extends Node> c) {
         NodeImpl impl = this.classToImpl.get(c);
         if (impl != null) {
             return impl.renderer;
@@ -179,7 +179,7 @@ public class Activator implements BundleActivator, INodeTypeRegistry {
     }
 
     private NodeImpl getImpl(String extension) {
-        Class<? extends Node> c = this.extToClass.get(extension);
+        Class<?> c = this.extToClass.get(extension);
         if (c != null) {
             return this.classToImpl.get(c);
         }

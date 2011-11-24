@@ -4,22 +4,15 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.net.URL;
-import java.util.Enumeration;
 
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IFolder;
-import org.eclipse.core.resources.IProject;
-import org.eclipse.core.resources.IProjectDescription;
 import org.eclipse.core.resources.IResource;
-import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.Path;
-import org.eclipse.core.runtime.Platform;
 import org.eclipse.ltk.core.refactoring.Change;
 import org.eclipse.ltk.core.refactoring.CheckConditionsOperation;
 import org.eclipse.ltk.core.refactoring.PerformChangeOperation;
@@ -34,7 +27,6 @@ import org.eclipse.ltk.core.refactoring.resource.MoveResourcesDescriptor;
 import org.eclipse.ltk.core.refactoring.resource.RenameResourceDescriptor;
 import org.junit.Before;
 import org.junit.Test;
-import org.osgi.framework.Bundle;
 
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
@@ -53,40 +45,11 @@ import com.google.protobuf.Message.Builder;
 import com.google.protobuf.TextFormat;
 import com.google.protobuf.TextFormat.ParseException;
 
-public class RefactorTest {
-
-    private IProject project;
-    private NullProgressMonitor monitor;
+public class RefactorTest extends IntegrationTest {
 
     @Before
     public void setUp() throws Exception {
-        project = ResourcesPlugin.getWorkspace().getRoot().getProject("test");
-        monitor = new NullProgressMonitor();
-        if (project.exists()) {
-            project.delete(true, monitor);
-        }
-        project.create(monitor);
-        project.open(monitor);
-
-        IProjectDescription pd = project.getDescription();
-        pd.setNatureIds(new String[] { "com.dynamo.cr.editor.core.crnature" });
-        project.setDescription(pd, monitor);
-
-        Bundle bundle = Platform.getBundle("com.dynamo.cr.integrationtest");
-        Enumeration<URL> entries = bundle.findEntries("/test", "*", true);
-        while (entries.hasMoreElements()) {
-            URL url = entries.nextElement();
-            IPath path = new Path(url.getPath()).removeFirstSegments(1);
-            // Create path of url-path and remove first element, ie /test/sounds/ -> /sounds
-            if (url.getFile().endsWith("/")) {
-                project.getFolder(path).create(true, true, monitor);
-            } else {
-                InputStream is = url.openStream();
-                IFile file = project.getFile(path);
-                file.create(is, true, monitor);
-                is.close();
-            }
-        }
+        super.setUp();
     }
 
     Message loadMessageFile(String filename, Builder builder) throws IOException, CoreException {

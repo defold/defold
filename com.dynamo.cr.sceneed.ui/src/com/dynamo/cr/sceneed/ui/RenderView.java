@@ -1,7 +1,11 @@
 package com.dynamo.cr.sceneed.ui;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.IntBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import javax.inject.Inject;
@@ -21,6 +25,7 @@ import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.MouseEvent;
 import org.eclipse.swt.events.MouseListener;
 import org.eclipse.swt.events.MouseMoveListener;
+import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.graphics.Rectangle;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.opengl.GLCanvas;
@@ -36,6 +41,10 @@ import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.sceneed.core.INodeRenderer;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
 import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.sceneed.core.RenderContext;
+import com.dynamo.cr.sceneed.core.RenderContext.Pass;
+import com.dynamo.cr.sceneed.core.RenderData;
+import com.dynamo.cr.sceneed.ui.RenderView.SelectResult.Pair;
 import com.dynamo.cr.sceneed.ui.preferences.PreferenceConstants;
 import com.sun.opengl.util.BufferUtil;
 
@@ -54,6 +63,13 @@ ISelectionProvider {
     private final IntBuffer viewPort = BufferUtil.newIntBuffer(4);
     private boolean paintRequested = false;
     private boolean enabled = true;
+
+    // TODO: Temp "camera"
+    private double[] orthoCamera = new double[6];
+
+    // Picking
+    private static final int PICK_BUFFER_SIZE = 4096;
+    private static IntBuffer selectBuffer = ByteBuffer.allocateDirect(4 * PICK_BUFFER_SIZE).order(ByteOrder.nativeOrder()).asIntBuffer();
 
     private Node root;
 
@@ -99,6 +115,7 @@ ISelectionProvider {
     @Override
     public void dispose() {
         if (this.context != null) {
+            this.context.release();
             this.context.destroy();
         }
         if (this.canvas != null) {
@@ -142,6 +159,21 @@ ISelectionProvider {
             this.viewPort.put(client.width);
             this.viewPort.put(client.height);
             this.viewPort.flip();
+
+            // TODO: Temp "camera"
+            Point size = canvas.getSize();
+            double aspect = ((double) size.x) / size.y;
+            double left = -300.0 / 2;
+            double right = 300.0 / 2;
+            double bottom = left / aspect;
+            double top = right / aspect;
+            orthoCamera[0] = left;
+            orthoCamera[1] = right;
+            orthoCamera[2] = bottom;
+            orthoCamera[3] = top;
+            orthoCamera[4] = -100000;
+            orthoCamera[5] = 100000;
+
         } else if (event.type == SWT.Paint) {
             requestPaint();
         }
@@ -164,7 +196,9 @@ ISelectionProvider {
 
     @Override
     public void mouseDown(MouseEvent event) {
-        // To be used for tools
+        List<Node> sel = rectangleSelect(event.x, event.y, 16, 16);
+        StructuredSelection newSelection = new StructuredSelection(sel);
+        setSelection(newSelection);
     }
 
     @Override
@@ -199,6 +233,7 @@ ISelectionProvider {
                 listener.selectionChanged(event);
             }
         }
+        requestPaint();
     }
 
     public boolean isEnabled() {
@@ -208,6 +243,123 @@ ISelectionProvider {
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
         requestPaint();
+    }
+
+    public static class SelectResult
+    {
+        public static class Pair implements Comparable<Pair> {
+            Pair(long z, int index) {
+                this.z = z;
+                this.index = index;
+            }
+            public long z;
+            public int index;
+
+            @Override
+            public int compareTo(Pair o) {
+                return (z<o.z ? -1 : (z==o.z ? 0 : 1));
+            }
+
+            @Override
+            public String toString() {
+                return String.format("%d (%d)", index, z);
+            }
+        }
+        public SelectResult(List<Pair> selected, long minz)
+        {
+            this.selected = selected;
+            minZ = minz;
+
+        }
+        public List<Pair> selected;
+        public long minZ = Long.MAX_VALUE;
+    }
+
+    private void beginSelect(GL gl, int x, int y, int w, int h) {
+        gl.glSelectBuffer(PICK_BUFFER_SIZE, selectBuffer);
+        gl.glRenderMode(GL.GL_SELECT);
+
+        GLU glu = new GLU();
+        gl.glMatrixMode(GL.GL_PROJECTION);
+        gl.glLoadIdentity();
+        glu.gluPickMatrix(x, y, w, h, viewPort);
+        gl.glOrtho(orthoCamera[0], orthoCamera[1], orthoCamera[2], orthoCamera[3], orthoCamera[4], orthoCamera[5]);
+
+        gl.glMatrixMode(GL.GL_MODELVIEW);
+        gl.glLoadIdentity();
+
+        gl.glInitNames();
+    }
+
+    private static long toUnsignedInt(int i)
+    {
+        long tmp = i;
+        return ( tmp << 32 ) >>> 32;
+    }
+
+    public SelectResult endSelect(GL gl)
+    {
+        long minz;
+        minz = Long.MAX_VALUE;
+
+        gl.glFlush();
+        int hits = gl.glRenderMode(GL.GL_RENDER);
+
+        List<SelectResult.Pair> selected = new ArrayList<SelectResult.Pair>();
+
+        int names, ptr, ptrNames = 0, numberOfNames = 0;
+        ptr = 0;
+        for (int i = 0; i < hits; i++)
+        {
+           names = selectBuffer.get(ptr);
+           ptr++;
+           {
+               numberOfNames = names;
+               minz = toUnsignedInt(selectBuffer.get(ptr));
+               ptrNames = ptr+2;
+               selected.add(new SelectResult.Pair(minz, selectBuffer.get(ptrNames)));
+           }
+
+           ptr += names+2;
+        }
+        ptr = ptrNames;
+
+        Collections.sort(selected);
+
+        if (numberOfNames > 0)
+        {
+            return new SelectResult(selected, minz);
+        }
+        else
+        {
+            return new SelectResult(selected, minz);
+        }
+    }
+
+    private List<Node> rectangleSelect(int x, int y, int width, int height) {
+        ArrayList<Node> toSelect = new ArrayList<Node>(32);
+
+        if (width > 0 && height > 0) {
+            context.makeCurrent();
+            GL gl = context.getGL();
+            GLU glu = new GLU();
+
+            // x and y are center coordinates
+            beginSelect(gl, x + width / 2, y + height / 2, width, height);
+
+            List<Pass> passes = Arrays.asList(Pass.SELECTION);
+            RenderContext renderContext = renderNodes(gl, glu, passes);
+
+            SelectResult result = endSelect(gl);
+
+            List<RenderData<? extends Node>> renderDataList = renderContext.getRenderData();
+            for (Pair pair : result.selected) {
+                Node node = renderDataList.get(pair.index).getNode();
+                toSelect.add(node);
+            }
+        }
+
+        return toSelect;
     }
 
     private void requestPaint() {
@@ -262,27 +414,112 @@ ISelectionProvider {
 
         gl.glMatrixMode(GL.GL_PROJECTION);
         gl.glLoadIdentity();
-        glu.gluOrtho2D(-1.0f, 1.0f, -1.0f, 1.0f);
+        glu.gluOrtho2D(-1, 1, -1, 1);
 
         gl.glMatrixMode(GL.GL_MODELVIEW);
         gl.glLoadIdentity();
 
         // background
+        setupPass(gl, Pass.BACKGROUND);
         renderBackground(gl, viewPortWidth, viewPortHeight);
 
-        if (this.root != null) {
-            renderNode(this.root, gl, glu);
-        }
+        // TODO: Temp "camera"
+        gl.glMatrixMode(GL.GL_PROJECTION);
+        gl.glLoadIdentity();
+        gl.glOrtho(orthoCamera[0], orthoCamera[1], orthoCamera[2], orthoCamera[3], orthoCamera[4], orthoCamera[5]);
+        gl.glMatrixMode(GL.GL_MODELVIEW);
+
+        List<Pass> passes = Arrays.asList(Pass.OUTLINE, Pass.TRANSPARENT);
+        renderNodes(gl, glu, passes);
     }
 
-    private void renderNode(Node node, GL gl, GLU glu) {
-        INodeRenderer renderer = this.manager.getRenderer(node.getClass());
+    /*
+     * This function exists solely to let the type inference engine in java resolve
+     * the types without class-cast warnings or cast-hacks..
+     */
+    private <T extends Node> void doRender(RenderContext renderContext, RenderData<T> renderData) {
+        INodeRenderer<T> renderer = renderData.getNodeRenderer();
+        T node = renderData.getNode2();
+        renderer.render(renderContext, node, renderData);
+    }
+
+    private RenderContext renderNodes(GL gl, GLU glu, List<Pass> passes) {
+        RenderContext renderContext = new RenderContext(gl, glu, this.selection);
+
+        if (this.root != null) {
+            for (Pass pass : passes) {
+                renderContext.setPass(pass);
+                setupNode(renderContext, this.root);
+            }
+        }
+
+        renderContext.sort();
+
+        Pass currentPass = null;
+        List<RenderData<? extends Node>> renderDataList = renderContext.getRenderData();
+        for (RenderData<? extends Node> renderData : renderDataList) {
+            Pass pass = renderData.getPass();
+
+            if (currentPass != pass) {
+                setupPass(renderContext.getGL(), pass);
+                currentPass = pass;
+            }
+            renderContext.setPass(currentPass);
+            doRender(renderContext, renderData);
+        }
+
+        return renderContext;
+    }
+
+    private void setupPass(GL gl, Pass pass) {
+        switch (pass) {
+        case BACKGROUND:
+            gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL);
+            gl.glDisable(GL.GL_BLEND);
+            gl.glDisable(GL.GL_DEPTH_TEST);
+            gl.glDepthMask(false);
+            break;
+
+        case OPAQUE:
+            gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL);
+            gl.glDisable(GL.GL_BLEND);
+            gl.glEnable(GL.GL_DEPTH_TEST);
+            gl.glDepthMask(true);
+            break;
+
+        case OUTLINE:
+            gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE);
+            gl.glDisable(GL.GL_BLEND);
+            gl.glDisable(GL.GL_DEPTH_TEST);
+            gl.glDepthMask(false);
+            break;
+
+        case TRANSPARENT:
+            gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL);
+            gl.glEnable(GL.GL_BLEND);
+            gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
+            gl.glEnable(GL.GL_DEPTH_TEST);
+            gl.glDepthMask(false);
+            break;
+
+        case SELECTION:
+            break;
+
+        default:
+            throw new RuntimeException(String.format("Pass %s not implemented", pass.toString()));
+        }
+
+    }
+
+    private void setupNode(RenderContext renderContext, Node node) {
+        INodeRenderer<Node> renderer = this.manager.getRenderer(node.getClass());
+
         if (renderer != null) {
-            renderer.render(node, gl, glu);
+            renderer.setup(renderContext, node);
         }
 
         for (Node child : node.getChildren()) {
-            renderNode(child, gl, glu);
+            setupNode(renderContext, child);
         }
     }
 

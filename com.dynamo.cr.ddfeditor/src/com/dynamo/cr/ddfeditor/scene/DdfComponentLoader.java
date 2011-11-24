@@ -13,6 +13,7 @@ import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.gamesystem.proto.GameSystem.CollectionProxyDesc;
 import com.dynamo.gamesystem.proto.GameSystem.SpawnPointDesc;
 import com.dynamo.physics.proto.Physics.CollisionObjectDesc;
+import com.dynamo.physics.proto.Physics.ConvexShape;
 import com.google.protobuf.Message;
 import com.google.protobuf.TextFormat;
 
@@ -49,6 +50,10 @@ public class DdfComponentLoader extends ComponentLoader {
                 }
             }
             collisionObject.setMask(mask.toString());
+
+            Node collisionShapeNode = context.loadNode(collisionObject.getCollisionShape());
+            collisionObject.setCollisionShapeNode(collisionShapeNode);
+
             return collisionObject;
         } else if (type.equals("collectionproxy")) {
             InputStreamReader reader = new InputStreamReader(contents);
@@ -58,6 +63,13 @@ public class DdfComponentLoader extends ComponentLoader {
             CollectionProxyNode collectionProxy = new CollectionProxyNode();
             collectionProxy.setCollection(desc.getCollection());
             return collectionProxy;
+        } else if (type.equals("convexshape")) {
+            InputStreamReader reader = new InputStreamReader(contents);
+            ConvexShape.Builder builder = ConvexShape.newBuilder();
+            TextFormat.merge(reader, builder);
+            ConvexShape convexShape = builder.build();
+            ConvexShapeNode convexShapeNode = new ConvexShapeNode(convexShape);
+            return convexShapeNode;
         }
         return super.load(context, type, contents);
     }

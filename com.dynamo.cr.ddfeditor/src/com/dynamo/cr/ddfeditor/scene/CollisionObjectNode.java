@@ -1,10 +1,13 @@
 package com.dynamo.cr.ddfeditor.scene;
 
+import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.IStatus;
 
 import com.dynamo.cr.go.core.ComponentTypeNode;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Resource;
+import com.dynamo.cr.sceneed.core.ISceneModel;
+import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.physics.proto.Physics.CollisionObjectType;
 
 public class CollisionObjectNode extends ComponentTypeNode {
@@ -18,9 +21,33 @@ public class CollisionObjectNode extends ComponentTypeNode {
     @Property private float restitution;
     @Property private String group = "";
     @Property private String mask = "";
+    private Node collisionShapeNode;
 
     public CollisionObjectNode() {
         super();
+    }
+
+    @Override
+    public void handleReload(IFile file) {
+        IFile componentFile = getModel().getFile(this.collisionShape);
+        if (componentFile.exists() && componentFile.equals(file)) {
+            reloadType();
+        }
+    }
+
+    private void reloadType() {
+        ISceneModel model = getModel();
+        if (model != null) {
+            try {
+                Node node = model.loadNode(this.collisionShape);
+                if (this.collisionShapeNode != null) {
+                    this.collisionShapeNode = node;
+                }
+                notifyChange();
+            } catch (Throwable e) {
+                // no reason to handle exception since having a null type is invalid state, will be caught in resource validation
+            }
+        }
     }
 
     public String getCollisionShape() {
@@ -115,6 +142,14 @@ public class CollisionObjectNode extends ComponentTypeNode {
     @Override
     public String getTypeName() {
         return "Collision Object";
+    }
+
+    public void setCollisionShapeNode(Node collisionShapeNode) {
+        this.collisionShapeNode = collisionShapeNode;
+    }
+
+    public Node getCollisionShapeNode() {
+        return collisionShapeNode;
     }
 
     @Override

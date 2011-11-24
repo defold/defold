@@ -551,8 +551,9 @@
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.SpawnPoint">
       </node-type>
       <node-type
-            node="com.dynamo.cr.ddfeditor.scene.CollisionObjectNode"
             loader="com.dynamo.cr.ddfeditor.scene.DdfComponentLoader"
+            node="com.dynamo.cr.ddfeditor.scene.CollisionObjectNode"
+            renderer="com.dynamo.cr.ddfeditor.scene.CollisionObjectRenderer"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.CollisionObject">
       </node-type>
       <node-type
@@ -584,6 +585,11 @@
             node="com.dynamo.cr.ddfeditor.scene.ModelNode"
             loader="com.dynamo.cr.ddfeditor.scene.DdfComponentLoader"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Model">
+      </node-type>
+      <node-type
+            loader="com.dynamo.cr.ddfeditor.scene.DdfComponentLoader"
+            node="com.dynamo.cr.ddfeditor.scene.ConvexShapeNode"
+            resource-type="com.dynamo.cr.ddfeditor.resourcetypes.ConvexShape">
       </node-type>
    </extension>
 
