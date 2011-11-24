@@ -1,5 +1,7 @@
 package com.dynamo.cr.integrationtest;
 
+import static org.mockito.Mockito.mock;
+
 import java.io.InputStream;
 import java.net.URL;
 import java.util.Enumeration;
@@ -15,12 +17,21 @@ import org.eclipse.core.runtime.Platform;
 import org.junit.Before;
 import org.osgi.framework.Bundle;
 
-public abstract class IntegrationTest {
+import com.dynamo.cr.editor.core.ILogger;
+import com.dynamo.cr.sceneed.core.Activator;
+import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
+import com.dynamo.cr.sceneed.core.ISceneView.ILoaderContext;
+import com.dynamo.cr.sceneed.ui.LoaderContext;
+
+public abstract class AbstractNodeTest {
 
     IProject project;
     NullProgressMonitor monitor;
+    protected INodeTypeRegistry nodeTypeRegistry;
+    protected ILoaderContext loaderContext;
 
-    public IntegrationTest() {
+
+    public AbstractNodeTest() {
         super();
     }
 
@@ -53,6 +64,8 @@ public abstract class IntegrationTest {
                 is.close();
             }
         }
+        this.nodeTypeRegistry = Activator.getDefault();
+        this.loaderContext = new LoaderContext(project, nodeTypeRegistry, mock(ILogger.class));
     }
 
 }

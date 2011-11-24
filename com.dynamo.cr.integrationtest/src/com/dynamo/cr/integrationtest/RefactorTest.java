@@ -45,7 +45,7 @@ import com.google.protobuf.Message.Builder;
 import com.google.protobuf.TextFormat;
 import com.google.protobuf.TextFormat.ParseException;
 
-public class RefactorTest extends IntegrationTest {
+public class RefactorTest extends AbstractNodeTest {
 
     @Before
     public void setUp() throws Exception {
