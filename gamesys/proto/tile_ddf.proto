@@ -15,6 +15,35 @@ message ConvexHull
     required string collision_group = 3 [default = "tile"];
 }
 
+message Cue
+{
+    required string id = 1;
+    required uint32 frame = 2;
+    optional float value = 3 [default = 0.0];
+}
+
+enum Playback2
+{
+    PLAYBACK2_NONE = 0 [(displayName) = "None"];
+    PLAYBACK2_ONCE_FORWARD = 1 [(displayName) = "Once Forward"];
+    PLAYBACK2_ONCE_BACKWARD = 2 [(displayName) = "Once Backward"];
+    PLAYBACK2_LOOP_FORWARD = 3 [(displayName) = "Loop Forward"];
+    PLAYBACK2_LOOP_BACKWARD = 4 [(displayName) = "Loop Backward"];
+    PLAYBACK2_LOOP_PINGPONG = 5 [(displayName) = "Ping Pong"];
+}
+
+message Animation
+{
+    required string id              = 1;
+    required uint32 start_tile      = 2;
+    required uint32 end_tile        = 3;
+    optional Playback2 playback     = 4 [default = PLAYBACK2_ONCE_FORWARD];
+    optional uint32 fps             = 5 [default = 30];
+    optional uint32 flip_horizontal = 6 [default = 0];
+    optional uint32 flip_vertical   = 7 [default = 0];
+    repeated Cue cues               = 8;
+}
+
 message TileSet
 {
     required string image               = 1 [(resource)=true];
@@ -27,6 +56,7 @@ message TileSet
     repeated ConvexHull convex_hulls    = 8;
     repeated float convex_hull_points   = 9;
     repeated string collision_groups    = 10;
+    repeated Animation animations       = 11;
 }
 
 message TileCell

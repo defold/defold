@@ -1,0 +1,13 @@
+package dmGameSystemDDF;
+
+import "ddf/ddf_extensions.proto";
+import "ddf/ddf_math.proto";
+
+option java_package = "com.dynamo.sprite2.proto";
+option java_outer_classname = "Sprite2";
+
+message Sprite2Desc
+{
+    required string tile_set            = 1 [(resource)=true];
+    required string default_animation   = 2;
+}
