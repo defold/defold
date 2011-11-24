@@ -34,11 +34,7 @@ public class RenderData<T extends Node> implements Comparable<RenderData<T>> {
         return nodeRenderer;
     }
 
-    public Node getNode() {
-        return node;
-    }
-
-    public T getNode2() {
+    public T getNode() {
         return node;
     }
 

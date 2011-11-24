@@ -439,7 +439,7 @@ ISelectionProvider {
      */
     private <T extends Node> void doRender(RenderContext renderContext, RenderData<T> renderData) {
         INodeRenderer<T> renderer = renderData.getNodeRenderer();
-        T node = renderData.getNode2();
+        T node = renderData.getNode();
         renderer.render(renderContext, node, renderData);
     }
 
