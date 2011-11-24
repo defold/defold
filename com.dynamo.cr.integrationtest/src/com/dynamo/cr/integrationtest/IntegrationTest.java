@@ -13,6 +13,7 @@ import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Platform;
 import org.junit.Before;
+import org.junit.Test;
 import org.osgi.framework.Bundle;
 
 public class IntegrationTest {
@@ -54,5 +55,11 @@ public class IntegrationTest {
             }
         }
     }
+
+    @Test
+    public void dummyTestToMakeJunitRunnerHappy() throws Exception {
+        // Possible to make this class abstract instead?
+    }
+
 
 }
