@@ -505,8 +505,16 @@ bool TriggerCollisionCallback(void* user_data_a, uint16_t group_a, void* user_da
 {
     VisualObject* vo = (VisualObject*)user_data_a;
     ++vo->m_CollisionCount;
+    if (vo->m_FirstCollisionGroup == 0)
+    {
+        vo->m_FirstCollisionGroup = group_b;
+    }
     vo = (VisualObject*)user_data_b;
     ++vo->m_CollisionCount;
+    if (vo->m_FirstCollisionGroup == 0)
+    {
+        vo->m_FirstCollisionGroup = group_a;
+    }
     return true;
 }
 
@@ -534,6 +542,9 @@ TYPED_TEST(PhysicsTest, TriggerCollisions)
     dynamic_data.m_UserData = &dynamic_vo;
     typename TypeParam::CollisionObjectType dynamic_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, dynamic_data, &dynamic_shape, 1u);
 
+    ASSERT_EQ(0u, dynamic_vo.m_FirstCollisionGroup);
+    ASSERT_EQ(0u, static_vo.m_FirstCollisionGroup);
+
     for (int i = 0; i < 20; ++i)
     {
         (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
@@ -541,6 +552,8 @@ TYPED_TEST(PhysicsTest, TriggerCollisions)
 
     ASSERT_NEAR(1.0f, dynamic_vo.m_Position.getY(), 2.0f * TestFixture::m_Test.m_PolygonRadius);
     ASSERT_EQ(0.0f, static_vo.m_Position.getY());
+    ASSERT_EQ(1u, dynamic_vo.m_FirstCollisionGroup);
+    ASSERT_EQ(1u, static_vo.m_FirstCollisionGroup);
 
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, static_co);
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(static_shape);
@@ -566,6 +579,7 @@ TYPED_TEST(PhysicsTest, TriggerCollisions)
     (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 
     ASSERT_EQ(0, trigger_vo.m_CollisionCount);
+    ASSERT_EQ(0u, trigger_vo.m_FirstCollisionGroup);
 
     for (int i = 0; i < 20; ++i)
     {
@@ -575,6 +589,8 @@ TYPED_TEST(PhysicsTest, TriggerCollisions)
     ASSERT_GT(1.0f - 0.1f, dynamic_vo.m_Position.getY());
     ASSERT_EQ(0.0f, trigger_vo.m_Position.getY());
     ASSERT_LT(0, trigger_vo.m_CollisionCount);
+    ASSERT_EQ(1u, dynamic_vo.m_FirstCollisionGroup);
+    ASSERT_EQ(1u, trigger_vo.m_FirstCollisionGroup);
 
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, dynamic_co);
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(dynamic_shape);

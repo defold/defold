@@ -245,9 +245,9 @@ namespace dmPhysics
                 if (contact->IsTouching() && (fixture_a->IsSensor() || fixture_b->IsSensor()))
                 {
                     context.m_CollisionCallback(fixture_a->GetUserData(),
-                                                fixture_a->GetFilterData(index_a).groupIndex,
+                                                fixture_a->GetFilterData(index_a).categoryBits,
                                                 fixture_b->GetUserData(),
-                                                fixture_b->GetFilterData(index_b).groupIndex,
+                                                fixture_b->GetFilterData(index_b).categoryBits,
                                                 context.m_CollisionUserData);
                 }
             }
