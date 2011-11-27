@@ -1,4 +1,4 @@
-package com.dynamo.cr.go.core;
+package com.dynamo.cr.ddfeditor.scene;
 
 import java.io.IOException;
 import java.io.InputStream;

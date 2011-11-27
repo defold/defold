@@ -20,6 +20,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
+import javax.vecmath.Point3f;
+
 import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.CoreException;
@@ -38,7 +40,6 @@ import com.dynamo.cr.go.core.GameObjectNode;
 import com.dynamo.cr.go.core.GameObjectPresenter;
 import com.dynamo.cr.go.core.Messages;
 import com.dynamo.cr.go.core.RefComponentNode;
-import com.dynamo.cr.go.core.SpriteNode;
 import com.dynamo.cr.go.core.operations.AddComponentOperation;
 import com.dynamo.cr.go.core.operations.RemoveComponentOperation;
 import com.dynamo.cr.sceneed.core.Activator;
@@ -52,7 +53,7 @@ import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.SceneModel;
 import com.dynamo.cr.sceneed.core.ScenePresenter;
 import com.dynamo.cr.sceneed.core.test.AbstractTest;
-import com.dynamo.sprite.proto.Sprite.SpriteDesc;
+import com.dynamo.proto.DdfMath.Point3;
 import com.google.inject.Module;
 import com.google.inject.Singleton;
 import com.google.protobuf.TextFormat;
@@ -120,12 +121,12 @@ public class GameObjectTest extends AbstractTest {
         testLoad();
 
         GameObjectNode go = (GameObjectNode)this.model.getRoot();
-        SpriteNode sprite = new SpriteNode();
-        ComponentNode component = new ComponentNode(sprite);
+        TestComponentNode componentType = new TestComponentNode();
+        ComponentNode component = new ComponentNode(componentType);
         AddComponentOperation op = new AddComponentOperation(go, component);
         this.model.executeOperation(op);
         assertEquals(1, go.getChildren().size());
-        assertEquals("sprite", go.getChildren().get(0).toString());
+        assertEquals("test", go.getChildren().get(0).toString());
         verifyUpdate(go);
         verifySelection();
         verifyDirty();
@@ -138,7 +139,7 @@ public class GameObjectTest extends AbstractTest {
 
         redo();
         assertEquals(1, go.getChildren().size());
-        assertEquals("sprite", go.getChildren().get(0).toString());
+        assertEquals("test", go.getChildren().get(0).toString());
         verifyUpdate(go);
         verifySelection();
         verifyDirty();
@@ -148,12 +149,12 @@ public class GameObjectTest extends AbstractTest {
     public void testAddComponent() throws Exception {
         testLoad();
 
-        when(this.view.selectComponentType()).thenReturn("sprite");
+        when(this.view.selectComponentType()).thenReturn("test");
 
-        when(this.loaderContext.loadNodeFromTemplate("sprite")).thenAnswer(new Answer<Node>() {
+        when(this.loaderContext.loadNodeFromTemplate("test")).thenAnswer(new Answer<Node>() {
             @Override
             public Node answer(InvocationOnMock invocation) throws Throwable {
-                return new SpriteNode();
+                return new TestComponentNode();
             }
         });
 
@@ -167,13 +168,13 @@ public class GameObjectTest extends AbstractTest {
         testLoad();
 
         GameObjectNode go = (GameObjectNode)this.model.getRoot();
-        SpriteNode sprite = new SpriteNode();
-        RefComponentNode component = new RefComponentNode(sprite);
-        component.setComponent("/test.sprite");
+        TestComponentNode componentType = new TestComponentNode();
+        RefComponentNode component = new RefComponentNode(componentType);
+        component.setComponent("/test.test");
         AddComponentOperation op = new AddComponentOperation(go, component);
         this.model.executeOperation(op);
         assertEquals(1, go.getChildren().size());
-        assertEquals("sprite", ((ComponentNode)go.getChildren().get(0)).getId());
+        assertEquals("test", ((ComponentNode)go.getChildren().get(0)).getId());
         verifyUpdate(go);
         verifySelection();
 
@@ -184,7 +185,7 @@ public class GameObjectTest extends AbstractTest {
 
         redo();
         assertEquals(1, go.getChildren().size());
-        assertEquals("sprite", ((ComponentNode)go.getChildren().get(0)).getId());
+        assertEquals("test", ((ComponentNode)go.getChildren().get(0)).getId());
         verifyUpdate(go);
         verifySelection();
     }
@@ -193,9 +194,9 @@ public class GameObjectTest extends AbstractTest {
     public void testAddComponentFromFile() throws Exception {
         testLoad();
 
-        String path = "/test.sprite";
+        String path = "/test.test";
         when(this.view.selectComponentFromFile()).thenReturn(path);
-        when(this.loaderContext.loadNode(path)).thenReturn(new SpriteNode());
+        when(this.loaderContext.loadNode(path)).thenReturn(new TestComponentNode());
 
         GameObjectPresenter presenter = (GameObjectPresenter)this.nodeTypeRegistry.getPresenter(GameObjectNode.class);
         presenter.onAddComponentFromFile(this.presenterContext, this.loaderContext);
@@ -247,7 +248,7 @@ public class GameObjectTest extends AbstractTest {
         Node root = this.model.getRoot();
         ComponentNode component = (ComponentNode)root.getChildren().get(0);
         String oldId = component.getId();
-        String newId = "sprite1";
+        String newId = "test1";
 
         setNodeProperty(component, "id", newId);
         assertEquals(newId, component.getId());
@@ -284,9 +285,9 @@ public class GameObjectTest extends AbstractTest {
         assertEquals(root.getChildren().size(), this.model.getRoot().getChildren().size());
     }
 
-    private void saveSprite(String path, String texture, float width, float height) throws IOException, CoreException {
-        SpriteDesc.Builder builder = SpriteDesc.newBuilder();
-        builder.setTexture(texture).setWidth(width).setHeight(height);
+    private void saveTestComponent(String path, Point3f position) throws IOException, CoreException {
+        Point3.Builder builder = Point3.newBuilder();
+        builder.setX(position.getX()).setY(position.getY()).setZ(position.getZ());
         IFile file = this.contentRoot.getFile(new Path(path));
         CharArrayWriter output = new CharArrayWriter();
         TextFormat.print(builder.build(), output);
@@ -299,28 +300,22 @@ public class GameObjectTest extends AbstractTest {
         }
     }
 
-    /**
-     * This test should be in the integrationtest in the future.
-     * @throws Exception
-     */
     @Test
     public void testReloadComponentFromFile() throws Exception {
         String path = "/reload.sprite";
-        String texturePath = "/test.png";
-        float width = 1.0f;
-        float height = 1.0f;
+        Point3f position = new Point3f(1.0f, 0.0f, 0.0f);
 
         when(this.view.selectComponentFromFile()).thenReturn(path);
-        SpriteNode sprite = new SpriteNode();
-        sprite.setTexture(texturePath);
-        when(this.loaderContext.loadNode(path)).thenReturn(sprite);
+        TestComponentNode componentType = new TestComponentNode();
+        componentType.setPosition(position);
+        when(this.loaderContext.loadNode(path)).thenReturn(componentType);
 
-        saveSprite(path, "", width, height);
+        saveTestComponent(path, new Point3f(0.0f, 0.0f, 0.0f));
 
         testLoad();
 
         GameObjectNode go = (GameObjectNode)this.model.getRoot();
-        RefComponentNode component = new RefComponentNode(new SpriteNode());
+        RefComponentNode component = new RefComponentNode(new TestComponentNode());
         component.setComponent(path);
         AddComponentOperation op = new AddComponentOperation(go, component);
         this.model.executeOperation(op);
@@ -329,7 +324,7 @@ public class GameObjectTest extends AbstractTest {
         ComponentTypeNode type = component.getType();
         verifyUpdate(go);
 
-        saveSprite(path, texturePath, width, height);
+        saveTestComponent(path, position);
 
         assertNodePropertyStatus(component, "component", IStatus.OK, null);
         assertEquals(component, go.getChildren().get(0));
@@ -337,9 +332,9 @@ public class GameObjectTest extends AbstractTest {
         verifyUpdate(go);
     }
 
-    private ComponentNode addSprite() {
+    private ComponentNode addTestComponent() {
         GameObjectNode go = (GameObjectNode)this.model.getRoot();
-        ComponentNode component = new ComponentNode(new SpriteNode());
+        ComponentNode component = new ComponentNode(new TestComponentNode());
         AddComponentOperation op = new AddComponentOperation(go, component);
         this.model.executeOperation(op);
         return component;
@@ -349,14 +344,14 @@ public class GameObjectTest extends AbstractTest {
     public void testUniqueId() throws Exception {
         testLoad();
 
-        ComponentNode component = addSprite();
-        assertThat(component.getId(), is("sprite"));
+        ComponentNode component = addTestComponent();
+        assertThat(component.getId(), is("test"));
 
-        component = addSprite();
-        assertThat(component.getId(), is("sprite1"));
+        component = addTestComponent();
+        assertThat(component.getId(), is("test1"));
 
-        component = addSprite();
-        assertThat(component.getId(), is("sprite2"));
+        component = addTestComponent();
+        assertThat(component.getId(), is("test2"));
     }
 
     @Test
@@ -369,17 +364,17 @@ public class GameObjectTest extends AbstractTest {
         setNodeProperty(component, "id", "");
         assertNodePropertyStatus(component, "id", IStatus.ERROR, Messages.ComponentNode_id_NOT_SPECIFIED);
 
-        setNodeProperty(component, "id", "sprite");
+        setNodeProperty(component, "id", "test");
         assertNodePropertyStatus(component, "id", IStatus.OK, null);
 
         GameObjectNode go = (GameObjectNode)this.model.getRoot();
-        SpriteNode sprite = new SpriteNode();
-        component = new ComponentNode(sprite);
+        TestComponentNode componentType = new TestComponentNode();
+        component = new ComponentNode(componentType);
         AddComponentOperation op = new AddComponentOperation(go, component);
         this.model.executeOperation(op);
-        component.setId("sprite");
+        component.setId("test");
 
-        assertNodePropertyStatus(component, "id", IStatus.ERROR, NLS.bind(Messages.ComponentNode_id_DUPLICATED, "sprite"));
+        assertNodePropertyStatus(component, "id", IStatus.ERROR, NLS.bind(Messages.ComponentNode_id_DUPLICATED, "test"));
         assertThat(component.validate().getSeverity(), is(IStatus.ERROR));
     }
 
@@ -397,15 +392,15 @@ public class GameObjectTest extends AbstractTest {
         setNodeProperty(component, "component", path);
         assertNodePropertyStatus(component, "component", IStatus.ERROR, NLS.bind(Messages.SceneModel_ResourceValidator_component_NOT_FOUND, path));
 
-        setNodeProperty(component, "component", "/test.tileset");
-        assertNodePropertyStatus(component, "component", IStatus.ERROR, NLS.bind(Messages.RefComponentNode_component_INVALID_TYPE, "tileset"));
+        setNodeProperty(component, "component", "/test.test2");
+        assertNodePropertyStatus(component, "component", IStatus.ERROR, NLS.bind(Messages.RefComponentNode_component_INVALID_TYPE, "test2"));
     }
 
     @Test
-    public void testSprite() throws Exception {
-        String type = "sprite";
-        String[] properties = new String[] {"texture", "width", "height", "tileWidth", "tileHeight", "tilesPerRow", "tileCount"};
-        Object[] values = new Object[] {"test.png", 10, 10, 10, 10, 10, 10};
+    public void testProperties() throws Exception {
+        String type = "test";
+        String[] properties = new String[] {"position"};
+        Object[] values = new Object[] {new Point3f(1.0f, 0.0f, 0.0f)};
 
         when(this.view.selectComponentType()).thenReturn(type);
 

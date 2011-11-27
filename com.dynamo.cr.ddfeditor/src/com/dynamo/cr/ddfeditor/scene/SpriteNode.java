@@ -1,8 +1,10 @@
-package com.dynamo.cr.go.core;
+package com.dynamo.cr.ddfeditor.scene;
 
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.MultiStatus;
 
+import com.dynamo.cr.ddfeditor.Activator;
+import com.dynamo.cr.go.core.ComponentTypeNode;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Resource;
 

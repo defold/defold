@@ -58,7 +58,7 @@
             id="com.dynamo.cr.tileeditor.core.resourcetypes.sprite2"
             name="Sprite2"
             proto-message-class="com.dynamo.sprite2.proto.Sprite2$Sprite2Desc"
-            resource-refactor-participant-class="com.dynamo.cr.go.core.refactoring.SpriteRefactorParticipant"
+            resource-refactor-participant-class="com.dynamo.cr.tileeditor.core.refactoring.Sprite2RefactorParticipant"
             template-data="tile_set: &quot;&quot; default_animation: &quot;&quot;"
             type-class="component">
          <references>

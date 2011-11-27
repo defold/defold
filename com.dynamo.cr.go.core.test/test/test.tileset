@@ -1,7 +1,0 @@
-image: ""
-tile_width: 64
-tile_height: 64
-tile_margin: 0
-tile_spacing: 0
-collision: ""
-material_tag: "tile"

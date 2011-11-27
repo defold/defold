@@ -1,7 +1,7 @@
 Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
 Bundle-Name: Scene Editor Game Object Test
-Bundle-SymbolicName: com.dynamo.cr.go.core.test
+Bundle-SymbolicName: com.dynamo.cr.go.core.test;singleton:=true
 Bundle-Version: 1.0.0.qualifier
 Bundle-Vendor: DYNAMO
 Fragment-Host: com.dynamo.cr.go.core;bundle-version="1.0.0"

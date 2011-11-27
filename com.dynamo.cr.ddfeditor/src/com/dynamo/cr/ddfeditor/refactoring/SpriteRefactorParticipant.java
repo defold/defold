@@ -1,4 +1,4 @@
-package com.dynamo.cr.go.core.refactoring;
+package com.dynamo.cr.ddfeditor.refactoring;
 
 import com.dynamo.cr.editor.core.GenericRefactorParticipant;
 import com.dynamo.sprite.proto.Sprite.SpriteDesc;

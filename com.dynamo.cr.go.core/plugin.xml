@@ -9,11 +9,6 @@
             presenter="com.dynamo.cr.go.core.GameObjectPresenter"
             resource-type="com.dynamo.cr.go.core.resourcetypes.gameObject">
       </node-type>
-      <node-type
-            node="com.dynamo.cr.go.core.SpriteNode"
-            loader="com.dynamo.cr.go.core.SpriteLoader"
-            resource-type="com.dynamo.cr.go.core.resourcetypes.sprite">
-      </node-type>
    </extension>
    <extension
          point="org.eclipse.core.expressions.definitions">
@@ -55,21 +50,6 @@
          <references>
             <reference-type-class
                   type-class="component">
-            </reference-type-class>
-         </references>
-      </resource-type>
-      <resource-type
-            embeddable="true"
-            file-extension="sprite"
-            id="com.dynamo.cr.go.core.resourcetypes.sprite"
-            name="Sprite"
-            proto-message-class="com.dynamo.sprite.proto.Sprite$SpriteDesc"
-            resource-refactor-participant-class="com.dynamo.cr.go.core.refactoring.SpriteRefactorParticipant"
-            template-data="texture: &apos;&apos; width: 1 height: 1"
-            type-class="component">
-         <references>
-            <reference-type-class
-                  type-class="image">
             </reference-type-class>
          </references>
       </resource-type>
