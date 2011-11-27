@@ -28,16 +28,6 @@ public class CollectionProxyNode extends ComponentTypeNode {
     }
 
     @Override
-    public String getTypeId() {
-        return "collectionproxy";
-    }
-
-    @Override
-    public String getTypeName() {
-        return "Collection Proxy";
-    }
-
-    @Override
     protected IStatus doValidate() {
         return validateProperties(new String[] {"collection"});
     }

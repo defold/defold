@@ -134,16 +134,6 @@ public class CollisionObjectNode extends ComponentTypeNode {
         }
     }
 
-    @Override
-    public String getTypeId() {
-        return "collisionobject";
-    }
-
-    @Override
-    public String getTypeName() {
-        return "Collision Object";
-    }
-
     public void setCollisionShapeNode(Node collisionShapeNode) {
         this.collisionShapeNode = collisionShapeNode;
     }

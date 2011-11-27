@@ -31,19 +31,19 @@ public interface ISceneView {
         void executeOperation(IUndoableOperation operation);
     }
 
-    public interface INodePresenter {}
+    public interface INodePresenter<T extends Node> {}
 
     public interface ILoaderContext extends ILogger {
         Node loadNode(String path) throws IOException, CoreException;
         Node loadNode(String extension, InputStream contents) throws IOException, CoreException;
         Node loadNodeFromTemplate(Class<? extends Node> nodeClass) throws IOException, CoreException;
+        Node loadNodeFromTemplate(String extension) throws IOException, CoreException;
         INodeTypeRegistry getNodeTypeRegistry();
     }
 
-    public interface INodeLoader {
-        Node load(ILoaderContext context, String type, InputStream contents) throws IOException, CoreException;
-        Message buildMessage(ILoaderContext context, Node node, IProgressMonitor monitor) throws IOException, CoreException;
-        Node createNode(String type) throws IOException, CoreException;
+    public interface INodeLoader<T extends Node> {
+        T load(ILoaderContext context, InputStream contents) throws IOException, CoreException;
+        Message buildMessage(ILoaderContext context, T node, IProgressMonitor monitor) throws IOException, CoreException;
     }
 
     void setRoot(Node root);

@@ -150,6 +150,13 @@ public class GameObjectTest extends AbstractTest {
 
         when(this.view.selectComponentType()).thenReturn("sprite");
 
+        when(this.loaderContext.loadNodeFromTemplate("sprite")).thenAnswer(new Answer<Node>() {
+            @Override
+            public Node answer(InvocationOnMock invocation) throws Throwable {
+                return new SpriteNode();
+            }
+        });
+
         GameObjectPresenter presenter = (GameObjectPresenter)this.nodeTypeRegistry.getPresenter(GameObjectNode.class);
         presenter.onAddComponent(this.presenterContext, this.loaderContext);
         verify(this.presenterContext, times(1)).executeOperation(any(IUndoableOperation.class));

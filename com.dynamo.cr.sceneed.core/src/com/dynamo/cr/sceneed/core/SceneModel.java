@@ -26,6 +26,7 @@ import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.swt.graphics.Image;
 
 import com.dynamo.cr.editor.core.ILogger;
+import com.dynamo.cr.editor.core.IResourceType;
 import com.dynamo.cr.properties.Entity;
 import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.properties.PropertyIntrospector;
@@ -236,6 +237,20 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IResou
     @Override
     public Node loadNode(String path) throws IOException, CoreException {
         return this.loaderContext.loadNode(path);
+    }
+
+    @Override
+    public String getExtension(Class<? extends Node> nodeClass) {
+        return this.loaderContext.getNodeTypeRegistry().getExtension(nodeClass);
+    }
+
+    @Override
+    public String getTypeName(Class<? extends Node> nodeClass) {
+        IResourceType resourceType = this.loaderContext.getNodeTypeRegistry().getResourceType(nodeClass);
+        if (resourceType != null) {
+            return resourceType.getName();
+        }
+        return null;
     }
 
     @Override

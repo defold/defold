@@ -8,32 +8,18 @@ import org.eclipse.core.runtime.IProgressMonitor;
 
 import com.dynamo.cr.sceneed.core.ISceneView.ILoaderContext;
 import com.dynamo.cr.sceneed.core.ISceneView.INodeLoader;
-import com.dynamo.cr.sceneed.core.Node;
 import com.google.protobuf.Message;
 
-public class ChildLoader implements INodeLoader {
-
-    public ChildLoader() {
-        // TODO Auto-generated constructor stub
-    }
+public class ChildLoader implements INodeLoader<ChildNode> {
 
     @Override
-    public Node load(ILoaderContext context, String type, InputStream contents)
+    public ChildNode load(ILoaderContext context, InputStream contents)
             throws IOException, CoreException {
-        // TODO Auto-generated method stub
-        return null;
+        return new ChildNode();
     }
 
     @Override
-    public Node createNode(String type) throws IOException,
-    CoreException {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    @Override
-    public Message buildMessage(ILoaderContext context, Node node, IProgressMonitor monitor) throws IOException, CoreException {
-        // TODO Auto-generated method stub
+    public Message buildMessage(ILoaderContext context, ChildNode node, IProgressMonitor monitor) throws IOException, CoreException {
         return null;
     }
 

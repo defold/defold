@@ -47,17 +47,22 @@ com.dynamo.cr.sceneed.core.ISceneView.ILoaderContext {
     @Override
     public Node loadNode(String extension, InputStream contents)
             throws IOException, CoreException {
-        INodeLoader loader = this.nodeTypeRegistry.getLoader(extension);
+        INodeLoader<Node> loader = this.nodeTypeRegistry.getLoader(extension);
         if (loader != null) {
-            return loader.load(this, extension, contents);
+            return loader.load(this, contents);
         }
         return null;
     }
 
     @Override
     public Node loadNodeFromTemplate(Class<? extends Node> nodeClass) throws IOException, CoreException {
-        IResourceType resourceType = this.nodeTypeRegistry.getResourceType(nodeClass);
         String extension = this.nodeTypeRegistry.getExtension(nodeClass);
+        return loadNodeFromTemplate(extension);
+    }
+
+    @Override
+    public Node loadNodeFromTemplate(String extension) throws IOException, CoreException {
+        IResourceType resourceType = this.nodeTypeRegistry.getResourceType(extension);
         ByteArrayInputStream stream = new ByteArrayInputStream(resourceType.getTemplateData());
         return loadNode(extension, stream);
     }

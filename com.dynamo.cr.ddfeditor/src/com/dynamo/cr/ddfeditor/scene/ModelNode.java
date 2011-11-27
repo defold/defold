@@ -1,12 +1,7 @@
 package com.dynamo.cr.ddfeditor.scene;
 
-import com.dynamo.cr.go.core.GenericComponentTypeNode;
+import com.dynamo.cr.go.core.ComponentTypeNode;
 
-public class ModelNode extends GenericComponentTypeNode {
-
-    public ModelNode(String typeId) {
-        // TODO Auto-generated constructor stub
-        super(typeId);
-    }
+public class ModelNode extends ComponentTypeNode {
 
 }

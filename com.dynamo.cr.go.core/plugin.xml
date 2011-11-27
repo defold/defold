@@ -11,7 +11,7 @@
       </node-type>
       <node-type
             node="com.dynamo.cr.go.core.SpriteNode"
-            loader="com.dynamo.cr.go.core.ComponentLoader"
+            loader="com.dynamo.cr.go.core.SpriteLoader"
             resource-type="com.dynamo.cr.go.core.resourcetypes.sprite">
       </node-type>
    </extension>

@@ -31,11 +31,6 @@ public class GameObjectNode extends Node {
     }
 
     @Override
-    public String toString() {
-        return "Game Object";
-    }
-
-    @Override
     protected Class<? extends NLS> getMessages() {
         return Messages.class;
     }

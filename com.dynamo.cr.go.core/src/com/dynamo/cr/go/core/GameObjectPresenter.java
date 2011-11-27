@@ -9,7 +9,7 @@ import com.dynamo.cr.sceneed.core.ISceneView.ILoaderContext;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.Node;
 
-public class GameObjectPresenter implements ISceneView.INodePresenter {
+public class GameObjectPresenter implements ISceneView.INodePresenter<GameObjectNode> {
 
     private GameObjectNode findGameObjectFromSelection(IStructuredSelection selection) {
         Object[] nodes = selection.toArray();
@@ -37,7 +37,7 @@ public class GameObjectPresenter implements ISceneView.INodePresenter {
         if (componentType != null) {
             ComponentTypeNode child = null;
             try {
-                child = (ComponentTypeNode)loaderContext.getNodeTypeRegistry().getLoader(componentType).createNode(componentType);
+                child = (ComponentTypeNode)loaderContext.loadNodeFromTemplate(componentType);
             } catch (Exception e) {
                 presenterContext.logException(e);
             }

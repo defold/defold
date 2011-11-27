@@ -547,47 +547,47 @@
          point="com.dynamo.cr.nodetypes">
       <node-type
             node="com.dynamo.cr.ddfeditor.scene.SpawnPointNode"
-            loader="com.dynamo.cr.ddfeditor.scene.DdfComponentLoader"
+            loader="com.dynamo.cr.ddfeditor.scene.SpawnPointLoader"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.SpawnPoint">
       </node-type>
       <node-type
-            loader="com.dynamo.cr.ddfeditor.scene.DdfComponentLoader"
+            loader="com.dynamo.cr.ddfeditor.scene.CollisionObjectLoader"
             node="com.dynamo.cr.ddfeditor.scene.CollisionObjectNode"
             renderer="com.dynamo.cr.ddfeditor.scene.CollisionObjectRenderer"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.CollisionObject">
       </node-type>
       <node-type
             node="com.dynamo.cr.ddfeditor.scene.CollectionProxyNode"
-            loader="com.dynamo.cr.ddfeditor.scene.DdfComponentLoader"
+            loader="com.dynamo.cr.ddfeditor.scene.CollectionProxyLoader"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.CollectionProxy">
       </node-type>
       <node-type
             node="com.dynamo.cr.ddfeditor.scene.CameraNode"
-            loader="com.dynamo.cr.ddfeditor.scene.DdfComponentLoader"
+            loader="com.dynamo.cr.ddfeditor.scene.CameraLoader"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Camera">
       </node-type>
       <node-type
             node="com.dynamo.cr.ddfeditor.scene.EmitterNode"
-            loader="com.dynamo.cr.ddfeditor.scene.DdfComponentLoader"
+            loader="com.dynamo.cr.ddfeditor.scene.EmitterLoader"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Emitter">
       </node-type>
       <node-type
             node="com.dynamo.cr.ddfeditor.scene.LightNode"
-            loader="com.dynamo.cr.ddfeditor.scene.DdfComponentLoader"
+            loader="com.dynamo.cr.ddfeditor.scene.LightLoader"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Light">
       </node-type>
       <node-type
             node="com.dynamo.cr.ddfeditor.scene.GuiNode"
-            loader="com.dynamo.cr.ddfeditor.scene.DdfComponentLoader"
+            loader="com.dynamo.cr.ddfeditor.scene.GuiLoader"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Gui">
       </node-type>
       <node-type
             node="com.dynamo.cr.ddfeditor.scene.ModelNode"
-            loader="com.dynamo.cr.ddfeditor.scene.DdfComponentLoader"
+            loader="com.dynamo.cr.ddfeditor.scene.ModelLoader"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Model">
       </node-type>
       <node-type
-            loader="com.dynamo.cr.ddfeditor.scene.DdfComponentLoader"
+            loader="com.dynamo.cr.ddfeditor.scene.ConvexShapeLoader"
             node="com.dynamo.cr.ddfeditor.scene.ConvexShapeNode"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.ConvexShape">
       </node-type>

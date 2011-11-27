@@ -10,6 +10,7 @@ import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.SubMonitor;
 
+import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
 import com.dynamo.cr.sceneed.core.ISceneView.ILoaderContext;
 import com.dynamo.cr.sceneed.core.ISceneView.INodeLoader;
 import com.dynamo.cr.sceneed.core.Node;
@@ -21,11 +22,10 @@ import com.dynamo.gameobject.proto.GameObject.PrototypeDesc.Builder;
 import com.google.protobuf.Message;
 import com.google.protobuf.TextFormat;
 
-public class GameObjectLoader implements INodeLoader {
+public class GameObjectLoader implements INodeLoader<GameObjectNode> {
 
     @Override
-    public Node load(ILoaderContext context, String type,
-            InputStream contents) throws IOException, CoreException {
+    public GameObjectNode load(ILoaderContext context, InputStream contents) throws IOException, CoreException {
         InputStreamReader reader = new InputStreamReader(contents);
         Builder builder = PrototypeDesc.newBuilder();
         TextFormat.merge(reader, builder);
@@ -53,9 +53,8 @@ public class GameObjectLoader implements INodeLoader {
     }
 
     @Override
-    public Message buildMessage(ILoaderContext context, Node node, IProgressMonitor monitor)
+    public Message buildMessage(ILoaderContext context, GameObjectNode gameObject, IProgressMonitor monitor)
             throws IOException, CoreException {
-        GameObjectNode gameObject = (GameObjectNode)node;
         Builder builder = PrototypeDesc.newBuilder();
         SubMonitor progress = SubMonitor.convert(monitor, gameObject.getChildren().size());
         for (Node child : gameObject.getChildren()) {
@@ -73,20 +72,16 @@ public class GameObjectLoader implements INodeLoader {
                 ComponentTypeNode componentType = (ComponentTypeNode)component.getChildren().get(0);
                 ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
                 SubMonitor partProgress = progress.newChild(1).setWorkRemaining(2);
-                INodeLoader loader = context.getNodeTypeRegistry().getLoader(componentType.getClass());
+                INodeTypeRegistry registry = context.getNodeTypeRegistry();
+                INodeLoader<Node> loader = registry.getLoader(componentType.getClass());
                 Message message = loader.buildMessage(context, componentType, partProgress.newChild(1));
                 SceneUtil.saveMessage(message, byteStream, partProgress.newChild(1));
-                componentBuilder.setType(componentType.getTypeId());
+                componentBuilder.setType(registry.getExtension(componentType.getClass()));
                 componentBuilder.setData(byteStream.toString());
                 builder.addEmbeddedComponents(componentBuilder);
             }
         }
         return builder.build();
-    }
-
-    @Override
-    public Node createNode(String type) throws IOException, CoreException {
-        return new GameObjectNode();
     }
 
 }

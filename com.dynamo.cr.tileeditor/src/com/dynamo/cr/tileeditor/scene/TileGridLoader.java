@@ -10,16 +10,16 @@ import com.dynamo.cr.sceneed.core.ISceneView.ILoaderContext;
 import com.dynamo.cr.sceneed.core.ISceneView.INodeLoader;
 import com.google.protobuf.Message;
 
-public class Sprite2Loader implements INodeLoader<Sprite2Node> {
+public class TileGridLoader implements INodeLoader<TileGridNode> {
 
     @Override
-    public Sprite2Node load(ILoaderContext context, InputStream contents)
+    public TileGridNode load(ILoaderContext context, InputStream contents)
             throws IOException, CoreException {
-        return new Sprite2Node();
+        return new TileGridNode();
     }
 
     @Override
-    public Message buildMessage(ILoaderContext context, Sprite2Node node,
+    public Message buildMessage(ILoaderContext context, TileGridNode node,
             IProgressMonitor monitor) throws IOException, CoreException {
         return null;
     }

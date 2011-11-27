@@ -28,16 +28,6 @@ public class SpawnPointNode extends ComponentTypeNode {
     }
 
     @Override
-    public String getTypeId() {
-        return "spawnpoint";
-    }
-
-    @Override
-    public String getTypeName() {
-        return "Spawn Point";
-    }
-
-    @Override
     protected IStatus doValidate() {
         return validateProperties(new String[] {"prototype"});
     }

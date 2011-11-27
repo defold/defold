@@ -112,16 +112,6 @@ public class SpriteNode extends ComponentTypeNode {
     }
 
     @Override
-    public String getTypeId() {
-        return "sprite";
-    }
-
-    @Override
-    public String getTypeName() {
-        return "Sprite";
-    }
-
-    @Override
     public IStatus doValidate() {
         IStatus status = validateProperties(new String[] {"texture"});
         MultiStatus multiStatus= null;

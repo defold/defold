@@ -1,10 +1,11 @@
 package com.dynamo.cr.sceneed.core.test;
 
-import static org.junit.Assert.assertTrue;
-
-import java.io.IOException;
-
+import static org.hamcrest.CoreMatchers.is;
+import static org.junit.Assert.assertThat;
 import static org.mockito.Mockito.mock;
+
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 
 import org.eclipse.core.runtime.CoreException;
 import org.junit.Before;
@@ -12,9 +13,13 @@ import org.junit.Test;
 
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.ISceneView;
+import com.dynamo.cr.sceneed.core.ISceneView.INodeLoader;
+import com.dynamo.cr.sceneed.core.Node;
 import com.google.inject.Module;
 
 public class NodeTypeTest extends AbstractTest {
+
+    private ISceneView.ILoaderContext loaderContext;
 
     class TestModule extends GenericTestModule {
         @Override
@@ -32,14 +37,21 @@ public class NodeTypeTest extends AbstractTest {
         this.model = mock(ISceneModel.class);
         this.view = mock(ISceneView.class);
         this.presenter = mock(ISceneView.IPresenter.class);
+        this.loaderContext = mock(ISceneView.ILoaderContext.class);
 
         super.setup();
     }
 
+    public void assertExtToClass(String extension, Class<? extends Node> nodeClass) throws Exception {
+        INodeLoader<? extends Node> loader = this.nodeTypeRegistry.getLoader(extension);
+        Node node = loader.load(this.loaderContext, new ByteArrayInputStream(new byte[0]));
+        assertThat(node, is(nodeClass));
+    }
+
     @Test
     public void testRegistry() throws Exception {
-        assertTrue(this.nodeTypeRegistry.getLoader("parent") instanceof ParentLoader);
-        assertTrue(this.nodeTypeRegistry.getLoader("child") instanceof ChildLoader);
+        assertExtToClass("parent", ParentNode.class);
+        assertExtToClass("child", ChildNode.class);
     }
 
     @Override

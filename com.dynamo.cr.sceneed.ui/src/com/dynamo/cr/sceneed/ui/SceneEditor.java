@@ -314,7 +314,7 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
     }
 
     @Override
-    public ISceneView.INodePresenter getNodePresenter(Class<? extends Node> c) {
+    public ISceneView.INodePresenter<? extends Node> getNodePresenter(Class<? extends Node> c) {
         return com.dynamo.cr.sceneed.core.Activator.getDefault().getPresenter(c);
     }
 

@@ -1,11 +1,6 @@
 package com.dynamo.cr.ddfeditor.scene;
-import com.dynamo.cr.go.core.GenericComponentTypeNode;
+import com.dynamo.cr.go.core.ComponentTypeNode;
 
-
-public class CameraNode extends GenericComponentTypeNode {
-
-    public CameraNode(String typeId) {
-        super(typeId);
-    }
+public class CameraNode extends ComponentTypeNode {
 
 }

@@ -159,4 +159,14 @@ public abstract class Node implements IAdaptable {
 
     }
 
+    @Override
+    public String toString() {
+        if (this.model != null) {
+            String typeName = this.model.getTypeName(getClass());
+            if (typeName != null) {
+                return typeName;
+            }
+        }
+        return super.toString();
+    }
 }

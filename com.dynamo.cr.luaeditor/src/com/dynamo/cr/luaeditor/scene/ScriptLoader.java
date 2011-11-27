@@ -4,21 +4,24 @@ import java.io.IOException;
 import java.io.InputStream;
 
 import org.eclipse.core.runtime.CoreException;
+import org.eclipse.core.runtime.IProgressMonitor;
 
-import com.dynamo.cr.go.core.ComponentLoader;
+import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.ISceneView.ILoaderContext;
-import com.dynamo.cr.sceneed.core.Node;
+import com.google.protobuf.Message;
 
-public class ScriptLoader extends ComponentLoader {
+public class ScriptLoader implements ISceneView.INodeLoader<ScriptNode> {
     @Override
-    public Node load(ILoaderContext context, String type, InputStream contents)
+    public ScriptNode load(ILoaderContext context, InputStream contents)
             throws IOException, CoreException {
-        return createNode(type);
+        return new ScriptNode();
     }
 
     @Override
-    public Node createNode(String type) throws IOException,
-    CoreException {
-        return new ScriptNode(type);
+    public Message buildMessage(ILoaderContext context, ScriptNode node,
+            IProgressMonitor monitor) throws IOException, CoreException {
+        // TODO Auto-generated method stub
+        return null;
     }
+
 }

@@ -17,44 +17,48 @@ import org.eclipse.jface.text.source.ISourceViewer;
 import org.eclipse.jface.text.source.SourceViewerConfiguration;
 import org.eclipse.swt.widgets.Shell;
 
+@SuppressWarnings("restriction")
 public class LuaConfiguration extends SourceViewerConfiguration {
-	private LuaDoubleClickStrategy doubleClickStrategy;
-	private LuaScanner tagScanner;
-	private ColorManager colorManager;
+    private LuaDoubleClickStrategy doubleClickStrategy;
+    private LuaScanner tagScanner;
+    private ColorManager colorManager;
 
-	public LuaConfiguration(ColorManager colorManager) {
-		this.colorManager = colorManager;
-	}
-	public String[] getConfiguredContentTypes(ISourceViewer sourceViewer) {
-		return new String[] {
-			IDocument.DEFAULT_CONTENT_TYPE,
-			LuaPartitionScanner.LUA_COMMENT_SINGLE,
-			LuaPartitionScanner.LUA_COMMENT_MULTI };
-	}
-	public ITextDoubleClickStrategy getDoubleClickStrategy(
-		ISourceViewer sourceViewer,
-		String contentType) {
-		if (doubleClickStrategy == null)
-			doubleClickStrategy = new LuaDoubleClickStrategy();
-		return doubleClickStrategy;
-	}
+    public LuaConfiguration(ColorManager colorManager) {
+        this.colorManager = colorManager;
+    }
+    @Override
+    public String[] getConfiguredContentTypes(ISourceViewer sourceViewer) {
+        return new String[] {
+                IDocument.DEFAULT_CONTENT_TYPE,
+                LuaPartitionScanner.LUA_COMMENT_SINGLE,
+                LuaPartitionScanner.LUA_COMMENT_MULTI };
+    }
+    @Override
+    public ITextDoubleClickStrategy getDoubleClickStrategy(
+            ISourceViewer sourceViewer,
+            String contentType) {
+        if (doubleClickStrategy == null)
+            doubleClickStrategy = new LuaDoubleClickStrategy();
+        return doubleClickStrategy;
+    }
 
-	protected LuaScanner getLuaScanner() {
-		if (tagScanner == null) {
-			tagScanner = new LuaScanner(colorManager);
-			tagScanner.setDefaultReturnToken(
-				new Token(
-					new TextAttribute(
-						colorManager.getColor(ILuaColorConstants.DEFAULT))));
-		}
-		return tagScanner;
-	}
+    protected LuaScanner getLuaScanner() {
+        if (tagScanner == null) {
+            tagScanner = new LuaScanner(colorManager);
+            tagScanner.setDefaultReturnToken(
+                    new Token(
+                            new TextAttribute(
+                                    colorManager.getColor(ILuaColorConstants.DEFAULT))));
+        }
+        return tagScanner;
+    }
 
-	public IPresentationReconciler getPresentationReconciler(ISourceViewer sourceViewer) {
-		PresentationReconciler reconciler = new PresentationReconciler();
-		reconciler.setDocumentPartitioning(getConfiguredDocumentPartitioning(sourceViewer));
+    @Override
+    public IPresentationReconciler getPresentationReconciler(ISourceViewer sourceViewer) {
+        PresentationReconciler reconciler = new PresentationReconciler();
+        reconciler.setDocumentPartitioning(getConfiguredDocumentPartitioning(sourceViewer));
 
-		DefaultDamagerRepairer dr;
+        DefaultDamagerRepairer dr;
 
         dr = new DefaultDamagerRepairer(new LuaSingleCommentScanner(colorManager));
         reconciler.setDamager(dr, LuaPartitionScanner.LUA_COMMENT_SINGLE);
@@ -68,31 +72,32 @@ public class LuaConfiguration extends SourceViewerConfiguration {
         reconciler.setDamager(dr, IDocument.DEFAULT_CONTENT_TYPE);
         reconciler.setRepairer(dr, IDocument.DEFAULT_CONTENT_TYPE);
 
-		return reconciler;
-	}
+        return reconciler;
+    }
 
-	@Override
-	public String getConfiguredDocumentPartitioning(ISourceViewer sourceViewer) {
-	    return "com.dynamo.cr.luaeditor.partitioning";
-	}
+    @Override
+    public String getConfiguredDocumentPartitioning(ISourceViewer sourceViewer) {
+        return "com.dynamo.cr.luaeditor.partitioning";
+    }
 
-	@Override
-	public IContentAssistant getContentAssistant(ISourceViewer sourceViewer) {
-	    ContentAssistant assistant= new ContentAssistant();
+    @Override
+    public IContentAssistant getContentAssistant(ISourceViewer sourceViewer) {
+        ContentAssistant assistant= new ContentAssistant();
 
-	    assistant.setDocumentPartitioning(getConfiguredDocumentPartitioning(sourceViewer));
-	    assistant.setContentAssistProcessor(new LuaContentAssistProcessor(), IDocument.DEFAULT_CONTENT_TYPE);
-	    assistant.setShowEmptyList(true);
-	    assistant.setAutoActivationDelay(500);
-	    assistant.enableAutoActivation(true);
+        assistant.setDocumentPartitioning(getConfiguredDocumentPartitioning(sourceViewer));
+        assistant.setContentAssistProcessor(new LuaContentAssistProcessor(), IDocument.DEFAULT_CONTENT_TYPE);
+        assistant.setShowEmptyList(true);
+        assistant.setAutoActivationDelay(500);
+        assistant.enableAutoActivation(true);
 
         assistant.setInformationControlCreator(new IInformationControlCreator() {
-                    public IInformationControl createInformationControl(Shell parent) {
-                        return new DefaultInformationControl(parent, new HTMLTextPresenter());
-                    }
-                });
+            @Override
+            public IInformationControl createInformationControl(Shell parent) {
+                return new DefaultInformationControl(parent, new HTMLTextPresenter());
+            }
+        });
 
-	    return assistant;
-	}
+        return assistant;
+    }
 
 }

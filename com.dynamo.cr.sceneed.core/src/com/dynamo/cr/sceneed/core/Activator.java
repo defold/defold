@@ -11,6 +11,8 @@ import org.osgi.framework.BundleContext;
 
 import com.dynamo.cr.editor.core.EditorCorePlugin;
 import com.dynamo.cr.editor.core.IResourceType;
+import com.dynamo.cr.sceneed.core.ISceneView.INodeLoader;
+import com.dynamo.cr.sceneed.core.ISceneView.INodePresenter;
 
 public class Activator implements BundleActivator, INodeTypeRegistry {
 
@@ -25,12 +27,12 @@ public class Activator implements BundleActivator, INodeTypeRegistry {
 
     private static class NodeImpl {
         public final String extension;
-        public final ISceneView.INodeLoader loader;
-        public final ISceneView.INodePresenter presenter;
+        public final ISceneView.INodeLoader<Node> loader;
+        public final ISceneView.INodePresenter<Node> presenter;
         public final INodeRenderer<Node> renderer;
         public final IResourceType resourceType;
 
-        public NodeImpl(String extension, ISceneView.INodeLoader loader, ISceneView.INodePresenter presenter, INodeRenderer<Node> renderer, IResourceType resourceType) {
+        public NodeImpl(String extension, ISceneView.INodeLoader<Node> loader, ISceneView.INodePresenter<Node> presenter, INodeRenderer<Node> renderer, IResourceType resourceType) {
             this.extension = extension;
             this.loader = loader;
             this.presenter = presenter;
@@ -70,11 +72,11 @@ public class Activator implements BundleActivator, INodeTypeRegistry {
 
             Class<?> nodeClass = bundle.loadClass(e.getAttribute("node"));
 
-            ISceneView.INodeLoader nodeLoader = (ISceneView.INodeLoader)e.createExecutableExtension("loader");
+            ISceneView.INodeLoader<Node> nodeLoader = (ISceneView.INodeLoader<Node>)e.createExecutableExtension("loader");
 
-            ISceneView.INodePresenter nodePresenter = null;
+            ISceneView.INodePresenter<Node> nodePresenter = null;
             if (e.getAttribute("presenter") != null) {
-                nodePresenter = (ISceneView.INodePresenter)e.createExecutableExtension("presenter");
+                nodePresenter = (ISceneView.INodePresenter<Node>)e.createExecutableExtension("presenter");
             }
 
             INodeRenderer<Node> nodeRenderer = null;
@@ -97,14 +99,14 @@ public class Activator implements BundleActivator, INodeTypeRegistry {
 
     }
 
-    public void registerNodeType(String extension, Class<?> c, ISceneView.INodeLoader loader, ISceneView.INodePresenter presenter, INodeRenderer<Node> renderer, IResourceType resourceType) {
+    public void registerNodeType(String extension, Class<?> c, ISceneView.INodeLoader<Node> loader, ISceneView.INodePresenter<Node> presenter, INodeRenderer<Node> renderer, IResourceType resourceType) {
         NodeImpl impl = new NodeImpl(extension, loader, presenter, renderer, resourceType);
         this.extToClass.put(extension, c);
         this.classToImpl.put(c, impl);
     }
 
     @Override
-    public ISceneView.INodeLoader getLoader(String extension) {
+    public INodeLoader<Node> getLoader(String extension) {
         NodeImpl impl = getImpl(extension);
         if (impl != null) {
             return impl.loader;
@@ -113,7 +115,7 @@ public class Activator implements BundleActivator, INodeTypeRegistry {
     }
 
     @Override
-    public ISceneView.INodeLoader getLoader(Class<? extends Node> c) {
+    public INodeLoader<Node> getLoader(Class<? extends Node> c) {
         NodeImpl impl = this.classToImpl.get(c);
         if (impl != null) {
             return impl.loader;
@@ -123,7 +125,7 @@ public class Activator implements BundleActivator, INodeTypeRegistry {
     }
 
     @Override
-    public ISceneView.INodePresenter getPresenter(String extension) {
+    public INodePresenter<? extends Node> getPresenter(String extension) {
         NodeImpl impl = getImpl(extension);
         if (impl != null) {
             return impl.presenter;
@@ -132,7 +134,7 @@ public class Activator implements BundleActivator, INodeTypeRegistry {
     }
 
     @Override
-    public ISceneView.INodePresenter getPresenter(Class<? extends Node> c) {
+    public INodePresenter<? extends Node> getPresenter(Class<? extends Node> c) {
         NodeImpl impl = this.classToImpl.get(c);
         if (impl != null) {
             return impl.presenter;
@@ -191,6 +193,16 @@ public class Activator implements BundleActivator, INodeTypeRegistry {
     @Override
     public IResourceType getResourceType(
             Class<? extends Node> c) {
+        NodeImpl impl = this.classToImpl.get(c);
+        if (impl != null) {
+            return impl.resourceType;
+        }
+        return null;
+    }
+
+    @Override
+    public IResourceType getResourceType(String extension) {
+        Class<?> c = this.extToClass.get(extension);
         NodeImpl impl = this.classToImpl.get(c);
         if (impl != null) {
             return impl.resourceType;

@@ -5,7 +5,7 @@ import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 
 public interface ISceneEditor {
 
-    ISceneView.INodePresenter getNodePresenter(Class<? extends Node> nodeClass);
+    ISceneView.INodePresenter<? extends Node> getNodePresenter(Class<? extends Node> nodeClass);
 
     IPresenterContext getPresenterContext();
 

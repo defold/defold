@@ -34,7 +34,7 @@ public class AddComponentOperation extends AbstractOperation {
             }
         } else {
             ComponentTypeNode componentType = (ComponentTypeNode)component.getChildren().get(0);
-            id = componentType.getTypeId();
+            id = this.gameObject.getModel().getExtension(componentType.getClass());
         }
         id = this.gameObject.getUniqueId(id);
         this.component.setId(id);

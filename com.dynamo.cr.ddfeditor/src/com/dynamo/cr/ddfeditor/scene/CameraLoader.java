@@ -1,4 +1,4 @@
-package com.dynamo.cr.tileeditor.scene;
+package com.dynamo.cr.ddfeditor.scene;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -10,17 +10,18 @@ import com.dynamo.cr.sceneed.core.ISceneView.ILoaderContext;
 import com.dynamo.cr.sceneed.core.ISceneView.INodeLoader;
 import com.google.protobuf.Message;
 
-public class Sprite2Loader implements INodeLoader<Sprite2Node> {
+public class CameraLoader implements INodeLoader<CameraNode> {
 
     @Override
-    public Sprite2Node load(ILoaderContext context, InputStream contents)
+    public CameraNode load(ILoaderContext context, InputStream contents)
             throws IOException, CoreException {
-        return new Sprite2Node();
+        return new CameraNode();
     }
 
     @Override
-    public Message buildMessage(ILoaderContext context, Sprite2Node node,
+    public Message buildMessage(ILoaderContext context, CameraNode node,
             IProgressMonitor monitor) throws IOException, CoreException {
         return null;
     }
+
 }
