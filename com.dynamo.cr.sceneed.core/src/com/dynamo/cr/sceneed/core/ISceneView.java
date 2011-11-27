@@ -36,6 +36,7 @@ public interface ISceneView {
     public interface ILoaderContext extends ILogger {
         Node loadNode(String path) throws IOException, CoreException;
         Node loadNode(String extension, InputStream contents) throws IOException, CoreException;
+        Node loadNodeFromTemplate(Class<? extends Node> nodeClass) throws IOException, CoreException;
         INodeTypeRegistry getNodeTypeRegistry();
     }
 

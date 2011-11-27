@@ -52,6 +52,21 @@
             </reference-type-class>
          </references>
       </resource-type>
+      <resource-type
+            embeddable="true"
+            file-extension="sprite2"
+            id="com.dynamo.cr.tileeditor.core.resourcetypes.sprite2"
+            name="Sprite2"
+            proto-message-class="com.dynamo.sprite2.proto.Sprite2$Sprite2Desc"
+            resource-refactor-participant-class="com.dynamo.cr.go.core.refactoring.SpriteRefactorParticipant"
+            template-data="tile_set: &quot;&quot; default_animation: &quot;&quot;"
+            type-class="component">
+         <references>
+            <reference-type-class
+                  type-class="image">
+            </reference-type-class>
+         </references>
+      </resource-type>
    </extension>
    <extension
          point="org.eclipse.ui.newWizards">
@@ -645,6 +660,11 @@
             node="com.dynamo.cr.tileeditor.scene.TileGridNode"
             loader="com.dynamo.cr.tileeditor.scene.TileComponentLoader"
             resource-type="com.dynamo.cr.tileeditor.resourcetypes.TileGrid">
+      </node-type>
+      <node-type
+            loader="com.dynamo.cr.tileeditor.scene.Sprite2Loader"
+            node="com.dynamo.cr.tileeditor.scene.Sprite2Node"
+            resource-type="com.dynamo.cr.tileeditor.core.resourcetypes.sprite2">
       </node-type>
    </extension>
 

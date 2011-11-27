@@ -1,5 +1,6 @@
 package com.dynamo.cr.sceneed.core;
 
+import com.dynamo.cr.editor.core.IResourceType;
 import com.dynamo.cr.sceneed.core.ISceneView.INodeLoader;
 import com.dynamo.cr.sceneed.core.ISceneView.INodePresenter;
 
@@ -15,5 +16,5 @@ public interface INodeTypeRegistry {
     INodeRenderer<Node> getRenderer(Class<? extends Node> c);
 
     String getExtension(Class<? extends Node> c);
-
+    IResourceType getResourceType(Class<? extends Node> c);
 }
