@@ -30,7 +30,6 @@ public abstract class AbstractNodeTest {
     protected INodeTypeRegistry nodeTypeRegistry;
     protected ILoaderContext loaderContext;
 
-
     public AbstractNodeTest() {
         super();
     }

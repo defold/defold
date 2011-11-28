@@ -1,5 +1,7 @@
 package com.dynamo.cr.tileeditor.test;
 
+import static org.hamcrest.CoreMatchers.is;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -17,7 +19,6 @@ import org.junit.Test;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
-import com.dynamo.cr.sceneed.core.Activator;
 import com.dynamo.cr.sceneed.core.IImageProvider;
 import com.dynamo.cr.sceneed.core.IModelListener;
 import com.dynamo.cr.sceneed.core.ISceneModel;
@@ -27,12 +28,13 @@ import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.SceneModel;
 import com.dynamo.cr.sceneed.core.ScenePresenter;
-import com.dynamo.cr.sceneed.core.test.AbstractTest;
+import com.dynamo.cr.sceneed.core.test.AbstractSceneTest;
+import com.dynamo.cr.sceneed.ui.LoaderContext;
 import com.dynamo.cr.tileeditor.scene.Sprite2Node;
 import com.google.inject.Module;
 import com.google.inject.Singleton;
 
-public class Sprite2Test extends AbstractTest {
+public class Sprite2Test extends AbstractSceneTest {
 
     private ILoaderContext loaderContext;
     private IPresenterContext presenterContext;
@@ -46,7 +48,7 @@ public class Sprite2Test extends AbstractTest {
             bind(ISceneView.class).toInstance(view);
             bind(ISceneView.IPresenter.class).to(ScenePresenter.class).in(Singleton.class);
             bind(IModelListener.class).to(ScenePresenter.class).in(Singleton.class);
-            bind(ISceneView.ILoaderContext.class).toInstance(loaderContext);
+            bind(ISceneView.ILoaderContext.class).to(LoaderContext.class).in(Singleton.class);
             bind(ISceneView.IPresenterContext.class).toInstance(presenterContext);
             bind(IImageProvider.class).toInstance(imageProvider);
         }
@@ -56,13 +58,13 @@ public class Sprite2Test extends AbstractTest {
     @Before
     public void setup() throws CoreException, IOException {
         this.view = mock(ISceneView.class);
-        this.loaderContext = mock(ILoaderContext.class);
         this.presenterContext = mock(IPresenterContext.class);
         this.imageProvider = mock(IImageProvider.class);
 
         super.setup();
         this.model = this.injector.getInstance(ISceneModel.class);
         this.presenter = this.injector.getInstance(ISceneView.IPresenter.class);
+        this.loaderContext = this.injector.getInstance(ISceneView.ILoaderContext.class);
 
         when(this.presenterContext.getSelection()).thenAnswer(new Answer<IStructuredSelection>() {
             @Override
@@ -71,11 +73,16 @@ public class Sprite2Test extends AbstractTest {
             }
         });
         when(this.presenterContext.getView()).thenReturn(this.view);
-
-        when(this.loaderContext.getNodeTypeRegistry()).thenReturn(Activator.getDefault());
     }
 
     // Tests
+
+    @Test
+    public void testLoadDefault() throws Exception {
+        Sprite2Node sprite = (Sprite2Node)this.loaderContext.loadNodeFromTemplate(Sprite2Node.class);
+        assertThat(sprite.getTileSet(), is(""));
+        assertThat(sprite.getDefaultAnimation(), is(""));
+    }
 
     @Test
     public void testLoad() throws Exception {

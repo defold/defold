@@ -50,7 +50,7 @@ import com.google.inject.Injector;
 import com.google.inject.Module;
 import com.google.inject.Singleton;
 
-public abstract class AbstractTest {
+public abstract class AbstractSceneTest {
     protected ISceneModel model;
     protected Injector injector;
     protected ISceneView view;

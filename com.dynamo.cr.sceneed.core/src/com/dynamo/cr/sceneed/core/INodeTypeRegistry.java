@@ -15,6 +15,7 @@ public interface INodeTypeRegistry {
     INodeRenderer<Node> getRenderer(String extension);
     INodeRenderer<Node> getRenderer(Class<? extends Node> c);
 
+    Class<?> getNodeClass(String extension);
     String getExtension(Class<? extends Node> c);
     IResourceType getResourceType(Class<? extends Node> c);
     IResourceType getResourceType(String extension);

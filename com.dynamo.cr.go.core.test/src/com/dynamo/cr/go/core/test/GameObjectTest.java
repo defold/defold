@@ -52,13 +52,13 @@ import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.SceneModel;
 import com.dynamo.cr.sceneed.core.ScenePresenter;
-import com.dynamo.cr.sceneed.core.test.AbstractTest;
+import com.dynamo.cr.sceneed.core.test.AbstractSceneTest;
 import com.dynamo.proto.DdfMath.Point3;
 import com.google.inject.Module;
 import com.google.inject.Singleton;
 import com.google.protobuf.TextFormat;
 
-public class GameObjectTest extends AbstractTest {
+public class GameObjectTest extends AbstractSceneTest {
 
     private ILoaderContext loaderContext;
     private IPresenterContext presenterContext;

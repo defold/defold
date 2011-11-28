@@ -17,7 +17,7 @@ import com.dynamo.cr.sceneed.core.ISceneView.INodeLoader;
 import com.dynamo.cr.sceneed.core.Node;
 import com.google.inject.Module;
 
-public class NodeTypeTest extends AbstractTest {
+public class NodeTypeTest extends AbstractSceneTest {
 
     private ISceneView.ILoaderContext loaderContext;
 

@@ -37,9 +37,11 @@ com.dynamo.cr.sceneed.core.ISceneView.ILoaderContext {
 
     @Override
     public Node loadNode(String path) throws IOException, CoreException {
-        IFile file = this.contentRoot.getFile(new Path(path));
-        if (file.exists()) {
-            return loadNode(file.getFileExtension(), file.getContents());
+        if (path != null && !path.equals("")) {
+            IFile file = this.contentRoot.getFile(new Path(path));
+            if (file.exists()) {
+                return loadNode(file.getFileExtension(), file.getContents());
+            }
         }
         return null;
     }

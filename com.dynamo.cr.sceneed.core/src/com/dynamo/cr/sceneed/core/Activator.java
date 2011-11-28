@@ -164,6 +164,11 @@ public class Activator implements BundleActivator, INodeTypeRegistry {
     }
 
     @Override
+    public Class<?> getNodeClass(String extension) {
+        return this.extToClass.get(extension);
+    }
+
+    @Override
     public String getExtension(Class<? extends Node> c) {
         NodeImpl impl = this.classToImpl.get(c);
         if (impl != null) {

@@ -8,4 +8,5 @@ Fragment-Host: com.dynamo.cr.tileeditor;bundle-version="1.0.0"
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
 Require-Bundle: org.junit,
  org.mockito;bundle-version="1.8.5",
- com.dynamo.cr.sceneed.core.test;bundle-version="1.0.0"
+ com.dynamo.cr.sceneed.core.test;bundle-version="1.0.0",
+ com.dynamo.cr.sceneed.ui;bundle-version="1.0.0"
