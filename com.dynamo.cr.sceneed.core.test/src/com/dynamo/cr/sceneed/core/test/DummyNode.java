@@ -2,18 +2,17 @@ package com.dynamo.cr.sceneed.core.test;
 
 import org.eclipse.osgi.util.NLS;
 
-import com.dynamo.cr.sceneed.core.Messages;
 import com.dynamo.cr.sceneed.core.Node;
 
-public class ParentNode extends Node {
+public class DummyNode extends Node {
 
-    public ParentNode() {
-        // TODO Auto-generated constructor stub
+    public void addChild(DummyNode child) {
+        super.addChild(child);
     }
 
     @Override
     protected Class<? extends NLS> getMessages() {
-        return Messages.class;
+        return null;
     }
 
 }

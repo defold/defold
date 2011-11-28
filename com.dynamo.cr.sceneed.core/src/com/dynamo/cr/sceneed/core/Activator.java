@@ -99,7 +99,7 @@ public class Activator implements BundleActivator, INodeTypeRegistry {
 
     }
 
-    public void registerNodeType(String extension, Class<?> c, ISceneView.INodeLoader<Node> loader, ISceneView.INodePresenter<Node> presenter, INodeRenderer<Node> renderer, IResourceType resourceType) {
+    public void registerNodeType(String extension, Class<?> c, INodeLoader<Node> loader, ISceneView.INodePresenter<Node> presenter, INodeRenderer<Node> renderer, IResourceType resourceType) {
         NodeImpl impl = new NodeImpl(extension, loader, presenter, renderer, resourceType);
         this.extToClass.put(extension, c);
         this.classToImpl.put(c, impl);
