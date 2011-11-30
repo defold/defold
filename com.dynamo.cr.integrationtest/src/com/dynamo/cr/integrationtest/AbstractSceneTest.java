@@ -1,4 +1,11 @@
-package com.dynamo.cr.sceneed.core.test;
+package com.dynamo.cr.integrationtest;
+
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -29,64 +36,62 @@ import org.eclipse.jface.viewers.IStructuredSelection;
 import org.junit.Before;
 import org.osgi.framework.Bundle;
 
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.any;
-
-import static org.junit.Assert.assertTrue;
-
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.sceneed.core.Activator;
+import com.dynamo.cr.sceneed.core.IImageProvider;
+import com.dynamo.cr.sceneed.core.IModelListener;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.ISceneView;
+import com.dynamo.cr.sceneed.core.ISceneView.ILoaderContext;
+import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.sceneed.core.SceneModel;
+import com.dynamo.cr.sceneed.core.ScenePresenter;
+import com.dynamo.cr.sceneed.ui.LoaderContext;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
-import com.google.inject.Module;
 import com.google.inject.Singleton;
 
 public abstract class AbstractSceneTest {
-    protected ISceneModel model;
-    protected Injector injector;
-    protected ISceneView view;
-    protected ISceneView.IPresenter presenter;
-    protected IOperationHistory history;
-    protected IUndoContext undoContext;
-    protected IContainer contentRoot;
+    private ISceneModel model;
+    private ISceneView view;
+    private ISceneView.IPresenter presenter;
+    private IOperationHistory history;
+    private IUndoContext undoContext;
+    private IContainer contentRoot;
+    private IProject project;
+    private INodeTypeRegistry nodeTypeRegistry;
+    private ILogger logger;
+    private IImageProvider imageProvider;
+    private IPresenterContext presenterContext;
+    private ILoaderContext loaderContext;
+
     private Map<Node, Integer> updateCounts;
     private int selectCount;
     private int dirtyCount;
     private int cleanCount;
-    private IProject project;
-    protected INodeTypeRegistry nodeTypeRegistry;
 
-    protected static class TestLogger implements ILogger {
-
-        @Override
-        public void logException(Throwable exception) {
-            throw new UnsupportedOperationException(exception);
-        }
-
-    }
-
-    protected class GenericTestModule extends AbstractModule {
+    protected class TestModule extends AbstractModule {
         @Override
         protected void configure() {
+            bind(ISceneModel.class).to(SceneModel.class).in(Singleton.class);
+            bind(ISceneView.class).toInstance(view);
+            bind(ISceneView.IPresenter.class).to(ScenePresenter.class).in(Singleton.class);
+            bind(IModelListener.class).to(ScenePresenter.class).in(Singleton.class);
+            bind(ISceneView.ILoaderContext.class).to(LoaderContext.class).in(Singleton.class);
+            bind(ISceneView.IPresenterContext.class).toInstance(presenterContext);
             bind(IOperationHistory.class).to(DefaultOperationHistory.class).in(Singleton.class);
             bind(IUndoContext.class).to(UndoContext.class).in(Singleton.class);
-            bind(ILogger.class).to(TestLogger.class);
             bind(IContainer.class).toInstance(contentRoot);
             bind(INodeTypeRegistry.class).toInstance(nodeTypeRegistry);
+            bind(ILogger.class).toInstance(logger);
+            bind(IImageProvider.class).toInstance(imageProvider);
         }
     }
-
-    protected abstract Module getModule();
-    protected abstract String getBundleName();
 
     @Before
     public void setup() throws CoreException, IOException {
@@ -104,7 +109,7 @@ public abstract class AbstractSceneTest {
         pd.setNatureIds(new String[] { "com.dynamo.cr.editor.core.crnature" });
         this.project.setDescription(pd, null);
 
-        Bundle bundle = Platform.getBundle(getBundleName());
+        Bundle bundle = Platform.getBundle("com.dynamo.cr.integrationtest");
         Enumeration<URL> entries = bundle.findEntries("/test", "*", true);
         while (entries.hasMoreElements()) {
             URL url = entries.nextElement();
@@ -122,14 +127,20 @@ public abstract class AbstractSceneTest {
         this.contentRoot = EditorUtil.findContentRoot(this.project.getFile("game.project"));
 
         this.view = mock(ISceneView.class);
+        this.logger = mock(ILogger.class);
+        doThrow(new RuntimeException()).when(this.logger).logException(any(Throwable.class));
 
-        this.nodeTypeRegistry = Activator.getDefault();
+        this.presenterContext = mock(IPresenterContext.class);
+        this.imageProvider = mock(IImageProvider.class);
 
-        this.injector = Guice.createInjector(getModule());
-        this.model = this.injector.getInstance(ISceneModel.class);
-        this.presenter = this.injector.getInstance(ISceneView.IPresenter.class);
-        this.history = this.injector.getInstance(IOperationHistory.class);
-        this.undoContext = this.injector.getInstance(IUndoContext.class);
+        this.nodeTypeRegistry = Activator.getDefault().getNodeTypeRegistry();
+
+        Injector injector = Guice.createInjector(new TestModule());
+        this.model = injector.getInstance(ISceneModel.class);
+        this.presenter = injector.getInstance(ISceneView.IPresenter.class);
+        this.history = injector.getInstance(IOperationHistory.class);
+        this.undoContext = injector.getInstance(IUndoContext.class);
+        this.loaderContext = injector.getInstance(ILoaderContext.class);
 
         ResourcesPlugin.getWorkspace().addResourceChangeListener(new IResourceChangeListener() {
             @Override
@@ -146,6 +157,36 @@ public abstract class AbstractSceneTest {
         this.selectCount = 0;
         this.dirtyCount = 0;
         this.cleanCount = 0;
+    }
+
+    // Accessors
+
+    protected ISceneModel getModel() {
+        return this.model;
+    }
+
+    protected ISceneView getView() {
+        return this.view;
+    }
+
+    protected ISceneView.IPresenter getPresenter() {
+        return this.presenter;
+    }
+
+    protected IPresenterContext getPresenterContext() {
+        return this.presenterContext;
+    }
+
+    protected ILoaderContext getLoaderContext() {
+        return this.loaderContext;
+    }
+
+    protected IContainer getContentRoot() {
+        return this.contentRoot;
+    }
+
+    protected INodeTypeRegistry getNodeTypeRegistry() {
+        return this.nodeTypeRegistry;
     }
 
     // Helpers

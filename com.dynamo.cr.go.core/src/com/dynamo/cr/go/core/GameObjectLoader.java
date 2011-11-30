@@ -10,6 +10,7 @@ import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.SubMonitor;
 
+import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
 import com.dynamo.cr.sceneed.core.ISceneView.ILoaderContext;
 import com.dynamo.cr.sceneed.core.ISceneView.INodeLoader;
@@ -73,10 +74,11 @@ public class GameObjectLoader implements INodeLoader<GameObjectNode> {
                 ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
                 SubMonitor partProgress = progress.newChild(1).setWorkRemaining(2);
                 INodeTypeRegistry registry = context.getNodeTypeRegistry();
-                INodeLoader<Node> loader = registry.getLoader(componentType.getClass());
+                INodeType nodeType = registry.getNodeType(componentType.getClass());
+                INodeLoader<Node> loader = nodeType.getLoader();
                 Message message = loader.buildMessage(context, componentType, partProgress.newChild(1));
                 SceneUtil.saveMessage(message, byteStream, partProgress.newChild(1));
-                componentBuilder.setType(registry.getExtension(componentType.getClass()));
+                componentBuilder.setType(nodeType.getExtension());
                 componentBuilder.setData(byteStream.toString());
                 builder.addEmbeddedComponents(componentBuilder);
             }

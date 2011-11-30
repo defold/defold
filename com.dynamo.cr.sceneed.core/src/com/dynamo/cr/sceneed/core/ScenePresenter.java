@@ -50,7 +50,8 @@ public class ScenePresenter implements IPresenter, IModelListener {
 
     @Override
     public final void onLoad(String type, InputStream contents) throws IOException, CoreException {
-        INodeLoader<? super Node> loader = this.nodeTypeRegistry.getLoader(type);
+        INodeType nodeType = this.nodeTypeRegistry.getNodeType(type);
+        INodeLoader<? super Node> loader = nodeType.getLoader();
         Node node = loader.load(this.loaderContext, contents);
         this.model.setRoot(node);
     }
@@ -58,7 +59,8 @@ public class ScenePresenter implements IPresenter, IModelListener {
     @Override
     public void onSave(OutputStream contents, IProgressMonitor monitor) throws IOException, CoreException {
         Node node = this.model.getRoot();
-        INodeLoader<? super Node> loader = this.nodeTypeRegistry.getLoader(node.getClass());
+        INodeType nodeType = this.nodeTypeRegistry.getNodeType(node.getClass());
+        INodeLoader<? super Node> loader = nodeType.getLoader();
         Message message = loader.buildMessage(this.loaderContext, node, monitor);
         SceneUtil.saveMessage(message, contents, monitor);
         this.model.setUndoRedoCounter(0);

@@ -11,6 +11,7 @@ import org.eclipse.core.runtime.Path;
 
 import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.editor.core.IResourceType;
+import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
 import com.dynamo.cr.sceneed.core.ISceneView.INodeLoader;
 import com.dynamo.cr.sceneed.core.Node;
@@ -49,8 +50,9 @@ com.dynamo.cr.sceneed.core.ISceneView.ILoaderContext {
     @Override
     public Node loadNode(String extension, InputStream contents)
             throws IOException, CoreException {
-        INodeLoader<Node> loader = this.nodeTypeRegistry.getLoader(extension);
-        if (loader != null) {
+        INodeType nodeType = this.nodeTypeRegistry.getNodeType(extension);
+        if (nodeType != null) {
+            INodeLoader<Node> loader = nodeType.getLoader();
             return loader.load(this, contents);
         }
         return null;
@@ -58,15 +60,23 @@ com.dynamo.cr.sceneed.core.ISceneView.ILoaderContext {
 
     @Override
     public Node loadNodeFromTemplate(Class<? extends Node> nodeClass) throws IOException, CoreException {
-        String extension = this.nodeTypeRegistry.getExtension(nodeClass);
-        return loadNodeFromTemplate(extension);
+        INodeType nodeType = this.nodeTypeRegistry.getNodeType(nodeClass);
+        if (nodeType != null) {
+            String extension = nodeType.getExtension();
+            return loadNodeFromTemplate(extension);
+        }
+        return null;
     }
 
     @Override
     public Node loadNodeFromTemplate(String extension) throws IOException, CoreException {
-        IResourceType resourceType = this.nodeTypeRegistry.getResourceType(extension);
-        ByteArrayInputStream stream = new ByteArrayInputStream(resourceType.getTemplateData());
-        return loadNode(extension, stream);
+        INodeType nodeType = this.nodeTypeRegistry.getNodeType(extension);
+        if (nodeType != null) {
+            IResourceType resourceType = nodeType.getResourceType();
+            ByteArrayInputStream stream = new ByteArrayInputStream(resourceType.getTemplateData());
+            return loadNode(extension, stream);
+        }
+        return null;
     }
 
     @Override

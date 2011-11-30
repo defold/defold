@@ -15,7 +15,7 @@ import org.eclipse.ui.handlers.HandlerUtil;
 import org.eclipse.ui.ide.IDE;
 import org.eclipse.ui.statushandlers.StatusManager;
 
-import com.dynamo.cr.go.core.Activator;
+import com.dynamo.cr.go.core.Constants;
 import com.dynamo.cr.go.core.RefComponentNode;
 
 public class EnterRefComponentHandler extends AbstractHandler {
@@ -31,7 +31,7 @@ public class EnterRefComponentHandler extends AbstractHandler {
             try {
                 IDE.openEditor(page, file);
             } catch (PartInitException e1) {
-                Status status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, e1.getMessage());
+                Status status = new Status(IStatus.ERROR, Constants.PLUGIN_ID, e1.getMessage());
                 StatusManager.getManager().handle(status, StatusManager.LOG);
             }
         }

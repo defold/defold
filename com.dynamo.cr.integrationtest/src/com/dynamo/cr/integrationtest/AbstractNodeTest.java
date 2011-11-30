@@ -63,7 +63,7 @@ public abstract class AbstractNodeTest {
                 is.close();
             }
         }
-        this.nodeTypeRegistry = Activator.getDefault();
+        this.nodeTypeRegistry = Activator.getDefault().getNodeTypeRegistry();
         this.loaderContext = new LoaderContext(project, nodeTypeRegistry, mock(ILogger.class));
     }
 

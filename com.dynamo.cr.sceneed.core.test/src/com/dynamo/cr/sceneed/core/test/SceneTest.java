@@ -20,7 +20,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.dynamo.cr.editor.core.ILogger;
-import com.dynamo.cr.sceneed.core.Activator;
 import com.dynamo.cr.sceneed.core.IImageProvider;
 import com.dynamo.cr.sceneed.core.IModelListener;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
@@ -45,6 +44,7 @@ public class SceneTest {
     private ILogger logger;
     private IImageProvider imageProvider;
     private IContainer contentRoot;
+    private INodeTypeRegistry nodeTypeRegistry;
 
     private int selectCount;
 
@@ -59,7 +59,7 @@ public class SceneTest {
             bind(IPresenterContext.class).toInstance(presenterContext);
             bind(ILogger.class).toInstance(logger);
             bind(IImageProvider.class).toInstance(imageProvider);
-            bind(INodeTypeRegistry.class).toInstance(Activator.getDefault());
+            bind(INodeTypeRegistry.class).toInstance(nodeTypeRegistry);
             bind(IOperationHistory.class).to(DefaultOperationHistory.class).in(Singleton.class);
             bind(IUndoContext.class).to(UndoContext.class).in(Singleton.class);
             bind(IContainer.class).toInstance(contentRoot);
@@ -74,6 +74,7 @@ public class SceneTest {
         this.logger = mock(ILogger.class);
         this.imageProvider = mock(IImageProvider.class);
         this.contentRoot = mock(IContainer.class);
+        this.nodeTypeRegistry = mock(INodeTypeRegistry.class);
 
         doThrow(new RuntimeException()).when(this.logger).logException(any(Throwable.class));
 

@@ -52,9 +52,11 @@ import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.editor.core.inject.LifecycleModule;
 import com.dynamo.cr.editor.ui.AbstractDefoldEditor;
+import com.dynamo.cr.editor.ui.Logger;
 import com.dynamo.cr.properties.IFormPropertySheetPage;
 import com.dynamo.cr.sceneed.core.IImageProvider;
 import com.dynamo.cr.sceneed.core.IModelListener;
+import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
 import com.dynamo.cr.sceneed.core.ISceneEditor;
 import com.dynamo.cr.sceneed.core.ISceneModel;
@@ -80,6 +82,8 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
     private ISceneView.IPresenter presenter;
     private ISceneView.IPresenterContext presenterContext;
     private ISceneView.ILoaderContext loaderContext;
+    private INodeTypeRegistry nodeTypeRegistry;
+
     private boolean dirty;
 
     class Module extends AbstractModule {
@@ -90,7 +94,7 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
             bind(ISceneView.class).to(SceneView.class).in(Singleton.class);
             bind(RenderView.class).in(Singleton.class);
             bind(ISceneModel.class).to(SceneModel.class).in(Singleton.class);
-            bind(INodeTypeRegistry.class).toInstance(com.dynamo.cr.sceneed.core.Activator.getDefault());
+            bind(INodeTypeRegistry.class).toInstance(nodeTypeRegistry);
             bind(ISceneView.IPresenter.class).to(ScenePresenter.class).in(Singleton.class);
             bind(IModelListener.class).to(ScenePresenter.class).in(Singleton.class);
             bind(SceneEditor.class).toInstance(SceneEditor.this);
@@ -123,6 +127,8 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
             throw new PartInitException(
                     "Unable to locate content root for project");
         }
+
+        this.nodeTypeRegistry = com.dynamo.cr.sceneed.core.Activator.getDefault().getNodeTypeRegistry();
 
         this.module = new LifecycleModule(new Module());
         Injector injector = Guice.createInjector(module);
@@ -314,8 +320,12 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
     }
 
     @Override
-    public ISceneView.INodePresenter<? extends Node> getNodePresenter(Class<? extends Node> c) {
-        return com.dynamo.cr.sceneed.core.Activator.getDefault().getPresenter(c);
+    public ISceneView.INodePresenter<? extends Node> getNodePresenter(Class<? extends Node> nodeClass) {
+        INodeType nodeType = this.nodeTypeRegistry.getNodeType(nodeClass);
+        if (nodeType != null) {
+            return nodeType.getPresenter();
+        }
+        return null;
     }
 
     @Override

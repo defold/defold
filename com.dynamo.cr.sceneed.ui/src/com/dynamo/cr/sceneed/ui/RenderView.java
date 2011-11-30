@@ -39,6 +39,7 @@ import org.eclipse.ui.services.IDisposable;
 
 import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.sceneed.core.INodeRenderer;
+import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.RenderContext;
@@ -55,7 +56,7 @@ MouseMoveListener,
 Listener,
 ISelectionProvider {
 
-    private final INodeTypeRegistry manager;
+    private final INodeTypeRegistry nodeTypeRegistry;
     private final ILogger logger;
 
     private GLCanvas canvas;
@@ -80,7 +81,7 @@ ISelectionProvider {
 
     @Inject
     public RenderView(INodeTypeRegistry manager, ILogger logger) {
-        this.manager = manager;
+        this.nodeTypeRegistry = manager;
         this.logger = logger;
     }
 
@@ -311,16 +312,16 @@ ISelectionProvider {
         ptr = 0;
         for (int i = 0; i < hits; i++)
         {
-           names = selectBuffer.get(ptr);
-           ptr++;
-           {
-               numberOfNames = names;
-               minz = toUnsignedInt(selectBuffer.get(ptr));
-               ptrNames = ptr+2;
-               selected.add(new SelectResult.Pair(minz, selectBuffer.get(ptrNames)));
-           }
+            names = selectBuffer.get(ptr);
+            ptr++;
+            {
+                numberOfNames = names;
+                minz = toUnsignedInt(selectBuffer.get(ptr));
+                ptrNames = ptr+2;
+                selected.add(new SelectResult.Pair(minz, selectBuffer.get(ptrNames)));
+            }
 
-           ptr += names+2;
+            ptr += names+2;
         }
         ptr = ptrNames;
 
@@ -512,9 +513,9 @@ ISelectionProvider {
     }
 
     private void setupNode(RenderContext renderContext, Node node) {
-        INodeRenderer<Node> renderer = this.manager.getRenderer(node.getClass());
-
-        if (renderer != null) {
+        INodeType nodeType = this.nodeTypeRegistry.getNodeType(node.getClass());
+        if (nodeType != null) {
+            INodeRenderer<Node> renderer = nodeType.getRenderer();
             renderer.setup(renderContext, node);
         }
 

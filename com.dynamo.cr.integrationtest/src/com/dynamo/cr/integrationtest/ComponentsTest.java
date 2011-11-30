@@ -2,7 +2,6 @@ package com.dynamo.cr.integrationtest;
 
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -20,65 +19,29 @@ import org.junit.Test;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
-import com.dynamo.cr.editor.core.EditorCorePlugin;
 import com.dynamo.cr.editor.core.IResourceType;
 import com.dynamo.cr.go.core.ComponentTypeNode;
 import com.dynamo.cr.go.core.GameObjectNode;
 import com.dynamo.cr.go.core.GameObjectPresenter;
 import com.dynamo.cr.go.core.operations.AddComponentOperation;
-import com.dynamo.cr.sceneed.core.IImageProvider;
-import com.dynamo.cr.sceneed.core.IModelListener;
-import com.dynamo.cr.sceneed.core.ISceneModel;
-import com.dynamo.cr.sceneed.core.ISceneView;
-import com.dynamo.cr.sceneed.core.ISceneView.ILoaderContext;
-import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
+import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.Node;
-import com.dynamo.cr.sceneed.core.SceneModel;
-import com.dynamo.cr.sceneed.core.ScenePresenter;
-import com.dynamo.cr.sceneed.core.test.AbstractSceneTest;
-import com.dynamo.cr.sceneed.ui.LoaderContext;
-import com.google.inject.Module;
-import com.google.inject.Singleton;
 
 public class ComponentsTest extends AbstractSceneTest {
-
-    private ILoaderContext loaderContext;
-    private IPresenterContext presenterContext;
-    private IImageProvider imageProvider;
-
-    class TestModule extends GenericTestModule {
-        @Override
-        protected void configure() {
-            super.configure();
-            bind(ISceneModel.class).to(SceneModel.class).in(Singleton.class);
-            bind(ISceneView.class).toInstance(view);
-            bind(ISceneView.IPresenter.class).to(ScenePresenter.class).in(Singleton.class);
-            bind(IModelListener.class).to(ScenePresenter.class).in(Singleton.class);
-            bind(ISceneView.ILoaderContext.class).to(LoaderContext.class).in(Singleton.class);
-            bind(ISceneView.IPresenterContext.class).toInstance(presenterContext);
-            bind(IImageProvider.class).toInstance(imageProvider);
-        }
-    }
 
     @Override
     @Before
     public void setup() throws CoreException, IOException {
-        this.view = mock(ISceneView.class);
-        this.presenterContext = mock(IPresenterContext.class);
-        this.imageProvider = mock(IImageProvider.class);
 
         super.setup();
-        this.model = this.injector.getInstance(ISceneModel.class);
-        this.presenter = this.injector.getInstance(ISceneView.IPresenter.class);
-        this.loaderContext = this.injector.getInstance(ISceneView.ILoaderContext.class);
 
-        when(this.presenterContext.getSelection()).thenAnswer(new Answer<IStructuredSelection>() {
+        when(getPresenterContext().getSelection()).thenAnswer(new Answer<IStructuredSelection>() {
             @Override
             public IStructuredSelection answer(InvocationOnMock invocation) throws Throwable {
-                return model.getSelection();
+                return getModel().getSelection();
             }
         });
-        when(this.presenterContext.getView()).thenReturn(this.view);
+        when(getPresenterContext().getView()).thenReturn(getView());
     }
 
     // Tests
@@ -86,11 +49,11 @@ public class ComponentsTest extends AbstractSceneTest {
     @Test
     public void testLoad() throws Exception {
         String ddf = "";
-        this.presenter.onLoad("go", new ByteArrayInputStream(ddf.getBytes()));
-        Node root = this.model.getRoot();
+        getPresenter().onLoad("go", new ByteArrayInputStream(ddf.getBytes()));
+        Node root = getModel().getRoot();
         assertTrue(root instanceof GameObjectNode);
-        assertTrue(this.model.getSelection().toList().contains(root));
-        verify(this.view, times(1)).setRoot(root);
+        assertTrue(getModel().getSelection().toList().contains(root));
+        verify(getView(), times(1)).setRoot(root);
         verifySelection();
         verifyNoClean();
         verifyNoDirty();
@@ -104,19 +67,19 @@ public class ComponentsTest extends AbstractSceneTest {
     public void testAddComponents() throws Exception {
         testLoad();
 
-        IFolder folder = this.contentRoot.getFolder(new Path("tmp"));
+        IFolder folder = getContentRoot().getFolder(new Path("tmp"));
         if (!folder.exists()) {
             folder.create(true, true, null);
         }
 
-        GameObjectPresenter presenter = (GameObjectPresenter)this.nodeTypeRegistry.getPresenter(GameObjectNode.class);
+        INodeType goNodeType = getNodeTypeRegistry().getNodeType(GameObjectNode.class);
+        GameObjectPresenter presenter = (GameObjectPresenter)goNodeType.getPresenter();
 
-        // TODO: Iterate through node types directly (needs to be exposed through INodeTypeRegistry)
-        IResourceType[] resourceTypes = EditorCorePlugin.getDefault().getResourceTypes();
+        INodeType[] nodeTypes = getNodeTypeRegistry().getNodeTypes();
         int count = 1;
-        for (IResourceType type : resourceTypes) {
+        for (INodeType nodeType : nodeTypes) {
             boolean isComponentType = false;
-            Class<?> nodeClass = this.nodeTypeRegistry.getNodeClass(type.getFileExtension());
+            Class<?> nodeClass = nodeType.getNodeClass();
             if (nodeClass != null) {
                 Class<?> superClass = nodeClass.getSuperclass();
                 while (superClass != null) {
@@ -128,42 +91,33 @@ public class ComponentsTest extends AbstractSceneTest {
                 }
             }
             if (isComponentType) {
-                if (type.isEmbeddable()) {
+                IResourceType resourceType = nodeType.getResourceType();
+                if (resourceType.isEmbeddable()) {
                     // Setup picking of the type from gui
-                    when(this.view.selectComponentType()).thenReturn(type.getFileExtension());
+                    when(getView().selectComponentType()).thenReturn(resourceType.getFileExtension());
 
                     // Perform operation
-                    presenter.onAddComponent(this.presenterContext, this.loaderContext);
-                    verify(this.presenterContext, times(count++)).executeOperation(any(AddComponentOperation.class));
+                    presenter.onAddComponent(getPresenterContext(), getLoaderContext());
+                    verify(getPresenterContext(), times(count++)).executeOperation(any(AddComponentOperation.class));
                 }
 
-                String path = String.format("tmp/test.%s", type.getFileExtension());
-                IFile file = this.contentRoot.getFile(new Path(path));
+                String path = String.format("tmp/test.%s", resourceType.getFileExtension());
+                IFile file = getContentRoot().getFile(new Path(path));
                 if (file.exists()) {
                     file.delete(true, null);
                 }
-                byte[] data = type.getTemplateData();
+                byte[] data = resourceType.getTemplateData();
                 file.create(new ByteArrayInputStream(data != null ? data : "".getBytes()), true, null);
 
                 // Setup picking of the file from gui
-                when(this.view.selectComponentFromFile()).thenReturn(path);
+                when(getView().selectComponentFromFile()).thenReturn(path);
 
                 // Perform operation
-                presenter.onAddComponentFromFile(this.presenterContext, this.loaderContext);
-                verify(this.presenterContext, times(count++)).executeOperation(any(AddComponentOperation.class));
+                presenter.onAddComponentFromFile(getPresenterContext(), getLoaderContext());
+                verify(getPresenterContext(), times(count++)).executeOperation(any(AddComponentOperation.class));
             }
         }
 
-    }
-
-    @Override
-    protected Module getModule() {
-        return new TestModule();
-    }
-
-    @Override
-    protected String getBundleName() {
-        return "com.dynamo.cr.integrationtest";
     }
 
 }

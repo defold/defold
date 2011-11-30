@@ -1,5 +1,7 @@
 package com.dynamo.cr.tileeditor.scene;
 
+import org.eclipse.core.runtime.IStatus;
+
 import com.dynamo.cr.go.core.ComponentTypeNode;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Resource;
@@ -35,4 +37,8 @@ public class Sprite2Node extends ComponentTypeNode {
         }
     }
 
+    @Override
+    protected IStatus doValidate() {
+        return validateProperties(new String[] {"tileSet", "defaultAnimation"});
+    }
 }

@@ -36,12 +36,12 @@ public class ComponentNode extends Node {
 
     public IStatus validateId() {
         if (this.id == null || this.id.equals("")) {
-            return new Status(IStatus.ERROR, Activator.PLUGIN_ID, Messages.ComponentNode_id_NOT_SPECIFIED);
+            return new Status(IStatus.ERROR, Constants.PLUGIN_ID, Messages.ComponentNode_id_NOT_SPECIFIED);
         } else if (getParent() != null) {
             for (Node sibling : getParent().getChildren()) {
                 if (sibling != this) {
                     if (this.id.equals(((ComponentNode)sibling).getId())) {
-                        return new Status(IStatus.ERROR, Activator.PLUGIN_ID, NLS.bind(Messages.ComponentNode_id_DUPLICATED, this.id));
+                        return new Status(IStatus.ERROR, Constants.PLUGIN_ID, NLS.bind(Messages.ComponentNode_id_DUPLICATED, this.id));
                     }
                 }
             }

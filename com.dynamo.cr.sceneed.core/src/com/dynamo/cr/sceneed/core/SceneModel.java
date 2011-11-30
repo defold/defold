@@ -26,16 +26,11 @@ import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.swt.graphics.Image;
 
 import com.dynamo.cr.editor.core.ILogger;
-import com.dynamo.cr.editor.core.IResourceType;
 import com.dynamo.cr.properties.Entity;
 import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.properties.PropertyIntrospector;
 import com.dynamo.cr.properties.PropertyIntrospectorModel;
-import com.dynamo.cr.sceneed.core.IModelListener;
-import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.ISceneView.ILoaderContext;
-import com.dynamo.cr.sceneed.core.Node;
-import com.dynamo.cr.sceneed.core.SceneUndoableCommandFactory;
 import com.google.inject.Inject;
 
 @Entity(commandFactory = SceneUndoableCommandFactory.class)
@@ -241,21 +236,22 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IResou
 
     @Override
     public String getExtension(Class<? extends Node> nodeClass) {
-        return this.loaderContext.getNodeTypeRegistry().getExtension(nodeClass);
+        INodeType nodeType = this.loaderContext.getNodeTypeRegistry().getNodeType(nodeClass);
+        return nodeType.getExtension();
     }
 
     @Override
     public String getTypeName(Class<? extends Node> nodeClass) {
-        IResourceType resourceType = this.loaderContext.getNodeTypeRegistry().getResourceType(nodeClass);
-        if (resourceType != null) {
-            return resourceType.getName();
+        INodeType nodeType = this.loaderContext.getNodeTypeRegistry().getNodeType(nodeClass);
+        if (nodeType != null) {
+            return nodeType.getResourceType().getName();
         }
         return null;
     }
 
     @Override
     public Image getImage(Class<? extends Node> nodeClass) {
-        String extension = this.loaderContext.getNodeTypeRegistry().getExtension(nodeClass);
+        String extension = getExtension(nodeClass);
         return this.imageProvider.getImage(extension);
     }
 

@@ -13,7 +13,7 @@ import com.dynamo.cr.editor.core.EditorCorePlugin;
 import com.dynamo.cr.editor.core.GenericRefactorParticipant;
 import com.dynamo.cr.editor.core.IResourceType;
 import com.dynamo.cr.editor.core.ResourceRefactorContext;
-import com.dynamo.cr.go.core.Activator;
+import com.dynamo.cr.go.core.Constants;
 import com.dynamo.cr.protobind.MessageNode;
 import com.dynamo.gameobject.proto.GameObject.ComponentDesc;
 import com.dynamo.gameobject.proto.GameObject.EmbeddedComponentDesc;
@@ -88,7 +88,7 @@ public class GameObjectRefactorParticipant extends GenericRefactorParticipant {
             }
 
         } catch (ParseException e) {
-            throw new CoreException(new Status(IStatus.ERROR, Activator.PLUGIN_ID, e.getMessage()));
+            throw new CoreException(new Status(IStatus.ERROR, Constants.PLUGIN_ID, e.getMessage()));
         }
         return null;
     }
@@ -145,7 +145,7 @@ public class GameObjectRefactorParticipant extends GenericRefactorParticipant {
             }
 
         } catch (ParseException e) {
-            throw new CoreException(new Status(IStatus.ERROR, Activator.PLUGIN_ID, e.getMessage()));
+            throw new CoreException(new Status(IStatus.ERROR, Constants.PLUGIN_ID, e.getMessage()));
         }
         return null;
     }

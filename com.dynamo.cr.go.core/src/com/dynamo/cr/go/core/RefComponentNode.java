@@ -55,7 +55,7 @@ public class RefComponentNode extends ComponentNode {
             if (this.type != null) {
                 IStatus status = this.type.validate();
                 if (!status.isOK()) {
-                    return new Status(IStatus.ERROR, Activator.PLUGIN_ID, Messages.RefComponentNode_component_INVALID_REFERENCE);
+                    return new Status(IStatus.ERROR, Constants.PLUGIN_ID, Messages.RefComponentNode_component_INVALID_REFERENCE);
                 }
             } else {
                 int index = this.component.lastIndexOf('.');
@@ -66,7 +66,7 @@ public class RefComponentNode extends ComponentNode {
                     String ext = this.component.substring(index+1);
                     message = NLS.bind(Messages.RefComponentNode_component_INVALID_TYPE, ext);
                 }
-                return new Status(IStatus.ERROR, Activator.PLUGIN_ID, message);
+                return new Status(IStatus.ERROR, Constants.PLUGIN_ID, message);
             }
         }
         return Status.OK_STATUS;
@@ -79,7 +79,7 @@ public class RefComponentNode extends ComponentNode {
         if (status.isMultiStatus()) {
             multiStatus = (MultiStatus)status;
         } else {
-            multiStatus = new MultiStatus(Activator.PLUGIN_ID, 0, null, null);
+            multiStatus = new MultiStatus(Constants.PLUGIN_ID, 0, null, null);
             multiStatus.merge(status);
         }
         multiStatus.merge(super.doValidate());
@@ -95,11 +95,13 @@ public class RefComponentNode extends ComponentNode {
     public void handleReload(IFile file) {
         IFile componentFile = getModel().getFile(this.component);
         if (componentFile.exists() && componentFile.equals(file)) {
-            reloadType();
+            if (reloadType()) {
+                notifyChange();
+            }
         }
     }
 
-    private void reloadType() {
+    private boolean reloadType() {
         ISceneModel model = getModel();
         if (model != null) {
             try {
@@ -107,11 +109,12 @@ public class RefComponentNode extends ComponentNode {
                 if (this.type != null) {
                     this.type.setModel(model);
                 }
-                notifyChange();
             } catch (Throwable e) {
                 // no reason to handle exception since having a null type is invalid state, will be caught in validateComponent below
             }
+            return true;
         }
+        return false;
     }
 
     @Override
