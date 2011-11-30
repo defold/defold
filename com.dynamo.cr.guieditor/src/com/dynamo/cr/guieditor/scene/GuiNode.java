@@ -69,7 +69,8 @@ public abstract class GuiNode implements IAdaptable {
 
     private Map<String, IStatus> statusMap = new HashMap<String, IStatus>();
 
-    private static PropertyIntrospector<GuiNode, GuiScene> introspector = new PropertyIntrospector<GuiNode, GuiScene>(GuiNode.class);
+    private static Map<Class<? extends GuiNode>, PropertyIntrospector<GuiNode, GuiScene>> introspectors =
+            new HashMap<Class<? extends GuiNode>, PropertyIntrospector<GuiNode, GuiScene>>();
 
     private void verify() {
         statusMap.clear();
@@ -190,8 +191,8 @@ public abstract class GuiNode implements IAdaptable {
         this.scale = toVector3d(nodeDesc.getScale());
         this.size = toVector3d(nodeDesc.getSize());
         this.color = new RGB((int) (nodeDesc.getColor().getX() * 255),
-                             (int) (nodeDesc.getColor().getY() * 255),
-                             (int) (nodeDesc.getColor().getZ() * 255));
+                (int) (nodeDesc.getColor().getY() * 255),
+                (int) (nodeDesc.getColor().getZ() * 255));
         this.alpha = nodeDesc.getColor().getW();
         this.texture = nodeDesc.getTexture();
         this.blendMode = nodeDesc.getBlendMode();
@@ -213,12 +214,17 @@ public abstract class GuiNode implements IAdaptable {
         scene.propertyChanged(this, "position");
     }
 
-
-    @SuppressWarnings({ "unchecked", "rawtypes" })
     @Override
-    public Object getAdapter(Class adapter) {
+    public Object getAdapter(@SuppressWarnings("rawtypes") Class adapter) {
+        PropertyIntrospector<GuiNode, GuiScene> introspector = introspectors.get(this.getClass());
+
+        if (introspector == null) {
+            introspector = new PropertyIntrospector<GuiNode, GuiScene>(this.getClass());
+            introspectors.put(this.getClass(), introspector);
+        }
+
         if (adapter == IPropertyModel.class) {
-            return new PropertyIntrospectorModel(this, getScene(), introspector);
+            return new PropertyIntrospectorModel<GuiNode, GuiScene>(this, getScene(), introspector);
         }
         return null;
     }
@@ -239,18 +245,18 @@ public abstract class GuiNode implements IAdaptable {
 
     Vector4.Builder buildVector3(Vector3d v) {
         return Vector4.newBuilder()
-            .setX((float) v.x)
-            .setY((float) v.y)
-            .setZ((float) v.z)
-            .setW((float) 0);
+                .setX((float) v.x)
+                .setY((float) v.y)
+                .setZ((float) v.z)
+                .setW(0);
     }
 
     public final NodeDesc buildNodeDesc() {
         Vector4 color4 = Vector4.newBuilder()
-            .setX(color.red / 255.0f )
-            .setY(color.green / 255.0f )
-            .setZ(color.blue / 255.0f)
-            .setW((float) alpha).build();
+                .setX(color.red / 255.0f )
+                .setY(color.green / 255.0f )
+                .setZ(color.blue / 255.0f)
+                .setW((float) alpha).build();
         NodeDesc.Builder builder = NodeDesc.newBuilder().mergeFrom(nodeDesc);
         builder.setPosition(buildVector3(position))
         .setRotation(buildVector3(rotation))
