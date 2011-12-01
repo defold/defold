@@ -487,9 +487,9 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
         }
     }
 
-    public boolean isValid() {
+    public IStatus validate() {
         PropertyIntrospectorModel<TileSetModel, TileSetModel> propertyModel = new PropertyIntrospectorModel<TileSetModel, TileSetModel>(this, this, introspector);
-        return propertyModel.isValid();
+        return propertyModel.getStatus();
     }
 
     protected IStatus validateImage() {
@@ -547,7 +547,8 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
     }
 
     private void updateConvexHulls() {
-        if (!isValid() || this.loadedCollision == null) {
+        IStatus status = validate();
+        if (status.getSeverity() > IStatus.INFO || this.loadedCollision == null) {
             setConvexHulls(new ArrayList<ConvexHull>(), new float[0]);
             return;
         }

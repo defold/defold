@@ -246,35 +246,6 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
         }
     }
 
-    public boolean isValid(T object, U world) {
-        try {
-            IPropertyAccessor<T, U> accessor = accessorClass.newInstance();
-            for (String property : properties) {
-                if (validate(object, accessor, property, world).getSeverity() > IStatus.INFO) {
-                    return false;
-                }
-            }
-            return true;
-        } catch (IllegalArgumentException e) {
-            // Can't use any UI here in a core plugin such as StatusManager
-            e.printStackTrace();
-            return true;
-        } catch (IllegalAccessException e) {
-            // Can't use any UI here in a core plugin such as StatusManager
-            e.printStackTrace();
-            return true;
-        } catch (InvocationTargetException e) {
-            // Can't use any UI here in a core plugin such as StatusManager
-            e.printStackTrace();
-            return true;
-        } catch (InstantiationException e) {
-            // Can't use any UI here in a core plugin such as StatusManager
-            e.printStackTrace();
-            return true;
-        }
-
-    }
-
     public ICommandFactory<T, U> getCommandFactory() {
         return commandFactory;
     }

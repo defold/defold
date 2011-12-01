@@ -11,6 +11,7 @@ import java.io.InputStream;
 
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.CoreException;
+import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Path;
 import org.junit.Before;
 import org.junit.Test;
@@ -21,6 +22,7 @@ import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.test.AbstractNodeTest;
+import com.dynamo.cr.tileeditor.scene.Messages;
 import com.dynamo.cr.tileeditor.scene.Sprite2Loader;
 import com.dynamo.cr.tileeditor.scene.Sprite2Node;
 import com.dynamo.sprite2.proto.Sprite2.Sprite2Desc;
@@ -110,6 +112,44 @@ public class Sprite2Test extends AbstractNodeTest {
         this.spriteNode.handleReload(this.imgFile);
 
         verifyUpdate();
+    }
+
+    @Test
+    public void testMessages() throws Exception {
+        setNodeProperty(this.spriteNode, "tileSet", "");
+        assertNodePropertyStatus(this.spriteNode, "tileSet", IStatus.INFO, null);
+
+        IFile missingFile = mock(IFile.class);
+        when(missingFile.exists()).thenReturn(false);
+        when(missingFile.getContents()).thenAnswer(new Answer<InputStream>() {
+            @Override
+            public InputStream answer(InvocationOnMock invocation) throws Throwable {
+                return new ByteArrayInputStream(new byte[] {0});
+            }
+        });
+        when(getModel().getFile("non_existant")).thenReturn(missingFile);
+        when(getContentRoot().getFile(new Path("non_existant"))).thenReturn(missingFile);
+        setNodeProperty(this.spriteNode, "tileSet", "non_existant");
+        assertNodePropertyStatus(this.spriteNode, "tileSet", IStatus.ERROR, null);
+
+        IFile invalidFile = mock(IFile.class);
+        when(invalidFile.exists()).thenReturn(true);
+        when(invalidFile.getContents()).thenAnswer(new Answer<ByteArrayInputStream>() {
+            @Override
+            public ByteArrayInputStream answer(InvocationOnMock invocation)
+                    throws Throwable {
+                String ddf = "image: \"non_existant\" tile_width: 1 tile_height: 1 tile_margin: 0 tile_spacing: 0 material_tag: \"tile\"";
+                return new ByteArrayInputStream(ddf.getBytes());
+            }
+        });
+        when(getModel().getFile("test2.tileset")).thenReturn(invalidFile);
+        when(getContentRoot().getFile(new Path("test2.tileset"))).thenReturn(invalidFile);
+
+        setNodeProperty(this.spriteNode, "tileSet", "test2.tileset");
+        assertNodePropertyStatus(this.spriteNode, "tileSet", IStatus.ERROR, Messages.SpriteNode_tileSet_INVALID_REFERENCE);
+
+        setNodeProperty(this.spriteNode, "defaultAnimation", "");
+        assertNodePropertyStatus(this.spriteNode, "defaultAnimation", IStatus.INFO, Messages.SpriteNode_defaultAnimation_NOT_SPECIFIED);
     }
 
 }
