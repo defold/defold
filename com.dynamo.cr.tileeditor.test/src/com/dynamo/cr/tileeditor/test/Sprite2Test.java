@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 
+import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.CoreException;
 import org.junit.Before;
 import org.junit.Test;
@@ -36,6 +37,7 @@ public class Sprite2Test extends AbstractNodeTest {
         String ddf = "tile_set: \"test.tileset\" default_animation: \"test\"";
         this.spriteNode = this.loader.load(getLoaderContext(), new ByteArrayInputStream(ddf.getBytes()));
         this.spriteNode.setModel(getModel());
+        verifyUpdate();
     }
 
     @Test
@@ -62,4 +64,16 @@ public class Sprite2Test extends AbstractNodeTest {
         assertThat(ddf.getTileSet(), is("test2.tileset"));
         assertThat(ddf.getDefaultAnimation(), is("test2"));
     }
+
+    @Test
+    public void testReloadTileSet() throws Exception {
+        IFile tileSetFile = mock(IFile.class);
+        when(tileSetFile.exists()).thenReturn(true);
+        when(getModel().getFile("test.tileset")).thenReturn(tileSetFile);
+
+        this.spriteNode.handleReload(tileSetFile);
+
+        verifyUpdate();
+    }
+
 }
