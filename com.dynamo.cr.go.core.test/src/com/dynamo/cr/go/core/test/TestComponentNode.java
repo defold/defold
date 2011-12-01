@@ -32,8 +32,4 @@ public class TestComponentNode extends ComponentTypeNode {
         return Status.OK_STATUS;
     }
 
-    @Override
-    protected IStatus doValidate() {
-        return validateProperties(new String[] {"position"});
-    }
 }

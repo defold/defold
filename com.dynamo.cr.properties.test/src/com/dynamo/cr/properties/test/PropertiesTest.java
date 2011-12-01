@@ -41,11 +41,11 @@ public class PropertiesTest {
         }
     }
 
-    static public class TestCommandFactory implements ICommandFactory<TestClass, TestWorld> {
+    static public class TestCommandFactory implements ICommandFactory<Object, TestWorld> {
 
         @Override
-        public IUndoableOperation create(TestClass obj, String property,
-                IPropertyAccessor<TestClass, TestWorld> accessor,
+        public IUndoableOperation create(Object obj, String property,
+                IPropertyAccessor<Object, TestWorld> accessor,
                 Object oldValue, Object newValue, TestWorld world) {
 
             // Increase total number of commands created
@@ -172,16 +172,48 @@ public class PropertiesTest {
 
     }
 
+    @Entity(commandFactory = TestCommandFactory.class, accessor = BeanPropertyAccessor.class)
+    static public class TinyTestClass {
+        @Property
+        @Range(min=1, max=10000)
+        int integerValue = 123;
+
+        @Property
+        double doubleValue = 456;
+
+        public int getIntegerValue() {
+            return this.integerValue;
+        }
+
+        public void setIntegerValue(int integerValue) {
+            this.integerValue = integerValue;
+        }
+
+        public double getDoubleValue() {
+            return this.doubleValue;
+        }
+
+        public void setDoubleValue(double doubleValue) {
+            this.doubleValue = doubleValue;
+        }
+    }
+
     private TestWorld world;
     private TestClass test;
     private PropertyIntrospectorModel<TestClass, TestWorld> source;
     private static PropertyIntrospector<TestClass, TestWorld> introspector = new PropertyIntrospector<TestClass, TestWorld>(TestClass.class);
 
+    private TinyTestClass tinyTest;
+    private PropertyIntrospectorModel<TinyTestClass, TestWorld> tinySource;
+    private static PropertyIntrospector<TinyTestClass, TestWorld> tinyIntrospector = new PropertyIntrospector<TinyTestClass, TestWorld>(TinyTestClass.class);
+
     @Before
     public void setUp() {
         world = new TestWorld();
         test = new TestClass();
+        tinyTest = new TinyTestClass();
         source = new PropertyIntrospectorModel<TestClass, TestWorld>(test, world, introspector);
+        tinySource = new PropertyIntrospectorModel<TinyTestClass, TestWorld>(tinyTest, world, tinyIntrospector);
     }
 
     @Test
@@ -289,4 +321,16 @@ public class PropertiesTest {
         source.setPropertyValue("integerValue", 1);
         assertTrue(source.getPropertyStatus("integerValue").isOK());
     }
+
+    @Test
+    public void testGetStatus() throws Exception {
+        this.tinySource.setPropertyValue("integerValue", 1);
+        assertTrue(this.tinySource.getPropertyStatus("integerValue").isOK());
+        assertTrue(this.tinySource.getStatus().isOK());
+
+        this.tinySource.setPropertyValue("integerValue", 0);
+        assertEquals(IStatus.ERROR, this.tinySource.getPropertyStatus("integerValue").getSeverity());
+        assertEquals(IStatus.ERROR, this.tinySource.getStatus().getSeverity());
+    }
+
 }
