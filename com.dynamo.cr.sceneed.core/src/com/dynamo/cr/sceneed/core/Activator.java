@@ -3,6 +3,7 @@ package com.dynamo.cr.sceneed.core;
 import org.eclipse.core.runtime.Plugin;
 import org.osgi.framework.BundleContext;
 
+import com.dynamo.cr.sceneed.core.internal.ManipulatorRegistry;
 import com.dynamo.cr.sceneed.core.internal.NodeTypeRegistry;
 
 public class Activator extends Plugin {
@@ -21,12 +22,22 @@ public class Activator extends Plugin {
 
     private NodeTypeRegistry nodeTypeRegistry = null;
 
+    private ManipulatorRegistry manipulatorRegistry = null;
+
     public INodeTypeRegistry getNodeTypeRegistry() {
         if (this.nodeTypeRegistry == null) {
             this.nodeTypeRegistry = new NodeTypeRegistry();
             this.nodeTypeRegistry.init(this);
         }
         return this.nodeTypeRegistry;
+    }
+
+    public IManipulatorRegistry getManipulatorRegistry() {
+        if (this.manipulatorRegistry == null) {
+            this.manipulatorRegistry = new ManipulatorRegistry();
+            this.manipulatorRegistry.init(this);
+        }
+        return this.manipulatorRegistry;
     }
 
     /*

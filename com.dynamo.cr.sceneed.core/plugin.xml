@@ -2,4 +2,12 @@
 <?eclipse version="3.4"?>
 <plugin>
    <extension-point id="com.dynamo.cr.nodetypes" name="Node" schema="schema/com.dynamo.cr.nodetypes.exsd"/>
+   <extension-point id="com.dynamo.cr.manipulators" name="Manipulators" schema="schema/com.dynamo.cr.manipulators.exsd"/>
+   <extension
+         point="com.dynamo.cr.manipulators">
+      <manipulator-mode
+            id="com.dynamo.cr.sceneed.core.manipulators.size-mode"
+            name="Size Manipulator">
+      </manipulator-mode>
+   </extension>
 </plugin>

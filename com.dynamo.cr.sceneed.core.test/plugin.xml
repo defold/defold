@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+   <extension
+         point="com.dynamo.cr.manipulators">
+      <manipulator
+            factory="com.dynamo.cr.sceneed.core.test.DummySphereSizeManipulatorFactory"
+            mode="com.dynamo.cr.sceneed.core.manipulators.size-mode"
+            name="Test Size Manipulator">
+      </manipulator>
+   </extension>
+
+</plugin>
