@@ -7,11 +7,15 @@ import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.CoreException;
+import org.eclipse.core.runtime.Path;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
 import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.ISceneView;
@@ -26,6 +30,9 @@ public class Sprite2Test extends AbstractNodeTest {
     private Sprite2Loader loader;
     private Sprite2Node spriteNode;
 
+    private IFile tileSetFile;
+    private IFile imgFile;
+
     @Override
     @Before
     public void setup() throws CoreException, IOException {
@@ -33,6 +40,28 @@ public class Sprite2Test extends AbstractNodeTest {
         super.setup();
 
         when(getModel().getExtension(Sprite2Node.class)).thenReturn("sprite2");
+
+        this.tileSetFile = mock(IFile.class);
+        when(this.tileSetFile.exists()).thenReturn(true);
+        when(this.tileSetFile.getContents()).thenAnswer(new Answer<InputStream>() {
+            @Override
+            public InputStream answer(InvocationOnMock invocation)
+                    throws Throwable {
+                String tileSetDdf = "image: \"test.png\" tile_width: 1 tile_height: 1 tile_margin: 0 tile_spacing: 0 material_tag: \"tile\"";
+                return new ByteArrayInputStream(tileSetDdf.getBytes());
+            }
+        });
+        when(getModel().getFile("test.tileset")).thenReturn(this.tileSetFile);
+        this.imgFile = mock(IFile.class);
+        when(this.imgFile.exists()).thenReturn(true);
+        when(this.imgFile.getContents()).thenAnswer(new Answer<InputStream>() {
+            @Override
+            public InputStream answer(InvocationOnMock invocation)
+                    throws Throwable {
+                return new ByteArrayInputStream(new byte[] {0});
+            }
+        });
+        when(getContentRoot().getFile(new Path("test.png"))).thenReturn(this.imgFile);
 
         String ddf = "tile_set: \"test.tileset\" default_animation: \"test\"";
         this.spriteNode = this.loader.load(getLoaderContext(), new ByteArrayInputStream(ddf.getBytes()));
@@ -56,6 +85,10 @@ public class Sprite2Test extends AbstractNodeTest {
 
         when(getNodeTypeRegistry().getNodeType(Sprite2Node.class)).thenReturn(spriteType);
 
+        IFile newTileSetFile = mock(IFile.class);
+        when(newTileSetFile.exists()).thenReturn(false);
+        when(getModel().getFile("test2.tileset")).thenReturn(newTileSetFile);
+
         setNodeProperty(this.spriteNode, "tileSet", "test2.tileset");
         setNodeProperty(this.spriteNode, "defaultAnimation", "test2");
 
@@ -67,11 +100,14 @@ public class Sprite2Test extends AbstractNodeTest {
 
     @Test
     public void testReloadTileSet() throws Exception {
-        IFile tileSetFile = mock(IFile.class);
-        when(tileSetFile.exists()).thenReturn(true);
-        when(getModel().getFile("test.tileset")).thenReturn(tileSetFile);
+        this.spriteNode.handleReload(this.tileSetFile);
 
-        this.spriteNode.handleReload(tileSetFile);
+        verifyUpdate();
+    }
+
+    @Test
+    public void testReloadTileSetImage() throws Exception {
+        this.spriteNode.handleReload(this.imgFile);
 
         verifyUpdate();
     }
