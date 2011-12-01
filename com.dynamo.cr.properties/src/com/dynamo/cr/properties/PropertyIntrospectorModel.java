@@ -46,6 +46,11 @@ public class PropertyIntrospectorModel<T, U extends IPropertyObjectWorld> implem
     }
 
     @Override
+    public IStatus getStatus() {
+        return introspector.getObjectStatus(object, world);
+    }
+
+    @Override
     public IStatus getPropertyStatus(Object id) {
         return introspector.getPropertyStatus(object, world, id);
     }

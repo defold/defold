@@ -32,6 +32,8 @@ public class Sprite2Loader implements INodeLoader<Sprite2Node> {
     @Override
     public Message buildMessage(ILoaderContext context, Sprite2Node node,
             IProgressMonitor monitor) throws IOException, CoreException {
-        return null;
+        Sprite2Desc.Builder builder = Sprite2Desc.newBuilder();
+        builder.setTileSet(node.getTileSet()).setDefaultAnimation(node.getDefaultAnimation());
+        return builder.build();
     }
 }

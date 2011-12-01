@@ -67,9 +67,4 @@ public class ComponentNode extends Node {
         return super.getImage();
     }
 
-    @Override
-    protected IStatus doValidate() {
-        return validateProperties(new String[] {"id"});
-    }
-
 }

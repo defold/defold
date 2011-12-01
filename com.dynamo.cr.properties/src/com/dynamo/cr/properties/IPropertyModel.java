@@ -17,6 +17,7 @@ public interface IPropertyModel<T, U extends IPropertyObjectWorld> {
 
     public boolean isPropertyEditable(Object id);
 
+    public IStatus getStatus();
     public IStatus getPropertyStatus(Object id);
 
     public boolean isValid();

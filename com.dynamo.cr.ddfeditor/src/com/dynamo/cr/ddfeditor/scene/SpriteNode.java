@@ -1,9 +1,5 @@
 package com.dynamo.cr.ddfeditor.scene;
 
-import org.eclipse.core.runtime.IStatus;
-import org.eclipse.core.runtime.MultiStatus;
-
-import com.dynamo.cr.ddfeditor.Activator;
 import com.dynamo.cr.go.core.ComponentTypeNode;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Resource;
@@ -111,20 +107,6 @@ public class SpriteNode extends ComponentTypeNode {
             this.tileCount = tileCount;
             notifyChange();
         }
-    }
-
-    @Override
-    public IStatus doValidate() {
-        IStatus status = validateProperties(new String[] {"texture"});
-        MultiStatus multiStatus= null;
-        if (status.isMultiStatus()) {
-            multiStatus = (MultiStatus)status;
-        } else {
-            multiStatus = new MultiStatus(Activator.PLUGIN_ID, 0, null, null);
-            multiStatus.merge(status);
-        }
-        multiStatus.merge(super.doValidate());
-        return multiStatus;
     }
 
 }

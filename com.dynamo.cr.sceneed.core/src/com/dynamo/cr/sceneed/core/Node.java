@@ -11,7 +11,6 @@ import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.IAdaptable;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.MultiStatus;
-import org.eclipse.core.runtime.Status;
 import org.eclipse.osgi.util.NLS;
 import org.eclipse.swt.graphics.Image;
 
@@ -19,7 +18,6 @@ import com.dynamo.cr.properties.Entity;
 import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.properties.PropertyIntrospector;
 import com.dynamo.cr.properties.PropertyIntrospectorModel;
-import com.dynamo.cr.sceneed.core.Activator;
 
 @Entity(commandFactory = SceneUndoableCommandFactory.class)
 public abstract class Node implements IAdaptable {
@@ -111,27 +109,15 @@ public abstract class Node implements IAdaptable {
             }
             status = multiStatus;
         }
-        IStatus ownStatus = doValidate();
+        @SuppressWarnings("unchecked")
+        IPropertyModel<? extends Node, ISceneModel> model = (IPropertyModel<? extends Node, ISceneModel>) getAdapter(IPropertyModel.class);
+        IStatus ownStatus = model.getStatus();
         if (status != null) {
             ((MultiStatus)status).merge(ownStatus);
         } else {
             status = ownStatus;
         }
         return status;
-    }
-
-    protected final IStatus validateProperties(String[] properties) {
-        MultiStatus status = new MultiStatus(Activator.PLUGIN_ID, 0, null, null);
-        @SuppressWarnings("unchecked")
-        IPropertyModel<? extends Node, ISceneModel> model = (IPropertyModel<? extends Node, ISceneModel>) getAdapter(IPropertyModel.class);
-        for (String property : properties) {
-            status.merge(model.getPropertyStatus(property));
-        }
-        return status;
-    }
-
-    protected IStatus doValidate() {
-        return Status.OK_STATUS;
     }
 
     protected abstract Class<? extends NLS> getMessages();

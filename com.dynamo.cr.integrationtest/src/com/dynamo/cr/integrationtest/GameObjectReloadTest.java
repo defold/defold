@@ -71,14 +71,14 @@ public class GameObjectReloadTest extends AbstractSceneTest {
         assertThat(go.getChildren().size(), is(1));
         assertNodePropertyStatus(component, "component", IStatus.ERROR, null);
         ComponentTypeNode type = component.getType();
-        verifyUpdate(go);
+        verifyUpdate(go, 2); // 2nd from update of tile set model in sprite
 
         saveSprite2Component(path, tileSet, defaultAnimation);
 
         assertNodePropertyStatus(component, "component", IStatus.OK, null);
         assertThat((RefComponentNode)go.getChildren().get(0), is(component));
         assertThat(type, is(not(component.getType())));
-        verifyUpdate(go);
+        verifyUpdate(go, 2); // 2nd from update of tile set model in sprite
     }
 
 }

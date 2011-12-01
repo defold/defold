@@ -1,10 +1,15 @@
 package com.dynamo.cr.tileeditor.scene;
 
-import org.eclipse.core.runtime.IStatus;
+import java.io.IOException;
+
+import org.eclipse.core.resources.IFile;
+import org.eclipse.core.runtime.CoreException;
 
 import com.dynamo.cr.go.core.ComponentTypeNode;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Resource;
+import com.dynamo.cr.sceneed.core.ISceneModel;
+import com.dynamo.cr.tileeditor.core.TileSetModel;
 
 public class Sprite2Node extends ComponentTypeNode {
 
@@ -15,6 +20,8 @@ public class Sprite2Node extends ComponentTypeNode {
     @Property
     private String defaultAnimation = "";
 
+    private TileSetModel tileSetModel = null;
+
     public String getTileSet() {
         return tileSet;
     }
@@ -22,6 +29,7 @@ public class Sprite2Node extends ComponentTypeNode {
     public void setTileSet(String tileSet) {
         if (!this.tileSet.equals(tileSet)) {
             this.tileSet = tileSet;
+            reloadTileSet();
             notifyChange();
         }
     }
@@ -38,7 +46,53 @@ public class Sprite2Node extends ComponentTypeNode {
     }
 
     @Override
-    protected IStatus doValidate() {
-        return validateProperties(new String[] {"tileSet", "defaultAnimation"});
+    public void setModel(ISceneModel model) {
+        super.setModel(model);
+        if (model != null && this.tileSetModel == null) {
+            if (reloadTileSet()) {
+                notifyChange();
+            }
+        }
     }
+
+    @Override
+    public void handleReload(IFile file) {
+        IFile tileSetFile = getModel().getFile(this.tileSet);
+        if (tileSetFile.exists() && tileSetFile.equals(file)) {
+            if (reloadTileSet()) {
+                notifyChange();
+            }
+        }
+        if (this.tileSetModel != null) {
+            if (this.tileSetModel.handleReload(file)) {
+                notifyChange();
+            }
+        }
+    }
+
+    private boolean reloadTileSet() {
+        ISceneModel model = getModel();
+        if (model != null) {
+            try {
+                if (this.tileSet != null && !this.tileSet.isEmpty()) {
+                    IFile tileSetFile = model.getFile(this.tileSet);
+                    if (tileSetFile.exists()) {
+                        if (this.tileSetModel == null) {
+                            this.tileSetModel = new TileSetModel(model.getContentRoot(), null, null, null);
+                        }
+                        this.tileSetModel.load(tileSetFile.getContents());
+                    }
+                }
+            } catch (IOException e) {
+                // no reason to handle exception since having a null type is invalid state, will be caught in validateComponent below
+                this.tileSetModel = null;
+            } catch (CoreException e) {
+                // no reason to handle exception since having a null type is invalid state, will be caught in validateComponent below
+                this.tileSetModel = null;
+            }
+            return true;
+        }
+        return false;
+    }
+
 }

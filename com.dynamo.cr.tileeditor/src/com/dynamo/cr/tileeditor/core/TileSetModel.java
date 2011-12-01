@@ -569,17 +569,31 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
         setConvexHulls(Arrays.asList(result.hulls), result.points);
     }
 
-    public boolean handleResourceChanged(IResourceChangeEvent event) {
-
-        final IFile files[] = new IFile[2];
-        final boolean[] reload = new boolean[] { false };
-
+    public boolean handleReload(IFile file) {
+        boolean result = false;
         if (image != null && image.length() > 0) {
-            files[0] = this.contentRoot.getFile(new Path(image));
+            IFile imgFile = this.contentRoot.getFile(new Path(image));
+            if (file.equals(imgFile)) {
+                loadImage();
+                result = true;
+            }
         }
         if (collision != null && collision.length() > 0) {
-            files[1] = this.contentRoot.getFile(new Path(collision));
+            IFile collisionFile = this.contentRoot.getFile(new Path(collision));
+            if (file.equals(collisionFile)) {
+                loadCollision();
+                result = true;
+            }
         }
+        if (result) {
+            updateConvexHulls();
+        }
+        return result;
+    }
+
+    public boolean handleResourceChanged(IResourceChangeEvent event) {
+
+        final boolean[] reload = new boolean[] { false };
 
         try {
             event.getDelta().accept(new IResourceDeltaVisitor() {
@@ -587,21 +601,11 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
                 @Override
                 public boolean visit(IResourceDelta delta) throws CoreException {
                     IResource resource = delta.getResource();
-
-                    boolean found = false;
-                    if (files[0] != null && files[0].equals(resource)) {
-                        loadImage();
-                        found = true;
-                    }
-                    // NOTE: not else here
-                    if (files[1] != null && files[1].equals(resource)) {
-                        loadCollision();
-                        found = true;
-                    }
-                    if (found) {
-                        updateConvexHulls();
-                        reload[0] = true;
-                        return false;
+                    if (resource.getType() == IResource.FILE) {
+                        if (handleReload((IFile)resource)) {
+                            reload[0] = true;
+                            return false;
+                        }
                     }
                     return true;
                 }

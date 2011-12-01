@@ -200,11 +200,15 @@ public abstract class AbstractSceneTest {
     }
 
     protected void verifyUpdate(Node node) {
+        verifyUpdate(node, 1);
+    }
+
+    protected void verifyUpdate(Node node, int times) {
         Integer count = this.updateCounts.get(node);
         if (count == null) {
-            count = 1;
+            count = times;
         } else {
-            count = count + 1;
+            count = count + times;
         }
         this.updateCounts.put(node, count);
         verify(this.view, times(count.intValue())).updateNode(node);

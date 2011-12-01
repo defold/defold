@@ -2,7 +2,6 @@ package com.dynamo.cr.go.core;
 
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.IStatus;
-import org.eclipse.core.runtime.MultiStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.osgi.util.NLS;
 import org.eclipse.swt.graphics.Image;
@@ -70,20 +69,6 @@ public class RefComponentNode extends ComponentNode {
             }
         }
         return Status.OK_STATUS;
-    }
-
-    @Override
-    public IStatus doValidate() {
-        IStatus status = validateProperties(new String[] {"component"});
-        MultiStatus multiStatus= null;
-        if (status.isMultiStatus()) {
-            multiStatus = (MultiStatus)status;
-        } else {
-            multiStatus = new MultiStatus(Constants.PLUGIN_ID, 0, null, null);
-            multiStatus.merge(status);
-        }
-        multiStatus.merge(super.doValidate());
-        return multiStatus;
     }
 
     @Override
