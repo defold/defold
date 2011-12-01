@@ -71,3 +71,4 @@ Export-Package: com.dynamo.camera.proto,
  org.codehaus.jackson.map,
  org.codehaus.jackson.node
 Import-Package: org.osgi.framework;version="1.5.0"
+Require-Bundle: com.google.common;bundle-version="0.0.9"
