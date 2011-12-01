@@ -1,6 +1,7 @@
 package com.dynamo.cr.sceneed.core.internal;
 
 import com.dynamo.cr.sceneed.core.IManipulatorFactory;
+import com.dynamo.cr.sceneed.core.IManipulatorInfo;
 import com.dynamo.cr.sceneed.core.IManipulatorMode;
 
 public class ManipulatorInfo implements IManipulatorInfo {

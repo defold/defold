@@ -13,6 +13,7 @@ import org.eclipse.core.runtime.Status;
 import com.dynamo.cr.sceneed.core.Activator;
 import com.dynamo.cr.sceneed.core.IManipulator;
 import com.dynamo.cr.sceneed.core.IManipulatorFactory;
+import com.dynamo.cr.sceneed.core.IManipulatorInfo;
 import com.dynamo.cr.sceneed.core.IManipulatorMode;
 import com.dynamo.cr.sceneed.core.IManipulatorRegistry;
 
