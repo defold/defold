@@ -128,7 +128,7 @@ public class TileSetPresenter implements PropertyChangeListener, IOperationHisto
         this.view.refreshProperties();
         setViewCollisionGroups(this.model.getCollisionGroups());
         setViewHulls(this.model.getConvexHulls());
-        this.view.setValid(this.model.isValid());
+        this.view.setValid(this.model.validate().getSeverity() <= IStatus.INFO);
     }
 
     @SuppressWarnings({ "unchecked" })
@@ -136,7 +136,7 @@ public class TileSetPresenter implements PropertyChangeListener, IOperationHisto
     public void propertyChange(PropertyChangeEvent evt) {
         if (loading)
             return;
-        this.view.setValid(this.model.isValid());
+        this.view.setValid(this.model.validate().getSeverity() <= IStatus.INFO);
         if (evt.getNewValue() instanceof IStatus) {
             this.view.refreshProperties();
         } else {

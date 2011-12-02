@@ -55,9 +55,4 @@ public class PropertyIntrospectorModel<T, U extends IPropertyObjectWorld> implem
         return introspector.getPropertyStatus(object, world, id);
     }
 
-    @Override
-    public boolean isValid() {
-        return introspector.isValid(object, world);
-    }
-
 }

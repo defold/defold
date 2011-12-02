@@ -92,7 +92,7 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
         this.view.setLayers(this.model.getLayers());
         this.view.setSelectedLayer(this.model.getSelectedLayer());
         this.view.refreshProperties();
-        boolean validModel = this.model.isValid();
+        boolean validModel = this.model.validate().getSeverity() <= IStatus.INFO;
         this.view.setValidModel(validModel);
         this.view.setPreview(new Point2f(0.0f, 0.0f), 1.0f);
         TileSetModel tileSetModel = this.model.getTileSetModel();
@@ -123,7 +123,7 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
             return;
 
 
-        boolean validModel = this.model.isValid();
+        boolean validModel = this.model.validate().getSeverity() <= IStatus.INFO;
         this.view.setValidModel(validModel);
         this.view.refreshProperties();
         if (evt.getNewValue() instanceof IStatus) {
@@ -133,7 +133,7 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
             if (source instanceof GridModel) {
                 if (propName.equals("tileSet")) {
                     TileSetModel tileSetModel = this.model.getTileSetModel();
-                    if (tileSetModel != null && tileSetModel.isValid()) {
+                    if (tileSetModel != null && tileSetModel.validate().getSeverity() <= IStatus.INFO) {
                         this.view.setTileSet(tileSetModel.getLoadedImage(),
                                 tileSetModel.getTileWidth(),
                                 tileSetModel.getTileHeight(),

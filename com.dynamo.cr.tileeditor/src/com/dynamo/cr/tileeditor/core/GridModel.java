@@ -82,9 +82,9 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
         return this.tileSetModel;
     }
 
-    public boolean isValid() {
+    public IStatus validate() {
         PropertyIntrospectorModel<GridModel, GridModel> propertyModel = new PropertyIntrospectorModel<GridModel, GridModel>(this, this, introspector);
-        return propertyModel.isValid();
+        return propertyModel.getStatus();
     }
 
     public String getTileSet() {
@@ -115,13 +115,8 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
 
     protected IStatus validateTileSet() {
         if (this.tileSetModel != null) {
-            boolean valid = this.tileSetModel.isValid();
-            if (valid) {
-                if (this.tileSetModel.getImage().equals("") && this.tileSetModel.getCollision().equals("")) {
-                    valid = false;
-                }
-            }
-            if (!valid) {
+            IStatus status = this.tileSetModel.validate();
+            if (status.getSeverity() > IStatus.INFO || (this.tileSetModel.getImage().isEmpty() && this.tileSetModel.getCollision().isEmpty())) {
                 return new Status(IStatus.ERROR, Activator.PLUGIN_ID, Messages.GRID_INVALID_TILESET);
             }
         }
@@ -261,7 +256,8 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
                 layers.add(layer);
             }
             setLayers(layers);
-            if (layers.size() > 0 && isValid() && this.tileSetModel != null) {
+            boolean valid = validate().getSeverity() <= IStatus.INFO;
+            if (layers.size() > 0 && valid && this.tileSetModel != null) {
                 setSelectedLayer(layers.get(0));
             } else {
                 setSelectedLayer(null);

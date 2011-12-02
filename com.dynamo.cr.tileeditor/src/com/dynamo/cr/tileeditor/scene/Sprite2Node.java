@@ -4,11 +4,15 @@ import java.io.IOException;
 
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.CoreException;
+import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Status;
+import org.eclipse.osgi.util.NLS;
 
 import com.dynamo.cr.go.core.ComponentTypeNode;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Resource;
 import com.dynamo.cr.sceneed.core.ISceneModel;
+import com.dynamo.cr.tileeditor.Activator;
 import com.dynamo.cr.tileeditor.core.TileSetModel;
 
 public class Sprite2Node extends ComponentTypeNode {
@@ -34,6 +38,16 @@ public class Sprite2Node extends ComponentTypeNode {
         }
     }
 
+    public IStatus validateTileSet() {
+        if (this.tileSetModel != null) {
+            IStatus status = this.tileSetModel.validate();
+            if (!status.isOK()) {
+                return new Status(IStatus.ERROR, Activator.PLUGIN_ID, Messages.SpriteNode_tileSet_INVALID_REFERENCE);
+            }
+        }
+        return Status.OK_STATUS;
+    }
+
     public String getDefaultAnimation() {
         return this.defaultAnimation;
     }
@@ -43,6 +57,13 @@ public class Sprite2Node extends ComponentTypeNode {
             this.defaultAnimation = defaultAnimation;
             notifyChange();
         }
+    }
+
+    public IStatus validateDefaultAnimation() {
+        if (this.defaultAnimation.isEmpty()) {
+            return new Status(IStatus.INFO, Activator.PLUGIN_ID, Messages.SpriteNode_defaultAnimation_NOT_SPECIFIED);
+        }
+        return Status.OK_STATUS;
     }
 
     @Override
@@ -95,4 +116,8 @@ public class Sprite2Node extends ComponentTypeNode {
         return false;
     }
 
+    @Override
+    protected Class<? extends NLS> getMessages() {
+        return Messages.class;
+    }
 }
