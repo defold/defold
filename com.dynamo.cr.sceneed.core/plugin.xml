@@ -9,5 +9,9 @@
             id="com.dynamo.cr.sceneed.core.manipulators.size-mode"
             name="Size Manipulator">
       </manipulator-mode>
+      <manipulator-mode
+            id="com.dynamo.cr.sceneed.core.manipulators.move-mode"
+            name="Move Manipulator">
+      </manipulator-mode>
    </extension>
 </plugin>

@@ -50,7 +50,7 @@ public class ScenePresenter implements IPresenter, IModelListener {
 
     @Override
     public final void onLoad(String type, InputStream contents) throws IOException, CoreException {
-        INodeType nodeType = this.nodeTypeRegistry.getNodeType(type);
+        INodeType nodeType = this.nodeTypeRegistry.getNodeTypeFromExtension(type);
         INodeLoader<? super Node> loader = nodeType.getLoader();
         Node node = loader.load(this.loaderContext, contents);
         this.model.setRoot(node);

@@ -86,13 +86,13 @@
                </appinfo>
             </annotation>
          </attribute>
-         <attribute name="factory" type="string" use="required">
+         <attribute name="node-type" type="string" use="required">
             <annotation>
                <documentation>
                   
                </documentation>
                <appinfo>
-                  <meta.attribute kind="java" basedOn=":com.dynamo.cr.sceneed.core.IManipulatorFactory"/>
+                  <meta.attribute kind="identifier" basedOn="com.dynamo.cr.nodetypes/node-type/@id"/>
                </appinfo>
             </annotation>
          </attribute>

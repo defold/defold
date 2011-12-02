@@ -4,10 +4,26 @@
    <extension
          point="com.dynamo.cr.manipulators">
       <manipulator
-            factory="com.dynamo.cr.sceneed.core.test.DummySphereSizeManipulatorFactory"
             mode="com.dynamo.cr.sceneed.core.manipulators.size-mode"
-            name="Test Size Manipulator">
+            name="Test Size Manipulator"
+            node-type="com.dynamo.cr.sceneed.core.test.dummySphereSizeManipulator">
       </manipulator>
+      <manipulator
+            mode="com.dynamo.cr.sceneed.core.manipulators.move-mode"
+            name="Test Move Manipulator"
+            node-type="com.dynamo.cr.sceneed.core.test.dummyMoveManipulator">
+      </manipulator>
+   </extension>
+   <extension
+         point="com.dynamo.cr.nodetypes">
+      <node-type
+            id="com.dynamo.cr.sceneed.core.test.dummySphereSizeManipulator"
+            node="com.dynamo.cr.sceneed.core.test.TestSphereSizeManipulator">
+      </node-type>
+      <node-type
+            id="com.dynamo.cr.sceneed.core.test.dummyMoveManipulator"
+            node="com.dynamo.cr.sceneed.core.test.TestMoveManipulator">
+      </node-type>
    </extension>
 
 </plugin>

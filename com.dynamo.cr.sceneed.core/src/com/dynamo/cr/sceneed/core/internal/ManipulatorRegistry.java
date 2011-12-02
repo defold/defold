@@ -11,17 +11,20 @@ import org.eclipse.core.runtime.Plugin;
 import org.eclipse.core.runtime.Status;
 
 import com.dynamo.cr.sceneed.core.Activator;
-import com.dynamo.cr.sceneed.core.IManipulator;
-import com.dynamo.cr.sceneed.core.IManipulatorFactory;
 import com.dynamo.cr.sceneed.core.IManipulatorInfo;
 import com.dynamo.cr.sceneed.core.IManipulatorMode;
 import com.dynamo.cr.sceneed.core.IManipulatorRegistry;
+import com.dynamo.cr.sceneed.core.INodeType;
+import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
+import com.dynamo.cr.sceneed.core.Manipulator;
 
 public class ManipulatorRegistry implements IManipulatorRegistry {
 
     Map<String, ManipulatorMode> modes = new HashMap<String, ManipulatorMode>();
+    private Plugin plugin;
 
     public void init(Plugin plugin) {
+        this.plugin = plugin;
         IConfigurationElement[] config = Platform.getExtensionRegistry()
                 .getConfigurationElementsFor("com.dynamo.cr.manipulators");
         try {
@@ -34,11 +37,10 @@ public class ManipulatorRegistry implements IManipulatorRegistry {
                 } else if (e.getName().equals("manipulator")) {
                     String name = e.getAttribute("name");
                     String modeId = e.getAttribute("mode");
-                    IManipulatorFactory factory = (IManipulatorFactory) e.createExecutableExtension("factory");
-
+                    String nodeType = e.getAttribute("node-type");
                     ManipulatorMode mode = modes.get(modeId);
 
-                    ManipulatorInfo info = new ManipulatorInfo(name, mode, factory);
+                    ManipulatorInfo info = new ManipulatorInfo(name, mode, nodeType);
                     mode.addManipulatorInfo(info);
                 }
             }
@@ -55,12 +57,24 @@ public class ManipulatorRegistry implements IManipulatorRegistry {
     }
 
     @Override
-    public IManipulator getManipulatorForSelection(IManipulatorMode mode, Object[] selection) {
+    public Manipulator getManipulatorForSelection(IManipulatorMode mode, Object[] selection) {
+        INodeTypeRegistry nodeTypeRegistry = Activator.getDefault().getNodeTypeRegistry();
         List<IManipulatorInfo> list = mode.getManipulatorInfoList();
         for (IManipulatorInfo info : list) {
-            IManipulatorFactory factory = info.getFactory();
-            if (factory.match(selection)) {
-                return factory.create();
+
+            String nodeTypeID = info.getNodeType();
+            INodeType nodeType = nodeTypeRegistry.getNodeTypeFromID(nodeTypeID);
+            try {
+                Manipulator manipulator = (Manipulator) nodeType.getNodeClass().newInstance();
+                if (manipulator.match(selection)) {
+                    return manipulator;
+                }
+            } catch (InstantiationException e) {
+                Status status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, e.getMessage(), e);
+                plugin.getLog().log(status);
+            } catch (IllegalAccessException e) {
+                Status status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, e.getMessage(), e);
+                plugin.getLog().log(status);
             }
         }
         return null;

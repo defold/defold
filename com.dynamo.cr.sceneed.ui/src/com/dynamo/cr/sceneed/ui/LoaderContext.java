@@ -50,7 +50,7 @@ com.dynamo.cr.sceneed.core.ISceneView.ILoaderContext {
     @Override
     public Node loadNode(String extension, InputStream contents)
             throws IOException, CoreException {
-        INodeType nodeType = this.nodeTypeRegistry.getNodeType(extension);
+        INodeType nodeType = this.nodeTypeRegistry.getNodeTypeFromExtension(extension);
         if (nodeType != null) {
             INodeLoader<Node> loader = nodeType.getLoader();
             return loader.load(this, contents);
@@ -70,7 +70,7 @@ com.dynamo.cr.sceneed.core.ISceneView.ILoaderContext {
 
     @Override
     public Node loadNodeFromTemplate(String extension) throws IOException, CoreException {
-        INodeType nodeType = this.nodeTypeRegistry.getNodeType(extension);
+        INodeType nodeType = this.nodeTypeRegistry.getNodeTypeFromExtension(extension);
         if (nodeType != null) {
             IResourceType resourceType = nodeType.getResourceType();
             ByteArrayInputStream stream = new ByteArrayInputStream(resourceType.getTemplateData());
