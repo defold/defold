@@ -41,7 +41,9 @@ public class Sprite2Node extends ComponentTypeNode {
     public IStatus validateTileSet() {
         if (this.tileSetModel != null) {
             IStatus status = this.tileSetModel.validate();
-            if (!status.isOK()) {
+            boolean valid = status.isOK()
+                    || (status.getSeverity() == IStatus.INFO && (!this.tileSetModel.getImage().isEmpty() || !this.tileSetModel.getCollision().isEmpty()));
+            if (!valid) {
                 return new Status(IStatus.ERROR, Activator.PLUGIN_ID, Messages.SpriteNode_tileSet_INVALID_REFERENCE);
             }
         }
