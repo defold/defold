@@ -2,7 +2,6 @@ package com.dynamo.cr.sceneed.core;
 
 import java.util.List;
 
-import com.dynamo.cr.sceneed.core.internal.IManipulatorInfo;
 
 public interface IManipulatorMode {
 

@@ -112,7 +112,6 @@
         <module>../com.dynamo.cr.sceneed.core</module>
         <module>../com.dynamo.cr.sceneed.core.test</module>
         <module>../com.dynamo.cr.sceneed.ui</module>
-        <module>../com.dynamo.cr.sceneed.ui.test</module>
         <module>../com.dynamo.cr.go.core</module>
         <module>../com.dynamo.cr.go.core.test</module>
         <module>../com.dynamo.cr.go.ui</module>

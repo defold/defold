@@ -23,10 +23,12 @@ public class NodeTypeRegistry implements INodeTypeRegistry {
 
     private final Map<String, Class<?>> extToClass;
     private final Map<Class<?>, INodeType> classToType;
+    private final Map<String, INodeType> idToNodeType;
 
     public NodeTypeRegistry() {
         this.extToClass = new HashMap<String, Class<?>>();
         this.classToType = new HashMap<Class<?>, INodeType>();
+        this.idToNodeType = new HashMap<String, INodeType>();
     }
 
     @SuppressWarnings("unchecked")
@@ -36,13 +38,23 @@ public class NodeTypeRegistry implements INodeTypeRegistry {
         try {
             for (IConfigurationElement e : config) {
                 Bundle bundle = Platform.getBundle(e.getDeclaringExtension().getContributor().getName());
+                String id = e.getAttribute("id");
                 String resourceTypeAttribute = e.getAttribute("resource-type");
-                IResourceType resourceType = EditorCorePlugin.getDefault().getResourceTypeFromId(resourceTypeAttribute);
-                String extension = resourceType.getFileExtension();
+
+                IResourceType resourceType = null;
+                String extension = null;
+
+                if (resourceTypeAttribute != null) {
+                    resourceType = EditorCorePlugin.getDefault().getResourceTypeFromId(resourceTypeAttribute);
+                    extension = resourceType.getFileExtension();
+                }
 
                 Class<?> nodeClass = bundle.loadClass(e.getAttribute("node"));
 
-                ISceneView.INodeLoader<Node> nodeLoader = (ISceneView.INodeLoader<Node>)e.createExecutableExtension("loader");
+                ISceneView.INodeLoader<Node> nodeLoader = null;
+                if (e.getAttribute("loader") != null) {
+                    nodeLoader = (ISceneView.INodeLoader<Node>)e.createExecutableExtension("loader");
+                }
 
                 ISceneView.INodePresenter<Node> nodePresenter = null;
                 if (e.getAttribute("presenter") != null) {
@@ -55,10 +67,15 @@ public class NodeTypeRegistry implements INodeTypeRegistry {
                 }
 
                 NodeType type = new NodeType(extension, nodeLoader, nodePresenter, nodeRenderer, resourceType, nodeClass);
-                this.extToClass.put(extension, nodeClass);
+                if (extension != null) {
+                    this.extToClass.put(extension, nodeClass);
+                }
                 this.classToType.put(nodeClass, type);
+
+                this.idToNodeType.put(id, type);
             }
         } catch (Exception exception) {
+            exception.printStackTrace();
             Status status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, exception.getMessage(), exception);
             plugin.getLog().log(status);
         }
@@ -71,12 +88,17 @@ public class NodeTypeRegistry implements INodeTypeRegistry {
     }
 
     @Override
-    public INodeType getNodeType(String extension) {
+    public INodeType getNodeTypeFromExtension(String extension) {
         Class<?> nodeClass = this.extToClass.get(extension);
         if (nodeClass != null) {
             return this.classToType.get(nodeClass);
         }
         return null;
+    }
+
+    @Override
+    public INodeType getNodeTypeFromID(String id) {
+        return idToNodeType.get(id);
     }
 
     @Override

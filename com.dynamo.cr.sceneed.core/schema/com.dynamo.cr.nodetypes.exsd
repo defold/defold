@@ -25,21 +25,20 @@
          <attribute name="point" type="string" use="required">
             <annotation>
                <documentation>
-                  
                </documentation>
             </annotation>
          </attribute>
          <attribute name="id" type="string">
             <annotation>
                <documentation>
-                  
+
                </documentation>
             </annotation>
          </attribute>
          <attribute name="name" type="string">
             <annotation>
                <documentation>
-                  
+
                </documentation>
                <appinfo>
                   <meta.attribute translatable="true"/>
@@ -51,10 +50,17 @@
 
    <element name="node-type">
       <complexType>
+         <attribute name="id" type="string" use="required">
+            <annotation>
+               <documentation>
+
+               </documentation>
+            </annotation>
+         </attribute>
          <attribute name="presenter" type="string">
             <annotation>
                <documentation>
-                  
+
                </documentation>
                <appinfo>
                   <meta.attribute kind="java" basedOn=":com.dynamo.cr.sceneed.core.ISceneView.NodePresenter"/>
@@ -64,17 +70,17 @@
          <attribute name="renderer" type="string">
             <annotation>
                <documentation>
-                  
+
                </documentation>
                <appinfo>
                   <meta.attribute kind="java" basedOn=":com.dynamo.cr.sceneed.core.INodeRenderer"/>
                </appinfo>
             </annotation>
          </attribute>
-         <attribute name="resource-type" type="string" use="required">
+         <attribute name="resource-type" type="string">
             <annotation>
                <documentation>
-                  
+
                </documentation>
                <appinfo>
                   <meta.attribute kind="identifier" basedOn="com.dynamo.cr.resourcetypes/resource-type/@id"/>
@@ -84,17 +90,17 @@
          <attribute name="node" type="string" use="required">
             <annotation>
                <documentation>
-                  
+
                </documentation>
                <appinfo>
                   <meta.attribute kind="java" basedOn="com.dynamo.cr.sceneed.core.Node:"/>
                </appinfo>
             </annotation>
          </attribute>
-         <attribute name="loader" type="string" use="required">
+         <attribute name="loader" type="string">
             <annotation>
                <documentation>
-                  
+
                </documentation>
                <appinfo>
                   <meta.attribute kind="java" basedOn=":com.dynamo.cr.sceneed.core.ISceneView.NodeLoader"/>

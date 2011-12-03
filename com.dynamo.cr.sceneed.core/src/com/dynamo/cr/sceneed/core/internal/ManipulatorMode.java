@@ -3,6 +3,7 @@ package com.dynamo.cr.sceneed.core.internal;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.dynamo.cr.sceneed.core.IManipulatorInfo;
 import com.dynamo.cr.sceneed.core.IManipulatorMode;
 
 public class ManipulatorMode implements IManipulatorMode {

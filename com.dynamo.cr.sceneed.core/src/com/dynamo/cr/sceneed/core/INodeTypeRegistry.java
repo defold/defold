@@ -4,7 +4,8 @@ public interface INodeTypeRegistry {
 
     INodeType[] getNodeTypes();
 
-    INodeType getNodeType(String extension);
+    INodeType getNodeTypeFromExtension(String extension);
+    INodeType getNodeTypeFromID(String id);
     INodeType getNodeType(Class<? extends Node> nodeClass);
 
 }

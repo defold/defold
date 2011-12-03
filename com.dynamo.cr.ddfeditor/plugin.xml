@@ -561,52 +561,62 @@
    <extension
          point="com.dynamo.cr.nodetypes">
       <node-type
-            node="com.dynamo.cr.ddfeditor.scene.SpawnPointNode"
+            id="com.dynamo.cr.ddfeditor.scene.spawnPointNode"
             loader="com.dynamo.cr.ddfeditor.scene.SpawnPointLoader"
+            node="com.dynamo.cr.ddfeditor.scene.SpawnPointNode"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.SpawnPoint">
       </node-type>
       <node-type
+            id="com.dynamo.cr.ddfeditor.scene.collisionObjectNode"
             loader="com.dynamo.cr.ddfeditor.scene.CollisionObjectLoader"
             node="com.dynamo.cr.ddfeditor.scene.CollisionObjectNode"
             renderer="com.dynamo.cr.ddfeditor.scene.CollisionObjectRenderer"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.CollisionObject">
       </node-type>
       <node-type
-            node="com.dynamo.cr.ddfeditor.scene.CollectionProxyNode"
+            id="com.dynamo.cr.ddfeditor.scene.collectionProxyNode"
             loader="com.dynamo.cr.ddfeditor.scene.CollectionProxyLoader"
+            node="com.dynamo.cr.ddfeditor.scene.CollectionProxyNode"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.CollectionProxy">
       </node-type>
       <node-type
-            node="com.dynamo.cr.ddfeditor.scene.CameraNode"
+            id="com.dynamo.cr.ddfeditor.scene.cameraNode"
             loader="com.dynamo.cr.ddfeditor.scene.CameraLoader"
+            node="com.dynamo.cr.ddfeditor.scene.CameraNode"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Camera">
       </node-type>
       <node-type
-            node="com.dynamo.cr.ddfeditor.scene.EmitterNode"
+            id="com.dynamo.cr.ddfeditor.scene.emitterNode"
             loader="com.dynamo.cr.ddfeditor.scene.EmitterLoader"
+            node="com.dynamo.cr.ddfeditor.scene.EmitterNode"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Emitter">
       </node-type>
       <node-type
-            node="com.dynamo.cr.ddfeditor.scene.LightNode"
+            id="com.dynamo.cr.ddfeditor.scene.lightNode"
             loader="com.dynamo.cr.ddfeditor.scene.LightLoader"
+            node="com.dynamo.cr.ddfeditor.scene.LightNode"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Light">
       </node-type>
       <node-type
-            node="com.dynamo.cr.ddfeditor.scene.GuiNode"
+            id="com.dynamo.cr.ddfeditor.scene.guiNode"
             loader="com.dynamo.cr.ddfeditor.scene.GuiLoader"
+            node="com.dynamo.cr.ddfeditor.scene.GuiNode"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Gui">
       </node-type>
       <node-type
-            node="com.dynamo.cr.ddfeditor.scene.ModelNode"
+            id="com.dynamo.cr.ddfeditor.scene.modelNode"
             loader="com.dynamo.cr.ddfeditor.scene.ModelLoader"
+            node="com.dynamo.cr.ddfeditor.scene.ModelNode"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Model">
       </node-type>
       <node-type
+            id="com.dynamo.cr.ddfeditor.scene.convexShapeNode"
             loader="com.dynamo.cr.ddfeditor.scene.ConvexShapeLoader"
             node="com.dynamo.cr.ddfeditor.scene.ConvexShapeNode"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.ConvexShape">
       </node-type>
       <node-type
+            id="com.dynamo.cr.ddfeditor.scene.spriteNode"
             loader="com.dynamo.cr.ddfeditor.scene.SpriteLoader"
             node="com.dynamo.cr.ddfeditor.scene.SpriteNode"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.sprite">

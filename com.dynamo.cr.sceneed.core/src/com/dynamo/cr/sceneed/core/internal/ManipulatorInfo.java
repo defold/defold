@@ -1,18 +1,18 @@
 package com.dynamo.cr.sceneed.core.internal;
 
-import com.dynamo.cr.sceneed.core.IManipulatorFactory;
+import com.dynamo.cr.sceneed.core.IManipulatorInfo;
 import com.dynamo.cr.sceneed.core.IManipulatorMode;
 
 public class ManipulatorInfo implements IManipulatorInfo {
 
     private String name;
     private IManipulatorMode mode;
-    private IManipulatorFactory factory;
+    private String nodeType;
 
-    public ManipulatorInfo(String name, IManipulatorMode mode, IManipulatorFactory factory) {
+    public ManipulatorInfo(String name, IManipulatorMode mode, String nodeType) {
         this.name = name;
         this.mode = mode;
-        this.factory = factory;
+        this.nodeType = nodeType;
     }
 
     @Override
@@ -26,8 +26,8 @@ public class ManipulatorInfo implements IManipulatorInfo {
     }
 
     @Override
-    public IManipulatorFactory getFactory() {
-        return factory;
+    public String getNodeType() {
+        return nodeType;
     }
 
 }
