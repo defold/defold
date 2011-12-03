@@ -6,14 +6,10 @@ import static org.junit.Assert.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 
-import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.CoreException;
-import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.IStatus;
-import org.eclipse.core.runtime.Path;
 import org.eclipse.osgi.util.NLS;
 import org.junit.Before;
 import org.junit.Test;
@@ -35,18 +31,22 @@ public class GameObjectTest extends AbstractNodeTest {
 
     private GameObjectLoader loader;
     private GameObjectNode goNode;
+    private TestComponentLoader testLoader;
 
     @Override
     @Before
     public void setup() throws CoreException, IOException {
-        this.loader = new GameObjectLoader();
         super.setup();
 
-        when(getModel().getExtension(TestComponentNode.class)).thenReturn("test");
+        this.loader = new GameObjectLoader();
+        this.testLoader = new TestComponentLoader();
 
-        String ddf = "";
-        goNode = this.loader.load(getLoaderContext(), new ByteArrayInputStream(ddf.getBytes()));
-        goNode.setModel(getModel());
+        // Virtual files
+        registerFile("/test.test", "x: 0 y: 0 z: 0");
+        registerFile("/test.test2", "");
+
+        this.goNode = registerAndLoadNodeType(GameObjectNode.class, "go", this.loader);
+        registerNodeType(TestComponentNode.class, "test");
     }
 
     // Helpers
@@ -60,7 +60,7 @@ public class GameObjectTest extends AbstractNodeTest {
     }
 
     private void addComponentFromFile() throws Exception {
-        TestComponentNode componentType = new TestComponentNode();
+        TestComponentNode componentType = this.testLoader.load(getLoaderContext(), getFile("/test.test").getContents());
         RefComponentNode component = new RefComponentNode(componentType);
         component.setComponent("/test.test");
         execute(new AddComponentOperation(this.goNode, component));
@@ -232,22 +232,6 @@ public class GameObjectTest extends AbstractNodeTest {
 
     @Test
     public void testComponentFromFileMessages() throws Exception {
-
-        // mocking to simulate file loading
-
-        IFile invalidContentFile = mock(IFile.class);
-        when(invalidContentFile.exists()).thenReturn(true);
-        when(invalidContentFile.getContents()).thenReturn(new ByteArrayInputStream("x: 0 y: 0 z: 0".getBytes()));
-        IPath invalidContentPath = new Path("/test.test");
-        when(getContentRoot().getFile(invalidContentPath)).thenReturn(invalidContentFile);
-
-        IFile invalidTypeFile = mock(IFile.class);
-        when(invalidTypeFile.exists()).thenReturn(true);
-        when(invalidTypeFile.getContents()).thenReturn(new ByteArrayInputStream(new byte[0]));
-        IPath invalidTypePath = new Path("/test.test2");
-        when(getContentRoot().getFile(invalidTypePath)).thenReturn(invalidTypeFile);
-
-        // test
 
         addComponentFromFile();
 

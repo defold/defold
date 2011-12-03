@@ -45,6 +45,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
         this.presenter = new TileSetNodePresenter();
 
         this.node = registerAndLoadNodeType(TileSetNode.class, "tileset", this.loader);
+        verifyUpdate();
     }
 
     // Helpers

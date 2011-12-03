@@ -265,8 +265,10 @@ public abstract class AbstractNodeTest {
         T node = loader.load(getLoaderContext(), new ByteArrayInputStream(ddf));
         node.setModel(getModel());
         when(this.presenterContext.getSelection()).thenReturn(new StructuredSelection(node));
-        verifyUpdate();
         return node;
     }
 
+    protected void registerNodeType(Class<? extends Node> nodeClass, String extension) throws IOException, CoreException {
+        when(getModel().getExtension(nodeClass)).thenReturn(extension);
+    }
 }
