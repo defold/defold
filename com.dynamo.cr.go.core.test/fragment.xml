@@ -15,6 +15,7 @@
    <extension
          point="com.dynamo.cr.nodetypes">
       <node-type
+            id="com.dynamo.cr.go.core.test.nodes.test"
             loader="com.dynamo.cr.go.core.test.TestComponentLoader"
             node="com.dynamo.cr.go.core.test.TestComponentNode"
             resource-type="com.dynamo.cr.go.core.test.resourcetypes.testNode">
