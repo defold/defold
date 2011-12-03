@@ -160,7 +160,7 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
 
             if (element instanceof Node) {
                 Node node = (Node)element;
-                image = node.getImage();
+                image = node.getIcon();
             }
 
             if (image != null)

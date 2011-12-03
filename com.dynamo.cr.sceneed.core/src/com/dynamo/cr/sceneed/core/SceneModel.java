@@ -250,7 +250,7 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IResou
     }
 
     @Override
-    public Image getImage(Class<? extends Node> nodeClass) {
+    public Image getIcon(Class<? extends Node> nodeClass) {
         String extension = getExtension(nodeClass);
         return this.imageProvider.getImage(extension);
     }

@@ -92,9 +92,9 @@ public abstract class Node implements IAdaptable {
         setModel(parent.getModel());
     }
 
-    public Image getImage() {
+    public Image getIcon() {
         if (this.model != null) {
-            return this.model.getImage(getClass());
+            return this.model.getIcon(getClass());
         } else {
             return null;
         }

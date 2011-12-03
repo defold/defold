@@ -13,6 +13,8 @@ import com.dynamo.cr.go.core.ComponentNode;
 import com.dynamo.cr.go.core.ComponentTypeNode;
 import com.dynamo.cr.go.core.GameObjectNode;
 import com.dynamo.cr.go.core.RefComponentNode;
+import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.sceneed.core.NodeUtil;
 
 public class AddComponentOperation extends AbstractOperation {
 
@@ -36,7 +38,12 @@ public class AddComponentOperation extends AbstractOperation {
             ComponentTypeNode componentType = (ComponentTypeNode)component.getChildren().get(0);
             id = this.gameObject.getModel().getExtension(componentType.getClass());
         }
-        id = this.gameObject.getUniqueId(id);
+        id = NodeUtil.getUniqueId(this.gameObject, id, new NodeUtil.IdFetcher() {
+            @Override
+            public String getId(Node child) {
+                return ((ComponentNode)child).getId();
+            }
+        });
         this.component.setId(id);
     }
 

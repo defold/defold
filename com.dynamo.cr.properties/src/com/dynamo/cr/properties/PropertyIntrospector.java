@@ -212,7 +212,8 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
     public IStatus getObjectStatus(T object, U world) {
         MultiStatus status = new MultiStatus("com.dynamo.cr.properties", IStatus.OK, null, null);
         for (String property : this.properties) {
-            status.add(getPropertyStatus(object, world, property));
+            // Use merge to keep a flat structure
+            status.merge(getPropertyStatus(object, world, property));
         }
         if (status.isOK()) {
             return Status.OK_STATUS;

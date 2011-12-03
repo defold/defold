@@ -60,11 +60,11 @@ public class ComponentNode extends Node {
     }
 
     @Override
-    public Image getImage() {
+    public Image getIcon() {
         if (hasChildren()) {
-            return this.getChildren().get(0).getImage();
+            return this.getChildren().get(0).getIcon();
         }
-        return super.getImage();
+        return super.getIcon();
     }
 
 }

@@ -2,12 +2,19 @@ package com.dynamo.cr.sceneed.core.test;
 
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.DefaultOperationHistory;
@@ -16,16 +23,28 @@ import org.eclipse.core.commands.operations.IUndoContext;
 import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.core.commands.operations.UndoContext;
 import org.eclipse.core.resources.IContainer;
+import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.CoreException;
+import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Path;
 import org.eclipse.jface.viewers.IStructuredSelection;
+import org.eclipse.jface.viewers.StructuredSelection;
 import org.junit.Before;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
+import org.osgi.framework.Bundle;
+import org.osgi.framework.FrameworkUtil;
 
+import com.dynamo.cr.editor.core.EditorCorePlugin;
+import com.dynamo.cr.editor.core.IResourceType;
 import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.ISceneView.ILoaderContext;
+import com.dynamo.cr.sceneed.core.ISceneView.INodeLoader;
+import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.Node;
 
 public abstract class AbstractNodeTest {
@@ -33,12 +52,16 @@ public abstract class AbstractNodeTest {
     private IContainer contentRoot;
     private ISceneModel model;
     private ILoaderContext loaderContext;
+    private IPresenterContext presenterContext;
     private IOperationHistory history;
     private IUndoContext undoContext;
     private INodeTypeRegistry nodeTypeRegistry;
 
+    private Map<String, IFile> fileStore;
+
     private int updateCount;
-    private int selectCount;
+    private int selectionCount;
+    private int executionCount;
 
     @Before
     public void setup() throws CoreException, IOException {
@@ -52,11 +75,59 @@ public abstract class AbstractNodeTest {
         this.loaderContext = mock(ISceneView.ILoaderContext.class);
         when(this.loaderContext.getNodeTypeRegistry()).thenReturn(this.nodeTypeRegistry);
 
+        this.presenterContext = mock(ISceneView.IPresenterContext.class);
+
         this.history = new DefaultOperationHistory();
         this.undoContext = new UndoContext();
 
+        setupFileStore();
+
         this.updateCount = 0;
-        this.selectCount = 0;
+        this.selectionCount = 0;
+        this.executionCount = 0;
+    }
+
+    private void setupFileStore() throws CoreException {
+        this.fileStore = new HashMap<String, IFile>();
+
+        Bundle bundle = FrameworkUtil.getBundle(getClass());
+        Enumeration<URL> entries = bundle.findEntries("/test", "*", true);
+        if (entries != null) {
+            while (entries.hasMoreElements()) {
+                final URL url = entries.nextElement();
+                IPath path = new Path(url.getPath()).removeFirstSegments(1);
+                IFile file = mock(IFile.class);
+                when(file.exists()).thenReturn(true);
+                when(file.getContents()).thenAnswer(new Answer<InputStream>() {
+                    @Override
+                    public InputStream answer(InvocationOnMock invocation) throws Throwable {
+                        return url.openStream();
+                    }
+                });
+                // Fake a "project relative" absolute path, i.e. foo.bar => /foo.bar
+                String p = "/" + path.toString();
+                this.fileStore.put(p, file);
+            }
+        }
+
+        final IFile missingFile = mock(IFile.class);
+        when(missingFile.exists()).thenReturn(false);
+        when(missingFile.getContents()).thenReturn(new ByteArrayInputStream(new byte[0]));
+
+        Answer<IFile> fileAnswer = new Answer<IFile>() {
+            @Override
+            public IFile answer(InvocationOnMock invocation) throws Throwable {
+                Object arg = invocation.getArguments()[0];
+                String path = arg.toString();
+                IFile file = fileStore.get(path);
+                if (file != null) {
+                    return file;
+                }
+                return missingFile;
+            }
+        };
+        when(getModel().getFile(anyString())).thenAnswer(fileAnswer);
+        when(getContentRoot().getFile(any(IPath.class))).thenAnswer(fileAnswer);
     }
 
     // Accessors
@@ -75,6 +146,10 @@ public abstract class AbstractNodeTest {
 
     protected ISceneView.ILoaderContext getLoaderContext() {
         return this.loaderContext;
+    }
+
+    protected ISceneView.IPresenterContext getPresenterContext() {
+        return this.presenterContext;
     }
 
     // Helpers
@@ -98,8 +173,13 @@ public abstract class AbstractNodeTest {
     }
 
     protected void verifySelection() {
-        ++this.selectCount;
-        verify(this.model, times(this.selectCount)).setSelection(any(IStructuredSelection.class));
+        ++this.selectionCount;
+        verify(this.model, times(this.selectionCount)).setSelection(any(IStructuredSelection.class));
+    }
+
+    protected void verifyExecution() {
+        ++this.executionCount;
+        verify(this.model, times(this.executionCount)).executeOperation(any(IUndoableOperation.class));
     }
 
     protected void setNodeProperty(Node node, Object id, Object value) throws ExecutionException {
@@ -130,6 +210,63 @@ public abstract class AbstractNodeTest {
         } else {
             return status.getSeverity() == severity && (message == null || message.equals(status.getMessage()));
         }
+    }
+
+    /**
+     * Retrieve a file from the file system, virtual (see registerFile) or read from disk (/test under current test-bundle)
+     * @param path Path of file, e.g. /foo.bar
+     * @return
+     */
+    protected IFile getFile(String path) {
+        return this.fileStore.get(path);
+    }
+
+    /**
+     * Register a virtual file to the file system
+     * @param path Path of file, e.g. /foo.bar
+     * @param contents Contents of the file
+     * @throws CoreException
+     */
+    protected void registerFile(String path, final String contents) throws CoreException {
+        IFile file = mock(IFile.class);
+        when(file.exists()).thenReturn(true);
+        when(file.getContents()).thenAnswer(new Answer<InputStream>() {
+            @Override
+            public InputStream answer(InvocationOnMock invocation) throws Throwable {
+                return new ByteArrayInputStream(contents.getBytes());
+            }
+        });
+        this.fileStore.put(path, file);
+    }
+
+    /**
+     * Simulate a copy of the source file to the destination file
+     * @param source Path of source file, e.g. /foo.bar
+     * @param destination Path of destination file, e.g. /foo2.bar
+     * @return A reference of the destination file
+     * @throws CoreException
+     */
+    protected IFile copyFile(String source, String destination) throws CoreException {
+        IFile destinationFile = getFile(destination);
+        final IFile sourceFile = getFile(source);
+        when(destinationFile.getContents()).thenAnswer(new Answer<InputStream>() {
+            @Override
+            public InputStream answer(InvocationOnMock invocation) throws Throwable {
+                return sourceFile.getContents();
+            }
+        });
+        return destinationFile;
+    }
+
+    protected <T extends Node> T registerAndLoadNodeType(Class<T> nodeClass, String extension, INodeLoader<T> loader) throws IOException, CoreException {
+        when(getModel().getExtension(nodeClass)).thenReturn(extension);
+        IResourceType resourceType = EditorCorePlugin.getDefault().getResourceTypeFromExtension(extension);
+        byte[] ddf = resourceType.getTemplateData();
+        T node = loader.load(getLoaderContext(), new ByteArrayInputStream(ddf));
+        node.setModel(getModel());
+        when(this.presenterContext.getSelection()).thenReturn(new StructuredSelection(node));
+        verifyUpdate();
+        return node;
     }
 
 }
