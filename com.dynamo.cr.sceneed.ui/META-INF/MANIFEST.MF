@@ -18,4 +18,5 @@ Require-Bundle: org.eclipse.core.runtime,
  com.dynamo.cr.editor.ui;bundle-version="1.0.0"
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
 Bundle-ActivationPolicy: lazy
-Export-Package: com.dynamo.cr.sceneed.ui
+Export-Package: com.dynamo.cr.sceneed.ui,
+ com.dynamo.cr.sceneed.ui.preferences
