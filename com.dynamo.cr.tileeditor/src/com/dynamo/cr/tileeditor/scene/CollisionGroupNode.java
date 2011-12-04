@@ -1,6 +1,6 @@
 package com.dynamo.cr.tileeditor.scene;
 
-import org.eclipse.osgi.util.NLS;
+import org.eclipse.core.runtime.IStatus;
 
 import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
@@ -10,7 +10,7 @@ public class CollisionGroupNode extends Node implements
 Comparable<CollisionGroupNode> {
 
     @Property
-    @NotEmpty
+    @NotEmpty(severity = IStatus.ERROR)
     private String name;
 
     public CollisionGroupNode() {
@@ -44,11 +44,6 @@ Comparable<CollisionGroupNode> {
     @Override
     public int compareTo(CollisionGroupNode o) {
         return this.name.compareTo(o.toString());
-    }
-
-    @Override
-    protected Class<? extends NLS> getMessages() {
-        return Messages.class;
     }
 
 }

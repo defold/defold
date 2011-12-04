@@ -6,9 +6,9 @@ import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
-import org.eclipse.osgi.util.NLS;
 
 import com.dynamo.cr.go.core.ComponentTypeNode;
+import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Resource;
 import com.dynamo.cr.sceneed.core.ISceneModel;
@@ -19,9 +19,11 @@ public class Sprite2Node extends ComponentTypeNode {
 
     @Property(isResource=true)
     @Resource
+    @NotEmpty
     private String tileSet = "";
 
     @Property
+    @NotEmpty
     private String defaultAnimation = "";
 
     private TileSetModel tileSetModel = null;
@@ -44,7 +46,7 @@ public class Sprite2Node extends ComponentTypeNode {
             boolean valid = status.isOK()
                     || (status.getSeverity() == IStatus.INFO && (!this.tileSetModel.getImage().isEmpty() || !this.tileSetModel.getCollision().isEmpty()));
             if (!valid) {
-                return new Status(IStatus.ERROR, Activator.PLUGIN_ID, Messages.SpriteNode_tileSet_INVALID_REFERENCE);
+                return new Status(IStatus.ERROR, Activator.PLUGIN_ID, Messages.Sprite2Node_tileSet_INVALID_REFERENCE);
             }
         }
         return Status.OK_STATUS;
@@ -63,7 +65,7 @@ public class Sprite2Node extends ComponentTypeNode {
 
     public IStatus validateDefaultAnimation() {
         if (this.defaultAnimation.isEmpty()) {
-            return new Status(IStatus.INFO, Activator.PLUGIN_ID, Messages.SpriteNode_defaultAnimation_NOT_SPECIFIED);
+            return new Status(IStatus.INFO, Activator.PLUGIN_ID, Messages.Sprite2Node_defaultAnimation_EMPTY);
         }
         return Status.OK_STATUS;
     }
@@ -118,8 +120,4 @@ public class Sprite2Node extends ComponentTypeNode {
         return false;
     }
 
-    @Override
-    protected Class<? extends NLS> getMessages() {
-        return Messages.class;
-    }
 }

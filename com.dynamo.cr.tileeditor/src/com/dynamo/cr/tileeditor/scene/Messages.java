@@ -9,25 +9,25 @@ public class Messages extends NLS {
 
     // Tile Set
 
-    public static String SceneModel_ResourceValidator_image_NOT_SPECIFIED;
-    public static String SceneModel_ResourceValidator_image_NOT_FOUND;
-    public static String SceneModel_ResourceValidator_collision_NOT_SPECIFIED;
-    public static String SceneModel_ResourceValidator_collision_NOT_FOUND;
-    public static String SceneModel_RangeValidator_tileWidth;
-    public static String SceneModel_RangeValidator_tileHeight;
-    public static String SceneModel_RangeValidator_tileMargin;
-    public static String SceneModel_RangeValidator_tileSpacing;
-    public static String SceneModel_NotEmptyValidator_materialTag;
-    public static String TileSet_DIFF_IMG_DIMS;
-    public static String TileSet_TILE_WIDTH_GT_IMG;
-    public static String TileSet_TILE_HEIGHT_GT_IMG;
+    public static String TileSetNode_image_EMPTY;
+    public static String TileSetNode_image_NOT_FOUND;
+    public static String TileSetNode_collision_EMPTY;
+    public static String TileSetNode_collision_NOT_FOUND;
+    public static String TileSetNode_tileWidth_OUTSIDE_RANGE;
+    public static String TileSetNode_tileHeight_OUTSIDE_RANGE;
+    public static String TileSetNode_tileMargin_OUTSIDE_RANGE;
+    public static String TileSetNode_tileSpacing_OUTSIDE_RANGE;
+    public static String TileSetNode_materialTag_EMPTY;
+    public static String TileSetNode_DIFF_IMG_DIMS;
+    public static String TileSetNode_TILE_WIDTH_GT_IMG;
+    public static String TileSetNode_TILE_HEIGHT_GT_IMG;
 
     // Sprite
 
-    public static String SceneModel_ResourceValidator_tileSet_NOT_FOUND;
-    public static String SceneModel_ResourceValidator_tileSet_NOT_SPECIFIED;
-    public static String SpriteNode_tileSet_INVALID_REFERENCE;
-    public static String SpriteNode_defaultAnimation_NOT_SPECIFIED;
+    public static String TileGridNode_tileSet_EMPTY;
+
+    public static String Sprite2Node_tileSet_INVALID_REFERENCE;
+    public static String Sprite2Node_defaultAnimation_EMPTY;
 
     static {
         // initialize resource bundle

@@ -93,15 +93,15 @@ public class Sprite2Test extends AbstractNodeTest {
 
     @Test
     public void testMessages() throws Exception {
-        assertPropertyStatus("tileSet", IStatus.INFO, null);
+        assertPropertyStatus("tileSet", IStatus.INFO, null); // default message
 
         setProperty("tileSet", "/non_existant");
-        assertPropertyStatus("tileSet", IStatus.ERROR, null);
+        assertPropertyStatus("tileSet", IStatus.ERROR, null); // default message
 
         setProperty("tileSet", "/invalid.tileset");
-        assertPropertyStatus("tileSet", IStatus.ERROR, Messages.SpriteNode_tileSet_INVALID_REFERENCE);
+        assertPropertyStatus("tileSet", IStatus.ERROR, Messages.Sprite2Node_tileSet_INVALID_REFERENCE);
 
-        assertPropertyStatus("defaultAnimation", IStatus.INFO, Messages.SpriteNode_defaultAnimation_NOT_SPECIFIED);
+        assertPropertyStatus("defaultAnimation", IStatus.INFO, Messages.Sprite2Node_defaultAnimation_EMPTY);
     }
 
 }

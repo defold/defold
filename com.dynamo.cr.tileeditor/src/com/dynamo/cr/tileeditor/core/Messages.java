@@ -11,18 +11,18 @@ public class Messages extends NLS {
     public static String GRID_INVALID_TILESET;
     public static String GRID_DUPLICATED_LAYER_IDS;
 
-    public static String TileSetModel_ResourceValidator_image_NOT_SPECIFIED;
-    public static String TileSetModel_ResourceValidator_image_NOT_FOUND;
-    public static String TileSetModel_ResourceValidator_collision_NOT_SPECIFIED;
-    public static String TileSetModel_ResourceValidator_collision_NOT_FOUND;
-    public static String TileSetModel_RangeValidator_tileWidth;
-    public static String TileSetModel_RangeValidator_tileHeight;
-    public static String TileSetModel_RangeValidator_tileMargin;
-    public static String TileSetModel_RangeValidator_tileSpacing;
-    public static String TileSetModel_NotEmptyValidator_materialTag;
+    public static String TileSetModel_image_EMPTY;
+    public static String TileSetModel_image_NOT_FOUND;
+    public static String TileSetModel_collision_EMPTY;
+    public static String TileSetModel_collision_NOT_FOUND;
+    public static String TileSetModel_tileWidth_OUTSIDE_RANGE;
+    public static String TileSetModel_tileHeight_OUTSIDE_RANGE;
+    public static String TileSetModel_tileMargin_OUTSIDE_RANGE;
+    public static String TileSetModel_tileSpacing_OUTSIDE_RANGE;
+    public static String TileSetModel_materialTag_EMPTY;
 
-    public static String GridModel_ResourceValidator_tileSet_NOT_FOUND;
-    public static String GridModel_ResourceValidator_tileSet_NOT_SPECIFIED;
+    public static String GridModel_tileSet_NOT_FOUND;
+    public static String GridModel_tileSet_EMPTY;
 
     static {
         // initialize resource bundle

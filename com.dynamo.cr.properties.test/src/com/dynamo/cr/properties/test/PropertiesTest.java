@@ -1,241 +1,64 @@
 package com.dynamo.cr.properties.test;
 
+import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
-
-import java.util.HashMap;
-import java.util.Map;
 
 import javax.vecmath.Vector4d;
 
-import org.eclipse.core.commands.operations.IUndoableOperation;
-import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.runtime.IStatus;
-import org.eclipse.core.runtime.Status;
-import org.eclipse.swt.graphics.RGB;
+import org.eclipse.osgi.util.NLS;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.dynamo.cr.properties.BeanPropertyAccessor;
-import com.dynamo.cr.properties.Entity;
-import com.dynamo.cr.properties.ICommandFactory;
-import com.dynamo.cr.properties.IPropertyAccessor;
 import com.dynamo.cr.properties.IPropertyModel;
-import com.dynamo.cr.properties.IPropertyObjectWorld;
-import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.PropertyIntrospector;
 import com.dynamo.cr.properties.PropertyIntrospectorModel;
-import com.dynamo.cr.properties.Range;
 import com.dynamo.cr.properties.proto.PropertiesTestProto;
+import com.dynamo.cr.properties.test.subpackage.SubDummyClass;
 
 public class PropertiesTest {
 
-    static class TestWorld implements IPropertyObjectWorld {
-        Map<String, Integer> commandsCreated = new HashMap<String, Integer>();
-        int totalCommands = 0;
+    private DummyWorld world;
+    private DummyClass dummy;
+    private PropertyIntrospectorModel<DummyClass, DummyWorld> source;
+    private static PropertyIntrospector<DummyClass, DummyWorld> introspector = new PropertyIntrospector<DummyClass, DummyWorld>(DummyClass.class);
 
-        @Override
-        public IContainer getContentRoot() {
-            return null;
-        }
-    }
-
-    static public class TestCommandFactory implements ICommandFactory<Object, TestWorld> {
-
-        @Override
-        public IUndoableOperation create(Object obj, String property,
-                IPropertyAccessor<Object, TestWorld> accessor,
-                Object oldValue, Object newValue, TestWorld world) {
-
-            // Increase total number of commands created
-            ++world.totalCommands;
-
-            // Increase command count for this property
-            Integer count = world.commandsCreated.get(property);
-            if (count == null)
-                count = 0;
-            count++;
-            world.commandsCreated.put(property, count);
-
-            // Set actual value
-            try {
-                accessor.setValue(obj, property, newValue, world);
-            } catch (Throwable e) {
-                throw new RuntimeException(e);
-            }
-
-            return null;
-        }
-
-        @Override
-        public void execute(IUndoableOperation operation, TestWorld world) {
-        }
-    }
-
-    @Entity(commandFactory = TestCommandFactory.class, accessor = BeanPropertyAccessor.class)
-    static public class TestClass {
-        @Property
-        @Range(min=1, max=10000)
-        int integerValue = 123;
-
-        @Property
-        double doubleValue = 456;
-
-        @Property
-        String stringValue = "foobar";
-
-        @Property
-        RGB rgbValue = new RGB(1, 2, 3);
-
-        @Property
-        Vector4d vector4Value = new Vector4d(1, 2, 3, 4);
-
-        @Property
-        PropertiesTestProto.EnumType enumValue = PropertiesTestProto.EnumType.VAL_B;
-
-        @Property
-        int missingGetterSetter;
-
-        @Property
-        int notEditable;
-
-        public boolean isNotEditableEditable() {
-            return false;
-        }
-
-        Map<String, IStatus> statusMap = new HashMap<String, IStatus>();
-
-        protected IStatus validateStringValue() {
-            if (stringValue.equals("invalid_string")) {
-                return new Status(IStatus.ERROR, "com.dynami", "Must not be 'invalid_string'");
-            } else {
-                return Status.OK_STATUS;
-            }
-        }
-
-        public int getIntegerValue() {
-            return integerValue;
-        }
-
-        public IStatus getStatus(String property) {
-            return statusMap.get(property);
-        }
-
-        public void setStatus(String property, IStatus status) {
-            statusMap.put(property, status);
-        }
-
-        public void setIntegerValue(int integerValue) {
-            this.integerValue = integerValue;
-        }
-
-        public double getDoubleValue() {
-            return doubleValue;
-        }
-
-        public void setDoubleValue(double doubleValue) {
-            this.doubleValue = doubleValue;
-        }
-
-        public String getStringValue() {
-            return stringValue;
-        }
-
-        public void setStringValue(String stringValue) {
-            this.stringValue = stringValue;
-        }
-
-        public RGB getRgbValue() {
-            return rgbValue;
-        }
-
-        public void setRgbValue(RGB rgbValue) {
-            this.rgbValue = rgbValue;
-        }
-
-        public PropertiesTestProto.EnumType getEnumValue() {
-            return enumValue;
-        }
-
-        public void setEnumValue(PropertiesTestProto.EnumType enumValue) {
-            this.enumValue = enumValue;
-        }
-
-        public Vector4d getVector4Value() {
-            return vector4Value;
-        }
-
-        public void setVector4Value(Vector4d vector4Value) {
-            this.vector4Value = vector4Value;
-        }
-
-    }
-
-    @Entity(commandFactory = TestCommandFactory.class, accessor = BeanPropertyAccessor.class)
-    static public class TinyTestClass {
-        @Property
-        @Range(min=1, max=10000)
-        int integerValue = 123;
-
-        @Property
-        double doubleValue = 456;
-
-        public int getIntegerValue() {
-            return this.integerValue;
-        }
-
-        public void setIntegerValue(int integerValue) {
-            this.integerValue = integerValue;
-        }
-
-        public double getDoubleValue() {
-            return this.doubleValue;
-        }
-
-        public void setDoubleValue(double doubleValue) {
-            this.doubleValue = doubleValue;
-        }
-    }
-
-    private TestWorld world;
-    private TestClass test;
-    private PropertyIntrospectorModel<TestClass, TestWorld> source;
-    private static PropertyIntrospector<TestClass, TestWorld> introspector = new PropertyIntrospector<TestClass, TestWorld>(TestClass.class);
-
-    private TinyTestClass tinyTest;
-    private PropertyIntrospectorModel<TinyTestClass, TestWorld> tinySource;
-    private static PropertyIntrospector<TinyTestClass, TestWorld> tinyIntrospector = new PropertyIntrospector<TinyTestClass, TestWorld>(TinyTestClass.class);
+    private TinyDummyClass tinyDummy;
+    private PropertyIntrospectorModel<TinyDummyClass, DummyWorld> tinySource;
+    private static PropertyIntrospector<TinyDummyClass, DummyWorld> tinyIntrospector = new PropertyIntrospector<TinyDummyClass, DummyWorld>(TinyDummyClass.class);
 
     @Before
     public void setUp() {
-        world = new TestWorld();
-        test = new TestClass();
-        tinyTest = new TinyTestClass();
-        source = new PropertyIntrospectorModel<TestClass, TestWorld>(test, world, introspector);
-        tinySource = new PropertyIntrospectorModel<TinyTestClass, TestWorld>(tinyTest, world, tinyIntrospector);
+        world = new DummyWorld();
+        dummy = new DummyClass();
+        tinyDummy = new TinyDummyClass();
+        source = new PropertyIntrospectorModel<DummyClass, DummyWorld>(dummy, world, introspector);
+        tinySource = new PropertyIntrospectorModel<TinyDummyClass, DummyWorld>(tinyDummy, world, tinyIntrospector);
     }
 
     @Test
     public void testGet() throws Exception {
-        assertEquals(test.getIntegerValue(), source.getPropertyValue("integerValue"));
-        assertEquals(test.getDoubleValue(), source.getPropertyValue("doubleValue"));
-        assertEquals(test.getStringValue(), source.getPropertyValue("stringValue"));
-        assertEquals(test.getRgbValue(), source.getPropertyValue("rgbValue"));
-        assertEquals(test.getVector4Value(), source.getPropertyValue("vector4Value"));
-        assertEquals(test.getEnumValue(), source.getPropertyValue("enumValue"));
+        assertEquals(dummy.getIntegerValue(), source.getPropertyValue("integerValue")); //$NON-NLS-1$
+        assertEquals(dummy.getDoubleValue(), source.getPropertyValue("doubleValue")); //$NON-NLS-1$
+        assertEquals(dummy.getStringValue(), source.getPropertyValue("stringValue")); //$NON-NLS-1$
+        assertEquals(dummy.getRgbValue(), source.getPropertyValue("rgbValue")); //$NON-NLS-1$
+        assertEquals(dummy.getVector4Value(), source.getPropertyValue("vector4Value")); //$NON-NLS-1$
+        assertEquals(dummy.getEnumValue(), source.getPropertyValue("enumValue")); //$NON-NLS-1$
     }
 
     @Test(expected=RuntimeException.class)
     public void testGetMissingGetter() throws Exception {
-        source.getPropertyValue("noSuchProperty");
+        source.getPropertyValue("noSuchProperty"); //$NON-NLS-1$
     }
 
-    void doTestSet(IPropertyModel<TestClass, TestWorld> testSource, String property, Object newValue) {
+    void doTestSet(IPropertyModel<DummyClass, DummyWorld> dummySource, String property, Object newValue) {
         assertEquals(null, world.commandsCreated.get(property));
-        testSource.setPropertyValue(property, newValue);
+        dummySource.setPropertyValue(property, newValue);
         assertEquals(new Integer(1), world.commandsCreated.get(property));
-        assertEquals(newValue, testSource.getPropertyValue(property));
+        assertEquals(newValue, dummySource.getPropertyValue(property));
     }
 
     @Test
@@ -243,94 +66,139 @@ public class PropertiesTest {
         int totalCommands = 0;
 
         assertEquals(totalCommands++, world.totalCommands);
-        doTestSet(source, "integerValue", 1010);
+        doTestSet(source, "integerValue", 1010); //$NON-NLS-1$
 
         assertEquals(totalCommands++, world.totalCommands);
-        doTestSet(source, "doubleValue", 8899.0);
+        doTestSet(source, "doubleValue", 8899.0); //$NON-NLS-1$
 
         assertEquals(totalCommands++, world.totalCommands);
-        doTestSet(source, "stringValue", "myNewValue");
+        doTestSet(source, "stringValue", "myNewValue"); //$NON-NLS-1$ //$NON-NLS-2$
 
         assertEquals(totalCommands++, world.totalCommands);
-        doTestSet(source, "vector4Value", new Vector4d(9, 8, 7, 6));
+        doTestSet(source, "vector4Value", new Vector4d(9, 8, 7, 6)); //$NON-NLS-1$
 
         assertEquals(totalCommands++, world.totalCommands);
-        doTestSet(source, "enumValue", PropertiesTestProto.EnumType.VAL_A);
+        doTestSet(source, "enumValue", PropertiesTestProto.EnumType.VAL_A); //$NON-NLS-1$
 
         assertEquals(totalCommands++, world.totalCommands);
     }
 
     @Test
     public void testEditable() throws Exception {
-        assertTrue(source.isPropertyEditable("integerValue"));
-        assertTrue(source.isPropertyEditable("doubleValue"));
-        assertTrue(source.isPropertyEditable("stringValue"));
-        assertTrue(source.isPropertyEditable("rgbValue"));
-        assertTrue(source.isPropertyEditable("vector4Value"));
-        assertTrue(source.isPropertyEditable("enumValue"));
-        assertFalse(source.isPropertyEditable("notEditable"));
+        assertTrue(source.isPropertyEditable("integerValue")); //$NON-NLS-1$
+        assertTrue(source.isPropertyEditable("doubleValue")); //$NON-NLS-1$
+        assertTrue(source.isPropertyEditable("stringValue")); //$NON-NLS-1$
+        assertTrue(source.isPropertyEditable("rgbValue")); //$NON-NLS-1$
+        assertTrue(source.isPropertyEditable("vector4Value")); //$NON-NLS-1$
+        assertTrue(source.isPropertyEditable("enumValue")); //$NON-NLS-1$
+        assertFalse(source.isPropertyEditable("notEditable")); //$NON-NLS-1$
     }
 
     // Currently RuntimeException is thrown. This behavior might change in the future
     @Test(expected = RuntimeException.class)
     public void testMissingGetter() throws Exception {
-        source.getPropertyValue("missingGetterSetter");
+        source.getPropertyValue("missingGetterSetter"); //$NON-NLS-1$
     }
 
     // Currently RuntimeException is thrown. This behavior might change in the future
     @Test(expected = RuntimeException.class)
     public void testMissingSetter() throws Exception {
-        source.setPropertyValue("missingGetterSetter", 123);
+        source.setPropertyValue("missingGetterSetter", 123); //$NON-NLS-1$
     }
 
     @Test
     public void testRangeValidation() throws Exception {
-        source.setPropertyValue("integerValue", 1);
-        assertTrue(source.getPropertyStatus("integerValue").isOK());
+        source.setPropertyValue("integerValue", 1); //$NON-NLS-1$
+        assertTrue(source.getPropertyStatus("integerValue").isOK()); //$NON-NLS-1$
 
-        source.setPropertyValue("integerValue", 0);
-        assertEquals(IStatus.ERROR, source.getPropertyStatus("integerValue").getSeverity());
+        source.setPropertyValue("integerValue", 0); //$NON-NLS-1$
+        assertEquals(IStatus.ERROR, source.getPropertyStatus("integerValue").getSeverity()); //$NON-NLS-1$
 
-        source.setPropertyValue("integerValue", 1000);
-        assertTrue(source.getPropertyStatus("integerValue").isOK());
+        source.setPropertyValue("integerValue", 1000); //$NON-NLS-1$
+        assertTrue(source.getPropertyStatus("integerValue").isOK()); //$NON-NLS-1$
 
-        source.setPropertyValue("integerValue", 10001);
-        assertEquals(IStatus.ERROR, source.getPropertyStatus("integerValue").getSeverity());
+        source.setPropertyValue("integerValue", 10001); //$NON-NLS-1$
+        assertEquals(IStatus.ERROR, source.getPropertyStatus("integerValue").getSeverity()); //$NON-NLS-1$
 
-        source.setPropertyValue("integerValue", 1);
-        assertTrue(source.getPropertyStatus("integerValue").isOK());
+        source.setPropertyValue("integerValue", 1); //$NON-NLS-1$
+        assertTrue(source.getPropertyStatus("integerValue").isOK()); //$NON-NLS-1$
     }
 
     @Test
     public void testMethodValidator() throws Exception {
-        source.setPropertyValue("stringValue", "test");
-        assertTrue(source.getPropertyStatus("stringValue").isOK());
+        source.setPropertyValue("stringValue", "test"); //$NON-NLS-1$ //$NON-NLS-2$
+        assertTrue(source.getPropertyStatus("stringValue").isOK()); //$NON-NLS-1$
 
-        source.setPropertyValue("stringValue", "invalid_string");
-        assertEquals(IStatus.ERROR, source.getPropertyStatus("stringValue").getSeverity());
+        source.setPropertyValue("stringValue", "invalid_string"); //$NON-NLS-1$ //$NON-NLS-2$
+        assertEquals(IStatus.ERROR, source.getPropertyStatus("stringValue").getSeverity()); //$NON-NLS-1$
 
-        source.setPropertyValue("stringValue", "test2");
-        assertTrue(source.getPropertyStatus("stringValue").isOK());
+        source.setPropertyValue("stringValue", "test2"); //$NON-NLS-1$ //$NON-NLS-2$
+        assertTrue(source.getPropertyStatus("stringValue").isOK()); //$NON-NLS-1$
     }
 
     @Test
     public void testInitialValue() throws Exception {
-        test.integerValue = 100000;
-        assertTrue(!source.getPropertyStatus("integerValue").isOK());
+        dummy.integerValue = 100000;
+        assertTrue(!source.getPropertyStatus("integerValue").isOK()); //$NON-NLS-1$
 
-        source.setPropertyValue("integerValue", 1);
-        assertTrue(source.getPropertyStatus("integerValue").isOK());
+        source.setPropertyValue("integerValue", 1); //$NON-NLS-1$
+        assertTrue(source.getPropertyStatus("integerValue").isOK()); //$NON-NLS-1$
     }
 
     @Test
     public void testGetStatus() throws Exception {
-        this.tinySource.setPropertyValue("integerValue", 1);
-        assertTrue(this.tinySource.getPropertyStatus("integerValue").isOK());
+        this.tinySource.setPropertyValue("integerValue", 1); //$NON-NLS-1$
+        assertTrue(this.tinySource.getPropertyStatus("integerValue").isOK()); //$NON-NLS-1$
         assertTrue(this.tinySource.getStatus().isOK());
 
-        this.tinySource.setPropertyValue("integerValue", 0);
-        assertEquals(IStatus.ERROR, this.tinySource.getPropertyStatus("integerValue").getSeverity());
+        this.tinySource.setPropertyValue("integerValue", 0); //$NON-NLS-1$
+        assertEquals(IStatus.ERROR, this.tinySource.getPropertyStatus("integerValue").getSeverity()); //$NON-NLS-1$
         assertEquals(IStatus.ERROR, this.tinySource.getStatus().getSeverity());
     }
 
+    @Test
+    public void testNotEmptyStatus() throws Exception {
+        IStatus requiredStatus = this.source.getPropertyStatus("requiredString");
+        assertThat(requiredStatus.getSeverity(), is(IStatus.ERROR));
+        assertThat(requiredStatus.getMessage(), is(com.dynamo.cr.properties.Messages.NotEmptyValidator_EMPTY));
+        IStatus optionalStatus = this.source.getPropertyStatus("optionalString");
+        assertThat(optionalStatus.getSeverity(), is(IStatus.INFO));
+        assertThat(optionalStatus.getMessage(), is(com.dynamo.cr.properties.Messages.NotEmptyValidator_EMPTY));
+    }
+
+    @Test
+    public void testRangeStatus() throws Exception {
+        this.source.setPropertyValue("integerValue", 0);
+        IStatus status = this.source.getPropertyStatus("integerValue");
+        assertThat(status.getSeverity(), is(IStatus.ERROR));
+        assertThat(status.getMessage(), is(NLS.bind(Messages.DummyClass_integerValue_OUTSIDE_RANGE, 1, 10000)));
+    }
+
+    @Test
+    public void testResourceStatus() throws Exception {
+        String path = "/missing_file";
+        this.source.setPropertyValue("resource", path);
+        IStatus status = this.source.getPropertyStatus("resource");
+        assertThat(status.getSeverity(), is(IStatus.ERROR));
+        assertThat(status.getMessage(), is(NLS.bind(com.dynamo.cr.properties.Messages.ResourceValidator_NOT_FOUND, path)));
+    }
+
+    @Test
+    public void testSubMessages() throws Exception {
+        // Setup
+        SubDummyClass subDummy = new SubDummyClass();
+        PropertyIntrospector<SubDummyClass, DummyWorld> introspector = new PropertyIntrospector<SubDummyClass, DummyWorld>(SubDummyClass.class);
+        PropertyIntrospectorModel<SubDummyClass, DummyWorld> introspectorModel = new PropertyIntrospectorModel<SubDummyClass, DummyWorld>(subDummy, world, introspector);
+
+        // Test
+        introspectorModel.setPropertyValue("integerValue", 0); //$NON-NLS-1$
+        IStatus integerStatus = introspectorModel.getPropertyStatus("integerValue"); //$NON-NLS-1$
+        assertThat(integerStatus.getSeverity(), is(IStatus.ERROR));
+        assertThat(integerStatus.getMessage(), is(NLS.bind(Messages.DummyClass_integerValue_OUTSIDE_RANGE, 1, 10000)));
+
+        introspectorModel.setPropertyValue("subIntegerValue", 0); //$NON-NLS-1$
+        IStatus subIntegerStatus = introspectorModel.getPropertyStatus("subIntegerValue"); //$NON-NLS-1$
+        assertThat(subIntegerStatus.getSeverity(), is(IStatus.ERROR));
+        assertThat(subIntegerStatus.getMessage(), is(NLS.bind(com.dynamo.cr.properties.test.subpackage.Messages.SubDummyClass_subIntegerValue_OUTSIDE_RANGE, 1, 10000)));
+    }
 }

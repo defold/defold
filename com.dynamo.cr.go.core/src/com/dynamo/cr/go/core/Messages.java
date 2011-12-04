@@ -12,13 +12,7 @@ public class Messages extends NLS {
 
     // Property validation
 
-    public static String SceneModel_ResourceValidator_tileSet_NOT_FOUND;
-    public static String SceneModel_ResourceValidator_tileSet_NOT_SPECIFIED;
-
-    public static String SceneModel_ResourceValidator_component_NOT_FOUND;
-    public static String SceneModel_ResourceValidator_component_NOT_SPECIFIED;
-
-    public static String ComponentNode_id_NOT_SPECIFIED;
+    public static String ComponentNode_id_EMPTY;
     public static String ComponentNode_id_DUPLICATED;
 
     public static String RefComponentNode_component_INVALID_REFERENCE;

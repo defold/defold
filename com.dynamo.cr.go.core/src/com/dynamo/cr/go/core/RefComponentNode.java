@@ -6,6 +6,7 @@ import org.eclipse.core.runtime.Status;
 import org.eclipse.osgi.util.NLS;
 import org.eclipse.swt.graphics.Image;
 
+import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Resource;
 import com.dynamo.cr.sceneed.core.ISceneModel;
@@ -14,6 +15,7 @@ public class RefComponentNode extends ComponentNode {
 
     @Property(isResource=true)
     @Resource
+    @NotEmpty
     private String component;
     private ComponentTypeNode type;
 
@@ -50,7 +52,7 @@ public class RefComponentNode extends ComponentNode {
     }
 
     public IStatus validateComponent() {
-        if (this.component != null && !this.component.equals("")) {
+        if (this.component != null && !this.component.isEmpty()) {
             if (this.type != null) {
                 IStatus status = this.type.validate();
                 if (!status.isOK()) {

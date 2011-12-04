@@ -5,12 +5,14 @@ import org.eclipse.core.runtime.Status;
 import org.eclipse.osgi.util.NLS;
 import org.eclipse.swt.graphics.Image;
 
+import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.sceneed.core.Node;
 
 public class ComponentNode extends Node {
 
     @Property
+    @NotEmpty(severity = IStatus.ERROR)
     private String id;
 
     public ComponentNode() {
@@ -35,9 +37,7 @@ public class ComponentNode extends Node {
     }
 
     public IStatus validateId() {
-        if (this.id == null || this.id.equals("")) {
-            return new Status(IStatus.ERROR, Constants.PLUGIN_ID, Messages.ComponentNode_id_NOT_SPECIFIED);
-        } else if (getParent() != null) {
+        if (getParent() != null) {
             for (Node sibling : getParent().getChildren()) {
                 if (sibling != this) {
                     if (this.id.equals(((ComponentNode)sibling).getId())) {
@@ -52,11 +52,6 @@ public class ComponentNode extends Node {
     @Override
     public String toString() {
         return this.id;
-    }
-
-    @Override
-    protected Class<? extends NLS> getMessages() {
-        return Messages.class;
     }
 
     @Override

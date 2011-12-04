@@ -36,9 +36,11 @@ import org.eclipse.core.runtime.Status;
 import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.properties.Entity;
 import com.dynamo.cr.properties.IPropertyModel;
+import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.PropertyIntrospector;
 import com.dynamo.cr.properties.PropertyIntrospectorModel;
+import com.dynamo.cr.properties.Resource;
 import com.dynamo.cr.tileeditor.Activator;
 import com.dynamo.cr.tileeditor.core.Layer.Cell;
 import com.dynamo.tile.proto.Tile;
@@ -54,6 +56,7 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
 
     @Property(isResource = true)
     @Resource
+    @NotEmpty
     private String tileSet;
 
     private final IOperationHistory history;
@@ -304,7 +307,7 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
         }
     }
 
-    private static PropertyIntrospector<GridModel, GridModel> introspector = new PropertyIntrospector<GridModel, GridModel>(GridModel.class, Messages.class);
+    private static PropertyIntrospector<GridModel, GridModel> introspector = new PropertyIntrospector<GridModel, GridModel>(GridModel.class);
 
     @Override
     public Object getAdapter(@SuppressWarnings("rawtypes") Class adapter) {

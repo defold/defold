@@ -2,18 +2,18 @@ package com.dynamo.cr.properties;
 
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
-import org.eclipse.osgi.util.NLS;
 
 public class RangeValidator implements IValidator<Number, Range, IPropertyObjectWorld> {
 
     @Override
-    public IStatus validate(Range validationParameters, String property, Number value, IPropertyObjectWorld world, Class<? extends NLS> nls) {
+    public IStatus validate(Range validationParameters, Object object, String property, Number value, IPropertyObjectWorld world) {
         double doubleValue = value.doubleValue();
-        if (doubleValue >= validationParameters.min() && doubleValue <= validationParameters.max()) {
+        int min = validationParameters.min();
+        int max = validationParameters.max();
+        if (doubleValue >= min && doubleValue <= max) {
             return Status.OK_STATUS;
         } else {
-            String messageKey = String.format("%s_%s_%s", world.getClass().getSimpleName(), this.getClass().getSimpleName(), property);
-            return new Status(IStatus.ERROR, "com.dynamo", ValidateUtil.bind(nls, messageKey, "Value out of range"));
+            return ValidatorUtil.createStatus(object, property, IStatus.ERROR, "OUTSIDE_RANGE", Messages.RangeValidator_OUTSIDE_RANGE, new Object[] { min, max });
         }
     }
 }

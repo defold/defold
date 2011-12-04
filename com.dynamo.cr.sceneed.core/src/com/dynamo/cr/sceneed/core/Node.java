@@ -11,7 +11,6 @@ import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.IAdaptable;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.MultiStatus;
-import org.eclipse.osgi.util.NLS;
 import org.eclipse.swt.graphics.Image;
 
 import com.dynamo.cr.properties.Entity;
@@ -120,14 +119,12 @@ public abstract class Node implements IAdaptable {
         return status;
     }
 
-    protected abstract Class<? extends NLS> getMessages();
-
     @Override
     public Object getAdapter(@SuppressWarnings("rawtypes") Class adapter) {
         PropertyIntrospector<Node, ISceneModel> introspector = introspectors.get(this.getClass());
 
         if (introspector == null) {
-            introspector = new PropertyIntrospector<Node, ISceneModel>(this.getClass(), getMessages());
+            introspector = new PropertyIntrospector<Node, ISceneModel>(this.getClass());
             introspectors.put(this.getClass(), introspector);
         }
 

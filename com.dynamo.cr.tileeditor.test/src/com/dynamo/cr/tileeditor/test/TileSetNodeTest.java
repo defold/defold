@@ -458,22 +458,23 @@ public class TileSetNodeTest extends AbstractNodeTest {
 
     @Test
     public void testMessages() throws Exception {
-        // TODO some messages can't be tested due to mocking, fix this
-        // Image not specified
-        assertPropertyStatus("image", IStatus.INFO, null); // Messages.SceneModel_ResourceValidator_image_NOT_SPECIFIED);
+        assertPropertyStatus("image", IStatus.INFO, Messages.TileSetNode_image_EMPTY);
+        assertPropertyStatus("collision", IStatus.INFO, Messages.TileSetNode_collision_EMPTY);
 
+        String missingPath = "/missing.png";
         // Image not found
-        setProperty("image", "missing.png");
-        assertPropertyStatus("image", IStatus.ERROR, null); // Messages.SceneModel_ResourceValidator_image_NOT_SPECIFIED);
+        setProperty("image", missingPath);
+        assertPropertyStatus("image", IStatus.ERROR, NLS.bind(Messages.TileSetNode_image_NOT_FOUND, missingPath));
+        assertPropertyStatus("collision", IStatus.OK, null);
 
         // Collision not found
         setProperty("collision", "/missing.png");
-        assertPropertyStatus("collision", IStatus.ERROR, null); // Messages.SceneModel_ResourceValidator_collision_NOT_SPECIFIED);
+        assertPropertyStatus("collision", IStatus.ERROR, NLS.bind(Messages.TileSetNode_collision_NOT_FOUND, missingPath));
 
         // Different img dimensions
         setProperty("image", "/4x5_16_1.png");
         setProperty("collision", "/2x5_16_1.png");
-        String message = NLS.bind(Messages.TileSet_DIFF_IMG_DIMS, new Object[] {
+        String message = NLS.bind(Messages.TileSetNode_DIFF_IMG_DIMS, new Object[] {
                 84, 67, 84, 33 });
         assertPropertyStatus("image", IStatus.ERROR, message);
         assertPropertyStatus("collision", IStatus.ERROR, message);
@@ -487,13 +488,13 @@ public class TileSetNodeTest extends AbstractNodeTest {
         // Total tile width greater than image width
         setProperties(new String[] {"collision", "tileWidth", "tileHeight", "tileMargin"},
                 new Object[] {"/4x5_16_1.png", 85, 16, 1});
-        message = NLS.bind(Messages.TileSet_TILE_WIDTH_GT_IMG, new Object[] {
+        message = NLS.bind(Messages.TileSetNode_TILE_WIDTH_GT_IMG, new Object[] {
                 86, 84 });
         assertPropertiesStatus(new String[] { "image", "tileWidth",
                 "tileMargin", "collision" }, IStatus.ERROR, message);
         assertPropertiesStatus(new String[] { "tileHeight", "tileSpacing" }, IStatus.OK, null);
         setProperty("tileMargin", 0);
-        message = NLS.bind(Messages.TileSet_TILE_WIDTH_GT_IMG, new Object[] {
+        message = NLS.bind(Messages.TileSetNode_TILE_WIDTH_GT_IMG, new Object[] {
                 85, 84 });
         assertPropertiesStatus(new String[] { "image", "tileWidth", "collision" }, IStatus.ERROR, message);
         assertPropertiesStatus(new String[] { "tileHeight", "tileMargin",
@@ -502,13 +503,13 @@ public class TileSetNodeTest extends AbstractNodeTest {
         // Total tile height greater than image width
         setProperties(new String[] { "tileWidth", "tileHeight", "tileMargin" }, new Object[] {
                 16, 68, 1 });
-        message = NLS.bind(Messages.TileSet_TILE_HEIGHT_GT_IMG, new Object[] {
+        message = NLS.bind(Messages.TileSetNode_TILE_HEIGHT_GT_IMG, new Object[] {
                 69, 67 });
         assertPropertiesStatus(new String[] { "image", "tileHeight",
                 "tileMargin", "collision" }, IStatus.ERROR, message);
         assertPropertiesStatus(new String[] { "tileWidth", "tileSpacing" }, IStatus.OK, null);
         setProperty("tileMargin", 0);
-        message = NLS.bind(Messages.TileSet_TILE_HEIGHT_GT_IMG, new Object[] {
+        message = NLS.bind(Messages.TileSetNode_TILE_HEIGHT_GT_IMG, new Object[] {
                 68, 67 });
         assertPropertiesStatus(new String[] { "image", "tileHeight",
         "collision" }, IStatus.ERROR, message);
@@ -517,15 +518,15 @@ public class TileSetNodeTest extends AbstractNodeTest {
 
         // Empty material
         setProperty("materialTag", "");
-        assertPropertyStatus("materialTag", IStatus.ERROR, null); // Messages.TileSetModel_NotEmptyValidator_materialTag);
+        assertPropertyStatus("materialTag", IStatus.ERROR, Messages.TileSetNode_materialTag_EMPTY);
 
         // Invalid tile margin
         setProperty("tileMargin", -1);
-        assertPropertyStatus("tileMargin", IStatus.ERROR, null); // Messages.TileSetModel_RangeValidator_tileMargin);
+        assertPropertyStatus("tileMargin", IStatus.ERROR, Messages.TileSetNode_tileMargin_OUTSIDE_RANGE);
 
         // Invalid tile spacing
         setProperty("tileSpacing", -1);
-        assertPropertyStatus("tileSpacing", IStatus.ERROR, null); // Messages.TileSetModel_RangeValidator_tileSpacing);
+        assertPropertyStatus("tileSpacing", IStatus.ERROR, Messages.TileSetNode_tileSpacing_OUTSIDE_RANGE);
     }
 
 }

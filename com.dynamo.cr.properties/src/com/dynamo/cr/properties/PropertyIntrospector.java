@@ -18,7 +18,6 @@ import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.MultiStatus;
 import org.eclipse.core.runtime.Status;
-import org.eclipse.osgi.util.NLS;
 import org.eclipse.swt.graphics.RGB;
 
 import com.dynamo.cr.properties.descriptors.BooleanPropertyDesc;
@@ -42,10 +41,9 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
     private IPropertyDesc<T, U>[] descriptors;
     private ICommandFactory<T, U> commandFactory;
     private Class<? extends IPropertyAccessor<T, U>> accessorClass;
-    private Multimap<String, Annotation> validators = ArrayListMultimap.create();
-    private Multimap<String, Method> methodValidators = ArrayListMultimap.create();
-    private Set<String> properties = new HashSet<String>();
-    private Class<? extends NLS> nls;
+    private final Multimap<String, Annotation> validators = ArrayListMultimap.create();
+    private final Multimap<String, Method> methodValidators = ArrayListMultimap.create();
+    private final Set<String> properties = new HashSet<String>();
 
     public PropertyIntrospector(Class<?> klass) {
         this.klass = klass;
@@ -54,11 +52,6 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-    }
-
-    public PropertyIntrospector(Class<?> klass, Class<? extends NLS> nls) {
-        this(klass);
-        this.nls = nls;
     }
 
     public IPropertyDesc<T, U>[] getDescriptors() {
@@ -182,7 +175,7 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
             Validator validatorClass = annotation.annotationType().getAnnotation(Validator.class);
             @SuppressWarnings("unchecked")
             IValidator<Object, Annotation, U> validator = (IValidator<Object, Annotation, U>) validatorClass.validator().newInstance();
-            IStatus status = validator.validate(annotation, property, actualValue, world, nls);
+            IStatus status = validator.validate(annotation, obj, property, actualValue, world);
             if (!status.isOK()) {
                 statusList.add(status);
             }

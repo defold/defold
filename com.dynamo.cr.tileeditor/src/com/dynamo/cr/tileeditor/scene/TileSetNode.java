@@ -21,6 +21,7 @@ import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Range;
 import com.dynamo.cr.properties.Resource;
+import com.dynamo.cr.properties.ValidatorUtil;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.tile.ConvexHull;
@@ -57,7 +58,7 @@ public class TileSetNode extends Node {
     private String collision = "";
 
     @Property
-    @NotEmpty
+    @NotEmpty(severity = IStatus.ERROR)
     private String materialTag = "";
 
     private List<CollisionGroupNode> tileCollisionGroups;
@@ -81,6 +82,9 @@ public class TileSetNode extends Node {
     }
 
     public IStatus validateImage() {
+        if (this.image.isEmpty() && this.collision.isEmpty()) {
+            return ValidatorUtil.createStatus(this, "image", IStatus.INFO, "EMPTY", null);
+        }
         IStatus status = verifyImageDimensions();
         if (!status.isOK())
             return status;
@@ -168,6 +172,9 @@ public class TileSetNode extends Node {
     }
 
     public IStatus validateCollision() {
+        if (this.image.isEmpty() && this.collision.isEmpty()) {
+            return ValidatorUtil.createStatus(this, "collision", IStatus.INFO, "EMPTY", null);
+        }
         IStatus status = verifyImageDimensions();
         if (!status.isOK())
             return status;
@@ -327,7 +334,7 @@ public class TileSetNode extends Node {
     private IStatus verifyImageDimensions() {
         if (this.loadedImage != null && this.loadedCollision != null) {
             if (this.loadedImage.getWidth() != this.loadedCollision.getWidth() || this.loadedImage.getHeight() != this.loadedCollision.getHeight()) {
-                return createErrorStatus(Messages.TileSet_DIFF_IMG_DIMS, new Object[] {
+                return createErrorStatus(Messages.TileSetNode_DIFF_IMG_DIMS, new Object[] {
                         this.loadedImage.getWidth(),
                         this.loadedImage.getHeight(),
                         this.loadedCollision.getWidth(),
@@ -351,14 +358,14 @@ public class TileSetNode extends Node {
             if (verifyWidth) {
                 int totalTileWidth = this.tileWidth + this.tileMargin;
                 if (totalTileWidth > imageWidth) {
-                    return createErrorStatus(Messages.TileSet_TILE_WIDTH_GT_IMG, new Object[] {
+                    return createErrorStatus(Messages.TileSetNode_TILE_WIDTH_GT_IMG, new Object[] {
                             totalTileWidth, imageWidth });
                 }
             }
             if (verifyHeight) {
                 int totalTileHeight = this.tileHeight + this.tileMargin;
                 if (totalTileHeight > imageHeight) {
-                    return createErrorStatus(Messages.TileSet_TILE_HEIGHT_GT_IMG, new Object[] {
+                    return createErrorStatus(Messages.TileSetNode_TILE_HEIGHT_GT_IMG, new Object[] {
                             totalTileHeight, imageHeight });
                 }
             }
@@ -413,11 +420,6 @@ public class TileSetNode extends Node {
         if (result) {
             updateConvexHulls();
         }
-    }
-
-    @Override
-    protected Class<? extends NLS> getMessages() {
-        return Messages.class;
     }
 
 }

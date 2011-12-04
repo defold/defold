@@ -4,8 +4,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
-import org.eclipse.osgi.util.NLS;
-
 import com.dynamo.cr.sceneed.core.Node;
 
 public class GameObjectNode extends Node {
@@ -28,11 +26,6 @@ public class GameObjectNode extends Node {
                 return id1.compareTo(id2);
             }
         });
-    }
-
-    @Override
-    protected Class<? extends NLS> getMessages() {
-        return Messages.class;
     }
 
     public String getUniqueId(String baseId) {

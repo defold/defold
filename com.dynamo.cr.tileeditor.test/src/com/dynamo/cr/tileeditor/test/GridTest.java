@@ -581,7 +581,7 @@ public class GridTest implements IResourceChangeListener {
         newMarioTileSet();
 
         assertTrue(!propertyModel.getPropertyStatus("tileSet").isOK());
-        assertMessage(Messages.GridModel_ResourceValidator_tileSet_NOT_SPECIFIED, "tileSet");
+        assertMessage(Messages.GridModel_tileSet_EMPTY, "tileSet");
         assertMessageSeverity(IStatus.INFO, "tileSet");
         verify(this.view, times(1)).refreshProperties();
 
@@ -607,7 +607,7 @@ public class GridTest implements IResourceChangeListener {
         String invalidPath = "/test";
         setGridProperty("tileSet", invalidPath);
         assertTrue(!propertyModel.getPropertyStatus("tileSet").isOK());
-        assertMessage(NLS.bind(Messages.GridModel_ResourceValidator_tileSet_NOT_FOUND, invalidPath), "tileSet");
+        assertMessage(NLS.bind(Messages.GridModel_tileSet_NOT_FOUND, invalidPath), "tileSet");
 
         verify(this.view, times(2)).refreshProperties();
         verify(this.view, times(1)).setValidModel(eq(false));

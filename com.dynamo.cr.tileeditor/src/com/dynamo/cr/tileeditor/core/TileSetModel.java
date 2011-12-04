@@ -39,6 +39,7 @@ import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.PropertyIntrospector;
 import com.dynamo.cr.properties.PropertyIntrospectorModel;
 import com.dynamo.cr.properties.Range;
+import com.dynamo.cr.properties.Resource;
 import com.dynamo.tile.ConvexHull;
 import com.dynamo.tile.TileSetUtil;
 import com.dynamo.tile.TileSetUtil.ConvexHulls;
@@ -54,6 +55,7 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
 
     @Property(isResource = true)
     @Resource
+    @NotEmpty
     String image;
     @Property
     @Range(min=1)
@@ -69,12 +71,13 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
     int tileSpacing;
     @Property(isResource = true)
     @Resource
+    @NotEmpty
     String collision;
     @Property
-    @NotEmpty
+    @NotEmpty(severity = IStatus.ERROR)
     String materialTag;
 
-    private static PropertyIntrospector<TileSetModel, TileSetModel> introspector = new PropertyIntrospector<TileSetModel, TileSetModel>(TileSetModel.class, Messages.class);
+    private static PropertyIntrospector<TileSetModel, TileSetModel> introspector = new PropertyIntrospector<TileSetModel, TileSetModel>(TileSetModel.class);
 
     private final IContainer contentRoot;
     List<ConvexHull> convexHulls;

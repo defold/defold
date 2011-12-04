@@ -48,7 +48,7 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IResou
     private IStructuredSelection selection;
     private int undoRedoCounter;
 
-    private static PropertyIntrospector<SceneModel, SceneModel> introspector = new PropertyIntrospector<SceneModel, SceneModel>(SceneModel.class, Messages.class);
+    private static PropertyIntrospector<SceneModel, SceneModel> introspector = new PropertyIntrospector<SceneModel, SceneModel>(SceneModel.class);
 
     @Inject
     public SceneModel(IModelListener listener, IOperationHistory history, IUndoContext undoContext, ILogger logger, IContainer contentRoot, ILoaderContext loaderContext, IImageProvider imageProvider) {

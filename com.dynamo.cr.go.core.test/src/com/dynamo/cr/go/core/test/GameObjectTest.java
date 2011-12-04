@@ -215,7 +215,7 @@ public class GameObjectTest extends AbstractNodeTest {
         assertNodePropertyStatus(component, "id", IStatus.OK, null);
 
         setNodeProperty(component, "id", "");
-        assertNodePropertyStatus(component, "id", IStatus.ERROR, Messages.ComponentNode_id_NOT_SPECIFIED);
+        assertNodePropertyStatus(component, "id", IStatus.ERROR, Messages.ComponentNode_id_EMPTY);
         verifyUpdate();
 
         setNodeProperty(component, "id", "test");
@@ -241,6 +241,10 @@ public class GameObjectTest extends AbstractNodeTest {
 
         setNodeProperty(component, "component", "/test.test2");
         assertNodePropertyStatus(component, "component", IStatus.ERROR, NLS.bind(Messages.RefComponentNode_component_INVALID_TYPE, "test2"));
+        verifyUpdate();
+
+        setNodeProperty(component, "component", "/test");
+        assertNodePropertyStatus(component, "component", IStatus.ERROR, NLS.bind(Messages.RefComponentNode_component_UNKNOWN_TYPE, "/test"));
         verifyUpdate();
     }
 

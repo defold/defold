@@ -780,7 +780,7 @@ public class TileSetTest implements IResourceChangeListener {
     public void testMessage11() throws IOException {
         loadEmptyFile();
 
-        assertMessage(Messages.TileSetModel_ResourceValidator_image_NOT_SPECIFIED, "image");
+        assertMessage(Messages.TileSetModel_image_EMPTY, "image");
         verify(this.view, times(1)).refreshProperties();
 
         this.model.executeOperation(propertyModel.setPropertyValue("image", "/mario_tileset.png"));
@@ -804,7 +804,7 @@ public class TileSetTest implements IResourceChangeListener {
         String invalidPath = "/test";
         this.model.executeOperation(propertyModel.setPropertyValue("image", invalidPath));
         assertTrue(!propertyModel.getPropertyStatus("image").isOK());
-        assertEquals(NLS.bind(Messages.TileSetModel_ResourceValidator_image_NOT_FOUND, invalidPath), propertyModel.getPropertyStatus("image").getMessage());
+        assertEquals(NLS.bind(Messages.TileSetModel_image_NOT_FOUND, invalidPath), propertyModel.getPropertyStatus("image").getMessage());
         verify(this.view, times(2)).refreshProperties();
         verify(this.view, times(1)).setValid(eq(false));
 
@@ -829,7 +829,7 @@ public class TileSetTest implements IResourceChangeListener {
         String invalidPath = "test";
         this.model.executeOperation(propertyModel.setPropertyValue("collision", invalidPath));
         assertTrue(!propertyModel.getPropertyStatus("collision").isOK());;
-        assertEquals(NLS.bind(Messages.TileSetModel_ResourceValidator_collision_NOT_FOUND, invalidPath), propertyModel.getPropertyStatus("collision").getMessage());
+        assertEquals(NLS.bind(Messages.TileSetModel_collision_NOT_FOUND, invalidPath), propertyModel.getPropertyStatus("collision").getMessage());
         verify(this.view, times(2)).refreshProperties();
 
         this.model.executeOperation(propertyModel.setPropertyValue("collision", "/mario_tileset.png"));
@@ -874,7 +874,7 @@ public class TileSetTest implements IResourceChangeListener {
 
         this.model.executeOperation(propertyModel.setPropertyValue("tileWidth", 0));
         assertTrue(!propertyModel.getPropertyStatus("tileWidth").isOK());;
-        assertEquals(Messages.TileSetModel_RangeValidator_tileWidth, propertyModel.getPropertyStatus("tileWidth").getMessage());
+        assertEquals(Messages.TileSetModel_tileWidth_OUTSIDE_RANGE, propertyModel.getPropertyStatus("tileWidth").getMessage());
         verify(this.view, times(2)).refreshProperties();
 
         this.model.executeOperation(propertyModel.setPropertyValue("tileWidth", 16));
@@ -895,7 +895,7 @@ public class TileSetTest implements IResourceChangeListener {
 
         this.model.executeOperation(propertyModel.setPropertyValue("tileHeight", 0));
         assertTrue(!propertyModel.getPropertyStatus("tileHeight").isOK());;
-        assertEquals(Messages.TileSetModel_RangeValidator_tileHeight, propertyModel.getPropertyStatus("tileHeight").getMessage());
+        assertEquals(Messages.TileSetModel_tileHeight_OUTSIDE_RANGE, propertyModel.getPropertyStatus("tileHeight").getMessage());
         verify(this.view, times(2)).refreshProperties();
 
         this.model.executeOperation(propertyModel.setPropertyValue("tileHeight", 16));
@@ -997,7 +997,7 @@ public class TileSetTest implements IResourceChangeListener {
 
         this.model.executeOperation(propertyModel.setPropertyValue("materialTag", ""));
         assertTrue(!propertyModel.getPropertyStatus("materialTag").isOK());;
-        assertEquals(Messages.TileSetModel_NotEmptyValidator_materialTag, propertyModel.getPropertyStatus("materialTag").getMessage());
+        assertEquals(Messages.TileSetModel_materialTag_EMPTY, propertyModel.getPropertyStatus("materialTag").getMessage());
         verify(this.view, times(2)).refreshProperties();
 
         this.model.executeOperation(propertyModel.setPropertyValue("materialTag", "tile"));
@@ -1018,7 +1018,7 @@ public class TileSetTest implements IResourceChangeListener {
 
         this.model.executeOperation(propertyModel.setPropertyValue("tileMargin", -1));
         assertTrue(!propertyModel.getPropertyStatus("tileMargin").isOK());;
-        assertEquals(Messages.TileSetModel_RangeValidator_tileMargin, propertyModel.getPropertyStatus("tileMargin").getMessage());
+        assertEquals(Messages.TileSetModel_tileMargin_OUTSIDE_RANGE, propertyModel.getPropertyStatus("tileMargin").getMessage());
         verify(this.view, times(2)).refreshProperties();
 
         this.model.executeOperation(propertyModel.setPropertyValue("tileMargin", 0));
@@ -1039,7 +1039,7 @@ public class TileSetTest implements IResourceChangeListener {
 
         this.model.executeOperation(propertyModel.setPropertyValue("tileSpacing", -1));
         assertTrue(!propertyModel.getPropertyStatus("tileSpacing").isOK());;
-        assertEquals(Messages.TileSetModel_RangeValidator_tileSpacing, propertyModel.getPropertyStatus("tileSpacing").getMessage());
+        assertEquals(Messages.TileSetModel_tileSpacing_OUTSIDE_RANGE, propertyModel.getPropertyStatus("tileSpacing").getMessage());
         verify(this.view, times(2)).refreshProperties();
 
         this.model.executeOperation(propertyModel.setPropertyValue("tileSpacing", 0));
