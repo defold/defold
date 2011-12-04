@@ -20,6 +20,7 @@ import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.core.IResourceType;
 import com.dynamo.cr.editor.core.IResourceTypeRegistry;
 import com.dynamo.cr.properties.IFormPropertySheetPage;
+import com.dynamo.cr.sceneed.core.IRenderView;
 import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.Node;
 
@@ -27,14 +28,15 @@ public class SceneView implements ISceneView {
 
     @Inject private ISceneOutlinePage outline;
     @Inject private IFormPropertySheetPage propertySheetPage;
-    @Inject private RenderView renderView;
+    @Inject private IRenderView renderView;
     @Inject private SceneEditor editor;
     @Inject private IContainer contentRoot;
+    @Inject private SceneRenderViewProvider sceneRenderViewProvider;
 
     @Override
     public void setRoot(Node root) {
         this.outline.setInput(root);
-        this.renderView.setRoot(root);
+        this.sceneRenderViewProvider.setRoot(root);
     }
 
     @Override
@@ -47,7 +49,7 @@ public class SceneView implements ISceneView {
     @Override
     public void updateSelection(IStructuredSelection selection) {
         // Update all selection providers
-        this.renderView.setSelection(selection);
+        this.sceneRenderViewProvider.setSelection(selection);
         this.outline.setSelection(selection);
     }
 

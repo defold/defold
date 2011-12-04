@@ -14,13 +14,6 @@ import javax.media.opengl.GLContext;
 import javax.media.opengl.GLDrawableFactory;
 import javax.media.opengl.glu.GLU;
 
-import org.eclipse.jface.preference.IPreferenceStore;
-import org.eclipse.jface.viewers.ISelection;
-import org.eclipse.jface.viewers.ISelectionChangedListener;
-import org.eclipse.jface.viewers.ISelectionProvider;
-import org.eclipse.jface.viewers.IStructuredSelection;
-import org.eclipse.jface.viewers.SelectionChangedEvent;
-import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.MouseEvent;
 import org.eclipse.swt.events.MouseListener;
@@ -35,29 +28,30 @@ import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.Listener;
-import org.eclipse.ui.services.IDisposable;
+import org.eclipse.ui.ISelectionService;
 
 import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.sceneed.core.INodeRenderer;
 import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
+import com.dynamo.cr.sceneed.core.IRenderView;
+import com.dynamo.cr.sceneed.core.IRenderViewProvider;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.RenderContext;
 import com.dynamo.cr.sceneed.core.RenderContext.Pass;
 import com.dynamo.cr.sceneed.core.RenderData;
 import com.dynamo.cr.sceneed.ui.RenderView.SelectResult.Pair;
-import com.dynamo.cr.sceneed.ui.preferences.PreferenceConstants;
 import com.sun.opengl.util.BufferUtil;
 
 public class RenderView implements
-IDisposable,
 MouseListener,
 MouseMoveListener,
 Listener,
-ISelectionProvider {
+IRenderView {
 
     private final INodeTypeRegistry nodeTypeRegistry;
     private final ILogger logger;
+    private ISelectionService selectionService;
 
     private GLCanvas canvas;
     private GLContext context;
@@ -72,19 +66,14 @@ ISelectionProvider {
     private static final int PICK_BUFFER_SIZE = 4096;
     private static IntBuffer selectBuffer = ByteBuffer.allocateDirect(4 * PICK_BUFFER_SIZE).order(ByteOrder.nativeOrder()).asIntBuffer();
 
-    private Node root;
-
-    // SelectionProvider
-
-    private final List<ISelectionChangedListener> selectionListeners = new ArrayList<ISelectionChangedListener>();
-    private IStructuredSelection selection = new StructuredSelection();
-
     @Inject
-    public RenderView(INodeTypeRegistry manager, ILogger logger) {
+    public RenderView(INodeTypeRegistry manager, ILogger logger, ISelectionService selectionService) {
         this.nodeTypeRegistry = manager;
         this.logger = logger;
+        this.selectionService = selectionService;
     }
 
+    @Override
     public void createControls(Composite parent) {
         GLData data = new GLData();
         data.doubleBuffer = true;
@@ -116,6 +105,7 @@ ISelectionProvider {
     @Override
     public void dispose() {
         if (this.context != null) {
+            this.context.makeCurrent();
             this.context.release();
             this.context.destroy();
         }
@@ -124,6 +114,7 @@ ISelectionProvider {
         }
     }
 
+    @Override
     public void setFocus() {
         this.canvas.setFocus();
     }
@@ -132,15 +123,7 @@ ISelectionProvider {
         return this.canvas;
     }
 
-    public Node getRoot() {
-        return this.root;
-    }
-
-    public void setRoot(Node root) {
-        this.root = root;
-        requestPaint();
-    }
-
+    @Override
     public void refresh() {
         requestPaint();
     }
@@ -198,8 +181,10 @@ ISelectionProvider {
     @Override
     public void mouseDown(MouseEvent event) {
         List<Node> sel = rectangleSelect(event.x, event.y, 16, 16);
-        StructuredSelection newSelection = new StructuredSelection(sel);
-        setSelection(newSelection);
+
+        for (IRenderViewProvider provider : providers) {
+            provider.onNodeHit(sel);
+        }
     }
 
     @Override
@@ -207,35 +192,6 @@ ISelectionProvider {
         // To be used for tools
     }
 
-    // SelectionProvider
-
-    @Override
-    public void addSelectionChangedListener(ISelectionChangedListener listener) {
-        this.selectionListeners.add(listener);
-    }
-
-    @Override
-    public ISelection getSelection() {
-        return this.selection;
-    }
-
-    @Override
-    public void removeSelectionChangedListener(
-            ISelectionChangedListener listener) {
-        this.selectionListeners.remove(listener);
-    }
-
-    @Override
-    public void setSelection(ISelection selection) {
-        if (selection instanceof IStructuredSelection) {
-            this.selection = (IStructuredSelection)selection;
-            SelectionChangedEvent event = new SelectionChangedEvent(this, this.selection);
-            for (ISelectionChangedListener listener : this.selectionListeners) {
-                listener.selectionChanged(event);
-            }
-        }
-        requestPaint();
-    }
 
     public boolean isEnabled() {
         return this.enabled;
@@ -363,7 +319,7 @@ ISelectionProvider {
         return toSelect;
     }
 
-    private void requestPaint() {
+    public void requestPaint() {
         if (this.paintRequested || this.canvas == null)
             return;
         this.paintRequested = true;
@@ -410,27 +366,7 @@ ISelectionProvider {
             return;
         }
 
-        int viewPortWidth = this.viewPort.get(2);
-        int viewPortHeight = this.viewPort.get(3);
-
-        gl.glMatrixMode(GL.GL_PROJECTION);
-        gl.glLoadIdentity();
-        glu.gluOrtho2D(-1, 1, -1, 1);
-
-        gl.glMatrixMode(GL.GL_MODELVIEW);
-        gl.glLoadIdentity();
-
-        // background
-        setupPass(gl, Pass.BACKGROUND);
-        renderBackground(gl, viewPortWidth, viewPortHeight);
-
-        // TODO: Temp "camera"
-        gl.glMatrixMode(GL.GL_PROJECTION);
-        gl.glLoadIdentity();
-        gl.glOrtho(orthoCamera[0], orthoCamera[1], orthoCamera[2], orthoCamera[3], orthoCamera[4], orthoCamera[5]);
-        gl.glMatrixMode(GL.GL_MODELVIEW);
-
-        List<Pass> passes = Arrays.asList(Pass.OUTLINE, Pass.TRANSPARENT);
+        List<Pass> passes = Arrays.asList(Pass.BACKGROUND, Pass.OUTLINE, Pass.TRANSPARENT);
         renderNodes(gl, glu, passes);
     }
 
@@ -445,12 +381,12 @@ ISelectionProvider {
     }
 
     private RenderContext renderNodes(GL gl, GLU glu, List<Pass> passes) {
-        RenderContext renderContext = new RenderContext(gl, glu, this.selection);
+        RenderContext renderContext = new RenderContext(gl, glu, selectionService.getSelection());
 
-        if (this.root != null) {
+        for (IRenderViewProvider provider : providers) {
             for (Pass pass : passes) {
                 renderContext.setPass(pass);
-                setupNode(renderContext, this.root);
+                provider.setup(renderContext);
             }
         }
 
@@ -462,7 +398,7 @@ ISelectionProvider {
             Pass pass = renderData.getPass();
 
             if (currentPass != pass) {
-                setupPass(renderContext.getGL(), pass);
+                setupPass(renderContext.getGL(), renderContext.getGLU(), pass);
                 currentPass = pass;
             }
             renderContext.setPass(currentPass);
@@ -472,9 +408,27 @@ ISelectionProvider {
         return renderContext;
     }
 
-    private void setupPass(GL gl, Pass pass) {
+    private void setupPass(GL gl, GLU glu, Pass pass) {
+
+        // Default projection
+        // TODO: Temp camera
+
+        if (pass != Pass.SELECTION) {
+            gl.glMatrixMode(GL.GL_PROJECTION);
+            gl.glLoadIdentity();
+            gl.glOrtho(orthoCamera[0], orthoCamera[1], orthoCamera[2], orthoCamera[3], orthoCamera[4], orthoCamera[5]);
+            gl.glMatrixMode(GL.GL_MODELVIEW);
+        }
+
         switch (pass) {
         case BACKGROUND:
+            gl.glMatrixMode(GL.GL_PROJECTION);
+            gl.glLoadIdentity();
+            glu.gluOrtho2D(-1, 1, -1, 1);
+
+            gl.glMatrixMode(GL.GL_MODELVIEW);
+            gl.glLoadIdentity();
+
             gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL);
             gl.glDisable(GL.GL_BLEND);
             gl.glDisable(GL.GL_DEPTH_TEST);
@@ -512,11 +466,13 @@ ISelectionProvider {
 
     }
 
-    private void setupNode(RenderContext renderContext, Node node) {
+    @Override
+    public void setupNode(RenderContext renderContext, Node node) {
         INodeType nodeType = this.nodeTypeRegistry.getNodeType(node.getClass());
         if (nodeType != null) {
             INodeRenderer<Node> renderer = nodeType.getRenderer();
-            renderer.setup(renderContext, node);
+            if (renderer != null)
+                renderer.setup(renderContext, node);
         }
 
         for (Node child : node.getChildren()) {
@@ -524,39 +480,43 @@ ISelectionProvider {
         }
     }
 
-    private float[] parseColor(String preferenceName) {
-        IPreferenceStore store = Activator.getDefault().getPreferenceStore();
-        String color = store.getString(preferenceName);
-        String[] components = color.split(",");
-        float[] c = new float[3];
-        float recip = 1.0f / 255.0f;
-        if (components.length == 3) {
-            c[0] = Integer.parseInt(components[0]) * recip;
-            c[1] = Integer.parseInt(components[1]) * recip;
-            c[2] = Integer.parseInt(components[2]) * recip;
-        } else {
-            c[0] = 0.0f; c[1] = 0.0f; c[2] = 0.0f;
-        }
-        return c;
+    // IRenderView
+
+    private List<IRenderViewProvider> providers = new ArrayList<IRenderViewProvider>();
+    @Override
+    public void addRenderProvider(IRenderViewProvider provider) {
+        assert !providers.contains(provider);
+        providers.add(provider);
     }
 
-    private void renderBackground(GL gl, int width, int height) {
-        // Fetch colors
-        float[] topColor = parseColor(PreferenceConstants.P_TOP_BKGD_COLOR);
-        float[] bottomColor = parseColor(PreferenceConstants.P_BOTTOM_BKGD_COLOR);
+    @Override
+    public void removeRenderProvider(IRenderViewProvider provider) {
+        assert providers.contains(provider);
+        providers.remove(provider);
+    }
 
-        float x0 = -1.0f;
-        float x1 = 1.0f;
-        float y0 = -1.0f;
-        float y1 = 1.0f;
-        gl.glBegin(GL.GL_QUADS);
-        gl.glColor3fv(topColor, 0);
-        gl.glVertex2f(x0, y1);
-        gl.glVertex2f(x1, y1);
-        gl.glColor3fv(bottomColor, 0);
-        gl.glVertex2f(x1, y0);
-        gl.glVertex2f(x0, y0);
-        gl.glEnd();
+    @Override
+    public void addMouseListener(MouseListener listener) {
+        // TODO Auto-generated method stub
+
+    }
+
+    @Override
+    public void removeMouseListener(MouseListener listener) {
+        // TODO Auto-generated method stub
+
+    }
+
+    @Override
+    public void addMouseMoveListener(MouseMoveListener listener) {
+        // TODO Auto-generated method stub
+
+    }
+
+    @Override
+    public void removeMouseMoveListener(MouseMoveListener listener) {
+        // TODO Auto-generated method stub
+
     }
 
 }

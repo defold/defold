@@ -1,5 +1,9 @@
 package com.dynamo.cr.sceneed.core;
 
+import java.util.List;
+
 public interface IRenderViewProvider {
-    void onNodeHit(Node node);
+
+    void setup(RenderContext renderContext);
+    void onNodeHit(List<Node> nodes);
 }
