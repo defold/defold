@@ -143,6 +143,37 @@ public class TileSetNodeTest extends AbstractNodeTest {
         assertThat(convexHullCount(), is(0));
     }
 
+    private void loadWithTileCollisionGroup(String group) throws Exception {
+        String path = "/collision_groups.tileset";
+        String img = "/2x5_16_1.png";
+        StringBuffer ddf = new StringBuffer();
+        ddf.append("image: \"").append(img).append("\" tile_width: 16 tile_height: 16 tile_margin: 1 tile_spacing: 0 ")
+            .append("collision: \"").append(img).append("\" material_tag: \"tile\" collision_groups: \"default\" ");
+        for (int i = 0; i < 10; ++i) {
+            ddf.append("convex_hulls: {index: 0 count: 0 collision_group: \"").append(group).append("\"} ");
+        }
+
+        registerFile(path, ddf.toString());
+
+        this.node = this.loader.load(getLoaderContext(), getFile(path).getContents());
+    }
+
+    @Test
+    public void testLoadTileCollisionGroup() throws Exception {
+        loadWithTileCollisionGroup("default");
+
+        assertThat(collisionGroup(0).getName(), is("default"));
+        assertThat(tileCollisionGroup(0), is("default"));
+    }
+
+    @Test
+    public void testLoadMissingTileCollisionGroup() throws Exception {
+        loadWithTileCollisionGroup("default1");
+
+        assertThat(collisionGroup(0).getName(), is("default"));
+        assertThat(tileCollisionGroup(0), is(""));
+    }
+
     /**
      * Use Case 1.1.1 - Create the Tile Set
      *
@@ -200,7 +231,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
 
     /**
      * Part of Use Case 1.1.4 - Add a Collision Group
-     * 
+     *
      * @throws IOException
      */
     @Test
@@ -227,7 +258,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
 
     /**
      * Part of Use Case 1.1.4 - Add a Collision Group
-     * 
+     *
      * @throws IOException
      */
     @Test
@@ -264,7 +295,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
 
     /**
      * Part of Use Case 1.1.4 - Add a Collision Group
-     * 
+     *
      * @throws IOException
      */
     @Test
@@ -287,7 +318,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
 
     /**
      * Use Case 1.1.5 - Rename Collision Group
-     * 
+     *
      * @throws IOException
      */
     @Test
@@ -312,7 +343,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
 
     /**
      * Use Case 1.1.6 - Rename Collision Group to Existing Group
-     * 
+     *
      * @throws IOException
      */
     @Test
@@ -351,7 +382,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
 
     /**
      * Use Case 1.1.8 - Remove Collision Group
-     * 
+     *
      * @throws IOException
      */
     @Test
@@ -411,7 +442,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
 
     /**
      * Use Case 1.1.9 - Save
-     * 
+     *
      * @throws IOException
      */
     @Test
@@ -435,26 +466,6 @@ public class TileSetNodeTest extends AbstractNodeTest {
 
         assertThat(ddf.getConvexHulls(1).getCollisionGroup(), is(tileCollisionGroup(1)));
     }
-    //
-    //    private void assertMessage(String expectedMessage, String property) {
-    //        IStatus status = propertyModel.getPropertyStatus(property);
-    //
-    //        ArrayList<String> foundMessages = new ArrayList<String>();
-    //        if (status.isMultiStatus()) {
-    //            for (IStatus s : status.getChildren()) {
-    //                foundMessages.add("'" + s.getMessage() + "'");
-    //                if (s.getMessage().equals(expectedMessage))
-    //                    return;
-    //            }
-    //        } else {
-    //            foundMessages.add("'" + status.getMessage() + "'");
-    //            if (status.getMessage().equals(expectedMessage))
-    //                return;
-    //        }
-    //
-    //        String found = Joiner.on(",").join(foundMessages);
-    //        assertTrue(String.format("Expected message '%s' not present in status. Found %s", expectedMessage, found), false);
-    //    }
 
     @Test
     public void testMessages() throws Exception {

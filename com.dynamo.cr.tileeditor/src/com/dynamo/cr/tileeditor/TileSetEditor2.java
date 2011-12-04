@@ -69,10 +69,8 @@ import com.dynamo.cr.sceneed.core.ScenePresenter;
 import com.dynamo.cr.sceneed.ui.ISceneOutlinePage;
 import com.dynamo.cr.sceneed.ui.LoaderContext;
 import com.dynamo.cr.sceneed.ui.PresenterContext;
-import com.dynamo.cr.sceneed.ui.RenderView;
 import com.dynamo.cr.sceneed.ui.SceneOutlinePage;
 import com.dynamo.cr.sceneed.ui.ScenePropertySheetPage;
-import com.dynamo.cr.sceneed.ui.SceneView;
 import com.dynamo.cr.sceneed.ui.preferences.PreferenceConstants;
 import com.dynamo.cr.tileeditor.scene.TileSetNode;
 import com.dynamo.cr.tileeditor.scene.TileSetNodePresenter;
@@ -102,8 +100,7 @@ public class TileSetEditor2 extends AbstractDefoldEditor implements ISceneEditor
             bind(ISceneOutlinePage.class).to(SceneOutlinePage.class).in(Singleton.class);
             bind(IFormPropertySheetPage.class).to(ScenePropertySheetPage.class).in(Singleton.class);
             bind(TileSetRenderer2.class).toInstance(tileSetRenderer);
-            bind(ISceneView.class).to(SceneView.class).in(Singleton.class);
-            bind(RenderView.class).in(Singleton.class);
+            bind(ISceneView.class).to(TileSetSceneView.class).in(Singleton.class);
             bind(ISceneModel.class).to(SceneModel.class).in(Singleton.class);
             bind(INodeTypeRegistry.class).toInstance(nodeTypeRegistry);
             bind(ISceneView.IPresenter.class).to(ScenePresenter.class).in(Singleton.class);
@@ -141,6 +138,7 @@ public class TileSetEditor2 extends AbstractDefoldEditor implements ISceneEditor
 
         this.nodeTypeRegistry = com.dynamo.cr.sceneed.core.Activator.getDefault().getNodeTypeRegistry();
         this.imageProvider = com.dynamo.cr.sceneed.ui.Activator.getDefault();
+        this.tileSetRenderer = new TileSetRenderer2();
 
         this.module = new LifecycleModule(new Module());
         Injector injector = Guice.createInjector(module);
@@ -160,7 +158,7 @@ public class TileSetEditor2 extends AbstractDefoldEditor implements ISceneEditor
         this.loaderContext = injector.getInstance(ISceneView.ILoaderContext.class);
 
         TileSetNodePresenter nodePresenter = (TileSetNodePresenter) this.nodeTypeRegistry.getNodeType(TileSetNode.class).getPresenter();
-        this.tileSetRenderer = new TileSetRenderer2(nodePresenter, this.presenterContext);
+        this.tileSetRenderer.setPresenter(nodePresenter, this.presenterContext);
         IPreferenceStore store = Activator.getDefault().getPreferenceStore();
         store.addPropertyChangeListener(this);
 

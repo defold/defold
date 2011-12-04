@@ -242,27 +242,20 @@ public class TileSetNode extends Node {
     }
 
     public void setTileCollisionGroups(List<String> tileCollisionGroups) {
-        List<CollisionGroupNode> tileGroupNodes = new ArrayList<CollisionGroupNode>(tileCollisionGroups.size());
-        int newSize = tileCollisionGroups.size();
-        for (int i = 0; i < newSize; ++i) {
-            tileGroupNodes.add(null);
-        }
         int oldSize = this.tileCollisionGroups.size();
-        if (newSize != oldSize) {
-            tileGroupNodes = new ArrayList<CollisionGroupNode>(tileCollisionGroups.size());
-            Collections.fill(this.tileCollisionGroups, null);
-        }
-        List<CollisionGroupNode> collisionGroups = getCollisionGroups();
-        Collections.sort(collisionGroups);
+        int newSize = tileCollisionGroups.size();
+        List<CollisionGroupNode> tileGroupNodes = new ArrayList<CollisionGroupNode>(newSize);
+        List<CollisionGroupNode> sortedCollisionGroups = getCollisionGroups();
+        Collections.sort(sortedCollisionGroups);
         for (int i = 0; i < newSize; ++i) {
-            int index = Collections.binarySearch(collisionGroups, new CollisionGroupNode(tileCollisionGroups.get(i)));
+            int index = Collections.binarySearch(sortedCollisionGroups, new CollisionGroupNode(tileCollisionGroups.get(i)));
             if (index >= 0) {
-                tileGroupNodes.set(i, collisionGroups.get(index));
+                tileGroupNodes.add(sortedCollisionGroups.get(index));
             } else {
-                tileGroupNodes.set(i, null);
+                tileGroupNodes.add(null);
             }
         }
-        if (!this.tileCollisionGroups.equals(tileGroupNodes)) {
+        if (oldSize != newSize || !this.tileCollisionGroups.equals(tileGroupNodes)) {
             this.tileCollisionGroups = tileGroupNodes;
             notifyChange();
         }
@@ -318,6 +311,9 @@ public class TileSetNode extends Node {
     }
 
     private BufferedImage loadImageFile(String fileName) throws Exception {
+        if (getModel() == null) {
+            return null;
+        }
         try {
             IFile file = getModel().getFile(fileName);
             InputStream is = file.getContents();

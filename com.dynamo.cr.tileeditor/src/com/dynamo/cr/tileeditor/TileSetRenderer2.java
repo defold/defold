@@ -49,8 +49,8 @@ KeyListener {
     private final static int CAMERA_MODE_DOLLY = 2;
     private static final float BORDER_SIZE = 3.0f;
 
-    private final TileSetNodePresenter presenter;
-    private final IPresenterContext presenterContext;
+    private TileSetNodePresenter presenter;
+    private IPresenterContext presenterContext;
     private TileSetNode tileSet;
     private GLCanvas canvas;
     private GLContext context;
@@ -78,11 +78,13 @@ KeyListener {
     private Texture backgroundTexture;
     private Texture transparentTexture;
 
-    public TileSetRenderer2(TileSetNodePresenter presenter, IPresenterContext presenterContext) {
+    public TileSetRenderer2() {
+        this.mac = System.getProperty("os.name").equals("Mac OS X");
+    }
+
+    public void setPresenter(TileSetNodePresenter presenter, IPresenterContext presenterContext) {
         this.presenter = presenter;
         this.presenterContext = presenterContext;
-
-        this.mac = System.getProperty("os.name").equals("Mac OS X");
     }
 
     public void createControls(Composite parent) {
@@ -100,26 +102,28 @@ KeyListener {
 
         this.context = GLDrawableFactory.getFactory().createExternalGLContext();
 
-        this.context.makeCurrent();
-        GL gl = this.context.getGL();
-        gl.glPolygonMode(GL.GL_FRONT, GL.GL_FILL);
+        int result = this.context.makeCurrent();
+        if (result != GLContext.CONTEXT_NOT_CURRENT) {
+            GL gl = this.context.getGL();
+            gl.glPolygonMode(GL.GL_FRONT, GL.GL_FILL);
 
-        BufferedImage backgroundImage = new BufferedImage(2, 2, BufferedImage.TYPE_INT_ARGB);
-        backgroundImage.setRGB(0, 0, 0xff999999);
-        backgroundImage.setRGB(1, 0, 0xff666666);
-        backgroundImage.setRGB(0, 1, 0xff666666);
-        backgroundImage.setRGB(1, 1, 0xff999999);
-        this.backgroundTexture = TextureIO.newTexture(backgroundImage, false);
-        BufferedImage transparentImage = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
-        transparentImage.setRGB(0, 0, 0x00000000);
-        this.transparentTexture = TextureIO.newTexture(transparentImage, false);
+            BufferedImage backgroundImage = new BufferedImage(2, 2, BufferedImage.TYPE_INT_ARGB);
+            backgroundImage.setRGB(0, 0, 0xff999999);
+            backgroundImage.setRGB(1, 0, 0xff666666);
+            backgroundImage.setRGB(0, 1, 0xff666666);
+            backgroundImage.setRGB(1, 1, 0xff999999);
+            this.backgroundTexture = TextureIO.newTexture(backgroundImage, false);
+            BufferedImage transparentImage = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
+            transparentImage.setRGB(0, 0, 0x00000000);
+            this.transparentTexture = TextureIO.newTexture(transparentImage, false);
 
-        // if the image is already set, set the corresponding texture
-        if (this.tileSet != null) {
-            setupRenderData();
+            // if the image is already set, set the corresponding texture
+            if (this.tileSet != null) {
+                setupRenderData();
+            }
+
+            this.context.release();
         }
-
-        this.context.release();
 
         this.canvas.addListener(SWT.Resize, this);
         this.canvas.addListener(SWT.Paint, this);
@@ -153,33 +157,36 @@ KeyListener {
     }
 
     private void setupRenderData() {
-        if (this.context != null) {
-            this.context.makeCurrent();
+        this.tileSetTexture = loadTexture(this.tileSet.getLoadedImage(), this.tileSetTexture);
 
-            this.tileSetTexture = loadTexture(this.tileSet.getLoadedImage(), this.tileSetTexture);
+        float[] hullVertices = this.tileSet.getConvexHullPoints();
 
-            float[] hullVertices = this.tileSet.getConvexHullPoints();
+        this.hullVertexBuffer = BufferUtil.newFloatBuffer(hullVertices.length);
 
-            this.hullVertexBuffer = BufferUtil.newFloatBuffer(hullVertices.length);
+        int hullCount = tileSet.getConvexHulls().size();
+        this.hullFrameVertexBuffer = BufferUtil.newFloatBuffer(hullCount * 6 * 4);
 
-            int hullCount = tileSet.getConvexHulls().size();
-            this.hullFrameVertexBuffer = BufferUtil.newFloatBuffer(hullCount * 6 * 4);
-
-            this.context.release();
-
-            this.resetView = true;
-            requestPaint();
-        }
+        this.resetView = true;
+        requestPaint();
     }
 
     public void setInput(TileSetNode tileSet) {
         if (this.tileSet != tileSet) {
             this.tileSet = tileSet;
-            setupRenderData();
+            if (this.context != null) {
+                this.context.makeCurrent();
+                setupRenderData();
+                this.context.release();
+            }
         }
     }
 
     public void refresh() {
+        if (this.context != null) {
+            this.context.makeCurrent();
+            setupRenderData();
+            this.context.release();
+        }
         requestPaint();
     }
 

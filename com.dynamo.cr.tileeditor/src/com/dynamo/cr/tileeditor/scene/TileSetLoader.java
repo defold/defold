@@ -36,18 +36,18 @@ public class TileSetLoader implements INodeLoader<TileSetNode> {
         node.setTileSpacing(ddf.getTileSpacing());
         node.setCollision(ddf.getCollision());
         node.setMaterialTag(ddf.getMaterialTag());
-        // Load tile collision groups
-        List<String> tileCollisionGroups = new ArrayList<String>(ddf.getConvexHullsCount());
-        for (ConvexHull hull : ddf.getConvexHullsList()) {
-            tileCollisionGroups.add(hull.getCollisionGroup());
-        }
-        node.setTileCollisionGroups(tileCollisionGroups);
         // Load collision groups
         for (int i = 0; i < ddf.getCollisionGroupsCount(); ++i) {
             CollisionGroupNode groupNode = new CollisionGroupNode();
             groupNode.setName(ddf.getCollisionGroups(i));
             node.addCollisionGroup(groupNode);
         }
+        // Load tile collision groups
+        List<String> tileCollisionGroups = new ArrayList<String>(ddf.getConvexHullsCount());
+        for (ConvexHull hull : ddf.getConvexHullsList()) {
+            tileCollisionGroups.add(hull.getCollisionGroup());
+        }
+        node.setTileCollisionGroups(tileCollisionGroups);
 
         return node;
     }

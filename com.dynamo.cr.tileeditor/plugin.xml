@@ -21,6 +21,15 @@
             id="com.dynamo.cr.tileeditor.GridEditor"
             name="Tile Grid Editor">
       </editor>
+      <editor
+            class="com.dynamo.cr.tileeditor.TileSetEditor2"
+            contributorClass="com.dynamo.cr.editor.ui.DefoldEditorActionBarContributor"
+            default="false"
+            extensions="tileset2"
+            icon="icons/tile_set.png"
+            id="com.dynamo.cr.tileeditor.tileSetEditor2"
+            name="Tile Set Editor 2">
+      </editor>
    </extension>
    <extension
          point="com.dynamo.cr.resourcetypes">
@@ -61,6 +70,20 @@
             resource-refactor-participant-class="com.dynamo.cr.tileeditor.core.refactoring.Sprite2RefactorParticipant"
             template-data="tile_set: &quot;&quot; default_animation: &quot;&quot;"
             type-class="component">
+         <references>
+            <reference-type-class
+                  type-class="image">
+            </reference-type-class>
+         </references>
+      </resource-type>
+      <resource-type
+            file-extension="tileset2"
+            id="com.dynamo.cr.tileeditor.resourcetypes.TileSet2"
+            name="Tile Set 2"
+            proto-message-class="com.dynamo.tile.proto.Tile$TileSet"
+            resource-refactor-participant-class="com.dynamo.cr.tileeditor.core.refactoring.TileSetRefactorParticipant"
+            template-data="image: &apos;&apos; tile_width: 16 tile_height: 16 tile_margin: 0 tile_spacing: 0 collision: &apos;&apos; material_tag: &apos;tile&apos; collision_groups: &apos;default&apos;"
+            type-class="tile_set">
          <references>
             <reference-type-class
                   type-class="image">
@@ -667,6 +690,13 @@
             loader="com.dynamo.cr.tileeditor.scene.Sprite2Loader"
             node="com.dynamo.cr.tileeditor.scene.Sprite2Node"
             resource-type="com.dynamo.cr.tileeditor.core.resourcetypes.sprite2">
+      </node-type>
+      <node-type
+            id="com.dynamo.cr.tileeditor.nodetypes.tileSet"
+            loader="com.dynamo.cr.tileeditor.scene.TileSetLoader"
+            node="com.dynamo.cr.tileeditor.scene.TileSetNode"
+            presenter="com.dynamo.cr.tileeditor.scene.TileSetNodePresenter"
+            resource-type="com.dynamo.cr.tileeditor.resourcetypes.TileSet2">
       </node-type>
    </extension>
 
