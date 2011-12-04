@@ -16,8 +16,8 @@
          point="com.dynamo.cr.nodetypes">
       <node-type
             id="com.dynamo.cr.go.core.test.nodes.test"
-            loader="com.dynamo.cr.go.core.test.TestComponentLoader"
-            node="com.dynamo.cr.go.core.test.TestComponentNode"
+            loader="com.dynamo.cr.go.core.test.DummyComponentLoader"
+            node="com.dynamo.cr.go.core.test.DummyComponentNode"
             resource-type="com.dynamo.cr.go.core.test.resourcetypes.testNode">
       </node-type>
    </extension>

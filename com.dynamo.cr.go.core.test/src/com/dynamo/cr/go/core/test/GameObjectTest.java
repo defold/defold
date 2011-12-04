@@ -31,7 +31,7 @@ public class GameObjectTest extends AbstractNodeTest {
 
     private GameObjectLoader loader;
     private GameObjectNode goNode;
-    private TestComponentLoader testLoader;
+    private DummyComponentLoader dummyLoader;
 
     @Override
     @Before
@@ -39,20 +39,20 @@ public class GameObjectTest extends AbstractNodeTest {
         super.setup();
 
         this.loader = new GameObjectLoader();
-        this.testLoader = new TestComponentLoader();
+        this.dummyLoader = new DummyComponentLoader();
 
         // Virtual files
         registerFile("/test.test", "x: 0 y: 0 z: 0");
         registerFile("/test.test2", "");
 
         this.goNode = registerAndLoadNodeType(GameObjectNode.class, "go", this.loader);
-        registerNodeType(TestComponentNode.class, "test");
+        registerNodeType(DummyComponentNode.class, "test");
     }
 
     // Helpers
 
     private void addComponent() throws Exception {
-        TestComponentNode componentType = new TestComponentNode();
+        DummyComponentNode componentType = new DummyComponentNode();
         ComponentNode component = new ComponentNode(componentType);
         execute(new AddComponentOperation(this.goNode, component));
         verifyUpdate();
@@ -60,7 +60,7 @@ public class GameObjectTest extends AbstractNodeTest {
     }
 
     private void addComponentFromFile() throws Exception {
-        TestComponentNode componentType = this.testLoader.load(getLoaderContext(), getFile("/test.test").getContents());
+        DummyComponentNode componentType = this.dummyLoader.load(getLoaderContext(), getFile("/test.test").getContents());
         RefComponentNode component = new RefComponentNode(componentType);
         component.setComponent("/test.test");
         execute(new AddComponentOperation(this.goNode, component));
@@ -177,10 +177,10 @@ public class GameObjectTest extends AbstractNodeTest {
     public void testBuildMessage() throws Exception {
         INodeType testNodeType = mock(INodeType.class);
         // Not a nice cast, but ok since this is merely a test
-        when(testNodeType.getLoader()).thenReturn((ISceneView.INodeLoader<Node>)(Object)new TestComponentLoader());
+        when(testNodeType.getLoader()).thenReturn((ISceneView.INodeLoader<Node>)(Object)new DummyComponentLoader());
         when(testNodeType.getExtension()).thenReturn("test");
 
-        when(getNodeTypeRegistry().getNodeType(TestComponentNode.class)).thenReturn(testNodeType);
+        when(getNodeTypeRegistry().getNodeType(DummyComponentNode.class)).thenReturn(testNodeType);
 
         addComponent();
 

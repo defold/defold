@@ -9,7 +9,7 @@ import com.dynamo.cr.go.core.ComponentTypeNode;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.sceneed.core.Activator;
 
-public class TestComponentNode extends ComponentTypeNode {
+public class DummyComponentNode extends ComponentTypeNode {
 
     @Property
     private Point3f position = new Point3f();
