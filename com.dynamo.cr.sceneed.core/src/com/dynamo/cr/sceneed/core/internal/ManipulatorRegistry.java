@@ -34,7 +34,10 @@ public class ManipulatorRegistry implements IManipulatorRegistry {
                     String name = e.getAttribute("name");
                     ManipulatorMode mode = new ManipulatorMode(id, name);
                     modes.put(id, mode);
-                } else if (e.getName().equals("manipulator")) {
+                }
+            }
+            for (IConfigurationElement e : config) {
+                if (e.getName().equals("manipulator")) {
                     String name = e.getAttribute("name");
                     String modeId = e.getAttribute("mode");
                     String nodeType = e.getAttribute("node-type");
