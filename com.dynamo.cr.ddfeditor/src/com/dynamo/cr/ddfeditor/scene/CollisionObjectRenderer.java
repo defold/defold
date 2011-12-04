@@ -9,8 +9,8 @@ import javax.vecmath.Vector3d;
 
 import com.dynamo.cr.sceneed.core.INodeRenderer;
 import com.dynamo.cr.sceneed.core.RenderContext;
-import com.dynamo.cr.sceneed.core.RenderData;
 import com.dynamo.cr.sceneed.core.RenderContext.Pass;
+import com.dynamo.cr.sceneed.core.RenderData;
 import com.dynamo.cr.sceneed.ui.RenderUtil;
 import com.dynamo.physics.proto.Physics.ConvexShape;
 
@@ -27,7 +27,7 @@ public class CollisionObjectRenderer implements INodeRenderer<CollisionObjectNod
         // NOTE: passes.contains(.) is just an example on how it could work
         // Currently we issue only outline, transparent and selection pass
         // Time will tell if the opaque pass will be used etc
-        if (passes.contains(renderContext.getPass())) {
+        if (passes.contains(renderContext.getPass()) && node.getCollisionShapeNode() != null) {
             renderContext.add(this, node, new Vector3d(), null);
         }
     }

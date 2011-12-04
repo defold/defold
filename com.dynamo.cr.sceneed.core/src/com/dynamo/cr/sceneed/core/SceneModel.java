@@ -237,7 +237,10 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IResou
     @Override
     public String getExtension(Class<? extends Node> nodeClass) {
         INodeType nodeType = this.loaderContext.getNodeTypeRegistry().getNodeType(nodeClass);
-        return nodeType.getExtension();
+        if (nodeType != null) {
+            return nodeType.getExtension();
+        }
+        return null;
     }
 
     @Override
