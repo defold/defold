@@ -18,11 +18,11 @@
          point="com.dynamo.cr.nodetypes">
       <node-type
             id="com.dynamo.cr.sceneed.core.test.dummySphereSizeManipulator"
-            node="com.dynamo.cr.sceneed.core.test.TestSphereSizeManipulator">
+            node="com.dynamo.cr.sceneed.core.test.DummySphereSizeManipulator">
       </node-type>
       <node-type
             id="com.dynamo.cr.sceneed.core.test.dummyMoveManipulator"
-            node="com.dynamo.cr.sceneed.core.test.TestMoveManipulator">
+            node="com.dynamo.cr.sceneed.core.test.DummyMoveManipulator">
       </node-type>
    </extension>
 

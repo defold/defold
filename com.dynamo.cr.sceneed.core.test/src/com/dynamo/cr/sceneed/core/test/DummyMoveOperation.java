@@ -7,9 +7,9 @@ import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 
-public class TestMoveOperation extends AbstractOperation {
+public class DummyMoveOperation extends AbstractOperation {
 
-    public TestMoveOperation() {
+    public DummyMoveOperation() {
         super("Test Move");
     }
 

@@ -92,7 +92,7 @@ public class ManipulatorTest {
         selection.add(new DummySphere());
         Manipulator manipulator = manipulatorRegistry.getManipulatorForSelection(sizeMode, selection.toArray(new Object[selection.size()]));
         assertNotNull(manipulator);
-        assertThat(manipulator, instanceOf(TestSphereSizeManipulator.class));
+        assertThat(manipulator, instanceOf(DummySphereSizeManipulator.class));
     }
 
     @Test
