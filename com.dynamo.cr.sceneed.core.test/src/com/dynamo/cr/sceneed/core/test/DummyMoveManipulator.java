@@ -4,7 +4,7 @@ import org.eclipse.swt.events.MouseEvent;
 
 import com.dynamo.cr.sceneed.core.Node;
 
-public class TestMoveManipulator extends AbstractTestManipulator {
+public class DummyMoveManipulator extends AbstractTestManipulator {
 
     @Override
     public boolean match(Object[] selection) {
@@ -18,7 +18,7 @@ public class TestMoveManipulator extends AbstractTestManipulator {
 
     @Override
     public void mouseUp(MouseEvent e) {
-        TestMoveOperation operation = new TestMoveOperation();
+        DummyMoveOperation operation = new DummyMoveOperation();
         this.controller.executeOperation(operation);
     }
 

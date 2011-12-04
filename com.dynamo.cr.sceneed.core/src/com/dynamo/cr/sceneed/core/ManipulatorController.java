@@ -72,7 +72,10 @@ public class ManipulatorController implements ISelectionListener, IRenderViewPro
     }
 
     @Override
-    public void onNodeHit(Node node) {
+    public void onNodeHit(List<Node> nodes) {
+    }
+
+    private void selectManipulator() {
         if (selectionList.size() > 0 && manipulatorMode != null) {
             Object[] selection = selectionList.toArray();
             manipulator = manipulatorRegistry.getManipulatorForSelection(manipulatorMode, selection);
@@ -96,6 +99,7 @@ public class ManipulatorController implements ISelectionListener, IRenderViewPro
                 }
             }
         }
+        selectManipulator();
     }
 
     @Override
@@ -138,6 +142,12 @@ public class ManipulatorController implements ISelectionListener, IRenderViewPro
         if (status != Status.OK_STATUS) {
             this.logger.logException(status.getException());
         }
+
+    }
+
+    @Override
+    public void setup(RenderContext renderContext) {
+        // TODO Auto-generated method stub
 
     }
 

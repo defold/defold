@@ -11,6 +11,7 @@ import javax.media.opengl.GL;
 import javax.media.opengl.glu.GLU;
 import javax.vecmath.Vector3d;
 
+import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.IStructuredSelection;
 
 public class RenderContext {
@@ -38,11 +39,14 @@ public class RenderContext {
     }
 
     @SuppressWarnings("unchecked")
-    public RenderContext(GL gl, GLU glu, IStructuredSelection selection) {
+    public RenderContext(GL gl, GLU glu, ISelection selection) {
         this.gl = gl;
         this.glu = glu;
         this.renderDataList = new ArrayList<RenderData<? extends Node>>(1024);
-        this.selectedNodes.addAll(selection.toList());
+        if (selection instanceof IStructuredSelection) {
+            IStructuredSelection structSel = (IStructuredSelection) selection;
+            this.selectedNodes.addAll(structSel.toList());
+        }
     }
 
     public GL getGL() {

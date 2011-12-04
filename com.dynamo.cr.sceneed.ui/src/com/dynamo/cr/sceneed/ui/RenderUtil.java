@@ -4,6 +4,8 @@ import javax.media.opengl.GL;
 import javax.media.opengl.glu.GLU;
 import javax.media.opengl.glu.GLUquadric;
 
+import org.eclipse.jface.preference.IPreferenceStore;
+
 public class RenderUtil {
 
     public static void drawSphere(GL gl, GLU glu, float radius, int slices, int stacks) {
@@ -56,5 +58,21 @@ public class RenderUtil {
         glu.gluDeleteQuadric(quadric);
     }
 
+    // TODO: parsing preferences every time... performance problem?
+    public static float[] parseColor(String preferenceName) {
+        IPreferenceStore store = Activator.getDefault().getPreferenceStore();
+        String color = store.getString(preferenceName);
+        String[] components = color.split(",");
+        float[] c = new float[3];
+        float recip = 1.0f / 255.0f;
+        if (components.length == 3) {
+            c[0] = Integer.parseInt(components[0]) * recip;
+            c[1] = Integer.parseInt(components[1]) * recip;
+            c[2] = Integer.parseInt(components[2]) * recip;
+        } else {
+            c[0] = 0.0f; c[1] = 0.0f; c[2] = 0.0f;
+        }
+        return c;
+    }
 
 }

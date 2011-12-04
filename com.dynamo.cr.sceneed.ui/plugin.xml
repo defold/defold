@@ -76,5 +76,13 @@
          </enablement>
       </decorator>
    </extension>
+   <extension
+         point="com.dynamo.cr.nodetypes">
+      <node-type
+            id="com.dynamo.cr.sceneed.ui.backgroundNode"
+            node="com.dynamo.cr.sceneed.ui.BackgroundNode"
+            renderer="com.dynamo.cr.sceneed.ui.BackgroundRenderer">
+      </node-type>
+   </extension>
 
 </plugin>

@@ -92,7 +92,7 @@ public class ManipulatorTest {
         selection.add(new DummySphere());
         Manipulator manipulator = manipulatorRegistry.getManipulatorForSelection(sizeMode, selection.toArray(new Object[selection.size()]));
         assertNotNull(manipulator);
-        assertThat(manipulator, instanceOf(TestSphereSizeManipulator.class));
+        assertThat(manipulator, instanceOf(DummySphereSizeManipulator.class));
     }
 
     @Test
@@ -111,14 +111,12 @@ public class ManipulatorTest {
         manipulatorController.setManipulatorMode(moveMode);
 
         IWorkbenchPart dummyPart = mock(IWorkbenchPart.class);
-        ArrayList<DummySphere> selectionList = new ArrayList<DummySphere>();
+        ArrayList<Node> selectionList = new ArrayList<Node>();
         selectionList.add(new DummySphere());
         StructuredSelection selection = new StructuredSelection(selectionList);
         manipulatorController.selectionChanged(dummyPart, selection);
 
-        manipulatorController.onNodeHit(selectionList.get(0));
         MouseEvent e = mock(MouseEvent.class);
-
         assertThat(0, is(undoHistory.getUndoHistory(undoContext).length));
         manipulatorController.mouseUp(e);
         // Verify that the operation was executed

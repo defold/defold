@@ -32,6 +32,7 @@ import org.eclipse.ui.IEditorInput;
 import org.eclipse.ui.IEditorSite;
 import org.eclipse.ui.IFileEditorInput;
 import org.eclipse.ui.ISelectionListener;
+import org.eclipse.ui.ISelectionService;
 import org.eclipse.ui.IWorkbenchPart;
 import org.eclipse.ui.PartInitException;
 import org.eclipse.ui.PlatformUI;
@@ -58,6 +59,7 @@ import com.dynamo.cr.sceneed.core.IImageProvider;
 import com.dynamo.cr.sceneed.core.IModelListener;
 import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
+import com.dynamo.cr.sceneed.core.IRenderView;
 import com.dynamo.cr.sceneed.core.ISceneEditor;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.ISceneView;
@@ -75,7 +77,9 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
 
     private ISceneOutlinePage outlinePage;
     private IFormPropertySheetPage propertySheetPage;
-    private RenderView renderView;
+    private IRenderView renderView;
+    @SuppressWarnings("unused")
+    private BackgroundRenderViewProvider backgroundRenderViewProvider;
 
     private IContainer contentRoot;
     private LifecycleModule module;
@@ -85,6 +89,7 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
     private INodeTypeRegistry nodeTypeRegistry;
 
     private boolean dirty;
+    private SceneRenderViewProvider sceneRenderViewProvider;
 
     class Module extends AbstractModule {
         @Override
@@ -92,7 +97,9 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
             bind(ISceneOutlinePage.class).to(SceneOutlinePage.class).in(Singleton.class);
             bind(IFormPropertySheetPage.class).to(ScenePropertySheetPage.class).in(Singleton.class);
             bind(ISceneView.class).to(SceneView.class).in(Singleton.class);
-            bind(RenderView.class).in(Singleton.class);
+            bind(IRenderView.class).to(RenderView.class).in(Singleton.class);
+            bind(BackgroundRenderViewProvider.class).in(Singleton.class);
+            bind(SceneRenderViewProvider.class).in(Singleton.class);
             bind(ISceneModel.class).to(SceneModel.class).in(Singleton.class);
             bind(INodeTypeRegistry.class).toInstance(nodeTypeRegistry);
             bind(ISceneView.IPresenter.class).to(ScenePresenter.class).in(Singleton.class);
@@ -101,6 +108,8 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
             bind(ILoaderContext.class).to(LoaderContext.class).in(Singleton.class);
             bind(IPresenterContext.class).to(PresenterContext.class).in(Singleton.class);
             bind(IImageProvider.class).toInstance(Activator.getDefault());
+
+            bind(ISelectionService.class).toInstance(getSite().getWorkbenchWindow().getSelectionService());
 
             bind(IOperationHistory.class).toInstance(history);
             bind(IUndoContext.class).toInstance(undoContext);
@@ -142,7 +151,9 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
 
         this.outlinePage = injector.getInstance(ISceneOutlinePage.class);
         this.propertySheetPage = injector.getInstance(IFormPropertySheetPage.class);
-        this.renderView = injector.getInstance(RenderView.class);
+        this.renderView = injector.getInstance(IRenderView.class);
+        this.backgroundRenderViewProvider = injector.getInstance(BackgroundRenderViewProvider.class);
+        this.sceneRenderViewProvider = injector.getInstance(SceneRenderViewProvider.class);
 
         this.presenter = injector.getInstance(ISceneView.IPresenter.class);
         this.presenterContext = injector.getInstance(ISceneView.IPresenterContext.class);
@@ -283,7 +294,7 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
         contextService.activateContext(Activator.SCENEED_CONTEXT_ID);
 
         // Set the outline as selection provider
-        getSite().setSelectionProvider(this.renderView);
+        getSite().setSelectionProvider(this.sceneRenderViewProvider);
         getSite().getPage().addSelectionListener(this);
 
         this.presenter.onRefresh();
