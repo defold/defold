@@ -33,7 +33,7 @@ public class BackgroundRenderViewProvider implements IRenderViewProvider {
     }
 
     @Override
-    public void onNodeHit(List<Node> node) {
+    public void onNodeHit(List<Node> nodes) {
     }
 
 
