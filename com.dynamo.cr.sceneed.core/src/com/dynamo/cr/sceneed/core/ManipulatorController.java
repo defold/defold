@@ -79,7 +79,9 @@ public class ManipulatorController implements ISelectionListener, IRenderViewPro
         if (selectionList.size() > 0 && manipulatorMode != null) {
             Object[] selection = selectionList.toArray();
             manipulator = manipulatorRegistry.getManipulatorForSelection(manipulatorMode, selection);
-            manipulator.setController(this);
+            if (manipulator != null) {
+                manipulator.setController(this);
+            }
         } else {
             manipulator = null;
         }
@@ -147,8 +149,9 @@ public class ManipulatorController implements ISelectionListener, IRenderViewPro
 
     @Override
     public void setup(RenderContext renderContext) {
-        // TODO Auto-generated method stub
-
+        if (this.manipulator != null) {
+            renderView.setupNode(renderContext, this.manipulator);
+        }
     }
 
 }

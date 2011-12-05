@@ -83,6 +83,24 @@
             node="com.dynamo.cr.sceneed.ui.BackgroundNode"
             renderer="com.dynamo.cr.sceneed.ui.BackgroundRenderer">
       </node-type>
+      <node-type
+            id="com.dynamo.cr.sceneed.ui.moveManipulator"
+            node="com.dynamo.cr.sceneed.ui.MoveManipulator"
+            renderer="com.dynamo.cr.sceneed.ui.MoveManipulatorRenderer">
+      </node-type>
+      <node-type
+            id="com.dynamo.cr.sceneed.ui.axisManipulator"
+            node="com.dynamo.cr.sceneed.ui.AxisManipulator"
+            renderer="com.dynamo.cr.sceneed.ui.AxisManipulatorRenderer">
+      </node-type>
+   </extension>
+   <extension
+         point="com.dynamo.cr.manipulators">
+      <manipulator
+            mode="com.dynamo.cr.sceneed.core.manipulators.move-mode"
+            name="Move Manipualtor"
+            node-type="com.dynamo.cr.sceneed.ui.moveManipulator">
+      </manipulator>
    </extension>
 
 </plugin>

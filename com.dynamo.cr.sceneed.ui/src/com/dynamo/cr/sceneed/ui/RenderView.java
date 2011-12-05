@@ -13,6 +13,7 @@ import javax.media.opengl.GL;
 import javax.media.opengl.GLContext;
 import javax.media.opengl.GLDrawableFactory;
 import javax.media.opengl.glu.GLU;
+import javax.vecmath.Matrix4d;
 
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.MouseEvent;
@@ -305,7 +306,7 @@ IRenderView {
             beginSelect(gl, x + width / 2, y + height / 2, width, height);
 
             List<Pass> passes = Arrays.asList(Pass.SELECTION);
-            RenderContext renderContext = renderNodes(gl, glu, passes);
+            RenderContext renderContext = renderNodes(gl, glu, passes, true);
 
             SelectResult result = endSelect(gl);
 
@@ -366,8 +367,8 @@ IRenderView {
             return;
         }
 
-        List<Pass> passes = Arrays.asList(Pass.BACKGROUND, Pass.OUTLINE, Pass.TRANSPARENT);
-        renderNodes(gl, glu, passes);
+        List<Pass> passes = Arrays.asList(Pass.BACKGROUND, Pass.OUTLINE, Pass.TRANSPARENT, Pass.MANIPULATOR);
+        renderNodes(gl, glu, passes, false);
     }
 
     /*
@@ -380,7 +381,7 @@ IRenderView {
         renderer.render(renderContext, node, renderData);
     }
 
-    private RenderContext renderNodes(GL gl, GLU glu, List<Pass> passes) {
+    private RenderContext renderNodes(GL gl, GLU glu, List<Pass> passes, boolean pick) {
         RenderContext renderContext = new RenderContext(gl, glu, selectionService.getSelection());
 
         for (IRenderViewProvider provider : providers) {
@@ -392,8 +393,10 @@ IRenderView {
 
         renderContext.sort();
 
+        int nextName = 0;
         Pass currentPass = null;
         List<RenderData<? extends Node>> renderDataList = renderContext.getRenderData();
+        Matrix4d transform = new Matrix4d();
         for (RenderData<? extends Node> renderData : renderDataList) {
             Pass pass = renderData.getPass();
 
@@ -402,7 +405,16 @@ IRenderView {
                 currentPass = pass;
             }
             renderContext.setPass(currentPass);
+            if (pick) {
+                gl.glPushName(nextName++);
+            }
+            Node node = renderData.getNode();
+            node.getWorldTransform(transform);
+            RenderUtil.loadMatrix(gl, transform);
             doRender(renderContext, renderData);
+            if (pick) {
+                gl.glPopName();
+            }
         }
 
         return renderContext;
@@ -454,6 +466,13 @@ IRenderView {
             gl.glEnable(GL.GL_BLEND);
             gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
             gl.glEnable(GL.GL_DEPTH_TEST);
+            gl.glDepthMask(false);
+            break;
+
+        case MANIPULATOR:
+            gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL);
+            gl.glDisable(GL.GL_BLEND);
+            gl.glDisable(GL.GL_DEPTH_TEST);
             gl.glDepthMask(false);
             break;
 

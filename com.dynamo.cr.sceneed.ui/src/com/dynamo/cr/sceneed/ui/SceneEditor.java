@@ -56,6 +56,8 @@ import com.dynamo.cr.editor.ui.AbstractDefoldEditor;
 import com.dynamo.cr.editor.ui.Logger;
 import com.dynamo.cr.properties.IFormPropertySheetPage;
 import com.dynamo.cr.sceneed.core.IImageProvider;
+import com.dynamo.cr.sceneed.core.IManipulatorMode;
+import com.dynamo.cr.sceneed.core.IManipulatorRegistry;
 import com.dynamo.cr.sceneed.core.IModelListener;
 import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
@@ -63,6 +65,7 @@ import com.dynamo.cr.sceneed.core.IRenderView;
 import com.dynamo.cr.sceneed.core.ISceneEditor;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.ISceneView;
+import com.dynamo.cr.sceneed.core.ManipulatorController;
 import com.dynamo.cr.sceneed.core.ISceneView.ILoaderContext;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.Node;
@@ -90,6 +93,8 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
 
     private boolean dirty;
     private SceneRenderViewProvider sceneRenderViewProvider;
+    private ManipulatorController manipulatorController;
+    private IManipulatorRegistry manipulatorRegistry;
 
     class Module extends AbstractModule {
         @Override
@@ -108,6 +113,8 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
             bind(ILoaderContext.class).to(LoaderContext.class).in(Singleton.class);
             bind(IPresenterContext.class).to(PresenterContext.class).in(Singleton.class);
             bind(IImageProvider.class).toInstance(Activator.getDefault());
+
+            bind(IManipulatorRegistry.class).toInstance(manipulatorRegistry);
 
             bind(ISelectionService.class).toInstance(getSite().getWorkbenchWindow().getSelectionService());
 
@@ -138,6 +145,7 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
         }
 
         this.nodeTypeRegistry = com.dynamo.cr.sceneed.core.Activator.getDefault().getNodeTypeRegistry();
+        this.manipulatorRegistry = com.dynamo.cr.sceneed.core.Activator.getDefault().getManipulatorRegistry();
 
         this.module = new LifecycleModule(new Module());
         Injector injector = Guice.createInjector(module);
@@ -154,6 +162,10 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
         this.renderView = injector.getInstance(IRenderView.class);
         this.backgroundRenderViewProvider = injector.getInstance(BackgroundRenderViewProvider.class);
         this.sceneRenderViewProvider = injector.getInstance(SceneRenderViewProvider.class);
+
+        this.manipulatorController = injector.getInstance(ManipulatorController.class);
+        IManipulatorMode moveMode = manipulatorRegistry.getMode("com.dynamo.cr.sceneed.core.manipulators.move-mode");
+        manipulatorController.setManipulatorMode(moveMode);
 
         this.presenter = injector.getInstance(ISceneView.IPresenter.class);
         this.presenterContext = injector.getInstance(ISceneView.IPresenterContext.class);

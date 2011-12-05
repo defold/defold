@@ -1,6 +1,8 @@
 package com.dynamo.cr.sceneed.core.test;
 
-public class DummySphereSizeManipulator extends AbstractTestManipulator {
+import com.dynamo.cr.sceneed.core.Manipulator;
+
+public class DummySphereSizeManipulator extends Manipulator {
 
     @Override
     public boolean match(Object[] selection) {

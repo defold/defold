@@ -3,6 +3,7 @@ package com.dynamo.cr.sceneed.ui;
 import javax.media.opengl.GL;
 import javax.media.opengl.glu.GLU;
 import javax.media.opengl.glu.GLUquadric;
+import javax.vecmath.Matrix4d;
 
 import org.eclipse.jface.preference.IPreferenceStore;
 
@@ -58,6 +59,26 @@ public class RenderUtil {
         glu.gluDeleteQuadric(quadric);
     }
 
+    public static void drawArrow(GL gl, double length, double cone_length, double radius, double cone_radius)
+    {
+        GLU glu = new GLU();
+        GLUquadric q =  glu.gluNewQuadric();
+
+        gl.glPushMatrix();
+        gl.glRotatef(90, 0, 1, 0);
+
+        glu.gluQuadricDrawStyle(q, GLU.GLU_FILL);
+        glu.gluCylinder(q, radius, radius, length - cone_length, 8, 1);
+
+        double d = length - cone_length;
+        gl.glTranslated(0, 0, d);
+        glu.gluCylinder(q, cone_radius, 0, cone_length, 10, 1);
+
+        gl.glPopMatrix();
+
+        glu.gluDeleteQuadric(q);
+    }
+
     // TODO: parsing preferences every time... performance problem?
     public static float[] parseColor(String preferenceName) {
         IPreferenceStore store = Activator.getDefault().getPreferenceStore();
@@ -73,6 +94,33 @@ public class RenderUtil {
             c[0] = 0.0f; c[1] = 0.0f; c[2] = 0.0f;
         }
         return c;
+    }
+
+    public static void loadMatrix(GL gl, Matrix4d transform) {
+
+        double[] a = new double[16];
+        int i = 0;
+        a[i++] = transform.m00;
+        a[i++] = transform.m10;
+        a[i++] = transform.m20;
+        a[i++] = transform.m30;
+
+        a[i++] = transform.m01;
+        a[i++] = transform.m11;
+        a[i++] = transform.m21;
+        a[i++] = transform.m31;
+
+        a[i++] = transform.m02;
+        a[i++] = transform.m12;
+        a[i++] = transform.m22;
+        a[i++] = transform.m32;
+
+        a[i++] = transform.m03;
+        a[i++] = transform.m13;
+        a[i++] = transform.m23;
+        a[i++] = transform.m33;
+
+        gl.glLoadMatrixd(a, 0);
     }
 
 }

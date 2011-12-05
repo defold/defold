@@ -7,6 +7,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import javax.vecmath.Matrix4d;
+import javax.vecmath.Quat4d;
+import javax.vecmath.Vector4d;
+
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.IAdaptable;
 import org.eclipse.core.runtime.IStatus;
@@ -15,6 +19,7 @@ import org.eclipse.swt.graphics.Image;
 
 import com.dynamo.cr.properties.Entity;
 import com.dynamo.cr.properties.IPropertyModel;
+import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.PropertyIntrospector;
 import com.dynamo.cr.properties.PropertyIntrospectorModel;
 
@@ -25,8 +30,51 @@ public abstract class Node implements IAdaptable {
     private List<Node> children = new ArrayList<Node>();
     private Node parent;
 
+    @Property
+    protected Vector4d translation = new Vector4d(0, 0, 0, 0);
+
+    @Property
+    protected Quat4d rotation = new Quat4d(0, 0, 0, 1);
+
     private static Map<Class<? extends Node>, PropertyIntrospector<Node, ISceneModel>> introspectors =
             new HashMap<Class<? extends Node>, PropertyIntrospector<Node, ISceneModel>>();
+
+
+    public void setTranslation(Vector4d translation) {
+        this.translation.set(translation);
+    }
+
+    public Vector4d getTranslation() {
+        return new Vector4d(translation);
+    }
+
+    public void setRotation(Quat4d rotation) {
+        this.rotation.set(rotation);
+    }
+
+    public Quat4d getRotation() {
+        return new Quat4d(rotation);
+    }
+
+    public void getLocalTransform(Matrix4d transform)
+    {
+        transform.setIdentity();
+        transform.setColumn(3, translation);
+        transform.m33 = 1;
+        transform.setRotation(rotation);
+    }
+
+    public void getWorldTransform(Matrix4d transform) {
+        Matrix4d tmp = new Matrix4d();
+        transform.setIdentity();
+        Node n = this;
+        while (n != null)
+        {
+            n.getLocalTransform(tmp);
+            transform.mul(tmp, transform);
+            n = n.getParent();
+        }
+    }
 
     public final ISceneModel getModel() {
         return this.model;

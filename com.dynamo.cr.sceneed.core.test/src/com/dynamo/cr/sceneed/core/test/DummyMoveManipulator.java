@@ -2,9 +2,10 @@ package com.dynamo.cr.sceneed.core.test;
 
 import org.eclipse.swt.events.MouseEvent;
 
+import com.dynamo.cr.sceneed.core.Manipulator;
 import com.dynamo.cr.sceneed.core.Node;
 
-public class DummyMoveManipulator extends AbstractTestManipulator {
+public class DummyMoveManipulator extends Manipulator {
 
     @Override
     public boolean match(Object[] selection) {
