@@ -66,6 +66,11 @@ public abstract class AbstractDefoldEditor extends EditorPart {
         setInput(input);
         setPartName(input.getName());
 
+        if (input instanceof IFileEditorInput) {
+            IFileEditorInput fileInput = (IFileEditorInput)input;
+            this.lastModificationStamp = fileInput.getFile().getModificationStamp();
+        }
+
         this.activationListener = new ActivationListener(getSite().getWorkbenchWindow().getPartService());
         this.resourceChangeListener = new ResourceChangedListener();
 
