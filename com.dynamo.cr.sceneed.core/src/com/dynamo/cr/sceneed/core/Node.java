@@ -7,6 +7,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import javax.annotation.PreDestroy;
+
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.IAdaptable;
 import org.eclipse.core.runtime.IStatus;
@@ -27,6 +29,13 @@ public abstract class Node implements IAdaptable {
 
     private static Map<Class<? extends Node>, PropertyIntrospector<Node, ISceneModel>> introspectors =
             new HashMap<Class<? extends Node>, PropertyIntrospector<Node, ISceneModel>>();
+
+    @PreDestroy
+    public void dispose() {
+        for (Node child : this.children) {
+            removeChild(child);
+        }
+    }
 
     public final ISceneModel getModel() {
         return this.model;
@@ -58,7 +67,7 @@ public abstract class Node implements IAdaptable {
     protected final void removeChild(Node child) {
         if (child != null && this.children.contains(child)) {
             children.remove(child);
-            child.parent = null;
+            child.setParent(null);
             notifyChange();
         }
     }
@@ -88,7 +97,11 @@ public abstract class Node implements IAdaptable {
 
     private final void setParent(Node parent) {
         this.parent = parent;
-        setModel(parent.getModel());
+        if (parent != null) {
+            setModel(parent.getModel());
+        } else {
+            setModel(null);
+        }
     }
 
     public Image getIcon() {

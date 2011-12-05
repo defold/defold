@@ -542,6 +542,7 @@ KeyListener {
         int tileMargin = this.tileSet.getTileMargin();
         int tileSpacing = this.tileSet.getTileSpacing();
         List<ConvexHull> hulls = this.tileSet.getConvexHulls();
+        List<String> tileCollisionGroups = this.tileSet.getTileCollisionGroups();
         float[] hullVertices = this.tileSet.getConvexHullPoints();
         for (int row = 0; row < tilesPerColumn; ++row) {
             for (int column = 0; column < tilesPerRow; ++column) {
@@ -568,8 +569,8 @@ KeyListener {
                             this.hullVertexBuffer.put(x0 + 0.5f + hullVertices[hi+0]);
                             this.hullVertexBuffer.put(y0 + 0.5f + hullVertices[hi+1]);
                         }
-                        // TODO fix color
-                        //this.hullColors[index].getColorComponents(hc);
+                        Color color = Activator.getDefault().getCollisionGroupColor(tileCollisionGroups.get(index));
+                        color.getColorComponents(hc);
                         float hx0 = x0 - halfBorder;
                         float hx1 = x1 + halfBorder;
                         float hy0 = y0 - halfBorder;
@@ -673,15 +674,14 @@ KeyListener {
             this.hullVertexBuffer.flip();
             gl.glVertexPointer(2, GL.GL_FLOAT, 0, this.hullVertexBuffer);
 
-            // Color c = null;
-            // float f = 1.0f / 255.0f;
+            Color c = null;
+            float f = 1.0f / 255.0f;
             int hullCount = hulls.size();
             for (int i = 0; i < hullCount; ++i) {
-                // TODO fix color
-                //c = hullColors[i];
-                // gl.glColor4f(c.getRed() * f, c.getGreen() * f, c.getBlue() *
-                // f, c.getAlpha() * f);
                 ConvexHull hull = hulls.get(i);
+                c = Activator.getDefault().getCollisionGroupColor(tileCollisionGroups.get(i));
+                gl.glColor4f(c.getRed() * f, c.getGreen() * f, c.getBlue() *
+                f, c.getAlpha() * f);
                 gl.glDrawArrays(GL.GL_LINE_LOOP, hull.getIndex(), hull.getCount());
             }
         }

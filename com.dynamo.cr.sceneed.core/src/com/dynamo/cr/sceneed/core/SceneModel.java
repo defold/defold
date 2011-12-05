@@ -66,6 +66,9 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IResou
 
     @PreDestroy
     public void dispose() {
+        if (this.root != null) {
+            this.root.dispose();
+        }
         this.history.removeOperationHistoryListener(this);
     }
 
