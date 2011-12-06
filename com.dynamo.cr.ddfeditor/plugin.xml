@@ -120,6 +120,15 @@
             id="com.dynamo.cr.ddfeditor.collectionProxyEditor"
             name="Scene Editor">
       </editor>
+      <editor
+            class="com.dynamo.cr.sceneed.ui.SceneEditor"
+            contributorClass="com.dynamo.cr.editor.ui.DefoldEditorActionBarContributor"
+            default="false"
+            extensions="sprite"
+            icon="icons/pictures.png"
+            id="com.dynamo.cr.ddfeditor.spriteEditor"
+            name="Scene Editor">
+      </editor>
    </extension>
    <extension
          point="org.eclipse.ui.newWizards">
@@ -214,6 +223,13 @@
             id="com.dynamo.cr.ddfeditor.wizards.ConvexShapeNewWizard"
             name="Convex Shape File">
       </wizard>
+      <wizard
+            category="com.dynamo.cr.editor.wizardCategory"
+            class="com.dynamo.cr.ddfeditor.wizards.SpriteNewWizard"
+            icon="icons/pictures.png"
+            id="com.dynamo.cr.ddfeditor.wizards.spriteNewWizard"
+            name="Sprite File">
+      </wizard>
    </extension>
    <extension
          point="org.eclipse.ui.navigator.navigatorContent">
@@ -275,6 +291,11 @@
       <commonWizard
             type="new"
             wizardId="com.dynamo.cr.ddfeditor.wizards.ConvexShapeNewWizard">
+         <enablement></enablement>
+      </commonWizard>
+      <commonWizard
+            type="new"
+            wizardId="com.dynamo.cr.ddfeditor.wizards.spriteNewWizard">
          <enablement></enablement>
       </commonWizard>
    </extension>
@@ -555,6 +576,9 @@
          </newWizardShortcut>
          <newWizardShortcut
                id="com.dynamo.cr.ddfeditor.wizards.ConvexShapeNewWizard">
+         </newWizardShortcut>
+         <newWizardShortcut
+               id="com.dynamo.cr.ddfeditor.wizards.spriteNewWizard">
          </newWizardShortcut>
       </perspectiveExtension>
    </extension>
