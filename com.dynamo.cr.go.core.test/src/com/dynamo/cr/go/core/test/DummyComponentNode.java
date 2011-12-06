@@ -7,7 +7,7 @@ import org.eclipse.core.runtime.Status;
 
 import com.dynamo.cr.go.core.ComponentTypeNode;
 import com.dynamo.cr.properties.Property;
-import com.dynamo.cr.sceneed.core.Activator;
+import com.dynamo.cr.sceneed.Activator;
 
 public class DummyComponentNode extends ComponentTypeNode {
 

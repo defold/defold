@@ -39,7 +39,7 @@ import org.osgi.framework.Bundle;
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.properties.IPropertyModel;
-import com.dynamo.cr.sceneed.core.Activator;
+import com.dynamo.cr.sceneed.Activator;
 import com.dynamo.cr.sceneed.core.IImageProvider;
 import com.dynamo.cr.sceneed.core.IModelListener;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;

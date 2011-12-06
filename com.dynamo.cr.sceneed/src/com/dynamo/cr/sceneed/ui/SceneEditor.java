@@ -1,4 +1,4 @@
-package com.dynamo.cr.tileeditor;
+package com.dynamo.cr.sceneed.ui;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -32,6 +32,7 @@ import org.eclipse.ui.IEditorInput;
 import org.eclipse.ui.IEditorSite;
 import org.eclipse.ui.IFileEditorInput;
 import org.eclipse.ui.ISelectionListener;
+import org.eclipse.ui.ISelectionService;
 import org.eclipse.ui.IWorkbenchPart;
 import org.eclipse.ui.PartInitException;
 import org.eclipse.ui.PlatformUI;
@@ -54,37 +55,35 @@ import com.dynamo.cr.editor.core.inject.LifecycleModule;
 import com.dynamo.cr.editor.ui.AbstractDefoldEditor;
 import com.dynamo.cr.editor.ui.Logger;
 import com.dynamo.cr.properties.IFormPropertySheetPage;
+import com.dynamo.cr.sceneed.Activator;
 import com.dynamo.cr.sceneed.core.IImageProvider;
+import com.dynamo.cr.sceneed.core.IManipulatorMode;
+import com.dynamo.cr.sceneed.core.IManipulatorRegistry;
 import com.dynamo.cr.sceneed.core.IModelListener;
 import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
+import com.dynamo.cr.sceneed.core.IRenderView;
 import com.dynamo.cr.sceneed.core.ISceneEditor;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.ISceneView.ILoaderContext;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
+import com.dynamo.cr.sceneed.core.ManipulatorController;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.SceneModel;
 import com.dynamo.cr.sceneed.core.ScenePresenter;
-import com.dynamo.cr.sceneed.ui.ISceneOutlinePage;
-import com.dynamo.cr.sceneed.ui.LoaderContext;
-import com.dynamo.cr.sceneed.ui.PresenterContext;
-import com.dynamo.cr.sceneed.ui.RenderView;
-import com.dynamo.cr.sceneed.ui.SceneOutlinePage;
-import com.dynamo.cr.sceneed.ui.ScenePropertySheetPage;
-import com.dynamo.cr.sceneed.ui.SceneView;
 import com.dynamo.cr.sceneed.ui.preferences.PreferenceConstants;
-import com.dynamo.cr.tileeditor.scene.TileSetNode;
-import com.dynamo.cr.tileeditor.scene.TileSetNodePresenter;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
 
-public class TileSetEditor2 extends AbstractDefoldEditor implements ISceneEditor, ISelectionListener, IPropertyChangeListener {
+public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, ISelectionListener, IPropertyChangeListener {
 
     private ISceneOutlinePage outlinePage;
     private IFormPropertySheetPage propertySheetPage;
-    private TileSetRenderer2 tileSetRenderer;
+    private IRenderView renderView;
+    @SuppressWarnings("unused")
+    private BackgroundRenderViewProvider backgroundRenderViewProvider;
 
     private IContainer contentRoot;
     private LifecycleModule module;
@@ -92,26 +91,33 @@ public class TileSetEditor2 extends AbstractDefoldEditor implements ISceneEditor
     private ISceneView.IPresenterContext presenterContext;
     private ISceneView.ILoaderContext loaderContext;
     private INodeTypeRegistry nodeTypeRegistry;
-    private IImageProvider imageProvider;
 
     private boolean dirty;
+    private SceneRenderViewProvider sceneRenderViewProvider;
+    private ManipulatorController manipulatorController;
+    private IManipulatorRegistry manipulatorRegistry;
 
     class Module extends AbstractModule {
         @Override
         protected void configure() {
             bind(ISceneOutlinePage.class).to(SceneOutlinePage.class).in(Singleton.class);
             bind(IFormPropertySheetPage.class).to(ScenePropertySheetPage.class).in(Singleton.class);
-            bind(TileSetRenderer2.class).toInstance(tileSetRenderer);
             bind(ISceneView.class).to(SceneView.class).in(Singleton.class);
-            bind(RenderView.class).in(Singleton.class);
+            bind(IRenderView.class).to(RenderView.class).in(Singleton.class);
+            bind(BackgroundRenderViewProvider.class).in(Singleton.class);
+            bind(SceneRenderViewProvider.class).in(Singleton.class);
             bind(ISceneModel.class).to(SceneModel.class).in(Singleton.class);
             bind(INodeTypeRegistry.class).toInstance(nodeTypeRegistry);
             bind(ISceneView.IPresenter.class).to(ScenePresenter.class).in(Singleton.class);
             bind(IModelListener.class).to(ScenePresenter.class).in(Singleton.class);
-            bind(TileSetEditor2.class).toInstance(TileSetEditor2.this);
+            bind(SceneEditor.class).toInstance(SceneEditor.this);
             bind(ILoaderContext.class).to(LoaderContext.class).in(Singleton.class);
             bind(IPresenterContext.class).to(PresenterContext.class).in(Singleton.class);
-            bind(IImageProvider.class).toInstance(imageProvider);
+            bind(IImageProvider.class).toInstance(Activator.getDefault());
+
+            bind(IManipulatorRegistry.class).toInstance(manipulatorRegistry);
+
+            bind(ISelectionService.class).toInstance(getSite().getWorkbenchWindow().getSelectionService());
 
             bind(IOperationHistory.class).toInstance(history);
             bind(IUndoContext.class).toInstance(undoContext);
@@ -139,8 +145,8 @@ public class TileSetEditor2 extends AbstractDefoldEditor implements ISceneEditor
                     "Unable to locate content root for project");
         }
 
-        this.nodeTypeRegistry = com.dynamo.cr.sceneed.Activator.getDefault().getNodeTypeRegistry();
-        this.imageProvider = com.dynamo.cr.sceneed.Activator.getDefault();
+        this.nodeTypeRegistry = Activator.getDefault().getNodeTypeRegistry();
+        this.manipulatorRegistry = Activator.getDefault().getManipulatorRegistry();
 
         this.module = new LifecycleModule(new Module());
         Injector injector = Guice.createInjector(module);
@@ -154,13 +160,18 @@ public class TileSetEditor2 extends AbstractDefoldEditor implements ISceneEditor
 
         this.outlinePage = injector.getInstance(ISceneOutlinePage.class);
         this.propertySheetPage = injector.getInstance(IFormPropertySheetPage.class);
+        this.renderView = injector.getInstance(IRenderView.class);
+        this.backgroundRenderViewProvider = injector.getInstance(BackgroundRenderViewProvider.class);
+        this.sceneRenderViewProvider = injector.getInstance(SceneRenderViewProvider.class);
+
+        this.manipulatorController = injector.getInstance(ManipulatorController.class);
+        IManipulatorMode moveMode = manipulatorRegistry.getMode("com.dynamo.cr.sceneed.core.manipulators.move-mode");
+        manipulatorController.setManipulatorMode(moveMode);
 
         this.presenter = injector.getInstance(ISceneView.IPresenter.class);
         this.presenterContext = injector.getInstance(ISceneView.IPresenterContext.class);
         this.loaderContext = injector.getInstance(ISceneView.ILoaderContext.class);
 
-        TileSetNodePresenter nodePresenter = (TileSetNodePresenter) this.nodeTypeRegistry.getNodeType(TileSetNode.class).getPresenter();
-        this.tileSetRenderer = new TileSetRenderer2(nodePresenter, this.presenterContext);
         IPreferenceStore store = Activator.getDefault().getPreferenceStore();
         store.addPropertyChangeListener(this);
 
@@ -168,7 +179,7 @@ public class TileSetEditor2 extends AbstractDefoldEditor implements ISceneEditor
 
         this.dirty = false;
 
-        TileSetLoader2 loader = new TileSetLoader2(file, this.presenter);
+        SceneLoader loader = new SceneLoader(file, this.presenter);
         try {
             service.runInUI(service, loader, null);
             if (loader.exception != null) {
@@ -184,8 +195,8 @@ public class TileSetEditor2 extends AbstractDefoldEditor implements ISceneEditor
     public void dispose() {
         super.dispose();
         module.close();
-        if (this.tileSetRenderer != null) {
-            this.tileSetRenderer.dispose();
+        if (this.renderView != null) {
+            this.renderView.dispose();
         }
         IPreferenceStore store = Activator.getDefault().getPreferenceStore();
         store.removePropertyChangeListener(this);
@@ -197,7 +208,7 @@ public class TileSetEditor2 extends AbstractDefoldEditor implements ISceneEditor
     protected void doReload(IFile file) {
         IProgressService service = PlatformUI.getWorkbench()
                 .getProgressService();
-        TileSetLoader2 loader = new TileSetLoader2(file, this.presenter);
+        SceneLoader loader = new SceneLoader(file, this.presenter);
         try {
             service.runInUI(service, loader, null);
             if (loader.exception != null) {
@@ -288,15 +299,15 @@ public class TileSetEditor2 extends AbstractDefoldEditor implements ISceneEditor
 
     @Override
     public void createPartControl(Composite parent) {
-        this.tileSetRenderer.createControls(parent);
+        this.renderView.createControls(parent);
 
         // This makes sure the context will be active while this component is
         IContextService contextService = (IContextService) getSite()
                 .getService(IContextService.class);
-        contextService.activateContext(Activator.TILE_SET_CONTEXT_ID);
+        contextService.activateContext(Activator.SCENEED_CONTEXT_ID);
 
         // Set the outline as selection provider
-        getSite().setSelectionProvider(this.outlinePage);
+        getSite().setSelectionProvider(this.sceneRenderViewProvider);
         getSite().getPage().addSelectionListener(this);
 
         this.presenter.onRefresh();
@@ -304,7 +315,7 @@ public class TileSetEditor2 extends AbstractDefoldEditor implements ISceneEditor
 
     @Override
     public void setFocus() {
-        this.tileSetRenderer.setFocus();
+        this.renderView.setFocus();
     }
 
     @Override
@@ -367,7 +378,7 @@ public class TileSetEditor2 extends AbstractDefoldEditor implements ISceneEditor
         if (event.getSource().equals(Activator.getDefault().getPreferenceStore())) {
             if (event.getProperty().equals(PreferenceConstants.P_TOP_BKGD_COLOR)
                     || event.getProperty().equals(PreferenceConstants.P_BOTTOM_BKGD_COLOR)) {
-                this.tileSetRenderer.refresh();
+                this.renderView.refresh();
             }
         }
     }

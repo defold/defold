@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+   <extension
+         point="com.dynamo.cr.manipulators">
+      <manipulator
+            mode="com.dynamo.cr.sceneed.core.manipulators.size-mode"
+            name="Test Size Manipulator"
+            node-type="com.dynamo.cr.sceneed.core.test.dummySphereSizeManipulator">
+      </manipulator>
+   </extension>
+   <extension
+         point="com.dynamo.cr.nodetypes">
+      <node-type
+            id="com.dynamo.cr.sceneed.core.test.dummySphereSizeManipulator"
+            node="com.dynamo.cr.sceneed.core.test.DummySphereSizeManipulator">
+      </node-type>
+   </extension>
+
+</plugin>
