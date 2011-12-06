@@ -91,7 +91,7 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
     @Override
     public void update(Node node) {
         TreeViewer viewer = getTreeViewer();
-        if (viewer != null) {
+        if (viewer != null && !viewer.getTree().isDisposed()) {
             viewer.refresh(node);
         }
     }

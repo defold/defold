@@ -29,6 +29,7 @@ import org.eclipse.swt.widgets.Listener;
 import org.eclipse.ui.services.IDisposable;
 
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
+import com.dynamo.cr.tileeditor.scene.CollisionGroupNode;
 import com.dynamo.cr.tileeditor.scene.TileSetNode;
 import com.dynamo.cr.tileeditor.scene.TileSetNodePresenter;
 import com.dynamo.tile.ConvexHull;
@@ -74,6 +75,7 @@ KeyListener {
     private FloatBuffer tileVertexBuffer;
     private FloatBuffer hullVertexBuffer;
     private FloatBuffer hullFrameVertexBuffer;
+    private BufferedImage tileSetImage;
     private Texture tileSetTexture;
     private Texture backgroundTexture;
     private Texture transparentTexture;
@@ -157,7 +159,13 @@ KeyListener {
     }
 
     private void setupRenderData() {
-        this.tileSetTexture = loadTexture(this.tileSet.getLoadedImage(), this.tileSetTexture);
+        BufferedImage loadedImage = this.tileSet.getLoadedImage();
+        if (!loadedImage.equals(this.tileSetImage)) {
+            this.tileSetTexture = loadTexture(loadedImage, this.tileSetTexture);
+            if (this.tileSetTexture != null) {
+                this.tileSetImage = loadedImage;
+            }
+        }
 
         float[] hullVertices = this.tileSet.getConvexHullPoints();
 
@@ -569,7 +577,7 @@ KeyListener {
                             this.hullVertexBuffer.put(x0 + 0.5f + hullVertices[hi+0]);
                             this.hullVertexBuffer.put(y0 + 0.5f + hullVertices[hi+1]);
                         }
-                        Color color = Activator.getDefault().getCollisionGroupColor(tileCollisionGroups.get(index));
+                        Color color = getCollisionGroupColor(tileCollisionGroups.get(index));
                         color.getColorComponents(hc);
                         float hx0 = x0 - halfBorder;
                         float hx1 = x1 + halfBorder;
@@ -679,7 +687,7 @@ KeyListener {
             int hullCount = hulls.size();
             for (int i = 0; i < hullCount; ++i) {
                 ConvexHull hull = hulls.get(i);
-                c = Activator.getDefault().getCollisionGroupColor(tileCollisionGroups.get(i));
+                c = getCollisionGroupColor(tileCollisionGroups.get(i));
                 gl.glColor4f(c.getRed() * f, c.getGreen() * f, c.getBlue() *
                 f, c.getAlpha() * f);
                 gl.glDrawArrays(GL.GL_LINE_LOOP, hull.getIndex(), hull.getCount());
@@ -690,6 +698,14 @@ KeyListener {
         gl.glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
         gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
         gl.glDisable(GL.GL_BLEND);
+    }
+
+    private Color getCollisionGroupColor(String name) {
+        Color color = CollisionGroupNode.getCollisionGroupColor(name);
+        if (color == null) {
+            color = new Color(1.0f, 1.0f, 1.0f, 1.0f);
+        }
+        return color;
     }
 
     private TileSetUtil.Metrics calculateMetrics() {

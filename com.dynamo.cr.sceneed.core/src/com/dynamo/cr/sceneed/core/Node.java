@@ -32,8 +32,10 @@ public abstract class Node implements IAdaptable {
 
     @PreDestroy
     public void dispose() {
-        for (Node child : this.children) {
-            removeChild(child);
+        List<Node> children = new ArrayList<Node>(this.children);
+        int n = children.size();
+        for (int i = n-1; i >= 0; --i) {
+            removeChild(children.get(i));
         }
     }
 

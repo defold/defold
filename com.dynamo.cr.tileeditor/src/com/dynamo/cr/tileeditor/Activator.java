@@ -30,20 +30,20 @@ public class Activator extends AbstractUIPlugin {
     public static final String GRID_IMAGE_ID = "GRID"; //$NON-NLS-1$
     public static final String LAYER_IMAGE_ID = "LAYER"; //$NON-NLS-1$
 
+    // Collision groups
+    public static final int MAX_COLLISION_GROUP_COUNT = 16;
+
     // The shared instance
     private static Activator plugin;
 
-    private final CollisionGroupCache collisionGroupCache;
     private final Color[] collisionGroupColors;
 
     /**
      * The constructor
      */
     public Activator() {
-        this.collisionGroupCache = new CollisionGroupCache();
-        int n = CollisionGroupCache.SIZE;
-        this.collisionGroupColors = new Color[n];
-        generateColors();
+        this.collisionGroupColors = new Color[MAX_COLLISION_GROUP_COUNT];
+        generateCollisionGroupColors();
     }
 
     /*
@@ -75,36 +75,25 @@ public class Activator extends AbstractUIPlugin {
         return plugin;
     }
 
-    public void addCollisionGroup(String group) {
-        this.collisionGroupCache.add(group);
-    }
-
-    public void removeCollisionGroup(String group) {
-        this.collisionGroupCache.remove(group);
-    }
-
-    public Image getCollisionGroupIcon(String group) {
-        int index = this.collisionGroupCache.get(group);
+    /**
+     * Fetch collision group specific image.
+     * Must be called from UI thread.
+     * @param index Collision group index
+     * @return Collision group specific index, or generic if index is out of bounds
+     */
+    public Image getCollisionGroupImage(int index) {
         if (index >= 0) {
             String imageKey = COLLISION_GROUP_IMAGE_ID + index;
-            Image image = getImageRegistry().get(imageKey);
-            if (image == null) {
-                generateCollisionImages();
-                image = getImageRegistry().get(imageKey);
-            }
-            return image;
+            return getImageRegistry().get(imageKey);
         }
-        return null;
+        return getImageRegistry().get(COLLISION_GROUP_IMAGE_ID);
     }
 
-    public Color getCollisionGroupColor(String group) {
-        if (group != null && !group.isEmpty()) {
-            int index = this.collisionGroupCache.get(group);
-            if (index >= 0) {
-                return this.collisionGroupColors[index];
-            }
+    public Color getCollisionGroupColor(int index) {
+        if (index >= 0) {
+            return this.collisionGroupColors[index];
         }
-        return new Color(1.0f, 1.0f, 1.0f, 1.0f);
+        return null;
     }
 
     @Override
@@ -114,26 +103,29 @@ public class Activator extends AbstractUIPlugin {
         registry.put(COLLISION_GROUP_IMAGE_ID, imageDescriptorFromPlugin(PLUGIN_ID, "icons/collision_group.png"));
         registry.put(GRID_IMAGE_ID, imageDescriptorFromPlugin(PLUGIN_ID, "icons/tile_grid.png"));
         registry.put(LAYER_IMAGE_ID, imageDescriptorFromPlugin(PLUGIN_ID, "icons/layer.png"));
+
+        generateCollisionGroupIcons();
     }
 
-    private void generateColors() {
+    private void generateCollisionGroupColors() {
         int index = 0;
         Color[] c = this.collisionGroupColors;
         c[index++] = ColorUtil.createColorFromHueAlpha(0.0f, 0.7f);
-        generateColor(c, 0.5f, index);
+        generateCollisionGroupColor(c, 0.5f, index);
     }
 
-    private static void generateColor(Color[] c, float fraction, int index) {
-        for (float f = fraction; index < CollisionGroupCache.SIZE && f < 1.0f; f += 2.0f * fraction) {
+    private static void generateCollisionGroupColor(Color[] c, float fraction, int index) {
+        int n = MAX_COLLISION_GROUP_COUNT;
+        for (float f = fraction; index < n && f < 1.0f; f += 2.0f * fraction) {
             c[index++] = ColorUtil.createColorFromHueAlpha(f * 360.0f, 0.7f);
         }
-        if (index < CollisionGroupCache.SIZE) {
-            generateColor(c, fraction * 0.5f, index);
+        if (index < n) {
+            generateCollisionGroupColor(c, fraction * 0.5f, index);
         }
     }
 
-    private void generateCollisionImages() {
-        int n = CollisionGroupCache.SIZE;
+    private void generateCollisionGroupIcons() {
+        int n = MAX_COLLISION_GROUP_COUNT;
         float f = 1.0f / 255.0f;
         Image baseImage = getImageRegistry().get(COLLISION_GROUP_IMAGE_ID);
         for (int i = 0; i < n; ++i) {

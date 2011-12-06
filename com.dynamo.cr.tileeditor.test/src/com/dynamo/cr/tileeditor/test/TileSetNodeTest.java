@@ -1,10 +1,14 @@
 package com.dynamo.cr.tileeditor.test;
 
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.CoreMatchers.nullValue;
 import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Mockito.when;
 
+import java.awt.Color;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -15,10 +19,12 @@ import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.osgi.util.NLS;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 import com.dynamo.cr.sceneed.core.test.AbstractNodeTest;
+import com.dynamo.cr.tileeditor.Activator;
 import com.dynamo.cr.tileeditor.operations.AddCollisionGroupNodeOperation;
 import com.dynamo.cr.tileeditor.operations.RemoveCollisionGroupNodeOperation;
 import com.dynamo.cr.tileeditor.operations.SetTileCollisionGroupsOperation;
@@ -46,6 +52,12 @@ public class TileSetNodeTest extends AbstractNodeTest {
 
         this.node = registerAndLoadNodeType(TileSetNode.class, "tileset", this.loader);
         verifyUpdate();
+    }
+
+    @After
+    public void teardown() {
+        // Handle static singleton
+        CollisionGroupNode.clearCollisionGroups();
     }
 
     // Helpers
@@ -115,11 +127,24 @@ public class TileSetNodeTest extends AbstractNodeTest {
         }
     }
 
-    private void addCollisionGroup() throws ExecutionException {
+    private CollisionGroupNode addCollisionGroup() throws ExecutionException {
         CollisionGroupNode collisionGroup = new CollisionGroupNode();
         execute(new AddCollisionGroupNodeOperation(this.node, collisionGroup));
         when(getPresenterContext().getSelection()).thenReturn(new StructuredSelection(collisionGroup));
-        verifyUpdate();
+        // Check second update due to sorting
+        if (this.node.getChildren().size() > 10) {
+            verifyUpdate(2);
+        } else {
+            verifyUpdate();
+        }
+        verifySelection();
+        return collisionGroup;
+    }
+
+    private void removeCollisionGroup(CollisionGroupNode collisionGroup, int updateCount) throws ExecutionException {
+        RemoveCollisionGroupNodeOperation op = new RemoveCollisionGroupNodeOperation(collisionGroup);
+        execute(op);
+        verifyUpdate(updateCount);
         verifySelection();
     }
 
@@ -395,8 +420,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
         assertThat(tileCollisionGroup(1), is("default1"));
 
         // test
-        RemoveCollisionGroupNodeOperation op = new RemoveCollisionGroupNodeOperation(collisionGroup(1));
-        execute(op);
+        removeCollisionGroup(collisionGroup(1), 2);
         assertThat(collisionGroupCount(), is(1));
         assertThat(tileCollisionGroup(1), is(""));
 
@@ -420,10 +444,10 @@ public class TileSetNodeTest extends AbstractNodeTest {
 
         // generate duplicate
         setNodeProperty(collisionGroup(0), "name", "default1");
+        verifyUpdate();
 
         // test
-        RemoveCollisionGroupNodeOperation op = new RemoveCollisionGroupNodeOperation(collisionGroup(1));
-        execute(op);
+        removeCollisionGroup(collisionGroup(1), 2);
         assertThat(collisionGroupCount(), is(1));
         assertThat(tileCollisionGroup(1), is("default1"));
 
@@ -538,6 +562,60 @@ public class TileSetNodeTest extends AbstractNodeTest {
         // Invalid tile spacing
         setProperty("tileSpacing", -1);
         assertPropertyStatus("tileSpacing", IStatus.ERROR, Messages.TileSetNode_tileSpacing_OUTSIDE_RANGE);
+
     }
 
+    @Test
+    public void testCollisionGroupMessages() throws Exception {
+        // Too many collision groups
+        int n = Activator.MAX_COLLISION_GROUP_COUNT;
+        for (int i = 1; i <= n; ++i) {
+            addCollisionGroup();
+            assertNodePropertyStatus(collisionGroup(i), "name", IStatus.OK, null);
+        }
+        CollisionGroupNode newGroup = addCollisionGroup();
+        assertNodePropertyStatus(newGroup, "name", IStatus.WARNING, NLS.bind(Messages.CollisionGroupNode_name_OVERFLOW, n));
+        // Clear message
+        removeCollisionGroup(collisionGroup(n-1), 1);
+        assertNodePropertyStatus(newGroup, "name", IStatus.OK, null);
+    }
+
+    @Test
+    public void testCollisionGroupColors() throws Exception {
+        CollisionGroupNode collisionGroup = collisionGroup(0);
+
+        // Preconditions
+        Color color = CollisionGroupNode.getCollisionGroupColor("default");
+        assertThat(color, notNullValue());
+        assertThat(CollisionGroupNode.getCollisionGroupColor("default1"), nullValue());
+
+        // Rename
+        setNodeProperty(collisionGroup, "name", "default1");
+        verifyUpdate();
+        assertThat(CollisionGroupNode.getCollisionGroupColor("default1"), is(color));
+        assertThat(CollisionGroupNode.getCollisionGroupColor("default"), nullValue());
+
+        // Remove
+        removeCollisionGroup(collisionGroup, 1);
+        assertThat(CollisionGroupNode.getCollisionGroupColor("default1"), nullValue());
+
+        // Add
+        addCollisionGroup();
+        collisionGroup = collisionGroup(0);
+        assertThat(CollisionGroupNode.getCollisionGroupColor("default"), is(color));
+
+        // Full
+        int n = Activator.MAX_COLLISION_GROUP_COUNT;
+        for (int i = 1; i <= n; ++i) {
+            addCollisionGroup();
+            String name = collisionGroup(i).getName();
+            Color newColor = CollisionGroupNode.getCollisionGroupColor(name);
+            assertThat(newColor, not(color));
+            assertThat(newColor, notNullValue());
+        }
+        CollisionGroupNode newGroup = addCollisionGroup();
+        String name = newGroup.getName();
+        Color newColor = CollisionGroupNode.getCollisionGroupColor(name);
+        assertThat(newColor, nullValue());
+    }
 }

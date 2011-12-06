@@ -94,7 +94,7 @@ public class FormPropertySheetPage implements IFormPropertySheetPage {
 
     @Override
     public void refresh() {
-        if (viewer != null) {
+        if (viewer != null && !this.viewer.getControl().isDisposed()) {
             viewer.refresh();
         }
     }

@@ -1,8 +1,10 @@
 package com.dynamo.cr.tileeditor.scene;
 
-import javax.annotation.PreDestroy;
+import java.awt.Color;
 
 import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Status;
+import org.eclipse.osgi.util.NLS;
 import org.eclipse.swt.graphics.Image;
 
 import com.dynamo.cr.properties.NotEmpty;
@@ -18,21 +20,17 @@ Comparable<CollisionGroupNode> {
     @NotEmpty(severity = IStatus.ERROR)
     private String name;
 
-    private Image icon;
+    private boolean nameRegistered;
+
+    private static CollisionGroupIndexPool cache = new CollisionGroupIndexPool(Activator.MAX_COLLISION_GROUP_COUNT);
 
     public CollisionGroupNode() {
         this.name = "";
-        this.icon = null;
+        this.nameRegistered = false;
     }
 
     public CollisionGroupNode(String name) {
         this.name = name;
-    }
-
-    @Override
-    @PreDestroy
-    public void dispose() {
-        clearIcon();
     }
 
     public String getName() {
@@ -40,30 +38,37 @@ Comparable<CollisionGroupNode> {
     }
 
     public void setName(String name) {
-        if (this.name == null ? name != null : !this.name.equals(name)) {
-            clearIcon();
+        if (!this.name.equals(name)) {
+            unregisterName();
             this.name = name;
+            registerName();
 
             notifyChange();
         }
     }
 
+    public IStatus validateName() {
+        if (!this.name.isEmpty()) {
+            registerName();
+            if (!this.nameRegistered) {
+                return new Status(IStatus.WARNING, Activator.PLUGIN_ID, NLS.bind(Messages.CollisionGroupNode_name_OVERFLOW, Activator.MAX_COLLISION_GROUP_COUNT));
+            }
+        }
+        return Status.OK_STATUS;
+    }
+
     @Override
     public void setModel(ISceneModel model) {
-        if (model == null) {
-            clearIcon();
+        if (getModel() != model) {
+            unregisterName();
+            super.setModel(model);
+            registerName();
         }
-        super.setModel(model);
     }
 
     @Override
     public Image getIcon() {
-        if (this.icon == null && !this.name.isEmpty()) {
-            Activator activator = Activator.getDefault();
-            activator.addCollisionGroup(this.name);
-            this.icon = activator.getCollisionGroupIcon(this.name);
-        }
-        return this.icon;
+        return Activator.getDefault().getCollisionGroupImage(cache.get(this.name));
     }
 
     public TileSetNode getTileSetNode() {
@@ -80,10 +85,26 @@ Comparable<CollisionGroupNode> {
         return this.name.compareTo(o.toString());
     }
 
-    private void clearIcon() {
-        if (this.icon != null) {
-            this.icon = null;
-            Activator.getDefault().removeCollisionGroup(this.name);
+    public static Color getCollisionGroupColor(String name) {
+        return Activator.getDefault().getCollisionGroupColor(cache.get(name));
+    }
+
+    public static void clearCollisionGroups() {
+        cache.clear();
+    }
+
+    private void registerName() {
+        if (!this.nameRegistered && !this.name.isEmpty() && getModel() != null) {
+            if (cache.add(this.name)) {
+                this.nameRegistered = true;
+            }
+        }
+    }
+
+    private void unregisterName() {
+        if (this.nameRegistered) {
+            cache.remove(this.name);
+            this.nameRegistered = false;
         }
     }
 }

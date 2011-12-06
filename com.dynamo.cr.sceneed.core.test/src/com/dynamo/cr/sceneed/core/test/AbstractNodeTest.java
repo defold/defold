@@ -168,7 +168,11 @@ public abstract class AbstractNodeTest {
     }
 
     protected void verifyUpdate() {
-        ++this.updateCount;
+        verifyUpdate(1);
+    }
+
+    protected void verifyUpdate(int times) {
+        this.updateCount += times;
         verify(this.model, times(this.updateCount)).notifyChange(any(Node.class));
     }
 

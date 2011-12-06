@@ -1,10 +1,10 @@
-package com.dynamo.cr.tileeditor;
+package com.dynamo.cr.tileeditor.scene;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Stack;
 
-public class CollisionGroupCache {
+public class CollisionGroupIndexPool {
     private static class Entry {
         public final int index;
         public int count;
@@ -15,20 +15,18 @@ public class CollisionGroupCache {
         }
     }
 
-    public static int SIZE = 16;
-
+    private final int size;
     private final Stack<Integer> indexPool;
     private final Map<String, Entry> groups;
 
-    public CollisionGroupCache() {
+    public CollisionGroupIndexPool(int size) {
+        this.size = size;
         this.indexPool = new Stack<Integer>();
-        for (int i = 0; i < SIZE; ++i) {
-            this.indexPool.push(SIZE - i - 1);
-        }
         this.groups = new HashMap<String, Entry>();
+        clear();
     }
 
-    public void add(String name) {
+    public boolean add(String name) {
         Entry entry = this.groups.get(name);
         if (entry == null && !isFull()) {
             entry = new Entry(this.indexPool.pop());
@@ -36,7 +34,9 @@ public class CollisionGroupCache {
         }
         if (entry != null) {
             ++entry.count;
+            return true;
         }
+        return false;
     }
 
     public void remove(String name) {
@@ -56,6 +56,14 @@ public class CollisionGroupCache {
             return entry.index;
         }
         return -1;
+    }
+
+    public void clear() {
+        this.indexPool.clear();
+        for (int i = 0; i < this.size; ++i) {
+            this.indexPool.push(this.size - i - 1);
+        }
+        this.groups.clear();
     }
 
     private boolean isFull() {
