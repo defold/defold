@@ -15,6 +15,7 @@ import org.eclipse.jface.viewers.StructuredSelection;
 
 import com.dynamo.cr.sceneed.core.IRenderView;
 import com.dynamo.cr.sceneed.core.IRenderViewProvider;
+import com.dynamo.cr.sceneed.core.Manipulator;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.RenderContext;
 
@@ -52,6 +53,15 @@ public class SceneRenderViewProvider implements IRenderViewProvider, ISelectionP
 
     @Override
     public void onNodeHit(List<Node> nodes) {
+        // TODO: We should test this behavior...
+
+        for (Node node : nodes) {
+            if (node instanceof Manipulator) {
+                // Do nothing when a manipulator is selected,
+                // ie do not changed current selection
+                return;
+            }
+        }
         StructuredSelection newSelection = new StructuredSelection(nodes);
         setSelection(newSelection);
     }
