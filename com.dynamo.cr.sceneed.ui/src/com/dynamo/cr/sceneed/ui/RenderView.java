@@ -42,7 +42,6 @@ import com.dynamo.cr.sceneed.core.RenderContext;
 import com.dynamo.cr.sceneed.core.RenderContext.Pass;
 import com.dynamo.cr.sceneed.core.RenderData;
 import com.dynamo.cr.sceneed.ui.RenderView.SelectResult.Pair;
-import com.sun.opengl.util.BufferUtil;
 
 public class RenderView implements
 MouseListener,
@@ -56,7 +55,7 @@ IRenderView {
 
     private GLCanvas canvas;
     private GLContext context;
-    private final IntBuffer viewPort = BufferUtil.newIntBuffer(4);
+    private final int[] viewPort = new int[4];
     private boolean paintRequested = false;
     private boolean enabled = true;
 
@@ -130,7 +129,7 @@ IRenderView {
     }
 
     public Rectangle getViewRect() {
-        return new Rectangle(0, 0, this.viewPort.get(2), this.viewPort.get(3));
+        return new Rectangle(0, 0, this.viewPort[2], this.viewPort[3]);
     }
 
     // Listener
@@ -139,11 +138,10 @@ IRenderView {
     public void handleEvent(Event event) {
         if (event.type == SWT.Resize) {
             Rectangle client = this.canvas.getClientArea();
-            this.viewPort.put(0);
-            this.viewPort.put(0);
-            this.viewPort.put(client.width);
-            this.viewPort.put(client.height);
-            this.viewPort.flip();
+            this.viewPort[0] = 0;
+            this.viewPort[1] = 0;
+            this.viewPort[2] = client.width;
+            this.viewPort[3] = client.height;
 
             // TODO: Temp "camera"
             Point size = canvas.getSize();
@@ -240,7 +238,7 @@ IRenderView {
         GLU glu = new GLU();
         gl.glMatrixMode(GL.GL_PROJECTION);
         gl.glLoadIdentity();
-        glu.gluPickMatrix(x, y, w, h, viewPort);
+        glu.gluPickMatrix(x, viewPort[3] - y, w, h, viewPort, 0);
         gl.glOrtho(orthoCamera[0], orthoCamera[1], orthoCamera[2], orthoCamera[3], orthoCamera[4], orthoCamera[5]);
 
         gl.glMatrixMode(GL.GL_MODELVIEW);
@@ -349,7 +347,7 @@ IRenderView {
                 gl.glDisable(GL.GL_DEPTH_TEST);
                 gl.glDepthMask(false);
 
-                gl.glViewport(this.viewPort.get(0), this.viewPort.get(1), this.viewPort.get(2), this.viewPort.get(3));
+                gl.glViewport(this.viewPort[0], this.viewPort[1], this.viewPort[2], this.viewPort[3]);
 
                 render(gl, glu);
 
