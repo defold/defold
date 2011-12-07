@@ -230,8 +230,13 @@ public class TileSetNode extends Node {
     }
 
     public List<String> getTileCollisionGroups() {
-        List<String> tileCollisionGroups = new ArrayList<String>(this.tileCollisionGroupCount);
-        for (CollisionGroupNode collisionGroup : this.tileCollisionGroups) {
+        int n = this.tileCollisionGroupCount;
+        List<String> tileCollisionGroups = new ArrayList<String>(n);
+        for (int i = 0; i < n; ++i) {
+            CollisionGroupNode collisionGroup = null;
+            if (i < this.tileCollisionGroups.size()) {
+                collisionGroup = this.tileCollisionGroups.get(i);
+            }
             if (collisionGroup != null) {
                 tileCollisionGroups.add(collisionGroup.getName());
             } else {
@@ -376,7 +381,7 @@ public class TileSetNode extends Node {
     private void updateConvexHulls() {
         if (getModel() != null) {
             IStatus status = validate();
-            if (status.getSeverity() <= IStatus.INFO && this.loadedCollision != null) {
+            if (status.isOK() && this.loadedCollision != null) {
                 ConvexHulls result = TileSetUtil.calculateConvexHulls(loadedCollision.getAlphaRaster(), PLANE_COUNT,
                         loadedCollision.getWidth(), loadedCollision.getHeight(),
                         tileWidth, tileHeight, tileMargin, tileSpacing);
@@ -392,8 +397,14 @@ public class TileSetNode extends Node {
                 // Simulate a shorter list (see convexHullCount and getConvexHulls)
                 this.tileCollisionGroupCount = tileCount;
                 this.convexHullPoints = result.points;
+                return;
             }
         }
+        this.convexHullPoints = new float[0];
+        if (!this.convexHulls.isEmpty()) {
+            this.convexHulls = new ArrayList<ConvexHull>();
+        }
+        this.tileCollisionGroupCount = 0;
     }
 
     @Override

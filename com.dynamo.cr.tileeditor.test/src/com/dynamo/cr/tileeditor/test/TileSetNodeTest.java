@@ -181,6 +181,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
         registerFile(path, ddf.toString());
 
         this.node = this.loader.load(getLoaderContext(), getFile(path).getContents());
+        this.node.setModel(getModel());
     }
 
     @Test
@@ -563,6 +564,38 @@ public class TileSetNodeTest extends AbstractNodeTest {
         setProperty("tileSpacing", -1);
         assertPropertyStatus("tileSpacing", IStatus.ERROR, Messages.TileSetNode_tileSpacing_OUTSIDE_RANGE);
 
+    }
+
+    @Test
+    public void testImages() throws Exception {
+        assertThat(this.node.getLoadedImage(), nullValue());
+        assertThat(this.node.getLoadedCollision(), nullValue());
+
+        testCreate();
+        assertThat(this.node.getLoadedImage(), notNullValue());
+        assertThat(this.node.getLoadedCollision(), notNullValue());
+
+        setProperty("image", "");
+        setProperty("collision", "");
+        assertThat(this.node.getLoadedImage(), nullValue());
+        assertThat(this.node.getLoadedCollision(), nullValue());
+    }
+
+    @Test
+    public void testCollisionGroupGeneration() throws Exception {
+        assertThat(this.node.getConvexHullPoints().length, is(0));
+        assertThat(this.node.getConvexHulls().size(), is(0));
+        assertThat(this.node.getTileCollisionGroups().size(), is(0));
+
+        testCreate();
+        assertThat(this.node.getConvexHullPoints().length, not(0));
+        assertThat(this.node.getConvexHulls().size(), not(0));
+        assertThat(this.node.getTileCollisionGroups().size(), not(0));
+
+        setProperty("collision", "");
+        assertThat(this.node.getConvexHullPoints().length, is(0));
+        assertThat(this.node.getConvexHulls().size(), is(0));
+        assertThat(this.node.getTileCollisionGroups().size(), is(0));
     }
 
     @Test
