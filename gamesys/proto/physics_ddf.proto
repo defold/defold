@@ -34,8 +34,7 @@ message ConvexShape
     repeated float data = 2;
 }
 
-// Format not in use. Just a sketch how we could replace ConvexShape with something more general
-message PhysicsShape
+message CollisionShape
 {
     enum Type
     {
@@ -90,6 +89,7 @@ message CollisionObjectDesc
     required float                  restitution     = 5;
     required string                 group           = 6;
     repeated string                 mask            = 7;
+    optional CollisionShape         embedded_collision_shape = 8;
 }
 
 /*# applies a force on a collision object
