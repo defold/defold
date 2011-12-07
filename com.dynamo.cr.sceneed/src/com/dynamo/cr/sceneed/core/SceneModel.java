@@ -30,7 +30,6 @@ import com.dynamo.cr.properties.Entity;
 import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.properties.PropertyIntrospector;
 import com.dynamo.cr.properties.PropertyIntrospectorModel;
-import com.dynamo.cr.sceneed.core.ISceneView.ILoaderContext;
 import com.google.inject.Inject;
 
 @Entity(commandFactory = SceneUndoableCommandFactory.class)

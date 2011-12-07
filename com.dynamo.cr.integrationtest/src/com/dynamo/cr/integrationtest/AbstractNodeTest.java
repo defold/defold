@@ -21,8 +21,8 @@ import org.osgi.framework.Bundle;
 
 import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.sceneed.Activator;
+import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
-import com.dynamo.cr.sceneed.core.ISceneView.ILoaderContext;
 import com.dynamo.cr.sceneed.ui.LoaderContext;
 
 public abstract class AbstractNodeTest {

@@ -14,8 +14,6 @@ import com.dynamo.cr.sceneed.core.IModelListener;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.ISceneView;
-import com.dynamo.cr.sceneed.core.ISceneView.ILoaderContext;
-import com.dynamo.cr.sceneed.core.ISceneView.INodeLoader;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenter;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.SceneUtil;

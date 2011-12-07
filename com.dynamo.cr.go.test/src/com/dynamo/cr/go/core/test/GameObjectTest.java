@@ -21,8 +21,8 @@ import com.dynamo.cr.go.core.Messages;
 import com.dynamo.cr.go.core.RefComponentNode;
 import com.dynamo.cr.go.core.operations.AddComponentOperation;
 import com.dynamo.cr.go.core.operations.RemoveComponentOperation;
+import com.dynamo.cr.sceneed.core.INodeLoader;
 import com.dynamo.cr.sceneed.core.INodeType;
-import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.test.AbstractNodeTest;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
@@ -177,7 +177,7 @@ public class GameObjectTest extends AbstractNodeTest {
     public void testBuildMessage() throws Exception {
         INodeType testNodeType = mock(INodeType.class);
         // Not a nice cast, but ok since this is merely a test
-        when(testNodeType.getLoader()).thenReturn((ISceneView.INodeLoader<Node>)(Object)new DummyComponentLoader());
+        when(testNodeType.getLoader()).thenReturn((INodeLoader<Node>)(Object)new DummyComponentLoader());
         when(testNodeType.getExtension()).thenReturn("test");
 
         when(getNodeTypeRegistry().getNodeType(DummyComponentNode.class)).thenReturn(testNodeType);

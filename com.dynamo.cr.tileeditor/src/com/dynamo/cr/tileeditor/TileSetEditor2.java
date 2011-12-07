@@ -55,13 +55,13 @@ import com.dynamo.cr.editor.ui.AbstractDefoldEditor;
 import com.dynamo.cr.editor.ui.Logger;
 import com.dynamo.cr.properties.IFormPropertySheetPage;
 import com.dynamo.cr.sceneed.core.IImageProvider;
+import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.IModelListener;
 import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
 import com.dynamo.cr.sceneed.core.ISceneEditor;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.ISceneView;
-import com.dynamo.cr.sceneed.core.ISceneView.ILoaderContext;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.SceneModel;
@@ -88,7 +88,7 @@ public class TileSetEditor2 extends AbstractDefoldEditor implements ISceneEditor
     private LifecycleModule module;
     private ISceneView.IPresenter presenter;
     private ISceneView.IPresenterContext presenterContext;
-    private ISceneView.ILoaderContext loaderContext;
+    private ILoaderContext loaderContext;
     private INodeTypeRegistry nodeTypeRegistry;
     private IImageProvider imageProvider;
 
@@ -155,7 +155,7 @@ public class TileSetEditor2 extends AbstractDefoldEditor implements ISceneEditor
 
         this.presenter = injector.getInstance(ISceneView.IPresenter.class);
         this.presenterContext = injector.getInstance(ISceneView.IPresenterContext.class);
-        this.loaderContext = injector.getInstance(ISceneView.ILoaderContext.class);
+        this.loaderContext = injector.getInstance(ILoaderContext.class);
 
         TileSetNodePresenter nodePresenter = (TileSetNodePresenter) this.nodeTypeRegistry.getNodeType(TileSetNode.class).getPresenter();
         this.tileSetRenderer.setPresenter(nodePresenter, this.presenterContext);
@@ -321,7 +321,7 @@ public class TileSetEditor2 extends AbstractDefoldEditor implements ISceneEditor
     }
 
     @Override
-    public ISceneView.ILoaderContext getLoaderContext() {
+    public ILoaderContext getLoaderContext() {
         return this.loaderContext;
     }
 

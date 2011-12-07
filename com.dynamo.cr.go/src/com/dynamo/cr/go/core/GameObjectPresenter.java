@@ -4,8 +4,8 @@ import org.eclipse.jface.viewers.IStructuredSelection;
 
 import com.dynamo.cr.go.core.operations.AddComponentOperation;
 import com.dynamo.cr.go.core.operations.RemoveComponentOperation;
+import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.ISceneView;
-import com.dynamo.cr.sceneed.core.ISceneView.ILoaderContext;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.Node;
 

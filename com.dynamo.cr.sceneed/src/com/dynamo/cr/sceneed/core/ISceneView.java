@@ -11,7 +11,6 @@ import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.jface.viewers.IStructuredSelection;
 
 import com.dynamo.cr.editor.core.ILogger;
-import com.google.protobuf.Message;
 
 public interface ISceneView {
 
@@ -32,19 +31,6 @@ public interface ISceneView {
     }
 
     public interface INodePresenter<T extends Node> {}
-
-    public interface ILoaderContext extends ILogger {
-        Node loadNode(String path) throws IOException, CoreException;
-        Node loadNode(String extension, InputStream contents) throws IOException, CoreException;
-        Node loadNodeFromTemplate(Class<? extends Node> nodeClass) throws IOException, CoreException;
-        Node loadNodeFromTemplate(String extension) throws IOException, CoreException;
-        INodeTypeRegistry getNodeTypeRegistry();
-    }
-
-    public interface INodeLoader<T extends Node> {
-        T load(ILoaderContext context, InputStream contents) throws IOException, CoreException;
-        Message buildMessage(ILoaderContext context, T node, IProgressMonitor monitor) throws IOException, CoreException;
-    }
 
     void setRoot(Node root);
     void updateNode(Node node);

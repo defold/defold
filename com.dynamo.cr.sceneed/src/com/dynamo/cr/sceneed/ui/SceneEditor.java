@@ -57,6 +57,7 @@ import com.dynamo.cr.editor.ui.Logger;
 import com.dynamo.cr.properties.IFormPropertySheetPage;
 import com.dynamo.cr.sceneed.Activator;
 import com.dynamo.cr.sceneed.core.IImageProvider;
+import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.IManipulatorMode;
 import com.dynamo.cr.sceneed.core.IManipulatorRegistry;
 import com.dynamo.cr.sceneed.core.IModelListener;
@@ -66,7 +67,6 @@ import com.dynamo.cr.sceneed.core.IRenderView;
 import com.dynamo.cr.sceneed.core.ISceneEditor;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.ISceneView;
-import com.dynamo.cr.sceneed.core.ISceneView.ILoaderContext;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.ManipulatorController;
 import com.dynamo.cr.sceneed.core.Node;
@@ -89,7 +89,7 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
     private LifecycleModule module;
     private ISceneView.IPresenter presenter;
     private ISceneView.IPresenterContext presenterContext;
-    private ISceneView.ILoaderContext loaderContext;
+    private ILoaderContext loaderContext;
     private INodeTypeRegistry nodeTypeRegistry;
 
     private boolean dirty;
@@ -170,7 +170,7 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
 
         this.presenter = injector.getInstance(ISceneView.IPresenter.class);
         this.presenterContext = injector.getInstance(ISceneView.IPresenterContext.class);
-        this.loaderContext = injector.getInstance(ISceneView.ILoaderContext.class);
+        this.loaderContext = injector.getInstance(ILoaderContext.class);
 
         IPreferenceStore store = Activator.getDefault().getPreferenceStore();
         store.addPropertyChangeListener(this);
@@ -334,7 +334,7 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
     }
 
     @Override
-    public ISceneView.ILoaderContext getLoaderContext() {
+    public ILoaderContext getLoaderContext() {
         return this.loaderContext;
     }
 

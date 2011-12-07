@@ -6,7 +6,7 @@ public interface INodeType {
 
     String getExtension();
 
-    ISceneView.INodeLoader<Node> getLoader();
+    INodeLoader<Node> getLoader();
 
     ISceneView.INodePresenter<?> getPresenter();
 

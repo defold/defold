@@ -7,8 +7,8 @@ import java.io.InputStreamReader;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 
-import com.dynamo.cr.sceneed.core.ISceneView;
-import com.dynamo.cr.sceneed.core.ISceneView.ILoaderContext;
+import com.dynamo.cr.sceneed.core.ILoaderContext;
+import com.dynamo.cr.sceneed.core.INodeLoader;
 import com.dynamo.sprite.proto.Sprite.SpriteDesc;
 import com.google.protobuf.Message;
 import com.google.protobuf.TextFormat;
@@ -18,7 +18,7 @@ import com.google.protobuf.TextFormat;
  * @author rasv
  *
  */
-public class SpriteLoader implements ISceneView.INodeLoader<SpriteNode> {
+public class SpriteLoader implements INodeLoader<SpriteNode> {
 
     @Override
     public SpriteNode load(ILoaderContext context, InputStream contents) throws IOException, CoreException {

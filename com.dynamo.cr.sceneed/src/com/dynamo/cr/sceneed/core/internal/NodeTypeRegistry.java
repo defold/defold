@@ -13,6 +13,7 @@ import org.osgi.framework.Bundle;
 import com.dynamo.cr.editor.core.EditorCorePlugin;
 import com.dynamo.cr.editor.core.IResourceType;
 import com.dynamo.cr.sceneed.Activator;
+import com.dynamo.cr.sceneed.core.INodeLoader;
 import com.dynamo.cr.sceneed.core.INodeRenderer;
 import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
@@ -51,9 +52,9 @@ public class NodeTypeRegistry implements INodeTypeRegistry {
 
                 Class<?> nodeClass = bundle.loadClass(e.getAttribute("node"));
 
-                ISceneView.INodeLoader<Node> nodeLoader = null;
+                INodeLoader<Node> nodeLoader = null;
                 if (e.getAttribute("loader") != null) {
-                    nodeLoader = (ISceneView.INodeLoader<Node>)e.createExecutableExtension("loader");
+                    nodeLoader = (INodeLoader<Node>)e.createExecutableExtension("loader");
                 }
 
                 ISceneView.INodePresenter<Node> nodePresenter = null;

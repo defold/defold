@@ -11,14 +11,15 @@ import org.eclipse.core.runtime.Path;
 
 import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.editor.core.IResourceType;
+import com.dynamo.cr.sceneed.core.ILoaderContext;
+import com.dynamo.cr.sceneed.core.INodeLoader;
 import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
-import com.dynamo.cr.sceneed.core.ISceneView.INodeLoader;
 import com.dynamo.cr.sceneed.core.Node;
 import com.google.inject.Inject;
 
 public class LoaderContext implements
-com.dynamo.cr.sceneed.core.ISceneView.ILoaderContext {
+com.dynamo.cr.sceneed.core.ILoaderContext {
 
     private final IContainer contentRoot;
     private final INodeTypeRegistry nodeTypeRegistry;

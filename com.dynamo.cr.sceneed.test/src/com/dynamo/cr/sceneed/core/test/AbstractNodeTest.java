@@ -39,11 +39,11 @@ import org.osgi.framework.FrameworkUtil;
 import com.dynamo.cr.editor.core.EditorCorePlugin;
 import com.dynamo.cr.editor.core.IResourceType;
 import com.dynamo.cr.properties.IPropertyModel;
+import com.dynamo.cr.sceneed.core.ILoaderContext;
+import com.dynamo.cr.sceneed.core.INodeLoader;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.ISceneView;
-import com.dynamo.cr.sceneed.core.ISceneView.ILoaderContext;
-import com.dynamo.cr.sceneed.core.ISceneView.INodeLoader;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.Node;
 
@@ -72,7 +72,7 @@ public abstract class AbstractNodeTest {
 
         this.nodeTypeRegistry = mock(INodeTypeRegistry.class);
 
-        this.loaderContext = mock(ISceneView.ILoaderContext.class);
+        this.loaderContext = mock(ILoaderContext.class);
         when(this.loaderContext.getNodeTypeRegistry()).thenReturn(this.nodeTypeRegistry);
 
         this.presenterContext = mock(ISceneView.IPresenterContext.class);
@@ -144,7 +144,7 @@ public abstract class AbstractNodeTest {
         return this.nodeTypeRegistry;
     }
 
-    protected ISceneView.ILoaderContext getLoaderContext() {
+    protected ILoaderContext getLoaderContext() {
         return this.loaderContext;
     }
 

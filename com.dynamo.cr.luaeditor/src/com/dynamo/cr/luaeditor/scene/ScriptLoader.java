@@ -6,11 +6,11 @@ import java.io.InputStream;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 
-import com.dynamo.cr.sceneed.core.ISceneView;
-import com.dynamo.cr.sceneed.core.ISceneView.ILoaderContext;
+import com.dynamo.cr.sceneed.core.ILoaderContext;
+import com.dynamo.cr.sceneed.core.INodeLoader;
 import com.google.protobuf.Message;
 
-public class ScriptLoader implements ISceneView.INodeLoader<ScriptNode> {
+public class ScriptLoader implements INodeLoader<ScriptNode> {
     @Override
     public ScriptNode load(ILoaderContext context, InputStream contents)
             throws IOException, CoreException {

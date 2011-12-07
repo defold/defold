@@ -7,8 +7,8 @@ import java.io.InputStreamReader;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 
-import com.dynamo.cr.sceneed.core.ISceneView.ILoaderContext;
-import com.dynamo.cr.sceneed.core.ISceneView.INodeLoader;
+import com.dynamo.cr.sceneed.core.ILoaderContext;
+import com.dynamo.cr.sceneed.core.INodeLoader;
 import com.dynamo.physics.proto.Physics.ConvexShape;
 import com.google.protobuf.Message;
 import com.google.protobuf.TextFormat;
