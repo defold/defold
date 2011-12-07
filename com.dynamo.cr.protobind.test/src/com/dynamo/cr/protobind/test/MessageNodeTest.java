@@ -14,6 +14,7 @@ import org.junit.Test;
 import com.dynamo.cr.protobind.IPath;
 import com.dynamo.cr.protobind.MessageNode;
 import com.dynamo.cr.protobind.RepeatedNode;
+import com.dynamo.cr.protobind.proto.ProtoBind.Bug402Container;
 import com.dynamo.cr.protobind.proto.ProtoBind.ListMessage;
 import com.dynamo.cr.protobind.proto.ProtoBind.NestedMessage;
 import com.dynamo.cr.protobind.proto.ProtoBind.NestedNestedMessage;
@@ -25,6 +26,8 @@ import com.dynamo.cr.protobind.proto.ProtoBind.SceneDesc;
 import com.dynamo.cr.protobind.proto.ProtoBind.SceneDesc.Builder;
 import com.dynamo.cr.protobind.proto.ProtoBind.SimpleMessage;
 import com.dynamo.proto.DdfMath.Vector4;
+import com.google.protobuf.DynamicMessage;
+import com.google.protobuf.Message;
 
 public class MessageNodeTest {
 
@@ -364,6 +367,15 @@ public class MessageNodeTest {
         assertEquals(scene.getReferenceHeight(), scene2.getReferenceHeight());
         assertEquals(scene.getNodesCount(), scene2.getNodesCount());
         assertEquals(123, scene2.getNodes(0).getPosition().getX(), 0.001);
+    }
+
+    @Test
+    public void testBug402() throws Exception {
+        DynamicMessage.Builder b = DynamicMessage.newBuilder(Bug402Container.getDescriptor());
+        DynamicMessage m = b.build();
+        MessageNode node = new MessageNode(m);
+        @SuppressWarnings("unused")
+        Message mPrim = node.build();
     }
 
 }

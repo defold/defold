@@ -64,3 +64,13 @@ message SceneDesc
     optional uint32      reference_height        = 2 [default = 640];
     repeated NodeDesc    nodes                   = 3;
 }
+
+message Bug402Message
+{
+    repeated SimpleMessage messages = 1;
+}
+
+message Bug402Container
+{
+    optional Bug402Message m = 1;
+}

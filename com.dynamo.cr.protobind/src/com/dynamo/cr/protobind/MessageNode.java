@@ -1,5 +1,6 @@
 package com.dynamo.cr.protobind;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,7 +42,18 @@ public class MessageNode extends Node {
         for (FieldDescriptor fd : fieldsList) {
             Object value = message.getField(fd);
 
-            if (value instanceof Message) {
+            if (fd.isRepeated() && (value instanceof Message)) {
+                /* Special case for issue: 402
+                   When parsing messages with TextFormat and DynamicMessage.Builder
+                   the value for an optional message field that in turn contains
+                   a repeated list of messages message.getField(fd) above will return
+                   a value of Message type. In order to circumvent this problem we
+                   create a RepatedNode with an empty list.
+                   This should be expected behavior (empty list). Perhaps a bug in protobuf?
+                 */
+                value = new RepeatedNode(fd, new ArrayList<Object>(), new Path(fromPath, new FieldElement(fd)));
+            }
+            else if (value instanceof Message) {
                 value = new MessageNode((Message) value, new Path(fromPath, new FieldElement(fd)));
             }
             else if (value instanceof List) {
