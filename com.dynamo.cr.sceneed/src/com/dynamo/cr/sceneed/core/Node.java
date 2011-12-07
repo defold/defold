@@ -16,6 +16,7 @@ import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.IAdaptable;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.MultiStatus;
+import org.eclipse.core.runtime.Status;
 import org.eclipse.swt.graphics.Image;
 
 import com.dynamo.cr.properties.Entity;
@@ -38,6 +39,9 @@ public abstract class Node implements IAdaptable {
     @Property
     protected Quat4d rotation = new Quat4d(0, 0, 0, 1);
 
+    // Used to preserve order when adding/remvoing child nodes
+    private int childIndex = -1;
+
     private static Map<Class<? extends Node>, PropertyIntrospector<Node, ISceneModel>> introspectors =
             new HashMap<Class<? extends Node>, PropertyIntrospector<Node, ISceneModel>>();
 
@@ -48,6 +52,14 @@ public abstract class Node implements IAdaptable {
         for (int i = n-1; i >= 0; --i) {
             removeChild(children.get(i));
         }
+    }
+
+    public Node() {
+    }
+
+    public Node(Vector4d translation, Quat4d rotation) {
+        this.translation.set(translation);
+        this.rotation.set(rotation);
     }
 
     public void setTranslation(Vector4d translation) {
@@ -107,7 +119,12 @@ public abstract class Node implements IAdaptable {
 
     protected final void addChild(Node child) {
         if (child != null && !this.children.contains(child)) {
-            children.add(child);
+            if (child.childIndex >= 0 && child.childIndex < children.size()) {
+                children.add(child.childIndex, child);
+            } else {
+                children.add(child);
+                child.childIndex = children.size() - 1;
+            }
             child.setParent(this);
             notifyChange();
         }
@@ -115,6 +132,7 @@ public abstract class Node implements IAdaptable {
 
     protected final void removeChild(Node child) {
         if (child != null && this.children.contains(child)) {
+            child.childIndex = this.children.indexOf(child);
             children.remove(child);
             child.setParent(null);
             notifyChange();
@@ -131,6 +149,11 @@ public abstract class Node implements IAdaptable {
         if (!sortedChildren.equals(this.children)) {
             this.children = sortedChildren;
             notifyChange();
+        }
+
+        int i = 0;
+        for (Node child : children) {
+            child.childIndex = i++;
         }
     }
 
@@ -178,7 +201,24 @@ public abstract class Node implements IAdaptable {
         } else {
             status = ownStatus;
         }
+
+        IStatus nodeStatus = validateNode();
+        if (status.isOK()) {
+            status = nodeStatus;
+        } else {
+            if (!(status instanceof MultiStatus)) {
+                MultiStatus multiStatus = new MultiStatus(Activator.PLUGIN_ID, 0, null, null);
+                multiStatus.merge(status);
+                status = multiStatus;
+            }
+            ((MultiStatus)status).merge(nodeStatus);
+        }
+
         return status;
+    }
+
+    protected IStatus validateNode() {
+        return Status.OK_STATUS;
     }
 
     @Override

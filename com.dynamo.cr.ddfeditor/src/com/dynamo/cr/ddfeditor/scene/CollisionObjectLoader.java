@@ -3,14 +3,21 @@ package com.dynamo.cr.ddfeditor.scene;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.util.List;
+
+import javax.vecmath.Quat4d;
+import javax.vecmath.Vector4d;
 
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 
-import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.ISceneView.ILoaderContext;
 import com.dynamo.cr.sceneed.core.ISceneView.INodeLoader;
+import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.sceneed.core.util.LoaderUtil;
 import com.dynamo.physics.proto.Physics.CollisionObjectDesc;
+import com.dynamo.physics.proto.Physics.CollisionShape;
+import com.dynamo.physics.proto.Physics.CollisionShape.Shape;
 import com.google.protobuf.Message;
 import com.google.protobuf.TextFormat;
 
@@ -40,6 +47,39 @@ public class CollisionObjectLoader implements INodeLoader<CollisionObjectNode> {
         }
         collisionObject.setMask(mask.toString());
 
+        CollisionShape collisionShape = desc.getEmbeddedCollisionShape();
+        List<Float> dataList = collisionShape.getDataList();
+        float[] data = new float[dataList.size()];
+        int i = 0;
+        for (float f : dataList) {
+            data[i++] = f;
+        }
+
+        for (Shape shape : collisionShape.getShapesList()) {
+            Vector4d pos = LoaderUtil.toVector4(shape.getPosition());
+            Quat4d rot = LoaderUtil.toQuat4(shape.getRotation());
+
+            int index = shape.getIndex();
+
+            CollisionShapeNode shapeNode = null;
+            switch (shape.getShapeType()) {
+            case TYPE_SPHERE:
+                shapeNode = new SphereCollisionShapeNode(pos, rot, data, index);
+                break;
+            case TYPE_BOX:
+                shapeNode = new BoxCollisionShapeNode(pos, rot, data, index);
+                break;
+            case TYPE_CAPSULE:
+                shapeNode = new CapsuleCollisionShapeNode(pos, rot, data, index);
+                break;
+
+            default:
+                throw new RuntimeException("Not implemented: " + shape.getShapeType());
+            }
+
+            collisionObject.addShape(shapeNode);
+        }
+
         Node collisionShapeNode = context.loadNode(collisionObject.getCollisionShape());
         collisionObject.setCollisionShapeNode(collisionShapeNode);
 
@@ -62,6 +102,17 @@ public class CollisionObjectLoader implements INodeLoader<CollisionObjectNode> {
         for (String mask : masks) {
             builder.addMask(mask);
         }
+
+        CollisionShape.Builder collisionShapeBuilder = CollisionShape.newBuilder();
+        for (Node n : node.getChildren()) {
+            CollisionShapeNode shapeNode = (CollisionShapeNode) n;
+            shapeNode.build(collisionShapeBuilder);
+        }
+
+        if (collisionShapeBuilder.getShapesCount() > 0) {
+            builder.setEmbeddedCollisionShape(collisionShapeBuilder);
+        }
+
         return builder.build();
     }
 

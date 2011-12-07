@@ -55,6 +55,23 @@ public class SceneView implements ISceneView {
     }
 
     @Override
+    public String selectFromList(String title, String message, String... lst) {
+        ListDialog dialog = new ListDialog(this.editor.getSite().getShell());
+        dialog.setTitle(title);
+        dialog.setMessage(message);
+        dialog.setContentProvider(new ArrayContentProvider());
+        dialog.setInput(lst);
+        dialog.setLabelProvider(new LabelProvider());
+
+        int ret = dialog.open();
+        if (ret == Dialog.OK) {
+            Object[] result = dialog.getResult();
+            return (String) result[0];
+        }
+        return null;
+    }
+
+    @Override
     public String selectComponentType() {
         IResourceTypeRegistry registry = EditorCorePlugin.getDefault().getResourceTypeRegistry();
         IResourceType[] resourceTypes = registry.getResourceTypes();

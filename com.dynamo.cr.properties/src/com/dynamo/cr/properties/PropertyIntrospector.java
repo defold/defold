@@ -224,20 +224,17 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
         } catch (IllegalArgumentException e) {
             // Can't use any UI here in a core plugin such as StatusManager
             e.printStackTrace();
-            return null;
         } catch (IllegalAccessException e) {
             // Can't use any UI here in a core plugin such as StatusManager
             e.printStackTrace();
-            return null;
         } catch (InvocationTargetException e) {
             // Can't use any UI here in a core plugin such as StatusManager
             e.printStackTrace();
-            return null;
         } catch (InstantiationException e) {
             // Can't use any UI here in a core plugin such as StatusManager
             e.printStackTrace();
-            return null;
         }
+        return Status.OK_STATUS;
     }
 
     public ICommandFactory<T, U> getCommandFactory() {

@@ -59,6 +59,11 @@ public class TileSetSceneView implements ISceneView {
     }
 
     @Override
+    public String selectFromList(String title, String message, String... lst) {
+        throw new RuntimeException("Not supported");
+    }
+
+    @Override
     public String selectComponentType() {
         IResourceTypeRegistry registry = EditorCorePlugin.getDefault().getResourceTypeRegistry();
         IResourceType[] resourceTypes = registry.getResourceTypes();

@@ -594,6 +594,7 @@
             id="com.dynamo.cr.ddfeditor.scene.collisionObjectNode"
             loader="com.dynamo.cr.ddfeditor.scene.CollisionObjectLoader"
             node="com.dynamo.cr.ddfeditor.scene.CollisionObjectNode"
+            presenter="com.dynamo.cr.ddfeditor.scene.CollisionObjectPresenter"
             renderer="com.dynamo.cr.ddfeditor.scene.CollisionObjectRenderer"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.CollisionObject">
       </node-type>
@@ -645,6 +646,58 @@
             node="com.dynamo.cr.ddfeditor.scene.SpriteNode"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.sprite">
       </node-type>
+   </extension>
+   <extension
+         point="org.eclipse.ui.handlers">
+      <handler
+            class="com.dynamo.cr.ddfeditor.ui.handlers.AddShapeHandler"
+            commandId="com.dynamo.cr.sceneed.ui.commands.add">
+         <activeWhen>
+            <or>
+               <reference
+                     definitionId="com.dynamo.cr.ddfeditor.core.definitions.collisionObjectSelected">
+               </reference>
+            </or>
+         </activeWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.ddfeditor.ui.handlers.RemoveShapeHandler"
+            commandId="org.eclipse.ui.edit.delete">
+         <activeWhen>
+            <or>
+               <reference
+                     definitionId="com.dynamo.cr.ddfeditor.core.definitions.collisionShapeSelected">
+               </reference>
+            </or>
+         </activeWhen>
+      </handler>
+   </extension>
+   <extension
+         point="org.eclipse.core.expressions.definitions">
+      <definition
+            id="com.dynamo.cr.ddfeditor.core.definitions.collisionObjectSelected">
+         <with
+               variable="selection">
+            <iterate
+                  operator="or">
+               <instanceof
+                     value="com.dynamo.cr.ddfeditor.scene.CollisionObjectNode">
+               </instanceof>
+            </iterate>
+         </with>
+      </definition>
+      <definition
+            id="com.dynamo.cr.ddfeditor.core.definitions.collisionShapeSelected">
+         <with
+               variable="selection">
+            <iterate
+                  operator="or">
+               <instanceof
+                     value="com.dynamo.cr.ddfeditor.scene.CollisionShapeNode">
+               </instanceof>
+            </iterate>
+         </with>
+      </definition>
    </extension>
 
 </plugin>
