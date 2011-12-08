@@ -14,7 +14,7 @@ import org.junit.Test;
 import com.dynamo.cr.protobind.IPath;
 import com.dynamo.cr.protobind.MessageNode;
 import com.dynamo.cr.protobind.RepeatedNode;
-import com.dynamo.cr.protobind.proto.ProtoBind.Bug402Container;
+import com.dynamo.cr.protobind.proto.ProtoBind.DynamicRepeatedInOptionalMessageContainer;
 import com.dynamo.cr.protobind.proto.ProtoBind.ListMessage;
 import com.dynamo.cr.protobind.proto.ProtoBind.NestedMessage;
 import com.dynamo.cr.protobind.proto.ProtoBind.NestedNestedMessage;
@@ -370,8 +370,16 @@ public class MessageNodeTest {
     }
 
     @Test
-    public void testBug402() throws Exception {
-        DynamicMessage.Builder b = DynamicMessage.newBuilder(Bug402Container.getDescriptor());
+    public void testDynamicRepeatedInOptionalMessage() throws Exception {
+        /* When parsing messages with TextFormat and DynamicMessage.Builder
+           the value for an optional message field that in turn contains
+           a repeated list of messages message.getField(fd) above will return
+           a value of Message type. In order to circumvent this problem we
+           create a RepatedNode with an empty list.
+           This should be expected behavior (empty list). Perhaps a bug in protobuf?
+         */
+
+        DynamicMessage.Builder b = DynamicMessage.newBuilder(DynamicRepeatedInOptionalMessageContainer.getDescriptor());
         DynamicMessage m = b.build();
         MessageNode node = new MessageNode(m);
         @SuppressWarnings("unused")
