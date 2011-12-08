@@ -27,7 +27,7 @@ import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.test.AbstractNodeTest;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 
-public class GameObjectTest extends AbstractNodeTest {
+public class GameObjectNodeTest extends AbstractNodeTest {
 
     private GameObjectLoader loader;
     private GameObjectNode goNode;
