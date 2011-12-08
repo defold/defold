@@ -17,7 +17,7 @@ public class Messages extends NLS {
     // Property validation
 
     public static String ComponentNode_id_EMPTY;
-    public static String ComponentNode_id_DUPLICATED;
+    public static String ComponentNode_id_DUPLICATE;
 
     public static String RefComponentNode_component_INVALID_REFERENCE;
     public static String RefComponentNode_component_INVALID_TYPE;

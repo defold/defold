@@ -211,8 +211,7 @@ public class GameObjectNodeTest extends AbstractNodeTest {
         addComponent();
 
         setNodeProperty(component(1), "id", "test");
-        assertNodePropertyStatus(component(1), "id", IStatus.ERROR, NLS.bind(Messages.ComponentNode_id_DUPLICATED, "test"));
-        assertThat(component(1).validate().getSeverity(), is(IStatus.ERROR));
+        assertNodePropertyStatus(component(1), "id", IStatus.ERROR, NLS.bind(Messages.ComponentNode_id_DUPLICATE, "test"));
     }
 
     @Test
