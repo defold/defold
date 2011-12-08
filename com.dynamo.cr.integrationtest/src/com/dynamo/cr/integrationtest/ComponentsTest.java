@@ -2,6 +2,7 @@ package com.dynamo.cr.integrationtest;
 
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -13,6 +14,7 @@ import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IFolder;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.Path;
+import org.eclipse.jface.viewers.ILabelProvider;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.junit.Before;
 import org.junit.Test;
@@ -41,7 +43,6 @@ public class ComponentsTest extends AbstractSceneTest {
                 return getModel().getSelection();
             }
         });
-        when(getPresenterContext().getView()).thenReturn(getView());
     }
 
     // Tests
@@ -54,9 +55,6 @@ public class ComponentsTest extends AbstractSceneTest {
         assertTrue(root instanceof GameObjectNode);
         assertTrue(getModel().getSelection().toList().contains(root));
         verify(getView(), times(1)).setRoot(root);
-        verifySelection();
-        verifyNoClean();
-        verifyNoDirty();
     }
 
     /**
@@ -94,7 +92,7 @@ public class ComponentsTest extends AbstractSceneTest {
                 IResourceType resourceType = nodeType.getResourceType();
                 if (resourceType.isEmbeddable()) {
                     // Setup picking of the type from gui
-                    when(getView().selectComponentType()).thenReturn(resourceType.getFileExtension());
+                    when(getPresenterContext().selectFromArray(anyString(), anyString(), any(Object[].class), any(ILabelProvider.class))).thenReturn(resourceType);
 
                     // Perform operation
                     presenter.onAddComponent(getPresenterContext(), getLoaderContext());
@@ -110,7 +108,7 @@ public class ComponentsTest extends AbstractSceneTest {
                 file.create(new ByteArrayInputStream(data != null ? data : "".getBytes()), true, null);
 
                 // Setup picking of the file from gui
-                when(getView().selectComponentFromFile()).thenReturn(path);
+                when(getPresenterContext().selectFile(anyString())).thenReturn(path);
 
                 // Perform operation
                 presenter.onAddComponentFromFile(getPresenterContext(), getLoaderContext());

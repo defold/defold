@@ -50,6 +50,7 @@ public class TileSetNodePresenter implements INodePresenter<TileSetNode> {
             if (!this.newTileCollisionGroups.get(index).equals(this.currentCollisionGroup)) {
                 this.newTileCollisionGroups.set(index, this.currentCollisionGroup);
                 tileSet.setTileCollisionGroups(this.newTileCollisionGroups);
+                presenterContext.refreshView();
             }
         }
     }

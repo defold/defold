@@ -42,8 +42,6 @@ Comparable<CollisionGroupNode> {
             unregisterName();
             this.name = name;
             registerName();
-
-            notifyChange();
         }
     }
 

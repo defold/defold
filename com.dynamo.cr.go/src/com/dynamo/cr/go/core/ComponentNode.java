@@ -28,12 +28,9 @@ public class ComponentNode extends Node {
     }
 
     public void setId(String id) {
-        if (this.id != null ? !this.id.equals(id) : id != null) {
-            this.id = id;
-            notifyChange();
-            if (getParent() != null) {
-                ((GameObjectNode)getParent()).sortComponents();
-            }
+        this.id = id;
+        if (getParent() != null) {
+            ((GameObjectNode)getParent()).sortComponents();
         }
     }
 

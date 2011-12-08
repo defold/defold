@@ -4,6 +4,7 @@ import com.dynamo.cr.sceneed.core.Manipulator;
 
 public class AxisManipulator extends Manipulator {
 
+    @SuppressWarnings("unused")
     private Manipulator rootManipulator;
     private float[] color;
 

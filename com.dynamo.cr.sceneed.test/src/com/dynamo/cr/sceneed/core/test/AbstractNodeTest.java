@@ -1,8 +1,10 @@
 package com.dynamo.cr.sceneed.core.test;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -11,6 +13,8 @@ import static org.mockito.Mockito.when;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
 import java.net.URL;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -27,6 +31,7 @@ import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.StructuredSelection;
@@ -38,6 +43,7 @@ import org.osgi.framework.FrameworkUtil;
 
 import com.dynamo.cr.editor.core.EditorCorePlugin;
 import com.dynamo.cr.editor.core.IResourceType;
+import com.dynamo.cr.editor.core.IResourceTypeRegistry;
 import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.INodeLoader;
@@ -46,6 +52,9 @@ import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.Node;
+import com.google.protobuf.GeneratedMessage;
+import com.google.protobuf.Message;
+import com.google.protobuf.TextFormat;
 
 public abstract class AbstractNodeTest {
 
@@ -56,10 +65,10 @@ public abstract class AbstractNodeTest {
     private IOperationHistory history;
     private IUndoContext undoContext;
     private INodeTypeRegistry nodeTypeRegistry;
+    private IResourceTypeRegistry resourceTypeRegistry;
 
     private Map<String, IFile> fileStore;
 
-    private int updateCount;
     private int selectionCount;
     private int executionCount;
 
@@ -69,11 +78,21 @@ public abstract class AbstractNodeTest {
 
         this.model = mock(ISceneModel.class);
         when(this.model.getContentRoot()).thenReturn(this.contentRoot);
+        doAnswer(new Answer<Object>() {
+            @Override
+            public Object answer(InvocationOnMock invocation) throws Throwable {
+                Node root = (Node)invocation.getArguments()[0];
+                root.setModel(model);
+                return null;
+            }
+        }).when(this.model).setRoot(any(Node.class));
 
         this.nodeTypeRegistry = mock(INodeTypeRegistry.class);
 
         this.loaderContext = mock(ILoaderContext.class);
         when(this.loaderContext.getNodeTypeRegistry()).thenReturn(this.nodeTypeRegistry);
+
+        this.resourceTypeRegistry = EditorCorePlugin.getDefault();
 
         this.presenterContext = mock(ISceneView.IPresenterContext.class);
 
@@ -82,7 +101,6 @@ public abstract class AbstractNodeTest {
 
         setupFileStore();
 
-        this.updateCount = 0;
         this.selectionCount = 0;
         this.executionCount = 0;
     }
@@ -144,6 +162,10 @@ public abstract class AbstractNodeTest {
         return this.nodeTypeRegistry;
     }
 
+    protected void setResourceTypeRegistry(IResourceTypeRegistry resourceTypeRegistry) {
+        this.resourceTypeRegistry = resourceTypeRegistry;
+    }
+
     protected ILoaderContext getLoaderContext() {
         return this.loaderContext;
     }
@@ -165,15 +187,6 @@ public abstract class AbstractNodeTest {
 
     protected void redo() throws ExecutionException {
         this.history.redo(this.undoContext, null, null);
-    }
-
-    protected void verifyUpdate() {
-        verifyUpdate(1);
-    }
-
-    protected void verifyUpdate(int times) {
-        this.updateCount += times;
-        verify(this.model, times(this.updateCount)).notifyChange(any(Node.class));
     }
 
     protected void verifySelection() {
@@ -200,13 +213,30 @@ public abstract class AbstractNodeTest {
 
     protected void assertNodePropertyStatus(Node node, Object id, int severity, String message) {
         IStatus status = getNodePropertyStatus(node, id);
-        assertTrue(testStatus(status, severity, message));
+        assertStatus(status, severity, message);
     }
 
-    private boolean testStatus(IStatus status, int severity, String message) {
+    protected void assertNodeStatus(Node node, int severity, String message) {
+        assertStatus(node.validate(), severity, message);
+    }
+
+    protected void assertStatus(IStatus status, int severity, String message) {
+        boolean found = containsStatus(status, severity, message);
+        if (!found) {
+            String error;
+            if (message != null) {
+                error = String.format("Status with severity %d and message '%s' not found in %s", severity, message, status.toString());
+            } else {
+                error = String.format("Status with severity %d not found in %s", severity, status.toString());
+            }
+            assertTrue(error, false);
+        }
+    }
+
+    private boolean containsStatus(IStatus status, int severity, String message) {
         if (status.isMultiStatus()) {
             for (IStatus child : status.getChildren()) {
-                if (testStatus(child, severity, message)) {
+                if (containsStatus(child, severity, message)) {
                     return true;
                 }
             }
@@ -264,7 +294,7 @@ public abstract class AbstractNodeTest {
 
     protected <T extends Node> T registerAndLoadNodeType(Class<T> nodeClass, String extension, INodeLoader<T> loader) throws IOException, CoreException {
         when(getModel().getExtension(nodeClass)).thenReturn(extension);
-        IResourceType resourceType = EditorCorePlugin.getDefault().getResourceTypeFromExtension(extension);
+        IResourceType resourceType = this.resourceTypeRegistry.getResourceTypeFromExtension(extension);
         byte[] ddf = resourceType.getTemplateData();
         T node = loader.load(getLoaderContext(), new ByteArrayInputStream(ddf));
         node.setModel(getModel());
@@ -275,4 +305,17 @@ public abstract class AbstractNodeTest {
     protected void registerNodeType(Class<? extends Node> nodeClass, String extension) throws IOException, CoreException {
         when(getModel().getExtension(nodeClass)).thenReturn(extension);
     }
+
+    protected <T extends Node> void saveLoadCompare(INodeLoader<T> loader, @SuppressWarnings("rawtypes") GeneratedMessage.Builder builder, String path) throws IOException, CoreException {
+        IFile file = getFile(path);
+        Reader reader = new InputStreamReader(file.getContents());
+        TextFormat.merge(reader, builder);
+        reader.close();
+        Message directMessage = builder.build();
+
+        T node = loader.load(this.loaderContext, file.getContents());
+        Message createdMessage = loader.buildMessage(this.loaderContext, node, new NullProgressMonitor());
+        assertEquals(directMessage.toString(), createdMessage.toString());
+    }
+
 }

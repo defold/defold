@@ -29,26 +29,28 @@ public class CollisionObjectNode extends ComponentTypeNode {
     }
 
     @Override
-    public void handleReload(IFile file) {
+    public boolean handleReload(IFile file) {
         IFile componentFile = getModel().getFile(this.collisionShape);
         if (componentFile.exists() && componentFile.equals(file)) {
-            reloadCollisionShape();
+            if (reloadCollisionShape()) {
+                return true;
+            }
         }
+        return false;
     }
 
-    private void reloadCollisionShape() {
+    private boolean reloadCollisionShape() {
         ISceneModel model = getModel();
         if (model != null) {
             try {
-                Node node = model.loadNode(this.collisionShape);
-                if (this.collisionShapeNode != null) {
-                    this.collisionShapeNode = node;
-                }
-                notifyChange();
+                this.collisionShapeNode = model.loadNode(this.collisionShape);
+                return true;
             } catch (Throwable e) {
                 // no reason to handle exception since having a null collision shape is invalid state, will be caught in resource validation
+                this.collisionShapeNode = null;
             }
         }
+        return false;
     }
 
     public String getCollisionShape() {
@@ -56,10 +58,7 @@ public class CollisionObjectNode extends ComponentTypeNode {
     }
 
     public void setCollisionShape(String collisionShape) {
-        if (!this.collisionShape.equals(collisionShape)) {
-            this.collisionShape = collisionShape;
-            notifyChange();
-        }
+        this.collisionShape = collisionShape;
     }
 
     public CollisionObjectType getType() {
@@ -67,10 +66,7 @@ public class CollisionObjectNode extends ComponentTypeNode {
     }
 
     public void setType(CollisionObjectType type) {
-        if (this.type != type) {
-            this.type = type;
-            notifyChange();
-        }
+        this.type = type;
     }
 
     public float getMass() {
@@ -81,10 +77,7 @@ public class CollisionObjectNode extends ComponentTypeNode {
     }
 
     public void setMass(float mass) {
-        if (this.mass != mass) {
-            this.mass = mass;
-            notifyChange();
-        }
+        this.mass = mass;
     }
 
     public boolean isMassEditable() {
@@ -96,10 +89,7 @@ public class CollisionObjectNode extends ComponentTypeNode {
     }
 
     public void setFriction(float friction) {
-        if (this.friction != friction) {
-            this.friction = friction;
-            notifyChange();
-        }
+        this.friction = friction;
     }
 
     public float getRestitution() {
@@ -107,10 +97,7 @@ public class CollisionObjectNode extends ComponentTypeNode {
     }
 
     public void setRestitution(float restitution) {
-        if (this.restitution != restitution) {
-            this.restitution = restitution;
-            notifyChange();
-        }
+        this.restitution = restitution;
     }
 
     public String getGroup() {
@@ -118,10 +105,7 @@ public class CollisionObjectNode extends ComponentTypeNode {
     }
 
     public void setGroup(String group) {
-        if (!this.group.equals(group)) {
-            this.group = group;
-            notifyChange();
-        }
+        this.group = group;
     }
 
     public String getMask() {
@@ -129,10 +113,7 @@ public class CollisionObjectNode extends ComponentTypeNode {
     }
 
     public void setMask(String mask) {
-        if (!this.mask.equals(mask)) {
-            this.mask = mask;
-            notifyChange();
-        }
+        this.mask = mask;
     }
 
     public void setCollisionShapeNode(Node collisionShapeNode) {

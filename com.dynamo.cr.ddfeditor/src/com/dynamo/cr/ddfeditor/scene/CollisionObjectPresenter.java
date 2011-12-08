@@ -40,7 +40,7 @@ public class CollisionObjectPresenter implements ISceneView.INodePresenter<Colli
         if (parent == null) {
             throw new UnsupportedOperationException("No collision object in selection.");
         }
-        String shapeType = presenterContext.getView().selectFromList("Add Shape", "Select shape type:", "Sphere", "Box", "Capsule");
+        String shapeType = presenterContext.selectFromList("Add Shape", "Select shape type:", "Sphere", "Box", "Capsule");
         if (shapeType != null) {
             Vector4d position = new Vector4d();
             Quat4d rotation = new Quat4d(0,0,0,1);

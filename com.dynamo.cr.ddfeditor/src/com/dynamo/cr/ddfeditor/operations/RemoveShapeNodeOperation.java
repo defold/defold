@@ -1,7 +1,5 @@
 package com.dynamo.cr.ddfeditor.operations;
 
-import java.util.List;
-
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.AbstractOperation;
 import org.eclipse.core.runtime.IAdaptable;
@@ -14,6 +12,7 @@ import org.eclipse.jface.viewers.StructuredSelection;
 import com.dynamo.cr.ddfeditor.scene.CollisionObjectNode;
 import com.dynamo.cr.ddfeditor.scene.CollisionShapeNode;
 import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.sceneed.core.NodeUtil;
 
 public class RemoveShapeNodeOperation extends AbstractOperation {
 
@@ -27,19 +26,7 @@ public class RemoveShapeNodeOperation extends AbstractOperation {
         this.collisionObject = (CollisionObjectNode)shape.getParent();
         this.shape = shape;
         this.oldSelection = shape.getModel().getSelection();
-        List<Node> children = this.collisionObject.getChildren();
-        int index = children.indexOf(shape);
-        if (index + 1 < children.size()) {
-            ++index;
-        } else {
-            --index;
-        }
-        Node selected = null;
-        if (index >= 0) {
-            selected = children.get(index);
-        } else {
-            selected = this.collisionObject;
-        }
+        Node selected = NodeUtil.getSelectionReplacement(shape);
         this.newSelection = new StructuredSelection(selected);
     }
 

@@ -27,7 +27,7 @@ import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.test.AbstractNodeTest;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 
-public class GameObjectTest extends AbstractNodeTest {
+public class GameObjectNodeTest extends AbstractNodeTest {
 
     private GameObjectLoader loader;
     private GameObjectNode goNode;
@@ -55,7 +55,6 @@ public class GameObjectTest extends AbstractNodeTest {
         DummyComponentNode componentType = new DummyComponentNode();
         ComponentNode component = new ComponentNode(componentType);
         execute(new AddComponentOperation(this.goNode, component));
-        verifyUpdate();
         verifySelection();
     }
 
@@ -64,13 +63,11 @@ public class GameObjectTest extends AbstractNodeTest {
         RefComponentNode component = new RefComponentNode(componentType);
         component.setComponent("/test.test");
         execute(new AddComponentOperation(this.goNode, component));
-        verifyUpdate();
         verifySelection();
     }
 
     private void removeComponent(int i) throws Exception {
         execute(new RemoveComponentOperation(component(i)));
-        verifyUpdate();
         verifySelection();
     }
 
@@ -102,12 +99,10 @@ public class GameObjectTest extends AbstractNodeTest {
 
         undo();
         assertNoComponent();
-        verifyUpdate();
         verifySelection();
 
         redo();
         assertOneComponent();
-        verifyUpdate();
         verifySelection();
     }
 
@@ -119,12 +114,10 @@ public class GameObjectTest extends AbstractNodeTest {
 
         undo();
         assertNoComponent();
-        verifyUpdate();
         verifySelection();
 
         redo();
         assertOneComponent();
-        verifyUpdate();
         verifySelection();
     }
 
@@ -140,13 +133,11 @@ public class GameObjectTest extends AbstractNodeTest {
 
         undo();
         assertOneComponent();
-        verifyUpdate();
         verifySelection();
 
         redo();
         assertNoComponent();
         assertThat(component.getParent(), equalTo(null));
-        verifyUpdate();
         verifySelection();
     }
 
@@ -161,15 +152,12 @@ public class GameObjectTest extends AbstractNodeTest {
 
         setNodeProperty(component, "id", newId);
         assertThat(component.getId(), is(newId));
-        verifyUpdate();
 
         undo();
         assertThat(component.getId(), is(oldId));
-        verifyUpdate();
 
         redo();
         assertThat(component.getId(), is(newId));
-        verifyUpdate();
     }
 
     @SuppressWarnings("unchecked")
@@ -216,18 +204,15 @@ public class GameObjectTest extends AbstractNodeTest {
 
         setNodeProperty(component, "id", "");
         assertNodePropertyStatus(component, "id", IStatus.ERROR, Messages.ComponentNode_id_EMPTY);
-        verifyUpdate();
 
         setNodeProperty(component, "id", "test");
         assertNodePropertyStatus(component, "id", IStatus.OK, null);
-        verifyUpdate();
 
         addComponent();
 
         setNodeProperty(component(1), "id", "test");
         assertNodePropertyStatus(component(1), "id", IStatus.ERROR, NLS.bind(Messages.ComponentNode_id_DUPLICATED, "test"));
         assertThat(component(1).validate().getSeverity(), is(IStatus.ERROR));
-        verifyUpdate();
     }
 
     @Test
@@ -241,11 +226,9 @@ public class GameObjectTest extends AbstractNodeTest {
 
         setNodeProperty(component, "component", "/test.test2");
         assertNodePropertyStatus(component, "component", IStatus.ERROR, NLS.bind(Messages.RefComponentNode_component_INVALID_TYPE, "test2"));
-        verifyUpdate();
 
         setNodeProperty(component, "component", "/test");
         assertNodePropertyStatus(component, "component", IStatus.ERROR, NLS.bind(Messages.RefComponentNode_component_UNKNOWN_TYPE, "/test"));
-        verifyUpdate();
     }
 
 }

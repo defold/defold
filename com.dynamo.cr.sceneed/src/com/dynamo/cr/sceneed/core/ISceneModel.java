@@ -30,9 +30,8 @@ public interface ISceneModel extends IPropertyObjectWorld {
 
     Node loadNode(String path) throws IOException, CoreException;
 
-    void setUndoRedoCounter(int undoRedoCounter);
-
-    void notifyChange(Node node);
+    boolean isDirty();
+    void clearDirty();
 
     String getExtension(Class<? extends Node> nodeClass);
     String getTypeName(Class<? extends Node> nodeClass);

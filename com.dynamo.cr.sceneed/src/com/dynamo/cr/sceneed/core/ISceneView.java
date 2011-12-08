@@ -8,6 +8,7 @@ import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.core.resources.IResourceChangeEvent;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
+import org.eclipse.jface.viewers.ILabelProvider;
 import org.eclipse.jface.viewers.IStructuredSelection;
 
 import com.dynamo.cr.editor.core.ILogger;
@@ -25,23 +26,20 @@ public interface ISceneView {
     }
 
     public interface IPresenterContext extends ILogger {
-        ISceneView getView();
+        void refreshView();
         IStructuredSelection getSelection();
         void executeOperation(IUndoableOperation operation);
+        String selectFromList(String title, String message, String... lst);
+        Object selectFromArray(String title, String message, Object[] input, ILabelProvider labelProvider);
+        String selectFile(String title);
     }
 
     public interface INodePresenter<T extends Node> {}
 
     void setRoot(Node root);
-    void updateNode(Node node);
-
-    void updateSelection(IStructuredSelection selection);
-
-    void setDirty(boolean dirty);
+    void refresh(IStructuredSelection selection, boolean dirty);
 
     String selectFromList(String title, String message, String... lst);
-
-    // TODO: Game object specific methods, how to extract into proper package?
-    String selectComponentType();
-    String selectComponentFromFile();
+    Object selectFromArray(String title, String message, Object[] input, ILabelProvider labelProvider);
+    String selectFile(String title);
 }

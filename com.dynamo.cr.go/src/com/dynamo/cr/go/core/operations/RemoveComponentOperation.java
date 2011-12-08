@@ -1,7 +1,5 @@
 package com.dynamo.cr.go.core.operations;
 
-import java.util.List;
-
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.AbstractOperation;
 import org.eclipse.core.runtime.IAdaptable;
@@ -14,6 +12,7 @@ import org.eclipse.jface.viewers.StructuredSelection;
 import com.dynamo.cr.go.core.ComponentNode;
 import com.dynamo.cr.go.core.GameObjectNode;
 import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.sceneed.core.NodeUtil;
 
 public class RemoveComponentOperation extends AbstractOperation {
 
@@ -27,19 +26,7 @@ public class RemoveComponentOperation extends AbstractOperation {
         this.gameObject = (GameObjectNode)component.getParent();
         this.component = component;
         this.oldSelection = component.getModel().getSelection();
-        List<Node> children = this.gameObject.getChildren();
-        int index = children.indexOf(component);
-        if (index + 1 < children.size()) {
-            ++index;
-        } else {
-            --index;
-        }
-        Node selected = null;
-        if (index >= 0) {
-            selected = children.get(index);
-        } else {
-            selected = this.gameObject;
-        }
+        Node selected = NodeUtil.getSelectionReplacement(component);
         this.newSelection = new StructuredSelection(selected);
     }
 

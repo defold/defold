@@ -2,6 +2,7 @@ package com.dynamo.cr.tileeditor.test;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
 
@@ -33,7 +34,6 @@ public class Sprite2Test extends AbstractNodeTest {
         registerFile("/invalid.tileset", "image: \"non_existant\" tile_width: 1 tile_height: 1 tile_margin: 0 tile_spacing: 0 material_tag: \"tile\"");
 
         this.spriteNode = registerAndLoadNodeType(Sprite2Node.class, "sprite2", this.loader);
-        verifyUpdate();
     }
 
     // Helpers
@@ -54,18 +54,15 @@ public class Sprite2Test extends AbstractNodeTest {
         assertThat(this.spriteNode.getDefaultAnimation(), is(""));
     }
 
-    @Test
-    public void testCreate() throws Exception {
+    private void create() throws Exception {
         setProperty("tileSet", "/test.tileset");
-        verifyUpdate();
         setProperty("defaultAnimation", "default");
-        verifyUpdate();
     }
 
     @Test
     public void testBuildMessage() throws Exception {
 
-        testCreate();
+        create();
 
         Sprite2Desc ddf = (Sprite2Desc)this.loader.buildMessage(getLoaderContext(), this.spriteNode, null);
 
@@ -75,20 +72,16 @@ public class Sprite2Test extends AbstractNodeTest {
 
     @Test
     public void testReloadTileSet() throws Exception {
-        testCreate();
+        create();
 
-        this.spriteNode.handleReload(getFile("/test.tileset"));
-
-        verifyUpdate();
+        assertTrue(this.spriteNode.handleReload(getFile("/test.tileset")));
     }
 
     @Test
     public void testReloadTileSetImage() throws Exception {
-        testCreate();
+        create();
 
-        this.spriteNode.handleReload(getFile("/2x5_16_1.png"));
-
-        verifyUpdate();
+        assertTrue(this.spriteNode.handleReload(getFile("/2x5_16_1.png")));
     }
 
     @Test

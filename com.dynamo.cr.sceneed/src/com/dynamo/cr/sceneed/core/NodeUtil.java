@@ -25,4 +25,29 @@ public class NodeUtil {
         return id;
     }
 
+    /**
+     * Returns the node to be selected if the supplied node is removed.
+     * @param node Node to be removed
+     * @return Node to be selected, or null
+     */
+    public static Node getSelectionReplacement(Node node) {
+        Node parent = node.getParent();
+        if (parent != null) {
+            List<Node> children = parent.getChildren();
+            int index = children.indexOf(node);
+            if (index + 1 < children.size()) {
+                ++index;
+            } else {
+                --index;
+            }
+            Node selected = null;
+            if (index >= 0) {
+                selected = children.get(index);
+            } else {
+                selected = parent;
+            }
+            return selected;
+        }
+        return null;
+    }
 }

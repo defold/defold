@@ -21,10 +21,7 @@ public class CollectionProxyNode extends ComponentTypeNode {
     }
 
     public void setCollection(String collection) {
-        if (!this.collection.equals(collection)) {
-            this.collection = collection;
-            notifyChange();
-        }
+        this.collection = collection;
     }
 
 }
