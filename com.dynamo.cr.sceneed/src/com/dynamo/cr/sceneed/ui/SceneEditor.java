@@ -165,7 +165,7 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
         this.sceneRenderViewProvider = injector.getInstance(SceneRenderViewProvider.class);
 
         this.manipulatorController = injector.getInstance(ManipulatorController.class);
-        IManipulatorMode moveMode = manipulatorRegistry.getMode("com.dynamo.cr.sceneed.core.manipulators.move-mode");
+        IManipulatorMode moveMode = manipulatorRegistry.getMode(Activator.MOVE_MODE_ID);
         manipulatorController.setManipulatorMode(moveMode);
 
         this.presenter = injector.getInstance(ISceneView.IPresenter.class);

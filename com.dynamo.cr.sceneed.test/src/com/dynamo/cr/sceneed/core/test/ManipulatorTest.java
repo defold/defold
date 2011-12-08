@@ -86,7 +86,7 @@ public class ManipulatorTest {
 
     @Test
     public void testManipulatorSelection1() throws Exception {
-        IManipulatorMode sizeMode = manipulatorRegistry.getMode("com.dynamo.cr.sceneed.core.manipulators.size-mode");
+        IManipulatorMode sizeMode = manipulatorRegistry.getMode(Activator.SIZE_MODE_ID);
         assertNotNull(sizeMode);
         List<Node> selection = new ArrayList<Node>();
         selection.add(new DummySphere());
@@ -97,7 +97,7 @@ public class ManipulatorTest {
 
     @Test
     public void testManipulatorSelection2() throws Exception {
-        IManipulatorMode sizeMode = manipulatorRegistry.getMode("com.dynamo.cr.sceneed.core.manipulators.size-mode");
+        IManipulatorMode sizeMode = manipulatorRegistry.getMode(Activator.SIZE_MODE_ID);
         assertNotNull(sizeMode);
         List<Node> selection = new ArrayList<Node>();
         selection.add(new DummyBox());
@@ -107,7 +107,7 @@ public class ManipulatorTest {
 
     @Test
     public void testMoveManipulator() throws Exception {
-        IManipulatorMode moveMode = manipulatorRegistry.getMode("com.dynamo.cr.sceneed.core.manipulators.move-mode");
+        IManipulatorMode moveMode = manipulatorRegistry.getMode(Activator.MOVE_MODE_ID);
         manipulatorController.setManipulatorMode(moveMode);
 
         IWorkbenchPart dummyPart = mock(IWorkbenchPart.class);
