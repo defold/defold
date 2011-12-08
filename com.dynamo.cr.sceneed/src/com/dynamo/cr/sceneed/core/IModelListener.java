@@ -6,10 +6,6 @@ public interface IModelListener {
 
     void rootChanged(Node root);
 
-    void selectionChanged(IStructuredSelection selection);
-
-    void nodeChanged(Node node);
-
-    void dirtyChanged(boolean dirty);
+    void stateChanged(IStructuredSelection selection, boolean dirty);
 
 }

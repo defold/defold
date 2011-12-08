@@ -33,7 +33,7 @@ import com.dynamo.cr.properties.PropertyIntrospectorModel;
 import com.google.inject.Inject;
 
 @Entity(commandFactory = SceneUndoableCommandFactory.class)
-public class SceneModel implements IAdaptable, IOperationHistoryListener, IResourceDeltaVisitor, ISceneModel {
+public class SceneModel implements IAdaptable, IOperationHistoryListener, ISceneModel {
 
     private final IModelListener listener;
     private final IOperationHistory history;
@@ -63,17 +63,17 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IResou
         this.undoRedoCounter = 0;
     }
 
+    @Inject
+    public void init() {
+        this.history.addOperationHistoryListener(this);
+    }
+
     @PreDestroy
     public void dispose() {
         if (this.root != null) {
             this.root.dispose();
         }
         this.history.removeOperationHistoryListener(this);
-    }
-
-    @Inject
-    public void init() {
-        this.history.addOperationHistoryListener(this);
     }
 
     /* (non-Javadoc)
@@ -100,7 +100,7 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IResou
             } else {
                 setSelection(new StructuredSelection());
             }
-            setUndoRedoCounter(0);
+            clearDirty();
         }
     }
 
@@ -117,16 +117,11 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IResou
      */
     @Override
     public void setSelection(IStructuredSelection selection) {
-        if (!this.selection.equals(selection)) {
-            this.selection = selection;
-            this.listener.selectionChanged(this.selection);
-        }
+        this.selection = selection;
     }
 
-    @Override
-    public void notifyChange(Node node) {
-        // Always update the root for now
-        this.listener.nodeChanged(this.root);
+    private void notifyChange() {
+        this.listener.stateChanged(this.selection, isDirty());
     }
 
     /* (non-Javadoc)
@@ -164,15 +159,13 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IResou
     }
 
     @Override
-    public void setUndoRedoCounter(int undoRedoCounter) {
-        boolean prevDirty = this.undoRedoCounter != 0;
-        boolean dirty = undoRedoCounter != 0;
-        // NOTE: We must set undoRedoCounter before we call setDirty.
-        // The "framework" might as for isDirty()
-        this.undoRedoCounter = undoRedoCounter;
-        if (prevDirty != dirty) {
-            this.listener.dirtyChanged(dirty);
-        }
+    public boolean isDirty() {
+        return this.undoRedoCounter != 0;
+    }
+
+    @Override
+    public void clearDirty() {
+        this.undoRedoCounter = 0;
     }
 
     @Override
@@ -181,15 +174,60 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IResou
             // Only handle operations related to this editor
             return;
         }
+        boolean change = false;
         int type = event.getEventType();
         switch (type) {
         case OperationHistoryEvent.DONE:
         case OperationHistoryEvent.REDONE:
-            setUndoRedoCounter(undoRedoCounter + 1);
+            change = true;
+            ++this.undoRedoCounter;
             break;
         case OperationHistoryEvent.UNDONE:
-            setUndoRedoCounter(undoRedoCounter - 1);
+            change = true;
+            --this.undoRedoCounter;
             break;
+        }
+        if (change && this.root != null) {
+            notifyChange();
+        }
+    }
+
+    private static class ResourceDeltaVisitor implements IResourceDeltaVisitor {
+        private final Node root;
+        private boolean reloaded;
+
+        public ResourceDeltaVisitor(Node root) {
+            this.root = root;
+            this.reloaded = false;
+        }
+
+        public boolean isReloaded() {
+            return this.reloaded;
+        }
+
+        @Override
+        public boolean visit(IResourceDelta delta) throws CoreException {
+            IResource resource = delta.getResource();
+            if (resource instanceof IFile) {
+                if (handleReload(this.root, (IFile)resource)) {
+                    this.reloaded = true;
+                }
+                return false;
+            }
+            return true;
+        }
+
+        private boolean handleReload(Node node, IFile file) {
+            boolean reloaded = false;
+            for (Node child : node.getChildren()) {
+                if (handleReload(child, file)) {
+                    reloaded = true;
+                }
+            }
+            if (node.handleReload(file)) {
+                reloaded = true;
+            }
+            return reloaded;
         }
     }
 
@@ -199,25 +237,12 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IResou
     @Override
     public void handleResourceChanged(IResourceChangeEvent event) throws CoreException {
         if (this.root != null) {
-            event.getDelta().accept(this);
+            ResourceDeltaVisitor visitor = new ResourceDeltaVisitor(this.root);
+            event.getDelta().accept(visitor);
+            if (visitor.isReloaded()) {
+                notifyChange();
+            }
         }
-    }
-
-    @Override
-    public boolean visit(IResourceDelta delta) throws CoreException {
-        IResource resource = delta.getResource();
-        if (resource instanceof IFile) {
-            handleReload(this.root, (IFile)resource);
-            return false;
-        }
-        return true;
-    }
-
-    private void handleReload(Node node, IFile file) {
-        for (Node child : node.getChildren()) {
-            handleReload(child, file);
-        }
-        node.handleReload(file);
     }
 
     /* (non-Javadoc)

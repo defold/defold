@@ -3,6 +3,7 @@ package com.dynamo.cr.sceneed.core.test;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -38,6 +39,7 @@ import org.osgi.framework.FrameworkUtil;
 
 import com.dynamo.cr.editor.core.EditorCorePlugin;
 import com.dynamo.cr.editor.core.IResourceType;
+import com.dynamo.cr.editor.core.IResourceTypeRegistry;
 import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.INodeLoader;
@@ -56,10 +58,10 @@ public abstract class AbstractNodeTest {
     private IOperationHistory history;
     private IUndoContext undoContext;
     private INodeTypeRegistry nodeTypeRegistry;
+    private IResourceTypeRegistry resourceTypeRegistry;
 
     private Map<String, IFile> fileStore;
 
-    private int updateCount;
     private int selectionCount;
     private int executionCount;
 
@@ -69,11 +71,21 @@ public abstract class AbstractNodeTest {
 
         this.model = mock(ISceneModel.class);
         when(this.model.getContentRoot()).thenReturn(this.contentRoot);
+        doAnswer(new Answer<Object>() {
+            @Override
+            public Object answer(InvocationOnMock invocation) throws Throwable {
+                Node root = (Node)invocation.getArguments()[0];
+                root.setModel(model);
+                return null;
+            }
+        }).when(this.model).setRoot(any(Node.class));
 
         this.nodeTypeRegistry = mock(INodeTypeRegistry.class);
 
         this.loaderContext = mock(ILoaderContext.class);
         when(this.loaderContext.getNodeTypeRegistry()).thenReturn(this.nodeTypeRegistry);
+
+        this.resourceTypeRegistry = EditorCorePlugin.getDefault();
 
         this.presenterContext = mock(ISceneView.IPresenterContext.class);
 
@@ -82,7 +94,6 @@ public abstract class AbstractNodeTest {
 
         setupFileStore();
 
-        this.updateCount = 0;
         this.selectionCount = 0;
         this.executionCount = 0;
     }
@@ -144,6 +155,10 @@ public abstract class AbstractNodeTest {
         return this.nodeTypeRegistry;
     }
 
+    protected void setResourceTypeRegistry(IResourceTypeRegistry resourceTypeRegistry) {
+        this.resourceTypeRegistry = resourceTypeRegistry;
+    }
+
     protected ILoaderContext getLoaderContext() {
         return this.loaderContext;
     }
@@ -165,15 +180,6 @@ public abstract class AbstractNodeTest {
 
     protected void redo() throws ExecutionException {
         this.history.redo(this.undoContext, null, null);
-    }
-
-    protected void verifyUpdate() {
-        verifyUpdate(1);
-    }
-
-    protected void verifyUpdate(int times) {
-        this.updateCount += times;
-        verify(this.model, times(this.updateCount)).notifyChange(any(Node.class));
     }
 
     protected void verifySelection() {
@@ -264,7 +270,7 @@ public abstract class AbstractNodeTest {
 
     protected <T extends Node> T registerAndLoadNodeType(Class<T> nodeClass, String extension, INodeLoader<T> loader) throws IOException, CoreException {
         when(getModel().getExtension(nodeClass)).thenReturn(extension);
-        IResourceType resourceType = EditorCorePlugin.getDefault().getResourceTypeFromExtension(extension);
+        IResourceType resourceType = this.resourceTypeRegistry.getResourceTypeFromExtension(extension);
         byte[] ddf = resourceType.getTemplateData();
         T node = loader.load(getLoaderContext(), new ByteArrayInputStream(ddf));
         node.setModel(getModel());

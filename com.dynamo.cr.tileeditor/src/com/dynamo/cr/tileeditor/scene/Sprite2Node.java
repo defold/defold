@@ -36,7 +36,6 @@ public class Sprite2Node extends ComponentTypeNode {
         if (!this.tileSet.equals(tileSet)) {
             this.tileSet = tileSet;
             reloadTileSet();
-            notifyChange();
         }
     }
 
@@ -57,10 +56,7 @@ public class Sprite2Node extends ComponentTypeNode {
     }
 
     public void setDefaultAnimation(String defaultAnimation) {
-        if (!this.defaultAnimation.equals(defaultAnimation)) {
-            this.defaultAnimation = defaultAnimation;
-            notifyChange();
-        }
+        this.defaultAnimation = defaultAnimation;
     }
 
     public IStatus validateDefaultAnimation() {
@@ -74,25 +70,25 @@ public class Sprite2Node extends ComponentTypeNode {
     public void setModel(ISceneModel model) {
         super.setModel(model);
         if (model != null && this.tileSetModel == null) {
-            if (reloadTileSet()) {
-                notifyChange();
-            }
+            reloadTileSet();
         }
     }
 
     @Override
-    public void handleReload(IFile file) {
+    public boolean handleReload(IFile file) {
+        boolean reloaded = false;
         IFile tileSetFile = getModel().getFile(this.tileSet);
         if (tileSetFile.exists() && tileSetFile.equals(file)) {
             if (reloadTileSet()) {
-                notifyChange();
+                reloaded = true;
             }
         }
         if (this.tileSetModel != null) {
             if (this.tileSetModel.handleReload(file)) {
-                notifyChange();
+                reloaded = true;
             }
         }
+        return reloaded;
     }
 
     private boolean reloadTileSet() {

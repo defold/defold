@@ -3,6 +3,7 @@ package com.dynamo.cr.integrationtest;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.junit.Assert.assertThat;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayInputStream;
@@ -56,7 +57,7 @@ public class GameObjectReloadTest extends AbstractSceneTest {
         String tileSet = "/tileset/test.tileset";
         String defaultAnimation = "test";
 
-        when(getView().selectComponentFromFile()).thenReturn(path);
+        when(getPresenterContext().selectFile(anyString())).thenReturn(path);
         Sprite2Node componentType = new Sprite2Node();
         componentType.setTileSet(tileSet);
         componentType.setDefaultAnimation(defaultAnimation);
@@ -71,14 +72,12 @@ public class GameObjectReloadTest extends AbstractSceneTest {
         assertThat(go.getChildren().size(), is(1));
         assertNodePropertyStatus(component, "component", IStatus.ERROR, null);
         ComponentTypeNode type = component.getType();
-        verifyUpdate(go, 2); // 2nd from update of tile set model in sprite
 
         saveSprite2Component(path, tileSet, defaultAnimation);
 
         assertNodePropertyStatus(component, "component", IStatus.OK, null);
         assertThat((RefComponentNode)go.getChildren().get(0), is(component));
         assertThat(type, is(not(component.getType())));
-        verifyUpdate(go, 2); // 2nd from update of tile set model in sprite
     }
 
 }

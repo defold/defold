@@ -100,7 +100,6 @@ public class TileSetNode extends Node {
                 updateImage();
             }
             updateConvexHulls();
-            notifyChange();
         }
     }
 
@@ -116,7 +115,6 @@ public class TileSetNode extends Node {
         if (this.tileWidth != tileWidth) {
             this.tileWidth = tileWidth;
             updateConvexHulls();
-            notifyChange();
         }
     }
 
@@ -132,7 +130,6 @@ public class TileSetNode extends Node {
         if (this.tileHeight != tileHeight) {
             this.tileHeight = tileHeight;
             updateConvexHulls();
-            notifyChange();
         }
     }
 
@@ -151,7 +148,6 @@ public class TileSetNode extends Node {
         if (this.tileMargin != tileMargin) {
             this.tileMargin = tileMargin;
             updateConvexHulls();
-            notifyChange();
         }
     }
 
@@ -163,7 +159,6 @@ public class TileSetNode extends Node {
         if (this.tileSpacing != tileSpacing) {
             this.tileSpacing = tileSpacing;
             updateConvexHulls();
-            notifyChange();
         }
     }
 
@@ -190,7 +185,6 @@ public class TileSetNode extends Node {
                 updateCollision();
             }
             updateConvexHulls();
-            notifyChange();
         }
     }
 
@@ -199,10 +193,7 @@ public class TileSetNode extends Node {
     }
 
     public void setMaterialTag(String materialTag) {
-        if (!this.materialTag.equals(materialTag)) {
-            this.materialTag = materialTag;
-            notifyChange();
-        }
+        this.materialTag = materialTag;
     }
 
     public void addCollisionGroup(CollisionGroupNode groupNode) {
@@ -247,7 +238,6 @@ public class TileSetNode extends Node {
     }
 
     public void setTileCollisionGroups(List<String> tileCollisionGroups) {
-        int oldSize = this.tileCollisionGroups.size();
         int newSize = tileCollisionGroups.size();
         List<CollisionGroupNode> tileGroupNodes = new ArrayList<CollisionGroupNode>(newSize);
         List<CollisionGroupNode> sortedCollisionGroups = getCollisionGroups();
@@ -260,10 +250,7 @@ public class TileSetNode extends Node {
                 tileGroupNodes.add(null);
             }
         }
-        if (oldSize != newSize || !this.tileCollisionGroups.equals(tileGroupNodes)) {
-            this.tileCollisionGroups = tileGroupNodes;
-            notifyChange();
-        }
+        this.tileCollisionGroups = tileGroupNodes;
     }
 
     public float[] getConvexHullPoints() {
@@ -295,7 +282,6 @@ public class TileSetNode extends Node {
             updateImage();
             updateCollision();
             updateConvexHulls();
-            notifyChange();
         }
     }
 
@@ -408,25 +394,26 @@ public class TileSetNode extends Node {
     }
 
     @Override
-    public void handleReload(IFile file) {
-        boolean result = false;
+    public boolean handleReload(IFile file) {
+        boolean reloaded = false;
         if (image != null && image.length() > 0) {
             IFile imgFile = getModel().getFile(image);
             if (file.equals(imgFile)) {
                 updateImage();
-                result = true;
+                reloaded = true;
             }
         }
         if (collision != null && collision.length() > 0) {
             IFile collisionFile = getModel().getFile(collision);
             if (file.equals(collisionFile)) {
                 updateCollision();
-                result = true;
+                reloaded = true;
             }
         }
-        if (result) {
+        if (reloaded) {
             updateConvexHulls();
         }
+        return reloaded;
     }
 
 }

@@ -1,9 +1,18 @@
 package com.dynamo.cr.go.core;
 
-import org.eclipse.jface.viewers.IStructuredSelection;
+import java.util.ArrayList;
+import java.util.List;
 
+import org.eclipse.jface.viewers.IStructuredSelection;
+import org.eclipse.jface.viewers.LabelProvider;
+import org.eclipse.swt.graphics.Image;
+
+import com.dynamo.cr.editor.core.EditorCorePlugin;
+import com.dynamo.cr.editor.core.IResourceType;
+import com.dynamo.cr.editor.core.IResourceTypeRegistry;
 import com.dynamo.cr.go.core.operations.AddComponentOperation;
 import com.dynamo.cr.go.core.operations.RemoveComponentOperation;
+import com.dynamo.cr.sceneed.Activator;
 import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
@@ -33,7 +42,7 @@ public class GameObjectPresenter implements ISceneView.INodePresenter<GameObject
         if (parent == null) {
             throw new UnsupportedOperationException("No game object in selection.");
         }
-        String componentType = presenterContext.getView().selectComponentType();
+        String componentType = selectComponentType(presenterContext);
         if (componentType != null) {
             ComponentTypeNode child = null;
             try {
@@ -56,7 +65,7 @@ public class GameObjectPresenter implements ISceneView.INodePresenter<GameObject
         if (parent == null) {
             throw new UnsupportedOperationException("No game object in selection.");
         }
-        String path = presenterContext.getView().selectComponentFromFile();
+        String path = selectComponentFromFile(presenterContext);
         if (path != null) {
             ComponentTypeNode child = null;
             try {
@@ -87,6 +96,39 @@ public class GameObjectPresenter implements ISceneView.INodePresenter<GameObject
             }
         }
         context.executeOperation(new RemoveComponentOperation(component));
+    }
+
+    private String selectComponentType(IPresenterContext context) {
+        IResourceTypeRegistry registry = EditorCorePlugin.getDefault().getResourceTypeRegistry();
+        IResourceType[] resourceTypes = registry.getResourceTypes();
+        List<IResourceType> embeddableTypes = new ArrayList<IResourceType>();
+        for (IResourceType t : resourceTypes) {
+            if (t.isEmbeddable()) {
+                embeddableTypes.add(t);
+            }
+        }
+
+        LabelProvider labelProvider = new LabelProvider() {
+            @Override
+            public Image getImage(Object element) {
+                return Activator.getDefault().getImage(((IResourceType)element).getFileExtension());
+            }
+
+            @Override
+            public String getText(Object element) {
+                return ((IResourceType)element).getName();
+            }
+        };
+
+        IResourceType resourceType = (IResourceType) context.selectFromArray(Messages.GameObjectPresenter_ADD_COMPONENT, Messages.GameObjectPresenter_SELECT_COMPONENT_TYPE, embeddableTypes.toArray(), labelProvider);
+        if (resourceType != null) {
+            return resourceType.getFileExtension();
+        }
+        return null;
+    }
+
+    private String selectComponentFromFile(IPresenterContext context) {
+        return context.selectFile(Messages.GameObjectPresenter_ADD_COMPONENT_FROM_FILE);
     }
 
 }

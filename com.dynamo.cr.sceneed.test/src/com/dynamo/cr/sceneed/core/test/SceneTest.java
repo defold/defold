@@ -1,6 +1,7 @@
 package com.dynamo.cr.sceneed.core.test;
 
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -85,13 +86,13 @@ public class SceneTest {
     }
 
     // Helpers
-    protected void verifySelection() {
+    protected void verifyRefresh() {
         ++this.selectCount;
-        verify(this.view, times(this.selectCount)).updateSelection(any(IStructuredSelection.class));
+        verify(this.view, times(this.selectCount)).refresh(any(IStructuredSelection.class), anyBoolean());
     }
 
-    protected void verifyNoSelection() {
-        verify(this.view, times(this.selectCount)).updateSelection(any(IStructuredSelection.class));
+    protected void verifyNoRefresh() {
+        verify(this.view, times(this.selectCount)).refresh(any(IStructuredSelection.class), anyBoolean());
     }
 
     // Tests
@@ -107,11 +108,11 @@ public class SceneTest {
         root.addChild(child);
 
         select(root);
-        verifySelection();
+        verifyRefresh();
         select(root);
-        verifyNoSelection();
+        verifyNoRefresh();
         select(child);
-        verifySelection();
+        verifyRefresh();
     }
 
 }

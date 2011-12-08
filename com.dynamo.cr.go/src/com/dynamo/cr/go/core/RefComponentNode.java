@@ -33,11 +33,8 @@ public class RefComponentNode extends ComponentNode {
     }
 
     public void setComponent(String component) {
-        if (this.component != null ? !this.component.equals(component) : component != null) {
-            this.component = component;
-            reloadType();
-            notifyChange();
-        }
+        this.component = component;
+        reloadType();
     }
 
     public ComponentTypeNode getType() {
@@ -80,13 +77,14 @@ public class RefComponentNode extends ComponentNode {
     }
 
     @Override
-    public void handleReload(IFile file) {
+    public boolean handleReload(IFile file) {
         IFile componentFile = getModel().getFile(this.component);
         if (componentFile.exists() && componentFile.equals(file)) {
             if (reloadType()) {
-                notifyChange();
+                return true;
             }
         }
+        return false;
     }
 
     private boolean reloadType() {

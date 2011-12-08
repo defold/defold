@@ -39,10 +39,7 @@ public class SpriteNode extends ComponentTypeNode {
     }
 
     public void setTexture(String texture) {
-        if (!this.texture.equals(texture)) {
-            this.texture = texture;
-            notifyChange();
-        }
+        this.texture = texture;
     }
 
     public float getWidth() {
@@ -50,10 +47,7 @@ public class SpriteNode extends ComponentTypeNode {
     }
 
     public void setWidth(float width) {
-        if (this.width != width) {
-            this.width = width;
-            notifyChange();
-        }
+        this.width = width;
     }
 
     public float getHeight() {
@@ -61,10 +55,7 @@ public class SpriteNode extends ComponentTypeNode {
     }
 
     public void setHeight(float height) {
-        if (this.height != height) {
-            this.height = height;
-            notifyChange();
-        }
+        this.height = height;
     }
 
     public int getTileWidth() {
@@ -72,10 +63,7 @@ public class SpriteNode extends ComponentTypeNode {
     }
 
     public void setTileWidth(int tileWidth) {
-        if (this.tileWidth != tileWidth) {
-            this.tileWidth = tileWidth;
-            notifyChange();
-        }
+        this.tileWidth = tileWidth;
     }
 
     public int getTileHeight() {
@@ -83,10 +71,7 @@ public class SpriteNode extends ComponentTypeNode {
     }
 
     public void setTileHeight(int tileHeight) {
-        if (this.tileHeight != tileHeight) {
-            this.tileHeight = tileHeight;
-            notifyChange();
-        }
+        this.tileHeight = tileHeight;
     }
 
     public int getTilesPerRow() {
@@ -94,10 +79,7 @@ public class SpriteNode extends ComponentTypeNode {
     }
 
     public void setTilesPerRow(int tilesPerRow) {
-        if (this.tilesPerRow != tilesPerRow) {
-            this.tilesPerRow = tilesPerRow;
-            notifyChange();
-        }
+        this.tilesPerRow = tilesPerRow;
     }
 
     public int getTileCount() {
@@ -105,10 +87,7 @@ public class SpriteNode extends ComponentTypeNode {
     }
 
     public void setTileCount(int tileCount) {
-        if (this.tileCount != tileCount) {
-            this.tileCount = tileCount;
-            notifyChange();
-        }
+        this.tileCount = tileCount;
     }
 
 }

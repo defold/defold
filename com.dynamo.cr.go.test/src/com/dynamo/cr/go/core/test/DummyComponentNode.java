@@ -19,10 +19,7 @@ public class DummyComponentNode extends ComponentTypeNode {
     }
 
     public void setPosition(Point3f position) {
-        if (!this.position.equals(position)) {
-            this.position = position;
-            notifyChange();
-        }
+        this.position = position;
     }
 
     public IStatus validatePosition() {

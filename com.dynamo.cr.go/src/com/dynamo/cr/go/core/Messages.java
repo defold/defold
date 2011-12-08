@@ -10,6 +10,10 @@ import org.eclipse.osgi.util.NLS;
 public class Messages extends NLS {
     private static final String BUNDLE_NAME = "com.dynamo.cr.go.core.messages"; //$NON-NLS-1$
 
+    public static String GameObjectPresenter_ADD_COMPONENT;
+    public static String GameObjectPresenter_ADD_COMPONENT_FROM_FILE;
+    public static String GameObjectPresenter_SELECT_COMPONENT_TYPE;
+
     // Property validation
 
     public static String ComponentNode_id_EMPTY;

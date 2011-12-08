@@ -10,13 +10,7 @@ import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.jface.viewers.IStructuredSelection;
 
 import com.dynamo.cr.editor.core.ILogger;
-import com.dynamo.cr.sceneed.core.IModelListener;
-import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
-import com.dynamo.cr.sceneed.core.ISceneModel;
-import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenter;
-import com.dynamo.cr.sceneed.core.Node;
-import com.dynamo.cr.sceneed.core.SceneUtil;
 import com.google.inject.Inject;
 import com.google.protobuf.Message;
 
@@ -37,13 +31,17 @@ public class ScenePresenter implements IPresenter, IModelListener {
 
     @Override
     public void onSelect(IStructuredSelection selection) {
-        this.model.setSelection(selection);
+        IStructuredSelection oldSelection = this.model.getSelection();
+        if (!oldSelection.toList().equals(selection.toList())) {
+            this.model.setSelection(selection);
+            this.view.refresh(selection, this.model.isDirty());
+        }
     }
 
     @Override
     public void onRefresh() {
         this.view.setRoot(this.model.getRoot());
-        this.view.updateSelection(this.model.getSelection());
+        this.view.refresh(this.model.getSelection(), this.model.isDirty());
     }
 
     @Override
@@ -61,7 +59,7 @@ public class ScenePresenter implements IPresenter, IModelListener {
         INodeLoader<? super Node> loader = nodeType.getLoader();
         Message message = loader.buildMessage(this.loaderContext, node, monitor);
         SceneUtil.saveMessage(message, contents, monitor);
-        this.model.setUndoRedoCounter(0);
+        this.model.clearDirty();
     }
 
     @Override
@@ -75,18 +73,8 @@ public class ScenePresenter implements IPresenter, IModelListener {
     }
 
     @Override
-    public void selectionChanged(IStructuredSelection selection) {
-        this.view.updateSelection(selection);
-    }
-
-    @Override
-    public void nodeChanged(Node node) {
-        this.view.updateNode(node);
-    }
-
-    @Override
-    public void dirtyChanged(boolean dirty) {
-        this.view.setDirty(dirty);
+    public void stateChanged(IStructuredSelection selection, boolean dirty) {
+        this.view.refresh(selection, dirty);
     }
 
 }

@@ -6,6 +6,8 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertThat;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.awt.Color;
@@ -51,7 +53,6 @@ public class TileSetNodeTest extends AbstractNodeTest {
         this.presenter = new TileSetNodePresenter();
 
         this.node = registerAndLoadNodeType(TileSetNode.class, "tileset", this.loader);
-        verifyUpdate();
     }
 
     @After
@@ -108,7 +109,6 @@ public class TileSetNodeTest extends AbstractNodeTest {
 
     private void setProperty(String id, Object value) throws Exception {
         setNodeProperty(this.node, id, value);
-        verifyUpdate();
     }
 
     private void setProperties(String[] ids, Object[] values) throws Exception {
@@ -131,12 +131,6 @@ public class TileSetNodeTest extends AbstractNodeTest {
         CollisionGroupNode collisionGroup = new CollisionGroupNode();
         execute(new AddCollisionGroupNodeOperation(this.node, collisionGroup));
         when(getPresenterContext().getSelection()).thenReturn(new StructuredSelection(collisionGroup));
-        // Check second update due to sorting
-        if (this.node.getChildren().size() > 10) {
-            verifyUpdate(2);
-        } else {
-            verifyUpdate();
-        }
         verifySelection();
         return collisionGroup;
     }
@@ -144,7 +138,6 @@ public class TileSetNodeTest extends AbstractNodeTest {
     private void removeCollisionGroup(CollisionGroupNode collisionGroup, int updateCount) throws ExecutionException {
         RemoveCollisionGroupNodeOperation op = new RemoveCollisionGroupNodeOperation(collisionGroup);
         execute(op);
-        verifyUpdate(updateCount);
         verifySelection();
     }
 
@@ -272,13 +265,11 @@ public class TileSetNodeTest extends AbstractNodeTest {
 
         undo();
         assertThat(collisionGroupCount(), is(1));
-        verifyUpdate();
         verifySelection();
 
         redo();
         assertThat(collisionGroupCount(), is(2));
         assertThat(collisionGroup(1).getName(), is("default1"));
-        verifyUpdate();
         verifySelection();
     }
 
@@ -306,17 +297,14 @@ public class TileSetNodeTest extends AbstractNodeTest {
         execute(op);
         assertThat(tileCollisionGroup(1), is("default1"));
         assertThat(tileCollisionGroup(2), is("default1"));
-        verifyUpdate();
 
         undo();
         assertThat(tileCollisionGroup(1), is(""));
         assertThat(tileCollisionGroup(2), is(""));
-        verifyUpdate();
 
         redo();
         assertThat(tileCollisionGroup(1), is("default1"));
         assertThat(tileCollisionGroup(2), is("default1"));
-        verifyUpdate();
     }
 
     /**
@@ -333,10 +321,10 @@ public class TileSetNodeTest extends AbstractNodeTest {
         // simulate painting
         this.presenter.onBeginPaintTile(getPresenterContext());
         this.presenter.onPaintTile(getPresenterContext(), 1);
-        verifyUpdate();
+        verify(getPresenterContext(), times(1)).refreshView();
         this.presenter.onPaintTile(getPresenterContext(), 1);
         this.presenter.onPaintTile(getPresenterContext(), 2);
-        verifyUpdate();
+        verify(getPresenterContext(), times(2)).refreshView();
         this.presenter.onPaintTile(getPresenterContext(), 2);
         this.presenter.onEndPaintTile(getPresenterContext());
         verifyExecution();
@@ -445,7 +433,6 @@ public class TileSetNodeTest extends AbstractNodeTest {
 
         // generate duplicate
         setNodeProperty(collisionGroup(0), "name", "default1");
-        verifyUpdate();
 
         // test
         removeCollisionGroup(collisionGroup(1), 2);
@@ -624,7 +611,6 @@ public class TileSetNodeTest extends AbstractNodeTest {
 
         // Rename
         setNodeProperty(collisionGroup, "name", "default1");
-        verifyUpdate();
         assertThat(CollisionGroupNode.getCollisionGroupColor("default1"), is(color));
         assertThat(CollisionGroupNode.getCollisionGroupColor("default"), nullValue());
 

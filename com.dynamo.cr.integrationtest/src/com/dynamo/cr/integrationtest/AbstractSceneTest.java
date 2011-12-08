@@ -4,15 +4,11 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.util.Enumeration;
-import java.util.HashMap;
-import java.util.Map;
 
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.DefaultOperationHistory;
@@ -32,7 +28,6 @@ import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Platform;
-import org.eclipse.jface.viewers.IStructuredSelection;
 import org.junit.Before;
 import org.osgi.framework.Bundle;
 
@@ -69,11 +64,6 @@ public abstract class AbstractSceneTest {
     private IImageProvider imageProvider;
     private IPresenterContext presenterContext;
     private ILoaderContext loaderContext;
-
-    private Map<Node, Integer> updateCounts;
-    private int selectCount;
-    private int dirtyCount;
-    private int cleanCount;
 
     protected class TestModule extends AbstractModule {
         @Override
@@ -152,11 +142,6 @@ public abstract class AbstractSceneTest {
                 }
             }
         }, IResourceChangeEvent.POST_CHANGE);
-
-        this.updateCounts = new HashMap<Node, Integer>();
-        this.selectCount = 0;
-        this.dirtyCount = 0;
-        this.cleanCount = 0;
     }
 
     // Accessors
@@ -197,48 +182,6 @@ public abstract class AbstractSceneTest {
 
     protected void redo() throws ExecutionException {
         this.history.redo(this.undoContext, null, null);
-    }
-
-    protected void verifyUpdate(Node node) {
-        verifyUpdate(node, 1);
-    }
-
-    protected void verifyUpdate(Node node, int times) {
-        Integer count = this.updateCounts.get(node);
-        if (count == null) {
-            count = times;
-        } else {
-            count = count + times;
-        }
-        this.updateCounts.put(node, count);
-        verify(this.view, times(count.intValue())).updateNode(node);
-    }
-
-    protected void verifySelection() {
-        ++this.selectCount;
-        verify(this.view, times(this.selectCount)).updateSelection(any(IStructuredSelection.class));
-    }
-
-    protected void verifyNoSelection() {
-        verify(this.view, times(this.selectCount)).updateSelection(any(IStructuredSelection.class));
-    }
-
-    protected void verifyDirty() {
-        ++this.dirtyCount;
-        verify(this.view, times(this.dirtyCount)).setDirty(true);
-    }
-
-    protected void verifyNoDirty() {
-        verify(this.view, times(this.dirtyCount)).setDirty(true);
-    }
-
-    protected void verifyClean() {
-        ++this.cleanCount;
-        verify(this.view, times(this.cleanCount)).setDirty(false);
-    }
-
-    protected void verifyNoClean() {
-        verify(this.view, times(this.cleanCount)).setDirty(false);
     }
 
     @SuppressWarnings("unchecked")

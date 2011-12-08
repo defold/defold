@@ -126,7 +126,6 @@ public abstract class Node implements IAdaptable {
                 child.childIndex = children.size() - 1;
             }
             child.setParent(this);
-            notifyChange();
         }
     }
 
@@ -135,7 +134,6 @@ public abstract class Node implements IAdaptable {
             child.childIndex = this.children.indexOf(child);
             children.remove(child);
             child.setParent(null);
-            notifyChange();
         }
     }
 
@@ -148,18 +146,11 @@ public abstract class Node implements IAdaptable {
         Collections.sort(sortedChildren, comparator);
         if (!sortedChildren.equals(this.children)) {
             this.children = sortedChildren;
-            notifyChange();
         }
 
         int i = 0;
         for (Node child : children) {
             child.childIndex = i++;
-        }
-    }
-
-    protected final void notifyChange() {
-        if (this.model != null) {
-            this.model.notifyChange(this);
         }
     }
 
@@ -239,9 +230,10 @@ public abstract class Node implements IAdaptable {
     /**
      * Override to handle reload
      * @param file
+     * @return True if anything was reloaded
      */
-    public void handleReload(IFile file) {
-
+    public boolean handleReload(IFile file) {
+        return false;
     }
 
     @Override

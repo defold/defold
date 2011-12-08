@@ -21,10 +21,7 @@ public class SpawnPointNode extends ComponentTypeNode {
     }
 
     public void setPrototype(String prototype) {
-        if (!this.prototype.equals(prototype)) {
-            this.prototype = prototype;
-            notifyChange();
-        }
+        this.prototype = prototype;
     }
 
 }

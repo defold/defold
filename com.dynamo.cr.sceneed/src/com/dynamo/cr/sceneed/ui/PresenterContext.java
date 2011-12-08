@@ -1,6 +1,7 @@
 package com.dynamo.cr.sceneed.ui;
 
 import org.eclipse.core.commands.operations.IUndoableOperation;
+import org.eclipse.jface.viewers.ILabelProvider;
 import org.eclipse.jface.viewers.IStructuredSelection;
 
 import com.dynamo.cr.editor.core.ILogger;
@@ -28,8 +29,8 @@ com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext {
     }
 
     @Override
-    public ISceneView getView() {
-        return this.view;
+    public void refreshView() {
+        this.view.refresh(this.model.getSelection(), this.model.isDirty());
     }
 
     @Override
@@ -42,4 +43,18 @@ com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext {
         this.model.executeOperation(operation);
     }
 
+    @Override
+    public String selectFromList(String title, String message, String... lst) {
+        return this.view.selectFromList(title, message, lst);
+    }
+
+    @Override
+    public Object selectFromArray(String title, String message, Object[] input, ILabelProvider labelProvider) {
+        return this.view.selectFromArray(title, message, input, labelProvider);
+    }
+
+    @Override
+    public String selectFile(String title) {
+        return this.view.selectFile(title);
+    }
 }
