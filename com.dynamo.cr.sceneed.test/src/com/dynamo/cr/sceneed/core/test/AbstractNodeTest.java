@@ -1,5 +1,6 @@
 package com.dynamo.cr.sceneed.core.test;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
@@ -12,6 +13,8 @@ import static org.mockito.Mockito.when;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
 import java.net.URL;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -28,6 +31,7 @@ import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.StructuredSelection;
@@ -48,6 +52,9 @@ import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.Node;
+import com.google.protobuf.GeneratedMessage;
+import com.google.protobuf.Message;
+import com.google.protobuf.TextFormat;
 
 public abstract class AbstractNodeTest {
 
@@ -206,13 +213,30 @@ public abstract class AbstractNodeTest {
 
     protected void assertNodePropertyStatus(Node node, Object id, int severity, String message) {
         IStatus status = getNodePropertyStatus(node, id);
-        assertTrue(testStatus(status, severity, message));
+        assertStatus(status, severity, message);
     }
 
-    private boolean testStatus(IStatus status, int severity, String message) {
+    protected void assertNodeStatus(Node node, int severity, String message) {
+        assertStatus(node.validate(), severity, message);
+    }
+
+    protected void assertStatus(IStatus status, int severity, String message) {
+        boolean found = containsStatus(status, severity, message);
+        if (!found) {
+            String error;
+            if (message != null) {
+                error = String.format("Status with severity %d and message '%s' not found in %s", severity, message, status.toString());
+            } else {
+                error = String.format("Status with severity %d not found in %s", severity, status.toString());
+            }
+            assertTrue(error, false);
+        }
+    }
+
+    private boolean containsStatus(IStatus status, int severity, String message) {
         if (status.isMultiStatus()) {
             for (IStatus child : status.getChildren()) {
-                if (testStatus(child, severity, message)) {
+                if (containsStatus(child, severity, message)) {
                     return true;
                 }
             }
@@ -281,4 +305,17 @@ public abstract class AbstractNodeTest {
     protected void registerNodeType(Class<? extends Node> nodeClass, String extension) throws IOException, CoreException {
         when(getModel().getExtension(nodeClass)).thenReturn(extension);
     }
+
+    protected <T extends Node> void saveLoadCompare(INodeLoader<T> loader, @SuppressWarnings("rawtypes") GeneratedMessage.Builder builder, String path) throws IOException, CoreException {
+        IFile file = getFile(path);
+        Reader reader = new InputStreamReader(file.getContents());
+        TextFormat.merge(reader, builder);
+        reader.close();
+        Message directMessage = builder.build();
+
+        T node = loader.load(this.loaderContext, file.getContents());
+        Message createdMessage = loader.buildMessage(this.loaderContext, node, new NullProgressMonitor());
+        assertEquals(directMessage.toString(), createdMessage.toString());
+    }
+
 }
