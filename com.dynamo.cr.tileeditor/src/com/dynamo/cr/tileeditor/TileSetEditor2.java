@@ -157,7 +157,7 @@ public class TileSetEditor2 extends AbstractDefoldEditor implements ISceneEditor
         this.presenterContext = injector.getInstance(ISceneView.IPresenterContext.class);
         this.loaderContext = injector.getInstance(ILoaderContext.class);
 
-        TileSetNodePresenter nodePresenter = (TileSetNodePresenter) this.nodeTypeRegistry.getNodeType(TileSetNode.class).getPresenter();
+        TileSetNodePresenter nodePresenter = (TileSetNodePresenter) this.nodeTypeRegistry.getNodeTypeClass(TileSetNode.class).getPresenter();
         this.tileSetRenderer.setPresenter(nodePresenter, this.presenterContext);
         IPreferenceStore store = Activator.getDefault().getPreferenceStore();
         store.addPropertyChangeListener(this);
@@ -332,7 +332,7 @@ public class TileSetEditor2 extends AbstractDefoldEditor implements ISceneEditor
 
     @Override
     public ISceneView.INodePresenter<? extends Node> getNodePresenter(Class<? extends Node> nodeClass) {
-        INodeType nodeType = this.nodeTypeRegistry.getNodeType(nodeClass);
+        INodeType nodeType = this.nodeTypeRegistry.getNodeTypeClass(nodeClass);
         if (nodeType != null) {
             return nodeType.getPresenter();
         }

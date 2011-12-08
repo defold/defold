@@ -345,7 +345,7 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
 
     @Override
     public ISceneView.INodePresenter<? extends Node> getNodePresenter(Class<? extends Node> nodeClass) {
-        INodeType nodeType = this.nodeTypeRegistry.getNodeType(nodeClass);
+        INodeType nodeType = this.nodeTypeRegistry.getNodeTypeClass(nodeClass);
         if (nodeType != null) {
             return nodeType.getPresenter();
         }
