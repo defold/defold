@@ -742,6 +742,7 @@ namespace dmGui
      * @param node node to be tested for picking (node)
      * @param x x-coordinate in screen-space
      * @param y y-coordinate in screen-space
+     * @return pick result (boolean)
      */
     static int LuaPickNode(lua_State* L)
     {
