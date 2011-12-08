@@ -55,7 +55,7 @@ public class ScenePresenter implements IPresenter, IModelListener {
     @Override
     public void onSave(OutputStream contents, IProgressMonitor monitor) throws IOException, CoreException {
         Node node = this.model.getRoot();
-        INodeType nodeType = this.nodeTypeRegistry.getNodeType(node.getClass());
+        INodeType nodeType = this.nodeTypeRegistry.getNodeTypeClass(node.getClass());
         INodeLoader<? super Node> loader = nodeType.getLoader();
         Message message = loader.buildMessage(this.loaderContext, node, monitor);
         SceneUtil.saveMessage(message, contents, monitor);

@@ -168,7 +168,7 @@ public class GameObjectNodeTest extends AbstractNodeTest {
         when(testNodeType.getLoader()).thenReturn((INodeLoader<Node>)(Object)new DummyComponentLoader());
         when(testNodeType.getExtension()).thenReturn("test");
 
-        when(getNodeTypeRegistry().getNodeType(DummyComponentNode.class)).thenReturn(testNodeType);
+        when(getNodeTypeRegistry().getNodeTypeClass(DummyComponentNode.class)).thenReturn(testNodeType);
 
         addComponent();
 

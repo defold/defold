@@ -27,11 +27,16 @@ public class Activator extends AbstractUIPlugin implements IImageProvider {
     // Command IDs
     public static final String ENTER_COMMAND_ID = "com.dynamo.cr.sceneed.ui.commands.enter"; //$NON-NLS-1$
 
+    public static final String MOVE_MODE_ID = "com.dynamo.cr.sceneed.core.manipulators.move-mode"; //$NON-NLS-1$
+
+    public static final String SIZE_MODE_ID = "com.dynamo.cr.sceneed.core.manipulators.size-mode"; //$NON-NLS-1$
+
     // Image IDs
     public static final String IMG_OVERLAY_INFO = "IMG_OVERLAY_INFO";
     public static final String IMG_OVERLAY_WARNING = "IMG_OVERLAY_WARNING";
     public static final String IMG_OVERLAY_ERROR = "IMG_OVERLAY_ERROR";
     public static final String IMG_UNKNOWN = "UNKNOWN";
+
 
     // The shared instance
     private static Activator plugin;

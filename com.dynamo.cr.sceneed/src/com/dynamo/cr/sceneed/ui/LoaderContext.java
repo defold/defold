@@ -60,7 +60,7 @@ com.dynamo.cr.sceneed.core.ILoaderContext {
 
     @Override
     public Node loadNodeFromTemplate(Class<? extends Node> nodeClass) throws IOException, CoreException {
-        INodeType nodeType = this.nodeTypeRegistry.getNodeType(nodeClass);
+        INodeType nodeType = this.nodeTypeRegistry.getNodeTypeClass(nodeClass);
         if (nodeType != null) {
             String extension = nodeType.getExtension();
             return loadNodeFromTemplate(extension);

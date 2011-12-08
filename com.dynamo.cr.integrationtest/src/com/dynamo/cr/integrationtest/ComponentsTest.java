@@ -70,7 +70,7 @@ public class ComponentsTest extends AbstractSceneTest {
             folder.create(true, true, null);
         }
 
-        INodeType goNodeType = getNodeTypeRegistry().getNodeType(GameObjectNode.class);
+        INodeType goNodeType = getNodeTypeRegistry().getNodeTypeClass(GameObjectNode.class);
         GameObjectPresenter presenter = (GameObjectPresenter)goNodeType.getPresenter();
 
         INodeType[] nodeTypes = getNodeTypeRegistry().getNodeTypes();

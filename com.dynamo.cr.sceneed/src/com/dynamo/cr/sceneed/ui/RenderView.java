@@ -485,7 +485,7 @@ IRenderView {
 
     @Override
     public void setupNode(RenderContext renderContext, Node node) {
-        INodeType nodeType = this.nodeTypeRegistry.getNodeType(node.getClass());
+        INodeType nodeType = this.nodeTypeRegistry.getNodeTypeClass(node.getClass());
         if (nodeType != null) {
             INodeRenderer<Node> renderer = nodeType.getRenderer();
             if (renderer != null)

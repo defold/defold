@@ -263,7 +263,7 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
 
     @Override
     public String getExtension(Class<? extends Node> nodeClass) {
-        INodeType nodeType = this.loaderContext.getNodeTypeRegistry().getNodeType(nodeClass);
+        INodeType nodeType = this.loaderContext.getNodeTypeRegistry().getNodeTypeClass(nodeClass);
         if (nodeType != null) {
             return nodeType.getExtension();
         }
@@ -272,7 +272,7 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
 
     @Override
     public String getTypeName(Class<? extends Node> nodeClass) {
-        INodeType nodeType = this.loaderContext.getNodeTypeRegistry().getNodeType(nodeClass);
+        INodeType nodeType = this.loaderContext.getNodeTypeRegistry().getNodeTypeClass(nodeClass);
         if (nodeType != null) {
             return nodeType.getResourceType().getName();
         }

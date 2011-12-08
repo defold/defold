@@ -103,7 +103,7 @@ public class NodeTypeRegistry implements INodeTypeRegistry {
     }
 
     @Override
-    public INodeType getNodeType(Class<? extends Node> nodeClass) {
+    public INodeType getNodeTypeClass(Class<? extends Node> nodeClass) {
         return this.classToType.get(nodeClass);
     }
 
