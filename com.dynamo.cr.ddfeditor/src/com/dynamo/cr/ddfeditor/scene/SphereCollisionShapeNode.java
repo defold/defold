@@ -5,9 +5,6 @@ import javax.vecmath.Vector4d;
 
 import com.dynamo.cr.properties.GreaterThanZero;
 import com.dynamo.cr.properties.Property;
-import com.dynamo.physics.proto.Physics.CollisionShape;
-import com.dynamo.physics.proto.Physics.CollisionShape.Builder;
-import com.dynamo.physics.proto.Physics.CollisionShape.Shape;
 
 public class SphereCollisionShapeNode extends CollisionShapeNode {
 
@@ -31,17 +28,6 @@ public class SphereCollisionShapeNode extends CollisionShapeNode {
     public void setRadius(double radius) {
         clearBoundsStatusError();
         this.radius = radius;
-    }
-
-    @Override
-    protected CollisionShape.Shape.Builder buildShape(
-            Builder collisionShapeBuilder) {
-        Shape.Builder b = Shape.newBuilder();
-        b.setShapeType(CollisionShape.Type.TYPE_SPHERE);
-        b.setCount(1);
-        b.setIndex(collisionShapeBuilder.getDataCount());
-        collisionShapeBuilder.addData((float) radius);
-        return b;
     }
 
     @Override

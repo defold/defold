@@ -17,6 +17,7 @@ import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.util.LoaderUtil;
 import com.dynamo.physics.proto.Physics.CollisionObjectDesc;
 import com.dynamo.physics.proto.Physics.CollisionShape;
+import com.dynamo.physics.proto.Physics.CollisionShape.Builder;
 import com.dynamo.physics.proto.Physics.CollisionShape.Shape;
 import com.google.protobuf.Message;
 import com.google.protobuf.TextFormat;
@@ -86,6 +87,46 @@ public class CollisionObjectLoader implements INodeLoader<CollisionObjectNode> {
         return collisionObject;
     }
 
+
+    private void buildShape(CollisionShapeNode shapeNode, Builder collisionShapeBuilder) {
+        Shape.Builder b = doBuildShape(shapeNode, collisionShapeBuilder);
+        b.setPosition(LoaderUtil.toPoint3(shapeNode.getTranslation()));
+        b.setRotation(LoaderUtil.toQuat(shapeNode.getRotation()));
+        collisionShapeBuilder.addShapes(b);
+    }
+
+    private Shape.Builder doBuildShape(
+            CollisionShapeNode shapeNode, Builder collisionShapeBuilder) {
+
+        Shape.Builder b = Shape.newBuilder();
+        if (shapeNode instanceof BoxCollisionShapeNode) {
+            BoxCollisionShapeNode boxShapeNode = (BoxCollisionShapeNode) shapeNode;
+            b.setShapeType(CollisionShape.Type.TYPE_BOX);
+            b.setCount(3);
+            b.setIndex(collisionShapeBuilder.getDataCount());
+            collisionShapeBuilder.addData((float) boxShapeNode.getWidth());
+            collisionShapeBuilder.addData((float) boxShapeNode.getHeight());
+            collisionShapeBuilder.addData((float) boxShapeNode.getDepth());
+        } else if (shapeNode instanceof CapsuleCollisionShapeNode) {
+            CapsuleCollisionShapeNode capsuleShapeNode = (CapsuleCollisionShapeNode) shapeNode;
+            b.setShapeType(CollisionShape.Type.TYPE_CAPSULE);
+            b.setCount(2);
+            b.setIndex(collisionShapeBuilder.getDataCount());
+            collisionShapeBuilder.addData((float) capsuleShapeNode.getRadius());
+            collisionShapeBuilder.addData((float) capsuleShapeNode.getHeight());
+        } else if (shapeNode instanceof SphereCollisionShapeNode) {
+            SphereCollisionShapeNode sphereShapeNode = (SphereCollisionShapeNode) shapeNode;
+            b.setShapeType(CollisionShape.Type.TYPE_SPHERE);
+            b.setCount(1);
+            b.setIndex(collisionShapeBuilder.getDataCount());
+            collisionShapeBuilder.addData((float) sphereShapeNode.getRadius());
+        } else {
+            throw new RuntimeException("Unsupported shape node" + shapeNode);
+        }
+        return b;
+    }
+
+
     @Override
     public Message buildMessage(ILoaderContext context,
             CollisionObjectNode node, IProgressMonitor monitor)
@@ -106,7 +147,7 @@ public class CollisionObjectLoader implements INodeLoader<CollisionObjectNode> {
         CollisionShape.Builder collisionShapeBuilder = CollisionShape.newBuilder();
         for (Node n : node.getChildren()) {
             CollisionShapeNode shapeNode = (CollisionShapeNode) n;
-            shapeNode.build(collisionShapeBuilder);
+            buildShape(shapeNode, collisionShapeBuilder);
         }
 
         if (collisionShapeBuilder.getShapesCount() > 0) {

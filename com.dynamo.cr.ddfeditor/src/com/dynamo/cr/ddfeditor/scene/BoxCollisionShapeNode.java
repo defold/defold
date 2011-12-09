@@ -5,9 +5,6 @@ import javax.vecmath.Vector4d;
 
 import com.dynamo.cr.properties.GreaterThanZero;
 import com.dynamo.cr.properties.Property;
-import com.dynamo.physics.proto.Physics.CollisionShape;
-import com.dynamo.physics.proto.Physics.CollisionShape.Builder;
-import com.dynamo.physics.proto.Physics.CollisionShape.Shape;
 
 public class BoxCollisionShapeNode extends CollisionShapeNode {
 
@@ -57,19 +54,6 @@ public class BoxCollisionShapeNode extends CollisionShapeNode {
     public void setDepth(double depth) {
         clearBoundsStatusError();
         this.depth = depth;
-    }
-
-    @Override
-    protected CollisionShape.Shape.Builder buildShape(
-            Builder collisionShapeBuilder) {
-        Shape.Builder b = Shape.newBuilder();
-        b.setShapeType(CollisionShape.Type.TYPE_BOX);
-        b.setCount(3);
-        b.setIndex(collisionShapeBuilder.getDataCount());
-        collisionShapeBuilder.addData((float) width);
-        collisionShapeBuilder.addData((float) height);
-        collisionShapeBuilder.addData((float) depth);
-        return b;
     }
 
     @Override
