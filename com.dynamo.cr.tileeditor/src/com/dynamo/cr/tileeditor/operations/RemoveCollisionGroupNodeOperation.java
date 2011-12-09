@@ -13,6 +13,7 @@ import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.StructuredSelection;
 
+import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.NodeUtil;
 import com.dynamo.cr.tileeditor.scene.CollisionGroupNode;
@@ -27,11 +28,11 @@ public class RemoveCollisionGroupNodeOperation extends AbstractOperation {
     final private List<String> oldTileCollisionGroups;
     final private List<String> newTileCollisionGroups;
 
-    public RemoveCollisionGroupNodeOperation(CollisionGroupNode collisionGroup) {
+    public RemoveCollisionGroupNodeOperation(CollisionGroupNode collisionGroup, IPresenterContext presenterContext) {
         super("Remove Component");
         this.tileSet = (TileSetNode) collisionGroup.getParent();
         this.collisionGroup = collisionGroup;
-        this.oldSelection = collisionGroup.getModel().getSelection();
+        this.oldSelection = presenterContext.getSelection();
         Node selected = NodeUtil.getSelectionReplacement(collisionGroup);
         this.newSelection = new StructuredSelection(selected);
         this.oldTileCollisionGroups = this.tileSet.getTileCollisionGroups();

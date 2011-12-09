@@ -3,14 +3,15 @@ package com.dynamo.cr.tileeditor.scene;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.dynamo.cr.sceneed.core.ISceneModel;
+import org.eclipse.jface.viewers.IStructuredSelection;
+import org.eclipse.jface.viewers.StructuredSelection;
+
 import com.dynamo.cr.sceneed.core.ISceneView.INodePresenter;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.tileeditor.operations.AddCollisionGroupNodeOperation;
 import com.dynamo.cr.tileeditor.operations.RemoveCollisionGroupNodeOperation;
 import com.dynamo.cr.tileeditor.operations.SetTileCollisionGroupsOperation;
-import com.dynamo.tile.ConvexHull;
 
 public class TileSetNodePresenter implements INodePresenter<TileSetNode> {
     // Used for painting collision groups onto tiles (convex hulls)
@@ -31,10 +32,8 @@ public class TileSetNodePresenter implements INodePresenter<TileSetNode> {
         if (this.currentCollisionGroup != null) {
             CollisionGroupNode collisionGroup = getCollisionGroup(presenterContext);
             TileSetNode tileSet = collisionGroup.getTileSetNode();
-            List<ConvexHull> convexHulls = tileSet.getConvexHulls();
-            if (!this.oldTileCollisionGroups.equals(convexHulls)) {
-                ISceneModel model = tileSet.getModel();
-                model.executeOperation(new SetTileCollisionGroupsOperation(
+            if (!this.oldTileCollisionGroups.equals(this.newTileCollisionGroups)) {
+                presenterContext.executeOperation(new SetTileCollisionGroupsOperation(
                         tileSet, this.oldTileCollisionGroups,
                         this.newTileCollisionGroups,
                         this.currentCollisionGroup));
@@ -57,12 +56,27 @@ public class TileSetNodePresenter implements INodePresenter<TileSetNode> {
 
     public void onAddCollisionGroup(IPresenterContext presenterContext) {
         TileSetNode tileSet = getTileSet(presenterContext);
-        tileSet.getModel().executeOperation(new AddCollisionGroupNodeOperation(tileSet, new CollisionGroupNode()));
+        presenterContext.executeOperation(new AddCollisionGroupNodeOperation(tileSet, new CollisionGroupNode(), presenterContext));
     }
 
-    public void removeSelectedCollisionGroups(IPresenterContext presenterContext) {
+    public void onRemoveCollisionGroup(IPresenterContext presenterContext) {
         CollisionGroupNode collisionGroup = getCollisionGroup(presenterContext);
-        collisionGroup.getModel().executeOperation(new RemoveCollisionGroupNodeOperation(collisionGroup));
+        presenterContext.executeOperation(new RemoveCollisionGroupNodeOperation(collisionGroup, presenterContext));
+    }
+
+    public void onSelectCollisionGroup(IPresenterContext presenterContext, int index) {
+        TileSetNode tileSet = getTileSet(presenterContext);
+        if (tileSet != null) {
+            Node selected = tileSet;
+            List<Node> children = tileSet.getChildren();
+            if (index >= 0 && index < children.size()) {
+                selected = children.get(index);
+            }
+            IStructuredSelection selection = new StructuredSelection(selected);
+            if (!selection.equals(presenterContext.getSelection())) {
+                presenterContext.setSelection(selection);
+            }
+        }
     }
 
     private CollisionGroupNode getCollisionGroup(IPresenterContext presenterContext) {

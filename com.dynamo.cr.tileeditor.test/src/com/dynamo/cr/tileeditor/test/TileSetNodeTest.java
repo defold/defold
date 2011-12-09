@@ -6,8 +6,6 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertThat;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.awt.Color;
@@ -34,7 +32,6 @@ import com.dynamo.cr.tileeditor.scene.CollisionGroupNode;
 import com.dynamo.cr.tileeditor.scene.Messages;
 import com.dynamo.cr.tileeditor.scene.TileSetLoader;
 import com.dynamo.cr.tileeditor.scene.TileSetNode;
-import com.dynamo.cr.tileeditor.scene.TileSetNodePresenter;
 import com.dynamo.tile.ConvexHull;
 import com.dynamo.tile.proto.Tile.TileSet;
 
@@ -42,7 +39,6 @@ public class TileSetNodeTest extends AbstractNodeTest {
 
     private TileSetNode node;
     private TileSetLoader loader;
-    private TileSetNodePresenter presenter;
 
     @Override
     @Before
@@ -50,7 +46,6 @@ public class TileSetNodeTest extends AbstractNodeTest {
         super.setup();
 
         this.loader = new TileSetLoader();
-        this.presenter = new TileSetNodePresenter();
 
         this.node = registerAndLoadNodeType(TileSetNode.class, "tileset", this.loader);
     }
@@ -129,14 +124,14 @@ public class TileSetNodeTest extends AbstractNodeTest {
 
     private CollisionGroupNode addCollisionGroup() throws ExecutionException {
         CollisionGroupNode collisionGroup = new CollisionGroupNode();
-        execute(new AddCollisionGroupNodeOperation(this.node, collisionGroup));
+        execute(new AddCollisionGroupNodeOperation(this.node, collisionGroup, getPresenterContext()));
         when(getPresenterContext().getSelection()).thenReturn(new StructuredSelection(collisionGroup));
         verifySelection();
         return collisionGroup;
     }
 
     private void removeCollisionGroup(CollisionGroupNode collisionGroup, int updateCount) throws ExecutionException {
-        RemoveCollisionGroupNodeOperation op = new RemoveCollisionGroupNodeOperation(collisionGroup);
+        RemoveCollisionGroupNodeOperation op = new RemoveCollisionGroupNodeOperation(collisionGroup, getPresenterContext());
         execute(op);
         verifySelection();
     }
@@ -279,7 +274,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
      * @throws IOException
      */
     @Test
-    public void testPaintingOperation() throws Exception {
+    public void testPainting() throws Exception {
         // Requirements
         testCreate();
         addCollisionGroup();
@@ -308,29 +303,6 @@ public class TileSetNodeTest extends AbstractNodeTest {
     }
 
     /**
-     * Part of Use Case 1.1.4 - Add a Collision Group
-     *
-     * @throws IOException
-     */
-    @Test
-    public void testPainting() throws Exception {
-        // Requirements
-        testCreate();
-        addCollisionGroup();
-
-        // simulate painting
-        this.presenter.onBeginPaintTile(getPresenterContext());
-        this.presenter.onPaintTile(getPresenterContext(), 1);
-        verify(getPresenterContext(), times(1)).refreshView();
-        this.presenter.onPaintTile(getPresenterContext(), 1);
-        this.presenter.onPaintTile(getPresenterContext(), 2);
-        verify(getPresenterContext(), times(2)).refreshView();
-        this.presenter.onPaintTile(getPresenterContext(), 2);
-        this.presenter.onEndPaintTile(getPresenterContext());
-        verifyExecution();
-    }
-
-    /**
      * Use Case 1.1.5 - Rename Collision Group
      *
      * @throws IOException
@@ -339,7 +311,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
     public void testRenameCollisionGroup() throws Exception {
 
         // requirement
-        testPaintingOperation();
+        testPainting();
 
         // preconditions
         assertThat(tileCollisionGroup(1), is("default1"));
@@ -364,7 +336,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
     public void testRenameToExistingName() throws Exception {
 
         // requirement
-        testPaintingOperation();
+        testPainting();
 
         // setup
         // simulate painting
@@ -403,7 +375,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
     public void testRemoveCollisionGroup() throws Exception {
 
         // requirements
-        testPaintingOperation();
+        testPainting();
 
         // preconditions
         assertThat(tileCollisionGroup(1), is("default1"));
@@ -426,7 +398,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
     public void testRemoveDuplicateCollisionGroup() throws Exception {
 
         // requirements
-        testPaintingOperation();
+        testPainting();
 
         // preconditions
         assertThat(tileCollisionGroup(1), is("default1"));
@@ -461,7 +433,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
     public void testSave() throws Exception {
 
         // requires
-        testPaintingOperation();
+        testPainting();
 
         TileSet ddf = (TileSet) this.loader.buildMessage(getLoaderContext(), this.node, null);
 

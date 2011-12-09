@@ -9,6 +9,7 @@ import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.StructuredSelection;
 
+import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.NodeUtil;
 import com.dynamo.cr.tileeditor.scene.CollisionGroupNode;
@@ -20,11 +21,11 @@ public class AddCollisionGroupNodeOperation extends AbstractOperation {
     final private CollisionGroupNode collisionGroup;
     final private IStructuredSelection oldSelection;
 
-    public AddCollisionGroupNodeOperation(TileSetNode tileSet, CollisionGroupNode collisionGroup) {
+    public AddCollisionGroupNodeOperation(TileSetNode tileSet, CollisionGroupNode collisionGroup, IPresenterContext presenterContext) {
         super("Add Collision Group");
         this.tileSet = tileSet;
         this.collisionGroup = collisionGroup;
-        this.oldSelection = this.tileSet.getModel().getSelection();
+        this.oldSelection = presenterContext.getSelection();
         String name = "default";
         name = NodeUtil.getUniqueId(this.tileSet, name, new NodeUtil.IdFetcher() {
             @Override

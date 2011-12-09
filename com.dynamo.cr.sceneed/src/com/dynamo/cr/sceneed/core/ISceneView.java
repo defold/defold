@@ -28,6 +28,7 @@ public interface ISceneView {
     public interface IPresenterContext extends ILogger {
         void refreshView();
         IStructuredSelection getSelection();
+        void setSelection(IStructuredSelection selection);
         void executeOperation(IUndoableOperation operation);
         String selectFromList(String title, String message, String... lst);
         Object selectFromArray(String title, String message, Object[] input, ILabelProvider labelProvider);

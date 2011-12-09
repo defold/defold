@@ -1,7 +1,12 @@
 package com.dynamo.cr.sceneed.core.test;
 
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
+import org.eclipse.core.commands.operations.IUndoableOperation;
+import org.eclipse.jface.viewers.IStructuredSelection;
 import org.junit.Before;
 
 import com.dynamo.cr.sceneed.core.ILoaderContext;
@@ -14,8 +19,16 @@ public class AbstractPresenterTest {
     private ILoaderContext loaderContext;
     private ISceneModel model;
 
+    private int refreshCounter;
+    private int selectionCounter;
+    private int executionCounter;
+
     public AbstractPresenterTest() {
         super();
+
+        this.refreshCounter = 0;
+        this.selectionCounter = 0;
+        this.executionCounter = 0;
     }
 
     @Before
@@ -47,6 +60,29 @@ public class AbstractPresenterTest {
 
     protected void setModel(ISceneModel model) {
         this.model = model;
+    }
+
+    protected void verifyRefresh() {
+        ++this.refreshCounter;
+        verify(this.presenterContext, times(this.refreshCounter)).refreshView();
+    }
+
+    protected void verifySelection() {
+        ++this.selectionCounter;
+        verify(this.presenterContext, times(this.selectionCounter)).setSelection(any(IStructuredSelection.class));
+    }
+
+    protected void verifyNoSelection() {
+        verify(this.presenterContext, times(this.selectionCounter)).setSelection(any(IStructuredSelection.class));
+    }
+
+    protected void verifyExecution() {
+        ++this.executionCounter;
+        verify(this.presenterContext, times(this.executionCounter)).executeOperation(any(IUndoableOperation.class));
+    }
+
+    protected void verifyNoExecution() {
+        verify(this.presenterContext, times(this.executionCounter)).executeOperation(any(IUndoableOperation.class));
     }
 
 }

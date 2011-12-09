@@ -39,6 +39,11 @@ com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext {
     }
 
     @Override
+    public void setSelection(IStructuredSelection selection) {
+        this.model.setSelection(selection);
+    }
+
+    @Override
     public void executeOperation(IUndoableOperation operation) {
         this.model.executeOperation(operation);
     }
