@@ -39,7 +39,7 @@ public class TileSetLoader implements INodeLoader<TileSetNode> {
         // Load collision groups
         for (int i = 0; i < ddf.getCollisionGroupsCount(); ++i) {
             CollisionGroupNode groupNode = new CollisionGroupNode();
-            groupNode.setName(ddf.getCollisionGroups(i));
+            groupNode.setId(ddf.getCollisionGroups(i));
             node.addCollisionGroup(groupNode);
         }
         // Load tile collision groups
@@ -79,7 +79,7 @@ public class TileSetLoader implements INodeLoader<TileSetNode> {
         // Save collision groups
         for (Node child : node.getChildren()) {
             CollisionGroupNode collisionGroup = (CollisionGroupNode)child;
-            tileSetBuilder.addCollisionGroups(collisionGroup.getName());
+            tileSetBuilder.addCollisionGroups(collisionGroup.getId());
         }
         return tileSetBuilder.build();
     }

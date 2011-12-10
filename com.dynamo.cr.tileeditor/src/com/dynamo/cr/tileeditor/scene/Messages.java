@@ -23,7 +23,7 @@ public class Messages extends NLS {
     public static String TileSetNode_TILE_HEIGHT_GT_IMG;
 
     // Collision Group
-    public static String CollisionGroupNode_name_OVERFLOW;
+    public static String CollisionGroupNode_id_OVERFLOW;
 
     // Sprite
 

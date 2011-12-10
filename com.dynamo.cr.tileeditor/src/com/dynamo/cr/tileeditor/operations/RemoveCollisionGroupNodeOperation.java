@@ -37,16 +37,16 @@ public class RemoveCollisionGroupNodeOperation extends AbstractOperation {
         this.newSelection = new StructuredSelection(selected);
         this.oldTileCollisionGroups = this.tileSet.getTileCollisionGroups();
         this.newTileCollisionGroups = new ArrayList<String>(this.oldTileCollisionGroups);
-        String name = collisionGroup.getName();
+        String id = collisionGroup.getId();
         boolean match = false;
         for (Node child : this.tileSet.getChildren()) {
             if (child != collisionGroup
-                    && ((CollisionGroupNode) child).getName().equals(name)) {
+                    && ((CollisionGroupNode) child).getId().equals(id)) {
                 match = true;
             }
         }
         if (!match) {
-            Collections.replaceAll(this.newTileCollisionGroups, name, "");
+            Collections.replaceAll(this.newTileCollisionGroups, id, "");
         }
     }
 

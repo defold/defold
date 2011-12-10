@@ -26,14 +26,14 @@ public class AddCollisionGroupNodeOperation extends AbstractOperation {
         this.tileSet = tileSet;
         this.collisionGroup = collisionGroup;
         this.oldSelection = presenterContext.getSelection();
-        String name = "default";
-        name = NodeUtil.getUniqueId(this.tileSet, name, new NodeUtil.IdFetcher() {
+        String id = "default";
+        id = NodeUtil.getUniqueId(this.tileSet, id, new NodeUtil.IdFetcher() {
             @Override
             public String getId(Node child) {
-                return ((CollisionGroupNode) child).getName();
+                return ((CollisionGroupNode) child).getId();
             }
         });
-        this.collisionGroup.setName(name);
+        this.collisionGroup.setId(id);
     }
 
     @Override

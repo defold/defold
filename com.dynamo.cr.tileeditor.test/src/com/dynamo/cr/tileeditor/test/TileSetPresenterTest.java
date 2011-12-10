@@ -92,7 +92,7 @@ public class TileSetPresenterTest extends AbstractPresenterTest {
         // Mocking
         TileSetNode tileSet = mock(TileSetNode.class);
         CollisionGroupNode collisionGroup = mock(CollisionGroupNode.class);
-        when(collisionGroup.getName()).thenReturn("default");
+        when(collisionGroup.getId()).thenReturn("default");
         when(collisionGroup.getTileSetNode()).thenReturn(tileSet);
         when(tileSet.getTileCollisionGroups()).thenReturn(Arrays.asList("", "", "", ""));
         when(getPresenterContext().getSelection()).thenReturn(new StructuredSelection(collisionGroup));

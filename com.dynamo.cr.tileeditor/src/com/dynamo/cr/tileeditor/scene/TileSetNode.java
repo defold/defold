@@ -209,8 +209,8 @@ public class TileSetNode extends Node {
         sortChildren(new Comparator<Node>() {
             @Override
             public int compare(Node o1, Node o2) {
-                String id1 = ((CollisionGroupNode)o1).getName();
-                String id2 = ((CollisionGroupNode)o2).getName();
+                String id1 = ((CollisionGroupNode)o1).getId();
+                String id2 = ((CollisionGroupNode)o2).getId();
                 return id1.compareTo(id2);
             }
         });
@@ -229,7 +229,7 @@ public class TileSetNode extends Node {
                 collisionGroup = this.tileCollisionGroups.get(i);
             }
             if (collisionGroup != null) {
-                tileCollisionGroups.add(collisionGroup.getName());
+                tileCollisionGroups.add(collisionGroup.getId());
             } else {
                 tileCollisionGroups.add("");
             }

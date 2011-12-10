@@ -21,13 +21,13 @@ public class TileSetUtil {
         return null;
     }
 
-    public static List<String> getCurrentCollisionGroupNames(IPresenterContext presenterContext) {
+    public static List<String> getCurrentCollisionGroupIds(IPresenterContext presenterContext) {
         TileSetNode tileSet = getCurrentTileSet(presenterContext);
         List<Node> children = tileSet.getChildren();
         List<String> collisionGroups = new ArrayList<String>(children.size()+1);
         collisionGroups.add("(none)");
         for (Node child : children) {
-            collisionGroups.add(((CollisionGroupNode)child).getName());
+            collisionGroups.add(((CollisionGroupNode)child).getId());
         }
         return collisionGroups;
     }

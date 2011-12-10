@@ -25,7 +25,7 @@ public class TileSetNodePresenter implements INodePresenter<TileSetNode> {
         TileSetNode tileSet = collisionGroup.getTileSetNode();
         this.oldTileCollisionGroups = tileSet.getTileCollisionGroups();
         this.newTileCollisionGroups = new ArrayList<String>(this.oldTileCollisionGroups);
-        this.currentCollisionGroup = collisionGroup.getName();
+        this.currentCollisionGroup = collisionGroup.getId();
     }
 
     public void onEndPaintTile(IPresenterContext presenterContext) {

@@ -18,38 +18,38 @@ Comparable<CollisionGroupNode> {
 
     @Property
     @NotEmpty(severity = IStatus.ERROR)
-    private String name;
+    private String id;
 
-    private boolean nameRegistered;
+    private boolean idRegistered;
 
     private static CollisionGroupIndexPool cache = new CollisionGroupIndexPool(Activator.MAX_COLLISION_GROUP_COUNT);
 
     public CollisionGroupNode() {
-        this.name = "";
-        this.nameRegistered = false;
+        this.id = "";
+        this.idRegistered = false;
     }
 
-    public CollisionGroupNode(String name) {
-        this.name = name;
+    public CollisionGroupNode(String id) {
+        this.id = id;
     }
 
-    public String getName() {
-        return this.name;
+    public String getId() {
+        return this.id;
     }
 
-    public void setName(String name) {
-        if (!this.name.equals(name)) {
-            unregisterName();
-            this.name = name;
-            registerName();
+    public void setId(String id) {
+        if (!this.id.equals(id)) {
+            unregisterId();
+            this.id = id;
+            registerId();
         }
     }
 
-    public IStatus validateName() {
-        if (!this.name.isEmpty()) {
-            registerName();
-            if (!this.nameRegistered) {
-                return new Status(IStatus.WARNING, Activator.PLUGIN_ID, NLS.bind(Messages.CollisionGroupNode_name_OVERFLOW, Activator.MAX_COLLISION_GROUP_COUNT));
+    public IStatus validateId() {
+        if (!this.id.isEmpty()) {
+            registerId();
+            if (!this.idRegistered) {
+                return new Status(IStatus.WARNING, Activator.PLUGIN_ID, NLS.bind(Messages.CollisionGroupNode_id_OVERFLOW, Activator.MAX_COLLISION_GROUP_COUNT));
             }
         }
         return Status.OK_STATUS;
@@ -58,15 +58,15 @@ Comparable<CollisionGroupNode> {
     @Override
     public void setModel(ISceneModel model) {
         if (getModel() != model) {
-            unregisterName();
+            unregisterId();
             super.setModel(model);
-            registerName();
+            registerId();
         }
     }
 
     @Override
     public Image getIcon() {
-        return Activator.getDefault().getCollisionGroupImage(cache.get(this.name));
+        return Activator.getDefault().getCollisionGroupImage(cache.get(this.id));
     }
 
     public TileSetNode getTileSetNode() {
@@ -75,34 +75,34 @@ Comparable<CollisionGroupNode> {
 
     @Override
     public String toString() {
-        return this.name;
+        return this.id;
     }
 
     @Override
     public int compareTo(CollisionGroupNode o) {
-        return this.name.compareTo(o.toString());
+        return this.id.compareTo(o.toString());
     }
 
-    public static Color getCollisionGroupColor(String name) {
-        return Activator.getDefault().getCollisionGroupColor(cache.get(name));
+    public static Color getCollisionGroupColor(String id) {
+        return Activator.getDefault().getCollisionGroupColor(cache.get(id));
     }
 
     public static void clearCollisionGroups() {
         cache.clear();
     }
 
-    private void registerName() {
-        if (!this.nameRegistered && !this.name.isEmpty() && getModel() != null) {
-            if (cache.add(this.name)) {
-                this.nameRegistered = true;
+    private void registerId() {
+        if (!this.idRegistered && !this.id.isEmpty() && getModel() != null) {
+            if (cache.add(this.id)) {
+                this.idRegistered = true;
             }
         }
     }
 
-    private void unregisterName() {
-        if (this.nameRegistered) {
-            cache.remove(this.name);
-            this.nameRegistered = false;
+    private void unregisterId() {
+        if (this.idRegistered) {
+            cache.remove(this.id);
+            this.idRegistered = false;
         }
     }
 }

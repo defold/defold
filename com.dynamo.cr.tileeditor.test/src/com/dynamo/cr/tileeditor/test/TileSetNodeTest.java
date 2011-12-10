@@ -152,7 +152,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
         assertThat(collision(), is(""));
         assertThat(materialTag(), is("tile"));
         assertThat(collisionGroupCount(), is(1));
-        assertThat(collisionGroup(0).getName(), is("default"));
+        assertThat(collisionGroup(0).getId(), is("default"));
         assertThat(convexHullCount(), is(0));
     }
 
@@ -176,7 +176,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
     public void testLoadTileCollisionGroup() throws Exception {
         loadWithTileCollisionGroup("default");
 
-        assertThat(collisionGroup(0).getName(), is("default"));
+        assertThat(collisionGroup(0).getId(), is("default"));
         assertThat(tileCollisionGroup(0), is("default"));
     }
 
@@ -184,7 +184,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
     public void testLoadMissingTileCollisionGroup() throws Exception {
         loadWithTileCollisionGroup("default1");
 
-        assertThat(collisionGroup(0).getName(), is("default"));
+        assertThat(collisionGroup(0).getId(), is("default"));
         assertThat(tileCollisionGroup(0), is(""));
     }
 
@@ -256,7 +256,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
 
         addCollisionGroup();
         assertThat(collisionGroupCount(), is(2));
-        assertThat(collisionGroup(1).getName(), is("default1"));
+        assertThat(collisionGroup(1).getId(), is("default1"));
 
         undo();
         assertThat(collisionGroupCount(), is(1));
@@ -264,7 +264,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
 
         redo();
         assertThat(collisionGroupCount(), is(2));
-        assertThat(collisionGroup(1).getName(), is("default1"));
+        assertThat(collisionGroup(1).getId(), is("default1"));
         verifySelection();
     }
 
@@ -317,7 +317,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
         assertThat(tileCollisionGroup(1), is("default1"));
 
         // test
-        setNodeProperty(collisionGroup(1), "name", "default2");
+        setNodeProperty(collisionGroup(1), "id", "default2");
         assertThat(tileCollisionGroup(1), is("default2"));
 
         undo();
@@ -351,7 +351,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
         assertThat(tileCollisionGroup(2), is("default1"));
 
         // test
-        setNodeProperty(collisionGroup(1), "name", "default");
+        setNodeProperty(collisionGroup(1), "id", "default");
         assertThat(tileCollisionGroup(1), is("default"));
         assertThat(tileCollisionGroup(2), is("default"));
 
@@ -404,7 +404,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
         assertThat(tileCollisionGroup(1), is("default1"));
 
         // generate duplicate
-        setNodeProperty(collisionGroup(0), "name", "default1");
+        setNodeProperty(collisionGroup(0), "id", "default1");
 
         // test
         removeCollisionGroup(collisionGroup(1), 2);
@@ -420,7 +420,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
         assertThat(tileCollisionGroup(1), is("default1"));
 
         // Finally rename node again
-        setNodeProperty(collisionGroup(0), "name", "default");
+        setNodeProperty(collisionGroup(0), "id", "default");
         assertThat(tileCollisionGroup(1), is("default"));
     }
 
@@ -446,7 +446,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
         assertThat(ddf.getMaterialTag(), is(this.node.getMaterialTag()));
         assertThat(ddf.getImage(), is(this.node.getImage()));
 
-        assertThat(ddf.getCollisionGroups(0), is(collisionGroup(0).getName()));
+        assertThat(ddf.getCollisionGroups(0), is(collisionGroup(0).getId()));
 
         assertThat(ddf.getConvexHulls(1).getCollisionGroup(), is(tileCollisionGroup(1)));
     }
@@ -563,13 +563,13 @@ public class TileSetNodeTest extends AbstractNodeTest {
         int n = Activator.MAX_COLLISION_GROUP_COUNT;
         for (int i = 1; i <= n; ++i) {
             addCollisionGroup();
-            assertNodePropertyStatus(collisionGroup(i), "name", IStatus.OK, null);
+            assertNodePropertyStatus(collisionGroup(i), "id", IStatus.OK, null);
         }
         CollisionGroupNode newGroup = addCollisionGroup();
-        assertNodePropertyStatus(newGroup, "name", IStatus.WARNING, NLS.bind(Messages.CollisionGroupNode_name_OVERFLOW, n));
+        assertNodePropertyStatus(newGroup, "id", IStatus.WARNING, NLS.bind(Messages.CollisionGroupNode_id_OVERFLOW, n));
         // Clear message
         removeCollisionGroup(collisionGroup(n-1), 1);
-        assertNodePropertyStatus(newGroup, "name", IStatus.OK, null);
+        assertNodePropertyStatus(newGroup, "id", IStatus.OK, null);
     }
 
     @Test
@@ -582,7 +582,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
         assertThat(CollisionGroupNode.getCollisionGroupColor("default1"), nullValue());
 
         // Rename
-        setNodeProperty(collisionGroup, "name", "default1");
+        setNodeProperty(collisionGroup, "id", "default1");
         assertThat(CollisionGroupNode.getCollisionGroupColor("default1"), is(color));
         assertThat(CollisionGroupNode.getCollisionGroupColor("default"), nullValue());
 
@@ -599,14 +599,14 @@ public class TileSetNodeTest extends AbstractNodeTest {
         int n = Activator.MAX_COLLISION_GROUP_COUNT;
         for (int i = 1; i <= n; ++i) {
             addCollisionGroup();
-            String name = collisionGroup(i).getName();
-            Color newColor = CollisionGroupNode.getCollisionGroupColor(name);
+            String id = collisionGroup(i).getId();
+            Color newColor = CollisionGroupNode.getCollisionGroupColor(id);
             assertThat(newColor, not(color));
             assertThat(newColor, notNullValue());
         }
         CollisionGroupNode newGroup = addCollisionGroup();
-        String name = newGroup.getName();
-        Color newColor = CollisionGroupNode.getCollisionGroupColor(name);
+        String id = newGroup.getId();
+        Color newColor = CollisionGroupNode.getCollisionGroupColor(id);
         assertThat(newColor, nullValue());
     }
 }
