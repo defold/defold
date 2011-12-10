@@ -30,7 +30,7 @@ public class RemoveCollisionGroupNodeOperation extends AbstractOperation {
 
     public RemoveCollisionGroupNodeOperation(CollisionGroupNode collisionGroup, IPresenterContext presenterContext) {
         super("Remove Component");
-        this.tileSet = (TileSetNode) collisionGroup.getParent();
+        this.tileSet = collisionGroup.getTileSetNode();
         this.collisionGroup = collisionGroup;
         this.oldSelection = presenterContext.getSelection();
         Node selected = NodeUtil.getSelectionReplacement(collisionGroup);
@@ -39,9 +39,9 @@ public class RemoveCollisionGroupNodeOperation extends AbstractOperation {
         this.newTileCollisionGroups = new ArrayList<String>(this.oldTileCollisionGroups);
         String id = collisionGroup.getId();
         boolean match = false;
-        for (Node child : this.tileSet.getChildren()) {
+        for (CollisionGroupNode child : this.tileSet.getCollisionGroups()) {
             if (child != collisionGroup
-                    && ((CollisionGroupNode) child).getId().equals(id)) {
+                    && child.getId().equals(id)) {
                 match = true;
             }
         }

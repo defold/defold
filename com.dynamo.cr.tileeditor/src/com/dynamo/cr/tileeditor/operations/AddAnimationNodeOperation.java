@@ -11,50 +11,50 @@ import org.eclipse.jface.viewers.StructuredSelection;
 
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.NodeUtil;
-import com.dynamo.cr.tileeditor.scene.CollisionGroupNode;
+import com.dynamo.cr.tileeditor.scene.AnimationNode;
 import com.dynamo.cr.tileeditor.scene.TileSetNode;
 
-public class AddCollisionGroupNodeOperation extends AbstractOperation {
+public class AddAnimationNodeOperation extends AbstractOperation {
 
     final private TileSetNode tileSet;
-    final private CollisionGroupNode collisionGroup;
+    final private AnimationNode animation;
     final private IStructuredSelection oldSelection;
 
-    public AddCollisionGroupNodeOperation(TileSetNode tileSet, CollisionGroupNode collisionGroup, IPresenterContext presenterContext) {
-        super("Add Collision Group");
+    public AddAnimationNodeOperation(TileSetNode tileSet, AnimationNode animation, IPresenterContext presenterContext) {
+        super(Messages.AddAnimationNodeOperation_label);
         this.tileSet = tileSet;
-        this.collisionGroup = collisionGroup;
+        this.animation = animation;
         this.oldSelection = presenterContext.getSelection();
-        String id = "default";
-        id = NodeUtil.getUniqueId(this.tileSet.getCollisionGroups(), id, new NodeUtil.IdFetcher<CollisionGroupNode>() {
+        String id = "anim"; //$NON-NLS-1$
+        id = NodeUtil.<AnimationNode>getUniqueId(this.tileSet.getAnimations(), id, new NodeUtil.IdFetcher<AnimationNode>() {
             @Override
-            public String getId(CollisionGroupNode node) {
+            public String getId(AnimationNode node) {
                 return node.getId();
             }
         });
-        this.collisionGroup.setId(id);
+        this.animation.setId(id);
     }
 
     @Override
     public IStatus execute(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
-        this.tileSet.addCollisionGroup(this.collisionGroup);
-        this.tileSet.getModel().setSelection(new StructuredSelection(this.collisionGroup));
+        this.tileSet.addAnimation(this.animation);
+        this.tileSet.getModel().setSelection(new StructuredSelection(this.animation));
         return Status.OK_STATUS;
     }
 
     @Override
     public IStatus redo(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
-        this.tileSet.addCollisionGroup(this.collisionGroup);
-        this.tileSet.getModel().setSelection(new StructuredSelection(this.collisionGroup));
+        this.tileSet.addAnimation(this.animation);
+        this.tileSet.getModel().setSelection(new StructuredSelection(this.animation));
         return Status.OK_STATUS;
     }
 
     @Override
     public IStatus undo(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
-        this.tileSet.removeCollisionGroup(this.collisionGroup);
+        this.tileSet.removeAnimation(this.animation);
         this.tileSet.getModel().setSelection(this.oldSelection);
         return Status.OK_STATUS;
     }

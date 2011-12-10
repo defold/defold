@@ -6,7 +6,7 @@ import com.dynamo.cr.sceneed.core.NodeUtil;
 
 public class DummyIdNode extends DummyNode {
 
-    public static class DummyIdFetcher implements NodeUtil.IdFetcher {
+    public static class DummyIdFetcher implements NodeUtil.IdFetcher<Node> {
         @Override
         public String getId(Node child) {
             return ((DummyIdNode)child).getId();

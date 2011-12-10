@@ -602,6 +602,9 @@
                   <reference
                         definitionId="com.dynamo.cr.tileeditor.definitions.collisionGroupSelected">
                   </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.tileeditor.definitions.collisionGroupGroupSelected">
+                  </reference>
                </or>
             </visibleWhen>
          </command>
@@ -822,6 +825,9 @@
                <reference
                      definitionId="com.dynamo.cr.tileeditor.definitions.collisionGroupSelected">
                </reference>
+               <reference
+                     definitionId="com.dynamo.cr.tileeditor.definitions.collisionGroupGroupSelected">
+               </reference>
             </or>
          </activeWhen>
       </handler>
@@ -844,6 +850,12 @@
                </reference>
                <reference
                      definitionId="com.dynamo.cr.tileeditor.definitions.collisionGroupSelected">
+               </reference>
+               <reference
+                     definitionId="com.dynamo.cr.tileeditor.definitions.collisionGroupGroupSelected">
+               </reference>
+               <reference
+                     definitionId="com.dynamo.cr.tileeditor.definitions.animationGroupSelected">
                </reference>
             </or></activeWhen>
       </handler>
@@ -896,6 +908,30 @@
                   operator="or">
                <instanceof
                      value="com.dynamo.cr.tileeditor.scene.CollisionGroupNode">
+               </instanceof>
+            </iterate>
+         </with>
+      </definition>
+      <definition
+            id="com.dynamo.cr.tileeditor.definitions.collisionGroupGroupSelected">
+         <with
+               variable="selection">
+            <iterate
+                  operator="or">
+               <instanceof
+                     value="com.dynamo.cr.tileeditor.scene.CollisionGroupGroupNode">
+               </instanceof>
+            </iterate>
+         </with>
+      </definition>
+      <definition
+            id="com.dynamo.cr.tileeditor.definitions.animationGroupSelected">
+         <with
+               variable="selection">
+            <iterate
+                  operator="or">
+               <instanceof
+                     value="com.dynamo.cr.tileeditor.scene.AnimationGroupNode">
                </instanceof>
             </iterate>
          </with>

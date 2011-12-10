@@ -11,7 +11,6 @@ import org.eclipse.core.runtime.IProgressMonitor;
 
 import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.INodeLoader;
-import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.tile.proto.Tile;
 import com.dynamo.tile.proto.Tile.ConvexHull;
 import com.dynamo.tile.proto.Tile.TileSet;
@@ -77,8 +76,7 @@ public class TileSetLoader implements INodeLoader<TileSetNode> {
             tileSetBuilder.addConvexHulls(convexHullBuilder);
         }
         // Save collision groups
-        for (Node child : node.getChildren()) {
-            CollisionGroupNode collisionGroup = (CollisionGroupNode)child;
+        for (CollisionGroupNode collisionGroup : node.getCollisionGroups()) {
             tileSetBuilder.addCollisionGroups(collisionGroup.getId());
         }
         return tileSetBuilder.build();

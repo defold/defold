@@ -24,6 +24,7 @@ import com.dynamo.cr.properties.Resource;
 import com.dynamo.cr.properties.ValidatorUtil;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.sceneed.core.util.GroupNode;
 import com.dynamo.tile.ConvexHull;
 import com.dynamo.tile.TileSetUtil;
 import com.dynamo.tile.TileSetUtil.ConvexHulls;
@@ -61,6 +62,9 @@ public class TileSetNode extends Node {
     @NotEmpty(severity = IStatus.ERROR)
     private String materialTag = "";
 
+    private GroupNode<CollisionGroupNode> collisionGroupsGroup;
+    private GroupNode<AnimationNode> animationsGroup;
+
     private List<CollisionGroupNode> tileCollisionGroups;
     // Used to simulate a shorter list of convex hulls.
     // convexHulls need to be retained in some cases to keep collision groups and keep undo functionality
@@ -75,6 +79,11 @@ public class TileSetNode extends Node {
         this.tileCollisionGroups = new ArrayList<CollisionGroupNode>();
         this.tileCollisionGroupCount = 0;
         this.convexHulls = new ArrayList<ConvexHull>();
+
+        this.collisionGroupsGroup = new CollisionGroupGroupNode();
+        addChild(this.collisionGroupsGroup);
+        this.animationsGroup = new AnimationGroupNode();
+        addChild(this.animationsGroup);
     }
 
     public String getImage() {
@@ -196,23 +205,51 @@ public class TileSetNode extends Node {
         this.materialTag = materialTag;
     }
 
+    public List<CollisionGroupNode> getCollisionGroups() {
+        return this.collisionGroupsGroup.getNodes();
+    }
+
     public void addCollisionGroup(CollisionGroupNode groupNode) {
-        addChild(groupNode);
+        this.collisionGroupsGroup.addNode(groupNode);
         sortCollisionGroups();
         updateConvexHulls();
     }
 
     public void removeCollisionGroup(CollisionGroupNode groupNode) {
-        removeChild(groupNode);
+        this.collisionGroupsGroup.removeNode(groupNode);
         updateConvexHulls();
     }
 
     private void sortCollisionGroups() {
-        sortChildren(new Comparator<Node>() {
+        this.collisionGroupsGroup.sortNodes(new Comparator<Node>() {
             @Override
             public int compare(Node o1, Node o2) {
                 String id1 = ((CollisionGroupNode)o1).getId();
                 String id2 = ((CollisionGroupNode)o2).getId();
+                return id1.compareTo(id2);
+            }
+        });
+    }
+
+    public List<AnimationNode> getAnimations() {
+        return this.animationsGroup.getNodes();
+    }
+
+    public void addAnimation(AnimationNode animation) {
+        this.animationsGroup.addNode(animation);
+        sortAnimations();
+    }
+
+    public void removeAnimation(AnimationNode animation) {
+        this.animationsGroup.removeNode(animation);
+    }
+
+    private void sortAnimations() {
+        this.animationsGroup.sortNodes(new Comparator<Node>() {
+            @Override
+            public int compare(Node o1, Node o2) {
+                String id1 = ((AnimationNode)o1).getId();
+                String id2 = ((AnimationNode)o2).getId();
                 return id1.compareTo(id2);
             }
         });
@@ -265,16 +302,6 @@ public class TileSetNode extends Node {
 
     public BufferedImage getLoadedCollision() {
         return this.loadedCollision;
-    }
-
-    private List<CollisionGroupNode> getCollisionGroups() {
-        List<Node> children = getChildren();
-        int count = children.size();
-        List<CollisionGroupNode> collisionGroups = new ArrayList<CollisionGroupNode>(count);
-        for (int i = 0; i < count; ++i) {
-            collisionGroups.add((CollisionGroupNode) children.get(i));
-        }
-        return collisionGroups;
     }
 
     @Override

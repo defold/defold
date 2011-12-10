@@ -5,15 +5,14 @@ import java.util.List;
 
 public class NodeUtil {
 
-    public static interface IdFetcher {
-        String getId(Node child);
+    public static interface IdFetcher<T extends Node> {
+        String getId(T node);
     }
 
-    public static String getUniqueId(Node parent, String baseId, IdFetcher idFetcher) {
-        List<Node> children = parent.getChildren();
-        List<String> ids = new ArrayList<String>(children.size());
-        for (Node child : children) {
-            ids.add(idFetcher.getId(child));
+    public static <T extends Node> String getUniqueId(List<T> nodes, String baseId, IdFetcher<T> idFetcher) {
+        List<String> ids = new ArrayList<String>(nodes.size());
+        for (T node: nodes) {
+            ids.add(idFetcher.getId(node));
         }
         String id = baseId;
         String format = "%s%d";
@@ -23,6 +22,10 @@ public class NodeUtil {
             ++i;
         }
         return id;
+    }
+
+    public static String getUniqueId(Node parent, String baseId, IdFetcher<Node> idFetcher) {
+        return getUniqueId(parent.getChildren(), baseId, idFetcher);
     }
 
     /**

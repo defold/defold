@@ -5,6 +5,9 @@ import org.eclipse.osgi.util.NLS;
 public class Messages extends NLS {
     private static final String BUNDLE_NAME = "com.dynamo.cr.tileeditor.scene.messages"; //$NON-NLS-1$
 
+    public static String CollisionGroupGroupNode_label;
+    public static String AnimationGroupNode_label;
+
     // Property validation
 
     // Tile Set

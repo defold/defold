@@ -29,7 +29,7 @@ CompoundContributionItem {
         final IEditorPart editorPart = PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage().getActiveEditor();
         if (editorPart instanceof TileSetEditor2) {
             TileSetEditor2 editor = (TileSetEditor2)editorPart;
-            List<String> collisionGroups = TileSetUtil.getCurrentCollisionGroupIds(editor.getPresenterContext());
+            List<String> collisionGroups = TileSetUtil.getCurrentCollisionGroupIds(editor.getPresenterContext().getSelection(), true);
             int n = Math.min(collisionGroups.size(), 10);
             IContributionItem[] items = new IContributionItem[n];
             for (int i = 0; i < n; ++i) {

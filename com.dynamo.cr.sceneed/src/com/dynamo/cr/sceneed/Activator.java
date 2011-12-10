@@ -36,6 +36,7 @@ public class Activator extends AbstractUIPlugin implements IImageProvider {
     public static final String IMG_OVERLAY_WARNING = "IMG_OVERLAY_WARNING";
     public static final String IMG_OVERLAY_ERROR = "IMG_OVERLAY_ERROR";
     public static final String IMG_UNKNOWN = "UNKNOWN";
+    public static final String IMG_FOLDER = "FOLDER";
 
 
     // The shared instance
@@ -122,6 +123,7 @@ public class Activator extends AbstractUIPlugin implements IImageProvider {
         reg.put(IMG_OVERLAY_WARNING, getImageDescriptor("icons/overlay_warning.png"));
         reg.put(IMG_OVERLAY_ERROR, getImageDescriptor("icons/overlay_error.png"));
         reg.put(IMG_UNKNOWN, getImageDescriptor("icons/unknown.png"));
+        reg.put(IMG_FOLDER, getImageDescriptor("icons/folder.png"));
     }
 
     private static ImageDescriptor getImageDescriptor(String path) {

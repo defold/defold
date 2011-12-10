@@ -15,11 +15,11 @@ import org.eclipse.ui.handlers.HandlerUtil;
 import org.eclipse.ui.handlers.RadioState;
 import org.eclipse.ui.menus.UIElement;
 
-import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.tileeditor.TileSetEditor2;
 import com.dynamo.cr.tileeditor.scene.CollisionGroupNode;
 import com.dynamo.cr.tileeditor.scene.TileSetNode;
 import com.dynamo.cr.tileeditor.scene.TileSetNodePresenter;
+import com.dynamo.cr.tileeditor.scene.TileSetUtil;
 
 public class SelectCollisionGroupHandler extends AbstractHandler implements IElementUpdater {
 
@@ -58,24 +58,13 @@ public class SelectCollisionGroupHandler extends AbstractHandler implements IEle
             ISelection selection = selectionService.getSelection();
             if (selection instanceof IStructuredSelection) {
                 IStructuredSelection structuredSelection = (IStructuredSelection)selection;
-                if (structuredSelection.getFirstElement() instanceof Node) {
-                    Node node = (Node)structuredSelection.getFirstElement();
-                    TileSetNode tileSet = null;
-                    CollisionGroupNode collisionGroup = null;
-                    if (node instanceof TileSetNode) {
-                        tileSet = (TileSetNode)node;
-                    } else if (node instanceof CollisionGroupNode) {
-                        collisionGroup = (CollisionGroupNode)node;
-                        tileSet = collisionGroup.getTileSetNode();
-                    }
-                    if (tileSet != null) {
-                        int index = -1;
-                        if (collisionGroup != null) {
-                            index = tileSet.getChildren().indexOf(collisionGroup);
-                        }
-                        element.setChecked(parameters.get(RadioState.PARAMETER_ID).equals("" + index));
-                    }
+                int index = -1;
+                CollisionGroupNode collisionGroup = TileSetUtil.getCurrentCollisionGroup(structuredSelection);
+                if (collisionGroup != null) {
+                    TileSetNode tileSet = collisionGroup.getTileSetNode();
+                    index = tileSet.getCollisionGroups().indexOf(collisionGroup);
                 }
+                element.setChecked(parameters.get(RadioState.PARAMETER_ID).equals("" + index));
             }
         }
     }

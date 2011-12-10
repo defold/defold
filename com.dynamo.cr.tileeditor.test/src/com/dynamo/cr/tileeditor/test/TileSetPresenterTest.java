@@ -4,7 +4,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.Collections;
 
 import org.eclipse.jface.viewers.StructuredSelection;
 import org.junit.Before;
@@ -94,7 +94,7 @@ public class TileSetPresenterTest extends AbstractPresenterTest {
         CollisionGroupNode collisionGroup = mock(CollisionGroupNode.class);
         when(collisionGroup.getId()).thenReturn("default");
         when(collisionGroup.getTileSetNode()).thenReturn(tileSet);
-        when(tileSet.getTileCollisionGroups()).thenReturn(Arrays.asList("", "", "", ""));
+        when(tileSet.getTileCollisionGroups()).thenReturn(Collections.nCopies(4, ""));
         when(getPresenterContext().getSelection()).thenReturn(new StructuredSelection(collisionGroup));
 
         // Simulate painting
@@ -105,6 +105,15 @@ public class TileSetPresenterTest extends AbstractPresenterTest {
         this.presenter.onPaintTile(getPresenterContext(), 2);
         verifyRefresh();
         this.presenter.onPaintTile(getPresenterContext(), 2);
+        this.presenter.onEndPaintTile(getPresenterContext());
+        verifyExecution();
+
+        // Simulate erasing
+        when(tileSet.getTileCollisionGroups()).thenReturn(Collections.nCopies(4, "default"));
+        when(getPresenterContext().getSelection()).thenReturn(new StructuredSelection(tileSet));
+        this.presenter.onBeginPaintTile(getPresenterContext());
+        this.presenter.onPaintTile(getPresenterContext(), 1);
+        verifyRefresh();
         this.presenter.onEndPaintTile(getPresenterContext());
         verifyExecution();
     }

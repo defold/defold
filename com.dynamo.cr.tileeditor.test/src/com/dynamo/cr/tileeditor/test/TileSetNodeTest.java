@@ -25,9 +25,11 @@ import org.junit.Test;
 
 import com.dynamo.cr.sceneed.core.test.AbstractNodeTest;
 import com.dynamo.cr.tileeditor.Activator;
+import com.dynamo.cr.tileeditor.operations.AddAnimationNodeOperation;
 import com.dynamo.cr.tileeditor.operations.AddCollisionGroupNodeOperation;
 import com.dynamo.cr.tileeditor.operations.RemoveCollisionGroupNodeOperation;
 import com.dynamo.cr.tileeditor.operations.SetTileCollisionGroupsOperation;
+import com.dynamo.cr.tileeditor.scene.AnimationNode;
 import com.dynamo.cr.tileeditor.scene.CollisionGroupNode;
 import com.dynamo.cr.tileeditor.scene.Messages;
 import com.dynamo.cr.tileeditor.scene.TileSetLoader;
@@ -87,11 +89,11 @@ public class TileSetNodeTest extends AbstractNodeTest {
     }
 
     private int collisionGroupCount() {
-        return this.node.getChildren().size();
+        return this.node.getCollisionGroups().size();
     }
 
     private CollisionGroupNode collisionGroup(int i) {
-        return (CollisionGroupNode)this.node.getChildren().get(i);
+        return this.node.getCollisionGroups().get(i);
     }
 
     private int convexHullCount() {
@@ -100,6 +102,14 @@ public class TileSetNodeTest extends AbstractNodeTest {
 
     private String tileCollisionGroup(int i) {
         return this.node.getTileCollisionGroups().get(i);
+    }
+
+    private int animationCount() {
+        return this.node.getAnimations().size();
+    }
+
+    private AnimationNode animation(int i) {
+        return this.node.getAnimations().get(i);
     }
 
     private void setProperty(String id, Object value) throws Exception {
@@ -134,6 +144,14 @@ public class TileSetNodeTest extends AbstractNodeTest {
         RemoveCollisionGroupNodeOperation op = new RemoveCollisionGroupNodeOperation(collisionGroup, getPresenterContext());
         execute(op);
         verifySelection();
+    }
+
+    private AnimationNode addAnimation() throws ExecutionException {
+        AnimationNode animation = new AnimationNode();
+        execute(new AddAnimationNodeOperation(this.node, animation, getPresenterContext()));
+        when(getPresenterContext().getSelection()).thenReturn(new StructuredSelection(animation));
+        verifySelection();
+        return animation;
     }
 
     // Tests
@@ -333,7 +351,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
      * @throws IOException
      */
     @Test
-    public void testRenameToExistingName() throws Exception {
+    public void testRenameCollisionGroupToExistingName() throws Exception {
 
         // requirement
         testPainting();
@@ -422,6 +440,25 @@ public class TileSetNodeTest extends AbstractNodeTest {
         // Finally rename node again
         setNodeProperty(collisionGroup(0), "id", "default");
         assertThat(tileCollisionGroup(1), is("default"));
+    }
+
+    @Test
+    public void testAddAnimation() throws Exception {
+        testCreate();
+
+        assertThat(animationCount(), is(0));
+
+        addAnimation();
+
+        assertThat(animationCount(), is(1));
+        assertThat(animation(0).getId(), is("anim"));
+
+        undo();
+        assertThat(animationCount(), is(0));
+
+        redo();
+        assertThat(animationCount(), is(1));
+        assertThat(animation(0).getId(), is("anim"));
     }
 
     /**
@@ -561,9 +598,9 @@ public class TileSetNodeTest extends AbstractNodeTest {
     public void testCollisionGroupMessages() throws Exception {
         // Too many collision groups
         int n = Activator.MAX_COLLISION_GROUP_COUNT;
-        for (int i = 1; i <= n; ++i) {
-            addCollisionGroup();
-            assertNodePropertyStatus(collisionGroup(i), "id", IStatus.OK, null);
+        for (int i = 1; i < n; ++i) {
+            CollisionGroupNode collisionGroup = addCollisionGroup();
+            assertNodePropertyStatus(collisionGroup, "id", IStatus.OK, null);
         }
         CollisionGroupNode newGroup = addCollisionGroup();
         assertNodePropertyStatus(newGroup, "id", IStatus.WARNING, NLS.bind(Messages.CollisionGroupNode_id_OVERFLOW, n));

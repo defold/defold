@@ -21,17 +21,21 @@ public class TileSetNodePresenter implements INodePresenter<TileSetNode> {
     private String currentCollisionGroup;
 
     public void onBeginPaintTile(IPresenterContext presenterContext) {
-        CollisionGroupNode collisionGroup = TileSetUtil.getCurrentCollisionGroup(presenterContext);
-        TileSetNode tileSet = collisionGroup.getTileSetNode();
+        IStructuredSelection selection = presenterContext.getSelection();
+        TileSetNode tileSet = TileSetUtil.getCurrentTileSet(selection);
         this.oldTileCollisionGroups = tileSet.getTileCollisionGroups();
         this.newTileCollisionGroups = new ArrayList<String>(this.oldTileCollisionGroups);
-        this.currentCollisionGroup = collisionGroup.getId();
+        this.currentCollisionGroup = "";
+        CollisionGroupNode collisionGroup = TileSetUtil.getCurrentCollisionGroup(selection);
+        if (collisionGroup != null) {
+            this.currentCollisionGroup = collisionGroup.getId();
+        }
     }
 
     public void onEndPaintTile(IPresenterContext presenterContext) {
         if (this.currentCollisionGroup != null) {
-            CollisionGroupNode collisionGroup = TileSetUtil.getCurrentCollisionGroup(presenterContext);
-            TileSetNode tileSet = collisionGroup.getTileSetNode();
+            IStructuredSelection selection = presenterContext.getSelection();
+            TileSetNode tileSet = TileSetUtil.getCurrentTileSet(selection);
             if (!this.oldTileCollisionGroups.equals(this.newTileCollisionGroups)) {
                 presenterContext.executeOperation(new SetTileCollisionGroupsOperation(
                         tileSet, this.oldTileCollisionGroups,
@@ -44,8 +48,8 @@ public class TileSetNodePresenter implements INodePresenter<TileSetNode> {
 
     public void onPaintTile(IPresenterContext presenterContext, int index) {
         if (this.currentCollisionGroup != null) {
-            CollisionGroupNode collisionGroup = TileSetUtil.getCurrentCollisionGroup(presenterContext);
-            TileSetNode tileSet = collisionGroup.getTileSetNode();
+            IStructuredSelection selection = presenterContext.getSelection();
+            TileSetNode tileSet = TileSetUtil.getCurrentTileSet(selection);
             if (!this.newTileCollisionGroups.get(index).equals(this.currentCollisionGroup)) {
                 this.newTileCollisionGroups.set(index, this.currentCollisionGroup);
                 tileSet.setTileCollisionGroups(this.newTileCollisionGroups);
@@ -55,22 +59,22 @@ public class TileSetNodePresenter implements INodePresenter<TileSetNode> {
     }
 
     public void onAddCollisionGroup(IPresenterContext presenterContext) {
-        TileSetNode tileSet = TileSetUtil.getCurrentTileSet(presenterContext);
+        TileSetNode tileSet = TileSetUtil.getCurrentTileSet(presenterContext.getSelection());
         presenterContext.executeOperation(new AddCollisionGroupNodeOperation(tileSet, new CollisionGroupNode(), presenterContext));
     }
 
     public void onRemoveCollisionGroup(IPresenterContext presenterContext) {
-        CollisionGroupNode collisionGroup = TileSetUtil.getCurrentCollisionGroup(presenterContext);
+        CollisionGroupNode collisionGroup = TileSetUtil.getCurrentCollisionGroup(presenterContext.getSelection());
         presenterContext.executeOperation(new RemoveCollisionGroupNodeOperation(collisionGroup, presenterContext));
     }
 
     public void onSelectCollisionGroup(IPresenterContext presenterContext, int index) {
-        TileSetNode tileSet = TileSetUtil.getCurrentTileSet(presenterContext);
+        TileSetNode tileSet = TileSetUtil.getCurrentTileSet(presenterContext.getSelection());
         if (tileSet != null) {
             Node selected = tileSet;
-            List<Node> children = tileSet.getChildren();
-            if (index >= 0 && index < children.size()) {
-                selected = children.get(index);
+            List<CollisionGroupNode> collisionGroups = tileSet.getCollisionGroups();
+            if (index >= 0 && index < collisionGroups.size()) {
+                selected = collisionGroups.get(index);
             }
             IStructuredSelection selection = new StructuredSelection(selected);
             if (!selection.equals(presenterContext.getSelection())) {

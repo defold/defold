@@ -70,7 +70,7 @@ Comparable<CollisionGroupNode> {
     }
 
     public TileSetNode getTileSetNode() {
-        return (TileSetNode) getParent();
+        return (TileSetNode) getParent().getParent();
     }
 
     @Override

@@ -18,9 +18,11 @@ public class NodeUtilTest {
 
         DummyIdFetcher idFetcher = new DummyIdFetcher();
         assertThat(NodeUtil.getUniqueId(parent, "default", idFetcher), is("default1"));
+        assertThat(NodeUtil.getUniqueId(parent.getChildren(), "default", idFetcher), is("default1"));
 
         parent.addChild(new DummyIdNode("default1"));
         assertThat(NodeUtil.getUniqueId(parent, "default", idFetcher), is("default2"));
+        assertThat(NodeUtil.getUniqueId(parent.getChildren(), "default", idFetcher), is("default2"));
     }
 
     public void testSelectionReplacement() {

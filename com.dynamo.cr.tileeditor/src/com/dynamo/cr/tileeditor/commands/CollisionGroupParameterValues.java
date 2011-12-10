@@ -22,7 +22,7 @@ public class CollisionGroupParameterValues implements IParameterValues {
         final IEditorPart editorPart = PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage().getActiveEditor();
         if (editorPart instanceof TileSetEditor2) {
             TileSetEditor2 editor = (TileSetEditor2)editorPart;
-            List<String> collisionGroups = TileSetUtil.getCurrentCollisionGroupIds(editor.getPresenterContext());
+            List<String> collisionGroups = TileSetUtil.getCurrentCollisionGroupIds(editor.getPresenterContext().getSelection(), true);
             int n = collisionGroups.size();
             for (int i = 0; i < n; ++i) {
                 values.put(collisionGroups.get(i), i);
