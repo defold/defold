@@ -9,10 +9,6 @@ import org.eclipse.osgi.util.NLS;
 
 import com.dynamo.cr.sceneed.Activator;
 import com.dynamo.cr.sceneed.core.Node;
-import com.dynamo.cr.sceneed.core.util.LoaderUtil;
-import com.dynamo.physics.proto.Physics.CollisionShape;
-import com.dynamo.physics.proto.Physics.CollisionShape.Builder;
-import com.dynamo.physics.proto.Physics.CollisionShape.Shape;
 
 public abstract class CollisionShapeNode extends Node {
 
@@ -37,14 +33,5 @@ public abstract class CollisionShapeNode extends Node {
         else
             return Status.OK_STATUS;
     }
-
-    public void build(Builder collisionShapeBuilder) {
-        Shape.Builder b = buildShape(collisionShapeBuilder);
-        b.setPosition(LoaderUtil.toPoint3(getTranslation()));
-        b.setRotation(LoaderUtil.toQuat(getRotation()));
-        collisionShapeBuilder.addShapes(b);
-    }
-
-    protected abstract CollisionShape.Shape.Builder buildShape(Builder collisionShapeBuilder);
 
 }

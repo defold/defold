@@ -5,9 +5,6 @@ import javax.vecmath.Vector4d;
 
 import com.dynamo.cr.properties.GreaterThanZero;
 import com.dynamo.cr.properties.Property;
-import com.dynamo.physics.proto.Physics.CollisionShape;
-import com.dynamo.physics.proto.Physics.CollisionShape.Builder;
-import com.dynamo.physics.proto.Physics.CollisionShape.Shape;
 
 public class CapsuleCollisionShapeNode extends CollisionShapeNode {
 
@@ -42,18 +39,6 @@ public class CapsuleCollisionShapeNode extends CollisionShapeNode {
 
     public void setHeight(double height) {
         this.height = height;
-    }
-
-    @Override
-    protected CollisionShape.Shape.Builder buildShape(
-            Builder collisionShapeBuilder) {
-        Shape.Builder b = Shape.newBuilder();
-        b.setShapeType(CollisionShape.Type.TYPE_CAPSULE);
-        b.setCount(2);
-        b.setIndex(collisionShapeBuilder.getDataCount());
-        collisionShapeBuilder.addData((float) radius);
-        collisionShapeBuilder.addData((float) height);
-        return b;
     }
 
     @Override
