@@ -20,7 +20,7 @@ public class UniqueValidator implements IValidator<Object, Unique, IPropertyObje
             for (Node sibling : parent.getChildren()) {
                 if (sibling != node) {
                     @SuppressWarnings("unchecked")
-                    IPropertyModel<? extends Node, ISceneModel> propertyModel = (IPropertyModel<? extends Node, ISceneModel>)node.getAdapter(IPropertyModel.class);
+                    IPropertyModel<? extends Node, ISceneModel> propertyModel = (IPropertyModel<? extends Node, ISceneModel>)sibling.getAdapter(IPropertyModel.class);
                     Object siblingValue = propertyModel.getPropertyValue(property);
                     if (value.equals(siblingValue)) {
                         return ValidatorUtil.createStatus(object, property, IStatus.ERROR, "DUPLICATE", Messages.UniqueValidator_DUPLICATE, new Object[] {value}); //$NON-NLS-1$
