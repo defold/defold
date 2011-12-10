@@ -1,9 +1,11 @@
 package com.dynamo.cr.sceneed.core;
 
+import com.dynamo.cr.sceneed.ui.RootManipulator;
+
 
 public interface IManipulatorRegistry {
 
-    Manipulator getManipulatorForSelection(IManipulatorMode mode, Object[] selection);
+    RootManipulator getManipulatorForSelection(IManipulatorMode mode, Object[] selection);
 
     IManipulatorMode getMode(String modeId);
 

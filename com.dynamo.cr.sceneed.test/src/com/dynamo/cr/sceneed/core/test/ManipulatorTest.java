@@ -11,6 +11,7 @@ import static org.mockito.Mockito.mock;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import org.eclipse.core.commands.operations.DefaultOperationHistory;
@@ -35,6 +36,7 @@ import com.dynamo.cr.sceneed.core.IRenderView;
 import com.dynamo.cr.sceneed.core.Manipulator;
 import com.dynamo.cr.sceneed.core.ManipulatorController;
 import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.sceneed.ui.RootManipulator;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
@@ -86,22 +88,22 @@ public class ManipulatorTest {
 
     @Test
     public void testManipulatorSelection1() throws Exception {
-        IManipulatorMode sizeMode = manipulatorRegistry.getMode(Activator.SIZE_MODE_ID);
-        assertNotNull(sizeMode);
+        IManipulatorMode scaleMode = manipulatorRegistry.getMode(Activator.SCALE_MODE_ID);
+        assertNotNull(scaleMode);
         List<Node> selection = new ArrayList<Node>();
         selection.add(new DummySphere());
-        Manipulator manipulator = manipulatorRegistry.getManipulatorForSelection(sizeMode, selection.toArray(new Object[selection.size()]));
+        Manipulator manipulator = manipulatorRegistry.getManipulatorForSelection(scaleMode, selection.toArray(new Object[selection.size()]));
         assertNotNull(manipulator);
-        assertThat(manipulator, instanceOf(DummySphereSizeManipulator.class));
+        assertThat(manipulator, instanceOf(DummySphereScaleManipulator.class));
     }
 
     @Test
     public void testManipulatorSelection2() throws Exception {
-        IManipulatorMode sizeMode = manipulatorRegistry.getMode(Activator.SIZE_MODE_ID);
-        assertNotNull(sizeMode);
+        IManipulatorMode scaleMode = manipulatorRegistry.getMode(Activator.SCALE_MODE_ID);
+        assertNotNull(scaleMode);
         List<Node> selection = new ArrayList<Node>();
         selection.add(new DummyBox());
-        Manipulator manipulator = manipulatorRegistry.getManipulatorForSelection(sizeMode, selection.toArray(new Object[selection.size()]));
+        Manipulator manipulator = manipulatorRegistry.getManipulatorForSelection(scaleMode, selection.toArray(new Object[selection.size()]));
         assertNull(manipulator);
     }
 
@@ -116,11 +118,36 @@ public class ManipulatorTest {
         StructuredSelection selection = new StructuredSelection(selectionList);
         manipulatorController.selectionChanged(dummyPart, selection);
 
+        RootManipulator rootManipulator = manipulatorController.getRootManipulator();
+        assertNotNull(rootManipulator);
+        Manipulator xAxis = (Manipulator) rootManipulator.getChildren().get(0);
+        manipulatorController.onNodeHit(Arrays.asList((Node) xAxis));
+
+        MouseEvent e = mock(MouseEvent.class);
+        assertThat(0, is(undoHistory.getUndoHistory(undoContext).length));
+        manipulatorController.mouseDown(e);
+        manipulatorController.mouseMove(e);
+        manipulatorController.mouseUp(e);
+        // Verify that a operation was executed
+        assertThat(1, is(undoHistory.getUndoHistory(undoContext).length));
+    }
+
+    @Test
+    public void testMoveManipulatorNop() throws Exception {
+        IManipulatorMode moveMode = manipulatorRegistry.getMode(Activator.MOVE_MODE_ID);
+        manipulatorController.setManipulatorMode(moveMode);
+
+        IWorkbenchPart dummyPart = mock(IWorkbenchPart.class);
+        ArrayList<Node> selectionList = new ArrayList<Node>();
+        selectionList.add(new DummySphere());
+        StructuredSelection selection = new StructuredSelection(selectionList);
+        manipulatorController.selectionChanged(dummyPart, selection);
+
         MouseEvent e = mock(MouseEvent.class);
         assertThat(0, is(undoHistory.getUndoHistory(undoContext).length));
         manipulatorController.mouseUp(e);
-        // Verify that the operation was executed
-        assertThat(1, is(undoHistory.getUndoHistory(undoContext).length));
+        // Verify that *no* operation was executed
+        assertThat(0, is(undoHistory.getUndoHistory(undoContext).length));
     }
 }
 

@@ -246,4 +246,29 @@ public abstract class Node implements IAdaptable {
         }
         return super.toString();
     }
+
+    public void setWorldTransform(Matrix4d transform) {
+        Matrix4d worldInv = new Matrix4d();
+        getWorldTransform(worldInv);
+        worldInv.invert();
+
+        transform.mul(worldInv, transform);
+
+        Matrix4d local = new Matrix4d();
+        getLocalTransform(local);
+
+        local.mul(local, transform);
+
+        Vector4d translation = new Vector4d();
+        Quat4d rotation = new Quat4d();
+        local.getColumn(3, translation);
+        rotation.set(local);
+        setTranslation(translation);
+        setRotation(rotation);
+    }
+
+    public void setLocalTransform(Matrix4d transform) {
+        transform.getColumn(3, translation);
+        rotation.set(transform);
+    }
 }

@@ -16,7 +16,7 @@ import com.dynamo.cr.sceneed.core.IManipulatorMode;
 import com.dynamo.cr.sceneed.core.IManipulatorRegistry;
 import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
-import com.dynamo.cr.sceneed.core.Manipulator;
+import com.dynamo.cr.sceneed.ui.RootManipulator;
 
 public class ManipulatorRegistry implements IManipulatorRegistry {
 
@@ -42,7 +42,6 @@ public class ManipulatorRegistry implements IManipulatorRegistry {
                     String modeId = e.getAttribute("mode");
                     String nodeType = e.getAttribute("node-type");
                     ManipulatorMode mode = modes.get(modeId);
-
                     ManipulatorInfo info = new ManipulatorInfo(name, mode, nodeType);
                     mode.addManipulatorInfo(info);
                 }
@@ -60,7 +59,7 @@ public class ManipulatorRegistry implements IManipulatorRegistry {
     }
 
     @Override
-    public Manipulator getManipulatorForSelection(IManipulatorMode mode, Object[] selection) {
+    public RootManipulator getManipulatorForSelection(IManipulatorMode mode, Object[] selection) {
         INodeTypeRegistry nodeTypeRegistry = Activator.getDefault().getNodeTypeRegistry();
         List<IManipulatorInfo> list = mode.getManipulatorInfoList();
         for (IManipulatorInfo info : list) {
@@ -68,7 +67,7 @@ public class ManipulatorRegistry implements IManipulatorRegistry {
             String nodeTypeID = info.getNodeType();
             INodeType nodeType = nodeTypeRegistry.getNodeTypeFromID(nodeTypeID);
             try {
-                Manipulator manipulator = (Manipulator) nodeType.getNodeClass().newInstance();
+                RootManipulator manipulator = (RootManipulator) nodeType.getNodeClass().newInstance();
                 if (manipulator.match(selection)) {
                     return manipulator;
                 }

@@ -1,5 +1,7 @@
 package com.dynamo.cr.sceneed.core;
 
+import javax.vecmath.Vector4d;
+
 import org.eclipse.swt.events.MouseListener;
 import org.eclipse.swt.events.MouseMoveListener;
 import org.eclipse.swt.widgets.Composite;
@@ -19,4 +21,5 @@ public interface IRenderView  {
     void setFocus();
     void createControls(Composite parent);
     void refresh();
+    void viewToWorld(int x, int y, Vector4d clickPos, Vector4d clickDir);
 }

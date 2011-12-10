@@ -70,8 +70,8 @@ public class RenderContext {
         return passes.contains(pass);
     }
 
-    public <T extends Node> void add(INodeRenderer<T> nodeRenderer, T node, Vector3d position, Object key) {
-        renderDataList.add(new RenderData<T>(pass, nodeRenderer, node, position, key));
+    public <T extends Node> void add(INodeRenderer<T> nodeRenderer, T node, Vector3d position, Object userData) {
+        renderDataList.add(new RenderData<T>(pass, nodeRenderer, node, position, userData));
     }
 
     public List<RenderData<? extends Node>> getRenderData() {
