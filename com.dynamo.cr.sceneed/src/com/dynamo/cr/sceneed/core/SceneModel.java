@@ -165,7 +165,10 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
 
     @Override
     public void clearDirty() {
-        this.undoRedoCounter = 0;
+        if (this.undoRedoCounter != 0) {
+            this.undoRedoCounter = 0;
+            notifyChange();
+        }
     }
 
     @Override
