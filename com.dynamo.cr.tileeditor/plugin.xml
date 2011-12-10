@@ -614,6 +614,20 @@
                   class="com.dynamo.cr.tileeditor.menus.CollisionGroupsContributionItem"
                   id="com.dynamo.cr.tileeditor.dynamics.collisionGroups2">
             </dynamic>
+            <visibleWhen
+                  checkEnabled="false">
+               <or>
+                  <reference
+                        definitionId="com.dynamo.cr.tileeditor.definitions.tileSetSelected">
+                  </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.tileeditor.definitions.collisionGroupSelected">
+                  </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.tileeditor.definitions.collisionGroupGroupSelected">
+                  </reference>
+               </or>
+            </visibleWhen>
          </menu>
       </menuContribution>
       <menuContribution
