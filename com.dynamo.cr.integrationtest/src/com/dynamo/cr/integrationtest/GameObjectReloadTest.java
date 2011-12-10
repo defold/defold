@@ -67,7 +67,7 @@ public class GameObjectReloadTest extends AbstractSceneTest {
         GameObjectNode go = (GameObjectNode)getModel().getRoot();
         RefComponentNode component = new RefComponentNode(new Sprite2Node());
         component.setComponent(path);
-        AddComponentOperation op = new AddComponentOperation(go, component);
+        AddComponentOperation op = new AddComponentOperation(go, component, getPresenterContext());
         getModel().executeOperation(op);
         assertThat(go.getChildren().size(), is(1));
         assertNodePropertyStatus(component, "component", IStatus.ERROR, null);
