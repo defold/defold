@@ -61,6 +61,7 @@ public class TileSetPresenterTest extends AbstractPresenterTest {
 
         when(getPresenterContext().getSelection()).thenReturn(new StructuredSelection(collisionGroup));
         this.presenter.onSelectCollisionGroup(getPresenterContext(), -1);
+        verifyRefresh();
         verifySelection();
         verifyNoExecution();
 
@@ -71,6 +72,7 @@ public class TileSetPresenterTest extends AbstractPresenterTest {
 
         when(getPresenterContext().getSelection()).thenReturn(new StructuredSelection(tileSet));
         this.presenter.onSelectCollisionGroup(getPresenterContext(), 0);
+        verifyRefresh();
         verifySelection();
         verifyNoExecution();
 

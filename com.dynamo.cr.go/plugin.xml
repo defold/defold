@@ -119,7 +119,7 @@
          point="org.eclipse.ui.menus">
       <menuContribution
             allPopups="false"
-            locationURI="popup:com.dynamo.cr.sceneed.menus.sceneOutlineContext">
+            locationURI="popup:com.dynamo.cr.sceneed.menus.sceneOutlineContext?before=com.dynamo.cr.sceneed.genericSeparator">
          <command
                commandId="com.dynamo.cr.sceneed.ui.commands.add"
                label="Add Component"
@@ -141,15 +141,6 @@
                      definitionId="com.dynamo.cr.go.core.definitions.gameObjectSelected">
                </reference>
             </visibleWhen>
-         </command>
-         <separator
-               name="com.dynamo.cr.tileeditor.separator1"
-               visible="true">
-         </separator>
-         <command
-               commandId="org.eclipse.ui.edit.delete"
-               label="Delete"
-               style="push">
          </command>
       </menuContribution>
       <menuContribution

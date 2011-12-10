@@ -201,6 +201,30 @@
             id="com.dynamo.cr.tileeditor.commands.FrameGrid"
             name="Frame Tile Grid">
       </command>
+      <command
+            id="com.dynamo.cr.tileeditor.commands.selectCollisionGroup"
+            name="Select Collision Group">
+         <commandParameter
+               id="org.eclipse.ui.commands.radioStateParameter"
+               name="index"
+               optional="false"
+               values="com.dynamo.cr.tileeditor.commands.CollisionGroupParameterValues">
+         </commandParameter>
+         <state
+               id="org.eclipse.ui.commands.radioState">
+            <class
+                  class="org.eclipse.ui.handlers.RadioState">
+               <parameter
+                     name="default"
+                     value="-1">
+               </parameter>
+               <parameter
+                     name="persisted"
+                     value="false">
+               </parameter>
+            </class>
+         </state>
+      </command>
    </extension>
    <extension
          point="org.eclipse.ui.bindings">
@@ -346,6 +370,106 @@
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
             sequence="Z">
       </key>
+      <key
+            commandId="com.dynamo.cr.tileeditor.commands.selectCollisionGroup"
+            contextId="com.dynamo.cr.sceneed.ui.contexts.sceneEditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="0">
+         <parameter
+               id="org.eclipse.ui.commands.radioStateParameter"
+               value="-1">
+         </parameter>
+      </key>
+      <key
+            commandId="com.dynamo.cr.tileeditor.commands.selectCollisionGroup"
+            contextId="com.dynamo.cr.sceneed.ui.contexts.sceneEditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="1">
+         <parameter
+               id="org.eclipse.ui.commands.radioStateParameter"
+               value="0">
+         </parameter>
+      </key>
+      <key
+            commandId="com.dynamo.cr.tileeditor.commands.selectCollisionGroup"
+            contextId="com.dynamo.cr.sceneed.ui.contexts.sceneEditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="2">
+         <parameter
+               id="org.eclipse.ui.commands.radioStateParameter"
+               value="1">
+         </parameter>
+      </key>
+      <key
+            commandId="com.dynamo.cr.tileeditor.commands.selectCollisionGroup"
+            contextId="com.dynamo.cr.sceneed.ui.contexts.sceneEditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="3">
+         <parameter
+               id="org.eclipse.ui.commands.radioStateParameter"
+               value="2">
+         </parameter>
+      </key>
+      <key
+            commandId="com.dynamo.cr.tileeditor.commands.selectCollisionGroup"
+            contextId="com.dynamo.cr.sceneed.ui.contexts.sceneEditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="4">
+         <parameter
+               id="org.eclipse.ui.commands.radioStateParameter"
+               value="3">
+         </parameter>
+      </key>
+      <key
+            commandId="com.dynamo.cr.tileeditor.commands.selectCollisionGroup"
+            contextId="com.dynamo.cr.sceneed.ui.contexts.sceneEditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="5">
+         <parameter
+               id="org.eclipse.ui.commands.radioStateParameter"
+               value="4">
+         </parameter>
+      </key>
+      <key
+            commandId="com.dynamo.cr.tileeditor.commands.selectCollisionGroup"
+            contextId="com.dynamo.cr.sceneed.ui.contexts.sceneEditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="6">
+         <parameter
+               id="org.eclipse.ui.commands.radioStateParameter"
+               value="5">
+         </parameter>
+      </key>
+      <key
+            commandId="com.dynamo.cr.tileeditor.commands.selectCollisionGroup"
+            contextId="com.dynamo.cr.sceneed.ui.contexts.sceneEditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="7">
+         <parameter
+               id="org.eclipse.ui.commands.radioStateParameter"
+               value="6">
+         </parameter>
+      </key>
+      <key
+            commandId="com.dynamo.cr.tileeditor.commands.selectCollisionGroup"
+            contextId="com.dynamo.cr.sceneed.ui.contexts.sceneEditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="8">
+         <parameter
+               id="org.eclipse.ui.commands.radioStateParameter"
+               value="7">
+         </parameter>
+      </key>
+      <key
+            commandId="com.dynamo.cr.tileeditor.commands.selectCollisionGroup"
+            contextId="com.dynamo.cr.sceneed.ui.contexts.sceneEditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="9">
+         <parameter
+               id="org.eclipse.ui.commands.radioStateParameter"
+               value="8">
+         </parameter>
+      </key>
    </extension>
    <extension
          point="org.eclipse.ui.menus">
@@ -461,6 +585,63 @@
                label="Delete"
                style="push">
          </command>
+      </menuContribution>
+      <menuContribution
+            allPopups="false"
+            locationURI="popup:com.dynamo.cr.sceneed.menus.sceneOutlineContext?before=com.dynamo.cr.sceneed.genericSeparator">
+         <command
+               commandId="com.dynamo.cr.sceneed.ui.commands.add"
+               label="Add Collision Group"
+               style="push">
+            <visibleWhen
+                  checkEnabled="false">
+               <or>
+                  <reference
+                        definitionId="com.dynamo.cr.tileeditor.definitions.tileSetSelected">
+                  </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.tileeditor.definitions.collisionGroupSelected">
+                  </reference>
+               </or>
+            </visibleWhen>
+         </command>
+         <menu
+               label="Collision Groups">
+            <dynamic
+                  class="com.dynamo.cr.tileeditor.menus.CollisionGroupsContributionItem"
+                  id="com.dynamo.cr.tileeditor.dynamics.collisionGroups2">
+            </dynamic>
+         </menu>
+      </menuContribution>
+      <menuContribution
+            allPopups="false"
+            locationURI="menu:org.eclipse.ui.main.menu?after=edit">
+         <menu
+               label="Tile Set">
+            <command
+                  commandId="com.dynamo.cr.sceneed.ui.commands.add"
+                  label="Add Collision Group"
+                  style="push">
+            </command>
+            <menu
+                  label="Collision Groups">
+               <dynamic
+                     class="com.dynamo.cr.tileeditor.menus.CollisionGroupsContributionItem"
+                     id="com.dynamo.cr.tileeditor.dynamics.collisionGroups2">
+               </dynamic>
+            </menu>
+            <visibleWhen
+                  checkEnabled="false">
+               <or>
+                  <reference
+                        definitionId="com.dynamo.cr.tileeditor.definitions.tileSetSelected">
+                  </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.tileeditor.definitions.collisionGroupSelected">
+                  </reference>
+               </or>
+            </visibleWhen>
+         </menu>
       </menuContribution>  </extension>
    <extension
          point="org.eclipse.ui.handlers">
@@ -630,6 +811,42 @@
             </with>
          </enabledWhen>
       </handler>
+      <handler
+            class="com.dynamo.cr.tileeditor.handlers.AddCollisionGroupHandler"
+            commandId="com.dynamo.cr.sceneed.ui.commands.add">
+         <activeWhen>
+            <or>
+               <reference
+                     definitionId="com.dynamo.cr.tileeditor.definitions.tileSetSelected">
+               </reference>
+               <reference
+                     definitionId="com.dynamo.cr.tileeditor.definitions.collisionGroupSelected">
+               </reference>
+            </or>
+         </activeWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.tileeditor.handlers.RemoveCollisionGroupHandler"
+            commandId="org.eclipse.ui.edit.delete">
+         <activeWhen>
+            <reference
+                  definitionId="com.dynamo.cr.tileeditor.definitions.collisionGroupSelected">
+            </reference>
+         </activeWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.tileeditor.handlers.SelectCollisionGroupHandler"
+            commandId="com.dynamo.cr.tileeditor.commands.selectCollisionGroup">
+         <activeWhen>
+            <or>
+               <reference
+                     definitionId="com.dynamo.cr.tileeditor.definitions.tileSetSelected">
+               </reference>
+               <reference
+                     definitionId="com.dynamo.cr.tileeditor.definitions.collisionGroupSelected">
+               </reference>
+            </or></activeWhen>
+      </handler>
    </extension>
    <extension
          point="org.eclipse.core.expressions.definitions">
@@ -656,6 +873,30 @@
                <equals
                      value="com.dynamo.cr.tileeditor.contexts.GridEditor">
                </equals>
+            </iterate>
+         </with>
+      </definition>
+      <definition
+            id="com.dynamo.cr.tileeditor.definitions.tileSetSelected">
+         <with
+               variable="selection">
+            <iterate
+                  operator="or">
+               <instanceof
+                     value="com.dynamo.cr.tileeditor.scene.TileSetNode">
+               </instanceof>
+            </iterate>
+         </with>
+      </definition>
+      <definition
+            id="com.dynamo.cr.tileeditor.definitions.collisionGroupSelected">
+         <with
+               variable="selection">
+            <iterate
+                  operator="or">
+               <instanceof
+                     value="com.dynamo.cr.tileeditor.scene.CollisionGroupNode">
+               </instanceof>
             </iterate>
          </with>
       </definition>

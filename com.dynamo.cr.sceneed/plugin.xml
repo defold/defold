@@ -113,5 +113,21 @@
             name="Move Manipulator">
       </manipulator-mode>
    </extension>
+   <extension
+         point="org.eclipse.ui.menus">
+      <menuContribution
+            allPopups="false"
+            locationURI="popup:com.dynamo.cr.sceneed.menus.sceneOutlineContext">
+         <separator
+               name="com.dynamo.cr.sceneed.genericSeparator"
+               visible="true">
+         </separator>
+         <command
+               commandId="org.eclipse.ui.edit.delete"
+               label="Delete"
+               style="push">
+         </command>
+      </menuContribution>
+   </extension>
 
 </plugin>

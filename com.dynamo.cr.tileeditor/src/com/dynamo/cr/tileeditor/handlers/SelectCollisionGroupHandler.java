@@ -1,17 +1,27 @@
 package com.dynamo.cr.tileeditor.handlers;
 
+import java.util.Map;
+
 import org.eclipse.core.commands.AbstractHandler;
 import org.eclipse.core.commands.ExecutionEvent;
 import org.eclipse.core.commands.ExecutionException;
+import org.eclipse.jface.viewers.ISelection;
+import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.ui.IEditorPart;
+import org.eclipse.ui.ISelectionService;
+import org.eclipse.ui.IWorkbench;
+import org.eclipse.ui.commands.IElementUpdater;
 import org.eclipse.ui.handlers.HandlerUtil;
 import org.eclipse.ui.handlers.RadioState;
+import org.eclipse.ui.menus.UIElement;
 
+import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.tileeditor.TileSetEditor2;
+import com.dynamo.cr.tileeditor.scene.CollisionGroupNode;
 import com.dynamo.cr.tileeditor.scene.TileSetNode;
 import com.dynamo.cr.tileeditor.scene.TileSetNodePresenter;
 
-public class SelectCollisionGroupHandler extends AbstractHandler {
+public class SelectCollisionGroupHandler extends AbstractHandler implements IElementUpdater {
 
     public static final String COMMAND_ID = "com.dynamo.cr.tileeditor.commands.selectCollisionGroup";
 
@@ -32,6 +42,42 @@ public class SelectCollisionGroupHandler extends AbstractHandler {
             HandlerUtil.updateRadioState(event.getCommand(), currentState);
         }
         return null;
+    }
+
+    /**
+     * Needed to keep the menu state in sync with selection
+     */
+    @Override
+    public void updateElement(UIElement element, @SuppressWarnings("rawtypes") Map parameters) {
+        IWorkbench workbench = (IWorkbench) element.getServiceLocator().getService(IWorkbench.class);
+        ISelectionService selectionService = null;
+        if (workbench != null && workbench.getActiveWorkbenchWindow() != null) {
+            selectionService = workbench.getActiveWorkbenchWindow().getSelectionService();
+        }
+        if (selectionService != null) {
+            ISelection selection = selectionService.getSelection();
+            if (selection instanceof IStructuredSelection) {
+                IStructuredSelection structuredSelection = (IStructuredSelection)selection;
+                if (structuredSelection.getFirstElement() instanceof Node) {
+                    Node node = (Node)structuredSelection.getFirstElement();
+                    TileSetNode tileSet = null;
+                    CollisionGroupNode collisionGroup = null;
+                    if (node instanceof TileSetNode) {
+                        tileSet = (TileSetNode)node;
+                    } else if (node instanceof CollisionGroupNode) {
+                        collisionGroup = (CollisionGroupNode)node;
+                        tileSet = collisionGroup.getTileSetNode();
+                    }
+                    if (tileSet != null) {
+                        int index = -1;
+                        if (collisionGroup != null) {
+                            index = tileSet.getChildren().indexOf(collisionGroup);
+                        }
+                        element.setChecked(parameters.get(RadioState.PARAMETER_ID).equals("" + index));
+                    }
+                }
+            }
+        }
     }
 
 }

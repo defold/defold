@@ -21,7 +21,7 @@ public class TileSetNodePresenter implements INodePresenter<TileSetNode> {
     private String currentCollisionGroup;
 
     public void onBeginPaintTile(IPresenterContext presenterContext) {
-        CollisionGroupNode collisionGroup = getCollisionGroup(presenterContext);
+        CollisionGroupNode collisionGroup = TileSetUtil.getCurrentCollisionGroup(presenterContext);
         TileSetNode tileSet = collisionGroup.getTileSetNode();
         this.oldTileCollisionGroups = tileSet.getTileCollisionGroups();
         this.newTileCollisionGroups = new ArrayList<String>(this.oldTileCollisionGroups);
@@ -30,7 +30,7 @@ public class TileSetNodePresenter implements INodePresenter<TileSetNode> {
 
     public void onEndPaintTile(IPresenterContext presenterContext) {
         if (this.currentCollisionGroup != null) {
-            CollisionGroupNode collisionGroup = getCollisionGroup(presenterContext);
+            CollisionGroupNode collisionGroup = TileSetUtil.getCurrentCollisionGroup(presenterContext);
             TileSetNode tileSet = collisionGroup.getTileSetNode();
             if (!this.oldTileCollisionGroups.equals(this.newTileCollisionGroups)) {
                 presenterContext.executeOperation(new SetTileCollisionGroupsOperation(
@@ -44,7 +44,7 @@ public class TileSetNodePresenter implements INodePresenter<TileSetNode> {
 
     public void onPaintTile(IPresenterContext presenterContext, int index) {
         if (this.currentCollisionGroup != null) {
-            CollisionGroupNode collisionGroup = getCollisionGroup(presenterContext);
+            CollisionGroupNode collisionGroup = TileSetUtil.getCurrentCollisionGroup(presenterContext);
             TileSetNode tileSet = collisionGroup.getTileSetNode();
             if (!this.newTileCollisionGroups.get(index).equals(this.currentCollisionGroup)) {
                 this.newTileCollisionGroups.set(index, this.currentCollisionGroup);
@@ -55,17 +55,17 @@ public class TileSetNodePresenter implements INodePresenter<TileSetNode> {
     }
 
     public void onAddCollisionGroup(IPresenterContext presenterContext) {
-        TileSetNode tileSet = getTileSet(presenterContext);
+        TileSetNode tileSet = TileSetUtil.getCurrentTileSet(presenterContext);
         presenterContext.executeOperation(new AddCollisionGroupNodeOperation(tileSet, new CollisionGroupNode(), presenterContext));
     }
 
     public void onRemoveCollisionGroup(IPresenterContext presenterContext) {
-        CollisionGroupNode collisionGroup = getCollisionGroup(presenterContext);
+        CollisionGroupNode collisionGroup = TileSetUtil.getCurrentCollisionGroup(presenterContext);
         presenterContext.executeOperation(new RemoveCollisionGroupNodeOperation(collisionGroup, presenterContext));
     }
 
     public void onSelectCollisionGroup(IPresenterContext presenterContext, int index) {
-        TileSetNode tileSet = getTileSet(presenterContext);
+        TileSetNode tileSet = TileSetUtil.getCurrentTileSet(presenterContext);
         if (tileSet != null) {
             Node selected = tileSet;
             List<Node> children = tileSet.getChildren();
@@ -75,21 +75,9 @@ public class TileSetNodePresenter implements INodePresenter<TileSetNode> {
             IStructuredSelection selection = new StructuredSelection(selected);
             if (!selection.equals(presenterContext.getSelection())) {
                 presenterContext.setSelection(selection);
+                presenterContext.refreshView();
             }
         }
     }
 
-    private CollisionGroupNode getCollisionGroup(IPresenterContext presenterContext) {
-        return (CollisionGroupNode) presenterContext.getSelection().getFirstElement();
-    }
-
-    private TileSetNode getTileSet(IPresenterContext presenterContext) {
-        Node node = (Node) presenterContext.getSelection().getFirstElement();
-        if (node instanceof TileSetNode) {
-            return (TileSetNode) node;
-        } else if (node instanceof CollisionGroupNode) {
-            return (TileSetNode) node.getParent();
-        }
-        return null;
-    }
 }
