@@ -51,7 +51,7 @@ public class GameObjectPresenter implements ISceneView.INodePresenter<GameObject
                 presenterContext.logException(e);
             }
             if (child != null) {
-                presenterContext.executeOperation(new AddComponentOperation(parent, new ComponentNode(child)));
+                presenterContext.executeOperation(new AddComponentOperation(parent, new ComponentNode(child), presenterContext));
             } else {
                 throw new UnsupportedOperationException("Component type " + componentType + " not registered.");
             }
@@ -76,7 +76,7 @@ public class GameObjectPresenter implements ISceneView.INodePresenter<GameObject
             if (child != null) {
                 RefComponentNode component = new RefComponentNode(child);
                 component.setComponent(path);
-                presenterContext.executeOperation(new AddComponentOperation(parent, component));
+                presenterContext.executeOperation(new AddComponentOperation(parent, component, presenterContext));
             } else {
                 throw new UnsupportedOperationException("Component " + path + " has unknown type.");
             }
@@ -95,7 +95,7 @@ public class GameObjectPresenter implements ISceneView.INodePresenter<GameObject
                 break;
             }
         }
-        context.executeOperation(new RemoveComponentOperation(component));
+        context.executeOperation(new RemoveComponentOperation(component, context));
     }
 
     private String selectComponentType(IPresenterContext context) {

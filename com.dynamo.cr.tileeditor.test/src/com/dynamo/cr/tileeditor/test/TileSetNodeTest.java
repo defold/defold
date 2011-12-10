@@ -27,6 +27,7 @@ import com.dynamo.cr.sceneed.core.test.AbstractNodeTest;
 import com.dynamo.cr.tileeditor.Activator;
 import com.dynamo.cr.tileeditor.operations.AddAnimationNodeOperation;
 import com.dynamo.cr.tileeditor.operations.AddCollisionGroupNodeOperation;
+import com.dynamo.cr.tileeditor.operations.RemoveAnimationNodeOperation;
 import com.dynamo.cr.tileeditor.operations.RemoveCollisionGroupNodeOperation;
 import com.dynamo.cr.tileeditor.operations.SetTileCollisionGroupsOperation;
 import com.dynamo.cr.tileeditor.scene.AnimationNode;
@@ -140,7 +141,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
         return collisionGroup;
     }
 
-    private void removeCollisionGroup(CollisionGroupNode collisionGroup, int updateCount) throws ExecutionException {
+    private void removeCollisionGroup(CollisionGroupNode collisionGroup) throws ExecutionException {
         RemoveCollisionGroupNodeOperation op = new RemoveCollisionGroupNodeOperation(collisionGroup, getPresenterContext());
         execute(op);
         verifySelection();
@@ -152,6 +153,12 @@ public class TileSetNodeTest extends AbstractNodeTest {
         when(getPresenterContext().getSelection()).thenReturn(new StructuredSelection(animation));
         verifySelection();
         return animation;
+    }
+
+    private void removeAnimation(AnimationNode animation) throws ExecutionException {
+        RemoveAnimationNodeOperation op = new RemoveAnimationNodeOperation(animation, getPresenterContext());
+        execute(op);
+        verifySelection();
     }
 
     // Tests
@@ -399,17 +406,19 @@ public class TileSetNodeTest extends AbstractNodeTest {
         assertThat(tileCollisionGroup(1), is("default1"));
 
         // test
-        removeCollisionGroup(collisionGroup(1), 2);
+        removeCollisionGroup(collisionGroup(1));
         assertThat(collisionGroupCount(), is(1));
         assertThat(tileCollisionGroup(1), is(""));
 
         undo();
         assertThat(collisionGroupCount(), is(2));
         assertThat(tileCollisionGroup(1), is("default1"));
+        verifySelection();
 
         redo();
         assertThat(collisionGroupCount(), is(1));
         assertThat(tileCollisionGroup(1), is(""));
+        verifySelection();
     }
 
     @Test
@@ -425,7 +434,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
         setNodeProperty(collisionGroup(0), "id", "default1");
 
         // test
-        removeCollisionGroup(collisionGroup(1), 2);
+        removeCollisionGroup(collisionGroup(1));
         assertThat(collisionGroupCount(), is(1));
         assertThat(tileCollisionGroup(1), is("default1"));
 
@@ -449,16 +458,37 @@ public class TileSetNodeTest extends AbstractNodeTest {
         assertThat(animationCount(), is(0));
 
         addAnimation();
-
         assertThat(animationCount(), is(1));
         assertThat(animation(0).getId(), is("anim"));
 
         undo();
         assertThat(animationCount(), is(0));
+        verifySelection();
 
         redo();
         assertThat(animationCount(), is(1));
         assertThat(animation(0).getId(), is("anim"));
+        verifySelection();
+    }
+
+    @Test
+    public void testRemoveAnimation() throws Exception {
+        testCreate();
+
+        AnimationNode animation = addAnimation();
+
+        assertThat(animationCount(), is(1));
+
+        removeAnimation(animation);
+        assertThat(animationCount(), is(0));
+
+        undo();
+        assertThat(animationCount(), is(1));
+        verifySelection();
+
+        redo();
+        assertThat(animationCount(), is(0));
+        verifySelection();
     }
 
     /**
@@ -605,7 +635,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
         CollisionGroupNode newGroup = addCollisionGroup();
         assertNodePropertyStatus(newGroup, "id", IStatus.WARNING, NLS.bind(Messages.CollisionGroupNode_id_OVERFLOW, n));
         // Clear message
-        removeCollisionGroup(collisionGroup(n-1), 1);
+        removeCollisionGroup(collisionGroup(n-1));
         assertNodePropertyStatus(newGroup, "id", IStatus.OK, null);
     }
 
@@ -624,7 +654,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
         assertThat(CollisionGroupNode.getCollisionGroupColor("default"), nullValue());
 
         // Remove
-        removeCollisionGroup(collisionGroup, 1);
+        removeCollisionGroup(collisionGroup);
         assertThat(CollisionGroupNode.getCollisionGroupColor("default1"), nullValue());
 
         // Add

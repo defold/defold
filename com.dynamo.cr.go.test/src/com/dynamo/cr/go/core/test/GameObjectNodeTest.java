@@ -54,7 +54,7 @@ public class GameObjectNodeTest extends AbstractNodeTest {
     private void addComponent() throws Exception {
         DummyComponentNode componentType = new DummyComponentNode();
         ComponentNode component = new ComponentNode(componentType);
-        execute(new AddComponentOperation(this.goNode, component));
+        execute(new AddComponentOperation(this.goNode, component, getPresenterContext()));
         verifySelection();
     }
 
@@ -62,12 +62,12 @@ public class GameObjectNodeTest extends AbstractNodeTest {
         DummyComponentNode componentType = this.dummyLoader.load(getLoaderContext(), getFile("/test.test").getContents());
         RefComponentNode component = new RefComponentNode(componentType);
         component.setComponent("/test.test");
-        execute(new AddComponentOperation(this.goNode, component));
+        execute(new AddComponentOperation(this.goNode, component, getPresenterContext()));
         verifySelection();
     }
 
     private void removeComponent(int i) throws Exception {
-        execute(new RemoveComponentOperation(component(i)));
+        execute(new RemoveComponentOperation(component(i), getPresenterContext()));
         verifySelection();
     }
 

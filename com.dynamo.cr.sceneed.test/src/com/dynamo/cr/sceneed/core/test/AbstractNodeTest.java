@@ -191,12 +191,12 @@ public abstract class AbstractNodeTest {
 
     protected void verifySelection() {
         ++this.selectionCount;
-        verify(this.model, times(this.selectionCount)).setSelection(any(IStructuredSelection.class));
+        verify(this.presenterContext, times(this.selectionCount)).setSelection(any(IStructuredSelection.class));
     }
 
     protected void verifyExecution() {
         ++this.executionCount;
-        verify(this.model, times(this.executionCount)).executeOperation(any(IUndoableOperation.class));
+        verify(this.presenterContext, times(this.executionCount)).executeOperation(any(IUndoableOperation.class));
     }
 
     protected void setNodeProperty(Node node, Object id, Object value) throws ExecutionException {

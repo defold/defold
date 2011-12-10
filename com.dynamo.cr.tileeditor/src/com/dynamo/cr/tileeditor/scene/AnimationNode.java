@@ -20,4 +20,8 @@ public class AnimationNode extends Node {
         this.id = id;
     }
 
+    public TileSetNode getTileSetNode() {
+        return (TileSetNode) getParent().getParent();
+    }
+
 }
