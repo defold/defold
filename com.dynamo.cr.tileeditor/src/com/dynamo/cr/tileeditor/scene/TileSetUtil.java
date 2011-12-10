@@ -47,4 +47,13 @@ public class TileSetUtil {
         }
         return collisionGroupIds;
     }
+
+    public static AnimationNode getCurrentAnimation(IStructuredSelection selection) {
+        Object selected = selection.getFirstElement();
+        if (selected instanceof AnimationNode) {
+            return (AnimationNode) selected;
+        }
+        return null;
+    }
+
 }

@@ -139,4 +139,15 @@ public class TileSetPresenterTest extends AbstractPresenterTest {
         verifyExecution();
     }
 
+    @Test
+    public void testRemoveAnimation() {
+        TileSetNode tileSet = new TileSetNode();
+        AnimationNode animation = new AnimationNode();
+        tileSet.addAnimation(animation);
+
+        when(getPresenterContext().getSelection()).thenReturn(new StructuredSelection(animation));
+        this.presenter.onRemoveAnimation(getPresenterContext());
+        verifyExecution();
+    }
+
 }
