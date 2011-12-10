@@ -215,8 +215,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
         assertThat(tileCollisionGroup(0), is(""));
     }
 
-    private void loadWithAnimation() throws Exception {
-        String path = "/animations.tileset";
+    private void loadWithAnimation(String path) throws Exception {
         String img = "/2x5_16_1.png";
         StringBuffer ddf = new StringBuffer();
         ddf.append("image: \"").append(img).append("\" tile_width: 16 tile_height: 16 tile_margin: 1 tile_spacing: 0 ")
@@ -232,7 +231,8 @@ public class TileSetNodeTest extends AbstractNodeTest {
 
     @Test
     public void testLoadAnimation() throws Exception {
-        loadWithAnimation();
+        String path = "/animations.tileset";
+        loadWithAnimation(path);
 
         assertThat(animationCount(), is(1));
         AnimationNode animation = animation(0);
@@ -243,6 +243,8 @@ public class TileSetNodeTest extends AbstractNodeTest {
         assertThat(animation.getFps(), is(30));
         assertFalse(animation.isFlipHorizontal());
         assertFalse(animation.isFlipVertical());
+
+        saveLoadCompare(this.loader, TileSet.newBuilder(), path);
     }
 
     /**

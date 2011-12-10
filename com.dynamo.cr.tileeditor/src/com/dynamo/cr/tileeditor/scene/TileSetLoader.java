@@ -12,6 +12,7 @@ import org.eclipse.core.runtime.IProgressMonitor;
 import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.INodeLoader;
 import com.dynamo.tile.proto.Tile;
+import com.dynamo.tile.proto.Tile.Animation;
 import com.dynamo.tile.proto.Tile.ConvexHull;
 import com.dynamo.tile.proto.Tile.TileSet;
 import com.google.protobuf.Message;
@@ -91,6 +92,18 @@ public class TileSetLoader implements INodeLoader<TileSetNode> {
         // Save collision groups
         for (CollisionGroupNode collisionGroup : node.getCollisionGroups()) {
             tileSetBuilder.addCollisionGroups(collisionGroup.getId());
+        }
+        // Save animation
+        for (AnimationNode animNode : node.getAnimations()) {
+            Animation.Builder animBuilder = Animation.newBuilder();
+            animBuilder.setId(animNode.getId())
+                .setStartTile(animNode.getStartTile())
+                .setEndTile(animNode.getEndTile())
+                .setPlayback(animNode.getPlayback())
+                .setFps(animNode.getFps())
+                .setFlipHorizontal(animNode.isFlipHorizontal()?1:0)
+                .setFlipVertical(animNode.isFlipVertical()?1:0);
+            tileSetBuilder.addAnimations(animBuilder);
         }
         return tileSetBuilder.build();
     }
