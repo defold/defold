@@ -11,6 +11,7 @@ import javax.media.opengl.GLContext;
 import javax.media.opengl.GLDrawableFactory;
 import javax.media.opengl.glu.GLU;
 
+import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.KeyEvent;
 import org.eclipse.swt.events.KeyListener;
@@ -189,11 +190,18 @@ KeyListener {
         }
     }
 
-    public void refresh() {
+    public void refresh(IStructuredSelection selection) {
         if (this.context != null) {
             this.context.makeCurrent();
             setupRenderData();
             this.context.release();
+        }
+        Object selected = selection.getFirstElement();
+        if (selected instanceof CollisionGroupNode) {
+            CollisionGroupNode collisionGroup = (CollisionGroupNode)selected;
+            setBrushCollisionGroup(collisionGroup.getId());
+        } else {
+            setBrushCollisionGroup("");
         }
         requestPaint();
     }
@@ -210,9 +218,9 @@ KeyListener {
         return this.brushCollisionGroup;
     }
 
-    public void setBrushCollisionGroup(String brushCollisionGroup, Color brushColor) {
+    public void setBrushCollisionGroup(String brushCollisionGroup) {
         this.brushCollisionGroup = brushCollisionGroup;
-        this.brushColor = brushColor;
+        this.brushColor = getCollisionGroupColor(brushCollisionGroup);
         requestPaint();
     }
 
@@ -302,6 +310,7 @@ KeyListener {
             break;
         case CAMERA_MODE_NONE:
             if ((e.stateMask & SWT.BUTTON1) == SWT.BUTTON1) {
+                paintTile();
             }
         }
         this.lastX = e.x;

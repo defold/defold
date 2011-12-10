@@ -199,10 +199,12 @@ public class TileSetNode extends Node {
     public void addCollisionGroup(CollisionGroupNode groupNode) {
         addChild(groupNode);
         sortCollisionGroups();
+        updateConvexHulls();
     }
 
     public void removeCollisionGroup(CollisionGroupNode groupNode) {
         removeChild(groupNode);
+        updateConvexHulls();
     }
 
     private void sortCollisionGroups() {

@@ -34,7 +34,7 @@ public class TileSetSceneView implements ISceneView {
     public void refresh(IStructuredSelection selection, boolean dirty) {
         this.outline.refresh();
         this.propertySheetPage.refresh();
-        this.renderer.refresh();
+        this.renderer.refresh(selection);
         this.outline.setSelection(selection);
         this.editor.setDirty(dirty);
     }
