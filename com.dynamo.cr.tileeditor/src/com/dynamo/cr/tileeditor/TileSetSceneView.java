@@ -19,7 +19,7 @@ public class TileSetSceneView implements ISceneView {
     @Inject
     private TileSetRenderer2 renderer;
     @Inject
-    private TileSetEditor editor;
+    private TileSetEditor2 editor;
     @Inject
     IImageProvider imageProvider;
 
