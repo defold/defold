@@ -11,6 +11,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.dynamo.cr.sceneed.core.test.AbstractPresenterTest;
+import com.dynamo.cr.tileeditor.scene.AnimationNode;
 import com.dynamo.cr.tileeditor.scene.CollisionGroupNode;
 import com.dynamo.cr.tileeditor.scene.TileSetNode;
 import com.dynamo.cr.tileeditor.scene.TileSetNodePresenter;
@@ -25,6 +26,8 @@ public class TileSetPresenterTest extends AbstractPresenterTest {
         super.setup();
         this.presenter = new TileSetNodePresenter();
     }
+
+    // Collision Groups
 
     @Test
     public void testAddCollisionGroup() {
@@ -115,6 +118,24 @@ public class TileSetPresenterTest extends AbstractPresenterTest {
         this.presenter.onPaintTile(getPresenterContext(), 1);
         verifyRefresh();
         this.presenter.onEndPaintTile(getPresenterContext());
+        verifyExecution();
+    }
+
+    // Animations
+
+    @Test
+    public void testAddAnimation() {
+        // Mocking
+        TileSetNode tileSet = new TileSetNode();
+        AnimationNode animation = new AnimationNode();
+        tileSet.addAnimation(animation);
+
+        when(getPresenterContext().getSelection()).thenReturn(new StructuredSelection(animation));
+        this.presenter.onAddAnimation(getPresenterContext());
+        verifyExecution();
+
+        when(getPresenterContext().getSelection()).thenReturn(new StructuredSelection(tileSet));
+        this.presenter.onAddAnimation(getPresenterContext());
         verifyExecution();
     }
 

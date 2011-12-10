@@ -26,6 +26,8 @@ public class TileSetUtil {
                 return ((CollisionGroupNode)node).getTileSetNode();
             } else if (node instanceof CollisionGroupGroupNode) {
                 return (TileSetNode)((CollisionGroupGroupNode)node).getParent();
+            } else if (node instanceof AnimationNode) {
+                return ((AnimationNode)node).getTileSetNode();
             } else if (node instanceof AnimationGroupNode) {
                 return (TileSetNode)((AnimationGroupNode)node).getParent();
             }

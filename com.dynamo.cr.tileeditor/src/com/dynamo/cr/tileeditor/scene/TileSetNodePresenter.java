@@ -9,6 +9,7 @@ import org.eclipse.jface.viewers.StructuredSelection;
 import com.dynamo.cr.sceneed.core.ISceneView.INodePresenter;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.tileeditor.operations.AddAnimationNodeOperation;
 import com.dynamo.cr.tileeditor.operations.AddCollisionGroupNodeOperation;
 import com.dynamo.cr.tileeditor.operations.RemoveCollisionGroupNodeOperation;
 import com.dynamo.cr.tileeditor.operations.SetTileCollisionGroupsOperation;
@@ -82,6 +83,11 @@ public class TileSetNodePresenter implements INodePresenter<TileSetNode> {
                 presenterContext.refreshView();
             }
         }
+    }
+
+    public void onAddAnimation(IPresenterContext presenterContext) {
+        TileSetNode tileSet = TileSetUtil.getCurrentTileSet(presenterContext.getSelection());
+        presenterContext.executeOperation(new AddAnimationNodeOperation(tileSet, new AnimationNode(), presenterContext));
     }
 
 }
