@@ -47,6 +47,19 @@ public class TileSetLoader implements INodeLoader<TileSetNode> {
             tileCollisionGroups.add(hull.getCollisionGroup());
         }
         node.setTileCollisionGroups(tileCollisionGroups);
+        // Load animations
+        for (int i = 0; i < ddf.getAnimationsCount(); ++i) {
+            AnimationNode animNode = new AnimationNode();
+            Tile.Animation animDdf = ddf.getAnimations(i);
+            animNode.setId(animDdf.getId());
+            animNode.setStartTile(animDdf.getStartTile());
+            animNode.setEndTile(animDdf.getEndTile());
+            animNode.setPlayback(animDdf.getPlayback());
+            animNode.setFps(animDdf.getFps());
+            animNode.setFlipHorizontal(animDdf.getFlipHorizontal() != 0);
+            animNode.setFlipVertical(animDdf.getFlipVertical() != 0);
+            node.addAnimation(animNode);
+        }
 
         return node;
     }

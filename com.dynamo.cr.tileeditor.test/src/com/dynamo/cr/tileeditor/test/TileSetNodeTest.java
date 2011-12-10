@@ -4,6 +4,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Mockito.when;
@@ -36,6 +37,7 @@ import com.dynamo.cr.tileeditor.scene.Messages;
 import com.dynamo.cr.tileeditor.scene.TileSetLoader;
 import com.dynamo.cr.tileeditor.scene.TileSetNode;
 import com.dynamo.tile.ConvexHull;
+import com.dynamo.tile.proto.Tile;
 import com.dynamo.tile.proto.Tile.TileSet;
 
 public class TileSetNodeTest extends AbstractNodeTest {
@@ -211,6 +213,36 @@ public class TileSetNodeTest extends AbstractNodeTest {
 
         assertThat(collisionGroup(0).getId(), is("default"));
         assertThat(tileCollisionGroup(0), is(""));
+    }
+
+    private void loadWithAnimation() throws Exception {
+        String path = "/animations.tileset";
+        String img = "/2x5_16_1.png";
+        StringBuffer ddf = new StringBuffer();
+        ddf.append("image: \"").append(img).append("\" tile_width: 16 tile_height: 16 tile_margin: 1 tile_spacing: 0 ")
+            .append("collision: \"").append(img).append("\" material_tag: \"tile\" collision_groups: \"default\" ")
+            .append("animations: {id: \"anim\" start_tile: 1 end_tile: 4 playback: PLAYBACK2_ONCE_FORWARD ")
+            .append("fps: 30 flip_horizontal: 0 flip_vertical: 0}");
+
+        registerFile(path, ddf.toString());
+
+        this.node = this.loader.load(getLoaderContext(), getFile(path).getContents());
+        this.node.setModel(getModel());
+    }
+
+    @Test
+    public void testLoadAnimation() throws Exception {
+        loadWithAnimation();
+
+        assertThat(animationCount(), is(1));
+        AnimationNode animation = animation(0);
+        assertThat(animation.getId(), is("anim"));
+        assertThat(animation.getStartTile(), is(1));
+        assertThat(animation.getEndTile(), is(4));
+        assertThat(animation.getPlayback(), is(Tile.Playback2.PLAYBACK2_ONCE_FORWARD));
+        assertThat(animation.getFps(), is(30));
+        assertFalse(animation.isFlipHorizontal());
+        assertFalse(animation.isFlipVertical());
     }
 
     /**
