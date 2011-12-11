@@ -21,8 +21,8 @@ import org.eclipse.core.commands.operations.UndoContext;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.swt.events.MouseEvent;
+import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.ISelectionService;
-import org.eclipse.ui.IWorkbenchPart;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -51,6 +51,7 @@ public class ManipulatorTest {
     private IOperationHistory undoHistory;
     private UndoContext undoContext;
     private ILogger logger;
+    private IEditorPart editorPart;
 
     class TestModule extends AbstractModule {
         @Override
@@ -78,6 +79,8 @@ public class ManipulatorTest {
         Injector injector = Guice.createInjector(module);
 
         manipulatorController = injector.getInstance(ManipulatorController.class);
+        editorPart = mock(IEditorPart.class);
+        manipulatorController.setEditorPart(editorPart);
 
     }
 
@@ -112,11 +115,10 @@ public class ManipulatorTest {
         IManipulatorMode moveMode = manipulatorRegistry.getMode(Activator.MOVE_MODE_ID);
         manipulatorController.setManipulatorMode(moveMode);
 
-        IWorkbenchPart dummyPart = mock(IWorkbenchPart.class);
         ArrayList<Node> selectionList = new ArrayList<Node>();
         selectionList.add(new DummySphere());
         StructuredSelection selection = new StructuredSelection(selectionList);
-        manipulatorController.selectionChanged(dummyPart, selection);
+        manipulatorController.selectionChanged(editorPart, selection);
 
         RootManipulator rootManipulator = manipulatorController.getRootManipulator();
         assertNotNull(rootManipulator);
@@ -137,11 +139,10 @@ public class ManipulatorTest {
         IManipulatorMode moveMode = manipulatorRegistry.getMode(Activator.MOVE_MODE_ID);
         manipulatorController.setManipulatorMode(moveMode);
 
-        IWorkbenchPart dummyPart = mock(IWorkbenchPart.class);
         ArrayList<Node> selectionList = new ArrayList<Node>();
         selectionList.add(new DummySphere());
         StructuredSelection selection = new StructuredSelection(selectionList);
-        manipulatorController.selectionChanged(dummyPart, selection);
+        manipulatorController.selectionChanged(editorPart, selection);
 
         MouseEvent e = mock(MouseEvent.class);
         assertThat(0, is(undoHistory.getUndoHistory(undoContext).length));

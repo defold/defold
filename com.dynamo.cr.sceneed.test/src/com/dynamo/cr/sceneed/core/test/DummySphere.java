@@ -4,4 +4,7 @@ import com.dynamo.cr.sceneed.core.Node;
 
 public class DummySphere extends Node {
 
+    public DummySphere() {
+        setFlags(Flags.TRANSFORMABLE);
+    }
 }
