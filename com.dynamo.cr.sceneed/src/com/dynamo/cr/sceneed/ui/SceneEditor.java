@@ -167,6 +167,7 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
         this.manipulatorController = injector.getInstance(ManipulatorController.class);
         IManipulatorMode moveMode = manipulatorRegistry.getMode(Activator.MOVE_MODE_ID);
         manipulatorController.setManipulatorMode(moveMode);
+        manipulatorController.setEditorPart(this);
 
         this.presenter = injector.getInstance(ISceneView.IPresenter.class);
         this.presenterContext = injector.getInstance(ISceneView.IPresenterContext.class);

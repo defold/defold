@@ -19,6 +19,7 @@ import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.swt.events.MouseEvent;
 import org.eclipse.swt.events.MouseListener;
 import org.eclipse.swt.events.MouseMoveListener;
+import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.ISelectionListener;
 import org.eclipse.ui.ISelectionService;
 import org.eclipse.ui.IWorkbenchPart;
@@ -38,6 +39,7 @@ public class ManipulatorController implements ISelectionListener, IRenderViewPro
     private IOperationHistory undoHistory;
     private IUndoContext undoContext;
     private ILogger logger;
+    private IEditorPart editorPart;
 
     @Inject
     public ManipulatorController(ISelectionService selectionService,
@@ -111,6 +113,9 @@ public class ManipulatorController implements ISelectionListener, IRenderViewPro
 
     @Override
     public void selectionChanged(IWorkbenchPart part, ISelection selection) {
+        if (part != this.editorPart)
+            return;
+
         this.selectionList.clear();
         if (selection instanceof IStructuredSelection) {
             IStructuredSelection structSel = (IStructuredSelection) selection;
@@ -200,6 +205,10 @@ public class ManipulatorController implements ISelectionListener, IRenderViewPro
 
     public boolean isManipulatorSelected(Manipulator m) {
         return m == this.selectedManipulator;
+    }
+
+    public void setEditorPart(IEditorPart editorPart) {
+        this.editorPart = editorPart;
     }
 
 }
