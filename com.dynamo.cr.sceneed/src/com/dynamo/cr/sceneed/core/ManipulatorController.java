@@ -160,6 +160,8 @@ public class ManipulatorController implements ISelectionListener, IRenderViewPro
 
     @Override
     public void mouseDoubleClick(MouseEvent e) {
+        if (CameraController.hasCameraControlModifiers(e)) return;
+
         List<Manipulator> lst = getAllManipulators(this.rootManipulator);
         for (Manipulator m : lst) {
             m.mouseDoubleClick(e);
@@ -168,6 +170,8 @@ public class ManipulatorController implements ISelectionListener, IRenderViewPro
 
     @Override
     public void mouseDown(MouseEvent e) {
+        if (CameraController.hasCameraControlModifiers(e)) return;
+
         List<Manipulator> lst = getAllManipulators(this.rootManipulator);
         for (Manipulator m : lst) {
             m.mouseDown(e);
@@ -176,6 +180,8 @@ public class ManipulatorController implements ISelectionListener, IRenderViewPro
 
     @Override
     public void mouseUp(MouseEvent e) {
+        if (CameraController.hasCameraControlModifiers(e)) return;
+
         List<Manipulator> lst = getAllManipulators(this.rootManipulator);
         for (Manipulator m : lst) {
             m.mouseUp(e);
@@ -184,6 +190,8 @@ public class ManipulatorController implements ISelectionListener, IRenderViewPro
 
     @Override
     public void mouseMove(MouseEvent e) {
+        if (CameraController.hasCameraControlModifiers(e)) return;
+
         List<Manipulator> lst = getAllManipulators(this.rootManipulator);
         for (Manipulator m : lst) {
             m.mouseMove(e);

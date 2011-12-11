@@ -5,6 +5,7 @@ import javax.vecmath.Vector4d;
 
 import com.dynamo.cr.properties.GreaterThanZero;
 import com.dynamo.cr.properties.Property;
+import com.dynamo.cr.sceneed.core.AABB;
 
 public class SphereCollisionShapeNode extends CollisionShapeNode {
 
@@ -17,8 +18,15 @@ public class SphereCollisionShapeNode extends CollisionShapeNode {
         if (data.length - index < 1) {
             createBoundsStatusError();
         } else {
-            this.radius = data[0];
+            setRadius(data[0]);
         }
+    }
+
+    private final void updateAABB() {
+        AABB aabb = new AABB();
+        aabb.union(-radius, -radius, -radius);
+        aabb.union(radius, radius, radius);
+        setAABB(aabb);
     }
 
     public double getRadius() {
@@ -28,6 +36,7 @@ public class SphereCollisionShapeNode extends CollisionShapeNode {
     public void setRadius(double radius) {
         clearBoundsStatusError();
         this.radius = radius;
+        updateAABB();
     }
 
     @Override

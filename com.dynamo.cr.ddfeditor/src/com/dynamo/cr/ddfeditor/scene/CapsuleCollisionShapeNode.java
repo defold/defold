@@ -5,6 +5,7 @@ import javax.vecmath.Vector4d;
 
 import com.dynamo.cr.properties.GreaterThanZero;
 import com.dynamo.cr.properties.Property;
+import com.dynamo.cr.sceneed.core.AABB;
 
 public class CapsuleCollisionShapeNode extends CollisionShapeNode {
 
@@ -20,9 +21,17 @@ public class CapsuleCollisionShapeNode extends CollisionShapeNode {
         if (data.length - index < 2) {
             createBoundsStatusError();
         } else {
-            this.radius = data[index + 0];
-            this.height = data[index + 1];
+            setRadius(data[index + 0]);
+            setHeight(data[index + 1]);
         }
+        updateAABB();
+    }
+
+    private final void updateAABB() {
+        AABB aabb = new AABB();
+        aabb.union(-radius, -height, -radius);
+        aabb.union(radius, height, radius);
+        setAABB(aabb);
     }
 
     public double getRadius() {
@@ -31,6 +40,7 @@ public class CapsuleCollisionShapeNode extends CollisionShapeNode {
 
     public void setRadius(double radius) {
         this.radius = radius;
+        updateAABB();
     }
 
     public double getHeight() {
@@ -39,6 +49,7 @@ public class CapsuleCollisionShapeNode extends CollisionShapeNode {
 
     public void setHeight(double height) {
         this.height = height;
+        updateAABB();
     }
 
     @Override

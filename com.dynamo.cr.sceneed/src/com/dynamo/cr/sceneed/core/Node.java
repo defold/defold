@@ -39,13 +39,17 @@ public abstract class Node implements IAdaptable {
     private Node parent;
     private EnumSet<Flags> flags = EnumSet.noneOf(Flags.class);
 
+    private AABB aabb = new AABB();
+    private AABB worldAABB = new AABB();
+    private boolean worldAABBDirty = true;
+
     @Property
     protected Vector4d translation = new Vector4d(0, 0, 0, 0);
 
     @Property
     protected Quat4d rotation = new Quat4d(0, 0, 0, 1);
 
-    // Used to preserve order when adding/remvoing child nodes
+    // Used to preserve order when adding/removing child nodes
     private int childIndex = -1;
 
     private static Map<Class<? extends Node>, PropertyIntrospector<Node, ISceneModel>> introspectors =
@@ -61,6 +65,10 @@ public abstract class Node implements IAdaptable {
     }
 
     public Node() {
+    }
+
+    private void setDirty() {
+        this.worldAABBDirty = true;
     }
 
     public boolean isFlagSet(Flags flag) {
@@ -79,6 +87,40 @@ public abstract class Node implements IAdaptable {
         return flags.contains(Flags.TRANSFORMABLE);
     }
 
+    public void getAABB(AABB aabb) {
+        aabb.set(this.aabb);
+    }
+
+    protected final void setAABB(AABB aabb) {
+        this.aabb.set(aabb);
+        setDirty();
+    }
+
+    private static void getAABBRecursively(AABB aabb, Node node)
+    {
+        AABB tmp = new AABB();
+        Matrix4d t = new Matrix4d();
+
+        node.getAABB(tmp);
+        node.getWorldTransform(t);
+
+        tmp.transform(t);
+        aabb.union(tmp);
+
+        for (Node n : node.getChildren()) {
+            getAABBRecursively(aabb, n);
+        }
+    }
+
+    public void getWorldAABB(AABB aabb) {
+        if (this.worldAABBDirty) {
+            this.worldAABB.setIdentity();
+            getAABBRecursively(this.worldAABB, this);
+            this.worldAABBDirty = false;
+        }
+        aabb.set(this.worldAABB);
+    }
+
     protected final void setTransformable(boolean transformable) {
         if (transformable)
             flags.add(Flags.TRANSFORMABLE);
@@ -93,6 +135,7 @@ public abstract class Node implements IAdaptable {
 
     public void setTranslation(Vector4d translation) {
         this.translation.set(translation);
+        setDirty();
     }
 
     public Vector4d getTranslation() {
@@ -101,6 +144,7 @@ public abstract class Node implements IAdaptable {
 
     public void setRotation(Quat4d rotation) {
         this.rotation.set(rotation);
+        setDirty();
     }
 
     public Quat4d getRotation() {
