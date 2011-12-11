@@ -5,6 +5,7 @@ import javax.vecmath.Vector4d;
 
 import com.dynamo.cr.properties.GreaterThanZero;
 import com.dynamo.cr.properties.Property;
+import com.dynamo.cr.sceneed.core.AABB;
 
 public class BoxCollisionShapeNode extends CollisionShapeNode {
 
@@ -23,9 +24,9 @@ public class BoxCollisionShapeNode extends CollisionShapeNode {
         if (data.length - index < 3) {
             createBoundsStatusError();
         } else {
-            this.width = data[index + 0];
-            this.height = data[index + 1];
-            this.depth = data[index + 2];
+            setWidth(data[index + 0]);
+            setHeight(data[index + 1]);
+            setDepth(data[index + 2]);
         }
     }
 
@@ -33,9 +34,17 @@ public class BoxCollisionShapeNode extends CollisionShapeNode {
         return width;
     }
 
+    private final void updateAABB() {
+        AABB aabb = new AABB();
+        aabb.union(-width, -height, -depth);
+        aabb.union(width, height, depth);
+        setAABB(aabb);
+    }
+
     public void setWidth(double width) {
         clearBoundsStatusError();
         this.width = width;
+        updateAABB();
     }
 
     public double getHeight() {
@@ -45,6 +54,7 @@ public class BoxCollisionShapeNode extends CollisionShapeNode {
     public void setHeight(double height) {
         clearBoundsStatusError();
         this.height = height;
+        updateAABB();
     }
 
     public double getDepth() {
@@ -54,6 +64,7 @@ public class BoxCollisionShapeNode extends CollisionShapeNode {
     public void setDepth(double depth) {
         clearBoundsStatusError();
         this.depth = depth;
+        updateAABB();
     }
 
     @Override

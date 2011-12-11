@@ -34,6 +34,7 @@ import org.eclipse.ui.ISelectionService;
 
 import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.sceneed.core.Camera;
+import com.dynamo.cr.sceneed.core.CameraController;
 import com.dynamo.cr.sceneed.core.INodeRenderer;
 import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
@@ -64,8 +65,7 @@ IRenderView {
     private List<MouseListener> mouseListeners = new ArrayList<MouseListener>();
     private List<MouseMoveListener> mouseMoveListeners = new ArrayList<MouseMoveListener>();
 
-    // TODO: Temp "camera"
-    private Camera camera = new Camera(Camera.Type.ORTHOGRAPHIC);
+    private Camera camera;
 
     // Picking
     private static final int PICK_BUFFER_SIZE = 4096;
@@ -177,6 +177,10 @@ IRenderView {
         worldVector.set(clickDir);
     }
 
+    public void setCamera(Camera camera) {
+        this.camera = camera;
+    }
+
     // Listener
 
     @Override
@@ -221,10 +225,12 @@ IRenderView {
 
     @Override
     public void mouseDown(MouseEvent event) {
-        List<Node> sel = rectangleSelect(event.x, event.y, 16, 16);
+        if (!CameraController.hasCameraControlModifiers(event)) {
+            List<Node> sel = rectangleSelect(event.x, event.y, 16, 16);
 
-        for (IRenderViewProvider provider : providers) {
-            provider.onNodeHit(sel);
+            for (IRenderViewProvider provider : providers) {
+                provider.onNodeHit(sel);
+            }
         }
 
         for (MouseListener listener : mouseListeners) {
@@ -291,7 +297,9 @@ IRenderView {
         camera.getProjectionMatrix(projection);
         RenderUtil.multMatrix(gl, projection);
         gl.glMatrixMode(GL.GL_MODELVIEW);
-        gl.glLoadIdentity();
+        Matrix4d view = new Matrix4d();
+        camera.getViewMatrix(view);
+        RenderUtil.loadMatrix(gl, view);
 
         gl.glInitNames();
     }
@@ -464,8 +472,10 @@ IRenderView {
             }
             Node node = renderData.getNode();
             node.getWorldTransform(transform);
-            RenderUtil.loadMatrix(gl, transform);
+            gl.glPushMatrix();
+            RenderUtil.multMatrix(gl, transform);
             doRender(renderContext, renderData);
+            gl.glPopMatrix();
             if (pick) {
                 gl.glPopName();
             }
@@ -484,8 +494,12 @@ IRenderView {
             Matrix4d projection = new Matrix4d();
             camera.getProjectionMatrix(projection );
             RenderUtil.loadMatrix(gl, projection);
-            gl.glMatrixMode(GL.GL_MODELVIEW);
         }
+
+        gl.glMatrixMode(GL.GL_MODELVIEW);
+        Matrix4d view = new Matrix4d();
+        camera.getViewMatrix(view);
+        RenderUtil.loadMatrix(gl, view);
 
         switch (pass) {
         case BACKGROUND:

@@ -56,6 +56,7 @@ import com.dynamo.cr.editor.ui.AbstractDefoldEditor;
 import com.dynamo.cr.editor.ui.Logger;
 import com.dynamo.cr.properties.IFormPropertySheetPage;
 import com.dynamo.cr.sceneed.Activator;
+import com.dynamo.cr.sceneed.core.CameraController;
 import com.dynamo.cr.sceneed.core.IImageProvider;
 import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.IManipulatorMode;
@@ -96,6 +97,7 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
     private SceneRenderViewProvider sceneRenderViewProvider;
     private ManipulatorController manipulatorController;
     private IManipulatorRegistry manipulatorRegistry;
+    private CameraController cameraController;
 
     class Module extends AbstractModule {
         @Override
@@ -115,6 +117,9 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
             bind(IPresenterContext.class).to(PresenterContext.class).in(Singleton.class);
             bind(IImageProvider.class).toInstance(Activator.getDefault());
 
+            bind(CameraController.class).in(Singleton.class);
+
+            bind(ManipulatorController.class).in(Singleton.class);
             bind(IManipulatorRegistry.class).toInstance(manipulatorRegistry);
 
             bind(ISelectionService.class).toInstance(getSite().getWorkbenchWindow().getSelectionService());
@@ -169,6 +174,8 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
         manipulatorController.setManipulatorMode(selectMode);
         manipulatorController.setEditorPart(this);
 
+        this.cameraController = injector.getInstance(CameraController.class);
+
         this.presenter = injector.getInstance(ISceneView.IPresenter.class);
         this.presenterContext = injector.getInstance(ISceneView.IPresenterContext.class);
         this.loaderContext = injector.getInstance(ILoaderContext.class);
@@ -194,6 +201,10 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
 
     public ManipulatorController getManipulatorController() {
         return manipulatorController;
+    }
+
+    public CameraController getCameraController() {
+        return cameraController;
     }
 
     @Override

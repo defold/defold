@@ -38,6 +38,10 @@
                optional="false">
          </commandParameter>
       </command>
+      <command
+            id="com.dynamo.cr.sceneed.ui.commands.frameObjects"
+            name="Frame Objects">
+      </command>
    </extension>
    <extension
          point="org.eclipse.ui.bindings">
@@ -98,6 +102,12 @@
                id="org.eclipse.ui.commands.radioStateParameter"
                value="com.dynamo.cr.sceneed.core.manipulators.scale-mode">
          </parameter>
+      </key>
+      <key
+            commandId="com.dynamo.cr.sceneed.ui.commands.frameObjects"
+            contextId="com.dynamo.cr.sceneed.ui.contexts.sceneEditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="F">
       </key>
    </extension>
    <extension
@@ -224,6 +234,10 @@
             class="com.dynamo.cr.sceneed.handlers.SelectManipulatorModeHandler"
             commandId="com.dynamo.cr.sceneed.ui.commands.selectManipulatorMode">
       </handler>
+      <handler
+            class="com.dynamo.cr.sceneed.handlers.FrameObjectsHandler"
+            commandId="com.dynamo.cr.sceneed.ui.commands.frameObjects">
+      </handler>
    </extension>
    <extension
          point="org.eclipse.ui.menus">
@@ -267,6 +281,11 @@
                      name="org.eclipse.ui.commands.radioStateParameter"
                      value="com.dynamo.cr.sceneed.core.manipulators.scale-mode">
                </parameter>
+            </command>
+            <command
+                  commandId="com.dynamo.cr.sceneed.ui.commands.frameObjects"
+                  label="Frame Objects"
+                  style="radio">
             </command>
             <visibleWhen
                   checkEnabled="false">

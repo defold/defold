@@ -22,4 +22,5 @@ public interface IRenderView  {
     void createControls(Composite parent);
     void refresh();
     void viewToWorld(int x, int y, Vector4d clickPos, Vector4d clickDir);
+    void setCamera(Camera camera);
 }
