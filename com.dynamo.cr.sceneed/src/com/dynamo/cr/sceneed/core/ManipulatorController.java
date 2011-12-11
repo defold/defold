@@ -23,6 +23,8 @@ import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.ISelectionListener;
 import org.eclipse.ui.ISelectionService;
 import org.eclipse.ui.IWorkbenchPart;
+import org.eclipse.ui.part.IContributedContentsView;
+import org.eclipse.ui.views.contentoutline.ContentOutline;
 
 import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.sceneed.ui.RootManipulator;
@@ -113,22 +115,29 @@ public class ManipulatorController implements ISelectionListener, IRenderViewPro
 
     @Override
     public void selectionChanged(IWorkbenchPart part, ISelection selection) {
-        if (part != this.editorPart)
-            return;
+        boolean currentSelection = false;
+        if (part == editorPart) {
+            currentSelection = true;
+        } else if (part instanceof ContentOutline) {
+            IContributedContentsView view = (IContributedContentsView)((ContentOutline)part).getAdapter(IContributedContentsView.class);
+            currentSelection = view.getContributingPart() == editorPart;
+        }
 
-        this.selectionList.clear();
-        if (selection instanceof IStructuredSelection) {
-            IStructuredSelection structSel = (IStructuredSelection) selection;
-            Iterator<?> i = structSel.iterator();
-            while (i.hasNext()) {
-                Object o = i.next();
-                if (o instanceof Node) {
-                    Node node = (Node) o;
-                    this.selectionList.add(node);
+        if (currentSelection) {
+            this.selectionList.clear();
+            if (selection instanceof IStructuredSelection) {
+                IStructuredSelection structSel = (IStructuredSelection) selection;
+                Iterator<?> i = structSel.iterator();
+                while (i.hasNext()) {
+                    Object o = i.next();
+                    if (o instanceof Node) {
+                        Node node = (Node) o;
+                        this.selectionList.add(node);
+                    }
                 }
             }
+            selectManipulator();
         }
-        selectManipulator();
     }
 
     private static List<Manipulator> getAllManipulators(Manipulator m) {
