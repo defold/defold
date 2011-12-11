@@ -94,6 +94,9 @@ public class FormPropertySheetViewer extends Viewer {
             IPropertyDesc[] descs = models[0].getPropertyDescs();
             for (IPropertyDesc desc : descs) {
                 Entry entry = (Entry) currentComposite.getData(desc.getName());
+                // Skip hidden (ie not visible) properties
+                if (entry == null)
+                    continue;
                 IPropertyEditor editor = entry.editor;
                 if (editor != null) {
                     editor.setModels(models);
@@ -169,6 +172,10 @@ public class FormPropertySheetViewer extends Viewer {
             layout.numColumns = 2;
 
             for (IPropertyDesc desc : descs) {
+
+                if (!model.isPropertyVisible(desc.getId()))
+                    continue;
+
                 Label label = new Label(c, SWT.NONE);
                 label.setText(niceifyLabel(desc.getName()));
 

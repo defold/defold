@@ -17,6 +17,7 @@ public class BeanPropertyAccessor implements IPropertyAccessor<Object, IProperty
 
     private PropertyDescriptor propertyDescriptor;
     private Method isEditable;
+    private Method isVisible;
 
     private void init(Object obj, String property) {
 
@@ -41,6 +42,14 @@ public class BeanPropertyAccessor implements IPropertyAccessor<Object, IProperty
         } catch (NoSuchMethodException e) {
             // pass
         }
+
+        try {
+            String capProperty = Character.toUpperCase(property.charAt(0)) + property.substring(1);
+            isVisible = obj.getClass().getMethod(String.format("is%sVisible", capProperty));
+        } catch (NoSuchMethodException e) {
+            // pass
+        }
+
     }
 
     @Override
@@ -145,4 +154,20 @@ public class BeanPropertyAccessor implements IPropertyAccessor<Object, IProperty
             return true;
         }
     }
+
+    @Override
+    public boolean isVisible(Object obj, String property,
+            IPropertyObjectWorld world) {
+        init(obj, property);
+        if (isVisible != null) {
+            try {
+                return (Boolean) isVisible.invoke(obj);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        } else {
+            return true;
+        }
+    }
+
 }

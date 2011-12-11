@@ -63,6 +63,16 @@
             commandId="com.dynamo.cr.sceneed.ui.commands.selectManipulatorMode"
             contextId="com.dynamo.cr.sceneed.ui.contexts.sceneEditor"
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="Q">
+         <parameter
+               id="org.eclipse.ui.commands.radioStateParameter"
+               value="com.dynamo.cr.sceneed.core.manipulators.select-mode">
+         </parameter>
+      </key>
+      <key
+            commandId="com.dynamo.cr.sceneed.ui.commands.selectManipulatorMode"
+            contextId="com.dynamo.cr.sceneed.ui.contexts.sceneEditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
             sequence="W">
          <parameter
                id="org.eclipse.ui.commands.radioStateParameter"
@@ -130,6 +140,10 @@
             renderer="com.dynamo.cr.sceneed.ui.BackgroundRenderer">
       </node-type>
       <node-type
+            id="com.dynamo.cr.sceneed.ui.selectManipulator"
+            node="com.dynamo.cr.sceneed.ui.SelectManipulator">
+      </node-type>
+      <node-type
             id="com.dynamo.cr.sceneed.ui.moveManipulator"
             node="com.dynamo.cr.sceneed.ui.MoveManipulator"
             renderer="com.dynamo.cr.sceneed.ui.MoveManipulatorRenderer">
@@ -157,6 +171,11 @@
    <extension
          point="com.dynamo.cr.manipulators">
       <manipulator
+            mode="com.dynamo.cr.sceneed.core.manipulators.select-mode"
+            name="Select Manipualtor"
+            node-type="com.dynamo.cr.sceneed.ui.selectManipulator">
+      </manipulator>
+      <manipulator
             mode="com.dynamo.cr.sceneed.core.manipulators.move-mode"
             name="Move Manipualtor"
             node-type="com.dynamo.cr.sceneed.ui.moveManipulator">
@@ -166,6 +185,10 @@
             name="Rotate Manipualtor"
             node-type="com.dynamo.cr.sceneed.ui.rotateManipulator">
       </manipulator>
+      <manipulator-mode
+            id="com.dynamo.cr.sceneed.core.manipulators.select-mode"
+            name="Select Manipulator">
+      </manipulator-mode>
       <manipulator-mode
             id="com.dynamo.cr.sceneed.core.manipulators.scale-mode"
             name="Scale Manipulator">
@@ -211,6 +234,15 @@
                label="Scene">
             <command
                   commandId="com.dynamo.cr.sceneed.ui.commands.selectManipulatorMode"
+                  label="Select Tool"
+                  style="radio">
+               <parameter
+                     name="org.eclipse.ui.commands.radioStateParameter"
+                     value="com.dynamo.cr.sceneed.core.manipulators.select-mode">
+               </parameter>
+            </command>
+            <command
+                  commandId="com.dynamo.cr.sceneed.ui.commands.selectManipulatorMode"
                   label="Move Tool"
                   style="radio">
                <parameter
@@ -227,12 +259,6 @@
                      value="com.dynamo.cr.sceneed.core.manipulators.rotate-mode">
                </parameter>
             </command>
-            <visibleWhen
-                  checkEnabled="false">
-               <reference
-                     definitionId="com.dynamo.cr.scened.definitions.sceneEditorActive">
-               </reference>
-            </visibleWhen>
             <command
                   commandId="com.dynamo.cr.sceneed.ui.commands.selectManipulatorMode"
                   label="Scale Tool"
@@ -242,6 +268,12 @@
                      value="com.dynamo.cr.sceneed.core.manipulators.scale-mode">
                </parameter>
             </command>
+            <visibleWhen
+                  checkEnabled="false">
+               <reference
+                     definitionId="com.dynamo.cr.scened.definitions.sceneEditorActive">
+               </reference>
+            </visibleWhen>
          </menu>
       </menuContribution>
    </extension>

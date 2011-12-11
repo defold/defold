@@ -744,5 +744,23 @@
             node-type="com.dynamo.cr.ddfeditor.manipulators.capsuleSizeManipulator">
       </manipulator>
    </extension>
+   <extension
+         point="org.eclipse.ui.menus">
+      <menuContribution
+            allPopups="false"
+            locationURI="popup:com.dynamo.cr.sceneed.menus.sceneOutlineContext?before=com.dynamo.cr.sceneed.genericSeparator">
+         <command
+               commandId="com.dynamo.cr.sceneed.ui.commands.add"
+               label="Add Shape"
+               style="push">
+            <visibleWhen
+                  checkEnabled="false">
+               <reference
+                     definitionId="com.dynamo.cr.ddfeditor.core.definitions.collisionObjectSelected">
+               </reference>
+            </visibleWhen>
+         </command>
+      </menuContribution>
+   </extension>
 
 </plugin>

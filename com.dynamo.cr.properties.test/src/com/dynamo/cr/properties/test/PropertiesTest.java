@@ -94,6 +94,18 @@ public class PropertiesTest {
         assertFalse(source.isPropertyEditable("notEditable")); //$NON-NLS-1$
     }
 
+    @Test
+    public void testVisible() throws Exception {
+        assertTrue(source.isPropertyVisible("integerValue")); //$NON-NLS-1$
+        assertTrue(source.isPropertyVisible("doubleValue")); //$NON-NLS-1$
+        assertTrue(source.isPropertyVisible("stringValue")); //$NON-NLS-1$
+        assertTrue(source.isPropertyVisible("rgbValue")); //$NON-NLS-1$
+        assertTrue(source.isPropertyVisible("vector4Value")); //$NON-NLS-1$
+        assertTrue(source.isPropertyVisible("enumValue")); //$NON-NLS-1$
+        assertTrue(source.isPropertyVisible("notEditable")); //$NON-NLS-1$
+        assertFalse(source.isPropertyVisible("hidden")); //$NON-NLS-1$
+    }
+
     // Currently RuntimeException is thrown. This behavior might change in the future
     @Test(expected = RuntimeException.class)
     public void testMissingGetter() throws Exception {

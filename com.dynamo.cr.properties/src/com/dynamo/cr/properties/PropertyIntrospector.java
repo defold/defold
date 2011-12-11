@@ -166,6 +166,17 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
         return editable;
     }
 
+    public boolean isPropertyVisible(T object, U world, Object id) {
+        IPropertyAccessor<T, U> accessor;
+        try {
+            accessor = accessorClass.newInstance();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        boolean editable = accessor.isVisible(object, (String) id, world);
+        return editable;
+    }
+
     private IStatus validate(T obj, IPropertyAccessor<T, U> accessor, String property, U world) throws IllegalArgumentException, IllegalAccessException, InvocationTargetException, InstantiationException {
 
         Object actualValue = accessor.getValue(obj, property, world);

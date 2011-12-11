@@ -46,6 +46,11 @@ public class PropertyIntrospectorModel<T, U extends IPropertyObjectWorld> implem
     }
 
     @Override
+    public boolean isPropertyVisible(Object id) {
+        return introspector.isPropertyVisible(object, world, id);
+    }
+
+    @Override
     public IStatus getStatus() {
         return introspector.getObjectStatus(object, world);
     }

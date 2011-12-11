@@ -3,6 +3,7 @@ package com.dynamo.cr.sceneed.core;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,9 +30,14 @@ import com.dynamo.cr.sceneed.Activator;
 @Entity(commandFactory = SceneUndoableCommandFactory.class)
 public abstract class Node implements IAdaptable {
 
+    public enum Flags {
+        TRANSFORMABLE,
+    }
+
     private ISceneModel model;
     private List<Node> children = new ArrayList<Node>();
     private Node parent;
+    private EnumSet<Flags> flags = EnumSet.noneOf(Flags.class);
 
     @Property
     protected Vector4d translation = new Vector4d(0, 0, 0, 0);
@@ -55,6 +61,29 @@ public abstract class Node implements IAdaptable {
     }
 
     public Node() {
+    }
+
+    public boolean isFlagSet(Flags flag) {
+        return flags.contains(flag);
+    }
+
+    protected void setFlags(Flags flag) {
+        flags.add(flag);
+    }
+
+    public final boolean isTranslationVisible() {
+        return flags.contains(Flags.TRANSFORMABLE);
+    }
+
+    public final boolean isRotationVisible() {
+        return flags.contains(Flags.TRANSFORMABLE);
+    }
+
+    protected final void setTransformable(boolean transformable) {
+        if (transformable)
+            flags.add(Flags.TRANSFORMABLE);
+        else
+            flags.remove(Flags.TRANSFORMABLE);
     }
 
     public Node(Vector4d translation, Quat4d rotation) {

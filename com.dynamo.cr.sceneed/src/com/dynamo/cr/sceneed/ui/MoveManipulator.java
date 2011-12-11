@@ -38,7 +38,7 @@ public class MoveManipulator extends RootManipulator {
     @Override
     public boolean match(Object[] selection) {
         for (Object object : selection) {
-            if (object instanceof Node) {
+            if (object instanceof Node && ((Node) object).isFlagSet(Node.Flags.TRANSFORMABLE)) {
                 return true;
             }
         }
