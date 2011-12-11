@@ -36,14 +36,7 @@ public class Activator extends AbstractUIPlugin {
     // The shared instance
     private static Activator plugin;
 
-    private final Color[] collisionGroupColors;
-
-    /**
-     * The constructor
-     */
-    public Activator() {
-        this.collisionGroupColors = new Color[MAX_COLLISION_GROUP_COUNT];
-    }
+    private Color[] collisionGroupColors;
 
     /*
      * (non-Javadoc)
@@ -89,6 +82,9 @@ public class Activator extends AbstractUIPlugin {
     }
 
     public Color getCollisionGroupColor(int index) {
+        if (this.collisionGroupColors == null) {
+            generateCollisionGroupColors();
+        }
         if (index >= 0) {
             return this.collisionGroupColors[index];
         }
@@ -108,6 +104,9 @@ public class Activator extends AbstractUIPlugin {
     }
 
     private void generateCollisionGroupColors() {
+        if (this.collisionGroupColors == null) {
+            this.collisionGroupColors = new Color[MAX_COLLISION_GROUP_COUNT];
+        }
         int index = 0;
         Color[] c = this.collisionGroupColors;
         c[index++] = ColorUtil.createColorFromHueAlpha(0.0f, 0.7f);
