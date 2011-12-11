@@ -28,6 +28,10 @@ public class Messages extends NLS {
     // Collision Group
     public static String CollisionGroupNode_id_OVERFLOW;
 
+    // Animation
+    public static String AnimationNode_startTile_INVALID;
+    public static String AnimationNode_endTile_INVALID;
+
     // Sprite
 
     public static String TileGridNode_tileSet_EMPTY;

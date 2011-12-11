@@ -30,6 +30,15 @@
             id="com.dynamo.cr.tileeditor.tileSetEditor2"
             name="Tile Set Editor 2">
       </editor>
+      <editor
+            class="com.dynamo.cr.sceneed.ui.SceneEditor"
+            contributorClass="com.dynamo.cr.editor.ui.DefoldEditorActionBarContributor"
+            default="false"
+            extensions="sprite2"
+            icon="icons/pictures.png"
+            id="com.dynamo.cr.tileeditor.spriteEditor"
+            name="Sprite Editor">
+      </editor>
    </extension>
    <extension
          point="com.dynamo.cr.resourcetypes">
@@ -98,14 +107,21 @@
             class="com.dynamo.cr.tileeditor.wizards.TileSetNewWizard"
             icon="icons/tile_set.png"
             id="com.dynamo.cr.tileeditor.wizards.TileSetNewWizard"
-            name="Tile Set">
+            name="Tile Set File">
       </wizard>
       <wizard
             category="com.dynamo.cr.editor.wizardCategory"
             class="com.dynamo.cr.tileeditor.wizards.GridNewWizard"
             icon="icons/tile_grid.png"
             id="com.dynamo.cr.tileeditor.wizards.GridNewWizard"
-            name="Tile Grid">
+            name="Tile Grid File">
+      </wizard>
+      <wizard
+            category="com.dynamo.cr.editor.wizardCategory"
+            class="com.dynamo.cr.tileeditor.wizards.SpriteNewWizard"
+            icon="icons/pictures.png"
+            id="com.dynamo.cr.tileeditor.wizards.spriteNewWizard"
+            name="Sprite2 File">
       </wizard>
    </extension>
    <extension
@@ -114,6 +130,12 @@
             targetID="*">
          <newWizardShortcut
                id="com.dynamo.cr.tileeditor.wizards.TileSetNewWizard">
+         </newWizardShortcut>
+         <newWizardShortcut
+               id="com.dynamo.cr.tileeditor.wizards.spriteNewWizard">
+         </newWizardShortcut>
+         <newWizardShortcut
+               id="com.dynamo.cr.tileeditor.wizards.GridNewWizard">
          </newWizardShortcut>
       </perspectiveExtension>
    </extension>
@@ -127,6 +149,11 @@
       <commonWizard
             type="new"
             wizardId="com.dynamo.cr.tileeditor.wizards.GridNewWizard">
+         <enablement></enablement>
+      </commonWizard>
+      <commonWizard
+            type="new"
+            wizardId="com.dynamo.cr.tileeditor.wizards.spriteNewWizard">
          <enablement></enablement>
       </commonWizard>
    </extension>
