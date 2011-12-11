@@ -34,6 +34,16 @@ com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext {
     }
 
     @Override
+    public void refreshRenderView() {
+        this.view.refreshRenderView();
+    }
+
+    @Override
+    public void asyncExec(Runnable runnable) {
+        this.view.asyncExec(runnable);
+    }
+
+    @Override
     public IStructuredSelection getSelection() {
         return this.model.getSelection();
     }

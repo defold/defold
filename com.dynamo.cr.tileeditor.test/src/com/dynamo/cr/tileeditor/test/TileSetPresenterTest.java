@@ -1,12 +1,14 @@
 package com.dynamo.cr.tileeditor.test;
 
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.util.Collections;
 
-import org.eclipse.jface.viewers.StructuredSelection;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -15,6 +17,7 @@ import com.dynamo.cr.tileeditor.scene.AnimationNode;
 import com.dynamo.cr.tileeditor.scene.CollisionGroupNode;
 import com.dynamo.cr.tileeditor.scene.TileSetNode;
 import com.dynamo.cr.tileeditor.scene.TileSetNodePresenter;
+import com.dynamo.tile.proto.Tile.Playback2;
 
 public class TileSetPresenterTest extends AbstractPresenterTest {
 
@@ -36,11 +39,11 @@ public class TileSetPresenterTest extends AbstractPresenterTest {
         CollisionGroupNode collisionGroup = new CollisionGroupNode();
         tileSet.addCollisionGroup(collisionGroup);
 
-        when(getPresenterContext().getSelection()).thenReturn(new StructuredSelection(collisionGroup));
+        select(collisionGroup);
         this.presenter.onAddCollisionGroup(getPresenterContext());
         verifyExecution();
 
-        when(getPresenterContext().getSelection()).thenReturn(new StructuredSelection(tileSet));
+        select(tileSet);
         this.presenter.onAddCollisionGroup(getPresenterContext());
         verifyExecution();
     }
@@ -51,7 +54,7 @@ public class TileSetPresenterTest extends AbstractPresenterTest {
         CollisionGroupNode collisionGroup = new CollisionGroupNode();
         tileSet.addCollisionGroup(collisionGroup);
 
-        when(getPresenterContext().getSelection()).thenReturn(new StructuredSelection(collisionGroup));
+        select(collisionGroup);
         this.presenter.onRemoveCollisionGroup(getPresenterContext());
         verifyExecution();
     }
@@ -62,24 +65,24 @@ public class TileSetPresenterTest extends AbstractPresenterTest {
         CollisionGroupNode collisionGroup = new CollisionGroupNode();
         tileSet.addCollisionGroup(collisionGroup);
 
-        when(getPresenterContext().getSelection()).thenReturn(new StructuredSelection(collisionGroup));
+        select(collisionGroup);
         this.presenter.onSelectCollisionGroup(getPresenterContext(), -1);
         verifyRefresh();
         verifySelection();
         verifyNoExecution();
 
-        when(getPresenterContext().getSelection()).thenReturn(new StructuredSelection(tileSet));
+        select(tileSet);
         this.presenter.onSelectCollisionGroup(getPresenterContext(), -1);
         verifyNoSelection();
         verifyNoExecution();
 
-        when(getPresenterContext().getSelection()).thenReturn(new StructuredSelection(tileSet));
+        select(tileSet);
         this.presenter.onSelectCollisionGroup(getPresenterContext(), 0);
         verifyRefresh();
         verifySelection();
         verifyNoExecution();
 
-        when(getPresenterContext().getSelection()).thenReturn(new StructuredSelection(collisionGroup));
+        select(collisionGroup);
         this.presenter.onSelectCollisionGroup(getPresenterContext(), 0);
         verifyNoSelection();
         verifyNoExecution();
@@ -98,7 +101,7 @@ public class TileSetPresenterTest extends AbstractPresenterTest {
         when(collisionGroup.getId()).thenReturn("default");
         when(collisionGroup.getTileSetNode()).thenReturn(tileSet);
         when(tileSet.getTileCollisionGroups()).thenReturn(Collections.nCopies(4, ""));
-        when(getPresenterContext().getSelection()).thenReturn(new StructuredSelection(collisionGroup));
+        select(collisionGroup);
 
         // Simulate painting
         this.presenter.onBeginPaintTile(getPresenterContext());
@@ -113,7 +116,7 @@ public class TileSetPresenterTest extends AbstractPresenterTest {
 
         // Simulate erasing
         when(tileSet.getTileCollisionGroups()).thenReturn(Collections.nCopies(4, "default"));
-        when(getPresenterContext().getSelection()).thenReturn(new StructuredSelection(tileSet));
+        select(tileSet);
         this.presenter.onBeginPaintTile(getPresenterContext());
         this.presenter.onPaintTile(getPresenterContext(), 1);
         verifyRefresh();
@@ -130,11 +133,11 @@ public class TileSetPresenterTest extends AbstractPresenterTest {
         AnimationNode animation = new AnimationNode();
         tileSet.addAnimation(animation);
 
-        when(getPresenterContext().getSelection()).thenReturn(new StructuredSelection(animation));
+        select(animation);
         this.presenter.onAddAnimation(getPresenterContext());
         verifyExecution();
 
-        when(getPresenterContext().getSelection()).thenReturn(new StructuredSelection(tileSet));
+        select(tileSet);
         this.presenter.onAddAnimation(getPresenterContext());
         verifyExecution();
     }
@@ -145,9 +148,30 @@ public class TileSetPresenterTest extends AbstractPresenterTest {
         AnimationNode animation = new AnimationNode();
         tileSet.addAnimation(animation);
 
-        when(getPresenterContext().getSelection()).thenReturn(new StructuredSelection(animation));
+        select(animation);
         this.presenter.onRemoveAnimation(getPresenterContext());
         verifyExecution();
+    }
+
+    @Test
+    public void testAnimationPlayback() throws Exception {
+
+        AnimationNode animation = new AnimationNode();
+        animation.setStartTile(1);
+        animation.setEndTile(4);
+        animation.setPlayback(Playback2.PLAYBACK2_ONCE_FORWARD);
+        animation.setFps(30);
+        select(animation);
+
+        this.presenter.onPlayAnimation(getPresenterContext());
+        verify(getPresenterContext(), times(1)).asyncExec(any(Runnable.class));
+
+        this.presenter.onPlayAnimation(getPresenterContext());
+        verify(getPresenterContext(), times(1)).asyncExec(any(Runnable.class));
+
+        this.presenter.onStopAnimation(getPresenterContext());
+        this.presenter.onPlayAnimation(getPresenterContext());
+        verify(getPresenterContext(), times(2)).asyncExec(any(Runnable.class));
     }
 
 }

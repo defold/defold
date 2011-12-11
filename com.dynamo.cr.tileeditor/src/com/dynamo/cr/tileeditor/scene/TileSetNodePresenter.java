@@ -14,6 +14,7 @@ import com.dynamo.cr.tileeditor.operations.AddCollisionGroupNodeOperation;
 import com.dynamo.cr.tileeditor.operations.RemoveAnimationNodeOperation;
 import com.dynamo.cr.tileeditor.operations.RemoveCollisionGroupNodeOperation;
 import com.dynamo.cr.tileeditor.operations.SetTileCollisionGroupsOperation;
+import com.dynamo.cr.tileeditor.util.Animator;
 
 public class TileSetNodePresenter implements INodePresenter<TileSetNode> {
     // Used for painting collision groups onto tiles (convex hulls)
@@ -21,6 +22,8 @@ public class TileSetNodePresenter implements INodePresenter<TileSetNode> {
     private List<String> oldTileCollisionGroups;
     private List<String> newTileCollisionGroups;
     private String currentCollisionGroup;
+    // Used for playing animations
+    private Animator animator;
 
     public void onBeginPaintTile(IPresenterContext presenterContext) {
         IStructuredSelection selection = presenterContext.getSelection();
@@ -94,6 +97,19 @@ public class TileSetNodePresenter implements INodePresenter<TileSetNode> {
     public void onRemoveAnimation(IPresenterContext presenterContext) {
         AnimationNode animation = TileSetUtil.getCurrentAnimation(presenterContext.getSelection());
         presenterContext.executeOperation(new RemoveAnimationNodeOperation(animation, presenterContext));
+    }
+
+    public void onPlayAnimation(IPresenterContext presenterContext) {
+        if (this.animator == null) {
+            this.animator = new Animator(presenterContext);
+        }
+        this.animator.start();
+    }
+
+    public void onStopAnimation(IPresenterContext presenterContext) {
+        if (this.animator != null) {
+            this.animator.stop();
+        }
     }
 
 }

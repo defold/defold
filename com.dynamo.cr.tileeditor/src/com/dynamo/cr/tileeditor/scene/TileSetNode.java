@@ -445,4 +445,22 @@ public class TileSetNode extends Node {
         return reloaded;
     }
 
+    public int calculateTileCount() {
+        int imageWidth = 0;
+        int imageHeight = 0;
+        if (this.loadedImage != null) {
+            imageWidth = this.loadedImage.getWidth();
+            imageHeight = this.loadedImage.getHeight();
+        } else if (this.loadedCollision != null) {
+            imageWidth = this.loadedCollision.getWidth();
+            imageHeight = this.loadedCollision.getHeight();
+        }
+        if (imageWidth > 0 && imageHeight > 0) {
+            int tilesPerRow = TileSetUtil.calculateTileCount(this.tileWidth, imageWidth, this.tileMargin, this.tileSpacing);
+            int tilesPerColumn = TileSetUtil.calculateTileCount(this.tileHeight, imageHeight, this.tileMargin, this.tileSpacing);
+            return tilesPerRow * tilesPerColumn;
+        }
+        return 0;
+    }
+
 }

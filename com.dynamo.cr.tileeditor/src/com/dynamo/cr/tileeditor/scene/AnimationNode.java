@@ -5,6 +5,7 @@ import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.validators.Unique;
 import com.dynamo.tile.proto.Tile;
+import com.dynamo.tile.proto.Tile.Playback2;
 
 public class AnimationNode extends Node {
 
@@ -30,6 +31,9 @@ public class AnimationNode extends Node {
 
     @Property
     private boolean flipVertical;
+
+    private int currentTile;
+    private float cursor;
 
     public String getId() {
         return this.id;
@@ -91,4 +95,51 @@ public class AnimationNode extends Node {
         this.flipVertical = flipVertical;
     }
 
+    public int getCurrentTile() {
+        return this.currentTile;
+    }
+
+    public void setCursor(float cursor) {
+        this.cursor = cursor;
+        if (this.playback != Playback2.PLAYBACK2_NONE) {
+            int delta = (int)(cursor * this.fps);
+            int tileCount = this.endTile - this.startTile + 1;
+            boolean once = this.playback == Playback2.PLAYBACK2_ONCE_FORWARD || this.playback == Playback2.PLAYBACK2_ONCE_BACKWARD;
+            if (once) {
+                if (delta < 0) {
+                    delta = 0;
+                } else if (delta >= tileCount) {
+                    delta = tileCount - 1;
+                }
+            } else if (this.playback == Playback2.PLAYBACK2_LOOP_PINGPONG) {
+                // Length of one cycle, forward and backward
+                int cycleLength = tileCount * 2 - 2;
+                delta %= cycleLength;
+                if (delta >= tileCount) {
+                    delta = cycleLength - delta;
+                }
+            } else {
+                delta %= tileCount;
+            }
+            boolean backwards = this.playback == Playback2.PLAYBACK2_ONCE_BACKWARD || this.playback == Playback2.PLAYBACK2_LOOP_BACKWARD;
+            if (backwards) {
+                delta = tileCount - 1 - delta;
+            }
+            this.currentTile = this.startTile + delta;
+        } else {
+            this.currentTile = this.startTile;
+        }
+    }
+
+    public boolean hasFinished() {
+        boolean once = this.playback == Playback2.PLAYBACK2_ONCE_FORWARD || this.playback == Playback2.PLAYBACK2_ONCE_BACKWARD;
+        if (once) {
+            int delta = (int)(cursor * this.fps);
+            int tileCount = this.endTile - this.startTile + 1;
+            return delta >= tileCount;
+        } else if (this.playback == Playback2.PLAYBACK2_NONE) {
+            return true;
+        }
+        return false;
+    }
 }

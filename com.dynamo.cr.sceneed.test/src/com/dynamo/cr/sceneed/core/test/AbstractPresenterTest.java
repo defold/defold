@@ -4,14 +4,17 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.jface.viewers.IStructuredSelection;
+import org.eclipse.jface.viewers.StructuredSelection;
 import org.junit.Before;
 
 import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
+import com.dynamo.cr.sceneed.core.Node;
 
 public class AbstractPresenterTest {
 
@@ -20,6 +23,7 @@ public class AbstractPresenterTest {
     private ISceneModel model;
 
     private int refreshCounter;
+    private int refreshRenderViewCounter;
     private int selectionCounter;
     private int executionCounter;
 
@@ -27,6 +31,7 @@ public class AbstractPresenterTest {
         super();
 
         this.refreshCounter = 0;
+        this.refreshRenderViewCounter = 0;
         this.selectionCounter = 0;
         this.executionCounter = 0;
     }
@@ -58,13 +63,18 @@ public class AbstractPresenterTest {
         return model;
     }
 
-    protected void setModel(ISceneModel model) {
-        this.model = model;
+    protected void select(Node node) {
+        when(getPresenterContext().getSelection()).thenReturn(new StructuredSelection(node));
     }
 
     protected void verifyRefresh() {
         ++this.refreshCounter;
         verify(this.presenterContext, times(this.refreshCounter)).refreshView();
+    }
+
+    protected void verifyRefreshRenderView() {
+        ++this.refreshRenderViewCounter;
+        verify(this.presenterContext, times(this.refreshRenderViewCounter)).refreshRenderView();
     }
 
     protected void verifySelection() {

@@ -9,6 +9,7 @@ import org.eclipse.jface.viewers.ArrayContentProvider;
 import org.eclipse.jface.viewers.ILabelProvider;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.LabelProvider;
+import org.eclipse.swt.widgets.Display;
 import org.eclipse.ui.dialogs.ListDialog;
 import org.eclipse.ui.dialogs.ResourceListSelectionDialog;
 
@@ -41,6 +42,16 @@ public class SceneView implements ISceneView {
         this.sceneRenderViewProvider.setSelection(selection);
         this.outline.setSelection(selection);
         this.editor.setDirty(dirty);
+    }
+
+    @Override
+    public void refreshRenderView() {
+        this.renderView.refresh();
+    }
+
+    @Override
+    public void asyncExec(Runnable runnable) {
+        Display.getCurrent().asyncExec(runnable);
     }
 
     @Override

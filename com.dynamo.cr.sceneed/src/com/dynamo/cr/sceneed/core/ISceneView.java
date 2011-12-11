@@ -26,10 +26,15 @@ public interface ISceneView {
     }
 
     public interface IPresenterContext extends ILogger {
-        void refreshView();
+        // Model interface
         IStructuredSelection getSelection();
         void setSelection(IStructuredSelection selection);
         void executeOperation(IUndoableOperation operation);
+
+        // View interface
+        void refreshView();
+        void refreshRenderView();
+        void asyncExec(Runnable runnable);
         String selectFromList(String title, String message, String... lst);
         Object selectFromArray(String title, String message, Object[] input, ILabelProvider labelProvider);
         String selectFile(String title);
@@ -39,6 +44,8 @@ public interface ISceneView {
 
     void setRoot(Node root);
     void refresh(IStructuredSelection selection, boolean dirty);
+    void refreshRenderView();
+    void asyncExec(Runnable runnable);
 
     String selectFromList(String title, String message, String... lst);
     Object selectFromArray(String title, String message, Object[] input, ILabelProvider labelProvider);
