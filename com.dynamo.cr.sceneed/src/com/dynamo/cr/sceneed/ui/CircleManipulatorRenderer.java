@@ -8,13 +8,13 @@ import com.dynamo.cr.sceneed.core.RenderContext;
 import com.dynamo.cr.sceneed.core.RenderContext.Pass;
 import com.dynamo.cr.sceneed.core.RenderData;
 
-public class AxisManipulatorRenderer implements INodeRenderer<AxisManipulator> {
+public class CircleManipulatorRenderer implements INodeRenderer<CircleManipulator> {
 
-    public AxisManipulatorRenderer() {
+    public CircleManipulatorRenderer() {
     }
 
     @Override
-    public void setup(RenderContext renderContext, AxisManipulator node) {
+    public void setup(RenderContext renderContext, CircleManipulator node) {
         Pass pass = renderContext.getPass();
         if (pass == Pass.MANIPULATOR || pass == Pass.SELECTION) {
             renderContext.add(this, node, new Vector3d(), null);
@@ -22,13 +22,13 @@ public class AxisManipulatorRenderer implements INodeRenderer<AxisManipulator> {
     }
 
     @Override
-    public void render(RenderContext renderContext, AxisManipulator node,
-            RenderData<AxisManipulator> renderData) {
+    public void render(RenderContext renderContext, CircleManipulator node,
+            RenderData<CircleManipulator> renderData) {
         float[] color = node.getColor();
         GL gl = renderContext.getGL();
-        float factor = 1;
+        float radius = 50;
         gl.glColor4fv(color, 0);
-        RenderUtil.drawArrow(gl, 80 / factor, 20 / factor, 1 / factor, 5 / factor);
+        RenderUtil.drawCircle(gl, radius);
     }
 
 }

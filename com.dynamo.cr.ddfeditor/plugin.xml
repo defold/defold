@@ -646,6 +646,33 @@
             node="com.dynamo.cr.ddfeditor.scene.SpriteNode"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.sprite">
       </node-type>
+      <node-type
+            id="com.dynamo.cr.ddfeditor.scene.sphereCollisionNode"
+            node="com.dynamo.cr.ddfeditor.scene.SphereCollisionShapeNode"
+            renderer="com.dynamo.cr.ddfeditor.scene.SphereCollisionShapeRenderer">
+      </node-type>
+      <node-type
+            id="com.dynamo.cr.ddfeditor.scene.boxCollisionNode"
+            node="com.dynamo.cr.ddfeditor.scene.BoxCollisionShapeNode"
+            renderer="com.dynamo.cr.ddfeditor.scene.BoxCollisionShapeRenderer">
+      </node-type>
+      <node-type
+            id="com.dynamo.cr.ddfeditor.scene.capsuleCollisionNode"
+            node="com.dynamo.cr.ddfeditor.scene.CapsuleCollisionShapeNode"
+            renderer="com.dynamo.cr.ddfeditor.scene.CapsuleCollisionShapeRenderer">
+      </node-type>
+      <node-type
+            id="com.dynamo.cr.ddfeditor.manipulators.sphereRadiusManipulator"
+            node="com.dynamo.cr.ddfeditor.manipulators.SphereRadiusManipulator">
+      </node-type>
+      <node-type
+            id="com.dynamo.cr.ddfeditor.manipulators.boxSizeManipulator"
+            node="com.dynamo.cr.ddfeditor.manipulators.BoxSizeManipulator">
+      </node-type>
+      <node-type
+            id="com.dynamo.cr.ddfeditor.manipulators.capsuleSizeManipulator"
+            node="com.dynamo.cr.ddfeditor.manipulators.CapsuleSizeManipulator">
+      </node-type>
    </extension>
    <extension
          point="org.eclipse.ui.handlers">
@@ -698,6 +725,42 @@
             </iterate>
          </with>
       </definition>
+   </extension>
+   <extension
+         point="com.dynamo.cr.manipulators">
+      <manipulator
+            mode="com.dynamo.cr.sceneed.core.manipulators.scale-mode"
+            name="Sphere Radius Manipulator"
+            node-type="com.dynamo.cr.ddfeditor.manipulators.sphereRadiusManipulator">
+      </manipulator>
+      <manipulator
+            mode="com.dynamo.cr.sceneed.core.manipulators.scale-mode"
+            name="Box Size Manipulator"
+            node-type="com.dynamo.cr.ddfeditor.manipulators.boxSizeManipulator">
+      </manipulator>
+      <manipulator
+            mode="com.dynamo.cr.sceneed.core.manipulators.scale-mode"
+            name="Capsule Size Manipulator"
+            node-type="com.dynamo.cr.ddfeditor.manipulators.capsuleSizeManipulator">
+      </manipulator>
+   </extension>
+   <extension
+         point="org.eclipse.ui.menus">
+      <menuContribution
+            allPopups="false"
+            locationURI="popup:com.dynamo.cr.sceneed.menus.sceneOutlineContext?before=com.dynamo.cr.sceneed.genericSeparator">
+         <command
+               commandId="com.dynamo.cr.sceneed.ui.commands.add"
+               label="Add Shape"
+               style="push">
+            <visibleWhen
+                  checkEnabled="false">
+               <reference
+                     definitionId="com.dynamo.cr.ddfeditor.core.definitions.collisionObjectSelected">
+               </reference>
+            </visibleWhen>
+         </command>
+      </menuContribution>
    </extension>
 
 </plugin>

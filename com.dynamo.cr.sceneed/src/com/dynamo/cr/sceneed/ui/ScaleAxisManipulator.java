@@ -1,21 +1,20 @@
 package com.dynamo.cr.sceneed.ui;
 
-import javax.vecmath.Matrix4d;
 import javax.vecmath.Vector4d;
 
 import org.eclipse.swt.events.MouseEvent;
 
 import com.dynamo.cr.sceneed.core.Manipulator;
 
-public class AxisManipulator extends Manipulator {
+public class ScaleAxisManipulator extends Manipulator {
 
     private RootManipulator rootManipulator;
     private float[] color;
     private Vector4d startPoint;
-    private Vector4d originalTranslation = new Vector4d();
     private boolean moving = false;
+    private double distance = 1;
 
-    public AxisManipulator(RootManipulator rootManipulator, float[] color) {
+    public ScaleAxisManipulator(RootManipulator rootManipulator, float[] color) {
         this.rootManipulator = rootManipulator;
         this.color = color;
     }
@@ -29,12 +28,13 @@ public class AxisManipulator extends Manipulator {
         return color;
     }
 
+    public double getDistance() {
+        return distance;
+    }
+
     @Override
     public void mouseDown(MouseEvent e) {
         if (getController().isManipulatorSelected(this)) {
-            Matrix4d transform = new Matrix4d();
-            getWorldTransform(transform);
-            transform.getColumn(3, originalTranslation);
             this.startPoint = ManipulatorUtil.closestPoint(this, getController().getRenderView(), e);
             moving = true;
         }
@@ -52,10 +52,11 @@ public class AxisManipulator extends Manipulator {
             Vector4d delta = new Vector4d();
             delta.sub(closestPoint, startPoint);
 
-            Vector4d translation = new Vector4d(originalTranslation);
-            translation.add(delta);
-            rootManipulator.setTranslation(translation);
-            rootManipulator.transformChanged();
+            Vector4d axis = ManipulatorUtil.transform(this, 1, 0, 0);
+            double dir = Math.signum(axis.dot(delta));
+            distance = dir * delta.length();
+
+            rootManipulator.manipulatorChanged(this);
         }
     }
 

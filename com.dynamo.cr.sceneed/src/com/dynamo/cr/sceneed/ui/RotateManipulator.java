@@ -13,26 +13,26 @@ import com.dynamo.cr.sceneed.core.Manipulator;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.operations.TransformNodeOperation;
 
-public class MoveManipulator extends RootManipulator {
+public class RotateManipulator extends RootManipulator {
 
-    private AxisManipulator xAxisManipulator;
-    private AxisManipulator yAxisManipulator;
-    private AxisManipulator zAxisManipulator;
+    private CircleManipulator xCircleManipulator;
+    private CircleManipulator yCircleManipulator;
+    private CircleManipulator zCircleManipulator;
     private List<Matrix4d> originalLocalTransforms = new ArrayList<Matrix4d>();
     private List<Matrix4d> newLocalTransforms = new ArrayList<Matrix4d>();
     private boolean transformChanged = false;
 
-    public MoveManipulator() {
-        xAxisManipulator = new AxisManipulator(this, new float[] {1, 0, 0, 1});
-        yAxisManipulator = new AxisManipulator(this, new float[] {0, 1, 0, 1});
-        zAxisManipulator = new AxisManipulator(this, new float[] {0, 0, 1, 1});
+    public RotateManipulator() {
+        xCircleManipulator = new CircleManipulator(this, new float[] {1, 0, 0, 1});
+        yCircleManipulator = new CircleManipulator(this, new float[] {0, 1, 0, 1});
+        zCircleManipulator = new CircleManipulator(this, new float[] {0, 0, 1, 1});
 
-        yAxisManipulator.setRotation(new Quat4d(0.5, 0.5, 0.5, 0.5));
-        zAxisManipulator.setRotation(new Quat4d(-0.5, -0.5, -0.5, 0.5));
+        yCircleManipulator.setRotation(new Quat4d(0.5, 0.5, 0.5, 0.5));
+        zCircleManipulator.setRotation(new Quat4d(-0.5, -0.5, -0.5, 0.5));
 
-        addChild(xAxisManipulator);
-        addChild(yAxisManipulator);
-        addChild(zAxisManipulator);
+        addChild(xCircleManipulator);
+        addChild(yCircleManipulator);
+        addChild(zCircleManipulator);
     }
 
     @Override
@@ -76,9 +76,15 @@ public class MoveManipulator extends RootManipulator {
             center.add(translation);
         }
 
-        center.scale(1.0 / sel.size());
-        center.setW(0);
-        setTranslation(center);
+        Matrix4d transform = new Matrix4d();
+        sel.get(0).getLocalTransform(transform);
+        Vector4d translation = new Vector4d();
+        Quat4d rotation = new Quat4d();
+        transform.getColumn(3, translation);
+        rotation.set(transform);
+
+        setTranslation(translation);
+        setRotation(rotation);
     }
 
     @Override

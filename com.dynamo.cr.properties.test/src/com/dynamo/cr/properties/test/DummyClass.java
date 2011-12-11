@@ -45,6 +45,9 @@ public class DummyClass {
     int notEditable;
 
     @Property
+    int hidden;
+
+    @Property
     @NotEmpty(severity=IStatus.ERROR)
     String requiredString = "";
 
@@ -57,6 +60,10 @@ public class DummyClass {
     String resource = "";
 
     public boolean isNotEditableEditable() {
+        return false;
+    }
+
+    public boolean isHiddenVisible() {
         return false;
     }
 

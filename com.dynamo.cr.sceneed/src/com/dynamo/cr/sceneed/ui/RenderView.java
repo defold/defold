@@ -14,6 +14,7 @@ import javax.media.opengl.GLContext;
 import javax.media.opengl.GLDrawableFactory;
 import javax.media.opengl.glu.GLU;
 import javax.vecmath.Matrix4d;
+import javax.vecmath.Vector4d;
 
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.MouseEvent;
@@ -32,6 +33,7 @@ import org.eclipse.swt.widgets.Listener;
 import org.eclipse.ui.ISelectionService;
 
 import com.dynamo.cr.editor.core.ILogger;
+import com.dynamo.cr.sceneed.core.Camera;
 import com.dynamo.cr.sceneed.core.INodeRenderer;
 import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
@@ -59,8 +61,11 @@ IRenderView {
     private boolean paintRequested = false;
     private boolean enabled = true;
 
+    private List<MouseListener> mouseListeners = new ArrayList<MouseListener>();
+    private List<MouseMoveListener> mouseMoveListeners = new ArrayList<MouseMoveListener>();
+
     // TODO: Temp "camera"
-    private double[] orthoCamera = new double[6];
+    private Camera camera = new Camera(Camera.Type.ORTHOGRAPHIC);
 
     // Picking
     private static final int PICK_BUFFER_SIZE = 4096;
@@ -132,6 +137,46 @@ IRenderView {
         return new Rectangle(0, 0, this.viewPort[2], this.viewPort[3]);
     }
 
+    private static double dot(Vector4d v0, Vector4d v1)
+    {
+        return v0.x * v1.x + v0.y * v1.y + v0.z * v1.z;
+    }
+
+    @Override
+    public void viewToWorld(int x, int y, Vector4d worldPoint, Vector4d worldVector) {
+        Vector4d clickPos = camera.unProject(x, y, 0);
+        Vector4d clickDir = new Vector4d();
+
+        if (camera.getType() == Camera.Type.ORTHOGRAPHIC)
+        {
+            /*
+             * NOTES:
+             * We cancel out the z-component in world_point below.
+             * The convention is that the unproject z-value for orthographic projection should
+             * be 0.0.
+             * Pity that the orthographic case is an exception. Solution?
+             */
+            Matrix4d view = new Matrix4d();
+            camera.getViewMatrix(view);
+
+            Vector4d view_axis = new Vector4d();
+            view.getColumn(2, view_axis);
+            clickDir.set(view_axis);
+
+            double projectedLength = dot(clickPos, view_axis);
+            view_axis.scale(projectedLength);
+            clickPos.sub(view_axis);
+        }
+        else
+        {
+            clickDir.sub(clickPos, camera.getPosition());
+            clickDir.normalize();
+        }
+
+        worldPoint.set(clickPos);
+        worldVector.set(clickDir);
+    }
+
     // Listener
 
     @Override
@@ -142,21 +187,15 @@ IRenderView {
             this.viewPort[1] = 0;
             this.viewPort[2] = client.width;
             this.viewPort[3] = client.height;
+            this.camera.setViewport(viewPort[0],
+                                    viewPort[1],
+                                    viewPort[2],
+                                    viewPort[3]);
 
             // TODO: Temp "camera"
             Point size = canvas.getSize();
             double aspect = ((double) size.x) / size.y;
-            double left = -300.0 / 2;
-            double right = 300.0 / 2;
-            double bottom = left / aspect;
-            double top = right / aspect;
-            orthoCamera[0] = left;
-            orthoCamera[1] = right;
-            orthoCamera[2] = bottom;
-            orthoCamera[3] = top;
-            orthoCamera[4] = -100000;
-            orthoCamera[5] = 100000;
-
+            camera.setOrthographic(300, aspect, -100000, 100000);
         } else if (event.type == SWT.Paint) {
             requestPaint();
         }
@@ -166,15 +205,18 @@ IRenderView {
 
     @Override
     public void mouseMove(MouseEvent e) {
-        // To be used for tools
+        for (MouseMoveListener listener : mouseMoveListeners) {
+            listener.mouseMove(e);
+        }
     }
 
     // MouseListener
 
     @Override
     public void mouseDoubleClick(MouseEvent e) {
-        // TODO Auto-generated method stub
-
+        for (MouseListener listener : mouseListeners) {
+            listener.mouseDoubleClick(e);
+        }
     }
 
     @Override
@@ -184,13 +226,18 @@ IRenderView {
         for (IRenderViewProvider provider : providers) {
             provider.onNodeHit(sel);
         }
+
+        for (MouseListener listener : mouseListeners) {
+            listener.mouseDown(event);
+        }
     }
 
     @Override
     public void mouseUp(MouseEvent e) {
-        // To be used for tools
+        for (MouseListener listener : mouseListeners) {
+            listener.mouseUp(e);
+        }
     }
-
 
     public boolean isEnabled() {
         return this.enabled;
@@ -239,8 +286,10 @@ IRenderView {
         gl.glMatrixMode(GL.GL_PROJECTION);
         gl.glLoadIdentity();
         glu.gluPickMatrix(x, viewPort[3] - y, w, h, viewPort, 0);
-        gl.glOrtho(orthoCamera[0], orthoCamera[1], orthoCamera[2], orthoCamera[3], orthoCamera[4], orthoCamera[5]);
 
+        Matrix4d projection = new Matrix4d();
+        camera.getProjectionMatrix(projection);
+        RenderUtil.multMatrix(gl, projection);
         gl.glMatrixMode(GL.GL_MODELVIEW);
         gl.glLoadIdentity();
 
@@ -292,6 +341,14 @@ IRenderView {
         }
     }
 
+    /**
+     * NOTE: x and y must me center coordinates
+     * @param x center coordinate
+     * @param y center coordinate
+     * @param width width to select for
+     * @param height height to select for
+     * @return list of selected nodes
+     */
     private List<Node> rectangleSelect(int x, int y, int width, int height) {
         ArrayList<Node> toSelect = new ArrayList<Node>(32);
 
@@ -300,8 +357,7 @@ IRenderView {
             GL gl = context.getGL();
             GLU glu = new GLU();
 
-            // x and y are center coordinates
-            beginSelect(gl, x + width / 2, y + height / 2, width, height);
+            beginSelect(gl, x, y, width, height);
 
             List<Pass> passes = Arrays.asList(Pass.SELECTION);
             RenderContext renderContext = renderNodes(gl, glu, passes, true);
@@ -425,8 +481,9 @@ IRenderView {
 
         if (pass != Pass.SELECTION) {
             gl.glMatrixMode(GL.GL_PROJECTION);
-            gl.glLoadIdentity();
-            gl.glOrtho(orthoCamera[0], orthoCamera[1], orthoCamera[2], orthoCamera[3], orthoCamera[4], orthoCamera[5]);
+            Matrix4d projection = new Matrix4d();
+            camera.getProjectionMatrix(projection );
+            RenderUtil.loadMatrix(gl, projection);
             gl.glMatrixMode(GL.GL_MODELVIEW);
         }
 
@@ -514,26 +571,22 @@ IRenderView {
 
     @Override
     public void addMouseListener(MouseListener listener) {
-        // TODO Auto-generated method stub
-
+        this.mouseListeners.add(listener);
     }
 
     @Override
     public void removeMouseListener(MouseListener listener) {
-        // TODO Auto-generated method stub
-
+        this.mouseListeners.remove(listener);
     }
 
     @Override
     public void addMouseMoveListener(MouseMoveListener listener) {
-        // TODO Auto-generated method stub
-
+        this.mouseMoveListeners.add(listener);
     }
 
     @Override
     public void removeMouseMoveListener(MouseMoveListener listener) {
-        // TODO Auto-generated method stub
-
+        this.mouseMoveListeners.remove(listener);
     }
 
 }

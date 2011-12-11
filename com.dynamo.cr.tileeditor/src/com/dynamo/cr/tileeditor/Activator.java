@@ -43,7 +43,6 @@ public class Activator extends AbstractUIPlugin {
      */
     public Activator() {
         this.collisionGroupColors = new Color[MAX_COLLISION_GROUP_COUNT];
-        generateCollisionGroupColors();
     }
 
     /*
@@ -104,6 +103,7 @@ public class Activator extends AbstractUIPlugin {
         registry.put(GRID_IMAGE_ID, imageDescriptorFromPlugin(PLUGIN_ID, "icons/tile_grid.png"));
         registry.put(LAYER_IMAGE_ID, imageDescriptorFromPlugin(PLUGIN_ID, "icons/layer.png"));
 
+        generateCollisionGroupColors();
         generateCollisionGroupIcons();
     }
 

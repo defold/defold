@@ -48,11 +48,11 @@ public class CollisionObjectPresenter implements ISceneView.INodePresenter<Colli
             CollisionShapeNode shapeNode = null;
 
             if (shapeType.equals("Sphere")) {
-                shapeNode = new SphereCollisionShapeNode(position, rotation, new float[] {1}, 0);
+                shapeNode = new SphereCollisionShapeNode(position, rotation, new float[] {25}, 0);
             } else if (shapeType.equals("Box")) {
-                shapeNode = new BoxCollisionShapeNode(position, rotation, new float[] {1,1,1}, 0);
+                shapeNode = new BoxCollisionShapeNode(position, rotation, new float[] {10,10,10}, 0);
             } else if (shapeType.equals("Capsule")) {
-                shapeNode = new CapsuleCollisionShapeNode(position, rotation, new float[] {0.5f, 1}, 0);
+                shapeNode = new CapsuleCollisionShapeNode(position, rotation, new float[] {30, 100}, 0);
             } else {
                 throw new RuntimeException("Unknown type: " + shapeType);
             }

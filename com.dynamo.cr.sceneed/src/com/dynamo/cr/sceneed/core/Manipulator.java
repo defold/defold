@@ -6,17 +6,20 @@ import org.eclipse.swt.events.MouseMoveListener;
 
 public abstract class Manipulator extends Node implements MouseListener, MouseMoveListener {
 
-    protected ManipulatorController controller;
-    protected Node[] selection;
+    private ManipulatorController controller;
 
     public abstract boolean match(Object[] selection);
 
-    public void setController(ManipulatorController controller) {
-        this.controller = controller;
+    public ManipulatorController getController() {
+        return controller;
     }
 
-    public void setSelection(Node[] selection) {
-        this.selection = selection;
+    public final void setController(ManipulatorController controller) {
+        this.controller = controller;
+        for (Node c : getChildren()) {
+            Manipulator m = (Manipulator) c;
+            m.setController(controller);
+        }
     }
 
     @Override

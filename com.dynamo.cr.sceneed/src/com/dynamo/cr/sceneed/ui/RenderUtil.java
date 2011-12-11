@@ -61,7 +61,7 @@ public class RenderUtil {
         glu.gluDeleteQuadric(quadric);
     }
 
-    public static void drawArrow(GL gl, double length, double cone_length, double radius, double cone_radius)
+    public static void drawArrow(GL gl, double length, double coneLength, double radius, double coneCadius)
     {
         GLU glu = new GLU();
         GLUquadric q =  glu.gluNewQuadric();
@@ -70,15 +70,58 @@ public class RenderUtil {
         gl.glRotatef(90, 0, 1, 0);
 
         glu.gluQuadricDrawStyle(q, GLU.GLU_FILL);
-        glu.gluCylinder(q, radius, radius, length - cone_length, 8, 1);
+        glu.gluCylinder(q, radius, radius, length - coneLength, 8, 1);
 
-        double d = length - cone_length;
+        double d = length - coneLength;
         gl.glTranslated(0, 0, d);
-        glu.gluCylinder(q, cone_radius, 0, cone_length, 10, 1);
+        glu.gluCylinder(q, coneCadius, 0, coneLength, 10, 1);
 
         gl.glPopMatrix();
 
         glu.gluDeleteQuadric(q);
+    }
+
+    public static void drawScaleArrow(GL gl, double length, double radius, double boxExt)
+    {
+        GLU glu = new GLU();
+        GLUquadric q =  glu.gluNewQuadric();
+
+        gl.glPushMatrix();
+        gl.glRotatef(90, 0, 1, 0);
+
+        glu.gluQuadricDrawStyle(q, GLU.GLU_FILL);
+        glu.gluCylinder(q, radius, radius, length - boxExt, 8, 1);
+
+        double d = length - boxExt;
+        gl.glTranslated(0, 0, d);
+        drawCube(gl, -boxExt, -boxExt, -boxExt, boxExt, boxExt, boxExt);
+
+        gl.glPopMatrix();
+
+        glu.gluDeleteQuadric(q);
+    }
+
+    public static void drawCircle(GL gl, double radius)
+    {
+        gl.glLineWidth(1.0f);
+
+        int n = 40;
+        gl.glBegin(GL.GL_LINES);
+
+        double y0 = radius;
+        double z0 = 0;
+
+        for (int i = 0; i < n + 1; ++i)
+        {
+            double y1 = radius * Math.cos(2.0f * Math.PI * i / (n));
+            double z1 = radius * Math.sin(2.0f * Math.PI * i / (n));
+            gl.glVertex3d(0, y0, z0);
+            gl.glVertex3d(0, y1, z1);
+            y0 = y1;
+            z0 = z1;
+        }
+        gl.glEnd();
+        gl.glLineWidth(1.0f);
     }
 
     // TODO: parsing preferences every time... performance problem?
@@ -123,6 +166,32 @@ public class RenderUtil {
         a[i++] = transform.m33;
 
         gl.glLoadMatrixd(a, 0);
+    }
+
+    public static void multMatrix(GL gl, Matrix4d transform) {
+        double[] a = new double[16];
+        int i = 0;
+        a[i++] = transform.m00;
+        a[i++] = transform.m10;
+        a[i++] = transform.m20;
+        a[i++] = transform.m30;
+
+        a[i++] = transform.m01;
+        a[i++] = transform.m11;
+        a[i++] = transform.m21;
+        a[i++] = transform.m31;
+
+        a[i++] = transform.m02;
+        a[i++] = transform.m12;
+        a[i++] = transform.m22;
+        a[i++] = transform.m32;
+
+        a[i++] = transform.m03;
+        a[i++] = transform.m13;
+        a[i++] = transform.m23;
+        a[i++] = transform.m33;
+
+        gl.glMultMatrixd(a, 0);
     }
 
 }

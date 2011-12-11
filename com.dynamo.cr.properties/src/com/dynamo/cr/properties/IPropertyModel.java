@@ -17,7 +17,10 @@ public interface IPropertyModel<T, U extends IPropertyObjectWorld> {
 
     public boolean isPropertyEditable(Object id);
 
+    boolean isPropertyVisible(Object id);
+
     public IStatus getStatus();
+
     public IStatus getPropertyStatus(Object id);
 
 }

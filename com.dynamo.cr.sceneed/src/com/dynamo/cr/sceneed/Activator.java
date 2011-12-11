@@ -27,9 +27,13 @@ public class Activator extends AbstractUIPlugin implements IImageProvider {
     // Command IDs
     public static final String ENTER_COMMAND_ID = "com.dynamo.cr.sceneed.ui.commands.enter"; //$NON-NLS-1$
 
+    public static final String SELECT_MODE_ID = "com.dynamo.cr.sceneed.core.manipulators.select-mode"; //$NON-NLS-1$
+
     public static final String MOVE_MODE_ID = "com.dynamo.cr.sceneed.core.manipulators.move-mode"; //$NON-NLS-1$
 
-    public static final String SIZE_MODE_ID = "com.dynamo.cr.sceneed.core.manipulators.size-mode"; //$NON-NLS-1$
+    public static final String ROTATE_MODE_ID = "com.dynamo.cr.sceneed.core.manipulators.rotate-mode"; //$NON-NLS-1$
+
+    public static final String SCALE_MODE_ID = "com.dynamo.cr.sceneed.core.manipulators.scale-mode"; //$NON-NLS-1$
 
     // Image IDs
     public static final String IMG_OVERLAY_INFO = "IMG_OVERLAY_INFO";
