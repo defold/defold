@@ -187,7 +187,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
         String path = "/collision_groups.tileset";
         String img = "/2x5_16_1.png";
         StringBuffer ddf = new StringBuffer();
-        ddf.append("image: \"").append(img).append("\" tile_width: 16 tile_height: 16 tile_margin: 1 tile_spacing: 0 ")
+        ddf.append("image: \"").append(img).append("\" tile_width: 16 tile_height: 16 tile_margin: 0 tile_spacing: 1 ")
             .append("collision: \"").append(img).append("\" material_tag: \"tile\" collision_groups: \"default\" ");
         for (int i = 0; i < 10; ++i) {
             ddf.append("convex_hulls: {index: 0 count: 0 collision_group: \"").append(group).append("\"} ");
@@ -218,7 +218,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
     private void loadWithAnimation(String path) throws Exception {
         String img = "/2x5_16_1.png";
         StringBuffer ddf = new StringBuffer();
-        ddf.append("image: \"").append(img).append("\" tile_width: 16 tile_height: 16 tile_margin: 1 tile_spacing: 0 ")
+        ddf.append("image: \"").append(img).append("\" tile_width: 16 tile_height: 16 tile_margin: 0 tile_spacing: 1 ")
             .append("collision: \"").append(img).append("\" material_tag: \"tile\" collision_groups: \"default\" ")
             .append("animations: {id: \"anim\" start_tile: 1 end_tile: 4 playback: PLAYBACK2_ONCE_FORWARD ")
             .append("fps: 30 flip_horizontal: 0 flip_vertical: 0}");
@@ -710,4 +710,19 @@ public class TileSetNodeTest extends AbstractNodeTest {
         Color newColor = CollisionGroupNode.getCollisionGroupColor(id);
         assertThat(newColor, nullValue());
     }
+
+    @Test
+    public void testAnimationMessages() throws Exception {
+        loadWithAnimation("/animation.tileset");
+        AnimationNode animation = animation(0);
+
+        assertNodePropertyStatus(animation, "startTile", IStatus.OK, null);
+        animation.setStartTile(11);
+        assertNodePropertyStatus(animation, "startTile", IStatus.ERROR, NLS.bind(Messages.AnimationNode_startTile_INVALID, 10));
+
+        assertNodePropertyStatus(animation, "endTile", IStatus.OK, null);
+        animation.setEndTile(11);
+        assertNodePropertyStatus(animation, "endTile", IStatus.ERROR, NLS.bind(Messages.AnimationNode_endTile_INVALID, 10));
+    }
+
 }

@@ -1,5 +1,11 @@
 package com.dynamo.cr.tileeditor.scene;
 
+import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Status;
+import org.eclipse.osgi.util.NLS;
+
+import com.dynamo.cr.editor.ui.Activator;
+import com.dynamo.cr.properties.GreaterThanZero;
 import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.sceneed.core.Node;
@@ -15,15 +21,18 @@ public class AnimationNode extends Node {
     private String id;
 
     @Property
+    @GreaterThanZero
     private int startTile;
 
     @Property
+    @GreaterThanZero
     private int endTile;
 
     @Property
     private Tile.Playback2 playback;
 
     @Property
+    @GreaterThanZero
     private int fps;
 
     @Property
@@ -51,6 +60,17 @@ public class AnimationNode extends Node {
         this.startTile = startTile;
     }
 
+    public IStatus validateStartTile() {
+        if (getModel() != null) {
+            TileSetNode tileSet = getTileSetNode();
+            int tileCount = tileSet.calculateTileCount();
+            if (this.startTile >= tileCount) {
+                return new Status(IStatus.ERROR, Activator.PLUGIN_ID, NLS.bind(Messages.AnimationNode_startTile_INVALID, tileCount));
+            }
+        }
+        return Status.OK_STATUS;
+    }
+
     public TileSetNode getTileSetNode() {
         return (TileSetNode) getParent().getParent();
     }
@@ -61,6 +81,17 @@ public class AnimationNode extends Node {
 
     public void setEndTile(int endTile) {
         this.endTile = endTile;
+    }
+
+    public IStatus validateEndTile() {
+        if (getModel() != null) {
+            TileSetNode tileSet = getTileSetNode();
+            int tileCount = tileSet.calculateTileCount();
+            if (this.endTile >= tileCount) {
+                return new Status(IStatus.ERROR, Activator.PLUGIN_ID, NLS.bind(Messages.AnimationNode_endTile_INVALID, tileCount));
+            }
+        }
+        return Status.OK_STATUS;
     }
 
     public Tile.Playback2 getPlayback() {
