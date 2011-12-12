@@ -249,21 +249,15 @@ public abstract class Node implements IAdaptable {
     }
 
     public final IStatus validate() {
-        IStatus status = null;
-        if (!this.children.isEmpty()) {
-            MultiStatus multiStatus = new MultiStatus(Activator.PLUGIN_ID, 0, null, null);
-            for (Node child : this.children) {
-                multiStatus.merge(child.validate());
-            }
-            status = multiStatus;
-        }
+        IStatus status = Status.OK_STATUS;
+
         @SuppressWarnings("unchecked")
         IPropertyModel<? extends Node, ISceneModel> model = (IPropertyModel<? extends Node, ISceneModel>) getAdapter(IPropertyModel.class);
         IStatus ownStatus = model.getStatus();
-        if (status != null) {
-            ((MultiStatus)status).merge(ownStatus);
-        } else {
-            status = ownStatus;
+        if (!ownStatus.isOK()) {
+            MultiStatus multiStatus = new MultiStatus(Activator.PLUGIN_ID, 0, null, null);
+            multiStatus.merge(ownStatus);
+            status = multiStatus;
         }
 
         IStatus nodeStatus = validateNode();
@@ -276,6 +270,16 @@ public abstract class Node implements IAdaptable {
                 status = multiStatus;
             }
             ((MultiStatus)status).merge(nodeStatus);
+        }
+        // Only test children if everything else is fine
+        if (status.isOK()) {
+            if (!this.children.isEmpty()) {
+                MultiStatus multiStatus = new MultiStatus(Activator.PLUGIN_ID, 0, null, null);
+                for (Node child : this.children) {
+                    multiStatus.merge(child.validate());
+                }
+                status = multiStatus;
+            }
         }
 
         return status;

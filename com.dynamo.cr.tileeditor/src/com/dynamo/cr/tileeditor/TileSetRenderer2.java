@@ -161,7 +161,7 @@ KeyListener {
 
     private void setupRenderData() {
         BufferedImage loadedImage = this.tileSet.getLoadedImage();
-        if (!loadedImage.equals(this.tileSetImage)) {
+        if (loadedImage != null && !loadedImage.equals(this.tileSetImage)) {
             this.tileSetTexture = loadTexture(loadedImage, this.tileSetTexture);
             if (this.tileSetTexture != null) {
                 this.tileSetImage = loadedImage;

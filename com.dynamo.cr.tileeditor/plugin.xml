@@ -671,6 +671,25 @@
                </or>
             </visibleWhen>
          </menu>
+         <command
+               commandId="com.dynamo.cr.sceneed.ui.commands.addLink"
+               label="Add Animation"
+               style="push">
+            <visibleWhen
+                  checkEnabled="false">
+               <or>
+                  <reference
+                        definitionId="com.dynamo.cr.tileeditor.definitions.tileSetSelected">
+                  </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.tileeditor.definitions.animationSelected">
+                  </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.tileeditor.definitions.animationGroupSelected">
+                  </reference>
+               </or>
+            </visibleWhen>
+         </command>
       </menuContribution>
       <menuContribution
             allPopups="false"
@@ -698,8 +717,22 @@
                   <reference
                         definitionId="com.dynamo.cr.tileeditor.definitions.collisionGroupSelected">
                   </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.tileeditor.definitions.collisionGroupGroupSelected">
+                  </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.tileeditor.definitions.animationGroupSelected">
+                  </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.tileeditor.definitions.animationSelected">
+                  </reference>
                </or>
             </visibleWhen>
+            <command
+                  commandId="com.dynamo.cr.sceneed.ui.commands.addLink"
+                  label="Add Animation"
+                  style="push">
+            </command>
          </menu>
       </menuContribution>  </extension>
    <extension
@@ -915,6 +948,32 @@
                </reference>
             </or></activeWhen>
       </handler>
+      <handler
+            class="com.dynamo.cr.tileeditor.handlers.AddAnimationHandler"
+            commandId="com.dynamo.cr.sceneed.ui.commands.addLink">
+         <activeWhen>
+            <or>
+               <reference
+                     definitionId="com.dynamo.cr.tileeditor.definitions.animationSelected">
+               </reference>
+               <reference
+                     definitionId="com.dynamo.cr.tileeditor.definitions.animationGroupSelected">
+               </reference>
+               <reference
+                     definitionId="com.dynamo.cr.tileeditor.definitions.tileSetSelected">
+               </reference>
+            </or>
+         </activeWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.tileeditor.handlers.RemoveAnimationHandler"
+            commandId="org.eclipse.ui.edit.delete">
+         <activeWhen>
+            <reference
+                  definitionId="com.dynamo.cr.tileeditor.definitions.animationSelected">
+            </reference>
+         </activeWhen>
+      </handler>
    </extension>
    <extension
          point="org.eclipse.core.expressions.definitions">
@@ -988,6 +1047,18 @@
                   operator="or">
                <instanceof
                      value="com.dynamo.cr.tileeditor.scene.AnimationGroupNode">
+               </instanceof>
+            </iterate>
+         </with>
+      </definition>
+      <definition
+            id="com.dynamo.cr.tileeditor.definitions.animationSelected">
+         <with
+               variable="selection">
+            <iterate
+                  operator="or">
+               <instanceof
+                     value="com.dynamo.cr.tileeditor.scene.AnimationNode">
                </instanceof>
             </iterate>
          </with>

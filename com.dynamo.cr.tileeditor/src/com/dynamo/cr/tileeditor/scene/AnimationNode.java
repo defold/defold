@@ -19,22 +19,22 @@ public class AnimationNode extends Node {
     @Property
     @NotEmpty
     @Unique
-    private String id;
+    private String id = "";
 
     @Property
     @GreaterThanZero
-    private int startTile;
+    private int startTile = 1;
 
     @Property
     @GreaterThanZero
-    private int endTile;
+    private int endTile = 1;
 
     @Property
-    private Tile.Playback2 playback;
+    private Tile.Playback2 playback = Playback2.PLAYBACK2_ONCE_FORWARD;
 
     @Property
     @GreaterThanZero
-    private int fps;
+    private int fps = 30;
 
     @Property
     private boolean flipHorizontal;
@@ -62,8 +62,8 @@ public class AnimationNode extends Node {
     }
 
     public IStatus validateStartTile() {
-        if (getModel() != null) {
-            TileSetNode tileSet = getTileSetNode();
+        TileSetNode tileSet = getTileSetNode();
+        if (tileSet != null) {
             int tileCount = tileSet.calculateTileCount();
             if (this.startTile >= tileCount) {
                 return new Status(IStatus.ERROR, Activator.PLUGIN_ID, NLS.bind(Messages.AnimationNode_startTile_INVALID, tileCount));
@@ -73,7 +73,10 @@ public class AnimationNode extends Node {
     }
 
     public TileSetNode getTileSetNode() {
-        return (TileSetNode) getParent().getParent();
+        if (getParent() != null && getParent().getParent() != null) {
+            return (TileSetNode) getParent().getParent();
+        }
+        return null;
     }
 
     public int getEndTile() {
@@ -85,8 +88,8 @@ public class AnimationNode extends Node {
     }
 
     public IStatus validateEndTile() {
-        if (getModel() != null) {
-            TileSetNode tileSet = getTileSetNode();
+        TileSetNode tileSet = getTileSetNode();
+        if (tileSet != null) {
             int tileCount = tileSet.calculateTileCount();
             if (this.endTile >= tileCount) {
                 return new Status(IStatus.ERROR, Activator.PLUGIN_ID, NLS.bind(Messages.AnimationNode_endTile_INVALID, tileCount));
@@ -173,6 +176,11 @@ public class AnimationNode extends Node {
             return true;
         }
         return false;
+    }
+
+    @Override
+    public String toString() {
+        return this.id;
     }
 
     @Override
