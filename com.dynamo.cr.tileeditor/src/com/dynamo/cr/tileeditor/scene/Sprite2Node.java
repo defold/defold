@@ -75,6 +75,10 @@ public class Sprite2Node extends ComponentTypeNode {
         return Status.OK_STATUS;
     }
 
+    public TileSetNode getTileSetNode() {
+        return this.tileSetNode;
+    }
+
     @Override
     public void setModel(ISceneModel model) {
         super.setModel(model);

@@ -1007,6 +1007,7 @@
             id="com.dynamo.cr.tileeditor.scene.sprite2Node"
             loader="com.dynamo.cr.tileeditor.scene.Sprite2Loader"
             node="com.dynamo.cr.tileeditor.scene.Sprite2Node"
+            renderer="com.dynamo.cr.tileeditor.scene.Sprite2Renderer"
             resource-type="com.dynamo.cr.tileeditor.core.resourcetypes.sprite2">
       </node-type>
       <node-type
