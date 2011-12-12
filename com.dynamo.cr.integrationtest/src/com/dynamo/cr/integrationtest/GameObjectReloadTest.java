@@ -54,7 +54,7 @@ public class GameObjectReloadTest extends AbstractSceneTest {
     @Test
     public void testReloadComponentFromFile() throws Exception {
         String path = "/sprite2/reload.sprite2";
-        String tileSet = "/tileset/test.tileset";
+        String tileSet = "/tileset/test.tileset2";
         String defaultAnimation = "test";
 
         when(getPresenterContext().selectFile(anyString())).thenReturn(path);
