@@ -6,7 +6,7 @@ public class Messages extends NLS {
     private static final String BUNDLE_NAME = "com.dynamo.cr.tileeditor.scene.messages"; //$NON-NLS-1$
 
     public static String CollisionGroupGroupNode_label;
-    public static String AnimationGroupNode_label;
+    public static String AnimationNode_label;
 
     // Property validation
 
@@ -37,7 +37,9 @@ public class Messages extends NLS {
     public static String TileGridNode_tileSet_EMPTY;
 
     public static String Sprite2Node_tileSet_INVALID_REFERENCE;
+    public static String Sprite2Node_tileSet_INVALID_TYPE;
     public static String Sprite2Node_defaultAnimation_EMPTY;
+    public static String Sprite2Node_defaultAnimation_INVALID;
 
     static {
         // initialize resource bundle

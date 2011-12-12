@@ -1,19 +1,17 @@
 package com.dynamo.cr.tileeditor.scene;
 
-import java.io.IOException;
-
 import org.eclipse.core.resources.IFile;
-import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
+import org.eclipse.osgi.util.NLS;
 
 import com.dynamo.cr.go.core.ComponentTypeNode;
 import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Resource;
 import com.dynamo.cr.sceneed.core.ISceneModel;
+import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.tileeditor.Activator;
-import com.dynamo.cr.tileeditor.core.TileSetModel;
 
 public class Sprite2Node extends ComponentTypeNode {
 
@@ -26,7 +24,7 @@ public class Sprite2Node extends ComponentTypeNode {
     @NotEmpty
     private String defaultAnimation = "";
 
-    private TileSetModel tileSetModel = null;
+    private TileSetNode tileSetNode = null;
 
     public String getTileSet() {
         return tileSet;
@@ -40,13 +38,13 @@ public class Sprite2Node extends ComponentTypeNode {
     }
 
     public IStatus validateTileSet() {
-        if (this.tileSetModel != null) {
-            IStatus status = this.tileSetModel.validate();
-            boolean valid = status.isOK()
-                    || (status.getSeverity() == IStatus.INFO && (!this.tileSetModel.getImage().isEmpty() || !this.tileSetModel.getCollision().isEmpty()));
-            if (!valid) {
+        if (this.tileSetNode != null) {
+            IStatus status = this.tileSetNode.validate();
+            if (!status.isOK()) {
                 return new Status(IStatus.ERROR, Activator.PLUGIN_ID, Messages.Sprite2Node_tileSet_INVALID_REFERENCE);
             }
+        } else if (!this.tileSet.isEmpty()) {
+            return new Status(IStatus.ERROR, Activator.PLUGIN_ID, Messages.Sprite2Node_tileSet_INVALID_TYPE);
         }
         return Status.OK_STATUS;
     }
@@ -60,8 +58,19 @@ public class Sprite2Node extends ComponentTypeNode {
     }
 
     public IStatus validateDefaultAnimation() {
-        if (this.defaultAnimation.isEmpty()) {
-            return new Status(IStatus.INFO, Activator.PLUGIN_ID, Messages.Sprite2Node_defaultAnimation_EMPTY);
+        if (!this.defaultAnimation.isEmpty()) {
+            if (this.tileSetNode != null) {
+                boolean exists = false;
+                for (AnimationNode animation : this.tileSetNode.getAnimations()) {
+                    if (animation.getId().equals(this.defaultAnimation)) {
+                        exists = true;
+                        break;
+                    }
+                }
+                if (!exists) {
+                    return new Status(IStatus.ERROR, Activator.PLUGIN_ID, NLS.bind(Messages.Sprite2Node_defaultAnimation_INVALID, this.defaultAnimation));
+                }
+            }
         }
         return Status.OK_STATUS;
     }
@@ -69,7 +78,7 @@ public class Sprite2Node extends ComponentTypeNode {
     @Override
     public void setModel(ISceneModel model) {
         super.setModel(model);
-        if (model != null && this.tileSetModel == null) {
+        if (model != null && this.tileSetNode == null) {
             reloadTileSet();
         }
     }
@@ -83,8 +92,8 @@ public class Sprite2Node extends ComponentTypeNode {
                 reloaded = true;
             }
         }
-        if (this.tileSetModel != null) {
-            if (this.tileSetModel.handleReload(file)) {
+        if (this.tileSetNode != null) {
+            if (this.tileSetNode.handleReload(file)) {
                 reloaded = true;
             }
         }
@@ -94,24 +103,20 @@ public class Sprite2Node extends ComponentTypeNode {
     private boolean reloadTileSet() {
         ISceneModel model = getModel();
         if (model != null) {
-            try {
-                if (this.tileSet != null && !this.tileSet.isEmpty()) {
-                    IFile tileSetFile = model.getFile(this.tileSet);
-                    if (tileSetFile.exists()) {
-                        if (this.tileSetModel == null) {
-                            this.tileSetModel = new TileSetModel(model.getContentRoot(), null, null, null);
-                        }
-                        this.tileSetModel.load(tileSetFile.getContents());
+            if (!this.tileSet.isEmpty()) {
+                this.tileSetNode = null;
+                try {
+                    Node node = model.loadNode(this.tileSet);
+                    if (node instanceof TileSetNode) {
+                        this.tileSetNode = (TileSetNode)node;
+                        this.tileSetNode.setModel(getModel());
                     }
+                } catch (Exception e) {
+                    // no reason to handle exception since having a null type is invalid state, will be caught in validateComponent below
                 }
-            } catch (IOException e) {
-                // no reason to handle exception since having a null type is invalid state, will be caught in validateComponent below
-                this.tileSetModel = null;
-            } catch (CoreException e) {
-                // no reason to handle exception since having a null type is invalid state, will be caught in validateComponent below
-                this.tileSetModel = null;
+                // attempted to reload
+                return true;
             }
-            return true;
         }
         return false;
     }

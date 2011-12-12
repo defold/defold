@@ -306,6 +306,10 @@ public abstract class AbstractNodeTest {
         when(getModel().getExtension(nodeClass)).thenReturn(extension);
     }
 
+    protected void registerLoadedNode(String path, Node node) throws IOException, CoreException {
+        when(getModel().loadNode(path)).thenReturn(node);
+    }
+
     protected <T extends Node> void saveLoadCompare(INodeLoader<T> loader, @SuppressWarnings("rawtypes") GeneratedMessage.Builder builder, String path) throws IOException, CoreException {
         IFile file = getFile(path);
         Reader reader = new InputStreamReader(file.getContents());
