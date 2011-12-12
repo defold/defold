@@ -29,6 +29,7 @@ public class Activator extends AbstractUIPlugin {
     public static final String COLLISION_GROUP_IMAGE_ID = "COLLISION_GROUP"; //$NON-NLS-1$
     public static final String GRID_IMAGE_ID = "GRID"; //$NON-NLS-1$
     public static final String LAYER_IMAGE_ID = "LAYER"; //$NON-NLS-1$
+    public static final String ANIMATION_IMAGE_ID = "LAYER"; //$NON-NLS-1$
 
     // Collision groups
     public static final int MAX_COLLISION_GROUP_COUNT = 16;
@@ -98,6 +99,7 @@ public class Activator extends AbstractUIPlugin {
         registry.put(COLLISION_GROUP_IMAGE_ID, imageDescriptorFromPlugin(PLUGIN_ID, "icons/collision_group.png"));
         registry.put(GRID_IMAGE_ID, imageDescriptorFromPlugin(PLUGIN_ID, "icons/tile_grid.png"));
         registry.put(LAYER_IMAGE_ID, imageDescriptorFromPlugin(PLUGIN_ID, "icons/layer.png"));
+        registry.put(ANIMATION_IMAGE_ID, imageDescriptorFromPlugin(PLUGIN_ID, "icons/film.png"));
 
         generateCollisionGroupColors();
         generateCollisionGroupIcons();

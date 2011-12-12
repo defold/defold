@@ -3,13 +3,14 @@ package com.dynamo.cr.tileeditor.scene;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.osgi.util.NLS;
+import org.eclipse.swt.graphics.Image;
 
-import com.dynamo.cr.editor.ui.Activator;
 import com.dynamo.cr.properties.GreaterThanZero;
 import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.validators.Unique;
+import com.dynamo.cr.tileeditor.Activator;
 import com.dynamo.tile.proto.Tile;
 import com.dynamo.tile.proto.Tile.Playback2;
 
@@ -172,5 +173,10 @@ public class AnimationNode extends Node {
             return true;
         }
         return false;
+    }
+
+    @Override
+    public Image getIcon() {
+        return Activator.getDefault().getImageRegistry().get(Activator.ANIMATION_IMAGE_ID);
     }
 }
