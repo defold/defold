@@ -123,6 +123,13 @@
             id="com.dynamo.cr.tileeditor.wizards.spriteNewWizard"
             name="Sprite2 File">
       </wizard>
+      <wizard
+            category="com.dynamo.cr.editor.wizardCategory"
+            class="com.dynamo.cr.tileeditor.wizards.TileSet2NewWizard"
+            icon="icons/tile_set.png"
+            id="com.dynamo.cr.tileeditor.wizards.tileSet2NewWizard"
+            name="Tile Set 2 File">
+      </wizard>
    </extension>
    <extension
          point="org.eclipse.ui.perspectiveExtensions">
@@ -136,6 +143,9 @@
          </newWizardShortcut>
          <newWizardShortcut
                id="com.dynamo.cr.tileeditor.wizards.GridNewWizard">
+         </newWizardShortcut>
+         <newWizardShortcut
+               id="com.dynamo.cr.tileeditor.wizards.tileSet2NewWizard">
          </newWizardShortcut>
       </perspectiveExtension>
    </extension>
@@ -154,6 +164,11 @@
       <commonWizard
             type="new"
             wizardId="com.dynamo.cr.tileeditor.wizards.spriteNewWizard">
+         <enablement></enablement>
+      </commonWizard>
+      <commonWizard
+            type="new"
+            wizardId="com.dynamo.cr.tileeditor.wizards.tileSet2NewWizard">
          <enablement></enablement>
       </commonWizard>
    </extension>

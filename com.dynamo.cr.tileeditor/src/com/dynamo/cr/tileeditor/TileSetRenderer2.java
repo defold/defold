@@ -121,7 +121,7 @@ KeyListener {
             this.transparentTexture = TextureIO.newTexture(transparentImage, false);
 
             // if the image is already set, set the corresponding texture
-            if (this.tileSet != null) {
+            if (this.tileSet != null && this.tileSet.validate().isOK()) {
                 setupRenderData();
             }
 
@@ -191,6 +191,9 @@ KeyListener {
     }
 
     public void refresh(IStructuredSelection selection) {
+        if (!this.tileSet.validate().isOK()) {
+            return;
+        }
         if (this.context != null) {
             this.context.makeCurrent();
             setupRenderData();
