@@ -25,6 +25,7 @@ import com.dynamo.cr.properties.ValidatorUtil;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.util.GroupNode;
+import com.dynamo.cr.sceneed.ui.util.TextureHandle;
 import com.dynamo.tile.ConvexHull;
 import com.dynamo.tile.TileSetUtil;
 import com.dynamo.tile.TileSetUtil.ConvexHulls;
@@ -72,8 +73,10 @@ public class TileSetNode extends Node {
     private List<ConvexHull> convexHulls;
     private float[] convexHullPoints = new float[0];
 
+    // Graphics resources
     private BufferedImage loadedImage;
     private BufferedImage loadedCollision;
+    private TextureHandle textureHandle;
 
     public TileSetNode() {
         this.tileCollisionGroups = new ArrayList<CollisionGroupNode>();
@@ -84,6 +87,13 @@ public class TileSetNode extends Node {
         addChild(this.collisionGroupsGroup);
         this.animationsGroup = new AnimationGroupNode();
         addChild(this.animationsGroup);
+        this.textureHandle = new TextureHandle();
+    }
+
+    @Override
+    public void dispose() {
+        super.dispose();
+        this.textureHandle.clear();
     }
 
     public String getImage() {
@@ -304,6 +314,10 @@ public class TileSetNode extends Node {
         return this.loadedCollision;
     }
 
+    public TextureHandle getTextureHandle() {
+        return this.textureHandle;
+    }
+
     @Override
     public void setModel(ISceneModel model) {
         super.setModel(model);
@@ -317,6 +331,7 @@ public class TileSetNode extends Node {
     private void updateImage() {
         try {
             this.loadedImage = loadImageFile(this.image);
+            this.textureHandle.setImage(this.loadedImage);
         } catch (Exception e) {
             this.loadedImage = null;
         }

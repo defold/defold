@@ -92,6 +92,8 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
     private ISceneView.IPresenterContext presenterContext;
     private ILoaderContext loaderContext;
     private INodeTypeRegistry nodeTypeRegistry;
+    // TODO Currently only needed for dispose(), see below
+    private ISceneModel sceneModel;
 
     private boolean dirty;
     private SceneRenderViewProvider sceneRenderViewProvider;
@@ -180,6 +182,8 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
         this.presenterContext = injector.getInstance(ISceneView.IPresenterContext.class);
         this.loaderContext = injector.getInstance(ILoaderContext.class);
 
+        this.sceneModel = injector.getInstance(ISceneModel.class);
+
         IPreferenceStore store = Activator.getDefault().getPreferenceStore();
         store.addPropertyChangeListener(this);
 
@@ -207,13 +211,25 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
         return cameraController;
     }
 
+    /**
+     * TODO This method currently manually disposes the model after activating the gl-context, in the case
+     * that nodes have created graphics resources needing an active gl-context to be disposed.
+     * This will need some re-design when the time comes.
+     */
     @Override
     public void dispose() {
         super.dispose();
-        module.close();
         if (this.renderView != null) {
+            this.renderView.activateGLContext();
+            ((SceneModel)this.sceneModel).dispose();
+            this.renderView.releaseGLContext();
             this.renderView.dispose();
+        } else {
+            // Good luck! :)
+            // Will *probably* work since no rendering took place and there should be no lingering graphics resources
+            ((SceneModel)this.sceneModel).dispose();
         }
+        module.close();
         IPreferenceStore store = Activator.getDefault().getPreferenceStore();
         store.removePropertyChangeListener(this);
 

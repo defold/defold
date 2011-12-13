@@ -2,8 +2,6 @@ package com.dynamo.cr.sceneed.core;
 
 import java.io.IOException;
 
-import javax.annotation.PreDestroy;
-
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.IOperationHistory;
 import org.eclipse.core.commands.operations.IOperationHistoryListener;
@@ -68,7 +66,6 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
         this.history.addOperationHistoryListener(this);
     }
 
-    @PreDestroy
     public void dispose() {
         if (this.root != null) {
             this.root.dispose();

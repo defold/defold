@@ -8,7 +8,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import javax.annotation.PreDestroy;
 import javax.vecmath.Matrix4d;
 import javax.vecmath.Quat4d;
 import javax.vecmath.Vector4d;
@@ -55,12 +54,9 @@ public abstract class Node implements IAdaptable {
     private static Map<Class<? extends Node>, PropertyIntrospector<Node, ISceneModel>> introspectors =
             new HashMap<Class<? extends Node>, PropertyIntrospector<Node, ISceneModel>>();
 
-    @PreDestroy
     public void dispose() {
-        List<Node> children = new ArrayList<Node>(this.children);
-        int n = children.size();
-        for (int i = n-1; i >= 0; --i) {
-            removeChild(children.get(i));
+        for (Node child : this.children) {
+            child.dispose();
         }
     }
 

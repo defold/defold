@@ -23,4 +23,9 @@ public interface IRenderView  {
     void refresh();
     void viewToWorld(int x, int y, Vector4d clickPos, Vector4d clickDir);
     void setCamera(Camera camera);
+
+    // TODO This is part of a "quick-fix" to enable disposal of graphics resources inside nodes
+    // See SceneEditor#dispose for more info
+    void activateGLContext();
+    void releaseGLContext();
 }

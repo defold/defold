@@ -177,6 +177,7 @@ IRenderView {
         worldVector.set(clickDir);
     }
 
+    @Override
     public void setCamera(Camera camera) {
         this.camera = camera;
     }
@@ -603,4 +604,13 @@ IRenderView {
         this.mouseMoveListeners.remove(listener);
     }
 
+    @Override
+    public void activateGLContext() {
+        this.context.makeCurrent();
+    }
+
+    @Override
+    public void releaseGLContext() {
+        this.context.release();
+    }
 }
