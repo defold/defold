@@ -101,9 +101,9 @@ public class TileSetNodePresenter implements INodePresenter<TileSetNode> {
 
     public void onPlayAnimation(IPresenterContext presenterContext) {
         if (this.animator == null) {
-            this.animator = new Animator(presenterContext);
+            this.animator = new Animator();
         }
-        this.animator.start();
+        this.animator.start(presenterContext);
     }
 
     public void onStopAnimation(IPresenterContext presenterContext) {

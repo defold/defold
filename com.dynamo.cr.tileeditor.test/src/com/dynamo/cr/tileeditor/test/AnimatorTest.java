@@ -58,7 +58,7 @@ public class AnimatorTest {
             }
         }).when(presenterContext).asyncExec(any(Runnable.class));
 
-        this.animator = new Animator(this.presenterContext);
+        this.animator = new Animator();
 
         this.node = new AnimationNode();
         this.node.setStartTile(1);
@@ -87,7 +87,7 @@ public class AnimatorTest {
 
         select();
         assertFalse(this.node.hasFinished());
-        this.animator.start();
+        this.animator.start(this.presenterContext);
         assertTrue(this.node.hasFinished());
         assertFalse(this.animator.isRunning());
         verifyRefreshAtLeast(1);
@@ -99,7 +99,7 @@ public class AnimatorTest {
 
         select();
         assertFalse(this.node.hasFinished());
-        this.animator.start();
+        this.animator.start(this.presenterContext);
         assertFalse(this.node.hasFinished());
         assertTrue(this.animator.isRunning());
         verifyRefreshAtLeast(1);

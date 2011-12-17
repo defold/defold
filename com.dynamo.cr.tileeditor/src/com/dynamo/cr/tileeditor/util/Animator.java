@@ -16,17 +16,19 @@ public class Animator implements Runnable {
     private boolean running;
     private long startTime;
 
-    public Animator(IPresenterContext presenterContext) {
-        this.presenterContext = presenterContext;
+    public Animator() {
+        this.presenterContext = null;
         this.animationNode = null;
         this.running = false;
     }
 
-    public void start() {
+    public void start(IPresenterContext presenterContext) {
+        this.presenterContext = presenterContext;
         if (!this.running) {
             AnimationNode node = TileSetUtil.getCurrentAnimation(this.presenterContext.getSelection());
             if (node != null) {
                 this.animationNode = node;
+                this.animationNode.setPlaying(true);
                 this.running = true;
                 this.startTime = System.currentTimeMillis();
                 // NOTE this call is not async during test, so setup before
@@ -39,6 +41,7 @@ public class Animator implements Runnable {
 
     public void stop() {
         this.running = false;
+        this.animationNode.setPlaying(false);
     }
 
     public boolean isRunning() {
@@ -49,7 +52,7 @@ public class Animator implements Runnable {
     public void run() {
         if (this.running) {
             AnimationNode node = TileSetUtil.getCurrentAnimation(this.presenterContext.getSelection());
-            if (this.animationNode != node) {
+            if (this.animationNode != node || !this.animationNode.isPlaying()) {
                 this.running = false;
                 return;
             }
@@ -60,6 +63,7 @@ public class Animator implements Runnable {
             this.presenterContext.refreshRenderView();
             if (this.animationNode.hasFinished()) {
                 this.running = false;
+                this.animationNode.setPlaying(false);
             } else {
                 // NOTE this call is not async during tests
                 this.presenterContext.asyncExec(this);

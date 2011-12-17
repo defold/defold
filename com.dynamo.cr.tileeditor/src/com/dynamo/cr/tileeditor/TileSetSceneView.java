@@ -4,7 +4,6 @@ import javax.inject.Inject;
 
 import org.eclipse.jface.viewers.ILabelProvider;
 import org.eclipse.jface.viewers.IStructuredSelection;
-import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.swt.widgets.Display;
 
 import com.dynamo.cr.properties.IFormPropertySheetPage;
@@ -42,8 +41,8 @@ public class TileSetSceneView implements ISceneView {
     }
 
     @Override
-    public void refreshRenderView() {
-        this.renderer.refresh(new StructuredSelection());
+    public void refreshRenderView(IStructuredSelection selection) {
+        this.renderer.refresh(selection);
     }
 
     @Override

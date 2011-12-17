@@ -150,29 +150,6 @@
       </perspectiveExtension>
    </extension>
    <extension
-         point="org.eclipse.ui.navigator.navigatorContent">
-      <commonWizard
-            type="new"
-            wizardId="com.dynamo.cr.tileeditor.wizards.TileSetNewWizard">
-         <enablement></enablement>
-      </commonWizard>
-      <commonWizard
-            type="new"
-            wizardId="com.dynamo.cr.tileeditor.wizards.GridNewWizard">
-         <enablement></enablement>
-      </commonWizard>
-      <commonWizard
-            type="new"
-            wizardId="com.dynamo.cr.tileeditor.wizards.spriteNewWizard">
-         <enablement></enablement>
-      </commonWizard>
-      <commonWizard
-            type="new"
-            wizardId="com.dynamo.cr.tileeditor.wizards.tileSet2NewWizard">
-         <enablement></enablement>
-      </commonWizard>
-   </extension>
-   <extension
          point="org.eclipse.ui.contexts">
       <context
             id="com.dynamo.cr.tileeditor.contexts.TileSetEditor"
@@ -266,6 +243,11 @@
                </parameter>
             </class>
          </state>
+      </command>
+      <command
+            description="Play/stop an animation"
+            id="com.dynamo.cr.tileeditor.commands.togglePlayback"
+            name="Play/Stop">
       </command>
    </extension>
    <extension
@@ -511,6 +493,12 @@
                id="org.eclipse.ui.commands.radioStateParameter"
                value="8">
          </parameter>
+      </key>
+      <key
+            commandId="com.dynamo.cr.tileeditor.commands.togglePlayback"
+            contextId="com.dynamo.cr.sceneed.ui.contexts.sceneEditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="SPACE">
       </key>
    </extension>
    <extension
@@ -974,6 +962,15 @@
             </reference>
          </activeWhen>
       </handler>
+      <handler
+            class="com.dynamo.cr.tileeditor.handlers.TogglePlaybackHandler"
+            commandId="com.dynamo.cr.tileeditor.commands.togglePlayback">
+         <activeWhen>
+            <reference
+                  definitionId="com.dynamo.cr.tileeditor.definitions.animationSelected">
+            </reference>
+         </activeWhen>
+      </handler>
    </extension>
    <extension
          point="org.eclipse.core.expressions.definitions">
@@ -1080,6 +1077,13 @@
             properties="isRenderingEnabled"
             type="com.dynamo.cr.tileeditor.GridEditor">
       </propertyTester>
+      <propertyTester
+            class="com.dynamo.cr.tileeditor.scene.AnimationPropertyTester"
+            id="com.dynamo.cr.tileeditor.propertyTesters.animation"
+            namespace="com.dynamo.cr.tileeditor.animation"
+            properties="playing"
+            type="com.dynamo.cr.tileeditor.scene.AnimationNode">
+      </propertyTester>
    </extension>
    <extension
          point="com.dynamo.cr.nodetypes">
@@ -1103,6 +1107,29 @@
             presenter="com.dynamo.cr.tileeditor.scene.TileSetNodePresenter"
             resource-type="com.dynamo.cr.tileeditor.resourcetypes.TileSet2">
       </node-type>
+   </extension>
+   <extension
+         point="org.eclipse.ui.navigator.navigatorContent">
+      <commonWizard
+            type="new"
+            wizardId="com.dynamo.cr.tileeditor.wizards.TileSetNewWizard">
+         <enablement></enablement>
+      </commonWizard>
+      <commonWizard
+            type="new"
+            wizardId="com.dynamo.cr.tileeditor.wizards.GridNewWizard">
+         <enablement></enablement>
+      </commonWizard>
+      <commonWizard
+            type="new"
+            wizardId="com.dynamo.cr.tileeditor.wizards.spriteNewWizard">
+         <enablement></enablement>
+      </commonWizard>
+      <commonWizard
+            type="new"
+            wizardId="com.dynamo.cr.tileeditor.wizards.tileSet2NewWizard">
+         <enablement></enablement>
+      </commonWizard>
    </extension>
 
 </plugin>

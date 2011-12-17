@@ -10,6 +10,7 @@ import javax.media.opengl.GL;
 import javax.media.opengl.GLContext;
 import javax.media.opengl.GLDrawableFactory;
 import javax.media.opengl.glu.GLU;
+import javax.vecmath.Vector2f;
 
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.swt.SWT;
@@ -30,6 +31,7 @@ import org.eclipse.swt.widgets.Listener;
 import org.eclipse.ui.services.IDisposable;
 
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
+import com.dynamo.cr.tileeditor.scene.AnimationNode;
 import com.dynamo.cr.tileeditor.scene.CollisionGroupNode;
 import com.dynamo.cr.tileeditor.scene.TileSetNode;
 import com.dynamo.cr.tileeditor.scene.TileSetNodePresenter;
@@ -65,6 +67,7 @@ KeyListener {
     private String brushCollisionGroup = "";
     private Color brushColor = Color.white;
     private int activeTile = -1;
+    private AnimationNode selectedAnimation;
 
     // Camera data
     private int cameraMode = CAMERA_MODE_NONE;
@@ -205,6 +208,11 @@ KeyListener {
             setBrushCollisionGroup(collisionGroup.getId());
         } else {
             setBrushCollisionGroup("");
+        }
+        if (selected instanceof AnimationNode) {
+            this.selectedAnimation = (AnimationNode)selected;
+        } else {
+            this.selectedAnimation = null;
         }
         requestPaint();
     }
@@ -549,7 +557,8 @@ KeyListener {
         float recipImageHeight = 1.0f / imageHeight;
         float recipScale = 1.0f / this.scale;
         float border = borderSize * recipScale;
-        float z = 0.5f;
+        float tileZ = 0.5f;
+        float animZ = 0.7f;
         float hz = 0.3f;
         float activeX0 = 0.0f;
         float activeX1 = 0.0f;
@@ -559,27 +568,37 @@ KeyListener {
         float[] hc = new float[3];
         int tileWidth = this.tileSet.getTileWidth();
         int tileHeight = this.tileSet.getTileHeight();
-        int tileMargin = this.tileSet.getTileMargin();
-        int tileSpacing = this.tileSet.getTileSpacing();
         List<ConvexHull> hulls = this.tileSet.getConvexHulls();
         List<String> tileCollisionGroups = this.tileSet.getTileCollisionGroups();
         float[] hullVertices = this.tileSet.getConvexHullPoints();
+        Vector2f uvMin = new Vector2f();
+        Vector2f uvMax = new Vector2f();
         for (int row = 0; row < tilesPerColumn; ++row) {
             for (int column = 0; column < tilesPerRow; ++column) {
                 float x0 = column * (tileWidth + border) + border;
                 float x1 = x0 + tileWidth;
                 float y0 = (tilesPerColumn - row - 1) * (tileHeight + border) + border;
                 float y1 = y0 + tileHeight;
-                float u0 = (column * (tileSpacing + 2*tileMargin + tileWidth) + tileMargin) * recipImageWidth;
-                float u1 = u0 + tileWidth * recipImageWidth;
-                float v1 = (row * (tileSpacing + 2*tileMargin + tileHeight) + tileMargin) * recipImageHeight;
-                float v0 = v1 + tileHeight * recipImageHeight;
+                int spriteRow = row;
+                int spriteColumn = column;
+                int index = row * tilesPerRow + column;
+                float z = tileZ;
+                if (this.selectedAnimation != null && (index + 1) == this.selectedAnimation.getStartTile()) {
+                    int spriteIndex = this.selectedAnimation.getCurrentTile()-1;
+                    spriteRow = spriteIndex / tilesPerRow;
+                    spriteColumn = spriteIndex % tilesPerRow;
+                    z = animZ;
+                }
+                calculateUVs(spriteRow, spriteColumn, recipImageWidth, recipImageHeight, this.tileSet, uvMin, uvMax);
+                float u0 = uvMin.getX();
+                float u1 = uvMax.getX();
+                float v1 = uvMax.getY();
+                float v0 = uvMin.getY();
                 v.put(u0); v.put(v0); v.put(x0); v.put(y0); v.put(z);
                 v.put(u0); v.put(v1); v.put(x0); v.put(y1); v.put(z);
                 v.put(u1); v.put(v1); v.put(x1); v.put(y1); v.put(z);
                 v.put(u1); v.put(v0); v.put(x1); v.put(y0); v.put(z);
                 if (!hulls.isEmpty()) {
-                    int index = column + row * tilesPerRow;
                     ConvexHull hull = hulls.get(index);
                     int hullCount = hull.getCount();
                     if (hullCount > 0) {
@@ -646,7 +665,7 @@ KeyListener {
 
         // Active tile
 
-        z -= 0.1f;
+        float z = tileZ - 0.1f;
 
         if (this.activeTile >= 0) {
             float f = 1.0f / 255.0f;
@@ -706,6 +725,20 @@ KeyListener {
             }
         }
 
+        // Anim overlay
+        if (this.selectedAnimation != null) {
+            z = 0.6f;
+            gl.glEnable(GL.GL_DEPTH_TEST);
+            gl.glBegin(GL.GL_QUADS);
+            gl.glColor4f(0.0f, 0.0f, 0.0f, 0.6f);
+            gl.glVertex3f(0.0f, 0.0f, z);
+            gl.glVertex3f(0.0f, height, z);
+            gl.glVertex3f(width, height, z);
+            gl.glVertex3f(width, 0.0f, z);
+            gl.glEnd();
+            gl.glDisable(GL.GL_DEPTH_TEST);
+        }
+
         // Clean up
         gl.glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
         gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
@@ -730,5 +763,12 @@ KeyListener {
                 ts.getLoadedCollision(),
                 this.scale,
                 BORDER_SIZE);
+    }
+
+    private void calculateUVs(int row, int column, float recipImageWidth, float recipImageHeight, TileSetNode node, Vector2f outUVMin, Vector2f outUVMax) {
+        outUVMin.setX((column * (node.getTileSpacing() + 2*node.getTileMargin() + node.getTileWidth()) + node.getTileMargin()) * recipImageWidth);
+        outUVMax.setX(outUVMin.getX() + node.getTileWidth() * recipImageWidth);
+        outUVMax.setY((row * (node.getTileSpacing() + 2*node.getTileMargin() + node.getTileHeight()) + node.getTileMargin()) * recipImageHeight);
+        outUVMin.setY(outUVMax.getY() + node.getTileHeight() * recipImageHeight);
     }
 }

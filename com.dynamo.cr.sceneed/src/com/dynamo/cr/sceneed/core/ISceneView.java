@@ -44,7 +44,7 @@ public interface ISceneView {
 
     void setRoot(Node root);
     void refresh(IStructuredSelection selection, boolean dirty);
-    void refreshRenderView();
+    void refreshRenderView(IStructuredSelection selection);
     void asyncExec(Runnable runnable);
 
     String selectFromList(String title, String message, String... lst);

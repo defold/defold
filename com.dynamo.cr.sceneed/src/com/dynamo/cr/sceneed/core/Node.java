@@ -179,7 +179,7 @@ public abstract class Node implements IAdaptable {
     }
 
     public final List<Node> getChildren() {
-        return Collections.unmodifiableList(this.children);
+        return this.children;
     }
 
     public final boolean hasChildren() {

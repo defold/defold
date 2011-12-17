@@ -42,8 +42,15 @@ public class AnimationNode extends Node {
     @Property
     private boolean flipVertical;
 
-    private int currentTile;
-    private float cursor;
+    private int currentTile = 1;
+    private float cursor = 0.0f;
+    private boolean playing = false;
+
+    @Override
+    public void dispose() {
+        super.dispose();
+        this.playing = false;
+    }
 
     public String getId() {
         return this.id;
@@ -59,6 +66,7 @@ public class AnimationNode extends Node {
 
     public void setStartTile(int startTile) {
         this.startTile = startTile;
+        this.currentTile = startTile;
     }
 
     public IStatus validateStartTile() {
@@ -137,30 +145,30 @@ public class AnimationNode extends Node {
     public void setCursor(float cursor) {
         this.cursor = cursor;
         if (this.playback != Playback2.PLAYBACK2_NONE) {
-            int delta = (int)(cursor * this.fps);
+            int tile = (int)(cursor * this.fps);
             int tileCount = this.endTile - this.startTile + 1;
             boolean once = this.playback == Playback2.PLAYBACK2_ONCE_FORWARD || this.playback == Playback2.PLAYBACK2_ONCE_BACKWARD;
             if (once) {
-                if (delta < 0) {
-                    delta = 0;
-                } else if (delta >= tileCount) {
-                    delta = tileCount - 1;
+                if (tile < 0) {
+                    tile = 0;
+                } else if (tile >= tileCount) {
+                    tile = tileCount - 1;
                 }
             } else if (this.playback == Playback2.PLAYBACK2_LOOP_PINGPONG) {
                 // Length of one cycle, forward and backward
                 int cycleLength = tileCount * 2 - 2;
-                delta %= cycleLength;
-                if (delta >= tileCount) {
-                    delta = cycleLength - delta;
+                tile %= cycleLength;
+                if (tile >= tileCount) {
+                    tile = cycleLength - tile;
                 }
             } else {
-                delta %= tileCount;
+                tile %= tileCount;
             }
             boolean backwards = this.playback == Playback2.PLAYBACK2_ONCE_BACKWARD || this.playback == Playback2.PLAYBACK2_LOOP_BACKWARD;
             if (backwards) {
-                delta = tileCount - 1 - delta;
+                tile = tileCount - 1 - tile;
             }
-            this.currentTile = this.startTile + delta;
+            this.currentTile = this.startTile + tile;
         } else {
             this.currentTile = this.startTile;
         }
@@ -176,6 +184,14 @@ public class AnimationNode extends Node {
             return true;
         }
         return false;
+    }
+
+    public boolean isPlaying() {
+        return this.playing;
+    }
+
+    public void setPlaying(boolean playing) {
+        this.playing = playing;
     }
 
     @Override

@@ -91,6 +91,7 @@ public class TileSetEditor2 extends AbstractDefoldEditor implements ISceneEditor
     private ILoaderContext loaderContext;
     private INodeTypeRegistry nodeTypeRegistry;
     private IImageProvider imageProvider;
+    private ISceneModel sceneModel;
 
     private boolean dirty;
 
@@ -156,6 +157,7 @@ public class TileSetEditor2 extends AbstractDefoldEditor implements ISceneEditor
         this.presenter = injector.getInstance(ISceneView.IPresenter.class);
         this.presenterContext = injector.getInstance(ISceneView.IPresenterContext.class);
         this.loaderContext = injector.getInstance(ILoaderContext.class);
+        this.sceneModel = injector.getInstance(ISceneModel.class);
 
         TileSetNodePresenter nodePresenter = (TileSetNodePresenter) this.nodeTypeRegistry.getNodeTypeClass(TileSetNode.class).getPresenter();
         this.tileSetRenderer.setPresenter(nodePresenter, this.presenterContext);
@@ -181,10 +183,11 @@ public class TileSetEditor2 extends AbstractDefoldEditor implements ISceneEditor
     @Override
     public void dispose() {
         super.dispose();
-        module.close();
+        ((SceneModel)this.sceneModel).dispose();
         if (this.tileSetRenderer != null) {
             this.tileSetRenderer.dispose();
         }
+        module.close();
         IPreferenceStore store = Activator.getDefault().getPreferenceStore();
         store.removePropertyChangeListener(this);
 

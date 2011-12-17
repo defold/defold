@@ -45,7 +45,7 @@ public class SceneView implements ISceneView {
     }
 
     @Override
-    public void refreshRenderView() {
+    public void refreshRenderView(IStructuredSelection selection) {
         this.renderView.refresh();
     }
 
