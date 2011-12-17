@@ -452,10 +452,32 @@ namespace dmPhysics
      * @param world Physics world
      * @param data @see CollisionObjectData
      * @param shapes pointer to a c-array of shapes
+     * @param translations pointer to a c-array of per-shape translation. Can be null.
+     * @param rotation pointer to a c-array of per-shape rotation. Can be null.
      * @param shape_count number of shapes in the array
      * @return A new collision object
      */
     HCollisionObject3D NewCollisionObject3D(HWorld3D world, const CollisionObjectData& data, HCollisionShape3D* shapes, uint32_t shape_count);
+
+    /**
+     * Create a new 3D collision object with per shape transform
+     *
+     * @note If the world has a registered callback to retrieve the world transform, it will be called to initialize the collision object.
+     *
+     * @param world Physics world
+     * @param data @see CollisionObjectData
+     * @param shapes pointer to a c-array of shapes
+     * @param translations pointer to a c-array of per-shape translation
+     * @param rotation pointer to a c-array of per-shape rotation
+     * @param shape_count number of shapes in the array
+     * @return A new collision object
+     */
+
+    HCollisionObject3D NewCollisionObject3D(HWorld3D world, const CollisionObjectData& data,
+                                            HCollisionShape3D* shapes,
+                                            Vectormath::Aos::Vector3* translations,
+                                            Vectormath::Aos::Quat* rotations,
+                                            uint32_t shape_count);
 
     /**
      * Create a new 2D collision object
@@ -469,6 +491,25 @@ namespace dmPhysics
      * @return A new collision object
      */
     HCollisionObject2D NewCollisionObject2D(HWorld2D world, const CollisionObjectData& data, HCollisionShape2D* shapes, uint32_t shape_count);
+
+    /**
+     * Create a new 2D collision object with per shape transform
+     *
+     * @note If the world has a registered callback to retrieve the world transform, it will be called to initialize the collision object.
+     *
+     * @param world Physics world
+     * @param data @see CollisionObjectData
+     * @param shapes pointer to a c-array of shapes
+     * @param translations pointer to a c-array of per-shape translation. Can be null.
+     * @param rotation pointer to a c-array of per-shape rotation. Can be null.
+     * @param shape_count number of shapes in the array
+     * @return A new collision object
+     */
+    HCollisionObject2D NewCollisionObject2D(HWorld2D world, const CollisionObjectData& data,
+                                            HCollisionShape2D* shapes,
+                                            Vectormath::Aos::Vector3* translations,
+                                            Vectormath::Aos::Quat* rotations,
+                                            uint32_t shape_count);
 
     /**
      * Delete a 3D collision object

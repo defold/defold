@@ -374,6 +374,13 @@ namespace dmPhysics
 
     HCollisionObject3D NewCollisionObject3D(HWorld3D world, const CollisionObjectData& data, HCollisionShape3D* shapes, uint32_t shape_count)
     {
+        return NewCollisionObject3D(world, data, shapes, 0, 0, shape_count);
+    }
+
+    HCollisionObject3D NewCollisionObject3D(HWorld3D world, const CollisionObjectData& data, HCollisionShape3D* shapes,
+                                            Vectormath::Aos::Vector3* translations, Vectormath::Aos::Quat* rotations,
+                                            uint32_t shape_count)
+    {
         if (shape_count == 0)
         {
             dmLogError("Collision objects must have a shape.");
@@ -397,27 +404,35 @@ namespace dmPhysics
             break;
         }
 
-        btCollisionShape* bt_shape = (btCollisionShape*)shapes[0];
-        if (shape_count > 1)
+        btCompoundShape* compound_shape = new btCompoundShape(false);
+        for (uint32_t i = 0; i < shape_count; ++i)
         {
-            btCompoundShape* compound_shape = new btCompoundShape(false);
-            for (uint32_t i = 0; i < shape_count; ++i)
+            if (translations && rotations)
+            {
+                const Vectormath::Aos::Vector3& trans = translations[i];
+                const Vectormath::Aos::Quat& rot = rotations[i];
+
+                btTransform transform(btQuaternion(rot.getX(), rot.getY(), rot.getZ(), rot.getW()),
+                                      btVector3(trans.getX(), trans.getY(), trans.getZ()));
+                compound_shape->addChildShape(transform, (btConvexShape*)shapes[i]);
+            }
+            else
             {
                 compound_shape->addChildShape(btTransform::getIdentity(), (btConvexShape*)shapes[i]);
             }
-            bt_shape = compound_shape;
         }
+
         btVector3 local_inertia(0.0f, 0.0f, 0.0f);
         if (data.m_Type == COLLISION_OBJECT_TYPE_DYNAMIC)
         {
-            bt_shape->calculateLocalInertia(data.m_Mass, local_inertia);
+            compound_shape->calculateLocalInertia(data.m_Mass, local_inertia);
         }
 
         btCollisionObject* collision_object = 0x0;
         if (data.m_Type != COLLISION_OBJECT_TYPE_TRIGGER)
         {
             MotionState* motion_state = new MotionState(data.m_UserData, world->m_GetWorldTransform, world->m_SetWorldTransform);
-            btRigidBody::btRigidBodyConstructionInfo rb_info(data.m_Mass, motion_state, bt_shape, local_inertia);
+            btRigidBody::btRigidBodyConstructionInfo rb_info(data.m_Mass, motion_state, compound_shape, local_inertia);
             rb_info.m_friction = data.m_Friction;
             rb_info.m_restitution = data.m_Restitution;
             btRigidBody* body = new btRigidBody(rb_info);
@@ -456,7 +471,7 @@ namespace dmPhysics
                 world_transform = btTransform::getIdentity();
             }
             collision_object->setWorldTransform(world_transform);
-            collision_object->setCollisionShape(bt_shape);
+            collision_object->setCollisionShape(compound_shape);
             collision_object->setCollisionFlags(collision_object->getCollisionFlags() | btCollisionObject::CF_NO_CONTACT_RESPONSE);
             world->m_DynamicsWorld->addCollisionObject(collision_object, data.m_Group, data.m_Mask);
         }

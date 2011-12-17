@@ -62,6 +62,7 @@ namespace dmGameSystem
                 if (context->m_3D)
                     resource->m_Shape3D = dmPhysics::NewCapsuleShape3D(convex_shape->m_Data[0], convex_shape->m_Data[1]);
                 else
+                    // TODO: Add support
                     dmLogError("%s", "Capsules are not supported in 2D.");
             }
             break;

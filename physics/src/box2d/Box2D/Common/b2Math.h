@@ -327,6 +327,13 @@ struct b2Rot
 		c = cosf(angle);
 	}
 
+    /// Set using complex number representation
+    void SetComplex(float32 i, float32 j)
+    {
+        s = j;
+        c = i;
+    }
+
 	/// Set to the identity rotation
 	void SetIdentity()
 	{

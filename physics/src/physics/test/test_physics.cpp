@@ -85,6 +85,7 @@ Test3D::Test3D()
 , m_NewConvexHullShapeFunc(dmPhysics::NewConvexHullShape3D)
 , m_DeleteCollisionShapeFunc(dmPhysics::DeleteCollisionShape3D)
 , m_NewCollisionObjectFunc(dmPhysics::NewCollisionObject3D)
+, m_NewCollisionObjectFunc2(dmPhysics::NewCollisionObject3D)
 , m_DeleteCollisionObjectFunc(dmPhysics::DeleteCollisionObject3D)
 , m_GetCollisionShapesFunc(dmPhysics::GetCollisionShapes3D)
 , m_SetCollisionObjectUserDataFunc(dmPhysics::SetCollisionObjectUserData3D)
@@ -101,6 +102,7 @@ Test3D::Test3D()
 , m_Vertices(new float[4*3])
 , m_VertexCount(4)
 , m_PolygonRadius(0.001f)
+, m_Is3D(false)
 {
     m_Vertices[0] = 0.0f; m_Vertices[1] = 0.0f; m_Vertices[2] = 0.0f;
     m_Vertices[3] = 1.0f; m_Vertices[4] = 0.0f; m_Vertices[5] = 0.0f;
@@ -126,6 +128,7 @@ Test2D::Test2D()
 , m_NewConvexHullShapeFunc(dmPhysics::NewPolygonShape2D)
 , m_DeleteCollisionShapeFunc(dmPhysics::DeleteCollisionShape2D)
 , m_NewCollisionObjectFunc(dmPhysics::NewCollisionObject2D)
+, m_NewCollisionObjectFunc2(dmPhysics::NewCollisionObject2D)
 , m_DeleteCollisionObjectFunc(dmPhysics::DeleteCollisionObject2D)
 , m_GetCollisionShapesFunc(dmPhysics::GetCollisionShapes2D)
 , m_SetCollisionObjectUserDataFunc(dmPhysics::SetCollisionObjectUserData2D)
@@ -142,6 +145,7 @@ Test2D::Test2D()
 , m_Vertices(new float[3*2])
 , m_VertexCount(3)
 , m_PolygonRadius(b2_polygonRadius)
+, m_Is3D(false)
 {
     m_Vertices[0] = 0.0f; m_Vertices[1] = 0.0f;
     m_Vertices[2] = 1.0f; m_Vertices[3] = 0.0f;
@@ -402,6 +406,44 @@ TYPED_TEST(PhysicsTest, GroundBoxCollision)
     }
 
     ASSERT_NEAR(ground_height_half_ext + box_half_ext, box_visual_object.m_Position.getY(), 2.0f * TestFixture::m_Test.m_PolygonRadius);
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, ground_co);
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, box_co);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(ground_shape);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(box_shape);
+}
+
+TYPED_TEST(PhysicsTest, ShapeTransform)
+{
+    float ground_height_half_ext = 1.0f;
+    float box_half_ext = 0.5f;
+
+    VisualObject ground_visual_object;
+    dmPhysics::CollisionObjectData ground_data;
+    typename TypeParam::CollisionShapeType ground_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(100, ground_height_half_ext, 100));
+    ground_data.m_Mass = 0.0f;
+    ground_data.m_Restitution = 0.0f;
+    ground_data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
+    ground_data.m_UserData = &ground_visual_object;
+    typename TypeParam::CollisionObjectType ground_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, ground_data, &ground_shape, 1u);
+
+    Point3 start_position(0.0f, 2.0f, 0.0f);
+    VisualObject box_visual_object;
+    box_visual_object.m_Position = start_position;
+    dmPhysics::CollisionObjectData box_data;
+    box_data.m_Restitution = 0.0f;
+    typename TypeParam::CollisionShapeType box_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    box_data.m_UserData = &box_visual_object;
+    Vectormath::Aos::Vector3 trans(0, 0, 0);
+    Vectormath::Aos::Quat rot = Vectormath::Aos::Quat::rotationZ(0.25f * M_PI);
+    typename TypeParam::CollisionObjectType box_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc2)(TestFixture::m_World, box_data, &box_shape, &trans, &rot, 1u);
+
+    for (int i = 0; i < 200; ++i)
+    {
+        (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+    }
+
+    ASSERT_NEAR(ground_height_half_ext + box_half_ext * sqrt(2.0f), box_visual_object.m_Position.getY(), 2.0f * TestFixture::m_Test.m_PolygonRadius);
 
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, ground_co);
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, box_co);
@@ -1073,11 +1115,21 @@ TYPED_TEST(PhysicsTest, ReplaceShapes)
     typename TypeParam::CollisionObjectType box_co_a = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data_a, shapes, 2u);
     uint32_t n = (*TestFixture::m_Test.m_GetCollisionShapesFunc)(box_co_a, shapes, 2);
     ASSERT_EQ(2u, n);
-    ASSERT_TRUE(shape1 == shapes[0] || shape1 == shapes[1]);
+
+    // NOTE: The assertions below is only possible for the 3d implementation
+    // In Box2D we create copies of shapes in order to support local transformation
+    if (TestFixture::m_Test.m_Is3D)
+    {
+        ASSERT_TRUE(shape1 == shapes[0] || shape1 == shapes[1]);
+    }
     (*TestFixture::m_Test.m_ReplaceShapeFunc)(TestFixture::m_Context, shape1, shape2);
     n = (*TestFixture::m_Test.m_GetCollisionShapesFunc)(box_co_a, shapes, 2);
     ASSERT_EQ(2u, n);
-    ASSERT_TRUE(shape2 == shapes[0] || shape2 == shapes[1]);
+    // See comment in if-clause above
+    if (TestFixture::m_Test.m_Is3D)
+    {
+        ASSERT_TRUE(shape2 == shapes[0] || shape2 == shapes[1]);
+    }
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, box_co_a);
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape1);
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape2);
