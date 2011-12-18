@@ -88,6 +88,11 @@ public class RotateManipulator extends RootManipulator {
     }
 
     @Override
+    public void refresh() {
+        selectionChanged();
+    }
+
+    @Override
     public void mouseUp(MouseEvent e) {
         if (transformChanged) {
             for (Node node : getSelection()) {

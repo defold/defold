@@ -20,13 +20,15 @@ public class ScenePresenter implements IPresenter, IModelListener {
     private final ISceneView view;
     private final INodeTypeRegistry nodeTypeRegistry;
     private final ILoaderContext loaderContext;
+    private ManipulatorController manipulatorController;
 
     @Inject
-    public ScenePresenter(ISceneModel model, ISceneView view, INodeTypeRegistry manager, ILogger logger, ILoaderContext loaderContext) {
+    public ScenePresenter(ISceneModel model, ISceneView view, INodeTypeRegistry manager, ILogger logger, ILoaderContext loaderContext, ManipulatorController manipulatorController) {
         this.model = model;
         this.view = view;
         this.nodeTypeRegistry = manager;
         this.loaderContext = loaderContext;
+        this.manipulatorController = manipulatorController;
     }
 
     @Override
@@ -75,6 +77,7 @@ public class ScenePresenter implements IPresenter, IModelListener {
     @Override
     public void stateChanged(IStructuredSelection selection, boolean dirty) {
         this.view.refresh(selection, dirty);
+        this.manipulatorController.refresh();
     }
 
 }

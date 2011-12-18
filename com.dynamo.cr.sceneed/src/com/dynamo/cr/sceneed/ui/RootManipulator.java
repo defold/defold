@@ -29,4 +29,10 @@ public abstract class RootManipulator extends Manipulator {
 
     public abstract void manipulatorChanged(Manipulator manipulator);
 
+    /**
+     * Called when to synchronize the manipulator with current selection
+     * To invoke selectionChanged() is sufficient for many manipulators
+     */
+    public abstract void refresh();
+
 }

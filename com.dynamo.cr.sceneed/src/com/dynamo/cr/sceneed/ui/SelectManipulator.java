@@ -30,4 +30,8 @@ public class SelectManipulator extends RootManipulator {
     protected void selectionChanged() {
     }
 
+    @Override
+    public void refresh() {
+    }
+
 }

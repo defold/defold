@@ -57,6 +57,11 @@ public class SphereRadiusManipulator extends RootManipulator {
     }
 
     @Override
+    public void refresh() {
+        selectionChanged();
+    }
+
+    @Override
     public void mouseUp(MouseEvent e) {
         if (radiusChanged) {
             Node node = getSelection().get(0);

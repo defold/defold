@@ -14,10 +14,15 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import javax.inject.Singleton;
+import javax.vecmath.Matrix4d;
+import javax.vecmath.Vector4d;
+
 import org.eclipse.core.commands.operations.DefaultOperationHistory;
 import org.eclipse.core.commands.operations.IOperationHistory;
 import org.eclipse.core.commands.operations.IUndoContext;
 import org.eclipse.core.commands.operations.UndoContext;
+import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.swt.events.MouseEvent;
@@ -30,12 +35,21 @@ import org.junit.Test;
 import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.editor.core.inject.LifecycleModule;
 import com.dynamo.cr.sceneed.Activator;
+import com.dynamo.cr.sceneed.core.IImageProvider;
+import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.IManipulatorMode;
 import com.dynamo.cr.sceneed.core.IManipulatorRegistry;
+import com.dynamo.cr.sceneed.core.IModelListener;
+import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
 import com.dynamo.cr.sceneed.core.IRenderView;
+import com.dynamo.cr.sceneed.core.ISceneModel;
+import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.Manipulator;
 import com.dynamo.cr.sceneed.core.ManipulatorController;
 import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.sceneed.core.SceneModel;
+import com.dynamo.cr.sceneed.core.ScenePresenter;
+import com.dynamo.cr.sceneed.core.operations.TransformNodeOperation;
 import com.dynamo.cr.sceneed.ui.RootManipulator;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
@@ -52,6 +66,7 @@ public class ManipulatorTest {
     private UndoContext undoContext;
     private ILogger logger;
     private IEditorPart editorPart;
+    private ISceneModel sceneModel;
 
     class TestModule extends AbstractModule {
         @Override
@@ -62,6 +77,17 @@ public class ManipulatorTest {
             bind(ILogger.class).toInstance(logger);
             bind(IOperationHistory.class).toInstance(undoHistory);
             bind(IUndoContext.class).toInstance(undoContext);
+            bind(ManipulatorController.class).in(Singleton.class);
+            bind(ISceneView.IPresenter.class).to(ScenePresenter.class).in(Singleton.class);
+            bind(IModelListener.class).to(ScenePresenter.class).in(Singleton.class);
+            bind(ISceneModel.class).to(SceneModel.class).in(Singleton.class);
+
+            // Heavy mocking of interfaces
+            bind(INodeTypeRegistry.class).toInstance(mock(INodeTypeRegistry.class));
+            bind(ISceneView.class).toInstance(mock(ISceneView.class));
+            bind(ILoaderContext.class).toInstance(mock(ILoaderContext.class));
+            bind(IContainer.class).toInstance(mock(IContainer.class));
+            bind(IImageProvider.class).toInstance(mock(IImageProvider.class));
         }
     }
 
@@ -81,7 +107,7 @@ public class ManipulatorTest {
         manipulatorController = injector.getInstance(ManipulatorController.class);
         editorPart = mock(IEditorPart.class);
         manipulatorController.setEditorPart(editorPart);
-
+        sceneModel = injector.getInstance(ISceneModel.class);
     }
 
     @After
@@ -108,6 +134,44 @@ public class ManipulatorTest {
         selection.add(new DummyBox());
         Manipulator manipulator = manipulatorRegistry.getManipulatorForSelection(scaleMode, selection.toArray(new Object[selection.size()]));
         assertNull(manipulator);
+    }
+
+    void moveTo(Node node, Vector4d position) {
+        Matrix4d originalTransform = new Matrix4d();
+        node.getWorldTransform(originalTransform);
+
+        Matrix4d newTransform = new Matrix4d();
+        node.setTranslation(position);
+        node.getWorldTransform(newTransform);
+
+        TransformNodeOperation operation = new TransformNodeOperation("Move", Arrays.asList(node), Arrays.asList(originalTransform), Arrays.asList(newTransform));
+        manipulatorController.executeOperation(operation);
+    }
+
+    @Test
+    public void testManipulatorRefresh() throws Exception {
+        IManipulatorMode moveMode = manipulatorRegistry.getMode(Activator.MOVE_MODE_ID);
+        manipulatorController.setManipulatorMode(moveMode);
+
+        ArrayList<Node> selectionList = new ArrayList<Node>();
+        DummySphere sphere = new DummySphere();
+        selectionList.add(sphere);
+        StructuredSelection selection = new StructuredSelection(selectionList);
+        manipulatorController.selectionChanged(editorPart, selection);
+        // If root is not set refresh is not propagated
+        this.sceneModel.setRoot(sphere);
+
+        RootManipulator rootManipulator = manipulatorController.getRootManipulator();
+        assertNotNull(rootManipulator);
+
+        // Precondition
+        assertThat(sphere.getTranslation().getX(), is(rootManipulator.getTranslation().getX()));
+
+        // Change node position
+        moveTo(sphere, new Vector4d(10, 0, 0, 0));
+
+        // Ensure that the manipulator follows..
+        assertThat(sphere.getTranslation().getX(), is(rootManipulator.getTranslation().getX()));
     }
 
     @Test

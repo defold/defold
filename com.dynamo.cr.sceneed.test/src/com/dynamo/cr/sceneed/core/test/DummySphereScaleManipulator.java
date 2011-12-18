@@ -24,6 +24,10 @@ public class DummySphereScaleManipulator extends RootManipulator {
     }
 
     @Override
+    public void refresh() {
+    }
+
+    @Override
     public void manipulatorChanged(Manipulator manipulator) {
     }
 

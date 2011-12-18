@@ -228,4 +228,10 @@ public class ManipulatorController implements ISelectionListener, IRenderViewPro
         this.editorPart = editorPart;
     }
 
+    public void refresh() {
+        if (rootManipulator != null) {
+            rootManipulator.refresh();
+        }
+    }
+
 }

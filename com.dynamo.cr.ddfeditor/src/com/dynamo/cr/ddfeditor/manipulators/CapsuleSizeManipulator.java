@@ -72,6 +72,11 @@ public class CapsuleSizeManipulator extends RootManipulator {
     }
 
     @Override
+    public void refresh() {
+        selectionChanged();
+    }
+
+    @Override
     public void mouseUp(MouseEvent e) {
         if (sizeChanged) {
             Node node = getSelection().get(0);
