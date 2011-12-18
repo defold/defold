@@ -28,6 +28,7 @@ import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Platform;
+import org.eclipse.ui.ISelectionService;
 import org.junit.Before;
 import org.osgi.framework.Bundle;
 
@@ -37,10 +38,13 @@ import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.sceneed.Activator;
 import com.dynamo.cr.sceneed.core.IImageProvider;
 import com.dynamo.cr.sceneed.core.ILoaderContext;
+import com.dynamo.cr.sceneed.core.IManipulatorRegistry;
 import com.dynamo.cr.sceneed.core.IModelListener;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
+import com.dynamo.cr.sceneed.core.IRenderView;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.ISceneView;
+import com.dynamo.cr.sceneed.core.ManipulatorController;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.SceneModel;
@@ -80,6 +84,10 @@ public abstract class AbstractSceneTest {
             bind(INodeTypeRegistry.class).toInstance(nodeTypeRegistry);
             bind(ILogger.class).toInstance(logger);
             bind(IImageProvider.class).toInstance(imageProvider);
+            bind(ManipulatorController.class).in(Singleton.class);
+            bind(ISelectionService.class).toInstance(mock(ISelectionService.class));
+            bind(IRenderView.class).toInstance(mock(IRenderView.class));
+            bind(IManipulatorRegistry.class).toInstance(mock(IManipulatorRegistry.class));
         }
     }
 
