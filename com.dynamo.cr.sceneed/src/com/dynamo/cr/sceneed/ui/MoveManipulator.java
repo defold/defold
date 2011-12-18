@@ -51,8 +51,12 @@ public class MoveManipulator extends RootManipulator {
         List<Node> selection = getSelection();
 
         Matrix4d transform = new Matrix4d();
-        getWorldTransform(transform);
         for (Node node : selection) {
+            // Change only the translation. The manipulator is in world-space
+            // and changing the whole transform would reset the rotation to unit
+            // as the manipulator is always operating in unit rotation space.
+            node.getWorldTransform(transform);
+            transform.setColumn(3, getTranslation());
             node.setWorldTransform(transform);
         }
     }

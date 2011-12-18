@@ -16,6 +16,7 @@ public class CircleManipulator extends Manipulator {
     private boolean rotating = false;
     private int startX;
     private double angle;
+    private Quat4d originalRotation = new Quat4d();
 
     public CircleManipulator(RootManipulator rootManipulator, float[] color) {
         this.rootManipulator = rootManipulator;
@@ -36,6 +37,7 @@ public class CircleManipulator extends Manipulator {
         if (getController().isManipulatorSelected(this)) {
             startX = e.x;
             rotating = true;
+            originalRotation = rootManipulator.getRotation();
         }
     }
 
@@ -59,6 +61,8 @@ public class CircleManipulator extends Manipulator {
             AxisAngle4d aa = new AxisAngle4d(axis.getX(), axis.getY(), axis.getZ(), this.angle);
             Quat4d quat = new Quat4d();
             quat.set(aa);
+            // Combine original rotation with local manipulator rotation
+            quat.mul(originalRotation);
             rootManipulator.setRotation(quat);
             rootManipulator.transformChanged();
         }
