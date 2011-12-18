@@ -1,6 +1,5 @@
 #include "res_collision_object.h"
 
-#include <stdio.h>
 #include <string.h>
 
 #include <dlib/hash.h>
@@ -190,7 +189,6 @@ range_error:
                             resource->m_Shapes2D[current_shape_count] = shape;
                             resource->m_ShapeTranslation[current_shape_count] = Vectormath::Aos::Vector3(shapes[i].m_Position);
                             resource->m_ShapeRotation[current_shape_count] = shapes[i].m_Rotation;
-                            printf("%f\n", resource->m_ShapeTranslation[current_shape_count].getX());
                             current_shape_count++;
                         }
                     }
