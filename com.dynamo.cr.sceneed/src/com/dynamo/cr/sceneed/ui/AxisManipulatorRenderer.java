@@ -26,9 +26,13 @@ public class AxisManipulatorRenderer implements INodeRenderer<AxisManipulator> {
             RenderData<AxisManipulator> renderData) {
         float[] color = node.getColor();
         GL gl = renderContext.getGL();
-        float factor = 1;
+
+        double factor = ManipulatorRendererUtil.getScaleFactor(node, renderContext.getRenderView());
         gl.glColor4fv(color, 0);
-        RenderUtil.drawArrow(gl, 80 / factor, 20 / factor, 1 / factor, 5 / factor);
+        RenderUtil.drawArrow(gl, ManipulatorRendererUtil.BASE_LENGTH / factor,
+                                 3.3 * ManipulatorRendererUtil.BASE_HEAD_RADIUS / factor,
+                                 ManipulatorRendererUtil.BASE_THICKNESS / factor,
+                                 ManipulatorRendererUtil.BASE_HEAD_RADIUS / factor);
     }
 
 }

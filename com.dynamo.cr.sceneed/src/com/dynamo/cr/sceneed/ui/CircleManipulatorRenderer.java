@@ -26,7 +26,9 @@ public class CircleManipulatorRenderer implements INodeRenderer<CircleManipulato
             RenderData<CircleManipulator> renderData) {
         float[] color = node.getColor();
         GL gl = renderContext.getGL();
-        float radius = 50;
+
+        double factor = ManipulatorRendererUtil.getScaleFactor(node, renderContext.getRenderView());
+        double radius = ManipulatorRendererUtil.BASE_LENGTH  / factor;
         gl.glColor4fv(color, 0);
         RenderUtil.drawCircle(gl, radius);
     }

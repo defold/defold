@@ -26,9 +26,11 @@ public class ScaleAxisManipulatorRenderer implements INodeRenderer<ScaleAxisMani
             RenderData<ScaleAxisManipulator> renderData) {
         float[] color = node.getColor();
         GL gl = renderContext.getGL();
-        float factor = 1;
+        double factor = ManipulatorRendererUtil.getScaleFactor(node, renderContext.getRenderView());
         gl.glColor4fv(color, 0);
-        RenderUtil.drawScaleArrow(gl, 80 / factor, 1 / factor, 5 / factor);
+        RenderUtil.drawScaleArrow(gl, ManipulatorRendererUtil.BASE_LENGTH / factor,
+                                      ManipulatorRendererUtil.BASE_THICKNESS / factor,
+                                      ManipulatorRendererUtil.BASE_HEAD_RADIUS / factor);
     }
 
 }

@@ -20,6 +20,7 @@ public class RenderContext {
     private Pass pass;
     private ArrayList<RenderData<? extends Node>> renderDataList;
     private Set<Node> selectedNodes = new HashSet<Node>();
+    private IRenderView renderView;
 
     public enum Pass {
         BACKGROUND,
@@ -40,7 +41,8 @@ public class RenderContext {
     }
 
     @SuppressWarnings("unchecked")
-    public RenderContext(GL gl, GLU glu, ISelection selection) {
+    public RenderContext(IRenderView renderView, GL gl, GLU glu, ISelection selection) {
+        this.renderView = renderView;
         this.gl = gl;
         this.glu = glu;
         this.renderDataList = new ArrayList<RenderData<? extends Node>>(1024);
@@ -48,6 +50,10 @@ public class RenderContext {
             IStructuredSelection structSel = (IStructuredSelection) selection;
             this.selectedNodes.addAll(structSel.toList());
         }
+    }
+
+    public IRenderView getRenderView() {
+        return renderView;
     }
 
     public GL getGL() {

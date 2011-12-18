@@ -14,6 +14,7 @@ import javax.media.opengl.GLContext;
 import javax.media.opengl.GLDrawableFactory;
 import javax.media.opengl.glu.GLU;
 import javax.vecmath.Matrix4d;
+import javax.vecmath.Point3d;
 import javax.vecmath.Vector4d;
 
 import org.eclipse.swt.SWT;
@@ -175,6 +176,19 @@ IRenderView {
 
         worldPoint.set(clickPos);
         worldVector.set(clickDir);
+    }
+
+    @Override
+    public double[] worldToView(Point3d point) {
+        Point3d ret = camera.project(point.x, point.y, point.z);
+        return new double[] { ret.x, ret.y };
+    }
+
+    @Override
+    public Matrix4d getViewTransform() {
+        Matrix4d ret = new Matrix4d();
+        camera.getViewMatrix(ret);
+        return ret;
     }
 
     @Override
@@ -445,7 +459,7 @@ IRenderView {
     }
 
     private RenderContext renderNodes(GL gl, GLU glu, List<Pass> passes, boolean pick) {
-        RenderContext renderContext = new RenderContext(gl, glu, selectionService.getSelection());
+        RenderContext renderContext = new RenderContext(this, gl, glu, selectionService.getSelection());
 
         for (IRenderViewProvider provider : providers) {
             for (Pass pass : passes) {
