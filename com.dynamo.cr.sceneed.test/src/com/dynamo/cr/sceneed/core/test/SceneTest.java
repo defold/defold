@@ -17,16 +17,20 @@ import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.StructuredSelection;
+import org.eclipse.ui.ISelectionService;
 import org.junit.Before;
 import org.junit.Test;
 
 import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.sceneed.core.IImageProvider;
 import com.dynamo.cr.sceneed.core.ILoaderContext;
+import com.dynamo.cr.sceneed.core.IManipulatorRegistry;
 import com.dynamo.cr.sceneed.core.IModelListener;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
+import com.dynamo.cr.sceneed.core.IRenderView;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.ISceneView;
+import com.dynamo.cr.sceneed.core.ManipulatorController;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.SceneModel;
@@ -64,6 +68,10 @@ public class SceneTest {
             bind(IOperationHistory.class).to(DefaultOperationHistory.class).in(Singleton.class);
             bind(IUndoContext.class).to(UndoContext.class).in(Singleton.class);
             bind(IContainer.class).toInstance(contentRoot);
+            bind(ManipulatorController.class).in(Singleton.class);
+            bind(ISelectionService.class).toInstance(mock(ISelectionService.class));
+            bind(IRenderView.class).toInstance(mock(IRenderView.class));
+            bind(IManipulatorRegistry.class).toInstance(mock(IManipulatorRegistry.class));
         }
     }
 
