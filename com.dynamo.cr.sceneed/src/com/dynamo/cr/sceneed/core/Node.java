@@ -10,6 +10,8 @@ import java.util.Map;
 
 import javax.vecmath.Matrix4d;
 import javax.vecmath.Quat4d;
+import javax.vecmath.Tuple3d;
+import javax.vecmath.Vector3d;
 import javax.vecmath.Vector4d;
 
 import org.eclipse.core.resources.IFile;
@@ -45,8 +47,10 @@ public abstract class Node implements IAdaptable {
     @Property
     protected Vector4d translation = new Vector4d(0, 0, 0, 0);
 
-    @Property
-    protected Quat4d rotation = new Quat4d(0, 0, 0, 1);
+    private Quat4d rotation = new Quat4d(0, 0, 0, 1);
+
+    @Property(displayName="rotation")
+    protected Vector3d euler = new Vector3d(0, 0, 0);
 
     // Used to preserve order when adding/removing child nodes
     private int childIndex = -1;
@@ -79,7 +83,7 @@ public abstract class Node implements IAdaptable {
         return flags.contains(Flags.TRANSFORMABLE);
     }
 
-    public final boolean isRotationVisible() {
+    public final boolean isEulerVisible() {
         return flags.contains(Flags.TRANSFORMABLE);
     }
 
@@ -125,8 +129,8 @@ public abstract class Node implements IAdaptable {
     }
 
     public Node(Vector4d translation, Quat4d rotation) {
-        this.translation.set(translation);
-        this.rotation.set(rotation);
+        setTranslation(translation);
+        setRotation(rotation);
     }
 
     public void setTranslation(Vector4d translation) {
@@ -140,11 +144,81 @@ public abstract class Node implements IAdaptable {
 
     public void setRotation(Quat4d rotation) {
         this.rotation.set(rotation);
+        this.rotation.normalize();
+        quatToEuler(this.rotation, euler);
         setDirty();
     }
 
     public Quat4d getRotation() {
         return new Quat4d(rotation);
+    }
+
+    public void setEuler(Vector3d euler) {
+        this.euler = new Vector3d(euler);
+        eulerToQuat(euler, rotation);
+        setDirty();
+    }
+
+    public Vector3d getEuler() {
+        return new Vector3d(euler);
+    }
+
+    private static void eulerToQuat(Tuple3d euler, Quat4d quat) {
+        double bank = euler.x * Math.PI / 180;
+        double heading = euler.y * Math.PI / 180;
+        double attitude = euler.z * Math.PI / 180;
+
+        double c1 = Math.cos(heading/2);
+        double s1 = Math.sin(heading/2);
+        double c2 = Math.cos(attitude/2);
+        double s2 = Math.sin(attitude/2);
+        double c3 = Math.cos(bank/2);
+        double s3 = Math.sin(bank/2);
+        double c1c2 = c1*c2;
+        double s1s2 = s1*s2;
+        double w =c1c2*c3 - s1s2*s3;
+        double x =c1c2*s3 + s1s2*c3;
+        double y =s1*c2*c3 + c1*s2*s3;
+        double z =c1*s2*c3 - s1*c2*s3;
+
+        quat.x = x;
+        quat.y = y;
+        quat.z = z;
+        quat.w = w;
+        quat.normalize();
+    }
+
+    public static void quatToEuler(Quat4d quat, Tuple3d euler) {
+        double heading;
+        double attitude;
+        double bank;
+
+        double test = quat.x * quat.y + quat.z * quat.w;
+        if (test > 0.499)
+        { // singularity at north pole
+            heading = 2 * Math.atan2(quat.x, quat.w);
+            attitude = Math.PI / 2;
+            bank = 0;
+        }
+        else if (test < -0.499)
+        { // singularity at south pole
+            heading = -2 * Math.atan2(quat.x, quat.w);
+            attitude = -Math.PI / 2;
+            bank = 0;
+        }
+        else
+        {
+            double sqx = quat.x * quat.x;
+            double sqy = quat.y * quat.y;
+            double sqz = quat.z * quat.z;
+            heading = Math.atan2(2 * quat.y * quat.w - 2 * quat.x * quat.z, 1 - 2 * sqy - 2 * sqz);
+            attitude = Math.asin(2 * test);
+            bank = Math.atan2(2 * quat.x * quat.w - 2 * quat.y * quat.z, 1 - 2 * sqx - 2 * sqz);
+        }
+
+        euler.x = bank * 180 / Math.PI;
+        euler.y = heading * 180 / Math.PI;
+        euler.z = attitude * 180 / Math.PI;
     }
 
     public void getLocalTransform(Matrix4d transform)

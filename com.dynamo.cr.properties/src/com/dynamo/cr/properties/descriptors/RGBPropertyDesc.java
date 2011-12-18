@@ -27,7 +27,7 @@ import com.dynamo.cr.properties.PropertyUtil;
 
 public class RGBPropertyDesc<T, U extends IPropertyObjectWorld> extends PropertyDesc<T, U>  {
 
-    public RGBPropertyDesc(Object id, String name) {
+    public RGBPropertyDesc(String id, String name) {
         super(id, name);
     }
 

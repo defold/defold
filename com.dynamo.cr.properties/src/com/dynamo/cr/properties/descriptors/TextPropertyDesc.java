@@ -4,7 +4,7 @@ import com.dynamo.cr.properties.IPropertyObjectWorld;
 
 public class TextPropertyDesc<T, U extends IPropertyObjectWorld> extends ScalarPropertyDesc<String, T, U> {
 
-    public TextPropertyDesc(Object id, String name) {
+    public TextPropertyDesc(String id, String name) {
         super(id, name);
     }
 

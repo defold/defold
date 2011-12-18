@@ -5,10 +5,10 @@ import org.eclipse.swt.widgets.Composite;
 
 public class PropertyDesc<T, U extends IPropertyObjectWorld> implements IPropertyDesc<T, U> {
 
-    private Object id;
+    private String id;
     private String name;
 
-    public PropertyDesc(Object id, String name) {
+    public PropertyDesc(String id, String name) {
         this.id = id;
         this.name = name;
     }
@@ -34,7 +34,7 @@ public class PropertyDesc<T, U extends IPropertyObjectWorld> implements IPropert
     }
 
     @Override
-    public Object getId() {
+    public String getId() {
         return id;
     }
 

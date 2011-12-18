@@ -17,7 +17,7 @@ import com.dynamo.cr.properties.PropertyUtil;
 
 public abstract class ScalarPropertyDesc<S, T, U extends IPropertyObjectWorld> extends PropertyDesc<T, U>  {
 
-    public ScalarPropertyDesc(Object id, String name) {
+    public ScalarPropertyDesc(String id, String name) {
         super(id, name);
     }
 

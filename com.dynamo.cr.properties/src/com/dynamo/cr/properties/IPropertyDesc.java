@@ -13,6 +13,6 @@ public interface IPropertyDesc<T, U extends IPropertyObjectWorld> {
 
     public String getName();
 
-    public Object getId();
+    public String getId();
 
 }

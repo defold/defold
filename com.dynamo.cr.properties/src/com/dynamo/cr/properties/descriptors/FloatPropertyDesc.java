@@ -4,7 +4,7 @@ import com.dynamo.cr.properties.IPropertyObjectWorld;
 
 public class FloatPropertyDesc<T, U extends IPropertyObjectWorld> extends ScalarPropertyDesc<Float, T, U> {
 
-    public FloatPropertyDesc(Object id, String name) {
+    public FloatPropertyDesc(String id, String name) {
         super(id, name);
     }
 

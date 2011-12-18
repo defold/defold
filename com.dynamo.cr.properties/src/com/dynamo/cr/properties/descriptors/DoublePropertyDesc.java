@@ -4,7 +4,7 @@ import com.dynamo.cr.properties.IPropertyObjectWorld;
 
 public class DoublePropertyDesc<T, U extends IPropertyObjectWorld> extends ScalarPropertyDesc<Double, T, U> {
 
-    public DoublePropertyDesc(Object id, String name) {
+    public DoublePropertyDesc(String id, String name) {
         super(id, name);
     }
 

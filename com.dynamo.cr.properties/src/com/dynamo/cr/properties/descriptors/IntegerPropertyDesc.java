@@ -4,7 +4,7 @@ import com.dynamo.cr.properties.IPropertyObjectWorld;
 
 public class IntegerPropertyDesc<T, U extends IPropertyObjectWorld> extends ScalarPropertyDesc<Integer, T, U> {
 
-    public IntegerPropertyDesc(Object id, String name) {
+    public IntegerPropertyDesc(String id, String name) {
         super(id, name);
     }
 

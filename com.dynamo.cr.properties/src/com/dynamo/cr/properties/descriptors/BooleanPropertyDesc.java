@@ -17,7 +17,7 @@ import com.dynamo.cr.properties.PropertyUtil;
 
 public class BooleanPropertyDesc<T, U extends IPropertyObjectWorld> extends PropertyDesc<T, U>  {
 
-    public BooleanPropertyDesc(Object id, String name) {
+    public BooleanPropertyDesc(String id, String name) {
         super(id, name);
     }
 

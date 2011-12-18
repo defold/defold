@@ -74,53 +74,58 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
             for (Field field : fields) {
                 Annotation[] annotations = field.getAnnotations();
                 for (Annotation annotation : annotations) {
+                    String propertyId = field.getName();
                     if (annotation.annotationType() == Property.class) {
                         field.setAccessible(true);
                         Property property = (Property) annotation;
-                        properties.add(field.getName());
+                        properties.add(propertyId);
+
+                        String propertyDisplayName = propertyId;
+                        if (!property.displayName().equals("")) {
+                            propertyDisplayName = property.displayName();
+                        }
 
                         IPropertyDesc<T, U> descriptor;
                         if (field.getType() == String.class) {
                             if (property.isResource())
-                                descriptor = new ResourcePropertyDesc<T, U>(field.getName(), field.getName());
+                                descriptor = new ResourcePropertyDesc<T, U>(propertyId, propertyDisplayName);
                             else
-                                descriptor = new TextPropertyDesc<T, U>(field.getName(), field.getName());
+                                descriptor = new TextPropertyDesc<T, U>(propertyId, propertyDisplayName);
                         } else if (field.getType() == Vector4d.class) {
-                            descriptor = new Vector4PropertyDesc<T, U>(field.getName(), field.getName());
+                            descriptor = new Vector4PropertyDesc<T, U>(propertyId, propertyDisplayName);
                         } else if (field.getType() == Quat4d.class) {
-                            descriptor = new Quat4PropertyDesc<T, U>(field.getName(), field.getName());
+                            descriptor = new Quat4PropertyDesc<T, U>(propertyId, propertyDisplayName);
                         } else if (field.getType() == Vector3d.class) {
-                            descriptor = new Vector3PropertyDesc<T, U>(field.getName(), field.getName());
+                            descriptor = new Vector3PropertyDesc<T, U>(propertyId, propertyDisplayName);
                         }
                         else if (field.getType() == RGB.class) {
-                            descriptor = new RGBPropertyDesc<T, U>(field.getName(), field.getName());
+                            descriptor = new RGBPropertyDesc<T, U>(propertyId, propertyDisplayName);
                         } else if (field.getType() == Double.TYPE) {
-                            descriptor = new DoublePropertyDesc<T, U>(field.getName(), field.getName());
+                            descriptor = new DoublePropertyDesc<T, U>(propertyId, propertyDisplayName);
                         } else if (field.getType() == Float.TYPE) {
-                            descriptor = new FloatPropertyDesc<T, U>(field.getName(), field.getName());
+                            descriptor = new FloatPropertyDesc<T, U>(propertyId, propertyDisplayName);
                         } else if (field.getType() == Integer.TYPE) {
-                            descriptor = new IntegerPropertyDesc<T, U>(field.getName(), field.getName());
+                            descriptor = new IntegerPropertyDesc<T, U>(propertyId, propertyDisplayName);
                         } else if (field.getType() == Boolean.TYPE) {
-                            descriptor = new BooleanPropertyDesc<T, U>(field.getName(), field.getName());
+                            descriptor = new BooleanPropertyDesc<T, U>(propertyId, propertyDisplayName);
                         } else if (ProtocolMessageEnum.class.isAssignableFrom(field.getType())) {
-                            descriptor = new ProtoEnumDesc<T, U>((Class<? extends ProtocolMessageEnum>) field.getType(), field.getName(), field.getName());
+                            descriptor = new ProtoEnumDesc<T, U>((Class<? extends ProtocolMessageEnum>) field.getType(), propertyId, propertyDisplayName);
                         } else {
-                            descriptor = new PropertyDesc<T, U>(field.getName(), field.getName());
+                            descriptor = new PropertyDesc<T, U>(propertyId, propertyDisplayName);
                         }
 
                         descriptors.add(descriptor);
 
                         try {
-                            String name = field.getName();
-                            Method validatorMethod = klass.getDeclaredMethod(String.format("validate%c%s", Character.toUpperCase(name.charAt(0)), name.substring(1)));
+                            Method validatorMethod = klass.getDeclaredMethod(String.format("validate%c%s", Character.toUpperCase(propertyId.charAt(0)), propertyId.substring(1)));
                             validatorMethod.setAccessible(true);
-                            methodValidators.put(field.getName(), validatorMethod);
+                            methodValidators.put(propertyId, validatorMethod);
                         } catch (NoSuchMethodException e) {
                             // Pass
                         }
 
                     } else if (annotation.annotationType().isAnnotationPresent(Validator.class)) {
-                        this.validators.put(field.getName(), annotation);
+                        this.validators.put(propertyId, annotation);
                     }
                 }
             }

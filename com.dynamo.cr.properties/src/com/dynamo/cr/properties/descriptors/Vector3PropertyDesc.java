@@ -6,7 +6,7 @@ import com.dynamo.cr.properties.IPropertyObjectWorld;
 
 public class Vector3PropertyDesc<T, U extends IPropertyObjectWorld> extends ArrayPropertyDesc<Vector3d, T, U> {
 
-    public Vector3PropertyDesc(Object id, String name) {
+    public Vector3PropertyDesc(String id, String name) {
         super(id, name, 3);
     }
 

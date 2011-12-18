@@ -93,7 +93,7 @@ public class FormPropertySheetViewer extends Viewer {
         if (models != null && currentComposite != null) {
             IPropertyDesc[] descs = models[0].getPropertyDescs();
             for (IPropertyDesc desc : descs) {
-                Entry entry = (Entry) currentComposite.getData(desc.getName());
+                Entry entry = (Entry) currentComposite.getData(desc.getId());
                 // Skip hidden (ie not visible) properties
                 if (entry == null)
                     continue;
@@ -202,7 +202,7 @@ public class FormPropertySheetViewer extends Viewer {
                 gd.horizontalSpan = 1;
                 statusLabel.setLayoutData(gd);
                 Entry entry = new Entry(editor, statusLabel, dummyLabel);
-                c.setData(desc.getName(), entry);
+                c.setData(desc.getId(), entry);
             }
 
             modelComposities.put(model.getPropertyDescs(), c);

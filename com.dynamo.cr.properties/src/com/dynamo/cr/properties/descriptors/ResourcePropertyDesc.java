@@ -26,7 +26,7 @@ public class ResourcePropertyDesc<T, U extends IPropertyObjectWorld> extends Pro
 
     private IContainer contentRoot;
 
-    public ResourcePropertyDesc(Object id, String name) {
+    public ResourcePropertyDesc(String id, String name) {
         super(id, name);
     }
 

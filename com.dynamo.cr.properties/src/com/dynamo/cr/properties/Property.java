@@ -6,4 +6,5 @@ import java.lang.annotation.RetentionPolicy;
 @Retention(RetentionPolicy.RUNTIME)
 public @interface Property {
     boolean isResource() default false;
+    String displayName() default "";
 }
