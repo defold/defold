@@ -125,7 +125,60 @@ def proto_compile_task(name, module, msg_type, input_ext, output_ext, transforme
         m.update(sig_deps)
         return m.digest()
 
+    def scan_msg(task, msg):
+        import google.protobuf
+        from google.protobuf.descriptor import FieldDescriptor
+        depnodes = []
+
+        descriptor = getattr(msg, 'DESCRIPTOR')
+        for field in descriptor.fields:
+            value = getattr(msg, field.name)
+            if field.type == FieldDescriptor.TYPE_MESSAGE:
+                if field.label == FieldDescriptor.LABEL_REPEATED:
+                    for x in value:
+                        scan_msg(task, x)
+                else:
+                    scan_msg(task, value)
+            elif is_resource(field):
+
+                if field.label == FieldDescriptor.LABEL_REPEATED:
+                    lst = value
+                else:
+                    lst = [value]
+
+                for x in lst:
+                    # NOTE: find_resource doesn't handle unicode string. Thats why str(.) is required
+                    n = task.generator.path.find_resource(str(x[1:]))
+                    if n:
+                        depnodes.append(n)
+        return depnodes
+
+    def scan(task):
+        # NOTE: The scanner treats all resource as dependences.
+        # The only actual required dependencies are the embedded ones but
+        # better be safe than sorry! :-)
+        depnodes = []
+        for n in task.inputs:
+            depnodes.append(n)
+
+            try:
+                import google.protobuf.text_format
+                mod = __import__(module)
+                # NOTE: We can't use getattr. msg_type could of form "foo.bar"
+                msg = eval('mod.' + msg_type)() # Call constructor on message type
+                with open(n.srcpath(task.env), 'rb') as in_f:
+                    google.protobuf.text_format.Merge(in_f.read(), msg)
+
+                depnodes += scan_msg(task, msg)
+
+            except google.protobuf.text_format.ParseError,e:
+                # We ignore parse error as the file will hopefully be changed and recompiled anyway
+                pass
+
+        return depnodes, []
+
     task.sig_explicit_deps = sig_explicit_deps
+    task.scan = scan
 
     @extension(input_ext)
     def xfile(self, node):
