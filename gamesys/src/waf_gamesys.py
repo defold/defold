@@ -52,7 +52,6 @@ def transform_gameobject(msg):
         c.component = c.component.replace('.sprite2', '.dummysprite2c')
         c.component = c.component.replace('.sprite', '.spritec')
         c.component = c.component.replace('.dummysprite2c', '.sprite2c')
-        c.component = c.component.replace('.tileset2', '.tilesetc')
         c.component = c.component.replace('.tileset', '.tilesetc')
         c.component = c.component.replace('.tilegrid', '.tilegridc')
     return msg
@@ -98,7 +97,6 @@ def transform_sprite(msg):
     return msg
 
 def transform_sprite2(msg):
-    msg.tile_set = msg.tile_set.replace('.tileset2', '.tilesetc')
     msg.tile_set = msg.tile_set.replace('.tileset', '.tilesetc')
     return msg
 
@@ -313,30 +311,6 @@ def tileset_file(self, node):
                  'default/src/java',
                  'default/src/gamesys/gamesys.jar']
     tileset = self.create_task('tileset')
-    tileset.env['CLASSPATH'] = os.pathsep.join(classpath)
-    tileset.set_inputs(node)
-    obj_ext = '.tilesetc'
-    out = node.change_ext(obj_ext)
-    tileset.set_outputs(out)
-
-Task.simple_task_type('tileset2', '${JAVA} -classpath ${CLASSPATH} com.dynamo.tile.TileSetc ${SRC} ${TGT}',
-                      color='PINK',
-                      after='proto_gen_py',
-                      before='cc cxx',
-                      shell=False)
-
-@extension('.tileset2')
-def tileset2_file(self, node):
-    classpath = [self.env['DYNAMO_HOME'] + '/ext/share/java/protobuf-java-2.3.0.jar',
-                 self.env['DYNAMO_HOME'] + '/share/java/ddf.jar',
-                 self.env['DYNAMO_HOME'] + '/share/java/gamesys.jar',
-                 self.env['DYNAMO_HOME'] + '/share/java/tile.jar',
-                 self.env['DYNAMO_HOME'] + '/ext/share/java/vecmath.jar',
-                 # NOTE: Only needed when running within gamesys-project.
-                 # Should be fixed somehow... in configure perhaps?
-                 'default/src/java',
-                 'default/src/gamesys/gamesys.jar']
-    tileset = self.create_task('tileset2')
     tileset.env['CLASSPATH'] = os.pathsep.join(classpath)
     tileset.set_inputs(node)
     obj_ext = '.tilesetc'
