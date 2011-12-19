@@ -654,6 +654,19 @@
                </or>
             </visibleWhen>
          </command>
+         <command
+               commandId="com.dynamo.cr.tileeditor.commands.togglePlayback"
+               label="Play/Stop Animation"
+               style="push">
+            <visibleWhen
+                  checkEnabled="false">
+               <or>
+                  <reference
+                        definitionId="com.dynamo.cr.tileeditor.definitions.animationSelected">
+                  </reference>
+               </or>
+            </visibleWhen>
+         </command>
       </menuContribution>
       <menuContribution
             allPopups="false"
@@ -696,6 +709,19 @@
                   commandId="com.dynamo.cr.sceneed.ui.commands.addLink"
                   label="Add Animation"
                   style="push">
+            </command>
+            <command
+                  commandId="com.dynamo.cr.tileeditor.commands.togglePlayback"
+                  label="Play/Stop Animation"
+                  style="push">
+               <visibleWhen
+                     checkEnabled="false">
+                  <or>
+                     <reference
+                           definitionId="com.dynamo.cr.tileeditor.definitions.animationSelected">
+                     </reference>
+                  </or>
+               </visibleWhen>
             </command>
          </menu>
       </menuContribution>  </extension>
