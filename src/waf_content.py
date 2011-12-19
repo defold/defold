@@ -47,6 +47,13 @@ def proto_compile_task(name, module, msg_type, input_ext, output_ext, transforme
                     lst = [value]
 
                 for x in lst:
+                    if field.label == FieldDescriptor.LABEL_OPTIONAL and len(x) == 0:
+                        # Skip not specified optional fields
+                        # These are accepted as "resources"
+                        # NOTE: Somewhat strange to test this predicate in a loop
+                        # as optional can't be repeated. Anyway it works :-)
+                        continue
+
                     if not x.startswith('/'):
                         print >>sys.stderr, '%s:0: error: resource path is not absolute "%s"' % (task.inputs[0].srcpath(), x)
                         return False
@@ -69,7 +76,7 @@ def proto_compile_task(name, module, msg_type, input_ext, output_ext, transforme
                 return 1
 
             if transformer:
-                msg = transformer(msg)
+                msg = transformer(task, msg)
 
             with open(task.outputs[0].bldpath(task.env), 'wb') as out_f:
                 out_f.write(msg.SerializeToString())
