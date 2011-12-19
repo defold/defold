@@ -36,10 +36,7 @@ public class AnimationNode extends Node {
     @GreaterThanZero
     private int fps = 30;
 
-    @Property
     private boolean flipHorizontal;
-
-    @Property
     private boolean flipVertical;
 
     private int currentTile = 1;
