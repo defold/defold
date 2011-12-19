@@ -336,6 +336,142 @@ namespace dmPhysics
 
     HCollisionObject2D NewCollisionObject2D(HWorld2D world, const CollisionObjectData& data, HCollisionShape2D* shapes, uint32_t shape_count)
     {
+        return NewCollisionObject2D(world, data, shapes, 0, 0, shape_count);
+    }
+
+    /*
+     * Quaternion to complex number transform
+     *
+     * A quaternion around axis (0,0,1) with angle alpha is given by:
+     *
+     * q = (0, 0, sin(alpha/2), cos(alpha/2))   (1)
+     *
+     * The corresponding complex number is given by
+     *
+     * c = (cos(alpha/2), sin(alpha/2))         (2)
+     *
+     * The "double angle rule":
+     *
+     *  sin(2x) = 2sin(x)cos(x)
+     * <=>
+     *  sin(x) = 2sin(x/2)cos(x/2)              (3)
+     *
+     * and
+     *
+     *  cos(2x) = 1 - 2sin^2(x)
+     * <=>
+     *  cos(x) = 1 - 2sin^2(x/2)                (4)
+     *
+     *  The complex representation from in terms of a quaternion.
+     *  Identify terms using (3) and (4)
+     *
+     *  c = (1 - 2 * q.z * q.z, 2 * q.z * q.w)
+     *
+     */
+    static b2Shape* TransformCopyShape(const b2Shape* shape,
+                                       const Vectormath::Aos::Vector3& translation,
+                                       const Vectormath::Aos::Quat& rotation)
+    {
+        b2Vec2 t(translation.getX(), translation.getY());
+        b2Rot r;
+        r.SetComplex(1 - 2 * rotation.getZ() * rotation.getZ(), 2 * rotation.getZ() * rotation.getW());
+        b2Transform transform(t, r);
+        b2Shape* ret = 0;
+
+        switch(shape->m_type)
+        {
+        case b2Shape::e_circle:
+        {
+            const b2CircleShape* circle_shape = (const b2CircleShape*) shape;
+            b2CircleShape* circle_shape_prim = new b2CircleShape(*circle_shape);
+            circle_shape_prim->m_p = t;
+            ret = circle_shape_prim;
+        }
+            break;
+
+        case b2Shape::e_edge:
+        {
+            const b2EdgeShape* edge_shape = (const b2EdgeShape*) shape;
+            b2EdgeShape* edge_shape_prim = new b2EdgeShape(*edge_shape);
+            if (edge_shape_prim->m_hasVertex0)
+                edge_shape_prim->m_vertex0 = b2Mul(transform, edge_shape->m_vertex0);
+
+            edge_shape_prim->m_vertex1 = b2Mul(transform, edge_shape->m_vertex1);
+            edge_shape_prim->m_vertex2 = b2Mul(transform, edge_shape->m_vertex2);
+
+            if (edge_shape_prim->m_hasVertex3)
+                edge_shape_prim->m_vertex3 = b2Mul(transform, edge_shape->m_vertex3);
+
+            ret = edge_shape_prim;
+        }
+            break;
+
+        case b2Shape::e_polygon:
+        {
+            const b2PolygonShape* poly_shape = (const b2PolygonShape*) shape;
+            b2PolygonShape* poly_shape_prim = new b2PolygonShape(*poly_shape);
+
+            b2Vec2 tmp[b2_maxPolygonVertices];
+            int32 n = poly_shape->GetVertexCount();
+            for (int32 i = 0; i < n; ++i)
+            {
+                tmp[i] = b2Mul(transform, poly_shape->GetVertex(i));
+            }
+
+            poly_shape_prim->Set(tmp, n);
+
+            ret = poly_shape_prim;
+        }
+            break;
+
+        default:
+            ret = (b2Shape*) shape;
+            break;
+        }
+
+        return ret;
+    }
+
+    static void FreeShape(const b2Shape* shape)
+    {
+        switch(shape->m_type)
+        {
+        case b2Shape::e_circle:
+        {
+            b2CircleShape* circle_shape = (b2CircleShape*) shape;
+            delete circle_shape;
+        }
+        break;
+
+        case b2Shape::e_edge:
+        {
+            b2EdgeShape* edge_shape = (b2EdgeShape*) shape;
+            delete edge_shape;
+        }
+        break;
+
+        case b2Shape::e_polygon:
+        {
+            b2PolygonShape* poly_shape = (b2PolygonShape*) shape;
+            delete poly_shape;
+        }
+        break;
+
+        default:
+            // pass
+            break;
+        }
+    }
+
+    /*
+     * NOTE: In order to support shape transform we create a copy of shapes using the function TransformCopyShape() above
+     * This is required as the transform is part of the shape and due to absence of a compound shape, aka list shape
+     * with per-child transform.
+     */
+    HCollisionObject2D NewCollisionObject2D(HWorld2D world, const CollisionObjectData& data, HCollisionShape2D* shapes,
+                                            Vectormath::Aos::Vector3* translations, Vectormath::Aos::Quat* rotations,
+                                            uint32_t shape_count)
+    {
         if (shape_count == 0)
         {
             dmLogError("Collision objects must have a shape.");
@@ -389,10 +525,22 @@ namespace dmPhysics
         }
         def.userData = data.m_UserData;
         b2Body* body = world->m_World.CreateBody(&def);
+        Vectormath::Aos::Vector3 zero_vec3 = Vectormath::Aos::Vector3(0);
         for (uint32_t i = 0; i < shape_count; ++i) {
             // Add shapes in reverse order. The fixture list in the body
             // is a single linked list and cells are prepended.
-            b2Shape* s = (b2Shape*)shapes[shape_count - i - 1];
+            uint32_t reverse_i = shape_count - i - 1;
+            b2Shape* s = (b2Shape*)shapes[reverse_i];
+
+            if (translations && rotations)
+            {
+                s = TransformCopyShape(s, translations[reverse_i], rotations[reverse_i]);
+            }
+            else
+            {
+                s = TransformCopyShape(s, zero_vec3, Vectormath::Aos::Quat::identity());
+            }
+
             b2FixtureDef f_def;
             f_def.userData = data.m_UserData;
             f_def.filter.categoryBits = data.m_Group;
@@ -412,10 +560,22 @@ namespace dmPhysics
 
     void DeleteCollisionObject2D(HWorld2D world, HCollisionObject2D collision_object)
     {
+        // NOTE: This code assumes stuff about internals in box2d.
+        // When the next-pointer is cleared etc. Beware! :-)
+        // DestroyBody() should be enough in general but we have to run over all fixtures in order to free allocated shapes
+        // See comment above about shapes and transforms
+
         b2Body* body = (b2Body*)collision_object;
-        for (b2Fixture* fixture = body->GetFixtureList(); fixture; fixture = fixture->GetNext())
+        b2Fixture* fixture = body->GetFixtureList();
+        while (fixture)
         {
+            // We must save next fixture. The next pointer is set to null in DestoryFixture()
+            b2Fixture* save_next = fixture->GetNext();
+
+            b2Shape* shape = fixture->GetShape();
             body->DestroyFixture(fixture);
+            FreeShape(shape); // NOTE: shape can't be freed prior to DestroyFixture
+            fixture = save_next;
         }
         world->m_World.DestroyBody(body);
     }
