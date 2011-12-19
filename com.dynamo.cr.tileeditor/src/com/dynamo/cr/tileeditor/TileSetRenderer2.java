@@ -124,6 +124,7 @@ KeyListener {
             this.transparentTexture = TextureIO.newTexture(transparentImage, false);
 
             // if the image is already set, set the corresponding texture
+            this.resetView = true;
             if (this.tileSet != null && this.tileSet.validate().isOK()) {
                 setupRenderData();
             }
@@ -178,7 +179,6 @@ KeyListener {
         int hullCount = tileSet.getConvexHulls().size();
         this.hullFrameVertexBuffer = BufferUtil.newFloatBuffer(hullCount * 6 * 4);
 
-        this.resetView = true;
         requestPaint();
     }
 
@@ -187,6 +187,7 @@ KeyListener {
             this.tileSet = tileSet;
             if (this.context != null) {
                 this.context.makeCurrent();
+                this.resetView = true;
                 setupRenderData();
                 this.context.release();
             }
@@ -195,6 +196,7 @@ KeyListener {
 
     public void refresh(IStructuredSelection selection) {
         if (!this.tileSet.validate().isOK()) {
+            this.resetView = true;
             return;
         }
         if (this.context != null) {
