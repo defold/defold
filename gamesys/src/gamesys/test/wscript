@@ -35,6 +35,7 @@ def build(bld):
             'sound',
             'spawn_point',
             'sprite',
+            'sprite2',
             'tile',
             'texture',
             'vertex_program']
@@ -59,6 +60,7 @@ def build(bld):
             'script',
             'spawnpoint',
             'sprite',
+            'sprite2',
             'vp',
             'wav']
     test_task_gen = bld.new_task_gen(features = 'cxx cprogram',

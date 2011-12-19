@@ -21,6 +21,7 @@ namespace dmGameSystem
         }
 
         dmArray<dmhash_t>           m_HullCollisionGroups;
+        dmArray<dmhash_t>           m_AnimationIds;
         dmGraphics::HTexture        m_Texture;
         dmGameSystemDDF::TileSet*   m_TileSet;
         dmPhysics::HHullSet2D       m_HullSet;

@@ -44,6 +44,13 @@ namespace dmGameSystem
             tile_set->m_HullSet = dmPhysics::NewHullSet2D(norm_points, n_points, hull_descs, n_hulls);
             delete [] hull_descs;
             delete [] norm_points;
+
+            uint32_t n_animations = tile_set_ddf->m_Animations.m_Count;
+            tile_set->m_AnimationIds.SetCapacity(n_animations);
+            for (uint32_t i = 0; i < n_animations; ++i)
+            {
+                tile_set->m_AnimationIds.Push(dmHashString64(tile_set_ddf->m_Animations[i].m_Id));
+            }
         }
         else
         {
