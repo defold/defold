@@ -24,8 +24,8 @@
       <editor
             class="com.dynamo.cr.tileeditor.TileSetEditor2"
             contributorClass="com.dynamo.cr.editor.ui.DefoldEditorActionBarContributor"
-            default="false"
-            extensions="tileset2"
+            default="true"
+            extensions="tileset"
             icon="icons/tile_set.png"
             id="com.dynamo.cr.tileeditor.tileSetEditor2"
             name="Tile Set Editor 2">
@@ -85,20 +85,6 @@
             </reference-type-class>
          </references>
       </resource-type>
-      <resource-type
-            file-extension="tileset2"
-            id="com.dynamo.cr.tileeditor.resourcetypes.TileSet2"
-            name="Tile Set 2"
-            proto-message-class="com.dynamo.tile.proto.Tile$TileSet"
-            resource-refactor-participant-class="com.dynamo.cr.tileeditor.core.refactoring.TileSetRefactorParticipant"
-            template-data="image: &apos;&apos; tile_width: 16 tile_height: 16 tile_margin: 0 tile_spacing: 0 collision: &apos;&apos; material_tag: &apos;tile&apos; collision_groups: &apos;default&apos;"
-            type-class="tile_set">
-         <references>
-            <reference-type-class
-                  type-class="image">
-            </reference-type-class>
-         </references>
-      </resource-type>
    </extension>
    <extension
          point="org.eclipse.ui.newWizards">
@@ -123,13 +109,6 @@
             id="com.dynamo.cr.tileeditor.wizards.spriteNewWizard"
             name="Sprite2 File">
       </wizard>
-      <wizard
-            category="com.dynamo.cr.editor.wizardCategory"
-            class="com.dynamo.cr.tileeditor.wizards.TileSet2NewWizard"
-            icon="icons/tile_set.png"
-            id="com.dynamo.cr.tileeditor.wizards.tileSet2NewWizard"
-            name="Tile Set 2 File">
-      </wizard>
    </extension>
    <extension
          point="org.eclipse.ui.perspectiveExtensions">
@@ -143,9 +122,6 @@
          </newWizardShortcut>
          <newWizardShortcut
                id="com.dynamo.cr.tileeditor.wizards.GridNewWizard">
-         </newWizardShortcut>
-         <newWizardShortcut
-               id="com.dynamo.cr.tileeditor.wizards.tileSet2NewWizard">
          </newWizardShortcut>
       </perspectiveExtension>
    </extension>
@@ -1105,7 +1081,7 @@
             loader="com.dynamo.cr.tileeditor.scene.TileSetLoader"
             node="com.dynamo.cr.tileeditor.scene.TileSetNode"
             presenter="com.dynamo.cr.tileeditor.scene.TileSetNodePresenter"
-            resource-type="com.dynamo.cr.tileeditor.resourcetypes.TileSet2">
+            resource-type="com.dynamo.cr.tileeditor.resourcetypes.TileSet">
       </node-type>
    </extension>
    <extension
@@ -1123,11 +1099,6 @@
       <commonWizard
             type="new"
             wizardId="com.dynamo.cr.tileeditor.wizards.spriteNewWizard">
-         <enablement></enablement>
-      </commonWizard>
-      <commonWizard
-            type="new"
-            wizardId="com.dynamo.cr.tileeditor.wizards.tileSet2NewWizard">
          <enablement></enablement>
       </commonWizard>
    </extension>
