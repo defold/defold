@@ -200,6 +200,7 @@ range_error:
                     }
                     else
                     {
+                        resource->m_ShapeCount = current_shape_count;
                         return false;
                     }
                 }
@@ -215,6 +216,7 @@ range_error:
                     }
                     else
                     {
+                        resource->m_ShapeCount = current_shape_count;
                         return false;
                     }
                 }
