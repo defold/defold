@@ -20,14 +20,16 @@ namespace dmGameSystem
         switch (shape->m_ShapeType)
         {
         case dmPhysicsDDF::CollisionShape::TYPE_SPHERE:
-            if (shape->m_Index + 1 > data_count) {
+            if (shape->m_Index + 1 > data_count)
+            {
                 goto range_error;
             }
             ret = dmPhysics::NewCircleShape2D(data[shape->m_Index]);
             break;
 
         case dmPhysicsDDF::CollisionShape::TYPE_BOX:
-            if (shape->m_Index + 3 > data_count) {
+            if (shape->m_Index + 3 > data_count)
+            {
                 goto range_error;
             }
             ret = dmPhysics::NewBoxShape2D(Vectormath::Aos::Vector3(data[shape->m_Index], data[shape->m_Index+1], data[shape->m_Index+2]));
@@ -37,6 +39,24 @@ namespace dmGameSystem
             // TODO: Add support
             dmLogError("%s", "Capsules are not supported in 2D.");
             break;
+
+        case dmPhysicsDDF::CollisionShape::TYPE_HULL:
+        {
+            if (shape->m_Index + shape->m_Count > data_count)
+            {
+                goto range_error;
+            }
+
+            const uint32_t data_size = 2 * shape->m_Count / 3;
+            float* data_2d = new float[2 * shape->m_Count / 3];
+            for (uint32_t i = 0; i < data_size; ++i)
+            {
+                data_2d[i] = collision_shape->m_Data[shape->m_Index + i/2*3 + i%2];
+            }
+            ret = dmPhysics::NewPolygonShape2D(data_2d, data_size/2);
+            delete [] data_2d;
+        }
+        break;
 
         default:
             // NOTE: We do not create hulls here. Hulls can't currently be created as embedded shapes
@@ -83,6 +103,14 @@ range_error:
             ret = dmPhysics::NewCapsuleShape3D(data[shape->m_Index], data[shape->m_Index+1]);
             break;
 
+        case dmPhysicsDDF::CollisionShape::TYPE_HULL:
+            if (shape->m_Index + shape->m_Count > data_count)
+            {
+                goto range_error;
+            }
+            ret = dmPhysics::NewConvexHullShape3D(&collision_shape->m_Data[shape->m_Index], shape->m_Count);
+            break;
+
         default:
             // NOTE: We do not create hulls here. Hulls can't currently be created as embedded shapes
             // In the future we might support that or support the collision shape message as a external resource
@@ -117,89 +145,87 @@ range_error:
             resource->m_Mask[i] = dmHashString64(resource->m_DDF->m_Mask[i]);
         }
 
-        void* res;
-        dmResource::FactoryResult factory_result = dmResource::Get(factory, resource->m_DDF->m_CollisionShape, &res);
-        if (factory_result == dmResource::FACTORY_RESULT_OK)
+        if (resource->m_DDF->m_CollisionShape && resource->m_DDF->m_CollisionShape[0] != '\0')
         {
-            uint32_t tile_grid_type;
-            factory_result = dmResource::GetTypeFromExtension(factory, "tilegridc", &tile_grid_type);
+            void* res;
+            dmResource::FactoryResult factory_result = dmResource::Get(factory, resource->m_DDF->m_CollisionShape, &res);
             if (factory_result == dmResource::FACTORY_RESULT_OK)
             {
-                uint32_t res_type;
-                factory_result = dmResource::GetType(factory, res, &res_type);
-                if (factory_result == dmResource::FACTORY_RESULT_OK && res_type == tile_grid_type)
+                uint32_t tile_grid_type;
+                factory_result = dmResource::GetTypeFromExtension(factory, "tilegridc", &tile_grid_type);
+                if (factory_result == dmResource::FACTORY_RESULT_OK)
                 {
-                    resource->m_TileGridResource = (TileGridResource*)res;
-                    resource->m_TileGrid = 1;
-                    // Add the tile grid as the first and only shape
-                    resource->m_Shapes2D[0] = resource->m_TileGridResource->m_GridShape;
-                    resource->m_ShapeCount++;
-                    return true;
-                }
-                // NOTE: Fall-trough "by design" here, ie not "else return false"
-                // The control flow should be improved. Currently very difficult to follow or understand
-                // the expected logical paths
-            }
-
-            // Add the convex shape resource as the first shape
-            resource->m_ConvexShapeResource = (ConvexShapeResource*)res;
-            if (physics_context->m_3D)
-            {
-                resource->m_Shapes3D[0] = resource->m_ConvexShapeResource->m_Shape3D;
-            }
-            else
-            {
-                resource->m_Shapes2D[0] = resource->m_ConvexShapeResource->m_Shape2D;
-            }
-            resource->m_ShapeTranslation[0] = Vectormath::Aos::Vector3(0);
-            resource->m_ShapeRotation[0] = Vectormath::Aos::Quat::identity();
-            resource->m_ShapeCount++;
-
-            const dmPhysicsDDF::CollisionShape* embedded_shape = &resource->m_DDF->m_EmbeddedCollisionShape;
-            const dmPhysicsDDF::CollisionShape::Shape* shapes = embedded_shape->m_Shapes.m_Data;
-            if (shapes)
-            {
-                // Create embedded convex shapes
-                uint32_t count = embedded_shape->m_Shapes.m_Count;
-                if (count + 1 > COLLISION_OBJECT_MAX_SHAPES)
-                {
-                    dmLogWarning("Too many shapes in collision object. Up to %d is supported (%d). Discarding overflowing shapes.", COLLISION_OBJECT_MAX_SHAPES - 1, count);
-                    count = COLLISION_OBJECT_MAX_SHAPES - 1;
-                }
-
-                uint32_t current_shape_count = resource->m_ShapeCount;
-                for (uint32_t i = 0; i < count; ++i)
-                {
-                    if (physics_context->m_3D)
+                    uint32_t res_type;
+                    factory_result = dmResource::GetType(factory, res, &res_type);
+                    if (factory_result == dmResource::FACTORY_RESULT_OK && res_type == tile_grid_type)
                     {
-                        dmPhysics::HCollisionObject3D shape = Create3DShape(embedded_shape, i);
-                        if (shape)
-                        {
-                            resource->m_Shapes3D[current_shape_count] = shape;
-                            resource->m_ShapeTranslation[current_shape_count] = Vectormath::Aos::Vector3(shapes[i].m_Position);
-                            resource->m_ShapeRotation[current_shape_count] = shapes[i].m_Rotation;
-                            current_shape_count++;
-                        }
+                        resource->m_TileGridResource = (TileGridResource*)res;
+                        resource->m_TileGrid = 1;
+                        // Add the tile grid as the first and only shape
+                        resource->m_Shapes2D[0] = resource->m_TileGridResource->m_GridShape;
+                        resource->m_ShapeCount++;
+                        return true;
+                    }
+                    // NOTE: Fall-trough "by design" here, ie not "else return false"
+                    // The control flow should be improved. Currently very difficult to follow or understand
+                    // the expected logical paths
+                }
+            }
+        }
+
+        const dmPhysicsDDF::CollisionShape* embedded_shape = &resource->m_DDF->m_EmbeddedCollisionShape;
+        const dmPhysicsDDF::CollisionShape::Shape* shapes = embedded_shape->m_Shapes.m_Data;
+        if (shapes)
+        {
+            // Create embedded convex shapes
+            uint32_t count = embedded_shape->m_Shapes.m_Count;
+            if (count > COLLISION_OBJECT_MAX_SHAPES)
+            {
+                dmLogWarning("Too many shapes in collision object. Up to %d is supported (%d). Discarding overflowing shapes.", COLLISION_OBJECT_MAX_SHAPES, count);
+                count = COLLISION_OBJECT_MAX_SHAPES;
+            }
+
+            uint32_t current_shape_count = resource->m_ShapeCount;
+            for (uint32_t i = 0; i < count; ++i)
+            {
+                if (physics_context->m_3D)
+                {
+                    dmPhysics::HCollisionObject3D shape = Create3DShape(embedded_shape, i);
+                    if (shape)
+                    {
+                        resource->m_Shapes3D[current_shape_count] = shape;
+                        resource->m_ShapeTranslation[current_shape_count] = Vectormath::Aos::Vector3(shapes[i].m_Position);
+                        resource->m_ShapeRotation[current_shape_count] = shapes[i].m_Rotation;
+                        current_shape_count++;
                     }
                     else
                     {
-                        dmPhysics::HCollisionObject2D shape = Create2DShape(embedded_shape, i);
-                        if (shape)
-                        {
-                            resource->m_Shapes2D[current_shape_count] = shape;
-                            resource->m_ShapeTranslation[current_shape_count] = Vectormath::Aos::Vector3(shapes[i].m_Position);
-                            resource->m_ShapeRotation[current_shape_count] = shapes[i].m_Rotation;
-                            current_shape_count++;
-                        }
+                        return false;
                     }
                 }
-                resource->m_ShapeCount = current_shape_count;
-                assert(resource->m_ShapeCount <= COLLISION_OBJECT_MAX_SHAPES);
+                else
+                {
+                    dmPhysics::HCollisionObject2D shape = Create2DShape(embedded_shape, i);
+                    if (shape)
+                    {
+                        resource->m_Shapes2D[current_shape_count] = shape;
+                        resource->m_ShapeTranslation[current_shape_count] = Vectormath::Aos::Vector3(shapes[i].m_Position);
+                        resource->m_ShapeRotation[current_shape_count] = shapes[i].m_Rotation;
+                        current_shape_count++;
+                    }
+                    else
+                    {
+                        return false;
+                    }
+                }
             }
+            resource->m_ShapeCount = current_shape_count;
+            assert(resource->m_ShapeCount <= COLLISION_OBJECT_MAX_SHAPES);
             return true;
         }
         else
         {
+            dmLogError("No shapes found in collision object");
             return false;
         }
     }
@@ -213,19 +239,9 @@ range_error:
         }
         else
         {
-            if (resource->m_ConvexShapeResource)
-                dmResource::Release(factory, resource->m_ConvexShapeResource);
-
             uint32_t shape_count = resource->m_ShapeCount;
             for (uint32_t i = 0; i < shape_count; ++i)
             {
-                if (i == 0)
-                {
-                    // The first shape is from convex shape resource. Skip it
-                    // TODO: If convex shape support is removed do not forget to remove this
-                    continue;
-                }
-
                 if (physics_context->m_3D)
                 {
                     dmPhysics::DeleteCollisionShape3D(resource->m_Shapes3D[i]);
@@ -235,7 +251,6 @@ range_error:
                     dmPhysics::DeleteCollisionShape2D(resource->m_Shapes2D[i]);
                 }
             }
-
         }
         if (resource->m_DDF)
             dmDDF::FreeMessage(resource->m_DDF);

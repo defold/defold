@@ -114,6 +114,15 @@ def fontmap_factory(prj, input):
                               inputs = [input],
                               outputs = [change_ext(prj, input, '.fontc')]))
 
+def tilset_file(prj, tsk):
+    execute_command(prj, tsk, 'java -classpath ${classpath} com.dynamo.tile.TileSetc  ${inputs[0]} ${outputs[0]}')
+
+def tileset_factory(prj, input):
+    return add_task(prj, task(function = tilset_file,
+                              name = 'tileset',
+                              inputs = [input],
+                              outputs = [change_ext(prj, input, '.tilesetc')]))
+
 def transform_texture_name(name):
     name = name.replace('.png', '.texturec')
     name = name.replace('.jpg', '.texturec')
@@ -132,8 +141,32 @@ def transform_collectionproxy(msg):
 
 def transform_collisionobject(msg):
     import physics_ddf_pb2
+    import google.protobuf.text_format
+    import ddf.ddf_math_pb2
     if msg.type != physics_ddf_pb2.COLLISION_OBJECT_TYPE_DYNAMIC:
         msg.mass = 0
+
+    # Merge convex shape resource with collision object
+    # NOTE: Special case for tilegrid resources. They are left as is
+    if msg.collision_shape and not msg.collision_shape.endswith('.tilegrid'):
+        # NOTE: We assume '.' as content-root here.
+        p = os.path.join('.', msg.collision_shape[1:])
+        convex_msg = physics_ddf_pb2.ConvexShape()
+        with open(p, 'rb') as in_f:
+            google.protobuf.text_format.Merge(in_f.read(), convex_msg)
+            shape = msg.embedded_collision_shape.shapes.add()
+            shape.shape_type = convex_msg.shape_type
+            shape.position.x = shape.position.y = shape.position.z = 0
+            shape.rotation.x = shape.rotation.y = shape.rotation.z = 0
+            shape.rotation.w = 1
+            shape.index = len(msg.embedded_collision_shape.data)
+            shape.count = len(convex_msg.data)
+
+            for x in convex_msg.data:
+                msg.embedded_collision_shape.data.append(x)
+
+        msg.collision_shape = ''
+
     msg.collision_shape = msg.collision_shape.replace('.convexshape', '.convexshapec')
     msg.collision_shape = msg.collision_shape.replace('.tilegrid', '.tilegridc')
     return msg
@@ -227,6 +260,9 @@ def conf(prj):
     # fonts
     register(prj, '.font', fontmap_factory)
 
+    # tileset
+    register(prj, '.tileset', tileset_factory)
+
     # proto formats
     register(prj, '.collection', make_proto('gameobject_ddf_pb2', 'CollectionDesc', transform_collection))
     register(prj, '.collectionproxy', make_proto('gamesys_ddf_pb2', 'CollectionProxyDesc', transform_collectionproxy))
@@ -263,6 +299,8 @@ def conf(prj):
     classpath = [ dynamo_home + x for x in ['/ext/share/java/protobuf-java-2.3.0.jar',
                                             '/share/java/ddf.jar',
                                             '/share/java/render.jar',
-                                            '/share/java/fontc.jar']]
+                                            '/share/java/fontc.jar',
+                                            '/share/java/tile.jar',
+                                            '/share/java/gamesys.jar']]
     prj['classpath'] = os.pathsep.join(classpath)
     prj['content_root'] = '.'

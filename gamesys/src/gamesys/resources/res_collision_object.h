@@ -24,11 +24,7 @@ namespace dmGameSystem
 
         uint64_t m_Mask[16];
         uint64_t m_Group;
-        union
-        {
-            ConvexShapeResource* m_ConvexShapeResource;
-            TileGridResource* m_TileGridResource;
-        };
+        TileGridResource* m_TileGridResource;
 
         union
         {
@@ -37,11 +33,6 @@ namespace dmGameSystem
         };
         Vectormath::Aos::Vector3 m_ShapeTranslation[COLLISION_OBJECT_MAX_SHAPES];
         Vectormath::Aos::Quat m_ShapeRotation[COLLISION_OBJECT_MAX_SHAPES];
-
-        // Number of shapes including shape from convex shape resource
-        // Convex shape resource is considered depreciated.
-        // TODO: Update comment above when convex shape is removed.
-        // TODO: Do not forget to adjust for index 0 if the convex shape resource is removed
         uint32_t m_ShapeCount;
 
         dmPhysicsDDF::CollisionObjectDesc* m_DDF;

@@ -8,36 +8,59 @@ stderr_lock = Lock()
 def configure(conf):
     conf.find_file('meshc.py', var='MESHC', mandatory = True)
 
-def transform_texture_name(name):
+def transform_texture_name(task, name):
     name = name.replace('.png', '.texturec')
     name = name.replace('.jpg', '.texturec')
     return name
 
-def transform_collection(msg):
+def transform_collection(task, msg):
     for i in msg.instances:
         i.prototype = i.prototype.replace('.go', '.goc')
     for c in msg.collection_instances:
         c.collection = c.collection.replace('.collection', '.collectionc')
     return msg
 
-def transform_collectionproxy(msg):
+def transform_collectionproxy(task, msg):
     msg.collection = msg.collection.replace('.collection', '.collectionc')
     return msg
 
-def transform_collisionobject(msg):
+def transform_collisionobject(task, msg):
     import physics_ddf_pb2
+    import google.protobuf.text_format
+    import ddf.ddf_math_pb2
     if msg.type != physics_ddf_pb2.COLLISION_OBJECT_TYPE_DYNAMIC:
         msg.mass = 0
+
+    # Merge convex shape resource with collision object
+    # NOTE: Special case for tilegrid resources. They are left as is
+    if msg.collision_shape and not msg.collision_shape.endswith('.tilegrid'):
+        p = os.path.join(task.generator.content_root, msg.collision_shape[1:])
+        convex_msg = physics_ddf_pb2.ConvexShape()
+        with open(p, 'rb') as in_f:
+            google.protobuf.text_format.Merge(in_f.read(), convex_msg)
+            shape = msg.embedded_collision_shape.shapes.add()
+            shape.shape_type = convex_msg.shape_type
+            shape.position.x = shape.position.y = shape.position.z = 0
+            shape.rotation.x = shape.rotation.y = shape.rotation.z = 0
+            shape.rotation.w = 1
+            shape.index = len(msg.embedded_collision_shape.data)
+            shape.count = len(convex_msg.data)
+
+            for x in convex_msg.data:
+                msg.embedded_collision_shape.data.append(x)
+
+        msg.collision_shape = ''
+
     msg.collision_shape = msg.collision_shape.replace('.convexshape', '.convexshapec')
     msg.collision_shape = msg.collision_shape.replace('.tilegrid', '.tilegridc')
     return msg
 
-def transform_emitter(msg):
+def transform_emitter(task, msg):
     msg.material = msg.material.replace('.material', '.materialc')
-    msg.texture.name = transform_texture_name(msg.texture.name)
+    msg.texture.name = transform_texture_name(task, msg.texture.name)
     return msg
 
-def transform_gameobject(msg):
+def transform_gameobject(task, msg):
     for c in msg.components:
         c.component = c.component.replace('.camera', '.camerac')
         c.component = c.component.replace('.collectionproxy', '.collectionproxyc')
@@ -54,14 +77,14 @@ def transform_gameobject(msg):
         c.component = c.component.replace('.tilegrid', '.tilegridc')
     return msg
 
-def transform_model(msg):
+def transform_model(task, msg):
     msg.mesh = msg.mesh.replace('.dae', '.meshc')
     msg.material = msg.material.replace('.material', '.materialc')
     for i,n in enumerate(msg.textures):
-        msg.textures[i] = transform_texture_name(msg.textures[i])
+        msg.textures[i] = transform_texture_name(task, msg.textures[i])
     return msg
 
-def transform_gui(msg):
+def transform_gui(task, msg):
     msg.script = msg.script.replace('.gui_script', '.gui_scriptc')
     font_names = set()
     texture_names = set()
@@ -70,7 +93,7 @@ def transform_gui(msg):
         f.font = f.font.replace('.font', '.fontc')
     for t in msg.textures:
         texture_names.add(t.name)
-        t.texture = transform_texture_name(t.texture)
+        t.texture = transform_texture_name(task, t.texture)
     for n in msg.nodes:
         if n.texture:
             if not n.texture in texture_names:
@@ -80,21 +103,21 @@ def transform_gui(msg):
                 raise Exception('Font "%s" not declared in gui-file' % (n.font))
     return msg
 
-def transform_spawnpoint(msg):
+def transform_spawnpoint(task, msg):
     msg.prototype = msg.prototype.replace('.go', '.goc')
     return msg
 
-def transform_render(msg):
+def transform_render(task, msg):
     msg.script = msg.script.replace('.render_script', '.render_scriptc')
     for m in msg.materials:
         m.material = m.material.replace('.material', '.materialc')
     return msg
 
-def transform_sprite(msg):
-    msg.texture = transform_texture_name(msg.texture)
+def transform_sprite(task, msg):
+    msg.texture = transform_texture_name(task, msg.texture)
     return msg
 
-def transform_tilegrid(msg):
+def transform_tilegrid(task, msg):
     msg.tile_set = msg.tile_set + 'c'
     return msg
 
@@ -106,7 +129,7 @@ def write_embedded(task):
         with open(task.inputs[0].srcpath(task.env), 'rb') as in_f:
             google.protobuf.text_format.Merge(in_f.read(), msg)
 
-        msg = transform_gameobject(msg)
+        msg = transform_gameobject(task, msg)
 
         for i, c in enumerate(msg.embedded_components):
             with open(task.outputs[i].bldpath(task.env), 'wb') as out_f:
@@ -147,7 +170,7 @@ def compile_go(task):
             desc.id = c.id
             desc.component = '/' + rel_path_dir + '/' + task.outputs[i+1].name
 
-        msg = transform_gameobject(msg)
+        msg = transform_gameobject(task, msg)
         while len(msg.embedded_components) > 0:
             del(msg.embedded_components[0])
 

@@ -6,7 +6,7 @@ from waf_content import proto_compile_task
 def configure(conf):
     pass
 
-def transform_material(msg):
+def transform_material(task, msg):
     msg.vertex_program = msg.vertex_program.replace('.vp', '.vpc')
     msg.fragment_program = msg.fragment_program.replace('.fp', '.fpc')
     return msg
