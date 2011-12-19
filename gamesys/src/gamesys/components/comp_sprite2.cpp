@@ -266,11 +266,13 @@ namespace dmGameSystem
                 }
                 vertex_index += 4;
 
+                int16_t start_tile = (int16_t)animation_ddf->m_StartTile - 1;
+                int16_t end_tile = (int16_t)animation_ddf->m_EndTile - 1;
                 // Stop once-animation and broadcast animation_done
                 if (animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK2_ONCE_FORWARD
                     || animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK2_ONCE_BACKWARD)
                 {
-                    if (component->m_CurrentTile == animation_ddf->m_EndTile)
+                    if (component->m_CurrentTile == end_tile)
                     {
                         component->m_Playing = 0;
                         if (component->m_ListenerInstance != 0x0)
@@ -314,22 +316,22 @@ namespace dmGameSystem
                         switch (animation_ddf->m_Playback)
                         {
                             case dmGameSystemDDF::PLAYBACK2_ONCE_FORWARD:
-                                if (current_tile != (int16_t)animation_ddf->m_EndTile)
+                                if (current_tile != end_tile)
                                     ++current_tile;
                                 break;
                             case dmGameSystemDDF::PLAYBACK2_ONCE_BACKWARD:
-                                if (current_tile != (int16_t)animation_ddf->m_EndTile)
+                                if (current_tile != end_tile)
                                     --current_tile;
                                 break;
                             case dmGameSystemDDF::PLAYBACK2_LOOP_FORWARD:
-                                if (current_tile == (int16_t)animation_ddf->m_EndTile)
-                                    current_tile = animation_ddf->m_StartTile;
+                                if (current_tile == end_tile)
+                                    current_tile = start_tile;
                                 else
                                     ++current_tile;
                                 break;
                             case dmGameSystemDDF::PLAYBACK2_LOOP_BACKWARD:
-                                if (current_tile == (int16_t)animation_ddf->m_EndTile)
-                                    current_tile = animation_ddf->m_StartTile;
+                                if (current_tile == end_tile)
+                                    current_tile = start_tile;
                                 else
                                     --current_tile;
                                 break;
@@ -348,7 +350,7 @@ namespace dmGameSystem
                             current_tile = 0;
                         component->m_CurrentTile = (uint16_t)current_tile;
                         if (animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK2_LOOP_PINGPONG)
-                            if (current_tile == (int16_t)animation_ddf->m_StartTile || current_tile == (int16_t)animation_ddf->m_EndTile)
+                            if (current_tile == start_tile || current_tile == end_tile)
                                 component->m_PlayBackwards = ~component->m_PlayBackwards;
                     }
                 }
