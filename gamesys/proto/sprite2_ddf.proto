@@ -11,3 +11,52 @@ message Sprite2Desc
     required string tile_set            = 1 [(resource)=true];
     required string default_animation   = 2;
 }
+
+/*# plays a sprite animation
+ * <p>
+ * Post this message to a sprite2-component to make it play an animation from its tile set.
+ * </p>
+ *
+ * @message
+ * @name play_animation2
+ * @param id the id of the animation to play
+ * @examples
+ * <p>
+ * In the examples, it is assumed that the instance of the script has a sprite-component with id "sprite". The sprite itself is assumed to be bound to a tile set with animations "walk" and "jump".
+ * <pre>
+ * msg.post("#sprite", "play_animation2", {id = "jump"})
+ * </pre>
+ * How to sequence two animations together.
+ * <pre>
+ * function init(self)
+ *     -- play jump animation at init
+ *     msg.post("#sprite", "play_animation2", {id = "jump"})
+ * end
+ *
+ * function on_message(self, message_id, message, sender)
+ *     -- check for animation done response
+ *     if message_id == hash("animation_done") then
+ *         -- start the walk animation
+ *         msg.post("#sprite", "play_animation2", {id = "walk"})
+ *     end
+ * end
+ * </pre>
+ */
+message PlayAnimation2
+{
+    required uint64 id = 1;
+}
+
+/*# reports that an animation has completed
+ * This message is sent to the sender of a <code>play_animation</code> message when the animation has completed.
+ * Note that only animations played either forward or backward once ever completes. See <code>play_animation</code>
+ * for more information and examples of how to use this message.
+ *
+ * @message
+ * @name animation_done2
+ * @param current_tile the current tile of the sprite (number)
+ */
+message AnimationDone2
+{
+    required uint32 current_tile = 1;
+}

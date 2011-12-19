@@ -25,3 +25,8 @@ convex_hulls {
   count: 8
   collision_group: ""
 }
+animations {
+  id: "anim"
+  start_tile: 1
+  end_tile: 1
+}

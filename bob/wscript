@@ -15,6 +15,7 @@ def init():
 def set_options(opt):
     # Compatibility with waf_dynamo
     opt.add_option('--skip-tests', action='store_true', default=False, dest='skip_tests', help='skip unit tests')
+    opt.add_option('--eclipse', action='store_true', default=False, dest='eclipse', help='print eclipse friendly command-line')
 
 def configure(conf):
     pass

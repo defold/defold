@@ -468,6 +468,23 @@ INSTANTIATE_TEST_CASE_P(Sprite, ComponentTest, ::testing::ValuesIn(valid_sprite_
 const char* invalid_sprite_gos[] = {"/sprite/invalid_sprite.goc"};
 INSTANTIATE_TEST_CASE_P(Sprite, ComponentFailTest, ::testing::ValuesIn(invalid_sprite_gos));
 
+/* Sprite2 */
+
+const char* valid_sprite2_resources[] = {"/sprite2/valid.sprite2c"};
+INSTANTIATE_TEST_CASE_P(Sprite2, ResourceTest, ::testing::ValuesIn(valid_sprite2_resources));
+
+ResourceFailParams invalid_sprite2_resources[] =
+{
+    {"/sprite2/valid.sprite2c", "/sprite2/invalid_animation.sprite2c"},
+};
+INSTANTIATE_TEST_CASE_P(Sprite2, ResourceFailTest, ::testing::ValuesIn(invalid_sprite2_resources));
+
+const char* valid_sprite2_gos[] = {"/sprite2/valid_sprite2.goc"};
+INSTANTIATE_TEST_CASE_P(Sprite2, ComponentTest, ::testing::ValuesIn(valid_sprite2_gos));
+
+const char* invalid_sprite2_gos[] = {"/sprite2/invalid_sprite2.goc"};
+INSTANTIATE_TEST_CASE_P(Sprite2, ComponentFailTest, ::testing::ValuesIn(invalid_sprite2_gos));
+
 /* TileSet */
 const char* valid_tileset_resources[] = {"/tile/valid.tilesetc"};
 INSTANTIATE_TEST_CASE_P(TileSet, ResourceTest, ::testing::ValuesIn(valid_tileset_resources));
