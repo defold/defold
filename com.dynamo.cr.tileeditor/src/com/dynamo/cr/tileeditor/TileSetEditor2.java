@@ -32,6 +32,7 @@ import org.eclipse.ui.IEditorInput;
 import org.eclipse.ui.IEditorSite;
 import org.eclipse.ui.IFileEditorInput;
 import org.eclipse.ui.ISelectionListener;
+import org.eclipse.ui.ISelectionService;
 import org.eclipse.ui.IWorkbenchPart;
 import org.eclipse.ui.PartInitException;
 import org.eclipse.ui.PlatformUI;
@@ -54,21 +55,28 @@ import com.dynamo.cr.editor.core.inject.LifecycleModule;
 import com.dynamo.cr.editor.ui.AbstractDefoldEditor;
 import com.dynamo.cr.editor.ui.Logger;
 import com.dynamo.cr.properties.IFormPropertySheetPage;
+import com.dynamo.cr.sceneed.Activator;
+import com.dynamo.cr.sceneed.core.CameraController;
 import com.dynamo.cr.sceneed.core.IImageProvider;
 import com.dynamo.cr.sceneed.core.ILoaderContext;
+import com.dynamo.cr.sceneed.core.IManipulatorMode;
+import com.dynamo.cr.sceneed.core.IManipulatorRegistry;
 import com.dynamo.cr.sceneed.core.IModelListener;
 import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
+import com.dynamo.cr.sceneed.core.IRenderView;
 import com.dynamo.cr.sceneed.core.ISceneEditor;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
+import com.dynamo.cr.sceneed.core.ManipulatorController;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.SceneModel;
 import com.dynamo.cr.sceneed.core.ScenePresenter;
 import com.dynamo.cr.sceneed.ui.ISceneOutlinePage;
 import com.dynamo.cr.sceneed.ui.LoaderContext;
 import com.dynamo.cr.sceneed.ui.PresenterContext;
+import com.dynamo.cr.sceneed.ui.RenderView;
 import com.dynamo.cr.sceneed.ui.SceneOutlinePage;
 import com.dynamo.cr.sceneed.ui.ScenePropertySheetPage;
 import com.dynamo.cr.sceneed.ui.preferences.PreferenceConstants;
@@ -94,6 +102,8 @@ public class TileSetEditor2 extends AbstractDefoldEditor implements ISceneEditor
     private ISceneModel sceneModel;
 
     private boolean dirty;
+    private ManipulatorController manipulatorController;
+    private IManipulatorRegistry manipulatorRegistry;
 
     class Module extends AbstractModule {
         @Override
@@ -101,6 +111,7 @@ public class TileSetEditor2 extends AbstractDefoldEditor implements ISceneEditor
             bind(ISceneOutlinePage.class).to(SceneOutlinePage.class).in(Singleton.class);
             bind(IFormPropertySheetPage.class).to(ScenePropertySheetPage.class).in(Singleton.class);
             bind(TileSetRenderer2.class).toInstance(tileSetRenderer);
+            bind(IRenderView.class).to(RenderView.class).in(Singleton.class);
             bind(ISceneView.class).to(TileSetSceneView.class).in(Singleton.class);
             bind(ISceneModel.class).to(SceneModel.class).in(Singleton.class);
             bind(INodeTypeRegistry.class).toInstance(nodeTypeRegistry);
@@ -110,6 +121,13 @@ public class TileSetEditor2 extends AbstractDefoldEditor implements ISceneEditor
             bind(ILoaderContext.class).to(LoaderContext.class).in(Singleton.class);
             bind(IPresenterContext.class).to(PresenterContext.class).in(Singleton.class);
             bind(IImageProvider.class).toInstance(imageProvider);
+
+            bind(CameraController.class).in(Singleton.class);
+
+            bind(ManipulatorController.class).in(Singleton.class);
+            bind(IManipulatorRegistry.class).toInstance(manipulatorRegistry);
+
+            bind(ISelectionService.class).toInstance(getSite().getWorkbenchWindow().getSelectionService());
 
             bind(IOperationHistory.class).toInstance(history);
             bind(IUndoContext.class).toInstance(undoContext);
@@ -140,6 +158,7 @@ public class TileSetEditor2 extends AbstractDefoldEditor implements ISceneEditor
         this.nodeTypeRegistry = com.dynamo.cr.sceneed.Activator.getDefault().getNodeTypeRegistry();
         this.imageProvider = com.dynamo.cr.sceneed.Activator.getDefault();
         this.tileSetRenderer = new TileSetRenderer2();
+        this.manipulatorRegistry = Activator.getDefault().getManipulatorRegistry();
 
         this.module = new LifecycleModule(new Module());
         Injector injector = Guice.createInjector(module);
@@ -153,6 +172,11 @@ public class TileSetEditor2 extends AbstractDefoldEditor implements ISceneEditor
 
         this.outlinePage = injector.getInstance(ISceneOutlinePage.class);
         this.propertySheetPage = injector.getInstance(IFormPropertySheetPage.class);
+
+        this.manipulatorController = injector.getInstance(ManipulatorController.class);
+        IManipulatorMode selectMode = manipulatorRegistry.getMode(Activator.SELECT_MODE_ID);
+        manipulatorController.setManipulatorMode(selectMode);
+        manipulatorController.setEditorPart(this);
 
         this.presenter = injector.getInstance(ISceneView.IPresenter.class);
         this.presenterContext = injector.getInstance(ISceneView.IPresenterContext.class);
