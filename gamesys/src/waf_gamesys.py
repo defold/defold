@@ -72,6 +72,8 @@ def transform_gameobject(task, msg):
         c.component = c.component.replace('.wav', '.wavc')
         c.component = c.component.replace('.spawnpoint', '.spawnpointc')
         c.component = c.component.replace('.light', '.lightc')
+        # Temp rename for sprite2. Otherwise the rule .sprite -> .spritec would replace
+        # Using replace is not entirely correct
         c.component = c.component.replace('.sprite2', '.dummysprite2c')
         c.component = c.component.replace('.sprite', '.spritec')
         c.component = c.component.replace('.dummysprite2c', '.sprite2c')
