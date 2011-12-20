@@ -196,7 +196,6 @@ def build(p, cmd):
         makedirs(p['bld_dir'])
     load_state(p)
     create_tasks(p)
-    scan(p)
     info_lst = []
 
     if cmd == 'build':
@@ -243,13 +242,12 @@ def create_tasks(p):
     for i, tsk in enumerate(p['tasks']):
         tsk['index'] = i
 
-def scan(p):
+def scan_task(p, t):
     deps = set()
-    for t in p['tasks']:
-        s = t['scanner']
-        d = s(p, t)
-        deps = deps.union(set(d))
-        t['dependencies'] = list(deps)
+    s = t['scanner']
+    d = s(p, t)
+    deps = deps.union(set(d))
+    t['dependencies'] = list(deps)
 
 def sha1_file(prj, name):
     state = prj['state']
@@ -305,6 +303,7 @@ def run_tasks(p):
                 # postpone task. dependent input not yet generated
                 continue
 
+            scan_task(p, t)
             task_signature(p, t)
 
             completed_count += 1
@@ -457,10 +456,58 @@ def make_proto_file(module, msg_type, transform):
 def unity_transform(msg): return msg
 
 def make_proto(module, msg_type, transform = unity_transform):
+    def scan_msg(msg):
+        import google.protobuf
+        from google.protobuf.descriptor import FieldDescriptor
+        deps = []
+
+        descriptor = getattr(msg, 'DESCRIPTOR')
+        for field in descriptor.fields:
+            value = getattr(msg, field.name)
+            if field.type == FieldDescriptor.TYPE_MESSAGE:
+                if field.label == FieldDescriptor.LABEL_REPEATED:
+                    for x in value:
+                        scan_msg(x)
+                else:
+                    scan_msg(value)
+            elif is_resource(field):
+
+                if field.label == FieldDescriptor.LABEL_REPEATED:
+                    lst = value
+                else:
+                    lst = [value]
+
+                for x in lst:
+                    if os.path.exists(x[1:]):
+                        deps.append(x[1:])
+        return deps
+
+    def scanner(p, t):
+        # NOTE: The scanner treats all resource as dependences.
+        # The only actual required dependencies are the embedded ones but
+        # better be safe than sorry! :-)
+        deps = []
+        for i in t['inputs']:
+            try:
+                import google.protobuf.text_format
+                mod = __import__(module)
+                # NOTE: We can't use getattr. msg_type could of form "foo.bar"
+                msg = eval('mod.' + msg_type)() # Call constructor on message type
+                with open(i, 'rb') as in_f:
+                    google.protobuf.text_format.Merge(in_f.read(), msg)
+
+                deps += scan_msg(msg)
+
+            except google.protobuf.text_format.ParseError,e:
+                # We ignore parse error as the file will hopefully be changed and recompiled anyway
+                pass
+        return deps
+
     def proto(p, input):
         ext = splitext(input)[1]
         return add_task(p, task(function = make_proto_file(module, msg_type, transform),
                                 name = ext[1:],
+                                scanner = scanner,
                                 inputs = [input],
                                 outputs = [change_ext(p, input, ext + 'c')]))
     return proto

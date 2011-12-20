@@ -88,7 +88,7 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompCollisionObjectCreate(const dmGameObject::ComponentCreateParams& params)
     {
         CollisionObjectResource* co_res = (CollisionObjectResource*)params.m_Resource;
-        if (co_res == 0x0 || co_res->m_ConvexShapeResource == 0x0 || co_res->m_DDF == 0x0)
+        if (co_res == 0x0 || co_res->m_DDF == 0x0)
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         if ((co_res->m_DDF->m_Mass == 0.0f && co_res->m_DDF->m_Type == dmPhysicsDDF::COLLISION_OBJECT_TYPE_DYNAMIC)
             || (co_res->m_DDF->m_Mass > 0.0f && co_res->m_DDF->m_Type != dmPhysicsDDF::COLLISION_OBJECT_TYPE_DYNAMIC))
@@ -198,17 +198,14 @@ namespace dmGameSystem
         else
         {
             dmPhysics::HWorld2D physics_world = world->m_World2D;
-            dmPhysics::HCollisionShape2D shape = 0;
             dmPhysics::HCollisionObject2D collision_object = 0;
             if (resource->m_TileGrid)
             {
-                shape = resource->m_TileGridResource->m_GridShape;
+                dmPhysics::HCollisionShape2D shape = resource->m_TileGridResource->m_GridShape;
                 collision_object = dmPhysics::NewCollisionObject2D(physics_world, data, &shape, 1);
             }
             else
             {
-                shape = resource->m_ConvexShapeResource->m_Shape2D;
-
                 collision_object = dmPhysics::NewCollisionObject2D(physics_world, data,
                                                                    resource->m_Shapes2D,
                                                                    resource->m_ShapeTranslation,
@@ -223,6 +220,7 @@ namespace dmGameSystem
                 component->m_Object2D = collision_object;
                 if (component->m_Resource->m_TileGrid)
                 {
+                    dmPhysics::HCollisionShape2D shape = resource->m_TileGridResource->m_GridShape;
                     TileGridResource* tile_grid_resource = component->m_Resource->m_TileGridResource;
                     dmGameSystemDDF::TileGrid* tile_grid = tile_grid_resource->m_TileGrid;
                     TileSetResource* tile_set_resource = tile_grid_resource->m_TileSet;

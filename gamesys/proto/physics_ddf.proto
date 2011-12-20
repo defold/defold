@@ -8,6 +8,7 @@ option java_outer_classname = "Physics";
 
 message ConvexShape
 {
+    /* NOTE: These values must match CollisionShape.Type below */
     enum Type
     {
         TYPE_SPHERE = 0 [(displayName) = "Sphere"];
@@ -36,6 +37,7 @@ message ConvexShape
 
 message CollisionShape
 {
+    /* NOTE: These values must match ConvexShape.Type above */
     enum Type
     {
         TYPE_SPHERE = 0;
@@ -82,7 +84,7 @@ enum CollisionObjectType
 
 message CollisionObjectDesc
 {
-    required string                 collision_shape = 1 [(resource)=true];
+    optional string                 collision_shape = 1 [(resource)=true];
     required CollisionObjectType    type            = 2;
     required float                  mass            = 3;
     required float                  friction        = 4;

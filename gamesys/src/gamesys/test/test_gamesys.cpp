@@ -190,18 +190,14 @@ INSTANTIATE_TEST_CASE_P(CollectionProxy, ComponentTest, ::testing::ValuesIn(vali
 
 const char* valid_collision_object_resources[] = {"/collision_object/valid.collisionobjectc",
                                                   "/collision_object/valid_tilegrid.collisionobjectc",
-                                                  "/collision_object/embedded_shapes.collisionobjectc",
-                                                  // NOTE: Embedded shapes with index out of range error
-                                                  // loads successfully but with a error message
-                                                  // This can be discussed. This behavior is similar
-                                                  // to how collision groups overflow errors are handled.
-                                                  "/collision_object/invalid_embedded_shapes.collisionobjectc" };
+                                                  "/collision_object/embedded_shapes.collisionobjectc" };
+
 INSTANTIATE_TEST_CASE_P(CollisionObject, ResourceTest, ::testing::ValuesIn(valid_collision_object_resources));
 
 ResourceFailParams invalid_collision_object_resources[] =
 {
     {"/collision_object/valid.collisionobjectc", "/collision_object/missing.collisionobjectc"},
-    {"/collision_object/valid.collisionobjectc", "/collision_object/missing.collisionobjectc"},
+    {"/collision_object/embedded_shapes.collisionobjectc", "/collision_object/invalid_embedded_shapes.collisionobjectc"},
 };
 INSTANTIATE_TEST_CASE_P(CollisionObject, ResourceFailTest, ::testing::ValuesIn(invalid_collision_object_resources));
 

@@ -5,6 +5,11 @@
 #include "gamesys.h"
 #include "../proto/physics_ddf.h"
 
+/*
+ * NOTE: Convex-shape is obsolete and the code below is not currently in use
+ * We currently embed external convex shape resources into the collisionshape at compile-time
+ */
+
 namespace dmGameSystem
 {
     bool AcquireResources(dmResource::HFactory factory,

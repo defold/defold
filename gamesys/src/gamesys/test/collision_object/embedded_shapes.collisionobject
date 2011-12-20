@@ -1,4 +1,3 @@
-collision_shape: "/convex_shape/box.convexshape"
 type: COLLISION_OBJECT_TYPE_DYNAMIC
 mass: 1.0
 friction: 0.0
@@ -38,9 +37,9 @@ embedded_collision_shape {
     index: 1
     count: 3
   }
-  # Too few values here
   data: 8.0
   data: 10.0
   data: 20.0
+  data: 30.0
 }
 
