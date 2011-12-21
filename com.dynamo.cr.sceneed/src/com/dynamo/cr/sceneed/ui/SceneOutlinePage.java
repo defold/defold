@@ -220,6 +220,16 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
 
         @Override
         public StyledString getStyledText(Object element) {
+            if (element instanceof Node) {
+                Node node = (Node)element;
+                if (!node.isEditable()) {
+                    // TODO not the best way to use the qualifier style, but much more work to roll a custom
+                    // From javadoc:
+                    // "Identifier for the color used to show extra informations in labels, as a qualified name.
+                    // For example in 'Foo.txt - myproject/bar', the qualifier is '- myproject/bar'."
+                    return new StyledString(getText(node), StyledString.QUALIFIER_STYLER);
+                }
+            }
             return new StyledString(getText(element));
         }
 

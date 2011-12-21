@@ -143,16 +143,30 @@ public class BeanPropertyAccessor implements IPropertyAccessor<Object, IProperty
     @Override
     public boolean isEditable(Object obj, String property,
             IPropertyObjectWorld world) {
-        init(obj, property);
-        if (isEditable != null) {
+        // First check if the object is editable at all
+        boolean editable = true;
+        try {
+            Method method = obj.getClass().getMethod("isEditable");
             try {
-                return (Boolean) isEditable.invoke(obj);
+                editable = (Boolean) method.invoke(obj);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
-        } else {
-            return true;
+        } catch (NoSuchMethodException e1) {
+            editable = true;
         }
+        // If the object is editable, check the property in question
+        if (editable) {
+            init(obj, property);
+            if (isEditable != null) {
+                try {
+                    return (Boolean) isEditable.invoke(obj);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        }
+        return editable;
     }
 
     @Override

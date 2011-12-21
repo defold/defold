@@ -95,7 +95,7 @@
          </activeWhen>
       </handler>
       <handler
-            class="com.dynamo.cr.go.ui.handlers.EnterRefComponentHandler"
+            class="com.dynamo.cr.go.ui.handlers.OpenReferenceHandler"
             commandId="com.dynamo.cr.sceneed.ui.commands.enter">
          <activeWhen>
             <with
@@ -104,11 +104,15 @@
                   <count
                         value="1">
                   </count>
-                  <iterate
-                        operator="or">
-                     <instanceof
-                           value="com.dynamo.cr.go.core.RefComponentNode">
-                     </instanceof>
+                  <iterate>
+                     <or>
+                        <instanceof
+                              value="com.dynamo.cr.go.core.RefComponentNode">
+                        </instanceof>
+                        <instanceof
+                              value="com.dynamo.cr.go.core.ComponentTypeNode">
+                        </instanceof>
+                     </or>
                   </iterate>
                </and>
             </with>

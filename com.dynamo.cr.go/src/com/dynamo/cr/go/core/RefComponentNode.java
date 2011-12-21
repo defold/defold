@@ -26,6 +26,8 @@ public class RefComponentNode extends ComponentNode {
         if (this.type != null) {
             this.type.setModel(this.getModel());
         }
+        this.type.setFlags(Flags.LOCKED);
+        addChild(this.type);
     }
 
     public String getComponent() {
@@ -91,14 +93,19 @@ public class RefComponentNode extends ComponentNode {
         ISceneModel model = getModel();
         if (model != null) {
             try {
+                clearChildren();
                 this.type = (ComponentTypeNode)model.loadNode(this.component);
                 if (this.type != null) {
                     this.type.setModel(model);
+                    this.type.setPath(this.component);
+                    addChild(this.type);
                 }
             } catch (Throwable e) {
                 // no reason to handle exception since having a null type is invalid state, will be caught in validateComponent below
             }
             return true;
+        } else if (this.type != null) {
+            this.type.setPath(this.component);
         }
         return false;
     }

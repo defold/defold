@@ -33,6 +33,7 @@ public abstract class Node implements IAdaptable {
 
     public enum Flags {
         TRANSFORMABLE,
+        LOCKED,
     }
 
     private ISceneModel model;
@@ -75,7 +76,7 @@ public abstract class Node implements IAdaptable {
         return flags.contains(flag);
     }
 
-    protected void setFlags(Flags flag) {
+    public void setFlags(Flags flag) {
         flags.add(flag);
     }
 
@@ -85,6 +86,10 @@ public abstract class Node implements IAdaptable {
 
     public final boolean isEulerVisible() {
         return flags.contains(Flags.TRANSFORMABLE);
+    }
+
+    public final boolean isEditable() {
+        return !flags.contains(Flags.LOCKED);
     }
 
     public void getAABB(AABB aabb) {
