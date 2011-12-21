@@ -1,5 +1,9 @@
 package com.dynamo.cr.ddfeditor.scene;
 
+import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Status;
+
+import com.dynamo.cr.ddfeditor.Activator;
 import com.dynamo.cr.go.core.ComponentTypeNode;
 import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
@@ -32,6 +36,13 @@ public class SpriteNode extends ComponentTypeNode {
 
     public SpriteNode() {
         super();
+    }
+
+    private final IStatus deprecatedStatus = new Status(IStatus.WARNING, Activator.PLUGIN_ID, ".sprite is deprecated. Use .sprite2 instead.");
+
+    @Override
+    protected IStatus validateNode() {
+        return deprecatedStatus;
     }
 
     public String getTexture() {
