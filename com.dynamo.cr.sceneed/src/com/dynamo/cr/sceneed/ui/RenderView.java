@@ -393,7 +393,9 @@ IRenderView {
             SelectResult result = endSelect(gl);
 
             List<RenderData<? extends Node>> renderDataList = renderContext.getRenderData();
-            for (Pair pair : result.selected) {
+            if (result.selected.size() > 0) {
+                // Select closest Node as we currently on have support for single select
+                Pair pair = result.selected.get(0);
                 Node node = renderDataList.get(pair.index).getNode();
                 toSelect.add(node);
             }
