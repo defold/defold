@@ -37,6 +37,15 @@
             </iterate>
          </with>
       </definition>
+      <definition
+            id="com.dynamo.cr.go.core.definitions.gameObjectEditorActive">
+         <with
+               variable="activeEditorId">
+            <equals
+                  value="com.dynamo.cr.go.ui.goEditor">
+            </equals>
+         </with>
+      </definition>
    </extension>
    <extension
          point="com.dynamo.cr.resourcetypes">
@@ -166,10 +175,7 @@
                   checkEnabled="false">
                <or>
                   <reference
-                        definitionId="com.dynamo.cr.go.core.definitions.gameObjectSelected">
-                  </reference>
-                  <reference
-                        definitionId="com.dynamo.cr.go.core.definitions.componentSelected">
+                        definitionId="com.dynamo.cr.go.core.definitions.gameObjectEditorActive">
                   </reference>
                </or>
             </visibleWhen>
