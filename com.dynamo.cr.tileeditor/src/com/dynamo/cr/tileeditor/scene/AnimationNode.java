@@ -70,7 +70,7 @@ public class AnimationNode extends Node {
         TileSetNode tileSet = getTileSetNode();
         if (tileSet != null) {
             int tileCount = tileSet.calculateTileCount();
-            if (this.startTile >= tileCount) {
+            if (this.startTile > tileCount) {
                 return new Status(IStatus.ERROR, Activator.PLUGIN_ID, NLS.bind(Messages.AnimationNode_startTile_INVALID, tileCount));
             }
         }
@@ -96,7 +96,7 @@ public class AnimationNode extends Node {
         TileSetNode tileSet = getTileSetNode();
         if (tileSet != null) {
             int tileCount = tileSet.calculateTileCount();
-            if (this.endTile >= tileCount) {
+            if (this.endTile > tileCount) {
                 return new Status(IStatus.ERROR, Activator.PLUGIN_ID, NLS.bind(Messages.AnimationNode_endTile_INVALID, tileCount));
             }
         }
