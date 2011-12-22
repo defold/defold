@@ -31,6 +31,7 @@ import org.eclipse.ui.IActionBars;
 import org.eclipse.ui.IEditorInput;
 import org.eclipse.ui.IEditorSite;
 import org.eclipse.ui.IFileEditorInput;
+import org.eclipse.ui.IPartListener;
 import org.eclipse.ui.ISelectionListener;
 import org.eclipse.ui.ISelectionService;
 import org.eclipse.ui.IWorkbenchPart;
@@ -78,7 +79,7 @@ import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
 
-public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, ISelectionListener, IPropertyChangeListener {
+public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, ISelectionListener, IPropertyChangeListener, IPartListener {
 
     private ISceneOutlinePage outlinePage;
     private IFormPropertySheetPage propertySheetPage;
@@ -143,6 +144,7 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
             throws PartInitException {
 
         super.init(site, input);
+        getEditorSite().getPage().addPartListener(this);
 
         IFileEditorInput fileEditorInput = (IFileEditorInput) input;
         final IFile file = fileEditorInput.getFile();
@@ -219,21 +221,23 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
     @Override
     public void dispose() {
         super.dispose();
-        if (this.renderView != null) {
-            this.renderView.activateGLContext();
-            ((SceneModel)this.sceneModel).dispose();
-            this.renderView.releaseGLContext();
-            this.renderView.dispose();
-        } else {
-            // Good luck! :)
-            // Will *probably* work since no rendering took place and there should be no lingering graphics resources
-            ((SceneModel)this.sceneModel).dispose();
-        }
+        // NOTE: All OpenGL related stuff (including model and nodes)
+        // is disposed in partClosed instead.
+        // At this point the canvas is disposed and the context
+        // activation required a canvas.setCurrent(). context.makeCurrent()
+        // wasn't sufficient. The effect was that the context wasn't activated
+        // when the editor was closed while in inactive state, eg
+        // press the close button without activation. The result
+        // was that texture resource in the active editor was disposed
+        // instead of textures in "this" editor/context. OpenGL handles
+        // are just numbers.
+
         module.close();
         IPreferenceStore store = Activator.getDefault().getPreferenceStore();
         store.removePropertyChangeListener(this);
 
         getSite().getPage().removeSelectionListener(this);
+        getSite().getPage().removePartListener(this);
     }
 
     @Override
@@ -414,5 +418,34 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
             }
         }
     }
+
+    @Override
+    public void partActivated(IWorkbenchPart part) {}
+
+    @Override
+    public void partBroughtToTop(IWorkbenchPart part) {}
+
+    @Override
+    public void partClosed(IWorkbenchPart part) {
+        // dispose() above why we does disposal here
+        if (part == this) {
+            if (this.renderView != null) {
+                this.renderView.activateGLContext();
+                ((SceneModel)this.sceneModel).dispose();
+                this.renderView.releaseGLContext();
+                this.renderView.dispose();
+            } else {
+                // Good luck! :)
+                // Will *probably* work since no rendering took place and there should be no lingering graphics resources
+                ((SceneModel)this.sceneModel).dispose();
+            }
+        }
+    }
+
+    @Override
+    public void partDeactivated(IWorkbenchPart part) {}
+
+    @Override
+    public void partOpened(IWorkbenchPart part) {}
 
 }

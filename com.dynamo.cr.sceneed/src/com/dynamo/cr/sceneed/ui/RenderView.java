@@ -41,7 +41,6 @@ import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
 import com.dynamo.cr.sceneed.core.IRenderView;
 import com.dynamo.cr.sceneed.core.IRenderViewProvider;
-import com.dynamo.cr.sceneed.core.Manipulator;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.RenderContext;
 import com.dynamo.cr.sceneed.core.RenderContext.Pass;
@@ -641,6 +640,7 @@ IRenderView {
 
     @Override
     public void activateGLContext() {
+        this.canvas.setCurrent();
         this.context.makeCurrent();
     }
 
