@@ -1093,6 +1093,7 @@
             id="com.dynamo.cr.tileeditor.scene.tileGridNode"
             loader="com.dynamo.cr.tileeditor.scene.TileGridLoader"
             node="com.dynamo.cr.tileeditor.scene.TileGridNode"
+            renderer="com.dynamo.cr.tileeditor.scene.TileGridRenderer"
             resource-type="com.dynamo.cr.tileeditor.resourcetypes.TileGrid">
       </node-type>
       <node-type

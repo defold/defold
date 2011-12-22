@@ -12,6 +12,7 @@ import com.dynamo.cr.go.core.ComponentTypeNode;
 import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Resource;
+import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.tileeditor.Activator;
@@ -198,6 +199,11 @@ public class Sprite2Node extends ComponentTypeNode {
         v.put(u1); v.put(v0); v.put(x1); v.put(y1); v.put(z);
         v.put(u1); v.put(v1); v.put(x1); v.put(y0); v.put(z);
         v.flip();
+
+        AABB aabb = new AABB();
+        aabb.union(x0, y0, z);
+        aabb.union(x1, y1, z);
+        setAABB(aabb);
     }
 
     private static TileSetUtil.Metrics calculateMetrics(TileSetNode node) {

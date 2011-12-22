@@ -4,7 +4,7 @@ import java.nio.FloatBuffer;
 import java.util.EnumSet;
 
 import javax.media.opengl.GL;
-import javax.vecmath.Vector3d;
+import javax.vecmath.Point3d;
 
 import com.dynamo.cr.sceneed.core.INodeRenderer;
 import com.dynamo.cr.sceneed.core.RenderContext;
@@ -22,7 +22,7 @@ public class Sprite2Renderer implements INodeRenderer<Sprite2Node> {
         if (passes.contains(renderContext.getPass())) {
             TileSetNode tileSet = node.getTileSetNode();
             if (tileSet != null && tileSet.getTextureHandle().getTexture() != null && node.getVertexData() != null) {
-                renderContext.add(this, node, new Vector3d(), null);
+                renderContext.add(this, node, new Point3d(), null);
             }
         }
     }

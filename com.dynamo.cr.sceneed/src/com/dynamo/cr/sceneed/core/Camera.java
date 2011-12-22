@@ -258,7 +258,7 @@ public class Camera {
         ret[2] = (1 + in.z) / 2;
 
         // Transform from "OpenGL" to "screen" y
-        ret[1] = (viewport[3] - viewport[0]) - ret[1] - 1;
+        ret[1] = (viewport[3] - viewport[1]) - ret[1] - 1;
 
         return new Point3d(ret);
     }

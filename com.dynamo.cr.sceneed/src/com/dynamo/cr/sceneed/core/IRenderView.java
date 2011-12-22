@@ -25,6 +25,7 @@ public interface IRenderView  {
     void refresh();
     void viewToWorld(int x, int y, Vector4d clickPos, Vector4d clickDir);
     double[] worldToView(Point3d point);
+    Camera getCamera();
     void setCamera(Camera camera);
     Matrix4d getViewTransform();
 

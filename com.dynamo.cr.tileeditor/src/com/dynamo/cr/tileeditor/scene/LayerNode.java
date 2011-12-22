@@ -25,7 +25,7 @@ public class LayerNode extends Node {
     @Property
     private boolean visible = true;
 
-    private Map<Long, Integer> tiles = new HashMap<Long, Integer>();
+    private Map<Long, Integer> cells = new HashMap<Long, Integer>();
 
     public String getId() {
         return this.id;
@@ -51,12 +51,12 @@ public class LayerNode extends Node {
         this.visible = visible;
     }
 
-    public Map<Long, Integer> getTiles() {
-        return Collections.unmodifiableMap(this.tiles);
+    public Map<Long, Integer> getCells() {
+        return Collections.unmodifiableMap(this.cells);
     }
 
-    public void setTiles(Map<Long, Integer> tiles) {
-        this.tiles = tiles;
+    public void setCells(Map<Long, Integer> cells) {
+        this.cells = cells;
     }
 
     @Override

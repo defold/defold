@@ -42,7 +42,7 @@ public class TileGridLoader implements INodeLoader<TileGridNode> {
                 TileCell ddfCell = ddfLayer.getCell(j);
                 tiles.put(LayerNode.toCellIndex(ddfCell.getX(), ddfCell.getY()), ddfCell.getTile());
             }
-            layer.setTiles(tiles);
+            layer.setCells(tiles);
             node.addLayer(layer);
         }
         return node;

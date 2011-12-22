@@ -1,7 +1,7 @@
 package com.dynamo.cr.ddfeditor.scene;
 
 import javax.media.opengl.GL;
-import javax.vecmath.Vector3d;
+import javax.vecmath.Point3d;
 
 import com.dynamo.cr.sceneed.core.INodeRenderer;
 import com.dynamo.cr.sceneed.core.RenderContext;
@@ -17,7 +17,7 @@ public class BoxCollisionShapeRenderer extends CollisionShapeRenderer implements
     @Override
     public void setup(RenderContext renderContext, BoxCollisionShapeNode node) {
         if (passes.contains(renderContext.getPass())) {
-            renderContext.add(this, node, new Vector3d(), null);
+            renderContext.add(this, node, new Point3d(), null);
         }
     }
 

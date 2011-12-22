@@ -5,7 +5,7 @@ import java.util.List;
 
 import javax.media.opengl.GL;
 import javax.media.opengl.glu.GLU;
-import javax.vecmath.Vector3d;
+import javax.vecmath.Point3d;
 
 import com.dynamo.cr.sceneed.core.INodeRenderer;
 import com.dynamo.cr.sceneed.core.RenderContext;
@@ -28,7 +28,7 @@ public class CollisionObjectRenderer implements INodeRenderer<CollisionObjectNod
         // Currently we issue only outline, transparent and selection pass
         // Time will tell if the opaque pass will be used etc
         if (passes.contains(renderContext.getPass()) && node.getCollisionShapeNode() != null) {
-            renderContext.add(this, node, new Vector3d(), null);
+            renderContext.add(this, node, new Point3d(), null);
         }
     }
 

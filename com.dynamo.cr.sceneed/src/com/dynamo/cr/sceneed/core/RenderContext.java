@@ -9,7 +9,8 @@ import java.util.Set;
 
 import javax.media.opengl.GL;
 import javax.media.opengl.glu.GLU;
-import javax.vecmath.Vector3d;
+import javax.vecmath.Matrix4d;
+import javax.vecmath.Point3d;
 
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.IStructuredSelection;
@@ -76,7 +77,7 @@ public class RenderContext {
         return passes.contains(pass);
     }
 
-    public <T extends Node> void add(INodeRenderer<T> nodeRenderer, T node, Vector3d position, Object userData) {
+    public <T extends Node> void add(INodeRenderer<T> nodeRenderer, T node, Point3d position, Object userData) {
         renderDataList.add(new RenderData<T>(pass, nodeRenderer, node, position, userData));
     }
 
@@ -85,8 +86,11 @@ public class RenderContext {
     }
 
     public void sort() {
+        Camera camera = this.renderView.getCamera();
+        Matrix4d m = new Matrix4d();
+        Point3d p = new Point3d();
         for (RenderData<? extends Node> renderData : renderDataList) {
-            renderData.calculateKey();
+            renderData.calculateKey(camera, m, p);
         }
 
         Collections.sort(renderDataList);

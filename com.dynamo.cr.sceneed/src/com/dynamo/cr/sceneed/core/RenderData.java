@@ -1,6 +1,7 @@
 package com.dynamo.cr.sceneed.core;
 
-import javax.vecmath.Vector3d;
+import javax.vecmath.Matrix4d;
+import javax.vecmath.Point3d;
 
 import com.dynamo.cr.sceneed.core.RenderContext.Pass;
 
@@ -9,8 +10,7 @@ public class RenderData<T extends Node> implements Comparable<RenderData<T>> {
     private Pass pass;
     private INodeRenderer<T> nodeRenderer;
     private T node;
-    @SuppressWarnings("unused")
-    private Vector3d position;
+    private Point3d position;
     private Object userData;
     private long key;
 
@@ -18,7 +18,7 @@ public class RenderData<T extends Node> implements Comparable<RenderData<T>> {
     private final static long PASS_SHIFT = DISTANCE_SHIFT + 32;
 
     public RenderData(Pass pass, INodeRenderer<T> nodeRenderer, T node,
-            Vector3d position, Object userData) {
+            Point3d position, Object userData) {
         this.pass = pass;
         this.nodeRenderer = nodeRenderer;
         this.node = node;
@@ -46,10 +46,17 @@ public class RenderData<T extends Node> implements Comparable<RenderData<T>> {
         return key;
     }
 
-    public void calculateKey() {
-        // TODO: Transform position with "this" transform when available
-        // and calculate distance from eye
-        long distance = 0;
+    public void calculateKey(Camera camera, Matrix4d m, Point3d p) {
+        p.set(this.position);
+        this.node.getWorldTransform(m);
+        // world space
+        m.transform(p);
+        // device space
+        p = camera.project(p.getX(), p.getY(), p.getZ());
+        // transform z (0,1) => (1,0) for back-to-front
+        double z = 1.0 - p.getZ();
+        // scale z (1,0) to int-space
+        long distance = (long)(z * Integer.MAX_VALUE);
         key = (distance << DISTANCE_SHIFT)
                 | (((long) pass.ordinal()) << PASS_SHIFT);
     }

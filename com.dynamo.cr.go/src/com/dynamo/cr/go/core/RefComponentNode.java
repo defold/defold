@@ -52,7 +52,7 @@ public class RefComponentNode extends ComponentNode {
     }
 
     public IStatus validateComponent() {
-        if (this.component != null && !this.component.isEmpty()) {
+        if (getModel() != null && this.component != null && !this.component.isEmpty()) {
             if (this.type != null) {
                 IStatus status = this.type.validate();
                 if (!status.isOK()) {
