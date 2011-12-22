@@ -71,4 +71,9 @@ public class RenderData<T extends Node> implements Comparable<RenderData<T>> {
             return -1;
     }
 
+    @Override
+    public String toString() {
+        return String.format("RenderData(%s, %d)", this.node, this.key);
+    }
+
 }

@@ -41,6 +41,7 @@ import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
 import com.dynamo.cr.sceneed.core.IRenderView;
 import com.dynamo.cr.sceneed.core.IRenderViewProvider;
+import com.dynamo.cr.sceneed.core.Manipulator;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.RenderContext;
 import com.dynamo.cr.sceneed.core.RenderContext.Pass;
@@ -378,6 +379,8 @@ IRenderView {
      * @return list of selected nodes
      */
     private List<Node> rectangleSelect(int x, int y, int width, int height) {
+        // The name is currently somewhat misleading. The method
+        // is currently only used for picking single nodes
         ArrayList<Node> toSelect = new ArrayList<Node>(32);
 
         if (width > 0 && height > 0) {
@@ -393,10 +396,21 @@ IRenderView {
             SelectResult result = endSelect(gl);
 
             List<RenderData<? extends Node>> renderDataList = renderContext.getRenderData();
-            if (result.selected.size() > 0) {
+
+            // The selection result is sorted according to z
+            // We want to use the draw-order instead that is a function of
+            // pass, z among other such that eg manipulators get higher priority than regular nodes
+            List<RenderData<? extends Node>> drawOrderSorted = new ArrayList<RenderData<? extends Node>>();
+            for (Pair pair : result.selected) {
+                RenderData<? extends Node> renderData = renderDataList.get(pair.index);
+                drawOrderSorted.add(renderData);
+            }
+            Collections.sort(drawOrderSorted);
+            Collections.reverse(drawOrderSorted);
+
+            if (drawOrderSorted.size() > 0) {
                 // Select closest Node as we currently on have support for single select
-                Pair pair = result.selected.get(0);
-                Node node = renderDataList.get(pair.index).getNode();
+                Node node = drawOrderSorted.get(0).getNode();
                 toSelect.add(node);
             }
         }
