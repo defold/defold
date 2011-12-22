@@ -662,6 +662,12 @@
             renderer="com.dynamo.cr.ddfeditor.scene.CapsuleCollisionShapeRenderer">
       </node-type>
       <node-type
+            id="com.dynamo.cr.ddfeditor.scene.soundNode"
+            loader="com.dynamo.cr.ddfeditor.scene.SoundLoader"
+            node="com.dynamo.cr.ddfeditor.scene.SoundNode"
+            resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Sound">
+      </node-type>
+      <node-type
             id="com.dynamo.cr.ddfeditor.manipulators.sphereRadiusManipulator"
             node="com.dynamo.cr.ddfeditor.manipulators.SphereRadiusManipulator">
       </node-type>

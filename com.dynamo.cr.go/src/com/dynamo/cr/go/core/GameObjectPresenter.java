@@ -72,6 +72,7 @@ public class GameObjectPresenter implements ISceneView.INodePresenter<GameObject
                 child = (ComponentTypeNode)loaderContext.loadNode(path);
             } catch (Exception e) {
                 presenterContext.logException(e);
+                return;
             }
             if (child != null) {
                 RefComponentNode component = new RefComponentNode(child);
