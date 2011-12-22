@@ -27,7 +27,8 @@ public class CollisionObjectRenderer implements INodeRenderer<CollisionObjectNod
         // NOTE: passes.contains(.) is just an example on how it could work
         // Currently we issue only outline, transparent and selection pass
         // Time will tell if the opaque pass will be used etc
-        if (passes.contains(renderContext.getPass()) && node.getCollisionShapeNode() != null) {
+        // TODO physical tile grids are currently not rendered, as the last term in the if below takes care of
+        if (passes.contains(renderContext.getPass()) && node.getCollisionShapeNode() != null && node.getCollisionShapeNode() instanceof ConvexShapeNode) {
             renderContext.add(this, node, new Point3d(), null);
         }
     }
