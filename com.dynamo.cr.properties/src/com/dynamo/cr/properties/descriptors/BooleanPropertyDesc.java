@@ -41,6 +41,8 @@ public class BooleanPropertyDesc<T, U extends IPropertyObjectWorld> extends Prop
 
         @Override
         public void refresh() {
+            boolean editable = models[0].isPropertyEditable(getId());
+            getControl().setEnabled(editable);
             Boolean firstValue = (Boolean) models[0].getPropertyValue(getId());
             for (int i = 1; i < models.length; ++i) {
                 Boolean value = (Boolean) models[i].getPropertyValue(getId());
