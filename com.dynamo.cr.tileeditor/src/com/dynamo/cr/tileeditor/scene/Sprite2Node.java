@@ -111,15 +111,17 @@ public class Sprite2Node extends ComponentTypeNode {
     @Override
     public boolean handleReload(IFile file) {
         boolean reloaded = false;
-        IFile tileSetFile = getModel().getFile(this.tileSet);
-        if (tileSetFile.exists() && tileSetFile.equals(file)) {
-            if (reloadTileSet()) {
-                reloaded = true;
+        if (!this.tileSet.isEmpty()) {
+            IFile tileSetFile = getModel().getFile(this.tileSet);
+            if (tileSetFile.exists() && tileSetFile.equals(file)) {
+                if (reloadTileSet()) {
+                    reloaded = true;
+                }
             }
-        }
-        if (this.tileSetNode != null) {
-            if (this.tileSetNode.handleReload(file)) {
-                reloaded = true;
+            if (this.tileSetNode != null) {
+                if (this.tileSetNode.handleReload(file)) {
+                    reloaded = true;
+                }
             }
         }
         return reloaded;
