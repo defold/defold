@@ -24,20 +24,20 @@ message Sprite2Desc
  * <p>
  * In the examples, it is assumed that the instance of the script has a sprite-component with id "sprite". The sprite itself is assumed to be bound to a tile set with animations "walk" and "jump".
  * <pre>
- * msg.post("#sprite", "play_animation2", {id = "jump"})
+ * msg.post("#sprite", "play_animation2", {id = hash("jump")})
  * </pre>
  * How to sequence two animations together.
  * <pre>
  * function init(self)
  *     -- play jump animation at init
- *     msg.post("#sprite", "play_animation2", {id = "jump"})
+ *     msg.post("#sprite", "play_animation2", {id = hash("jump")})
  * end
  *
  * function on_message(self, message_id, message, sender)
  *     -- check for animation done response
  *     if message_id == hash("animation_done") then
  *         -- start the walk animation
- *         msg.post("#sprite", "play_animation2", {id = "walk"})
+ *         msg.post("#sprite", "play_animation2", {id = hash("walk")})
  *     end
  * end
  * </pre>

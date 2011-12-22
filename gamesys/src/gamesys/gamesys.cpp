@@ -46,6 +46,7 @@
 #include "camera_ddf.h"
 #include "physics_ddf.h"
 #include "tile_ddf.h"
+#include "sprite2_ddf.h"
 
 namespace dmGameSystem
 {
@@ -72,6 +73,8 @@ namespace dmGameSystem
         dmScript::RegisterDDFType(script_context, dmGameSystemDDF::SetTimeStep::m_DDFDescriptor);
         dmScript::RegisterDDFType(script_context, dmGameSystemDDF::PlayAnimation::m_DDFDescriptor);
         dmScript::RegisterDDFType(script_context, dmGameSystemDDF::AnimationDone::m_DDFDescriptor);
+        dmScript::RegisterDDFType(script_context, dmGameSystemDDF::PlayAnimation2::m_DDFDescriptor);
+        dmScript::RegisterDDFType(script_context, dmGameSystemDDF::AnimationDone2::m_DDFDescriptor);
         dmScript::RegisterDDFType(script_context, dmGameSystemDDF::PlaySound::m_DDFDescriptor);
         dmScript::RegisterDDFType(script_context, dmGameSystemDDF::SetTile::m_DDFDescriptor);
     }
