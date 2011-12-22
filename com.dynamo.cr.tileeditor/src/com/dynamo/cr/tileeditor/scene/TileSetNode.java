@@ -254,7 +254,7 @@ public class TileSetNode extends Node {
         this.animationsGroup.removeNode(animation);
     }
 
-    private void sortAnimations() {
+    public void sortAnimations() {
         this.animationsGroup.sortNodes(new Comparator<Node>() {
             @Override
             public int compare(Node o1, Node o2) {
