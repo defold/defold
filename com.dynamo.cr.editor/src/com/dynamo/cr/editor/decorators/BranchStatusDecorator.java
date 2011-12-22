@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Vector;
 
 import org.eclipse.core.resources.IFolder;
+import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.IResource;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
@@ -113,7 +114,14 @@ public class BranchStatusDecorator implements ILightweightLabelDecorator, IBranc
 
     @Override
     public void branchStatusChanged(BranchStatusChangedEvent event) {
-        IFolder contentRoot = EditorUtil.getContentRoot(Activator.getDefault().getProject());
+        IProject project = Activator.getDefault().getProject();
+        // TODO: Is it possible to avoid this fix
+        // project can be null while switching branches.
+        // Should have a more well defined semantics
+        if (project == null)
+            return;
+
+        IFolder contentRoot = EditorUtil.getContentRoot(project);
 
         BranchStatus branchStatus = event.getBranchStatus();
         List<BranchStatus.Status> fileStatusList = branchStatus.getFileStatusList();
