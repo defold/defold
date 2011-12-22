@@ -1,18 +1,24 @@
 package com.dynamo.cr.editor.dialogs;
 
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 
 import org.eclipse.core.commands.Command;
 import org.eclipse.core.commands.IParameter;
 import org.eclipse.core.commands.Parameterization;
 import org.eclipse.core.commands.ParameterizedCommand;
+import org.eclipse.core.resources.IResource;
+import org.eclipse.core.resources.ResourcesPlugin;
+import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.jface.dialogs.DialogPage;
 import org.eclipse.jface.dialogs.IDialogConstants;
 import org.eclipse.jface.dialogs.ProgressIndicator;
 import org.eclipse.jface.dialogs.TitleAreaDialog;
+import org.eclipse.jface.operation.IRunnableWithProgress;
 import org.eclipse.jface.resource.ImageRegistry;
 import org.eclipse.jface.viewers.ArrayContentProvider;
 import org.eclipse.jface.viewers.ColumnLabelProvider;
@@ -55,6 +61,7 @@ import org.eclipse.ui.console.IConsoleManager;
 import org.eclipse.ui.console.MessageConsole;
 import org.eclipse.ui.console.MessageConsoleStream;
 import org.eclipse.ui.handlers.IHandlerService;
+import org.eclipse.ui.progress.IProgressService;
 
 import com.dynamo.cr.client.IBranchClient;
 import com.dynamo.cr.client.RepositoryException;
@@ -478,6 +485,27 @@ public class SyncDialog extends TitleAreaDialog {
                                     syncDialog.setSoftBaseRevision(null);
                                     syncDialog.setTitleImage(Activator.getDefault().getImageRegistry().get(Activator.DONE_LARGE_IMAGE_ID));
                                     setPageComplete(true);
+
+                                    // Refresh workspace.
+                                    // NOTE: This will popup a new dialog. We should use this.indicator
+                                    // using IProgressMonitor but this is not how this class is written
+                                    // The class should be rewritten soon anyway!
+                                    try {
+                                        IProgressService service = PlatformUI.getWorkbench().getProgressService();
+                                        service.runInUI(service, new IRunnableWithProgress() {
+                                            @Override
+                                            public void run(IProgressMonitor monitor)
+                                                    throws InvocationTargetException,
+                                                    InterruptedException {
+                                                try {
+                                                    ResourcesPlugin.getWorkspace().getRoot().refreshLocal(IResource.DEPTH_INFINITE, monitor);
+                                                } catch (CoreException e) {
+                                                    Activator.logException(e);
+                                                }
+                                            }}, null);
+                                    } catch (Exception e) {
+                                        Activator.logException(e);
+                                    }
                                 }
                             });
                         }
