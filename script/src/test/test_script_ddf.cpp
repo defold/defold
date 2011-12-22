@@ -321,6 +321,77 @@ TEST(LuaTableToDDF, LuaDDFBufferOverflow)
     lua_close(L);
 }
 
+TEST(LuaTableToDDF, Uint64)
+{
+    lua_State *L = lua_open();
+
+    dmScript::Initialize(L, dmScript::ScriptParams());
+
+    int top = lua_gettop(L);
+
+    struct Test
+    {
+        uint32_t m_Size;
+        char* m_Buffer;
+        static void CheckDDF(lua_State* L, Test* test)
+        {
+            test->m_Size = dmScript::CheckDDF(L, TestScript::Uint64Msg::m_DDFDescriptor, test->m_Buffer, sizeof(TestScript::Uint64Msg), -1);
+        }
+
+        static int TestString(lua_State* L)
+        {
+            Test* test = static_cast<Test*>(lua_touserdata(L, 1));
+            lua_newtable(L);
+            lua_pushstring(L, "test");
+            lua_setfield(L, -2, "uint64_value");
+            CheckDDF(L, test);
+            return 0;
+        }
+        static int TestNumber(lua_State* L)
+        {
+            Test* test = static_cast<Test*>(lua_touserdata(L, 1));
+            lua_newtable(L);
+            lua_pushnumber(L, 1);
+            lua_setfield(L, -2, "uint64_value");
+            CheckDDF(L, test);
+            return 0;
+        }
+        static int TestHash(lua_State* L)
+        {
+            Test* test = static_cast<Test*>(lua_touserdata(L, 1));
+            lua_newtable(L);
+            dmScript::PushHash(L, (dmhash_t)1);
+            lua_setfield(L, -2, "uint64_value");
+            CheckDDF(L, test);
+            return 0;
+        }
+    };
+
+    Test test;
+    test.m_Size = 0;
+    test.m_Buffer = new char[sizeof(TestScript::Uint64Msg)];
+
+    int res = lua_cpcall(L, Test::TestString, &test);
+    ASSERT_NE(0, res);
+    ASSERT_TRUE(lua_isstring(L, -1));
+    lua_pop(L, 1);
+
+    res = lua_cpcall(L, Test::TestNumber, &test);
+    ASSERT_NE(0, res);
+    ASSERT_TRUE(lua_isstring(L, -1));
+    lua_pop(L, 1);
+
+    res = lua_cpcall(L, Test::TestHash, &test);
+    ASSERT_EQ(0, res);
+    ASSERT_EQ(sizeof(TestScript::Uint64Msg), test.m_Size);
+
+    ASSERT_EQ(top, lua_gettop(L));
+
+    lua_close(L);
+
+    delete[] test.m_Buffer;
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

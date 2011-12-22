@@ -109,8 +109,7 @@ namespace dmScript
                 if (nil_val)
                     *((dmhash_t *) &buffer[f->m_Offset]) = 0;
                 else
-                    *((dmhash_t *) &buffer[f->m_Offset]) = *(dmhash_t*)lua_touserdata(L, -1);
-//                    *((dmhash_t *) &buffer[f->m_Offset]) = (dmhash_t) luaL_checkinteger(L, -1);
+                    *((dmhash_t *) &buffer[f->m_Offset]) = dmScript::CheckHash(L, -1);
             }
             break;
 

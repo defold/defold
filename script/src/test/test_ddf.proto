@@ -47,3 +47,8 @@ message LuaDDFBufferOverflow
 }
 
 message EmptyMsg {}
+
+message Uint64Msg
+{
+    required uint64 uint64_value = 1;
+}
