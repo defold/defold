@@ -821,7 +821,9 @@ EDwkExAEQRAEAZBMQBAEQRAEz9mzku9742gI50EQBEEQRGghOwFBEARBEACgS0lJubhpS6inQRAE
 vCAqKmrcuHFGozHUEyEI1fP/AR5W2MXHld13AAAAAElFTkSuQmCC
 "
        height="555"
-       width="689" />
+       width="689"
+       inkscape:export-xdpi="90"
+       inkscape:export-ydpi="90" />
     <path
        style="fill:none;stroke:#eeeeec;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#Arrow2Mendj)"
        d="M 193.92893,78.8769 C 147.63607,88.63384 123.06002,148.85096 119,189.36218"
@@ -857,7 +859,7 @@ vCAqKmrcuHFGozHUEyEI1fP/AR5W2MXHld13AAAAAElFTkSuQmCC
          x="481.54834"
          y="211.19803"
          style="font-size:18px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;fill:#555753;font-family:Handwriting -Dakota;-inkscape-font-specification:Handwriting -Dakota"
-         id="tspan4520">Animation are created</tspan><tspan
+         id="tspan4520">Animations are created</tspan><tspan
          sodipodi:role="line"
          x="481.54834"
          y="233.69803"
