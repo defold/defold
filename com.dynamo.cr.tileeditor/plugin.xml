@@ -9,8 +9,8 @@
             default="false"
             extensions="tileset"
             icon="icons/tile_set.png"
-            id="com.dynamo.cr.tileeditor.TileSetEditor"
-            name="Tile Set Editor">
+            id="com.dynamo.cr.tileeditor.TileSetEditor1"
+            name="Tile Set Editor OLD">
       </editor>
       <editor
             class="com.dynamo.cr.tileeditor.GridEditor"
@@ -27,8 +27,8 @@
             default="true"
             extensions="tileset"
             icon="icons/tile_set.png"
-            id="com.dynamo.cr.tileeditor.tileSetEditor2"
-            name="Tile Set Editor 2">
+            id="com.dynamo.cr.tileeditor.tileSetEditor"
+            name="Tile Set Editor">
       </editor>
       <editor
             class="com.dynamo.cr.sceneed.ui.SceneEditor"
