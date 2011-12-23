@@ -45,7 +45,7 @@ Simply select an animation and then *Tile Set > Play/Stop Animation*.
 This makes it much more easy to make sure you have specified the animation correctly.
 Here is a clip showing how it looks:
 
-link:/images/blog/20111222_sprite_anim_collision_editing/sprite_anim_preview.mp4[Animation Clip]
+link:/site/images/blog/20111222_sprite_anim_collision_editing/sprite_anim_preview.mp4[Animation Clip]
 
 When an animation in the new system has completed, the script which started it will receive an 'animation_done2' message.
 We have updated the documentation to describe the new messages.
