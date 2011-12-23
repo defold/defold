@@ -114,6 +114,13 @@ The framing functionality from the Collection Editor has also been re-implemente
 It can be accessed through *Scene > Frame Objects*.
 It frames whatever is selected, or all objects if nothing is.
 
+Update Editor
+~~~~~~~~~~~~~
+Go to *Help > Check For Update* to update to latest
+
+image:images/blog/20111222_sprite_anim_collision_editing/update_editor.png["Update Editor"]
+
+
 Google Groups
 ~~~~~~~~~~~~~
 
@@ -249,7 +256,7 @@ Roadmap
 ~~~~~~~
 
 . Scene Editor - Limited release supporting game objects, sprites and "simple types"
-. Sprite Editing - Improved 
+. Sprite Editing - Improved
 . Content Pipeline - To only be used for testing at the moment
 . Documentation - User Manual, Tutorials, etc
 . Website - Re-designed layout and structure
@@ -421,7 +428,7 @@ If you also specify an image for collision, collision hulls will be automaticall
 image:images/blog/tile_1.0/tileset_editor.png["Tile set editor", width=880]
 
 Please see the new menu *Tile Set* in the top menu bar for more of the features available when you are working with tile sets.
-    
+
 The next step is to create a 'tile grid'.
 The tile grid is a new component that takes care of rendering and physics for the tiles in-game.
 To be able to do this, the system needs to know which tile set you want to fetch the tiles from.
