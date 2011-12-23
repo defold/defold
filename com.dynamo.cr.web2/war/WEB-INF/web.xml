@@ -22,7 +22,7 @@
   </security-constraint>
 
   <mime-mapping>
-    <extension>.mp4</extension>
+    <extension>mp4</extension>
     <mime-type>video/mp4</mime-type>
   </mime-mapping>
 
