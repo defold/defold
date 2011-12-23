@@ -48,7 +48,7 @@ Here is a clip showing how it looks:
 link:/site/images/blog/20111222_sprite_anim_collision_editing/sprite_anim_preview.mp4[Animation Clip]
 
 When an animation in the new system has completed, the script which started it will receive an 'animation_done2' message.
-We have updated the documentation to describe the new messages.
+We have updated the link:/#documentation:[documentation] to describe the new messages.
 
 Speaking of tile sets, we have also fixed an issue of the collision group colors changing anytime the list was reordered.
 Now they stay the same color, and also yields an error if you use more groups than the maximum allowed (16).
@@ -63,21 +63,18 @@ Backwards Compatibility
 
 We are very concerned about always staying backwards compatible, but there will always be improvements that force us to move forward.
 The new sprite system is an example of this.
-To not break any of your content, we are now testing a strategy of having different stages to counter for this.
+To not break any of your content, we are now testing a strategy of having three different stages to counter for this.
+This is briefly what each stage means:
 
-During the first stage, we support both formats, hence the name 'Sprite2'.
-The old 'Sprite' components is now flagged with warnings in the editor, telling you to start using the new system.
-When this stage ends, we will remove the old sprite system entirely.
-
-A new stage starts, in which we consider both components 'Sprite' and 'Sprite2' to be the new component type.
-This means that if you have remaining old sprites, the build will fail.
-During this stage, components of type 'Sprite2' will be flagged with warnings, telling you to convert them to 'Sprite'.
-This will be an easy operation to perform in the editor.
-The reason we don't do this automatically is that we don't want to touch anyone's content, unless they say so.
-When this stage ends, we will remove the temporary 'Sprite2' type altogether.
-Any such remaining components will break the build, forcing you to change.
+. The 'Sprite' type becomes deprecated, any such components will be flagged with warnings when opened.
+  You should convert any such components to the new 'Sprite2' component.
+. Support for the old 'Sprite' type is removed.
+  'Sprite' and 'Sprite2' both means the new type now.
+  Convert all 'Sprite2' components to 'Sprite'.
+. Support for 'Sprite2' is removed.
 
 It might seem complicated, but we hope that the guidance in the editor will be enough to lead you through it.
+There will be weeks of time between each stage, so you should have plenty of time to make the adjustments.
 It is also an experiment and we love to hear about any other ideas on how to do this as painless as possible.
 Our main goal is to never break content with a new release.
 
@@ -116,7 +113,8 @@ It frames whatever is selected, or all objects if nothing is.
 
 Update Editor
 ~~~~~~~~~~~~~
-Go to *Help > Check For Update* to update to latest
+
+Go to *Help > Check For Update* to update the editor to the latest version.
 
 image:images/blog/20111222_sprite_anim_collision_editing/update_editor.png["Update Editor"]
 
