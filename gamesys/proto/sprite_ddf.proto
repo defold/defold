@@ -28,6 +28,7 @@ enum Playback
 }
 
 /*# plays a sprite animation
+ * <b>DEPRECATED API. Use play_animation2 with sprite2 component instead</b>
  * <p>
  * Post this message to a sprite-component to make it play an animation of its tiles.
  * The tiles are enumerated starting with 1 at top left and then right along each row.
@@ -91,6 +92,7 @@ message PlayAnimation
 }
 
 /*# reports that an animation has completed
+ * <b>DEPRECATED API. Use animation_done2 with sprite2 component instead</b>
  * This message is sent to the sender of a <code>play_animation</code> message when the animation has completed.
  * Note that only animations played either forward or backward once ever completes. See <code>play_animation</code>
  * for more information and examples of how to use this message.
