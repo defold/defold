@@ -1,5 +1,146 @@
 :max-width: 45em
 
+Update - Lots!
+--------------
+*_December 22, 2011_*
+
+It has been almost exactly a whole month since our latest release.
+We aim to have a minimal release cycle (a week optimally), which would both let us get immediate feedback and be able to respond to new requests faster.
+This time, however, there was simply too much that needed to be done.
+To make up for this, we made this release extra fat and juicy, as appropriate for the holidays to come.
+A month-long crunch is over and the Defold-team is about to kick back for four entire days!
+
+Sprites, 2nd Edition
+~~~~~~~~~~~~~~~~~~~~
+
+We have implemented the basics of the redesigned sprite system.
+Since this breaks backwards compatibility, the new component is called 'Sprite2' and the old component is considered deprecated.
+
+What we implemented so far is that sprites now uses the tile set files, similar to how tile grids use them.
+The animations are defined in the tile set, which simplifies trigging them in the scripts.
+
+image:images/blog/20111222_sprite_anim_collision_editing/sprite_editing.png["Sprite Editing"]
+
+Let us show by an example. To trigger an animation the old way, you would have a script that did:
+
+[source,lua]
+----
+msg.post("#my_sprite", "play_animation", {start_tile = 1, end_tile = 3, playback = 1})
+----
+
+With the new system, you add the animation to the tile set (*Tile Set > Add Animation*). Then, in a script, you do:
+
+[source,lua]
+----
+msg.post("#my_new_sprite", "play_animation2", {id = hash("my_animation")})
+----
+
+This also means that there is only one place to update if you want to change the layout of your tile set.
+
+The animations added to the tile set can also be previewed in-place in the editor.
+
+image:images/blog/20111222_sprite_anim_collision_editing/animation_editing.png["Animation Editing"]
+
+Simply select an animation and then *Tile Set > Play/Stop Animation*.
+This makes it much more easy to make sure you have specified the animation correctly.
+Here is a clip showing how it looks:
+
+link:/images/blog/20111222_sprite_anim_collision_editing/sprite_anim_preview.mp4[Animation Clip]
+
+When an animation in the new system has completed, the script which started it will receive an 'animation_done2' message.
+We have updated the documentation to describe the new messages.
+
+Speaking of tile sets, we have also fixed an issue of the collision group colors changing anytime the list was reordered.
+Now they stay the same color, and also yields an error if you use more groups than the maximum allowed (16).
+
+We have yet to implement the cues which will let you post messages automatically at certain frames during the animations.
+This is a great way to trigger effects for example.
+We also post-poned the flip-tile feature, which will let you reuse tiles for different animations.
+An example of this would be to have walk animations going both left and right based on the same set of tiles, but flipped for one of the directions.
+
+Backwards Compatibility
+~~~~~~~~~~~~~~~~~~~~~~~
+
+We are very concerned about always staying backwards compatible, but there will always be improvements that force us to move forward.
+The new sprite system is an example of this.
+To not break any of your content, we are now testing a strategy of having different stages to counter for this.
+
+During the first stage, we support both formats, hence the name 'Sprite2'.
+The old 'Sprite' components is now flagged with warnings in the editor, telling you to start using the new system.
+When this stage ends, we will remove the old sprite system entirely.
+
+A new stage starts, in which we consider both components 'Sprite' and 'Sprite2' to be the new component type.
+This means that if you have remaining old sprites, the build will fail.
+During this stage, components of type 'Sprite2' will be flagged with warnings, telling you to convert them to 'Sprite'.
+This will be an easy operation to perform in the editor.
+The reason we don't do this automatically is that we don't want to touch anyone's content, unless they say so.
+When this stage ends, we will remove the temporary 'Sprite2' type altogether.
+Any such remaining components will break the build, forcing you to change.
+
+It might seem complicated, but we hope that the guidance in the editor will be enough to lead you through it.
+It is also an experiment and we love to hear about any other ideas on how to do this as painless as possible.
+Our main goal is to never break content with a new release.
+
+Collision Objects
+~~~~~~~~~~~~~~~~~
+
+We have implemented many longed-for features regarding collision objects too.
+It's been a nuicance to create separate convex shape files to specify the geometry for collision objects.
+Now you can add them in-place in the editor, both for collision objects embedded in a game object and collision objects in separate files.
+You can also add multiple shapes to the same collision object, to construct more complex collision shapes.
+
+It was also very hard to specify their geometry in the property grids we used before in the editor.
+Now we have added more manipulators (similar to Maya) to adjust the shapes in the scene view.
+The manipulators are activated through the new *Scene* menu.
+
+An example of this would be to select a sphere and then *Scene > Scale Tool*, which lets you adjust the radius of the sphere visually.
+The tool works similar for other shapes, depending on their constitution.
+The shapes can also be moved and rotated in relation to the collision object they belong to, through the *Move Tool* and *Rotate Tool* respectively.
+The translation and rotation can still be specified in the property view too.
+The rotation is now specified by euler-coordinates (degrees around each axis), which are much easier to use than quaternions.
+
+image:images/blog/20111222_sprite_anim_collision_editing/shape_editing.png["Shape Editing"]
+
+Scene Editor
+~~~~~~~~~~~~
+
+The manipulators described above are examples of how we have further improved the Scene Editor.
+When needed, we will implement the same kind of functionality for other components.
+
+Other new features is that the camera now works similar to the Collection Editor, i.e. Maya-controls.
+It supports tracking (going sideways) and dollying (zooming).
+
+The framing functionality from the Collection Editor has also been re-implemented in the Scene Editor.
+It can be accessed through *Scene > Frame Objects*.
+It frames whatever is selected, or all objects if nothing is.
+
+Google Groups
+~~~~~~~~~~~~~
+
+As you all hopefully have noticed, we have started a Google Group for Defold users.
+We hope that it will soon spur with activity and be sufficient as our community forum.
+If you need support, this is currently the best place to turn to.
+Issues with the service or concrete change requests should still be directed to the cases-mail.
+We will add a post on how to use it in the group, to avoid spammers.
+
+We are also proud to announce that two new projects have joined the Defold community!
+So oldies, please be kind to the newbies in the group. :)
+
+Roadmap
+~~~~~~~
+
+We are going to have a big planning day on December 27.
+After that, we will post a list of the different areas we think needs improvement in the user group.
+Our hope is to get a discussion going and to get feedback from you about which areas are the most important.
+We really want to involve you all more in prioritizing what needs to be done when.
+For now, these are the areas we have had in the roadmap for a long while:
+
+. Documentation - User Manual, Tutorials, etc
+. Website - Re-designed layout and structure
+. Rendering Improvements
+
+The Defold-team wishes you all a merry christmas!
+
 Update - Scene Editor
 ---------------------
 *_November 21, 2011_*
