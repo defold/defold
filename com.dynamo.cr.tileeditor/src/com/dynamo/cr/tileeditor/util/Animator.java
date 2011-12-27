@@ -54,6 +54,7 @@ public class Animator implements Runnable {
             AnimationNode node = TileSetUtil.getCurrentAnimation(this.presenterContext.getSelection());
             if (this.animationNode != node || !this.animationNode.isPlaying()) {
                 this.running = false;
+                this.animationNode.setPlaying(false);
                 return;
             }
             long time = System.currentTimeMillis();
