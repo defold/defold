@@ -1,6 +1,8 @@
 package com.dynamo.cr.contenteditor.manipulator;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import javax.media.opengl.GL;
@@ -114,7 +116,17 @@ public class ManipulatorController
 
     public void setSelected(Node[] selected_nodes)
     {
-        this.selected = selected_nodes;
+        // Filter out all nodes that aren't "transformable"
+        // Selection from outline could be nodes that aren't transformable
+        // Quick fix for an obsolete editor :-)
+        List<Node> nodes = new ArrayList<Node>();
+        for (Node node : selected_nodes) {
+            if ((node.getFlags() & Node.FLAG_TRANSFORMABLE) == Node.FLAG_TRANSFORMABLE) {
+                nodes.add(node);
+            }
+        }
+
+        this.selected = nodes.toArray(new Node[nodes.size()]);
     }
 
     public void setActiveHandle(int handle)
