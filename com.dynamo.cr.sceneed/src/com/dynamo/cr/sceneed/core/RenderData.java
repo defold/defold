@@ -14,8 +14,12 @@ public class RenderData<T extends Node> implements Comparable<RenderData<T>> {
     private Object userData;
     private long key;
 
+    /*
+     * NOTE: Do *NOT* use bit 63 in order to avoid signed numbers!
+     */
     private final static long DISTANCE_SHIFT = 0;
     private final static long PASS_SHIFT = DISTANCE_SHIFT + 32;
+    private final static long MANIPULATOR_SHIFT = 62;
 
     public RenderData(Pass pass, INodeRenderer<T> nodeRenderer, T node,
             Point3d position, Object userData) {
@@ -59,6 +63,10 @@ public class RenderData<T extends Node> implements Comparable<RenderData<T>> {
         long distance = (long)(z * Integer.MAX_VALUE);
         key = (distance << DISTANCE_SHIFT)
                 | (((long) pass.ordinal()) << PASS_SHIFT);
+
+        if (node instanceof Manipulator) {
+            key |= 1 << MANIPULATOR_SHIFT;
+        }
     }
 
     @Override
