@@ -423,6 +423,16 @@ public class RefactorTest {
     }
 
     @Test
+    public void testTileGridForGO() throws CoreException, IOException {
+        testRenameAndDelete(PrototypeDesc.newBuilder(), "logic/tilegrid.go", "/tilegrid/test.tilegrid", new ReferenceFetcher<PrototypeDesc>() {
+            @Override
+            public String[] getReferences(PrototypeDesc desc) {
+                return new String[] { desc.getComponents(0).getComponent() };
+            }
+        });
+    }
+
+    @Test
     public void testCollectionForEmbeddedCollectionProxy() throws CoreException, IOException {
         testRenameAndDelete(PrototypeDesc.newBuilder(), "logic/main.go", "/logic/session/session.collection", new ReferenceFetcher<PrototypeDesc>() {
             @Override
