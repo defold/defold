@@ -4,7 +4,7 @@ import string
 import gdata.youtube
 import gdata.youtube.service
 from gdata.media import YOUTUBE_NAMESPACE
-import gdata.tlslite.utils.dateFuncs
+from gdata.tlslite.utils.dateFuncs import parseDateClass
 import time
 
 CATEGORIES_SCHEME = "http://gdata.youtube.com/schemas/2007/categories.cat"
@@ -20,7 +20,6 @@ class YouTube(object):
         self.title_to_video = {}
         self.sign_in()
         self.fetch_uploaded_videos()
-        self.print_uploaded_videos()
 
     def sign_in(self):
         self.service = gdata.youtube.service.YouTubeService()
@@ -30,14 +29,24 @@ class YouTube(object):
         self.service.password = YouTube.PASSWORD
         self.service.ProgrammaticLogin()
 
+    @staticmethod
+    def print_entry(entry):
+        date = parseDateClass(entry.published.text)
+        print '%s (%s) (%s)' % (entry.media.title.text, date, entry.media.keywords.text)
+        if entry.control:
+            for i, e in enumerate(entry.control.extension_elements):
+                if e.tag == 'state':
+                    print 'state: %s' % (e.attributes['name'])
+
+    @staticmethod
+    def get_video_id(entry):
+        m = re.search('v=(.*)&', entry.media.player.url)
+        return m.groups()[0]
+
     def print_uploaded_videos(self):
         print "Uploaded Videos:"
         for entry in self.all_entries:
-            print '%s (%s)' % (entry.media.title.text, entry.media.keywords.text)
-            if entry.control:
-                for i, e in enumerate(entry.control.extension_elements):
-                    if e.tag == 'state':
-                        print 'state: %s' % (e.attributes['name'])
+            self.print_entry(entry)
             print ""
         if len(self.all_entries) == 0:
             print 'No videos uploaded'
@@ -53,7 +62,8 @@ class YouTube(object):
 
         self.all_entries = feed.entry
 
-    def _filename_to_title(self, file_name):
+    @staticmethod
+    def filename_to_title(file_name):
         title =  os.path.splitext(os.path.basename(file_name))[0]
         title_lst = title.split('_')
         title_lst = map(lambda x: x[0].upper() + x[1:], title_lst)
@@ -62,9 +72,9 @@ class YouTube(object):
 
     def sync(self, top):
         print "Synchronizing:"
-        videos = self.find_upload_candidates(top)
+        videos = self._find_upload_candidates(top)
         for file_name in videos:
-            title = self._filename_to_title(file_name)
+            title = self.filename_to_title(file_name)
             f = open(file_name, 'rb')
             crc = binascii.crc32(f.read()) & 0xffffffff
             crc = '%x' % crc
@@ -75,7 +85,7 @@ class YouTube(object):
                 print 'Skipping "%s". Already uploaded (crc=%s)' % (file_name, crc)
             else:
                 print 'Uploading "%s" (crc=%s)' % (file_name, crc)
-                self.upload(file_name, crc)
+                self._upload(file_name, crc)
 
     def _create_video_entry(self, title, description, category, keywords=None,
                             location=None, private=False, unlisted=False):
@@ -101,10 +111,23 @@ class YouTube(object):
         extension = ([ExtensionElement('accessControl', **kwargs)] if unlisted else None)
         return gdata.youtube.YouTubeVideoEntry(media=media_group, geo=where, extension_elements=extension)
 
-    def upload(self, file_name, crc):
-        title = self._filename_to_title(file_name)
+    def _upload(self, file_name, crc):
+        title = self.filename_to_title(file_name)
         entry = self._create_video_entry(title, title, "Games", keywords = 'crc=%s' % crc)
         entry2 = self.service.InsertVideoEntry(entry, file_name)
+
+    def find_latest_video(self, title):
+        lst = self.title_to_video.get(title, [])
+        def c(x, y):
+            date_x = parseDateClass(x.published.text)
+            date_y = parseDateClass(y.published.text)
+            return cmp(date_x, date_y)
+        lst.sort(cmp = c)
+
+        if len(lst) > 0:
+            return lst[-1]
+        else:
+            return None
 
     def find_video(self, title, crc):
         for entry in self.title_to_video.get(title, []):
@@ -118,7 +141,7 @@ class YouTube(object):
 
         return None
 
-    def find_upload_candidates(self, top):
+    def _find_upload_candidates(self, top):
         ret = []
         for root, dirs, files in os.walk(top):
             for f in files:
