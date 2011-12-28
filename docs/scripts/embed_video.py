@@ -16,7 +16,7 @@ def repl(m):
     title = YouTube.filename_to_title(file_name)
     e = yt.find_latest_video(title)
     if e:
-        ret = '''<iframe width="420" height="315" src="http://www.youtube.com/embed/%s" frameborder="0" allowfullscreen></iframe>'''
+        ret = '''<iframe width="560" height="315" src="http://www.youtube.com/embed/%s?hd=1" frameborder="0" allowfullscreen></iframe>'''
         id = yt.get_video_id(e)
         return ret % id
     else:
