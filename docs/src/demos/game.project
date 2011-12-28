@@ -1,0 +1,14 @@
+[project]
+title = Demos
+[bootstrap]
+main_collection = /logic/main.collectionc
+[input]
+game_binding = /input/game.input_bindingc
+[display]
+width = 640
+height = 360
+
+[demo]
+demo=demo01
+title=Demo 01
+length=80

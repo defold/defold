@@ -1,0 +1,3 @@
+function init(self)
+	msg.post(nil, "acquire_input_focus")
+end

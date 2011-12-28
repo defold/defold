@@ -1,0 +1,42 @@
+local function fade_out_complete(self)
+    msg.post(self.url, "enable")
+end
+
+local function fade_in_complete(self)
+    gui.animate(self.title_node, gui.PROP_COLOR, vmath.vector4(0, 0, 0, 0), gui.EASING_IN, 0.7, 2, fade_out_complete)
+end
+
+local function start(self)
+    self.frame_count = 0
+    self.recording = true
+    print("recording " .. self.length .. " frames")
+    msg.post("@system:", "start_record", { file_name = "tmp/" .. self.demo .. ".ivf"} )
+    msg.post(self.url, "load")
+    msg.post(self.url, "init")
+    gui.set_color(self.title_node, vmath.vector4(0, 0, 0, 0))
+    gui.animate(self.title_node, gui.PROP_COLOR, vmath.vector4(1, 1, 1, 1), gui.EASING_IN, 1, 0, fade_in_complete)
+    gui.set_text(self.title_node, self.title)
+end
+
+function init(self)
+	self.title_node = gui.get_node("title")
+	self.demo = sys.get_config("demo.demo")
+	self.title = sys.get_config("demo.title")
+	self.length = tonumber(sys.get_config("demo.length", "100"))
+	self.url = msg.url("#" .. self.demo)
+
+	start(self)
+end
+
+
+function update(self)
+	if self.recording then
+		if self.frame_count >= self.length then
+			self.recording = false
+			msg.post("@system:", "stop_record")
+			print("done")
+			msg.post("@system:", "exit", {code = 0})
+		end
+		self.frame_count = self.frame_count + 1
+	end
+end
