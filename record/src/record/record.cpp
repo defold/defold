@@ -1,3 +1,8 @@
+// Skip the content of the file vpx_integer.h
+// We got redefinitions of standard integers types
+#define VPX_INTEGER_H
+#include <stdint.h>
+
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
