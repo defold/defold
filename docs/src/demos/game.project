@@ -5,8 +5,8 @@ main_collection = /logic/main.collectionc
 [input]
 game_binding = /input/game.input_bindingc
 [display]
-width = 640
-height = 360
+width = 1280
+height = 720
 
 [demo]
 demo=demo01

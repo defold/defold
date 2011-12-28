@@ -5,8 +5,8 @@ fonts {
 }
 nodes {
   position {
-    x: 320.0
-    y: 180.0
+    x: 640.0
+    y: 360.0
     z: 0.0
     w: 0.0
   }
