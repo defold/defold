@@ -725,6 +725,14 @@ namespace dmGraphics
         context->m_Textures[unit] = 0;
     }
 
+    void ReadPixels(HContext context, void* buffer, uint32_t buffer_size)
+    {
+        uint32_t w = dmGraphics::GetWidth(context);
+        uint32_t h = dmGraphics::GetHeight(context);
+        assert (buffer_size >= w * h * 4);
+        memset(buffer, 0, w * h * 4);
+    }
+
     void EnableState(HContext context, State state)
     {
         assert(context);

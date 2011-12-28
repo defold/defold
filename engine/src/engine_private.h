@@ -21,6 +21,8 @@
 
 #include <gamesys/gamesys.h>
 
+#include <record/record.h>
+
 #include "engine_ddf.h"
 
 namespace dmEngine
@@ -30,6 +32,20 @@ namespace dmEngine
         Stats();
 
         uint32_t m_FrameCount;
+    };
+
+    struct RecordData
+    {
+        RecordData()
+        {
+            memset(this, 0, sizeof(*this));
+        }
+
+        dmRecord::HRecorder m_Recorder;
+        char*               m_Buffer;
+        uint32_t            m_FrameCount;
+        uint32_t            m_FramePeriod;
+        uint32_t            m_Fps;
     };
 
     struct Engine
@@ -71,6 +87,8 @@ namespace dmEngine
         uint32_t                                    m_Height;
         float                                       m_InvPhysicalWidth;
         float                                       m_InvPhysicalHeight;
+
+        RecordData                                  m_RecordData;
     };
 
     void ReloadResources(HEngine engine, const char* extension);

@@ -427,6 +427,13 @@ namespace dmGraphics
     void EnableTexture(HContext context, uint32_t unit, HTexture texture);
     void DisableTexture(HContext context, uint32_t unit);
 
+    /**
+     * Read frame buffer pixels in BGRA format
+     * @param buffer buffer to read to
+     * @param buffer_size buffer size
+     */
+    void ReadPixels(HContext context, void* buffer, uint32_t buffer_size);
+
     uint32_t GetBufferTypeIndex(BufferType buffer_type)
     {
         switch (buffer_type)

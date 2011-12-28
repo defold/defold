@@ -34,3 +34,48 @@ message Exit
  * </pre>
  */
 message ToggleProfile {}
+
+
+
+/*# starts video recording
+ * Starts video recording of the game frame-buffer to file. Current video format is the
+ * open vp8 codec in the ivf container. It's possible to upload this format directly
+ * to YouTube. The VLC video player has native support but with the known issue that
+ * not the entirely files is played back. It's probably an issue with VLC.
+ * The Miro Video Converter has support for vp8/ivf.
+ * NOTE: Audio is currently not supported
+ *
+ * @message
+ * @name start_record
+ * @param file_name file name to write the video to
+ * @param frame_period frame period to record, ie write every nth frame. Default value is 2
+ * @param fps frames per second. Playback speed for the video. Default value is 30. The fps value doens't affect the recording. It's only meta-data in the written video file.
+ * @examples
+ * <pre>
+ * Record a video in 30 fps given that the native game fps is 60:
+ * msg.post("@system:", "start_record", { file_name = "test_rec.ivf" } )
+ *
+ * To write a video in 60 fps given that the native game fps is 60:
+ * msg.post("@system:", "start_record", { file_name = "test_rec.ivf", frame_period = 1, fps = 60 } )
+ *
+ * </pre>
+ */
+message StartRecord
+{
+    required string file_name = 1;
+    optional int32 frame_period = 2 [default = 1];
+    optional int32 fps = 3 [ default = 30 ];
+}
+
+/*# stop current video recording
+ *
+ * @message
+ * @name stop_record
+ * @examples
+ * <pre>
+ * msg.post("@system:", "stop_record")
+ * </pre>
+ */
+message StopRecord
+{
+}

@@ -1308,6 +1308,17 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR
     }
 
+    void ReadPixels(HContext context, void* buffer, uint32_t buffer_size)
+    {
+        uint32_t w = dmGraphics::GetWidth(context);
+        uint32_t h = dmGraphics::GetHeight(context);
+        assert (buffer_size >= w * h * 4);
+        glReadPixels(0, 0, w, h,
+                     GL_BGRA,
+                     GL_UNSIGNED_BYTE,
+                     buffer);
+    }
+
     void EnableState(HContext context, State state)
     {
         assert(context);

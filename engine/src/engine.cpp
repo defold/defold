@@ -567,6 +567,27 @@ bail:
                     dmProfile::Pause(false);
                 }
                 dmGraphics::Flip(engine->m_GraphicsContext);
+
+                RecordData* record_data = &engine->m_RecordData;
+                if (record_data->m_Recorder)
+                {
+                    if (record_data->m_FrameCount % record_data->m_FramePeriod == 0)
+                    {
+                        uint32_t width = dmGraphics::GetWidth(engine->m_GraphicsContext);
+                        uint32_t height = dmGraphics::GetHeight(engine->m_GraphicsContext);
+                        uint32_t buffer_size = width * height * 4;
+
+                        dmGraphics::ReadPixels(engine->m_GraphicsContext, record_data->m_Buffer, buffer_size);
+
+                        dmRecord::Result r = dmRecord::RecordFrame(record_data->m_Recorder, record_data->m_Buffer, buffer_size, dmRecord::BUFFER_FORMAT_BGRA);
+                        if (r != dmRecord::RESULT_OK)
+                        {
+                            dmLogError("Error while recoding frame (%d)", r);
+                        }
+                    }
+                    record_data->m_FrameCount++;
+                }
+
             }
             dmProfile::Release(profile);
 
@@ -598,6 +619,50 @@ bail:
             {
                 self->m_ShowProfile = !self->m_ShowProfile;
             }
+            else if (descriptor == dmEngineDDF::StartRecord::m_DDFDescriptor)
+            {
+                dmEngineDDF::StartRecord* start_record = (dmEngineDDF::StartRecord*) message->m_Data;
+                RecordData* record_data = &self->m_RecordData;
+
+                record_data->m_FramePeriod = start_record->m_FramePeriod;
+
+                uint32_t width = dmGraphics::GetWidth(self->m_GraphicsContext);
+                uint32_t height = dmGraphics::GetHeight(self->m_GraphicsContext);
+                dmRecord::NewParams params;
+                params.m_Width = width;
+                params.m_Height = height;
+                params.m_Fps = start_record->m_Fps;
+                const char* file_name = (const char*) ((uintptr_t) start_record + (uintptr_t) start_record->m_FileName);
+
+                params.m_Filename = file_name;
+
+                dmRecord::Result r = dmRecord::New(&params, &record_data->m_Recorder);
+                if (r == dmRecord::RESULT_OK)
+                {
+                    record_data->m_Buffer = new char[width * height * 4];
+                    record_data->m_FrameCount = 0;
+                }
+                else
+                {
+                    dmLogError("Unable to start recording (%d)", r);
+                    record_data->m_Recorder = 0;
+                }
+            }
+            else if (descriptor == dmEngineDDF::StopRecord::m_DDFDescriptor)
+            {
+                RecordData* record_data = &self->m_RecordData;
+                if (record_data->m_Recorder)
+                {
+                    dmRecord::Delete(record_data->m_Recorder);
+                    delete[] record_data->m_Buffer;
+                    record_data->m_Recorder = 0;
+                    record_data->m_Buffer = 0;
+                }
+                else
+                {
+                    dmLogError("No recording in progress");
+                }
+            }
             else
             {
                 dmLogError("Unknown ddf message '%s' sent to socket '%s'.\n", descriptor->m_Name, SYSTEM_SOCKET_NAME);
@@ -615,6 +680,8 @@ bail:
 
         dmScript::RegisterDDFType(engine->m_ScriptContext, dmEngineDDF::Exit::m_DDFDescriptor);
         dmScript::RegisterDDFType(engine->m_ScriptContext, dmEngineDDF::ToggleProfile::m_DDFDescriptor);
+        dmScript::RegisterDDFType(engine->m_ScriptContext, dmEngineDDF::StartRecord::m_DDFDescriptor);
+        dmScript::RegisterDDFType(engine->m_ScriptContext, dmEngineDDF::StopRecord::m_DDFDescriptor);
         dmScript::RegisterDDFType(engine->m_ScriptContext, dmRenderDDF::DrawText::m_DDFDescriptor);
         dmScript::RegisterDDFType(engine->m_ScriptContext, dmRenderDDF::DrawLine::m_DDFDescriptor);
         dmScript::RegisterDDFType(engine->m_ScriptContext, dmModelDDF::SetTexture::m_DDFDescriptor);
