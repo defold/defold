@@ -24,7 +24,7 @@ protected:
 
     virtual void SetUp()
     {
-        m_ScriptContext = dmScript::NewContext();
+        m_ScriptContext = dmScript::NewContext(0);
         dmScript::RegisterDDFType(m_ScriptContext, dmRenderDDF::DrawText::m_DDFDescriptor);
         m_GraphicsContext = dmGraphics::NewContext(dmGraphics::ContextParams());
         dmRender::FontMapParams font_map_params;

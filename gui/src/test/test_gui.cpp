@@ -69,7 +69,7 @@ public:
 
     virtual void SetUp()
     {
-        m_ScriptContext = dmScript::NewContext();
+        m_ScriptContext = dmScript::NewContext(0);
         dmScript::RegisterDDFType(m_ScriptContext, dmTestGuiDDF::AMessage::m_DDFDescriptor);
 
         dmMessage::NewSocket("test_m_Socket", &m_Socket);
