@@ -5,6 +5,7 @@
 #include <vectormath/cpp/vectormath_aos.h>
 #include <dlib/hash.h>
 #include <dlib/message.h>
+#include <dlib/configfile.h>
 #include <ddf/ddf.h>
 
 extern "C"
@@ -18,9 +19,10 @@ namespace dmScript
 
     /**
      * Create and return a new context.
+     * @param config_file optional config file handle
      * @return context
      */
-    HContext NewContext();
+    HContext NewContext(dmConfigFile::HConfig config_file);
 
     /**
      * Delete an existing context.

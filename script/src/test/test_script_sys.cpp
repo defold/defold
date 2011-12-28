@@ -5,6 +5,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
+#include <dlib/configfile.h>
 
 extern "C"
 {
@@ -19,16 +20,27 @@ class ScriptSysTest : public ::testing::Test
 protected:
     virtual void SetUp()
     {
+        dmConfigFile::Result r = dmConfigFile::Load("src/test/test.config", 0, 0, &m_ConfigFile);
+        ASSERT_EQ(dmConfigFile::RESULT_OK, r);
+
+        m_Context = dmScript::NewContext(m_ConfigFile);
+
         L = lua_open();
         luaL_openlibs(L);
-        dmScript::Initialize(L, dmScript::ScriptParams());
+        dmScript::ScriptParams params;
+        params.m_Context = m_Context;
+        dmScript::Initialize(L, params);
     }
 
     virtual void TearDown()
     {
+        dmConfigFile::Delete(m_ConfigFile);
+        dmScript::DeleteContext(m_Context);
         lua_close(L);
     }
 
+    dmScript::HContext m_Context;
+    dmConfigFile::HConfig m_ConfigFile;
     lua_State* L;
 };
 

@@ -92,7 +92,8 @@ namespace dmEngine
     }
 
     Engine::Engine()
-    : m_Alive(true)
+    : m_Config(0)
+    , m_Alive(true)
     , m_MainCollection(0)
     , m_LastReloadMTime(0)
     , m_MouseSensitivity(1.0f)
@@ -192,6 +193,11 @@ namespace dmEngine
 
         dmProfile::Finalize();
 
+        if (engine->m_Config)
+        {
+            dmConfigFile::Delete(engine->m_Config);
+        }
+
         delete engine;
     }
 
@@ -227,13 +233,12 @@ namespace dmEngine
             project_file_count = 1;
         }
 
-        dmConfigFile::HConfig config;
         dmConfigFile::Result config_results[2];
         dmConfigFile::Result config_result = dmConfigFile::RESULT_FILE_NOT_FOUND;
         uint32_t current_project_file = 0;
         while (config_result != dmConfigFile::RESULT_OK && current_project_file < project_file_count)
         {
-            config_results[current_project_file] = dmConfigFile::Load(project_files[current_project_file], argc, (const char**) argv, &config);
+            config_results[current_project_file] = dmConfigFile::Load(project_files[current_project_file], argc, (const char**) argv, &engine->m_Config);
             config_result = config_results[current_project_file];
             ++current_project_file;
         }
@@ -246,15 +251,15 @@ namespace dmEngine
             return false;
         }
         const char* content_root = default_content_roots[current_project_file - 1];
-        const char* update_order = dmConfigFile::GetString(config, "gameobject.update_order", 0);
+        const char* update_order = dmConfigFile::GetString(engine->m_Config, "gameobject.update_order", 0);
 
         dmProfile::Initialize(256, 1024 * 16, 128);
         // This scope is mainly here to make sure the "Main" scope is created first.
         DM_PROFILE(Engine, "Init");
 
         dmGraphics::ContextParams graphics_context_params;
-        graphics_context_params.m_DefaultTextureMinFilter = ConvertTextureFilter(dmConfigFile::GetString(config, "graphics.default_texture_min_filter", "nearest"));
-        graphics_context_params.m_DefaultTextureMagFilter = ConvertTextureFilter(dmConfigFile::GetString(config, "graphics.default_texture_mag_filter", "nearest"));
+        graphics_context_params.m_DefaultTextureMinFilter = ConvertTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_min_filter", "nearest"));
+        graphics_context_params.m_DefaultTextureMagFilter = ConvertTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_mag_filter", "nearest"));
         engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
         if (engine->m_GraphicsContext == 0x0)
         {
@@ -262,17 +267,17 @@ namespace dmEngine
             return false;
         }
 
-        engine->m_Width = dmConfigFile::GetInt(config, "display.width", 960);
-        engine->m_Height = dmConfigFile::GetInt(config, "display.height", 640);
+        engine->m_Width = dmConfigFile::GetInt(engine->m_Config, "display.width", 960);
+        engine->m_Height = dmConfigFile::GetInt(engine->m_Config, "display.height", 640);
 
         dmGraphics::WindowParams window_params;
         window_params.m_ResizeCallback = OnWindowResize;
         window_params.m_ResizeCallbackUserData = engine;
         window_params.m_Width = engine->m_Width;
         window_params.m_Height = engine->m_Height;
-        window_params.m_Samples = dmConfigFile::GetInt(config, "display.samples", 0);
-        window_params.m_Title = dmConfigFile::GetString(config, "project.title", "TestTitle");
-        window_params.m_Fullscreen = dmConfigFile::GetInt(config, "display.fullscreen", 0);
+        window_params.m_Samples = dmConfigFile::GetInt(engine->m_Config, "display.samples", 0);
+        window_params.m_Title = dmConfigFile::GetString(engine->m_Config, "project.title", "TestTitle");
+        window_params.m_Fullscreen = dmConfigFile::GetInt(engine->m_Config, "display.fullscreen", 0);
         window_params.m_PrintDeviceInfo = false;
 
         dmGraphics::WindowResult window_result = dmGraphics::OpenWindow(engine->m_GraphicsContext, &window_params);
@@ -287,8 +292,7 @@ namespace dmEngine
         engine->m_InvPhysicalWidth = 1.0f / physical_width;
         engine->m_InvPhysicalHeight = 1.0f / physical_height;
 
-        engine->m_ScriptContext = dmScript::NewContext();
-
+        engine->m_ScriptContext = dmScript::NewContext(engine->m_Config);
         dmGameObject::Initialize(engine->m_ScriptContext);
 
         RegisterDDFTypes(engine);
@@ -297,7 +301,7 @@ namespace dmEngine
         dmHID::Init(engine->m_HidContext);
 
         dmSound::InitializeParams sound_params;
-        dmSound::Initialize(config, &sound_params);
+        dmSound::Initialize(engine->m_Config, &sound_params);
 
         dmRender::RenderContextParams render_params;
         render_params.m_MaxRenderTypes = 16;
@@ -312,14 +316,14 @@ namespace dmEngine
         engine->m_RenderContext = dmRender::NewRenderContext(engine->m_GraphicsContext, render_params);
 
         engine->m_EmitterContext.m_RenderContext = engine->m_RenderContext;
-        engine->m_EmitterContext.m_MaxEmitterCount = dmConfigFile::GetInt(config, dmParticle::MAX_EMITTER_COUNT_KEY, 0);
-        engine->m_EmitterContext.m_MaxParticleCount = dmConfigFile::GetInt(config, dmParticle::MAX_PARTICLE_COUNT_KEY, 0);
+        engine->m_EmitterContext.m_MaxEmitterCount = dmConfigFile::GetInt(engine->m_Config, dmParticle::MAX_EMITTER_COUNT_KEY, 0);
+        engine->m_EmitterContext.m_MaxParticleCount = dmConfigFile::GetInt(engine->m_Config, dmParticle::MAX_PARTICLE_COUNT_KEY, 0);
         engine->m_EmitterContext.m_Debug = false;
 
         const uint32_t max_resources = 256;
 
         dmResource::NewFactoryParams params;
-        int32_t http_cache = dmConfigFile::GetInt(config, "resource.http_cache", 1);
+        int32_t http_cache = dmConfigFile::GetInt(engine->m_Config, "resource.http_cache", 1);
         params.m_MaxResources = max_resources;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT | RESOURCE_FACTORY_FLAGS_HTTP_SERVER;
         if (http_cache)
@@ -328,12 +332,12 @@ namespace dmEngine
         params.m_BuiltinsArchive = (const void*) BUILTINS_ARC;
         params.m_BuiltinsArchiveSize = BUILTINS_ARC_SIZE;
 
-        engine->m_Factory = dmResource::NewFactory(&params, dmConfigFile::GetString(config, "resource.uri", content_root));
+        engine->m_Factory = dmResource::NewFactory(&params, dmConfigFile::GetString(engine->m_Config, "resource.uri", content_root));
 
         dmInput::NewContextParams input_params;
         input_params.m_HidContext = engine->m_HidContext;
-        input_params.m_RepeatDelay = dmConfigFile::GetFloat(config, "input.repeat_delay", 0.5f);
-        input_params.m_RepeatInterval = dmConfigFile::GetFloat(config, "input.repeat_interval", 0.2f);
+        input_params.m_RepeatDelay = dmConfigFile::GetFloat(engine->m_Config, "input.repeat_delay", 0.5f);
+        input_params.m_RepeatInterval = dmConfigFile::GetFloat(engine->m_Config, "input.repeat_interval", 0.2f);
         engine->m_InputContext = dmInput::NewContext(input_params);
 
         dmMessage::Result mr = dmMessage::NewSocket(SYSTEM_SOCKET_NAME, &engine->m_SystemSocket);
@@ -356,11 +360,11 @@ namespace dmEngine
         engine->m_GuiContext.m_GuiContext = dmGui::NewContext(&gui_params);
         engine->m_GuiContext.m_RenderContext = engine->m_RenderContext;
         dmPhysics::NewContextParams physics_params;
-        physics_params.m_WorldCount = dmConfigFile::GetInt(config, "physics.world_count", 4);
-        const char* physics_type = dmConfigFile::GetString(config, "physics.type", "2D");
-        physics_params.m_Gravity.setX(dmConfigFile::GetFloat(config, "physics.gravity_x", 0.0f));
-        physics_params.m_Gravity.setY(dmConfigFile::GetFloat(config, "physics.gravity_y", -10.0f));
-        physics_params.m_Gravity.setZ(dmConfigFile::GetFloat(config, "physics.gravity_z", 0.0f));
+        physics_params.m_WorldCount = dmConfigFile::GetInt(engine->m_Config, "physics.world_count", 4);
+        const char* physics_type = dmConfigFile::GetString(engine->m_Config, "physics.type", "2D");
+        physics_params.m_Gravity.setX(dmConfigFile::GetFloat(engine->m_Config, "physics.gravity_x", 0.0f));
+        physics_params.m_Gravity.setY(dmConfigFile::GetFloat(engine->m_Config, "physics.gravity_y", -10.0f));
+        physics_params.m_Gravity.setZ(dmConfigFile::GetFloat(engine->m_Config, "physics.gravity_z", 0.0f));
         if (strncmp(physics_type, "3D", 2) == 0)
         {
             engine->m_PhysicsContext.m_3D = true;
@@ -371,21 +375,21 @@ namespace dmEngine
             engine->m_PhysicsContext.m_3D = false;
             engine->m_PhysicsContext.m_Context2D = dmPhysics::NewContext2D(physics_params);
         }
-        engine->m_PhysicsContext.m_Debug = dmConfigFile::GetInt(config, "physics.debug", 0);
+        engine->m_PhysicsContext.m_Debug = dmConfigFile::GetInt(engine->m_Config, "physics.debug", 0);
 
         dmPhysics::DebugCallbacks debug_callbacks;
         debug_callbacks.m_UserData = engine->m_RenderContext;
         debug_callbacks.m_DrawLines = PhysicsDebugRender::DrawLines;
         debug_callbacks.m_DrawTriangles = PhysicsDebugRender::DrawTriangles;
-        debug_callbacks.m_Alpha = dmConfigFile::GetFloat(config, "physics.debug_alpha", 0.9f);
-        debug_callbacks.m_Scale = dmConfigFile::GetFloat(config, "physics.debug_scale", 30.0f);
+        debug_callbacks.m_Alpha = dmConfigFile::GetFloat(engine->m_Config, "physics.debug_alpha", 0.9f);
+        debug_callbacks.m_Scale = dmConfigFile::GetFloat(engine->m_Config, "physics.debug_scale", 30.0f);
         if (engine->m_PhysicsContext.m_3D)
             dmPhysics::SetDebugCallbacks3D(engine->m_PhysicsContext.m_Context3D, debug_callbacks);
         else
             dmPhysics::SetDebugCallbacks2D(engine->m_PhysicsContext.m_Context2D, debug_callbacks);
 
         engine->m_SpriteContext.m_RenderContext = engine->m_RenderContext;
-        engine->m_SpriteContext.m_MaxSpriteCount = dmConfigFile::GetInt(config, "sprite.max_count", 128);
+        engine->m_SpriteContext.m_MaxSpriteCount = dmConfigFile::GetInt(engine->m_Config, "sprite.max_count", 128);
 
         dmResource::FactoryResult fact_result;
         dmGameObject::Result res;
@@ -405,7 +409,7 @@ namespace dmEngine
         if (res != dmGameObject::RESULT_OK)
             goto bail;
 
-        if (!LoadBootstrapContent(engine, config))
+        if (!LoadBootstrapContent(engine, engine->m_Config))
         {
             dmLogWarning("Unable to load bootstrap data.");
             goto bail;
@@ -423,7 +427,7 @@ namespace dmEngine
         if (!dmGameSystem::InitializeScriptLibs(script_lib_context))
             goto bail;
 
-        fact_result = dmResource::Get(engine->m_Factory, dmConfigFile::GetString(config, "bootstrap.main_collection", "logic/main.collectionc"), (void**) &engine->m_MainCollection);
+        fact_result = dmResource::Get(engine->m_Factory, dmConfigFile::GetString(engine->m_Config, "bootstrap.main_collection", "logic/main.collectionc"), (void**) &engine->m_MainCollection);
         if (fact_result != dmResource::FACTORY_RESULT_OK)
             goto bail;
         dmGameObject::Init(engine->m_MainCollection);
@@ -458,11 +462,9 @@ namespace dmEngine
             free(tmp);
         }
 
-        dmConfigFile::Delete(config);
         return true;
 
 bail:
-        dmConfigFile::Delete(config);
         return false;
     }
 

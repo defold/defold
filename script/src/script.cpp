@@ -16,10 +16,11 @@ extern "C"
 
 namespace dmScript
 {
-    HContext NewContext()
+    HContext NewContext(dmConfigFile::HConfig config_file)
     {
         Context* context = new Context();
         context->m_Descriptors.SetCapacity(17, 128);
+        context->m_ConfigFile = config_file;
         return context;
     }
 

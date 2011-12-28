@@ -43,7 +43,7 @@ protected:
     {
         L = lua_open();
         luaL_openlibs(L);
-        m_ScriptContext = dmScript::NewContext();
+        m_ScriptContext = dmScript::NewContext(0);
         dmScript::RegisterDDFType(m_ScriptContext, TestScript::SubMsg::m_DDFDescriptor);
         dmScript::RegisterDDFType(m_ScriptContext, TestScript::EmptyMsg::m_DDFDescriptor);
         dmScript::ScriptParams params;

@@ -51,6 +51,7 @@ namespace dmEngine
     struct Engine
     {
         Engine();
+        dmConfigFile::HConfig                       m_Config;
 
         bool                                        m_Alive;
         int32_t                                     m_ExitCode;
