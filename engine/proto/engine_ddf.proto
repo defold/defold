@@ -63,7 +63,7 @@ message ToggleProfile {}
 message StartRecord
 {
     required string file_name = 1;
-    optional int32 frame_period = 2 [default = 1];
+    optional int32 frame_period = 2 [default = 2];
     optional int32 fps = 3 [ default = 30 ];
 }
 
