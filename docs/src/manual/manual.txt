@@ -1,0 +1,68 @@
+Dynamo User Manual
+==================
+:author:      Dynamo
+:keywords:    Dynamo, Game Engine
+:description: Dynamo Game Engine Manual
+
+.{revdate}: AsciiDoc {revnumber} Released
+************************************************************************
+Initial layout of the manual. Write interesting stuff here?
+
+mailto:dynamogameengine@gmail.com['Dynamo Game Engine']
+************************************************************************
+
+Introduction and Concepts
+-------------------------
+
+Concepts
+~~~~~~~~
+
+There are three basic concepts in the Dynamo Game Engine:
+
+* GameObjects
+* Components
+* Collections
+
+A GameObject represents an entity in the game and commonly has a visual representation. A GameObject is comprised of one or more
+components. There are many built-in components ranging from models and sprites for visual representation to scripts for game-logic.
+All GameObjects are prototypes. That is a template representing something that can be instantiated and made concrete. For example a GameObject
+can represent an enemy type that can be instantiated into multiple copies.
+
+A collection often represents a game-level - a group of GameObjects. The collections concept is much more general than the definition
+of a level in a traditional meaning. That is why it is called collection and not level in the Dynamo Game Engine. More about collections later on.
+
+
+TIP: Mighty tip here
+
+Creating a New Project
+----------------------
+
+image:images/preferences.png["Preferences"]
+
+Working with GameObjects
+------------------------
+
+image:images/editor.png["Editor",width=900]
+
+Fonts, Models and Materials
+---------------------------
+
+Visual Scripting
+----------------
+
+GameLogic and Putting Things Together
+-------------------------------------
+
+Lua Scripting
+-------------
+
+Making User Interfaces
+----------------------
+
+Working With Physics
+--------------------
+
+Advanced Scriptable Rendering
+-----------------------------
+
+

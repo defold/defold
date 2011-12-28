@@ -1,0 +1,59 @@
+#! /usr/bin/env python
+
+VERSION='0.1'
+APPNAME='docs'
+
+srcdir = '.'
+blddir = 'build'
+
+import sys, os, re
+import TaskGen
+from TaskGen import extension
+
+def scan_asciidoc(task):
+    deps = []
+    with open(task.inputs[0].abspath()) as f:
+        for line in f:
+            line.strip()
+            if line.startswith('image:'):
+                m = re.search(r'^image::?(\S+?)(\[\S+?\])$', line)
+                if (m != None):
+                    deps.append(task.inputs[0].parent.find_resource(m.groups(1)[0]))
+    return (deps, [])
+
+def init():
+    pass
+
+def configure(conf):
+    conf.find_program('asciidoc', var='ASCIIDOC')
+    conf.find_program('a2x', var='A2X')
+    conf.env['IMGSDIR'] = 'imgs'
+
+TaskGen.declare_chain(name='txtcpy', rule='cp ${SRC} ${TGT}', ext_in='.txt', ext_out='.txt_out', scan=scan_asciidoc)
+TaskGen.declare_chain(name='html', rule='${ASCIIDOC} -v -a imagesdir=${IMGSDIR} -o ${TGT} ${SRC}', ext_in='.txt_out', ext_out='.html', reentrant = False)
+TaskGen.declare_chain(name='pdf', rule='${A2X} -v -a imagesdir=${IMGSDIR} -f pdf ${SRC}', ext_in='.txt_out', ext_out='.pdf', reentrant = False)
+
+@extension('.txt_out')
+def process_txtout(self, node):
+    out_node = node.change_ext('.' + self.ext)
+    tsk = self.create_task(self.ext)
+    tsk.inputs = [node]
+    tsk.outputs = [out_node]
+
+def build(bld):
+    src_node = bld.path.find_dir('src')
+    dirs = ['business_plan', 'manual', 'presentation']
+    exts = ['pdf', 'html', 'pdf']
+    for i in range(len(dirs)):
+        d = dirs[i]
+        dir_node = src_node.find_dir(d)
+        images = dir_node.ant_glob('**/*.png')
+        for image in images.split(' '):
+            if image != '':
+                tgt_path = 'src/%s/%s/%s' % (d, bld.env['IMGSDIR'], image)
+                bld.path.exclusive_build_node(tgt_path)
+                src_path = 'src/%s/%s' % (d, image)
+                bld.new_task_gen(rule='cp ${SRC} ${TGT}', source=src_path, target=tgt_path)
+
+        tsk = bld.new_task_gen(source='src/%s/%s.txt' % (d, d))
+        tsk.ext = exts[i]
