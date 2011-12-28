@@ -77,7 +77,7 @@ template<typename T>
 void GamesysTest<T>::SetUp()
 {
     dmSound::Initialize(0x0, 0x0);
-    m_ScriptContext = dmScript::NewContext();
+    m_ScriptContext = dmScript::NewContext(0);
     dmGameObject::Initialize(m_ScriptContext);
 
     m_UpdateContext.m_DT = 1.0f / 60.0f;

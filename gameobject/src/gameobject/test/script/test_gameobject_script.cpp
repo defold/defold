@@ -20,7 +20,7 @@ class ScriptTest : public ::testing::Test
 protected:
     virtual void SetUp()
     {
-        m_ScriptContext = dmScript::NewContext();
+        m_ScriptContext = dmScript::NewContext(0);
         dmScript::RegisterDDFType(m_ScriptContext, TestGameObjectDDF::Spawn::m_DDFDescriptor);
         dmGameObject::Initialize(m_ScriptContext);
 
