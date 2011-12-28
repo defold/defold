@@ -31,7 +31,7 @@ def configure(conf):
     conf.env.append_value('CPPPATH', "default/src")
     conf.env['LIB_GTEST'] = 'gtest'
     conf.env['STATICLIB_DLIB'] = 'dlib'
-    conf.env['STATICLIB_VPX'] = 'vpx'
+    conf.env['LIB_VPX'] = 'vpx'
 
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="RECORD"')
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="RECORD"')
