@@ -22,6 +22,11 @@ protected:
     dmEngine::HEngine m_Engine;
 };
 
+/*
+ * TODO:
+ * We should add watchdog support that exists the application after N frames or similar.
+ */
+
 TEST_F(EngineTest, EmptyNewDelete)
 {
 }
@@ -37,6 +42,17 @@ TEST_F(EngineTest, Project)
     const char* argv[] = {"test_engine", "build/default/src/test/test.projectc"};
 
     ASSERT_TRUE(dmEngine::Init(m_Engine, 2, (char**)argv));
+
+    ASSERT_EQ(0, dmEngine::Run(m_Engine));
+
+    ASSERT_GT(dmEngine::GetFrameCount(m_Engine), 5u);
+}
+
+TEST_F(EngineTest, GuiRenderCrash)
+{
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/gui_render_crash/gui_render_crash.collectionc", "build/default/src/test/test.projectc"};
+
+    ASSERT_TRUE(dmEngine::Init(m_Engine, 3, (char**)argv));
 
     ASSERT_EQ(0, dmEngine::Run(m_Engine));
 

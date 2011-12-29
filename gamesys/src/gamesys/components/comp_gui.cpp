@@ -282,13 +282,6 @@ namespace dmGameSystem
         RenderGuiContext* gui_context = (RenderGuiContext*) context;
         GuiWorld* gui_world = gui_context->m_GuiWorld;
 
-        uint32_t remaining = gui_world->m_GuiRenderObjects.Remaining();
-        if (remaining < node_count)
-        {
-            uint32_t extra = node_count - remaining + 64;
-            gui_world->m_GuiRenderObjects.OffsetCapacity(extra);
-        }
-
         for (uint32_t i = 0; i < node_count; ++i)
         {
             dmGui::HNode node = nodes[i];
@@ -380,6 +373,21 @@ namespace dmGameSystem
         render_gui_context.m_GuiWorld = gui_world;
         render_gui_context.m_NextZ = 0;
 
+
+        uint32_t total_node_count = 0;
+        for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)
+        {
+            Component* c = gui_world->m_Components[i];
+            if (c->m_Enabled)
+            {
+                total_node_count += dmGui::GetNodeCount(c->m_Scene);
+            }
+        }
+
+        if (gui_world->m_GuiRenderObjects.Capacity() < total_node_count)
+        {
+            gui_world->m_GuiRenderObjects.SetCapacity(total_node_count);
+        }
         gui_world->m_GuiRenderObjects.SetSize(0);
         for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)
         {
