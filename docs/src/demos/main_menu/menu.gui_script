@@ -1,0 +1,51 @@
+function anim5(self, node)
+	if gui.get_node("box") == node then
+		local c_to = gui.get_color(node)
+		c_to.w = 0.6
+		gui.animate(node, gui.PROP_COLOR, c_to, gui.EASING_OUT, 1.2, 0.1)		
+	end
+end
+
+function anim4(self, node)
+	local s = 1
+	gui.animate(node, gui.PROP_SCALE, vmath.vector4(s, s, s, 0), gui.EASING_INOUT, 0.12, 0, anim5)
+end
+
+function anim3(self, node)
+	local s = 1.02
+	gui.animate(node, gui.PROP_SCALE, vmath.vector4(s, s, s, 0), gui.EASING_INOUT, 0.12, 0, anim4)
+end
+
+function anim2(self, node)
+	local s = 0.98
+	gui.animate(node, gui.PROP_SCALE, vmath.vector4(s, s, s, 0), gui.EASING_INOUT, 0.12, 0, anim3)
+end
+
+function anim1(node, d)
+	local start = 0.7
+	gui.set_scale(node, vmath.vector4(start, start, start, 0))
+	local c_from = gui.get_color(node)
+	local c_to = gui.get_color(node)
+	c_from.w = 0
+	
+	gui.set_color(node, c_from)
+	gui.animate(node, gui.PROP_COLOR, c_to, gui.EASING_IN, 0.2, d)
+	
+	local s = 1.1
+	gui.animate(node, gui.PROP_SCALE, vmath.vector4(s, s, s, 0), gui.EASING_IN, 0.2, d, anim2)
+end
+
+function init(self)          
+	local d = 0.4
+    anim1(gui.get_node("new_game"), d)
+    anim1(gui.get_node("new_game_shadow"), d)
+    anim1(gui.get_node("new_game_box"), d)
+    
+	d = 0.3
+    anim1(gui.get_node("quit"), d)
+    anim1(gui.get_node("quit_shadow"), d)
+    anim1(gui.get_node("quit_box"), d)
+    
+	d = 0.1
+    anim1(gui.get_node("box"), d)
+end

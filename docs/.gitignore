@@ -1,3 +1,5 @@
+src/demos/tmp
+src/demos/builtins
 .DS_Store
 build
 .externalToolBuilders
