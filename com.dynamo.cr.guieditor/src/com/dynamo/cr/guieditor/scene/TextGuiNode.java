@@ -3,6 +3,11 @@ package com.dynamo.cr.guieditor.scene;
 import java.awt.FontMetrics;
 import java.awt.geom.Rectangle2D;
 
+import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Status;
+import org.eclipse.swt.graphics.RGB;
+
+import com.dynamo.cr.guieditor.Activator;
 import com.dynamo.cr.guieditor.DrawContext;
 import com.dynamo.cr.guieditor.render.IGuiRenderer;
 import com.dynamo.cr.properties.Property;
@@ -10,6 +15,7 @@ import com.dynamo.gui.proto.Gui.NodeDesc;
 import com.dynamo.gui.proto.Gui.NodeDesc.BlendMode;
 import com.dynamo.gui.proto.Gui.NodeDesc.Builder;
 import com.dynamo.gui.proto.Gui.NodeDesc.Pivot;
+import com.dynamo.proto.DdfMath.Vector4;
 import com.sun.opengl.util.j2d.TextRenderer;
 import com.sun.opengl.util.texture.Texture;
 
@@ -20,6 +26,16 @@ public class TextGuiNode extends GuiNode {
     @Property
     private String font;
 
+    @Property()
+    protected RGB outline;
+    @Property
+    private double outlineAlpha;
+
+    @Property()
+    protected RGB shadow;
+    @Property
+    private double shadowAlpha;
+
     private Rectangle2D textBounds = new Rectangle2D.Double(0, 0, 1, 1);
     private double pivotOffsetX;
     private double pivotOffsetY;
@@ -28,6 +44,27 @@ public class TextGuiNode extends GuiNode {
         super(scene, nodeDesc);
         this.font = nodeDesc.getFont();
         this.text = nodeDesc.getText();
+        this.outline = new RGB((int) (nodeDesc.getOutline().getX() * 255),
+                (int) (nodeDesc.getOutline().getY() * 255),
+                (int) (nodeDesc.getOutline().getZ() * 255));
+        this.outlineAlpha = nodeDesc.getOutline().getW();
+        this.shadow = new RGB((int) (nodeDesc.getShadow().getX() * 255),
+                (int) (nodeDesc.getShadow().getY() * 255),
+                (int) (nodeDesc.getShadow().getZ() * 255));
+        this.shadowAlpha = nodeDesc.getShadow().getW();
+    }
+
+    @Override
+    protected void verify() {
+        super.verify();
+        if (outlineAlpha < 0 || outlineAlpha > 1.0) {
+            IStatus status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, "outline alpha value must between 0 and 1");
+            statusMap.put("outlineAlpha", status);
+        }
+        if (shadowAlpha < 0 || shadowAlpha > 1.0) {
+            IStatus status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, "shadow alpha value must between 0 and 1");
+            statusMap.put("shadowAlpha", status);
+        }
     }
 
     public String getText() {
@@ -44,6 +81,44 @@ public class TextGuiNode extends GuiNode {
 
     public void setFont(String font) {
         this.font = font;
+    }
+
+    public RGB getOutline() {
+        return new RGB(outline.red, outline.green, outline.blue);
+    }
+
+    public void setOutline(RGB outline) {
+        this.outline.red = outline.red;
+        this.outline.green = outline.green;
+        this.outline.blue = outline.blue;
+    }
+
+    public double getOutlineAlpha() {
+        return outlineAlpha;
+    }
+
+    public void setOutlineAlpha(double outlineAlpha) {
+        this.outlineAlpha = outlineAlpha;
+        verify();
+    }
+
+    public RGB getShadow() {
+        return new RGB(shadow.red, shadow.green, shadow.blue);
+    }
+
+    public void setShadow(RGB shadow) {
+        this.shadow.red = shadow.red;
+        this.shadow.green = shadow.green;
+        this.shadow.blue = shadow.blue;
+    }
+
+    public double getShadowAlpha() {
+        return shadowAlpha;
+    }
+
+    public void setShadowAlpha(double shadowAlpha) {
+        this.shadowAlpha = shadowAlpha;
+        verify();
     }
 
     private String getErrorText() {
@@ -98,6 +173,7 @@ public class TextGuiNode extends GuiNode {
         return Double.MAX_VALUE;
     }
 
+    @Override
     public void draw(DrawContext context) {
         IGuiRenderer renderer = context.getRenderer();
         double x0 = position.x;
@@ -139,6 +215,7 @@ public class TextGuiNode extends GuiNode {
         renderer.drawString(textRenderer, actualText, x0, y0, r, g, b, alpha, blendMode, texture);
     }
 
+    @Override
     public void drawSelect(DrawContext context) {
         IGuiRenderer renderer = context.getRenderer();
         double x0 = position.x;
@@ -167,6 +244,7 @@ public class TextGuiNode extends GuiNode {
         renderer.drawStringBounds(textRenderer, actualText, x0, y0, 1, 1, 1, 1);
     }
 
+    @Override
     public Rectangle2D getVisualBounds() {
         if (textBounds != null) {
             // Return cached text bounds
@@ -186,8 +264,20 @@ public class TextGuiNode extends GuiNode {
 
     @Override
     public void doBuildNodeDesc(Builder builder) {
+        Vector4 outline4 = Vector4.newBuilder()
+                .setX(outline.red / 255.0f )
+                .setY(outline.green / 255.0f )
+                .setZ(outline.blue / 255.0f)
+                .setW((float) outlineAlpha).build();
+        Vector4 shadow4 = Vector4.newBuilder()
+                .setX(shadow.red / 255.0f )
+                .setY(shadow.green / 255.0f )
+                .setZ(shadow.blue / 255.0f)
+                .setW((float) shadowAlpha).build();
         builder.setText(this.text)
-               .setFont(this.font);
+               .setFont(this.font)
+               .setOutline(outline4)
+               .setShadow(shadow4);
     }
 
 }

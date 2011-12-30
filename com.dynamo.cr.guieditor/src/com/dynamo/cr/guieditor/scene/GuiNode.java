@@ -67,12 +67,12 @@ public abstract class GuiNode implements IAdaptable {
     @Property()
     private YAnchor yanchor;
 
-    private Map<String, IStatus> statusMap = new HashMap<String, IStatus>();
+    protected Map<String, IStatus> statusMap = new HashMap<String, IStatus>();
 
     private static Map<Class<? extends GuiNode>, PropertyIntrospector<GuiNode, GuiScene>> introspectors =
             new HashMap<Class<? extends GuiNode>, PropertyIntrospector<GuiNode, GuiScene>>();
 
-    private void verify() {
+    protected void verify() {
         statusMap.clear();
         if (alpha < 0 || alpha > 1.0) {
             IStatus status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, "alpha value must between 0 and 1");
