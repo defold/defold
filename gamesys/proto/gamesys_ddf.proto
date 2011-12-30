@@ -21,7 +21,7 @@ message SpawnPointDesc
  * @examples
  * Assuming the instance of the script has a spawn-point-component with id "spawn_point":
  * <pre>
- * msg.post("#spawn_point", "spawn", {position = vmath.vector3(), rotation = vmath.quaternion()})
+ * msg.post("#spawn_point", "spawn", {position = vmath.vector3(), rotation = vmath.quat()})
  * </pre>
  */
 message Spawn
