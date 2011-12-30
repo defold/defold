@@ -286,6 +286,8 @@ namespace dmGui
      *   <li><code>gui.PROP_ROTATION</code></li>
      *   <li><code>gui.PROP_SCALE</code></li>
      *   <li><code>gui.PROP_COLOR</code></li>
+     *   <li><code>gui.PROP_OUTLINE</code></li>
+     *   <li><code>gui.PROP_SHADOW</code></li>
      *   <li><code>gui.PROP_SIZE</code></li>
      * </ul>
      * @param to target property value (vector3|vector4)
@@ -395,6 +397,8 @@ namespace dmGui
      *   <li><code>gui.PROP_ROTATION</code></li>
      *   <li><code>gui.PROP_SCALE</code></li>
      *   <li><code>gui.PROP_COLOR</code></li>
+     *   <li><code>gui.PROP_OUTLINE</code></li>
+     *   <li><code>gui.PROP_SHADOW</code></li>
      *   <li><code>gui.PROP_SIZE</code></li>
      * </ul>
      */
@@ -815,6 +819,34 @@ namespace dmGui
      * @param color new color (vector3|vector4)
      */
 
+    /*# gets the node outline color
+     *
+     * @name gui.get_outline
+     * @param node node to get the outline color from (node)
+     * @return node outline color (vector4)
+     */
+
+    /*# sets the node outline color
+     *
+     * @name gui.set_outline
+     * @param node node to set the outline color for (node)
+     * @param color new outline color (vector3|vector4)
+     */
+
+    /*# gets the node shadow color
+     *
+     * @name gui.get_shadow
+     * @param node node to get the shadow color from (node)
+     * @return node shadow color (vector4)
+     */
+
+    /*# sets the node shadow color
+     *
+     * @name gui.set_shadow
+     * @param node node to set the shadow color for (node)
+     * @param color new shadow color (vector3|vector4)
+     */
+
     /*# gets the node size
      *
      * @name gui.get_size
@@ -853,6 +885,8 @@ namespace dmGui
     LUAGETSET(Rotation, PROPERTY_ROTATION)
     LUAGETSET(Scale, PROPERTY_SCALE)
     LUAGETSET(Color, PROPERTY_COLOR)
+    LUAGETSET(Outline, PROPERTY_OUTLINE)
+    LUAGETSET(Shadow, PROPERTY_SHADOW)
     LUAGETSET(Size, PROPERTY_SIZE)
 
 #undef LUAGETSET
@@ -894,6 +928,8 @@ namespace dmGui
         REGGETSET(Rotation, rotation)
         REGGETSET(Scale, scale)
         REGGETSET(Color, color)
+        REGGETSET(Outline, outline)
+        REGGETSET(Shadow, shadow)
         REGGETSET(Size, size)
         {0, 0}
     };
@@ -945,6 +981,18 @@ namespace dmGui
     /*# color property
      *
      * @name gui.PROP_COLOR
+     * @variable
+     */
+
+    /*# outline color property
+     *
+     * @name gui.PROP_OUTLINE
+     * @variable
+     */
+
+    /*# shadow color property
+     *
+     * @name gui.PROP_SHADOW
      * @variable
      */
 
@@ -1083,6 +1131,8 @@ namespace dmGui
         SETPROP(ROTATION)
         SETPROP(SCALE)
         SETPROP(COLOR)
+        SETPROP(OUTLINE)
+        SETPROP(SHADOW)
         SETPROP(SIZE)
 
 #undef SETPROP

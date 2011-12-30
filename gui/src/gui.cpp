@@ -608,6 +608,8 @@ namespace dmGui
             node->m_Node.m_Properties[PROPERTY_ROTATION] = Vector4(0);
             node->m_Node.m_Properties[PROPERTY_SCALE] = Vector4(1,1,1,0);
             node->m_Node.m_Properties[PROPERTY_COLOR] = Vector4(1,1,1,1);
+            node->m_Node.m_Properties[PROPERTY_OUTLINE] = Vector4(0,0,0,1);
+            node->m_Node.m_Properties[PROPERTY_SHADOW] = Vector4(0,0,0,1);
             node->m_Node.m_Properties[PROPERTY_SIZE] = Vector4(size, 0);
             node->m_Node.m_NodeType = (uint32_t) node_type;
             node->m_Node.m_TextureHash = 0;
@@ -845,6 +847,14 @@ namespace dmGui
 
             case PROPERTY_COLOR:
                 animation.m_Value = &n->m_Node.m_Properties[PROPERTY_COLOR];
+                break;
+
+            case PROPERTY_OUTLINE:
+                animation.m_Value = &n->m_Node.m_Properties[PROPERTY_OUTLINE];
+                break;
+
+            case PROPERTY_SHADOW:
+                animation.m_Value = &n->m_Node.m_Properties[PROPERTY_SHADOW];
                 break;
 
             case PROPERTY_SIZE:

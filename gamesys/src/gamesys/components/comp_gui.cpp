@@ -176,6 +176,8 @@ namespace dmGameSystem
                 dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_ROTATION, node_desc->m_Rotation);
                 dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_SCALE, node_desc->m_Scale);
                 dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_COLOR, node_desc->m_Color);
+                dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_OUTLINE, node_desc->m_Outline);
+                dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_SHADOW, node_desc->m_Shadow);
                 dmGui::SetNodeBlendMode(scene, n, blend_mode);
                 dmGui::SetNodePivot(scene, n, (dmGui::Pivot) node_desc->m_Pivot);
                 dmGui::SetNodeXAnchor(scene, n, (dmGui::XAnchor) node_desc->m_Xanchor);
@@ -287,6 +289,8 @@ namespace dmGameSystem
             dmGui::HNode node = nodes[i];
 
             const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
+            const Vector4& outline = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_OUTLINE);
+            const Vector4& shadow = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_SHADOW);
 
             dmRender::RenderObject ro;
 
@@ -347,6 +351,8 @@ namespace dmGameSystem
             {
                 dmRender::DrawTextParams params;
                 params.m_FaceColor = color;
+                params.m_OutlineColor = outline;
+                params.m_ShadowColor = shadow;
                 params.m_Text = dmGui::GetNodeText(scene, node);
                 params.m_WorldTransform = node_transforms[i];
                 params.m_Depth = gui_context->m_NextZ;

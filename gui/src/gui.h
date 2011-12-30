@@ -101,10 +101,10 @@ namespace dmGui
         PROPERTY_SCALE      = 2,
         PROPERTY_COLOR      = 3,
         PROPERTY_SIZE       = 4,
+        PROPERTY_OUTLINE    = 5,
+        PROPERTY_SHADOW     = 6,
 
-        PROPERTY_RESERVED1  = 5,
-        PROPERTY_RESERVED2  = 6,
-        PROPERTY_RESERVED3  = 7,
+        PROPERTY_RESERVED   = 7,
 
         PROPERTY_COUNT      = 8,
     };
