@@ -8,9 +8,11 @@ end
 
 local function start(self)
     self.frame_count = 0
-    self.recording = true
-    print("recording " .. self.length .. " frames")
-    msg.post("@system:", "start_record", { file_name = "tmp/" .. self.demo .. ".ivf"} )
+    if self.length > 0 then
+        self.recording = true
+        print("recording " .. self.length .. " frames")
+        msg.post("@system:", "start_record", { file_name = "tmp/" .. self.demo .. ".ivf"} )
+    end
     msg.post(self.url, "load")
     msg.post(self.url, "init")
     gui.set_color(self.title_node, vmath.vector4(0, 0, 0, 0))
