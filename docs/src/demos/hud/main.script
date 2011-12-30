@@ -1,7 +1,7 @@
 -- the sole purpose of this script is to trigger the hud score counting
 
 -- amount of each score added
-local score = 10
+local scores = {10, 20, 50}
 -- how often a score is added per second
 local score_freq = 0.5
 
@@ -20,6 +20,7 @@ function update(self, dt)
 		self.timer = self.timer - 1
 		local x = self.width * (math.random() * 0.5 + 0.25)
 		local y = self.height * (math.random() * 0.5 + 0.25)
+		local score = scores[math.random(#scores)]
 		msg.post("#gui", "add_score", {amount = score, position = vmath.vector3(x, y, 0)})
 	end
 end
