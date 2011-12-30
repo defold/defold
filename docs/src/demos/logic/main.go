@@ -21,3 +21,8 @@ embedded_components {
   type: "collectionproxy"
   data: "collection: \"/hud/main.collection\"\n"
 }
+embedded_components {
+  id: "parallax"
+  type: "collectionproxy"
+  data: "collection: \"/parallax/main.collection\"\n"
+}
