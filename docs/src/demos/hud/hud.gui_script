@@ -1,0 +1,73 @@
+-- how fast the score counts up per second
+local score_inc_speed = 10
+
+function init(self)
+	-- the target score is the current score in the game
+	self.target_score = 0
+	-- the current score being counted up towards the target score
+	self.current_score = 0
+	-- the score as displayed in the hud
+	self.displayed_score = 0
+	-- keep a reference to the node displaying the score for later use below
+	self.score_node = gui.get_node("score")
+end
+
+function update(self, dt)
+	-- check if the score needs to be updated
+	if self.current_score < self.target_score then
+		-- increment the score for this timestep to grow towards the target score
+		self.current_score = self.current_score + score_inc_speed * dt
+		-- clamp the score so it doesn't grow past the target score
+		self.current_score = math.min(self.current_score, self.target_score)
+		-- floor the score so it can be displayed without decimals
+		local floored_score = math.floor(self.current_score)
+		-- check if the displayed score should be updated
+		if self.displayed_score ~= floored_score then
+			-- update displayed score
+			self.displayed_score = floored_score
+			-- update the text of the score node
+			gui.set_text(self.score_node, string.format("%d p", self.displayed_score))
+			-- set the scale of the score node to be slightly bigger than normal
+			local s = 1.25
+			gui.set_scale(self.score_node, vmath.vector3(s, s, s))
+			-- then animate the scale back to the original value
+			s = 1.0
+			gui.animate(self.score_node, gui.PROP_SCALE, vmath.vector3(s, s, s), gui.EASING_OUT, 0.1)
+		end
+	end
+end
+
+-- this function stores the added score so that the displayed score can be counted up in the update function
+local function swoosh_done(self, node)
+	-- retrieve score from node
+	local amount = tonumber(gui.get_text(node))
+	-- increase the target score, see the update function for how the score is updated to match the target score
+	self.target_score = self.target_score + amount
+	-- remove the temp score
+	gui.delete_node(node)
+end
+ 
+-- this function animates the node from having floated first to swoosh away towards the displayed total score
+local function float_done(self, node)
+	local duration = 0.4
+	-- swoosh away towards the displayed score
+	gui.animate(node, gui.PROP_POSITION, gui.get_position(self.score_node), gui.EASING_IN, duration, 0.0, swoosh_done)
+	-- also fade out partially during the swoosh
+	gui.animate(node, gui.PROP_COLOR, vmath.vector4(1, 1, 1, 0.6), gui.EASING_IN, duration)
+end
+
+function on_message(self, message_id, message, sender)
+	-- register added score, this message could be sent by anyone wanting to increment the score
+	if message_id == hash("add_score") then
+		-- create a new temporary score node
+		local node = gui.new_text_node(message.position, tostring(message.amount))
+		-- use the small font for it
+		gui.set_font(node, "small_score")
+		-- initially transparent
+		gui.set_color(node, vmath.vector4(1, 1, 1, 0))
+		-- half second fade in
+		gui.animate(node, gui.PROP_COLOR, vmath.vector4(1, 1, 1, 1), gui.EASING_OUT, 0.5)
+		-- float for 1 second
+		gui.animate(node, gui.PROP_POSITION, gui.get_position(node) + vmath.vector4(0, 20, 0, 0), gui.EASING_NONE, 1.0, 0.0, float_done)
+	end
+end

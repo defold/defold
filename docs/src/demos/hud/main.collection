@@ -1,0 +1,5 @@
+name: "hud"
+instances {
+  id: "main"
+  prototype: "/hud/main.go"
+}
