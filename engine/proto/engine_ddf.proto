@@ -79,3 +79,19 @@ message StartRecord
 message StopRecord
 {
 }
+
+/*# set clear color
+ * Set render clear color
+ *
+ * @message
+ * @name clear_color
+ * @param color color to set as clear color
+ * @examples
+ * <pre>
+ * msg.post("@render:", "clear_color", { color = vmath.vector4(1, 0, 0, 0) } )
+ * </pre>
+ */
+message ClearColor
+{
+    required dmMath.Vector4 color = 1;
+}

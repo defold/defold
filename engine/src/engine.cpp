@@ -313,6 +313,7 @@ namespace dmEngine
         render_params.m_FragmentProgramDataSize = ::DEBUG_FPC_SIZE;
         render_params.m_MaxCharacters = 2048 * 4;
         render_params.m_CommandBufferSize = 1024;
+        render_params.m_ScriptContext = engine->m_ScriptContext;
         engine->m_RenderContext = dmRender::NewRenderContext(engine->m_GraphicsContext, render_params);
 
         engine->m_EmitterContext.m_RenderContext = engine->m_RenderContext;
@@ -684,6 +685,7 @@ bail:
         dmScript::RegisterDDFType(engine->m_ScriptContext, dmEngineDDF::ToggleProfile::m_DDFDescriptor);
         dmScript::RegisterDDFType(engine->m_ScriptContext, dmEngineDDF::StartRecord::m_DDFDescriptor);
         dmScript::RegisterDDFType(engine->m_ScriptContext, dmEngineDDF::StopRecord::m_DDFDescriptor);
+        dmScript::RegisterDDFType(engine->m_ScriptContext, dmEngineDDF::ClearColor::m_DDFDescriptor);
         dmScript::RegisterDDFType(engine->m_ScriptContext, dmRenderDDF::DrawText::m_DDFDescriptor);
         dmScript::RegisterDDFType(engine->m_ScriptContext, dmRenderDDF::DrawLine::m_DDFDescriptor);
         dmScript::RegisterDDFType(engine->m_ScriptContext, dmModelDDF::SetTexture::m_DDFDescriptor);

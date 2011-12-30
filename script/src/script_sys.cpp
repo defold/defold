@@ -183,7 +183,12 @@ namespace dmScript
 
         lua_getglobal(L, SCRIPT_CONTEXT);
         Context* context = (Context*) (dmConfigFile::HConfig)lua_touserdata(L, -1);
-        dmConfigFile::HConfig config_file = context->m_ConfigFile;
+        dmConfigFile::HConfig config_file = 0;
+        if (context)
+        {
+            config_file = context->m_ConfigFile;
+        }
+
         lua_pop(L, 1);
 
         const char* value;

@@ -3,10 +3,16 @@ function init(self)
     self.sprite_pred = render.predicate({"sprite"})
     self.gui_pred = render.predicate({"gui"})
     self.text_pred = render.predicate({"text"})
+
+    self.clear_color = vmath.vector4(0, 0, 0, 0)
+    self.clear_color.x = sys.get_config("render.clear_color_red", 0)
+    self.clear_color.y = sys.get_config("render.clear_color_green", 0)
+    self.clear_color.z = sys.get_config("render.clear_color_blue", 0)
+    self.clear_color.w = sys.get_config("render.clear_color_alpha", 0)
 end
 
 function update(self)
-    render.clear({[render.BUFFER_COLOR_BIT] = vmath.vector4(0, 0, 0, 0)})
+    render.clear({[render.BUFFER_COLOR_BIT] = self.clear_color })
 
     render.set_viewport(0, 0, render.get_window_width(), render.get_window_height())
     render.set_view(vmath.matrix4())
@@ -33,4 +39,7 @@ function update(self)
 end
 
 function on_message(self, message_id, message)
+    if message_id == hash("clear_color") then
+        self.clear_color = message.color
+    end
 end
