@@ -14,9 +14,9 @@ void main()
     vec4 oc = outline_color;
     vec4 sc = shadow_color;
 
-    fc *= t.x;
-    oc *= t.y;
-    sc *= t.z;
+    fc.w *= t.x;
+    oc.w *= t.y;
+    sc.w *= t.z;
 
     gl_FragColor = fc + oc + sc;
 }
