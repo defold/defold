@@ -234,7 +234,8 @@ namespace dmGameSystem
                         {
                             dmGameSystemDDF::TileCell* cell = &layer->m_Cell[j];
                             uint32_t tile = cell->m_Tile;
-                            if (tile_set->m_ConvexHulls[tile].m_Count > 0)
+
+                            if (tile < tile_set->m_ConvexHulls.m_Count && tile_set->m_ConvexHulls[tile].m_Count > 0)
                             {
                                 uint32_t cell_x = cell->m_X - tile_grid_resource->m_MinCellX;
                                 uint32_t cell_y = cell->m_Y - tile_grid_resource->m_MinCellY;
