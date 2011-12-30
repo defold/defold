@@ -1,6 +1,7 @@
 local function fade_out_complete(self)
     if not self.enabled then
         self.enabled = true
+        msg.post(self.url, "init")
         msg.post(self.url, "enable")
     end
 end
@@ -22,7 +23,6 @@ local function start(self)
         msg.post("@system:", "start_record", { file_name = "tmp/" .. self.demo .. ".ivf"} )
     end
     msg.post(self.url, "load")
-    msg.post(self.url, "init")
 
     gui.set_text(self.title_node, self.title)
     anim_text(self, self.title_node)
