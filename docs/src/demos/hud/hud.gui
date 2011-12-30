@@ -68,8 +68,8 @@ nodes {
 }
 nodes {
   position {
-    x: 58.0
-    y: 672.0
+    x: 640.0
+    y: 651.0
     z: 0.0
     w: 0.0
   }

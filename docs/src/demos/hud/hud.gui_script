@@ -1,5 +1,5 @@
 -- how fast the score counts up per second
-local score_inc_speed = 15
+local score_inc_speed = 1000
 
 function init(self)
 	-- the target score is the current score in the game
@@ -28,7 +28,7 @@ local function spawn_stars(self, amount)
 	-- distance from the position where the star is spawned
 	local start_distance = 0
 	-- distance where the star stops
-	local end_distance = 120
+	local end_distance = 240
 	-- angle distance between each star in the star circle
 	local angle_step = 2 * math.pi / amount
 	-- randomize start angle
@@ -48,9 +48,9 @@ local function spawn_stars(self, amount)
 		-- set to transparent
 		gui.set_color(star, vmath.vector4(1, 1, 1, 0))
 		-- fade in
-		gui.animate(star, gui.PROP_COLOR, vmath.vector4(1, 1, 1, 1), gui.EASING_OUT, 0.1, 0.0, fade_out_star)
+		gui.animate(star, gui.PROP_COLOR, vmath.vector4(1, 1, 1, 1), gui.EASING_OUT, 0.4, 0.0, fade_out_star)
 		-- animate position
-		gui.animate(star, gui.PROP_POSITION, end_p, gui.EASING_NONE, 0.4)
+		gui.animate(star, gui.PROP_POSITION, end_p, gui.EASING_NONE, 0.55)
 	end
 end
 
@@ -76,7 +76,7 @@ function update(self, dt)
 			s = 1.0
 			gui.animate(self.score_node, gui.PROP_SCALE, vmath.vector3(s, s, s), gui.EASING_OUT, 0.2)
 			-- spawn stars
-			spawn_stars(self, 8)
+			spawn_stars(self, 3)
 		end
 	end
 end

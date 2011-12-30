@@ -1,7 +1,7 @@
 -- the sole purpose of this script is to trigger the hud score counting
 
 -- amount of each score added
-local scores = {10, 20, 50}
+local scores = {500, 1000, 1500}
 -- how often a score is added per second
 local score_freq = 0.5
 
