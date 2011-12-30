@@ -16,3 +16,8 @@ embedded_components {
   type: "collectionproxy"
   data: "collection: \"/main_menu/main.collection\"\n"
 }
+embedded_components {
+  id: "hud"
+  type: "collectionproxy"
+  data: "collection: \"/hud/main.collection\"\n"
+}
