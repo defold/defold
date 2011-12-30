@@ -82,9 +82,9 @@ class YouTube(object):
 
             entry = self.find_video(title, crc)
             if entry:
-                print 'Skipping "%s". Already uploaded (crc=%s)' % (file_name, crc)
+                print 'Skipping "%s". Already uploaded (version=%s)' % (file_name, crc)
             else:
-                print 'Uploading "%s" (crc=%s)' % (file_name, crc)
+                print 'Uploading "%s" (version=%s)' % (file_name, crc)
                 self._upload(file_name, crc)
 
     def _create_video_entry(self, title, description, category, keywords=None,
@@ -113,7 +113,7 @@ class YouTube(object):
 
     def _upload(self, file_name, crc):
         title = self.filename_to_title(file_name)
-        entry = self._create_video_entry(title, title, "Games", keywords = 'crc=%s' % crc)
+        entry = self._create_video_entry(title, title, "Games", keywords = 'version=%s,games,game engine,defold,tutorial,example' % crc)
         entry2 = self.service.InsertVideoEntry(entry, file_name)
 
     def find_latest_video(self, title):
@@ -134,7 +134,7 @@ class YouTube(object):
             tags = entry.media.keywords.text.split(',')
             tags = map(string.strip, tags)
             for t in tags:
-                m = re.match('crc=(.*)', t)
+                m = re.match('version=(.*)', t)
                 if m:
                     if m.groups()[0] == crc:
                         return entry
