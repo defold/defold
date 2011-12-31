@@ -48,7 +48,7 @@ local function spawn_stars(self, amount)
 		-- set to transparent
 		gui.set_color(star, vmath.vector4(1, 1, 1, 0))
 		-- fade in
-		gui.animate(star, gui.PROP_COLOR, vmath.vector4(1, 1, 1, 1), gui.EASING_OUT, 0.4, 0.0, fade_out_star)
+		gui.animate(star, gui.PROP_COLOR, vmath.vector4(1, 1, 1, 1), gui.EASING_OUT, 0.2, 0.0, fade_out_star)
 		-- animate position
 		gui.animate(star, gui.PROP_POSITION, end_p, gui.EASING_NONE, 0.55)
 	end
@@ -76,7 +76,7 @@ function update(self, dt)
 			s = 1.0
 			gui.animate(self.score_node, gui.PROP_SCALE, vmath.vector3(s, s, s), gui.EASING_OUT, 0.2)
 			-- spawn stars
-			spawn_stars(self, 3)
+			spawn_stars(self, 4)
 		end
 	end
 end
