@@ -685,9 +685,9 @@ bail:
         dmScript::RegisterDDFType(engine->m_ScriptContext, dmEngineDDF::ToggleProfile::m_DDFDescriptor);
         dmScript::RegisterDDFType(engine->m_ScriptContext, dmEngineDDF::StartRecord::m_DDFDescriptor);
         dmScript::RegisterDDFType(engine->m_ScriptContext, dmEngineDDF::StopRecord::m_DDFDescriptor);
-        dmScript::RegisterDDFType(engine->m_ScriptContext, dmEngineDDF::ClearColor::m_DDFDescriptor);
         dmScript::RegisterDDFType(engine->m_ScriptContext, dmRenderDDF::DrawText::m_DDFDescriptor);
         dmScript::RegisterDDFType(engine->m_ScriptContext, dmRenderDDF::DrawLine::m_DDFDescriptor);
+        dmScript::RegisterDDFType(engine->m_ScriptContext, dmRenderDDF::ClearColor::m_DDFDescriptor);
         dmScript::RegisterDDFType(engine->m_ScriptContext, dmModelDDF::SetTexture::m_DDFDescriptor);
         dmScript::RegisterDDFType(engine->m_ScriptContext, dmModelDDF::SetConstant::m_DDFDescriptor);
         dmScript::RegisterDDFType(engine->m_ScriptContext, dmModelDDF::ResetConstant::m_DDFDescriptor);
