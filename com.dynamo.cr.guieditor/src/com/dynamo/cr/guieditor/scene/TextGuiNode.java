@@ -3,6 +3,9 @@ package com.dynamo.cr.guieditor.scene;
 import java.awt.FontMetrics;
 import java.awt.geom.Rectangle2D;
 
+import javax.vecmath.Matrix4d;
+import javax.vecmath.Vector4d;
+
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.swt.graphics.RGB;
@@ -176,8 +179,6 @@ public class TextGuiNode extends GuiNode {
     @Override
     public void draw(DrawContext context) {
         IGuiRenderer renderer = context.getRenderer();
-        double x0 = position.x;
-        double y0 = position.y;
 
         TextRenderer textRenderer = context.getRenderResourceCollection().getTextRenderer(font);
 
@@ -209,17 +210,17 @@ public class TextGuiNode extends GuiNode {
         pivotOffsetX = pivotOffsetX(width);
         pivotOffsetY = pivotOffsetY(ascent, descent);
 
-        x0 -= pivotOffsetX;
-        y0 -= pivotOffsetY;
+        double x0 = -pivotOffsetX;
+        double y0 = -pivotOffsetY;
 
-        renderer.drawString(textRenderer, actualText, x0, y0, r, g, b, alpha, blendMode, texture);
+        Matrix4d transform = new Matrix4d();
+        calculateWorldTransform(transform);
+        renderer.drawString(textRenderer, actualText, x0, y0, r, g, b, alpha, blendMode, texture, transform);
     }
 
     @Override
     public void drawSelect(DrawContext context) {
         IGuiRenderer renderer = context.getRenderer();
-        double x0 = position.x;
-        double y0 = position.y;
 
         TextRenderer textRenderer = context.getRenderResourceCollection().getTextRenderer(font);
 
@@ -238,23 +239,46 @@ public class TextGuiNode extends GuiNode {
         pivotOffsetX = pivotOffsetX(width);
         pivotOffsetY = pivotOffsetY(ascent, descent);
 
-        x0 -= pivotOffsetX;
-        y0 -= pivotOffsetY;
+        double x0 = -pivotOffsetX;
+        double y0 = -pivotOffsetY;
 
-        renderer.drawStringBounds(textRenderer, actualText, x0, y0, 1, 1, 1, 1);
+        Matrix4d transform = new Matrix4d();
+        calculateWorldTransform(transform);
+        renderer.drawStringBounds(textRenderer, actualText, x0, y0, 1, 1, 1, 1, transform);
     }
 
     @Override
     public Rectangle2D getVisualBounds() {
         if (textBounds != null) {
             // Return cached text bounds
-            double x = position.x + textBounds.getX();
-            double y = position.y - (textBounds.getHeight() + textBounds.getY());
+            double x0 = textBounds.getX();
+            double y0 = -(textBounds.getHeight() + textBounds.getY());
 
-            x -= pivotOffsetX;
-            y -= pivotOffsetY;
+            x0 -= pivotOffsetX;
+            y0 -= pivotOffsetY;
+            double x1 = x0 + textBounds.getWidth();
+            double y1 = y0 + textBounds.getHeight();
 
-            Rectangle2D ret = new Rectangle2D.Double(x, y, textBounds.getWidth(), textBounds.getHeight());
+            Vector4d[] points = new Vector4d[] {
+                    new Vector4d(x0, y0, 0, 1),
+                    new Vector4d(x1, y0, 0, 1),
+                    new Vector4d(x1, y1, 0, 1),
+                    new Vector4d(x0, y1, 0, 1),
+            };
+            double xMin = Double.POSITIVE_INFINITY, yMin = Double.POSITIVE_INFINITY;
+            double xMax = Double.NEGATIVE_INFINITY, yMax = Double.NEGATIVE_INFINITY;
+
+            Matrix4d transform = new Matrix4d();
+            calculateWorldTransform(transform);
+            for (int i = 0; i < 4; ++i) {
+                transform.transform(points[i]);
+                xMin = Math.min(xMin, points[i].getX());
+                yMin = Math.min(yMin, points[i].getY());
+                xMax = Math.max(xMax, points[i].getX());
+                yMax = Math.max(yMax, points[i].getY());
+            }
+
+            Rectangle2D ret = new Rectangle2D.Double(xMin, yMin, xMax - xMin, yMax - yMin);
             return ret;
         }
 
