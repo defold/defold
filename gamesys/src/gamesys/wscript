@@ -35,16 +35,17 @@ def build(bld):
                      destfile='tile.jar')
     bld.install_files('${PREFIX}/share/java', 'tile.jar')
 
-    doc_protos = ['../../proto/gamesys_ddf.proto',
+    doc_files = ['../../proto/gamesys_ddf.proto',
         '../../proto/physics_ddf.proto',
         '../../proto/sprite_ddf.proto',
         '../../proto/sprite2_ddf.proto',
-        '../../proto/tile_ddf.proto']
-    bld.new_task_gen(source = ' '.join(doc_protos),
+        '../../proto/tile_ddf.proto',
+        'gamesys_script.cpp']
+    bld.new_task_gen(source = ' '.join(doc_files),
                      target = 'gamesys_doc.sdoc',
                      rule = '${SCRIPT_DOC} ${SRC} ${TGT}')
 
-    bld.new_task_gen(source = ' '.join(doc_protos),
+    bld.new_task_gen(source = ' '.join(doc_files),
                      target = 'gamesys_doc.json',
                      rule = '${SCRIPT_DOC} -t json ${SRC} ${TGT}')
 
