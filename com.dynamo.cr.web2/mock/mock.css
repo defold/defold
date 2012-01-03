@@ -286,6 +286,15 @@ ul.nav1 a:hover {
     border-right: 1px solid white;
 }
 
+/* message */
+div.message {
+	padding: 6px 30px 6px 30px;
+	display: inline;
+    background-color: #dad37b;
+    color: #444;
+    border: 1px solid #b4b056;
+    border-radius: 0px 0px 6px 6px;
+}
 
 /* checklist */
 
