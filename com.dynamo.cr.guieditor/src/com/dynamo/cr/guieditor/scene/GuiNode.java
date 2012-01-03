@@ -299,6 +299,10 @@ public abstract class GuiNode implements IAdaptable {
         transform.setTranslation(this.position);
         Quat4d rotation = new Quat4d();
         eulerToQuat(this.rotation, rotation);
+        // Set scale, the rotation below will not corrupt/nullify the scale
+        transform.setElement(0, 0, this.scale.getX());
+        transform.setElement(1, 1, this.scale.getY());
+        transform.setElement(2, 2, this.scale.getZ());
         transform.setRotation(rotation);
     }
 
