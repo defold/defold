@@ -594,9 +594,21 @@ namespace dmPhysics
     void RequestRayCast3D(HWorld3D world, const RayCastRequest& request)
     {
         if (!world->m_RayCastRequests.Full())
-            world->m_RayCastRequests.Push(request);
+        {
+            // Verify that the ray is not 0-length
+            if (Vectormath::Aos::lengthSqr(request.m_To - request.m_From) <= 0.0f)
+            {
+                dmLogWarning("Ray had 0 length when ray casting, ignoring request.");
+            }
+            else
+            {
+                world->m_RayCastRequests.Push(request);
+            }
+        }
         else
+        {
             dmLogWarning("Ray cast query buffer is full (%d), ignoring request.", world->m_RayCastRequests.Capacity());
+        }
     }
 
     void SetDebugCallbacks3D(HContext3D context, const DebugCallbacks& callbacks)

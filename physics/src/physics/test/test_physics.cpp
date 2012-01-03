@@ -772,7 +772,7 @@ TYPED_TEST(PhysicsTest, EmptyRayCasting)
 
     dmPhysics::RayCastRequest request;
     request.m_From = Vectormath::Aos::Point3(0.0f, 1.0f, 0.0f);
-    request.m_To = Vectormath::Aos::Point3(0.0f, 0.51f, 0.0f);
+    request.m_To = Vectormath::Aos::Point3(0.0f, 1.0f, 0.0f);
     request.m_UserId = 0;
     request.m_UserData = &result;
 
@@ -781,7 +781,8 @@ TYPED_TEST(PhysicsTest, EmptyRayCasting)
     TestFixture::m_StepWorldContext.m_RayCastCallback = RayCastCallback;
     (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 
-    ASSERT_FALSE(result.m_Response.m_Hit);
+    // Check that the result was not handled
+    ASSERT_EQ(0u, result.m_UserData);
 }
 
 TYPED_TEST(PhysicsTest, RayCasting)
