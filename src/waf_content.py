@@ -55,11 +55,11 @@ def proto_compile_task(name, module, msg_type, input_ext, output_ext, transforme
                         continue
 
                     if not x.startswith('/'):
-                        print >>sys.stderr, '%s:0: error: resource path is not absolute "%s"' % (task.inputs[0].srcpath(), x)
+                        print >>sys.stderr, '%s:0: error: resource path is not absolute "%s"' % (task.inputs[0].srcpath(task.env), x)
                         return False
                     path = os.path.join(task.generator.content_root, x[1:])
                     if not os.path.exists(path):
-                        print >>sys.stderr, '%s:0: error: is missing dependent resource file "%s"' % (task.inputs[0].srcpath(), x)
+                        print >>sys.stderr, '%s:0: error: is missing dependent resource file "%s"' % (task.inputs[0].srcpath(task.env), x)
                         return False
         return True
 
