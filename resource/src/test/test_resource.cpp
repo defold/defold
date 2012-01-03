@@ -86,6 +86,12 @@ TEST_F(ResourceTest, NotFound)
     e = dmResource::Get(factory, "/DOES_NOT_EXISTS.foo", &resource);
     ASSERT_EQ(dmResource::FACTORY_RESULT_RESOURCE_NOT_FOUND, e);
     ASSERT_EQ((void*) 0, resource);
+
+    // Test empty string
+    resource = (void*) 0xdeadbeef;
+    e = dmResource::Get(factory, "", &resource);
+    ASSERT_EQ(dmResource::FACTORY_RESULT_RESOURCE_NOT_FOUND, e);
+    ASSERT_EQ((void*) 0, resource);
 }
 
 TEST_F(ResourceTest, UnknownResourceType)

@@ -590,9 +590,9 @@ FactoryResult Get(HFactory factory, const char* name, void** resource)
 
     *resource = 0;
 
-    if (name[0] == '0')
+    if (name[0] == 0)
     {
-        dmLogError("Empty resource name");
+        dmLogError("Empty resource path");
         return FACTORY_RESULT_RESOURCE_NOT_FOUND;
     }
 
