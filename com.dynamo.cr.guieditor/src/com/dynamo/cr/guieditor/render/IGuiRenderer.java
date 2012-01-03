@@ -5,6 +5,7 @@ import java.awt.FontMetrics;
 import java.awt.geom.Rectangle2D;
 
 import javax.media.opengl.GL;
+import javax.vecmath.Matrix4d;
 
 import com.dynamo.gui.proto.Gui.NodeDesc.BlendMode;
 import com.sun.opengl.util.j2d.TextRenderer;
@@ -17,14 +18,14 @@ public interface IGuiRenderer {
     public void end();
 
     public void drawQuad(double x0, double y0, double x1, double y1, double r,
-            double g, double b, double a, BlendMode blendMode, Texture texture);
+            double g, double b, double a, BlendMode blendMode, Texture texture, Matrix4d transform);
 
     public void drawString(TextRenderer textRenderer, String text, double x0, double y0,
             double r, double g, double b, double a, BlendMode blendMode,
-            Texture texture);
+            Texture texture, Matrix4d transform);
 
     public void drawStringBounds(TextRenderer textRenderer, String text, double x0,
-            double y0, double r, double g, double b, double a);
+            double y0, double r, double g, double b, double a, Matrix4d transform);
 
     public Rectangle2D getStringBounds(TextRenderer textRenderer, String text);
 

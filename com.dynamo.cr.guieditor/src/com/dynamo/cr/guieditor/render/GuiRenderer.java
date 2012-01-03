@@ -15,6 +15,7 @@ import java.util.List;
 
 import javax.media.opengl.GL;
 import javax.media.opengl.glu.GLU;
+import javax.vecmath.Matrix4d;
 
 import org.eclipse.ui.services.IDisposable;
 
@@ -44,13 +45,16 @@ public class GuiRenderer implements IDisposable, IGuiRenderer {
 
         private BlendMode blendMode;
         private Texture texture;
-        public RenderCommmand(double r, double g, double b, double a, BlendMode blendMode, Texture texture) {
+        private Matrix4d transform;
+
+        public RenderCommmand(double r, double g, double b, double a, BlendMode blendMode, Texture texture, Matrix4d transform) {
             this.r = r;
             this.g = g;
             this.b = b;
             this.a = a;
             this.blendMode = blendMode;
             this.texture = texture;
+            this.transform = transform;
         }
         double r, g, b, a;
         int name = -1;
@@ -93,6 +97,37 @@ public class GuiRenderer implements IDisposable, IGuiRenderer {
             }
         }
 
+        public void pushTransform() {
+            gl.glPushMatrix();
+            double[] a = new double[16];
+            int i = 0;
+            a[i++] = transform.m00;
+            a[i++] = transform.m10;
+            a[i++] = transform.m20;
+            a[i++] = transform.m30;
+
+            a[i++] = transform.m01;
+            a[i++] = transform.m11;
+            a[i++] = transform.m21;
+            a[i++] = transform.m31;
+
+            a[i++] = transform.m02;
+            a[i++] = transform.m12;
+            a[i++] = transform.m22;
+            a[i++] = transform.m32;
+
+            a[i++] = transform.m03;
+            a[i++] = transform.m13;
+            a[i++] = transform.m23;
+            a[i++] = transform.m33;
+
+            gl.glMultMatrixd(a, 0);
+        }
+
+        public void popTransform() {
+            gl.glPopMatrix();
+        }
+
         public abstract void draw(GL gl);
     }
 
@@ -101,8 +136,8 @@ public class GuiRenderer implements IDisposable, IGuiRenderer {
         private double x0, y0;
         private TextRenderer textRenderer;
 
-        public TextRenderCommmand(TextRenderer textRenderer, String text, double x0, double y0, double r, double g, double b, double a, BlendMode blendMode, Texture texture) {
-            super(r, g, b, a, blendMode, texture);
+        public TextRenderCommmand(TextRenderer textRenderer, String text, double x0, double y0, double r, double g, double b, double a, BlendMode blendMode, Texture texture, Matrix4d transform) {
+            super(r, g, b, a, blendMode, texture, transform);
             this.textRenderer = textRenderer;
             this.text = text;
             this.x0 = x0;
@@ -113,17 +148,19 @@ public class GuiRenderer implements IDisposable, IGuiRenderer {
         public void draw(GL gl) {
             textRenderer.begin3DRendering();
             gl.glColor4d(r, g, b, a);
+            pushTransform();
             setupBlendMode();
             textRenderer.draw3D(text, (float) x0, (float) y0, 0, 1);
             textRenderer.end3DRendering();
+            popTransform();
         }
     }
 
     private class QuadRenderCommand extends RenderCommmand {
         private double x0, y0, x1, y1;
 
-        public QuadRenderCommand(double x0, double y0, double x1, double y1, double r, double g, double b, double a, BlendMode blendMode, Texture texture) {
-            super(r, g, b, a, blendMode, texture);
+        public QuadRenderCommand(double x0, double y0, double x1, double y1, double r, double g, double b, double a, BlendMode blendMode, Texture texture, Matrix4d transform) {
+            super(r, g, b, a, blendMode, texture, transform);
             this.x0 = x0;
             this.y0 = y0;
             this.x1 = x1;
@@ -137,6 +174,7 @@ public class GuiRenderer implements IDisposable, IGuiRenderer {
 
             setupBlendMode();
             setupTexture();
+            pushTransform();
 
             gl.glBegin(GL.GL_QUADS);
             gl.glColor4d(r, g, b, a);
@@ -157,6 +195,7 @@ public class GuiRenderer implements IDisposable, IGuiRenderer {
             if (name != -1)
                 gl.glPopName();
 
+            popTransform();
         }
     }
 
@@ -195,8 +234,8 @@ public class GuiRenderer implements IDisposable, IGuiRenderer {
      * @see com.dynamo.cr.guieditor.render.IGuiRenderer#drawQuad(double, double, double, double, double, double, double, double, com.dynamo.gui.proto.Gui.NodeDesc.BlendMode, java.lang.String)
      */
     @Override
-    public void drawQuad(double x0, double y0, double x1, double y1, double r, double g, double b, double a, BlendMode blendMode, Texture texture) {
-        QuadRenderCommand command = new QuadRenderCommand(x0, y0, x1, y1, r, g, b, a, blendMode, texture);
+    public void drawQuad(double x0, double y0, double x1, double y1, double r, double g, double b, double a, BlendMode blendMode, Texture texture, Matrix4d transform) {
+        QuadRenderCommand command = new QuadRenderCommand(x0, y0, x1, y1, r, g, b, a, blendMode, texture, transform);
         if (currentName != -1) {
             command.name = currentName;
         }
@@ -207,11 +246,11 @@ public class GuiRenderer implements IDisposable, IGuiRenderer {
      * @see com.dynamo.cr.guieditor.render.IGuiRenderer#drawString(java.lang.String, java.lang.String, double, double, double, double, double, double, com.dynamo.gui.proto.Gui.NodeDesc.BlendMode, java.lang.String)
      */
     @Override
-    public void drawString(TextRenderer textRenderer, String text, double x0, double y0, double r, double g, double b, double a, BlendMode blendMode, Texture texture) {
+    public void drawString(TextRenderer textRenderer, String text, double x0, double y0, double r, double g, double b, double a, BlendMode blendMode, Texture texture, Matrix4d transform) {
         if (textRenderer == null)
             textRenderer = debugTextRenderer;
 
-        TextRenderCommmand command = new TextRenderCommmand(textRenderer, text, x0, y0, r, g, b, a, blendMode, texture);
+        TextRenderCommmand command = new TextRenderCommmand(textRenderer, text, x0, y0, r, g, b, a, blendMode, texture, transform);
         if (currentName != -1) {
             command.name = currentName;
         }
@@ -222,7 +261,7 @@ public class GuiRenderer implements IDisposable, IGuiRenderer {
      * @see com.dynamo.cr.guieditor.render.IGuiRenderer#drawStringBounds(java.lang.String, java.lang.String, double, double, double, double, double, double)
      */
     @Override
-    public void drawStringBounds(TextRenderer textRenderer, String text, double x0, double y0, double r, double g, double b, double a) {
+    public void drawStringBounds(TextRenderer textRenderer, String text, double x0, double y0, double r, double g, double b, double a, Matrix4d transform) {
         if (textRenderer == null)
             textRenderer = debugTextRenderer;
 
@@ -231,7 +270,7 @@ public class GuiRenderer implements IDisposable, IGuiRenderer {
         double y = y0 - (bounds.getHeight() + bounds.getY());
         double w = bounds.getWidth();
         double h = bounds.getHeight();
-        QuadRenderCommand command = new QuadRenderCommand(x, y, x + w, y + h, r, g, b, a, null, null);
+        QuadRenderCommand command = new QuadRenderCommand(x, y, x + w, y + h, r, g, b, a, null, null, transform);
         if (currentName != -1) {
             command.name = currentName;
         }
@@ -347,4 +386,5 @@ public class GuiRenderer implements IDisposable, IGuiRenderer {
     public TextRenderer getDebugTextRenderer() {
         return debugTextRenderer;
     }
+
 }
