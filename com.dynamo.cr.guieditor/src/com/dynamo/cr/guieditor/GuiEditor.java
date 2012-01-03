@@ -126,15 +126,6 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
         selectionProvider = new GuiSelectionProvider();
 
         renderer = new GuiRenderer();
-        propertySheetPage = new FormPropertySheetPage(getContentRoot()) {
-            public void setActionBars(IActionBars actionBars) {
-                super.setActionBars(actionBars);
-                String undoId = ActionFactory.UNDO.getId();
-                String redoId = ActionFactory.REDO.getId();
-                actionBars.setGlobalActionHandler(undoId, actions.get(undoId));
-                actionBars.setGlobalActionHandler(redoId, actions.get(redoId));
-            }
-        };
     }
 
     @Override
@@ -246,6 +237,16 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
             throw new PartInitException(
                     "Unable to locate content root for project");
         }
+        propertySheetPage = new FormPropertySheetPage(getContentRoot()) {
+            @Override
+            public void setActionBars(IActionBars actionBars) {
+                super.setActionBars(actionBars);
+                String undoId = ActionFactory.UNDO.getId();
+                String redoId = ActionFactory.REDO.getId();
+                actionBars.setGlobalActionHandler(undoId, actions.get(undoId));
+                actionBars.setGlobalActionHandler(redoId, actions.get(redoId));
+            }
+        };
         IFile projectPropertiesFile = EditorUtil.findGameProjectFile(this.contentRoot);
         ProjectProperties projectProperties = new ProjectProperties();
         try {
@@ -284,6 +285,7 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
         guiScene.addGuiSceneListener(this);
     }
 
+    @Override
     public IContainer getContentRoot() {
         return contentRoot;
     }
@@ -771,7 +773,7 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
         if (selection instanceof IStructuredSelection) {
             IStructuredSelection structuredSelection = (IStructuredSelection) selection;
             @SuppressWarnings("unchecked")
-            List<Object> selectionList = (List<Object>) structuredSelection.toList();
+            List<Object> selectionList = structuredSelection.toList();
             List<GuiNode> nodes = new ArrayList<GuiNode>();
             for (Object object : selectionList) {
                 if (object instanceof GuiNode) {
