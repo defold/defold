@@ -30,6 +30,7 @@ import org.eclipse.ui.console.IConsoleManager;
 import org.eclipse.ui.console.MessageConsole;
 import org.eclipse.ui.console.MessageConsoleStream;
 import org.eclipse.ui.handlers.HandlerUtil;
+import org.eclipse.ui.internal.ide.actions.BuildUtilities;
 
 import com.dynamo.cr.client.RepositoryException;
 import com.dynamo.cr.editor.Activator;
@@ -37,6 +38,8 @@ import com.dynamo.cr.editor.preferences.PreferenceConstants;
 import com.dynamo.cr.editor.util.DownloadApplication;
 import com.dynamo.cr.protocol.proto.Protocol.LaunchInfo;
 
+// this suppression is for the usage of BuildUtilities in the bottom of this class
+@SuppressWarnings("restriction")
 public class LaunchHandler extends AbstractHandler {
 
     private HashMap<String, String> variables;
@@ -215,6 +218,9 @@ public class LaunchHandler extends AbstractHandler {
         this.variables.put("project", Long.toString(Activator.getDefault().projectClient.getProjectId()));
 
         final IProject project = getActiveProject(event);
+
+        // save all editors depending on user preferences (this is set to true by default in plugin_customization.ini)
+        BuildUtilities.saveEditors(null);
 
         Job job = new Job("Build") {
             @Override
