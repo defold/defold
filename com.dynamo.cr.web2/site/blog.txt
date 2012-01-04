@@ -1,5 +1,122 @@
 :max-width: 45em
 
+Update - Video Capture, Fonts, Colors, Tweaks & Bugs
+----------------------------------------------------
+*_January 4, 2012_*
+
+Video Capture
+~~~~~~~~~~~~~
+
+We are proud to announce that you now can capture videos from within Defold!
+Certain members of the Defold-team failed to take time off during Christmas and instead implemented this excellent feature.
+It is controlled through message passing and very easy to use.
+Simply do the following in a script when you want to start recording video:
+
+[source,lua]
+----
+msg.post("@system:", "start_record", { file_name = "test_rec.ivf" } )
+----
+
+When you want the recording to end, do:
+
+[source,lua]
+----
+msg.post("@system:", "stop_record")
+----
+
+The messages are added to the documentation under link:/#documentation:[Engine].
+The recorded file is compressed through VP8 in the IVF container (link:http://en.wikipedia.org/wiki/Indeo[IVF]), which is the native format for Youtube.
+When the time comes, we will add the ability of uploading from your scripts too.
+This means that you can let your users capture and upload video from you game!
+
+PLACEHOLDER: add list of supported media players
+
+Fonts
+~~~~~
+
+We have fixed the font rendering, which has been rather ugly for a while.
+We also added the ability to control color and alpha (both outlines and shadows) from within the GUI editor.
+We have not yet had the time to render them properly in the editor preview, but the effects should be visible when running the game.
+
+PLACEHOLDER: screen captures
+
+Background Color
+~~~~~~~~~~~~~~~~
+
+It is now possible to set the background color of a game in the game.project file.
+This is a work-around until we have fixed this properly.
+To set the color to bright red, include this in your game.project file:
+
+----
+[render]
+clear_color_red = 1
+clear_color_green = 0
+clear_color_blue = 0
+clear_color_alpha = 0
+----
+
+Note that the values should all be between 0-1.
+You can also change the background color on the fly in a script by doing:
+
+[source,lua]
+----
+msg.post("@render:", "clear_color", { color = vmath.vector4(1, 0, 0, 0) } )
+----
+
+game.project to scripts
+~~~~~~~~~~~~~~~~~~~~~~~
+
+You can now read data from game.project inside your scripts.
+This is mostly useful for testing purposes, but can also be used for reading global configuration data.
+Below is an example of how to add and read data.
+
+In your game.project file, add:
+
+----
+[my_category]
+my_value = 1
+----
+
+Then you can read the value inside your scripts, like so:
+
+[source,lua]
+----
+local my_value = tonumber(sys.get_config("my_category.my_value"))
+----
+
+This is detailed in the documentation under link:/#documentation:[Script].
+Also note that you can read any value from the game.project-file, e.g. "display.width".
+
+Bugs
+~~~~
+
+We also fixed some annoying bugs.
+Here is a list of what we fixed so far:
+
+- Spawn points with no prototype specified caused ugly build errors
+- When browsing for gui-scripts in gui-files, no files would appear
+- Rotation and scale were not visualized in the GUI editor
+- Files were not automatically saved when building (launching the game)
+- Refactoring for tile grids did not work
+- Deselecting a running animation in a sprite caused problems
+- Selecting manipulators with the mouse did not always work in the Scene editor
+- Some nodes in the Collection editor seemed like they could be transformed (e.g. tile grids)
+- Missing documentation for physics.ray_cast script function (see documentation under link:/#documentation:[GameSys])
+- Ray casts of zero length yielded assert (engine crash)
+- Misleading message when launching the game with empty resource paths
+- Crash while rendering a GUI with many nodes
+
+Please let us know if there are more bugs in need of urgent remedy.
+
+Roadmap
+~~~~~~~
+
+Don't forget to comment on the roadmap we posted in the user-group.
+As of now, we are working hard on documentation and an update of the web site, but we are anxious to hear about what you want to be fixed.
+As this update has been very technical, you are most welcome to post in the user-group if anything was unclear or you just like more information.
+
+Hope you like this update!
+
 Update - Lots!
 --------------
 *_December 22, 2011_*
