@@ -39,7 +39,9 @@ We have fixed the font rendering, which has been rather ugly for a while.
 We also added the ability to set color and alpha of outlines and shadows from within the GUI editor.
 We have not yet had the time to render them properly in the editor preview, but the effects should be visible when running the game.
 
-PLACEHOLDER: screen captures
+image:images/blog/20120105/fonts2.png["Fonts in the GUI Editor"]
+
+image:images/blog/20120105/fonts.png["Fonts in the running game"]
 
 Background Color
 ~~~~~~~~~~~~~~~~
