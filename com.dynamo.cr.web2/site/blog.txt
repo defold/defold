@@ -7,8 +7,8 @@ Update - Video Capture, Fonts, Colors, Tweaks & Bugs
 Video Capture
 ~~~~~~~~~~~~~
 
-We are proud to announce that you now can capture videos from within Defold!
-Certain members of the Defold-team failed to take time off during Christmas and instead implemented this excellent feature.
+We are proud to announce that you now can capture videos of your running game from within your scripts!
+Certain members of the Defold-team failed to relax during Christmas and instead implemented this excellent feature.
 It is controlled through message passing and very easy to use.
 Simply do the following in a script when you want to start recording video:
 
@@ -24,18 +24,19 @@ When you want the recording to end, do:
 msg.post("@system:", "stop_record")
 ----
 
-The messages are added to the documentation under link:/#documentation:[Engine].
-The recorded file is compressed through VP8 in the IVF container (link:http://en.wikipedia.org/wiki/Indeo[IVF]), which is the native format for Youtube.
-When the time comes, we will add the ability of uploading from your scripts too.
-This means that you can let your users capture and upload video from you game!
+The messages are explained in more detail in the documentation under link:/#documentation:[Engine].
+The recorded file is compressed through link:http://en.wikipedia.org/wiki/VP8[VP8] in the link:http://wiki.multimedia.cx/index.php?title=IVF[IVF] container, which can be uploaded to Youtube as is.
+When the time comes, we will add the ability of uploading to Youtube from your scripts too.
+This means that you can let players capture their gaming sessions and upload them from inside your game!
 
-PLACEHOLDER: add list of supported media players
+If you want to convert the files to a more common format, you can use link:http://www.mirovideoconverter.com/[MiroVideoConverter].
+There seems to be a bug when playing these files through VLC, it stops playback around 1 second before the video should end.
 
 Fonts
 ~~~~~
 
 We have fixed the font rendering, which has been rather ugly for a while.
-We also added the ability to control color and alpha (both outlines and shadows) from within the GUI editor.
+We also added the ability to set color and alpha of outlines and shadows from within the GUI editor.
 We have not yet had the time to render them properly in the editor preview, but the effects should be visible when running the game.
 
 PLACEHOLDER: screen captures
@@ -44,7 +45,7 @@ Background Color
 ~~~~~~~~~~~~~~~~
 
 It is now possible to set the background color of a game in the game.project file.
-This is a work-around until we have fixed this properly.
+This is a work-around until we have fixed this properly, so it will be easier to specify.
 To set the color to bright red, include this in your game.project file:
 
 ----
@@ -99,12 +100,12 @@ Here is a list of what we fixed so far:
 - Files were not automatically saved when building (launching the game)
 - Refactoring for tile grids did not work
 - Deselecting a running animation in a sprite caused problems
-- Selecting manipulators with the mouse did not always work in the Scene editor
-- Some nodes in the Collection editor seemed like they could be transformed (e.g. tile grids)
+- Issues when selecting manipulators with the mouse in the Scene editor
+- Some nodes in the Collection editor seemed like they could be transformed, when they couldn't (e.g. tile grids)
 - Missing documentation for physics.ray_cast script function (see documentation under link:/#documentation:[GameSys])
 - Ray casts of zero length yielded assert (engine crash)
 - Misleading message when launching the game with empty resource paths
-- Crash while rendering a GUI with many nodes
+- Crash when rendering a GUI with many nodes
 
 Please let us know if there are more bugs in need of urgent remedy.
 
@@ -113,7 +114,7 @@ Roadmap
 
 Don't forget to comment on the roadmap we posted in the user-group.
 As of now, we are working hard on documentation and an update of the web site, but we are anxious to hear about what you want to be fixed.
-As this update has been very technical, you are most welcome to post in the user-group if anything was unclear or you just like more information.
+Since this update has been very technical, you are most welcome to post in the user-group if anything was unclear or you just like more information.
 
 Hope you like this update!
 
