@@ -2,7 +2,7 @@
 
 Update - Video Capture, Fonts, Colors, Tweaks & Bugs
 ----------------------------------------------------
-*_January 4, 2012_*
+*_January 5, 2012_*
 
 Video Capture
 ~~~~~~~~~~~~~
