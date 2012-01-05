@@ -32,6 +32,9 @@ This means that you can let players capture their gaming sessions and upload the
 If you want to convert the files to a more common format, you can use link:http://www.mirovideoconverter.com/[MiroVideoConverter].
 There seems to be a bug when playing these files through VLC, it stops playback around 1 second before the video should end.
 
+We haven't yet had the time to include audio in the captured videos, but we hope that this feature can be of value anyway.
+This will of course be fixed in time.
+
 Fonts
 ~~~~~
 
