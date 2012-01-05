@@ -50,6 +50,12 @@ public class BranchService implements IBranchService {
     }
 
     private void doUpdate(Set<IResource> candidates) throws RepositoryException, CoreException {
+        if (Activator.getDefault().getProject() == null) {
+            // TODO: This is a budget solution. The branch-service should not
+            // run while reconnecting etc
+            System.err.println("WARNING: Running update with null project");
+            return;
+        }
         List<IResource> resources = new ArrayList<IResource>(32);
 
         if (candidates != null)
