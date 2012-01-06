@@ -36,9 +36,9 @@ import com.google.gwt.user.client.Cookies;
 import com.google.gwt.user.client.DOM;
 import com.google.gwt.user.client.Element;
 import com.google.gwt.user.client.ui.Anchor;
-import com.google.gwt.user.client.ui.DockLayoutPanel;
 import com.google.gwt.user.client.ui.RootLayoutPanel;
 import com.google.gwt.user.client.ui.ScrollPanel;
+import com.google.gwt.user.client.ui.SimplePanel;
 import com.google.web.bindery.event.shared.EventBus;
 
 /**
@@ -51,8 +51,9 @@ public class Defold implements EntryPoint {
 
     private Place defaultPlace = new ProductInfoPlace();
 
+    @UiField ScrollPanel bodyScrollPanel;
     @UiField Anchor logout;
-    @UiField ScrollPanel panel;
+    @UiField SimplePanel panel;
     @UiField Anchor dashBoard;
     @UiField Anchor productInfo;
     @UiField EditableLabel editableLabel;
@@ -68,7 +69,7 @@ public class Defold implements EntryPoint {
 
     private AppPlaceHistoryMapper historyMapper;
 
-    interface DefoldUiBinder extends UiBinder<DockLayoutPanel, Defold> {
+    interface DefoldUiBinder extends UiBinder<ScrollPanel, Defold> {
     }
 
     public Defold() {
@@ -205,7 +206,7 @@ public class Defold implements EntryPoint {
     @Override
     public void onModuleLoad() {
 
-        DockLayoutPanel outer = uiBinder.createAndBindUi(this);
+        ScrollPanel outer = uiBinder.createAndBindUi(this);
 
         clientFactory = GWT.create(ClientFactory.class);
         clientFactory.setDefold(this);
