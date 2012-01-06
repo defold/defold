@@ -26,3 +26,8 @@ embedded_components {
   type: "collectionproxy"
   data: "collection: \"/parallax/main.collection\"\n"
 }
+embedded_components {
+  id: "level_complete"
+  type: "collectionproxy"
+  data: "collection: \"/level_complete/main.collection\"\n"
+}
