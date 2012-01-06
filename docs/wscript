@@ -7,7 +7,7 @@ srcdir = '.'
 blddir = 'build'
 
 import sys, os, re
-import TaskGen
+import Task, TaskGen
 from TaskGen import extension
 
 def scan_asciidoc(task):
@@ -26,34 +26,34 @@ def init():
 
 def configure(conf):
     conf.find_program('asciidoc', var='ASCIIDOC')
-    conf.find_program('a2x', var='A2X')
-    conf.env['IMGSDIR'] = 'imgs'
+    conf.env['EMBED_VIDEO'] = os.path.abspath('scripts/embed_video.py')
 
-TaskGen.declare_chain(name='txtcpy', rule='cp ${SRC} ${TGT}', ext_in='.txt', ext_out='.txt_out', scan=scan_asciidoc)
-TaskGen.declare_chain(name='html', rule='${ASCIIDOC} -v -a imagesdir=${IMGSDIR} -o ${TGT} ${SRC}', ext_in='.txt_out', ext_out='.html', reentrant = False)
-TaskGen.declare_chain(name='pdf', rule='${A2X} -v -a imagesdir=${IMGSDIR} -f pdf ${SRC}', ext_in='.txt_out', ext_out='.pdf', reentrant = False)
+asciidoc = Task.simple_task_type('asciidoc', '${ASCIIDOC} -a data-uri -o ${TGT} ${SRC}',
+                                 shell=True)
 
-@extension('.txt_out')
-def process_txtout(self, node):
-    out_node = node.change_ext('.' + self.ext)
-    tsk = self.create_task(self.ext)
-    tsk.inputs = [node]
-    tsk.outputs = [out_node]
+asciidoc.scan = scan_asciidoc
+
+embed_video = Task.simple_task_type('embed_video', 'python ${EMBED_VIDEO} ${SRC} ${TGT}',
+                                    shell=True,
+                                    after = 'asciidoc')
+
+@extension('.txt')
+def proto_file(self, node):
+        doc = self.create_task('asciidoc')
+        doc.set_inputs(node)
+        out = node.change_ext('.html_tmp')
+        doc.set_outputs(out)
+
+        embed = self.create_task('embed_video')
+        embed.set_inputs(out)
+        embed_out = node.change_ext('.html')
+        embed.set_outputs(embed_out)
+
+        self.bld.install_files('${PREFIX}/share/doc',
+                               embed_out.abspath(self.env), self.env)
 
 def build(bld):
-    src_node = bld.path.find_dir('src')
-    dirs = ['business_plan', 'manual', 'presentation']
-    exts = ['pdf', 'html', 'pdf']
-    for i in range(len(dirs)):
-        d = dirs[i]
-        dir_node = src_node.find_dir(d)
-        images = dir_node.ant_glob('**/*.png')
-        for image in images.split(' '):
-            if image != '':
-                tgt_path = 'src/%s/%s/%s' % (d, bld.env['IMGSDIR'], image)
-                bld.path.exclusive_build_node(tgt_path)
-                src_path = 'src/%s/%s' % (d, image)
-                bld.new_task_gen(rule='cp ${SRC} ${TGT}', source=src_path, target=tgt_path)
-
-        tsk = bld.new_task_gen(source='src/%s/%s.txt' % (d, d))
-        tsk.ext = exts[i]
+    dirs = ['src/business_plan', 'src/manual', 'src/presentation',
+            'src/demos/docs']
+    tsk = bld.new_task_gen(install_path='${DYNAMO_HOME}/share/doc')
+    tsk.find_sources_in_dirs(dirs)

@@ -1,0 +1,9 @@
+Hud
+===
+
+link:/youtube_embed/hud.ivf[Hud]
+
+[source,lua]
+-------------------------------------------
+include::../hud/hud.gui_script[tabsize=4]
+-------------------------------------------

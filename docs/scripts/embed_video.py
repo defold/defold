@@ -24,11 +24,10 @@ def repl(m):
         sys.exit(5)
         return None
 
-for file_name in sys.argv[1:]:
-    f = open(file_name, 'rb')
-    replaced = re.sub('<a href="/youtube_embed/(.+?)">.*</a>', repl, f.read())
-    f.close()
+f = open(sys.argv[1], 'rb')
+replaced = re.sub('<a href="/youtube_embed/(.+?)">.*</a>', repl, f.read())
+f.close()
 
-    f = open(file_name, 'wb')
-    f.write(replaced)
-    f.close()
+f = open(sys.argv[2], 'wb')
+f.write(replaced)
+f.close()

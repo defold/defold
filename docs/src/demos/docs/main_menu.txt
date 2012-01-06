@@ -1,0 +1,10 @@
+Main Manu
+=========
+
+link:/youtube_embed/main_menu.ivf[Main Menu]
+
+[source,lua]
+-------------------------------------------
+include::../main_menu/menu.gui_script[tabsize=4]
+-------------------------------------------
+
