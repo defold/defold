@@ -223,6 +223,8 @@ message CommitDesc
 {
     required string id = 1;
     required string message = 2;
+    optional string name = 3 [default=""];
+    optional string email = 4 [default=""];
 }
 
 message ResourceDesc
