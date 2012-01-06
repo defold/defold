@@ -8,20 +8,21 @@ import com.google.gwt.user.client.ui.AcceptsOneWidget;
 
 public class ScriptSampleActivity extends AsciiDocActivity implements ScriptSampleView.Presenter {
 
+    private ScriptSamplePlace place;
+
     public ScriptSampleActivity(ScriptSamplePlace place, ClientFactory clientFactory) {
         super(clientFactory);
+        this.place = place;
     }
 
     @Override
     public void start(AcceptsOneWidget containerWidget, EventBus eventBus) {
-        final ScriptSampleView ScriptSampleView = clientFactory.getScriptSampleView();
-        containerWidget.setWidget(ScriptSampleView.asWidget());
-        ScriptSampleView.setPresenter(this);
+        final ScriptSampleView scriptSampleView = clientFactory.getScriptSampleView();
+        containerWidget.setWidget(scriptSampleView.asWidget());
+        scriptSampleView.setPresenter(this);
+        String id = place.getId();
+        if (id.length() > 0) {
+            loadAsciiDoc(scriptSampleView, id);
+        }
     }
-
-    @Override
-    public void onScriptSample() {
-        clientFactory.getPlaceController().goTo(new ScriptSamplePlace());
-    }
-
 }

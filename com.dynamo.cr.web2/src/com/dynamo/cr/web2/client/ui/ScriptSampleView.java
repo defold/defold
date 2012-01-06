@@ -2,6 +2,7 @@ package com.dynamo.cr.web2.client.ui;
 
 import com.dynamo.cr.web2.client.AsciiDocUtil;
 import com.google.gwt.core.client.GWT;
+import com.google.gwt.dom.client.HeadingElement;
 import com.google.gwt.uibinder.client.UiBinder;
 import com.google.gwt.uibinder.client.UiField;
 import com.google.gwt.user.client.ui.Composite;
@@ -12,7 +13,6 @@ import com.google.gwt.user.client.ui.Widget;
 public class ScriptSampleView extends Composite implements IAsciiDocView {
 
     public interface Presenter {
-        void onScriptSample();
     }
 
     private static DashboardUiBinder uiBinder = GWT
@@ -53,4 +53,5 @@ public class ScriptSampleView extends Composite implements IAsciiDocView {
     public void clear() {
         scriptSample.clear();
     }
+
 }
