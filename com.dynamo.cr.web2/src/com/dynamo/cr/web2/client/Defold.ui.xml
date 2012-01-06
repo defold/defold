@@ -4,9 +4,10 @@
     xmlns:d="urn:import:com.dynamo.cr.web2.client" xmlns:p2="urn:import:com.dynamo.cr.web2.client.ui">
     <ui:style>
         .dock {
-        	margin-top: 16px;
-        	margin-left: auto;
-        	margin-right: auto;
+            text-align:left;
+            width: 960px;
+            margin: 0 auto;
+            overflow: auto;
         }
 
         .center {
@@ -14,9 +15,8 @@
         }
     </ui:style>
 
-    <g:DockLayoutPanel styleName="{style.dock}" unit='EM'
-        width="960px">
-        <g:north size="7">
+    <g:ScrollPanel ui:field="bodyScrollPanel">
+    <g:VerticalPanel styleName="{style.dock}">
             <g:VerticalPanel>
                 <g:HTMLPanel>
                     <span style="font-size: 24px; margin-bottom: 16px">
@@ -43,13 +43,9 @@
                 </g:HTMLPanel>
 
             </g:VerticalPanel>
-        </g:north>
 
-        <g:center>
-            <g:ScrollPanel ui:field="panel" styleName="{style.center}"></g:ScrollPanel>
-        </g:center>
+            <g:SimplePanel ui:field="panel" styleName="{style.center}"></g:SimplePanel>
 
-        <g:south size="3">
             <g:HTMLPanel>
                 <div style="margin-top: 16px;">
                     © 2011 Defold All rights reserved
@@ -58,7 +54,7 @@
                     </span>
                 </div>
             </g:HTMLPanel>
-        </g:south>
-    </g:DockLayoutPanel>
+    </g:VerticalPanel>
+    </g:ScrollPanel>
 
 </ui:UiBinder>

@@ -11,6 +11,7 @@
 
     <g:FlowPanel>
         <g:HTMLPanel>
+            <!--  TODO: This should be removed when the new ref-doc system is in place -->
             <ul class="nav nav2">
                 <li><g:Anchor ui:field="engineLink">Engine</g:Anchor></li>
                 <li><g:Anchor ui:field="gameObjectLink">GameObject</g:Anchor></li>
@@ -19,6 +20,48 @@
                 <li><g:Anchor ui:field="renderLink">Render</g:Anchor></li>
                 <li><g:Anchor ui:field="scriptLink">Script</g:Anchor></li>
             </ul>
+
+            <h1>Documentation</h1>
+
+            <table>
+	            <tr>
+		            <td>
+				        <div class="box doc">
+	                        <h3>Tutorials</h3>
+					        Step by step tutorials and videos
+					        <ul>
+					            <li><g:Hyperlink targetHistoryToken="tutorials:tutorial_falling_box">Falling Box</g:Hyperlink></li>
+					        </ul>
+				        </div>
+                        <div class="box doc">
+                            <h3>Reference</h3>
+                            Script function and messages reference
+                            <ul>
+                                <li><g:Hyperlink targetHistoryToken="reference:engine">Engine</g:Hyperlink></li>
+                                <li><g:Hyperlink targetHistoryToken="reference:gamesys">GameSys</g:Hyperlink></li>
+                                <li><g:Hyperlink targetHistoryToken="reference:render">Render</g:Hyperlink></li>
+                                <li><g:Hyperlink targetHistoryToken="reference:script">Script</g:Hyperlink></li>
+                                <li><g:Hyperlink targetHistoryToken="reference:gui">Gui</g:Hyperlink></li>
+                                <li><g:Hyperlink targetHistoryToken="reference:gameobject">GameObject</g:Hyperlink></li>
+                            </ul>
+                        </div>
+		            </td>
+
+                    <td>
+                        <div class="box doc">
+                            <h3>Script Samples</h3>
+                            Script samples with demo video
+                            <ul>
+                                <li><g:Hyperlink targetHistoryToken="script_sample:hud">Hud</g:Hyperlink></li>
+                                <li><g:Hyperlink targetHistoryToken="script_sample:main_menu">Main Menu</g:Hyperlink></li>
+                                <li><g:Hyperlink targetHistoryToken="script_sample:parallax">Parallax</g:Hyperlink></li>
+                                <li><g:Hyperlink targetHistoryToken="script_sample:level_complete">Level Complete</g:Hyperlink></li>
+                            </ul>
+                        </div>
+                    </td>
+	            </tr>
+	        </table>
+
         </g:HTMLPanel>
 
         <g:Image url="images/ajax-loader.gif" styleName="{style.loader}" ui:field="loader"></g:Image>

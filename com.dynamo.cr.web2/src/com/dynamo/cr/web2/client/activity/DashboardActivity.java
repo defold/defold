@@ -2,6 +2,7 @@ package com.dynamo.cr.web2.client.activity;
 
 import com.dynamo.cr.web2.client.ClientFactory;
 import com.dynamo.cr.web2.client.Defold;
+import com.dynamo.cr.web2.client.MD5;
 import com.dynamo.cr.web2.client.ProjectInfo;
 import com.dynamo.cr.web2.client.ProjectInfoList;
 import com.dynamo.cr.web2.client.ResourceCallback;
@@ -24,13 +25,13 @@ public class DashboardActivity extends AbstractActivity implements DashboardView
 
     public void loadProjects() {
         final DashboardView dashboardView = clientFactory.getDashboardView();
-        Defold defold = clientFactory.getDefold();
+        final Defold defold = clientFactory.getDefold();
         defold.getResource("/projects/" + defold.getUserId(), new ResourceCallback<ProjectInfoList>() {
 
             @Override
             public void onSuccess(ProjectInfoList projectInfoList, Request request,
                     Response response) {
-                dashboardView.setProjectInfoList(projectInfoList);
+                dashboardView.setProjectInfoList(defold.getUserId(), projectInfoList);
             }
 
             @Override
@@ -46,6 +47,21 @@ public class DashboardActivity extends AbstractActivity implements DashboardView
         dashboardView.setPresenter(this);
         containerWidget.setWidget(dashboardView.asWidget());
         loadProjects();
+        loadGravatar();
+    }
+
+    private void loadGravatar() {
+        final DashboardView dashboardView = clientFactory.getDashboardView();
+        Defold defold = clientFactory.getDefold();
+        String email = defold.getEmail();
+        email = email.trim().toLowerCase();
+        String md5 = MD5.md5(email);
+        String url = "http://www.gravatar.com/avatar/" + md5 + "?s=80";
+        dashboardView.setGravatarURL(url);
+
+        String firstName = defold.getFirstName();
+        String lastName = defold.getLastName();
+        dashboardView.setName(firstName, lastName);
     }
 
     @Override

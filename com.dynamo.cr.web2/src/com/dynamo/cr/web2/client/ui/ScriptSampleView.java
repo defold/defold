@@ -9,27 +9,27 @@ import com.google.gwt.user.client.ui.HTMLPanel;
 import com.google.gwt.user.client.ui.Image;
 import com.google.gwt.user.client.ui.Widget;
 
-public class BlogView extends Composite implements IAsciiDocView {
+public class ScriptSampleView extends Composite implements IAsciiDocView {
 
     public interface Presenter {
-        void onBlog();
+        void onScriptSample();
     }
 
     private static DashboardUiBinder uiBinder = GWT
             .create(DashboardUiBinder.class);
 
-    interface DashboardUiBinder extends UiBinder<Widget, BlogView> {
+    interface DashboardUiBinder extends UiBinder<Widget, ScriptSampleView> {
     }
 
-    @UiField HTMLPanel blog;
+    @UiField HTMLPanel scriptSample;
     @UiField Image loader;
 
-    public BlogView() {
+    public ScriptSampleView() {
         initWidget(uiBinder.createAndBindUi(this));
         loader.setVisible(false);
     }
 
-    public void setPresenter(BlogView.Presenter listener) {
+    public void setPresenter(ScriptSampleView.Presenter listener) {
     }
 
     @Override
@@ -39,9 +39,9 @@ public class BlogView extends Composite implements IAsciiDocView {
          * remove the inline css. The inline css disturb the default one. See ascii.css
          * for more information.
          */
-        blog.clear();
+        scriptSample.clear();
         loader.setVisible(false);
-        blog.add(AsciiDocUtil.extractBody(html));
+        scriptSample.add(AsciiDocUtil.extractBody(html));
     }
 
     @Override
@@ -51,6 +51,6 @@ public class BlogView extends Composite implements IAsciiDocView {
 
     @Override
     public void clear() {
-        blog.clear();
+        scriptSample.clear();
     }
 }

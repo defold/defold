@@ -36,9 +36,9 @@ import com.google.gwt.user.client.Cookies;
 import com.google.gwt.user.client.DOM;
 import com.google.gwt.user.client.Element;
 import com.google.gwt.user.client.ui.Anchor;
-import com.google.gwt.user.client.ui.DockLayoutPanel;
 import com.google.gwt.user.client.ui.RootLayoutPanel;
 import com.google.gwt.user.client.ui.ScrollPanel;
+import com.google.gwt.user.client.ui.SimplePanel;
 import com.google.web.bindery.event.shared.EventBus;
 
 /**
@@ -51,8 +51,9 @@ public class Defold implements EntryPoint {
 
     private Place defaultPlace = new ProductInfoPlace();
 
+    @UiField ScrollPanel bodyScrollPanel;
     @UiField Anchor logout;
-    @UiField ScrollPanel panel;
+    @UiField SimplePanel panel;
     @UiField Anchor dashBoard;
     @UiField Anchor productInfo;
     @UiField EditableLabel editableLabel;
@@ -68,7 +69,7 @@ public class Defold implements EntryPoint {
 
     private AppPlaceHistoryMapper historyMapper;
 
-    interface DefoldUiBinder extends UiBinder<DockLayoutPanel, Defold> {
+    interface DefoldUiBinder extends UiBinder<ScrollPanel, Defold> {
     }
 
     public Defold() {
@@ -205,7 +206,7 @@ public class Defold implements EntryPoint {
     @Override
     public void onModuleLoad() {
 
-        DockLayoutPanel outer = uiBinder.createAndBindUi(this);
+        ScrollPanel outer = uiBinder.createAndBindUi(this);
 
         clientFactory = GWT.create(ClientFactory.class);
         clientFactory.setDefold(this);
@@ -245,17 +246,17 @@ public class Defold implements EntryPoint {
 
         new ShowLoginOnAuthenticationFailure().register(clientFactory, eventBus);
         messageNotification = new MessageNotification();
-        messageNotification.setPopupPosition(300, 30);
         messageNotification.setSize("120px", "30px");
-        messageNotification.setAnimationEnabled(true);
     }
 
-    public void loginOk(String email, String authCookie, int userId) {
+    public void loginOk(String firstName, String lastName, String email, String authCookie, int userId) {
         Date expires = new Date();
         long nowLong = expires.getTime();
         nowLong = nowLong + (1000 * 60 * 60 * 24 * 7);
         expires.setTime(nowLong);
 
+        Cookies.setCookie("first_name", firstName);
+        Cookies.setCookie("last_name", lastName);
         Cookies.setCookie("user_id", Integer.toString(userId), expires);
         Cookies.setCookie("email", email, expires);
         Cookies.setCookie("auth", authCookie, expires);
@@ -272,6 +273,21 @@ public class Defold implements EntryPoint {
         } else {
             return Integer.parseInt(userId);
         }
+    }
+
+    public String getFirstName() {
+        String firstName = Cookies.getCookie("first_name");
+        return firstName;
+    }
+
+    public String getLastName() {
+        String lastName = Cookies.getCookie("last_name");
+        return lastName;
+    }
+
+    public String getEmail() {
+        String email = Cookies.getCookie("email");
+        return email;
     }
 
     @UiHandler("logout")
