@@ -1,7 +1,10 @@
 package com.dynamo.cr.server.git.test;
 
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.not;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 import java.io.BufferedReader;
@@ -653,4 +656,49 @@ public class GitTest {
         git.rmRepo(repo.getAbsolutePath());
         assertFalse(repo.isDirectory());
     }
+
+    @Test
+    public void configUser() throws IOException {
+        final String name = "test_name";
+        final String email = "test_email";
+
+        File repo = cloneInitial();
+
+        assertEquals(-1, readEntireFile(new File("tmp/tmp_source_repo", "main.cpp")).indexOf("testing"));
+
+        FileWriter fw = new FileWriter(new File(repo, "main.cpp"));
+        fw.write("testing\n");
+        fw.close();
+
+        fw = new FileWriter(new File(repo, "new_file.cpp"));
+        fw.write("new file\n");
+        fw.close();
+
+        git.add(repo.getPath(), "new_file.cpp");
+        git.commitAll(repo.getPath(), "test commit");
+        git.push(repo.getPath());
+
+        Log log = git.log(repo.getPath(), 1);
+        assertEquals(1, log.getCommitsCount());
+        CommitDesc commit = log.getCommits(0);
+        assertThat(commit.getName(), not(name));
+        assertThat(commit.getEmail(), not(email));
+
+        git.configUser(repo.getPath(), email, name);
+
+        fw = new FileWriter(new File(repo, "new_file2.cpp"));
+        fw.write("new file2\n");
+        fw.close();
+
+        git.add(repo.getPath(), "new_file2.cpp");
+        git.commitAll(repo.getPath(), "test commit");
+        git.push(repo.getPath());
+
+        log = git.log(repo.getPath(), 1);
+        assertEquals(1, log.getCommitsCount());
+        commit = log.getCommits(0);
+        assertThat(commit.getName(), is(name));
+        assertThat(commit.getEmail(), is(email));
+    }
+
 }

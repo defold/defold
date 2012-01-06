@@ -520,13 +520,13 @@ public class Git {
 
     /**
      * Returns an array of performed commits on the branch at the specified directory with a specified max count. The array is ordered from newest to oldest.
-     * git log --pretty=oneline
+     * git log --pretty=format:"%H%x00%cn%x00%ce%x00%s"
      * @param directory Repository root
      * @param maxCount Maximum number of commits
      * @return Log containing commit messages
      */
     public Log log(String directory, int maxCount) throws IOException {
-        Result r = execGitCommand(directory, "git", "log", "--pretty=oneline");
+        Result r = execGitCommand(directory, "git", "log", "--pretty=format:%H%x00%cn%x00%ce%x00%s");
         checkResult(r);
         Log.Builder logBuilder = Log.newBuilder();
         BufferedReader reader = new BufferedReader(new StringReader(r.stdOut.toString()));
@@ -534,12 +534,32 @@ public class Git {
         int index = 0;
         while (index < maxCount && (line = reader.readLine()) != null) {
             line = line.trim();
-            int sep = line.indexOf(' ');
-            String id = line.substring(0, sep);
-            String message = line.substring(sep + 1);
-            logBuilder.addCommits(CommitDesc.newBuilder().setId(id).setMessage(message).build());
+            String[] tokens = line.split("\0");
+            String id = tokens[0];
+            String name = tokens[1];
+            String email = tokens[2];
+            String message = tokens[3];
+            logBuilder.addCommits(CommitDesc.newBuilder().setId(id).setMessage(message).setName(name).setEmail(email).build());
             ++index;
         }
         return logBuilder.build();
+    }
+
+    /**
+     * Configures the email and name for the user of the specified directory
+     * git config --file=.git/config user.email {email}
+     * git config --file=.git/config user.name {name}
+     * @param directory Directory of the repository
+     * @param email Email of the user
+     * @param name Full name of the user
+     * @throws IOException
+     */
+    public void configUser(String directory, String email, String name) throws IOException {
+        String configPath = ".git/config";
+        String fileParam = String.format("--file=%s", configPath);
+        Result r = execGitCommand(directory, "git", "config", fileParam, "user.email", email);
+        checkResult(r);
+        r = execGitCommand(directory, "git", "config", fileParam, "user.name", name);
+        checkResult(r);
     }
 }

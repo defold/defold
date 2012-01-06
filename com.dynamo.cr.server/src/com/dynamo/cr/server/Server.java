@@ -119,6 +119,7 @@ public class Server implements ServerMBean {
             setName("Cleanup builds thread");
         }
 
+        @Override
         public void run() {
             while (!quit) {
                 try {
@@ -496,6 +497,12 @@ public class Server implements ServerMBean {
         Git git = new Git();
         String sourcePath = String.format("%s/%s", configuration.getRepositoryRoot(), project);
         git.cloneRepo(sourcePath, p);
+
+        String fullName = u.getFirstName();
+        if (!u.getLastName().isEmpty()) {
+            fullName = String.format("%s %s", fullName, u.getLastName());
+        }
+        git.configUser(p, u.getEmail(), fullName);
 
         if (configuration.hasBuiltinsDirectory()) {
             String builtins = configuration.getBuiltinsDirectory();
@@ -1004,6 +1011,7 @@ public class Server implements ServerMBean {
             return exitValue;
         }
 
+        @Override
         public void cancel() {
             this.cancel = true;
         }

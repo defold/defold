@@ -381,6 +381,8 @@ public class ProjectResourceTest {
         CommitDesc commit = ownerBranchClient.commit("message...");
         Log log = ownerBranchClient.log(1);
         assertEquals(commit.getId(), log.getCommits(0).getId());
+        assertEquals(owner.getFirstName() + " " + owner.getLastName(), commit.getName());
+        assertEquals(owner.getEmail(), commit.getEmail());
 
         ownerBranchClient.putResourceData("/content/foo/bar.txt", "bar2 data".getBytes());
         assertEquals(Protocol.BranchStatus.State.DIRTY, branch.getBranchState());
