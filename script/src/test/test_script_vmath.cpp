@@ -63,6 +63,11 @@ bool RunString(lua_State* L, const char* script)
     return true;
 }
 
+TEST_F(ScriptVmathTest, TestNumber)
+{
+    ASSERT_TRUE(RunFile(L, "test_number.luac"));
+}
+
 TEST_F(ScriptVmathTest, TestVector3)
 {
     int top = lua_gettop(L);

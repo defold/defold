@@ -899,7 +899,7 @@ namespace dmScript
     /*# creates a new matrix from another existing matrix
      *
      * @name vmath.matrix4
-     * @param [m] existing matrix (matrix4)
+     * @param m existing matrix (matrix4)
      * @return matrix which is a copy of the specified matrix (matrix4)
      */
     static int Matrix4_new(lua_State* L)
@@ -1184,9 +1184,18 @@ namespace dmScript
      *
      * @name vmath.lerp
      * @param t interpolation parameter, 0-1 (number)
-     * @param q1 quaternion to lerp to (quaternion)
-     * @param q2 quaternion to lerp from (quaternion)
+     * @param q1 quaternion to lerp from (quaternion)
+     * @param q2 quaternion to lerp to (quaternion)
      * @return the lerped quaternion (quaternion)
+     */
+
+    /*# lerps between two numbers
+     *
+     * @name vmath.lerp
+     * @param t interpolation parameter, 0-1 (number)
+     * @param n1 number to lerp from (number)
+     * @param n2 number to lerp to (number)
+     * @return the lerped number (number)
      */
 
     static int Lerp(lua_State* L)
@@ -1194,26 +1203,33 @@ namespace dmScript
         float t = luaL_checknumber(L, 1);
         if (IsVector4(L, 2) && IsVector4(L, 3))
         {
-            Vectormath::Aos::Vector4* v1 = (Vectormath::Aos::Vector4*)luaL_checkudata(L, 2, SCRIPT_TYPE_NAME_VECTOR4);
-            Vectormath::Aos::Vector4* v2 = (Vectormath::Aos::Vector4*)luaL_checkudata(L, 3, SCRIPT_TYPE_NAME_VECTOR4);
+            Vectormath::Aos::Vector4* v1 = CheckVector4(L, 2);
+            Vectormath::Aos::Vector4* v2 = CheckVector4(L, 3);
             PushVector4(L, Vectormath::Aos::lerp(t, *v1, *v2));
             return 1;
         }
         else if (IsVector3(L, 2) && IsVector3(L, 3))
         {
-            Vectormath::Aos::Vector3* v1 = (Vectormath::Aos::Vector3*)luaL_checkudata(L, 2, SCRIPT_TYPE_NAME_VECTOR3);
-            Vectormath::Aos::Vector3* v2 = (Vectormath::Aos::Vector3*)luaL_checkudata(L, 3, SCRIPT_TYPE_NAME_VECTOR3);
+            Vectormath::Aos::Vector3* v1 = CheckVector3(L, 2);
+            Vectormath::Aos::Vector3* v2 = CheckVector3(L, 3);
             PushVector3(L, Vectormath::Aos::lerp(t, *v1, *v2));
             return 1;
         }
-        else
+        else if (IsQuat(L, 2) && IsQuat(L, 3))
         {
-            Vectormath::Aos::Quat* q1 = (Vectormath::Aos::Quat*)luaL_checkudata(L, 2, SCRIPT_TYPE_NAME_QUAT);
-            Vectormath::Aos::Quat* q2 = (Vectormath::Aos::Quat*)luaL_checkudata(L, 3, SCRIPT_TYPE_NAME_QUAT);
+            Vectormath::Aos::Quat* q1 = CheckQuat(L, 2);
+            Vectormath::Aos::Quat* q2 = CheckQuat(L, 3);
             PushQuat(L, Vectormath::Aos::lerp(t, *q1, *q2));
             return 1;
         }
-        return luaL_error(L, "%s.%s takes one number and either two %s.%s or two %s.%s as arguments.", SCRIPT_LIB_NAME, "lerp", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR3, SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_QUAT);
+        else if (lua_isnumber(L, 2) && lua_isnumber(L, 3))
+        {
+            lua_Number n1 = luaL_checknumber(L, 2);
+            lua_Number n2 = luaL_checknumber(L, 3);
+            lua_pushnumber(L, n1 + t * (n2 - n1));
+            return 1;
+        }
+        return luaL_error(L, "%s.%s takes one number and a pair of either %s.%ss, %s.%ss, %s.%ss or numbers as arguments.", SCRIPT_LIB_NAME, "lerp", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR3, SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR4, SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_QUAT);
     }
 
     /*# slerps between two vectors
