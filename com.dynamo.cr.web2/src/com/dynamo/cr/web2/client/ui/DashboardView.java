@@ -17,6 +17,7 @@ import com.google.gwt.user.cellview.client.Column;
 import com.google.gwt.user.cellview.client.IdentityColumn;
 import com.google.gwt.user.client.ui.Button;
 import com.google.gwt.user.client.ui.Composite;
+import com.google.gwt.user.client.ui.Image;
 import com.google.gwt.user.client.ui.Label;
 import com.google.gwt.user.client.ui.Widget;
 import com.google.gwt.view.client.ListDataProvider;
@@ -40,6 +41,7 @@ public class DashboardView extends Composite {
     @UiField CellTable<ProjectInfo> projectsTable;
     @UiField Button newProjectButton;
     @UiField Label errorLabel;
+    @UiField Image gravatar;
 
     interface DashboardUiBinder extends UiBinder<Widget, DashboardView> {
     }
@@ -140,5 +142,9 @@ public class DashboardView extends Composite {
 
     public void setError(String message) {
         errorLabel.setText(message);
+    }
+
+    public void setGravatarURL(String url) {
+        gravatar.setUrl(url);
     }
 }

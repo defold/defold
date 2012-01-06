@@ -13,6 +13,7 @@
         }
     </ui:style>
     <g:VerticalPanel>
+        <g:Image ui:field="gravatar" url="http://www.gravatar.com/avatar/123?s=64"></g:Image>
     	<g:Button ui:field="newProjectButton">New Project</g:Button>
         <g:Label styleName="{style.error}" text="Error"
             horizontalAlignment="ALIGN_LEFT" ui:field="errorLabel" />
