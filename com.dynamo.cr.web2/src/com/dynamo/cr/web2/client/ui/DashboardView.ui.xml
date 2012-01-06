@@ -13,11 +13,24 @@
         }
     </ui:style>
     <g:VerticalPanel>
-        <g:Image ui:field="gravatar" url="http://www.gravatar.com/avatar/123?s=64"></g:Image>
-    	<g:Button ui:field="newProjectButton">New Project</g:Button>
+        <g:HTML>
+            <h1>Dashboard</h1>
+        </g:HTML>
+
+        <g:HTMLPanel>
+            <g:Image ui:field="gravatar" url="http://www.gravatar.com/avatar/123?s=64"></g:Image>
+            <span ui:field="firstName"></span>
+            <span ui:field="lastName"></span>
+        </g:HTMLPanel>
+
+    	<g:HTMLPanel>
+    	   <h2>Projects</h2>
+            <g:Button ui:field="newProjectButton">New Project</g:Button>
+            <g:VerticalPanel ui:field="projects"/>
+    	</g:HTMLPanel>
+
         <g:Label styleName="{style.error}" text="Error"
             horizontalAlignment="ALIGN_LEFT" ui:field="errorLabel" />
-        <p1:CellTable ui:field="projectsTable" />
     </g:VerticalPanel>
 
 </ui:UiBinder>

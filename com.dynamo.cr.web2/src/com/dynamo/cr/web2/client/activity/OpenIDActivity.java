@@ -54,8 +54,10 @@ public class OpenIDActivity extends AbstractActivity implements
                             openIDView.setConfirmRegistrationData(tokenExchangeInfo.getFirstName(), tokenExchangeInfo.getLastName(), tokenExchangeInfo.getEmail());
                         } else if (tokenExchangeInfo.getType().equals("LOGIN")) {
                             openIDView.showLoginSuccessfulPanel();
+                            String firstName = tokenExchangeInfo.getFirstName();
+                            String lastName = tokenExchangeInfo.getLastName();
                             String email = tokenExchangeInfo.getEmail();
-                            defold.loginOk(email, tokenExchangeInfo.getAuthCookie(), tokenExchangeInfo.getUserId());
+                            defold.loginOk(firstName, lastName, email, tokenExchangeInfo.getAuthCookie(), tokenExchangeInfo.getUserId());
                             clientFactory.getPlaceController().goTo(new ProductInfoPlace());
                         } else {
                             openIDView.setError("Invalid server response");
@@ -96,7 +98,10 @@ public class OpenIDActivity extends AbstractActivity implements
                     }
                     else if (status == 200) {
                         LoginInfo loginInfo = LoginInfo.getResponse(response.getText());
-                        defold.loginOk(loginInfo.getEmail(), loginInfo.getAuth(), loginInfo.getUserId());
+                        // TODO: This is a bug. First name last name will be "" after registering.
+                        // First and last name is not part of LoginInfo.
+                        // It's part of TokenExchange that is used for "regular" login
+                        defold.loginOk("", "", loginInfo.getEmail(), loginInfo.getAuth(), loginInfo.getUserId());
                         clientFactory.getPlaceController().goTo(new ProductInfoPlace());
                     } else {
                         openIDView.setError("Registration failed: " + response.getText());

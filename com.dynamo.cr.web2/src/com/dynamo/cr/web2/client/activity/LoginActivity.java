@@ -53,7 +53,7 @@ public class LoginActivity extends AbstractActivity implements LoginView.Present
                     int status = response.getStatusCode();
                     if (status == 200) {
                         JSONObject loginInfo = JSONParser.parseStrict(response.getText()).isObject();
-                        defold.loginOk(email, loginInfo.get("auth_cookie").isString().stringValue(), (int) loginInfo.get("user_id").isNumber().doubleValue());
+                        defold.loginOk("", "", email, loginInfo.get("auth_cookie").isString().stringValue(), (int) loginInfo.get("user_id").isNumber().doubleValue());
                         loginView.setError(null);
                         clientFactory.getPlaceController().goTo(new ProductInfoPlace());
                     } else {

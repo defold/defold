@@ -36,6 +36,7 @@ import com.google.gwt.user.client.Cookies;
 import com.google.gwt.user.client.DOM;
 import com.google.gwt.user.client.Element;
 import com.google.gwt.user.client.ui.Anchor;
+import com.google.gwt.user.client.ui.Button;
 import com.google.gwt.user.client.ui.RootLayoutPanel;
 import com.google.gwt.user.client.ui.ScrollPanel;
 import com.google.gwt.user.client.ui.SimplePanel;
@@ -251,12 +252,14 @@ public class Defold implements EntryPoint {
         messageNotification.setAnimationEnabled(true);
     }
 
-    public void loginOk(String email, String authCookie, int userId) {
+    public void loginOk(String firstName, String lastName, String email, String authCookie, int userId) {
         Date expires = new Date();
         long nowLong = expires.getTime();
         nowLong = nowLong + (1000 * 60 * 60 * 24 * 7);
         expires.setTime(nowLong);
 
+        Cookies.setCookie("first_name", firstName);
+        Cookies.setCookie("last_name", lastName);
         Cookies.setCookie("user_id", Integer.toString(userId), expires);
         Cookies.setCookie("email", email, expires);
         Cookies.setCookie("auth", authCookie, expires);
@@ -273,6 +276,21 @@ public class Defold implements EntryPoint {
         } else {
             return Integer.parseInt(userId);
         }
+    }
+
+    public String getFirstName() {
+        String firstName = Cookies.getCookie("first_name");
+        return firstName;
+    }
+
+    public String getLastName() {
+        String lastName = Cookies.getCookie("last_name");
+        return lastName;
+    }
+
+    public String getEmail() {
+        String email = Cookies.getCookie("email");
+        return email;
     }
 
     @UiHandler("logout")

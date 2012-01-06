@@ -14,7 +14,6 @@ import com.google.gwt.activity.shared.AbstractActivity;
 import com.google.gwt.event.shared.EventBus;
 import com.google.gwt.http.client.Request;
 import com.google.gwt.http.client.Response;
-import com.google.gwt.user.client.Cookies;
 import com.google.gwt.user.client.ui.AcceptsOneWidget;
 
 public class DashboardActivity extends AbstractActivity implements DashboardView.Presenter {
@@ -26,13 +25,13 @@ public class DashboardActivity extends AbstractActivity implements DashboardView
 
     public void loadProjects() {
         final DashboardView dashboardView = clientFactory.getDashboardView();
-        Defold defold = clientFactory.getDefold();
+        final Defold defold = clientFactory.getDefold();
         defold.getResource("/projects/" + defold.getUserId(), new ResourceCallback<ProjectInfoList>() {
 
             @Override
             public void onSuccess(ProjectInfoList projectInfoList, Request request,
                     Response response) {
-                dashboardView.setProjectInfoList(projectInfoList);
+                dashboardView.setProjectInfoList(defold.getUserId(), projectInfoList);
             }
 
             @Override
@@ -53,13 +52,16 @@ public class DashboardActivity extends AbstractActivity implements DashboardView
 
     private void loadGravatar() {
         final DashboardView dashboardView = clientFactory.getDashboardView();
-        String email = Cookies.getCookie("email");
-        if (email != null) {
-            email = email.trim().toLowerCase();
-            String md5 = MD5.md5(email);
-            String url = "http://www.gravatar.com/avatar/" + md5 + "?s=80";
-            dashboardView.setGravatarURL(url);
-        }
+        Defold defold = clientFactory.getDefold();
+        String email = defold.getEmail();
+        email = email.trim().toLowerCase();
+        String md5 = MD5.md5(email);
+        String url = "http://www.gravatar.com/avatar/" + md5 + "?s=80";
+        dashboardView.setGravatarURL(url);
+
+        String firstName = defold.getFirstName();
+        String lastName = defold.getLastName();
+        dashboardView.setName(firstName, lastName);
     }
 
     @Override
