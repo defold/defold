@@ -36,7 +36,6 @@ import com.google.gwt.user.client.Cookies;
 import com.google.gwt.user.client.DOM;
 import com.google.gwt.user.client.Element;
 import com.google.gwt.user.client.ui.Anchor;
-import com.google.gwt.user.client.ui.Button;
 import com.google.gwt.user.client.ui.RootLayoutPanel;
 import com.google.gwt.user.client.ui.ScrollPanel;
 import com.google.gwt.user.client.ui.SimplePanel;
@@ -247,9 +246,7 @@ public class Defold implements EntryPoint {
 
         new ShowLoginOnAuthenticationFailure().register(clientFactory, eventBus);
         messageNotification = new MessageNotification();
-        messageNotification.setPopupPosition(300, 30);
         messageNotification.setSize("120px", "30px");
-        messageNotification.setAnimationEnabled(true);
     }
 
     public void loginOk(String firstName, String lastName, String email, String authCookie, int userId) {

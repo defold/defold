@@ -5,6 +5,7 @@ import com.google.gwt.resources.client.CssResource;
 import com.google.gwt.uibinder.client.UiBinder;
 import com.google.gwt.uibinder.client.UiField;
 import com.google.gwt.user.client.Timer;
+import com.google.gwt.user.client.Window;
 import com.google.gwt.user.client.ui.InlineLabel;
 import com.google.gwt.user.client.ui.PopupPanel;
 import com.google.gwt.user.client.ui.Widget;
@@ -29,21 +30,27 @@ public class MessageNotification extends PopupPanel {
     public MessageNotification() {
         setWidget(binder.createAndBindUi(this));
         setStyleName(style.notification());
+        setAnimationEnabled(false);
     }
 
     public void show(String message) {
-        super.show();
+        if (!isShowing()) {
+            int left = (Window.getClientWidth() - getOffsetWidth()) >> 1;
+            int top = 0;
+            setPopupPosition(Math.max(Window.getScrollLeft() + left, 0), Math.max(
+                Window.getScrollTop() + top, 0));
 
-        hide();
+            show();
+        }
         this.messageLabel.setText(message);
-        show();
 
         Timer t = new Timer() {
             int id = nextId++;
             @Override
             public void run() {
-                if (id == nextId - 1)
+                if (id == nextId - 1) {
                     hide();
+                }
             }
         };
 
