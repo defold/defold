@@ -48,11 +48,13 @@ def build(bld):
     bld.install_files('${PREFIX}/share/proto', '../proto/render/render_ddf.proto')
     bld.install_files('${PREFIX}/share/proto', '../proto/render/font_ddf.proto')
 
-    bld.new_task_gen(source = 'render/render_script.cpp',
+    doc_src = ['render/render_script.cpp',
+               '../proto/render/render_ddf.proto']
+    bld.new_task_gen(source = ' '.join(doc_src),
                      target = 'render_doc.sdoc',
                      rule = '${SCRIPT_DOC} ${SRC} ${TGT}')
 
-    bld.new_task_gen(source = 'render/render_script.cpp',
+    bld.new_task_gen(source = ' '.join(doc_src),
                      target = 'render_doc.json',
                      rule = '${SCRIPT_DOC} -t json ${SRC} ${TGT}')
 

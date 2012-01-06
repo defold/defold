@@ -27,7 +27,7 @@ message RenderPrototypeDesc
  * @param text The text to draw
  * @examples
  * <pre>
- * msg.post("@render:", "draw_text", { text = "Hell world!", position = vmath.vector3(200, 200, 0) } )
+ * msg.post("@render:", "draw_text", { text = "Hello world!", position = vmath.vector3(200, 200, 0) } )
  * </pre>
  */
 message DrawText
@@ -64,11 +64,11 @@ message WindowResized
 }
 
 /*# set clear color
- * Set render clear color
+ * Set render clear color. This is the color that appears on the screen where nothing is rendered, i.e. background.
  *
  * @message
  * @name clear_color
- * @param color color to set as clear color
+ * @param color color to use as clear color
  * @examples
  * <pre>
  * msg.post("@render:", "clear_color", { color = vmath.vector4(1, 0, 0, 0) } )
