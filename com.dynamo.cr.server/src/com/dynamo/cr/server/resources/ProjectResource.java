@@ -258,6 +258,17 @@ public class ProjectResource extends BaseResource {
         return ResourceUtil.createProjectInfo(project);
     }
 
+    @GET
+    @Path("/log")
+    public Log log(@PathParam("project") String project,
+                              @PathParam("user") String user,
+                              @QueryParam("max_count") int maxCount) throws ServerException, IOException {
+        EntityManager em = server.getEntityManagerFactory().createEntityManager();
+        // Ensure user is valid
+        server.getUser(em, user);
+        return server.log(em, project, maxCount);
+    }
+
     @DELETE
     @RolesAllowed(value = { "owner" })
     public void deleteProject(@PathParam("user") String user,
@@ -504,12 +515,12 @@ public class ProjectResource extends BaseResource {
 
     @GET
     @Path("/branches/{branch}/log")
-    public Log log(@PathParam("project") String project,
+    public Log logBranch(@PathParam("project") String project,
                               @PathParam("user") String user,
                               @PathParam("branch") String branch,
                               @QueryParam("max_count") int maxCount) throws ServerException, IOException {
         EntityManager em = server.getEntityManagerFactory().createEntityManager();
-        return server.log(em, project, user, branch, maxCount);
+        return server.logBranch(em, project, user, branch, maxCount);
     }
 
     /*
