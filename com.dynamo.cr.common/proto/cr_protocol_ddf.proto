@@ -225,6 +225,7 @@ message CommitDesc
     required string message = 2;
     optional string name = 3 [default=""];
     optional string email = 4 [default=""];
+    optional string date = 5 [default=""];
 }
 
 message ResourceDesc
