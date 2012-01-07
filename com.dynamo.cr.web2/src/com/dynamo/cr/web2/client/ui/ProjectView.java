@@ -1,59 +1,56 @@
 package com.dynamo.cr.web2.client.ui;
 
+import java.util.Date;
+
+import com.dynamo.cr.web2.client.CommitDesc;
+import com.dynamo.cr.web2.client.Log;
 import com.dynamo.cr.web2.client.ProjectInfo;
 import com.dynamo.cr.web2.client.UserInfo;
 import com.dynamo.cr.web2.client.UserInfoList;
-import com.google.gwt.cell.client.ButtonCell;
-import com.google.gwt.cell.client.FieldUpdater;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.core.client.JsArray;
+import com.google.gwt.dom.client.SpanElement;
+import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.event.dom.client.KeyCodes;
 import com.google.gwt.event.dom.client.KeyPressEvent;
 import com.google.gwt.event.dom.client.KeyPressHandler;
-import com.google.gwt.resources.client.CssResource;
-import com.google.gwt.safehtml.shared.SafeHtml;
-import com.google.gwt.safehtml.shared.SafeHtmlBuilder;
+import com.google.gwt.i18n.client.DateTimeFormat;
 import com.google.gwt.uibinder.client.UiBinder;
 import com.google.gwt.uibinder.client.UiField;
-import com.google.gwt.user.cellview.client.CellTable;
-import com.google.gwt.user.cellview.client.Column;
-import com.google.gwt.user.cellview.client.TextColumn;
+import com.google.gwt.uibinder.client.UiHandler;
+import com.google.gwt.user.client.Window;
+import com.google.gwt.user.client.ui.Button;
 import com.google.gwt.user.client.ui.Composite;
-import com.google.gwt.user.client.ui.InlineLabel;
+import com.google.gwt.user.client.ui.HTMLPanel;
 import com.google.gwt.user.client.ui.Label;
 import com.google.gwt.user.client.ui.MultiWordSuggestOracle;
 import com.google.gwt.user.client.ui.SuggestBox;
+import com.google.gwt.user.client.ui.VerticalPanel;
 import com.google.gwt.user.client.ui.Widget;
-import com.google.gwt.view.client.ListDataProvider;
+import com.google.gwt.user.datepicker.client.CalendarUtil;
 
 public class ProjectView extends Composite implements KeyPressHandler {
 
     public interface Presenter {
         void addMember(String email);
         void removeMember(int id);
+        void deleteProject(ProjectInfo projectInfo);
     }
 
     private static ProjectDetailsUiBinder uiBinder = GWT
             .create(ProjectDetailsUiBinder.class);
-    @UiField
-    InlineLabel projectName;
-    @UiField
-    Label description;
-    @UiField(provided = true)
-    SuggestBox suggestBox;
-    @UiField(provided = true)
-    CellTable<UserInfo> membersTable = new CellTable<UserInfo>();
-
-    interface Css extends CssResource {
-        String member();
-    }
-
-    @UiField
-    Css style;
+    @UiField SpanElement projectName;
+    @UiField Button deleteProject;
+    @UiField Label errorLabel;
+    @UiField SpanElement description;
+    @UiField(provided = true) SuggestBox suggestBox;
+    @UiField VerticalPanel members;
+    @UiField VerticalPanel commits;
+    @UiField HTMLPanel addMemberPanel;
 
     private final MultiWordSuggestOracle suggestions = new MultiWordSuggestOracle();
-    private ListDataProvider<UserInfo> membersProvider;
     private Presenter listener;
+    private ProjectInfo projectInfo;
 
     interface ProjectDetailsUiBinder extends UiBinder<Widget, ProjectView> {
     }
@@ -67,87 +64,63 @@ public class ProjectView extends Composite implements KeyPressHandler {
          */
         suggestBox.getTextBox().addKeyPressHandler(this);
         initWidget(uiBinder.createAndBindUi(this));
-
-        membersProvider = new ListDataProvider<UserInfo>();
-
-        TextColumn<UserInfo> firstNameColumn = new TextColumn<UserInfo>() {
-            @Override
-            public String getValue(UserInfo userInfo) {
-                return userInfo.getFirstName();
-            }
-        };
-
-        TextColumn<UserInfo> lastNameColumn = new TextColumn<UserInfo>() {
-            @Override
-            public String getValue(UserInfo userInfo) {
-                return userInfo.getLastName();
-            }
-        };
-
-        TextColumn<UserInfo> emailColumn = new TextColumn<UserInfo>() {
-            @Override
-            public String getValue(UserInfo userInfo) {
-                return userInfo.getEmail();
-            }
-        };
-        ButtonCell buttonCell = new ButtonCell() {
-            @Override
-            public void render(Context context, SafeHtml data,
-                    SafeHtmlBuilder sb) {
-
-                sb.appendHtmlConstant("<button type=\"button\" tabindex=\"-1\">");
-
-                // TODO: Fix this stuff back...
-                /*
-                 * if (projectInfo.getOwner().getId() == defold.getUserId()) {
-                 * sb
-                 * .appendHtmlConstant("<button type=\"button\" tabindex=\"-1\">"
-                 * ); } else { sb.appendHtmlConstant(
-                 * "<button disabled=\"disabled\" type=\"button\" tabindex=\"-1\">"
-                 * ); }
-                 */
-
-                if (data != null) {
-                    sb.append(data);
-                }
-                sb.appendHtmlConstant("</button>");
-            }
-        };
-
-        Column<UserInfo, String> removeColumn = new Column<UserInfo, String>(
-                buttonCell) {
-            @Override
-            public String getValue(UserInfo object) {
-                return "x";
-            }
-        };
-
-        removeColumn.setFieldUpdater(new FieldUpdater<UserInfo, String>() {
-            @Override
-            public void update(final int index, UserInfo userInfo, String value) {
-                listener.removeMember(userInfo.getId());
-            }
-        });
-
-        membersTable.addColumn(firstNameColumn);
-        membersTable.addColumn(lastNameColumn);
-        membersTable.addColumn(emailColumn);
-        membersTable.addColumn(removeColumn);
-        membersProvider.addDataDisplay(membersTable);
+        errorLabel.setText("");
     }
 
-    public void setProjectInfo(ProjectInfo projectInfo) {
-        projectName.setText(projectInfo.getName());
-        description.setText(projectInfo.getDescription());
-        suggestBox.setText("");
+    public void clear() {
+        this.projectName.setInnerText("");
+        this.deleteProject.setVisible(false);
+        this.errorLabel.setText("");
+        this.description.setInnerText("");
+        this.suggestBox.setText("");
+        this.members.clear();
+        this.commits.clear();
+        this.addMemberPanel.setVisible(false);
+    }
+
+    public void setProjectInfo(int userId, ProjectInfo projectInfo) {
+        this.projectInfo = projectInfo;
+        this.projectName.setInnerText(projectInfo.getName());
+        this.description.setInnerText(projectInfo.getDescription());
+        this.suggestBox.setText("");
+
+        boolean isOwner = userId == projectInfo.getOwner().getId();
+        this.deleteProject.setVisible(isOwner);
+        this.addMemberPanel.setVisible(isOwner);
+
+        this.members.clear();
         JsArray<UserInfo> membersList = projectInfo.getMembers();
-        membersProvider.getList().clear();
         for (int i = 0; i < membersList.length(); ++i) {
-            UserInfo member = membersList.get(i);
-            if (member.getId() != projectInfo.getOwner().getId()) {
-                membersProvider.getList().add(member);
-            }
+            final UserInfo memberInfo = membersList.get(i);
+            MemberBox memberBox = new MemberBox(this.listener, memberInfo, isOwner, memberInfo.getId() == userId, projectInfo.getOwner().getId() == memberInfo.getId());
+            this.members.add(memberBox);
         }
+    }
+
+    public void setLog(int userId, Log log) {
+        commits.clear();
+        JsArray<CommitDesc> commits = log.getCommits();
+        DateTimeFormat sourceDF = DateTimeFormat.getFormat("yyyy-MM-dd HH:mm:ss Z");
+        Date now = new Date();
+        for (int i = 0; i < commits.length(); ++i) {
+            final CommitDesc commit = commits.get(i);
+            Date commitDate = sourceDF.parse(commit.getDate());
+            String date = formatDate(now, commitDate);
+            CommitBox commitBox = new CommitBox(commit, date);
+            this.commits.add(commitBox);
+        }
+    }
+
+    private String formatDate(Date now, Date before) {
+        StringBuffer format = new StringBuffer("HH:mm");
+        int days = CalendarUtil.getDaysBetween(before, now);
+        if (days > 0) {
+            format.append(", MMM d");
+        }
+        if (days >= 365) {
+            format.append(", yyyy");
+        }
+        return DateTimeFormat.getFormat(format.toString()).format(before);
     }
 
     @Override
@@ -169,11 +142,15 @@ public class ProjectView extends Composite implements KeyPressHandler {
         }
     }
 
-    public void init() {
-        membersProvider.getList().clear();
-        suggestions.clear();
-        projectName.setText("...");
-        description.setText("...");
-        suggestBox.setText("");
+    public void setError(String message) {
+        errorLabel.setText(message);
     }
+
+    @UiHandler("deleteProject")
+    void onDeleteProjectClick(ClickEvent event) {
+        if (Window.confirm("Are you sure you want to delete the project?")) {
+            listener.deleteProject(this.projectInfo);
+        }
+    }
+
 }

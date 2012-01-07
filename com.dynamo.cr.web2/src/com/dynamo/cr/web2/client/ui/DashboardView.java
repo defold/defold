@@ -55,7 +55,7 @@ public class DashboardView extends Composite {
         JsArray<ProjectInfo> projects = projectInfoList.getProjects();
         for (int i = 0; i < projects.length(); ++i) {
             final ProjectInfo projectInfo = projects.get(i);
-            ProjectBox projectBox = new ProjectBox(listener, projectInfo, projectInfo.getId() == userId);
+            ProjectBox projectBox = new ProjectBox(listener, projectInfo, projectInfo.getOwner().getId() == userId);
             this.projects.add(projectBox);
         }
     }
