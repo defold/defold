@@ -8,6 +8,7 @@ import com.dynamo.cr.web2.client.ui.NewProjectView;
 import com.dynamo.cr.web2.client.ui.OpenIDView;
 import com.dynamo.cr.web2.client.ui.ProductInfoView;
 import com.dynamo.cr.web2.client.ui.ProjectView;
+import com.dynamo.cr.web2.client.ui.ReferenceView;
 import com.dynamo.cr.web2.client.ui.ScriptSampleView;
 import com.dynamo.cr.web2.client.ui.TutorialsView;
 import com.google.gwt.event.shared.SimpleEventBus;
@@ -28,6 +29,7 @@ public class ClientFactoryImpl implements ClientFactory {
     private static final TutorialsView tutorialsView = new TutorialsView();
     private static final BlogView blogView = new BlogView();
     private static final ScriptSampleView scriptSampleView = new ScriptSampleView();
+    private static final ReferenceView referenceView = new ReferenceView();
 
     private Defold defold;
 
@@ -99,6 +101,11 @@ public class ClientFactoryImpl implements ClientFactory {
     @Override
     public ScriptSampleView getScriptSampleView() {
         return scriptSampleView;
+    }
+
+    @Override
+    public ReferenceView getReferenceView() {
+        return referenceView;
     }
 
 }

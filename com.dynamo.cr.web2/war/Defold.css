@@ -34,6 +34,10 @@ a {
     cursor: pointer;
 }
 
+tr {
+    vertical-align: top;
+}
+
 .hover {
     color: #06C;
     cursor: pointer;

@@ -11,18 +11,7 @@
 
     <g:FlowPanel>
         <g:HTMLPanel>
-            <!--  TODO: This should be removed when the new ref-doc system is in place -->
-            <ul class="nav nav2">
-                <li><g:Anchor ui:field="engineLink">Engine</g:Anchor></li>
-                <li><g:Anchor ui:field="gameObjectLink">GameObject</g:Anchor></li>
-                <li><g:Anchor ui:field="gameSysLink">GameSys</g:Anchor></li>
-                <li><g:Anchor ui:field="guiLink">Gui</g:Anchor></li>
-                <li><g:Anchor ui:field="renderLink">Render</g:Anchor></li>
-                <li><g:Anchor ui:field="scriptLink">Script</g:Anchor></li>
-            </ul>
-
             <h1>Documentation</h1>
-
             <table>
 	            <tr>
 		            <td>
@@ -63,10 +52,6 @@
 	        </table>
 
         </g:HTMLPanel>
-
-        <g:Image url="images/ajax-loader.gif" styleName="{style.loader}" ui:field="loader"></g:Image>
-        <g:VerticalPanel ui:field="documentationList">
-        </g:VerticalPanel>
     </g:FlowPanel>
 
 </ui:UiBinder>

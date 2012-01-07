@@ -4,10 +4,8 @@ import com.dynamo.cr.web2.client.DocumentationElement;
 import com.dynamo.cr.web2.client.DocumentationParameter;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.core.client.JsArray;
-import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.uibinder.client.UiBinder;
 import com.google.gwt.uibinder.client.UiField;
-import com.google.gwt.uibinder.client.UiHandler;
 import com.google.gwt.user.client.ui.Composite;
 import com.google.gwt.user.client.ui.HTML;
 import com.google.gwt.user.client.ui.HTMLPanel;
@@ -32,7 +30,6 @@ public class MessageDocumentationPanel extends Composite {
 
     public MessageDocumentationPanel() {
         initWidget(uiBinder.createAndBindUi(this));
-        content.setVisible(false);
     }
 
     public void setDocumentationElement(DocumentationElement element) {
@@ -64,11 +61,6 @@ public class MessageDocumentationPanel extends Composite {
                 fieldList.add(new HTML(html.toString()));
             }
         }
-    }
-
-    @UiHandler("messageName")
-    void onConstantNameClick(ClickEvent event) {
-        content.setVisible(!content.isVisible());
     }
 
 }

@@ -8,6 +8,7 @@ import com.dynamo.cr.web2.client.ui.NewProjectView;
 import com.dynamo.cr.web2.client.ui.OpenIDView;
 import com.dynamo.cr.web2.client.ui.ProductInfoView;
 import com.dynamo.cr.web2.client.ui.ProjectView;
+import com.dynamo.cr.web2.client.ui.ReferenceView;
 import com.dynamo.cr.web2.client.ui.ScriptSampleView;
 import com.dynamo.cr.web2.client.ui.TutorialsView;
 import com.google.gwt.place.shared.PlaceController;
@@ -29,4 +30,5 @@ public interface ClientFactory
     TutorialsView getTutorialsView();
     BlogView getBlogView();
     ScriptSampleView getScriptSampleView();
+    ReferenceView getReferenceView();
 }
