@@ -2,9 +2,11 @@ package com.dynamo.cr.web2.client.activity;
 
 import com.dynamo.cr.web2.client.ClientFactory;
 import com.dynamo.cr.web2.client.Defold;
+import com.dynamo.cr.web2.client.Log;
 import com.dynamo.cr.web2.client.ProjectInfo;
 import com.dynamo.cr.web2.client.ResourceCallback;
 import com.dynamo.cr.web2.client.UserInfoList;
+import com.dynamo.cr.web2.client.place.DashboardPlace;
 import com.dynamo.cr.web2.client.place.ProjectPlace;
 import com.dynamo.cr.web2.client.ui.ProjectView;
 import com.google.gwt.activity.shared.AbstractActivity;
@@ -15,6 +17,9 @@ import com.google.gwt.user.client.ui.AcceptsOneWidget;
 
 public class ProjectActivity extends AbstractActivity implements
         ProjectView.Presenter {
+
+    private static final int LOG_MAX_COUNT = 10;
+
     private ClientFactory clientFactory;
     private String projectId;
 
@@ -25,7 +30,7 @@ public class ProjectActivity extends AbstractActivity implements
 
     private void loadProject() {
         final ProjectView projectView = clientFactory.getProjectView();
-        Defold defold = clientFactory.getDefold();
+        final Defold defold = clientFactory.getDefold();
 
         StringBuilder projectInfoResource = new StringBuilder();
         projectInfoResource.append("/projects/");
@@ -40,7 +45,7 @@ public class ProjectActivity extends AbstractActivity implements
                     @Override
                     public void onSuccess(ProjectInfo projectInfo,
                             Request request, Response response) {
-                        projectView.setProjectInfo(projectInfo);
+                        projectView.setProjectInfo(defold.getUserId(), projectInfo);
                     }
 
                     @Override
@@ -67,15 +72,44 @@ public class ProjectActivity extends AbstractActivity implements
                 });
     }
 
+    private void loadLog() {
+        final ProjectView projectView = clientFactory.getProjectView();
+        final Defold defold = clientFactory.getDefold();
+
+        StringBuilder projectInfoResource = new StringBuilder();
+        projectInfoResource.append("/projects/");
+        projectInfoResource.append(defold.getUserId());
+        projectInfoResource.append("/");
+        projectInfoResource.append(projectId);
+        projectInfoResource.append("/log");
+        projectInfoResource.append("?max_count=");
+        projectInfoResource.append(LOG_MAX_COUNT);
+
+        defold.getResource(projectInfoResource.toString(),
+                new ResourceCallback<Log>() {
+
+                    @Override
+                    public void onSuccess(Log log,
+                            Request request, Response response) {
+                        projectView.setLog(defold.getUserId(), log);
+                    }
+
+                    @Override
+                    public void onFailure(Request request, Response response) {
+                    }
+                });
+    }
+
     @Override
     public void start(AcceptsOneWidget containerWidget, EventBus eventBus) {
         final ProjectView projectView = clientFactory.getProjectView();
         projectView.setPresenter(this);
-        projectView.init();
+        projectView.clear();
         containerWidget.setWidget(projectView.asWidget());
 
         loadProject();
         loadConnections();
+        loadLog();
     }
 
     @Override
@@ -130,5 +164,30 @@ public class ProjectActivity extends AbstractActivity implements
                     }
                 });
 
+    }
+
+    @Override
+    public void deleteProject(ProjectInfo projectInfo) {
+        final ProjectView projectView = clientFactory.getProjectView();
+        Defold defold = clientFactory.getDefold();
+        defold.deleteResource("/projects/" + defold.getUserId() + "/" + projectInfo.getId(), new ResourceCallback<String>() {
+
+            @Override
+            public void onSuccess(String result, Request request,
+                    Response response) {
+
+                int statusCode = response.getStatusCode();
+                if (statusCode >= 300) {
+                    projectView.setError(response.getText());
+                } else {
+                    clientFactory.getPlaceController().goTo(new DashboardPlace());
+                }
+            }
+
+            @Override
+            public void onFailure(Request request, Response response) {
+                projectView.setError(response.getText());
+            }
+        });
     }
 }

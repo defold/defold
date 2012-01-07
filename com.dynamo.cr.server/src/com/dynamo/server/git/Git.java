@@ -526,7 +526,7 @@ public class Git {
      * @return Log containing commit messages
      */
     public Log log(String directory, int maxCount) throws IOException {
-        Result r = execGitCommand(directory, "git", "log", "--pretty=format:%H%x00%cn%x00%ce%x00%s");
+        Result r = execGitCommand(directory, "git", "log", "--pretty=format:%H%x00%cn%x00%ce%x00%ci%x00%s");
         checkResult(r);
         Log.Builder logBuilder = Log.newBuilder();
         BufferedReader reader = new BufferedReader(new StringReader(r.stdOut.toString()));
@@ -538,8 +538,9 @@ public class Git {
             String id = tokens[0];
             String name = tokens[1];
             String email = tokens[2];
-            String message = tokens[3];
-            logBuilder.addCommits(CommitDesc.newBuilder().setId(id).setMessage(message).setName(name).setEmail(email).build());
+            String date = tokens[3];
+            String message = tokens[4];
+            logBuilder.addCommits(CommitDesc.newBuilder().setId(id).setMessage(message).setName(name).setEmail(email).setDate(date).build());
             ++index;
         }
         return logBuilder.build();

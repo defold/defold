@@ -911,14 +911,20 @@ public class Server implements ServerMBean {
         git.reset(p, resetMode, null, target);
     }
 
-    public Log log(EntityManager em, String project, String user, String branch, int maxCount) throws IOException, ServerException {
+    public Log log(EntityManager em, String project, int maxCount) throws IOException, ServerException {
+        getProject(em, project);
+        String sourcePath = String.format("%s/%s", configuration.getRepositoryRoot(), project);
+        Git git = new Git();
+        return git.log(sourcePath, maxCount);
+    }
+
+    public Log logBranch(EntityManager em, String project, String user, String branch, int maxCount) throws IOException, ServerException {
         ensureProjectBranch(em, project, user, branch);
         String p = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
 
         Git git = new Git();
         return git.log(p, maxCount);
     }
-
 
     static class BuildRunnable implements IBuildRunnable {
 
