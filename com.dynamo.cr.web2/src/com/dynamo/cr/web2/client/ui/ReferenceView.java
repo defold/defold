@@ -117,25 +117,34 @@ public class ReferenceView extends Composite {
             }
         }
 
-        for (final DocumentationElement e : functions) {
-            FunctionDocumentationPanel panel = new FunctionDocumentationPanel();
-            panel.setDocumentationElement(e);
-            documentationList.add(panel);
-            nameToDocElement.put(e.getName(), panel.getElement());
+        if (functions.size() > 0) {
+            documentationList.add(new HTML("<h2>Functions</h2>"));
+            for (final DocumentationElement e : functions) {
+                FunctionDocumentationPanel panel = new FunctionDocumentationPanel();
+                panel.setDocumentationElement(e);
+                documentationList.add(panel);
+                nameToDocElement.put(e.getName(), panel.getElement());
+            }
         }
 
-        for (final DocumentationElement e : messages) {
-            MessageDocumentationPanel panel = new MessageDocumentationPanel();
-            panel.setDocumentationElement(e);
-            documentationList.add(panel);
-            nameToDocElement.put(e.getName(), panel.getElement());
+        if (messages.size() > 0) {
+            documentationList.add(new HTML("<h2>Messages</h2>"));
+            for (final DocumentationElement e : messages) {
+                MessageDocumentationPanel panel = new MessageDocumentationPanel();
+                panel.setDocumentationElement(e);
+                documentationList.add(panel);
+                nameToDocElement.put(e.getName(), panel.getElement());
+            }
         }
 
-        for (final DocumentationElement e : constants) {
-            ConstantDocumentationPanel panel = new ConstantDocumentationPanel();
-            panel.setDocumentationElement(e);
-            documentationList.add(panel);
-            nameToDocElement.put(e.getName(), panel.getElement());
+        if (constants.size() > 0) {
+            documentationList.add(new HTML("<h2>Constants</h2>"));
+            for (final DocumentationElement e : constants) {
+                ConstantDocumentationPanel panel = new ConstantDocumentationPanel();
+                panel.setDocumentationElement(e);
+                documentationList.add(panel);
+                nameToDocElement.put(e.getName(), panel.getElement());
+            }
         }
     }
 
