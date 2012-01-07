@@ -9,7 +9,6 @@ import com.google.gwt.user.client.ui.Button;
 import com.google.gwt.user.client.ui.Composite;
 import com.google.gwt.user.client.ui.DeckPanel;
 import com.google.gwt.user.client.ui.InlineLabel;
-import com.google.gwt.user.client.ui.Label;
 import com.google.gwt.user.client.ui.TextArea;
 import com.google.gwt.user.client.ui.TextBox;
 import com.google.gwt.user.client.ui.Widget;
@@ -22,7 +21,6 @@ public class OpenIDView extends Composite {
 
     private static final Binder binder = GWT.create(Binder.class);
     @UiField DeckPanel deckPanel;
-    @UiField Label errorLabel;
     @UiField InlineLabel emailLabel;
     @UiField InlineLabel firstNameLabel;
     @UiField InlineLabel lastNameLabel;
@@ -56,15 +54,9 @@ public class OpenIDView extends Composite {
     public void setPresenter(OpenIDView.Presenter listener) {
         this.listener = listener;
         hideDeckPanel();
-        errorLabel.setVisible(false);
         firstNameLabel.setText("");
         lastNameLabel.setText("");
         emailLabel.setText("");
-    }
-
-    public void setError(String message) {
-        errorLabel.setText(message);
-        errorLabel.setVisible(true);
     }
 
     public void setConfirmRegistrationData(String firstName, String lastName, String email) {

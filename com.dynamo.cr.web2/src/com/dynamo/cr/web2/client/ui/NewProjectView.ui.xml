@@ -2,20 +2,8 @@
 <!DOCTYPE ui:UiBinder SYSTEM "http://dl.google.com/gwt/DTD/xhtml.ent">
 <ui:UiBinder xmlns:ui='urn:ui:com.google.gwt.uibinder'
     xmlns:g='urn:import:com.google.gwt.user.client.ui'>
-    <ui:style>
-        .panel {
 
-        }
-
-        .error {
-        	color: red;
-        	padding-top: 8px;
-        	padding-bottom: 8px;
-        }
-    </ui:style>
-
-    <g:FlowPanel styleName="{style.panel}">
-
+    <g:FlowPanel>
         <g:HTMLPanel>
             <h2>New Project</h2>
         </g:HTMLPanel>
@@ -42,8 +30,6 @@
                     </div>
                 </div>
 
-                <g:Label styleName="{style.error}" text=" "
-                    horizontalAlignment="ALIGN_LEFT" ui:field="errorLabel" />
                 <g:Button ui:field='createButton'>Create Project</g:Button>
             </div>
         </g:HTMLPanel>

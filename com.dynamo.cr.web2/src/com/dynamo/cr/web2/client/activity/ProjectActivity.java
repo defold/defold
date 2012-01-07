@@ -168,8 +168,7 @@ public class ProjectActivity extends AbstractActivity implements
 
     @Override
     public void deleteProject(ProjectInfo projectInfo) {
-        final ProjectView projectView = clientFactory.getProjectView();
-        Defold defold = clientFactory.getDefold();
+        final Defold defold = clientFactory.getDefold();
         defold.deleteResource("/projects/" + defold.getUserId() + "/" + projectInfo.getId(), new ResourceCallback<String>() {
 
             @Override
@@ -178,7 +177,7 @@ public class ProjectActivity extends AbstractActivity implements
 
                 int statusCode = response.getStatusCode();
                 if (statusCode >= 300) {
-                    projectView.setError(response.getText());
+                    defold.showErrorMessage(response.getText());
                 } else {
                     clientFactory.getPlaceController().goTo(new DashboardPlace());
                 }
@@ -186,7 +185,7 @@ public class ProjectActivity extends AbstractActivity implements
 
             @Override
             public void onFailure(Request request, Response response) {
-                projectView.setError(response.getText());
+                defold.showErrorMessage(response.getText());
             }
         });
     }

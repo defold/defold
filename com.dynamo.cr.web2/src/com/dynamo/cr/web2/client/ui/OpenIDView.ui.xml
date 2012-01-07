@@ -13,7 +13,6 @@
         <g:DeckPanel ui:field="deckPanel" width="300px">
 
             <g:HTMLPanel>
-                <g:Label text=" " horizontalAlignment="ALIGN_LEFT" ui:field="errorLabel" styleName="formError"/>
                 <h2>Confirm Registration</h2>
                 <div class="form">
 

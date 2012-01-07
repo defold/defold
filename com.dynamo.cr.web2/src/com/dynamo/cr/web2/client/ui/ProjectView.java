@@ -22,7 +22,6 @@ import com.google.gwt.user.client.Window;
 import com.google.gwt.user.client.ui.Button;
 import com.google.gwt.user.client.ui.Composite;
 import com.google.gwt.user.client.ui.HTMLPanel;
-import com.google.gwt.user.client.ui.Label;
 import com.google.gwt.user.client.ui.MultiWordSuggestOracle;
 import com.google.gwt.user.client.ui.SuggestBox;
 import com.google.gwt.user.client.ui.VerticalPanel;
@@ -41,7 +40,6 @@ public class ProjectView extends Composite implements KeyPressHandler {
             .create(ProjectDetailsUiBinder.class);
     @UiField SpanElement projectName;
     @UiField Button deleteProject;
-    @UiField Label errorLabel;
     @UiField SpanElement description;
     @UiField(provided = true) SuggestBox suggestBox;
     @UiField VerticalPanel members;
@@ -64,13 +62,11 @@ public class ProjectView extends Composite implements KeyPressHandler {
          */
         suggestBox.getTextBox().addKeyPressHandler(this);
         initWidget(uiBinder.createAndBindUi(this));
-        errorLabel.setText("");
     }
 
     public void clear() {
         this.projectName.setInnerText("");
         this.deleteProject.setVisible(false);
-        this.errorLabel.setText("");
         this.description.setInnerText("");
         this.suggestBox.setText("");
         this.members.clear();
@@ -140,10 +136,6 @@ public class ProjectView extends Composite implements KeyPressHandler {
         for (int i = 0; i < users.length(); ++i) {
             suggestions.add(users.get(i).getEmail());
         }
-    }
-
-    public void setError(String message) {
-        errorLabel.setText(message);
     }
 
     @UiHandler("deleteProject")

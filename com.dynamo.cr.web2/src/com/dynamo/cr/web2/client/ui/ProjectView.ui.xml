@@ -7,11 +7,6 @@
         .important {
             font-weight: bold;
         }
-        .error {
-            color: red;
-            padding-top: 8px;
-            padding-bottom: 8px;
-        }
     </ui:style>
 
     <g:VerticalPanel>
@@ -37,7 +32,5 @@
            <h2>Activity</h2>
             <g:VerticalPanel ui:field="commits"/>
         </g:HTMLPanel>
-        <g:Label styleName="{style.error}" text="Error"
-            horizontalAlignment="ALIGN_LEFT" ui:field="errorLabel" />
     </g:VerticalPanel>
 </ui:UiBinder>

@@ -12,7 +12,6 @@ import com.google.gwt.uibinder.client.UiHandler;
 import com.google.gwt.user.client.ui.Button;
 import com.google.gwt.user.client.ui.Composite;
 import com.google.gwt.user.client.ui.Image;
-import com.google.gwt.user.client.ui.Label;
 import com.google.gwt.user.client.ui.VerticalPanel;
 import com.google.gwt.user.client.ui.Widget;
 
@@ -34,7 +33,6 @@ public class DashboardView extends Composite {
             .create(DashboardUiBinder.class);
     @UiField VerticalPanel projects;
     @UiField Button newProjectButton;
-    @UiField Label errorLabel;
     @UiField Image gravatar;
     @UiField SpanElement firstName;
     @UiField SpanElement lastName;
@@ -46,7 +44,6 @@ public class DashboardView extends Composite {
 
     public DashboardView() {
         initWidget(uiBinder.createAndBindUi(this));
-        errorLabel.setText("");
     }
 
     public void setProjectInfoList(int userId, ProjectInfoList projectInfoList) {
@@ -71,10 +68,6 @@ public class DashboardView extends Composite {
     @UiHandler("newProjectButton")
     void onNewProjectButtonClick(ClickEvent event) {
         this.listener.onNewProject();
-    }
-
-    public void setError(String message) {
-        errorLabel.setText(message);
     }
 
     public void setGravatarURL(String url) {

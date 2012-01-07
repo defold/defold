@@ -10,10 +10,10 @@ import com.google.gwt.uibinder.client.UiField;
 import com.google.gwt.uibinder.client.UiHandler;
 import com.google.gwt.user.client.ui.Button;
 import com.google.gwt.user.client.ui.Composite;
+import com.google.gwt.user.client.ui.Label;
 import com.google.gwt.user.client.ui.ListBox;
 import com.google.gwt.user.client.ui.TextBox;
 import com.google.gwt.user.client.ui.Widget;
-import com.google.gwt.user.client.ui.Label;
 
 public class NewProjectView extends Composite {
 
@@ -26,7 +26,6 @@ public class NewProjectView extends Composite {
     @UiField ListBox templatesCombo;
     @UiField TextBox nameTextBox;
     @UiField TextBox descriptionTextBox;
-    @UiField Label errorLabel;
     @UiField Label nameError;
 
     interface Binder extends UiBinder<Widget, NewProjectView> {
@@ -60,13 +59,8 @@ public class NewProjectView extends Composite {
         }
     }
 
-    public void setError(String message) {
-        errorLabel.setText(message);
-    }
-
     public void init() {
         templatesCombo.clear();
-        errorLabel.setText("");
         nameError.setVisible(false);
     }
 }

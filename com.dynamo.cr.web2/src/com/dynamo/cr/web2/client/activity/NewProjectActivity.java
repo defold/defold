@@ -48,14 +48,12 @@ public class NewProjectActivity extends AbstractActivity implements NewProjectVi
     @Override
     public void createProject(String name, String description,
             String templateId) {
-        final NewProjectView newProjectView = clientFactory.getNewProjectView();
-
         JSONObject newProject = new JSONObject();
         newProject.put("name", new JSONString(name));
         newProject.put("description", new JSONString(description));
         newProject.put("templateId", new JSONString(templateId));
 
-        Defold defold = clientFactory.getDefold();
+        final Defold defold = clientFactory.getDefold();
         defold.postResource("/projects/" + defold.getUserId(), newProject.toString(), new ResourceCallback<String>() {
 
             @Override
@@ -64,7 +62,7 @@ public class NewProjectActivity extends AbstractActivity implements NewProjectVi
 
                 int statusCode = response.getStatusCode();
                 if (statusCode >= 300) {
-                    newProjectView.setError(response.getText());
+                    defold.showErrorMessage(response.getText());
                 } else {
                     clientFactory.getPlaceController().goTo(new DashboardPlace());
                 }
