@@ -6,19 +6,25 @@ import com.google.gwt.place.shared.Prefix;
 
 public class ScriptSamplePlace extends Place {
 
-    public ScriptSamplePlace() {
+    private String id;
+    public ScriptSamplePlace(String id) {
+        this.id = id;
+    }
+
+    public String getId() {
+        return id;
     }
 
     @Prefix("script_sample")
     public static class Tokenizer implements PlaceTokenizer<ScriptSamplePlace> {
         @Override
         public String getToken(ScriptSamplePlace place) {
-            return "";
+            return place.getId();
         }
 
         @Override
         public ScriptSamplePlace getPlace(String token) {
-            return new ScriptSamplePlace();
+            return new ScriptSamplePlace(token);
         }
     }
 }
