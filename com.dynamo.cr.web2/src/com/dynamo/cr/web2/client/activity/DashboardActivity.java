@@ -76,8 +76,7 @@ public class DashboardActivity extends AbstractActivity implements DashboardView
 
     @Override
     public void removeProject(ProjectInfo projectInfo) {
-        final DashboardView dashboardView = clientFactory.getDashboardView();
-        Defold defold = clientFactory.getDefold();
+        final Defold defold = clientFactory.getDefold();
         defold.deleteResource("/projects/" + defold.getUserId() + "/" + projectInfo.getId(), new ResourceCallback<String>() {
 
             @Override
@@ -86,16 +85,15 @@ public class DashboardActivity extends AbstractActivity implements DashboardView
 
                 int statusCode = response.getStatusCode();
                 if (statusCode >= 300) {
-                    dashboardView.setError(response.getText());
+                    defold.showErrorMessage(response.getText());
                 } else {
                     loadProjects();
-                    dashboardView.setError("");
                 }
             }
 
             @Override
             public void onFailure(Request request, Response response) {
-                dashboardView.setError(response.getText());
+                defold.showErrorMessage(response.getText());
             }
         });
     }

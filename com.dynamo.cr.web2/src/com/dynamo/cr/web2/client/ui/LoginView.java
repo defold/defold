@@ -7,19 +7,15 @@ import com.google.gwt.uibinder.client.UiField;
 import com.google.gwt.uibinder.client.UiHandler;
 import com.google.gwt.user.client.ui.Button;
 import com.google.gwt.user.client.ui.Composite;
-import com.google.gwt.user.client.ui.Label;
 import com.google.gwt.user.client.ui.Widget;
 
 public class LoginView extends Composite {
 
     public interface Presenter {
-        void login(String email, String password);
         void loginGoogle();
     }
 
     private static final Binder binder = GWT.create(Binder.class);
-    @UiField
-    Label errorLabel;
     @UiField Button loginGoogleButton;
     private LoginView.Presenter listener;
 
@@ -32,10 +28,6 @@ public class LoginView extends Composite {
 
     public void setPresenter(LoginView.Presenter listener) {
         this.listener = listener;
-    }
-
-    public void setError(String error) {
-        errorLabel.setVisible(error != null);
     }
 
     @UiHandler("loginGoogleButton")

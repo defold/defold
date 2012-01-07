@@ -60,17 +60,17 @@ public class OpenIDActivity extends AbstractActivity implements
                             defold.loginOk(firstName, lastName, email, tokenExchangeInfo.getAuthCookie(), tokenExchangeInfo.getUserId());
                             clientFactory.getPlaceController().goTo(new ProductInfoPlace());
                         } else {
-                            openIDView.setError("Invalid server response");
+                            defold.showErrorMessage("Invalid server response");
                         }
 
                     } else {
-                        openIDView.setError("Login failed: " + response.getText());
+                        defold.showErrorMessage("Login failed: " + response.getText());
                     }
                 }
 
                 @Override
                 public void onError(Request request, Throwable exception) {
-                    openIDView.setError("Network error");
+                    defold.showErrorMessage("Network error");
                 }
             });
         } catch (RequestException e) {
@@ -80,8 +80,6 @@ public class OpenIDActivity extends AbstractActivity implements
 
     @Override
     public void register(String registrationKey) {
-        final OpenIDView openIDView = clientFactory.getOpenIDView();
-
         final Defold defold = clientFactory.getDefold();
 
         RequestBuilder builder = new RequestBuilder(RequestBuilder.PUT, defold.getUrl() + "/login/openid/register/" + loginToken + "?key=" + registrationKey);
@@ -94,7 +92,7 @@ public class OpenIDActivity extends AbstractActivity implements
                 public void onResponseReceived(Request request, Response response) {
                     int status = response.getStatusCode();
                     if (status == 0) {
-                        openIDView.setError("Network error");
+                        defold.showErrorMessage("Network error");
                     }
                     else if (status == 200) {
                         LoginInfo loginInfo = LoginInfo.getResponse(response.getText());
@@ -104,18 +102,18 @@ public class OpenIDActivity extends AbstractActivity implements
                         defold.loginOk("", "", loginInfo.getEmail(), loginInfo.getAuth(), loginInfo.getUserId());
                         clientFactory.getPlaceController().goTo(new ProductInfoPlace());
                     } else {
-                        openIDView.setError("Registration failed: " + response.getText());
+                        defold.showErrorMessage("Registration failed: " + response.getText());
                     }
                 }
 
                 @Override
                 public void onError(Request request, Throwable exception) {
-                    openIDView.setError("Network error");
+                    defold.showErrorMessage("Network error");
                 }
 
             });
         } catch (RequestException e) {
-            openIDView.setError("Network error");
+            defold.showErrorMessage("Network error");
         }
     }
 }
