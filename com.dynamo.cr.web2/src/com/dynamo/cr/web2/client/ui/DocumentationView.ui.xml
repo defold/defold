@@ -15,29 +15,29 @@
             <table>
 	            <tr>
 		            <td>
-				        <div class="box doc">
+				        <div class="box">
 	                        <h3>Tutorials</h3>
 					        Step by step tutorials and videos
 					        <ul>
 					            <li><g:Hyperlink targetHistoryToken="tutorials:tutorial_falling_box">Falling Box</g:Hyperlink></li>
 					        </ul>
 				        </div>
-                        <div class="box doc">
+                        <div class="box">
                             <h3>Reference</h3>
                             Script function and messages reference
                             <ul>
                                 <li><g:Hyperlink targetHistoryToken="reference:engine">Engine</g:Hyperlink></li>
+                                <li><g:Hyperlink targetHistoryToken="reference:go">GameObject</g:Hyperlink></li>
                                 <li><g:Hyperlink targetHistoryToken="reference:gamesys">GameSys</g:Hyperlink></li>
                                 <li><g:Hyperlink targetHistoryToken="reference:render">Render</g:Hyperlink></li>
                                 <li><g:Hyperlink targetHistoryToken="reference:script">Script</g:Hyperlink></li>
                                 <li><g:Hyperlink targetHistoryToken="reference:gui">Gui</g:Hyperlink></li>
-                                <li><g:Hyperlink targetHistoryToken="reference:gameobject">GameObject</g:Hyperlink></li>
                             </ul>
                         </div>
 		            </td>
 
                     <td>
-                        <div class="box doc">
+                        <div class="box">
                             <h3>Script Samples</h3>
                             Script samples with demo video
                             <ul>

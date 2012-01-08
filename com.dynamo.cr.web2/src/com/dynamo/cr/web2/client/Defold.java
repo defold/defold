@@ -245,7 +245,6 @@ public class Defold implements EntryPoint {
         new ShowLoginOnAuthenticationFailure().register(clientFactory, eventBus);
         messageNotification = new MessageNotification();
         messageNotification.setStyleName("message");
-        messageNotification.setSize("120px", "30px");
     }
 
     public void loginOk(String firstName, String lastName, String email, String authCookie, int userId) {

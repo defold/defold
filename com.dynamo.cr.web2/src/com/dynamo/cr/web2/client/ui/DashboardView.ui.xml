@@ -29,8 +29,8 @@
 		        </td>
 
 		        <td width="45%">
+                    <g:Button ui:field="newProjectButton">New Project</g:Button>
 		            <h2>Projects</h2>
-		            <g:Button ui:field="newProjectButton">New Project</g:Button>
 		            <g:VerticalPanel ui:field="projects"/>
 		        </td>
             </tr>

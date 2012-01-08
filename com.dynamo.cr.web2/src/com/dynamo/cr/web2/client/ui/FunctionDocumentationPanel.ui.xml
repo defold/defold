@@ -6,8 +6,7 @@
 
     <g:HTMLPanel>
         <h3>
-            <g:InlineLabel ui:field="functionName" styleName="hover">render.clear</g:InlineLabel>
-            <g:InlineHTML ui:field="brief" styleName="script_brief">clears buffers</g:InlineHTML>
+            <g:InlineLabel ui:field="functionName">render.clear</g:InlineLabel>
         </h3>
         <g:HTMLPanel ui:field="content" styleName="script_doc">
             <div class="script_block">

@@ -10,6 +10,8 @@ import com.dynamo.cr.web2.client.DocumentationElement;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.core.client.JsArray;
 import com.google.gwt.dom.client.Element;
+import com.google.gwt.dom.client.HeadingElement;
+import com.google.gwt.dom.client.Style.Display;
 import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.event.dom.client.ClickHandler;
 import com.google.gwt.uibinder.client.UiBinder;
@@ -18,8 +20,8 @@ import com.google.gwt.uibinder.client.UiHandler;
 import com.google.gwt.user.client.ui.Anchor;
 import com.google.gwt.user.client.ui.Composite;
 import com.google.gwt.user.client.ui.HTML;
+import com.google.gwt.user.client.ui.HTMLPanel;
 import com.google.gwt.user.client.ui.Image;
-import com.google.gwt.user.client.ui.VerticalPanel;
 import com.google.gwt.user.client.ui.Widget;
 
 public class ReferenceView extends Composite {
@@ -44,7 +46,14 @@ public class ReferenceView extends Composite {
     @UiField Anchor render;
     @UiField Anchor script;
 
-    @UiField VerticalPanel documentationList;
+    @UiField HeadingElement functionSummaryHeading;
+    @UiField HeadingElement messageSummaryHeading;
+    @UiField HeadingElement constantSummaryHeading;
+    @UiField HTMLPanel functionSummaryPanel;
+    @UiField HTMLPanel messageSummaryPanel;
+    @UiField HTMLPanel constantSummaryPanel;
+
+    @UiField HTMLPanel documentationPanel;
 
     @UiField Image loader;
     private Presenter listener;
@@ -67,7 +76,10 @@ public class ReferenceView extends Composite {
     }
 
     public void clear() {
-        this.documentationList.clear();
+        this.functionSummaryPanel.clear();
+        this.messageSummaryPanel.clear();
+        this.functionSummaryPanel.clear();
+        this.documentationPanel.clear();
     }
 
     private Map<String, Element> nameToDocElement = new HashMap<String, Element>();
@@ -75,7 +87,10 @@ public class ReferenceView extends Composite {
 
     public void setDocument(final String name, DocumentationDocument doc) {
         this.documentName = name;
-        documentationList.clear();
+        this.functionSummaryPanel.clear();
+        this.messageSummaryPanel.clear();
+        this.functionSummaryPanel.clear();
+        documentationPanel.clear();
         nameToDocElement.clear();
 
         List<DocumentationElement> functions = new ArrayList<DocumentationElement>();
@@ -96,68 +111,63 @@ public class ReferenceView extends Composite {
             }
         }
 
-        if (functions.size() > 0) {
-            documentationList.add(new HTML("<h2>Functions</h2>"));
-            for (final DocumentationElement e : functions) {
-                addElementLink(name, e);
-            }
-        }
+        functionSummaryHeading.getStyle().setDisplay(functions.size() > 0 ? Display.BLOCK : Display.NONE);
+        messageSummaryHeading.getStyle().setDisplay(messages.size() > 0 ? Display.BLOCK : Display.NONE);
+        constantSummaryHeading.getStyle().setDisplay(constants.size() > 0 ? Display.BLOCK : Display.NONE);
 
-        if (messages.size() > 0) {
-            documentationList.add(new HTML("<p><h2>Messages</h2>"));
-            for (final DocumentationElement e : messages) {
-                addElementLink(name, e);
-            }
-        }
-
-        if (constants.size() > 0) {
-            documentationList.add(new HTML("<p><h2>Constants</h2>"));
-            for (final DocumentationElement e : constants) {
-                addElementLink(name, e);
-            }
-        }
+        createElementLinks(functions, functionSummaryPanel);
+        createElementLinks(messages, messageSummaryPanel);
+        createElementLinks(constants, constantSummaryPanel);
 
         if (functions.size() > 0) {
-            documentationList.add(new HTML("<p><h2>Functions</h2>"));
+            documentationPanel.add(new HTML("<h2>Functions</h2>"));
             for (final DocumentationElement e : functions) {
                 FunctionDocumentationPanel panel = new FunctionDocumentationPanel();
                 panel.setDocumentationElement(e);
-                documentationList.add(panel);
+                documentationPanel.add(panel);
                 nameToDocElement.put(e.getName(), panel.getElement());
             }
         }
 
         if (messages.size() > 0) {
-            documentationList.add(new HTML("<p><h2>Messages</h2>"));
+            documentationPanel.add(new HTML("<h2>Messages</h2>"));
             for (final DocumentationElement e : messages) {
                 MessageDocumentationPanel panel = new MessageDocumentationPanel();
                 panel.setDocumentationElement(e);
-                documentationList.add(panel);
+                documentationPanel.add(panel);
                 nameToDocElement.put(e.getName(), panel.getElement());
             }
         }
 
         if (constants.size() > 0) {
-            documentationList.add(new HTML("<p><h2>Constants</h2>"));
+            documentationPanel.add(new HTML("<h2>Constants</h2>"));
             for (final DocumentationElement e : constants) {
                 ConstantDocumentationPanel panel = new ConstantDocumentationPanel();
                 panel.setDocumentationElement(e);
-                documentationList.add(panel);
+                documentationPanel.add(panel);
                 nameToDocElement.put(e.getName(), panel.getElement());
             }
         }
     }
 
-    private void addElementLink(final String name, final DocumentationElement e) {
-        final Anchor a = new Anchor(e.getName());
-        a.addClickHandler(new ClickHandler() {
+    private void createElementLinks(List<DocumentationElement> elements, HTMLPanel panel) {
+        for (final DocumentationElement e : elements) {
+            addElementLink(e, panel);
+        }
+    }
+
+    private void addElementLink(final DocumentationElement e, HTMLPanel panel) {
+        DocSummary link = new DocSummary(e.getName(), e.getBrief());
+
+        link.anchor.addClickHandler(new ClickHandler() {
             @Override
             public void onClick(ClickEvent event) {
                 nameToDocElement.get(e.getName()).scrollIntoView();
                 listener.onDocumentationElement(documentName, e.getName());
             }
         });
-        documentationList.add(a);
+
+        panel.add(link);
     }
 
     public void scrollTo(String elementName) {

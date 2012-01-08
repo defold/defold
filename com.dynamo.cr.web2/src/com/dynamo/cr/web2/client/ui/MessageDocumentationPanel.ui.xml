@@ -6,8 +6,7 @@
 
     <g:HTMLPanel>
         <h3>
-            <g:InlineLabel ui:field="messageName" styleName="hover">MY_MESSAGE</g:InlineLabel>
-            <g:InlineHTML ui:field="brief" styleName="script_brief">MY_BRIEF</g:InlineHTML>
+            <g:InlineLabel ui:field="messageName">MY_MESSAGE</g:InlineLabel>
         </h3>
         <g:HTMLPanel ui:field="content" styleName="script_doc">
             <p>

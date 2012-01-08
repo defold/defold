@@ -5,7 +5,7 @@
     </ui:style>
 
     <g:HTMLPanel>
-        <h3 class="hover">
+        <h3>
             <g:InlineLabel ui:field="constantName">MY_CONSTANT</g:InlineLabel>
         </h3>
         <g:HTMLPanel ui:field="content" styleName="script_doc">

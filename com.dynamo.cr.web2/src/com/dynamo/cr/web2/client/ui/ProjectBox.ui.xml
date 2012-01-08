@@ -7,7 +7,7 @@
         }
     </ui:style>
     <g:HTMLPanel>
-        <div class="box">
+        <div class="box boxHighlight">
             <h3><g:Anchor ui:field="name"></g:Anchor></h3>
 	        <h4><g:Label ui:field="memberOrOwner"></g:Label></h4>
 	        <g:Label ui:field="description"></g:Label>

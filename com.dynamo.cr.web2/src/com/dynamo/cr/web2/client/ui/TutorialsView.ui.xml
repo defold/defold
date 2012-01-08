@@ -9,13 +9,6 @@
     </ui:style>
 
     <g:FlowPanel>
-        <g:HTMLPanel>
-            <ul class="nav nav2">
-                <li><g:Anchor ui:field="tutorial01Link">Tutorial: Falling Box</g:Anchor></li>
-                <li><g:Anchor ui:field="tutorial02Link">Tutorial 2</g:Anchor></li>
-            </ul>
-        </g:HTMLPanel>
-
         <g:Image url="images/ajax-loader.gif" styleName="{style.loader}" ui:field="loader"></g:Image>
         <g:HTMLPanel ui:field="tutorial">
         </g:HTMLPanel>

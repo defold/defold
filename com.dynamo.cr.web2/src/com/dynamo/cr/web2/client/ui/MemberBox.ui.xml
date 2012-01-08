@@ -25,7 +25,7 @@
     </ui:style>
 
     <g:HTMLPanel>
-        <div class="box">
+        <div class="box boxHighlight">
             <div class="{style.deleteBox}">
                 <g:Button ui:field="removeMember" addStyleNames="{style.deleteX}">x</g:Button>
             </div>
@@ -38,7 +38,7 @@
                     <td valign="middle" style="padding-left: 10px">
                         <span ui:field="firstName" text="Bob"></span>
                         <span ui:field="lastName" text="Gamer"></span>
-                        <span ui:field="youOrMemberOrOwner" text="(You)"></span>
+                        <span ui:field="youOrMemberOrOwner" style="display: block;" text="(You)"></span>
                     </td>
                 </tr>
             </table>

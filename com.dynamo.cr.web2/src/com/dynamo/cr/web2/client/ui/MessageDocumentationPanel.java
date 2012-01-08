@@ -9,7 +9,6 @@ import com.google.gwt.uibinder.client.UiField;
 import com.google.gwt.user.client.ui.Composite;
 import com.google.gwt.user.client.ui.HTML;
 import com.google.gwt.user.client.ui.HTMLPanel;
-import com.google.gwt.user.client.ui.InlineHTML;
 import com.google.gwt.user.client.ui.InlineLabel;
 import com.google.gwt.user.client.ui.VerticalPanel;
 import com.google.gwt.user.client.ui.Widget;
@@ -22,7 +21,6 @@ public class MessageDocumentationPanel extends Composite {
     }
 
     @UiField InlineLabel messageName;
-    @UiField InlineHTML brief;
     @UiField HTMLPanel content;
     @UiField HTMLPanel description;
     @UiField VerticalPanel fieldList;
@@ -34,7 +32,6 @@ public class MessageDocumentationPanel extends Composite {
 
     public void setDocumentationElement(DocumentationElement element) {
         this.messageName.setText(element.getName());
-        this.brief.setHTML(element.getBrief());
         this.description.add(new HTML(element.getDescription()));
 
         if (element.getExamples().length() > 0) {

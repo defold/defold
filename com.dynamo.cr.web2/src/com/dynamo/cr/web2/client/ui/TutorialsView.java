@@ -2,11 +2,8 @@ package com.dynamo.cr.web2.client.ui;
 
 import com.dynamo.cr.web2.client.AsciiDocUtil;
 import com.google.gwt.core.client.GWT;
-import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.uibinder.client.UiBinder;
 import com.google.gwt.uibinder.client.UiField;
-import com.google.gwt.uibinder.client.UiHandler;
-import com.google.gwt.user.client.ui.Anchor;
 import com.google.gwt.user.client.ui.Composite;
 import com.google.gwt.user.client.ui.HTMLPanel;
 import com.google.gwt.user.client.ui.Image;
@@ -24,12 +21,8 @@ public class TutorialsView extends Composite implements IAsciiDocView {
     interface DashboardUiBinder extends UiBinder<Widget, TutorialsView> {
     }
 
-    @UiField Anchor tutorial01Link;
-    @UiField Anchor tutorial02Link;
     @UiField HTMLPanel tutorial;
     @UiField Image loader;
-
-    private Presenter listener;
 
     public TutorialsView() {
         initWidget(uiBinder.createAndBindUi(this));
@@ -37,17 +30,7 @@ public class TutorialsView extends Composite implements IAsciiDocView {
     }
 
     public void setPresenter(TutorialsView.Presenter listener) {
-        this.listener = listener;
-    }
-
-    @UiHandler("tutorial01Link")
-    void onTutorial01LinkClick(ClickEvent event) {
-        listener.onTutorial("tutorial_falling_box");
-    }
-
-    @UiHandler("tutorial02Link")
-    void onTutorial02LinkClick(ClickEvent event) {
-        listener.onTutorial("tutorial02");
+        // Ignore this one for now
     }
 
     /* (non-Javadoc)
