@@ -9,7 +9,6 @@ import com.google.gwt.uibinder.client.UiField;
 import com.google.gwt.user.client.ui.Composite;
 import com.google.gwt.user.client.ui.HTML;
 import com.google.gwt.user.client.ui.HTMLPanel;
-import com.google.gwt.user.client.ui.InlineHTML;
 import com.google.gwt.user.client.ui.InlineLabel;
 import com.google.gwt.user.client.ui.VerticalPanel;
 import com.google.gwt.user.client.ui.Widget;
@@ -22,7 +21,6 @@ public class FunctionDocumentationPanel extends Composite {
     }
 
     @UiField InlineLabel functionName;
-    @UiField InlineHTML brief;
     @UiField HTMLPanel content;
     @UiField HTMLPanel description;
     @UiField VerticalPanel parameterList;
@@ -35,7 +33,6 @@ public class FunctionDocumentationPanel extends Composite {
 
     public void setDocumentationElement(DocumentationElement element) {
         this.functionName.setText(element.getName());
-        this.brief.setHTML(element.getBrief());
         this.description.add(new HTML(element.getDescription()));
         if (element.getReturn().length() > 0)
             this.return_.add(new HTML(element.getReturn()));

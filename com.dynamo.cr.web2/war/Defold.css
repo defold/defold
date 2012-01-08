@@ -39,8 +39,7 @@
 }
 
 div.message {
-    padding: 0px 30px 0px 30px;
-    display: inline;
+    padding: 3px 30px 3px 30px;
     background-color: #dad37b;
     color: #444;
     border: 1px solid #b4b056;
@@ -55,6 +54,7 @@ body {
     font-weight: 100;
     font-family: 'Open Sans', sans-serif;
     margin: 0px;
+    line-height: 1.5em;
 }
 
 h1 {
@@ -71,6 +71,7 @@ h2 {
     font-weight: 100;
     margin: 0;
     margin-bottom: 20px;
+    margin-top: 20px;
 }
 
 h3 {
@@ -83,8 +84,7 @@ h3 {
 
 h4 {
     color: #444;
-    font-size: 18px;
-    font-style: italic;
+    font-size: 16px;
     font-weight: 100;
     margin: 0px;
     margin-bottom: 8px;
@@ -102,29 +102,61 @@ tr {
     vertical-align: top;
 }
 
+li {
+	margin-bottom: 2px;
+}
+
+
 /* boxes */
 
 div.box {
     width: 255px;
     padding: 15px;
-    margin: 15px 50px 0px 0px;
+    margin: 0px 50px 15px 0px;
     border: 1px solid #D2D3D4;
     background: #FBFCFD;
-    box-shadow: inset 0 0 0 1px #fff;
     border-radius: 6px;
 }
 
-div.doc ul {
+div.articleBox {
+    padding-left: 25px;
+    padding-top: 0px;
+    padding-bottom: 15px;
+    padding-right: 25px;
+    margin: 15px 50px 0px 0px;
+    border: 1px solid #D2D3D4;
+    background: #FBFCFD;
+    border-radius: 6px;
+}
+
+div.articleBox > h2 {
+    margin-top: 30px;
+}
+
+div.box ul {
     list-style: none;
     padding: 0px;
     margin: 0px;
     margin-top: 16px;
 }
 
-div.doc ul > li {
+div.box ul > li {
     background: url("/images/bullet.png") 0 50% no-repeat;
-    padding: 2px 0 0 20px;
+    padding: 0 0 0 20px;
 }
+
+div.boxHighlight {
+    background: #FBFCFD;
+    transition: background .12s linear;
+    -webkit-transition: background .12s linear;
+}
+
+div.boxHighlight:hover {
+	background: #FFF6CE;
+    transition: background .12s linear;
+    -webkit-transition: background .12s linear;
+}
+
 
 /* form related stuff */
 
@@ -202,8 +234,10 @@ hr.script_separator {
 }
 
 div.script_doc {
-    margin-left: 16px;
+    margin-left: 8px;
     margin-right: 16px;
+    margin-bottom: 24px;
+    padding-top: 8px;
     width: 700px;
 }
 
@@ -215,15 +249,15 @@ div.script_doc * h3 {
 div.script_doc * h4 {
 	font-size: 16px;
 	font-style: normal;
+    font-weight: 400;
 }
 
 div.script_doc * pre {
     _width: 600px;
     padding: 15px;
-    margin: 15px 50px 0px 0px;
-    border: 1px solid #D2D3D4;
+    margin: 15px 50px 15px 0px;
+    border: 1px solid #B3B4B5;
     background: #FBFCFD;
-    box-shadow: inset 0 0 0 1px #fff;
     border-radius: 6px;
     overflow: visible;
 }
@@ -324,6 +358,7 @@ button.openIDGoogle:hover {
 
 ul.nav li {
     display: inline;
+    margin: 0px;
 }
 
 ul.nav a {

@@ -13,7 +13,6 @@ import com.google.gwt.user.client.ui.Widget;
 public class MessageNotification extends PopupPanel {
 
     private static final Binder binder = GWT.create(Binder.class);
-//    @UiField Label messageLabel;
 
     interface Binder extends UiBinder<Widget, MessageNotification> {
     }
