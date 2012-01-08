@@ -13,8 +13,8 @@
  */
 
 body, table td, select, button {
-  /*font-family: Arial Unicode MS, Arial, sans-serif;
-  font-size: small;*/
+  font-family: Arial Unicode MS, Arial, sans-serif;
+  font-size: small;
 }
 pre {
   font-family: "courier new", courier;
@@ -29,13 +29,13 @@ body {
   direction: ltr;
 }
 a, a:visited {
-/*  color: #0066cc;
-  text-decoration:none;*/
+  color: #0066cc;
+  text-decoration:none;
 }
 
 a:hover {
-  /*color: #0066cc;
-  text-decoration:underline;*/
+  color: #0066cc;
+  text-decoration:underline;
 }
 
 select {
@@ -243,7 +243,7 @@ select {
 .gwt-DisclosurePanel .header a,
 .gwt-DisclosurePanel .header td {
   text-decoration: none;  /* Remove underline from header */
-  color: black;
+  color: black; 
   cursor: pointer;
   cursor: hand;
 }
@@ -267,7 +267,7 @@ select {
 }
 .gwt-HorizontalSplitPanel .hsplitter {
   cursor: move;
-  border: 0px;
+  border: 0px; 
   background: #e7e7e7;
   line-height: 0px;
 }
@@ -275,7 +275,7 @@ select {
 }
 .gwt-VerticalSplitPanel .vsplitter {
   cursor: move;
-  border: 0px;
+  border: 0px; 
   background: #e7e7e7;
   line-height: 0px;
 }
@@ -327,7 +327,7 @@ select {
 .gwt-MenuBar-horizontal .gwt-MenuItemSeparator .menuSeparatorInner {
   width: 1px;
   height: 1px;
-  background: white;
+  background: white; 
 }
 .gwt-MenuBar-vertical {
   margin-top: 0px;
@@ -612,25 +612,25 @@ select {
   padding: 0px 1px 0px 0px;
   margin-right: 4px;
   margin-bottom: 4px;
-  border-width: 1px;
+  border-width: 1px; 
 }
 .gwt-RichTextToolbar .gwt-PushButton-up-hovering {
   margin-right: 4px;
   margin-bottom: 4px;
   padding: 0px 1px 0px 0px;
-  border-width: 1px;
+  border-width: 1px; 
 }
 .gwt-RichTextToolbar .gwt-PushButton-down {
   margin-right: 4px;
   margin-bottom: 4px;
   padding: 0px 0px 0px 1px;
-  border-width: 1px;
+  border-width: 1px; 
 }
 .gwt-RichTextToolbar .gwt-PushButton-down-hovering {
   margin-right: 4px;
   margin-bottom: 4px;
   padding: 0px 0px 0px 1px;
-  border-width: 1px;
+  border-width: 1px; 
 }
 .gwt-RichTextToolbar .gwt-ToggleButton-up {
   margin-right: 4px;
@@ -797,7 +797,7 @@ select {
 .gwt-SuggestBoxPopup .suggestPopupTopLeftInner {
   width: 0px;
   height: 0px;
-  zoom: 1;
+  zoom: 1;  
 }
 .gwt-SuggestBoxPopup .suggestPopupTopRightInner {
   width: 0px;
@@ -885,7 +885,7 @@ select {
   background: white;
   color: #333;
   font-weight: bold;
-}
+} 
 .gwt-TabBar .gwt-TabBarItem-disabled {
   cursor: default;
   color: #999999;
@@ -1026,7 +1026,7 @@ select {
 }
 .gwt-ToggleButton-up {
   border:1px solid #bbb;
-  border-bottom: 1px solid #a0a0a0;
+  border-bottom: 1px solid #a0a0a0;  
   cursor: pointer;
   cursor: hand;
 }
