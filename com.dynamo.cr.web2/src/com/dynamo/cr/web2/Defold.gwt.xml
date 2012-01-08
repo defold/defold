@@ -8,11 +8,13 @@
   <!-- the theme of your GWT application by uncommenting          -->
   <!-- any one of the following lines.                            -->
 
-  <!-- NOTE: We changed from ...Clean to ...CleanResources. Theme is now explicitly included in Defold.html -->
-  <inherits name='com.google.gwt.user.theme.clean.CleanResources'/>
+  <!-- NOTE: We have no theme set. Certain controls might look strange
+             but the theme conflict with our css. Perhaps we aren't doing it right..
+             Enable theme temporarily to test though  -->
+  <!-- <inherits name='com.google.gwt.user.theme.clean.Clean'/>  -->
   <!-- <inherits name='com.google.gwt.user.theme.standard.Standard'/> -->
   <!-- <inherits name='com.google.gwt.user.theme.chrome.Chrome'/> -->
-  <!-- <inherits name='com.google.gwt.user.theme.dark.Dark'/>     -->
+  <!-- <inherits name='com.google.gwt.user.theme.dark.Dark'/>-->
 
   <!-- Other module inherits                                      -->
   <inherits name="com.google.gwt.activity.Activity"/>
