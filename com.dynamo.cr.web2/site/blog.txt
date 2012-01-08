@@ -12,7 +12,7 @@ We have also restructured the information a bit, but everything should hopefully
 
 We have also added two new features to the link:#dashboard:[dashboard].
 
-The first is that we now use link:http:://www.gravatar.com[Gravatar] to supply the avatars for us.
+The first is that we now use link:http://www.gravatar.com[Gravatar] to supply the avatars for us.
 To have your own avatar appear in the dashboard, link:https://en.gravatar.com/site/signup/[register] with Gravatar and setup your avatar there.
 We think Gravatar is a great service and hope that it will catch on more.
 
