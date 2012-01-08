@@ -18,7 +18,7 @@ public class RemoveAnimationHandler extends AbstractHandler {
         if (editorPart instanceof TileSetEditor2) {
             TileSetEditor2 tileSetEditor = (TileSetEditor2)editorPart;
             TileSetNodePresenter presenter = (TileSetNodePresenter)tileSetEditor.getNodePresenter(TileSetNode.class);
-            presenter.onRemoveCollisionGroup(tileSetEditor.getPresenterContext());
+            presenter.onRemoveAnimation(tileSetEditor.getPresenterContext());
         }
         return null;
     }
