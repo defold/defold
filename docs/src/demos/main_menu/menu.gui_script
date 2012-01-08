@@ -1,4 +1,4 @@
--- the functions animX represents the animation the time-lime
+-- the functions animX represents the animation time-lime
 -- first is anim1 executed, when finished anim2 is executed, etc
 -- anim1 to anim4 creates a bouncing rubber effect.
 -- anim5 fades down alpha and is only used for the background
@@ -51,7 +51,7 @@ end
 
 function init(self)
     -- start animations for all nodes
-    -- background, button-boxes and text are has the same animation
+    -- background, button-boxes and text are animated equally
     -- d is the animation start delay
 	local d = 0.4
     anim1(gui.get_node("new_game"), d)
