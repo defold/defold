@@ -88,7 +88,7 @@ public class ReferenceView extends Composite {
         this.documentName = name;
         this.functionSummaryPanel.clear();
         this.messageSummaryPanel.clear();
-        this.functionSummaryPanel.clear();
+        this.constantSummaryPanel.clear();
         documentationPanel.clear();
         nameToDocElement.clear();
 
