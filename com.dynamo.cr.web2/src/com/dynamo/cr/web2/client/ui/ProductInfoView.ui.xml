@@ -2,47 +2,77 @@
 <!DOCTYPE ui:UiBinder SYSTEM "http://dl.google.com/gwt/DTD/xhtml.ent">
 <ui:UiBinder xmlns:ui='urn:ui:com.google.gwt.uibinder'
     xmlns:g='urn:import:com.google.gwt.user.client.ui'>
+
     <ui:style>
+        div.text {
+            float: left;
+            margin-top: 80px;
+            margin-left: 60px;
+        }
+        div.image {
+            text-align: right;
+        }
+        ul.usp {
+            margin-right: 24px;
+        }
     </ui:style>
-
-    <g:FlowPanel>
-        <g:HTML>
-            <div class="usp">
-            <div>
-                <h1>Love</h1>
-                <img src="images/heart.png" style="float: right;"/>
-                <p>
-                    Lorem ipsum dolor sit amet, consectetur adipiscing elit, set eiusmod tempor incidunt et labore et dolore magna aliquam. Ut enim ad minim veniam, quis nostrud exerc.
-                    Irure dolor in reprehend incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
-                    Duis aute irure dolor in reprehenderit in voluptate velit esse molestaie cillum. Tia non ob ea soluad incom dereud facilis est er expedit distinct.
-                </p>
-                </div>
-            </div>
-
-            <div class="usp" style="margin-left: 220px;">
-            <div>
-                <h1>Lights On!</h1>
-                <img src="images/traffic_lights.png" style="float: right;"/>
-                <p>
-                    Lorem ipsum dolor sit amet, consectetur adipiscing elit, set eiusmod tempor incidunt et labore et dolore magna aliquam. Ut enim ad minim veniam, quis nostrud exerc.
-                    Irure dolor in reprehend incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
-                    Duis aute irure dolor in reprehenderit in voluptate velit esse molestaie cillum. Tia non ob ea soluad incom dereud facilis est er expedit distinct.
-                </p>
-                </div>
-            </div>
-
-            <div class="usp">
-            <div>
-                <h1>Speed!</h1>
-                <img src="images/speedometer.png" style="float: right;"/>
-                <p>
-                    Lorem ipsum dolor sit amet, consectetur adipiscing elit, set eiusmod tempor incidunt et labore et dolore magna aliquam. Ut enim ad minim veniam, quis nostrud exerc.
-                    Irure dolor in reprehend incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
-                    Duis aute irure dolor in reprehenderit in voluptate velit esse molestaie cillum. Tia non ob ea soluad incom dereud facilis est er expedit distinct.
-                </p>
-                </div>
-            </div>
-
-        </g:HTML>
-    </g:FlowPanel>
+    <g:HTMLPanel>
+        <h1>Games For Real!</h1>
+        <h2>Join the Inidie Revolution!</h2>
+        <div class="box" style="width: 928px;">
+            <g:DeckPanel ui:field="deck">
+                <g:HTMLPanel>
+                    <div class="text">
+                        <h1>Turn-Key</h1>
+                        <ul class="check usp">
+                            <li><a href="#new_project:">Create</a> a project from templates</li>
+                            <li><a href="downloads/cr-editor/1.0">Download</a> the Defold Editor</li>
+                            <li>Start making games!</li>
+                        </ul>
+                    </div>
+                    <div class="image">
+                        <img src="images/turn-key.png" align="center"/>
+                    </div>
+                </g:HTMLPanel>
+                <g:HTMLPanel>
+                    <div class="text">
+                        <h1>Complete Service</h1>
+                        <ul class="check usp">
+                            <li>One application for everything</li>
+                            <li>Features for professionals</li>
+                            <li>Built-in content pipeline</li>
+                        </ul>
+                    </div>
+                    <div class="text">
+                        <img src="images/complete-env.png" align="center"/>
+                    </div>
+                </g:HTMLPanel>
+                <g:HTMLPanel>
+                    <div class="text">
+                        <h1>Collaboration</h1>
+                        <ul class="check usp">
+                            <li>Designed for online collaboration</li>
+                            <li>Built-in version control (git)</li>
+                        </ul>
+                    </div>
+                    <div class="text">
+                        <img src="images/collab.png" align="center"/>
+                    </div>
+                </g:HTMLPanel>
+                <g:HTMLPanel>
+                    <div class="text">
+                        <h1>2D</h1>
+                        <ul class="check usp">
+                            <li>Tailored for 2D editing</li>
+                            <li>Auto-generated collision from images</li>
+                        </ul>
+                    </div>
+                    <div class="text">
+                        <img src="images/2d.png" align="center"/>
+                    </div>
+                </g:HTMLPanel>
+            </g:DeckPanel>
+            <g:FlowPanel ui:field="buttonPanel"></g:FlowPanel>
+        </div>
+    </g:HTMLPanel>
 </ui:UiBinder>
