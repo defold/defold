@@ -1,6 +1,7 @@
 package com.dynamo.cr.web2.client.ui;
 
 import com.google.gwt.core.client.GWT;
+import com.google.gwt.dom.client.Style.Unit;
 import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.event.dom.client.ClickHandler;
 import com.google.gwt.resources.client.ClientBundle;
@@ -47,8 +48,10 @@ public class ProductInfoView extends Composite implements ClickHandler {
         this.images = new Image[n];
         for (int i = 0; i < n; ++i) {
             this.images[i] = new Image(resources.spot());
-            this.images[i].addClickHandler(this);
-            this.buttonPanel.add(this.images[i]);
+            Image image = this.images[i];
+            image.getElement().getStyle().setMargin(6, Unit.PX);
+            image.addClickHandler(this);
+            this.buttonPanel.add(image);
         }
         timer = new Timer() {
             @Override

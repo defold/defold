@@ -11,9 +11,13 @@
         .suggest {
 	       width: 22em;
         }
+
+        .panel {
+	       min-height: 400px;
+	    }
     </ui:style>
 
-    <g:HTMLPanel>
+    <g:HTMLPanel styleName="{style.panel}">
         <h1>Project <span text="Project Name" ui:field="projectName"/> </h1>
         <div style="float: right; margin-right: 64px;">
             <g:Button ui:field="deleteProject">Delete Project</g:Button>

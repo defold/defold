@@ -2,7 +2,7 @@
 /** Example rules used by the template application (remove for your app) */
 
 #topBar {
-    margin-bottom: 32px;
+    margin-bottom: 64px;
     width: 100%;
 }
 
@@ -157,6 +157,31 @@ div.boxHighlight:hover {
     -webkit-transition: background .12s linear;
 }
 
+div.frontBox {
+	padding-left: 70px;
+	padding-top: 70px;
+	color: white;
+}
+
+div.frontBox > h1 {
+	color: white;
+	font-size: 46px;
+	margin-bottom: 38px;
+}
+
+/* checklist */
+
+ul.check {
+    margin-left: 0px;
+    padding: 0px;
+    list-style: none;
+    font-size: 20px;
+}
+
+ul.check li {
+    background: url("/images/check_32.png") 0 50% no-repeat;
+    padding: 15px 0 15px 48px;
+}
 
 /* form related stuff */
 

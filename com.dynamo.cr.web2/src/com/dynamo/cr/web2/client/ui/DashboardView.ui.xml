@@ -9,11 +9,14 @@
 
         .image {
 	       vertical-align: middle;
-
 	    }
+
+        .panel {
+           min-height: 400px;
+        }
     </ui:style>
 
-    <g:HTMLPanel>
+    <g:HTMLPanel styleName="{style.panel}">
         <h1>Dashboard</h1>
         <table style="width: 100%;">
 	        <tr>

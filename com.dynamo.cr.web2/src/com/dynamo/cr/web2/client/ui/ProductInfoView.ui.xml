@@ -4,75 +4,74 @@
     xmlns:g='urn:import:com.google.gwt.user.client.ui'>
 
     <ui:style>
-        div.text {
-            float: left;
-            margin-top: 80px;
-            margin-left: 60px;
-        }
-        div.image {
-            text-align: right;
-        }
-        ul.usp {
-            margin-right: 24px;
+        .buttonPanel {
+	       text-align: center;
+	       clear: both;
+	       margin-top: 8px;
         }
     </ui:style>
     <g:HTMLPanel>
-        <h1>Games For Real!</h1>
-        <h2>Join the Inidie Revolution!</h2>
-        <div class="box" style="width: 928px;">
+
+    <h1 style="text-align: center; width: 914px; font-size: 50px; margin-bottom: 42px; padding-top: 20px">Games For Real!</h1>
+        <div style="width: 928px;">
             <g:DeckPanel ui:field="deck">
                 <g:HTMLPanel>
-                    <div class="text">
-                        <h1>Turn-Key</h1>
-                        <ul class="check usp">
-                            <li><a href="#new_project:">Create</a> a project from templates</li>
-                            <li><a href="downloads/cr-editor/1.0">Download</a> the Defold Editor</li>
-                            <li>Start making games!</li>
-                        </ul>
-                    </div>
-                    <div class="image">
-                        <img src="images/turn-key.png" align="center"/>
-                    </div>
-                </g:HTMLPanel>
-                <g:HTMLPanel>
-                    <div class="text">
-                        <h1>Complete Service</h1>
-                        <ul class="check usp">
-                            <li>One application for everything</li>
-                            <li>Features for professionals</li>
-                            <li>Built-in content pipeline</li>
-                        </ul>
-                    </div>
-                    <div class="text">
-                        <img src="images/complete-env.png" align="center"/>
+                    <div style='width: 914px; height: 400px; background-image: url("/images/fabric.png");'>
+                            <img src="/images/turn-key.png" style="float: right; width: 400px; height: 340px; padding-top: 60px; "></img>
+                            <div class="frontBox">
+                            <h1>Turn-Key Solution</h1>
+                                <ul class="check">
+                                    <li><a href="#new_project:">Create</a> a project from templates</li>
+                                    <li><a href="downloads/cr-editor/1.0">Download</a> the Defold Editor</li>
+                                    <li>Start making games!</li>
+                                </ul>
+                            </div>
                     </div>
                 </g:HTMLPanel>
                 <g:HTMLPanel>
-                    <div class="text">
-                        <h1>Collaboration</h1>
-                        <ul class="check usp">
-                            <li>Designed for online collaboration</li>
-                            <li>Built-in version control (git)</li>
-                        </ul>
-                    </div>
-                    <div class="text">
-                        <img src="images/collab.png" align="center"/>
+                    <div style='width: 914px; height: 400px; background-image: url("/images/fabric.png");'>
+                            <img src="/images/complete-env.png" style="float: right; width: 453px; height: 340px; padding-top: 30px; margin-right: 20px;"></img>
+                            <div class="frontBox">
+                            <h1>Complete</h1>
+                                <ul class="check">
+                                    <li>One application for everything</li>
+                                    <li>Features for professionals</li>
+                                    <li>Built-in content pipeline</li>
+                                </ul>
+                            </div>
                     </div>
                 </g:HTMLPanel>
                 <g:HTMLPanel>
-                    <div class="text">
-                        <h1>2D</h1>
-                        <ul class="check usp">
-                            <li>Tailored for 2D editing</li>
-                            <li>Auto-generated collision from images</li>
-                        </ul>
+                    <div style='width: 914px; height: 400px; background-image: url("/images/fabric.png");'>
+                            <img src="/images/collab.png" style="float: right; width: 400px; height: 320px; padding-top: 80px; "></img>
+                            <div class="frontBox">
+                            <h1>Collaboration</h1>
+                                <ul class="check">
+                                    <li>Online collaboration</li>
+                                    <li>Built-in version control</li>
+                                </ul>
+                            </div>
                     </div>
-                    <div class="text">
-                        <img src="images/2d.png" align="center"/>
+
+                </g:HTMLPanel>
+                <g:HTMLPanel>
+                    <div style='width: 914px; height: 400px; background-image: url("/images/fabric.png");'>
+                            <img src="/images/2d.png" style="float: right; width: 420px; height: 350px; padding-top: 50px;"></img>
+                            <div class="frontBox">
+                            <h1>2D Features</h1>
+                                <ul class="check">
+                                    <li>Tools tailored for 2D editing</li>
+                                    <li>Automatic physics contour</li>
+                                    <li>Tile based editing</li>
+                                    <li>Tile physics stitching</li>
+                                </ul>
+                            </div>
                     </div>
                 </g:HTMLPanel>
             </g:DeckPanel>
-            <g:FlowPanel ui:field="buttonPanel"></g:FlowPanel>
+                <g:FlowPanel styleName="{style.buttonPanel}"  ui:field="buttonPanel"></g:FlowPanel>
         </div>
+
+        <div style="height: 50px;"></div>
     </g:HTMLPanel>
 </ui:UiBinder>
