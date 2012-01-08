@@ -1,60 +1,74 @@
 <!DOCTYPE ui:UiBinder SYSTEM "http://dl.google.com/gwt/DTD/xhtml.ent">
 <ui:UiBinder xmlns:ui="urn:ui:com.google.gwt.uibinder"
-    xmlns:g='urn:import:com.google.gwt.user.client.ui' xmlns:p1="urn:import:com.google.gwt.user.cellview.client"
-    xmlns:d="urn:import:com.dynamo.cr.web2.client" xmlns:p2="urn:import:com.dynamo.cr.web2.client.ui">
-    <ui:style>
-        .dock {
-            text-align:left;
-            width: 960px;
-            margin: 0 auto;
-            overflow: auto;
-        }
+	xmlns:g='urn:import:com.google.gwt.user.client.ui' xmlns:p1="urn:import:com.google.gwt.user.cellview.client"
+	xmlns:d="urn:import:com.dynamo.cr.web2.client" xmlns:p2="urn:import:com.dynamo.cr.web2.client.ui">
+	<ui:style>
+		.dock {
+			text-align: left;
+			width: 960px;
+			margin: 0 auto;
+			overflow: auto;
+			margin-top: 32px;
+		}
+	</ui:style>
 
-        .center {
-            margin-left: 8px;
-        }
-    </ui:style>
+	<g:ScrollPanel ui:field="bodyScrollPanel">
+        <g:HTMLPanel>
+			<g:HTMLPanel styleName="{style.dock}">
+				<div id="topBar">
+				    <g:Hyperlink targetHistoryToken="/"><img src="/images/3dlogo.png"/></g:Hyperlink>
+					<ul class="nav nav1">
+						<li id="dashboard">
+							<g:Anchor ui:field="dashBoard">Dashboard</g:Anchor>
+						</li>
+						<li id="blog">
+							<g:Anchor ui:field="blog">Blog</g:Anchor>
+						</li>
+						<li id="documentation">
+							<g:Anchor ui:field="documentation">Documentation</g:Anchor>
+						</li>
+					</ul>
+				</div>
 
-    <g:ScrollPanel ui:field="bodyScrollPanel">
-    <g:VerticalPanel styleName="{style.dock}">
-            <g:VerticalPanel>
-                <g:HTMLPanel>
-                    <span style="font-size: 24px; margin-bottom: 16px">
-                        <b>Defold</b>
-                    </span>
+				<g:SimplePanel ui:field="panel"></g:SimplePanel>
+			</g:HTMLPanel>
 
-                    <div style="margin-bottom: 4px;">
-                        <p2:EditableLabel value="http://example.com" ui:field="editableLabel" />
-                    </div>
+			<div id="defoldFooter">
+                <div id="footerContent">
 
-                </g:HTMLPanel>
+                <table>
+			    <tr>
+                    <td>
+			        <h3>About</h3>
+			        <ul>
+			             <li><a href="">The Company</a></li>
+			             <li><p2:EditableLabel value="http://example.com" ui:field="editableLabel" /></li>
+			         </ul>
+			         </td>
 
+			         <td>
+			             <h3>Contact</h3>
+			             <ul>
+			                 <li>info@defold.se</li>
+			             </ul>
+			         </td>
 
-                <g:HTMLPanel>
-                    <ul class="nav nav1">
-                        <li id="product_info"><g:Anchor ui:field="productInfo">Product Info</g:Anchor></li>
-                        <li id="dashboard"><g:Anchor ui:field="dashBoard">Dashboard</g:Anchor></li>
-                        <li id="documentation"><g:Anchor ui:field="documentation">Documentation</g:Anchor></li>
-                        <li id="tutorials"><g:Anchor ui:field="tutorials">Tutorials</g:Anchor></li>
-                        <li id="blog"><g:Anchor ui:field="blog">Blog</g:Anchor></li>
-                        <li id="contact"><g:Anchor>Contact</g:Anchor></li>
-                        <li id="about"><g:Anchor>About</g:Anchor></li>
-                    </ul>
-                </g:HTMLPanel>
+			         <td>
+			             <h3>Documentation</h3>
+			             <ul>
+			             </ul>
+			         </td>
+			     </tr>
+			   </table>
 
-            </g:VerticalPanel>
-
-            <g:SimplePanel ui:field="panel" styleName="{style.center}"></g:SimplePanel>
-
-            <g:HTMLPanel>
-                <div style="margin-top: 16px;">
-                    © 2011 Defold All rights reserved
-                    <span style="float: right">
-                        <g:Anchor ui:field="logout">Logout</g:Anchor>
-                    </span>
-                </div>
-            </g:HTMLPanel>
-    </g:VerticalPanel>
-    </g:ScrollPanel>
+			  </div>
+              <div style="margin-top: 120px; margin-right: 16px;">
+                <span style="float: right">
+                    <g:Anchor ui:field="logout">Logout</g:Anchor>
+                </span>
+            </div>
+			</div>
+        </g:HTMLPanel>
+	</g:ScrollPanel>
 
 </ui:UiBinder>

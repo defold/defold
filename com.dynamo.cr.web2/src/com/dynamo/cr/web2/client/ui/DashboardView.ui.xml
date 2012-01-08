@@ -6,24 +6,34 @@
         .important {
         	font-weight: bold;
         }
+
+        .image {
+	       vertical-align: middle;
+
+	    }
     </ui:style>
-    <g:VerticalPanel>
-        <g:HTML>
-            <h1>Dashboard</h1>
-        </g:HTML>
 
-        <g:HTMLPanel>
-            <g:Image ui:field="gravatar" url="http://www.gravatar.com/avatar/123?s=64"></g:Image>
-            <span ui:field="firstName"></span>
-            <span ui:field="lastName"></span>
-        </g:HTMLPanel>
+    <g:HTMLPanel>
+        <h1>Dashboard</h1>
+        <table style="width: 100%;">
+	        <tr>
+	            <td width="55%">
+		            <g:Image ui:field="gravatar" styleName="{style.image}" url="http://www.gravatar.com/avatar/123?s=64"></g:Image>
+		            <p>
+			            <h3>
+				            <span ui:field="firstName"></span>
+				            <span ui:field="lastName"></span>
+				            (<span ui:field="email"></span>)
+			            </h3>
+		            </p>
+		        </td>
 
-    	<g:HTMLPanel>
-    	   <h2>Projects</h2>
-            <g:Button ui:field="newProjectButton">New Project</g:Button>
-            <g:VerticalPanel ui:field="projects"/>
-    	</g:HTMLPanel>
-
-    </g:VerticalPanel>
-
+		        <td width="45%">
+		            <h2>Projects</h2>
+		            <g:Button ui:field="newProjectButton">New Project</g:Button>
+		            <g:VerticalPanel ui:field="projects"/>
+		        </td>
+            </tr>
+        </table>
+    </g:HTMLPanel>
 </ui:UiBinder>

@@ -35,6 +35,7 @@ public class MessageNotification extends PopupPanel {
 
     public void show(String message) {
         if (!isShowing()) {
+            center();
             int left = (Window.getClientWidth() - getOffsetWidth()) >> 1;
             int top = 0;
             setPopupPosition(Math.max(Window.getScrollLeft() + left, 0), Math.max(

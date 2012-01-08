@@ -61,7 +61,7 @@ public class DashboardActivity extends AbstractActivity implements DashboardView
 
         String firstName = defold.getFirstName();
         String lastName = defold.getLastName();
-        dashboardView.setName(firstName, lastName);
+        dashboardView.setName(firstName, lastName, email);
     }
 
     @Override

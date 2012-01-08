@@ -1,41 +1,184 @@
 /** Add css rules here for your application. */
-	/** Example rules used by the template application (remove for your app) */
+/** Example rules used by the template application (remove for your app) */
+
+#topBar {
+    margin-bottom: 32px;
+    width: 100%;
+}
+
+/* named to defoldFootar in order to avoid nameclash with asciidoc */
+#defoldFooter {
+    background-color: #2D2E2F;
+    height: 260px;
+    clear: both;
+    padding: 16px;
+    margin-top: 50px;
+    color: white;
+}
+
+#footerContent {
+    position: relative;
+    padding-left: 220px;
+}
+
+#footerContent h3 {
+    color: #ccc;
+    font-weight: 100;
+}
+
+#footerContent table td {
+    padding-right: 160px;
+}
+
+#footerContent ul {
+    list-style: none;
+    padding: 0px;
+    font-size: 14px;
+    color: #999;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
+}
+
+div.message {
+    padding: 0px 30px 0px 30px;
+    display: inline;
+    background-color: #dad37b;
+    color: #444;
+    border: 1px solid #b4b056;
+    border-radius: 0px 0px 6px 6px;
+}
+
+/* Styling for elements */
+
+body {
+    font-size: 14px;
+    background: #eee;
+    font-weight: 100;
+    font-family: 'Open Sans', sans-serif;
+    margin: 0px;
+}
+
 h1 {
-	font-size: 2em;
-	font-weight: bold;
-	color: #777777;
-	margin: 10px 0px 10px;
-	text-align: left;
+    color: #444;
+    font-size: 32px;
+    font-weight: 100;
+    margin: 0;
+    margin-bottom: 20px;
 }
 
 h2 {
-    font-weight: 300;
-    font-size: 1.6em;
-    margin: 12px 0px 8px 0px;
-    color: #000;
+    color: #444;
+    font-size: 24px;
+    font-weight: 100;
+    margin: 0;
+    margin-bottom: 20px;
 }
 
 h3 {
-    font-weight: 400;
-    font-size: 1.2em;
-    margin: 4px 0px 8px 0px;
-    color: #000;
+    color: #444;
+    font-size: 20px;
+    font-weight: 100;
+    margin: 0px;
+    margin-bottom: 8px;
 }
 
 h4 {
-    font-weight: 400;
-    font-size: 1.1em;
-    margin: 0px 0px 8px 0px;
-    color: #000;
+    color: #444;
+    font-size: 18px;
+    font-style: italic;
+    font-weight: 100;
+    margin: 0px;
+    margin-bottom: 8px;
 }
 
 a {
-	/* Force pointer cursor on gwt-anchors (avoid text selection cursor) */
+    /* Force pointer cursor on gwt-anchors (avoid text selection cursor) */
     cursor: pointer;
+	text-decoration: none;
+    color: #0096D7;
+    font-weight: 500;
 }
 
 tr {
     vertical-align: top;
+}
+
+/* boxes */
+
+div.box {
+    width: 255px;
+    padding: 15px;
+    margin: 15px 50px 0px 0px;
+    border: 1px solid #D2D3D4;
+    background: #FBFCFD;
+    box-shadow: inset 0 0 0 1px #fff;
+    border-radius: 6px;
+}
+
+div.doc ul {
+    list-style: none;
+    padding: 0px;
+    margin: 0px;
+    margin-top: 16px;
+}
+
+div.doc ul > li {
+    background: url("/images/bullet.png") 0 50% no-repeat;
+    padding: 2px 0 0 20px;
+}
+
+/* form related stuff */
+
+input {
+    background: #B2DCEC;
+    border: 1px solid #0081A8;
+    border-radius: 4px;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.1),0 1px 0px rgba(255,255,255,0.25);
+    padding: 0.5em 0.5em 0.5em 0.5em;
+    margin-top: 20px;
+    color: #888;
+    font-size: 14px;
+}
+
+input:hover {
+    background-color: #9fdefc;
+}
+
+.gwt-ListBox {
+    font-size: 20px;
+}
+
+.gwt-Button {
+    font-weight: 500;
+    background: #B9E191;
+    color: #3C6414;
+    font-family: 'Open Sans', sans-serif;
+    border: 1px solid #82B450;
+    padding: 6px 16px 6px 16px;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.gwt-Button:hover {
+    background-color: #b4ec82;
+    cursor: pointer;
+}
+
+button.delete {
+    background-color: #e9eaec;
+    color: #444;
+    border: 1px solid #98999c;
+}
+
+button.delete:hover {
+    background-color: #f3f4f9;
+    cursor: pointer;
+}
+
+button.deleteX {
+    width: 28px;
+    height: 28px;
+    padding: 0px;
+    margin: 0px;
 }
 
 .hover {
@@ -49,13 +192,6 @@ tr {
     cursor: pointer;
 }
 
-body, table td, select {
-    __font: 13px/1.5 'Helvetica Neue',Arial,'Liberation Sans',FreeSans,sans-serif;
-    font-size: 13px;
-    font-family: 'Helvetica Neue',Arial,'Liberation Sans',FreeSans,sans-serif;
-    -webkit-font-smoothing: antialiased;
-    color: #333;
-}
 
 /* script doc */
 
@@ -68,6 +204,28 @@ hr.script_separator {
 div.script_doc {
     margin-left: 16px;
     margin-right: 16px;
+    width: 700px;
+}
+
+div.script_doc * h3 {
+    font-size: 18px;
+    font-style: normal;
+}
+
+div.script_doc * h4 {
+	font-size: 16px;
+	font-style: normal;
+}
+
+div.script_doc * pre {
+    _width: 600px;
+    padding: 15px;
+    margin: 15px 50px 0px 0px;
+    border: 1px solid #D2D3D4;
+    background: #FBFCFD;
+    box-shadow: inset 0 0 0 1px #fff;
+    border-radius: 6px;
+    overflow: visible;
 }
 
 .script_doc p {
@@ -93,7 +251,7 @@ div.script_doc {
 }
 
 .script_block {
-    width: 904px;
+    width: 800px;
     margin-bottom: 26px;
 }
 
@@ -144,31 +302,32 @@ div.paragraph {
 /* OpenID buttons */
 
 button.openIDGoogle {
-    background: url("/images/google_openid.png") no-repeat;
     background-position: center;
     width: 100px;
     height: 42px;
+    font-weight: 500;
+    background:#ffffff url('/images/google_openid.png') no-repeat center center;
+    color: #3C6414;
+    font-family: 'Open Sans', sans-serif;
+    border: 1px solid #888;
+    padding: 6px 16px 6px 16px;
+    border-radius: 4px;
+    font-size: 14px;
 }
 
-/*
-   Navigation bar
-
-   Example:
-   <ul class="nav nav1">
-    <li><a>Documentation</a></li>
-    <li><a>Dashboard</a></li>
-    <li><a>Logout</a></li>
-   </ul>
- */
-
-/* Add this class for navigation level 1 */
-.nav1 {
-    font-size: 13px;
+button.openIDGoogle:hover {
+    border: 1px solid #aaa;
+    cursor: pointer;
 }
 
-/* Add this class for navigation level 2 */
-.nav2 {
-    font-size: 12px;
+/* navigation menu */
+
+ul.nav li {
+    display: inline;
+}
+
+ul.nav a {
+    color: #444;
 }
 
 ul.nav {
@@ -179,6 +338,10 @@ ul.nav {
     list-style: none;
     overflow: hidden;
     zoom: 1;
+    float: right;
+    border: 1px solid #ccc;
+    -moz-border-radius: 7px 7px 7px 7px;
+    -webkit-border-radius: 7px 7px 7px 7px;
 }
 
 ul.nav li {
@@ -194,84 +357,59 @@ ul.nav a {
 }
 
 ul.nav1 a.nav1Active {
-    background-color: #444;
+    background-color: #f3f4f9;
 }
 
 ul.nav1 a {
     width: auto;
-    background-color: #7d7d7d;
+    background-color: #e9eaec;
     margin: 0px;
     padding: 10px 25px 10px;
-    color: white !important;
-    font-size: 13px;
-    font-weight: bold;
+    font-size: 14px;
+    font-weight: 500;
     line-height: 1;
     text-decoration: none;
-    -moz-box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
-    -webkit-box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
-    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.45);
-    border-bottom: 1px solid rgba(0, 0, 0, 0.35);
     position: relative;
     overflow: visible;
     text-align: center;
 }
 
 ul.nav1 a:hover {
-    background-color: #444;
+    background-color: #f3f4f9;
+    _background-color: #a8c4ff;
+}
+
+.nav1 li {
+    -moz-border-radius: 6px 6px 6px 6px;
+    -webkit-border-radius: 6px 6px 6px 6px;
+
+    border-left: none;
+    border-right: none;
+    border-top: 1px solid white;
+    border-bottom: 1px solid white;
 }
 
 .nav1 li:first-child a {
-    -moz-border-radius: 5px 0px 0px 5px;
-    -webkit-border-radius: 5px 0px 0px 5px;
+    -moz-border-radius: 6px 0px 0px 6px;
+    -webkit-border-radius: 6px 0px 0px 6px;
+    border-left: 1px solid white;
 }
 
 .nav1 li:last-child a {
-    -moz-border-radius: 0px 5px 5px 0px;
-    -webkit-border-radius: 0px 5px 5px 0px;
+    -moz-border-radius: 0px 6px 6px 0px;
+    -webkit-border-radius: 0px 6px 6px 0px;
+    border-right: 1px solid white;
 }
 
-/* usp (Unique selling points) style */
-
-div.usp > div {
-    background: -webkit-gradient(linear, left top, left bottom, from(#fafafa), to(#eeeeee));
-    padding: 20px;
-    padding-bottom: 32px;
-    -webkit-border-radius: 5px;
-    -moz-border-radius: 5px;
-}
-
-div.usp h1 {
+/* vertical nav */
+ul.vnav {
+    margin-left: 0px;
     margin-top: 0px;
-    font-size: 22px;
-    color: #000;
+    margin-bottom: 4px;
+    margin-right: 48px;
+    padding-left: 0px;
+    list-style: none;
 }
-
-div.usp img {
-    -webkit-box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.15);
-    -moz-box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.15);
-    padding: 8px;
-    border: 1px solid #eee;
-}
-
-div.usp p {
-    width: 260px;
-    margin: 0px;
-    padding: 0px;
-}
-
-div.usp {
-    width: 500px;
-    -webkit-box-shadow: 1px 1px 4px rgba(0, 0, 0, 0.39);
-    -moz-box-shadow: 1px 1px 4px rgba(0, 0, 0, 0.39);
-    border-color: #E5E5E5 hsl(0, 0%, 86%) #D2D2D2;
-    -webkit-border-radius: 5px;
-    -moz-border-radius: 5px;
-    padding: 3px;
-    margin-top: 24px;
-    margin-bottom: 24px;
-    margin-left: 4px;
-}
-
 
 /* Form stuff */
 div.form {
@@ -285,8 +423,8 @@ div.formRow {
 
 .formLabel {
 	color: #555;
-    font-weight: bold;
     margin-bottom: 4px;
+    font-size: 16px;
 }
 
 div.formError {

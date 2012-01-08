@@ -7,30 +7,38 @@
         .important {
             font-weight: bold;
         }
+
+        .suggest {
+	       width: 22em;
+        }
     </ui:style>
 
-    <g:VerticalPanel>
-        <g:HTML>
-            <h1>Project <span text="Project Name"
-                    ui:field="projectName" /></h1>
-        </g:HTML>
-        <g:HTMLPanel>
-            <span ui:field="description" text="Some description" />
-        </g:HTMLPanel>
-        <g:HTMLPanel>
+    <g:HTMLPanel>
+        <h1>Project <span text="Project Name" ui:field="projectName"/> </h1>
+        <div style="float: right; margin-right: 64px;">
             <g:Button ui:field="deleteProject">Delete Project</g:Button>
-        </g:HTMLPanel>
-        <g:HTMLPanel>
-           <h2>Members</h2>
-            <g:VerticalPanel ui:field="members"/>
-            <g:HTMLPanel ui:field="addMemberPanel">
-	            <g:Label text="Add member to project:"/>
-	            <g:SuggestBox ui:field="suggestBox"/>
-	        </g:HTMLPanel>
-        </g:HTMLPanel>
-        <g:HTMLPanel>
-           <h2>Activity</h2>
-            <g:VerticalPanel ui:field="commits"/>
-        </g:HTMLPanel>
-    </g:VerticalPanel>
+        </div>
+
+        <div class="box">
+            <span ui:field="description" text="Some description" />
+        </div>
+
+        <p/>
+        <table style="width: 100%;">
+	        <tr>
+	            <td style="width: 50%;">
+	                <h2>Members</h2>
+	                <g:VerticalPanel ui:field="members"/>
+	                <g:HTMLPanel ui:field="addMemberPanel">
+		               <g:SuggestBox ui:field="suggestBox" addStyleNames="{style.suggest}"/>
+		           </g:HTMLPanel>
+		        </td>
+
+	            <td style="width: 50%;">
+	                <h2>Activity</h2>
+	                <g:VerticalPanel ui:field="commits"/>
+	            </td>
+	        </tr>
+        </table>
+    </g:HTMLPanel>
 </ui:UiBinder>

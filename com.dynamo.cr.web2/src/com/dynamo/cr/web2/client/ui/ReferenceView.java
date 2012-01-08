@@ -104,21 +104,21 @@ public class ReferenceView extends Composite {
         }
 
         if (messages.size() > 0) {
-            documentationList.add(new HTML("<h2>Messages</h2>"));
+            documentationList.add(new HTML("<p><h2>Messages</h2>"));
             for (final DocumentationElement e : messages) {
                 addElementLink(name, e);
             }
         }
 
         if (constants.size() > 0) {
-            documentationList.add(new HTML("<h2>Constants</h2>"));
+            documentationList.add(new HTML("<p><h2>Constants</h2>"));
             for (final DocumentationElement e : constants) {
                 addElementLink(name, e);
             }
         }
 
         if (functions.size() > 0) {
-            documentationList.add(new HTML("<h2>Functions</h2>"));
+            documentationList.add(new HTML("<p><h2>Functions</h2>"));
             for (final DocumentationElement e : functions) {
                 FunctionDocumentationPanel panel = new FunctionDocumentationPanel();
                 panel.setDocumentationElement(e);
@@ -128,7 +128,7 @@ public class ReferenceView extends Composite {
         }
 
         if (messages.size() > 0) {
-            documentationList.add(new HTML("<h2>Messages</h2>"));
+            documentationList.add(new HTML("<p><h2>Messages</h2>"));
             for (final DocumentationElement e : messages) {
                 MessageDocumentationPanel panel = new MessageDocumentationPanel();
                 panel.setDocumentationElement(e);
@@ -138,7 +138,7 @@ public class ReferenceView extends Composite {
         }
 
         if (constants.size() > 0) {
-            documentationList.add(new HTML("<h2>Constants</h2>"));
+            documentationList.add(new HTML("<p><h2>Constants</h2>"));
             for (final DocumentationElement e : constants) {
                 ConstantDocumentationPanel panel = new ConstantDocumentationPanel();
                 panel.setDocumentationElement(e);

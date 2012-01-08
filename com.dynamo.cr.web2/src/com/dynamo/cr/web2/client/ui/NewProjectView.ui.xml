@@ -3,37 +3,33 @@
 <ui:UiBinder xmlns:ui='urn:ui:com.google.gwt.uibinder'
     xmlns:g='urn:import:com.google.gwt.user.client.ui'>
 
-    <g:FlowPanel>
-        <g:HTMLPanel>
-            <h2>New Project</h2>
-        </g:HTMLPanel>
-
-        <g:HTMLPanel>
-            <div class="form">
-                <div class="formRow">
-                    <div class="formLabel">Name</div>
-                    <div>
-                        <g:TextBox ui:field="nameTextBox" />
-                    </div>
-                        <g:Label styleName="formError" ui:field="nameError">Name is required.</g:Label>
+    <g:HTMLPanel>
+        <h1>New Project</h1>
+        <div class="form">
+            <div class="formRow">
+                <div class="formLabel">Name</div>
+                <div>
+                    <g:TextBox ui:field="nameTextBox" />
                 </div>
-                <div class="formRow">
-                    <div class="formLabel">Description</div>
-                    <div>
-                        <g:TextBox ui:field="descriptionTextBox" />
-                    </div>
-                </div>
-                <div class="formRow">
-                    <div class="formLabel">Project Template</div>
-                    <div>
-                        <g:ListBox ui:field="templatesCombo" />
-                    </div>
-                </div>
-
-                <g:Button ui:field='createButton'>Create Project</g:Button>
+                    <g:Label styleName="formError" ui:field="nameError">Name is required.</g:Label>
             </div>
-        </g:HTMLPanel>
+            <div class="formRow">
+                <div class="formLabel">Description</div>
+                <div>
+                    <g:TextBox ui:field="descriptionTextBox" />
+                </div>
+            </div>
+            <div class="formRow">
+                <div class="formLabel">Project Template</div>
+                <div>
+                    <g:ListBox ui:field="templatesCombo" />
+                </div>
+            </div>
 
-    </g:FlowPanel>
+            <g:Button ui:field='createButton'>Create Project</g:Button>
+        </div>
+
+        <div style="height: 100px;"></div>
+    </g:HTMLPanel>
 
 </ui:UiBinder>

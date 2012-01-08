@@ -10,7 +10,11 @@ import com.dynamo.cr.web2.client.UserInfoList;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.core.client.JsArray;
 import com.google.gwt.dom.client.SpanElement;
+import com.google.gwt.event.dom.client.BlurEvent;
+import com.google.gwt.event.dom.client.BlurHandler;
 import com.google.gwt.event.dom.client.ClickEvent;
+import com.google.gwt.event.dom.client.FocusEvent;
+import com.google.gwt.event.dom.client.FocusHandler;
 import com.google.gwt.event.dom.client.KeyCodes;
 import com.google.gwt.event.dom.client.KeyPressEvent;
 import com.google.gwt.event.dom.client.KeyPressHandler;
@@ -62,13 +66,27 @@ public class ProjectView extends Composite implements KeyPressHandler {
          */
         suggestBox.getTextBox().addKeyPressHandler(this);
         initWidget(uiBinder.createAndBindUi(this));
+
+        suggestBox.setText("enter email to add new member to project");
+        suggestBox.getTextBox().addBlurHandler(new BlurHandler() {
+            @Override
+            public void onBlur(BlurEvent event) {
+                suggestBox.setText("enter email to add new member to project");
+            }
+        });
+
+        suggestBox.getTextBox().addFocusHandler(new FocusHandler() {
+            @Override
+            public void onFocus(FocusEvent event) {
+                suggestBox.setText("");
+            }
+        });
     }
 
     public void clear() {
         this.projectName.setInnerText("");
         this.deleteProject.setVisible(false);
         this.description.setInnerText("");
-        this.suggestBox.setText("");
         this.members.clear();
         this.commits.clear();
         this.addMemberPanel.setVisible(false);
@@ -78,7 +96,6 @@ public class ProjectView extends Composite implements KeyPressHandler {
         this.projectInfo = projectInfo;
         this.projectName.setInnerText(projectInfo.getName());
         this.description.setInnerText(projectInfo.getDescription());
-        this.suggestBox.setText("");
 
         boolean isOwner = userId == projectInfo.getOwner().getId();
         this.deleteProject.setVisible(isOwner);
@@ -123,6 +140,7 @@ public class ProjectView extends Composite implements KeyPressHandler {
     public void onKeyPress(KeyPressEvent event) {
         if (KeyCodes.KEY_ENTER == event.getNativeEvent().getKeyCode()) {
             listener.addMember(suggestBox.getText());
+            suggestBox.setText("");
         }
     }
 

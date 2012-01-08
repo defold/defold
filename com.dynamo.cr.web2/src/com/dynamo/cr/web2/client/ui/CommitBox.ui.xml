@@ -2,16 +2,24 @@
 <ui:UiBinder xmlns:ui="urn:ui:com.google.gwt.uibinder"
     xmlns:g="urn:import:com.google.gwt.user.client.ui">
     <ui:style>
-        .important {
-            font-weight: bold;
-        }
     </ui:style>
+
     <g:HTMLPanel>
-        <div style="background-color: #eee; width: 200px; margin: 16px; padding: 16px;">
-            <g:Image ui:field="gravatar" url="http://www.gravatar.com/avatar/123?s=32"></g:Image>
-            <span ui:field="name" text="Bob Gamer"></span> at 
-            <span ui:field="date" text="18:52"></span>
-	        <span ui:field="message" text="Fixed stuff"></span>
+        <div class="box" style="width: 300px;">
+            <table>
+                <tr>
+                    <td>
+                        <g:Image ui:field="gravatar" url="http://www.gravatar.com/avatar/123?s=32"></g:Image>
+                    </td>
+                    <td valign="middle">
+                        <div style="padding-left: 10px">
+                            <span ui:field="name" text="Bob Gamer"></span> at
+                            <span ui:field="date" text="18:52"></span>
+                        </div>
+                    </td>
+                </tr>
+            </table>
+            <span ui:field="message" text="Fixed stuff"></span>
         </div>
     </g:HTMLPanel>
 </ui:UiBinder>

@@ -12,7 +12,6 @@ import com.dynamo.cr.web2.client.place.DashboardPlace;
 import com.dynamo.cr.web2.client.place.DocumentationPlace;
 import com.dynamo.cr.web2.client.place.LoginPlace;
 import com.dynamo.cr.web2.client.place.ProductInfoPlace;
-import com.dynamo.cr.web2.client.place.TutorialsPlace;
 import com.dynamo.cr.web2.client.ui.EditableLabel;
 import com.google.gwt.activity.shared.ActivityManager;
 import com.google.gwt.activity.shared.ActivityMapper;
@@ -55,7 +54,6 @@ public class Defold implements EntryPoint {
     @UiField Anchor logout;
     @UiField SimplePanel panel;
     @UiField Anchor dashBoard;
-    @UiField Anchor productInfo;
     @UiField EditableLabel editableLabel;
     private MessageNotification messageNotification;
 
@@ -246,6 +244,7 @@ public class Defold implements EntryPoint {
 
         new ShowLoginOnAuthenticationFailure().register(clientFactory, eventBus);
         messageNotification = new MessageNotification();
+        messageNotification.setStyleName("message");
         messageNotification.setSize("120px", "30px");
     }
 
@@ -305,11 +304,6 @@ public class Defold implements EntryPoint {
         return url;
     }
 
-    @UiHandler("productInfo")
-    void onProductInfoClick(ClickEvent event) {
-        clientFactory.getPlaceController().goTo(new ProductInfoPlace());
-    }
-
     @UiHandler("dashBoard")
     void onDashBoardClick(ClickEvent event) {
         clientFactory.getPlaceController().goTo(new DashboardPlace());
@@ -318,11 +312,6 @@ public class Defold implements EntryPoint {
     @UiHandler("documentation")
     void onDocumentationClick(ClickEvent event) {
         clientFactory.getPlaceController().goTo(new DocumentationPlace());
-    }
-
-    @UiHandler("tutorials")
-    void onTutorialsClick(ClickEvent event) {
-        clientFactory.getPlaceController().goTo(new TutorialsPlace(""));
     }
 
     @UiHandler("blog")

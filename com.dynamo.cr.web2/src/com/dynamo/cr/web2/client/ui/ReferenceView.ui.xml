@@ -14,8 +14,8 @@
 
             <table>
             <tr>
-                <td style="width: 200px;">
-	            <ul>
+                <td>
+	            <ul class="vnav">
 	                <li id="engine"><g:Anchor ui:field="engine">Engine</g:Anchor></li>
 	                <li id="go"><g:Anchor ui:field="gameObject">GameObject</g:Anchor></li>
 	                <li id="gamesys"><g:Anchor ui:field="gameSys">GameSys</g:Anchor></li>
