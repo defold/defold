@@ -1,8 +1,66 @@
 :max-width: 45em
 
+Update - Web Site Face Lift & Script Samples
+--------------------------------------------
+_January 8, 2012_
+
+Web Site Face Lift
+~~~~~~~~~~~~~~~~~~
+
+As you have probably noticed by now, our web site has had a major face lift.
+We have also restructured the information a bit, but everything should hopefully be easier to find now.
+
+We have also added two new features to the link:#dashboard:[dashboard].
+
+The first is that we now use link:http:://www.gravatar.com[Gravatar] to supply the avatars for us.
+To have your own avatar appear in the dashboard, link:https://en.gravatar.com/site/signup/[register] with Gravatar and setup your avatar there.
+We think Gravatar is a great service and hope that it will catch on more.
+
+The second feature is that you can now see the activity in your projects.
+Click on a project in the dashboard and the activity is displayed in the lower right.
+When you create a project from a template, the activity from that template is currently copied into your new project.
+So don't be alarmed if you see unfamiliar activity from us in the Defold-team or Mr. Builder, our former game-dev robot.
+We will fix this at some point in the future.
+
+PLACEHOLDER: activity/gravatar
+
+Script Samples
+~~~~~~~~~~~~~~
+
+We have added a few script samples on the link:#documentation:[documentation] page.
+We hope they will both inspire and provide aid in understanding how to make animations and effects using scripting.
+There are both samples that deals with gui animation (*HUD*, *Level Complete* and *Main Menu*) and game object animation (*Parallax*).
+
+We have also uploaded videos to Youtube showing the samples in action.
+To produce the videos, we used the new video capturing feature we added earlier in the week.
+Even the title screen at the beginning of each video was captured in the engine.
+The title screens are in fact a single GUI scene that we populate with different data depending on which sample to capture.
+This means we don't have to do any video editing when we change the content of the samples, the videos will be ready for upload immediately.
+Ask us for details in the user group if you are curious about how to do this yourself.
+
+We have not yet added the script samples as template projects, but we will do that as soon as possible.
+
+Bugs
+~~~~
+
+We also had the time to fix a few more bugs that crept up.
+
+- Render was missing from the reference documentation
+- vmath.lerp did not accept numbers in addition to vectors and quaternions
+- Animations could not be deleted from tile sets
+
+Roadmap
+~~~~~~~
+
+Apart from including the script samples as template projects, we will continue with the User Guide next week.
+Please, check out the Defold Roadmap we posted in the group for more details.
+Remember that you can influence what we should work on by commenting in the document.
+
+We hope you like the new web site! Tell us what you think in the user group!
+
 Update - Video Capture, Fonts, Colors, Tweaks & Bugs
 ----------------------------------------------------
-*_January 5, 2012_*
+_January 5, 2012_
 
 Video Capture
 ~~~~~~~~~~~~~
@@ -125,7 +183,7 @@ Hope you like this update!
 
 Update - Lots!
 --------------
-*_December 22, 2011_*
+_December 22, 2011_
 
 It has been almost exactly a whole month since our latest release.
 We aim to have a minimal release cycle (a week optimally), which would both let us get immediate feedback and be able to respond to new requests faster.
@@ -271,7 +329,7 @@ The Defold-team wishes you all a merry christmas!
 
 Update - Scene Editor
 ---------------------
-*_November 21, 2011_*
+_November 21, 2011_
 
 Scene Editor
 ~~~~~~~~~~~~
@@ -333,7 +391,7 @@ Roadmap
 
 Update - Scene Editor
 ---------------------
-*_November 17, 2011_*
+_November 17, 2011_
 
 Scene Editor
 ~~~~~~~~~~~~
@@ -386,7 +444,7 @@ Thanks for reading and don't forget to use the case-mail!
 
 Update - Scene Editor & Content Pipeline
 ----------------------------------------
-*_November 6, 2011_*
+_November 6, 2011_
 
 Scene Editor
 ~~~~~~~~~~~~
@@ -432,7 +490,7 @@ Thanks for reading and hope you will enjoy the upcoming features!
 
 Update - Sprite Design, Tile Fixes & Content Pipeline
 -----------------------------------------------------
-*_October 31, 2011_*
+_October 31, 2011_
 
 Sprites
 ~~~~~~~
@@ -529,8 +587,8 @@ That's it at this time!
 Hope you enjoyed reading and, as usual, let us know if you have any feedback or suggestions.
 
 Update - Tiles & Properties
---------------------------
-*_October 23, 2011_*
+---------------------------
+_October 23, 2011_
 
 Welcome to the first update-post from Defold!
 This is a way for us to tell you a bit about what has happened lately and what lies ahead.
