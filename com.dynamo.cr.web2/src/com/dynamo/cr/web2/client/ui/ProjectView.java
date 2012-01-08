@@ -34,6 +34,7 @@ import com.google.gwt.user.datepicker.client.CalendarUtil;
 
 public class ProjectView extends Composite implements KeyPressHandler {
 
+    private static final String SUGGEST_BOX_BLUR = "enter email to add a member";
     public interface Presenter {
         void addMember(String email);
         void removeMember(int id);
@@ -71,7 +72,7 @@ public class ProjectView extends Composite implements KeyPressHandler {
         suggestBox.getTextBox().addBlurHandler(new BlurHandler() {
             @Override
             public void onBlur(BlurEvent event) {
-                suggestBox.setText("enter email to add new member to project");
+                suggestBox.setText(SUGGEST_BOX_BLUR);
             }
         });
 
@@ -90,12 +91,17 @@ public class ProjectView extends Composite implements KeyPressHandler {
         this.members.clear();
         this.commits.clear();
         this.addMemberPanel.setVisible(false);
+        this.suggestBox.setText(SUGGEST_BOX_BLUR);
     }
 
     public void setProjectInfo(int userId, ProjectInfo projectInfo) {
         this.projectInfo = projectInfo;
         this.projectName.setInnerText(projectInfo.getName());
-        this.description.setInnerText(projectInfo.getDescription());
+        String description = projectInfo.getDescription();
+        if (description.isEmpty()) {
+            description = "(no description)";
+        }
+        this.description.setInnerText(description);
 
         boolean isOwner = userId == projectInfo.getOwner().getId();
         this.deleteProject.setVisible(isOwner);
