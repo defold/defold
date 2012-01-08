@@ -2,7 +2,8 @@
 war/WEB-INF/deploy
 war/WEB-INF/classes
 war/WEB-INF/lib/*.jar
-war/defold
+war/defold/*cache*
+war/defold/hosted.html
 war/doc/*.json
 war/site/
 test-classes/*
