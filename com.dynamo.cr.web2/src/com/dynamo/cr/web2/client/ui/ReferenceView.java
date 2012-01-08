@@ -46,6 +46,7 @@ public class ReferenceView extends Composite {
     @UiField Anchor render;
     @UiField Anchor script;
 
+    @UiField HTMLPanel rootDocPanel;
     @UiField HeadingElement functionSummaryHeading;
     @UiField HeadingElement messageSummaryHeading;
     @UiField HeadingElement constantSummaryHeading;
@@ -76,16 +77,14 @@ public class ReferenceView extends Composite {
     }
 
     public void clear() {
-        this.functionSummaryPanel.clear();
-        this.messageSummaryPanel.clear();
-        this.functionSummaryPanel.clear();
-        this.documentationPanel.clear();
+        rootDocPanel.setVisible(false);
     }
 
     private Map<String, Element> nameToDocElement = new HashMap<String, Element>();
     private String documentName;
 
     public void setDocument(final String name, DocumentationDocument doc) {
+        rootDocPanel.setVisible(false);
         this.documentName = name;
         this.functionSummaryPanel.clear();
         this.messageSummaryPanel.clear();
@@ -148,6 +147,8 @@ public class ReferenceView extends Composite {
                 nameToDocElement.put(e.getName(), panel.getElement());
             }
         }
+
+        rootDocPanel.setVisible(true);
     }
 
     private void createElementLinks(List<DocumentationElement> elements, HTMLPanel panel) {

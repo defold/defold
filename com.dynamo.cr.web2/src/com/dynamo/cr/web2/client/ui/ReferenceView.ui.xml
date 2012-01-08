@@ -26,27 +26,28 @@
 	            </td>
 	            <td>
                     <g:Image url="images/ajax-loader.gif" styleName="{style.loader}" ui:field="loader"></g:Image>
-                    <g:HTMLPanel styleName="articleBox article">
-                        <h2 ui:field="functionSummaryHeading">Functions</h2>
-                        <g:HTMLPanel ui:field="functionSummaryPanel"></g:HTMLPanel>
+                    <div style="min-height: 400px;">
+                        <g:HTMLPanel ui:field="rootDocPanel">
+	                       <g:HTMLPanel styleName="articleBox article">
+	                            <h2 ui:field="functionSummaryHeading">Functions</h2>
+                                <g:HTMLPanel ui:field="functionSummaryPanel"></g:HTMLPanel>
 
-                        <h2 ui:field="messageSummaryHeading">Messages</h2>
-                        <g:HTMLPanel ui:field="messageSummaryPanel"></g:HTMLPanel>
+	                            <h2 ui:field="messageSummaryHeading">Messages</h2>
+	                            <g:HTMLPanel ui:field="messageSummaryPanel"></g:HTMLPanel>
 
-                        <h2 ui:field="constantSummaryHeading">Constants</h2>
-                        <g:HTMLPanel ui:field="constantSummaryPanel"></g:HTMLPanel>
+	                            <h2 ui:field="constantSummaryHeading">Constants</h2>
+	                            <g:HTMLPanel ui:field="constantSummaryPanel"></g:HTMLPanel>
+	                       </g:HTMLPanel>
 
-                    </g:HTMLPanel>
-
-	                <div style="margin-top: 32px; padding-left: 5px;">
-                        <g:HTMLPanel ui:field="documentationPanel"></g:HTMLPanel>
+		                   <div style="margin-top: 32px; padding-left: 5px;">
+	                            <g:HTMLPanel ui:field="documentationPanel"></g:HTMLPanel>
+	                       </div>
+                        </g:HTMLPanel>
                     </div>
 	            </td>
             </tr>
             </table>
-
         </g:HTMLPanel>
     </g:FlowPanel>
-
 
 </ui:UiBinder>
