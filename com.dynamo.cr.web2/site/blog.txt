@@ -22,7 +22,7 @@ When you create a project from a template, the activity from that template is cu
 So don't be alarmed if you see unfamiliar activity from us in the Defold-team or Mr. Builder, our former game-dev robot.
 We will fix this at some point in the future.
 
-PLACEHOLDER: activity/gravatar
+image:images/blog/20120108/project_activity.png["Activity with Gravatars"]
 
 Script Samples
 ~~~~~~~~~~~~~~
