@@ -114,6 +114,7 @@ function on_message(self, message_id, message, sender)
 		gui.animate(node, gui.PROP_COLOR, vmath.vector4(1, 1, 1, 1), gui.EASING_OUT, 0.3)
 		gui.animate(node, gui.PROP_OUTLINE, vmath.vector4(0, 0, 0, 1), gui.EASING_OUT, 0.3)
 		-- float
-		gui.animate(node, gui.PROP_POSITION, gui.get_position(node) + vmath.vector4(0, 20, 0, 0), gui.EASING_NONE, 0.5, 0.0, float_done)
+		local offset = vmath.vector4(0, 20, 0, 0)
+		gui.animate(node, gui.PROP_POSITION, gui.get_position(node) + offset, gui.EASING_NONE, 0.5, 0.0, float_done)
 	end
 end

@@ -179,7 +179,7 @@ function on_message(self, message_id, message, sender)
 		gui.animate(self.heading, gui.PROP_COLOR, c, gui.EASING_IN, dt, 0.0, inc_score)
 		c = gui.get_shadow(self.heading)
 		c.w = 1
-		gui.animate(self.heading, gui.PROP_SHADOW, c, gui.EASING_IN, dt, 0.0, inc_score)
+		gui.animate(self.heading, gui.PROP_SHADOW, c, gui.EASING_IN, dt, 0.0)
 		-- shrink it into place
 		gui.animate(self.heading, gui.PROP_SCALE, vmath.vector4(1, 1, 1, 0), gui.EASING_IN, 0.2, 0.0)
 	end
