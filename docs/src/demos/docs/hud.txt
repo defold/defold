@@ -29,5 +29,7 @@ The stars are spawned, animated and deleted in +spawn_stars+, +fade_out_star+ an
 
 [source,lua]
 -------------------------------------------
+-- file: hud.gui_script
+
 include::../hud/hud.gui_script[tabsize=4]
 -------------------------------------------

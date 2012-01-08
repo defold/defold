@@ -21,6 +21,8 @@ The background has a special slight fade out at the end, which is applied in +an
 
 [source,lua]
 -------------------------------------------
+-- file: menu.gui_script
+
 include::../main_menu/menu.gui_script[tabsize=4]
 -------------------------------------------
 

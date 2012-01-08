@@ -20,16 +20,22 @@ This is done in +update+ of +spaceship.script+.
 
 [source,lua]
 -------------------------------------------
+-- file: background1.script
+
 include::../parallax/background1.script[tabsize=4]
 -------------------------------------------
 
 [source,lua]
 -------------------------------------------
+-- file: background2.script
+
 include::../parallax/background2.script[tabsize=4]
 -------------------------------------------
 
 [source,lua]
 -------------------------------------------
+-- file: spaceship.script
+
 include::../parallax/spaceship.script[tabsize=4]
 -------------------------------------------
 

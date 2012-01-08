@@ -41,5 +41,7 @@ By calling +setup+ from +on_reload+, we make sure that everything is setup corre
 
 [source,lua]
 -------------------------------------------
+-- file: level_complete.gui_script
+
 include::../level_complete/level_complete.gui_script[tabsize=4]
 -------------------------------------------
