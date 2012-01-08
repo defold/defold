@@ -8,15 +8,16 @@ import com.google.gwt.event.shared.EventBus;
 import com.google.gwt.user.client.ui.AcceptsOneWidget;
 
 public class ProductInfoActivity extends AbstractActivity {
-	private ClientFactory clientFactory;
+    private ClientFactory clientFactory;
 
-	public ProductInfoActivity(ProductInfoPlace place, ClientFactory clientFactory) {
-		this.clientFactory = clientFactory;
-	}
+    public ProductInfoActivity(ProductInfoPlace place, ClientFactory clientFactory) {
+        this.clientFactory = clientFactory;
+    }
 
-	@Override
-	public void start(AcceptsOneWidget containerWidget, EventBus eventBus) {
-		ProductInfoView ProductInfoView = clientFactory.getProductInfoView();
-		containerWidget.setWidget(ProductInfoView.asWidget());
-	}
+    @Override
+    public void start(AcceptsOneWidget containerWidget, EventBus eventBus) {
+        ProductInfoView productInfoView = clientFactory.getProductInfoView();
+        containerWidget.setWidget(productInfoView.asWidget());
+        productInfoView.reset();
+    }
 }
