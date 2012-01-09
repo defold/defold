@@ -15,12 +15,15 @@ namespace dmGameSystem
 {
     using namespace Vectormath::Aos;
 
+    const uint32_t MAX_SPAWN_REQUEST_COUNT = 16;
+
     struct SpawnPointComponent
     {
+        Vectormath::Aos::Point3 m_RequestedPositions[MAX_SPAWN_REQUEST_COUNT];
+        Vectormath::Aos::Quat   m_RequestedRotations[MAX_SPAWN_REQUEST_COUNT];
         SpawnPointResource*     m_Resource;
-        Vectormath::Aos::Point3 m_Position;
-        Vectormath::Aos::Quat   m_Rotation;
         uint32_t                m_SpawnRequests;
+
     };
 
     struct SpawnPointWorld
@@ -91,7 +94,7 @@ namespace dmGameSystem
                 for (uint32_t i = 0; i < spc->m_SpawnRequests; ++i)
                 {
                     DM_SNPRINTF(id, 64, "%s%d", id_base, spw->m_TotalSpawnCount);
-                    dmGameObject::Spawn(params.m_Collection, spc->m_Resource->m_SpawnPointDesc->m_Prototype, id, spc->m_Position, spc->m_Rotation);
+                    dmGameObject::Spawn(params.m_Collection, spc->m_Resource->m_SpawnPointDesc->m_Prototype, id, spc->m_RequestedPositions[i], spc->m_RequestedRotations[i]);
                     ++spw->m_TotalSpawnCount;
                 }
                 spc->m_SpawnRequests = 0;
@@ -107,10 +110,18 @@ namespace dmGameSystem
             SpawnPointComponent* spc = (SpawnPointComponent*) *params.m_UserData;
             if ((dmDDF::Descriptor*)params.m_Message->m_Descriptor == dmGameSystemDDF::Spawn::m_DDFDescriptor)
             {
-                dmGameSystemDDF::Spawn* spawn_object = (dmGameSystemDDF::Spawn*) params.m_Message->m_Data;
-                spc->m_Position = spawn_object->m_Position;
-                spc->m_Rotation = spawn_object->m_Rotation;
-                ++spc->m_SpawnRequests;
+                if (spc->m_SpawnRequests < MAX_SPAWN_REQUEST_COUNT)
+                {
+                    uint32_t index = spc->m_SpawnRequests;
+                    dmGameSystemDDF::Spawn* spawn_object = (dmGameSystemDDF::Spawn*) params.m_Message->m_Data;
+                    spc->m_RequestedPositions[index] = spawn_object->m_Position;
+                    spc->m_RequestedRotations[index] = spawn_object->m_Rotation;
+                    ++spc->m_SpawnRequests;
+                }
+                else
+                {
+                    dmLogError("The maximum number of spawn requests have been received (%d), spawn request ignored.", MAX_SPAWN_REQUEST_COUNT);
+                }
             }
             else
             {
