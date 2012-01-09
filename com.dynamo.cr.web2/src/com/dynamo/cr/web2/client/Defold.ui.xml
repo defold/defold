@@ -10,14 +10,19 @@
 			overflow: auto;
 			margin-top: 32px;
 		}
+
+		.logoLink {
+	       float: left;
+	   }
+
 	</ui:style>
 
 	<g:ScrollPanel ui:field="bodyScrollPanel">
         <g:HTMLPanel>
 			<g:HTMLPanel styleName="{style.dock}">
 				<div id="topBar">
-				    <g:Hyperlink targetHistoryToken="/"><img src="/images/3dlogo.png"/></g:Hyperlink>
-					<ul class="nav nav1">
+				    <g:Hyperlink targetHistoryToken="/"  styleName="{style.logoLink}"><img src="/images/3dlogo.png"/></g:Hyperlink>
+					<ul class="nav nav1" style="margin-top: 16px;">
 						<li id="dashboard">
 							<g:Anchor ui:field="dashBoard">Dashboard</g:Anchor>
 						</li>
