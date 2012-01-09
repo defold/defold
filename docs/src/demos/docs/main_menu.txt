@@ -4,7 +4,7 @@ Main Manu
 In this sample, we demonstrate effects to present a main menu.
 The menu contains a background and two menu items.
 
-link:#new_project:[Create a project] and select +Sample: Main Menu+ as 'Project Template' to try it out for yourself.
+link:#new_project:[Create a project] and select +Script Sample: Main Menu+ as 'Project Template' to try it out for yourself.
 
 link:/youtube_embed/main_menu.ivf[Main Menu]
 
