@@ -57,3 +57,39 @@ def build(bld):
             'src/demos/docs']
     tsk = bld.new_task_gen(install_path='${DYNAMO_HOME}/share/doc')
     tsk.find_sources_in_dirs(dirs)
+
+GAME_PROJECT = """
+[project]
+title = %(title)s
+[bootstrap]
+main_collection = %(main_collection)s
+[input]
+game_binding = /input/game.input_bindingc
+[display]
+width = 1280
+height = 720
+"""
+
+def install_sample(bld, sample_dir):
+    name = os.path.basename(sample_dir)
+    target_dir = '%s/content/samples/%s' % (bld.env.PREFIX, name)
+    print >> sys.stderr, 'installing %s' % target_dir
+    import shutil
+    if os.path.exists(target_dir):
+        shutil.rmtree(target_dir)
+
+    shutil.copytree(sample_dir, '%s/%s' % (target_dir, name))
+    shutil.copytree('%s/../input' % sample_dir, '%s/input' % target_dir)
+    shutil.copy('%s/../wscript' % sample_dir, target_dir)
+
+    f = open('%s/game.project' % target_dir, 'w')
+    f.write(GAME_PROJECT % { 'title' : name, 'main_collection' : ('/%s/main.collectionc' % name) } )
+    f.close()
+
+    os.system('cd %s && git init && git add . && git commit -m "Initial import"' % target_dir)
+
+def install(bld):
+    import Scripting
+    Scripting.install(bld)
+    for sample in ['hud', 'level_complete', 'main_menu', 'parallax']:
+        install_sample(bld, 'src/demos/%s' % sample)
