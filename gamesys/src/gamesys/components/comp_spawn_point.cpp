@@ -20,7 +20,7 @@ namespace dmGameSystem
         SpawnPointResource*     m_Resource;
         Vectormath::Aos::Point3 m_Position;
         Vectormath::Aos::Quat   m_Rotation;
-        uint32_t                m_SpawnRequested : 1;
+        uint32_t                m_SpawnRequests;
     };
 
     struct SpawnPointWorld
@@ -56,7 +56,7 @@ namespace dmGameSystem
             uint32_t index = spw->m_IndexPool.Pop();
             SpawnPointComponent* spc = &spw->m_Components[index];
             spc->m_Resource = (SpawnPointResource*) params.m_Resource;
-            spc->m_SpawnRequested = 0;
+            spc->m_SpawnRequests = 0;
             *params.m_UserData = (uintptr_t) spc;
 
             return dmGameObject::CREATE_RESULT_OK;
@@ -86,12 +86,15 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < spw->m_Components.Size(); ++i)
         {
             SpawnPointComponent* spc = &spw->m_Components[i];
-            if (spc->m_Resource != 0x0 && spc->m_SpawnRequested)
+            if (spc->m_Resource != 0x0 && spc->m_SpawnRequests > 0)
             {
-                DM_SNPRINTF(id, 64, "%s%d", id_base, spw->m_TotalSpawnCount);
-                dmGameObject::Spawn(params.m_Collection, spc->m_Resource->m_SpawnPointDesc->m_Prototype, id, spc->m_Position, spc->m_Rotation);
-                spc->m_SpawnRequested = 0;
-                ++spw->m_TotalSpawnCount;
+                for (uint32_t i = 0; i < spc->m_SpawnRequests; ++i)
+                {
+                    DM_SNPRINTF(id, 64, "%s%d", id_base, spw->m_TotalSpawnCount);
+                    dmGameObject::Spawn(params.m_Collection, spc->m_Resource->m_SpawnPointDesc->m_Prototype, id, spc->m_Position, spc->m_Rotation);
+                    ++spw->m_TotalSpawnCount;
+                }
+                spc->m_SpawnRequests = 0;
             }
         }
         return dmGameObject::UPDATE_RESULT_OK;
@@ -104,17 +107,10 @@ namespace dmGameSystem
             SpawnPointComponent* spc = (SpawnPointComponent*) *params.m_UserData;
             if ((dmDDF::Descriptor*)params.m_Message->m_Descriptor == dmGameSystemDDF::Spawn::m_DDFDescriptor)
             {
-                if (spc->m_SpawnRequested)
-                {
-                    dmLogError("%s", "It is only allowed to spawn once per spawn point per frame, request ignored.");
-                }
-                else
-                {
-                    dmGameSystemDDF::Spawn* spawn_object = (dmGameSystemDDF::Spawn*) params.m_Message->m_Data;
-                    spc->m_SpawnRequested = 1;
-                    spc->m_Position = spawn_object->m_Position;
-                    spc->m_Rotation = spawn_object->m_Rotation;
-                }
+                dmGameSystemDDF::Spawn* spawn_object = (dmGameSystemDDF::Spawn*) params.m_Message->m_Data;
+                spc->m_Position = spawn_object->m_Position;
+                spc->m_Rotation = spawn_object->m_Rotation;
+                ++spc->m_SpawnRequests;
             }
             else
             {
