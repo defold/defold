@@ -70,6 +70,17 @@ width = 1280
 height = 720
 """
 
+GIT_IGNORE="""
+.externalToolBuilders
+.DS_Store
+.lock-wscript
+build
+*.pyc
+.project
+.cproject
+builtins
+"""
+
 def install_sample(bld, sample_dir):
     name = os.path.basename(sample_dir)
     target_dir = '%s/content/samples/%s' % (bld.env.PREFIX, name)
@@ -84,6 +95,10 @@ def install_sample(bld, sample_dir):
 
     f = open('%s/game.project' % target_dir, 'w')
     f.write(GAME_PROJECT % { 'title' : name, 'main_collection' : ('/%s/main.collectionc' % name) } )
+    f.close()
+
+    f = open('%s/.gitignore' % target_dir, 'w')
+    f.write(GIT_IGNORE)
     f.close()
 
     os.system('cd %s && git init && git add . && git commit -m "Initial import"' % target_dir)
