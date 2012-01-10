@@ -596,6 +596,7 @@ bail:
      * @param self reference to the script state to be used for storing data (script_ref)
      * @param message_id id of the received message (hash)
      * @param message a table containing the message data (table)
+     * @param sender address of the sender (url)
      * @examples
      * <p>
      * This example demonstrates how a game object instance, called "a", can communicate with another instance, called "b". It
