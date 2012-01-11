@@ -7,6 +7,8 @@
 
 #include <physics/physics.h>
 
+#include <gameobject/gameobject_ddf.h>
+
 #include "gamesys.h"
 #include "../resources/res_collision_object.h"
 
@@ -608,7 +610,26 @@ namespace dmGameSystem
     {
         PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
         Component* component = (Component*) *params.m_UserData;
-        if (params.m_Message->m_Id == dmHashString64(dmPhysicsDDF::ApplyForce::m_DDFDescriptor->m_Name))
+
+        if (params.m_Message->m_Id == dmHashString64(dmGameObjectDDF::Enable::m_DDFDescriptor->m_Name)
+                || params.m_Message->m_Id == dmHashString64(dmGameObjectDDF::Disable::m_DDFDescriptor->m_Name))
+        {
+            bool enable = false;
+            if (params.m_Message->m_Id == dmHashString64(dmGameObjectDDF::Enable::m_DDFDescriptor->m_Name))
+            {
+                enable = true;
+            }
+            World* world = (World*)params.m_World;
+           if (physics_context->m_3D)
+            {
+                dmPhysics::SetEnabled3D(world->m_World3D, component->m_Object3D, enable);
+            }
+            else
+            {
+                dmPhysics::SetEnabled2D(world->m_World2D, component->m_Object2D, enable);
+            }
+        }
+        else if (params.m_Message->m_Id == dmHashString64(dmPhysicsDDF::ApplyForce::m_DDFDescriptor->m_Name))
         {
             dmPhysicsDDF::ApplyForce* af = (dmPhysicsDDF::ApplyForce*) params.m_Message->m_Data;
             if (physics_context->m_3D)

@@ -96,6 +96,8 @@ Test3D::Test3D()
 , m_GetWorldRotationFunc(dmPhysics::GetWorldRotation3D)
 , m_GetLinearVelocityFunc(dmPhysics::GetLinearVelocity3D)
 , m_GetAngularVelocityFunc(dmPhysics::GetAngularVelocity3D)
+, m_IsEnabledFunc(dmPhysics::IsEnabled3D)
+, m_SetEnabledFunc(dmPhysics::SetEnabled3D)
 , m_RequestRayCastFunc(dmPhysics::RequestRayCast3D)
 , m_SetDebugCallbacksFunc(dmPhysics::SetDebugCallbacks3D)
 , m_ReplaceShapeFunc(dmPhysics::ReplaceShape3D)
@@ -139,6 +141,8 @@ Test2D::Test2D()
 , m_GetWorldRotationFunc(dmPhysics::GetWorldRotation2D)
 , m_GetLinearVelocityFunc(dmPhysics::GetLinearVelocity2D)
 , m_GetAngularVelocityFunc(dmPhysics::GetAngularVelocity2D)
+, m_IsEnabledFunc(dmPhysics::IsEnabled2D)
+, m_SetEnabledFunc(dmPhysics::SetEnabled2D)
 , m_RequestRayCastFunc(dmPhysics::RequestRayCast2D)
 , m_SetDebugCallbacksFunc(dmPhysics::SetDebugCallbacks2D)
 , m_ReplaceShapeFunc(dmPhysics::ReplaceShape2D)
@@ -745,6 +749,51 @@ TYPED_TEST(PhysicsTest, ApplyForce)
     ASSERT_NE(0.0f, lengthSqr(lin_vel));
     ang_vel = (*TestFixture::m_Test.m_GetAngularVelocityFunc)(box_co);
     ASSERT_NE(0.0f, lengthSqr(ang_vel));
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, box_co);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape);
+}
+
+TYPED_TEST(PhysicsTest, EnableDisable)
+{
+    // Dynamic object
+
+    VisualObject vo;
+
+    float box_half_ext = 0.5f;
+    dmPhysics::CollisionObjectData data;
+    data.m_UserData = &vo;
+    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    typename TypeParam::CollisionObjectType box_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
+
+    ASSERT_TRUE((*TestFixture::m_Test.m_IsEnabledFunc)(box_co));
+
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+
+    (*TestFixture::m_Test.m_SetEnabledFunc)(TestFixture::m_World, box_co, true);
+
+    Point3 p = (*TestFixture::m_Test.m_GetWorldPositionFunc)(box_co);
+    ASSERT_NE(0.0f, lengthSqr(Vector3(p)));
+
+    Vector3 lin_vel = (*TestFixture::m_Test.m_GetLinearVelocityFunc)(box_co);
+    ASSERT_NE(0.0f, lengthSqr(lin_vel));
+
+    (*TestFixture::m_Test.m_SetEnabledFunc)(TestFixture::m_World, box_co, false);
+    ASSERT_FALSE((*TestFixture::m_Test.m_IsEnabledFunc)(box_co));
+
+    vo.m_Position = Point3(0.0f, 0.0f, 0.0f);
+
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+
+    (*TestFixture::m_Test.m_SetEnabledFunc)(TestFixture::m_World, box_co, true);
+    ASSERT_TRUE((*TestFixture::m_Test.m_IsEnabledFunc)(box_co));
+
+    p = (*TestFixture::m_Test.m_GetWorldPositionFunc)(box_co);
+    ASSERT_EQ(0.0f, lengthSqr(Vector3(p)));
+
+    lin_vel = (*TestFixture::m_Test.m_GetLinearVelocityFunc)(box_co);
+    ASSERT_EQ(0.0f, lengthSqr(lin_vel));
 
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, box_co);
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape);

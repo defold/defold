@@ -10,6 +10,7 @@
 #include <dlib/index_pool.h>
 
 #include <gameobject/gameobject.h>
+#include <gameobject/gameobject_ddf.h>
 
 #include "gamesys_ddf.h"
 
@@ -259,7 +260,7 @@ namespace dmGameSystem
                 dmLogWarning("The collection %s could not be finalized since it was never initialized.", proxy->m_Resource->m_DDF->m_Collection);
             }
         }
-        else if (params.m_Message->m_Id == dmHashString64("enable"))
+        else if (params.m_Message->m_Id == dmHashString64(dmGameObjectDDF::Enable::m_DDFDescriptor->m_Name))
         {
             if (proxy->m_Collection != 0)
             {
@@ -282,7 +283,7 @@ namespace dmGameSystem
                 dmLogWarning("The collection %s could not be initialized since it has not been loaded.", proxy->m_Resource->m_DDF->m_Collection);
             }
         }
-        else if (params.m_Message->m_Id == dmHashString64("disable"))
+        else if (params.m_Message->m_Id == dmHashString64(dmGameObjectDDF::Disable::m_DDFDescriptor->m_Name))
         {
             if (proxy->m_Enabled == 1)
             {
