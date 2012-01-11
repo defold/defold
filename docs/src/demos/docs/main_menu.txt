@@ -1,4 +1,4 @@
-Main Manu
+Main Menu
 =========
 
 In this sample, we demonstrate effects to present a main menu.
