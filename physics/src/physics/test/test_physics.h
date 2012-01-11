@@ -85,6 +85,8 @@ struct Funcs
     typedef Vectormath::Aos::Quat (*GetWorldRotationFunc)(typename T::CollisionObjectType collision_object);
     typedef Vectormath::Aos::Vector3 (*GetLinearVelocityFunc)(typename T::CollisionObjectType collision_object);
     typedef Vectormath::Aos::Vector3 (*GetAngularVelocityFunc)(typename T::CollisionObjectType collision_object);
+    typedef bool (*IsEnabledFunc)(typename T::CollisionObjectType collision_object);
+    typedef void (*SetEnabledFunc)(typename T::WorldType world, typename T::CollisionObjectType collision_object, bool enabled);
     typedef void (*RequestRayCastFunc)(typename T::WorldType world, const dmPhysics::RayCastRequest& request);
     typedef void (*SetDebugCallbacks)(typename T::ContextType context, const dmPhysics::DebugCallbacks& callbacks);
     typedef void (*ReplaceShapeFunc)(typename T::ContextType context, typename T::CollisionShapeType old_shape, typename T::CollisionShapeType new_shape);
@@ -125,6 +127,8 @@ struct Test3D
     Funcs<Test3D>::GetWorldRotationFunc             m_GetWorldRotationFunc;
     Funcs<Test3D>::GetLinearVelocityFunc            m_GetLinearVelocityFunc;
     Funcs<Test3D>::GetAngularVelocityFunc           m_GetAngularVelocityFunc;
+    Funcs<Test3D>::IsEnabledFunc                    m_IsEnabledFunc;
+    Funcs<Test3D>::SetEnabledFunc                   m_SetEnabledFunc;
     Funcs<Test3D>::RequestRayCastFunc               m_RequestRayCastFunc;
     Funcs<Test3D>::SetDebugCallbacks                m_SetDebugCallbacksFunc;
     Funcs<Test3D>::ReplaceShapeFunc                 m_ReplaceShapeFunc;
@@ -168,6 +172,8 @@ struct Test2D
     Funcs<Test2D>::GetWorldRotationFunc             m_GetWorldRotationFunc;
     Funcs<Test2D>::GetLinearVelocityFunc            m_GetLinearVelocityFunc;
     Funcs<Test2D>::GetAngularVelocityFunc           m_GetAngularVelocityFunc;
+    Funcs<Test2D>::IsEnabledFunc                    m_IsEnabledFunc;
+    Funcs<Test2D>::SetEnabledFunc                   m_SetEnabledFunc;
     Funcs<Test2D>::RequestRayCastFunc               m_RequestRayCastFunc;
     Funcs<Test2D>::SetDebugCallbacks                m_SetDebugCallbacksFunc;
     Funcs<Test2D>::ReplaceShapeFunc                 m_ReplaceShapeFunc;

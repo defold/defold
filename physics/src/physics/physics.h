@@ -678,6 +678,46 @@ namespace dmPhysics
     Vectormath::Aos::Vector3 GetAngularVelocity2D(HCollisionObject2D collision_object);
 
     /**
+     * Return whether the 3D collision object is enabled or not.
+     *
+     * @param collision_object Collision object to enable/disable
+     * @return true if the collision object is enabled
+     */
+    bool IsEnabled3D(HCollisionObject3D collision_object);
+
+    /**
+     * Return whether the 2D collision object is enabled or not.
+     *
+     * @param collision_object Collision object to enable/disable
+     * @return true if the collision object is enabled
+     */
+    bool IsEnabled2D(HCollisionObject2D collision_object);
+
+    /**
+     * Set whether the 3D collision object is enabled or not.
+     *
+     * If a disabled dynamic collision object is enabled, it will have its internal state reset and assume the transform
+     * from the transform callback before being being enabled.
+     *
+     * @param world World of the collision object
+     * @param collision_object Collision object to enable/disable
+     * @param enabled true if the object should be enabled, false otherwise
+     */
+    void SetEnabled3D(HWorld3D world, HCollisionObject3D collision_object, bool enabled);
+
+    /**
+     * Set whether the 2D collision object is enabled or not.
+     *
+     * If a disabled dynamic collision object is enabled, it will have its internal state reset and assume the transform
+     * from the transform callback before being being enabled.
+     *
+     * @param world World of the collision object
+     * @param collision_object Collision object to enable/disable
+     * @param enabled true if the object should be enabled, false otherwise
+     */
+    void SetEnabled2D(HWorld2D world, HCollisionObject2D collision_object, bool enabled);
+
+    /**
      * Container of data for ray cast queries.
      */
     struct RayCastRequest

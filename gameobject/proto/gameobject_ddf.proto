@@ -173,6 +173,7 @@ message TransformResponse
  * Attach myself to another instance "my_parent":
  * <pre>
  * msg.post(nil, "set_parent", {parent_id = go.get_id("my_parent")})
+ * </pre>
  * Attach an instance "my_instance" to another instance "my_parent":
  * <pre>
  * msg.post("my_instance", "set_parent", {parent_id = go.get_id("my_parent")})
@@ -186,4 +187,62 @@ message SetParent
 {
     optional uint64 parent_id               = 1 [default = 0];
     optional uint32 keep_world_transform    = 2 [default = 1];
+}
+
+/*# enables the receiving component
+ * <p>
+ * This message enables the receiving component. All components are enabled by default, which means they will receive updates
+ * and be a part of the simulation. A component is disabled when it receives the <code>disable</code> message. For more details
+ * about the effects on each component, see the <it>User Guide</it>.
+ * </p>
+ *
+ * <P>
+ * <b>Note!</b> Not all components support this message yet. Supported components are:
+ * <ul>
+ *   <li>Collection Proxy</li>
+ *   <li>Collision Object</li>
+ *   <li>Gui</li>
+ *   <li>Sprite</li>
+ *   <li>Sprite2</li>
+ * </ul>
+ * </p>
+ *
+ * @message
+ * @name enable
+ * @examples
+ * Enable the component "my_component":
+ * <pre>
+ * msg.post("#my_component", "enable")
+ * </pre>
+ */
+message Enable
+{
+}
+
+/*# disables the receiving component
+ * <p>
+ * This message disables the receiving component. For more information what this actually means, please see the message <code>enable</code>.
+ * </p>
+ *
+ * <P>
+ * <b>Note!</b> Not all components support this message yet. Supported components are:
+ * <ul>
+ *   <li>Collection Proxy</li>
+ *   <li>Collision Object</li>
+ *   <li>Gui</li>
+ *   <li>Sprite</li>
+ *   <li>Sprite2</li>
+ * </ul>
+ * </p>
+ *
+ * @message
+ * @name disable
+ * @examples
+ * Disable the component "my_component":
+ * <pre>
+ * msg.post("#my_component", "disable")
+ * </pre>
+ */
+message Disable
+{
 }

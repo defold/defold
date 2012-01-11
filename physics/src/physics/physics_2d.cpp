@@ -206,7 +206,7 @@ namespace dmPhysics
         {
             for (b2Body* body = world->m_World.GetBodyList(); body; body = body->GetNext())
             {
-                if (body->GetType() == b2_dynamicBody)
+                if (body->GetType() == b2_dynamicBody && body->IsActive())
                 {
                     Vectormath::Aos::Point3 position(body->GetPosition().x, body->GetPosition().y, 0.0f);
                     Vectormath::Aos::Quat rotation = Vectormath::Aos::Quat::rotationZ(body->GetAngle());
@@ -635,6 +635,35 @@ namespace dmPhysics
     {
         float ang_vel = ((b2Body*)collision_object)->GetAngularVelocity();
         return Vectormath::Aos::Vector3(0.0f, 0.0f, ang_vel);
+    }
+
+    bool IsEnabled2D(HCollisionObject2D collision_object)
+    {
+        return ((b2Body*)collision_object)->IsActive();
+    }
+
+    void SetEnabled2D(HWorld2D world, HCollisionObject2D collision_object, bool enabled)
+    {
+        bool prev_enabled = IsEnabled2D(collision_object);
+        // Avoid multiple adds/removes
+        if (prev_enabled == enabled)
+            return;
+        b2Body* body = ((b2Body*)collision_object);
+        if (enabled)
+        {
+            // Reset state
+            body->SetAwake(false);
+            body->SetAwake(true);
+            if (world->m_GetWorldTransformCallback)
+            {
+                Vectormath::Aos::Point3 position;
+                Vectormath::Aos::Quat rotation;
+                (*world->m_GetWorldTransformCallback)(body->GetUserData(), position, rotation);
+                float angle = atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()), 1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ()));
+                body->SetTransform(b2Vec2(position.getX(), position.getY()), angle);
+            }
+        }
+        body->SetActive(enabled);
     }
 
     void RequestRayCast2D(HWorld2D world, const RayCastRequest& request)

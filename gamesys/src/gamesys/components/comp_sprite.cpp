@@ -13,6 +13,7 @@
 #include <dlib/math.h>
 #include <graphics/graphics.h>
 #include <render/render.h>
+#include <gameobject/gameobject_ddf.h>
 
 #include "../resources/res_sprite.h"
 #include "../gamesys.h"
@@ -325,11 +326,11 @@ namespace dmGameSystem
     dmGameObject::UpdateResult CompSpriteOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
         Component* component = (Component*)*params.m_UserData;
-        if (params.m_Message->m_Id == dmHashString64("enable"))
+        if (params.m_Message->m_Id == dmHashString64(dmGameObjectDDF::Enable::m_DDFDescriptor->m_Name))
         {
             component->m_Enabled = 1;
         }
-        else if (params.m_Message->m_Id == dmHashString64("disable"))
+        else if (params.m_Message->m_Id == dmHashString64(dmGameObjectDDF::Disable::m_DDFDescriptor->m_Name))
         {
             component->m_Enabled = 0;
         }

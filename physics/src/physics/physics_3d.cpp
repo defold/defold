@@ -197,9 +197,10 @@ namespace dmPhysics
         {
             DM_PROFILE(Physics, "UpdateTriggers");
             int collision_object_count = world->m_DynamicsWorld->getNumCollisionObjects();
+            btCollisionObjectArray& collision_objects = world->m_DynamicsWorld->getCollisionObjectArray();
             for (int i = 0; i < collision_object_count; ++i)
             {
-                btCollisionObject* collision_object = world->m_DynamicsWorld->getCollisionObjectArray()[i];
+                btCollisionObject* collision_object = collision_objects[i];
                 if (collision_object->getInternalType() == btCollisionObject::CO_GHOST_OBJECT)
                 {
                     Vectormath::Aos::Point3 position;
@@ -256,13 +257,14 @@ namespace dmPhysics
 
         CollisionCallback collision_callback = context.m_CollisionCallback;
         ContactPointCallback contact_point_callback = context.m_ContactPointCallback;
+        btDispatcher* dispatcher = world->m_DynamicsWorld->getDispatcher();
         if (collision_callback != 0x0 || contact_point_callback != 0x0)
         {
             DM_PROFILE(Physics, "CollisionCallbacks");
-            int num_manifolds = world->m_DynamicsWorld->getDispatcher()->getNumManifolds();
+            int num_manifolds = dispatcher->getNumManifolds();
             for (int i = 0; i < num_manifolds; ++i)
             {
-                btPersistentManifold* contact_manifold = world->m_DynamicsWorld->getDispatcher()->getManifoldByIndexInternal(i);
+                btPersistentManifold* contact_manifold = dispatcher->getManifoldByIndexInternal(i);
                 btCollisionObject* object_a = static_cast<btCollisionObject*>(contact_manifold->getBody0());
                 btCollisionObject* object_b = static_cast<btCollisionObject*>(contact_manifold->getBody1());
 
@@ -324,9 +326,10 @@ namespace dmPhysics
             if (collision_callback != 0x0 && requests_collision_callbacks)
             {
                 int num_collision_objects = world->m_DynamicsWorld->getNumCollisionObjects();
+                btCollisionObjectArray& collision_objects = world->m_DynamicsWorld->getCollisionObjectArray();
                 for (int i = 0; i < num_collision_objects; ++i)
                 {
-                    btCollisionObject* collision_object = world->m_DynamicsWorld->getCollisionObjectArray()[i];
+                    btCollisionObject* collision_object = collision_objects[i];
                     btGhostObject* ghost_object = btGhostObject::upcast(collision_object);
                     if (ghost_object != 0x0)
                     {
@@ -589,6 +592,41 @@ namespace dmPhysics
             angular_velocity = Vectormath::Aos::Vector3(v.getX(), v.getY(), v.getZ());
         }
         return angular_velocity;
+    }
+
+    bool IsEnabled3D(HCollisionObject3D collision_object)
+    {
+        btRigidBody* body = btRigidBody::upcast((btCollisionObject*)collision_object);
+        return body->isInWorld();
+    }
+
+    void SetEnabled3D(HWorld3D world, HCollisionObject3D collision_object, bool enabled)
+    {
+        bool prev_enabled = IsEnabled3D(collision_object);
+        // avoid multiple adds/removes
+        if (prev_enabled == enabled)
+            return;
+        btRigidBody* body = btRigidBody::upcast((btCollisionObject*)collision_object);
+        if (enabled)
+        {
+            // Reset state
+            body->clearForces();
+            body->setLinearVelocity(btVector3(0.0f, 0.0f, 0.0f));
+            body->setAngularVelocity(btVector3(0.0f, 0.0f, 0.0f));
+            if (world->m_GetWorldTransform != 0x0)
+            {
+                Vectormath::Aos::Point3 position;
+                Vectormath::Aos::Quat rotation;
+                world->m_GetWorldTransform(body->getUserPointer(), position, rotation);
+                btTransform world_transform(btQuaternion(rotation.getX(), rotation.getY(), rotation.getZ(), rotation.getW()), btVector3(position.getX(), position.getY(), position.getZ()));
+                body->setWorldTransform(world_transform);
+            }
+            world->m_DynamicsWorld->addRigidBody(body);
+        }
+        else
+        {
+            world->m_DynamicsWorld->removeRigidBody(body);
+        }
     }
 
     void RequestRayCast3D(HWorld3D world, const RayCastRequest& request)
