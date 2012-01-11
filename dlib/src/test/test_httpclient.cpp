@@ -4,6 +4,7 @@
 #include <string>
 #include <gtest/gtest.h>
 #include "dlib/time.h"
+#include "dlib/log.h"
 #include "dlib/uri.h"
 #include "dlib/http_client.h"
 #include "dlib/http_client_private.h"
@@ -520,7 +521,8 @@ TEST_F(dmHttpClientTestCache, DirectFromCache)
 
     dmHttpClient::Statistics stats;
     dmHttpClient::GetStatistics(m_Client, &stats);
-    ASSERT_EQ(100U, stats.m_Responses);
+    // NOTE: m_Responses is increased for every request. Therefore we must compensate for potential re-connections
+    ASSERT_EQ(100U, stats.m_Responses - stats.m_Reconnections);
     ASSERT_EQ(96U, stats.m_CachedResponses);
     ASSERT_EQ(0U, stats.m_DirectFromCache);
 
@@ -528,6 +530,7 @@ TEST_F(dmHttpClientTestCache, DirectFromCache)
     dmHttpCache::SetConsistencyPolicy(params.m_HttpCache, dmHttpCache::CONSISTENCY_POLICY_TRUST_CACHE);
     GetFiles(true);
     dmHttpClient::GetStatistics(m_Client, &stats);
+    // NOTE: We don't need to compensate for reconnections as above. Everything in cache should be verified at this point.
     ASSERT_EQ(100U, stats.m_Responses);
     ASSERT_EQ(96U, stats.m_CachedResponses);
     ASSERT_EQ(100U, stats.m_DirectFromCache);
@@ -561,7 +564,8 @@ TEST_F(dmHttpClientTestCache, TrustCacheNoValidate)
     dmHttpClient::GetStatistics(m_Client, &stats);
 
     // Four non-cached and four cached
-    ASSERT_EQ(8U, stats.m_Responses);
+    // NOTE: m_Responses is increased for every request. Therefore we must compensate for potential re-connections
+    ASSERT_EQ(8U, stats.m_Responses - stats.m_Reconnections);
     // Four cached responses
     ASSERT_EQ(4U, stats.m_CachedResponses);
     // Rest are loaded directly from the cache
@@ -674,6 +678,7 @@ TEST(dmHttpClient, ConnectionRefused)
 
 int main(int argc, char **argv)
 {
+    dmLogSetlevel(DM_LOG_SEVERITY_INFO);
     dmSocket::Initialize();
     testing::InitGoogleTest(&argc, argv);
     int ret = RUN_ALL_TESTS();

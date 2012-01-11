@@ -116,11 +116,14 @@ namespace dmHttpClient
     struct Statistics
     {
         /// Number of responses. This includes all responses, even for retries for idempotent requests.
+        // TODO: Rename to m_Requests? Perhaps more appropriate?
         uint32_t m_Responses;
         /// Number of cached responses. This includes all cached responses, even for retries for idempotent requests.
         uint32_t m_CachedResponses;
         /// Number of direct cached verified, ie data taken directly from cache without validation request
         uint32_t m_DirectFromCache;
+        /// Number of reconnections as a result of connection lost
+        uint32_t m_Reconnections;
     };
 
     /**

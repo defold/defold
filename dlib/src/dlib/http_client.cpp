@@ -765,6 +765,7 @@ bail:
                (r == RESULT_SOCKET_ERROR && (client->m_SocketResult == dmSocket::RESULT_CONNRESET || client->m_SocketResult == dmSocket::RESULT_PIPE)))
             {
                 // Try again
+                client->m_Statistics.m_Reconnections++;
                 dmLogInfo("HTTPCLIENT: Connection lost, reconnecting.");
             }
             else
