@@ -646,7 +646,8 @@ TEST_F(dmHttpClientTestCache, BatchValidateCache)
     GetFiles(false);
     dmHttpClient::GetStatistics(m_Client, &stats);
     // Zero responses, all direct from cache
-    ASSERT_EQ(100U, stats.m_Responses);
+    // NOTE: m_Responses is increased for every request. Therefore we must compensate for potential re-connections
+    ASSERT_EQ(100U, stats.m_Responses - stats.m_Reconnections);
     // Zero cached responses, all direct from cache
     ASSERT_EQ(99U, stats.m_CachedResponses);
     // All are loaded directly from the cache
