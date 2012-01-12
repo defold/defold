@@ -282,8 +282,8 @@ public class TestHttpServer extends AbstractHandler
             server.setHandler(handlerList);
 
             server.start();
-            Thread.sleep(1000 * 300);
-            System.out.println("ERROR: HTTP server wasn't terminated by the tests after 300 seconds. Quiting...");
+            Thread.sleep(1000 * 400);
+            System.out.println("ERROR: HTTP server wasn't terminated by the tests after 400 seconds. Quiting...");
             System.exit(1);
         }
         catch (Throwable e)
