@@ -353,6 +353,16 @@ public class RefactorTest {
     }
 
     @Test
+    public void testTileGridForCollisionObject() throws CoreException, IOException {
+        testRenameAndDelete(PrototypeDesc.newBuilder(), "logic/tilegrid_collision.go", "/tilegrid/test.collisionobject", new ReferenceFetcher<PrototypeDesc>() {
+            @Override
+            public String[] getReferences(PrototypeDesc desc) {
+                return new String[] { desc.getComponents(0).getComponent() };
+            }
+        });
+    }
+
+    @Test
     public void testCollisionObjectForGO() throws CoreException, IOException {
         testRenameAndDelete(PrototypeDesc.newBuilder(), "logic/session/paddle.go", "/logic/session/paddle.collisionobject", new ReferenceFetcher<PrototypeDesc>() {
             @Override
@@ -452,6 +462,23 @@ public class RefactorTest {
     @Test
     public void testConvexShapeForEmbeddedCollisionObject() throws CoreException, IOException {
         testRenameAndDelete(PrototypeDesc.newBuilder(), "logic/session/block.go", "/logic/session/block.convexshape", new ReferenceFetcher<PrototypeDesc>() {
+            @Override
+            public String[] getReferences(PrototypeDesc desc) {
+                CollisionObjectDesc.Builder builder = CollisionObjectDesc.newBuilder();
+                try {
+                    TextFormat.merge(desc.getEmbeddedComponents(0).getData(), builder);
+                    CollisionObjectDesc collisionObjectDesc = builder.build();
+                    return new String[] { collisionObjectDesc.getCollisionShape() };
+                } catch (ParseException e) {
+                    return new String[] {};
+                }
+            }
+        });
+    }
+
+    @Test
+    public void testTileGridForEmbeddedCollisionObject() throws CoreException, IOException {
+        testRenameAndDelete(PrototypeDesc.newBuilder(), "logic/tilegrid_embedded_collision.go", "/tilegrid/test.tilegrid", new ReferenceFetcher<PrototypeDesc>() {
             @Override
             public String[] getReferences(PrototypeDesc desc) {
                 CollisionObjectDesc.Builder builder = CollisionObjectDesc.newBuilder();
