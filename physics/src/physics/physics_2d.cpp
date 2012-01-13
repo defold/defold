@@ -200,6 +200,8 @@ namespace dmPhysics
                     (*world->m_GetWorldTransformCallback)(body->GetUserData(), position, rotation);
                     float angle = atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()), 1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ()));
                     body->SetTransform(b2Vec2(position.getX(), position.getY()), angle);
+                    position = GetWorldPosition2D(body);
+                    rotation = GetWorldRotation2D(body);
                     if ((distSqr(old_position, position) > EPSILON || lengthSqr(Vectormath::Aos::Vector4(rotation - old_rotation)) > EPSILON))
                     {
                         body->SetSleepingAllowed(false);
