@@ -309,8 +309,8 @@ namespace dmGameSystem
                 break;
 
                 case dmGui::BLEND_MODE_ADD_ALPHA:
-                    ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
-                    ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_SRC_ALPHA;
+                    ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_SRC_ALPHA;
+                    ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
                 break;
 
                 case dmGui::BLEND_MODE_MULT:
