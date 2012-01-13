@@ -98,6 +98,7 @@ Test3D::Test3D()
 , m_GetAngularVelocityFunc(dmPhysics::GetAngularVelocity3D)
 , m_IsEnabledFunc(dmPhysics::IsEnabled3D)
 , m_SetEnabledFunc(dmPhysics::SetEnabled3D)
+, m_IsSleepingFunc(dmPhysics::IsSleeping3D)
 , m_RequestRayCastFunc(dmPhysics::RequestRayCast3D)
 , m_SetDebugCallbacksFunc(dmPhysics::SetDebugCallbacks3D)
 , m_ReplaceShapeFunc(dmPhysics::ReplaceShape3D)
@@ -143,6 +144,7 @@ Test2D::Test2D()
 , m_GetAngularVelocityFunc(dmPhysics::GetAngularVelocity2D)
 , m_IsEnabledFunc(dmPhysics::IsEnabled2D)
 , m_SetEnabledFunc(dmPhysics::SetEnabled2D)
+, m_IsSleepingFunc(dmPhysics::IsSleeping2D)
 , m_RequestRayCastFunc(dmPhysics::RequestRayCast2D)
 , m_SetDebugCallbacksFunc(dmPhysics::SetDebugCallbacks2D)
 , m_ReplaceShapeFunc(dmPhysics::ReplaceShape2D)
@@ -1338,6 +1340,39 @@ TYPED_TEST(PhysicsTest, SphereBoxDistance)
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, box_co_b);
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_a);
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_b);
+}
+
+TYPED_TEST(PhysicsTest, KinematicSleep)
+{
+    float box_half_ext = 0.5f;
+
+    VisualObject box0_vo;
+    box0_vo.m_Position = Point3(0, 5.0f, 0);
+    dmPhysics::CollisionObjectData box0_data;
+    box0_data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
+    box0_data.m_Mass = 0.0f;
+    typename TypeParam::CollisionShapeType box0_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    box0_data.m_UserData = &box0_vo;
+    typename TypeParam::CollisionObjectType box0_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, box0_data, &box0_shape, 1u);
+
+    ASSERT_FALSE((*TestFixture::m_Test.m_IsSleepingFunc)(box0_co));
+
+    const float sleep_time = 2.1f; // 2 in bullet, 0.5 in box
+    int steps = (int)(sleep_time / TestFixture::m_StepWorldContext.m_DT);
+    for (int i = 0; i < steps; ++i)
+    {
+        (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+    }
+
+    ASSERT_TRUE((*TestFixture::m_Test.m_IsSleepingFunc)(box0_co));
+
+    box0_vo.m_Position += Vector3(0.1f, 0.0f, 0.0f);
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+
+    ASSERT_FALSE((*TestFixture::m_Test.m_IsSleepingFunc)(box0_co));
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, box0_co);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(box0_shape);
 }
 
 int main(int argc, char **argv)

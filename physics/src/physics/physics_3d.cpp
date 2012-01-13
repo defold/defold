@@ -13,6 +13,8 @@ namespace dmPhysics
 {
     using namespace Vectormath::Aos;
 
+    const float EPSILON = 0.000001f;
+
     class MotionState : public btMotionState
     {
     public:
@@ -201,13 +203,19 @@ namespace dmPhysics
             for (int i = 0; i < collision_object_count; ++i)
             {
                 btCollisionObject* collision_object = collision_objects[i];
-                if (collision_object->getInternalType() == btCollisionObject::CO_GHOST_OBJECT)
+                if (collision_object->getInternalType() == btCollisionObject::CO_GHOST_OBJECT || collision_object->isKinematicObject())
                 {
+                    Point3 old_position = GetWorldPosition3D(collision_object);
+                    Quat old_rotation = GetWorldRotation3D(collision_object);
                     Vectormath::Aos::Point3 position;
                     Vectormath::Aos::Quat rotation;
                     world->m_GetWorldTransform(collision_object->getUserPointer(), position, rotation);
                     btTransform world_transform(btQuaternion(rotation.getX(), rotation.getY(), rotation.getZ(), rotation.getW()), btVector3(position.getX(), position.getY(), position.getZ()));
                     collision_object->setWorldTransform(world_transform);
+                    if ((distSqr(old_position, position) > EPSILON || lengthSqr(Vector4(rotation - old_rotation)) > EPSILON))
+                    {
+                        collision_object->activate(true);
+                    }
                 }
             }
         }
@@ -442,11 +450,11 @@ namespace dmPhysics
             switch (data.m_Type)
             {
             case COLLISION_OBJECT_TYPE_KINEMATIC:
-                body->setCollisionFlags(body->getCollisionFlags() | btCollisionObject::CF_KINEMATIC_OBJECT);
-                body->setActivationState(DISABLE_DEACTIVATION);
+                // bodies are constructed as static by default in bullet so clear that flag (btCollisionObject.cpp:28)
+                body->setCollisionFlags(btCollisionObject::CF_KINEMATIC_OBJECT);
                 break;
             case COLLISION_OBJECT_TYPE_STATIC:
-                body->setCollisionFlags(body->getCollisionFlags() | btCollisionObject::CF_STATIC_OBJECT);
+                body->setCollisionFlags(btCollisionObject::CF_STATIC_OBJECT);
                 break;
             default:
                 break;
@@ -627,6 +635,12 @@ namespace dmPhysics
         {
             world->m_DynamicsWorld->removeRigidBody(body);
         }
+    }
+
+    bool IsSleeping3D(HCollisionObject3D collision_object)
+    {
+        btRigidBody* body = btRigidBody::upcast((btCollisionObject*)collision_object);
+        return body->getActivationState() == ISLAND_SLEEPING;
     }
 
     void RequestRayCast3D(HWorld3D world, const RayCastRequest& request)

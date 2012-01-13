@@ -717,6 +717,8 @@ namespace dmPhysics
      */
     void SetEnabled2D(HWorld2D world, HCollisionObject2D collision_object, bool enabled);
 
+    bool IsSleeping3D(HCollisionObject3D collision_object);
+    bool IsSleeping2D(HCollisionObject3D collision_object);
     /**
      * Container of data for ray cast queries.
      */

@@ -1206,17 +1206,21 @@ void b2World::DrawDebugData()
 				{
 					DrawShape(f, xf, b2Color(0.5f, 0.9f, 0.5f));
 				}
-				else if (b->GetType() == b2_kinematicBody)
-				{
-					DrawShape(f, xf, b2Color(0.5f, 0.5f, 0.9f));
-				}
+				// Defold modification: sleeping kinematics should also be visualized
 				else if (b->IsAwake() == false)
 				{
 					DrawShape(f, xf, b2Color(0.6f, 0.6f, 0.6f));
 				}
 				else
 				{
-					DrawShape(f, xf, b2Color(0.9f, 0.7f, 0.7f));
+                    if (b->GetType() == b2_kinematicBody)
+                    {
+                        DrawShape(f, xf, b2Color(0.5f, 0.5f, 0.9f));
+                    }
+                    else
+                    {
+                        DrawShape(f, xf, b2Color(0.9f, 0.7f, 0.7f));
+                    }
 				}
 			}
 		}

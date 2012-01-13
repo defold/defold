@@ -10,6 +10,8 @@
 
 namespace dmPhysics
 {
+    const float EPSILON = 0.000001f;
+
     Context2D::Context2D()
     : m_Worlds()
     , m_DebugCallbacks()
@@ -191,11 +193,17 @@ namespace dmPhysics
             {
                 if (body->GetType() == b2_kinematicBody)
                 {
+                    Vectormath::Aos::Point3 old_position = GetWorldPosition2D(body);
+                    Vectormath::Aos::Quat old_rotation = GetWorldRotation2D(body);
                     Vectormath::Aos::Point3 position;
                     Vectormath::Aos::Quat rotation;
                     (*world->m_GetWorldTransformCallback)(body->GetUserData(), position, rotation);
                     float angle = atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()), 1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ()));
                     body->SetTransform(b2Vec2(position.getX(), position.getY()), angle);
+                    if ((distSqr(old_position, position) > EPSILON || lengthSqr(Vectormath::Aos::Vector4(rotation - old_rotation)) > EPSILON))
+                    {
+                        body->SetAwake(true);
+                    }
                 }
             }
         }
@@ -664,6 +672,12 @@ namespace dmPhysics
             }
         }
         body->SetActive(enabled);
+    }
+
+    bool IsSleeping2D(HCollisionObject2D collision_object)
+    {
+        b2Body* body = ((b2Body*)collision_object);
+        return !body->IsAwake();
     }
 
     void RequestRayCast2D(HWorld2D world, const RayCastRequest& request)
