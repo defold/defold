@@ -24,7 +24,12 @@ public class CollisionLoader implements IResourceLoader {
         Builder builder = CollisionObjectDesc.newBuilder();
         TextFormat.merge(reader, builder);
         CollisionObjectDesc desc = builder.build();
-        Resource shapeResource = factory.load(new SubProgressMonitor(monitor, 1), desc.getCollisionShape());
+        Resource shapeResource = null;
+        if (!desc.getCollisionShape().isEmpty()) {
+            shapeResource = factory.load(new SubProgressMonitor(monitor, 1), desc.getCollisionShape());
+        } else {
+            shapeResource = new CollisionShapeResource("embedded", desc.getEmbeddedCollisionShape());
+        }
         return new CollisionResource(name, desc, shapeResource);
     }
 
