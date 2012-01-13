@@ -202,7 +202,11 @@ namespace dmPhysics
                     body->SetTransform(b2Vec2(position.getX(), position.getY()), angle);
                     if ((distSqr(old_position, position) > EPSILON || lengthSqr(Vectormath::Aos::Vector4(rotation - old_rotation)) > EPSILON))
                     {
-                        body->SetAwake(true);
+                        body->SetSleepingAllowed(false);
+                    }
+                    else
+                    {
+                        body->SetSleepingAllowed(true);
                     }
                 }
             }
