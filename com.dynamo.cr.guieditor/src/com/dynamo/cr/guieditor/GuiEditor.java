@@ -451,7 +451,7 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
 
                 gl.glMatrixMode(GL.GL_MODELVIEW);
                 gl.glLoadIdentity();
-                gl.glClearColor(0.0f, 0.0f, 0.0f, 1);
+                gl.glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
                 gl.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT);
 
                 doDraw(gl);

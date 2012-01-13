@@ -365,6 +365,9 @@
             <reference-resource-type
                   resource-type="com.dynamo.cr.ddfeditor.resourcetypes.ConvexShape">
             </reference-resource-type>
+            <reference-resource-type
+                  resource-type="com.dynamo.cr.tileeditor.resourcetypes.TileGrid">
+            </reference-resource-type>
          </references>
       </resource-type>
       <resource-type
