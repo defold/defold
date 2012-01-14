@@ -109,7 +109,7 @@ namespace dmScript
         }
     }
 
-    /** gets the save-file path
+    /*# gets the save-file path
      * The save-file path is operating system specific and is typically located under the users home directory.
      *
      * @name sys.get_save_file
