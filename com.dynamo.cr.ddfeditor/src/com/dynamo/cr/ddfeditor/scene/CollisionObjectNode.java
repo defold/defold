@@ -1,9 +1,10 @@
 package com.dynamo.cr.ddfeditor.scene;
 
 import org.eclipse.core.resources.IFile;
+import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Status;
 
 import com.dynamo.cr.go.core.ComponentTypeNode;
-import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Resource;
 import com.dynamo.cr.sceneed.core.ISceneModel;
@@ -14,7 +15,6 @@ public class CollisionObjectNode extends ComponentTypeNode {
 
     @Property(isResource=true)
     @Resource
-    @NotEmpty
     private String collisionShape = "";
     @Property private CollisionObjectType type = CollisionObjectType.COLLISION_OBJECT_TYPE_DYNAMIC;
     @Property private float mass;
@@ -26,6 +26,14 @@ public class CollisionObjectNode extends ComponentTypeNode {
 
     public CollisionObjectNode() {
         super();
+    }
+
+    protected IStatus validateCollisionShape() {
+        if (getChildren().size() == 0 && collisionShape.length() == 0) {
+            return new Status(IStatus.ERROR, "com.dynamo", "No shapes or collision file.");
+        } else {
+            return Status.OK_STATUS;
+        }
     }
 
     @Override
