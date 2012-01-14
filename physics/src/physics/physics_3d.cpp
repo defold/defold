@@ -13,8 +13,6 @@ namespace dmPhysics
 {
     using namespace Vectormath::Aos;
 
-    const float EPSILON = 0.000001f;
-
     class MotionState : public btMotionState
     {
     public:
@@ -212,7 +210,7 @@ namespace dmPhysics
                     world->m_GetWorldTransform(collision_object->getUserPointer(), position, rotation);
                     btTransform world_transform(btQuaternion(rotation.getX(), rotation.getY(), rotation.getZ(), rotation.getW()), btVector3(position.getX(), position.getY(), position.getZ()));
                     collision_object->setWorldTransform(world_transform);
-                    if ((distSqr(old_position, position) > EPSILON || lengthSqr(Vector4(rotation - old_rotation)) > EPSILON))
+                    if ((distSqr(old_position, position) > 0.0f || lengthSqr(Vector4(rotation - old_rotation)) > 0.0f))
                     {
                         collision_object->activate(true);
                     }
