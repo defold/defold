@@ -103,19 +103,24 @@ public class CollectionNode extends Node implements IResourceListener {
                 for (int i = 0; i < desc.getInstancesCount(); ++i) {
                     InstanceDesc instanceDesc = desc.getInstances(i);
                     PrototypeResource subResource = resource.getPrototypeInstances().get(i);
-                    Node prototype;
-                    try {
-                        prototype = factory.create(subResource.getPath(), subResource, null, getScene());
-                    } catch (IOException e) {
-                        prototype = new PrototypeNode(subResource.getPath(), subResource, getScene(), factory);
-                        prototype.setError(Node.ERROR_FLAG_RESOURCE_ERROR, e.getMessage());
-                        factory.reportError(e.getMessage());
+                    Node prototype = null;
+                    if (subResource != null) {
+                        try {
+                            prototype = factory.create(subResource.getPath(), subResource, null, getScene());
+                        } catch (IOException e) {
+                            prototype = new PrototypeNode(subResource.getPath(), subResource, getScene(), factory);
+                            prototype.setError(Node.ERROR_FLAG_RESOURCE_ERROR, e.getMessage());
+                            factory.reportError(e.getMessage());
+                        }
                     }
 
                     InstanceNode in = new InstanceNode(instanceDesc.getId(), getScene(), instanceDesc.getPrototype(), prototype);
                     idToNode.put(instanceDesc.getId(), in);
                     in.setLocalTranslation(MathUtil.toVector4(instanceDesc.getPosition()));
                     in.setLocalRotation(MathUtil.toQuat4(instanceDesc.getRotation()));
+                    if (prototype == null) {
+                        in.setError(Node.ERROR_FLAG_RESOURCE_ERROR, "There is no game object prototype connected to this instance.");
+                    }
                     addNode(in);
                 }
 
