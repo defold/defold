@@ -79,39 +79,36 @@ public class CollisionNode extends ComponentNode<CollisionResource> {
                 for (int i = 0; i < n; ++i)
                 {
                     Shape s = shape.getShapes(i);
-                    Matrix4d t = getShapeTransform(s);
+                    Transform t = new Transform(getShapeTransform(s));
+                    AABB aabb = new AABB();
                     switch (s.getShapeType()) {
                     case TYPE_BOX:
                         float w_e = shape.getData(s.getIndex());
                         float h_e = shape.getData(s.getIndex()+1);
                         float d_e = shape.getData(s.getIndex()+2);
-                        Vector3d e = new Vector3d(w_e, h_e, d_e);
-                        Vector3d ne = new Vector3d(e);
-                        ne.negate();
-                        t.transform(e);
-                        t.transform(ne);
-                        m_AABB.union((float)e.getX(), (float)e.getY(), (float)e.getZ());
-                        m_AABB.union((float)ne.getX(), (float)ne.getY(), (float)ne.getZ());
+                        aabb.setIdentity();
+                        aabb.union(w_e, h_e, d_e);
+                        aabb.union(-w_e, -h_e, -d_e);
+                        aabb.transform(t);
+                        m_AABB.union(aabb);
                         break;
                     case TYPE_SPHERE:
                         float r = shape.getData(s.getIndex());
-                        e = new Vector3d(r, r, r);
-                        ne = new Vector3d(e);
-                        ne.negate();
-                        t.transform(e);
-                        t.transform(ne);
-                        m_AABB.union((float)e.getX(), (float)e.getY(), (float)e.getZ());
-                        m_AABB.union((float)ne.getX(), (float)ne.getY(), (float)ne.getZ());
+                        aabb.setIdentity();
+                        aabb.union(r, r, r);
+                        aabb.union(-r, -r, -r);
+                        aabb.transform(t);
+                        m_AABB.union(aabb);
                         break;
                     case TYPE_CAPSULE:
                         r = shape.getData(s.getIndex());
                         float h = shape.getData(s.getIndex()+1);
-                        AABB aabb = new AABB();
+                        aabb.setIdentity();
                         aabb.union(0, h, 0);
                         aabb.union(0, -h, 0);
                         aabb.union(r, 0, r);
                         aabb.union(-r, 0, -r);
-                        aabb.transform(new Transform(t));
+                        aabb.transform(t);
                         m_AABB.union(aabb);
                     default:
                         setError(ERROR_FLAG_RESOURCE_ERROR, "Unsupported shape type: " + s.getShapeType());
@@ -167,7 +164,7 @@ public class CollisionNode extends ComponentNode<CollisionResource> {
                 Shape s = shape.getShapes(i);
                 Matrix4d m = getShapeTransform(s);
                 gl.glPushMatrix();
-                gl.glLoadMatrixd(toGLMatrixArray(m), 0);
+                GLUtil.multMatrix(gl, m);
                 switch (s.getShapeType()) {
                 case TYPE_BOX:
                     float w_e = shape.getData(0);
@@ -187,7 +184,7 @@ public class CollisionNode extends ComponentNode<CollisionResource> {
                 }
                 gl.glPopMatrix();
             }
-    } else if (collisionShapeResource instanceof TileGridResource) {
+        } else if (collisionShapeResource instanceof TileGridResource) {
             // TODO Render hulls
         }
 
@@ -266,37 +263,6 @@ public class CollisionNode extends ComponentNode<CollisionResource> {
             gl.glColor4fv(Constants.CONVEX_SHAPE_COLOR, 0);
             GLUtil.drawCapsule(gl, glu, r, h, slices, stacks);
         }
-    }
-
-    private static double[] toGLMatrixArray(Matrix4d in)
-    {
-        Matrix4d m = new Matrix4d();
-        m.set(in);
-        m.transpose();
-
-        double[] ret = new double[16];
-        int i = 0;
-        ret[i++] = m.m00;
-        ret[i++] = m.m01;
-        ret[i++] = m.m02;
-        ret[i++] = m.m03;
-
-        ret[i++] = m.m10;
-        ret[i++] = m.m11;
-        ret[i++] = m.m12;
-        ret[i++] = m.m13;
-
-        ret[i++] = m.m20;
-        ret[i++] = m.m21;
-        ret[i++] = m.m22;
-        ret[i++] = m.m23;
-
-        ret[i++] = m.m30;
-        ret[i++] = m.m31;
-        ret[i++] = m.m32;
-        ret[i++] = m.m33;
-
-        return ret;
     }
 
     @Override
