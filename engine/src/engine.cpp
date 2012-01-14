@@ -258,8 +258,8 @@ namespace dmEngine
         DM_PROFILE(Engine, "Init");
 
         dmGraphics::ContextParams graphics_context_params;
-        graphics_context_params.m_DefaultTextureMinFilter = ConvertTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_min_filter", "nearest"));
-        graphics_context_params.m_DefaultTextureMagFilter = ConvertTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_mag_filter", "nearest"));
+        graphics_context_params.m_DefaultTextureMinFilter = ConvertTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_min_filter", "linear"));
+        graphics_context_params.m_DefaultTextureMagFilter = ConvertTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_mag_filter", "linear"));
         engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
         if (engine->m_GraphicsContext == 0x0)
         {
@@ -391,6 +391,7 @@ namespace dmEngine
 
         engine->m_SpriteContext.m_RenderContext = engine->m_RenderContext;
         engine->m_SpriteContext.m_MaxSpriteCount = dmConfigFile::GetInt(engine->m_Config, "sprite.max_count", 128);
+        engine->m_SpriteContext.m_Subpixels = dmConfigFile::GetInt(engine->m_Config, "sprite.subpixels", 0);
 
         dmResource::FactoryResult fact_result;
         dmGameObject::Result res;

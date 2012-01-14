@@ -180,20 +180,6 @@ namespace dmGameSystem
         dmRender::HRenderContext render_context = sprite_context->m_RenderContext;
         SpriteWorld2* sprite_world = (SpriteWorld2*)params.m_World;
 
-        Point3 positions[] =
-        {
-            Point3(-0.5f, -0.5f, 0.0f),
-            Point3(-0.5f, 0.5f, 0.0f),
-            Point3(0.5f, -0.5f, 0.0f),
-            Point3(0.5f, 0.5f, 0.0f),
-        };
-        float uvs[][2] =
-        {
-            {0.0f, 1.0f},
-            {0.0f, 0.0f},
-            {1.0f, 1.0f},
-            {1.0f, 0.0f}
-        };
         struct Vertex
         {
             float x;
@@ -228,6 +214,13 @@ namespace dmGameSystem
                 Matrix4 world = Matrix4::rotation(dmGameObject::GetWorldRotation(component->m_Instance));
                 world *= Matrix4::scale(Vector3(tile_set_ddf->m_TileWidth, tile_set_ddf->m_TileHeight, 1.0f));
                 Point3 position = dmGameObject::GetWorldPosition(component->m_Instance);
+                if (!sprite_context->m_Subpixels)
+                {
+                    position.setX((int) position.getX());
+                    position.setY((int) position.getY());
+                    position.setZ((int) position.getZ());
+                }
+
                 world.setCol3(Vector4(position));
 
                 // Render object
@@ -248,23 +241,42 @@ namespace dmGameSystem
 
                 uint16_t texture_width = dmGraphics::GetTextureWidth(texture);
                 uint16_t texture_height = dmGraphics::GetTextureHeight(texture);
-                float tile_uv_width = tile_set_ddf->m_TileWidth / (float)texture_width;
-                float tile_uv_height = tile_set_ddf->m_TileHeight / (float)texture_height;
+                float texture_width_recip = 1.0f / texture_width;
+                float texture_height_recip = 1.0f / texture_height;
                 uint32_t tiles_per_row = CalculateTileCount(tile_set_ddf->m_TileWidth, texture_width, tile_set_ddf->m_TileMargin, tile_set_ddf->m_TileSpacing);
                 uint32_t tiles_per_column = CalculateTileCount(tile_set_ddf->m_TileHeight, texture_height, tile_set_ddf->m_TileMargin, tile_set_ddf->m_TileSpacing);
                 uint32_t tile_count = tiles_per_row * tiles_per_column;
                 uint16_t tile_x = component->m_CurrentTile % tiles_per_row;
                 uint16_t tile_y = component->m_CurrentTile / tiles_per_row;
-                Vertex* v = (Vertex*)vertex_buffer + vertex_index;
-                for (uint32_t j = 0; j < 4; ++j)
-                {
-                    Point3 position = positions[j];
-                    v[j].x = position.getX();
-                    v[j].y = position.getY();
-                    v[j].z = position.getZ();
-                    v[j].u = (uvs[j][0] + tile_x) * tile_uv_width;
-                    v[j].v = (uvs[j][1] + tile_y) * tile_uv_height;
-                }
+                Vertex *v = (Vertex*)((vertex_buffer)) + vertex_index;
+
+                float tile_width = tile_set_ddf->m_TileWidth;
+                float tile_height = tile_set_ddf->m_TileHeight;
+
+                v[0].x = -0.5f;
+                v[0].y = -0.5f;
+                v[0].z = 0.0f;
+                v[0].u = (tile_x * tile_width) * texture_width_recip;
+                v[0].v = ((tile_y + 1) * tile_height) * texture_height_recip;
+
+                v[1].x = -0.5f;
+                v[1].y = 0.5f;
+                v[1].z = 0.0f;
+                v[1].u = (tile_x * tile_width) * texture_width_recip;
+                v[1].v = (tile_y * tile_height) * texture_height_recip;
+
+                v[2].x = 0.5f;
+                v[2].y = -0.5f;
+                v[2].z = 0.0f;
+                v[2].u = ((tile_x + 1) * tile_width) * texture_width_recip;
+                v[2].v = ((tile_y + 1) * tile_height) * texture_height_recip;
+
+                v[3].x = 0.5f;
+                v[3].y = 0.5f;
+                v[3].z = 0.0f;
+                v[3].u = ((tile_x + 1) * tile_width) * texture_width_recip;
+                v[3].v = (tile_y * tile_height) * texture_height_recip;
+
                 vertex_index += 4;
 
                 int16_t start_tile = (int16_t)animation_ddf->m_StartTile - 1;
