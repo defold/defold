@@ -55,8 +55,13 @@ namespace dmGameSystem
 
     struct SpriteContext
     {
+        SpriteContext()
+        {
+            memset(this, 0, sizeof(*this));
+        }
         dmRender::HRenderContext    m_RenderContext;
         uint32_t                    m_MaxSpriteCount;
+        uint32_t                    m_Subpixels : 1;
     };
 
     struct ScriptLibContext

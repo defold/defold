@@ -33,6 +33,18 @@ namespace dmGameSystem
                 break;
             }
         }
+        if (!found)
+        {
+            if (resource->m_DDF->m_DefaultAnimation == 0 || resource->m_DDF->m_DefaultAnimation[0] == '\0')
+            {
+                dmLogError("No default animation specified");
+            }
+            else
+            {
+                dmLogError("Default animation '%s' not found", resource->m_DDF->m_DefaultAnimation);
+            }
+        }
+
         return found;
     }
 
