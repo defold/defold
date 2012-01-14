@@ -53,6 +53,7 @@ import com.dynamo.render.proto.Font.FontDesc;
 import com.dynamo.render.proto.Material.MaterialDesc;
 import com.dynamo.render.proto.Render.RenderPrototypeDesc;
 import com.dynamo.sprite.proto.Sprite.SpriteDesc;
+import com.dynamo.sprite2.proto.Sprite2.Sprite2Desc;
 import com.dynamo.tile.proto.Tile.TileSet;
 import com.google.protobuf.Message;
 import com.google.protobuf.Message.Builder;
@@ -503,6 +504,23 @@ public class RefactorTest {
                     TextFormat.merge(desc.getEmbeddedComponents(1).getData(), builder);
                     SpawnPointDesc spawnPointDesc = builder.build();
                     return new String[] { spawnPointDesc.getPrototype() };
+                } catch (ParseException e) {
+                    return new String[] {};
+                }
+            }
+        });
+    }
+
+    @Test
+    public void testTileSetForEmbeddedSprite2() throws CoreException, IOException {
+        testRenameAndDelete(PrototypeDesc.newBuilder(), "logic/embedded_sprite2.go", "/tileset/test.tileset", new ReferenceFetcher<PrototypeDesc>() {
+            @Override
+            public String[] getReferences(PrototypeDesc desc) {
+                Sprite2Desc.Builder builder = Sprite2Desc.newBuilder();
+                try {
+                    TextFormat.merge(desc.getEmbeddedComponents(0).getData(), builder);
+                    Sprite2Desc sprite2Desc = builder.build();
+                    return new String[] { sprite2Desc.getTileSet() };
                 } catch (ParseException e) {
                     return new String[] {};
                 }
