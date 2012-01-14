@@ -3,6 +3,7 @@ package com.dynamo.cr.editor.wizards;
 import java.util.Collection;
 
 import org.eclipse.jface.dialogs.IDialogPage;
+import org.eclipse.jface.dialogs.IInputValidator;
 import org.eclipse.jface.dialogs.InputDialog;
 import org.eclipse.jface.window.Window;
 import org.eclipse.jface.wizard.WizardPage;
@@ -43,6 +44,7 @@ public class ConnectionWizardBranchPageView extends WizardPage implements Listen
     /**
      * @see IDialogPage#createControl(Composite)
      */
+    @Override
     public void createControl(Composite parent)
     {
         Composite composite = new Composite(parent, SWT.NONE);
@@ -75,6 +77,7 @@ public class ConnectionWizardBranchPageView extends WizardPage implements Listen
      * Process the events: when the user has entered all information
      * the wizard can be finished
      */
+    @Override
     public void handleEvent(Event e)
     {
         if (e.widget == newBranchButton)
@@ -91,6 +94,7 @@ public class ConnectionWizardBranchPageView extends WizardPage implements Listen
         }
     }
 
+    @Override
     public boolean canFlipToNextPage()
     {
         return false;
@@ -112,8 +116,20 @@ public class ConnectionWizardBranchPageView extends WizardPage implements Listen
 
     @Override
     public String openNewBranchDialog() {
-        // TODO: Add input validator?
-        InputDialog dialog = new InputDialog(getShell(), "Create new branch", "Enter new branch name:", "", null);
+
+        InputDialog dialog = new InputDialog(getShell(), "Create new branch", "Enter new branch name:", "", new IInputValidator() {
+            @Override
+            public String isValid(String newText) {
+                if (newText.isEmpty()) {
+                    // Error but no message, essentially disables the OK button
+                    return "";
+                }
+                if (!newText.matches("^[\\w-]+$")) {
+                    return "Only letters (a-z, A-Z), digits (0-9), underscore (_) and dash (-) are valid.";
+                }
+                return null;
+            }
+        });
         int ret = dialog.open();
         if (ret == Window.OK)
             return dialog.getValue();
