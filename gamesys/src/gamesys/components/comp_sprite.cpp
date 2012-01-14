@@ -77,7 +77,7 @@ namespace dmGameSystem
         SetMaterialProgramConstantType(sprite_world->m_Material, dmHashString64("view_proj"), dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ);
         SetMaterialProgramConstantType(sprite_world->m_Material, dmHashString64("world"), dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLD);
 
-        dmRender::AddMaterialTag(sprite_world->m_Material, dmHashString32("sprite"));
+        dmRender::AddMaterialTag(sprite_world->m_Material, dmHashString32("tile"));
 
         dmGraphics::VertexElement ve[] =
         {

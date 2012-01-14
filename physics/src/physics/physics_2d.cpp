@@ -10,8 +10,6 @@
 
 namespace dmPhysics
 {
-    const float EPSILON = 0.000001f;
-
     Context2D::Context2D()
     : m_Worlds()
     , m_DebugCallbacks()
@@ -202,7 +200,7 @@ namespace dmPhysics
                     body->SetTransform(b2Vec2(position.getX(), position.getY()), angle);
                     position = GetWorldPosition2D(body);
                     rotation = GetWorldRotation2D(body);
-                    if ((distSqr(old_position, position) > EPSILON || lengthSqr(Vectormath::Aos::Vector4(rotation - old_rotation)) > EPSILON))
+                    if ((distSqr(old_position, position) > 0.0f || lengthSqr(Vectormath::Aos::Vector4(rotation - old_rotation)) > 0.0f))
                     {
                         body->SetSleepingAllowed(false);
                     }
