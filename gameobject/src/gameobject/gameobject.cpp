@@ -362,6 +362,8 @@ namespace dmGameObject
             ComponentCreateParams params;
             params.m_Collection = collection;
             params.m_Instance = instance;
+            params.m_Position = component->m_Position;
+            params.m_Rotation = component->m_Rotation;
             params.m_ComponentIndex = (uint8_t)i;
             params.m_Resource = component->m_Resource;
             params.m_World = collection->m_ComponentWorlds[component->m_TypeIndex];

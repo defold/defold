@@ -10,6 +10,8 @@ message ComponentDesc
 {
     required string id = 1;
     required string component = 2 [(resource) = true];
+    optional dmMath.Point3  position    = 3;
+    optional dmMath.Quat    rotation    = 4;
 }
 
 message EmbeddedComponentDesc
@@ -17,6 +19,8 @@ message EmbeddedComponentDesc
     required string id = 1;
     required string type = 2;
     required string data = 3;
+    optional dmMath.Point3  position    = 4;
+    optional dmMath.Quat    rotation    = 5;
 }
 
 message PrototypeDesc

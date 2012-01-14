@@ -176,6 +176,14 @@ def compile_go(task):
             if c.id == '':
                 raise Exception('Message is missing required field: id')
             desc.id = c.id
+            desc.position.x = c.position.x
+            desc.position.y = c.position.y
+            desc.position.z = c.position.z
+            desc.rotation.x = c.rotation.x
+            desc.rotation.y = c.rotation.y
+            desc.rotation.z = c.rotation.z
+            desc.rotation.w = c.rotation.w
+
             desc.component = '/' + rel_path_dir + '/' + task.outputs[i+1].name
 
         msg = transform_gameobject(task, msg)

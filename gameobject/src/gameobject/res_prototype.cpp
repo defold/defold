@@ -28,7 +28,8 @@ namespace dmGameObject
 
         for (uint32_t i = 0; i < proto_desc->m_Components.m_Count; ++i)
         {
-            const char* component_resource = proto_desc->m_Components[i].m_Component;
+            dmGameObjectDDF::ComponentDesc& component_desc = proto_desc->m_Components[i];
+            const char* component_resource = component_desc.m_Component;
             void* component;
             dmResource::FactoryResult fact_e = dmResource::Get(factory, component_resource, (void**) &component);
 
@@ -36,12 +37,12 @@ namespace dmGameObject
             dmhash_t id = 0;
             if (fact_e == dmResource::FACTORY_RESULT_OK)
             {
-                id = dmHashString64(proto_desc->m_Components[i].m_Id);
+                id = dmHashString64(component_desc.m_Id);
                 for (uint32_t j = 0; j < proto->m_Components.Size(); ++j)
                 {
                     if (proto->m_Components[j].m_Id == id)
                     {
-                        dmLogError("The id '%s' has already been used in the prototype %s.", proto_desc->m_Components[i].m_Id, filename);
+                        dmLogError("The id '%s' has already been used in the prototype %s.", component_desc.m_Id, filename);
                         id_used = true;
                     }
                 }
@@ -72,7 +73,14 @@ namespace dmGameObject
                 fact_e = dmResource::GetDescriptor(factory, component_resource, &descriptor);
                 assert(fact_e == dmResource::FACTORY_RESULT_OK);
 
-                proto->m_Components.Push(Prototype::Component(component, resource_type, id, descriptor.m_NameHash, type, type_index));
+                proto->m_Components.Push(Prototype::Component(component,
+                                                              resource_type,
+                                                              id,
+                                                              descriptor.m_NameHash,
+                                                              type,
+                                                              type_index,
+                                                              component_desc.m_Position,
+                                                              component_desc.m_Rotation));
             }
         }
 

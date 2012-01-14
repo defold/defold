@@ -29,13 +29,22 @@ namespace dmGameObject
     {
         struct Component
         {
-            Component(void* resource, uint32_t resource_type, dmhash_t id, dmhash_t resource_id, ComponentType* type, uint32_t type_index) :
+            Component(void* resource,
+                      uint32_t resource_type,
+                      dmhash_t id,
+                      dmhash_t resource_id,
+                      ComponentType* type,
+                      uint32_t type_index,
+                      const Point3& position,
+                      const Quat& rotation) :
                 m_Id(id),
                 m_ResourceId(resource_id),
                 m_Type(type),
                 m_TypeIndex(type_index),
                 m_Resource(resource),
-                m_ResourceType(resource_type)
+                m_ResourceType(resource_type),
+                m_Position(position),
+                m_Rotation(rotation)
             {
             }
 
@@ -45,6 +54,8 @@ namespace dmGameObject
             uint32_t        m_TypeIndex;
             void*           m_Resource;
             uint32_t        m_ResourceType;
+            Point3          m_Position;
+            Quat            m_Rotation;
         };
 
         dmArray<Component>     m_Components;

@@ -164,6 +164,10 @@ namespace dmGameObject
         HCollection m_Collection;
         /// Game object instance
         HInstance m_Instance;
+        /// Local component position
+        Point3    m_Position;
+        /// Local component rotation
+        Quat      m_Rotation;
         /// Component resource
         void* m_Resource;
         /// Component world, as created in the ComponentNewWorld callback

@@ -26,11 +26,14 @@ extern uint32_t SPRITE_VPC_SIZE;
 extern unsigned char SPRITE_FPC[];
 extern uint32_t SPRITE_FPC_SIZE;
 
+using namespace Vectormath::Aos;
 namespace dmGameSystem
 {
     struct Component2
     {
         dmGameObject::HInstance     m_Instance;
+        Point3                      m_Position;
+        Quat                        m_Rotation;
         dmGameObject::HInstance     m_ListenerInstance;
         dmhash_t                    m_ListenerComponent;
         Sprite2Resource*            m_Resource;
@@ -144,6 +147,8 @@ namespace dmGameSystem
         uint32_t index = sprite_world->m_ComponentIndices.Pop();
         Component2* component = &sprite_world->m_Components[index];
         component->m_Instance = params.m_Instance;
+        component->m_Position = params.m_Position;
+        component->m_Rotation = params.m_Rotation;
         component->m_Resource = (Sprite2Resource*)params.m_Resource;
         component->m_ListenerInstance = 0x0;
         component->m_ListenerComponent = 0xff;
@@ -210,10 +215,15 @@ namespace dmGameSystem
                 dmGameSystemDDF::Animation* animation_ddf = &tile_set_ddf->m_Animations[component->m_CurrentAnimation];
 
                 // Generate vertex data
-
-                Matrix4 world = Matrix4::rotation(dmGameObject::GetWorldRotation(component->m_Instance));
+                Point3 world_pos = dmGameObject::GetWorldPosition(component->m_Instance);
+                Quat world_rot = dmGameObject::GetWorldRotation(component->m_Instance);
+                const Quat& local_rot = component->m_Rotation;
+                const Point3& local_pos = component->m_Position;
+                Quat rotation = world_rot * local_rot;
+                Point3 position = rotate(world_rot, Vector3(local_pos)) + world_pos;
+                Matrix4 world = Matrix4::rotation(rotation);
                 world *= Matrix4::scale(Vector3(tile_set_ddf->m_TileWidth, tile_set_ddf->m_TileHeight, 1.0f));
-                Point3 position = dmGameObject::GetWorldPosition(component->m_Instance);
+
                 if (!sprite_context->m_Subpixels)
                 {
                     position.setX((int) position.getX());
