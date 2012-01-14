@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import javax.vecmath.AxisAngle4d;
 import javax.vecmath.Quat4d;
 import javax.vecmath.Vector3d;
+import javax.vecmath.Vector4d;
 
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.DefaultOperationHistory;
@@ -84,7 +85,7 @@ public class OperationsTest {
     public void testAddGameObject() {
         InstanceNode node = null;
         CollectionNode parent = null;
-        PrototypeNode prototype = new PrototypeNode("prototype", new PrototypeResource("", null, new ArrayList<Resource>()), this.scene, null);
+        PrototypeNode prototype = new PrototypeNode("prototype", new PrototypeResource("", null, new ArrayList<Resource>(), new ArrayList<Vector4d>(), new ArrayList<Quat4d>()), this.scene, null);
         // Empty operations, should fail
         try {
             node = new InstanceNode("instance", this.scene, null, prototype);

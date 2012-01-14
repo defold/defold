@@ -34,6 +34,10 @@ public class Sprite2Node extends ComponentTypeNode {
     // Graphics resources
     private FloatBuffer vertexData;
 
+    public Sprite2Node() {
+        setFlags(Flags.TRANSFORMABLE);
+    }
+
     @Override
     public void dispose() {
         super.dispose();

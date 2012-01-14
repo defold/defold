@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 
 import javax.vecmath.Matrix4d;
+import javax.vecmath.Quat4d;
 import javax.vecmath.Vector4d;
 
 import org.eclipse.core.resources.IFile;
@@ -419,15 +420,15 @@ public class SceneTest {
         nodes[TYPE_COLLECTION][1] = new CollectionNode("collection1", new CollectionResource("", null), this.scene, nodeFactory);
         nodes[TYPE_COLLISION][0] = new CollisionNode("collision0", new CollisionResource("", null, new ConvexShapeResource("", null)), this.scene);
         nodes[TYPE_COLLISION][1] = new CollisionNode("collision1", new CollisionResource("", null, new ConvexShapeResource("", null)), this.scene);
-        nodes[TYPE_INSTANCE][0] = new InstanceNode("instance0", this.scene, null, new PrototypeNode("prototype2", new PrototypeResource("", null, new ArrayList<Resource>()), this.scene, this.nodeFactory));
-        nodes[TYPE_INSTANCE][1] = new InstanceNode("instance1", this.scene, null, new PrototypeNode("prototype3", new PrototypeResource("", null, new ArrayList<Resource>()), this.scene, this.nodeFactory));
+        nodes[TYPE_INSTANCE][0] = new InstanceNode("instance0", this.scene, null, new PrototypeNode("prototype2", new PrototypeResource("", null, new ArrayList<Resource>(), new ArrayList<Vector4d>(), new ArrayList<Quat4d>()), this.scene, this.nodeFactory));
+        nodes[TYPE_INSTANCE][1] = new InstanceNode("instance1", this.scene, null, new PrototypeNode("prototype3", new PrototypeResource("", null, new ArrayList<Resource>(), new ArrayList<Vector4d>(), new ArrayList<Quat4d>()), this.scene, this.nodeFactory));
         nodes[TYPE_LIGHT][0] = new LightNode("light0", new LightResource("", null), this.scene);
         nodes[TYPE_LIGHT][1] = new LightNode("light1", new LightResource("", null), this.scene);
         Mesh mesh = new Mesh(new ArrayList<Float>(), new ArrayList<Float>(), new ArrayList<Float>());
         nodes[TYPE_MODEL][0] = new ModelNode("model0", new ModelResource("", null, new MeshResource("", mesh), new ArrayList<TextureResource>()), this.scene);
         nodes[TYPE_MODEL][1] = new ModelNode("model1", new ModelResource("", null, new MeshResource("", mesh), new ArrayList<TextureResource>()), this.scene);
-        nodes[TYPE_PROTOTYPE][0] = new PrototypeNode("prototype0", new PrototypeResource("", null, new ArrayList<Resource>()), this.scene, this.nodeFactory);
-        nodes[TYPE_PROTOTYPE][1] = new PrototypeNode("prototype1", new PrototypeResource("", null, new ArrayList<Resource>()), this.scene, this.nodeFactory);
+        nodes[TYPE_PROTOTYPE][0] = new PrototypeNode("prototype0", new PrototypeResource("", null, new ArrayList<Resource>(), new ArrayList<Vector4d>(), new ArrayList<Quat4d>()), this.scene, this.nodeFactory);
+        nodes[TYPE_PROTOTYPE][1] = new PrototypeNode("prototype1", new PrototypeResource("", null, new ArrayList<Resource>(), new ArrayList<Vector4d>(), new ArrayList<Quat4d>()), this.scene, this.nodeFactory);
         SpriteDesc spriteDesc = SpriteDesc.newBuilder()
                     .setTexture("")
                     .setWidth(4)

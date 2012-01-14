@@ -7,11 +7,15 @@ import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
 
+import javax.vecmath.Quat4d;
+import javax.vecmath.Vector4d;
+
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.SubMonitor;
 
 import com.dynamo.cr.scene.graph.CreateException;
+import com.dynamo.cr.scene.math.MathUtil;
 import com.dynamo.gameobject.proto.GameObject.EmbeddedComponentDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc.Builder;
@@ -32,6 +36,8 @@ public class PrototypeLoader implements IResourceLoader {
         progress.setWorkRemaining(5);
         SubMonitor componentProgress = progress.newChild(1).setWorkRemaining(desc.getComponentsCount() + desc.getEmbeddedComponentsCount());
         List<Resource> componentResources = new ArrayList<Resource>(desc.getComponentsCount());
+        List<Vector4d> componentTranslations = new ArrayList<Vector4d>();
+        List<Quat4d> componentRotations = new ArrayList<Quat4d>();
         for (int i = 0; i < desc.getComponentsCount(); ++i) {
             String component = desc.getComponents(i).getComponent();
             if (factory.canLoad(component)) {
@@ -39,6 +45,8 @@ public class PrototypeLoader implements IResourceLoader {
             } else {
                 componentResources.add(new Resource(component));
             }
+            componentTranslations.add(MathUtil.toVector4(desc.getComponents(i).getPosition()));
+            componentRotations.add(MathUtil.toQuat4(desc.getComponents(i).getRotation()));
             componentProgress.worked(1);
         }
 
@@ -54,10 +62,12 @@ public class PrototypeLoader implements IResourceLoader {
             } else {
                 componentResources.add(new Resource(embeddedPath));
             }
+            componentTranslations.add(MathUtil.toVector4(desc.getEmbeddedComponents(i).getPosition()));
+            componentRotations.add(MathUtil.toQuat4(desc.getEmbeddedComponents(i).getRotation()));
             componentProgress.worked(1);
         }
 
-        return new PrototypeResource(name, desc, componentResources);
+        return new PrototypeResource(name, desc, componentResources, componentTranslations, componentRotations);
     }
 
     @Override
