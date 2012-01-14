@@ -80,9 +80,9 @@
             template-data="tile_set: &quot;&quot; default_animation: &quot;&quot;"
             type-class="component">
          <references>
-            <reference-type-class
-                  type-class="image">
-            </reference-type-class>
+            <reference-resource-type
+                  resource-type="com.dynamo.cr.tileeditor.resourcetypes.TileSet">
+            </reference-resource-type>
          </references>
       </resource-type>
    </extension>
