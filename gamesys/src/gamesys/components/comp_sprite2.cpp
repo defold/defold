@@ -228,7 +228,6 @@ namespace dmGameSystem
                 {
                     position.setX((int) position.getX());
                     position.setY((int) position.getY());
-                    position.setZ((int) position.getZ());
                 }
 
                 world.setCol3(Vector4(position));
