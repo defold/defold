@@ -37,6 +37,7 @@ def build(bld):
 
     doc_files = ['../../proto/gamesys_ddf.proto',
         '../../proto/physics_ddf.proto',
+        '../../proto/camera_ddf.proto',
         '../../proto/sprite_ddf.proto',
         '../../proto/sprite2_ddf.proto',
         '../../proto/tile_ddf.proto',

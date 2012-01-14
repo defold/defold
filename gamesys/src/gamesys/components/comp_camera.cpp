@@ -173,7 +173,7 @@ namespace dmGameSystem
             camera->m_NearZ = ddf->m_NearZ;
             camera->m_FarZ = ddf->m_FarZ;
         }
-        else if (params.m_Message->m_Id == dmHashString64("acquire_camera_focus"))
+        else if ((dmDDF::Descriptor*)params.m_Message->m_Descriptor == dmGamesysDDF::AcquireCameraFocus::m_DDFDescriptor)
         {
             bool found = false;
             for (uint32_t i = 0; i < camera->m_World->m_FocusStack.Size(); ++i)
@@ -200,7 +200,7 @@ namespace dmGameSystem
                 dmLogWarning("Could not acquire camera focus since the buffer is full (%d).", camera->m_World->m_FocusStack.Size());
             }
         }
-        else if (params.m_Message->m_Id == dmHashString64("release_camera_focus"))
+        else if ((dmDDF::Descriptor*)params.m_Message->m_Descriptor == dmGamesysDDF::ReleaseCameraFocus::m_DDFDescriptor)
         {
             bool found = false;
             for (uint32_t i = 0; i < camera->m_World->m_FocusStack.Size(); ++i)
