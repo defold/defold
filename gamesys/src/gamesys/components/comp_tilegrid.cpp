@@ -183,10 +183,10 @@ namespace dmGameSystem
 
     void CalculateCellBounds(int32_t cell_x, int32_t cell_y, int32_t cell_width, int32_t cell_height, float out_v[4])
     {
-        out_v[0] = cell_width * cell_x;
-        out_v[1] = cell_height * cell_y;
-        out_v[2] = out_v[0] + cell_width;
-        out_v[3] = out_v[1] + cell_height;
+        out_v[0] = cell_x * cell_width;
+        out_v[1] = cell_y * cell_height;
+        out_v[2] = (cell_x + 1) * cell_width;
+        out_v[3] = (cell_y + 1) * cell_height;
     }
 
     void CalculateTileTexCoords(uint32_t tile_index, dmGameSystemDDF::TileSet* tile_set_ddf, uint32_t tiles_per_row, float recip_tex_width, float recip_tex_height, float out_v[4])
