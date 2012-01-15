@@ -17,63 +17,61 @@
 
 	</ui:style>
 
-	<g:ScrollPanel ui:field="bodyScrollPanel">
-        <g:HTMLPanel>
-			<g:HTMLPanel styleName="{style.dock}">
-				<div id="topBar">
-				    <g:Hyperlink targetHistoryToken="/"  styleName="{style.logoLink}"><img src="/images/3dlogo.png"/></g:Hyperlink>
-					<ul class="nav nav1" style="margin-top: 16px;">
-						<li id="dashboard">
-							<g:Anchor ui:field="dashBoard">Dashboard</g:Anchor>
-						</li>
-						<li id="blog">
-							<g:Anchor ui:field="blog">Blog</g:Anchor>
-						</li>
-						<li id="documentation">
-							<g:Anchor ui:field="documentation">Documentation</g:Anchor>
-						</li>
-					</ul>
-				</div>
-
-				<g:SimplePanel ui:field="panel"></g:SimplePanel>
-			</g:HTMLPanel>
-
-			<div id="defoldFooter">
-                <div id="footerContent">
-
-                <table>
-			    <tr>
-                    <td>
-			        <h3>About</h3>
-			        <ul>
-			             <li><a href="">The Company</a></li>
-			             <li><p2:EditableLabel value="http://example.com" ui:field="editableLabel" /></li>
-			         </ul>
-			         </td>
-
-			         <td>
-			             <h3>Contact</h3>
-			             <ul>
-			                 <li>info@defold.se</li>
-			             </ul>
-			         </td>
-
-			         <td>
-			             <h3>Documentation</h3>
-			             <ul>
-			             </ul>
-			         </td>
-			     </tr>
-			   </table>
-
-			  </div>
-              <div style="margin-top: 120px; margin-right: 16px;">
-                <span style="float: right">
-                    <g:Anchor ui:field="logout">Logout</g:Anchor>
-                </span>
+    <g:HTMLPanel>
+        <g:HTMLPanel styleName="{style.dock}">
+            <div id="topBar">
+                <g:Hyperlink targetHistoryToken="/"  styleName="{style.logoLink}"><img src="/images/3dlogo.png"/></g:Hyperlink>
+                <ul class="nav nav1" style="margin-top: 16px;">
+                    <li id="dashboard">
+                        <g:Anchor ui:field="dashBoard">Dashboard</g:Anchor>
+                    </li>
+                    <li id="blog">
+                        <g:Anchor ui:field="blog">Blog</g:Anchor>
+                    </li>
+                    <li id="documentation">
+                        <g:Anchor ui:field="documentation">Documentation</g:Anchor>
+                    </li>
+                </ul>
             </div>
-			</div>
+
+            <g:SimplePanel ui:field="panel"></g:SimplePanel>
         </g:HTMLPanel>
-	</g:ScrollPanel>
+
+        <div id="defoldFooter">
+            <div id="footerContent">
+
+            <table>
+            <tr>
+                <td>
+                <h3>About</h3>
+                <ul>
+                     <li><a href="">The Company</a></li>
+                     <li><p2:EditableLabel value="http://example.com" ui:field="editableLabel" /></li>
+                 </ul>
+                 </td>
+
+                 <td>
+                     <h3>Contact</h3>
+                     <ul>
+                         <li>info@defold.se</li>
+                     </ul>
+                 </td>
+
+                 <td>
+                     <h3>Documentation</h3>
+                     <ul>
+                     </ul>
+                 </td>
+             </tr>
+           </table>
+
+          </div>
+          <div style="margin-top: 120px; margin-right: 16px;">
+            <span style="float: right">
+                <g:Anchor ui:field="logout">Logout</g:Anchor>
+            </span>
+        </div>
+        </div>
+    </g:HTMLPanel>
 
 </ui:UiBinder>

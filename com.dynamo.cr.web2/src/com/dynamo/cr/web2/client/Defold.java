@@ -35,8 +35,8 @@ import com.google.gwt.user.client.Cookies;
 import com.google.gwt.user.client.DOM;
 import com.google.gwt.user.client.Element;
 import com.google.gwt.user.client.ui.Anchor;
-import com.google.gwt.user.client.ui.RootLayoutPanel;
-import com.google.gwt.user.client.ui.ScrollPanel;
+import com.google.gwt.user.client.ui.HTMLPanel;
+import com.google.gwt.user.client.ui.RootPanel;
 import com.google.gwt.user.client.ui.SimplePanel;
 import com.google.web.bindery.event.shared.EventBus;
 
@@ -50,7 +50,6 @@ public class Defold implements EntryPoint {
 
     private Place defaultPlace = new ProductInfoPlace();
 
-    @UiField ScrollPanel bodyScrollPanel;
     @UiField Anchor logout;
     @UiField SimplePanel panel;
     @UiField Anchor dashBoard;
@@ -67,7 +66,7 @@ public class Defold implements EntryPoint {
 
     private AppPlaceHistoryMapper historyMapper;
 
-    interface DefoldUiBinder extends UiBinder<ScrollPanel, Defold> {
+    interface DefoldUiBinder extends UiBinder<HTMLPanel, Defold> {
     }
 
     public Defold() {
@@ -204,7 +203,7 @@ public class Defold implements EntryPoint {
     @Override
     public void onModuleLoad() {
 
-        ScrollPanel outer = uiBinder.createAndBindUi(this);
+        HTMLPanel outer = uiBinder.createAndBindUi(this);
 
         clientFactory = GWT.create(ClientFactory.class);
         clientFactory.setDefold(this);
@@ -233,8 +232,8 @@ public class Defold implements EntryPoint {
         }
         editableLabel.setValue(this.url);
 
-        RootLayoutPanel root = RootLayoutPanel.get();
-        root.add(outer);
+        // RootPanel or RootLayoutPanel?
+        RootPanel.get().add(outer);
         historyHandler.handleCurrentHistory();
 
         if (Cookies.getCookie("auth") != null && Cookies.getCookie("email") != null) {
