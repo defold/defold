@@ -3,11 +3,6 @@
 
 #include <ddf/ddf.h>
 
-/*
- * TODO:
- * Add function to translate from factory to create result
- */
-
 namespace dmResource
 {
     /**
@@ -96,35 +91,6 @@ namespace dmResource
      * Factory handle
      */
     typedef struct SResourceFactory* HFactory;
-
-    /**
-     * Create result
-     */
-    /*
-    enum CreateResult
-    {
-        CREATE_RESULT_OK                = 0,    //!< CREATE_RESULT_OK
-        CREATE_RESULT_OUT_OF_MEMORY     = -1,   //!< CREATE_RESULT_OUT_OF_MEMORY
-        CREATE_RESULT_FORMAT_ERROR      = -2,   //!< CREATE_RESULT_FORMAT_ERROR
-        CREATE_RESULT_CONSTANT_ERROR    = -3,   //!< CREATE_RESULT_CONSTANT_ERROR
-        CREATE_RESULT_UNKNOWN           = -1000,//!< CREATE_RESULT_UNKNOWN
-    };*/
-
-    /**
-     * Reload result
-     */
-    /*
-    enum ReloadResult
-    {
-        RELOAD_RESULT_OK                = 0,    //!< RELOAD_RESULT_OK
-        RELOAD_RESULT_OUT_OF_MEMORY     = -1,   //!< RELOAD_RESULT_OUT_OF_MEMORY
-        RELOAD_RESULT_FORMAT_ERROR      = -2,   //!< RELOAD_RESULT_FORMAT_ERROR
-        RELOAD_RESULT_CONSTANT_ERROR    = -3,   //!< RELOAD_RESULT_CONSTANT_ERROR
-        RELOAD_RESULT_NOT_FOUND         = -4,   //!< RELOAD_RESULT_NOT_FOUND
-        RELOAD_RESULT_LOAD_ERROR        = -5,   //!< RELOAD_RESULT_LOAD_ERROR
-        RELOAD_RESULT_NOT_SUPPORTED     = -6,   //!< RELOAD_RESULT_NOT_SUPPORTED
-        RELOAD_RESULT_UNKNOWN           = -1000,//!< RELOAD_RESULT_UNKNOWN
-    };*/
 
     /**
      * Resource create function
