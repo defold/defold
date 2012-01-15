@@ -54,6 +54,7 @@ namespace dmResource
         RESULT_FORMAT_ERROR              = -13,  //!< RESULT_FORMAT_ERROR
         RESULT_CONSTANT_ERROR            = -14,  //!< RESULT_CONSTANT_ERROR
         RESULT_NOT_SUPPORTED             = -15,  //!< RESULT_NOT_SUPPORTED
+        RESULT_RESOURCE_LOOP_ERROR           = -16,  //!< RESULT_RESOURCE_LOOP_ERROR
     };
 
     /**
