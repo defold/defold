@@ -716,8 +716,8 @@ Result Get(HFactory factory, const char* name, void** resource)
         stack.SetCapacity(stack.Capacity() + 16);
     }
     stack.Push(name);
-
     Result r = DoGet(factory, name, resource);
+    stack.SetSize(stack.Size() - 1);
     --factory->m_RecursionDepth;
     return r;
 }
