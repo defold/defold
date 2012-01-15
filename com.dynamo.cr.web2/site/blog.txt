@@ -1,5 +1,93 @@
 :max-width: 45em
 
+Update - Feature Requests & Bug Reports
+---------------------------------------
+_January 15, 2012_
+
+We have received a lot of feature requests and bug reports during the last weeks, which we appreciate a lot!
+So this week we have taken a break from writing the User Guide and instead focused on resolving as many issues as possible.
+
+We have started to add you who report the issues as correspondents on the bugs, to give you a notification when they are fixed.
+Please let us know what you think about that, do you like it or does it get too spammy?
+
+Enable/Disable for Collision Objects
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Collision Object components can now be enabled and disabled through message-passing (see link:#reference:go/enable[enable] and link:#reference:go/disable[disable]).
+Disabled collision objects are temporarily removed from the physics simulation, which means they don't collide with other objects.
+
+Dynamic collision objects also cease to move the game objects they belong to when disabled.
+It is possible to move dynamic collision objects through the script while they are disabled.
+Once they are enabled, they will start being simulated again at their new position.
+
+Movable Sprites
+~~~~~~~~~~~~~~~
+
+Sprites can now be moved in the Scene Editor (only applies to the new Sprite2 component).
+This means that you can put two Sprite2 components in the same game object and move them in relation to eachother.
+This should make it easier to build more visually complex game objects.
+
+PLACEHOLDER: Offseted sprites in the scene editor
+
+Linear Texture Filtering
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+To avoid visual artifacts and ensure pixel perfect images, we have previously disabled texture filtering.
+Texture filtering typically makes a scaled image blur, instead of becoming pixelated.
+This has resulted in other artifacts, specifically when rotating objects, which gave a blocky and almost noisy appearance.
+
+The current solution is to enable texture filtering along with clamping the position of sprites to integer values.
+The clamping can be disabled in +game.project+ by including:
+
+----
+[sprite]
+subpixels = 1
+----
+
+This makes the overall visual quality much nicer, but also introduces slight color bleeding in some situations.
+We have different ideas on how to improve this further.
+For now, we will let it be until it becomes more critical.
+Please let us know how the visual quality of your game was affected by this release.
+We really hope it will be significantly better.
+
+PLACEHOLDER: Comparison before/after? Up for ideas here.. We could use the rotated high-score in level complete
+
+A related bug to this was that sprites and tile grids appeared to move differently when moving a camera.
+The impression was that the sprites would float or hover a bit back and forth in relation to the tile grids.
+This should not be an issue anymore.
+
+Bugs
+~~~~
+
+Below is a list of the bugs we fixed in this release.
+
+- Z-ordering between tile grids and sprites did not work; sprites were always rendered on top
+- Different visualization problems with collision objects in collection editor and scene editor
+- The sender-field when receiving collision messages was not set correctly (should be the collision object component causing the collisions)
+- The buffer size for sending custom script messages has been increased (it was not enough for very large messages, like save data)
+- Blend modes in the GUI system was broken, specifically "add alpha" (known issue remains when blending text nodes)
+- After deleting a game object referenced in a collection, opening the collection made the collection editor crash
+- After deleting a component referenced in a game object, opening the game object made the scene editor crash
+- Two colliding kinematic collision objects ceased to collide after a while
+- Missing documentation for camera messages (+set_camera+, +acquire_camera_focus+ and +release_camera_focus+)
+- Visual gaps appearing between tiles in a tile grid when moving a camera
+- When creating new branches with spaces in their names, different problems would occur (fixed by only allowing valid characters)
+- After adding an embedded shape to a collision object, the editor would still warn about the shape-field being empty
+- Missing documentation for +sys.get_save_file+
+- The tile set-field in Sprite2 components was not updated correctly when referenced tile sets where renamed/moved/deleted
+- Cryptic build error when building a Sprite2 component without its default animation empty
+- Specifying a spawn point component to spawn the same game object it resides in made the engine crash when loading the game (results in error now)
+- When creating embedded collision boxes, the width/height/depth was expected to be half the values (they are actually the full width/height/depth now)
+
+Roadmap
+~~~~~~~
+
+We will continue work on the User Guide next.
+Don't forget to comment and vote for things in the Roadmap document.
+We have updated it a bit to reflect the recent discussions about spawning and tile grid editing.
+
+Hope you enjoy the fixes!
+
 Update - Web Site Face Lift & Script Samples
 --------------------------------------------
 _January 8, 2012_
