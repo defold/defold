@@ -711,7 +711,7 @@ Result Get(HFactory factory, const char* name, void** resource)
         }
     }
 
-    if (stack.Capacity() == 0)
+    if (stack.Full())
     {
         stack.SetCapacity(stack.Capacity() + 16);
     }
