@@ -18,17 +18,17 @@ namespace dmGameSystem
         dmGraphics::HTexture m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
     };
 
-    dmResource::CreateResult ResCreateModel(dmResource::HFactory factory,
+    dmResource::Result ResCreateModel(dmResource::HFactory factory,
                                       void* context,
                                       const void* buffer, uint32_t buffer_size,
                                       dmResource::SResourceDescriptor* resource,
                                       const char* filename);
 
-    dmResource::CreateResult ResDestroyModel(dmResource::HFactory factory,
+    dmResource::Result ResDestroyModel(dmResource::HFactory factory,
             void* context,
             dmResource::SResourceDescriptor* resource);
 
-    dmResource::CreateResult ResRecreateModel(dmResource::HFactory factory,
+    dmResource::Result ResRecreateModel(dmResource::HFactory factory,
             void* context,
             const void* buffer, uint32_t buffer_size,
             dmResource::SResourceDescriptor* resource,

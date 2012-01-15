@@ -6,18 +6,18 @@
 
 namespace dmGameSystem
 {
-    bool AcquireResources(dmResource::HFactory factory, const void* buffer, uint32_t buffer_size,
+    dmResource::Result AcquireResources(dmResource::HFactory factory, const void* buffer, uint32_t buffer_size,
                           TileSetResource* tile_set, const char* filename)
     {
         dmGameSystemDDF::TileSet* tile_set_ddf;
         dmDDF::Result e  = dmDDF::LoadMessage(buffer, buffer_size, &tile_set_ddf);
         if ( e != dmDDF::RESULT_OK )
         {
-            return false;
+            return dmResource::RESULT_FORMAT_ERROR;
         }
 
-        bool result = true;
-        if (dmResource::FACTORY_RESULT_OK == dmResource::Get(factory, tile_set_ddf->m_Image, (void**)&tile_set->m_Texture))
+        dmResource::Result r = dmResource::Get(factory, tile_set_ddf->m_Image, (void**)&tile_set->m_Texture);
+        if (r == dmResource::RESULT_OK)
         {
             tile_set->m_TileSet = tile_set_ddf;
             uint32_t n_hulls = tile_set_ddf->m_ConvexHulls.m_Count;
@@ -55,9 +55,8 @@ namespace dmGameSystem
         else
         {
             dmDDF::FreeMessage(tile_set_ddf);
-            result = false;
         }
-        return result;
+        return r;
     }
 
     void ReleaseResources(dmResource::HFactory factory, TileSetResource* tile_set)
@@ -72,7 +71,7 @@ namespace dmGameSystem
             dmPhysics::DeleteHullSet2D(tile_set->m_HullSet);
     }
 
-    dmResource::CreateResult ResTileSetCreate(dmResource::HFactory factory,
+    dmResource::Result ResTileSetCreate(dmResource::HFactory factory,
             void* context,
             const void* buffer, uint32_t buffer_size,
             dmResource::SResourceDescriptor* resource,
@@ -80,30 +79,30 @@ namespace dmGameSystem
     {
         TileSetResource* tile_set = new TileSetResource();
 
-        if (AcquireResources(factory, buffer, buffer_size, tile_set, filename))
+        dmResource::Result r = AcquireResources(factory, buffer, buffer_size, tile_set, filename);
+        if (r == dmResource::RESULT_OK)
         {
             resource->m_Resource = (void*) tile_set;
-            return dmResource::CREATE_RESULT_OK;
         }
         else
         {
             ReleaseResources(factory, tile_set);
             delete tile_set;
-            return dmResource::CREATE_RESULT_UNKNOWN;
         }
+        return r;
     }
 
-    dmResource::CreateResult ResTileSetDestroy(dmResource::HFactory factory,
+    dmResource::Result ResTileSetDestroy(dmResource::HFactory factory,
             void* context,
             dmResource::SResourceDescriptor* resource)
     {
         TileSetResource* tile_set = (TileSetResource*) resource->m_Resource;
         ReleaseResources(factory, tile_set);
         delete tile_set;
-        return dmResource::CREATE_RESULT_OK;
+        return dmResource::RESULT_OK;
     }
 
-    dmResource::CreateResult ResTileSetRecreate(dmResource::HFactory factory,
+    dmResource::Result ResTileSetRecreate(dmResource::HFactory factory,
             void* context,
             const void* buffer, uint32_t buffer_size,
             dmResource::SResourceDescriptor* resource,
@@ -111,19 +110,19 @@ namespace dmGameSystem
     {
         TileSetResource* tile_set = (TileSetResource*)resource->m_Resource;
         TileSetResource tmp_tile_set;
-        if (AcquireResources(factory, buffer, buffer_size, &tmp_tile_set, filename))
+        dmResource::Result r = AcquireResources(factory, buffer, buffer_size, &tmp_tile_set, filename);
+        if (r == dmResource::RESULT_OK)
         {
             ReleaseResources(factory, tile_set);
             tile_set->m_TileSet = tmp_tile_set.m_TileSet;
             tile_set->m_Texture = tmp_tile_set.m_Texture;
             tile_set->m_HullCollisionGroups.Swap(tmp_tile_set.m_HullCollisionGroups);
             tile_set->m_HullSet = tmp_tile_set.m_HullSet;
-            return dmResource::CREATE_RESULT_OK;
         }
         else
         {
             ReleaseResources(factory, &tmp_tile_set);
-            return dmResource::CREATE_RESULT_UNKNOWN;
         }
+        return r;
     }
 }

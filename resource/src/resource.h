@@ -34,24 +34,26 @@ namespace dmResource
     #define RESOURCE_FACTORY_FLAGS_HTTP_CACHE     (1 << 2)
 
     /**
-     * Factory result
+     * Result
      */
-    enum FactoryResult
+    enum Result
     {
-        FACTORY_RESULT_OK                        = 0,    //!< FACTORY_RESULT_OK
-        FACTORY_RESULT_INVALID_DATA              = -1,   //!< FACTORY_RESULT_INVALID_DATA
-        FACTORY_RESULT_DDF_ERROR                 = -2,   //!< FACTORY_RESULT_DDF_ERROR
-        FACTORY_RESULT_RESOURCE_NOT_FOUND        = -3,   //!< FACTORY_RESULT_RESOURCE_NOT_FOUND
-        FACTORY_RESULT_MISSING_FILE_EXTENSION    = -4,   //!< FACTORY_RESULT_MISSING_FILE_EXTENSION
-        FACTORY_RESULT_ALREADY_REGISTERED        = -5,   //!< FACTORY_RESULT_ALREADY_REGISTERED
-        FACTORY_RESULT_INVAL                     = -6,   //!< FACTORY_RESULT_INVAL
-        FACTORY_RESULT_UNKNOWN_RESOURCE_TYPE     = -7,   //!< FACTORY_RESULT_UNKNOWN_RESOURCE_TYPE
-        FACTORY_RESULT_OUT_OF_MEMORY             = -8,   //!< FACTORY_RESULT_OUT_OF_MEMORY
-        FACTORY_RESULT_IO_ERROR                  = -9,   //!< FACTORY_RESULT_IO_ERROR
-        FACTORY_RESULT_NOT_LOADED                = -10,  //!< FACTORY_RESULT_NOT_LOADED
-        FACTORY_RESULT_OUT_OF_RESOURCES          = -11,  //!< FACTORY_RESULT_OUT_OF_RESOURCES
-        FACTORY_RESULT_STREAMBUFFER_TOO_SMALL    = -12,  //!< FACTORY_RESULT_STREAMBUFFER_TOO_SMALL
-        FACTORY_RESULT_UNKNOWN                   = -1000,//!< FACTORY_RESULT_UNKNOWN
+        RESULT_OK                        = 0,    //!< RESULT_OK
+        RESULT_INVALID_DATA              = -1,   //!< RESULT_INVALID_DATA
+        RESULT_DDF_ERROR                 = -2,   //!< RESULT_DDF_ERROR
+        RESULT_RESOURCE_NOT_FOUND        = -3,   //!< RESULT_RESOURCE_NOT_FOUND
+        RESULT_MISSING_FILE_EXTENSION    = -4,   //!< RESULT_MISSING_FILE_EXTENSION
+        RESULT_ALREADY_REGISTERED        = -5,   //!< RESULT_ALREADY_REGISTERED
+        RESULT_INVAL                     = -6,   //!< RESULT_INVAL
+        RESULT_UNKNOWN_RESOURCE_TYPE     = -7,   //!< RESULT_UNKNOWN_RESOURCE_TYPE
+        RESULT_OUT_OF_MEMORY             = -8,   //!< RESULT_OUT_OF_MEMORY
+        RESULT_IO_ERROR                  = -9,   //!< RESULT_IO_ERROR
+        RESULT_NOT_LOADED                = -10,  //!< RESULT_NOT_LOADED
+        RESULT_OUT_OF_RESOURCES          = -11,  //!< RESULT_OUT_OF_RESOURCES
+        RESULT_STREAMBUFFER_TOO_SMALL    = -12,  //!< RESULT_STREAMBUFFER_TOO_SMALL
+        RESULT_FORMAT_ERROR              = -13,  //!< RESULT_FORMAT_ERROR
+        RESULT_CONSTANT_ERROR            = -14,  //!< RESULT_CONSTANT_ERROR
+        RESULT_NOT_SUPPORTED             = -15,  //!< RESULT_NOT_SUPPORTED
     };
 
     /**
@@ -97,6 +99,7 @@ namespace dmResource
     /**
      * Create result
      */
+    /*
     enum CreateResult
     {
         CREATE_RESULT_OK                = 0,    //!< CREATE_RESULT_OK
@@ -104,11 +107,12 @@ namespace dmResource
         CREATE_RESULT_FORMAT_ERROR      = -2,   //!< CREATE_RESULT_FORMAT_ERROR
         CREATE_RESULT_CONSTANT_ERROR    = -3,   //!< CREATE_RESULT_CONSTANT_ERROR
         CREATE_RESULT_UNKNOWN           = -1000,//!< CREATE_RESULT_UNKNOWN
-    };
+    };*/
 
     /**
      * Reload result
      */
+    /*
     enum ReloadResult
     {
         RELOAD_RESULT_OK                = 0,    //!< RELOAD_RESULT_OK
@@ -119,7 +123,7 @@ namespace dmResource
         RELOAD_RESULT_LOAD_ERROR        = -5,   //!< RELOAD_RESULT_LOAD_ERROR
         RELOAD_RESULT_NOT_SUPPORTED     = -6,   //!< RELOAD_RESULT_NOT_SUPPORTED
         RELOAD_RESULT_UNKNOWN           = -1000,//!< RELOAD_RESULT_UNKNOWN
-    };
+    };*/
 
     /**
      * Resource create function
@@ -130,7 +134,7 @@ namespace dmResource
      * @param resource Resource descriptor
      * @return CREATE_RESULT_OK on success
      */
-    typedef CreateResult (*FResourceCreate)(HFactory factory,
+    typedef Result (*FResourceCreate)(HFactory factory,
                                            void* context,
                                            const void* buffer, uint32_t buffer_size,
                                            SResourceDescriptor* resource,
@@ -143,7 +147,7 @@ namespace dmResource
      * @param resource Resource handle
      * @return CREATE_RESULT_OK on success
      */
-    typedef CreateResult (*FResourceDestroy)(HFactory factory,
+    typedef Result (*FResourceDestroy)(HFactory factory,
                                             void* context,
                                             SResourceDescriptor* resource);
 
@@ -156,7 +160,7 @@ namespace dmResource
      * @param resource Resource descriptor
      * @return CREATE_RESULT_OK on success
      */
-    typedef CreateResult (*FResourceRecreate)(HFactory factory,
+    typedef Result (*FResourceRecreate)(HFactory factory,
                                               void* context,
                                               const void* buffer, uint32_t buffer_size,
                                               SResourceDescriptor* resource,
@@ -236,9 +240,9 @@ namespace dmResource
      * @param create_function Create function pointer
      * @param destroy_function Destroy function pointer
      * @param recreate_function Recreate function pointer. Optional, 0 if recrete is not supported.
-     * @return FACTORY_RESULT_OK on success
+     * @return RESULT_OK on success
      */
-    FactoryResult RegisterType(HFactory factory,
+    Result RegisterType(HFactory factory,
                                const char* extension,
                                void* context,
                                FResourceCreate create_function,
@@ -250,9 +254,9 @@ namespace dmResource
      * @param factory Factory handle
      * @param name Resource name
      * @param resource Created resource
-     * @return FACTORY_RESULT_OK on success
+     * @return RESULT_OK on success
      */
-    FactoryResult Get(HFactory factory, const char* name, void** resource);
+    Result Get(HFactory factory, const char* name, void** resource);
 
     /**
      * Reload a specific resource
@@ -261,43 +265,43 @@ namespace dmResource
      * @param out_descriptor The resource descriptor as an output argument. It will not be written to if null, otherwise it will always be written to.
      * @see Get
      */
-    ReloadResult ReloadResource(HFactory factory, const char* name, SResourceDescriptor** out_descriptor);
+    Result ReloadResource(HFactory factory, const char* name, SResourceDescriptor** out_descriptor);
 
     /**
      * Get type for resource
      * @param factory Factory handle
      * @param resource Resource
      * @param type Returned type
-     * @return FACTORY_RESULT_OK on success
+     * @return RESULT_OK on success
      */
-    FactoryResult GetType(HFactory factory, void* resource, uint32_t* type);
+    Result GetType(HFactory factory, void* resource, uint32_t* type);
 
     /**
      * Get type from extension
      * @param factory Factory handle
      * @param extension File extension
      * @param type Returned type
-     * @return FACTORY_RESULT_OK on success
+     * @return RESULT_OK on success
      */
-    FactoryResult GetTypeFromExtension(HFactory factory, const char* extension, uint32_t* type);
+    Result GetTypeFromExtension(HFactory factory, const char* extension, uint32_t* type);
 
     /**
      * Get extension from type
      * @param factory Factory handle
      * @param type Resource type
      * @param extension Returned extension
-     * @return FACTORY_RESULT_OK on success
+     * @return RESULT_OK on success
      */
-    FactoryResult GetExtensionFromType(HFactory factory, uint32_t type, const char** extension);
+    Result GetExtensionFromType(HFactory factory, uint32_t type, const char** extension);
 
     /**
      * Get resource descriptor from resource (name)
      * @param factory Factory handle
      * @param name Resource name
      * @param descriptor Returned resource descriptor
-     * @return FACTORY_RESULT_OK on success
+     * @return RESULT_OK on success
      */
-    FactoryResult GetDescriptor(HFactory factory, const char* name, SResourceDescriptor* descriptor);
+    Result GetDescriptor(HFactory factory, const char* name, SResourceDescriptor* descriptor);
 
     /**
      * Release resource

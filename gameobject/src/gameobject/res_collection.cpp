@@ -10,7 +10,7 @@
 
 namespace dmGameObject
 {
-    dmResource::CreateResult ResCollectionCreate(dmResource::HFactory factory,
+    dmResource::Result ResCollectionCreate(dmResource::HFactory factory,
                                                 void* context,
                                                 const void* buffer, uint32_t buffer_size,
                                                 dmResource::SResourceDescriptor* resource,
@@ -24,9 +24,9 @@ namespace dmGameObject
         dmDDF::Result e = dmDDF::LoadMessage<dmGameObjectDDF::CollectionDesc>(buffer, buffer_size, &collection_desc);
         if ( e != dmDDF::RESULT_OK )
         {
-            return dmResource::CREATE_RESULT_UNKNOWN;
+            return dmResource::RESULT_FORMAT_ERROR;
         }
-        dmResource::CreateResult res = dmResource::CREATE_RESULT_OK;
+        dmResource::Result res = dmResource::RESULT_OK;
 
         // NOTE: Be careful about control flow. See below with dmMutex::Unlock, return, etc
         dmMutex::Lock(regist->m_Mutex);
@@ -41,7 +41,7 @@ namespace dmGameObject
             if (collection == 0)
             {
                 dmMutex::Unlock(regist->m_Mutex);
-                return dmResource::CREATE_RESULT_UNKNOWN;
+                return dmResource::RESULT_OUT_OF_RESOURCES;
             }
             regist->m_CurrentCollection = collection;
             regist->m_AccumulatedTranslation = Vector3(0, 0, 0);
@@ -85,7 +85,7 @@ namespace dmGameObject
             else
             {
                 dmLogError("Could not instantiate game object from prototype %s.", instance_desc.m_Prototype);
-                res = dmResource::CREATE_RESULT_UNKNOWN;
+                res = dmResource::RESULT_FORMAT_ERROR; // TODO: Could be out-of-resources as well..
                 goto bail;
             }
         }
@@ -145,10 +145,10 @@ namespace dmGameObject
             regist->m_AccumulatedRotation = rot;
             regist->m_AccumulatedTranslation = trans;
 
-            dmResource::FactoryResult r = dmResource::Get(factory, coll_instance_desc.m_Collection, (void**) &child_coll);
-            if (r != dmResource::FACTORY_RESULT_OK)
+            dmResource::Result r = dmResource::Get(factory, coll_instance_desc.m_Collection, (void**) &child_coll);
+            if (r != dmResource::RESULT_OK)
             {
-                res = dmResource::CREATE_RESULT_UNKNOWN;
+                res = r;
                 goto bail;
             }
             else
@@ -177,7 +177,7 @@ bail:
         dmDDF::FreeMessage(collection_desc);
         dmStrlCpy(regist->m_CurrentIdentifierPath, prev_identifier_path, DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX);
 
-        if (loading_root && res != dmResource::CREATE_RESULT_OK)
+        if (loading_root && res != dmResource::RESULT_OK)
         {
             // Loading of root-collection is responsible for deleting
             DeleteCollection(collection);
@@ -193,7 +193,7 @@ bail:
         return res;
     }
 
-    dmResource::CreateResult ResCollectionDestroy(dmResource::HFactory factory,
+    dmResource::Result ResCollectionDestroy(dmResource::HFactory factory,
                                                  void* context,
                                                  dmResource::SResourceDescriptor* resource)
     {
@@ -207,6 +207,6 @@ bail:
         {
             DeleteCollection(collection);
         }
-        return dmResource::CREATE_RESULT_OK;
+        return dmResource::RESULT_OK;
     }
 }

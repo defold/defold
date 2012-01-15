@@ -8,7 +8,7 @@
 
 namespace dmGameObject
 {
-    dmResource::CreateResult ResPrototypeCreate(dmResource::HFactory factory,
+    dmResource::Result ResPrototypeCreate(dmResource::HFactory factory,
                                                 void* context,
                                                 const void* buffer, uint32_t buffer_size,
                                                 dmResource::SResourceDescriptor* resource,
@@ -20,7 +20,7 @@ namespace dmGameObject
         dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmGameObjectDDF_PrototypeDesc_DESCRIPTOR, (void**)(&proto_desc));
         if ( e != dmDDF::RESULT_OK )
         {
-            return dmResource::CREATE_RESULT_UNKNOWN;
+            return dmResource::RESULT_FORMAT_ERROR;
         }
 
         Prototype* proto = new Prototype();
@@ -31,11 +31,11 @@ namespace dmGameObject
             dmGameObjectDDF::ComponentDesc& component_desc = proto_desc->m_Components[i];
             const char* component_resource = component_desc.m_Component;
             void* component;
-            dmResource::FactoryResult fact_e = dmResource::Get(factory, component_resource, (void**) &component);
+            dmResource::Result fact_e = dmResource::Get(factory, component_resource, (void**) &component);
 
             bool id_used = false;
             dmhash_t id = 0;
-            if (fact_e == dmResource::FACTORY_RESULT_OK)
+            if (fact_e == dmResource::RESULT_OK)
             {
                 id = dmHashString64(component_desc.m_Id);
                 for (uint32_t j = 0; j < proto->m_Components.Size(); ++j)
@@ -48,7 +48,7 @@ namespace dmGameObject
                 }
             }
 
-            if (id_used || fact_e != dmResource::FACTORY_RESULT_OK)
+            if (id_used || fact_e != dmResource::RESULT_OK)
             {
                 // Error, release created
                 if (id_used)
@@ -59,19 +59,22 @@ namespace dmGameObject
                 }
                 delete proto;
                 dmDDF::FreeMessage(proto_desc);
-                return dmResource::CREATE_RESULT_UNKNOWN;
+                if (id_used)
+                    return dmResource::RESULT_FORMAT_ERROR;
+                else
+                    return fact_e;
             }
             else
             {
                 uint32_t resource_type;
                 fact_e = dmResource::GetType(factory, component, &resource_type);
-                assert(fact_e == dmResource::FACTORY_RESULT_OK);
+                assert(fact_e == dmResource::RESULT_OK);
                 uint32_t type_index;
                 ComponentType* type = FindComponentType(regist, resource_type, &type_index);
                 assert(type != 0x0);
                 dmResource::SResourceDescriptor descriptor;
                 fact_e = dmResource::GetDescriptor(factory, component_resource, &descriptor);
-                assert(fact_e == dmResource::FACTORY_RESULT_OK);
+                assert(fact_e == dmResource::RESULT_OK);
 
                 proto->m_Components.Push(Prototype::Component(component,
                                                               resource_type,
@@ -87,10 +90,10 @@ namespace dmGameObject
         resource->m_Resource = (void*) proto;
 
         dmDDF::FreeMessage(proto_desc);
-        return dmResource::CREATE_RESULT_OK;
+        return dmResource::RESULT_OK;
     }
 
-    dmResource::CreateResult ResPrototypeDestroy(dmResource::HFactory factory,
+    dmResource::Result ResPrototypeDestroy(dmResource::HFactory factory,
                                                  void* context,
                                                  dmResource::SResourceDescriptor* resource)
     {
@@ -101,6 +104,6 @@ namespace dmGameObject
         }
 
         delete proto;
-        return dmResource::CREATE_RESULT_OK;
+        return dmResource::RESULT_OK;
     }
 }

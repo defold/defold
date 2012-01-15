@@ -17,17 +17,17 @@ namespace dmGameSystem
         dmGameSystemDDF::SpriteDesc* m_DDF;
     };
 
-    dmResource::CreateResult ResSpriteCreate(dmResource::HFactory factory,
+    dmResource::Result ResSpriteCreate(dmResource::HFactory factory,
                                             void* context,
                                             const void* buffer, uint32_t buffer_size,
                                             dmResource::SResourceDescriptor* resource,
                                             const char* filename);
 
-    dmResource::CreateResult ResSpriteDestroy(dmResource::HFactory factory,
+    dmResource::Result ResSpriteDestroy(dmResource::HFactory factory,
                                             void* context,
                                             dmResource::SResourceDescriptor* resource);
 
-    dmResource::CreateResult ResSpriteRecreate(dmResource::HFactory factory,
+    dmResource::Result ResSpriteRecreate(dmResource::HFactory factory,
                                               void* context,
                                               const void* buffer, uint32_t buffer_size,
                                               dmResource::SResourceDescriptor* resource,

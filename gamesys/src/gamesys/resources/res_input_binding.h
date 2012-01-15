@@ -6,17 +6,17 @@
 
 namespace dmGameSystem
 {
-    dmResource::CreateResult ResInputBindingCreate(dmResource::HFactory factory,
+    dmResource::Result ResInputBindingCreate(dmResource::HFactory factory,
             void* context,
             const void* buffer, uint32_t buffer_size,
             dmResource::SResourceDescriptor* resource,
             const char* filename);
 
-    dmResource::CreateResult ResInputBindingDestroy(dmResource::HFactory factory,
+    dmResource::Result ResInputBindingDestroy(dmResource::HFactory factory,
             void* context,
             dmResource::SResourceDescriptor* resource);
 
-    dmResource::CreateResult ResInputBindingRecreate(dmResource::HFactory factory,
+    dmResource::Result ResInputBindingRecreate(dmResource::HFactory factory,
             void* context,
             const void* buffer, uint32_t buffer_size,
             dmResource::SResourceDescriptor* resource,

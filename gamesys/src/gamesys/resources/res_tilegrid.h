@@ -25,17 +25,17 @@ namespace dmGameSystem
         int32_t                         m_MinCellY;
     };
 
-    dmResource::CreateResult ResTileGridCreate(dmResource::HFactory factory,
+    dmResource::Result ResTileGridCreate(dmResource::HFactory factory,
                                             void* context,
                                             const void* buffer, uint32_t buffer_size,
                                             dmResource::SResourceDescriptor* resource,
                                             const char* filename);
 
-    dmResource::CreateResult ResTileGridDestroy(dmResource::HFactory factory,
+    dmResource::Result ResTileGridDestroy(dmResource::HFactory factory,
                                             void* context,
                                             dmResource::SResourceDescriptor* resource);
 
-    dmResource::CreateResult ResTileGridRecreate(dmResource::HFactory factory,
+    dmResource::Result ResTileGridRecreate(dmResource::HFactory factory,
                                               void* context,
                                               const void* buffer, uint32_t buffer_size,
                                               dmResource::SResourceDescriptor* resource,

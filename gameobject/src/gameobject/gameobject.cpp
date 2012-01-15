@@ -240,19 +240,19 @@ namespace dmGameObject
         return RESULT_OK;
     }
 
-    dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory, HRegister regist)
+    dmResource::Result RegisterResourceTypes(dmResource::HFactory factory, HRegister regist)
     {
-        dmResource::FactoryResult ret = dmResource::FACTORY_RESULT_OK;
+        dmResource::Result ret = dmResource::RESULT_OK;
         ret = dmResource::RegisterType(factory, "goc", (void*)regist, &ResPrototypeCreate, &ResPrototypeDestroy, 0);
-        if (ret != dmResource::FACTORY_RESULT_OK)
+        if (ret != dmResource::RESULT_OK)
             return ret;
 
         ret = dmResource::RegisterType(factory, "scriptc", 0, &ResScriptCreate, &ResScriptDestroy, &ResScriptRecreate);
-        if (ret != dmResource::FACTORY_RESULT_OK)
+        if (ret != dmResource::RESULT_OK)
             return ret;
 
         ret = dmResource::RegisterType(factory, "collectionc", regist, &ResCollectionCreate, &ResCollectionDestroy, 0);
-        if (ret != dmResource::FACTORY_RESULT_OK)
+        if (ret != dmResource::RESULT_OK)
             return ret;
 
         return ret;
@@ -304,8 +304,8 @@ namespace dmGameObject
         assert(collection->m_InUpdate == 0 && "Creating new instances during Update(.) is not permitted");
         Prototype* proto;
         dmResource::HFactory factory = collection->m_Factory;
-        dmResource::FactoryResult error = dmResource::Get(factory, prototype_name, (void**)&proto);
-        if (error != dmResource::FACTORY_RESULT_OK)
+        dmResource::Result error = dmResource::Get(factory, prototype_name, (void**)&proto);
+        if (error != dmResource::RESULT_OK)
         {
             return 0;
         }

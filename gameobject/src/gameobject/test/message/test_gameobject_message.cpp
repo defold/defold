@@ -37,13 +37,13 @@ protected:
 
         m_MessageTargetCounter = 0;
 
-        dmResource::FactoryResult e = dmResource::RegisterType(m_Factory, "mt", this, ResMessageTargetCreate, ResMessageTargetDestroy, 0);
-        ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
+        dmResource::Result e = dmResource::RegisterType(m_Factory, "mt", this, ResMessageTargetCreate, ResMessageTargetDestroy, 0);
+        ASSERT_EQ(dmResource::RESULT_OK, e);
 
         // MessageTargetComponent
         uint32_t resource_type;
         e = dmResource::GetTypeFromExtension(m_Factory, "mt", &resource_type);
-        ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
+        ASSERT_EQ(dmResource::RESULT_OK, e);
         dmGameObject::ComponentType mt_type;
         mt_type.m_Name = "mt";
         mt_type.m_ResourceType = resource_type;
@@ -72,12 +72,12 @@ protected:
         dmScript::DeleteContext(m_ScriptContext);
     }
 
-    static dmResource::CreateResult ResMessageTargetCreate(dmResource::HFactory factory,
+    static dmResource::Result ResMessageTargetCreate(dmResource::HFactory factory,
                                            void* context,
                                            const void* buffer, uint32_t buffer_size,
                                            dmResource::SResourceDescriptor* resource,
                                            const char* filename);
-    static dmResource::CreateResult ResMessageTargetDestroy(dmResource::HFactory factory,
+    static dmResource::Result ResMessageTargetDestroy(dmResource::HFactory factory,
                                             void* context,
                                             dmResource::SResourceDescriptor* resource);
     static dmGameObject::CreateResult CompMessageTargetNewWorld(const dmGameObject::ComponentNewWorldParams& params);
@@ -103,25 +103,25 @@ const static dmhash_t POST_NAMED_ID = dmHashString64("post_named");
 const static dmhash_t POST_DDF_ID = dmHashString64(TestGameObjectDDF::TestMessage::m_DDFDescriptor->m_Name);
 const static dmhash_t POST_NAMED_TO_INST_ID = dmHashString64("post_named_to_instance");
 
-dmResource::CreateResult MessageTest::ResMessageTargetCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, dmResource::SResourceDescriptor* resource, const char* filename)
+dmResource::Result MessageTest::ResMessageTargetCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, dmResource::SResourceDescriptor* resource, const char* filename)
 {
     TestGameObjectDDF::MessageTarget* obj;
     dmDDF::Result e = dmDDF::LoadMessage<TestGameObjectDDF::MessageTarget>(buffer, buffer_size, &obj);
     if (e == dmDDF::RESULT_OK)
     {
         resource->m_Resource = (void*) obj;
-        return dmResource::CREATE_RESULT_OK;
+        return dmResource::RESULT_OK;
     }
     else
     {
-        return dmResource::CREATE_RESULT_UNKNOWN;
+        return dmResource::RESULT_FORMAT_ERROR;
     }
 }
 
-dmResource::CreateResult MessageTest::ResMessageTargetDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource)
+dmResource::Result MessageTest::ResMessageTargetDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource)
 {
     dmDDF::FreeMessage((void*) resource->m_Resource);
-    return dmResource::CREATE_RESULT_OK;
+    return dmResource::RESULT_OK;
 }
 
 dmGameObject::CreateResult MessageTest::CompMessageTargetNewWorld(const dmGameObject::ComponentNewWorldParams& params)

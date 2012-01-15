@@ -2,13 +2,13 @@
 
 namespace dmGameSystem
 {
-    bool AcquireResource(dmResource::HFactory factory, const void* buffer, uint32_t buffer_size, CollectionProxyResource* resource)
+    dmResource::Result AcquireResource(dmResource::HFactory factory, const void* buffer, uint32_t buffer_size, CollectionProxyResource* resource)
     {
         dmDDF::Result e  = dmDDF::LoadMessage(buffer, buffer_size, &resource->m_DDF);
         if ( e != dmDDF::RESULT_OK )
-            return false;
+            return dmResource::RESULT_FORMAT_ERROR;
 
-        return true;
+        return dmResource::RESULT_OK;
     }
 
     void ReleaseResources(dmResource::HFactory factory, CollectionProxyResource* resource)
@@ -17,7 +17,7 @@ namespace dmGameSystem
             dmDDF::FreeMessage(resource->m_DDF);
     }
 
-    dmResource::CreateResult ResCollectionProxyCreate(dmResource::HFactory factory,
+    dmResource::Result ResCollectionProxyCreate(dmResource::HFactory factory,
             void* context,
             const void* buffer, uint32_t buffer_size,
             dmResource::SResourceDescriptor* resource,
@@ -25,46 +25,46 @@ namespace dmGameSystem
     {
 
         CollectionProxyResource* cspr = new CollectionProxyResource();
-        if (AcquireResource(factory, buffer, buffer_size, cspr))
+        dmResource::Result r = AcquireResource(factory, buffer, buffer_size, cspr);
+        if (r == dmResource::RESULT_OK)
         {
             resource->m_Resource = (void*) cspr;
-            return dmResource::CREATE_RESULT_OK;
         }
         else
         {
             ReleaseResources(factory, cspr);
-            return dmResource::CREATE_RESULT_UNKNOWN;
         }
+        return r;
     }
 
-    dmResource::CreateResult ResCollectionProxyDestroy(dmResource::HFactory factory,
+    dmResource::Result ResCollectionProxyDestroy(dmResource::HFactory factory,
             void* context,
             dmResource::SResourceDescriptor* resource)
     {
         CollectionProxyResource* cspr = (CollectionProxyResource*) resource->m_Resource;
         ReleaseResources(factory, cspr);
         delete cspr;
-        return dmResource::CREATE_RESULT_OK;
+        return dmResource::RESULT_OK;
     }
 
-    dmResource::CreateResult ResCollectionProxyRecreate(dmResource::HFactory factory,
+    dmResource::Result ResCollectionProxyRecreate(dmResource::HFactory factory,
             void* context,
             const void* buffer, uint32_t buffer_size,
             dmResource::SResourceDescriptor* resource,
             const char* filename)
     {
         CollectionProxyResource tmp_cspr;
-        if (AcquireResource(factory, buffer, buffer_size, &tmp_cspr))
+        dmResource::Result r = AcquireResource(factory, buffer, buffer_size, &tmp_cspr);
+        if (r == dmResource::RESULT_OK)
         {
             CollectionProxyResource* cspr = (CollectionProxyResource*) resource->m_Resource;
             ReleaseResources(factory, cspr);
             *cspr = tmp_cspr;
-            return dmResource::CREATE_RESULT_OK;
         }
         else
         {
             ReleaseResources(factory, &tmp_cspr);
-            return dmResource::CREATE_RESULT_UNKNOWN;
         }
+        return r;
     }
 }

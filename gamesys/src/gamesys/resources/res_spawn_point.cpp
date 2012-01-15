@@ -2,17 +2,14 @@
 
 namespace dmGameSystem
 {
-    bool AcquireResource(dmResource::HFactory factory, const void* buffer, uint32_t buffer_size, SpawnPointResource* spawn_point)
+    dmResource::Result AcquireResource(dmResource::HFactory factory, const void* buffer, uint32_t buffer_size, SpawnPointResource* spawn_point)
     {
         dmDDF::Result e  = dmDDF::LoadMessage(buffer, buffer_size, &spawn_point->m_SpawnPointDesc);
         if ( e != dmDDF::RESULT_OK )
-            return false;
+            return dmResource::RESULT_FORMAT_ERROR;
 
-        dmResource::FactoryResult fact_r = dmResource::Get(factory, spawn_point->m_SpawnPointDesc->m_Prototype, &spawn_point->m_Prototype);
-        if (fact_r != dmResource::FACTORY_RESULT_OK)
-            return false;
-
-        return true;
+        dmResource::Result fact_r = dmResource::Get(factory, spawn_point->m_SpawnPointDesc->m_Prototype, &spawn_point->m_Prototype);
+        return fact_r;
     }
 
     void ReleaseResources(dmResource::HFactory factory, SpawnPointResource* spawn_point)
@@ -23,7 +20,7 @@ namespace dmGameSystem
             dmResource::Release(factory, spawn_point->m_Prototype);
     }
 
-    dmResource::CreateResult ResSpawnPointCreate(dmResource::HFactory factory,
+    dmResource::Result ResSpawnPointCreate(dmResource::HFactory factory,
             void* context,
             const void* buffer, uint32_t buffer_size,
             dmResource::SResourceDescriptor* resource,
@@ -31,46 +28,46 @@ namespace dmGameSystem
     {
 
         SpawnPointResource* spawn_point = new SpawnPointResource;
-        if (AcquireResource(factory, buffer, buffer_size, spawn_point))
+        dmResource::Result r = AcquireResource(factory, buffer, buffer_size, spawn_point);
+        if (r == dmResource::RESULT_OK)
         {
             resource->m_Resource = (void*) spawn_point;
-            return dmResource::CREATE_RESULT_OK;
         }
         else
         {
             ReleaseResources(factory, spawn_point);
-            return dmResource::CREATE_RESULT_UNKNOWN;
         }
+        return r;
     }
 
-    dmResource::CreateResult ResSpawnPointDestroy(dmResource::HFactory factory,
+    dmResource::Result ResSpawnPointDestroy(dmResource::HFactory factory,
             void* context,
             dmResource::SResourceDescriptor* resource)
     {
         SpawnPointResource* spawn_point = (SpawnPointResource*) resource->m_Resource;
         ReleaseResources(factory, spawn_point);
         delete spawn_point;
-        return dmResource::CREATE_RESULT_OK;
+        return dmResource::RESULT_OK;
     }
 
-    dmResource::CreateResult ResSpawnPointRecreate(dmResource::HFactory factory,
+    dmResource::Result ResSpawnPointRecreate(dmResource::HFactory factory,
             void* context,
             const void* buffer, uint32_t buffer_size,
             dmResource::SResourceDescriptor* resource,
             const char* filename)
     {
         SpawnPointResource tmp_spawn_point;
-        if (AcquireResource(factory, buffer, buffer_size, &tmp_spawn_point))
+        dmResource::Result r = AcquireResource(factory, buffer, buffer_size, &tmp_spawn_point);
+        if (r == dmResource::RESULT_OK)
         {
             SpawnPointResource* spawn_point = (SpawnPointResource*) resource->m_Resource;
             ReleaseResources(factory, spawn_point);
             *spawn_point = tmp_spawn_point;
-            return dmResource::CREATE_RESULT_OK;
         }
         else
         {
             ReleaseResources(factory, &tmp_spawn_point);
-            return dmResource::CREATE_RESULT_UNKNOWN;
         }
+        return r;
     }
 }

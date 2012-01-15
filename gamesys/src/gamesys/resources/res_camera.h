@@ -14,17 +14,17 @@ namespace dmGameSystem
         dmGamesysDDF::CameraDesc* m_DDF;
     };
 
-    dmResource::CreateResult ResCameraCreate(dmResource::HFactory factory,
+    dmResource::Result ResCameraCreate(dmResource::HFactory factory,
             void* context,
             const void* buffer, uint32_t buffer_size,
             dmResource::SResourceDescriptor* resource,
             const char* filename);
 
-    dmResource::CreateResult ResCameraDestroy(dmResource::HFactory factory,
+    dmResource::Result ResCameraDestroy(dmResource::HFactory factory,
             void* context,
             dmResource::SResourceDescriptor* resource);
 
-    dmResource::CreateResult ResCameraRecreate(dmResource::HFactory factory,
+    dmResource::Result ResCameraRecreate(dmResource::HFactory factory,
             void* context,
             const void* buffer, uint32_t buffer_size,
             dmResource::SResourceDescriptor* resource,

@@ -190,8 +190,8 @@ namespace dmGameSystem
             {
                 proxy->m_Unload = 0;
                 // TODO: asynchronous loading
-                dmResource::FactoryResult result = dmResource::Get((dmResource::HFactory)params.m_Context, proxy->m_Resource->m_DDF->m_Collection, (void**)&proxy->m_Collection);
-                if (result != dmResource::FACTORY_RESULT_OK)
+                dmResource::Result result = dmResource::Get((dmResource::HFactory)params.m_Context, proxy->m_Resource->m_DDF->m_Collection, (void**)&proxy->m_Collection);
+                if (result != dmResource::RESULT_OK)
                 {
                     dmLogError("The collection %s could not be loaded.", proxy->m_Resource->m_DDF->m_Collection);
                     return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;

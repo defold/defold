@@ -1,5 +1,6 @@
 #include "res_tilegrid.h"
 
+#include <dlib/log.h>
 #include <vectormath/ppu/cpp/vec_aos.h>
 #include "gamesys_ddf.h"
 
@@ -7,17 +8,18 @@ namespace dmGameSystem
 {
     using namespace Vectormath::Aos;
 
-    bool AcquireResources(dmResource::HFactory factory, const void* buffer, uint32_t buffer_size,
+    dmResource::Result AcquireResources(dmResource::HFactory factory, const void* buffer, uint32_t buffer_size,
                           TileGridResource* tile_grid, const char* filename)
     {
         dmGameSystemDDF::TileGrid* tile_grid_ddf;
         dmDDF::Result e  = dmDDF::LoadMessage(buffer, buffer_size, &tile_grid_ddf);
         if ( e != dmDDF::RESULT_OK )
         {
-            return false;
+            return dmResource::RESULT_FORMAT_ERROR;
         }
 
-        if (dmResource::FACTORY_RESULT_OK == dmResource::Get(factory, tile_grid_ddf->m_TileSet, (void**)&tile_grid->m_TileSet))
+        dmResource::Result r = dmResource::Get(factory, tile_grid_ddf->m_TileSet, (void**)&tile_grid->m_TileSet);
+        if (r == dmResource::RESULT_OK)
         {
             tile_grid->m_TileGrid = tile_grid_ddf;
             TileSetResource* tile_set = tile_grid->m_TileSet;
@@ -62,15 +64,24 @@ namespace dmGameSystem
                     offset.setX(cell_width * 0.5f * (min_x + max_x));
                     offset.setY(cell_height * 0.5f * (min_y + max_y));
                     tile_grid->m_GridShape = dmPhysics::NewGridShape2D(hull_set, offset, cell_width, cell_height, tile_grid->m_RowCount, tile_grid->m_ColumnCount);
-                    return true;
                 }
+                else
+                {
+                    dmLogError("No hull-set in tile-grid '%s'", filename);
+                    r = dmResource::RESULT_FORMAT_ERROR;
+                }
+            }
+            else
+            {
+                dmLogError("Zero cell count in tile-grid '%s'", filename);
+                r = dmResource::RESULT_FORMAT_ERROR;
             }
         }
         else
         {
             dmDDF::FreeMessage(tile_grid_ddf);
         }
-        return false;
+        return r;
     }
 
     void ReleaseResources(dmResource::HFactory factory, TileGridResource* tile_grid)
@@ -85,7 +96,7 @@ namespace dmGameSystem
             dmPhysics::DeleteCollisionShape2D(tile_grid->m_GridShape);
     }
 
-    dmResource::CreateResult ResTileGridCreate(dmResource::HFactory factory,
+    dmResource::Result ResTileGridCreate(dmResource::HFactory factory,
             void* context,
             const void* buffer, uint32_t buffer_size,
             dmResource::SResourceDescriptor* resource,
@@ -93,30 +104,30 @@ namespace dmGameSystem
     {
         TileGridResource* tile_grid = new TileGridResource();
 
-        if (AcquireResources(factory, buffer, buffer_size, tile_grid, filename))
+        dmResource::Result r = AcquireResources(factory, buffer, buffer_size, tile_grid, filename);
+        if (r == dmResource::RESULT_OK)
         {
             resource->m_Resource = (void*) tile_grid;
-            return dmResource::CREATE_RESULT_OK;
         }
         else
         {
             ReleaseResources(factory, tile_grid);
             delete tile_grid;
-            return dmResource::CREATE_RESULT_UNKNOWN;
         }
+        return r;
     }
 
-    dmResource::CreateResult ResTileGridDestroy(dmResource::HFactory factory,
+    dmResource::Result ResTileGridDestroy(dmResource::HFactory factory,
             void* context,
             dmResource::SResourceDescriptor* resource)
     {
         TileGridResource* tile_grid = (TileGridResource*) resource->m_Resource;
         ReleaseResources(factory, tile_grid);
         delete tile_grid;
-        return dmResource::CREATE_RESULT_OK;
+        return dmResource::RESULT_OK;
     }
 
-    dmResource::CreateResult ResTileGridRecreate(dmResource::HFactory factory,
+    dmResource::Result ResTileGridRecreate(dmResource::HFactory factory,
             void* context,
             const void* buffer, uint32_t buffer_size,
             dmResource::SResourceDescriptor* resource,
@@ -125,19 +136,19 @@ namespace dmGameSystem
         // TODO: Reload is temporarily disabled until issue 678 is fixed
 //        TileGridResource* tile_grid = (TileGridResource*)resource->m_Resource;
 //        TileGridResource tmp_tile_grid;
-//        if (AcquireResources(factory, buffer, buffer_size, &tmp_tile_grid, filename))
+//        dmResource::Result r = AcquireResources(factory, buffer, buffer_size, &tmp_tile_grid, filename);
+//        if (r == dmResource::RESULT_OK)
 //        {
 //            ReleaseResources(factory, tile_grid);
 //            tile_grid->m_TileGrid = tmp_tile_grid.m_TileGrid;
 //            tile_grid->m_TileSet = tmp_tile_grid.m_TileSet;
 //            tile_grid->m_GridShape = tmp_tile_grid.m_GridShape;
-//            return dmResource::CREATE_RESULT_OK;
 //        }
 //        else
 //        {
 //            ReleaseResources(factory, &tmp_tile_grid);
-//            return dmResource::CREATE_RESULT_UNKNOWN;
 //        }
-                    return dmResource::CREATE_RESULT_OK;
+//        return r;
+        return dmResource::RESULT_OK;
     }
 }

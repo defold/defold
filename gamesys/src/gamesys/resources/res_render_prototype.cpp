@@ -15,22 +15,22 @@ namespace dmGameSystem
         }
     }
 
-    bool AcquireResources(dmResource::HFactory factory, const void* buffer, uint32_t buffer_size,
+    dmResource::Result AcquireResources(dmResource::HFactory factory, const void* buffer, uint32_t buffer_size,
         dmRender::HRenderContext render_context, RenderScriptPrototype* prototype, const char* filename)
     {
         dmRenderDDF::RenderPrototypeDesc* prototype_desc;
         dmDDF::Result e  = dmDDF::LoadMessage(buffer, buffer_size, &prototype_desc);
         if ( e != dmDDF::RESULT_OK )
         {
-            return false;
+            return dmResource::RESULT_FORMAT_ERROR;
         }
-        bool result = true;
-        if (dmResource::FACTORY_RESULT_OK == dmResource::Get(factory, prototype_desc->m_Script, (void**)&prototype->m_Script))
+        dmResource::Result result = dmResource::Get(factory, prototype_desc->m_Script, (void**)&prototype->m_Script);
+        if (result == dmResource::RESULT_OK)
         {
             if (prototype->m_Instance == 0x0)
             {
                 dmResource::SResourceDescriptor descriptor;
-                if (dmResource::FACTORY_RESULT_OK == dmResource::GetDescriptor(factory, prototype_desc->m_Script, &descriptor))
+                if (dmResource::RESULT_OK == dmResource::GetDescriptor(factory, prototype_desc->m_Script, &descriptor))
                     prototype->m_NameHash = descriptor.m_NameHash;
                 prototype->m_Instance = dmRender::NewRenderScriptInstance(render_context, prototype->m_Script);
             }
@@ -43,14 +43,14 @@ namespace dmGameSystem
             for (uint32_t i = 0; i < prototype_desc->m_Materials.m_Count; ++i)
             {
                 dmRender::HMaterial material;
-                if (dmResource::FACTORY_RESULT_OK == dmResource::Get(factory, prototype_desc->m_Materials[i].m_Material, (void**)&material))
+                if (dmResource::RESULT_OK == dmResource::Get(factory, prototype_desc->m_Materials[i].m_Material, (void**)&material))
                     prototype->m_Materials.Push(material);
                 else
                     break;
             }
             if (!prototype->m_Materials.Full())
             {
-                result = false;
+                result = dmResource::RESULT_OUT_OF_RESOURCES;
             }
             else
             {
@@ -59,10 +59,6 @@ namespace dmGameSystem
                     dmRender::AddRenderScriptInstanceMaterial(prototype->m_Instance, prototype_desc->m_Materials[i].m_Name, prototype->m_Materials[i]);
                 }
             }
-        }
-        else
-        {
-            result = false;
         }
         dmDDF::FreeMessage(prototype_desc);
         return result;
@@ -76,7 +72,7 @@ namespace dmGameSystem
             dmResource::Release(factory, prototype->m_Materials[i]);
     }
 
-    dmResource::CreateResult ResRenderPrototypeCreate(dmResource::HFactory factory,
+    dmResource::Result ResRenderPrototypeCreate(dmResource::HFactory factory,
             void* context,
             const void* buffer, uint32_t buffer_size,
             dmResource::SResourceDescriptor* resource,
@@ -85,11 +81,11 @@ namespace dmGameSystem
         dmRender::HRenderContext render_context = (dmRender::HRenderContext)context;
         RenderScriptPrototype* prototype = new RenderScriptPrototype();
         memset(prototype, 0, sizeof(RenderScriptPrototype));
-        if (AcquireResources(factory, buffer, buffer_size, render_context, prototype, filename))
+        dmResource::Result r = AcquireResources(factory, buffer, buffer_size, render_context, prototype, filename);
+        if (r == dmResource::RESULT_OK)
         {
             resource->m_Resource = (void*) prototype;
             dmResource::RegisterResourceReloadedCallback(factory, ResourceReloadedCallback, prototype);
-            return dmResource::CREATE_RESULT_OK;
         }
         else
         {
@@ -97,11 +93,11 @@ namespace dmGameSystem
             if (prototype->m_Instance)
                 dmRender::DeleteRenderScriptInstance(prototype->m_Instance);
             delete prototype;
-            return dmResource::CREATE_RESULT_UNKNOWN;
         }
+        return r;
     }
 
-    dmResource::CreateResult ResRenderPrototypeDestroy(dmResource::HFactory factory,
+    dmResource::Result ResRenderPrototypeDestroy(dmResource::HFactory factory,
             void* context,
             dmResource::SResourceDescriptor* resource)
     {
@@ -111,10 +107,10 @@ namespace dmGameSystem
             dmRender::DeleteRenderScriptInstance(prototype->m_Instance);
         dmResource::UnregisterResourceReloadedCallback(factory, ResourceReloadedCallback, prototype);
         delete prototype;
-        return dmResource::CREATE_RESULT_OK;
+        return dmResource::RESULT_OK;
     }
 
-    dmResource::CreateResult ResRenderPrototypeRecreate(dmResource::HFactory factory,
+    dmResource::Result ResRenderPrototypeRecreate(dmResource::HFactory factory,
             void* context,
             const void* buffer, uint32_t buffer_size,
             dmResource::SResourceDescriptor* resource,
@@ -125,17 +121,17 @@ namespace dmGameSystem
         RenderScriptPrototype tmp_prototype;
         memset(&tmp_prototype, 0, sizeof(RenderScriptPrototype));
         tmp_prototype.m_Instance = prototype->m_Instance;
-        if (AcquireResources(factory, buffer, buffer_size, render_context, &tmp_prototype, filename))
+        dmResource::Result r = AcquireResources(factory, buffer, buffer_size, render_context, &tmp_prototype, filename);
+        if (r == dmResource::RESULT_OK)
         {
             ReleaseResources(factory, prototype);
             prototype->m_Script = tmp_prototype.m_Script;
             prototype->m_Materials.Swap(tmp_prototype.m_Materials);
-            return dmResource::CREATE_RESULT_OK;
         }
         else
         {
             ReleaseResources(factory, &tmp_prototype);
-            return dmResource::CREATE_RESULT_UNKNOWN;
         }
+        return r;
     }
 }

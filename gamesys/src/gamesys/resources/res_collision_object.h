@@ -39,23 +39,23 @@ namespace dmGameSystem
         uint32_t m_TileGrid : 1;
     };
 
-    dmResource::CreateResult ResCollisionObjectCreate(dmResource::HFactory factory,
+    dmResource::Result ResCollisionObjectCreate(dmResource::HFactory factory,
                                              void* context,
                                              const void* buffer, uint32_t buffer_size,
                                              dmResource::SResourceDescriptor* resource,
                                              const char* filename);
 
-    dmResource::CreateResult ResCollisionObjectDestroy(dmResource::HFactory factory,
+    dmResource::Result ResCollisionObjectDestroy(dmResource::HFactory factory,
                                               void* context,
                                               dmResource::SResourceDescriptor* resource);
 
-    dmResource::CreateResult ResCollisionObjectRecreate(dmResource::HFactory factory,
+    dmResource::Result ResCollisionObjectRecreate(dmResource::HFactory factory,
                                                 void* context,
                                                 const void* buffer, uint32_t buffer_size,
                                                 dmResource::SResourceDescriptor* resource,
                                                 const char* filename);
 
-    dmResource::CreateResult ResCollisionObjectRecreate(dmResource::HFactory factory,
+    dmResource::Result ResCollisionObjectRecreate(dmResource::HFactory factory,
                                                 void* context,
                                                 const void* buffer, uint32_t buffer_size,
                                                 dmResource::SResourceDescriptor* resource,

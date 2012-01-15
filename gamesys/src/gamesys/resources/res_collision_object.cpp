@@ -148,16 +148,16 @@ range_error:
         if (resource->m_DDF->m_CollisionShape && resource->m_DDF->m_CollisionShape[0] != '\0')
         {
             void* res;
-            dmResource::FactoryResult factory_result = dmResource::Get(factory, resource->m_DDF->m_CollisionShape, &res);
-            if (factory_result == dmResource::FACTORY_RESULT_OK)
+            dmResource::Result factory_result = dmResource::Get(factory, resource->m_DDF->m_CollisionShape, &res);
+            if (factory_result == dmResource::RESULT_OK)
             {
                 uint32_t tile_grid_type;
                 factory_result = dmResource::GetTypeFromExtension(factory, "tilegridc", &tile_grid_type);
-                if (factory_result == dmResource::FACTORY_RESULT_OK)
+                if (factory_result == dmResource::RESULT_OK)
                 {
                     uint32_t res_type;
                     factory_result = dmResource::GetType(factory, res, &res_type);
-                    if (factory_result == dmResource::FACTORY_RESULT_OK && res_type == tile_grid_type)
+                    if (factory_result == dmResource::RESULT_OK && res_type == tile_grid_type)
                     {
                         resource->m_TileGridResource = (TileGridResource*)res;
                         resource->m_TileGrid = 1;
@@ -258,7 +258,7 @@ range_error:
             dmDDF::FreeMessage(resource->m_DDF);
     }
 
-    dmResource::CreateResult ResCollisionObjectCreate(dmResource::HFactory factory,
+    dmResource::Result ResCollisionObjectCreate(dmResource::HFactory factory,
                                              void* context,
                                              const void* buffer, uint32_t buffer_size,
                                              dmResource::SResourceDescriptor* resource,
@@ -270,17 +270,17 @@ range_error:
         if (AcquireResources(physics_context, factory, buffer, buffer_size, collision_object, filename))
         {
             resource->m_Resource = collision_object;
-            return dmResource::CREATE_RESULT_OK;
+            return dmResource::RESULT_OK;
         }
         else
         {
             ReleaseResources(physics_context, factory, collision_object);
             delete collision_object;
-            return dmResource::CREATE_RESULT_FORMAT_ERROR;
+            return dmResource::RESULT_FORMAT_ERROR;
         }
     }
 
-    dmResource::CreateResult ResCollisionObjectDestroy(dmResource::HFactory factory,
+    dmResource::Result ResCollisionObjectDestroy(dmResource::HFactory factory,
                                               void* context,
                                               dmResource::SResourceDescriptor* resource)
     {
@@ -288,10 +288,10 @@ range_error:
         PhysicsContext* physics_context = (PhysicsContext*) context;
         ReleaseResources(physics_context, factory, collision_object);
         delete collision_object;
-        return dmResource::CREATE_RESULT_OK;
+        return dmResource::RESULT_OK;
     }
 
-    dmResource::CreateResult ResCollisionObjectRecreate(dmResource::HFactory factory,
+    dmResource::Result ResCollisionObjectRecreate(dmResource::HFactory factory,
                                                 void* context,
                                                 const void* buffer, uint32_t buffer_size,
                                                 dmResource::SResourceDescriptor* resource,
@@ -305,12 +305,12 @@ range_error:
         {
             ReleaseResources(physics_context, factory, collision_object);
             *collision_object = tmp_collision_object;
-            return dmResource::CREATE_RESULT_OK;
+            return dmResource::RESULT_OK;
         }
         else
         {
             ReleaseResources(physics_context, factory, &tmp_collision_object);
-            return dmResource::CREATE_RESULT_FORMAT_ERROR;
+            return dmResource::RESULT_FORMAT_ERROR;
         }
     }
 }

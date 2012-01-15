@@ -27,17 +27,17 @@ namespace dmGameSystem
         dmPhysics::HHullSet2D       m_HullSet;
     };
 
-    dmResource::CreateResult ResTileSetCreate(dmResource::HFactory factory,
+    dmResource::Result ResTileSetCreate(dmResource::HFactory factory,
             void* context,
             const void* buffer, uint32_t buffer_size,
             dmResource::SResourceDescriptor* resource,
             const char* filename);
 
-    dmResource::CreateResult ResTileSetDestroy(dmResource::HFactory factory,
+    dmResource::Result ResTileSetDestroy(dmResource::HFactory factory,
             void* context,
             dmResource::SResourceDescriptor* resource);
 
-    dmResource::CreateResult ResTileSetRecreate(dmResource::HFactory factory,
+    dmResource::Result ResTileSetRecreate(dmResource::HFactory factory,
             void* context,
             const void* buffer, uint32_t buffer_size,
             dmResource::SResourceDescriptor* resource,

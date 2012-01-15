@@ -4,7 +4,7 @@
 
 namespace dmGameSystem
 {
-    dmResource::CreateResult ResVertexProgramCreate(dmResource::HFactory factory,
+    dmResource::Result ResVertexProgramCreate(dmResource::HFactory factory,
                                                  void* context,
                                                  const void* buffer, uint32_t buffer_size,
                                                  dmResource::SResourceDescriptor* resource,
@@ -13,21 +13,21 @@ namespace dmGameSystem
         dmGraphics::HContext graphics_context = (dmGraphics::HContext)context;
         dmGraphics::HVertexProgram prog = dmGraphics::NewVertexProgram(graphics_context, buffer, buffer_size);
         if (prog == 0 )
-            return dmResource::CREATE_RESULT_UNKNOWN;
+            return dmResource::RESULT_FORMAT_ERROR;
 
         resource->m_Resource = (void*) prog;
-        return dmResource::CREATE_RESULT_OK;
+        return dmResource::RESULT_OK;
     }
 
-    dmResource::CreateResult ResVertexProgramDestroy(dmResource::HFactory factory,
+    dmResource::Result ResVertexProgramDestroy(dmResource::HFactory factory,
                                                   void* context,
                                                   dmResource::SResourceDescriptor* resource)
     {
         dmGraphics::DeleteVertexProgram((dmGraphics::HVertexProgram) resource->m_Resource);
-        return dmResource::CREATE_RESULT_OK;
+        return dmResource::RESULT_OK;
     }
 
-    dmResource::CreateResult ResVertexProgramRecreate(dmResource::HFactory factory,
+    dmResource::Result ResVertexProgramRecreate(dmResource::HFactory factory,
                                                  void* context,
                                                  const void* buffer, uint32_t buffer_size,
                                                  dmResource::SResourceDescriptor* resource,
@@ -35,9 +35,9 @@ namespace dmGameSystem
     {
         dmGraphics::HVertexProgram prog = (dmGraphics::HVertexProgram)resource->m_Resource;
         if (prog == 0 )
-            return dmResource::CREATE_RESULT_UNKNOWN;
+            return dmResource::RESULT_FORMAT_ERROR;
 
         dmGraphics::ReloadVertexProgram(prog, buffer, buffer_size);
-        return dmResource::CREATE_RESULT_OK;
+        return dmResource::RESULT_OK;
     }
 }

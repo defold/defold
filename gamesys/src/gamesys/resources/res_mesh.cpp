@@ -16,7 +16,7 @@ namespace dmGameSystem
 
     void CopyVertexData(dmMeshDDF::MeshDesc* mesh_desc, float* vertex_buffer);
 
-    dmResource::CreateResult ResCreateMesh(dmResource::HFactory factory,
+    dmResource::Result ResCreateMesh(dmResource::HFactory factory,
                                      void* context,
                                      const void* buffer, uint32_t buffer_size,
                                      dmResource::SResourceDescriptor* resource,
@@ -27,7 +27,7 @@ namespace dmGameSystem
         dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmMeshDDF_MeshDesc_DESCRIPTOR, (void**) &mesh_desc);
         if ( e != dmDDF::RESULT_OK )
         {
-            return dmResource::CREATE_RESULT_UNKNOWN;
+            return dmResource::RESULT_FORMAT_ERROR;
         }
 
         Mesh* mesh = new Mesh();
@@ -57,10 +57,10 @@ namespace dmGameSystem
 
         resource->m_Resource = (void*) mesh;
 
-        return dmResource::CREATE_RESULT_OK;
+        return dmResource::RESULT_OK;
     }
 
-    dmResource::CreateResult ResDestroyMesh(dmResource::HFactory factory,
+    dmResource::Result ResDestroyMesh(dmResource::HFactory factory,
                                       void* context,
                                       dmResource::SResourceDescriptor* resource)
     {
@@ -69,10 +69,10 @@ namespace dmGameSystem
         dmGraphics::DeleteVertexBuffer(mesh->m_VertexBuffer);
         delete mesh;
 
-        return dmResource::CREATE_RESULT_OK;
+        return dmResource::RESULT_OK;
     }
 
-    dmResource::CreateResult ResRecreateMesh(dmResource::HFactory factory,
+    dmResource::Result ResRecreateMesh(dmResource::HFactory factory,
             void* context,
             const void* buffer, uint32_t buffer_size,
             dmResource::SResourceDescriptor* resource,
@@ -82,7 +82,7 @@ namespace dmGameSystem
         dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmMeshDDF_MeshDesc_DESCRIPTOR, (void**) &mesh_desc);
         if ( e != dmDDF::RESULT_OK )
         {
-            return dmResource::CREATE_RESULT_UNKNOWN;
+            return dmResource::RESULT_FORMAT_ERROR;
         }
 
         Mesh* mesh = (Mesh*)resource->m_Resource;
@@ -101,7 +101,7 @@ namespace dmGameSystem
 
         dmDDF::FreeMessage(mesh_desc);
 
-        return dmResource::CREATE_RESULT_OK;
+        return dmResource::RESULT_OK;
     }
 
     void CopyVertexData(dmMeshDDF::MeshDesc* mesh_desc, float* vertex_buffer)

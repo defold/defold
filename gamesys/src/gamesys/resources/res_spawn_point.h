@@ -15,17 +15,17 @@ namespace dmGameSystem
         void*                            m_Prototype;
     };
 
-    dmResource::CreateResult ResSpawnPointCreate(dmResource::HFactory factory,
+    dmResource::Result ResSpawnPointCreate(dmResource::HFactory factory,
             void* context,
             const void* buffer, uint32_t buffer_size,
             dmResource::SResourceDescriptor* resource,
             const char* filename);
 
-    dmResource::CreateResult ResSpawnPointDestroy(dmResource::HFactory factory,
+    dmResource::Result ResSpawnPointDestroy(dmResource::HFactory factory,
             void* context,
             dmResource::SResourceDescriptor* resource);
 
-    dmResource::CreateResult ResSpawnPointRecreate(dmResource::HFactory factory,
+    dmResource::Result ResSpawnPointRecreate(dmResource::HFactory factory,
             void* context,
             const void* buffer, uint32_t buffer_size,
             dmResource::SResourceDescriptor* resource,

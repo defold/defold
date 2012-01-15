@@ -48,10 +48,10 @@ TEST_P(ResourceTest, Test)
 {
     const char* resource_name = GetParam();
     void* resource;
-    ASSERT_EQ(dmResource::FACTORY_RESULT_OK, dmResource::Get(m_Factory, resource_name, &resource));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, resource_name, &resource));
     ASSERT_NE((void*)0, resource);
 
-    ASSERT_EQ(dmResource::RELOAD_RESULT_OK, dmResource::ReloadResource(m_Factory, resource_name, 0));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, resource_name, 0));
 
     dmResource::Release(m_Factory, resource);
 }
@@ -62,17 +62,17 @@ TEST_P(ResourceFailTest, Test)
     const char* tmp_name = "tmp";
 
     void* resource;
-    ASSERT_NE(dmResource::FACTORY_RESULT_OK, dmResource::Get(m_Factory, p.m_InvalidResource, &resource));
+    ASSERT_NE(dmResource::RESULT_OK, dmResource::Get(m_Factory, p.m_InvalidResource, &resource));
 
     bool exists = CopyResource(p.m_InvalidResource, tmp_name);
     ASSERT_TRUE(CopyResource(p.m_ValidResource, p.m_InvalidResource));
-    ASSERT_EQ(dmResource::FACTORY_RESULT_OK, dmResource::Get(m_Factory, p.m_InvalidResource, &resource));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, p.m_InvalidResource, &resource));
 
     if (exists)
         ASSERT_TRUE(CopyResource(tmp_name, p.m_InvalidResource));
     else
         ASSERT_TRUE(UnlinkResource(p.m_InvalidResource));
-    ASSERT_NE(dmResource::RELOAD_RESULT_OK, dmResource::ReloadResource(m_Factory, p.m_InvalidResource, 0));
+    ASSERT_NE(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, p.m_InvalidResource, 0));
 
     dmResource::Release(m_Factory, resource);
 
@@ -104,7 +104,7 @@ TEST_P(ComponentTest, Test)
     input_action.m_Pressed = 1;
     dmGameObject::DispatchInput(m_Collection, &input_action, 1);
 
-    ASSERT_EQ(dmResource::RELOAD_RESULT_OK, dmResource::ReloadResource(m_Factory, component_name, 0));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, component_name, 0));
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
@@ -132,7 +132,7 @@ TEST_P(ComponentTest, TestReloadFail)
     ASSERT_TRUE(CopyResource(component_name, temp_name));
     ASSERT_TRUE(UnlinkResource(component_name));
 
-    ASSERT_NE(dmResource::RELOAD_RESULT_OK, dmResource::ReloadResource(m_Factory, component_name, 0));
+    ASSERT_NE(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, component_name, 0));
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));

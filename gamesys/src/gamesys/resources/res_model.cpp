@@ -5,7 +5,7 @@
 
 namespace dmGameSystem
 {
-    dmResource::CreateResult ResCreateModel(dmResource::HFactory factory,
+    dmResource::Result ResCreateModel(dmResource::HFactory factory,
                                       void* context,
                                       const void* buffer, uint32_t buffer_size,
                                       dmResource::SResourceDescriptor* resource,
@@ -15,7 +15,7 @@ namespace dmGameSystem
         dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmModelDDF_ModelDesc_DESCRIPTOR, (void**) &model_desc);
         if ( e != dmDDF::RESULT_OK )
         {
-            return dmResource::CREATE_RESULT_UNKNOWN;
+            return dmResource::RESULT_FORMAT_ERROR;
         }
 
         Mesh* mesh = 0x0;
@@ -23,24 +23,41 @@ namespace dmGameSystem
         dmGraphics::HTexture textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
         memset(textures, 0, dmRender::RenderObject::MAX_TEXTURE_COUNT * sizeof(dmGraphics::HTexture));
 
-        bool result = true;
-        if (dmResource::FACTORY_RESULT_OK != dmResource::Get(factory, model_desc->m_Mesh, (void**) &mesh))
-            result = false;
-        if (dmResource::FACTORY_RESULT_OK != dmResource::Get(factory, model_desc->m_Material, (void**) &material))
-            result = false;
+        dmResource::Result tmp_r = dmResource::RESULT_OK;
+        dmResource::Result first_error = dmResource::RESULT_OK;
+        tmp_r = dmResource::Get(factory, model_desc->m_Mesh, (void**) &mesh);
+        if (tmp_r != dmResource::RESULT_OK)
+        {
+            if (first_error == dmResource::RESULT_OK)
+                first_error = tmp_r;
+        }
+
+        tmp_r = dmResource::Get(factory, model_desc->m_Material, (void**) &material);
+        if (tmp_r != dmResource::RESULT_OK)
+        {
+            if (first_error == dmResource::RESULT_OK)
+                first_error = tmp_r;
+        }
+
         for (uint32_t i = 0; i < model_desc->m_Textures.m_Count && i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
-            if (dmResource::FACTORY_RESULT_OK != dmResource::Get(factory, model_desc->m_Textures[i], (void**) &textures[i]))
-                result = false;
+        {
+            tmp_r = dmResource::Get(factory, model_desc->m_Textures[i], (void**) &textures[i]);
+            if (tmp_r != dmResource::RESULT_OK)
+            {
+                if (first_error == dmResource::RESULT_OK)
+                    first_error = tmp_r;
+            }
+        }
 
         dmDDF::FreeMessage((void*) model_desc);
-        if (!result)
+        if (first_error != dmResource::RESULT_OK)
         {
             if (mesh) dmResource::Release(factory, (void*) mesh);
             if (material) dmResource::Release(factory, (void*) material);
             for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
                 if (textures[i]) dmResource::Release(factory, (void*) textures[i]);
 
-            return dmResource::CREATE_RESULT_UNKNOWN;
+            return first_error;
         }
 
         Model* model = new Model();
@@ -49,10 +66,10 @@ namespace dmGameSystem
         memcpy(model->m_Textures, textures, sizeof(dmGraphics::HTexture) * dmRender::RenderObject::MAX_TEXTURE_COUNT);
 
         resource->m_Resource = (void*) model;
-        return dmResource::CREATE_RESULT_OK;
+        return dmResource::RESULT_OK;
     }
 
-    dmResource::CreateResult ResDestroyModel(dmResource::HFactory factory,
+    dmResource::Result ResDestroyModel(dmResource::HFactory factory,
             void* context,
             dmResource::SResourceDescriptor* resource)
     {
@@ -65,10 +82,10 @@ namespace dmGameSystem
 
         delete model;
 
-        return dmResource::CREATE_RESULT_OK;
+        return dmResource::RESULT_OK;
     }
 
-    dmResource::CreateResult ResRecreateModel(dmResource::HFactory factory,
+    dmResource::Result ResRecreateModel(dmResource::HFactory factory,
             void* context,
             const void* buffer, uint32_t buffer_size,
             dmResource::SResourceDescriptor* resource,
@@ -78,7 +95,7 @@ namespace dmGameSystem
         dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmModelDDF_ModelDesc_DESCRIPTOR, (void**) &model_desc);
         if ( e != dmDDF::RESULT_OK )
         {
-            return dmResource::CREATE_RESULT_UNKNOWN;
+            return dmResource::RESULT_FORMAT_ERROR;
         }
 
         Mesh* mesh = 0x0;
@@ -99,7 +116,7 @@ namespace dmGameSystem
                 if (textures[i]) dmResource::Release(factory, (void*) textures[i]);
 
             dmDDF::FreeMessage((void*) model_desc);
-            return dmResource::CREATE_RESULT_UNKNOWN;
+            return dmResource::RESULT_FORMAT_ERROR;
         }
 
         Model* model = (Model*)resource->m_Resource;
@@ -114,6 +131,6 @@ namespace dmGameSystem
             model->m_Textures[i] = textures[i];
 
         dmDDF::FreeMessage((void*) model_desc);
-        return dmResource::CREATE_RESULT_OK;
+        return dmResource::RESULT_OK;
     }
 }

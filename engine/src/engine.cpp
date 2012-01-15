@@ -393,15 +393,15 @@ namespace dmEngine
         engine->m_SpriteContext.m_MaxSpriteCount = dmConfigFile::GetInt(engine->m_Config, "sprite.max_count", 128);
         engine->m_SpriteContext.m_Subpixels = dmConfigFile::GetInt(engine->m_Config, "sprite.subpixels", 0);
 
-        dmResource::FactoryResult fact_result;
+        dmResource::Result fact_result;
         dmGameObject::Result res;
         dmGameSystem::ScriptLibContext script_lib_context;
 
         fact_result = dmGameObject::RegisterResourceTypes(engine->m_Factory, engine->m_Register);
-        if (fact_result != dmResource::FACTORY_RESULT_OK)
+        if (fact_result != dmResource::RESULT_OK)
             goto bail;
         fact_result = dmGameSystem::RegisterResourceTypes(engine->m_Factory, engine->m_RenderContext, &engine->m_GuiContext, engine->m_InputContext, &engine->m_PhysicsContext);
-        if (fact_result != dmResource::FACTORY_RESULT_OK)
+        if (fact_result != dmResource::RESULT_OK)
             goto bail;
 
         if (dmGameObject::RegisterComponentTypes(engine->m_Factory, engine->m_Register) != dmGameObject::RESULT_OK)
@@ -430,7 +430,7 @@ namespace dmEngine
             goto bail;
 
         fact_result = dmResource::Get(engine->m_Factory, dmConfigFile::GetString(engine->m_Config, "bootstrap.main_collection", "logic/main.collectionc"), (void**) &engine->m_MainCollection);
-        if (fact_result != dmResource::FACTORY_RESULT_OK)
+        if (fact_result != dmResource::RESULT_OK)
             goto bail;
         dmGameObject::Init(engine->m_MainCollection);
 
@@ -451,7 +451,7 @@ namespace dmEngine
             {
                 uint32_t type;
                 fact_result = dmResource::GetTypeFromExtension(engine->m_Factory, s, &type);
-                if (fact_result == dmResource::FACTORY_RESULT_OK)
+                if (fact_result == dmResource::RESULT_OK)
                 {
                     dmGameObject::SetUpdateOrderPrio(engine->m_Register, type, prio++);
                 }
@@ -702,8 +702,8 @@ bail:
     bool LoadBootstrapContent(HEngine engine, dmConfigFile::HConfig config)
     {
         const char* system_font_map = "/builtins/fonts/system_font.fontc";
-        dmResource::FactoryResult fact_error = dmResource::Get(engine->m_Factory, system_font_map, (void**) &engine->m_SystemFontMap);
-        if (fact_error != dmResource::FACTORY_RESULT_OK)
+        dmResource::Result fact_error = dmResource::Get(engine->m_Factory, system_font_map, (void**) &engine->m_SystemFontMap);
+        if (fact_error != dmResource::RESULT_OK)
         {
             dmLogFatal("Could not load system font map '%s'.", system_font_map);
             return false;
@@ -713,19 +713,19 @@ bail:
         const char* gamepads = dmConfigFile::GetString(config, "input.gamepads", "/builtins/input/default.gamepadsc");
         dmInputDDF::GamepadMaps* gamepad_maps_ddf;
         fact_error = dmResource::Get(engine->m_Factory, gamepads, (void**)&gamepad_maps_ddf);
-        if (fact_error != dmResource::FACTORY_RESULT_OK)
+        if (fact_error != dmResource::RESULT_OK)
             return false;
         dmInput::RegisterGamepads(engine->m_InputContext, gamepad_maps_ddf);
         dmResource::Release(engine->m_Factory, gamepad_maps_ddf);
 
         const char* game_input_binding = dmConfigFile::GetString(config, "input.game_binding", "input/game.input_bindingc");
         fact_error = dmResource::Get(engine->m_Factory, game_input_binding, (void**)&engine->m_GameInputBinding);
-        if (fact_error != dmResource::FACTORY_RESULT_OK)
+        if (fact_error != dmResource::RESULT_OK)
             return false;
 
         const char* render_path = dmConfigFile::GetString(config, "bootstrap.render", "/builtins/render/default.renderc");
         fact_error = dmResource::Get(engine->m_Factory, render_path, (void**)&engine->m_RenderScriptPrototype);
-        if (fact_error != dmResource::FACTORY_RESULT_OK)
+        if (fact_error != dmResource::RESULT_OK)
             return false;
 
         return true;

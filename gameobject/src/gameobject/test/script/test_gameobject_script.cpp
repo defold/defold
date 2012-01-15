@@ -235,8 +235,8 @@ TEST_F(ScriptTest, TestReload)
                "    go.set_position(vmath.vector3(10,20,30))\n"
                "end\n");
 
-    dmResource::ReloadResult rr = dmResource::ReloadResource(m_Factory, script_resource_name, 0);
-    ASSERT_EQ(dmResource::RELOAD_RESULT_OK, rr);
+    dmResource::Result rr = dmResource::ReloadResource(m_Factory, script_resource_name, 0);
+    ASSERT_EQ(dmResource::RESULT_OK, rr);
 
     dmGameObject::Update(m_Collection, &m_UpdateContext);
     Point3 p2 = dmGameObject::GetPosition(go);
@@ -247,7 +247,7 @@ TEST_F(ScriptTest, TestReload)
     // NOTE: +1 to remove /
     unlink(script_file_name + 1);
     rr = dmResource::ReloadResource(m_Factory, script_resource_name, 0);
-    ASSERT_EQ(dmResource::RELOAD_RESULT_LOAD_ERROR, rr);
+    ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, rr);
 
     unlink(go_file_name);
 }

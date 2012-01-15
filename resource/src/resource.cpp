@@ -61,7 +61,7 @@ const uint32_t RESOURCE_PATH_MAX = 1024;
 const uint32_t MAX_RESOURCE_TYPES = 128;
 const uint32_t MAX_CALLBACKS = 16;
 
-static FactoryResult LoadResource(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size);
+static Result LoadResource(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size);
 
 struct ResourceReloadedCallbackPair
 {
@@ -94,7 +94,7 @@ struct SResourceFactory
     uint32_t                                     m_HttpContentLength;
     uint32_t                                     m_HttpTotalBytesStreamed;
     int                                          m_HttpStatus;
-    FactoryResult                                m_HttpFactoryResult;
+    Result                                       m_HttpFactoryResult;
 
     // HTTP server
     dmHttpServer::HServer                        m_HttpServer;
@@ -167,7 +167,7 @@ static void HttpContent(dmHttpClient::HClient, void* user_data, int status_code,
     assert(factory->m_HttpTotalBytesStreamed <= factory->m_StreamBufferSize);
     if (factory->m_StreamBufferSize - factory->m_HttpTotalBytesStreamed < content_data_size)
     {
-        factory->m_HttpFactoryResult = FACTORY_RESULT_STREAMBUFFER_TOO_SMALL;
+        factory->m_HttpFactoryResult = RESULT_STREAMBUFFER_TOO_SMALL;
         return;
     }
 
@@ -219,33 +219,29 @@ void HttpServerResponse(void* user_data, const dmHttpServer::Request* request)
         if (factory->m_HttpCache)
             dmHttpCache::SetConsistencyPolicy(factory->m_HttpCache, dmHttpCache::CONSISTENCY_POLICY_VERIFY);
 
-        ReloadResult result = ReloadResource(factory, name, &descriptor);
+        Result result = ReloadResource(factory, name, &descriptor);
 
         if (factory->m_HttpCache)
             dmHttpCache::SetConsistencyPolicy(factory->m_HttpCache, dmHttpCache::CONSISTENCY_POLICY_TRUST_CACHE);
 
         switch (result)
         {
-            case RELOAD_RESULT_OK:
+            case RESULT_OK:
                 dmLogInfo("%s was successfully reloaded.", name);
                 break;
-            case RELOAD_RESULT_OUT_OF_MEMORY:
+            case RESULT_OUT_OF_MEMORY:
                 dmLogError("Not enough memory to reload %s.", name);
                 break;
-            case RELOAD_RESULT_FORMAT_ERROR:
-            case RELOAD_RESULT_CONSTANT_ERROR:
+            case RESULT_FORMAT_ERROR:
+            case RESULT_CONSTANT_ERROR:
                 dmLogError("%s has invalid format and could not be reloaded.", name);
                 break;
-            case RELOAD_RESULT_NOT_FOUND:
+            case RESULT_RESOURCE_NOT_FOUND:
                 dmLogError("%s could not be reloaded since it was never loaded before.", name);
                 break;
-            case RELOAD_RESULT_LOAD_ERROR:
-                dmLogError("%s could not be loaded, reloading failed.", name);
-                break;
-            case RELOAD_RESULT_NOT_SUPPORTED:
+            case RESULT_NOT_SUPPORTED:
                 dmLogWarning("Reloading of resource type %s not supported.", ((SResourceType*)descriptor->m_ResourceType)->m_Extension);
                 break;
-            case RELOAD_RESULT_UNKNOWN:
             default:
                 dmLogWarning("%s could not be reloaded, unknown error: %d.", name, result);
                 break;
@@ -440,7 +436,7 @@ void UpdateFactory(HFactory factory)
         dmHttpServer::Update(factory->m_HttpServer);
 }
 
-FactoryResult RegisterType(HFactory factory,
+Result RegisterType(HFactory factory,
                            const char* extension,
                            void* context,
                            FResourceCreate create_function,
@@ -448,17 +444,17 @@ FactoryResult RegisterType(HFactory factory,
                            FResourceRecreate recreate_function)
 {
     if (factory->m_ResourceTypesCount == MAX_RESOURCE_TYPES)
-        return FACTORY_RESULT_OUT_OF_RESOURCES;
+        return RESULT_OUT_OF_RESOURCES;
 
     // Dots not allowed in extension
     if (strrchr(extension, '.') != 0)
-        return FACTORY_RESULT_INVAL;
+        return RESULT_INVAL;
 
     if (create_function == 0 || destroy_function == 0)
-        return FACTORY_RESULT_INVAL;
+        return RESULT_INVAL;
 
     if (FindResourceType(factory, extension) != 0)
-        return FACTORY_RESULT_ALREADY_REGISTERED;
+        return RESULT_ALREADY_REGISTERED;
 
     SResourceType resource_type;
     resource_type.m_Extension = extension;
@@ -469,10 +465,10 @@ FactoryResult RegisterType(HFactory factory,
 
     factory->m_ResourceTypes[factory->m_ResourceTypesCount++] = resource_type;
 
-    return FACTORY_RESULT_OK;
+    return RESULT_OK;
 }
 
-static FactoryResult LoadResource(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size)
+static Result LoadResource(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size)
 {
     if (factory->m_BuiltinsArchive)
     {
@@ -485,14 +481,14 @@ static FactoryResult LoadResource(HFactory factory, const char* path, const char
             if (file_size + 1 >= factory->m_StreamBufferSize)
             {
                 dmLogError("Resource too large for streambuffer: %s", path);
-                return FACTORY_RESULT_STREAMBUFFER_TOO_SMALL;
+                return RESULT_STREAMBUFFER_TOO_SMALL;
             }
 
             memcpy(factory->m_StreamBuffer, entry_info.m_Resource, file_size);
             factory->m_StreamBuffer[file_size] = 0; // Null-terminate. See comment above
             *resource_size = file_size;
 
-            return FACTORY_RESULT_OK;
+            return RESULT_OK;
         }
     }
 
@@ -503,7 +499,7 @@ static FactoryResult LoadResource(HFactory factory, const char* path, const char
         *resource_size = 0;
         factory->m_HttpContentLength = 0;
         factory->m_HttpTotalBytesStreamed = 0;
-        factory->m_HttpFactoryResult = FACTORY_RESULT_OK;
+        factory->m_HttpFactoryResult = RESULT_OK;
         factory->m_HttpStatus = -1;
 
         dmHttpClient::Result http_result = dmHttpClient::Get(factory->m_HttpClient, path);
@@ -512,7 +508,7 @@ static FactoryResult LoadResource(HFactory factory, const char* path, const char
             if (factory->m_HttpStatus == 404)
             {
                 dmLogError("Resource not found: %s", path);
-                return FACTORY_RESULT_RESOURCE_NOT_FOUND;
+                return RESULT_RESOURCE_NOT_FOUND;
             }
             else
             {
@@ -520,12 +516,12 @@ static FactoryResult LoadResource(HFactory factory, const char* path, const char
                 if (http_result == dmHttpClient::RESULT_NOT_200_OK && factory->m_HttpStatus != 304)
                 {
                     dmLogWarning("Unexpected http status code: %d", factory->m_HttpStatus);
-                    return FACTORY_RESULT_IO_ERROR;
+                    return RESULT_IO_ERROR;
                 }
             }
         }
 
-        if (factory->m_HttpFactoryResult != FACTORY_RESULT_OK)
+        if (factory->m_HttpFactoryResult != RESULT_OK)
             return factory->m_HttpFactoryResult;
 
         // Only check content-length if status != 304 (NOT MODIFIED)
@@ -542,7 +538,7 @@ static FactoryResult LoadResource(HFactory factory, const char* path, const char
         factory->m_StreamBuffer[factory->m_HttpTotalBytesStreamed] = 0; // Null-terminate. See comment above
 
         *resource_size = factory->m_HttpTotalBytesStreamed;
-        return FACTORY_RESULT_OK;
+        return RESULT_OK;
     }
     else
     {
@@ -552,7 +548,7 @@ static FactoryResult LoadResource(HFactory factory, const char* path, const char
         if (f == 0)
         {
             dmLogError("Resource not found: %s", path);
-            return FACTORY_RESULT_RESOURCE_NOT_FOUND;
+            return RESULT_RESOURCE_NOT_FOUND;
         }
 
         fseek(f, 0, SEEK_END);
@@ -566,22 +562,22 @@ static FactoryResult LoadResource(HFactory factory, const char* path, const char
         {
             dmLogError("Resource too large for streambuffer: %s", path);
             fclose(f);
-            return FACTORY_RESULT_STREAMBUFFER_TOO_SMALL;
+            return RESULT_STREAMBUFFER_TOO_SMALL;
         }
         factory->m_StreamBuffer[file_size] = 0; // Null-terminate. See comment above
 
         if (fread(factory->m_StreamBuffer, 1, file_size, f) != (size_t) file_size)
         {
             fclose(f);
-            return FACTORY_RESULT_IO_ERROR;
+            return RESULT_IO_ERROR;
         }
 
         fclose(f);
-        return FACTORY_RESULT_OK;
+        return RESULT_OK;
     }
 }
 
-FactoryResult Get(HFactory factory, const char* name, void** resource)
+Result Get(HFactory factory, const char* name, void** resource)
 {
     assert(name);
     assert(resource);
@@ -593,13 +589,13 @@ FactoryResult Get(HFactory factory, const char* name, void** resource)
     if (name[0] == 0)
     {
         dmLogError("Empty resource path");
-        return FACTORY_RESULT_RESOURCE_NOT_FOUND;
+        return RESULT_RESOURCE_NOT_FOUND;
     }
 
     if (name[0] != '/')
     {
         dmLogError("Resource path is not absolute (%s)", name);
-        return FACTORY_RESULT_RESOURCE_NOT_FOUND;
+        return RESULT_RESOURCE_NOT_FOUND;
     }
 
 #if 1
@@ -617,7 +613,7 @@ FactoryResult Get(HFactory factory, const char* name, void** resource)
 
     if (canonical_path_p == 0)
     {
-        return FACTORY_RESULT_RESOURCE_NOT_FOUND;
+        return RESULT_RESOURCE_NOT_FOUND;
     }
 #endif
 
@@ -629,7 +625,7 @@ FactoryResult Get(HFactory factory, const char* name, void** resource)
         assert(factory->m_ResourceToHash->Get((uintptr_t) rd->m_Resource));
         rd->m_ReferenceCount++;
         *resource = rd->m_Resource;
-        return FACTORY_RESULT_OK;
+        return RESULT_OK;
     }
 
     const char* ext = strrchr(name, '.');
@@ -641,12 +637,12 @@ FactoryResult Get(HFactory factory, const char* name, void** resource)
         if (resource_type == 0)
         {
             dmLogError("Unknown resource type: %s", ext);
-            return FACTORY_RESULT_UNKNOWN_RESOURCE_TYPE;
+            return RESULT_UNKNOWN_RESOURCE_TYPE;
         }
 
         uint32_t file_size;
-        FactoryResult result = LoadResource(factory, canonical_path, name, &file_size);
-        if (result != FACTORY_RESULT_OK)
+        Result result = LoadResource(factory, canonical_path, name, &file_size);
+        if (result != RESULT_OK)
             return result;
 
         // TODO: We should *NOT* allocate SResource dynamically...
@@ -656,9 +652,9 @@ FactoryResult Get(HFactory factory, const char* name, void** resource)
         tmp_resource.m_ReferenceCount = 1;
         tmp_resource.m_ResourceType = (void*) resource_type;
 
-        CreateResult create_error = resource_type->m_CreateFunction(factory, resource_type->m_Context, factory->m_StreamBuffer, file_size, &tmp_resource, name);
+        Result create_error = resource_type->m_CreateFunction(factory, resource_type->m_Context, factory->m_StreamBuffer, file_size, &tmp_resource, name);
 
-        if (create_error == CREATE_RESULT_OK)
+        if (create_error == RESULT_OK)
         {
             assert(tmp_resource.m_Resource); // TODO: Or handle gracefully!
             factory->m_Resources->Put(canonical_path_hash, tmp_resource);
@@ -668,23 +664,22 @@ FactoryResult Get(HFactory factory, const char* name, void** resource)
                 factory->m_ResourceHashToFilename->Put(canonical_path_hash, strdup(canonical_path));
             }
             *resource = tmp_resource.m_Resource;
-            return FACTORY_RESULT_OK;
+            return RESULT_OK;
         }
         else
         {
             dmLogWarning("Unable to create resource: %s", canonical_path);
-            // TODO: Map CreateResult to FactoryResult here.
-            return FACTORY_RESULT_UNKNOWN;
+            return create_error;
         }
     }
     else
     {
         dmLogWarning("Unable to load resource: '%s'. Missing file extension.", name);
-        return FACTORY_RESULT_MISSING_FILE_EXTENSION;
+        return RESULT_MISSING_FILE_EXTENSION;
     }
 }
 
-ReloadResult ReloadResource(HFactory factory, const char* name, SResourceDescriptor** out_descriptor)
+Result ReloadResource(HFactory factory, const char* name, SResourceDescriptor** out_descriptor)
 {
     char canonical_path[RESOURCE_PATH_MAX];
     GetCanonicalPath(factory->m_UriParts.m_Path, name, canonical_path);
@@ -697,19 +692,19 @@ ReloadResult ReloadResource(HFactory factory, const char* name, SResourceDescrip
         *out_descriptor = rd;
 
     if (rd == 0x0)
-        return RELOAD_RESULT_NOT_FOUND;
+        return RESULT_RESOURCE_NOT_FOUND;
 
     SResourceType* resource_type = (SResourceType*) rd->m_ResourceType;
     if (!resource_type->m_RecreateFunction)
-        return RELOAD_RESULT_NOT_SUPPORTED;
+        return RESULT_NOT_SUPPORTED;
 
     uint32_t file_size;
-    FactoryResult result = LoadResource(factory, canonical_path, name, &file_size);
-    if (result != FACTORY_RESULT_OK)
-        return RELOAD_RESULT_LOAD_ERROR;
+    Result result = LoadResource(factory, canonical_path, name, &file_size);
+    if (result != RESULT_OK)
+        return result;
 
-    CreateResult create_result = resource_type->m_RecreateFunction(factory, resource_type->m_Context, factory->m_StreamBuffer, file_size, rd, name);
-    if (create_result == CREATE_RESULT_OK)
+    Result create_result = resource_type->m_RecreateFunction(factory, resource_type->m_Context, factory->m_StreamBuffer, file_size, rd, name);
+    if (create_result == RESULT_OK)
     {
         if (factory->m_ResourceReloadedCallbacks)
         {
@@ -719,29 +714,22 @@ ReloadResult ReloadResource(HFactory factory, const char* name, SResourceDescrip
                 pair.m_Callback(pair.m_UserData, rd, name);
             }
         }
-        return RELOAD_RESULT_OK;
+        return RESULT_OK;
     }
     else
     {
-        switch (create_result)
-        {
-            case CREATE_RESULT_OUT_OF_MEMORY:   return RELOAD_RESULT_OUT_OF_MEMORY;
-            case CREATE_RESULT_FORMAT_ERROR:    return RELOAD_RESULT_FORMAT_ERROR;
-            case CREATE_RESULT_CONSTANT_ERROR:  return RELOAD_RESULT_CONSTANT_ERROR;
-            case CREATE_RESULT_UNKNOWN:         return RELOAD_RESULT_UNKNOWN;
-            default:                            return RELOAD_RESULT_UNKNOWN;
-        }
+        return create_result;
     }
 }
 
-FactoryResult GetType(HFactory factory, void* resource, uint32_t* type)
+Result GetType(HFactory factory, void* resource, uint32_t* type)
 {
     assert(type);
 
     uint64_t* resource_hash = factory->m_ResourceToHash->Get((uintptr_t) resource);
     if (!resource_hash)
     {
-        return FACTORY_RESULT_NOT_LOADED;
+        return RESULT_NOT_LOADED;
     }
 
     SResourceDescriptor* rd = factory->m_Resources->Get(*resource_hash);
@@ -749,10 +737,10 @@ FactoryResult GetType(HFactory factory, void* resource, uint32_t* type)
     assert(rd->m_ReferenceCount > 0);
     *type = (uint32_t) rd->m_ResourceType; // TODO: Not 64-bit friendly...
 
-    return FACTORY_RESULT_OK;
+    return RESULT_OK;
 }
 
-FactoryResult GetTypeFromExtension(HFactory factory, const char* extension, uint32_t* type)
+Result GetTypeFromExtension(HFactory factory, const char* extension, uint32_t* type)
 {
     assert(type);
 
@@ -760,15 +748,15 @@ FactoryResult GetTypeFromExtension(HFactory factory, const char* extension, uint
     if (resource_type)
     {
         *type = (uint32_t) resource_type; // TODO: Not 64-bit friendly...
-        return FACTORY_RESULT_OK;
+        return RESULT_OK;
     }
     else
     {
-        return FACTORY_RESULT_UNKNOWN_RESOURCE_TYPE;
+        return RESULT_UNKNOWN_RESOURCE_TYPE;
     }
 }
 
-FactoryResult GetExtensionFromType(HFactory factory, uint32_t type, const char** extension)
+Result GetExtensionFromType(HFactory factory, uint32_t type, const char** extension)
 {
     for (uint32_t i = 0; i < factory->m_ResourceTypesCount; ++i)
     {
@@ -777,15 +765,15 @@ FactoryResult GetExtensionFromType(HFactory factory, uint32_t type, const char**
         if (((uintptr_t) rt) == type)
         {
             *extension = rt->m_Extension;
-            return FACTORY_RESULT_OK;
+            return RESULT_OK;
         }
     }
 
     *extension = 0;
-    return FACTORY_RESULT_UNKNOWN_RESOURCE_TYPE;
+    return RESULT_UNKNOWN_RESOURCE_TYPE;
 }
 
-FactoryResult GetDescriptor(HFactory factory, const char* name, SResourceDescriptor* descriptor)
+Result GetDescriptor(HFactory factory, const char* name, SResourceDescriptor* descriptor)
 {
     char canonical_path[RESOURCE_PATH_MAX];
     GetCanonicalPath(factory->m_UriParts.m_Path, name, canonical_path);
@@ -796,11 +784,11 @@ FactoryResult GetDescriptor(HFactory factory, const char* name, SResourceDescrip
     if (tmp_descriptor)
     {
         *descriptor = *tmp_descriptor;
-        return FACTORY_RESULT_OK;
+        return RESULT_OK;
     }
     else
     {
-        return FACTORY_RESULT_NOT_LOADED;
+        return RESULT_NOT_LOADED;
     }
 }
 

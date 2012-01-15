@@ -11,22 +11,23 @@
 
 namespace dmGameSystem
 {
-    dmRender::HFontMap AcquireResources(dmResource::HFactory factory, dmRender::HRenderContext context,
-        const void* buffer, uint32_t buffer_size, dmRender::HFontMap font_map, const char* filename)
+    dmResource::Result AcquireResources(dmResource::HFactory factory, dmRender::HRenderContext context,
+        const void* buffer, uint32_t buffer_size, dmRender::HFontMap font_map, const char* filename, dmRender::HFontMap* font_map_out)
     {
+        *font_map_out = 0;
         dmRenderDDF::FontMap* ddf;
         dmDDF::Result e = dmDDF::LoadMessage<dmRenderDDF::FontMap>(buffer, buffer_size, &ddf);
         if ( e != dmDDF::RESULT_OK )
         {
-            return 0;
+            return dmResource::RESULT_FORMAT_ERROR;
         }
 
         dmRender::HMaterial material;
-        dmResource::FactoryResult result = dmResource::Get(factory, ddf->m_Material, (void**) &material);
-        if (result != dmResource::FACTORY_RESULT_OK)
+        dmResource::Result result = dmResource::Get(factory, ddf->m_Material, (void**) &material);
+        if (result != dmResource::RESULT_OK)
         {
             dmDDF::FreeMessage(ddf);
-            return 0;
+            return result;
         }
 
         dmRender::FontMapParams params;
@@ -65,29 +66,31 @@ namespace dmGameSystem
 
         dmDDF::FreeMessage(ddf);
 
-        return font_map;
+        *font_map_out = font_map;
+        return dmResource::RESULT_OK;
     }
 
-    dmResource::CreateResult ResFontMapCreate(dmResource::HFactory factory,
+    dmResource::Result ResFontMapCreate(dmResource::HFactory factory,
                                      void* context,
                                      const void* buffer, uint32_t buffer_size,
                                      dmResource::SResourceDescriptor* resource,
                                      const char* filename)
     {
         dmRender::HRenderContext render_context = (dmRender::HRenderContext)context;
-        dmRender::HFontMap font_map = AcquireResources(factory, render_context, buffer, buffer_size, 0, filename);
-        if (font_map != 0)
+        dmRender::HFontMap font_map;
+        dmResource::Result r = AcquireResources(factory, render_context, buffer, buffer_size, 0, filename, &font_map);
+        if (r == dmResource::RESULT_OK)
         {
             resource->m_Resource = (void*)font_map;
-            return dmResource::CREATE_RESULT_OK;
         }
         else
         {
-            return dmResource::CREATE_RESULT_UNKNOWN;
+            resource->m_Resource = 0;
         }
+        return r;
     }
 
-    dmResource::CreateResult ResFontMapDestroy(dmResource::HFactory factory,
+    dmResource::Result ResFontMapDestroy(dmResource::HFactory factory,
                                       void* context,
                                       dmResource::SResourceDescriptor* resource)
     {
@@ -95,23 +98,17 @@ namespace dmGameSystem
         dmResource::Release(factory, (void*)dmRender::GetFontMapMaterial(font_map));
         dmRender::DeleteFontMap(font_map);
 
-        return dmResource::CREATE_RESULT_OK;
+        return dmResource::RESULT_OK;
     }
 
-    dmResource::CreateResult ResFontMapRecreate(dmResource::HFactory factory,
+    dmResource::Result ResFontMapRecreate(dmResource::HFactory factory,
                                                 void* context,
                                                 const void* buffer, uint32_t buffer_size,
                                                 dmResource::SResourceDescriptor* resource,
                                                 const char* filename)
     {
         dmRender::HFontMap font_map = (dmRender::HFontMap)resource->m_Resource;
-        if (AcquireResources(factory, (dmRender::HRenderContext)context, buffer, buffer_size, font_map, filename))
-        {
-            return dmResource::CREATE_RESULT_OK;
-        }
-        else
-        {
-            return dmResource::CREATE_RESULT_UNKNOWN;
-        }
+        dmResource::Result r = AcquireResources(factory, (dmRender::HRenderContext)context, buffer, buffer_size, font_map, filename, &font_map);
+        return r;
     }
 }

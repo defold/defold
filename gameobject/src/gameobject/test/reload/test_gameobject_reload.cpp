@@ -41,12 +41,12 @@ protected:
         dmGameObject::RegisterResourceTypes(m_Factory, m_Register);
         dmGameObject::RegisterComponentTypes(m_Factory, m_Register);
 
-        dmResource::FactoryResult e = dmResource::RegisterType(m_Factory, "rt", this, ResReloadTargetCreate, ResReloadTargetDestroy, ResReloadTargetRecreate);
-        ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
+        dmResource::Result e = dmResource::RegisterType(m_Factory, "rt", this, ResReloadTargetCreate, ResReloadTargetDestroy, ResReloadTargetRecreate);
+        ASSERT_EQ(dmResource::RESULT_OK, e);
 
         uint32_t resource_type;
         e = dmResource::GetTypeFromExtension(m_Factory, "rt", &resource_type);
-        ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
+        ASSERT_EQ(dmResource::RESULT_OK, e);
         dmGameObject::ComponentType rt_type;
         rt_type.m_Name = "rt";
         rt_type.m_ResourceType = resource_type;
@@ -73,9 +73,9 @@ protected:
         dmGameObject::Finalize();
     }
 
-    static dmResource::CreateResult ResReloadTargetCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, dmResource::SResourceDescriptor* resource, const char* filename);
-    static dmResource::CreateResult ResReloadTargetDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource);
-    static dmResource::CreateResult ResReloadTargetRecreate(dmResource::HFactory factory,
+    static dmResource::Result ResReloadTargetCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, dmResource::SResourceDescriptor* resource, const char* filename);
+    static dmResource::Result ResReloadTargetDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource);
+    static dmResource::Result ResReloadTargetRecreate(dmResource::HFactory factory,
                                               void* context,
                                               const void* buffer, uint32_t buffer_size,
                                               dmResource::SResourceDescriptor* resource,
@@ -98,28 +98,28 @@ public:
     dmResource::HFactory m_Factory;
 };
 
-dmResource::CreateResult ReloadTest::ResReloadTargetCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, dmResource::SResourceDescriptor* resource, const char* filename)
+dmResource::Result ReloadTest::ResReloadTargetCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, dmResource::SResourceDescriptor* resource, const char* filename)
 {
     TestGameObjectDDF::ReloadTarget* obj;
     dmDDF::Result e = dmDDF::LoadMessage<TestGameObjectDDF::ReloadTarget>(buffer, buffer_size, &obj);
     if (e == dmDDF::RESULT_OK)
     {
         resource->m_Resource = (void*) obj;
-        return dmResource::CREATE_RESULT_OK;
+        return dmResource::RESULT_OK;
     }
     else
     {
-        return dmResource::CREATE_RESULT_UNKNOWN;
+        return dmResource::RESULT_FORMAT_ERROR;
     }
 }
 
-dmResource::CreateResult ReloadTest::ResReloadTargetDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource)
+dmResource::Result ReloadTest::ResReloadTargetDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource)
 {
     dmDDF::FreeMessage((void*) resource->m_Resource);
-    return dmResource::CREATE_RESULT_OK;
+    return dmResource::RESULT_OK;
 }
 
-dmResource::CreateResult ReloadTest::ResReloadTargetRecreate(dmResource::HFactory factory,
+dmResource::Result ReloadTest::ResReloadTargetRecreate(dmResource::HFactory factory,
                                           void* context,
                                           const void* buffer, uint32_t buffer_size,
                                           dmResource::SResourceDescriptor* resource,
@@ -131,11 +131,11 @@ dmResource::CreateResult ReloadTest::ResReloadTargetRecreate(dmResource::HFactor
     if (e == dmDDF::RESULT_OK)
     {
         resource->m_Resource = (void*) obj;
-        return dmResource::CREATE_RESULT_OK;
+        return dmResource::RESULT_OK;
     }
     else
     {
-        return dmResource::CREATE_RESULT_UNKNOWN;
+        return dmResource::RESULT_FORMAT_ERROR;
     }
 }
 
@@ -195,8 +195,8 @@ TEST_F(ReloadTest, TestComponentReload)
 
     ASSERT_EQ((void*)0, m_NewResource);
 
-    dmResource::ReloadResult rr = dmResource::ReloadResource(m_Factory, "/reload_target.rt", 0);
-    ASSERT_EQ(dmResource::RELOAD_RESULT_OK, rr);
+    dmResource::Result rr = dmResource::ReloadResource(m_Factory, "/reload_target.rt", 0);
+    ASSERT_EQ(dmResource::RESULT_OK, rr);
 
     ASSERT_EQ(world, m_World);
     ASSERT_EQ(component, m_World->m_Component);
@@ -206,7 +206,7 @@ TEST_F(ReloadTest, TestComponentReload)
     ASSERT_EQ(123, rt->m_Value);
 
     rr = dmResource::ReloadResource(m_Factory, "component_reload.scriptc", 0);
-    ASSERT_EQ(dmResource::RELOAD_RESULT_OK, rr);
+    ASSERT_EQ(dmResource::RESULT_OK, rr);
 
     r = dmGameObject::Update(m_Collection, &m_UpdateContext);
 
@@ -220,8 +220,8 @@ TEST_F(ReloadTest, TestComponentReloadScriptFail)
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/component_reload_fail.goc");
     ASSERT_NE((void*) 0, (void*) go);
 
-    dmResource::ReloadResult rr = dmResource::ReloadResource(m_Factory, "/component_reload_fail.scriptc", 0);
-    ASSERT_EQ(dmResource::RELOAD_RESULT_OK, rr);
+    dmResource::Result rr = dmResource::ReloadResource(m_Factory, "/component_reload_fail.scriptc", 0);
+    ASSERT_EQ(dmResource::RESULT_OK, rr);
 
     dmGameObject::Delete(m_Collection, go);
 }

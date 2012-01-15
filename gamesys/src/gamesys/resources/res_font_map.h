@@ -7,17 +7,17 @@
 
 namespace dmGameSystem
 {
-    dmResource::CreateResult ResFontMapCreate(dmResource::HFactory factory,
+    dmResource::Result ResFontMapCreate(dmResource::HFactory factory,
                                      void* context,
                                      const void* buffer, uint32_t buffer_size,
                                      dmResource::SResourceDescriptor* resource,
                                      const char* filename);
 
-    dmResource::CreateResult ResFontMapDestroy(dmResource::HFactory factory,
+    dmResource::Result ResFontMapDestroy(dmResource::HFactory factory,
                                       void* context,
                                       dmResource::SResourceDescriptor* resource);
 
-    dmResource::CreateResult ResFontMapRecreate(dmResource::HFactory factory,
+    dmResource::Result ResFontMapRecreate(dmResource::HFactory factory,
                                                 void* context,
                                                 const void* buffer, uint32_t buffer_size,
                                                 dmResource::SResourceDescriptor* resource,

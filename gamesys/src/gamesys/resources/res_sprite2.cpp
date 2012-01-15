@@ -8,19 +8,19 @@
 
 namespace dmGameSystem
 {
-    bool AcquireResources(dmResource::HFactory factory,
+    dmResource::Result AcquireResources(dmResource::HFactory factory,
         const void* buffer, uint32_t buffer_size,
         Sprite2Resource* resource, const char* filename)
     {
         dmDDF::Result e  = dmDDF::LoadMessage(buffer, buffer_size, &resource->m_DDF);
         if ( e != dmDDF::RESULT_OK )
         {
-            return false;
+            return dmResource::RESULT_FORMAT_ERROR;
         }
-        dmResource::FactoryResult fr = dmResource::Get(factory, resource->m_DDF->m_TileSet, (void**)&resource->m_TileSet);
-        if (fr != dmResource::FACTORY_RESULT_OK)
+        dmResource::Result fr = dmResource::Get(factory, resource->m_DDF->m_TileSet, (void**)&resource->m_TileSet);
+        if (fr != dmResource::RESULT_OK)
         {
-            return false;
+            return fr;
         }
         resource->m_DefaultAnimation = dmHashString64(resource->m_DDF->m_DefaultAnimation);
         uint32_t n_animations = resource->m_TileSet->m_AnimationIds.Size();
@@ -43,9 +43,12 @@ namespace dmGameSystem
             {
                 dmLogError("Default animation '%s' not found", resource->m_DDF->m_DefaultAnimation);
             }
+            return dmResource::RESULT_FORMAT_ERROR;;
         }
-
-        return found;
+        else
+        {
+            return dmResource::RESULT_OK;
+        }
     }
 
     void ReleaseResources(dmResource::HFactory factory, Sprite2Resource* resource)
@@ -56,7 +59,7 @@ namespace dmGameSystem
             dmResource::Release(factory, resource->m_TileSet);
     }
 
-    dmResource::CreateResult ResSprite2Create(dmResource::HFactory factory,
+    dmResource::Result ResSprite2Create(dmResource::HFactory factory,
                                             void* context,
                                             const void* buffer, uint32_t buffer_size,
                                             dmResource::SResourceDescriptor* resource,
@@ -64,30 +67,30 @@ namespace dmGameSystem
     {
         Sprite2Resource* sprite_resource = new Sprite2Resource();
         memset(sprite_resource, 0, sizeof(Sprite2Resource));
-        if (AcquireResources(factory, buffer, buffer_size, sprite_resource, filename))
+        dmResource::Result r = AcquireResources(factory, buffer, buffer_size, sprite_resource, filename);
+        if (r == dmResource::RESULT_OK)
         {
             resource->m_Resource = (void*) sprite_resource;
-            return dmResource::CREATE_RESULT_OK;
         }
         else
         {
             ReleaseResources(factory, sprite_resource);
             delete sprite_resource;
-            return dmResource::CREATE_RESULT_UNKNOWN;
         }
+        return r;
     }
 
-    dmResource::CreateResult ResSprite2Destroy(dmResource::HFactory factory,
+    dmResource::Result ResSprite2Destroy(dmResource::HFactory factory,
                                              void* context,
                                              dmResource::SResourceDescriptor* resource)
     {
         Sprite2Resource* sprite_resource = (Sprite2Resource*) resource->m_Resource;
         ReleaseResources(factory, sprite_resource);
         delete sprite_resource;
-        return dmResource::CREATE_RESULT_OK;
+        return dmResource::RESULT_OK;
     }
 
-    dmResource::CreateResult ResSprite2Recreate(dmResource::HFactory factory,
+    dmResource::Result ResSprite2Recreate(dmResource::HFactory factory,
                                               void* context,
                                               const void* buffer, uint32_t buffer_size,
                                               dmResource::SResourceDescriptor* resource,
@@ -95,17 +98,17 @@ namespace dmGameSystem
     {
         Sprite2Resource tmp_sprite_resource;
         memset(&tmp_sprite_resource, 0, sizeof(Sprite2Resource));
-        if (AcquireResources(factory, buffer, buffer_size, &tmp_sprite_resource, filename))
+        dmResource::Result r = AcquireResources(factory, buffer, buffer_size, &tmp_sprite_resource, filename);
+        if (r == dmResource::RESULT_OK)
         {
             Sprite2Resource* sprite_resource = (Sprite2Resource*)resource->m_Resource;
             ReleaseResources(factory, sprite_resource);
             *sprite_resource = tmp_sprite_resource;
-            return dmResource::CREATE_RESULT_OK;
         }
         else
         {
             ReleaseResources(factory, &tmp_sprite_resource);
-            return dmResource::CREATE_RESULT_UNKNOWN;
         }
+        return r;
     }
 }
