@@ -119,7 +119,9 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
     private void loadImage() {
         try {
             this.loadedImage = loadImageFile(image);
+            throw new IOException();
         } catch (Exception e) {
+            e.printStackTrace();
             this.loadedImage = null;
         }
     }
