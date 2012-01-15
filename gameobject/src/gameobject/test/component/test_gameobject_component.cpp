@@ -30,20 +30,20 @@ protected:
         m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
 
         // Register dummy physical resource type
-        dmResource::FactoryResult e;
+        dmResource::Result e;
         e = dmResource::RegisterType(m_Factory, "a", this, ACreate, ADestroy, 0);
-        ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
+        ASSERT_EQ(dmResource::RESULT_OK, e);
         e = dmResource::RegisterType(m_Factory, "b", this, BCreate, BDestroy, 0);
-        ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
+        ASSERT_EQ(dmResource::RESULT_OK, e);
         e = dmResource::RegisterType(m_Factory, "c", this, CCreate, CDestroy, 0);
-        ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
+        ASSERT_EQ(dmResource::RESULT_OK, e);
 
         uint32_t resource_type;
         dmGameObject::Result result;
 
         // A has component_user_data
         e = dmResource::GetTypeFromExtension(m_Factory, "a", &resource_type);
-        ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
+        ASSERT_EQ(dmResource::RESULT_OK, e);
         dmGameObject::ComponentType a_type;
         a_type.m_Name = "a";
         a_type.m_ResourceType = resource_type;
@@ -59,7 +59,7 @@ protected:
 
         // B has *not* component_user_data
         e = dmResource::GetTypeFromExtension(m_Factory, "b", &resource_type);
-        ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
+        ASSERT_EQ(dmResource::RESULT_OK, e);
         dmGameObject::ComponentType b_type;
         b_type.m_Name = "b";
         b_type.m_ResourceType = resource_type;
@@ -74,7 +74,7 @@ protected:
 
         // C has component_user_data
         e = dmResource::GetTypeFromExtension(m_Factory, "c", &resource_type);
-        ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
+        ASSERT_EQ(dmResource::RESULT_OK, e);
         dmGameObject::ComponentType c_type;
         c_type.m_Name = "c";
         c_type.m_ResourceType = resource_type;
@@ -142,7 +142,7 @@ public:
 };
 
 template <typename T>
-dmResource::CreateResult GenericDDFCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, dmResource::SResourceDescriptor* resource, const char* filename)
+dmResource::Result GenericDDFCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, dmResource::SResourceDescriptor* resource, const char* filename)
 {
     ComponentTest* game_object_test = (ComponentTest*) context;
     game_object_test->m_CreateCountMap[T::m_DDFHash]++;
@@ -152,22 +152,22 @@ dmResource::CreateResult GenericDDFCreate(dmResource::HFactory factory, void* co
     if (e == dmDDF::RESULT_OK)
     {
         resource->m_Resource = (void*) obj;
-        return dmResource::CREATE_RESULT_OK;
+        return dmResource::RESULT_OK;
     }
     else
     {
-        return dmResource::CREATE_RESULT_UNKNOWN;
+        return dmResource::RESULT_FORMAT_ERROR;
     }
 }
 
 template <typename T>
-dmResource::CreateResult GenericDDFDestory(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource)
+dmResource::Result GenericDDFDestory(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource)
 {
     ComponentTest* game_object_test = (ComponentTest*) context;
     game_object_test->m_DestroyCountMap[T::m_DDFHash]++;
 
     dmDDF::FreeMessage((void*) resource->m_Resource);
-    return dmResource::CREATE_RESULT_OK;
+    return dmResource::RESULT_OK;
 }
 
 template <typename T, int add_to_user_data>

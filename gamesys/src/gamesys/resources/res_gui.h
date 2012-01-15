@@ -20,33 +20,33 @@ namespace dmGameSystem
         dmGui::HContext                 m_GuiContext;
     };
 
-    dmResource::CreateResult ResCreateSceneDesc(dmResource::HFactory factory,
+    dmResource::Result ResCreateSceneDesc(dmResource::HFactory factory,
                                           void* context,
                                           const void* buffer, uint32_t buffer_size,
                                           dmResource::SResourceDescriptor* resource,
                                           const char* filename);
 
-    dmResource::CreateResult ResDestroySceneDesc(dmResource::HFactory factory,
+    dmResource::Result ResDestroySceneDesc(dmResource::HFactory factory,
                                            void* context,
                                            dmResource::SResourceDescriptor* resource);
 
-    dmResource::CreateResult ResRecreateSceneDesc(dmResource::HFactory factory,
+    dmResource::Result ResRecreateSceneDesc(dmResource::HFactory factory,
                                           void* context,
                                           const void* buffer, uint32_t buffer_size,
                                           dmResource::SResourceDescriptor* resource,
                                           const char* filename);
 
-    dmResource::CreateResult ResCreateGuiScript(dmResource::HFactory factory,
+    dmResource::Result ResCreateGuiScript(dmResource::HFactory factory,
                                           void* context,
                                           const void* buffer, uint32_t buffer_size,
                                           dmResource::SResourceDescriptor* resource,
                                           const char* filename);
 
-    dmResource::CreateResult ResDestroyGuiScript(dmResource::HFactory factory,
+    dmResource::Result ResDestroyGuiScript(dmResource::HFactory factory,
                                            void* context,
                                            dmResource::SResourceDescriptor* resource);
 
-    dmResource::CreateResult ResRecreateGuiScript(dmResource::HFactory factory,
+    dmResource::Result ResRecreateGuiScript(dmResource::HFactory factory,
                                           void* context,
                                           const void* buffer, uint32_t buffer_size,
                                           dmResource::SResourceDescriptor* resource,

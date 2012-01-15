@@ -17,17 +17,17 @@ namespace dmGameSystem
         bool m_3D;
     };
 
-    dmResource::CreateResult ResConvexShapeCreate(dmResource::HFactory factory,
+    dmResource::Result ResConvexShapeCreate(dmResource::HFactory factory,
                                                void* context,
                                                const void* buffer, uint32_t buffer_size,
                                                dmResource::SResourceDescriptor* resource,
                                                const char* filename);
 
-    dmResource::CreateResult ResConvexShapeDestroy(dmResource::HFactory factory,
+    dmResource::Result ResConvexShapeDestroy(dmResource::HFactory factory,
                                                 void* context,
                                                 dmResource::SResourceDescriptor* resource);
 
-    dmResource::CreateResult ResConvexShapeRecreate(dmResource::HFactory factory,
+    dmResource::Result ResConvexShapeRecreate(dmResource::HFactory factory,
                                                 void* context,
                                                 const void* buffer, uint32_t buffer_size,
                                                 dmResource::SResourceDescriptor* resource,

@@ -140,8 +140,8 @@ namespace dmGameSystem
         uint32_t co_resource_type;
         if (result)
         {
-            dmResource::FactoryResult fact_result = dmResource::GetTypeFromExtension(factory, COLLISION_OBJECT_EXT, &co_resource_type);
-            if (fact_result != dmResource::FACTORY_RESULT_OK)
+            dmResource::Result fact_result = dmResource::GetTypeFromExtension(factory, COLLISION_OBJECT_EXT, &co_resource_type);
+            if (fact_result != dmResource::RESULT_OK)
             {
                 dmLogError("Unable to get resource type for '%s': %d.", COLLISION_OBJECT_EXT, fact_result);
                 result = false;

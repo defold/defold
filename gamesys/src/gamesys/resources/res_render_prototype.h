@@ -9,17 +9,17 @@
 
 namespace dmGameSystem
 {
-    dmResource::CreateResult ResRenderPrototypeCreate(dmResource::HFactory factory,
+    dmResource::Result ResRenderPrototypeCreate(dmResource::HFactory factory,
             void* context,
             const void* buffer, uint32_t buffer_size,
             dmResource::SResourceDescriptor* resource,
             const char* filename);
 
-    dmResource::CreateResult ResRenderPrototypeDestroy(dmResource::HFactory factory,
+    dmResource::Result ResRenderPrototypeDestroy(dmResource::HFactory factory,
             void* context,
             dmResource::SResourceDescriptor* resource);
 
-    dmResource::CreateResult ResRenderPrototypeRecreate(dmResource::HFactory factory,
+    dmResource::Result ResRenderPrototypeRecreate(dmResource::HFactory factory,
             void* context,
             const void* buffer, uint32_t buffer_size,
             dmResource::SResourceDescriptor* resource,

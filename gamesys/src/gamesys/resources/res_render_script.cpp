@@ -4,7 +4,7 @@
 
 namespace dmGameSystem
 {
-    dmResource::CreateResult ResRenderScriptCreate(dmResource::HFactory factory,
+    dmResource::Result ResRenderScriptCreate(dmResource::HFactory factory,
             void* context,
             const void* buffer, uint32_t buffer_size,
             dmResource::SResourceDescriptor* resource,
@@ -15,24 +15,24 @@ namespace dmGameSystem
         if (render_script)
         {
             resource->m_Resource = (void*) render_script;
-            return dmResource::CREATE_RESULT_OK;
+            return dmResource::RESULT_OK;
         }
         else
         {
-            return dmResource::CREATE_RESULT_UNKNOWN;
+            return dmResource::RESULT_FORMAT_ERROR;
         }
     }
 
-    dmResource::CreateResult ResRenderScriptDestroy(dmResource::HFactory factory,
+    dmResource::Result ResRenderScriptDestroy(dmResource::HFactory factory,
             void* context,
             dmResource::SResourceDescriptor* resource)
     {
         dmRender::HRenderContext render_context = (dmRender::HRenderContext)context;
         dmRender::DeleteRenderScript(render_context, (dmRender::HRenderScript) resource->m_Resource);
-        return dmResource::CREATE_RESULT_OK;
+        return dmResource::RESULT_OK;
     }
 
-    dmResource::CreateResult ResRenderScriptRecreate(dmResource::HFactory factory,
+    dmResource::Result ResRenderScriptRecreate(dmResource::HFactory factory,
             void* context,
             const void* buffer, uint32_t buffer_size,
             dmResource::SResourceDescriptor* resource,
@@ -42,11 +42,11 @@ namespace dmGameSystem
         dmRender::HRenderScript render_script = (dmRender::HRenderScript) resource->m_Resource;
         if (dmRender::ReloadRenderScript(render_context, render_script, buffer, buffer_size, filename))
         {
-            return dmResource::CREATE_RESULT_OK;
+            return dmResource::RESULT_OK;
         }
         else
         {
-            return dmResource::CREATE_RESULT_UNKNOWN;
+            return dmResource::RESULT_FORMAT_ERROR;
         }
     }
 }

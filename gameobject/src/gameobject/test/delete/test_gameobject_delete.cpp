@@ -28,13 +28,13 @@ protected:
         dmGameObject::RegisterComponentTypes(m_Factory, m_Register);
         m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
 
-        dmResource::FactoryResult e;
+        dmResource::Result e;
         e = dmResource::RegisterType(m_Factory, "deleteself", this, ResDeleteSelfCreate, ResDeleteSelfDestroy, 0);
-        ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
+        ASSERT_EQ(dmResource::RESULT_OK, e);
 
         uint32_t resource_type;
         e = dmResource::GetTypeFromExtension(m_Factory, "deleteself", &resource_type);
-        ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
+        ASSERT_EQ(dmResource::RESULT_OK, e);
         dmGameObject::ComponentType ds_type;
         ds_type.m_Name = "deleteself";
         ds_type.m_ResourceType = resource_type;
@@ -52,8 +52,8 @@ protected:
         dmGameObject::Finalize();
     }
 
-    static dmResource::CreateResult ResDeleteSelfCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, dmResource::SResourceDescriptor* resource, const char* filename);
-    static dmResource::CreateResult ResDeleteSelfDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource);
+    static dmResource::Result ResDeleteSelfCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, dmResource::SResourceDescriptor* resource, const char* filename);
+    static dmResource::Result ResDeleteSelfDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource);
 
     static dmGameObject::UpdateResult     DeleteSelfComponentsUpdate(const dmGameObject::ComponentsUpdateParams& params);
 
@@ -74,7 +74,7 @@ public:
     dmResource::HFactory m_Factory;
 };
 
-dmResource::CreateResult DeleteTest::ResDeleteSelfCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, dmResource::SResourceDescriptor* resource, const char* filename)
+dmResource::Result DeleteTest::ResDeleteSelfCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, dmResource::SResourceDescriptor* resource, const char* filename)
 {
     DeleteTest* game_object_test = (DeleteTest*) context;
     game_object_test->m_CreateCountMap[TestGameObjectDDF::DeleteSelfResource::m_DDFHash]++;
@@ -84,21 +84,21 @@ dmResource::CreateResult DeleteTest::ResDeleteSelfCreate(dmResource::HFactory fa
     if (e == dmDDF::RESULT_OK)
     {
         resource->m_Resource = (void*) obj;
-        return dmResource::CREATE_RESULT_OK;
+        return dmResource::RESULT_OK;
     }
     else
     {
-        return dmResource::CREATE_RESULT_UNKNOWN;
+        return dmResource::RESULT_FORMAT_ERROR;
     }
 }
 
-dmResource::CreateResult DeleteTest::ResDeleteSelfDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource)
+dmResource::Result DeleteTest::ResDeleteSelfDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource)
 {
     DeleteTest* game_object_test = (DeleteTest*) context;
     game_object_test->m_DestroyCountMap[TestGameObjectDDF::DeleteSelfResource::m_DDFHash]++;
 
     dmDDF::FreeMessage((void*) resource->m_Resource);
-    return dmResource::CREATE_RESULT_OK;
+    return dmResource::RESULT_OK;
 }
 
 dmGameObject::UpdateResult DeleteTest::DeleteSelfComponentsUpdate(const dmGameObject::ComponentsUpdateParams& params)

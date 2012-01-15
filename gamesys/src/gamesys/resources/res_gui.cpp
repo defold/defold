@@ -6,7 +6,7 @@
 
 namespace dmGameSystem
 {
-    dmResource::CreateResult ResCreateGuiScript(dmResource::HFactory factory,
+    dmResource::Result ResCreateGuiScript(dmResource::HFactory factory,
                                              void* context,
                                              const void* buffer, uint32_t buffer_size,
                                              dmResource::SResourceDescriptor* resource,
@@ -18,24 +18,24 @@ namespace dmGameSystem
         if (result == dmGui::RESULT_OK)
         {
             resource->m_Resource = script;
-            return dmResource::CREATE_RESULT_OK;
+            return dmResource::RESULT_OK;
         }
         else
         {
-            return dmResource::CREATE_RESULT_UNKNOWN;
+            return dmResource::RESULT_FORMAT_ERROR;
         }
     }
 
-    dmResource::CreateResult ResDestroyGuiScript(dmResource::HFactory factory,
+    dmResource::Result ResDestroyGuiScript(dmResource::HFactory factory,
                                               void* context,
                                               dmResource::SResourceDescriptor* resource)
     {
         dmGui::HScript script = (dmGui::HScript)resource->m_Resource;
         dmGui::DeleteScript(script);
-        return dmResource::CREATE_RESULT_OK;
+        return dmResource::RESULT_OK;
     }
 
-    dmResource::CreateResult ResRecreateGuiScript(dmResource::HFactory factory,
+    dmResource::Result ResRecreateGuiScript(dmResource::HFactory factory,
                                           void* context,
                                           const void* buffer, uint32_t buffer_size,
                                           dmResource::SResourceDescriptor* resource,
@@ -58,26 +58,26 @@ namespace dmGameSystem
                     }
                 }
             }
-            return dmResource::CREATE_RESULT_OK;
+            return dmResource::RESULT_OK;
         }
         else
         {
-            return dmResource::CREATE_RESULT_UNKNOWN;
+            return dmResource::RESULT_FORMAT_ERROR;
         }
     }
 
-    bool AcquireResources(dmResource::HFactory factory, dmGui::HContext context,
+    dmResource::Result AcquireResources(dmResource::HFactory factory, dmGui::HContext context,
         const void* buffer, uint32_t buffer_size, GuiSceneResource* resource, const char* filename)
     {
         dmDDF::Result e = dmDDF::LoadMessage<dmGuiDDF::SceneDesc>(buffer, buffer_size, &resource->m_SceneDesc);
         if ( e != dmDDF::RESULT_OK )
-            return false;
+            return dmResource::RESULT_FORMAT_ERROR;
 
         if (resource->m_SceneDesc->m_Script != 0x0 && *resource->m_SceneDesc->m_Script != '\0')
         {
-            dmResource::FactoryResult fr = dmResource::Get(factory, resource->m_SceneDesc->m_Script, (void**) &resource->m_Script);
-            if (fr != dmResource::FACTORY_RESULT_OK)
-                return false;
+            dmResource::Result fr = dmResource::Get(factory, resource->m_SceneDesc->m_Script, (void**) &resource->m_Script);
+            if (fr != dmResource::RESULT_OK)
+                return fr;
         }
 
         resource->m_FontMaps.SetCapacity(resource->m_SceneDesc->m_Fonts.m_Count);
@@ -85,9 +85,9 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < resource->m_SceneDesc->m_Fonts.m_Count; ++i)
         {
             dmRender::HFontMap font_map;
-            dmResource::FactoryResult r = dmResource::Get(factory, resource->m_SceneDesc->m_Fonts[i].m_Font, (void**) &font_map);
-            if (r != dmResource::FACTORY_RESULT_OK)
-                return false;
+            dmResource::Result r = dmResource::Get(factory, resource->m_SceneDesc->m_Fonts[i].m_Font, (void**) &font_map);
+            if (r != dmResource::RESULT_OK)
+                return r;
             resource->m_FontMaps.Push(font_map);
         }
 
@@ -96,10 +96,10 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < resource->m_SceneDesc->m_Textures.m_Count; ++i)
         {
             dmGraphics::HTexture texture;
-            dmResource::FactoryResult r = dmResource::Get(factory, resource->m_SceneDesc->m_Textures[i].m_Texture, (void**) &texture);
-            if (r != dmResource::FACTORY_RESULT_OK)
+            dmResource::Result r = dmResource::Get(factory, resource->m_SceneDesc->m_Textures[i].m_Texture, (void**) &texture);
+            if (r != dmResource::RESULT_OK)
             {
-                return false;
+                return r;
             }
             resource->m_Textures.Push(texture);
         }
@@ -108,7 +108,7 @@ namespace dmGameSystem
 
         resource->m_GuiContext = context;
 
-        return true;
+        return dmResource::RESULT_OK;
     }
 
     void ReleaseResources(dmResource::HFactory factory, GuiSceneResource* resource)
@@ -129,7 +129,7 @@ namespace dmGameSystem
             free((void*)resource->m_Path);
     }
 
-    dmResource::CreateResult ResCreateSceneDesc(dmResource::HFactory factory,
+    dmResource::Result ResCreateSceneDesc(dmResource::HFactory factory,
                                                 void* context,
                                                 const void* buffer, uint32_t buffer_size,
                                                 dmResource::SResourceDescriptor* resource,
@@ -137,20 +137,20 @@ namespace dmGameSystem
     {
         GuiSceneResource* scene_resource = new GuiSceneResource();
         memset(scene_resource, 0, sizeof(GuiSceneResource));
-        if (AcquireResources(factory, ((GuiContext*)context)->m_GuiContext, buffer, buffer_size, scene_resource, filename))
+        dmResource::Result r = AcquireResources(factory, ((GuiContext*)context)->m_GuiContext, buffer, buffer_size, scene_resource, filename);
+        if (r == dmResource::RESULT_OK)
         {
             resource->m_Resource = (void*)scene_resource;
-            return dmResource::CREATE_RESULT_OK;
         }
         else
         {
             ReleaseResources(factory, scene_resource);
             delete scene_resource;
-            return dmResource::CREATE_RESULT_UNKNOWN;
         }
+        return r;
     }
 
-    dmResource::CreateResult ResDestroySceneDesc(dmResource::HFactory factory,
+    dmResource::Result ResDestroySceneDesc(dmResource::HFactory factory,
                                                  void* context,
                                                  dmResource::SResourceDescriptor* resource)
     {
@@ -159,10 +159,10 @@ namespace dmGameSystem
         ReleaseResources(factory, scene_resource);
         delete scene_resource;
 
-        return dmResource::CREATE_RESULT_OK;
+        return dmResource::RESULT_OK;
     }
 
-    dmResource::CreateResult ResRecreateSceneDesc(dmResource::HFactory factory,
+    dmResource::Result ResRecreateSceneDesc(dmResource::HFactory factory,
                                           void* context,
                                           const void* buffer, uint32_t buffer_size,
                                           dmResource::SResourceDescriptor* resource,
@@ -170,7 +170,8 @@ namespace dmGameSystem
     {
         GuiSceneResource tmp_scene_resource;
         memset(&tmp_scene_resource, 0, sizeof(GuiSceneResource));
-        if (AcquireResources(factory, ((GuiContext*)context)->m_GuiContext, buffer, buffer_size, &tmp_scene_resource, filename))
+        dmResource::Result r = AcquireResources(factory, ((GuiContext*)context)->m_GuiContext, buffer, buffer_size, &tmp_scene_resource, filename);
+        if (r == dmResource::RESULT_OK)
         {
             GuiSceneResource* scene_resource = (GuiSceneResource*) resource->m_Resource;
             ReleaseResources(factory, scene_resource);
@@ -180,12 +181,11 @@ namespace dmGameSystem
             scene_resource->m_Textures.Swap(tmp_scene_resource.m_Textures);
             scene_resource->m_Path = tmp_scene_resource.m_Path;
             scene_resource->m_GuiContext = tmp_scene_resource.m_GuiContext;
-            return dmResource::CREATE_RESULT_OK;
         }
         else
         {
             ReleaseResources(factory, &tmp_scene_resource);
-            return dmResource::CREATE_RESULT_UNKNOWN;
         }
+        return r;
     }
 }

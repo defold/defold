@@ -138,10 +138,10 @@ bool Init(Context* context, int argc, char* argv[])
         params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
         context->m_Factory = dmResource::NewFactory(&params, data_dir);
 
-        dmResource::FactoryResult factory_result;
+        dmResource::Result factory_result;
 #define REGISTER_RESOURCE_TYPE(extension, create_func, destroy_func, recreate_func)\
         factory_result = dmResource::RegisterType(context->m_Factory, extension, 0, create_func, destroy_func, recreate_func);\
-        if( factory_result != dmResource::FACTORY_RESULT_OK )\
+        if( factory_result != dmResource::RESULT_OK )\
         {\
             dmLogFatal("Unable to register resource type: %s", extension);\
             return false;\

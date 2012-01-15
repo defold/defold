@@ -78,7 +78,7 @@ namespace dmGameSystem
     bool InitializeScriptLibs(const ScriptLibContext& context);
     void FinalizeScriptLibs(const ScriptLibContext& context);
 
-    dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory,
+    dmResource::Result RegisterResourceTypes(dmResource::HFactory factory,
         dmRender::HRenderContext render_context,
         GuiContext* gui_context,
         dmInput::HContext input_context,

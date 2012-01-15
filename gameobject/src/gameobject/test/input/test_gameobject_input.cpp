@@ -32,12 +32,12 @@ protected:
         dmGameObject::RegisterComponentTypes(m_Factory, m_Register);
         m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
 
-        dmResource::FactoryResult e = dmResource::RegisterType(m_Factory, "it", this, ResInputTargetCreate, ResInputTargetDestroy, 0);
-        ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
+        dmResource::Result e = dmResource::RegisterType(m_Factory, "it", this, ResInputTargetCreate, ResInputTargetDestroy, 0);
+        ASSERT_EQ(dmResource::RESULT_OK, e);
 
         uint32_t resource_type;
         e = dmResource::GetTypeFromExtension(m_Factory, "it", &resource_type);
-        ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
+        ASSERT_EQ(dmResource::RESULT_OK, e);
         dmGameObject::ComponentType it_type;
         it_type.m_Name = "it";
         it_type.m_ResourceType = resource_type;
@@ -58,8 +58,8 @@ protected:
         dmGameObject::Finalize();
     }
 
-    static dmResource::CreateResult ResInputTargetCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, dmResource::SResourceDescriptor* resource, const char* filename);
-    static dmResource::CreateResult ResInputTargetDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource);
+    static dmResource::Result ResInputTargetCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, dmResource::SResourceDescriptor* resource, const char* filename);
+    static dmResource::Result ResInputTargetDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource);
 
     static dmGameObject::CreateResult CompInputTargetCreate(const dmGameObject::ComponentCreateParams& params);
     static dmGameObject::CreateResult CompInputTargetDestroy(const dmGameObject::ComponentDestroyParams& params);
@@ -75,25 +75,25 @@ public:
     dmResource::HFactory m_Factory;
 };
 
-dmResource::CreateResult InputTest::ResInputTargetCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, dmResource::SResourceDescriptor* resource, const char* filename)
+dmResource::Result InputTest::ResInputTargetCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, dmResource::SResourceDescriptor* resource, const char* filename)
 {
     TestGameObjectDDF::InputTarget* obj;
     dmDDF::Result e = dmDDF::LoadMessage<TestGameObjectDDF::InputTarget>(buffer, buffer_size, &obj);
     if (e == dmDDF::RESULT_OK)
     {
         resource->m_Resource = (void*) obj;
-        return dmResource::CREATE_RESULT_OK;
+        return dmResource::RESULT_OK;
     }
     else
     {
-        return dmResource::CREATE_RESULT_UNKNOWN;
+        return dmResource::RESULT_FORMAT_ERROR;
     }
 }
 
-dmResource::CreateResult InputTest::ResInputTargetDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource)
+dmResource::Result InputTest::ResInputTargetDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource)
 {
     dmDDF::FreeMessage((void*) resource->m_Resource);
-    return dmResource::CREATE_RESULT_OK;
+    return dmResource::RESULT_OK;
 }
 
 dmGameObject::CreateResult InputTest::CompInputTargetCreate(const dmGameObject::ComponentCreateParams& params)

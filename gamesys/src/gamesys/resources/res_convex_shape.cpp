@@ -100,7 +100,7 @@ namespace dmGameSystem
         return result;
     }
 
-    dmResource::CreateResult ResConvexShapeCreate(dmResource::HFactory factory,
+    dmResource::Result ResConvexShapeCreate(dmResource::HFactory factory,
                                                void* context,
                                                const void* buffer, uint32_t buffer_size,
                                                dmResource::SResourceDescriptor* resource,
@@ -111,12 +111,12 @@ namespace dmGameSystem
         if (AcquireResources(factory, (PhysicsContext*)context, buffer, buffer_size, convex_shape, filename))
         {
             resource->m_Resource = convex_shape;
-            return dmResource::CREATE_RESULT_OK;
+            return dmResource::RESULT_OK;
         }
         else
         {
             delete convex_shape;
-            return dmResource::CREATE_RESULT_FORMAT_ERROR;
+            return dmResource::RESULT_FORMAT_ERROR;
         }
     }
 
@@ -131,17 +131,17 @@ namespace dmGameSystem
         }
     }
 
-    dmResource::CreateResult ResConvexShapeDestroy(dmResource::HFactory factory,
+    dmResource::Result ResConvexShapeDestroy(dmResource::HFactory factory,
                                                 void* context,
                                                 dmResource::SResourceDescriptor* resource)
     {
         ConvexShapeResource* convex_shape = (ConvexShapeResource*)resource->m_Resource;
         ReleaseResources(convex_shape);
         delete convex_shape;
-        return dmResource::CREATE_RESULT_OK;
+        return dmResource::RESULT_OK;
     }
 
-    dmResource::CreateResult ResConvexShapeRecreate(dmResource::HFactory factory,
+    dmResource::Result ResConvexShapeRecreate(dmResource::HFactory factory,
             void* context,
             const void* buffer, uint32_t buffer_size,
             dmResource::SResourceDescriptor* resource,
@@ -159,11 +159,11 @@ namespace dmGameSystem
                 dmPhysics::ReplaceShape2D(physics_context->m_Context2D, cs_resource->m_Shape2D, tmp_convex_shape.m_Shape2D);
             ReleaseResources(cs_resource);
             cs_resource->m_Shape3D = tmp_convex_shape.m_Shape3D;
-            return dmResource::CREATE_RESULT_OK;
+            return dmResource::RESULT_OK;
         }
         else
         {
-            return dmResource::CREATE_RESULT_FORMAT_ERROR;
+            return dmResource::RESULT_FORMAT_ERROR;
         }
     }
 }

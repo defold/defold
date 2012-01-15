@@ -37,13 +37,14 @@ namespace dmGameSystem
         }
     }
 
-    dmGraphics::HTexture AcquireResources(dmGraphics::HContext context, const void* buffer, uint32_t buffer_size, dmGraphics::HTexture texture)
+    dmResource::Result AcquireResources(dmGraphics::HContext context, const void* buffer, uint32_t buffer_size, dmGraphics::HTexture texture, dmGraphics::HTexture* texture_out)
     {
+        *texture_out = 0;
         dmGraphics::TextureImage* texture_image;
         dmDDF::Result e = dmDDF::LoadMessage<dmGraphics::TextureImage>(buffer, buffer_size, (&texture_image));
         if ( e != dmDDF::RESULT_OK )
         {
-            return 0;
+            return dmResource::RESULT_FORMAT_ERROR;
         }
 
         bool found_match = false;
@@ -85,43 +86,41 @@ namespace dmGameSystem
 
         if (found_match)
         {
-            return texture;
+            *texture_out = texture;
+            return dmResource::RESULT_OK;
         }
         else
         {
             dmLogWarning("No matching texture format found");
-            return 0;
+            return dmResource::RESULT_FORMAT_ERROR;
         }
     }
 
-    dmResource::CreateResult ResTextureCreate(dmResource::HFactory factory,
+    dmResource::Result ResTextureCreate(dmResource::HFactory factory,
                                            void* context,
                                            const void* buffer, uint32_t buffer_size,
                                            dmResource::SResourceDescriptor* resource,
                                            const char* filename)
     {
         dmGraphics::HContext graphics_context = (dmGraphics::HContext)context;
-        dmGraphics::HTexture texture = AcquireResources(graphics_context, buffer, buffer_size, 0);
-        if (texture)
+        dmGraphics::HTexture texture;
+        dmResource::Result r = AcquireResources(graphics_context, buffer, buffer_size, 0, &texture);
+        if (r == dmResource::RESULT_OK)
         {
             resource->m_Resource = (void*) texture;
-            return dmResource::CREATE_RESULT_OK;
         }
-        else
-        {
-            return dmResource::CREATE_RESULT_UNKNOWN;
-        }
+        return r;
     }
 
-    dmResource::CreateResult ResTextureDestroy(dmResource::HFactory factory,
+    dmResource::Result ResTextureDestroy(dmResource::HFactory factory,
                                             void* context,
                                             dmResource::SResourceDescriptor* resource)
     {
         dmGraphics::DeleteTexture((dmGraphics::HTexture) resource->m_Resource);
-        return dmResource::CREATE_RESULT_OK;
+        return dmResource::RESULT_OK;
     }
 
-    dmResource::CreateResult ResTextureRecreate(dmResource::HFactory factory,
+    dmResource::Result ResTextureRecreate(dmResource::HFactory factory,
             void* context,
             const void* buffer, uint32_t buffer_size,
             dmResource::SResourceDescriptor* resource,
@@ -129,13 +128,7 @@ namespace dmGameSystem
     {
         dmGraphics::HContext graphics_context = (dmGraphics::HContext)context;
         dmGraphics::HTexture texture = (dmGraphics::HTexture)resource->m_Resource;
-        if (AcquireResources(graphics_context, buffer, buffer_size, texture))
-        {
-            return dmResource::CREATE_RESULT_OK;
-        }
-        else
-        {
-            return dmResource::CREATE_RESULT_UNKNOWN;
-        }
+        dmResource::Result r = AcquireResources(graphics_context, buffer, buffer_size, texture, &texture);
+        return r;
     }
 }

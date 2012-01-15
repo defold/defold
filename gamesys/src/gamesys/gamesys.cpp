@@ -80,13 +80,13 @@ namespace dmGameSystem
         dmScript::RegisterDDFType(script_context, dmGameSystemDDF::SetTile::m_DDFDescriptor);
     }
 
-    dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory, dmRender::HRenderContext render_context, GuiContext* gui_context, dmInput::HContext input_context, PhysicsContext* physics_context)
+    dmResource::Result RegisterResourceTypes(dmResource::HFactory factory, dmRender::HRenderContext render_context, GuiContext* gui_context, dmInput::HContext input_context, PhysicsContext* physics_context)
     {
-        dmResource::FactoryResult e;
+        dmResource::Result e;
 
 #define REGISTER_RESOURCE_TYPE(extension, context, create_func, destroy_func, recreate_func)\
     e = dmResource::RegisterType(factory, extension, context, create_func, destroy_func, recreate_func);\
-    if( e != dmResource::FACTORY_RESULT_OK )\
+    if( e != dmResource::RESULT_OK )\
     {\
         dmLogFatal("Unable to register resource type: %s", extension);\
         return e;\
@@ -135,12 +135,12 @@ namespace dmGameSystem
     {
         uint32_t type;
         dmGameObject::ComponentType component_type;
-        dmResource::FactoryResult factory_result;
+        dmResource::Result factory_result;
         dmGameObject::Result go_result;
 
 #define REGISTER_COMPONENT_TYPE(extension, prio, context, new_world_func, delete_world_func, create_func, destroy_func, init_func, final_func, update_func, post_update_func, on_message_func, on_input_func, on_reload_func)\
     factory_result = dmResource::GetTypeFromExtension(factory, extension, &type);\
-    if (factory_result != dmResource::FACTORY_RESULT_OK)\
+    if (factory_result != dmResource::RESULT_OK)\
     {\
         dmLogWarning("Unable to get resource type for '%s' (%d)", extension, factory_result);\
         return dmGameObject::RESULT_UNKNOWN_ERROR;\

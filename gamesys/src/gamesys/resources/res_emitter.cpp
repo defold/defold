@@ -7,31 +7,31 @@
 
 namespace dmGameSystem
 {
-    bool AcquireResources(dmResource::HFactory factory, const void* buffer, uint32_t buffer_size, dmParticle::Prototype* prototype, const char* filename)
+    dmResource::Result AcquireResources(dmResource::HFactory factory, const void* buffer, uint32_t buffer_size, dmParticle::Prototype* prototype, const char* filename)
     {
         dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmParticleDDF_Emitter_DESCRIPTOR, (void**) &prototype->m_DDF);
         if (e != dmDDF::RESULT_OK)
         {
             dmLogWarning("Emitter could not be loaded: %s.", filename);
-            return false;
+            return dmResource::RESULT_FORMAT_ERROR;
         }
-        dmResource::FactoryResult result;
+        dmResource::Result result;
         result = dmResource::Get(factory, prototype->m_DDF->m_Texture.m_Name, (void**) &prototype->m_Texture);
-        if (result != dmResource::FACTORY_RESULT_OK)
+        if (result != dmResource::RESULT_OK)
         {
             dmLogError("Could not load texture \"%s\" for emitter \"%s\".", prototype->m_DDF->m_Texture.m_Name, filename);
-            return false;
+            return result;
         }
-        if (result == dmResource::FACTORY_RESULT_OK)
+        if (result == dmResource::RESULT_OK)
         {
             result = dmResource::Get(factory, prototype->m_DDF->m_Material, (void**) &prototype->m_Material);
-            if (result != dmResource::FACTORY_RESULT_OK)
+            if (result != dmResource::RESULT_OK)
             {
                 dmLogError("Could not load material \"%s\" for emitter \"%s\".", prototype->m_DDF->m_Material, filename);
-                return false;
+                return result;
             }
         }
-        return true;
+        return dmResource::RESULT_OK;
     }
 
     static void ReleasePrototypeResources(dmResource::HFactory factory, dmParticle::Prototype* prototype)
@@ -44,45 +44,38 @@ namespace dmGameSystem
             dmResource::Release(factory, prototype->m_Texture);
     }
 
-    dmResource::CreateResult ResEmitterCreate(dmResource::HFactory factory,
+    dmResource::Result ResEmitterCreate(dmResource::HFactory factory,
             void* context,
             const void* buffer, uint32_t buffer_size,
             dmResource::SResourceDescriptor* resource,
             const char* filename)
     {
         dmParticle::Prototype* prototype = new dmParticle::Prototype();
-        if (AcquireResources(factory, buffer, buffer_size, prototype, filename))
+        dmResource::Result r = AcquireResources(factory, buffer, buffer_size, prototype, filename);
+        if (r == dmResource::RESULT_OK)
         {
             resource->m_Resource = (void*) prototype;
-            return dmResource::CREATE_RESULT_OK;
         }
         else
         {
             ReleasePrototypeResources(factory, prototype);
             delete prototype;
-            return dmResource::CREATE_RESULT_UNKNOWN;
         }
-
+        return r;
     }
 
-    dmResource::CreateResult ResEmitterDestroy(dmResource::HFactory factory,
+    dmResource::Result ResEmitterDestroy(dmResource::HFactory factory,
             void* context,
             dmResource::SResourceDescriptor* resource)
     {
         dmParticle::Prototype* prototype = (dmParticle::Prototype*)resource->m_Resource;
-        if (prototype != 0x0)
-        {
-            ReleasePrototypeResources(factory, prototype);
-            delete prototype;
-            return dmResource::CREATE_RESULT_OK;
-        }
-        else
-        {
-            return dmResource::CREATE_RESULT_UNKNOWN;
-        }
+        assert(prototype);
+        ReleasePrototypeResources(factory, prototype);
+        delete prototype;
+        return dmResource::RESULT_OK;
     }
 
-    dmResource::CreateResult ResEmitterRecreate(dmResource::HFactory factory,
+    dmResource::Result ResEmitterRecreate(dmResource::HFactory factory,
             void* context,
             const void* buffer, uint32_t buffer_size,
             dmResource::SResourceDescriptor* resource,
@@ -90,16 +83,16 @@ namespace dmGameSystem
     {
         dmParticle::Prototype* prototype = (dmParticle::Prototype*)resource->m_Resource;
         dmParticle::Prototype tmp_prototype;
-        if (AcquireResources(factory, buffer, buffer_size, &tmp_prototype, filename))
+        dmResource::Result r = AcquireResources(factory, buffer, buffer_size, &tmp_prototype, filename);
+        if (r == dmResource::RESULT_OK)
         {
             ReleasePrototypeResources(factory, prototype);
             *prototype = tmp_prototype;
-            return dmResource::CREATE_RESULT_OK;
         }
         else
         {
             ReleasePrototypeResources(factory, &tmp_prototype);
-            return dmResource::CREATE_RESULT_UNKNOWN;
         }
+        return r;
     }
 }

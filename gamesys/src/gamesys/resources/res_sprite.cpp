@@ -8,26 +8,26 @@
 
 namespace dmGameSystem
 {
-    bool AcquireResources(dmResource::HFactory factory,
+    dmResource::Result AcquireResources(dmResource::HFactory factory,
         const void* buffer, uint32_t buffer_size,
         SpriteResource* resource, const char* filename)
     {
         dmDDF::Result e  = dmDDF::LoadMessage(buffer, buffer_size, &resource->m_DDF);
         if ( e != dmDDF::RESULT_OK )
         {
-            return false;
+            return dmResource::RESULT_FORMAT_ERROR;
         }
         if (resource->m_DDF->m_TileCount == 0 || resource->m_DDF->m_TilesPerRow == 0)
         {
             dmLogError("%s", "tile_count and tiles_per_row must both be over 0");
-            return false;
+            return dmResource::RESULT_FORMAT_ERROR;
         }
-        dmResource::FactoryResult fr = dmResource::Get(factory, resource->m_DDF->m_Texture, (void**)&resource->m_Texture);
-        if (fr != dmResource::FACTORY_RESULT_OK)
+        dmResource::Result fr = dmResource::Get(factory, resource->m_DDF->m_Texture, (void**)&resource->m_Texture);
+        if (fr != dmResource::RESULT_OK)
         {
-            return false;
+            return fr;
         }
-        return true;
+        return dmResource::RESULT_OK;
     }
 
     void ReleaseResources(dmResource::HFactory factory, SpriteResource* resource)
@@ -38,7 +38,7 @@ namespace dmGameSystem
             dmResource::Release(factory, resource->m_Texture);
     }
 
-    dmResource::CreateResult ResSpriteCreate(dmResource::HFactory factory,
+    dmResource::Result ResSpriteCreate(dmResource::HFactory factory,
                                             void* context,
                                             const void* buffer, uint32_t buffer_size,
                                             dmResource::SResourceDescriptor* resource,
@@ -46,30 +46,30 @@ namespace dmGameSystem
     {
         SpriteResource* sprite_resource = new SpriteResource();
         memset(sprite_resource, 0, sizeof(SpriteResource));
-        if (AcquireResources(factory, buffer, buffer_size, sprite_resource, filename))
+        dmResource::Result r = AcquireResources(factory, buffer, buffer_size, sprite_resource, filename);
+        if (r == dmResource::RESULT_OK)
         {
             resource->m_Resource = (void*) sprite_resource;
-            return dmResource::CREATE_RESULT_OK;
         }
         else
         {
             ReleaseResources(factory, sprite_resource);
             delete sprite_resource;
-            return dmResource::CREATE_RESULT_UNKNOWN;
         }
+        return r;
     }
 
-    dmResource::CreateResult ResSpriteDestroy(dmResource::HFactory factory,
+    dmResource::Result ResSpriteDestroy(dmResource::HFactory factory,
                                              void* context,
                                              dmResource::SResourceDescriptor* resource)
     {
         SpriteResource* sprite_resource = (SpriteResource*) resource->m_Resource;
         ReleaseResources(factory, sprite_resource);
         delete sprite_resource;
-        return dmResource::CREATE_RESULT_OK;
+        return dmResource::RESULT_OK;
     }
 
-    dmResource::CreateResult ResSpriteRecreate(dmResource::HFactory factory,
+    dmResource::Result ResSpriteRecreate(dmResource::HFactory factory,
                                               void* context,
                                               const void* buffer, uint32_t buffer_size,
                                               dmResource::SResourceDescriptor* resource,
@@ -77,17 +77,17 @@ namespace dmGameSystem
     {
         SpriteResource tmp_sprite_resource;
         memset(&tmp_sprite_resource, 0, sizeof(SpriteResource));
-        if (AcquireResources(factory, buffer, buffer_size, &tmp_sprite_resource, filename))
+        dmResource::Result r = AcquireResources(factory, buffer, buffer_size, &tmp_sprite_resource, filename);
+        if (r == dmResource::RESULT_OK)
         {
             SpriteResource* sprite_resource = (SpriteResource*)resource->m_Resource;
             ReleaseResources(factory, sprite_resource);
             *sprite_resource = tmp_sprite_resource;
-            return dmResource::CREATE_RESULT_OK;
         }
         else
         {
             ReleaseResources(factory, &tmp_sprite_resource);
-            return dmResource::CREATE_RESULT_UNKNOWN;
         }
+        return r;
     }
 }

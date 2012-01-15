@@ -704,9 +704,9 @@ namespace dmGameObject
      * Register all resource types in resource factory
      * @param factory Resource factory
      * @param regist Register
-     * @return dmResource::FactoryResult
+     * @return dmResource::Result
      */
-    dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory, HRegister regist);
+    dmResource::Result RegisterResourceTypes(dmResource::HFactory factory, HRegister regist);
 
     /**
      * Register all component types in collection

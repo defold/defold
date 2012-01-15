@@ -7,17 +7,17 @@
 
 namespace dmGameSystem
 {
-    dmResource::CreateResult ResLightCreate(dmResource::HFactory factory,
+    dmResource::Result ResLightCreate(dmResource::HFactory factory,
                                             void* context,
                                             const void* buffer, uint32_t buffer_size,
                                             dmResource::SResourceDescriptor* resource,
                                             const char* filename);
 
-    dmResource::CreateResult ResLightDestroy(dmResource::HFactory factory,
+    dmResource::Result ResLightDestroy(dmResource::HFactory factory,
                                             void* context,
                                             dmResource::SResourceDescriptor* resource);
 
-    dmResource::CreateResult ResLightRecreate(dmResource::HFactory factory,
+    dmResource::Result ResLightRecreate(dmResource::HFactory factory,
                                               void* context,
                                               const void* buffer, uint32_t buffer_size,
                                               dmResource::SResourceDescriptor* resource,

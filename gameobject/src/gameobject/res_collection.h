@@ -7,13 +7,13 @@
 
 namespace dmGameObject
 {
-    dmResource::CreateResult ResCollectionCreate(dmResource::HFactory factory,
+    dmResource::Result ResCollectionCreate(dmResource::HFactory factory,
                                                 void* context,
                                                 const void* buffer, uint32_t buffer_size,
                                                 dmResource::SResourceDescriptor* resource,
                                                 const char* filename);
 
-    dmResource::CreateResult ResCollectionDestroy(dmResource::HFactory factory,
+    dmResource::Result ResCollectionDestroy(dmResource::HFactory factory,
                                                  void* context,
                                                  dmResource::SResourceDescriptor* resource);
 }
