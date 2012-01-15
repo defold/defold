@@ -81,6 +81,10 @@ struct SResourceFactory
     dmArray<ResourceReloadedCallbackPair>*       m_ResourceReloadedCallbacks;
     SResourceType                                m_ResourceTypes[MAX_RESOURCE_TYPES];
     uint32_t                                     m_ResourceTypesCount;
+    // dmResource::Get recursion depth
+    uint32_t                                     m_RecursionDepth;
+    // List of resources currently in dmResource::Get call-stack
+    dmArray<const char*>                         m_GetResourceStack;
 
     dmURI::Parts                                 m_UriParts;
     dmHttpClient::HClient                        m_HttpClient;
@@ -276,6 +280,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         return 0;
 
     SResourceFactory* factory = new SResourceFactory;
+    memset(factory, 0, sizeof(*factory));
 
     dmURI::Result uri_result = dmURI::Parse(uri, &factory->m_UriParts);
     if (uri_result != dmURI::RESULT_OK)
@@ -577,7 +582,7 @@ static Result LoadResource(HFactory factory, const char* path, const char* origi
     }
 }
 
-Result Get(HFactory factory, const char* name, void** resource)
+Result DoGet(HFactory factory, const char* name, void** resource)
 {
     assert(name);
     assert(resource);
@@ -678,6 +683,45 @@ Result Get(HFactory factory, const char* name, void** resource)
         return RESULT_MISSING_FILE_EXTENSION;
     }
 }
+
+Result Get(HFactory factory, const char* name, void** resource)
+{
+    dmArray<const char*>& stack = factory->m_GetResourceStack;
+    if (factory->m_RecursionDepth == 0)
+    {
+        stack.SetSize(0);
+    }
+
+    ++factory->m_RecursionDepth;
+
+    uint32_t n = stack.Size();
+    for (uint32_t i = 0; i < n; ++i)
+    {
+        if (strcmp(stack[i], name) == 0)
+        {
+            dmLogError("Self referring resource detected");
+            dmLogError("Reference chain:");
+            for (uint32_t j = 0; j < n; ++j)
+            {
+                dmLogError("%d: %s", j, stack[j]);
+            }
+            dmLogError("%d: %s", n, name);
+            --factory->m_RecursionDepth;
+            return RESULT_RESOURCE_LOOP_ERROR;
+        }
+    }
+
+    if (stack.Full())
+    {
+        stack.SetCapacity(stack.Capacity() + 16);
+    }
+    stack.Push(name);
+    Result r = DoGet(factory, name, resource);
+    stack.SetSize(stack.Size() - 1);
+    --factory->m_RecursionDepth;
+    return r;
+}
+
 
 Result ReloadResource(HFactory factory, const char* name, SResourceDescriptor** out_descriptor)
 {

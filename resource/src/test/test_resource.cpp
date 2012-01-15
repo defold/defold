@@ -184,15 +184,35 @@ dmResource::Result ResourceContainerCreate(dmResource::HFactory factory,
         resource_cont->m_NameHash = dmHashBuffer64(resource_container_desc->m_Name, strlen(resource_container_desc->m_Name));
         resource->m_Resource = (void*) resource_cont;
 
+        bool error = false;
+        dmResource::Result factory_e = dmResource::RESULT_OK;
         for (uint32_t i = 0; i < resource_container_desc->m_Resources.m_Count; ++i)
         {
             TestResource::ResourceFoo* sub_resource;
-            dmResource::Result factoy_e = dmResource::Get(factory, resource_container_desc->m_Resources[i], (void**)&sub_resource);
-            assert( factoy_e == dmResource::RESULT_OK );
+            factory_e = dmResource::Get(factory, resource_container_desc->m_Resources[i], (void**)&sub_resource);
+            if (factory_e != dmResource::RESULT_OK)
+            {
+                error = true;
+                break;
+            }
             resource_cont->m_Resources.push_back(sub_resource);
         }
+
         dmDDF::FreeMessage(resource_container_desc);
-        return dmResource::RESULT_OK;
+        if (error)
+        {
+            for (uint32_t i = 0; i < resource_cont->m_Resources.size(); ++i)
+            {
+                dmResource::Release(factory, resource_cont->m_Resources[i]);
+            }
+            delete resource_cont;
+            resource->m_Resource = 0;
+            return factory_e;
+        }
+        else
+        {
+            return dmResource::RESULT_OK;
+        }
     }
     else
     {
@@ -270,6 +290,38 @@ TEST_P(GetResourceTest, GetTestResource)
     // Add test for RESULT_RESOURCE_NOT_FOUND (for http test)
     e = dmResource::Get(m_Factory, "does_not_exists.cont", (void**) &test_resource_cont);
     ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, e);
+}
+
+TEST_P(GetResourceTest, SelfReferring)
+{
+    dmResource::Result e;
+    TestResourceContainer* test_resource_cont;
+
+    test_resource_cont = 0;
+    e = dmResource::Get(m_Factory, "/self_referring.cont", (void**) &test_resource_cont);
+    ASSERT_EQ(dmResource::RESULT_RESOURCE_LOOP_ERROR, e);
+    ASSERT_EQ((void*) 0, test_resource_cont);
+
+    test_resource_cont = 0;
+    e = dmResource::Get(m_Factory, "/self_referring.cont", (void**) &test_resource_cont);
+    ASSERT_EQ(dmResource::RESULT_RESOURCE_LOOP_ERROR, e);
+    ASSERT_EQ((void*) 0, test_resource_cont);
+}
+
+TEST_P(GetResourceTest, Loop)
+{
+    dmResource::Result e;
+    TestResourceContainer* test_resource_cont;
+
+    test_resource_cont = 0;
+    e = dmResource::Get(m_Factory, "/root_loop.cont", (void**) &test_resource_cont);
+    ASSERT_EQ(dmResource::RESULT_RESOURCE_LOOP_ERROR, e);
+    ASSERT_EQ((void*) 0, test_resource_cont);
+
+    test_resource_cont = 0;
+    e = dmResource::Get(m_Factory, "/root_loop.cont", (void**) &test_resource_cont);
+    ASSERT_EQ(dmResource::RESULT_RESOURCE_LOOP_ERROR, e);
+    ASSERT_EQ((void*) 0, test_resource_cont);
 }
 
 INSTANTIATE_TEST_CASE_P(GetResourceTestURI,
