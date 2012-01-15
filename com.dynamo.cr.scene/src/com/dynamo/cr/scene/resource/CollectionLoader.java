@@ -6,6 +6,9 @@ import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
 
+import javax.vecmath.Quat4d;
+import javax.vecmath.Vector4d;
+
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.SubMonitor;
@@ -72,9 +75,9 @@ public class CollectionLoader implements IResourceLoader {
             try {
                 instance = (PrototypeResource)factory.load(instanceProgress.newChild(1), cid.getPrototype());
             } catch (IOException e) {
-                instance = new PrototypeResource(cid.getPrototype(), null, new ArrayList<Resource>());
+                instance = new PrototypeResource(cid.getPrototype(), null, new ArrayList<Resource>(), new ArrayList<Vector4d>(), new ArrayList<Quat4d>());
             } catch (CoreException e) {
-                instance = new PrototypeResource(cid.getPrototype(), null, new ArrayList<Resource>());
+                instance = new PrototypeResource(cid.getPrototype(), null, new ArrayList<Resource>(), new ArrayList<Vector4d>(), new ArrayList<Quat4d>());
             }
             prototypeInstances.add(instance);
         }

@@ -16,6 +16,7 @@ import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.SceneUtil;
+import com.dynamo.cr.sceneed.core.util.LoaderUtil;
 import com.dynamo.gameobject.proto.GameObject.ComponentDesc;
 import com.dynamo.gameobject.proto.GameObject.EmbeddedComponentDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
@@ -38,6 +39,8 @@ public class GameObjectLoader implements INodeLoader<GameObjectNode> {
             String path = componentDesc.getComponent();
             ComponentTypeNode componentType = (ComponentTypeNode)context.loadNode(path);
             RefComponentNode componentNode = new RefComponentNode(componentType);
+            componentNode.setTranslation(LoaderUtil.toVector4(componentDesc.getPosition()));
+            componentNode.setRotation(LoaderUtil.toQuat4(componentDesc.getRotation()));
             componentNode.setId(componentDesc.getId());
             componentNode.setComponent(path);
             gameObject.addComponent(componentNode);
@@ -47,6 +50,8 @@ public class GameObjectLoader implements INodeLoader<GameObjectNode> {
             EmbeddedComponentDesc componentDesc = desc.getEmbeddedComponents(i);
             ComponentTypeNode componentType = (ComponentTypeNode)context.loadNode(componentDesc.getType(), new ByteArrayInputStream(componentDesc.getData().getBytes()));
             ComponentNode component = new ComponentNode(componentType);
+            componentType.setTranslation(LoaderUtil.toVector4(componentDesc.getPosition()));
+            componentType.setRotation(LoaderUtil.toQuat4(componentDesc.getRotation()));
             component.setId(componentDesc.getId());
             gameObject.addComponent(component);
         }
@@ -62,6 +67,8 @@ public class GameObjectLoader implements INodeLoader<GameObjectNode> {
             if (child instanceof RefComponentNode) {
                 RefComponentNode component = (RefComponentNode)child;
                 ComponentDesc.Builder componentBuilder = ComponentDesc.newBuilder();
+                componentBuilder.setPosition(LoaderUtil.toPoint3(component.getTranslation()));
+                componentBuilder.setRotation(LoaderUtil.toQuat(component.getRotation()));
                 componentBuilder.setId(component.getId());
                 componentBuilder.setComponent(component.getComponent());
                 builder.addComponents(componentBuilder);
@@ -69,8 +76,10 @@ public class GameObjectLoader implements INodeLoader<GameObjectNode> {
             } else if (child instanceof ComponentNode) {
                 ComponentNode component = (ComponentNode)child;
                 EmbeddedComponentDesc.Builder componentBuilder = EmbeddedComponentDesc.newBuilder();
-                componentBuilder.setId(component.getId());
                 ComponentTypeNode componentType = (ComponentTypeNode)component.getChildren().get(0);
+                componentBuilder.setPosition(LoaderUtil.toPoint3(componentType.getTranslation()));
+                componentBuilder.setRotation(LoaderUtil.toQuat(componentType.getRotation()));
+                componentBuilder.setId(component.getId());
                 ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
                 SubMonitor partProgress = progress.newChild(1).setWorkRemaining(2);
                 INodeTypeRegistry registry = context.getNodeTypeRegistry();

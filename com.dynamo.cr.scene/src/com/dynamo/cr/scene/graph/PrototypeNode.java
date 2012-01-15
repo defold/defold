@@ -64,6 +64,8 @@ public class PrototypeNode extends Node implements IResourceListener {
         boolean canHaveChildren = (getFlags() & FLAG_CAN_HAVE_CHILDREN) == FLAG_CAN_HAVE_CHILDREN;
         setFlags(getFlags() | FLAG_CAN_HAVE_CHILDREN);
         clearNodes();
+        int i = 0;
+
         for (Resource componentResource : resource.getComponentResources()) {
             Node comp;
             if (factory.canCreate(componentResource.getPath())) {
@@ -76,7 +78,10 @@ public class PrototypeNode extends Node implements IResourceListener {
             } else {
                 comp = new ErrorComponentNode(componentResource.getPath(), new DummyResource(), getScene());
             }
+            comp.setLocalTranslation(resource.getComponentTranslations().get(i));
+            comp.setLocalRotation(resource.getComponentRotations().get(i));
             comp.setParent(this);
+            ++i;
         }
         if (!canHaveChildren) {
             setFlags(getFlags() & ~FLAG_CAN_HAVE_CHILDREN);
