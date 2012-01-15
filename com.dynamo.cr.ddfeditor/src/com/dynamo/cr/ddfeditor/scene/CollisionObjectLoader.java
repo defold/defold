@@ -104,9 +104,9 @@ public class CollisionObjectLoader implements INodeLoader<CollisionObjectNode> {
             b.setShapeType(CollisionShape.Type.TYPE_BOX);
             b.setCount(3);
             b.setIndex(collisionShapeBuilder.getDataCount());
-            collisionShapeBuilder.addData((float) boxShapeNode.getWidth());
-            collisionShapeBuilder.addData((float) boxShapeNode.getHeight());
-            collisionShapeBuilder.addData((float) boxShapeNode.getDepth());
+            collisionShapeBuilder.addData((float) boxShapeNode.getWidth() * 0.5f);
+            collisionShapeBuilder.addData((float) boxShapeNode.getHeight() * 0.5f);
+            collisionShapeBuilder.addData((float) boxShapeNode.getDepth() * 0.5f);
         } else if (shapeNode instanceof CapsuleCollisionShapeNode) {
             CapsuleCollisionShapeNode capsuleShapeNode = (CapsuleCollisionShapeNode) shapeNode;
             b.setShapeType(CollisionShape.Type.TYPE_CAPSULE);

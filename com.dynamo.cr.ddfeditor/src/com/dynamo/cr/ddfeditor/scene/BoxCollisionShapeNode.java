@@ -24,9 +24,9 @@ public class BoxCollisionShapeNode extends CollisionShapeNode {
         if (data.length - index < 3) {
             createBoundsStatusError();
         } else {
-            setWidth(data[index + 0]);
-            setHeight(data[index + 1]);
-            setDepth(data[index + 2]);
+            setWidth(data[index + 0] * 2.0f);
+            setHeight(data[index + 1] * 2.0f);
+            setDepth(data[index + 2] * 2.0f);
         }
     }
 
@@ -36,8 +36,11 @@ public class BoxCollisionShapeNode extends CollisionShapeNode {
 
     private final void updateAABB() {
         AABB aabb = new AABB();
-        aabb.union(-width, -height, -depth);
-        aabb.union(width, height, depth);
+        double wExt = width * 0.5;
+        double hExt = height * 0.5;
+        double dExt = depth * 0.5;
+        aabb.union(-wExt, -hExt, -dExt);
+        aabb.union(wExt, hExt, dExt);
         setAABB(aabb);
     }
 

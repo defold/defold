@@ -64,10 +64,8 @@ public class CollisionNode extends ComponentNode<CollisionResource> {
                     } else if (shape.getShapeType() == ConvexShape.Type.TYPE_CAPSULE) {
                         float r = shape.getData(0);
                         float h = shape.getData(1);
-                        m_AABB.union(0, h, 0);
-                        m_AABB.union(0, -h, 0);
-                        m_AABB.union(r, 0, r);
-                        m_AABB.union(-r, 0, -r);
+                        m_AABB.union(r, r + h * 0.5f, r);
+                        m_AABB.union(-r, -r - h * 0.5f, -r);
                     } else {
                         setError(ERROR_FLAG_RESOURCE_ERROR, "Unsupported shape type: " + shape.getShapeType());
                     }
@@ -104,12 +102,11 @@ public class CollisionNode extends ComponentNode<CollisionResource> {
                         r = shape.getData(s.getIndex());
                         float h = shape.getData(s.getIndex()+1);
                         aabb.setIdentity();
-                        aabb.union(0, h, 0);
-                        aabb.union(0, -h, 0);
-                        aabb.union(r, 0, r);
-                        aabb.union(-r, 0, -r);
+                        aabb.union(r, r + h * 0.5f, r);
+                        aabb.union(-r, -r - h * 0.5f, -r);
                         aabb.transform(t);
                         m_AABB.union(aabb);
+                        break;
                     default:
                         setError(ERROR_FLAG_RESOURCE_ERROR, "Unsupported shape type: " + s.getShapeType());
                     }

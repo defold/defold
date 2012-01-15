@@ -28,9 +28,9 @@ public class BoxCollisionShapeRenderer extends CollisionShapeRenderer implements
 
         GL gl = renderContext.getGL();
         gl.glColor4fv(renderContext.selectColor(node, COLOR), 0);
-        float w_e = (float) node.getWidth();
-        float h_e = (float) node.getHeight();
-        float d_e = (float) node.getDepth();
+        float w_e = (float) node.getWidth() * 0.5f;
+        float h_e = (float) node.getHeight() * 0.5f;
+        float d_e = (float) node.getDepth() * 0.5f;
         RenderUtil.drawCube(gl, -w_e, -h_e, -d_e, w_e, h_e, d_e);
     }
 }
