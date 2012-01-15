@@ -76,6 +76,8 @@ Below is a list of the bugs we fixed in this release.
 - Missing documentation for +sys.get_save_file+
 - The tile set-field in Sprite2 components was not updated correctly when referenced tile sets where renamed/moved/deleted
 - Cryptic build error when building a Sprite2 component without its default animation empty
+- Specifying a spawn point component to spawn the same game object it resides in made the engine crash when loading the game (results in error now)
+- When creating embedded collision boxes, the width/height/depth was expected to be half the values (they are actually the full width/height/depth now)
 
 Roadmap
 ~~~~~~~
