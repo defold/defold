@@ -81,9 +81,9 @@ public class CollisionObjectNodeTest extends AbstractNodeTest {
         ++i;
         assertThat(children.get(i), instanceOf(BoxCollisionShapeNode.class));
         BoxCollisionShapeNode box = (BoxCollisionShapeNode) children.get(i);
-        assertThat(box.getWidth(), is(10.0));
-        assertThat(box.getHeight(), is(20.0));
-        assertThat(box.getDepth(), is(30.0));
+        assertThat(box.getWidth(), is(20.0));
+        assertThat(box.getHeight(), is(40.0));
+        assertThat(box.getDepth(), is(60.0));
 
         ++i;
         assertThat(children.get(i), instanceOf(CapsuleCollisionShapeNode.class));
