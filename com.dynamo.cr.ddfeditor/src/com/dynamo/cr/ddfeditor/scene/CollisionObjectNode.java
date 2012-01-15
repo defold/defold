@@ -6,6 +6,7 @@ import com.dynamo.cr.go.core.ComponentTypeNode;
 import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Resource;
+import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.physics.proto.Physics.CollisionObjectType;
@@ -44,6 +45,7 @@ public class CollisionObjectNode extends ComponentTypeNode {
         if (model != null) {
             try {
                 this.collisionShapeNode = model.loadNode(this.collisionShape);
+                updateAABB();
                 return true;
             } catch (Throwable e) {
                 // no reason to handle exception since having a null collision shape is invalid state, will be caught in resource validation
@@ -118,6 +120,7 @@ public class CollisionObjectNode extends ComponentTypeNode {
 
     public void setCollisionShapeNode(Node collisionShapeNode) {
         this.collisionShapeNode = collisionShapeNode;
+        updateAABB();
     }
 
     public Node getCollisionShapeNode() {
@@ -130,6 +133,14 @@ public class CollisionObjectNode extends ComponentTypeNode {
 
     public void removeShape(CollisionShapeNode shapeNode) {
         removeChild(shapeNode);
+    }
+
+    private final void updateAABB() {
+        AABB aabb = new AABB();
+        if (this.collisionShapeNode != null) {
+            this.collisionShapeNode.getAABB(aabb);
+        }
+        setAABB(aabb);
     }
 
 }

@@ -64,7 +64,7 @@ public class CollisionObjectRenderer implements INodeRenderer<CollisionObjectNod
             gl.glPointSize(10.0f);
             int n = (data.size() / 3) * 3;
             for (int i = 0; i < n; i += 3) {
-                gl.glVertex3f(data.get(0), data.get(1), data.get(2));
+                gl.glVertex3f(data.get(i), data.get(i+1), data.get(i+2));
             }
             gl.glEnd();
             break;

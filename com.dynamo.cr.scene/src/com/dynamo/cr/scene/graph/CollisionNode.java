@@ -191,7 +191,7 @@ public class CollisionNode extends ComponentNode<CollisionResource> {
         gl.glPopAttrib();
     }
 
-    private void drawBox(DrawContext context, float h_e, float w_e, float d_e) {
+    private void drawBox(DrawContext context, float w_e, float h_e, float d_e) {
         GL gl = context.m_GL;
         if ((getFlags() & FLAG_GHOST) == FLAG_GHOST) {
             gl.glColor3fv(Constants.GHOST_COLOR, 0);
