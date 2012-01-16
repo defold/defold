@@ -22,10 +22,8 @@ import static org.mockito.Mockito.when;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.io.StringReader;
 import java.net.URL;
 import java.util.ArrayList;
@@ -213,12 +211,9 @@ public class GridTest implements IResourceChangeListener {
         tileSetModel.load(file.getContents());
         tileSetModel.setImage(image);
         tileSetModel.setTileSpacing(tileSpacing);
-        OutputStream os = new FileOutputStream(file.getLocation().toFile());
-        try {
-            tileSetModel.save(os, null);
-        } finally {
-            os.close();
-        }
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        tileSetModel.save(stream, null);
+        file.setContents(new ByteArrayInputStream(stream.toByteArray()), false, true, null);
         return tileSetModel;
     }
 
@@ -479,7 +474,8 @@ public class GridTest implements IResourceChangeListener {
 
         newTileSet("/mario.tileset", "/mario_half_tileset.png", 1);
 
-        verify(this.view, times(4)).setTileSet(any(BufferedImage.class), anyInt(), anyInt(), anyInt(), anyInt());
+        // Twice (5) because the above function first creates the file from template-data, then write the specified content
+        verify(this.view, times(5)).setTileSet(any(BufferedImage.class), anyInt(), anyInt(), anyInt(), anyInt());
     }
 
     /**
@@ -619,12 +615,9 @@ public class GridTest implements IResourceChangeListener {
     }
 
     private void saveTileSet(IFile file, TileSetModel tileSetModel) throws Exception {
-        OutputStream os = new FileOutputStream(file.getLocation().toFile());
-        try {
-            tileSetModel.save(os, null);
-        } finally {
-            os.close();
-        }
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        tileSetModel.save(stream, null);
+        file.setContents(new ByteArrayInputStream(stream.toByteArray()), false, true, null);
     }
 
     private void assertInvalidTileSet(IFile file, Object id, Object value) throws Exception {

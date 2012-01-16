@@ -27,7 +27,9 @@ Sprites can now be moved in the Scene Editor (only applies to the new Sprite2 co
 This means that you can put two Sprite2 components in the same game object and move them in relation to eachother.
 This should make it easier to build more visually complex game objects.
 
-PLACEHOLDER: Offseted sprites in the scene editor
+image:images/blog/20120115/sprite_placement.png["Sprite Placement"]
+
+image:images/blog/20120115/search.png["Search Lights"]
 
 Linear Texture Filtering
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -50,7 +52,7 @@ For now, we will let it be until it becomes more critical.
 Please let us know how the visual quality of your game was affected by this release.
 We really hope it will be significantly better.
 
-PLACEHOLDER: Comparison before/after? Up for ideas here.. We could use the rotated high-score in level complete
+image:images/blog/20120115/filtering.png["Nearest vs Linear filtering"]
 
 A related bug to this was that sprites and tile grids appeared to move differently when moving a camera.
 The impression was that the sprites would float or hover a bit back and forth in relation to the tile grids.

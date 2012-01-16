@@ -106,8 +106,7 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
                 try {
                     this.tileSetModel.load(file.getContents());
                 } catch (Exception e) {
-                    // TODO: Report error
-                    assert false;
+                    this.tileSetModel = null;
                 }
             } else {
                 this.tileSetModel = null;
