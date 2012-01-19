@@ -52,9 +52,75 @@ protected:
 TEST_F(LuaTableTest, EmptyTable)
 {
     lua_newtable(L);
-    char buf[1];
+    char buf[2];
     uint32_t buffer_used = dmScript::CheckTable(L, buf, sizeof(buf), -1);
-    ASSERT_EQ(1U, buffer_used);
+    // 2 bytes for count
+    ASSERT_EQ(2U, buffer_used);
+    lua_pop(L, 1);
+}
+
+// count (+ align) + n * element-size
+const uint32_t OVERFLOW_BUFFER_SIZE = 2 + 2 + 0xffff * (sizeof(char) + sizeof(char) + sizeof(uint16_t) + sizeof(lua_Number));
+
+int ProduceOverflow(lua_State *L)
+{
+    char buf[OVERFLOW_BUFFER_SIZE];
+    lua_newtable(L);
+    // too many iterations
+    for (uint32_t i = 0; i <= 0xffff; ++i)
+    {
+        // key
+        lua_pushnumber(L, i);
+        // value
+        lua_pushnumber(L, i);
+        // store pair
+        lua_settable(L, -3);
+    }
+    uint32_t buffer_used = dmScript::CheckTable(L, buf, OVERFLOW_BUFFER_SIZE, -1);
+    // expect it to fail, avoid warning
+    (void)buffer_used;
+    return 1;
+}
+
+TEST_F(LuaTableTest, Overflow)
+{
+    int result = lua_cpcall(L, ProduceOverflow, 0x0);
+    // 2 bytes for count
+    ASSERT_NE(0, result);
+    char expected_error[64];
+    snprintf(expected_error, 64, "too many values in table, %d is max", 0xffff+1);
+    ASSERT_STREQ(expected_error, lua_tostring(L, -1));
+    // pop error message
+    lua_pop(L, 1);
+}
+
+const uint32_t IOOB_BUFFER_SIZE = 2 + 2 + (sizeof(char) + sizeof(char) + sizeof(uint16_t) + sizeof(lua_Number));
+
+int ProduceIndexOutOfBounds(lua_State *L)
+{
+    char buf[IOOB_BUFFER_SIZE];
+    lua_newtable(L);
+    // invalid key
+    lua_pushnumber(L, 0xffff+1);
+    // value
+    lua_pushnumber(L, 0);
+    // store pair
+    lua_settable(L, -3);
+    uint32_t buffer_used = dmScript::CheckTable(L, buf, IOOB_BUFFER_SIZE, -1);
+    // expect it to fail, avoid warning
+    (void)buffer_used;
+    return 1;
+}
+
+TEST_F(LuaTableTest, IndexOutOfBounds)
+{
+    int result = lua_cpcall(L, ProduceIndexOutOfBounds, 0x0);
+    // 2 bytes for count
+    ASSERT_NE(0, result);
+    char expected_error[64];
+    snprintf(expected_error, 64, "index out of bounds, max is %d", 0xffff);
+    ASSERT_STREQ(expected_error, lua_tostring(L, -1));
+    // pop error message
     lua_pop(L, 1);
 }
 

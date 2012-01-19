@@ -12,16 +12,16 @@ namespace dmScript
 {
     /*
      * Table serialization format:
-     * char   count
+     * uint16_t   count
      *
      * char   key_type (LUA_TSTRING or LUA_TNUMBER)
      * char   value_type (LUA_TXXX)
-     * T      key (null terminated string or char)
+     * T      key (null terminated string or uint16_t)
      * T      value
      *
      * char   key_type (LUA_TSTRING or LUA_TNUMBER)
      * char   value_type (LUA_TXXX)
-     * T      key (null terminated string or char)
+     * T      key (null terminated string or uint16_t)
      * T      value
      * ...
      * if value is of type Vector3, Vector4, Quat, Matrix4 or Hash ie LUA_TUSERDATA, the first byte in value is the SubType
@@ -52,17 +52,17 @@ namespace dmScript
         {
             luaL_error(L, "table too large");
         }
-        // Make room for count
-        buffer++;
+        // Make room for count (2 bytes)
+        buffer += 2;
 
-        char count = 0;
+        uint16_t count = 0;
         while (lua_next(L, -2) != 0)
         {
-            count++;
+            // Check overflow
+            if (count == (uint16_t)0xffff)
+                luaL_error(L, "too many values in table, %d is max", 0xffff+1);
 
-            // Arbitrary number. More than 32 seems to be excessive.
-            if (count >= 32)
-                luaL_error(L, "too many values in table");
+            count++;
 
             int key_type = lua_type(L, -2);
             int value_type = lua_type(L, -1);
@@ -91,10 +91,14 @@ namespace dmScript
             }
             else if (key_type == LUA_TNUMBER)
             {
-                if (buffer_end - buffer < 1)
+                if (buffer_end - buffer < 2)
                     luaL_error(L, "table too large");
-                char key = (char)lua_tonumber(L, -2);
-                (*buffer++) = key;
+                lua_Number index = lua_tonumber(L, -2);
+                if (index > 0xffff)
+                    luaL_error(L, "index out of bounds, max is %d", 0xffff);
+                uint16_t key = (uint16_t)index;
+                *((uint16_t*)buffer) = key;
+                buffer += 2;
             }
 
             switch (value_type)
@@ -256,13 +260,14 @@ namespace dmScript
 
                 default:
                     luaL_error(L, "unsupported value type in table: %s", lua_typename(L, value_type));
+                    break;
             }
 
             lua_pop(L, 1);
         }
         lua_pop(L, 1);
 
-        *buffer_start = count;
+        *((uint16_t*)buffer_start) = count;
 
         assert(top == lua_gettop(L));
 
@@ -274,7 +279,8 @@ namespace dmScript
         int top = lua_gettop(L);
         (void)top;
         const char* buffer_start = buffer;
-        uint32_t count = (uint32_t) (*buffer++);
+        uint32_t count = (uint32_t) (*buffer);
+        buffer += 2;
         lua_newtable(L);
 
         for (uint32_t i = 0; i < count; ++i)
@@ -289,7 +295,8 @@ namespace dmScript
             }
             else if (key_type == LUA_TNUMBER)
             {
-                lua_pushnumber(L, (*buffer++));
+                lua_pushnumber(L, *((uint16_t*)buffer));
+                buffer += 2;
             }
 
             switch (value_type)
@@ -383,6 +390,7 @@ namespace dmScript
 
                 default:
                     luaL_error(L, "Invalid table buffer");
+                    break;
             }
             lua_settable(L, -3);
         }
