@@ -334,15 +334,15 @@ namespace dmGameSystem
             // Broadcast to A components
             ddf.m_Group = GetLSBGroupHash(cud->m_World, group_b);
             ddf.m_OtherId = instance_b_id;
-            sender.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance_b));
-            sender.m_Path = instance_b_id;
-            dmGameObject::Result r = dmGameObject::GetComponentId(instance_b, component_b->m_ComponentIndex, &sender.m_Fragment);
+            receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance_a));
+            receiver.m_Path = instance_a_id;
+            // sender is the same as receiver, but with the specific collision object as fragment
+            sender = receiver;
+            dmGameObject::Result r = dmGameObject::GetComponentId(instance_a, component_a->m_ComponentIndex, &sender.m_Fragment);
             if (r != dmGameObject::RESULT_OK)
             {
                 dmLogError("Could not retrieve sender component when reporting collisions: %d", r);
             }
-            receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance_a));
-            receiver.m_Path = instance_a_id;
             dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &ddf, data_size);
             if (result != dmMessage::RESULT_OK)
             {
@@ -352,15 +352,15 @@ namespace dmGameSystem
             // Broadcast to B components
             ddf.m_Group = GetLSBGroupHash(cud->m_World, group_a);
             ddf.m_OtherId = dmGameObject::GetIdentifier(instance_a);
-            dmMessage::URL tmp = sender;
+            receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance_b));
+            receiver.m_Path = instance_b_id;
+            // sender is the same as receiver, but with the specific collision object as fragment
             sender = receiver;
-            r = dmGameObject::GetComponentId(instance_a, component_a->m_ComponentIndex, &sender.m_Fragment);
+            r = dmGameObject::GetComponentId(instance_b, component_b->m_ComponentIndex, &sender.m_Fragment);
             if (r != dmGameObject::RESULT_OK)
             {
                 dmLogError("Could not retrieve sender component when reporting collisions: %d", result);
             }
-            receiver = tmp;
-            receiver.m_Fragment = 0;
             result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &ddf, data_size);
             if (result != dmMessage::RESULT_OK)
             {
@@ -410,15 +410,15 @@ namespace dmGameSystem
             ddf.m_OtherId = dmGameObject::GetIdentifier(instance_b);
             ddf.m_OtherPosition = dmGameObject::GetWorldPosition(instance_b);
             ddf.m_Group = GetLSBGroupHash(cud->m_World, contact_point.m_GroupB);
-            sender.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance_b));
-            sender.m_Path = instance_b_id;
-            dmGameObject::Result r = dmGameObject::GetComponentId(instance_b, component_b->m_ComponentIndex, &sender.m_Fragment);
+            receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance_a));
+            receiver.m_Path = instance_a_id;
+            // sender is the same as receiver, but with the specific collision object as fragment
+            sender = receiver;
+            dmGameObject::Result r = dmGameObject::GetComponentId(instance_a, component_a->m_ComponentIndex, &sender.m_Fragment);
             if (r != dmGameObject::RESULT_OK)
             {
                 dmLogError("Could not retrieve sender component when reporting collisions: %d", r);
             }
-            receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance_a));
-            receiver.m_Path = instance_a_id;
             dmMessage::Result result = dmMessage::Post(0x0, &receiver, message_id, 0, descriptor, &ddf, data_size);
             if (result != dmMessage::RESULT_OK)
             {
@@ -436,15 +436,15 @@ namespace dmGameSystem
             ddf.m_OtherId = dmGameObject::GetIdentifier(instance_a);
             ddf.m_OtherPosition = dmGameObject::GetWorldPosition(instance_a);
             ddf.m_Group = GetLSBGroupHash(cud->m_World, contact_point.m_GroupA);
-            dmMessage::URL tmp = sender;
+            receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance_b));
+            receiver.m_Path = instance_b_id;
+            // sender is the same as receiver, but with the specific collision object as fragment
             sender = receiver;
-            r = dmGameObject::GetComponentId(instance_a, component_a->m_ComponentIndex, &sender.m_Fragment);
+            r = dmGameObject::GetComponentId(instance_b, component_b->m_ComponentIndex, &sender.m_Fragment);
             if (r != dmGameObject::RESULT_OK)
             {
                 dmLogError("Could not retrieve sender component when reporting collisions: %d", r);
             }
-            receiver = tmp;
-            receiver.m_Fragment = 0;
             result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &ddf, data_size);
             if (result != dmMessage::RESULT_OK)
             {
