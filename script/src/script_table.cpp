@@ -48,7 +48,7 @@ namespace dmScript
         lua_pushvalue(L, index);
         lua_pushnil(L);
 
-        if (buffer_size < 1)
+        if (buffer_size < 2)
         {
             luaL_error(L, "table too large");
         }
@@ -279,7 +279,7 @@ namespace dmScript
         int top = lua_gettop(L);
         (void)top;
         const char* buffer_start = buffer;
-        uint32_t count = (uint32_t) (*buffer);
+        uint32_t count = *(uint16_t*)buffer;
         buffer += 2;
         lua_newtable(L);
 
