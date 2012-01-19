@@ -60,7 +60,7 @@ namespace dmScript
         {
             // Check overflow
             if (count == (uint16_t)0xffff)
-                luaL_error(L, "too many values in table, %d is max", 0xffff+1);
+                luaL_error(L, "too many values in table, %d is max", 0xffff);
 
             count++;
 
