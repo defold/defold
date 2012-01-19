@@ -1,5 +1,6 @@
 #include <setjmp.h>
 #include <stdlib.h>
+#include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <gtest/gtest.h>
 #include "../script.h"
@@ -88,7 +89,7 @@ TEST_F(LuaTableTest, Overflow)
     // 2 bytes for count
     ASSERT_NE(0, result);
     char expected_error[64];
-    snprintf(expected_error, 64, "too many values in table, %d is max", 0xffff+1);
+    DM_SNPRINTF(expected_error, 64, "too many values in table, %d is max", 0xffff+1);
     ASSERT_STREQ(expected_error, lua_tostring(L, -1));
     // pop error message
     lua_pop(L, 1);
@@ -118,7 +119,7 @@ TEST_F(LuaTableTest, IndexOutOfBounds)
     // 2 bytes for count
     ASSERT_NE(0, result);
     char expected_error[64];
-    snprintf(expected_error, 64, "index out of bounds, max is %d", 0xffff);
+    DM_SNPRINTF(expected_error, 64, "index out of bounds, max is %d", 0xffff);
     ASSERT_STREQ(expected_error, lua_tostring(L, -1));
     // pop error message
     lua_pop(L, 1);
