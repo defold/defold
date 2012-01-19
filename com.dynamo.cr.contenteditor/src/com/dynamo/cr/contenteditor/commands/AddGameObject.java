@@ -1,6 +1,7 @@
 package com.dynamo.cr.contenteditor.commands;
 
-import org.eclipse.core.commands.AbstractHandler;
+import javax.vecmath.Vector4d;
+
 import org.eclipse.core.commands.ExecutionEvent;
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.resources.IContainer;
@@ -14,6 +15,7 @@ import org.eclipse.ui.dialogs.ListDialog;
 import org.eclipse.ui.dialogs.ResourceListSelectionDialog;
 import org.eclipse.ui.handlers.HandlerUtil;
 
+import com.dynamo.cr.contenteditor.editors.Camera;
 import com.dynamo.cr.contenteditor.editors.IEditor;
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.scene.graph.CollectionNode;
@@ -25,7 +27,7 @@ import com.dynamo.cr.scene.graph.Scene;
 import com.dynamo.cr.scene.operations.AddGameObjectOperation;
 import com.dynamo.cr.scene.resource.Resource;
 
-public class AddGameObject extends AbstractHandler {
+public class AddGameObject extends BaseAddHandler {
 
     private class GameObjectSelectionDialog extends ResourceListSelectionDialog
     {
@@ -65,6 +67,9 @@ public class AddGameObject extends AbstractHandler {
                     PrototypeNode proto = (PrototypeNode) factory.create(name, resource, root, scene);
                     CollectionNode parent = (CollectionNode)root;
                     InstanceNode node = new InstanceNode(r.getName(), scene, name, proto);
+                    Camera camera = editor.getCamera();
+                    Vector4d pos = getPlacementPosition(camera);
+                    node.setWorldTranslation(pos);
                     AddGameObjectOperation op = new AddGameObjectOperation(node, parent);
                     ((IEditor) editor).executeOperation(op);
                 } catch (Exception e) {

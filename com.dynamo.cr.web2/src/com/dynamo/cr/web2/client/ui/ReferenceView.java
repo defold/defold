@@ -171,10 +171,17 @@ public class ReferenceView extends Composite {
         panel.add(link);
     }
 
+    /*
+     * GWT scrollIntoView didn't work in WebKit, neither Safari nor Chrome, only in FireFox.
+     */
+    public native void scrollIntoView(Element elem) /*-{
+        elem.scrollIntoView(true);
+    }-*/;
+
     public void scrollTo(String elementName) {
         Element e = nameToDocElement.get(elementName);
         if (e != null) {
-            e.scrollIntoView();
+            scrollIntoView(e);
         } else {
             System.err.println("Unable to find: " + elementName);
         }
