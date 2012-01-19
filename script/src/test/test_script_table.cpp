@@ -89,7 +89,7 @@ TEST_F(LuaTableTest, Overflow)
     // 2 bytes for count
     ASSERT_NE(0, result);
     char expected_error[64];
-    DM_SNPRINTF(expected_error, 64, "too many values in table, %d is max", 0xffff+1);
+    DM_SNPRINTF(expected_error, 64, "too many values in table, %d is max", 0xffff);
     ASSERT_STREQ(expected_error, lua_tostring(L, -1));
     // pop error message
     lua_pop(L, 1);
