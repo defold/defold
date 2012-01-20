@@ -34,7 +34,7 @@ public class ConnectionWizardProjectsPageView extends WizardPage implements Conn
      */
     public ConnectionWizardProjectsPageView(String pageName) {
         super(pageName);
-        setTitle("Connect to Resource Server");
+        setTitle("Open Project");
         setDescription("Select project");
         setImageDescriptor(Activator.getImageDescriptor("/icons/newconnect_wizban.gif"));
     }
@@ -42,6 +42,7 @@ public class ConnectionWizardProjectsPageView extends WizardPage implements Conn
     /**
      * @see IDialogPage#createControl(Composite)
      */
+    @Override
     public void createControl(Composite parent)
     {
         Composite composite = new Composite(parent, SWT.NONE);
@@ -81,6 +82,7 @@ public class ConnectionWizardProjectsPageView extends WizardPage implements Conn
         }
     }
 */
+    @Override
     public boolean canFlipToNextPage()
     {
         return super.canFlipToNextPage();

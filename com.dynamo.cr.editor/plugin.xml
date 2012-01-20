@@ -87,7 +87,7 @@
          <command
                commandId="com.dynamo.crepo.commands.connect"
                icon="icons/database_connect.png"
-               label="Connect"
+               label="Open Project"
                style="push">
          </command>
          <command
@@ -112,7 +112,7 @@
             <command
                   commandId="com.dynamo.crepo.commands.launch"
                   icon="icons/play.png"
-                  label="Build"
+                  label="Build And Launch"
                   style="push">
                <parameter
                      name="com.dynamo.crepo.commands.launch.type"
@@ -122,7 +122,7 @@
             <command
                   commandId="com.dynamo.crepo.commands.launch"
                   icon="icons/play.png"
-                  label="Rebuild"
+                  label="Rebuild And Launch"
                   style="push">
                <parameter
                      name="com.dynamo.crepo.commands.launch.type"
