@@ -419,7 +419,7 @@ namespace dmGameSystem
             {
                 dmLogError("Could not retrieve sender component when reporting collisions: %d", r);
             }
-            dmMessage::Result result = dmMessage::Post(0x0, &receiver, message_id, 0, descriptor, &ddf, data_size);
+            dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &ddf, data_size);
             if (result != dmMessage::RESULT_OK)
             {
                 dmLogError("Could not send collision callback to component: %d", result);
