@@ -132,3 +132,39 @@ message PlaySound
 {
     optional float delay = 1 [default=0.0];
 }
+
+/*# sent when a sequence cue has been hit
+ * This message is broadcasted to every component in a game object to notify that a cue has been hit in a sequence component.
+ *
+ * @message
+ * @name cue_response
+ * @param cue_id user specified id of the cue
+ * @param [cue_value] user specified value of the cue
+ * @examples
+ * Assuming the script belongs to an instance with a sequence-component with id "sequence", this script will respond to a cue being hit:
+ * <pre>
+ * function on_message(self, message_id, message, sender)
+ *     if message_id == hash("cue_response") then
+ *         if message.cue_id == hash("my_cue") then
+ *             do_something_based_on_cue_value(message.cue_value)
+ *         end
+ *     end
+ * end
+ * </pre>
+ */
+message CueResponse
+{
+    required uint64 cue_id = 1;
+    optional float cue_value = 2 [default=0.0];
+}
+
+message SequenceCue
+{
+    required string id = 1;
+    optional float value = 2 [default=0.0];
+}
+
+message Sequence
+{
+    repeated SequenceCue cues = 1;
+}
