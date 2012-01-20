@@ -5,5 +5,5 @@ build
 .externalToolBuilders
 .lock-wscript
 *.pyc
-manual
+/manual
 
