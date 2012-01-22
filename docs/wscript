@@ -18,7 +18,12 @@ def scan_asciidoc(task):
             if line.startswith('image:'):
                 m = re.search(r'^image::?(\S+?)(\[\S+?\])$', line)
                 if (m != None):
-                    deps.append(task.inputs[0].parent.find_resource(m.groups(1)[0]))
+                    name = m.groups(1)[0]
+                    res = task.inputs[0].parent.find_resource(name)
+                    if res:
+                        deps.append(res)
+                    else:
+                        print >>sys.stderr, "Unable to find image %s" % name
     return (deps, [])
 
 def init():

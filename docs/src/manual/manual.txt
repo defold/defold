@@ -37,12 +37,12 @@ TIP: Mighty tip here
 Creating a New Project
 ----------------------
 
-image:images/preferences.png["Preferences"]
+image:images/old/preferences.png["Preferences"]
 
 Working with GameObjects
 ------------------------
 
-image:images/editor.png["Editor",width=900]
+image:images/old/editor.png["Editor",width=900]
 
 Fonts, Models and Materials
 ---------------------------
