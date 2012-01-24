@@ -19,7 +19,7 @@
 	                        <h3>Tutorials</h3>
 					        Step by step tutorials and videos
 					        <ul>
-					            <li><g:Hyperlink targetHistoryToken="tutorials:tutorial_falling_box">Falling Box</g:Hyperlink></li>
+					            <li><g:Hyperlink targetHistoryToken="tutorials:side_scroller">Side-Scroller</g:Hyperlink></li>
 					        </ul>
 				        </div>
                         <div class="box">
