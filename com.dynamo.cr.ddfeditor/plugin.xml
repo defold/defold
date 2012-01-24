@@ -397,7 +397,7 @@
             name="Font Desc"
             proto-message-class="com.dynamo.render.proto.Font$FontDesc"
             resource-refactor-participant-class="com.dynamo.cr.ddfeditor.refactoring.FontRefactorParticipant"
-            template-data="font: &apos;&apos; material: &apos;&apos; size: 15"
+            template-data="font: &apos;&apos; material: &apos;/builtins/fonts/font.material&apos; size: 15"
             type-class="fontdesc">
          <references>
             <reference-type-class
