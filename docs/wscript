@@ -59,7 +59,7 @@ def proto_file(self, node):
 
 def build(bld):
     dirs = ['src/business_plan', 'src/manual', 'src/presentation',
-            'src/demos/docs']
+            'src/demos/docs', 'src/tutorials/docs']
     tsk = bld.new_task_gen(install_path='${DYNAMO_HOME}/share/doc')
     tsk.find_sources_in_dirs(dirs)
 
@@ -108,8 +108,22 @@ def install_sample(bld, sample_dir):
 
     os.system('cd %s && git init && git add . && git commit -m "Initial import"' % target_dir)
 
+def install_tutorial(bld, tutorial_dir):
+    name = os.path.basename(tutorial_dir)
+    target_dir = '%s/content/tutorials/%s' % (bld.env.PREFIX, name)
+    print >> sys.stderr, 'installing %s' % target_dir
+    import shutil
+    if os.path.exists(target_dir):
+        shutil.rmtree(target_dir)
+
+    shutil.copytree(tutorial_dir, target_dir)
+
+    os.system('cd %s && git init && git add . && git commit -m "Initial import"' % target_dir)
+
 def install(bld):
     import Scripting
     Scripting.install(bld)
     for sample in ['hud', 'level_complete', 'main_menu', 'parallax']:
         install_sample(bld, 'src/demos/%s' % sample)
+    for tutorial in ['side_scroller']:
+        install_tutorial(bld, 'src/tutorials/%s' % tutorial)
