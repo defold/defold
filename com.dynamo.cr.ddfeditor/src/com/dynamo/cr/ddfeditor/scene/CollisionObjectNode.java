@@ -31,7 +31,7 @@ public class CollisionObjectNode extends ComponentTypeNode {
 
     protected IStatus validateCollisionShape() {
         if (getChildren().size() == 0 && collisionShape.length() == 0) {
-            return new Status(IStatus.ERROR, "com.dynamo", "No shapes or collision file.");
+            return new Status(IStatus.INFO, "com.dynamo", "Add shapes or a collision file.");
         } else {
             return Status.OK_STATUS;
         }
