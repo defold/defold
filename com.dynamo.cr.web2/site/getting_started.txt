@@ -1,0 +1,293 @@
+Welcome to Defold!
+==================
+
+This introduction describes some basic concepts of the platform, which features are available and how the editor works.
+
+Concepts
+--------
+
+There are a few different concepts in the Defold platform that could use some explanation.
+We recommend that you give it a glance even if you are an experienced game developer, since things might work a bit different around here.
+
+Game Objects
+~~~~~~~~~~~~
+
+The different objects that make up your game world are called game objects.
+A player avatar, a fired projectile, enemies and decorations are different examples.
+A game object works like a blueprint and can be cloned into multiple copies.
+When you modify a game object all copies are updated automatically.
+
+*IMAGE PLACEHOLDER* game object blueprint
+
+Components
+~~~~~~~~~~
+
+Components are used to extend game objects with functionality, e.g. graphics, sounds, collisions or behaviour.
+They usually reside inside the game objects, meaning they are defined in the same files.
+If you want to reuse a component among several game objects, you can put it into a separate file.
+This file can then be referenced by the different game objects.
+
+*IMAGE PLACEHOLDER* space ship components
+
+Messages
+~~~~~~~~
+
+Components communicate via messages.
+They can be sent between any two components, whether or not they belong to the same game object.
+Messages are used to notify components that something should happen, e.g. hide the graphics, turn off collisions or play a sound.
+
+Collections
+~~~~~~~~~~~
+
+A collection contains positioned game objects.
+They are most commonly used to build levels.
+Collections can contain other collections, which are then called sub-collections.
+This allows you to reuse recurring game object setups at different locations in your level, like an enemy carrying a power-up item.
+
+This is an example of how a common game scenario is expressed in the Defold platform.
+We have two players, each controlling a flying saucer.
+At the top of the screen, their different scores are displayed.
+
+*IMAGE PLACEHOLDER* collection structure
+
+The scores at the top of the screen are built as a separate game object with an attached Gui-component (graphical user interface, more below).
+The two player avatars, the space ships, are two different game objects with a few components attached; graphics, sounds and scripts to control input-based movement.
+
+Factories
+~~~~~~~~~
+
+When a collection is loaded in the game, all the game objects will be created and end up at their specified positions.
+If you want to add game objects on the fly during the game, you can use a factory component.
+
+*IMAGE PLACEHOLDER* factory
+
+Each factory has a reference to the game objects it can create.
+To make it create more game objects, send it a message:
+
+[source,lua]
+----
+msg.post("#factory", "create")
+----
+
+where +factory+ is the identifier of the factory component attached to the game object and +create+ is the message the factory component responds to.
+
+Scripting
+~~~~~~~~~
+
+All scripts in Defold are written in the Lua programming language.
+They let you specify the rules of your game, how game objects should interact and respond to player input.
+The link:#reference:engine[reference manual] contains descriptions and examples of all the available functions and messages.
+Lua in itself can be used for many different things.
+Please see the documentation on the link:http://www.lua.org[Lua site] and on the link:http://lua-users.org/wiki/LuaDirectory[Lua wiki].
+The actual Lua-code to play an explosion sound of a game object can look like this:
+
+[source,lua]
+----
+msg.post("#explosion", "play_sound")
+----
+
+where +explosion+ is the identifier of the sound component attached to the game object and +play_sound+ the message the sound component responds to.
+When scripting, remember that no data is shared among the scripts.
+Components (including scripts) only exchange information through message passing, specifically using the function link:#reference:script/msg.post[+msg.post+].
+
+Collaboration
+~~~~~~~~~~~~~
+
+Very few people can make games by themselves.
+We think the ability to work together is key for efficient development.
+This is why we have tried to make collaboration a corner stone of the Defold platform.
+
+*IMAGE PLACEHOLDER* collaboration
+
+When you create a new project, a central repository is automatically created on our servers.
+During development, the files you create and modify are actually a personal view of this repository.
+When you are ready to share your changes, you can synchronize your personal view with the central repository from inside the editor.
+This allows other members to receive your changes and you to receive any changes from them.
+The changes are recorded and available as a history of what's happened in your project.
+Backup and emailing files back and forth won't be necessary.
+
+Common Building Blocks
+----------------------
+
+These are the most common building blocks used when creating a game.
+
+Game Object
+~~~~~~~~~~~
+
+*IMAGE PLACEHOLDER* game object icon
+
+Game objects are blueprints which describe the types of elements that make up your game, e.g. player avatars, enemies, weapons and power-ups.
+
+Collection
+~~~~~~~~~~
+
+*IMAGE PLACEHOLDER* collection icon
+
+A collection defines which game objects should appear where.
+They can be used for many things, from large levels to small recurring sets of game objects.
+
+Script
+~~~~~~
+
+*IMAGE PLACEHOLDER* script icon
+
+A script component defines the behaviour of a game object, like how it should move around in the game world.
+They can also define how the user can control it through input and how the other components in the game object should be behave.
+An example of this can be to turn on some special effect whenever the player is invulnerable.
+
+Sound
+~~~~~
+
+*IMAGE PLACEHOLDER* sound icon
+
+The sound component can play a specific sound.
+Currently only wav-files are supported.
+
+Collision Object
+~~~~~~~~~~~~~~~~
+
+*IMAGE PLACEHOLDER* collision object icon
+
+Collision objects define the physical properties of game objects and how they should collide with other game objects. See "Physics" below for more information.
+
+Factory
+~~~~~~~
+
+*IMAGE PLACEHOLDER* factory icon
+
+A factory is used to create other game objects in the game world on the fly.
+They can be used to make enemies appear from some source or make power-ups appear.
+
+Tile Set
+~~~~~~~~
+
+*IMAGE PLACEHOLDER* tile set icon
+
+A tile set describes a texture that is composed of multiple smaller images.
+You can define animations of the smaller images in the tile set.
+It can also calculate collision shapes automatically from image data.
+They are used by the sprite and tile grid components to share graphics resources.
+
+Sprite2
+~~~~~~~
+
+*IMAGE PLACEHOLDER* sprite icon
+
+A sprite is an image that can be flip-book animated by using tile sets.
+
+Tile Grid
+~~~~~~~~~
+
+*IMAGE PLACEHOLDER* tile grid icon
+
+Tile grid components display images from a tile set in a grid based fashion.
+It is most commonly used to build the environment of the game world, e.g. ledges in a platform-game or obstacles in an RTS-game.
+It also supports automatic generation of collision shapes based on the images.
+
+Gui
+~~~
+
+*IMAGE PLACEHOLDER* gui icon
+
+A gui component contains different elements used for user interfaces, like texts and textured blocks.
+The elements can be animated and are typically used for Heads-Up Displays, menu systems and notifications for the users.
+It uses a gui script, which defines the behaviour of the Gui and how the user can interact with it.
+
+Gui Script
+~~~~~~~~~~
+
+*IMAGE PLACEHOLDER* gui script icon
+
+Gui scripts are used to define the behaviour of gui components.
+This include how the user can interact with them, how information such as score and lives are presented and animations when specific events occur.
+
+Font
+~~~~
+
+*IMAGE PLACEHOLDER* font icon
+
+Fonts are based on a TrueType Font-file.
+They specify which font size to use and what type of decoration (outline and shadow) it should have.
+
+Input Binding
+~~~~~~~~~~~~~
+
+*IMAGE PLACEHOLDER* input binding icon
+
+Input binding files define how the game should interpret hardware input (e.g. keyboard/mouse, touch pads and game pads).
+In short, you define high-level input actions, like "jump", "move_forward", etc, which are then mapped to hardware input.
+You can then take action on the high-level input in the Lua-scripts, without having to consider which hardware was actually used.
+
+Other Building Blocks
+---------------------
+
+Camera
+~~~~~~
+
+*IMAGE PLACEHOLDER* camera icon
+
+Camera components helps to decide what part of the game world should be visible and how it should be projected.
+A common example is to attach a camera to the player game object, or having a separate camera that follows the player around.
+
+Material
+~~~~~~~~
+
+*IMAGE PLACEHOLDER* material icon
+
+Materials define how different objects should be rendered by specifying shaders and their properties.
+
+Render
+~~~~~~
+
+*IMAGE PLACEHOLDER* render icon
+
+Render files represents the rendering pipeline which makes your game appear on the screen.
+They define which Render Script to use for rendering and the different materials to use for things such as post effects.
+
+Render Script
+~~~~~~~~~~~~~
+
+*IMAGE PLACEHOLDER* render script icon
+
+A render script controls how the game should be rendered to the screen.
+It is mostly used for advanced rendering like custom lighting models or other effects.
+The default render script should cover the most common cases in your projects.
+
+Collection Proxy
+~~~~~~~~~~~~~~~~
+
+*IMAGE PLACEHOLDER* collection proxy icon
+
+A collection proxy can be used to load and present collections on the fly during a game.
+The most common example would be that you want to start your game as fast as possible without loading any level-data.
+You can then use collection proxies to load and start your levels at a later time.
+
+Editor Overview
+---------------
+
+The editor contains almost all the tools necessary to make your games, except graphics and sound editing.
+
+*IMAGE PLACEHOLDER* editor overview
+
+*NOTE* Det relevanta ur den här texten borde ingå i bilden och det här stycket tas bort
+
+To the upper left is the Project Explorer.
+Once you open a project, it is filled with the files from that project.
+Below it is the Changed Files view.
+It lists all the files you have modified and is cleared when you synchronize or revert the changes.
+In the middle is the Content view.
+It contains a tab for each file you have opened.
+The Outline view is to the upper right and displays the structure of the currently selected file.
+Below it is the Properties view.
+It displays the properties of the currently selected object.
+
+*IMAGE PLACEHOLDER* outline context menu
+
+Updating the editor is very easy.
+We always let you know when there is a new version to fetch and what it contains.
+
+Let's get to work!
+------------------
+
+We recommend you follow the link:#tutorials:side_scroller[Side-Scroller Tutorial] now to see what working with Defold is like.
+For more information about the platform, please see the link:#documentation:[documentation page] (the tutorial is available there as well).
