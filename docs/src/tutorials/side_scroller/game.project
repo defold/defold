@@ -1,6 +1,5 @@
-
 [project]
-title = parallax
+title = Side-Scroller
 [bootstrap]
 main_collection = /main/main.collectionc
 [input]

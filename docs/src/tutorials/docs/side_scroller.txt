@@ -3,19 +3,19 @@ Tutorial: Side-Scroller
 
 Follow this tutorial to get a taste of what making games in Defold is about.
 It will help you create a new project, based on a simple side-scroller.
-Then you will learn how to tweak the game to make it more fun and finally add another game object.
-It shouldn't take more than *FIX ME* x minutes.
+Then you will learn how to tweak the game to make it more fun and finally add a new game object.
+It should only take 10 minutes.
 
 The game is extremely simple.
-The player controls a space ship and is supposed to collect stars that flies across the screen by moving up and down.
+The player controls a space ship and is supposed to collect stars that flies across the screen by moving up and down (arrow-keys on the keyboard).
 
 Setup
 -----
 
-. Start by link:/#new_project:[creating a new project].
+. Start by link:#new_project:[creating a new project].
   The tutorial is already pre-selected as the template project.
 . Start the editor and open the project you just created with *File > Open Project*.
-. Select your project and click *Next*.
+. Select your project and click *Next >*.
 . Create a new branch. A branch is like a personal view of the project.
   Other members of your project won't see your changes until you synchronize your branch (which can be done with *File > Synchronize*).
 . Try the game with *Project > Build And Launch*.
@@ -79,32 +79,42 @@ The game would be a bit more interesting if bonus stars would appear now and the
 Create the Game Object
 ~~~~~~~~~~~~~~~~~~~~~~
 
-. Add a new game object called +bonus_star.go+ in the +stars+-directory with *File New > Sprite2*.
-  This is the blueprint for the new bonus stars.
+In order to have bonus stars appear, we first need to create a game object, which works as a blueprint.
+
+. Add a new game object called +bonus_star.go+ in the +stars+-directory with *File > New > Game Object File*.
 . Add a _Sprite2_ component to the game object with *Game Object > Add Component*.
-  The sprite is the visual representation of the star.
-. Set _Tile Set_ to +stars.tileset+, which contains the image for the bonus star.
-. Set _Default Animation_ to bonus_star, which is a 1-frame animation of the bonus star.
+  This attaches graphics to the bonus star.
+. In the Outline-view (upper right), a new item appeared called _sprite2_. Expand it and select the item called _Sprite2_ to reveal its properties in the Properties-view below.
+.. Set _Tile Set_ to +stars.tileset+ by using the browse-button *...*. The tile set contains the graphics for the bonus star.
+.. Set _Default Animation_ to +bonus_star+ and hit *ENTER*. +bonus_star+ is a 1-frame animation of the bonus star defined in the tile set.
+  A blue star should appear on the screen.
+. Select the game object again by clicking on the _Game Object_ item in the Outline-view.
 . Add a _Collision Object_ component to the game object with *Game Object > Add Component*.
-. Set its _Type_ to +Kinematic+, which means that the collision object will follow the game object.
-. Set its _Mask_ to +default+, which means it will collide with the space ship.
-. Add a sphere shape to the collision object (*I*), which defines its boundary as far as collisions are concerned.
-. Scale it in the scene view until it covers the image of the star (*R*).
+  This lets the bonus stars collide with other game objects, specifically the player space ship in our case.
+. Expand the _collisionobject_ item in the Outline-view and select the _Collision Object_ item.
+.. Set its _Type_ to +Kinematic+, which means that the collision object will follow the game object it belongs to.
+. Bring up the context menu of the _Collision Object_ in the Outline-view, select *Add Shape* and add a _Sphere_ to the collision object.
+  This defines its boundary as far as collisions are concerned.
+. Scale it in the scene view until it reasonably covers the star (*R*).
   You can also move the sphere by pressing *W*.
-. Add the script +bonus_star.script+ to the game object with *Game Object > Add Component From File*.
+. Select the _Game Object_ item again and add the script +bonus_star.script+ with *Game Object > Add Component From File*.
   The script moves the bonus stars and make sure the player gets the right amount of points for catching them.
 
 Create a Factory Component
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-. Open the file +star_factory.go+ with *Edit > Open Resource...*.
-. Add another Factory component to it with *Game Object > Add Component*.
-  This factory will create the new bonus star.
+The factory component is responsible for making sure the bonus stars appear in the game.
+
+. Open the file +factory.go+ with *Edit > Open Resource...*.
+. Add another _Factory_ component to it with *Game Object > Add Component*.
 . Set its _Id_ to +bonus_factory+.
-. Set its _Prototype_ to +bonus_star.go+.
+. Expand the _bonus_factory_ item in the Outline-view and select the _Factory_ item.
+.. Set its _Prototype_ to +bonus_star.go+ with the browse-button.
 
 Modify the Factory Script
 ~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Now we will make sure the factory game object starts spawning the bonus stars by modifying its script.
 
 . Open +factory.script+ with *Edit > Open Resource...*.
 . Near the bottom of the file, change:
