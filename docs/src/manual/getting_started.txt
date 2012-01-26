@@ -109,7 +109,7 @@ Collaboration
 ~~~~~~~~~~~~~
 
 Very few people can make games by themselves.
-We think the ability to work together is key for efficient development.
+We think the ability to work together is key for a fast development cycle.
 This is why we have tried to make collaboration a corner stone of the Defold platform.
 
 ((((
@@ -121,7 +121,7 @@ During development, the files you create and modify are actually a personal view
 When you are ready to share your changes, you can synchronize your personal view with the central repository from inside the editor.
 This allows other members to receive your changes and you to receive any changes from them.
 The changes are recorded and available as a history of what's happened in your project.
-Backup and emailing files back and forth won't be necessary.
+Backup or emailing files back and forth won't be necessary.
 
 Common Building Blocks
 ----------------------
@@ -150,7 +150,7 @@ Script
 
 image:images/icons/cog.png["Script"]
 
-A script component defines the behaviour of a game object, like how it should move around in the game world.
+A script component defines the behavior of a game object, like how it should move around in the game world.
 They can also define how the user can control it through input and how the other components in the game object should be behave.
 An example of this can be to turn on some special effect whenever the player is invulnerable.
 
@@ -159,7 +159,7 @@ Sound
 
 image:images/icons/sound.png["Sound"]
 
-The sound component can play a specific sound.
+The sound component is responsible for playing a specific sound.
 Currently only wav-files are supported.
 
 Collision Object
@@ -167,15 +167,17 @@ Collision Object
 
 image:images/icons/weight.png["Collision Object"]
 
-Collision objects define the physical properties of game objects and how they should collide with other game objects. See "Physics" below for more information.
+Collision objects are components that extend game objects with physical properties and how they should collide with other game objects.
+The most common types of collision objects are kinematic and dynamic.
+Basically, a kinematic collision object follows its game object around, where a dynamic makes its game object obey the laws of physics, like gravitation and forces.
 
 Factory
 ~~~~~~~
 
 image:images/icons/factory.png["Factory"]
 
-A factory is used to create other game objects in the game world on the fly.
-They can be used to make enemies appear from some source or make power-ups appear.
+A factory is a component that can create other game objects in the game world on the fly.
+They can be used to make enemies or power-ups appear when the game is running.
 
 Tile Set
 ~~~~~~~~
@@ -198,7 +200,9 @@ Sprite2
 
 image:images/icons/pictures.png["Sprite 2"]
 
-A sprite is an image that can be flip-book animated by using tile sets.
+A sprite is a component that extends game objects with graphics.
+It displays one of the smaller images of a tile set and have built-in support for flip-book-animation.
+It is usually used for characters and items.
 
 Tile Grid
 ~~~~~~~~~
@@ -208,6 +212,7 @@ image:images/icons/layer_grid.png["Tile Grid"]
 Tile grid components display images from a tile set in a grid based fashion.
 It is most commonly used to build the environment of the game world, e.g. ledges in a platform-game or obstacles in an RTS-game.
 It also supports automatic generation of collision shapes based on the images.
+The displayed images can be changed to visualize changes in the game world, like a ledge being destroyed.
 
 ((((
 image::images/editor/tilegrid_1.png["Tile Grid", align="center"]
@@ -235,7 +240,7 @@ Gui Script
 image:images/icons/cog.png["Script"]
 
 Gui scripts are used to define the behaviour of gui components.
-This include how the user can interact with them, how information such as score and lives are presented and animations when specific events occur.
+This include how the user can interact with them, how information such as score and lives are presented as well as animations when specific events occur.
 
 Font
 ~~~~
@@ -244,6 +249,7 @@ image:images/icons/font.png["Font"]
 
 Fonts are based on a TrueType Font-file.
 They specify which font size to use and what type of decoration (outline and shadow) it should have.
+They are used by the gui components.
 
 ((((
 image::images/editor/font.png["Font", align="center"]
@@ -271,7 +277,7 @@ Camera
 image:images/icons/camera.png["Camera"]
 
 Camera components helps to decide what part of the game world should be visible and how it should be projected.
-A common example is to attach a camera to the player game object, or having a separate camera that follows the player around.
+A common example is to attach a camera to the player game object, or having a separate game object with a camera that follows the player around.
 
 Material
 ~~~~~~~~
@@ -285,7 +291,7 @@ Render
 
 image:images/icons/paintcan.png["Render"]
 
-Render files represents the rendering pipeline which makes your game appear on the screen.
+Render files contains settings used when rendering the game onto the screen.
 They define which Render Script to use for rendering and the different materials to use for things such as post effects.
 
 Render Script
@@ -294,8 +300,7 @@ Render Script
 image:images/icons/cog.png["Render Script"]
 
 A render script controls how the game should be rendered to the screen.
-It is mostly used for advanced rendering like custom lighting models or other effects.
-The default render script should cover the most common cases in your projects.
+The default render script should cover the most common cases, but you can write your own for custom lighting models and other effects.
 
 Collection Proxy
 ~~~~~~~~~~~~~~~~
@@ -333,5 +338,5 @@ We always let you know when there is a new version to fetch and what it contains
 Let's get to work!
 ------------------
 
-We recommend you follow the link:#tutorials:side_scroller[Side-Scroller Tutorial] now to see what working with Defold is like.
-For more information about the platform, please see the link:#documentation:[documentation page] (the tutorial is available there as well).
+We recommend you follow the link:#tutorials:side_scroller[Side-Scroller Tutorial] now to see what our platform is like in practice.
+For more information, please see the link:#documentation:[documentation page] (the tutorial is available there as well).
