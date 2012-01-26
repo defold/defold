@@ -1,21 +1,22 @@
 Welcome to Defold!
 ==================
 
-This introduction describes some basic concepts of the platform, which features are available and how the editor works.
+This introduction describes some basic concepts in our platform, the most important features and how the editor works.
 
 Concepts
 --------
 
-There are a few different concepts in the Defold platform that could use some explanation.
-We recommend that you give it a glance even if you are an experienced game developer, since things might work a bit different around here.
+Let's start with explaining some of the concepts to share our view of game development.
+We recommend that you give it a glance even if you are an experienced game developer, since we might have different views.
 
 Game Objects
 ~~~~~~~~~~~~
 
-The different objects that make up your game world are called game objects.
-A player avatar, a fired projectile, enemies and decorations are different examples.
+Game worlds consist of game objects.
+Everything you can see or interact with is a game object.
+A player avatar, a fired projectile, enemies, decorations and graphical user interfaces are different examples.
 A game object works like a blueprint and can be cloned into multiple copies.
-When you modify a game object all copies are updated automatically.
+When you modify the blueprint, all copies are updated automatically.
 
 ((((
 image::images/engine/blueprint.png["Game Object", align="center"]
@@ -25,9 +26,11 @@ Components
 ~~~~~~~~~~
 
 Components are used to extend game objects with functionality, e.g. graphics, sounds, collisions or behaviour.
-They usually reside inside the game objects, meaning they are defined in the same files.
+A component can't exist by itself, it always needs a game object to be present in the game.
+You can think of a game object as linking its components into the game.
+Components are usually defined in the same files as the game objects.
 If you want to reuse a component among several game objects, you can put it into a separate file.
-This file can then be referenced by the different game objects.
+This file can then be referenced from the different game object files.
 
 ((((
 image::images/engine/components_2.png["Components", align="center"]
@@ -36,9 +39,10 @@ image::images/engine/components_2.png["Components", align="center"]
 Messages
 ~~~~~~~~
 
-Components communicate via messages.
-They can be sent between any two components, whether or not they belong to the same game object.
-Messages are used to notify components that something should happen, e.g. hide the graphics, turn off collisions or play a sound.
+Components communicate with each other and other systems through message passing.
+Messages are used to notify components that something should happen, e.g. hide graphics, turn off collisions or play a sound.
+Everything in the game has an address, a URL (similar to how the web works).
+This means that messages can be sent between any two components present in the game, whether or not they belong to the same game object.
 
 Collections
 ~~~~~~~~~~~
@@ -48,21 +52,21 @@ They are most commonly used to build levels.
 Collections can contain other collections, which are then called sub-collections.
 This allows you to reuse recurring game object setups at different locations in your level, like an enemy carrying a power-up item.
 
-This is an example of how a common game scenario is expressed in the Defold platform.
-We have two players, each controlling a flying saucer.
+This is an example of how a common game scenario can be constructed.
+We have two players, each controlling a space ship.
 At the top of the screen, their different scores are displayed.
 
 ((((
 image::images/engine/collection.png["Collection", align="center"]
 ((((
 
-The scores at the top of the screen are built as a separate game object with an attached Gui-component (graphical user interface, more below).
+The scores at the top of the screen are part of a Gui-component (graphical user interface, more below), which is attached to a game object.
 The two player avatars, the space ships, are two different game objects with a few components attached; graphics, sounds and scripts to control input-based movement.
 
 Factories
 ~~~~~~~~~
 
-When a collection is loaded in the game, all the game objects will be created and end up at their specified positions.
+When a collection is loaded in the game, all the game objects it contains will be created and end up at their specified positions.
 If you want to add game objects on the fly during the game, you can use a factory component.
 
 ((((
@@ -74,19 +78,23 @@ To make it create more game objects, send it a message:
 
 [source,lua]
 ----
-msg.post("#factory", "create")
+msg.post("#factory", "create", {position = some_position, rotation = some_rotation})
 ----
 
 where +factory+ is the identifier of the factory component attached to the game object and +create+ is the message the factory component responds to.
+The +position+ and +rotation+ parameters lets you tell the game where and how you want the game object to end up when created.
 
 Scripting
 ~~~~~~~~~
 
 All scripts in Defold are written in the Lua programming language.
-They let you specify the rules of your game, how game objects should interact and respond to player input.
-The link:#reference:engine[reference manual] contains descriptions and examples of all the available functions and messages.
-Lua in itself can be used for many different things.
+They let you specify the rules of your game, like how game objects should interact and respond to player input.
+We have extended Lua with functions and messages, which are explained in the link:#reference:engine[reference manual].
+It also contains example code of how to use them from your scripts.
+
+Lua in itself comes with many great features.
 Please see the documentation on the link:http://www.lua.org[Lua site] and on the link:http://lua-users.org/wiki/LuaDirectory[Lua wiki].
+
 The actual Lua-code to play an explosion sound of a game object can look like this:
 
 [source,lua]
@@ -96,13 +104,13 @@ msg.post("#explosion", "play_sound")
 
 where +explosion+ is the identifier of the sound component attached to the game object and +play_sound+ the message the sound component responds to.
 When scripting, remember that no data is shared among the scripts.
-Components (including scripts) only exchange information through message passing, specifically using the function link:#reference:script/msg.post[+msg.post+].
+Components (including scripts) only exchange information through message passing (by using the function link:#reference:script/msg.post[+msg.post+]).
 
 Collaboration
 ~~~~~~~~~~~~~
 
 Very few people can make games by themselves.
-We think the ability to work together is key for efficient development.
+We think the ability to work together is key for a fast development cycle.
 This is why we have tried to make collaboration a corner stone of the Defold platform.
 
 ((((
@@ -114,7 +122,7 @@ During development, the files you create and modify are actually a personal view
 When you are ready to share your changes, you can synchronize your personal view with the central repository from inside the editor.
 This allows other members to receive your changes and you to receive any changes from them.
 The changes are recorded and available as a history of what's happened in your project.
-Backup and emailing files back and forth won't be necessary.
+Backup or emailing files back and forth won't be necessary.
 
 Common Building Blocks
 ----------------------
@@ -143,8 +151,8 @@ Script
 
 image:images/icons/cog.png["Script"]
 
-A script component defines the behaviour of a game object, like how it should move around in the game world.
-They can also define how the user can control it through input and how the other components in the game object should be behave.
+A script component defines the behavior of a game object, like how it should move around in the game world.
+They can also define how the user can control it through input and how the other components in the game object should behave.
 An example of this can be to turn on some special effect whenever the player is invulnerable.
 
 Sound
@@ -152,7 +160,7 @@ Sound
 
 image:images/icons/sound.png["Sound"]
 
-The sound component can play a specific sound.
+The sound component is responsible for playing a specific sound.
 Currently only wav-files are supported.
 
 Collision Object
@@ -160,15 +168,17 @@ Collision Object
 
 image:images/icons/weight.png["Collision Object"]
 
-Collision objects define the physical properties of game objects and how they should collide with other game objects. See "Physics" below for more information.
+Collision objects are components that extend game objects with physical properties and how they should collide with other game objects.
+The most common types of collision objects are kinematic and dynamic.
+Basically, a kinematic collision object follows its game object around, where a dynamic makes its game object obey the laws of physics, like gravitation and forces.
 
 Factory
 ~~~~~~~
 
 image:images/icons/factory.png["Factory"]
 
-A factory is used to create other game objects in the game world on the fly.
-They can be used to make enemies appear from some source or make power-ups appear.
+A factory is a component that can create other game objects in the game world on the fly.
+They can be used to make enemies or power-ups appear when the game is running.
 
 Tile Set
 ~~~~~~~~
@@ -191,7 +201,9 @@ Sprite2
 
 image:images/icons/pictures.png["Sprite 2"]
 
-A sprite is an image that can be flip-book animated by using tile sets.
+A sprite is a component that extends game objects with graphics.
+It displays one of the smaller images of a tile set and have built-in support for flip-book-animation.
+It is usually used for characters and items.
 
 Tile Grid
 ~~~~~~~~~
@@ -201,6 +213,7 @@ image:images/icons/layer_grid.png["Tile Grid"]
 Tile grid components display images from a tile set in a grid based fashion.
 It is most commonly used to build the environment of the game world, e.g. ledges in a platform-game or obstacles in an RTS-game.
 It also supports automatic generation of collision shapes based on the images.
+The displayed images can be changed to visualize changes in the game world, like a ledge being destroyed.
 
 ((((
 image::images/editor/tilegrid_1.png["Tile Grid", align="center"]
@@ -228,7 +241,7 @@ Gui Script
 image:images/icons/cog.png["Script"]
 
 Gui scripts are used to define the behaviour of gui components.
-This include how the user can interact with them, how information such as score and lives are presented and animations when specific events occur.
+This include how the user can interact with them, how information such as score and lives are presented as well as animations when specific events occur.
 
 Font
 ~~~~
@@ -237,6 +250,7 @@ image:images/icons/font.png["Font"]
 
 Fonts are based on a TrueType Font-file.
 They specify which font size to use and what type of decoration (outline and shadow) it should have.
+They are used by the gui components.
 
 ((((
 image::images/editor/font.png["Font", align="center"]
@@ -264,7 +278,7 @@ Camera
 image:images/icons/camera.png["Camera"]
 
 Camera components helps to decide what part of the game world should be visible and how it should be projected.
-A common example is to attach a camera to the player game object, or having a separate camera that follows the player around.
+A common example is to attach a camera to the player game object, or having a separate game object with a camera that follows the player around.
 
 Material
 ~~~~~~~~
@@ -278,7 +292,7 @@ Render
 
 image:images/icons/paintcan.png["Render"]
 
-Render files represents the rendering pipeline which makes your game appear on the screen.
+Render files contains settings used when rendering the game onto the screen.
 They define which Render Script to use for rendering and the different materials to use for things such as post effects.
 
 Render Script
@@ -287,8 +301,7 @@ Render Script
 image:images/icons/cog.png["Render Script"]
 
 A render script controls how the game should be rendered to the screen.
-It is mostly used for advanced rendering like custom lighting models or other effects.
-The default render script should cover the most common cases in your projects.
+The default render script should cover the most common cases, but you can write your own for custom lighting models and other effects.
 
 Collection Proxy
 ~~~~~~~~~~~~~~~~
@@ -303,28 +316,21 @@ Editor Overview
 ---------------
 
 The editor contains almost all the tools necessary to make your games, except graphics and sound editing.
+The different areas are described in the image below.
 
-*IMAGE PLACEHOLDER* editor overview
+((((
+image::images/editor/editor.png["Factory", align="center"]
+((((
 
-*NOTE* Det relevanta ur den här texten borde ingå i bilden och det här stycket tas bort
-
-To the upper left is the Project Explorer.
-Once you open a project, it is filled with the files from that project.
-Below it is the Changed Files view.
-It lists all the files you have modified and is cleared when you synchronize or revert the changes.
-In the middle is the Content view.
-It contains a tab for each file you have opened.
-The Outline view is to the upper right and displays the structure of the currently selected file.
-Below it is the Properties view.
-It displays the properties of the currently selected object.
-
-*IMAGE PLACEHOLDER* outline context menu
-
-Updating the editor is very easy.
+When there is a new version available, you can update from inside the editor with *Help > Check for Updates*.
 We always let you know when there is a new version to fetch and what it contains.
+
+((((
+image::images/editor/update_editor.png["Factory", align="center"]
+((((
 
 Let's get to work!
 ------------------
 
-We recommend you follow the link:#tutorials:side_scroller[Side-Scroller Tutorial] now to see what working with Defold is like.
-For more information about the platform, please see the link:#documentation:[documentation page] (the tutorial is available there as well).
+We recommend you follow the link:#tutorials:side_scroller[Side-Scroller Tutorial] now to see what our platform is like in practice.
+For more information, please see the link:#documentation:[documentation page] (the tutorial is available there as well).
