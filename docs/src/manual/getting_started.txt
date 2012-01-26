@@ -94,6 +94,7 @@ It also contains example code of how to use them from your scripts.
 
 Lua in itself comes with many great features.
 Please see the documentation on the link:http://www.lua.org[Lua site] and on the link:http://lua-users.org/wiki/LuaDirectory[Lua wiki].
+
 The actual Lua-code to play an explosion sound of a game object can look like this:
 
 [source,lua]
@@ -151,7 +152,7 @@ Script
 image:images/icons/cog.png["Script"]
 
 A script component defines the behavior of a game object, like how it should move around in the game world.
-They can also define how the user can control it through input and how the other components in the game object should be behave.
+They can also define how the user can control it through input and how the other components in the game object should behave.
 An example of this can be to turn on some special effect whenever the player is invulnerable.
 
 Sound
