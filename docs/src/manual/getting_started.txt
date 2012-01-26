@@ -18,7 +18,9 @@ A player avatar, a fired projectile, enemies, decorations and graphical user int
 A game object works like a blueprint and can be cloned into multiple copies.
 When you modify the blueprint, all copies are updated automatically.
 
-image:images/engine/blueprint.png["Game Object"]
+((((
+image::images/engine/blueprint.png["Game Object", align="center"]
+((((
 
 Components
 ~~~~~~~~~~
@@ -30,7 +32,9 @@ Components are usually defined in the same files as the game objects.
 If you want to reuse a component among several game objects, you can put it into a separate file.
 This file can then be referenced from the different game object files.
 
-image:images/engine/components_2.png["Components"]
+((((
+image::images/engine/components_2.png["Components", align="center"]
+((((
 
 Messages
 ~~~~~~~~
@@ -52,7 +56,9 @@ This is an example of how a common game scenario can be constructed.
 We have two players, each controlling a space ship.
 At the top of the screen, their different scores are displayed.
 
-image:images/engine/collection.png["Collection"]
+((((
+image::images/engine/collection.png["Collection", align="center"]
+((((
 
 The scores at the top of the screen are part of a Gui-component (graphical user interface, more below), which is attached to a game object.
 The two player avatars, the space ships, are two different game objects with a few components attached; graphics, sounds and scripts to control input-based movement.
@@ -63,7 +69,9 @@ Factories
 When a collection is loaded in the game, all the game objects it contains will be created and end up at their specified positions.
 If you want to add game objects on the fly during the game, you can use a factory component.
 
-image:images/engine/factory.png["Factory"]
+((((
+image::images/engine/factory.png["Factory", align="center"]
+((((
 
 Each factory has a reference to the game objects it can create.
 To make it create more game objects, send it a message:
@@ -104,7 +112,9 @@ Very few people can make games by themselves.
 We think the ability to work together is key for efficient development.
 This is why we have tried to make collaboration a corner stone of the Defold platform.
 
-image:images/engine/collaboration.png["Collaboration"]
+((((
+image::images/engine/collaboration.png["Collaboration", align="center"]
+((((
 
 When you create a new project, a central repository is automatically created on our servers.
 During development, the files you create and modify are actually a personal view of this repository.
@@ -128,7 +138,9 @@ Game objects are blueprints which describe the types of elements that make up yo
 Collection
 ~~~~~~~~~~
 
-image:images/icons/bricks.png["Collection"]
+((((
+image::images/icons/bricks.png["Collection"]
+((((
 
 A collection defines which game objects should appear where.
 They can be used for many things, from large levels to small recurring sets of game objects.
@@ -167,7 +179,6 @@ They can be used to make enemies appear from some source or make power-ups appea
 
 Tile Set
 ~~~~~~~~
-
 image:images/icons/small_tiles.png["Tile Set"]
 
 A tile set describes a texture that is composed of multiple smaller images.
@@ -175,8 +186,12 @@ You can define animations of the smaller images in the tile set.
 It can also calculate collision shapes automatically from image data.
 They are used by the sprite and tile grid components to share graphics resources.
 
-image:images/editor/tileset.png["Tile Set"]
-image:images/editor/tile_set_hull.png["Tile Set"]
+((((
+image::images/editor/tileset.png["Tile Set", align="center"]
+((((
+((((
+image::images/editor/tile_set_hull.png["Tile Set", align="center"]
+((((
 
 Sprite2
 ~~~~~~~
@@ -194,8 +209,12 @@ Tile grid components display images from a tile set in a grid based fashion.
 It is most commonly used to build the environment of the game world, e.g. ledges in a platform-game or obstacles in an RTS-game.
 It also supports automatic generation of collision shapes based on the images.
 
-image:images/editor/tilegrid_1.png["Tile Grid"]
-image:images/editor/tilegrid_2.png["Tile Grid"]
+((((
+image::images/editor/tilegrid_1.png["Tile Grid", align="center"]
+((((
+((((
+image::images/editor/tilegrid_2.png["Tile Grid", align="center"]
+((((
 
 Gui
 ~~~
@@ -206,7 +225,9 @@ A gui component contains different elements used for user interfaces, like texts
 The elements can be animated and are typically used for Heads-Up Displays, menu systems and notifications for the users.
 It uses a gui script, which defines the behaviour of the Gui and how the user can interact with it.
 
-image:images/editor/gui.png["Gui"]
+((((
+image::images/editor/gui.png["Gui", align="center"]
+((((
 
 Gui Script
 ~~~~~~~~~~
@@ -224,7 +245,9 @@ image:images/icons/font.png["Font"]
 Fonts are based on a TrueType Font-file.
 They specify which font size to use and what type of decoration (outline and shadow) it should have.
 
-image:images/editor/font.png["Font"]
+((((
+image::images/editor/font.png["Font", align="center"]
+((((
 
 Input Binding
 ~~~~~~~~~~~~~
@@ -235,7 +258,9 @@ Input binding files define how the game should interpret hardware input (e.g. ke
 In short, you define high-level input actions, like "jump", "move_forward", etc, which are then mapped to hardware input.
 You can then take action on the high-level input in the Lua-scripts, without having to consider which hardware was actually used.
 
-image:images/editor/input_binding.png["Input Binding"]
+((((
+image::images/editor/input_binding.png["Input Binding", align="center"]
+((((
 
 Other Building Blocks
 ---------------------

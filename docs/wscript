@@ -33,9 +33,8 @@ def configure(conf):
     conf.find_program('asciidoc', var='ASCIIDOC')
     conf.env['EMBED_VIDEO'] = os.path.abspath('scripts/embed_video.py')
 
-asciidoc = Task.simple_task_type('asciidoc', '${ASCIIDOC} -o ${TGT} ${SRC}',
+asciidoc = Task.simple_task_type('asciidoc', '${ASCIIDOC} -f ../defold.conf -o ${TGT} ${SRC}',
                                  shell=True)
-
 asciidoc.scan = scan_asciidoc
 
 embed_video = Task.simple_task_type('embed_video', 'python ${EMBED_VIDEO} ${SRC} ${TGT}',
