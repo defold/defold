@@ -17,7 +17,7 @@ A player avatar, a fired projectile, enemies and decorations are different examp
 A game object works like a blueprint and can be cloned into multiple copies.
 When you modify a game object all copies are updated automatically.
 
-*IMAGE PLACEHOLDER* game object blueprint
+image:images/engine/blueprint.png["Game Object"]
 
 Components
 ~~~~~~~~~~
@@ -27,7 +27,7 @@ They usually reside inside the game objects, meaning they are defined in the sam
 If you want to reuse a component among several game objects, you can put it into a separate file.
 This file can then be referenced by the different game objects.
 
-*IMAGE PLACEHOLDER* space ship components
+image:images/engine/components_2.png["Components"]
 
 Messages
 ~~~~~~~~
@@ -48,7 +48,7 @@ This is an example of how a common game scenario is expressed in the Defold plat
 We have two players, each controlling a flying saucer.
 At the top of the screen, their different scores are displayed.
 
-*IMAGE PLACEHOLDER* collection structure
+image:images/engine/collection.png["Collection"]
 
 The scores at the top of the screen are built as a separate game object with an attached Gui-component (graphical user interface, more below).
 The two player avatars, the space ships, are two different game objects with a few components attached; graphics, sounds and scripts to control input-based movement.
@@ -59,7 +59,7 @@ Factories
 When a collection is loaded in the game, all the game objects will be created and end up at their specified positions.
 If you want to add game objects on the fly during the game, you can use a factory component.
 
-*IMAGE PLACEHOLDER* factory
+image:images/engine/factory.png["Factory"]
 
 Each factory has a reference to the game objects it can create.
 To make it create more game objects, send it a message:
@@ -97,7 +97,7 @@ Very few people can make games by themselves.
 We think the ability to work together is key for efficient development.
 This is why we have tried to make collaboration a corner stone of the Defold platform.
 
-*IMAGE PLACEHOLDER* collaboration
+image:images/engine/collaboration.png["Collaboration"]
 
 When you create a new project, a central repository is automatically created on our servers.
 During development, the files you create and modify are actually a personal view of this repository.
@@ -114,14 +114,14 @@ These are the most common building blocks used when creating a game.
 Game Object
 ~~~~~~~~~~~
 
-*IMAGE PLACEHOLDER* game object icon
+image:images/icons/brick.png["Game Object"]
 
 Game objects are blueprints which describe the types of elements that make up your game, e.g. player avatars, enemies, weapons and power-ups.
 
 Collection
 ~~~~~~~~~~
 
-*IMAGE PLACEHOLDER* collection icon
+image:images/icons/bricks.png["Collection"]
 
 A collection defines which game objects should appear where.
 They can be used for many things, from large levels to small recurring sets of game objects.
@@ -129,7 +129,7 @@ They can be used for many things, from large levels to small recurring sets of g
 Script
 ~~~~~~
 
-*IMAGE PLACEHOLDER* script icon
+image:images/icons/cog.png["Script"]
 
 A script component defines the behaviour of a game object, like how it should move around in the game world.
 They can also define how the user can control it through input and how the other components in the game object should be behave.
@@ -138,7 +138,7 @@ An example of this can be to turn on some special effect whenever the player is 
 Sound
 ~~~~~
 
-*IMAGE PLACEHOLDER* sound icon
+image:images/icons/sound.png["Sound"]
 
 The sound component can play a specific sound.
 Currently only wav-files are supported.
@@ -146,14 +146,14 @@ Currently only wav-files are supported.
 Collision Object
 ~~~~~~~~~~~~~~~~
 
-*IMAGE PLACEHOLDER* collision object icon
+image:images/icons/weight.png["Collision Object"]
 
 Collision objects define the physical properties of game objects and how they should collide with other game objects. See "Physics" below for more information.
 
 Factory
 ~~~~~~~
 
-*IMAGE PLACEHOLDER* factory icon
+image:images/icons/factory.png["Factory"]
 
 A factory is used to create other game objects in the game world on the fly.
 They can be used to make enemies appear from some source or make power-ups appear.
@@ -161,42 +161,50 @@ They can be used to make enemies appear from some source or make power-ups appea
 Tile Set
 ~~~~~~~~
 
-*IMAGE PLACEHOLDER* tile set icon
+image:images/icons/small_tiles.png["Tile Set"]
 
 A tile set describes a texture that is composed of multiple smaller images.
 You can define animations of the smaller images in the tile set.
 It can also calculate collision shapes automatically from image data.
 They are used by the sprite and tile grid components to share graphics resources.
 
+image:images/editor/tileset.png["Tile Set"]
+image:images/editor/tile_set_hull.png["Tile Set"]
+
 Sprite2
 ~~~~~~~
 
-*IMAGE PLACEHOLDER* sprite icon
+image:images/icons/pictures.png["Sprite 2"]
 
 A sprite is an image that can be flip-book animated by using tile sets.
 
 Tile Grid
 ~~~~~~~~~
 
-*IMAGE PLACEHOLDER* tile grid icon
+image:images/icons/layer_grid.png["Tile Grid"]
 
 Tile grid components display images from a tile set in a grid based fashion.
 It is most commonly used to build the environment of the game world, e.g. ledges in a platform-game or obstacles in an RTS-game.
 It also supports automatic generation of collision shapes based on the images.
 
+image:images/editor/tilegrid_1.png["Tile Grid"]
+image:images/editor/tilegrid_2.png["Tile Grid"]
+
 Gui
 ~~~
 
-*IMAGE PLACEHOLDER* gui icon
+image:images/icons/text_allcaps.png["Gui"]
 
 A gui component contains different elements used for user interfaces, like texts and textured blocks.
 The elements can be animated and are typically used for Heads-Up Displays, menu systems and notifications for the users.
 It uses a gui script, which defines the behaviour of the Gui and how the user can interact with it.
 
+image:images/editor/gui.png["Gui"]
+
 Gui Script
 ~~~~~~~~~~
 
-*IMAGE PLACEHOLDER* gui script icon
+image:images/icons/cog.png["Script"]
 
 Gui scripts are used to define the behaviour of gui components.
 This include how the user can interact with them, how information such as score and lives are presented and animations when specific events occur.
@@ -204,19 +212,23 @@ This include how the user can interact with them, how information such as score 
 Font
 ~~~~
 
-*IMAGE PLACEHOLDER* font icon
+image:images/icons/font.png["Font"]
 
 Fonts are based on a TrueType Font-file.
 They specify which font size to use and what type of decoration (outline and shadow) it should have.
 
+image:images/editor/font.png["Font"]
+
 Input Binding
 ~~~~~~~~~~~~~
 
-*IMAGE PLACEHOLDER* input binding icon
+image:images/icons/keyboard.png["Input Binding"]
 
 Input binding files define how the game should interpret hardware input (e.g. keyboard/mouse, touch pads and game pads).
 In short, you define high-level input actions, like "jump", "move_forward", etc, which are then mapped to hardware input.
 You can then take action on the high-level input in the Lua-scripts, without having to consider which hardware was actually used.
+
+image:images/editor/input_binding.png["Input Binding"]
 
 Other Building Blocks
 ---------------------
@@ -224,7 +236,7 @@ Other Building Blocks
 Camera
 ~~~~~~
 
-*IMAGE PLACEHOLDER* camera icon
+image:images/icons/camera.png["Camera"]
 
 Camera components helps to decide what part of the game world should be visible and how it should be projected.
 A common example is to attach a camera to the player game object, or having a separate camera that follows the player around.
@@ -232,14 +244,14 @@ A common example is to attach a camera to the player game object, or having a se
 Material
 ~~~~~~~~
 
-*IMAGE PLACEHOLDER* material icon
+image:images/icons/large_tiles.png["Material"]
 
 Materials define how different objects should be rendered by specifying shaders and their properties.
 
 Render
 ~~~~~~
 
-*IMAGE PLACEHOLDER* render icon
+image:images/icons/paintcan.png["Render"]
 
 Render files represents the rendering pipeline which makes your game appear on the screen.
 They define which Render Script to use for rendering and the different materials to use for things such as post effects.
@@ -247,7 +259,7 @@ They define which Render Script to use for rendering and the different materials
 Render Script
 ~~~~~~~~~~~~~
 
-*IMAGE PLACEHOLDER* render script icon
+image:images/icons/cog.png["Render Script"]
 
 A render script controls how the game should be rendered to the screen.
 It is mostly used for advanced rendering like custom lighting models or other effects.
@@ -256,7 +268,7 @@ The default render script should cover the most common cases in your projects.
 Collection Proxy
 ~~~~~~~~~~~~~~~~
 
-*IMAGE PLACEHOLDER* collection proxy icon
+image:images/icons/bricks_proxy.png["Collection Proxy"]
 
 A collection proxy can be used to load and present collections on the fly during a game.
 The most common example would be that you want to start your game as fast as possible without loading any level-data.
