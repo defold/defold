@@ -57,11 +57,8 @@ We have two players, each controlling a space ship.
 At the top of the screen, their different scores are displayed.
 
 ((((
-image::images/engine/collection.png["Collection", align="center"]
+image::images/engine/level.png["Level", align="center"]
 ((((
-
-The scores at the top of the screen are part of a Gui-component (graphical user interface, more below), which is attached to a game object.
-The two player avatars, the space ships, are two different game objects with a few components attached; graphics, sounds and scripts to control input-based movement.
 
 Factories
 ~~~~~~~~~
