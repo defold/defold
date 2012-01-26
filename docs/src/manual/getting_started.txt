@@ -316,25 +316,18 @@ Editor Overview
 ---------------
 
 The editor contains almost all the tools necessary to make your games, except graphics and sound editing.
+The different areas are described in the image below.
 
-*IMAGE PLACEHOLDER* editor overview
+((((
+image::images/editor/editor.png["Factory", align="center"]
+((((
 
-*NOTE* Det relevanta ur den här texten borde ingå i bilden och det här stycket tas bort
-
-To the upper left is the Project Explorer.
-Once you open a project, it is filled with the files from that project.
-Below it is the Changed Files view.
-It lists all the files you have modified and is cleared when you synchronize or revert the changes.
-In the middle is the Content view.
-It contains a tab for each file you have opened.
-The Outline view is to the upper right and displays the structure of the currently selected file.
-Below it is the Properties view.
-It displays the properties of the currently selected object.
-
-*IMAGE PLACEHOLDER* outline context menu
-
-Updating the editor is very easy.
+When there is a new version available, you can update from inside the editor with *Help > Check for Updates*.
 We always let you know when there is a new version to fetch and what it contains.
+
+((((
+image::images/editor/update_editor.png["Factory", align="center"]
+((((
 
 Let's get to work!
 ------------------
