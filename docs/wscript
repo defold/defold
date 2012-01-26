@@ -33,9 +33,8 @@ def configure(conf):
     conf.find_program('asciidoc', var='ASCIIDOC')
     conf.env['EMBED_VIDEO'] = os.path.abspath('scripts/embed_video.py')
 
-asciidoc = Task.simple_task_type('asciidoc', '${ASCIIDOC} -f ../defold.conf -a data-uri -o ${TGT} ${SRC}',
+asciidoc = Task.simple_task_type('asciidoc', '${ASCIIDOC} -f ../defold.conf -o ${TGT} ${SRC}',
                                  shell=True)
-
 asciidoc.scan = scan_asciidoc
 
 embed_video = Task.simple_task_type('embed_video', 'python ${EMBED_VIDEO} ${SRC} ${TGT}',
@@ -62,6 +61,14 @@ def build(bld):
             'src/demos/docs', 'src/tutorials/docs']
     tsk = bld.new_task_gen(install_path='${DYNAMO_HOME}/share/doc')
     tsk.find_sources_in_dirs(dirs)
+
+    # copy images
+    img_pattern = '*.png'
+    img_dirs = ['src/manual/images']
+    for img_dir in img_dirs:
+        for root, dirs, files in os.walk(img_dir):
+            for dir in dirs:
+                bld.install_files('${PREFIX}/share/doc/images/%s' % (dir), os.path.join(root, dir, img_pattern))
 
 GAME_PROJECT = """
 [project]
