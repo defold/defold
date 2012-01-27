@@ -132,5 +132,5 @@ def install(bld):
     Scripting.install(bld)
     for sample in ['hud', 'level_complete', 'main_menu', 'parallax']:
         install_sample(bld, 'src/demos/%s' % sample)
-    for tutorial in ['side_scroller']:
+    for tutorial in ['side_scroller', 'platformer']:
         install_tutorial(bld, 'src/tutorials/%s' % tutorial)
