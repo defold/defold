@@ -1,0 +1,91 @@
+image: "/graphics/map_1.png"
+tile_width: 64
+tile_height: 64
+tile_margin: 0
+tile_spacing: 0
+collision: "/graphics/map_1.png"
+material_tag: "tile"
+convex_hulls {
+  index: 0
+  count: 0
+  collision_group: ""
+}
+convex_hulls {
+  index: 0
+  count: 4
+  collision_group: "bridge"
+}
+convex_hulls {
+  index: 4
+  count: 4
+  collision_group: "bridge"
+}
+convex_hulls {
+  index: 8
+  count: 8
+  collision_group: "ladder"
+}
+convex_hulls {
+  index: 16
+  count: 4
+  collision_group: "platform"
+}
+convex_hulls {
+  index: 20
+  count: 6
+  collision_group: "platform"
+}
+convex_hulls {
+  index: 26
+  count: 6
+  collision_group: "platform"
+}
+convex_hulls {
+  index: 32
+  count: 12
+  collision_group: "ladder"
+}
+convex_hulls {
+  index: 44
+  count: 4
+  collision_group: ""
+}
+convex_hulls {
+  index: 48
+  count: 4
+  collision_group: ""
+}
+convex_hulls {
+  index: 52
+  count: 4
+  collision_group: ""
+}
+convex_hulls {
+  index: 56
+  count: 4
+  collision_group: ""
+}
+convex_hulls {
+  index: 60
+  count: 0
+  collision_group: ""
+}
+convex_hulls {
+  index: 60
+  count: 0
+  collision_group: ""
+}
+convex_hulls {
+  index: 60
+  count: 0
+  collision_group: ""
+}
+convex_hulls {
+  index: 60
+  count: 0
+  collision_group: ""
+}
+collision_groups: "background"
+collision_groups: "bridge"
+collision_groups: "ladder"
+collision_groups: "platform"
