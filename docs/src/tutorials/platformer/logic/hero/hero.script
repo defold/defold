@@ -118,23 +118,8 @@ function animate(self)
     
     -- State changed
     if self.state ~= prevstate then
-    	if self.state == "run" and self.facing == "left" then
-			msg.post("#", "play_animation", {start_tile = 13, end_tile = 24, playback = 3})
-    	elseif self.state == "run" and self.facing == "right" then
-			msg.post("#", "play_animation", {start_tile = 37, end_tile = 48, playback = 3})
-    	elseif self.state == "idle" and self.facing == "left" then
-			msg.post("#", "play_animation", {start_tile = 1, end_tile = 1, playback = 3})
-    	elseif self.state == "idle" and self.facing == "right" then
-			msg.post("#", "play_animation", {start_tile = 3, end_tile = 3, playback = 3})
-    	elseif self.state == "jump" and self.facing == "left" then
-			msg.post("#", "play_animation", {start_tile = 5, end_tile = 6, playback = 1})
-    	elseif self.state == "jump" and self.facing == "right" then
-			msg.post("#", "play_animation", {start_tile = 25, end_tile = 26, playback = 1})
-    	elseif self.state == "fall" and self.facing == "left" then
-			msg.post("#", "play_animation", {start_tile = 7, end_tile = 8, playback = 1})
-    	elseif self.state == "fall" and self.facing == "right" then
-			msg.post("#", "play_animation", {start_tile = 27, end_tile = 28, playback = 1})
-    	end    	
+    	anim = self.state .. "_" .. self.facing
+    	msg.post("#sprite2", "play_animation2", {id = hash(anim)})
     end
 end
 
