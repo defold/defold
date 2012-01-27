@@ -1,5 +1,6 @@
 package com.dynamo.cr.sceneed.core.util;
 
+import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
 import javax.vecmath.Vector4d;
 
@@ -23,6 +24,13 @@ public class LoaderUtil {
             .setZ((float) v.getZ()).build();
     }
 
+    public static Point3 toPoint3(Point3d v) {
+        return Point3.newBuilder()
+            .setX((float) v.getX())
+            .setY((float) v.getY())
+            .setZ((float) v.getZ()).build();
+    }
+
     public static Quat toQuat(Quat4d q) {
         return Quat.newBuilder()
             .setX((float) q.getX())
@@ -31,5 +39,8 @@ public class LoaderUtil {
             .setW((float) q.getW()).build();
     }
 
+    public static Point3d toPoint3d(Point3 p) {
+        return new Point3d(p.getX(), p.getY(), p.getZ());
+    }
 
 }

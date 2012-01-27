@@ -39,7 +39,7 @@ public class GameObjectLoader implements INodeLoader<GameObjectNode> {
             String path = componentDesc.getComponent();
             ComponentTypeNode componentType = (ComponentTypeNode)context.loadNode(path);
             RefComponentNode componentNode = new RefComponentNode(componentType);
-            componentNode.setTranslation(LoaderUtil.toVector4(componentDesc.getPosition()));
+            componentNode.setTranslation(LoaderUtil.toPoint3d(componentDesc.getPosition()));
             componentNode.setRotation(LoaderUtil.toQuat4(componentDesc.getRotation()));
             componentNode.setId(componentDesc.getId());
             componentNode.setComponent(path);
@@ -50,7 +50,7 @@ public class GameObjectLoader implements INodeLoader<GameObjectNode> {
             EmbeddedComponentDesc componentDesc = desc.getEmbeddedComponents(i);
             ComponentTypeNode componentType = (ComponentTypeNode)context.loadNode(componentDesc.getType(), new ByteArrayInputStream(componentDesc.getData().getBytes()));
             ComponentNode component = new ComponentNode(componentType);
-            componentType.setTranslation(LoaderUtil.toVector4(componentDesc.getPosition()));
+            componentType.setTranslation(LoaderUtil.toPoint3d(componentDesc.getPosition()));
             componentType.setRotation(LoaderUtil.toQuat4(componentDesc.getRotation()));
             component.setId(componentDesc.getId());
             gameObject.addComponent(component);

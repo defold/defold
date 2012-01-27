@@ -4,8 +4,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 import javax.vecmath.Matrix4d;
+import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
-import javax.vecmath.Vector4d;
+import javax.vecmath.Vector3d;
 
 import org.eclipse.swt.events.MouseEvent;
 
@@ -56,7 +57,7 @@ public class MoveManipulator extends RootManipulator {
             // and changing the whole transform would reset the rotation to unit
             // as the manipulator is always operating in unit rotation space.
             node.getWorldTransform(transform);
-            transform.setColumn(3, getTranslation());
+            transform.set(new Vector3d(getTranslation()));
             node.setWorldTransform(transform);
         }
     }
@@ -68,7 +69,7 @@ public class MoveManipulator extends RootManipulator {
     @Override
     protected void selectionChanged() {
         List<Node> sel = getSelection();
-        Vector4d center = new Vector4d();
+        Point3d center = new Point3d();
         for (Node node : sel) {
             Matrix4d transform = new Matrix4d();
             node.getLocalTransform(transform);
@@ -76,12 +77,13 @@ public class MoveManipulator extends RootManipulator {
 
             transform = new Matrix4d();
             node.getWorldTransform(transform);
-            transform.getColumn(3, translation);
+            Vector3d translation = new Vector3d();
+            transform.get(translation);
             center.add(translation);
+            this.translation.set(translation);
         }
 
         center.scale(1.0 / sel.size());
-        center.setW(0);
         setTranslation(center);
     }
 

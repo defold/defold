@@ -16,6 +16,7 @@ import java.util.List;
 
 import javax.inject.Singleton;
 import javax.vecmath.Matrix4d;
+import javax.vecmath.Point3d;
 import javax.vecmath.Vector4d;
 
 import org.eclipse.core.commands.operations.DefaultOperationHistory;
@@ -141,7 +142,7 @@ public class ManipulatorTest {
         node.getWorldTransform(originalTransform);
 
         Matrix4d newTransform = new Matrix4d();
-        node.setTranslation(position);
+        node.setTranslation(new Point3d(position.getX(), position.getY(), position.getZ()));
         node.getWorldTransform(newTransform);
 
         TransformNodeOperation operation = new TransformNodeOperation("Move", Arrays.asList(node), Arrays.asList(originalTransform), Arrays.asList(newTransform));

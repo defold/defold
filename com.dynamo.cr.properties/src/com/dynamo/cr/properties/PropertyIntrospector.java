@@ -10,6 +10,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
 import javax.vecmath.Vector3d;
 import javax.vecmath.Vector4d;
@@ -24,6 +25,7 @@ import com.dynamo.cr.properties.descriptors.BooleanPropertyDesc;
 import com.dynamo.cr.properties.descriptors.DoublePropertyDesc;
 import com.dynamo.cr.properties.descriptors.FloatPropertyDesc;
 import com.dynamo.cr.properties.descriptors.IntegerPropertyDesc;
+import com.dynamo.cr.properties.descriptors.Point3PropertyDesc;
 import com.dynamo.cr.properties.descriptors.ProtoEnumDesc;
 import com.dynamo.cr.properties.descriptors.Quat4PropertyDesc;
 import com.dynamo.cr.properties.descriptors.RGBPropertyDesc;
@@ -97,8 +99,9 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
                             descriptor = new Quat4PropertyDesc<T, U>(propertyId, propertyDisplayName);
                         } else if (field.getType() == Vector3d.class) {
                             descriptor = new Vector3PropertyDesc<T, U>(propertyId, propertyDisplayName);
-                        }
-                        else if (field.getType() == RGB.class) {
+                        } else if (field.getType() == Point3d.class) {
+                            descriptor = new Point3PropertyDesc<T, U>(propertyId, propertyDisplayName);
+                        } else if (field.getType() == RGB.class) {
                             descriptor = new RGBPropertyDesc<T, U>(propertyId, propertyDisplayName);
                         } else if (field.getType() == Double.TYPE) {
                             descriptor = new DoublePropertyDesc<T, U>(propertyId, propertyDisplayName);

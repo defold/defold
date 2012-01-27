@@ -1,6 +1,7 @@
 package com.dynamo.cr.sceneed.ui;
 
 import javax.vecmath.Matrix4d;
+import javax.vecmath.Point3d;
 import javax.vecmath.Vector4d;
 
 import org.eclipse.swt.events.MouseEvent;
@@ -54,7 +55,7 @@ public class AxisManipulator extends Manipulator {
 
             Vector4d translation = new Vector4d(originalTranslation);
             translation.add(delta);
-            rootManipulator.setTranslation(translation);
+            rootManipulator.setTranslation(new Point3d(translation.getX(), translation.getY(), translation.getZ()));
             rootManipulator.transformChanged();
         }
     }
