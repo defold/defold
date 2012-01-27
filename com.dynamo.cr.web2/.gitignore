@@ -5,6 +5,7 @@ war/WEB-INF/lib/*.jar
 war/defold/
 war/doc/*.json
 war/site/
+war/images/
 test-classes/*
 gwt-unitCache/*
 
