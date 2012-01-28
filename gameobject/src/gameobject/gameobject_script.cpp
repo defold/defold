@@ -279,7 +279,7 @@ namespace dmGameObject
     {
         ScriptInstance* i = ScriptInstance_Check(L);
 
-        url->m_Socket = i->m_Instance->m_Collection->m_Socket;
+        url->m_Socket = i->m_Instance->m_Collection->m_ComponentSocket;
         url->m_Path = i->m_Instance->m_Identifier;
         url->m_Fragment = i->m_Instance->m_Prototype->m_Components[i->m_ComponentIndex].m_Id;
     }

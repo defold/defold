@@ -202,7 +202,7 @@ namespace dmGameObject
             // TODO: Un-hard-code
             m_InputFocusStack.SetCapacity(16);
             m_NameHash = 0;
-            m_Socket = 0;
+            m_ComponentSocket = 0;
             m_InUpdate = 0;
 
             for (uint32_t i = 0; i < m_LevelIndices.Size(); ++i)
@@ -266,8 +266,10 @@ namespace dmGameObject
         // Name-hash of the collection.
         dmhash_t                 m_NameHash;
 
-        // Socket for sending to instances
-        dmMessage::HSocket       m_Socket;
+        // Socket for sending to instances, dispatched between every component update
+        dmMessage::HSocket       m_ComponentSocket;
+        // Socket for sending to instances, dispatched once each update
+        dmMessage::HSocket       m_FrameSocket;
 
         // Set to 1 if in update-loop
         uint32_t                 m_InUpdate : 1;

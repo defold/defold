@@ -107,19 +107,27 @@ namespace dmGameObject
 
         dmResource::RegisterResourceReloadedCallback(factory, ResourceReloadedCallback, collection);
 
-        dmMessage::Result result = dmMessage::NewSocket(name, &collection->m_Socket);
-        if (result != dmMessage::RESULT_OK)
+        char name_frame[128];
+        dmStrlCpy(name_frame, name, 128);
+        dmStrlCat(name_frame, "_frame", 128);
+        const char* socket_names[] = {name, name_frame};
+        dmMessage::HSocket* sockets[] = {&collection->m_ComponentSocket, &collection->m_FrameSocket};
+        for (int i = 0; i < 2; ++i)
         {
-            if (result == dmMessage::RESULT_SOCKET_EXISTS)
+            dmMessage::Result result = dmMessage::NewSocket(socket_names[i], sockets[i]);
+            if (result != dmMessage::RESULT_OK)
             {
-                dmLogError("The collection '%s' could not be created since there is already a socket with the same name.", name);
+                if (result == dmMessage::RESULT_SOCKET_EXISTS)
+                {
+                    dmLogError("The collection '%s' could not be created since there is already a socket with the same name.", socket_names[i]);
+                }
+                else if (result == dmMessage::RESULT_INVALID_SOCKET_NAME)
+                {
+                    dmLogError("The collection '%s' could not be created since the name is invalid for sockets.", socket_names[i]);
+                }
+                DeleteCollection(collection);
+                return 0;
             }
-            else if (result == dmMessage::RESULT_INVALID_SOCKET_NAME)
-            {
-                dmLogError("The collection '%s' could not be created since the name is invalid for sockets.", name);
-            }
-            DeleteCollection(collection);
-            return 0;
         }
 
         return collection;
@@ -157,10 +165,15 @@ namespace dmGameObject
 
         dmResource::UnregisterResourceReloadedCallback(collection->m_Factory, ResourceReloadedCallback, collection);
 
-        if (collection->m_Socket)
+        if (collection->m_ComponentSocket)
         {
-            dmMessage::Consume(collection->m_Socket);
-            dmMessage::DeleteSocket(collection->m_Socket);
+            dmMessage::Consume(collection->m_ComponentSocket);
+            dmMessage::DeleteSocket(collection->m_ComponentSocket);
+        }
+        if (collection->m_FrameSocket)
+        {
+            dmMessage::Consume(collection->m_FrameSocket);
+            dmMessage::DeleteSocket(collection->m_FrameSocket);
         }
 
         delete collection;
@@ -1126,14 +1139,14 @@ namespace dmGameObject
         }
     }
 
-    bool DispatchMessages(HCollection collection)
+    bool DispatchMessages(HCollection collection, dmMessage::HSocket socket)
     {
         DM_PROFILE(GameObject, "DispatchMessages");
 
         DispatchMessagesContext ctx;
         ctx.m_Collection = collection;
         ctx.m_Success = true;
-        (void) dmMessage::Dispatch(collection->m_Socket, &DispatchMessagesFunction, (void*) &ctx);
+        (void) dmMessage::Dispatch(socket, &DispatchMessagesFunction, (void*) &ctx);
 
         return ctx.m_Success;
     }
@@ -1209,34 +1222,39 @@ namespace dmGameObject
         collection->m_InUpdate = 1;
 
         bool ret = true;
+        if (!DispatchMessages(collection, collection->m_FrameSocket))
+            ret = false;
 
-        uint32_t component_types = collection->m_Register->m_ComponentTypeCount;
-        for (uint32_t i = 0; i < component_types; ++i)
+        if (ret)
         {
-            uint16_t update_index = collection->m_Register->m_ComponentTypesOrder[i];
-            ComponentType* component_type = &collection->m_Register->m_ComponentTypes[update_index];
-
-            DM_COUNTER(component_type->m_Name, collection->m_ComponentInstanceCount[update_index]);
-
-            if (component_type->m_UpdateFunction)
+            uint32_t component_types = collection->m_Register->m_ComponentTypeCount;
+            for (uint32_t i = 0; i < component_types; ++i)
             {
-                DM_PROFILE(GameObject, component_type->m_Name);
-                ComponentsUpdateParams params;
-                params.m_Collection = collection;
-                params.m_UpdateContext = update_context;
-                params.m_World = collection->m_ComponentWorlds[update_index];
-                params.m_Context = component_type->m_Context;
-                UpdateResult res = component_type->m_UpdateFunction(params);
-                if (res != UPDATE_RESULT_OK)
+                uint16_t update_index = collection->m_Register->m_ComponentTypesOrder[i];
+                ComponentType* component_type = &collection->m_Register->m_ComponentTypes[update_index];
+
+                DM_COUNTER(component_type->m_Name, collection->m_ComponentInstanceCount[update_index]);
+
+                if (component_type->m_UpdateFunction)
+                {
+                    DM_PROFILE(GameObject, component_type->m_Name);
+                    ComponentsUpdateParams params;
+                    params.m_Collection = collection;
+                    params.m_UpdateContext = update_context;
+                    params.m_World = collection->m_ComponentWorlds[update_index];
+                    params.m_Context = component_type->m_Context;
+                    UpdateResult res = component_type->m_UpdateFunction(params);
+                    if (res != UPDATE_RESULT_OK)
+                        ret = false;
+                }
+                // TODO: Solve this better! Right now the worst is assumed, which is that every component updates some transforms as well as
+                // demands updated child-transforms. Many redundant calculations. This could be solved by splitting the component Update-callback
+                // into UpdateTrasform, then Update or similar
+                UpdateTransforms(collection);
+
+                if (!DispatchMessages(collection, collection->m_ComponentSocket))
                     ret = false;
             }
-            // TODO: Solve this better! Right now the worst is assumed, which is that every component updates some transforms as well as
-            // demands updated child-transforms. Many redundant calculations. This could be solved by splitting the component Update-callback
-            // into UpdateTrasform, then Update or similar
-            UpdateTransforms(collection);
-
-            if (!DispatchMessages(collection))
-                ret = false;
         }
 
         collection->m_InUpdate = 0;
@@ -1270,7 +1288,7 @@ namespace dmGameObject
             }
         }
 
-        if (!DispatchMessages(collection) && result)
+        if (!DispatchMessages(collection, collection->m_ComponentSocket) && result)
             result = false;
 
         uint32_t component_types = reg->m_ComponentTypeCount;
@@ -1292,7 +1310,7 @@ namespace dmGameObject
             }
         }
 
-        if (!DispatchMessages(collection) && result)
+        if (!DispatchMessages(collection, collection->m_ComponentSocket) && result)
             result = false;
 
         if (collection->m_InstancesToDelete.Size() > 0)
@@ -1441,7 +1459,7 @@ namespace dmGameObject
     dmMessage::HSocket GetMessageSocket(HCollection collection)
     {
         if (collection)
-            return collection->m_Socket;
+            return collection->m_ComponentSocket;
         else
             return 0;
     }
