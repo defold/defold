@@ -13,8 +13,6 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompSpawnPointDestroy(const dmGameObject::ComponentDestroyParams& params);
 
-    dmGameObject::UpdateResult CompSpawnPointPostUpdate(const dmGameObject::ComponentsPostUpdateParams& params);
-
     dmGameObject::UpdateResult CompSpawnPointOnMessage(const dmGameObject::ComponentOnMessageParams& params);
 }
 

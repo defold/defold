@@ -1,0 +1,5 @@
+name: "test_factory"
+instances {
+  id: "factory_go"
+  prototype: "/factory/factory.go"
+}

@@ -4,7 +4,7 @@ function update(self)
         local pos = go.get_position()
         local dir = vmath.normalize(self.target_pos - pos)
         msg.post("#shot", "play_sound")
-        msg.post("#bullet_spawner", "spawn", {position = pos, rotation = vmath.quat_from_to(vmath.vector3(1, 0, 0), dir)})
+        factory.create("#bullet_spawner", pos, vmath.quat_from_to(vmath.vector3(1, 0, 0), dir))
     end
 end
 

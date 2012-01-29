@@ -474,10 +474,11 @@ namespace dmGameSystem
         {
             dmGameObject::HInstance instance = (dmGameObject::HInstance)request.m_UserData;
             World* world = (World*)user_data;
+            Component* component = (Component*)response.m_CollisionObjectUserData;
 
             dmPhysicsDDF::RayCastResponse ddf;
             ddf.m_Fraction = response.m_Fraction;
-            ddf.m_Id = dmGameObject::GetIdentifier((dmGameObject::HInstance)response.m_CollisionObjectUserData);
+            ddf.m_Id = dmGameObject::GetIdentifier(component->m_Instance);
             ddf.m_Group = GetLSBGroupHash(world, response.m_CollisionObjectGroup);
             ddf.m_Position = response.m_Position;
             ddf.m_Normal = response.m_Normal;

@@ -15,15 +15,9 @@ namespace dmGameSystem
 {
     using namespace Vectormath::Aos;
 
-    const uint32_t MAX_SPAWN_REQUEST_COUNT = 16;
-
     struct SpawnPointComponent
     {
-        Vectormath::Aos::Point3 m_RequestedPositions[MAX_SPAWN_REQUEST_COUNT];
-        Vectormath::Aos::Quat   m_RequestedRotations[MAX_SPAWN_REQUEST_COUNT];
         SpawnPointResource*     m_Resource;
-        uint32_t                m_SpawnRequests;
-
     };
 
     struct SpawnPointWorld
@@ -59,7 +53,6 @@ namespace dmGameSystem
             uint32_t index = spw->m_IndexPool.Pop();
             SpawnPointComponent* spc = &spw->m_Components[index];
             spc->m_Resource = (SpawnPointResource*) params.m_Resource;
-            spc->m_SpawnRequests = 0;
             *params.m_UserData = (uintptr_t) spc;
 
             return dmGameObject::CREATE_RESULT_OK;
@@ -81,46 +74,32 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::UpdateResult CompSpawnPointPostUpdate(const dmGameObject::ComponentsPostUpdateParams& params)
-    {
-        SpawnPointWorld* spw = (SpawnPointWorld*)params.m_World;
-        const char* id_base = "spawn";
-        char id[64];
-        for (uint32_t i = 0; i < spw->m_Components.Size(); ++i)
-        {
-            SpawnPointComponent* spc = &spw->m_Components[i];
-            if (spc->m_Resource != 0x0 && spc->m_SpawnRequests > 0)
-            {
-                for (uint32_t i = 0; i < spc->m_SpawnRequests; ++i)
-                {
-                    DM_SNPRINTF(id, 64, "%s%d", id_base, spw->m_TotalSpawnCount);
-                    dmGameObject::Spawn(params.m_Collection, spc->m_Resource->m_SpawnPointDesc->m_Prototype, id, spc->m_RequestedPositions[i], spc->m_RequestedRotations[i]);
-                    ++spw->m_TotalSpawnCount;
-                }
-                spc->m_SpawnRequests = 0;
-            }
-        }
-        return dmGameObject::UPDATE_RESULT_OK;
-    }
-
     dmGameObject::UpdateResult CompSpawnPointOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
         if (params.m_Message->m_Descriptor == (uintptr_t)dmGameSystemDDF::Spawn::m_DDFDescriptor)
         {
-            SpawnPointComponent* spc = (SpawnPointComponent*) *params.m_UserData;
+            dmGameObject::HInstance instance = params.m_Instance;
+            dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
+            dmMessage::Message* message = params.m_Message;
             if ((dmDDF::Descriptor*)params.m_Message->m_Descriptor == dmGameSystemDDF::Spawn::m_DDFDescriptor)
             {
-                if (spc->m_SpawnRequests < MAX_SPAWN_REQUEST_COUNT)
+                // redispatch messages on the component socket to the frame socket
+                dmMessage::URL receiver = message->m_Receiver;
+                if (receiver.m_Socket == dmGameObject::GetMessageSocket(collection))
                 {
-                    uint32_t index = spc->m_SpawnRequests;
-                    dmGameSystemDDF::Spawn* spawn_object = (dmGameSystemDDF::Spawn*) params.m_Message->m_Data;
-                    spc->m_RequestedPositions[index] = spawn_object->m_Position;
-                    spc->m_RequestedRotations[index] = spawn_object->m_Rotation;
-                    ++spc->m_SpawnRequests;
+                    receiver.m_Socket = dmGameObject::GetFrameMessageSocket(collection);
+                    dmMessage::Post(&message->m_Sender, &receiver, message->m_Id, message->m_UserData, message->m_Descriptor, (const void*)message->m_Data, message->m_DataSize);
                 }
                 else
                 {
-                    dmLogError("The maximum number of spawn requests have been received (%d), spawn request ignored.", MAX_SPAWN_REQUEST_COUNT);
+                    dmGameSystemDDF::Spawn* spawn_object = (dmGameSystemDDF::Spawn*) params.m_Message->m_Data;
+                    SpawnPointComponent* spc = (SpawnPointComponent*) *params.m_UserData;
+                    dmhash_t id = spawn_object->m_Id;
+                    if (id == 0)
+                    {
+                        id = dmGameObject::GenerateUniqueInstanceId(collection);
+                    }
+                    dmGameObject::Spawn(collection, spc->m_Resource->m_SpawnPointDesc->m_Prototype, id, spawn_object->m_Position, spawn_object->m_Rotation);
                 }
             }
             else

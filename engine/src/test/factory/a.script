@@ -1,0 +1,5 @@
+function on_message(self, message_id, message, sender)
+    if message_id == hash("hello") then
+        msg.post(message.next, "hello")
+    end
+end

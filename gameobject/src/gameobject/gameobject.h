@@ -478,13 +478,21 @@ namespace dmGameObject
     HInstance New(HCollection collection, const char* prototype_name);
 
     /**
+     * Generate a unique (collection-scope) instance id that can be used for the Spawn() function.
+     * @param collection Collection in which the id is unique
+     */
+    dmhash_t GenerateUniqueInstanceId(HCollection collection);
+
+    /**
      * Spawns a new gameobject instance. The actual creation is performed after the update is completed.
      * @param collection Gameobject collection
      * @param prototype_name Prototype file name
+     * @param id id of the spawned instance
      * @param position Position of the spawed object
      * @param rotation Rotation of the spawned object
+     * return the spawned instance, 0 at failure
      */
-    void Spawn(HCollection collection, const char* prototype_name, const char* id, const Point3& position, const Quat& rotation);
+    HInstance Spawn(HCollection collection, const char* prototype_name, dmhash_t id, const Point3& position, const Quat& rotation);
 
     /**
      * Delete gameobject instance
@@ -613,11 +621,18 @@ namespace dmGameObject
     HRegister GetRegister(HCollection collection);
 
     /**
-     * Retrieve the message socket id for the specified collection.
+     * Retrieve the message socket for the specified collection.
      * @param collection Collection handle
-     * @return The message socket id of the specified collection
+     * @return The message socket of the specified collection
      */
     dmMessage::HSocket GetMessageSocket(HCollection collection);
+
+    /**
+     * Retrieve the frame message socket for the specified collection.
+     * @param collection Collection handle
+     * @return The frame message socket of the specified collection
+     */
+    dmMessage::HSocket GetFrameMessageSocket(HCollection collection);
 
     /**
      * Set gameobject instance position

@@ -6,6 +6,7 @@
 #include "components/comp_collision_object.h"
 
 #include "physics_ddf.h"
+#include "gamesys_ddf.h"
 
 extern "C"
 {
@@ -116,6 +117,79 @@ namespace dmGameSystem
         {0, 0}
     };
 
+    /*# make a factory create a new game object
+     * Which factory to create the game object is identified by the URL.
+     * The game object will be created between this frame and the next.
+     *
+     * @name factory.create
+     * @param url the factory that should create a game object (url)
+     * @param [position] of the new game object, the position of the game object containing the factory is used by default
+     * @param [rotation] of the new game object, the rotation of the game object containing the factory is used by default
+     * @examples
+     * How to create a new game object:
+     * <pre>
+     * function init(self)
+     *     self.my_created_object = factory.create("#factory")
+     * end
+     *
+     * function update(self, dt)
+     *     -- communicate with the object
+     *     msg.post(msg.url(nil, self.my_created_object), "hello")
+     * end
+     * </pre>
+     */
+    int FactoryComp_Create(lua_State* L)
+    {
+        int top = lua_gettop(L);
+
+        dmMessage::URL sender;
+        uintptr_t user_data;
+        if (dmScript::GetURL(L, &sender) && dmScript::GetUserData(L, &user_data) && user_data != 0)
+        {
+            dmGameObject::HInstance sender_instance = (dmGameObject::HInstance)user_data;
+            dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+
+            dmGameSystemDDF::Spawn request;
+            if (dmScript::IsVector3(L, 2))
+            {
+                request.m_Position = Vectormath::Aos::Point3(*dmScript::CheckVector3(L, 2));
+            }
+            else
+            {
+                request.m_Position = dmGameObject::GetWorldPosition(sender_instance);
+            }
+            if (dmScript::IsQuat(L, 3))
+            {
+                request.m_Rotation = *dmScript::CheckQuat(L, 3);
+            }
+            else
+            {
+                request.m_Rotation = dmGameObject::GetWorldRotation(sender_instance);
+            }
+            request.m_Id = dmGameObject::GenerateUniqueInstanceId(collection);
+
+            dmMessage::URL receiver;
+
+            dmScript::ResolveURL(L, 1, &receiver, &sender);
+
+            dmMessage::Post(&sender, &receiver, dmHashString64(dmGameSystemDDF::Spawn::m_DDFDescriptor->m_Name), user_data, (uintptr_t)dmGameSystemDDF::Spawn::m_DDFDescriptor, &request, sizeof(dmGameSystemDDF::Spawn));
+            assert(top == lua_gettop(L));
+            dmScript::PushHash(L, request.m_Id);
+            return 1;
+        }
+        else
+        {
+            assert(top == lua_gettop(L));
+            return luaL_error(L, "physics.ray_cast is not available from this script-type.");
+        }
+    }
+
+    static const luaL_reg FACTORY_COMP_FUNCTIONS[] =
+    {
+        {"create",            FactoryComp_Create},
+        {0, 0}
+    };
+
     bool InitializeScriptLibs(const ScriptLibContext& context)
     {
         lua_State* L = context.m_LuaState;
@@ -128,6 +202,8 @@ namespace dmGameSystem
         bool result = true;
 
         luaL_register(L, "physics", PHYSICS_FUNCTIONS);
+        lua_pop(L, 1);
+        luaL_register(L, "factory", FACTORY_COMP_FUNCTIONS);
         lua_pop(L, 1);
 
         PhysicsScriptContext* physics_context = new PhysicsScriptContext();

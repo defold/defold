@@ -31,3 +31,8 @@ embedded_components {
   type: "collectionproxy"
   data: "collection: \"/physics/test_physics.collection\"\n"
 }
+embedded_components {
+  id: "factory_proxy"
+  type: "collectionproxy"
+  data: "collection: \"/factory/test_factory.collection\"\n"
+}

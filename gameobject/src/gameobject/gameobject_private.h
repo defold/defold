@@ -203,6 +203,8 @@ namespace dmGameObject
             m_InputFocusStack.SetCapacity(16);
             m_NameHash = 0;
             m_ComponentSocket = 0;
+            m_FrameSocket = 0;
+            m_GenInstanceCounter = 0;
             m_InUpdate = 0;
 
             for (uint32_t i = 0; i < m_LevelIndices.Size(); ++i)
@@ -270,6 +272,11 @@ namespace dmGameObject
         dmMessage::HSocket       m_ComponentSocket;
         // Socket for sending to instances, dispatched once each update
         dmMessage::HSocket       m_FrameSocket;
+
+        dmMutex::Mutex           m_Mutex;
+
+        // Counter for generating instance ids, protected by m_Mutex
+        uint32_t                 m_GenInstanceCounter;
 
         // Set to 1 if in update-loop
         uint32_t                 m_InUpdate : 1;

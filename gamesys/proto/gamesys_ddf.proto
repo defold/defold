@@ -11,23 +11,11 @@ message SpawnPointDesc
     required string prototype = 1 [(resource)=true];
 }
 
-/*# spawns an instance
- * Post this message to a spawn-point-component to make it spawn an instance.
- *
- * @message
- * @name spawn
- * @param position initial world position of the instance (vector3)
- * @param rotation initial world rotation of the instance (quaternion)
- * @examples
- * Assuming the instance of the script has a spawn-point-component with id "spawn_point":
- * <pre>
- * msg.post("#spawn_point", "spawn", {position = vmath.vector3(), rotation = vmath.quat()})
- * </pre>
- */
 message Spawn
 {
     required dmMath.Point3  position = 1;
     required dmMath.Quat    rotation = 2;
+    optional uint64         id       = 3 [default=0];
 }
 
 message CollectionProxyDesc

@@ -266,6 +266,14 @@ namespace dmScript
     bool GetURL(lua_State* L, dmMessage::URL* out_url);
 
     /**
+     * Attempts to convert the value in the supplied index on the lua stack to a URL. It long jumps (calls luaL_error) on failure.
+     * @param L Lua state
+     * @param out_url URL to be written to
+     * @param default_url URL to use for missing fields
+     */
+    int ResolveURL(lua_State* L, int index, dmMessage::URL* out_url, dmMessage::URL* default_url);
+
+    /**
      * Returns the user data associated with the script currently operating on the given lua state.
      * @param L Lua state
      * @param Pointer to the pointer to be written to

@@ -13,7 +13,6 @@ function on_message(self, message_id, message)
         -- test uninitialized data
         --local intersect = message.normal --* message.distance
         local lsq = message.distance --vmath.length_sqr(intersect)
-        print(lsq)
         assert(lsq < 1, "major intersection")
         if (lsq < 1) then
             msg.post("main:/main#script", "done")

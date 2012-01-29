@@ -105,6 +105,8 @@ namespace dmGameObject
         regist->m_Collections.Push(collection);
         dmMutex::Unlock(regist->m_Mutex);
 
+        collection->m_Mutex = dmMutex::New();
+
         dmResource::RegisterResourceReloadedCallback(factory, ResourceReloadedCallback, collection);
 
         char name_frame[128];
@@ -162,6 +164,8 @@ namespace dmGameObject
         }
         assert(found);
         dmMutex::Unlock(regist->m_Mutex);
+
+        dmMutex::Delete(collection->m_Mutex);
 
         dmResource::UnregisterResourceReloadedCallback(collection->m_Factory, ResourceReloadedCallback, collection);
 
@@ -435,12 +439,38 @@ namespace dmGameObject
 
     bool Init(HCollection collection, HInstance instance);
 
-    void Spawn(HCollection collection, const char* prototype_name, const char* id, const Point3& position, const Quat& rotation)
+    dmhash_t GenerateUniqueInstanceId(HCollection collection)
+    {
+        const char* id_format = "instance%d";
+        char id_s[16];
+        uint32_t index = 0;
+        dmMutex::Lock(collection->m_Mutex);
+        index = collection->m_GenInstanceCounter++;
+        dmMutex::Unlock(collection->m_Mutex);
+        DM_SNPRINTF(id_s, 16, id_format, index);
+        return dmHashString64(id_s);
+    }
+
+    Result SetIdentifier(HCollection collection, HInstance instance, dmhash_t id)
+    {
+        if (collection->m_IDToInstance.Get(id))
+            return RESULT_IDENTIFIER_IN_USE;
+
+        if (instance->m_Identifier != UNNAMED_IDENTIFIER)
+            return RESULT_IDENTIFIER_ALREADY_SET;
+
+        instance->m_Identifier = id;
+        collection->m_IDToInstance.Put(id, instance);
+
+        return RESULT_OK;
+    }
+
+    HInstance Spawn(HCollection collection, const char* prototype_name, dmhash_t id, const Point3& position, const Quat& rotation)
     {
         if (collection->m_InUpdate)
         {
             dmLogError("Spawning during update is not allowed, %s was never spawned.", prototype_name);
-            return;
+            return 0;
         }
         HInstance instance = New(collection, prototype_name);
         if (instance != 0)
@@ -454,7 +484,15 @@ namespace dmGameObject
             Result result = SetIdentifier(collection, instance, id);
             if (result == RESULT_IDENTIFIER_IN_USE)
             {
-                dmLogError("The identifier '%s' is already in use.", id);
+                const char* identifier = (const char*)dmHashReverse64(id, 0x0);
+                if (identifier != 0x0)
+                {
+                    dmLogError("The identifier '%s' is already in use.", identifier);
+                }
+                else
+                {
+                    dmLogError("The identifier '%llu' is already in use.", id);
+                }
                 Delete(collection, instance);
                 instance = 0;
             }
@@ -467,6 +505,7 @@ namespace dmGameObject
         {
             dmLogError("Could not spawn an instance of prototype %s.", prototype_name);
         }
+        return instance;
     }
 
     static void Unlink(Collection* collection, Instance* instance)
@@ -867,16 +906,7 @@ namespace dmGameObject
     Result SetIdentifier(HCollection collection, HInstance instance, const char* identifier)
     {
         dmhash_t id = dmHashBuffer64(identifier, strlen(identifier));
-        if (collection->m_IDToInstance.Get(id))
-            return RESULT_IDENTIFIER_IN_USE;
-
-        if (instance->m_Identifier != UNNAMED_IDENTIFIER)
-            return RESULT_IDENTIFIER_ALREADY_SET;
-
-        instance->m_Identifier = id;
-        collection->m_IDToInstance.Put(id, instance);
-
-        return RESULT_OK;
+        return SetIdentifier(collection, instance, id);
     }
 
     dmhash_t GetIdentifier(HInstance instance)
@@ -1219,11 +1249,11 @@ namespace dmGameObject
 
         assert(collection != 0x0);
 
-        collection->m_InUpdate = 1;
-
         bool ret = true;
         if (!DispatchMessages(collection, collection->m_FrameSocket))
             ret = false;
+
+        collection->m_InUpdate = 1;
 
         if (ret)
         {
@@ -1460,6 +1490,14 @@ namespace dmGameObject
     {
         if (collection)
             return collection->m_ComponentSocket;
+        else
+            return 0;
+    }
+
+    dmMessage::HSocket GetFrameMessageSocket(HCollection collection)
+    {
+        if (collection)
+            return collection->m_FrameSocket;
         else
             return 0;
     }
