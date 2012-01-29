@@ -1,11 +1,17 @@
 function init(self)
-    self.id_a = factory.create("#factory_a")
-    self.id_b = factory.create("#factory_b")
+    self.id_a = factory.create("#factory_a", nil, nil, {test_value = 1})
+    self.id_b = factory.create("#factory_b", nil, nil, {spawner = go.get_id()})
 end
 
 function update(self, dt)
     if self.id_a then
         msg.post(self.id_a, "hello", {next = self.id_b})
         self.id_a = nil
+    end
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("done") then
+        msg.post("main:/main#script", "done")
     end
 end

@@ -226,6 +226,8 @@ namespace dmGameObject
         void* m_Context;
         /// User data storage pointer
         uintptr_t* m_UserData;
+        /// Buffer containing serialized init parameters
+        uint8_t* m_InitParams;
     };
 
     /**
@@ -487,12 +489,13 @@ namespace dmGameObject
      * Spawns a new gameobject instance. The actual creation is performed after the update is completed.
      * @param collection Gameobject collection
      * @param prototype_name Prototype file name
-     * @param id id of the spawned instance
+     * @param id Id of the spawned instance
+     * @param init_params Buffer with serialized init parameters
      * @param position Position of the spawed object
      * @param rotation Rotation of the spawned object
      * return the spawned instance, 0 at failure
      */
-    HInstance Spawn(HCollection collection, const char* prototype_name, dmhash_t id, const Point3& position, const Quat& rotation);
+    HInstance Spawn(HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* init_params, const Point3& position, const Quat& rotation);
 
     /**
      * Delete gameobject instance

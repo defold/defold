@@ -51,7 +51,7 @@ TEST_F(SpawnTest, Spawn)
     {
         dmhash_t id = dmGameObject::GenerateUniqueInstanceId(m_Collection);
         ASSERT_NE(0u, id);
-        dmGameObject::HInstance instance = dmGameObject::Spawn(m_Collection, "/test.goc", id, Point3(), Quat());
+        dmGameObject::HInstance instance = dmGameObject::Spawn(m_Collection, "/test.goc", id, 0x0, Point3(), Quat());
         ASSERT_NE(0u, (uintptr_t)instance);
     }
 }

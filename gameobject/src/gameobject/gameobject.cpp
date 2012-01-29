@@ -437,7 +437,7 @@ namespace dmGameObject
         return instance;
     }
 
-    bool Init(HCollection collection, HInstance instance);
+    bool Init(HCollection collection, HInstance instance, uint8_t* init_params);
 
     dmhash_t GenerateUniqueInstanceId(HCollection collection)
     {
@@ -465,7 +465,7 @@ namespace dmGameObject
         return RESULT_OK;
     }
 
-    HInstance Spawn(HCollection collection, const char* prototype_name, dmhash_t id, const Point3& position, const Quat& rotation)
+    HInstance Spawn(HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* init_params, const Point3& position, const Quat& rotation)
     {
         if (collection->m_InUpdate)
         {
@@ -498,7 +498,7 @@ namespace dmGameObject
             }
             else
             {
-                Init(collection, instance);
+                Init(collection, instance, init_params);
             }
         }
         if (instance == 0)
@@ -602,7 +602,7 @@ namespace dmGameObject
 
     void UpdateTransforms(HCollection collection);
 
-    bool Init(HCollection collection, HInstance instance)
+    bool Init(HCollection collection, HInstance instance, uint8_t* init_params)
     {
         if (instance)
         {
@@ -654,6 +654,7 @@ namespace dmGameObject
                     params.m_World = collection->m_ComponentWorlds[component->m_TypeIndex];
                     params.m_Context = component_type->m_Context;
                     params.m_UserData = component_instance_data;
+                    params.m_InitParams = init_params;
                     CreateResult result = component_type->m_InitFunction(params);
                     if (result != CREATE_RESULT_OK)
                     {
@@ -681,7 +682,7 @@ namespace dmGameObject
         for (uint32_t i = 0; i < n_objects; ++i)
         {
             Instance* instance = collection->m_Instances[i];
-            if ( ! Init(collection, instance) )
+            if ( ! Init(collection, instance, 0x0) )
             {
                 result = false;
             }

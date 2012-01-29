@@ -123,13 +123,14 @@ namespace dmGameSystem
      *
      * @name factory.create
      * @param url the factory that should create a game object (url)
-     * @param [position] of the new game object, the position of the game object containing the factory is used by default
-     * @param [rotation] of the new game object, the rotation of the game object containing the factory is used by default
+     * @param [position] the position of the new game object, the position of the game object containing the factory is used by default (vector3)
+     * @param [rotation] the rotation of the new game object, the rotation of the game object containing the factory is used by default (quat)
+     * @param [init-params] the parameters that will be the sent to the init-functions of any scripts attached to the new game object (table)
      * @examples
      * How to create a new game object:
      * <pre>
      * function init(self)
-     *     self.my_created_object = factory.create("#factory")
+     *     self.my_created_object = factory.create("#factory", nil, nil, {my_value = 1})
      * end
      *
      * function update(self, dt)
@@ -137,6 +138,11 @@ namespace dmGameSystem
      *     msg.post(msg.url(nil, self.my_created_object), "hello")
      * end
      * </pre>
+     * And then let the new game object have a script attached:
+     * <pre>
+     * function init(self, params)
+     *     -- do something with params.my_value
+     * end
      */
     int FactoryComp_Create(lua_State* L)
     {
@@ -149,38 +155,48 @@ namespace dmGameSystem
             dmGameObject::HInstance sender_instance = (dmGameObject::HInstance)user_data;
             dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
 
-            dmGameSystemDDF::Spawn request;
-            if (dmScript::IsVector3(L, 2))
+            const uint32_t buffer_size = 256;
+            char buffer[buffer_size];
+            dmGameSystemDDF::Spawn* request = (dmGameSystemDDF::Spawn*)buffer;
+
+            uint32_t msg_size = sizeof(dmGameSystemDDF::Spawn);
+            if (top >= 2 && !lua_isnil(L, 2))
             {
-                request.m_Position = Vectormath::Aos::Point3(*dmScript::CheckVector3(L, 2));
+                request->m_Position = Vectormath::Aos::Point3(*dmScript::CheckVector3(L, 2));
             }
             else
             {
-                request.m_Position = dmGameObject::GetWorldPosition(sender_instance);
+                request->m_Position = dmGameObject::GetWorldPosition(sender_instance);
             }
-            if (dmScript::IsQuat(L, 3))
+            if (top >= 3 && !lua_isnil(L, 3))
             {
-                request.m_Rotation = *dmScript::CheckQuat(L, 3);
+                request->m_Rotation = *dmScript::CheckQuat(L, 3);
             }
             else
             {
-                request.m_Rotation = dmGameObject::GetWorldRotation(sender_instance);
+                request->m_Rotation = dmGameObject::GetWorldRotation(sender_instance);
             }
-            request.m_Id = dmGameObject::GenerateUniqueInstanceId(collection);
+            uint32_t table_size = 0;
+            if (top >= 4)
+            {
+                char* table_buffer = &buffer[msg_size];
+                table_size = dmScript::CheckTable(L, table_buffer, buffer_size - msg_size, 4);
+            }
+            request->m_Id = dmGameObject::GenerateUniqueInstanceId(collection);
 
             dmMessage::URL receiver;
 
             dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-            dmMessage::Post(&sender, &receiver, dmHashString64(dmGameSystemDDF::Spawn::m_DDFDescriptor->m_Name), user_data, (uintptr_t)dmGameSystemDDF::Spawn::m_DDFDescriptor, &request, sizeof(dmGameSystemDDF::Spawn));
+            dmMessage::Post(&sender, &receiver, dmHashString64(dmGameSystemDDF::Spawn::m_DDFDescriptor->m_Name), user_data, (uintptr_t)dmGameSystemDDF::Spawn::m_DDFDescriptor, buffer, msg_size + table_size);
             assert(top == lua_gettop(L));
-            dmScript::PushHash(L, request.m_Id);
+            dmScript::PushHash(L, request->m_Id);
             return 1;
         }
         else
         {
             assert(top == lua_gettop(L));
-            return luaL_error(L, "physics.ray_cast is not available from this script-type.");
+            return luaL_error(L, "factory.create is not available from this script-type.");
         }
     }
 

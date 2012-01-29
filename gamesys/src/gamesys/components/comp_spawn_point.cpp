@@ -93,13 +93,20 @@ namespace dmGameSystem
                 else
                 {
                     dmGameSystemDDF::Spawn* spawn_object = (dmGameSystemDDF::Spawn*) params.m_Message->m_Data;
+                    uint32_t msg_size = sizeof(dmGameSystemDDF::Spawn);
+                    uint32_t table_buffer_size = message->m_DataSize - msg_size;
+                    uint8_t* table_buffer = 0x0;
+                    if (table_buffer_size > 0)
+                    {
+                        table_buffer = (uint8_t*)(((uintptr_t)spawn_object) + msg_size);
+                    }
                     SpawnPointComponent* spc = (SpawnPointComponent*) *params.m_UserData;
                     dmhash_t id = spawn_object->m_Id;
                     if (id == 0)
                     {
                         id = dmGameObject::GenerateUniqueInstanceId(collection);
                     }
-                    dmGameObject::Spawn(collection, spc->m_Resource->m_SpawnPointDesc->m_Prototype, id, spawn_object->m_Position, spawn_object->m_Rotation);
+                    dmGameObject::Spawn(collection, spc->m_Resource->m_SpawnPointDesc->m_Prototype, id, table_buffer, spawn_object->m_Position, spawn_object->m_Rotation);
                 }
             }
             else

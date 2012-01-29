@@ -1,5 +1,9 @@
+function init(self, params)
+    self.spawner = params.spawner
+end
+
 function on_message(self, message_id, message, sender)
     if message_id == hash("hello") then
-        msg.post("main:/main#script", "done")
+        msg.post(self.spawner, "done")
     end
 end
