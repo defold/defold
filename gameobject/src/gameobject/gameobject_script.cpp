@@ -242,14 +242,32 @@ namespace dmGameObject
         return 1;
     }
 
-    /*# deletes the instance of the calling script
+    /*# deletes a game object instance
      *
      * @name go.delete
+     * @param [id] optional id of the instance to delete, the instance of the calling script is deleted by default (hash|string)
      */
     int Script_Delete(lua_State* L)
     {
         ScriptInstance* i = ScriptInstance_Check(L);
-        dmGameObject::Delete(i->m_Instance->m_Collection, i->m_Instance);
+        dmGameObject::HInstance instance = i->m_Instance;
+        dmGameObject::HCollection collection = instance->m_Collection;
+        int top = lua_gettop(L);
+        if (top == 1)
+        {
+            dmhash_t id = 0;
+            if (lua_isstring(L, 1))
+            {
+                const char* ident = luaL_checkstring(L, 1);
+                id = GetAbsoluteIdentifier(i->m_Instance, ident, strlen(ident));
+            }
+            else
+            {
+                id = dmScript::CheckHash(L, 1);
+            }
+            instance = GetInstanceFromIdentifier(collection, id);
+        }
+        dmGameObject::Delete(collection, instance);
         return 0;
     }
 
