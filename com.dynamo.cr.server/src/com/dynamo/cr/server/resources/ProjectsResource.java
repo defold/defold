@@ -24,7 +24,9 @@ import com.dynamo.cr.server.ServerException;
 import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
-import com.dynamo.server.git.Git;
+import com.dynamo.server.git.GitFactory;
+import com.dynamo.server.git.GitFactory.Type;
+import com.dynamo.server.git.IGit;
 
 @Path("/projects/{user}")
 @RolesAllowed(value = { "user" })
@@ -55,7 +57,7 @@ public class ProjectsResource extends BaseResource {
             String repositoryRoot = configuration.getRepositoryRoot();
             File projectPath = new File(String.format("%s/%d", repositoryRoot, project.getId()));
             projectPath.mkdir();
-            Git git = new Git();
+            IGit git = GitFactory.create(Type.CGIT);
             String group = null;
             if (configuration.hasRepositoryRoot())
                 group = configuration.getRepositoryGroup();

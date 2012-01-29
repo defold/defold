@@ -72,11 +72,13 @@ import com.dynamo.cr.server.resources.ServerProvider;
 import com.dynamo.cr.server.util.FileUtil;
 import com.dynamo.server.git.CommandUtil;
 import com.dynamo.server.git.CommandUtil.Result;
-import com.dynamo.server.git.Git;
+import com.dynamo.server.git.GitFactory;
+import com.dynamo.server.git.GitFactory.Type;
 import com.dynamo.server.git.GitResetMode;
 import com.dynamo.server.git.GitStage;
 import com.dynamo.server.git.GitState;
 import com.dynamo.server.git.GitStatus;
+import com.dynamo.server.git.IGit;
 import com.google.protobuf.TextFormat;
 import com.sun.grizzly.http.SelectorThread;
 import com.sun.jersey.api.NotFoundException;
@@ -220,7 +222,7 @@ public class Server implements ServerMBean {
 
         threadSelector = GrizzlyWebContainerFactory.create(baseUri, initParams);
 
-        if (!Git.checkGitVersion()) {
+        if (!GitFactory.create(Type.CGIT).checkGitVersion()) {
             // TODO: Hmm, exception...
             throw new RuntimeException("Invalid version of git or not found");
         }
@@ -494,7 +496,7 @@ public class Server implements ServerMBean {
 
         f.getParentFile().mkdirs();
 
-        Git git = new Git();
+        IGit git = GitFactory.create(Type.CGIT);
         String sourcePath = String.format("%s/%s", configuration.getRepositoryRoot(), project);
         git.cloneRepo(sourcePath, p);
 
@@ -619,7 +621,7 @@ public class Server implements ServerMBean {
         User u = getUser(em, user);
         String p = String.format("%s/%s/%d/%s%s", branchRoot, project, u.getId(), branch, path);
         if (revision != null && !revision.equals("")) {
-            Git git = new Git();
+            IGit git = GitFactory.create(Type.CGIT);
             try {
                 return git.show(String.format("%s/%s/%d/%s", branchRoot, project, u.getId(), branch), path.substring(1), revision);
             } catch (IOException e) {
@@ -661,7 +663,7 @@ public class Server implements ServerMBean {
             recursive = true;
 
         String branch_path = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
-        Git git = new Git();
+        IGit git = GitFactory.create(Type.CGIT);
         boolean force = true;
         git.rm(branch_path, path.substring(1), recursive, force); // NOTE: Remove / from path
 
@@ -694,7 +696,7 @@ public class Server implements ServerMBean {
             throw new NotFoundException(String.format("%s not found", source_path));
 
         String branch_path = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
-        Git git = new Git();
+        IGit git = GitFactory.create(Type.CGIT);
         git.mv(branch_path, source.substring(1), destination.substring(1), true); // NOTE: Remove / from path
     }
 
@@ -702,7 +704,7 @@ public class Server implements ServerMBean {
             String path) throws IOException, ServerException {
         User u = getUser(em, user);
         String branch_path = String.format("%s/%s/%d/%s", branchRoot, project, u.getId(), branch);
-        Git git = new Git();
+        IGit git = GitFactory.create(Type.CGIT);
         GitStatus status = git.getStatus(branch_path);
         String localPath = path.substring(1);
         GitStatus.Entry entry = null;
@@ -750,7 +752,7 @@ public class Server implements ServerMBean {
         os.close();
 
         String branch_path = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
-        Git git = new Git();
+        IGit git = GitFactory.create(Type.CGIT);
         try {
             git.add(branch_path, path.substring(1));  // NOTE: Remove / from path
         } catch (Throwable e) {
@@ -779,7 +781,7 @@ public class Server implements ServerMBean {
         ensureProjectBranch(em, project, user, branch);
         String p = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
 
-        Git git = new Git();
+        IGit git = GitFactory.create(Type.CGIT);
         GitState state = git.getState(p);
         GitStatus status = git.getStatus(p);
 
@@ -836,7 +838,7 @@ public class Server implements ServerMBean {
         ensureProjectBranch(em, project, user, branch);
         String p = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
 
-        Git git = new Git();
+        IGit git = GitFactory.create(Type.CGIT);
         git.pull(p);
     }
 
@@ -844,7 +846,7 @@ public class Server implements ServerMBean {
         ensureProjectBranch(em, project, user, branch);
         String p = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
 
-        Git git = new Git();
+        IGit git = GitFactory.create(Type.CGIT);
         return git.commitAll(p, message);
     }
 
@@ -856,7 +858,7 @@ public class Server implements ServerMBean {
 
         String p = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
 
-        Git git = new Git();
+        IGit git = GitFactory.create(Type.CGIT);
         GitStage git_stage;
         if (stage == ResolveStage.BASE) {
             git_stage = GitStage.BASE;
@@ -879,7 +881,7 @@ public class Server implements ServerMBean {
         ensureProjectBranch(em, project, user, branch);
         String p = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
 
-        Git git = new Git();
+        IGit git = GitFactory.create(Type.CGIT);
         return git.commit(p, message);
     }
 
@@ -887,7 +889,7 @@ public class Server implements ServerMBean {
         ensureProjectBranch(em, project, user, branch);
         String p = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
 
-        Git git = new Git();
+        IGit git = GitFactory.create(Type.CGIT);
         git.push(p);
     }
 
@@ -895,7 +897,7 @@ public class Server implements ServerMBean {
         ensureProjectBranch(em, project, user, branch);
         String p = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
 
-        Git git = new Git();
+        IGit git = GitFactory.create(Type.CGIT);
         GitResetMode resetMode = GitResetMode.MIXED;
         if (mode.equals("mixed")) {
             resetMode = GitResetMode.MIXED;
@@ -914,7 +916,7 @@ public class Server implements ServerMBean {
     public Log log(EntityManager em, String project, int maxCount) throws IOException, ServerException {
         getProject(em, project);
         String sourcePath = String.format("%s/%s", configuration.getRepositoryRoot(), project);
-        Git git = new Git();
+        IGit git = GitFactory.create(Type.CGIT);
         return git.log(sourcePath, maxCount);
     }
 
@@ -922,7 +924,7 @@ public class Server implements ServerMBean {
         ensureProjectBranch(em, project, user, branch);
         String p = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
 
-        Git git = new Git();
+        IGit git = GitFactory.create(Type.CGIT);
         return git.log(p, maxCount);
     }
 

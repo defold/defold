@@ -21,14 +21,15 @@ import com.dynamo.cr.protocol.proto.Protocol.Log;
 import com.dynamo.server.git.CommandUtil.Result;
 import com.dynamo.server.git.GitStatus.Entry;
 
-public class Git {
+public class CGit implements IGit {
 
-    protected static Logger logger = LoggerFactory.getLogger(Git.class);
+    protected static Logger logger = LoggerFactory.getLogger(CGit.class);
 
-    public Git() {
+    public CGit() {
     }
 
-    public static boolean checkGitVersion() {
+    @Override
+    public boolean checkGitVersion() {
         try {
             CommandUtil.Result res = execGitCommand(null, "git", "--version");
             if (res.exitValue != 0) {
@@ -101,24 +102,13 @@ public class Git {
         return git_status;
     }
 
-    /**
-     * Clone Git repository (git clone repository directory)
-     * @param repository Repository to clone
-     * @param directory Directory to cloned
-     * @throws IOException
-     */
+    @Override
     public void cloneRepo(String repository, String directory) throws IOException {
         CommandUtil.Result r = execGitCommand(null, "git", "clone", repository, directory);
         checkResult(r);
     }
 
-    /**
-     * Clone Git repository bare (git clone repository directory). core.sharedRepository is set to group. Permissions is set to "g+ws"
-     * @param repository Repository to clone
-     * @param directory Directory to cloned
-     * @param group Group to set for the repository, ie UNIX-group. Use null for default group.
-     * @throws IOException
-     */
+    @Override
     public void cloneRepoBare(String repository, String directory, String group) throws IOException {
         CommandUtil.Result r = execGitCommand(null, "git", "clone", "--bare", "--no-hardlinks", repository, directory);
         checkResult(r);
@@ -135,13 +125,7 @@ public class Git {
         }
     }
 
-    /**
-     * Pull and merge changes. (git pull)
-     * @note Only valid if is GitState.CLEAN state
-     * @param directory Git directory
-     * @return True on success. False if merge conflicts
-     * @throws IOException
-     */
+    @Override
     public boolean pull(String directory) throws IOException {
         if (getState(directory) != GitState.CLEAN) {
             throw new GitException("Pull if only valid if repository is in clean state");
@@ -152,12 +136,7 @@ public class Git {
         return r.exitValue == 0;
     }
 
-    /**
-     * Get state. (git status)
-     * @param directory Directory
-     * @return GitState
-     * @throws IOException
-     */
+    @Override
     public GitState getState(String directory) throws IOException {
         CommandUtil.Result r = execGitCommand(directory, "git", "status", "--porcelain");
         checkResult(r);
@@ -175,16 +154,7 @@ public class Git {
         }
     }
 
-    /**
-     * Get status. (git status)
-     * @note Slightly different behaviour from git status. When in merge mode
-     * files resolved as "yours" are present in the files list even though we file
-     * does not differ. This behaviour is required for graphical merge tools. Modified and deleted
-     * files are supported.
-     * @param directory Directory
-     * @return GitStatus
-     * @throws IOException
-     */
+    @Override
     public GitStatus getStatus(String directory) throws IOException {
         CommandUtil.Result r = execGitCommand(directory, "git", "status", "--porcelain");
         checkResult(r);
@@ -245,12 +215,7 @@ public class Git {
         return status;
     }
 
-    /**
-     * Commit all. (git commit -a -m message)
-     * @param directory Directory
-     * @param message Commit message
-     * @throws IOException
-     */
+    @Override
     public CommitDesc commitAll(String directory, String message) throws IOException {
         if (getState(directory) == GitState.MERGE) {
             throw new GitException("commitAll is not permited when repository is in merge state. Resolve conflicts and use commit() instead.");
@@ -262,12 +227,7 @@ public class Git {
         return log.getCommits(0);
     }
 
-    /**
-     * Commit. (git commit -m message)
-     * @param directory Directory
-     * @param message Commit message
-     * @throws IOException
-     */
+    @Override
     public CommitDesc commit(String directory, String message) throws IOException {
         CommandUtil.Result r = execGitCommand(directory, "git", "commit", "-m", message);
         checkResult(r);
@@ -275,14 +235,7 @@ public class Git {
         return log.getCommits(0);
     }
 
-    /**
-     * Simple conflict resolve. (git checkout-index --stage=X -f FILE + git add FILE)
-     * @note Must be in GitState.MERGE
-     * @param directory Directory
-     * @param file File to resolve
-     * @param stage Resolve to stage
-     * @throws IOException
-     */
+    @Override
     public void resolve(String directory, String file, GitStage stage) throws IOException {
         if (getState(directory) != GitState.MERGE) {
             throw new GitException("resolve() is only valid operation when in MERGE state");
@@ -327,33 +280,19 @@ public class Git {
         }
     }
 
-    /**
-     * Push. (git push)
-     * @param directory Directory
-     * @throws IOException
-     */
+    @Override
     public void push(String directory) throws IOException {
         CommandUtil.Result r = execGitCommand(directory, "git", "push");
         checkResult(r);
     }
 
-    /**
-     * Add file (git add)
-     * @param directory Directory
-     * @param file File to add
-     * @throws IOException
-     */
+    @Override
     public void add(String directory, String file) throws IOException {
         CommandUtil.Result r = execGitCommand(directory, "git", "add", file);
         checkResult(r);
     }
 
-    /**
-     * Number of commits ahead origin/master
-     * @param directory Directory
-     * @return Number of commits ahead of origin/master
-     * @throws IOException
-     */
+    @Override
     public int commitsAhead(String directory) throws IOException {
         CommandUtil.Result r;
         r = execGitCommand(directory, "git", "fetch");
@@ -365,12 +304,7 @@ public class Git {
         return tokenizer.countTokens();
     }
 
-    /**
-     * Number of commits behind origin/master
-     * @param directory Directory
-     * @return Number of commits ahead of origin/master
-     * @throws IOException
-     */
+    @Override
     public int commitsBehind(String directory) throws IOException {
         CommandUtil.Result r;
         r = execGitCommand(directory, "git", "fetch");
@@ -382,13 +316,7 @@ public class Git {
         return tokenizer.countTokens();
     }
 
-    /**
-     * Remove file
-     * @param directory Directory
-     * @param file File to remove
-     * @param force Force delete (-f)
-     * @throws IOException
-     */
+    @Override
     public void rm(String directory, String file, boolean recursive, boolean force) throws IOException {
         CommandUtil.Result r;
         if (force)
@@ -404,14 +332,7 @@ public class Git {
         checkResult(r);
     }
 
-    /**
-     * Move or rename resource
-     * @param directory Directory
-     * @param source Source resource
-     * @param destination Destination resource
-     * @param force Force delete (-f)
-     * @throws IOException
-     */
+    @Override
     public void mv(String directory, String source, String destination, boolean force) throws IOException {
         CommandUtil.Result r;
         if (force)
@@ -421,13 +342,7 @@ public class Git {
         checkResult(r);
     }
 
-    /**
-     * Checkout resource from repository
-     * @param directory Directory of the repository
-     * @param file Path of the resource to checkout, relative repository
-     * @param force Continue even if the resource is unmerged
-     * @throws IOException
-     */
+    @Override
     public void checkout(String directory, String file, boolean force) throws IOException {
         CommandUtil.Result r;
         if (force)
@@ -437,13 +352,7 @@ public class Git {
         checkResult(r);
     }
 
-    /**
-     * Resets the index to the specified target version.
-     * @param directory Directory of the repository
-     * @param file Path of the resource to reset, relative repository. null means the whole tree will be reset.
-     * @param target Target version to reset to
-     * @throws IOException
-     */
+    @Override
     public void reset(String directory, GitResetMode resetMode, String file, String target) throws IOException {
         CommandUtil.Result r;
         String reset;
@@ -474,11 +383,7 @@ public class Git {
         checkResult(r);
     }
 
-    /**
-     * Create and initialize a new git repository. core.sharedRepository is set to group. Permissions is set to "g+ws"
-     * @param path path to where the repository should be created
-     * @param group Group to set for the repository, ie UNIX-group. Use null for default group.
-     */
+    @Override
     public void initBare(String path, String group) throws IOException {
         Result r = execGitCommand(path, "git", "init", "--bare");
         checkResult(r);
@@ -495,36 +400,20 @@ public class Git {
         }
     }
 
-    /**
-     * Removes a git repo from the file system. Use with caution since no branches or clones are removed.
-     * @param path path of the repository
-     */
+    @Override
     public void rmRepo(String path) throws IOException {
         Result r = CommandUtil.execCommand(new String[] {"rm", "-rf", path});
         checkResult(r);
     }
 
-    /**
-     * Returns the content of the file at the specified revision, runs:
-     * git show {revision}:{file}
-     * @param directory Repository root
-     * @param file File to be read
-     * @param revision File revision
-     * @return File content
-     */
+    @Override
     public byte[] show(String directory, String file, String revision) throws IOException {
         Result r = execGitCommand(directory, "git", "show", String.format("%s:%s", revision, file));
         checkResult(r);
         return r.stdOut.toString().getBytes();
     }
 
-    /**
-     * Returns an array of performed commits on the branch at the specified directory with a specified max count. The array is ordered from newest to oldest.
-     * git log --pretty=format:"%H%x00%cn%x00%ce%x00%s"
-     * @param directory Repository root
-     * @param maxCount Maximum number of commits
-     * @return Log containing commit messages
-     */
+    @Override
     public Log log(String directory, int maxCount) throws IOException {
         Result r = execGitCommand(directory, "git", "log", "--pretty=format:%H%x00%cn%x00%ce%x00%ci%x00%s");
         checkResult(r);
@@ -546,15 +435,7 @@ public class Git {
         return logBuilder.build();
     }
 
-    /**
-     * Configures the email and name for the user of the specified directory
-     * git config --file=.git/config user.email {email}
-     * git config --file=.git/config user.name {name}
-     * @param directory Directory of the repository
-     * @param email Email of the user
-     * @param name Full name of the user
-     * @throws IOException
-     */
+    @Override
     public void configUser(String directory, String email, String name) throws IOException {
         String configPath = ".git/config";
         String fileParam = String.format("--file=%s", configPath);

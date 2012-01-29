@@ -12,23 +12,42 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collection;
 
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 
 import com.dynamo.cr.protocol.proto.Protocol.CommitDesc;
 import com.dynamo.cr.protocol.proto.Protocol.Log;
 import com.dynamo.server.git.CommandUtil;
-import com.dynamo.server.git.Git;
 import com.dynamo.server.git.GitException;
+import com.dynamo.server.git.GitFactory;
 import com.dynamo.server.git.GitResetMode;
 import com.dynamo.server.git.GitStage;
 import com.dynamo.server.git.GitState;
 import com.dynamo.server.git.GitStatus;
+import com.dynamo.server.git.IGit;
+import com.dynamo.server.git.GitFactory.Type;
 
+@RunWith(value = Parameterized.class)
 public class GitTest {
 
-    private Git git;
+    private IGit git;
+    private Type type;
+
+    public GitTest(Type type) {
+        this.type = type;
+    }
+
+    @Parameters
+    public static Collection<Type[]> data() {
+        Type[][] data = new Type[][] { { Type.JGIT }, { Type.CGIT } };
+        return Arrays.asList(data);
+    }
 
     void execCommand(String command) throws IOException {
         CommandUtil.Result r = CommandUtil.execCommand(new String[] {"/bin/bash", command});
@@ -42,7 +61,7 @@ public class GitTest {
     @Before
     public void setUp() throws IOException, InterruptedException {
         execCommand("scripts/setup_testgit_repo.sh");
-        git = new Git();
+        git = GitFactory.create(type);
     }
 
     String readEntireFile(File file) throws IOException {
@@ -330,7 +349,6 @@ public class GitTest {
 
         state = git.getState(repo.getPath());
         assertEquals(GitState.CLEAN, state);
-
         assertTrue(readEntireFile(new File(repo, "main.cpp")).indexOf("testing") != -1);
     }
 
