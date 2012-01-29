@@ -27,6 +27,7 @@
    <plugins>
       <plugin id="com.dynamo.cr.common"/>
       <plugin id="com.dynamo.cr.server"/>
+      <plugin id="com.google.common"/>
       <plugin id="javax.servlet"/>
       <plugin id="org.eclipse.core.contenttype"/>
       <plugin id="org.eclipse.core.jobs"/>
