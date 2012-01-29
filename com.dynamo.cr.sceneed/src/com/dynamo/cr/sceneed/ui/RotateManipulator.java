@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import javax.vecmath.Matrix4d;
+import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
 import javax.vecmath.Vector4d;
 
@@ -72,8 +73,10 @@ public class RotateManipulator extends RootManipulator {
 
             transform = new Matrix4d();
             node.getWorldTransform(transform);
+            Vector4d translation = new Vector4d();
             transform.getColumn(3, translation);
             center.add(translation);
+            this.translation.set(translation.getX(), translation.getY(), translation.getZ());
         }
 
         Matrix4d transform = new Matrix4d();
@@ -83,7 +86,7 @@ public class RotateManipulator extends RootManipulator {
         transform.getColumn(3, translation);
         rotation.set(transform);
 
-        setTranslation(translation);
+        setTranslation(new Point3d(translation.getX(), translation.getY(), translation.getZ()));
         setRotation(rotation);
     }
 

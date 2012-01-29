@@ -11,7 +11,8 @@ import com.dynamo.cr.sceneed.core.Node;
 public class ManipulatorUtil {
 
     public static Vector4d closestPoint(Node node, IRenderView renderView, MouseEvent e) {
-        Vector4d pos = node.getTranslation();
+        Vector4d pos = new Vector4d(node.getTranslation());
+        pos.setW(1.0);
         Vector4d axis = transform(node, 1, 0, 0);
 
         Vector4d clickPos = new Vector4d();

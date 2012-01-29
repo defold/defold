@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 
 import javax.vecmath.Matrix4d;
+import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
 import javax.vecmath.Tuple3d;
 import javax.vecmath.Vector3d;
@@ -45,8 +46,8 @@ public abstract class Node implements IAdaptable {
     private AABB worldAABB = new AABB();
     private boolean worldAABBDirty = true;
 
-    @Property
-    protected Vector4d translation = new Vector4d(0, 0, 0, 0);
+    @Property(displayName="position")
+    protected Point3d translation = new Point3d(0, 0, 0);
 
     private Quat4d rotation = new Quat4d(0, 0, 0, 1);
 
@@ -134,17 +135,17 @@ public abstract class Node implements IAdaptable {
     }
 
     public Node(Vector4d translation, Quat4d rotation) {
-        setTranslation(translation);
+        setTranslation(new Point3d(translation.getX(), translation.getY(), translation.getZ()));
         setRotation(rotation);
     }
 
-    public void setTranslation(Vector4d translation) {
+    public void setTranslation(Point3d translation) {
         this.translation.set(translation);
         setDirty();
     }
 
-    public Vector4d getTranslation() {
-        return new Vector4d(translation);
+    public Point3d getTranslation() {
+        return new Point3d(this.translation);
     }
 
     public void setRotation(Quat4d rotation) {
@@ -229,7 +230,7 @@ public abstract class Node implements IAdaptable {
     public void getLocalTransform(Matrix4d transform)
     {
         transform.setIdentity();
-        transform.setColumn(3, translation);
+        transform.set(new Vector3d(translation));
         transform.m33 = 1;
         transform.setRotation(rotation);
     }
@@ -415,12 +416,14 @@ public abstract class Node implements IAdaptable {
         Quat4d rotation = new Quat4d();
         local.getColumn(3, translation);
         rotation.set(local);
-        setTranslation(translation);
+        setTranslation(new Point3d(translation.getX(), translation.getY(), translation.getZ()));
         setRotation(rotation);
     }
 
     public void setLocalTransform(Matrix4d transform) {
-        transform.getColumn(3, translation);
+        Vector3d translation = new Vector3d();
+        transform.get(translation);
+        this.translation.set(translation);
         rotation.set(transform);
     }
 }
