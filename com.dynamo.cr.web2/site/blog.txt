@@ -1,5 +1,91 @@
 :max-width: 45em
 
+Update - Introduction & Spawning
+--------------------------------
+_January 31, 2012_
+
+The last week we have been busy improving the documentation and implementing a few longed for features.
+
+Introduction
+~~~~~~~~~~~~
+
+We have worked hard at writing more documentation and are finally ready to show the new link:#getting_started:[introduction].
+It comes with a new link:#tutorials:side_scroller[tutorial], which demonstrates tweaking and the construction of game objects.
+We hope that you can gain some more insight into our design from the introduction.
+Hopefully, most of it should be old news by now but helpful for new users.
+
+Spawning
+~~~~~~~~
+
+Due to popular request, we have improved the creation of game objects while running the game.
+We have introduced a new function called +factory.create+.
+It returns the id of the created game object so it can be used for message passing.
+In accordance with this we have also extended the +msg.post+ function to take an id instead of a full url.
+When passing an id the following two calls are equivalent:
+
+[source,lua]
+----
+msg.post(my_id, "my_messasge")
+msg.post(msg.url(nil, my_id, nil), "my_message")
+----
+
+We have also implemented the abillity to pass custom parameters to the +factory.create+ function, which can be received in the init-function of a script.
+
+To show by example, you can create a new game object like so:
+
+[source,lua]
+----
+factory.create("#factory", go.get_position(), go.get_rotation(), {my_value = some_value})
+----
+
+And then use the +my_value+ parameter in the script of the created game object:
+
+[source,lua]
+----
+function init(self, params)
+    self.my_important_value = params.my_value
+    -- use self.my_important_value later
+end
+----
+
+Note that we assume in the first example that the game object has a spawn point component called +factory+ and that the position and rotation of the original game object is sufficient.
+Factory is a new name for the spawn point component we used in the introduction.
+We haven't changed the name of the component yet, just the name of the new function.
+We are sorry if this is confusing, but in short you should be able to use your spawn point components as usual and just use the new function for triggering them.
+We will let you know when we change the name of the actual component.
+
+The biggest benefit of this is the ability of separating the behavior of your newly created game objects without having to rewrite their scripts.
+Our plan is to introduce this same feature when adding game objects in a collection, so you can specify different starting values for them too.
+We will implement this as soon as it deems necessary.
+
+We have also extended the +go.delete+ function to take an optional id.
+This means that you can delete other game objects than the one containing your script.
+If you leave out the id, it deletes the game object containing the script, as usual.
+
+[source,lua]
+----
+go.delete(some_id)
+----
+
+Bugs
+~~~~
+
+We also managed to fix some more bugs:
+
+. Collision objects didn't contain the group +default+ in their masks by default, which was misleading.
+. Fonts didn't have the appropriate _Material_ set by default.
+. Positions for components (sprites and collision objects) were specified in 4d instead of 3d, which was confusing.
+. The platform template project had some issues resulting from earlier updates.
+
+Roadmap
+~~~~~~~
+
+The link:https://docs.google.com/document/d/1I-0Y2zfUjsG-E44gRSxabLXaN19jB6p7EfvwICCcCXk/edit?hl=en_US[roadmap] has been updated and you are most welcome to contribute by commenting on what is important to fix.
+Our goal is to involve you in the process of prioritizing what needs to be done.
+Please let us know if you see any better way of achieving this.
+
+Hope you like these new features and we look forward to hearing your feedback in the link:http://groups.google.com/group/defold-users?hl=en[user group].
+
 Update - Feature Requests & Bug Reports
 ---------------------------------------
 _January 15, 2012_
