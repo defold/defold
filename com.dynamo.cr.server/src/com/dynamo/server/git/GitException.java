@@ -13,4 +13,8 @@ public class GitException extends IOException {
         super(string);
     }
 
+    public GitException(Throwable e) {
+        super(e);
+    }
+
 }

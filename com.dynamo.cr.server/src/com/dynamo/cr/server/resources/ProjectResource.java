@@ -39,7 +39,9 @@ import com.dynamo.cr.server.ServerException;
 import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
-import com.dynamo.server.git.Git;
+import com.dynamo.server.git.GitFactory;
+import com.dynamo.server.git.GitFactory.Type;
+import com.dynamo.server.git.IGit;
 import com.sun.jersey.api.NotFoundException;
 
 /*
@@ -290,7 +292,7 @@ public class ProjectResource extends BaseResource {
         Configuration configuration = server.getConfiguration();
         String repositoryRoot = configuration.getRepositoryRoot();
         File projectPath = new File(String.format("%s/%d", repositoryRoot, project.getId()));
-        Git git = new Git();
+        IGit git = GitFactory.create(Type.CGIT);
         try {
             git.rmRepo(projectPath.getAbsolutePath());
             em.getTransaction().begin();

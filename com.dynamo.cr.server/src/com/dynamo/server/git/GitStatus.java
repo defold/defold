@@ -14,6 +14,11 @@ public class GitStatus {
         public char indexStatus, workingTreeStatus;
         public String file;
         public String original;
+
+        @Override
+        public String toString() {
+            return String.format("[%c%c] %s -> %s", indexStatus, workingTreeStatus, original, file);
+        }
     }
 
     public List<Entry> files = new ArrayList<GitStatus.Entry>();
