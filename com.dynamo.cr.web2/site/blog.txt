@@ -4,7 +4,7 @@ Update - Introduction & Spawning
 --------------------------------
 _January 31, 2012_
 
-The last week we have been busy improving the documentation and implementing a few longed for features.
+The last two weeks we have been busy improving the documentation and implementing a few longed for features.
 
 Introduction
 ~~~~~~~~~~~~
