@@ -1250,42 +1250,37 @@ namespace dmGameObject
 
         assert(collection != 0x0);
 
-        bool ret = true;
-        if (!DispatchMessages(collection, collection->m_FrameSocket))
-            ret = false;
-
         collection->m_InUpdate = 1;
 
-        if (ret)
+        bool ret = true;
+
+        uint32_t component_types = collection->m_Register->m_ComponentTypeCount;
+        for (uint32_t i = 0; i < component_types; ++i)
         {
-            uint32_t component_types = collection->m_Register->m_ComponentTypeCount;
-            for (uint32_t i = 0; i < component_types; ++i)
+            uint16_t update_index = collection->m_Register->m_ComponentTypesOrder[i];
+            ComponentType* component_type = &collection->m_Register->m_ComponentTypes[update_index];
+
+            DM_COUNTER(component_type->m_Name, collection->m_ComponentInstanceCount[update_index]);
+
+            if (component_type->m_UpdateFunction)
             {
-                uint16_t update_index = collection->m_Register->m_ComponentTypesOrder[i];
-                ComponentType* component_type = &collection->m_Register->m_ComponentTypes[update_index];
-
-                DM_COUNTER(component_type->m_Name, collection->m_ComponentInstanceCount[update_index]);
-
-                if (component_type->m_UpdateFunction)
-                {
-                    DM_PROFILE(GameObject, component_type->m_Name);
-                    ComponentsUpdateParams params;
-                    params.m_Collection = collection;
-                    params.m_UpdateContext = update_context;
-                    params.m_World = collection->m_ComponentWorlds[update_index];
-                    params.m_Context = component_type->m_Context;
-                    UpdateResult res = component_type->m_UpdateFunction(params);
-                    if (res != UPDATE_RESULT_OK)
-                        ret = false;
-                }
-                // TODO: Solve this better! Right now the worst is assumed, which is that every component updates some transforms as well as
-                // demands updated child-transforms. Many redundant calculations. This could be solved by splitting the component Update-callback
-                // into UpdateTrasform, then Update or similar
-                UpdateTransforms(collection);
-
-                if (!DispatchMessages(collection, collection->m_ComponentSocket))
+                DM_PROFILE(GameObject, component_type->m_Name);
+                ComponentsUpdateParams params;
+                params.m_Collection = collection;
+                params.m_UpdateContext = update_context;
+                params.m_World = collection->m_ComponentWorlds[update_index];
+                params.m_Context = component_type->m_Context;
+                UpdateResult res = component_type->m_UpdateFunction(params);
+                if (res != UPDATE_RESULT_OK)
                     ret = false;
             }
+            // TODO: Solve this better! Right now the worst is assumed, which is that every component updates some transforms as well as
+            // demands updated child-transforms. Many redundant calculations. This could be solved by splitting the component Update-callback
+            // into UpdateTrasform, then Update or similar
+            UpdateTransforms(collection);
+
+            if (!DispatchMessages(collection, collection->m_ComponentSocket))
+                ret = false;
         }
 
         collection->m_InUpdate = 0;
@@ -1302,25 +1297,6 @@ namespace dmGameObject
         assert(reg);
 
         bool result = true;
-
-        if (collection->m_InstancesToDelete.Size() > 0)
-        {
-            uint32_t n_to_delete = collection->m_InstancesToDelete.Size();
-            for (uint32_t j = 0; j < n_to_delete; ++j)
-            {
-                uint16_t index = collection->m_InstancesToDelete[j];
-                Instance* instance = collection->m_Instances[index];
-
-                assert(collection->m_Instances[instance->m_Index] == instance);
-                assert(instance->m_ToBeDeleted);
-                if (instance->m_Initialized)
-                    if (!Final(collection, instance) && result)
-                        result = false;
-            }
-        }
-
-        if (!DispatchMessages(collection, collection->m_ComponentSocket) && result)
-            result = false;
 
         uint32_t component_types = reg->m_ComponentTypeCount;
         for (uint32_t i = 0; i < component_types; ++i)
@@ -1341,7 +1317,28 @@ namespace dmGameObject
             }
         }
 
-        if (!DispatchMessages(collection, collection->m_ComponentSocket) && result)
+        if (collection->m_InstancesToDelete.Size() > 0)
+        {
+            uint32_t n_to_delete = collection->m_InstancesToDelete.Size();
+            for (uint32_t j = 0; j < n_to_delete; ++j)
+            {
+                uint16_t index = collection->m_InstancesToDelete[j];
+                Instance* instance = collection->m_Instances[index];
+
+                assert(collection->m_Instances[instance->m_Index] == instance);
+                assert(instance->m_ToBeDeleted);
+                if (instance->m_Initialized)
+                    if (!Final(collection, instance) && result)
+                        result = false;
+            }
+        }
+
+        // Some components might have sent messages in their final()
+        if (!DispatchMessages(collection, collection->m_ComponentSocket))
+            result = false;
+
+        // Frame dispatch, handle e.g. spawning
+        if (!DispatchMessages(collection, collection->m_FrameSocket))
             result = false;
 
         if (collection->m_InstancesToDelete.Size() > 0)

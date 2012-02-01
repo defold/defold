@@ -9,11 +9,9 @@ end
 
 function update(self, dt)
     local rot = go.get_world_rotation()
-    local expired = false
     if self.hit_response then
-        expired = true
-        local receiver = msg.url()
-        receiver.path = self.hit_response.id
+        go.delete()
+        factory.create("#factory")
         msg.post(receiver, "hit", { damage = self.impact_damage })
     else
         local pos = go.get_world_position()
@@ -26,9 +24,6 @@ function update(self, dt)
         go.set_position(pos)
         -- request ray cast
         physics.ray_cast(prev_pos, next_pos, {self.target_group}, 1)
-    end
-    if expired then
-        go.delete()
     end
 end
 

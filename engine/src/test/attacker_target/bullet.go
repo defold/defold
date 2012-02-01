@@ -6,3 +6,8 @@ components {
   id: "script"
   component: "/attacker_target/bullet.script"
 }
+embedded_components {
+  id: "factory"
+  type: "spawnpoint"
+  data: "prototype: \"/attacker_target/explosion.go\""
+}
