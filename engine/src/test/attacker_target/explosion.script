@@ -1,0 +1,7 @@
+local impact_damage = 0.2
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("collision_response") then
+        msg.post(message.other_id, "hit", { damage = impact_damage })
+    end
+end
