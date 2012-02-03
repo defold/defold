@@ -10,6 +10,12 @@
             presenter="com.dynamo.cr.go.core.GameObjectPresenter"
             resource-type="com.dynamo.cr.go.core.resourcetypes.gameObject">
       </node-type>
+      <node-type
+            id="com.dynamo.cr.go.core.nodes.collection"
+            loader="com.dynamo.cr.go.core.CollectionLoader"
+            node="com.dynamo.cr.go.core.CollectionNode"
+            resource-type="com.dynamo.cr.go.resourcetypes.Collection">
+      </node-type>
    </extension>
    <extension
          point="org.eclipse.core.expressions.definitions">
@@ -61,6 +67,22 @@
             <reference-type-class
                   type-class="component">
             </reference-type-class>
+         </references>
+      </resource-type>
+      <resource-type
+            file-extension="collection"
+            id="com.dynamo.cr.go.resourcetypes.Collection"
+            name="Collection"
+            proto-message-class="com.dynamo.gameobject.proto.GameObject$CollectionDesc"
+            resource-refactor-participant-class="com.dynamo.cr.go.core.refactoring.CollectionRefactorParticipant"
+            template-data="name: &apos;default&apos;">
+         <references>
+            <reference-resource-type
+                  resource-type="com.dynamo.cr.go.core.resourcetypes.gameObject">
+            </reference-resource-type>
+            <reference-resource-type
+                  resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Collection">
+            </reference-resource-type>
          </references>
       </resource-type>
    </extension>
