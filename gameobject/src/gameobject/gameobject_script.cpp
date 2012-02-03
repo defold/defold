@@ -243,9 +243,16 @@ namespace dmGameObject
     }
 
     /*# deletes a game object instance
+     * Use this function to delete a game object identified by its id.
      *
      * @name go.delete
      * @param [id] optional id of the instance to delete, the instance of the calling script is deleted by default (hash|string)
+     * @examples
+     * This example demonstrates how to delete a game object with the id "my_game_object".
+     * <pre>
+     * local id = go.get_id("my_game_object") -- retrieve the id of the game object to be deleted
+     * go.detele(id) -- delete the game object
+     * </pre>
      */
     int Script_Delete(lua_State* L)
     {
