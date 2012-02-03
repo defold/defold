@@ -107,6 +107,7 @@ message ProjectInfo {
     repeated UserInfo members = 6;
     required int64 created = 7;
     required int64 lastUpdated = 8;
+    required string repositoryUrl = 9;
 }
 
 message ProjectInfoList {

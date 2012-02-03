@@ -7,7 +7,7 @@ import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
-import com.sun.grizzly.util.buf.HexUtils;
+import org.glassfish.grizzly.http.util.HexUtils;
 
 /**
  * LRU-cache for etags

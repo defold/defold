@@ -40,5 +40,6 @@ message Configuration
     repeated ProjectTemplate project_templates = 14;
     optional string repository_group = 15;
     optional string builtins_directory = 16;
+    required string hostname = 17;
 }
 

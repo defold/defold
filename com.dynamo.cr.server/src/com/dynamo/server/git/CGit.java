@@ -444,4 +444,20 @@ public class CGit implements IGit {
         r = execGitCommand(directory, "git", "config", fileParam, "user.name", name);
         checkResult(r);
     }
+
+    @Override
+    public void config(String directory, String key, String value) throws IOException {
+        Result r = execGitCommand(directory, "git", "config", key, value);
+        checkResult(r);
+    }
+
+    @Override
+    public void setUsername(String userName) {
+        throw new RuntimeException("Not implemented.");
+    }
+
+    @Override
+    public void setPassword(String passWord) {
+        throw new RuntimeException("Not implemented.");
+    }
 }

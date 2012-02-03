@@ -74,6 +74,7 @@ public class ProjectsResource extends BaseResource {
             else {
                 git.initBare(projectPath.getAbsolutePath(), group);
             }
+            git.config(projectPath.getAbsolutePath(), "http.receivepack", "true");
         }
         catch (Throwable e) {
             logger.error(e.getMessage(), e);
@@ -85,7 +86,7 @@ public class ProjectsResource extends BaseResource {
         }
         em.close();
 
-        return ResourceUtil.createProjectInfo(project);
+        return ResourceUtil.createProjectInfo(server.getConfiguration(), project);
     }
 
     @GET
@@ -97,7 +98,7 @@ public class ProjectsResource extends BaseResource {
 
         Builder listBuilder = ProjectInfoList.newBuilder();
         for (Project project : list) {
-            ProjectInfo pi = ResourceUtil.createProjectInfo(project);
+            ProjectInfo pi = ResourceUtil.createProjectInfo(server.getConfiguration(), project);
             listBuilder.addProjects(pi);
         }
 
