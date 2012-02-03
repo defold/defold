@@ -45,11 +45,44 @@
          </with>
       </definition>
       <definition
+            id="com.dynamo.cr.go.core.definitions.collectionSelected">
+         <with
+               variable="selection">
+            <iterate
+                  operator="or">
+               <instanceof
+                     value="com.dynamo.cr.go.core.CollectionNode">
+               </instanceof>
+            </iterate>
+         </with>
+      </definition>
+      <definition
+            id="com.dynamo.cr.go.core.definitions.instanceSelected">
+         <with
+               variable="selection">
+            <iterate
+                  operator="or">
+               <instanceof
+                     value="com.dynamo.cr.go.core.InstanceNode">
+               </instanceof>
+            </iterate>
+         </with>
+      </definition>
+      <definition
             id="com.dynamo.cr.go.core.definitions.gameObjectEditorActive">
          <with
                variable="activeEditorId">
             <equals
                   value="com.dynamo.cr.go.ui.goEditor">
+            </equals>
+         </with>
+      </definition>
+      <definition
+            id="com.dynamo.cr.go.core.definitions.collectionEditorActive">
+         <with
+               variable="activeEditorId">
+            <equals
+                  value="com.dynamo.cr.go.ui.collectionEditor">
             </equals>
          </with>
       </definition>
@@ -82,7 +115,7 @@
                   resource-type="com.dynamo.cr.go.core.resourcetypes.gameObject">
             </reference-resource-type>
             <reference-resource-type
-                  resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Collection">
+                  resource-type="com.dynamo.cr.go.resourcetypes.Collection">
             </reference-resource-type>
          </references>
       </resource-type>
@@ -144,10 +177,59 @@
                         <instanceof
                               value="com.dynamo.cr.go.core.ComponentTypeNode">
                         </instanceof>
+                        <instanceof
+                              value="com.dynamo.cr.go.core.GameObjectNode">
+                        </instanceof>
+                        <instanceof
+                              value="com.dynamo.cr.go.core.GameObjectInstanceNode">
+                        </instanceof>
+                        <instanceof
+                              value="com.dynamo.cr.go.core.CollectionNode">
+                        </instanceof>
+                        <instanceof
+                              value="com.dynamo.cr.go.core.CollectionInstanceNode">
+                        </instanceof>
                      </or>
                   </iterate>
                </and>
             </with>
+         </activeWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.go.ui.handlers.AddGameObjectHandler"
+            commandId="com.dynamo.cr.sceneed.ui.commands.add">
+         <activeWhen>
+            <or>
+               <reference
+                     definitionId="com.dynamo.cr.go.core.definitions.collectionSelected">
+               </reference>
+               <reference
+                     definitionId="com.dynamo.cr.go.core.definitions.instanceSelected">
+               </reference>
+            </or>
+         </activeWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.go.ui.handlers.AddCollectionHandler"
+            commandId="com.dynamo.cr.sceneed.ui.commands.addLink">
+         <activeWhen>
+            <or>
+               <reference
+                     definitionId="com.dynamo.cr.go.core.definitions.collectionSelected">
+               </reference>
+               <reference
+                     definitionId="com.dynamo.cr.go.core.definitions.instanceSelected">
+               </reference>
+            </or>
+         </activeWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.go.ui.handlers.RemoveInstanceHandler"
+            commandId="org.eclipse.ui.edit.delete">
+         <activeWhen>
+            <reference
+                  definitionId="com.dynamo.cr.go.core.definitions.instanceSelected">
+            </reference>
          </activeWhen>
       </handler>
    </extension>
@@ -178,6 +260,28 @@
                </reference>
             </visibleWhen>
          </command>
+         <command
+               commandId="com.dynamo.cr.sceneed.ui.commands.add"
+               label="Add Game Object"
+               style="push">
+            <visibleWhen
+                  checkEnabled="false">
+               <reference
+                     definitionId="com.dynamo.cr.go.core.definitions.collectionSelected">
+               </reference>
+            </visibleWhen>
+         </command>
+         <command
+               commandId="com.dynamo.cr.sceneed.ui.commands.addLink"
+               label="Add Collection"
+               style="push">
+            <visibleWhen
+                  checkEnabled="false">
+               <reference
+                     definitionId="com.dynamo.cr.go.core.definitions.collectionSelected">
+               </reference>
+            </visibleWhen>
+         </command>
       </menuContribution>
       <menuContribution
             allPopups="false"
@@ -203,6 +307,27 @@
                </or>
             </visibleWhen>
          </menu>
+         <menu
+               label="Collection">
+            <command
+                  commandId="com.dynamo.cr.sceneed.ui.commands.add"
+                  label="Add Game Object"
+                  style="push">
+            </command>
+            <command
+                  commandId="com.dynamo.cr.sceneed.ui.commands.addLink"
+                  label="Add Collection"
+                  style="push">
+            </command>
+            <visibleWhen
+                  checkEnabled="false">
+               <or>
+                  <reference
+                        definitionId="com.dynamo.cr.go.core.definitions.collectionEditorActive">
+                  </reference>
+               </or>
+            </visibleWhen>
+         </menu>
       </menuContribution>
    </extension>
    <extension
@@ -214,6 +339,13 @@
             id="com.dynamo.cr.go.ui.wizards.gameObjectNewWizard"
             name="Game Object File">
       </wizard>
+      <wizard
+            category="com.dynamo.cr.editor.wizardCategory"
+            class="com.dynamo.cr.go.ui.wizards.CollectionNewWizard"
+            icon="icons/bricks.png"
+            id="com.dynamo.cr.go.wizards.CollectionNewWizard"
+            name="Collection File">
+      </wizard>
    </extension>
    <extension
          point="org.eclipse.ui.perspectiveExtensions">
@@ -222,6 +354,9 @@
          <newWizardShortcut
                id="com.dynamo.cr.go.ui.wizards.gameObjectNewWizard">
          </newWizardShortcut>
+         <newWizardShortcut
+               id="com.dynamo.cr.go.wizards.CollectionNewWizard">
+         </newWizardShortcut>
       </perspectiveExtension>
    </extension>
    <extension
@@ -229,6 +364,11 @@
       <commonWizard
             type="new"
             wizardId="com.dynamo.cr.go.ui.wizards.gameObjectNewWizard">
+         <enablement></enablement>
+      </commonWizard>
+      <commonWizard
+            type="new"
+            wizardId="com.dynamo.cr.go.wizards.CollectionNewWizard">
          <enablement></enablement>
       </commonWizard>
    </extension>
@@ -241,6 +381,15 @@
             extensions="go"
             icon="icons/brick.png"
             id="com.dynamo.cr.go.ui.goEditor"
+            name="Scene Editor">
+      </editor>
+      <editor
+            class="com.dynamo.cr.sceneed.ui.SceneEditor"
+            contributorClass="com.dynamo.cr.editor.ui.DefoldEditorActionBarContributor"
+            default="true"
+            extensions="collection"
+            icon="icons/bricks.png"
+            id="com.dynamo.cr.go.ui.collectionEditor"
             name="Scene Editor">
       </editor>
    </extension>

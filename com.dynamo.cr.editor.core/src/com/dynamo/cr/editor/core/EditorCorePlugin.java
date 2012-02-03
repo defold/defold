@@ -55,7 +55,8 @@ public class EditorCorePlugin implements BundleActivator, IResourceTypeRegistry 
 	 * (non-Javadoc)
 	 * @see org.osgi.framework.BundleActivator#start(org.osgi.framework.BundleContext)
 	 */
-	@SuppressWarnings("unchecked")
+	@Override
+    @SuppressWarnings("unchecked")
     public void start(BundleContext bundleContext) throws Exception {
 		EditorCorePlugin.context = bundleContext;
         plugin = this;
@@ -111,7 +112,7 @@ public class EditorCorePlugin implements BundleActivator, IResourceTypeRegistry 
             IResourceType resourceType = new ResourceType(id, name, fileExtension, templateData, messageClass, embeddable != null && embeddable.equals("true"), editSupport, type, refacorParticipant, referenceTypeClasses, referenceResourceTypeIds);
 
             if (extensionToResourceType.containsKey(fileExtension)) {
-                System.err.println(String.format("ERROR: Resoruce type for extension '%s' already registred (%s)", fileExtension, resourceType));
+                System.err.println(String.format("ERROR: Resource type for extension '%s' already registred (%s)", fileExtension, resourceType));
             }
 
             resourceTypes.add(resourceType);
@@ -124,7 +125,8 @@ public class EditorCorePlugin implements BundleActivator, IResourceTypeRegistry 
 	 * (non-Javadoc)
 	 * @see org.osgi.framework.BundleActivator#stop(org.osgi.framework.BundleContext)
 	 */
-	public void stop(BundleContext bundleContext) throws Exception {
+	@Override
+    public void stop(BundleContext bundleContext) throws Exception {
 		EditorCorePlugin.context = null;
         plugin = null;
 	}

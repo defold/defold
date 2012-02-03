@@ -1,4 +1,4 @@
-package com.dynamo.cr.ddfeditor.wizards;
+package com.dynamo.cr.go.ui.wizards;
 
 import com.dynamo.cr.editor.ui.AbstractNewDdfWizard;
 

@@ -2,17 +2,15 @@ package com.dynamo.cr.go.core;
 
 import org.eclipse.osgi.util.NLS;
 
-/**
- * This class will be moved once the errors are moved to other packages.
- * @author rasv
- *
- */
 public class Messages extends NLS {
     private static final String BUNDLE_NAME = "com.dynamo.cr.go.core.messages"; //$NON-NLS-1$
 
     public static String GameObjectPresenter_ADD_COMPONENT;
     public static String GameObjectPresenter_ADD_COMPONENT_FROM_FILE;
     public static String GameObjectPresenter_SELECT_COMPONENT_TYPE;
+
+    public static String CollectionPresenter_ADD_GAME_OBJECT;
+    public static String CollectionPresenter_ADD_SUB_COLLECTION;
 
     // Property validation
 

@@ -4,6 +4,7 @@ import org.eclipse.jface.viewers.IStructuredSelection;
 
 import com.dynamo.cr.go.core.operations.AddInstanceOperation;
 import com.dynamo.cr.go.core.operations.RemoveInstanceOperation;
+import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.Node;
@@ -25,24 +26,48 @@ public class CollectionPresenter implements ISceneView.INodePresenter<Collection
         return parent;
     }
 
-    public void onAddGameObject(IPresenterContext presenterContext) {
+    public void onAddGameObject(IPresenterContext presenterContext, ILoaderContext loaderContext) {
         // Find selected collection
         // TODO: Support multi selection
         CollectionNode parent = findCollectionFromSelection(presenterContext.getSelection());
         if (parent == null) {
             throw new UnsupportedOperationException("No collection in selection.");
         }
-        presenterContext.executeOperation(new AddInstanceOperation(parent, new GameObjectInstanceNode(null), presenterContext));
+        String file = presenterContext.selectFile(Messages.CollectionPresenter_ADD_GAME_OBJECT);
+        if (file != null) {
+            GameObjectNode gameObject = null;
+            try {
+                gameObject = (GameObjectNode)loaderContext.loadNode(file);
+            } catch (Exception e) {
+                presenterContext.logException(e);
+                return;
+            }
+            GameObjectInstanceNode instance = new GameObjectInstanceNode(gameObject);
+            instance.setGameObject(file);
+            presenterContext.executeOperation(new AddInstanceOperation(parent, instance, presenterContext));
+        }
     }
 
-    public void onAddCollection(IPresenterContext presenterContext) {
+    public void onAddCollection(IPresenterContext presenterContext, ILoaderContext loaderContext) {
         // Find selected collection
         // TODO: Support multi selection
         CollectionNode parent = findCollectionFromSelection(presenterContext.getSelection());
         if (parent == null) {
             throw new UnsupportedOperationException("No collection in selection.");
         }
-        presenterContext.executeOperation(new AddInstanceOperation(parent, new CollectionInstanceNode(null), presenterContext));
+        String file = presenterContext.selectFile(Messages.CollectionPresenter_ADD_SUB_COLLECTION);
+        if (file != null) {
+            CollectionNode collection = null;
+            try {
+                collection = (CollectionNode)loaderContext.loadNode(file);
+            } catch (Exception e) {
+                presenterContext.logException(e);
+                return;
+            }
+            CollectionInstanceNode instance = new CollectionInstanceNode(collection);
+            instance.setCollection(file);
+            presenterContext.executeOperation(new AddInstanceOperation(parent, instance, presenterContext));
+        }
     }
 
     public void onRemoveInstance(IPresenterContext context) {

@@ -204,13 +204,6 @@
       </wizard>
       <wizard
             category="com.dynamo.cr.editor.wizardCategory"
-            class="com.dynamo.cr.ddfeditor.wizards.CollectionNewWizard"
-            icon="icons/bricks.png"
-            id="com.dynamo.cr.ddfeditor.wizards.CollectionNewWizard"
-            name="Collection File">
-      </wizard>
-      <wizard
-            category="com.dynamo.cr.editor.wizardCategory"
             class="com.dynamo.cr.ddfeditor.wizards.EmitterNewWizard"
             icon="icons/dynamite.png"
             id="com.dynamo.cr.ddfeditor.wizards.EmitterNewWizard"
@@ -281,11 +274,6 @@
       <commonWizard
             type="new"
             wizardId="com.dynamo.cr.ddfeditor.wizards.InputBindingNewWizard">
-         <enablement></enablement>
-      </commonWizard>
-      <commonWizard
-            type="new"
-            wizardId="com.dynamo.cr.ddfeditor.wizards.CollectionNewWizard">
          <enablement></enablement>
       </commonWizard>
       <commonWizard
@@ -460,22 +448,6 @@
             template-data="  ">
       </resource-type>
       <resource-type
-            file-extension="collection"
-            id="com.dynamo.cr.ddfeditor.resourcetypes.Collection"
-            name="Collection"
-            proto-message-class="com.dynamo.gameobject.proto.GameObject$CollectionDesc"
-            resource-refactor-participant-class="com.dynamo.cr.ddfeditor.refactoring.CollectionRefactorParticipant"
-            template-data="name: &apos;unnamed&apos;">
-         <references>
-            <reference-resource-type
-                  resource-type="com.dynamo.cr.go.core.resourcetypes.gameObject">
-            </reference-resource-type>
-            <reference-resource-type
-                  resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Collection">
-            </reference-resource-type>
-         </references>
-      </resource-type>
-      <resource-type
             edit-support-class="com.dynamo.cr.ddfeditor.resourcetypes.EmitterEditSupport"
             file-extension="emitter"
             id="com.dynamo.cr.ddfeditor.resourcetypes.Emitter"
@@ -502,7 +474,7 @@
             type-class="component">
          <references>
             <reference-resource-type
-                  resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Collection">
+                  resource-type="com.dynamo.cr.go.resourcetypes.Collection">
             </reference-resource-type>
          </references>
       </resource-type>
@@ -570,9 +542,6 @@
          </newWizardShortcut>
          <newWizardShortcut
                id="com.dynamo.cr.ddfeditor.wizards.InputBindingNewWizard">
-         </newWizardShortcut>
-         <newWizardShortcut
-               id="com.dynamo.cr.ddfeditor.wizards.CollectionNewWizard">
          </newWizardShortcut>
          <newWizardShortcut
                id="com.dynamo.cr.ddfeditor.wizards.EmitterNewWizard">
