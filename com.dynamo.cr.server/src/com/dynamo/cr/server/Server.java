@@ -43,8 +43,11 @@ import org.eclipse.jetty.server.bio.SocketConnector;
 import org.eclipse.jetty.server.handler.HandlerList;
 import org.eclipse.jetty.server.handler.ResourceHandler;
 import org.eclipse.jetty.util.resource.Resource;
+import org.eclipse.jgit.http.server.GitServlet;
 import org.eclipse.persistence.config.PersistenceUnitProperties;
 import org.eclipse.persistence.jpa.osgi.PersistenceProvider;
+import org.glassfish.grizzly.http.server.HttpServer;
+import org.glassfish.grizzly.servlet.ServletHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -60,6 +63,7 @@ import com.dynamo.cr.protocol.proto.Protocol.LaunchInfo;
 import com.dynamo.cr.protocol.proto.Protocol.Log;
 import com.dynamo.cr.protocol.proto.Protocol.ResolveStage;
 import com.dynamo.cr.protocol.proto.Protocol.ResourceInfo.Builder;
+import com.dynamo.cr.server.auth.GitSecurityFilter;
 import com.dynamo.cr.server.auth.OpenIDAuthenticator;
 import com.dynamo.cr.server.auth.SecurityFilter;
 import com.dynamo.cr.server.model.ModelUtil;
@@ -68,6 +72,7 @@ import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.model.User.Role;
 import com.dynamo.cr.server.openid.OpenID;
 import com.dynamo.cr.server.resources.EntityManagerFactoryProvider;
+import com.dynamo.cr.server.resources.ResourceUtil;
 import com.dynamo.cr.server.resources.ServerProvider;
 import com.dynamo.cr.server.util.FileUtil;
 import com.dynamo.server.git.CommandUtil;
@@ -80,17 +85,16 @@ import com.dynamo.server.git.GitState;
 import com.dynamo.server.git.GitStatus;
 import com.dynamo.server.git.IGit;
 import com.google.protobuf.TextFormat;
-import com.sun.grizzly.http.SelectorThread;
 import com.sun.jersey.api.NotFoundException;
 import com.sun.jersey.api.container.filter.RolesAllowedResourceFilterFactory;
-import com.sun.jersey.api.container.grizzly.GrizzlyWebContainerFactory;
+import com.sun.jersey.api.container.grizzly2.servlet.GrizzlyWebContainerFactory;
 import com.sun.jersey.api.core.ResourceConfig;
 
 public class Server implements ServerMBean {
 
     protected static Logger logger = LoggerFactory.getLogger(Server.class);
 
-    private SelectorThread threadSelector;
+    private HttpServer httpServer;
     private String baseUri;
     private String branchRoot;
     private Pattern[] filterPatterns;
@@ -220,7 +224,34 @@ public class Server implements ServerMBean {
         initParams.put(ResourceConfig.PROPERTY_CONTAINER_RESPONSE_FILTERS,
                 CrossSiteHeaderResponseFilter.class.getName() + ";" + PostLoggingResponseFilter.class.getName());
 
-        threadSelector = GrizzlyWebContainerFactory.create(baseUri, initParams);
+        httpServer = GrizzlyWebContainerFactory.create(baseUri, initParams);
+        GitServlet gitServlet = new GitServlet();
+        ServletHandler gitHandler = new ServletHandler(gitServlet);
+        gitHandler.addFilter(new GitSecurityFilter(emf), "gitAuth", null);
+
+        /*
+         * NOTE: The GitServlet and friends seems to be a bit budget
+         * If the servlet is mapped to http://host/git a folder "git"
+         * must be present in the base-path, eg /tmp/git/... if the base-path
+         * is /tmp
+         */
+
+        /*
+         * NOTE: http.recivepack must be enabled in the server-side config, eg
+         *
+         * [http]
+         *        receivepack = true
+         *
+         */
+
+        String basePath = ResourceUtil.getGitBasePath(getConfiguration());
+        logger.info("git base-path: {}", basePath);
+        gitHandler.addInitParameter("base-path", basePath);
+        gitHandler.addInitParameter("export-all", "1");
+
+        String baseUri = ResourceUtil.getGitBaseUri(getConfiguration());
+        logger.info("git base uri: {}", baseUri);
+        httpServer.getServerConfiguration().addHttpHandler(gitHandler, baseUri);
 
         if (!GitFactory.create(Type.CGIT).checkGitVersion()) {
             // TODO: Hmm, exception...
@@ -341,7 +372,9 @@ public class Server implements ServerMBean {
         ObjectName name;
         try {
             name = new ObjectName("com.dynamo:type=Server");
-            mbs.registerMBean(this, name);
+            if (!mbs.isRegistered(name)) {
+                mbs.registerMBean(this, name);
+            }
         } catch (Throwable e) {
             logger.error(e.getMessage(), e);
         }
@@ -436,7 +469,7 @@ public class Server implements ServerMBean {
             }
         }
 
-        threadSelector.stopEndpoint();
+        httpServer.stop();
         try {
             jettyServer.stop();
         } catch (Exception e) {

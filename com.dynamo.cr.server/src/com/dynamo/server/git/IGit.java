@@ -200,4 +200,10 @@ public interface IGit {
 
     public abstract boolean checkGitVersion();
 
+    void setUsername(String userName);
+
+    void setPassword(String passWord);
+
+    void config(String directory, String key, String value) throws IOException;
+
 }

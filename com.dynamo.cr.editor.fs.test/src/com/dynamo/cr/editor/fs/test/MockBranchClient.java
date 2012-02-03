@@ -45,7 +45,6 @@ public class MockBranchClient implements IBranchClient {
         tempDir.deleteOnExit();
         tempPath = new Path(tempFile.getAbsolutePath());
 
-        @SuppressWarnings("unchecked")
         Enumeration<URL> entries = bundle.findEntries("/" + root, "*", true);
 
         while (entries.hasMoreElements()) {

@@ -35,6 +35,7 @@ import org.eclipse.jgit.api.ResetCommand.ResetType;
 import org.eclipse.jgit.api.RmCommand;
 import org.eclipse.jgit.api.Status;
 import org.eclipse.jgit.api.StatusCommand;
+import org.eclipse.jgit.api.TransportConfigCallback;
 import org.eclipse.jgit.api.errors.InvalidRemoteException;
 import org.eclipse.jgit.api.errors.JGitInternalException;
 import org.eclipse.jgit.api.errors.NoFilepatternException;
@@ -61,6 +62,8 @@ import org.eclipse.jgit.storage.file.FileBasedConfig;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 import org.eclipse.jgit.transport.PushResult;
 import org.eclipse.jgit.transport.RemoteRefUpdate;
+import org.eclipse.jgit.transport.Transport;
+import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 import org.eclipse.jgit.treewalk.CanonicalTreeParser;
 import org.eclipse.jgit.treewalk.FileTreeIterator;
 
@@ -71,7 +74,10 @@ import com.dynamo.server.git.GitStatus.Entry;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 
-public class JGit implements IGit {
+public class JGit implements IGit, TransportConfigCallback {
+
+    private String userName;
+    private String passWord;
 
     private Repository buildRepository(String directory) throws IOException {
         FileRepositoryBuilder builder = new FileRepositoryBuilder();
@@ -89,11 +95,20 @@ public class JGit implements IGit {
     }
 
     @Override
+    public void configure(Transport transport) {
+        if (userName != null && passWord != null) {
+            transport.setCredentialsProvider(new UsernamePasswordCredentialsProvider(userName, passWord));
+        }
+    }
+
+    @Override
     public void cloneRepo(String repository, String directory)
             throws IOException {
+
         CloneCommand clone = Git.cloneRepository()
                 .setURI(repository)
                 .setBare(false)
+                .setTransportConfigCallback(this)
                 .setDirectory(new File(directory));
         clone.call();
     }
@@ -502,7 +517,7 @@ public class JGit implements IGit {
     @Override
     public void push(String directory) throws IOException {
         Git git = getGit(directory);
-        PushCommand command = git.push();
+        PushCommand command = git.push().setTransportConfigCallback(this);
         try {
             Iterable<PushResult> iter = command.call();
             for (PushResult pushResult : iter) {
@@ -724,8 +739,33 @@ public class JGit implements IGit {
     }
 
     @Override
+    public void config(String directory, String key, String value)
+            throws IOException {
+        Repository repo = buildRepository(directory);
+        File path = repo.getFS().resolve(new File(directory, ".git"), "config");
+        FileBasedConfig cfg = new FileBasedConfig(path, repo.getFS());
+        try {
+            cfg.load();
+            cfg.setString("user", null, key, value);
+            cfg.save();
+        } catch (ConfigInvalidException e) {
+            throw new GitException(e);
+        }
+    }
+
+    @Override
     public boolean checkGitVersion() {
         throw new RuntimeException("Not implemented.");
+    }
+
+    @Override
+    public void setUsername(String userName) {
+        this.userName = userName;
+    }
+
+    @Override
+    public void setPassword(String passWord) {
+        this.passWord = passWord;
     }
 
 }

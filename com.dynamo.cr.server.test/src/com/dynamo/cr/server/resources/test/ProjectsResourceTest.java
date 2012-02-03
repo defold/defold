@@ -4,6 +4,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.URI;
 
@@ -15,6 +16,7 @@ import javax.ws.rs.core.UriBuilder;
 
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.node.ObjectNode;
+import org.eclipse.jgit.api.errors.JGitInternalException;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -26,11 +28,15 @@ import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfoList;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfoList;
 import com.dynamo.cr.server.Server;
+import com.dynamo.cr.server.auth.AuthCookie;
 import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.model.User.Role;
 import com.dynamo.cr.server.test.Util;
 import com.dynamo.server.git.CommandUtil;
+import com.dynamo.server.git.GitFactory;
+import com.dynamo.server.git.IGit;
+import com.google.common.io.Files;
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientResponse;
 import com.sun.jersey.api.client.WebResource;
@@ -41,6 +47,20 @@ import com.sun.jersey.api.client.filter.HTTPBasicAuthFilter;
 
 public class ProjectsResourceTest {
     private Server server;
+
+    private static class TestUser {
+        User user;
+        String email;
+        String password;
+        WebResource projectsResource;
+
+        public TestUser(User user, String email, String password, WebResource projectsResource) {
+            this.user = user;
+            this.email = email;
+            this.password = password;
+            this.projectsResource = projectsResource;
+        }
+    }
 
     static int port = 6500;
     String joeEmail = "joe@foo.com";
@@ -62,10 +82,11 @@ public class ProjectsResourceTest {
     private WebResource bobUsersWebResource;
 
     private Client adminClient;
-
     private Client joeClient;
-
     private Client bobClient;
+
+    private TestUser joe;
+    private TestUser bob;
 
     static {
         // TODO: Workaround for a problem with double POST
@@ -161,6 +182,9 @@ public class ProjectsResourceTest {
 
         uri = UriBuilder.fromUri(String.format("http://localhost/users")).port(port).build();
         bobUsersWebResource = bobClient.resource(uri);
+
+        joe = new TestUser(joeUser, joeEmail, joePasswd, joeProjectsWebResource);
+        bob = new TestUser(bobUser, bobEmail, bobPasswd, bobProjectsWebResource);
     }
 
     @After
@@ -392,6 +416,105 @@ public class ProjectsResourceTest {
         assertTrue(gitObjectDir.exists());
 
         em.close();
+    }
+
+    private static ProjectInfo createTemplateProject(TestUser testUser, String templateId) {
+        ObjectMapper m = new ObjectMapper();
+        ObjectNode project = m.createObjectNode();
+        project.put("name", "test project");
+        project.put("description", "New test project");
+        project.put("templateId", templateId);
+
+        ProjectInfo projectInfo = testUser.projectsResource
+            .path(testUser.user.getId().toString())
+            .accept(MediaType.APPLICATION_JSON_TYPE)
+            .type(MediaType.APPLICATION_JSON_TYPE)
+            .post(ProjectInfo.class, project.toString());
+
+        assertEquals("test project", projectInfo.getName());
+        return projectInfo;
+    }
+
+    private static IGit httpAuthGit(TestUser testUser) {
+        IGit git = GitFactory.create(GitFactory.Type.JGIT);
+        git.setUsername(testUser.email);
+        git.setPassword(testUser.password);
+        return git;
+    }
+
+    private static IGit openIDGit(TestUser testUser) {
+        IGit git = GitFactory.create(GitFactory.Type.JGIT);
+        git.setUsername(testUser.email);
+        git.setPassword(AuthCookie.login(testUser.email));
+        return git;
+    }
+
+    private static String cloneRepoHttpAuth(TestUser testUser, ProjectInfo projectInfo) throws IOException {
+        IGit git = httpAuthGit(testUser);
+        File cloneDir = Files.createTempDir();
+        git.cloneRepo(projectInfo.getRepositoryUrl(), cloneDir.getAbsolutePath());
+        return cloneDir.getAbsolutePath();
+    }
+
+    private static String cloneRepoOpenID(TestUser testUser, ProjectInfo projectInfo) throws IOException {
+        IGit git = openIDGit(testUser);
+        File cloneDir = Files.createTempDir();
+        git.cloneRepo(projectInfo.getRepositoryUrl(), cloneDir.getAbsolutePath());
+        return cloneDir.getAbsolutePath();
+    }
+
+    @Test
+    public void cloneHTTPBasicAuth() throws Exception {
+        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        cloneRepoHttpAuth(joe, projectInfo);
+    }
+
+    @Test
+    public void cloneOpenID() throws Exception {
+        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        cloneRepoOpenID(joe, projectInfo);
+    }
+
+    // NOTE: HTTP FORBIDDEN results in JGitInternalException. This might (hopefully)
+    // in newer versions of JGit. Same in next test below
+    @Test(expected=JGitInternalException.class)
+    public void cloneHTTPBasicAuthAccessDenied() throws Exception {
+        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        cloneRepoHttpAuth(bob, projectInfo);
+    }
+
+    @Test(expected=JGitInternalException.class)
+    public void cloneOpenIDAccessDenied() throws Exception {
+        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        cloneRepoOpenID(bob, projectInfo);
+    }
+
+    private static void alterFile(String cloneDir, String name, String content) throws IOException {
+        File file = new File(cloneDir + "/" + name);
+        assertTrue(file.exists());
+        FileOutputStream fos = new FileOutputStream(file);
+        fos.write(content.getBytes());
+        fos.close();
+    }
+
+    @Test
+    public void pushHTTPBasicAuth() throws Exception {
+        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        String cloneDir = cloneRepoHttpAuth(joe, projectInfo);
+        alterFile(cloneDir, "content/file1.txt", "some content");
+        IGit git = httpAuthGit(joe);
+        git.commitAll(cloneDir, "a commit");
+        git.push(cloneDir);
+    }
+
+    @Test
+    public void pushOpenID() throws Exception {
+        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        String cloneDir = cloneRepoHttpAuth(joe, projectInfo);
+        alterFile(cloneDir, "content/file1.txt", "some content");
+        IGit git = openIDGit(joe);
+        git.commitAll(cloneDir, "a commit");
+        git.push(cloneDir);
     }
 
     @Test

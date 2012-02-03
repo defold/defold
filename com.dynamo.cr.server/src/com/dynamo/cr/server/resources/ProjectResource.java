@@ -257,7 +257,7 @@ public class ProjectResource extends BaseResource {
         // Ensure user is valid
         server.getUser(em, user);
         Project project = server.getProject(em, projectId);
-        return ResourceUtil.createProjectInfo(project);
+        return ResourceUtil.createProjectInfo(server.getConfiguration(), project);
     }
 
     @GET
