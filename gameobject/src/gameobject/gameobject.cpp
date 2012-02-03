@@ -110,8 +110,8 @@ namespace dmGameObject
         dmResource::RegisterResourceReloadedCallback(factory, ResourceReloadedCallback, collection);
 
         char name_frame[128];
-        dmStrlCpy(name_frame, name, 128);
-        dmStrlCat(name_frame, "_frame", 128);
+        dmStrlCpy(name_frame, name, sizeof(name_frame));
+        dmStrlCat(name_frame, "_frame", sizeof(name_frame));
         const char* socket_names[] = {name, name_frame};
         dmMessage::HSocket* sockets[] = {&collection->m_ComponentSocket, &collection->m_FrameSocket};
         for (int i = 0; i < 2; ++i)
