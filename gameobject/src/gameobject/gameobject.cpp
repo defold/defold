@@ -447,7 +447,7 @@ namespace dmGameObject
         dmMutex::Lock(collection->m_Mutex);
         index = collection->m_GenInstanceCounter++;
         dmMutex::Unlock(collection->m_Mutex);
-        DM_SNPRINTF(id_s, 16, id_format, index);
+        DM_SNPRINTF(id_s, sizeof(id_s), id_format, index);
         return dmHashString64(id_s);
     }
 

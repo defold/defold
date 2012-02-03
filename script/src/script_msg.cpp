@@ -599,7 +599,8 @@ namespace dmScript
             }
             if (socket_size > 0)
             {
-                assert(socket_size < 64);
+                if (socket_size >= 64)
+                    return luaL_error(L, "Error when parsing the URL '%s': the socket-part '%s' must be less than 64 characters.", url, socket);
                 char socket_name[64];
                 dmStrlCpy(socket_name, socket, dmMath::Min(socket_size+1, (unsigned int) sizeof(socket_name)));
                 result = dmMessage::GetSocket(socket_name, &out_url->m_Socket);

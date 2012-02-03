@@ -481,6 +481,7 @@ namespace dmGameObject
 
     /**
      * Generate a unique (collection-scope) instance id that can be used for the Spawn() function.
+     * This is thread-safe.
      * @param collection Collection in which the id is unique
      */
     dmhash_t GenerateUniqueInstanceId(HCollection collection);
