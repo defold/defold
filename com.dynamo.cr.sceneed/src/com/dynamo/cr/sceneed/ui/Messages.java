@@ -9,6 +9,11 @@ public class Messages extends NLS {
 
     public static String PreferencePage_TopBkgdColor;
     public static String PreferencePage_BottomBkgdColor;
+    public static String PreferencePage_Grid;
+    public static String PreferencePage_GridSize;
+    public static String PreferencePage_GridAutoValue;
+    public static String PreferencePage_GridManualValue;
+    public static String PreferencePage_GridColor;
 
     static {
         // initialize resource bundle

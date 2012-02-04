@@ -192,6 +192,13 @@ IRenderView {
     }
 
     @Override
+    public Matrix4d getProjectionTransform() {
+        Matrix4d ret = new Matrix4d();
+        camera.getProjectionMatrix(ret);
+        return ret;
+    }
+
+    @Override
     public Camera getCamera() {
         return this.camera;
     }

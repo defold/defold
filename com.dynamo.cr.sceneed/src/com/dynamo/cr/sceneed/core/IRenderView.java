@@ -28,6 +28,7 @@ public interface IRenderView  {
     Camera getCamera();
     void setCamera(Camera camera);
     Matrix4d getViewTransform();
+    Matrix4d getProjectionTransform();
 
     // TODO This is part of a "quick-fix" to enable disposal of graphics resources inside nodes
     // See SceneEditor#dispose for more info

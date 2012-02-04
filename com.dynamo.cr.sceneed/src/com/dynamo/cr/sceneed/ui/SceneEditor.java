@@ -86,6 +86,8 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
     private IRenderView renderView;
     @SuppressWarnings("unused")
     private BackgroundRenderViewProvider backgroundRenderViewProvider;
+    @SuppressWarnings("unused")
+    private GridRenderViewProvider gridRenderViewProvider;
 
     private IContainer contentRoot;
     private LifecycleModule module;
@@ -110,6 +112,7 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
             bind(ISceneView.class).to(SceneView.class).in(Singleton.class);
             bind(IRenderView.class).to(RenderView.class).in(Singleton.class);
             bind(BackgroundRenderViewProvider.class).in(Singleton.class);
+            bind(GridRenderViewProvider.class).in(Singleton.class);
             bind(SceneRenderViewProvider.class).in(Singleton.class);
             bind(ISceneModel.class).to(SceneModel.class).in(Singleton.class);
             bind(INodeTypeRegistry.class).toInstance(nodeTypeRegistry);
@@ -171,6 +174,7 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
         this.propertySheetPage = injector.getInstance(IFormPropertySheetPage.class);
         this.renderView = injector.getInstance(IRenderView.class);
         this.backgroundRenderViewProvider = injector.getInstance(BackgroundRenderViewProvider.class);
+        this.gridRenderViewProvider = injector.getInstance(GridRenderViewProvider.class);
         this.sceneRenderViewProvider = injector.getInstance(SceneRenderViewProvider.class);
 
         this.manipulatorController = injector.getInstance(ManipulatorController.class);

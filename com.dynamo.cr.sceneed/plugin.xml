@@ -177,6 +177,11 @@
             node="com.dynamo.cr.sceneed.ui.ScaleAxisManipulator"
             renderer="com.dynamo.cr.sceneed.ui.ScaleAxisManipulatorRenderer">
       </node-type>
+      <node-type
+            id="com.dynamo.cr.sceneed.ui.gridNode"
+            node="com.dynamo.cr.sceneed.ui.GridNode"
+            renderer="com.dynamo.cr.sceneed.ui.GridRenderer">
+      </node-type>
    </extension>
    <extension
          point="com.dynamo.cr.manipulators">

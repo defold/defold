@@ -20,5 +20,8 @@ public class PreferenceInitializer extends AbstractPreferenceInitializer {
         IPreferenceStore store = Activator.getDefault().getPreferenceStore();
         store.setDefault(PreferenceConstants.P_TOP_BKGD_COLOR, "123,143,167");
         store.setDefault(PreferenceConstants.P_BOTTOM_BKGD_COLOR, "28,29,31");
+        store.setDefault(PreferenceConstants.P_GRID, PreferenceConstants.P_GRID_AUTO_VALUE);
+        store.setDefault(PreferenceConstants.P_GRID_SIZE, 100);
+        store.setDefault(PreferenceConstants.P_GRID_COLOR, "114,123,130");
     }
 }
