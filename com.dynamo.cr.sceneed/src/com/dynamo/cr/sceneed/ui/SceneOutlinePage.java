@@ -116,7 +116,9 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
                 return new Object[] {root.node};
             } else if (inputElement instanceof Node) {
                 Node node = (Node)inputElement;
-                return node.getChildren().toArray();
+                if (node.isEditable()) {
+                    return node.getChildren().toArray();
+                }
             }
 
             return new Object[0];
@@ -147,7 +149,7 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
                 return root.node != null;
             } else if (element instanceof Node) {
                 Node node = (Node)element;
-                return node.hasChildren();
+                return node.isEditable() && node.hasChildren();
             }
             return false;
         }
