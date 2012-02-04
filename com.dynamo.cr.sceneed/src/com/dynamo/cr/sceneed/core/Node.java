@@ -81,6 +81,13 @@ public abstract class Node implements IAdaptable {
         flags.add(flag);
     }
 
+    public void setFlagsRecursively(Flags flag) {
+        flags.add(flag);
+        for (Node child : this.children) {
+            child.setFlagsRecursively(flag);
+        }
+    }
+
     public final boolean isTranslationVisible() {
         return flags.contains(Flags.TRANSFORMABLE);
     }

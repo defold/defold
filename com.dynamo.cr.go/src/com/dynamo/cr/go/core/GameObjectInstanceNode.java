@@ -25,7 +25,7 @@ public class GameObjectInstanceNode extends InstanceNode {
         this.gameObjectNode = gameObject;
         if (this.gameObjectNode != null) {
             this.gameObjectNode.setModel(this.getModel());
-            this.gameObjectNode.setFlags(Flags.LOCKED);
+            this.gameObjectNode.setFlagsRecursively(Flags.LOCKED);
             addChild(this.gameObjectNode);
         }
     }

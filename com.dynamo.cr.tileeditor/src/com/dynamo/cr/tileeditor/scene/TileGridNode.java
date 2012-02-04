@@ -85,20 +85,6 @@ public class TileGridNode extends ComponentTypeNode {
     }
 
     @Override
-    public void setFlags(Flags flag) {
-        super.setFlags(flag);
-        // Propagate locked flag to children
-        // TODO Should this be handled in a more generic way (i.e. in Node)?
-        // Not all flags should necessarily always be propagated, like TRANSFORMABLE.
-        if (flag == Node.Flags.LOCKED) {
-            List<Node> children = getChildren();
-            for (Node child : children) {
-                child.setFlags(flag);
-            }
-        }
-    }
-
-    @Override
     public void setModel(ISceneModel model) {
         super.setModel(model);
         if (model != null && this.tileSetNode == null) {

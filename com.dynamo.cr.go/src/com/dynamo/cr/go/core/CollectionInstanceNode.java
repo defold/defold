@@ -25,7 +25,7 @@ public class CollectionInstanceNode extends InstanceNode {
         this.collectionNode = collection;
         if (this.collectionNode != null) {
             this.collectionNode.setModel(this.getModel());
-            this.collectionNode.setFlags(Flags.LOCKED);
+            this.collectionNode.setFlagsRecursively(Flags.LOCKED);
             addChild(this.collectionNode);
         }
     }

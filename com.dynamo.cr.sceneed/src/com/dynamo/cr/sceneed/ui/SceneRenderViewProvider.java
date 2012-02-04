@@ -62,7 +62,21 @@ public class SceneRenderViewProvider implements IRenderViewProvider, ISelectionP
                 return;
             }
         }
-        StructuredSelection newSelection = new StructuredSelection(nodes);
+        List<Node> selected = new ArrayList<Node>(nodes.size());
+        for (Node node : nodes) {
+            if (node.isEditable()) {
+                selected.add(node);
+            } else {
+                Node parent = node.getParent();
+                while (parent != null && !parent.isEditable()) {
+                    parent = parent.getParent();
+                }
+                if (parent != null) {
+                    selected.add(parent);
+                }
+            }
+        }
+        StructuredSelection newSelection = new StructuredSelection(selected);
         setSelection(newSelection);
     }
 

@@ -1,5 +1,8 @@
 package com.dynamo.cr.sceneed.ui;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import javax.inject.Inject;
 
 import org.eclipse.core.commands.NotHandledException;
@@ -117,7 +120,14 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
             } else if (inputElement instanceof Node) {
                 Node node = (Node)inputElement;
                 if (node.isEditable()) {
-                    return node.getChildren().toArray();
+                    List<Node> children = node.getChildren();
+                    List<Node> editables = new ArrayList<Node>(children.size());
+                    for (Node child : children) {
+                        if (child.isEditable()) {
+                            editables.add(child);
+                        }
+                    }
+                    return editables.toArray();
                 }
             }
 
@@ -149,7 +159,7 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
                 return root.node != null;
             } else if (element instanceof Node) {
                 Node node = (Node)element;
-                return node.isEditable() && node.hasChildren();
+                return node.isEditable() && node.hasChildren() && getElements(element).length > 0;
             }
             return false;
         }

@@ -111,7 +111,11 @@ public class RenderContext {
         case OPAQUE:
             return objectColor;
         case OUTLINE:
-            if (selectedNodes.contains(node)) {
+            Node n = node;
+            while (n != null && !selectedNodes.contains(n)) {
+                n = n.getParent();
+            }
+            if (n != null) {
                 return SELECTED_COLOR;
             } else {
                 return OBJECT_COLOR;
