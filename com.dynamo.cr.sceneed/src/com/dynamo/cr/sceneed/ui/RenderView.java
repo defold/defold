@@ -253,11 +253,7 @@ IRenderView {
     @Override
     public void mouseDown(MouseEvent event) {
         if (!CameraController.hasCameraControlModifiers(event)) {
-            List<Node> sel = rectangleSelect(event.x, event.y, 16, 16);
-
-            for (IRenderViewProvider provider : providers) {
-                provider.onNodeHit(sel);
-            }
+            boxSelect(event.x, event.y, 16, 16, true);
         }
 
         for (MouseListener listener : mouseListeners) {
@@ -377,14 +373,15 @@ IRenderView {
     }
 
     /**
-     * NOTE: x and y must me center coordinates
+     * NOTE: x and y must be center coordinates
      * @param x center coordinate
      * @param y center coordinate
      * @param width width to select for
      * @param height height to select for
      * @return list of selected nodes
      */
-    private List<Node> rectangleSelect(int x, int y, int width, int height) {
+    @Override
+    public void boxSelect(int x, int y, int width, int height, boolean single) {
         // The name is currently somewhat misleading. The method
         // is currently only used for picking single nodes
         ArrayList<Node> toSelect = new ArrayList<Node>(32);
@@ -414,14 +411,20 @@ IRenderView {
             Collections.sort(drawOrderSorted);
             Collections.reverse(drawOrderSorted);
 
-            if (drawOrderSorted.size() > 0) {
-                // Select closest Node as we currently on have support for single select
-                Node node = drawOrderSorted.get(0).getNode();
-                toSelect.add(node);
+            if (single) {
+                if (!drawOrderSorted.isEmpty()) {
+                    toSelect.add(drawOrderSorted.get(0).getNode());
+                }
+            } else {
+                for (RenderData<? extends Node> renderData : drawOrderSorted) {
+                    toSelect.add(renderData.getNode());
+                }
             }
         }
 
-        return toSelect;
+        for (IRenderViewProvider provider : providers) {
+            provider.onNodeHit(toSelect);
+        }
     }
 
     public void requestPaint() {
@@ -471,7 +474,7 @@ IRenderView {
             return;
         }
 
-        List<Pass> passes = Arrays.asList(Pass.BACKGROUND, Pass.OUTLINE, Pass.TRANSPARENT, Pass.MANIPULATOR);
+        List<Pass> passes = Arrays.asList(Pass.BACKGROUND, Pass.OUTLINE, Pass.TRANSPARENT, Pass.MANIPULATOR, Pass.OVERLAY);
         renderNodes(gl, glu, passes, false);
     }
 
@@ -583,6 +586,21 @@ IRenderView {
         case MANIPULATOR:
             gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL);
             gl.glDisable(GL.GL_BLEND);
+            gl.glDisable(GL.GL_DEPTH_TEST);
+            gl.glDepthMask(false);
+            break;
+
+        case OVERLAY:
+            gl.glMatrixMode(GL.GL_PROJECTION);
+            gl.glLoadIdentity();
+            glu.gluOrtho2D(this.viewPort[0], this.viewPort[2], this.viewPort[3], this.viewPort[1]);
+
+            gl.glMatrixMode(GL.GL_MODELVIEW);
+            gl.glLoadIdentity();
+
+            gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL);
+            gl.glEnable(GL.GL_BLEND);
+            gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
             gl.glDisable(GL.GL_DEPTH_TEST);
             gl.glDepthMask(false);
             break;

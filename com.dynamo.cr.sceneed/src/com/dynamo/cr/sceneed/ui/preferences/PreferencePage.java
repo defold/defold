@@ -26,6 +26,11 @@ implements IWorkbenchPreferencePage {
     public void createFieldEditors() {
         final String labelFormat = "%s:";
 
+        ColorFieldEditor selectionColorField = new ColorFieldEditor(PreferenceConstants.P_SELECTION_COLOR,
+                String.format(labelFormat, Messages.PreferencePage_SelectionColor),
+                getFieldEditorParent());
+        addField(selectionColorField);
+
         ColorFieldEditor topBkgdColorField = new ColorFieldEditor(PreferenceConstants.P_TOP_BKGD_COLOR,
                 String.format(labelFormat, Messages.PreferencePage_TopBkgdColor),
                 getFieldEditorParent());

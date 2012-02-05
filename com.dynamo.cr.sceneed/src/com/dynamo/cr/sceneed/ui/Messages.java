@@ -14,6 +14,7 @@ public class Messages extends NLS {
     public static String PreferencePage_GridAutoValue;
     public static String PreferencePage_GridManualValue;
     public static String PreferencePage_GridColor;
+    public static String PreferencePage_SelectionColor;
 
     static {
         // initialize resource bundle

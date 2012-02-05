@@ -298,7 +298,7 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
 
     @Override
     protected int getTreeStyle() {
-        return SWT.SINGLE | SWT.H_SCROLL | SWT.V_SCROLL;
+        return SWT.MULTI | SWT.H_SCROLL | SWT.V_SCROLL;
     }
 
     @Override

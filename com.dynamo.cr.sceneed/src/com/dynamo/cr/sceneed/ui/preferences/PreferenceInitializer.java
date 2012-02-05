@@ -23,5 +23,6 @@ public class PreferenceInitializer extends AbstractPreferenceInitializer {
         store.setDefault(PreferenceConstants.P_GRID, PreferenceConstants.P_GRID_AUTO_VALUE);
         store.setDefault(PreferenceConstants.P_GRID_SIZE, 100);
         store.setDefault(PreferenceConstants.P_GRID_COLOR, "114,123,130");
+        store.setDefault(PreferenceConstants.P_SELECTION_COLOR, "131,188,212");
     }
 }

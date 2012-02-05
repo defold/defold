@@ -40,11 +40,6 @@ public class GridRenderer implements INodeRenderer<GridNode> {
         boolean autoGrid = store.getString(PreferenceConstants.P_GRID).equals(PreferenceConstants.P_GRID_AUTO_VALUE);
         double gridSize = store.getInt(PreferenceConstants.P_GRID_SIZE);
 
-//        gl.glDisable(GL.GL_LIGHTING);
-//        gl.glEnable(GL.GL_BLEND);
-//        gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
-//        gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE);
-
         gl.glBegin(GL.GL_LINES);
 
         Matrix4d viewProj = new Matrix4d(renderContext.getRenderView().getProjectionTransform());

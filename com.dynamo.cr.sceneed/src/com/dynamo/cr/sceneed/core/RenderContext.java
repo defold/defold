@@ -29,6 +29,7 @@ public class RenderContext {
         TRANSPARENT,
         OUTLINE,
         MANIPULATOR,
+        OVERLAY,
         SELECTION,
     }
 

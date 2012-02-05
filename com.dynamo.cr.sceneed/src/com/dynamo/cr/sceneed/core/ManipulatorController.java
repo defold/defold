@@ -101,12 +101,15 @@ public class ManipulatorController implements ISelectionListener, IRenderViewPro
     }
 
     private void selectManipulator() {
-        if (selectionList.size() > 0 && manipulatorMode != null) {
+        if (manipulatorMode != null) {
             Object[] selection = selectionList.toArray();
-            rootManipulator = manipulatorRegistry.getManipulatorForSelection(manipulatorMode, selection);
-            if (rootManipulator != null) {
-                rootManipulator.setController(this);
-                rootManipulator.setSelection(Collections.unmodifiableList(selectionList));
+            if (rootManipulator == null || rootManipulator.getMode() != manipulatorMode || !rootManipulator.match(selection)) {
+                rootManipulator = manipulatorRegistry.getManipulatorForSelection(manipulatorMode, selection);
+                if (rootManipulator != null) {
+                    rootManipulator.setController(this);
+                    rootManipulator.setMode(manipulatorMode);
+                    rootManipulator.setSelection(Collections.unmodifiableList(selectionList));
+                }
             }
         } else {
             rootManipulator = null;

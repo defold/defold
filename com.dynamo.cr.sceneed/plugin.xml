@@ -151,7 +151,8 @@
       </node-type>
       <node-type
             id="com.dynamo.cr.sceneed.ui.selectManipulator"
-            node="com.dynamo.cr.sceneed.ui.SelectManipulator">
+            node="com.dynamo.cr.sceneed.ui.SelectManipulator"
+            renderer="com.dynamo.cr.sceneed.ui.SelectManipulatorRenderer">
       </node-type>
       <node-type
             id="com.dynamo.cr.sceneed.ui.moveManipulator"

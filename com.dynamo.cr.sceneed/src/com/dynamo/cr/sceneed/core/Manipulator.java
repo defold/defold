@@ -7,6 +7,7 @@ import org.eclipse.swt.events.MouseMoveListener;
 public abstract class Manipulator extends Node implements MouseListener, MouseMoveListener {
 
     private ManipulatorController controller;
+    private IManipulatorMode mode;
 
     public abstract boolean match(Object[] selection);
 
@@ -20,6 +21,14 @@ public abstract class Manipulator extends Node implements MouseListener, MouseMo
             Manipulator m = (Manipulator) c;
             m.setController(controller);
         }
+    }
+
+    public IManipulatorMode getMode() {
+        return this.mode;
+    }
+
+    public void setMode(IManipulatorMode mode) {
+        this.mode = mode;
     }
 
     @Override
