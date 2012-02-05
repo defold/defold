@@ -1,4 +1,4 @@
-package com.dynamo.server.git;
+package com.dynamo.server.dgit;
 
 import static org.eclipse.jgit.lib.Constants.HEAD;
 
@@ -69,8 +69,8 @@ import org.eclipse.jgit.treewalk.FileTreeIterator;
 
 import com.dynamo.cr.protocol.proto.Protocol.CommitDesc;
 import com.dynamo.cr.protocol.proto.Protocol.Log;
-import com.dynamo.server.git.CommandUtil.Result;
-import com.dynamo.server.git.GitStatus.Entry;
+import com.dynamo.server.dgit.CommandUtil.Result;
+import com.dynamo.server.dgit.GitStatus.Entry;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 

@@ -45,7 +45,7 @@ import javax.ws.rs.ext.Provider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.dynamo.server.git.GitException;
+import com.dynamo.server.dgit.GitException;
 
 
 /**

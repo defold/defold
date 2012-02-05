@@ -1,4 +1,4 @@
-package com.dynamo.server.git;
+package com.dynamo.server.dgit;
 
 public enum GitResetMode {
     SOFT(1),

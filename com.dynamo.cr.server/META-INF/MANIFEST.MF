@@ -10,7 +10,10 @@ Require-Bundle: com.dynamo.cr.common;bundle-version="1.0.0",
  org.eclipse.persistence.jpa;bundle-version="2.1.1",
  org.eclipse.persistence.antlr;bundle-version="2.1.1",
  org.eclipse.persistence.jpa.osgi;bundle-version="2.3.0",
- com.google.common;bundle-version="0.0.9"
+ com.google.common;bundle-version="0.0.9",
+ com.dynamo.cr.branchrepo;bundle-version="1.0.0",
+ com.dynamo.cr.dgit;bundle-version="1.0.0",
+ javax.servlet;bundle-version="2.5.0"
 Bundle-ActivationPolicy: lazy
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
 Bundle-ClassPath: ext/asm-3.1.jar,
@@ -21,29 +24,20 @@ Bundle-ClassPath: ext/asm-3.1.jar,
  ext/postgresql-9.0-801.jdbc4.jar,
  ext/jetty-all-7.0.2.v20100331.jar,
  ext/commons-codec-1.5.jar,
- ext/logback-classic-0.9.29.jar,
- ext/logback-core-0.9.29.jar,
- ext/slf4j-api-1.6.1.jar,
- ext/janino.jar,
  ext/grizzly-http-2.1.2.jar,
  ext/grizzly-http-server-2.1.2.jar,
  ext/jersey-client-1.11.jar,
  ext/jersey-core-1.11.jar,
  ext/jersey-grizzly2-1.11.jar,
  ext/jersey-server-1.11.jar,
- ext/servlet-api-2.5.jar,
  ext/grizzly-framework-2.1.2.jar,
  ext/grizzly-http-servlet-2.1.2.jar,
  ext/jersey-grizzly2-servlet-1.11.jar,
- ext/jersey-servlet-1.11.jar,
- ext/org.eclipse.jgit-1.2.0.201112221803-r.jar,
- ext/org.eclipse.jgit.http.server-1.2.0.201112221803-r.jar,
- ext/jsch-0.1.44-1.jar
+ ext/jersey-servlet-1.11.jar
 Import-Package: javax.management,
  javax.naming,
  org.osgi.framework;version="1.5.0"
 Export-Package: com.dynamo.cr.server,
  com.dynamo.cr.server.auth,
  com.dynamo.cr.server.resources,
- com.dynamo.cr.server.util,
- com.dynamo.server.git
+ com.dynamo.cr.server.util

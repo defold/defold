@@ -47,7 +47,7 @@ import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.test.Util;
 import com.dynamo.cr.server.util.FileUtil;
-import com.dynamo.server.git.CommandUtil;
+import com.dynamo.server.dgit.CommandUtil;
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientResponse;
 import com.sun.jersey.api.client.WebResource;

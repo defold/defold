@@ -23,15 +23,15 @@ import org.junit.runners.Parameterized.Parameters;
 
 import com.dynamo.cr.protocol.proto.Protocol.CommitDesc;
 import com.dynamo.cr.protocol.proto.Protocol.Log;
-import com.dynamo.server.git.CommandUtil;
-import com.dynamo.server.git.GitException;
-import com.dynamo.server.git.GitFactory;
-import com.dynamo.server.git.GitResetMode;
-import com.dynamo.server.git.GitStage;
-import com.dynamo.server.git.GitState;
-import com.dynamo.server.git.GitStatus;
-import com.dynamo.server.git.IGit;
-import com.dynamo.server.git.GitFactory.Type;
+import com.dynamo.server.dgit.CommandUtil;
+import com.dynamo.server.dgit.GitException;
+import com.dynamo.server.dgit.GitFactory;
+import com.dynamo.server.dgit.GitResetMode;
+import com.dynamo.server.dgit.GitStage;
+import com.dynamo.server.dgit.GitState;
+import com.dynamo.server.dgit.GitStatus;
+import com.dynamo.server.dgit.IGit;
+import com.dynamo.server.dgit.GitFactory.Type;
 
 @RunWith(value = Parameterized.class)
 public class GitTest {

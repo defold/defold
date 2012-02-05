@@ -21,6 +21,7 @@ import javax.ws.rs.QueryParam;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response.Status;
 
+import com.dynamo.cr.branchrepo.BranchRepositoryException;
 import com.dynamo.cr.proto.Config.Application;
 import com.dynamo.cr.proto.Config.Configuration;
 import com.dynamo.cr.protocol.proto.Protocol;
@@ -39,9 +40,9 @@ import com.dynamo.cr.server.ServerException;
 import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
-import com.dynamo.server.git.GitFactory;
-import com.dynamo.server.git.GitFactory.Type;
-import com.dynamo.server.git.IGit;
+import com.dynamo.server.dgit.GitFactory;
+import com.dynamo.server.dgit.IGit;
+import com.dynamo.server.dgit.GitFactory.Type;
 import com.sun.jersey.api.NotFoundException;
 
 /*
@@ -274,7 +275,7 @@ public class ProjectResource extends BaseResource {
     @DELETE
     @RolesAllowed(value = { "owner" })
     public void deleteProject(@PathParam("user") String user,
-            @PathParam("project") String projectId) throws ServerException {
+            @PathParam("project") String projectId) throws ServerException, BranchRepositoryException {
         EntityManager em = server.getEntityManagerFactory().createEntityManager();
 
         // Ensure user is valid
@@ -284,8 +285,8 @@ public class ProjectResource extends BaseResource {
         // Remove branches
         for (User member : members) {
             String memberId = member.getId().toString();
-            for (String branch : server.getBranchNames(em, projectId, memberId)) {
-                server.deleteBranch(em, projectId, memberId, branch);
+            for (String branch : branchRepository.getBranchNames(projectId, memberId)) {
+                branchRepository.deleteBranch(projectId, memberId, branch);
             }
         }
         // Delete git repo
@@ -312,7 +313,7 @@ public class ProjectResource extends BaseResource {
     public BranchList getBranchList(@PathParam("project") String project,
                                     @PathParam("user") String user) {
         EntityManager em = server.getEntityManagerFactory().createEntityManager();
-        String[] branch_names = server.getBranchNames(em, project, user);
+        String[] branch_names = branchRepository.getBranchNames(project, user);
         Protocol.BranchList.Builder b = Protocol.BranchList.newBuilder();
         for (String branch : branch_names) {
             b.addBranches(branch);
@@ -325,9 +326,9 @@ public class ProjectResource extends BaseResource {
     @Path("/branches/{branch}")
     public BranchStatus getBranchStatus(@PathParam("project") String project,
                                         @PathParam("user") String user,
-                                        @PathParam("branch") String branch) throws IOException, ServerException {
+                                        @PathParam("branch") String branch) throws IOException, ServerException, BranchRepositoryException {
         EntityManager em = server.getEntityManagerFactory().createEntityManager();
-        BranchStatus ret = server.getBranchStatus(em, project, user, branch);
+        BranchStatus ret = branchRepository.getBranchStatus(project, user, branch);
         em.close();
         return ret;
     }
@@ -336,9 +337,9 @@ public class ProjectResource extends BaseResource {
     @Path("/branches/{branch}")
     public void createBranch(@PathParam("project") String project,
                              @PathParam("user") String user,
-                             @PathParam("branch") String branch) throws IOException, ServerException {
+                             @PathParam("branch") String branch) throws IOException, ServerException, BranchRepositoryException {
         EntityManager em = server.getEntityManagerFactory().createEntityManager();
-        server.createBranch(em, project, user, branch);
+        branchRepository.createBranch(project, user, branch);
         em.close();
     }
 
@@ -346,9 +347,9 @@ public class ProjectResource extends BaseResource {
     @Path("/branches/{branch}")
     public void deleteBranch(@PathParam("project") String project,
                              @PathParam("user") String user,
-                             @PathParam("branch") String branch) throws ServerException {
+                             @PathParam("branch") String branch) throws ServerException, BranchRepositoryException {
         EntityManager em = server.getEntityManagerFactory().createEntityManager();
-        server.deleteBranch(em, project, user, branch);
+        branchRepository.deleteBranch(project, user, branch);
         em.close();
     }
 
@@ -356,11 +357,11 @@ public class ProjectResource extends BaseResource {
     @Path("/branches/{branch}/update")
     public BranchStatus updateBranch(@PathParam("project") String project,
                                @PathParam("user") String user,
-                               @PathParam("branch") String branch) throws IOException, ServerException {
+                               @PathParam("branch") String branch) throws IOException, ServerException, BranchRepositoryException {
 
         EntityManager em = server.getEntityManagerFactory().createEntityManager();
-        server.updateBranch(em, project, user, branch);
-        BranchStatus ret = server.getBranchStatus(em, project, user, branch);
+        branchRepository.updateBranch(project, user, branch);
+        BranchStatus ret = getBranchStatus(project, user, branch);
         em.close();
         return ret;
     }
@@ -371,14 +372,14 @@ public class ProjectResource extends BaseResource {
                              @PathParam("user") String user,
                              @PathParam("branch") String branch,
                              @QueryParam("all") boolean all,
-                             String message) throws IOException, ServerException {
+                             String message) throws IOException, ServerException, BranchRepositoryException {
 
         EntityManager em = server.getEntityManagerFactory().createEntityManager();
         CommitDesc commit;
         if (all)
-            commit = server.commitBranch(em, project, user, branch, message);
+            commit = branchRepository.commitBranch(project, user, branch, message);
         else
-            commit = server.commitMergeBranch(em, project, user, branch, message);
+            commit = branchRepository.commitMergeBranch(project, user, branch, message);
         em.close();
         return commit;
     }
@@ -387,10 +388,10 @@ public class ProjectResource extends BaseResource {
     @Path("/branches/{branch}/publish")
     public void publishBranch(@PathParam("project") String project,
                               @PathParam("user") String user,
-                              @PathParam("branch") String branch) throws IOException, ServerException {
+                              @PathParam("branch") String branch) throws IOException, ServerException, BranchRepositoryException {
 
         EntityManager em = server.getEntityManagerFactory().createEntityManager();
-        server.publishBranch(em, project, user, branch);
+        branchRepository.publishBranch(project, user, branch);
         em.close();
     }
 
@@ -400,7 +401,7 @@ public class ProjectResource extends BaseResource {
                         @PathParam("user") String user,
                         @PathParam("branch") String branch,
                         @QueryParam("path") String path,
-                        @QueryParam("stage") String stage) throws IOException, ServerException {
+                        @QueryParam("stage") String stage) throws IOException, ServerException, BranchRepositoryException {
         EntityManager em = server.getEntityManagerFactory().createEntityManager();
         ResolveStage s;
         if (stage.equals("base"))
@@ -412,7 +413,7 @@ public class ProjectResource extends BaseResource {
         else
             throw new ServerException(String.format("Unknown stage: %s", stage));
 
-        server.resolveResource(em, project, user, branch, path, s);
+        branchRepository.resolveResource(project, user, branch, path, s);
         em.close();
     }
 
@@ -425,10 +426,10 @@ public class ProjectResource extends BaseResource {
     public ResourceInfo getResourceInfo(@PathParam("project") String project,
                                           @PathParam("user") String user,
                                           @PathParam("branch") String branch,
-                                          @QueryParam("path") String path) throws IOException, ServerException {
+                                          @QueryParam("path") String path) throws IOException, ServerException, BranchRepositoryException {
 
         EntityManager em = server.getEntityManagerFactory().createEntityManager();
-        ResourceInfo ret = server.getResourceInfo(em, project, user, branch, path);
+        ResourceInfo ret = branchRepository.getResourceInfo(project, user, branch, path);
         em.close();
         return ret;
     }
@@ -438,10 +439,10 @@ public class ProjectResource extends BaseResource {
     public void deleteResource(@PathParam("project") String project,
                                @PathParam("user") String user,
                                @PathParam("branch") String branch,
-                               @QueryParam("path") String path) throws IOException, ServerException {
+                               @QueryParam("path") String path) throws IOException, ServerException, BranchRepositoryException {
 
         EntityManager em = server.getEntityManagerFactory().createEntityManager();
-        server.deleteResource(em, project, user, branch, path);
+        branchRepository.deleteResource(project, user, branch, path);
         em.close();
     }
 
@@ -451,10 +452,10 @@ public class ProjectResource extends BaseResource {
                                @PathParam("user") String user,
                                @PathParam("branch") String branch,
                                @QueryParam("source") String source,
-                               @QueryParam("destination") String destination) throws IOException, ServerException {
+                               @QueryParam("destination") String destination) throws IOException, ServerException, BranchRepositoryException {
 
         EntityManager em = server.getEntityManagerFactory().createEntityManager();
-        server.renameResource(em, project, user, branch, source, destination);
+        branchRepository.renameResource(project, user, branch, source, destination);
         em.close();
     }
 
@@ -463,10 +464,10 @@ public class ProjectResource extends BaseResource {
     public void revertResource(@PathParam("project") String project,
                                @PathParam("user") String user,
                                @PathParam("branch") String branch,
-                               @QueryParam("path") String path) throws IOException, ServerException {
+                               @QueryParam("path") String path) throws IOException, ServerException, BranchRepositoryException {
 
         EntityManager em = server.getEntityManagerFactory().createEntityManager();
-        server.revertResource(em, project, user, branch, path);
+        branchRepository.revertResource(project, user, branch, path);
         em.close();
     }
 
@@ -476,10 +477,10 @@ public class ProjectResource extends BaseResource {
                                   @PathParam("user") String user,
                                   @PathParam("branch") String branch,
                                   @QueryParam("path") String path,
-                                  @QueryParam("revision") String revision) throws IOException, ServerException {
+                                  @QueryParam("revision") String revision) throws IOException, ServerException, BranchRepositoryException {
 
         EntityManager em = server.getEntityManagerFactory().createEntityManager();
-        byte[] ret = server.getResourceData(em, project, user, branch, path, revision);
+        byte[] ret = branchRepository.getResourceData(project, user, branch, path, revision);
         em.close();
         return ret;
     }
@@ -491,14 +492,14 @@ public class ProjectResource extends BaseResource {
                                 @PathParam("branch") String branch,
                                 @QueryParam("path") String path,
                                 @DefaultValue("false") @QueryParam("directory") boolean directory,
-                                byte[] data) throws ServerException, IOException  {
+                                byte[] data) throws ServerException, IOException, BranchRepositoryException  {
 
         EntityManager em = server.getEntityManagerFactory().createEntityManager();
         if (directory) {
-            server.mkdir(project, user, branch, path);
+            branchRepository.mkdir(project, user, branch, path);
         }
         else {
-            server.putResourceData(em, project, user, branch, path, data);
+            branchRepository.putResourceData(project, user, branch, path, data);
         }
         em.close();
     }
@@ -509,9 +510,9 @@ public class ProjectResource extends BaseResource {
                                 @PathParam("user") String user,
                                 @PathParam("branch") String branch,
                                 @DefaultValue("mixed") @QueryParam("mode") String mode,
-                                @QueryParam("target") String target) throws ServerException, IOException  {
+                                @QueryParam("target") String target) throws ServerException, IOException, BranchRepositoryException  {
         EntityManager em = server.getEntityManagerFactory().createEntityManager();
-        server.reset(em, project, user, branch, mode, target);
+        branchRepository.reset(project, user, branch, mode, target);
         em.close();
     }
 
@@ -520,9 +521,9 @@ public class ProjectResource extends BaseResource {
     public Log logBranch(@PathParam("project") String project,
                               @PathParam("user") String user,
                               @PathParam("branch") String branch,
-                              @QueryParam("max_count") int maxCount) throws ServerException, IOException {
+                              @QueryParam("max_count") int maxCount) throws ServerException, IOException, BranchRepositoryException {
         EntityManager em = server.getEntityManagerFactory().createEntityManager();
-        return server.logBranch(em, project, user, branch, maxCount);
+        return branchRepository.logBranch(project, user, branch, maxCount);
     }
 
     /*

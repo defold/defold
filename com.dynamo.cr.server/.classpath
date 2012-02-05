@@ -1,23 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
-	<classpathentry exported="true" kind="lib" path="ext/jsch-0.1.44-1.jar"/>
-	<classpathentry exported="true" kind="lib" path="ext/org.eclipse.jgit-1.2.0.201112221803-r.jar" sourcepath="/private/tmp/5/eclipse-jgit-d36d497/org.eclipse.jgit/src"/>
-	<classpathentry exported="true" kind="lib" path="ext/org.eclipse.jgit.http.server-1.2.0.201112221803-r.jar" sourcepath="/private/tmp/5/eclipse-jgit-d36d497/org.eclipse.jgit.http.server/src"/>
 	<classpathentry exported="true" kind="lib" path="ext/jersey-servlet-1.11.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/jersey-grizzly2-servlet-1.11.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/grizzly-http-servlet-2.1.2.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/grizzly-framework-2.1.2.jar"/>
-	<classpathentry exported="true" kind="lib" path="ext/servlet-api-2.5.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/grizzly-http-2.1.2.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/grizzly-http-server-2.1.2.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/jersey-client-1.11.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/jersey-core-1.11.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/jersey-grizzly2-1.11.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/jersey-server-1.11.jar"/>
-	<classpathentry exported="true" kind="lib" path="ext/janino.jar"/>
-	<classpathentry exported="true" kind="lib" path="ext/logback-classic-0.9.29.jar"/>
-	<classpathentry exported="true" kind="lib" path="ext/logback-core-0.9.29.jar"/>
-	<classpathentry exported="true" kind="lib" path="ext/slf4j-api-1.6.1.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/commons-codec-1.5.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/jetty-all-7.0.2.v20100331.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/postgresql-9.0-801.jdbc4.jar"/>
