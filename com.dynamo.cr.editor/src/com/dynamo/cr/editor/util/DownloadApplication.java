@@ -20,6 +20,7 @@ import org.eclipse.ui.progress.IProgressService;
 
 import com.dynamo.cr.client.IProjectClient;
 import com.dynamo.cr.editor.Activator;
+import com.dynamo.cr.editor.core.EditorCorePlugin;
 import com.dynamo.cr.editor.preferences.PreferenceConstants;
 import com.dynamo.cr.protocol.proto.Protocol.ApplicationInfo;
 
@@ -64,7 +65,7 @@ public class DownloadApplication {
         if (store.getBoolean(PreferenceConstants.P_DOWNLOAD_APPLICATION)) {
             IProjectClient projectClient = Activator.getDefault().projectClient;
 
-            String platform = Activator.getPlatform();
+            String platform = EditorCorePlugin.getPlatform();
 
             try {
 

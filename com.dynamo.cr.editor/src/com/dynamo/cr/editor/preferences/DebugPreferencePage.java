@@ -7,6 +7,7 @@ import org.eclipse.ui.IWorkbench;
 import org.eclipse.ui.IWorkbenchPreferencePage;
 
 import com.dynamo.cr.editor.Activator;
+import com.dynamo.cr.editor.core.EditorCorePlugin;
 
 public class DebugPreferencePage extends FieldEditorPreferencePage implements IWorkbenchPreferencePage {
 
@@ -33,7 +34,7 @@ public class DebugPreferencePage extends FieldEditorPreferencePage implements IW
 
         autoRunDebuggerField.setEnabled(getPreferenceStore().getBoolean(PreferenceConstants.P_RUN_IN_DEBUGGER), getFieldEditorParent());
 
-        if (Activator.getPlatform().equals("win32")) {
+        if (EditorCorePlugin.getPlatform().equals("win32")) {
             runInDebuggerField.setEnabled(false, getFieldEditorParent());
             autoRunDebuggerField.setEnabled(false, getFieldEditorParent());
         }

@@ -34,6 +34,7 @@ import org.eclipse.ui.internal.ide.actions.BuildUtilities;
 
 import com.dynamo.cr.client.RepositoryException;
 import com.dynamo.cr.editor.Activator;
+import com.dynamo.cr.editor.core.EditorCorePlugin;
 import com.dynamo.cr.editor.preferences.PreferenceConstants;
 import com.dynamo.cr.editor.util.DownloadApplication;
 import com.dynamo.cr.protocol.proto.Protocol.LaunchInfo;
@@ -82,7 +83,7 @@ public class LaunchHandler extends AbstractHandler {
                     }
 
                     String[] args;
-                    if (Activator.getPlatform().equals("darwin")) {
+                    if (EditorCorePlugin.getPlatform().equals("darwin")) {
                         if (socks_proxy.length() > 0) {
                             command = "DMSOCKS_PROXY=" + socks_proxy + " " + command;
                             command = "DMSOCKS_PROXY_PORT=" + socks_proxy_port + " " + command;

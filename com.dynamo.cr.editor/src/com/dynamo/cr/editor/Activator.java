@@ -469,18 +469,6 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
         return branchClient;
     }
 
-    public static String getPlatform() {
-        String os_name = System.getProperty("os.name").toLowerCase();
-
-        if (os_name.indexOf("win") != -1)
-            return "win32";
-        else if (os_name.indexOf("mac") != -1)
-            return "darwin";
-        else if (os_name.indexOf("linux") != -1)
-            return "linux";
-        return null;
-    }
-
     @Override
     public void resourceChanged(IResourceChangeEvent event) {
         final IBranchService branchService = (IBranchService)PlatformUI.getWorkbench().getService(IBranchService.class);

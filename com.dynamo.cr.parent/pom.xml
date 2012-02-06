@@ -116,6 +116,7 @@
         <module>../com.dynamo.cr.dgit</module>
         <module>../com.dynamo.cr.branchrepo</module>
         <module>../com.dynamo.cr.builtins</module>
+        <module>../com.dynamo.cr.engine</module>
         <module>../javax.media.opengl</module>
     </modules>
 

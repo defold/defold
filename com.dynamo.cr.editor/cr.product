@@ -43,6 +43,7 @@
       <plugin id="com.dynamo.cr.editor.core"/>
       <plugin id="com.dynamo.cr.editor.fs"/>
       <plugin id="com.dynamo.cr.editor.ui"/>
+      <plugin id="com.dynamo.cr.engine"/>
       <plugin id="com.dynamo.cr.go"/>
       <plugin id="com.dynamo.cr.guieditor"/>
       <plugin id="com.dynamo.cr.luaeditor"/>

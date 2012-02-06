@@ -31,6 +31,18 @@ public class EditorCorePlugin implements BundleActivator, IResourceTypeRegistry 
         return plugin;
     }
 
+    public static String getPlatform() {
+        String os_name = System.getProperty("os.name").toLowerCase();
+
+        if (os_name.indexOf("win") != -1)
+            return "win32";
+        else if (os_name.indexOf("mac") != -1)
+            return "darwin";
+        else if (os_name.indexOf("linux") != -1)
+            return "linux";
+        return null;
+    }
+
     public IResourceTypeRegistry getResourceTypeRegistry() {
         return this;
     }
