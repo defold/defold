@@ -9,6 +9,7 @@ import java.io.InputStreamReader;
 import java.lang.management.ManagementFactory;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URL;
 import java.net.URLDecoder;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
@@ -43,6 +44,11 @@ import org.glassfish.grizzly.servlet.ServletHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import ch.qos.logback.classic.LoggerContext;
+import ch.qos.logback.classic.joran.JoranConfigurator;
+import ch.qos.logback.core.joran.spi.JoranException;
+import ch.qos.logback.core.util.StatusPrinter;
+
 import com.dynamo.cr.branchrepo.BranchRepository;
 import com.dynamo.cr.proto.Config;
 import com.dynamo.cr.proto.Config.Configuration;
@@ -61,8 +67,8 @@ import com.dynamo.cr.server.model.User.Role;
 import com.dynamo.cr.server.openid.OpenID;
 import com.dynamo.cr.server.resources.ResourceUtil;
 import com.dynamo.server.dgit.GitFactory;
-import com.dynamo.server.dgit.IGit;
 import com.dynamo.server.dgit.GitFactory.Type;
+import com.dynamo.server.dgit.IGit;
 import com.google.protobuf.TextFormat;
 import com.sun.jersey.api.container.filter.RolesAllowedResourceFilterFactory;
 import com.sun.jersey.api.container.grizzly2.servlet.GrizzlyWebContainerFactory;
@@ -146,6 +152,24 @@ public class Server implements ServerMBean {
     }
 
     public Server(String configuration_file) throws IOException {
+
+        LoggerContext lc = (LoggerContext) LoggerFactory.getILoggerFactory();
+
+        // Configure logback logging
+        // The logback jars are not located in the current bundle. Hence logback.xml
+        // is not found. Configure logback explicitly
+        try {
+          JoranConfigurator configurator = new JoranConfigurator();
+          configurator.setContext(lc);
+          // the context was probably already configured by default configuration rules
+          lc.reset();
+          URL url = this.getClass().getClassLoader().getResource("/logback.xml");
+          configurator.doConfigure(url);
+        } catch (JoranException je) {
+           je.printStackTrace();
+        }
+        StatusPrinter.printInCaseOfErrorsOrWarnings(lc);
+
         try {
             secureRandom = SecureRandom.getInstance("SHA1PRNG");
         } catch (NoSuchAlgorithmException e1) {
