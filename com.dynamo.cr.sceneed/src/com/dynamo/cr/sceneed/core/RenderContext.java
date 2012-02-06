@@ -113,10 +113,10 @@ public class RenderContext {
             return objectColor;
         case OUTLINE:
             Node n = node;
-            while (n != null && !selectedNodes.contains(n)) {
+            while (n != null && n.getParent() != null && !selectedNodes.contains(n)) {
                 n = n.getParent();
             }
-            if (n != null) {
+            if (n != null && n.getParent() != null) {
                 return SELECTED_COLOR;
             } else {
                 return OBJECT_COLOR;

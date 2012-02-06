@@ -10,23 +10,23 @@ import com.dynamo.cr.sceneed.core.RenderContext.Pass;
 import com.dynamo.cr.sceneed.core.RenderData;
 import com.dynamo.cr.sceneed.ui.preferences.PreferenceConstants;
 
-public class SelectManipulatorRenderer implements INodeRenderer<SelectManipulator> {
+public class SelectionBoxRenderer implements INodeRenderer<SelectionBoxNode> {
 
-    public SelectManipulatorRenderer() {
+    public SelectionBoxRenderer() {
     }
 
     @Override
-    public void setup(RenderContext renderContext, SelectManipulator node) {
+    public void setup(RenderContext renderContext, SelectionBoxNode node) {
         if (renderContext.getPass() == Pass.OVERLAY) {
-            if (node.getStart() != null && node.getCurrent() != null) {
+            if (node.isVisible()) {
                 renderContext.add(this, node, new Point3d(), null);
             }
         }
     }
 
     @Override
-    public void render(RenderContext renderContext, SelectManipulator node,
-            RenderData<SelectManipulator> renderData) {
+    public void render(RenderContext renderContext, SelectionBoxNode node,
+            RenderData<SelectionBoxNode> renderData) {
         GL gl = renderContext.getGL();
 
         float[] color = RenderUtil.parseColor(PreferenceConstants.P_SELECTION_COLOR);
@@ -47,7 +47,7 @@ public class SelectManipulatorRenderer implements INodeRenderer<SelectManipulato
         gl.glEnd();
 
         gl.glBegin(GL.GL_QUADS);
-        gl.glColor4f(color[0], color[1], color[2], 0.5f);
+        gl.glColor4f(color[0], color[1], color[2], 0.2f);
         gl.glVertex3f(minX, minY, z);
         gl.glVertex3f(minX, maxY, z);
         gl.glVertex3f(maxX, maxY, z);

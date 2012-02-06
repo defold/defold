@@ -151,8 +151,7 @@
       </node-type>
       <node-type
             id="com.dynamo.cr.sceneed.ui.selectManipulator"
-            node="com.dynamo.cr.sceneed.ui.SelectManipulator"
-            renderer="com.dynamo.cr.sceneed.ui.SelectManipulatorRenderer">
+            node="com.dynamo.cr.sceneed.ui.SelectManipulator">
       </node-type>
       <node-type
             id="com.dynamo.cr.sceneed.ui.moveManipulator"
@@ -182,6 +181,11 @@
             id="com.dynamo.cr.sceneed.ui.gridNode"
             node="com.dynamo.cr.sceneed.ui.GridNode"
             renderer="com.dynamo.cr.sceneed.ui.GridRenderer">
+      </node-type>
+      <node-type
+            id="com.dynamo.cr.sceneed.ui.selectionBoxNode"
+            node="com.dynamo.cr.sceneed.ui.SelectionBoxNode"
+            renderer="com.dynamo.cr.sceneed.ui.SelectionBoxRenderer">
       </node-type>
    </extension>
    <extension

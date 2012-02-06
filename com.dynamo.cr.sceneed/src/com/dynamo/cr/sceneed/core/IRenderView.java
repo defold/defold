@@ -30,17 +30,6 @@ public interface IRenderView  {
     Matrix4d getViewTransform();
     Matrix4d getProjectionTransform();
 
-    /**
-     * NOTE: x and y must be center coordinates
-     * @param x center coordinate
-     * @param y center coordinate
-     * @param width width to select for
-     * @param height height to select for
-     * @param single limit selection to one node
-     * @return list of selected nodes
-     */
-    void boxSelect(int x, int y, int width, int height, boolean single);
-
     // TODO This is part of a "quick-fix" to enable disposal of graphics resources inside nodes
     // See SceneEditor#dispose for more info
     void activateGLContext();

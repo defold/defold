@@ -76,6 +76,10 @@ public class SceneRenderViewProvider implements IRenderViewProvider, ISelectionP
                 }
             }
         }
+        // Make sure the root is selected at empty selections
+        if (selected.isEmpty()) {
+            selected.add(this.root);
+        }
         StructuredSelection newSelection = new StructuredSelection(selected);
         setSelection(newSelection);
     }
