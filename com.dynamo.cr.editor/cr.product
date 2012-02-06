@@ -37,6 +37,7 @@
       <plugin id="com.dynamo.cr.common"/>
       <plugin id="com.dynamo.cr.contenteditor"/>
       <plugin id="com.dynamo.cr.ddfeditor"/>
+      <plugin id="com.dynamo.cr.dgit"/>
       <plugin id="com.dynamo.cr.editor"/>
       <plugin id="com.dynamo.cr.editor.core"/>
       <plugin id="com.dynamo.cr.editor.fs"/>
