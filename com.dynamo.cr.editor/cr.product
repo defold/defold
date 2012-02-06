@@ -32,6 +32,7 @@
 
    <plugins>
       <plugin id="com.dynamo.cr.branchrepo"/>
+      <plugin id="com.dynamo.cr.builtins"/>
       <plugin id="com.dynamo.cr.cgeditor"/>
       <plugin id="com.dynamo.cr.client"/>
       <plugin id="com.dynamo.cr.common"/>
