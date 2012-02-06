@@ -17,8 +17,7 @@ public class ProjectClient extends BaseClient implements IProjectClient {
 
     private long projectId;
 
-    // NOTE: Only public for package
-    ProjectClient(IClientFactory factory, URI uri, Client client) {
+    /* package*/ ProjectClient(IClientFactory factory, URI uri, Client client) {
         super(factory, uri);
         this.client = client;
         String[] tmp = uri.getPath().split("/");
@@ -67,12 +66,12 @@ public class ProjectClient extends BaseClient implements IProjectClient {
                 .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
                 .get(ClientResponse.class);
             if (resp.getStatus() != 200) {
-                throwRespositoryException(resp);
+                ClientUtils.throwRespositoryException(resp);
             }
             return resp.getEntity(ApplicationInfo.class);
         }
         catch (ClientHandlerException e) {
-            throwRespositoryException(e);
+            ClientUtils.throwRespositoryException(e);
             return null; // Never reached
         }
     }
@@ -83,12 +82,12 @@ public class ProjectClient extends BaseClient implements IProjectClient {
         try {
             ClientResponse resp = resource.path("/application_data").queryParam("platform", platform).get(ClientResponse.class);
             if (resp.getStatus() != 200) {
-                throwRespositoryException(resp);
+                ClientUtils.throwRespositoryException(resp);
             }
             return resp.getEntityInputStream();
         }
         catch (ClientHandlerException e) {
-            throwRespositoryException(e);
+            ClientUtils.throwRespositoryException(e);
             return null; // Never reached
         }
     }

@@ -15,8 +15,11 @@ import org.eclipse.core.filesystem.provider.FileSystem;
 import org.eclipse.core.resources.IResourceChangeEvent;
 import org.eclipse.core.resources.IResourceChangeListener;
 import org.eclipse.core.resources.ResourcesPlugin;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.client.IBranchClient;
+import com.dynamo.cr.client.RepositoryException;
 import com.dynamo.cr.common.providers.ProtobufProviders;
 import com.dynamo.cr.editor.fs.RepositoryFileSystemPlugin;
 import com.sun.jersey.api.client.config.ClientConfig;
@@ -25,6 +28,7 @@ import com.sun.jersey.api.client.config.DefaultClientConfig;
 public class RepositoryFileSystem extends FileSystem implements IResourceChangeListener {
 
     private Map<String, CachingBranchClient> branchClients = new HashMap<String, CachingBranchClient>();
+    private static Logger logger = LoggerFactory.getLogger(RepositoryFileSystem.class);
 
     public RepositoryFileSystem() {
         ClientConfig cc = new DefaultClientConfig();
@@ -63,7 +67,15 @@ public class RepositoryFileSystem extends FileSystem implements IResourceChangeL
         String key = UriBuilder.fromUri(uri).replaceQuery("").build().toString();
         IBranchClient branchClient;
         if (!branchClients.containsKey(key)) {
-            IBranchClient bc = RepositoryFileSystemPlugin.clientFactory.getBranchClient(http_uri);
+            IBranchClient bc;
+            try {
+                bc = RepositoryFileSystemPlugin.clientFactory.getBranchClient(http_uri);
+            } catch (RepositoryException e) {
+                // TODO: No access to StatusManager (in ui-package)
+                // Better solution?
+                logger.error(e.getMessage(), e);
+                return EFS.getNullFileSystem().getStore(uri);
+            }
             branchClients.put(key, new CachingBranchClient(bc));
         }
         branchClient = branchClients.get(key);

@@ -9,6 +9,11 @@ public class RepositoryException extends Exception {
         this.statusCode = statusCode;
     }
 
+    public RepositoryException(String message, Throwable e) {
+        super(message, e);
+        this.statusCode = 400;
+    }
+
     /**
      *
      */

@@ -1,4 +1,4 @@
-package com.dynamo.server.git;
+package com.dynamo.server.dgit;
 
 import java.io.IOException;
 

@@ -1,10 +1,7 @@
 package com.dynamo.cr.server;
 
-import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -15,13 +12,10 @@ import java.net.URISyntaxException;
 import java.net.URLDecoder;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -34,8 +28,6 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.ws.rs.core.Response.Status;
 
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.FilenameUtils;
 import org.eclipse.jetty.http.HttpHeaders;
 import org.eclipse.jetty.http.HttpStatus;
 import org.eclipse.jetty.server.Request;
@@ -51,18 +43,14 @@ import org.glassfish.grizzly.servlet.ServletHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.dynamo.cr.branchrepo.BranchRepository;
 import com.dynamo.cr.proto.Config;
 import com.dynamo.cr.proto.Config.Configuration;
-import com.dynamo.cr.protocol.proto.Protocol;
-import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
 import com.dynamo.cr.protocol.proto.Protocol.BuildDesc;
 import com.dynamo.cr.protocol.proto.Protocol.BuildDesc.Activity;
 import com.dynamo.cr.protocol.proto.Protocol.BuildLog;
-import com.dynamo.cr.protocol.proto.Protocol.CommitDesc;
 import com.dynamo.cr.protocol.proto.Protocol.LaunchInfo;
 import com.dynamo.cr.protocol.proto.Protocol.Log;
-import com.dynamo.cr.protocol.proto.Protocol.ResolveStage;
-import com.dynamo.cr.protocol.proto.Protocol.ResourceInfo.Builder;
 import com.dynamo.cr.server.auth.GitSecurityFilter;
 import com.dynamo.cr.server.auth.OpenIDAuthenticator;
 import com.dynamo.cr.server.auth.SecurityFilter;
@@ -71,24 +59,13 @@ import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.model.User.Role;
 import com.dynamo.cr.server.openid.OpenID;
-import com.dynamo.cr.server.resources.EntityManagerFactoryProvider;
 import com.dynamo.cr.server.resources.ResourceUtil;
-import com.dynamo.cr.server.resources.ServerProvider;
-import com.dynamo.cr.server.util.FileUtil;
-import com.dynamo.server.git.CommandUtil;
-import com.dynamo.server.git.CommandUtil.Result;
-import com.dynamo.server.git.GitFactory;
-import com.dynamo.server.git.GitFactory.Type;
-import com.dynamo.server.git.GitResetMode;
-import com.dynamo.server.git.GitStage;
-import com.dynamo.server.git.GitState;
-import com.dynamo.server.git.GitStatus;
-import com.dynamo.server.git.IGit;
+import com.dynamo.server.dgit.GitFactory;
+import com.dynamo.server.dgit.IGit;
+import com.dynamo.server.dgit.GitFactory.Type;
 import com.google.protobuf.TextFormat;
-import com.sun.jersey.api.NotFoundException;
 import com.sun.jersey.api.container.filter.RolesAllowedResourceFilterFactory;
 import com.sun.jersey.api.container.grizzly2.servlet.GrizzlyWebContainerFactory;
-import com.sun.jersey.api.core.ResourceConfig;
 
 public class Server implements ServerMBean {
 
@@ -96,7 +73,6 @@ public class Server implements ServerMBean {
 
     private HttpServer httpServer;
     private String baseUri;
-    private String branchRoot;
     private Pattern[] filterPatterns;
     private Configuration configuration;
     private EntityManagerFactory emf;
@@ -106,10 +82,7 @@ public class Server implements ServerMBean {
     private OpenID openID = new OpenID();
     private OpenIDAuthenticator openIDAuthentication = new OpenIDAuthenticator(MAX_ACTIVE_LOGINS);
     private SecureRandom secureRandom;
-
-    // Stats
-    private AtomicInteger resourceDataRequests = new AtomicInteger();
-    private AtomicInteger resourceInfoRequests = new AtomicInteger();
+    private BranchRepository branchRepository;
 
     private int cleanupBuildsInterval = 10 * 1000; // 10 seconds
     private int keepBuildDescFor = 100 * 1000; // 100 seconds
@@ -184,9 +157,6 @@ public class Server implements ServerMBean {
 
         loadConfig(configuration_file);
 
-        assert ServerProvider.server == null;
-        ServerProvider.server = this;
-
         HashMap<String, Object> props = new HashMap<String, Object>();
         props.put(PersistenceUnitProperties.CLASSLOADER, this.getClass().getClassLoader());
         // NOTE: JPA-PersistenceUnits: in plug-in MANIFEST.MF has to be set. Otherwise the persistence unit is not found.
@@ -199,7 +169,10 @@ public class Server implements ServerMBean {
             bootStrapUsers();
         }
 
-        EntityManagerFactoryProvider.emf = emf;
+        String builtinsDirectory = null;
+        if (configuration.hasBuiltinsDirectory())
+            builtinsDirectory = configuration.getBuiltinsDirectory();
+        branchRepository = new RemoteBranchRepository(this, configuration.getBranchRoot(), configuration.getRepositoryRoot(), builtinsDirectory, filterPatterns);
 
         baseUri = String.format("http://localhost:%d/", this.configuration.getServicePort());
         final Map<String, String> initParams = new HashMap<String, String>();
@@ -216,6 +189,11 @@ public class Server implements ServerMBean {
          */
         initParams.put("com.sun.jersey.config.property.resourceConfigClass",
                        "com.dynamo.cr.server.ResourceConfig");
+
+        assert ResourceConfig.server == null;
+        ResourceConfig.server = this;
+        ResourceConfig.branchRepository = branchRepository;
+        ResourceConfig.emf = emf;
 
         initParams.put(ResourceConfig.PROPERTY_CONTAINER_REQUEST_FILTERS,
                 PreLoggingRequestFilter.class.getName() +  ";" + SecurityFilter.class.getName());
@@ -404,12 +382,12 @@ public class Server implements ServerMBean {
 
     @Override
     public int getResourceDataRequests() {
-        return resourceDataRequests.get();
+        return branchRepository.getResourceDataRequests();
     }
 
     @Override
     public int getResourceInfoRequests() {
-        return resourceInfoRequests.get();
+        return branchRepository.getResourceInfoRequests();
     }
 
     private void bootStrapUsers() {
@@ -445,8 +423,6 @@ public class Server implements ServerMBean {
 
         configuration = conf_builder.build();
 
-        branchRoot = configuration.getBranchRoot();
-
         filterPatterns = new Pattern[configuration.getFiltersCount()];
         int i = 0;
         for (String f : configuration.getFiltersList()) {
@@ -456,8 +432,8 @@ public class Server implements ServerMBean {
     }
 
     public void stop() {
-        assert ServerProvider.server != null;
-        ServerProvider.server = null;
+        assert ResourceConfig.server != null;
+        ResourceConfig.server = null;
 
         if (this.cleanupThread != null) {
             this.cleanupThread.interrupt();
@@ -505,460 +481,11 @@ public class Server implements ServerMBean {
         return baseUri;
     }
 
-    void ensureProjectBranch(EntityManager em, String project, String user, String branch) throws ServerException {
-        // We check that the project really exists here
-        getProject(em, project);
-
-        User u = getUser(em, user);
-        String p = String.format("%s/%s/%d/%s", branchRoot, project, u.getId(), branch);
-        if (!new File(p).exists()) {
-            throw new ServerException(String.format("No such branch %s/%s", user, branch));
-        }
-    }
-
-    public void createBranch(EntityManager em, String project, String user, String branch) throws ServerException, IOException {
-        // We check that the project really exists here
-        getProject(em, project);
-        User u = getUser(em, user);
-
-        String p = String.format("%s/%s/%d/%s", branchRoot, project, u.getId(), branch);
-        File f = new File(p);
-        if (f.exists()) {
-            throw new ServerException(String.format("Branch %s already exists", p));
-        }
-
-        f.getParentFile().mkdirs();
-
-        IGit git = GitFactory.create(Type.CGIT);
-        String sourcePath = String.format("%s/%s", configuration.getRepositoryRoot(), project);
-        git.cloneRepo(sourcePath, p);
-
-        String fullName = u.getFirstName();
-        if (!u.getLastName().isEmpty()) {
-            fullName = String.format("%s %s", fullName, u.getLastName());
-        }
-        git.configUser(p, u.getEmail(), fullName);
-
-        if (configuration.hasBuiltinsDirectory()) {
-            String builtins = configuration.getBuiltinsDirectory();
-            String dest = String.format("%s/builtins", p);
-            // Create symbolic link to builtins. See deleteBranch()
-            Result r = CommandUtil.execCommand(null, null, new String[] {"ln", "-s", builtins, dest});
-            if (r.exitValue != 0) {
-                logger.error(r.stdErr.toString());
-                FileUtils.deleteDirectory(new File(p));
-                throw new ServerException(String.format("Unable to create branch. Internal server error"));
-            }
-        }
-    }
-
-    public String getBranchRoot() {
-        return branchRoot;
-    }
-
-    public boolean containsBranch(EntityManager em, String project, String user, String branch) throws ServerException {
-        User u = getUser(em, user);
-        String p = String.format("%s/%s/%d/%s", branchRoot, project, u.getId(), branch);
-        return new File(p).exists();
-    }
-
-    public void deleteBranch(EntityManager em, String project, String user, String branch) throws ServerException  {
-        ensureProjectBranch(em, project, user, branch);
-        User u = getUser(em, user);
-
-        String p = String.format("%s/%s/%d/%s", branchRoot, project, u.getId(), branch);
-        try {
-            String dest = String.format("%s/builtins", p);
-            // Remove symbol link to builtins. See createBranch()
-            // We need to remove the symbolic link *before* removeDir is invoked. FileUtil.removeDir follow links...
-            CommandUtil.execCommand(null, null, new String[] {"rm", dest});
-            FileUtil.removeDir(new File(p));
-        } catch (IOException e) {
-            throw new ServerException("", e);
-        }
-    }
-
-    public Protocol.ResourceInfo getResourceInfo(EntityManager em, String project, String user, String branch,
-            String path) throws IOException, ServerException {
-        ensureProjectBranch(em, project, user, branch);
-        if (path == null)
-            throw new ServerException("null path");
-
-        if (path.indexOf("..") != -1) {
-            throw new ServerException("Relative paths are not permitted", Status.NOT_FOUND);
-        }
-
-        resourceInfoRequests.addAndGet(1);
-
-        User u = getUser(em, user);
-        String p = String.format("%s/%s/%d/%s%s", branchRoot, project, u.getId(), branch, path);
-        File f = new File(p);
-
-        if (!f.exists())
-            throw new NotFoundException(String.format("%s not found", p));
-
-        if (f.isFile()) {
-            Builder builder = Protocol.ResourceInfo.newBuilder()
-            .setName(f.getName())
-            .setPath(String.format("%s", path))
-            .setSize((int) f.length())
-            .setLastModified(f.lastModified())
-            .setType(Protocol.ResourceType.FILE);
-
-            return builder.build();
-        }
-        else if (f.isDirectory()) {
-            Builder builder = Protocol.ResourceInfo.newBuilder()
-            .setName(f.getName())
-            .setPath(String.format("%s", path))
-            .setSize(0)
-            .setLastModified(f.lastModified())
-            .setType(Protocol.ResourceType.DIRECTORY);
-
-            for (File subf : f.listFiles()) {
-                boolean match = false;
-                String pathToMatch = path;
-                if (pathToMatch.equals("/"))
-                    pathToMatch += subf.getName();
-                else
-                    pathToMatch += "/" + subf.getName();
-
-                for (Pattern pf : filterPatterns) {
-                    if (pf.matcher(pathToMatch).matches()) {
-                        match = true;
-                        break;
-                    }
-                }
-                if (!match)
-                    builder.addSubResourceNames(subf.getName());
-            }
-            return builder.build();
-        }
-        else {
-            throw new ServerException("Unknown resource type: " + f);
-        }
-    }
-
-    public byte[] getResourceData(EntityManager em, String project, String user, String branch,
-            String path, String revision) throws IOException, ServerException {
-        ensureProjectBranch(em, project, user, branch);
-        if (path == null)
-            throw new ServerException("null path");
-
-        if (path.indexOf("..") != -1) {
-            throw new ServerException("Relative paths are not permitted", Status.NOT_FOUND);
-        }
-
-        resourceDataRequests.addAndGet(1);
-
-        User u = getUser(em, user);
-        String p = String.format("%s/%s/%d/%s%s", branchRoot, project, u.getId(), branch, path);
-        if (revision != null && !revision.equals("")) {
-            IGit git = GitFactory.create(Type.CGIT);
-            try {
-                return git.show(String.format("%s/%s/%d/%s", branchRoot, project, u.getId(), branch), path.substring(1), revision);
-            } catch (IOException e) {
-                throw new NotFoundException(String.format("%s (rev '%s') not found", p, revision));
-            }
-        } else {
-            File f = new File(p);
-
-            if (!f.exists())
-                throw new NotFoundException(String.format("%s not found", p));
-            else if (!f.isFile())
-                throw new ServerException("getResourceData opertion is not applicable on non-files");
-
-            byte[] file_data = new byte[(int) f.length()];
-            BufferedInputStream is = new BufferedInputStream(new FileInputStream(p));
-            is.read(file_data);
-            is.close();
-            return file_data;
-        }
-    }
-
-    public void deleteResource(EntityManager em, String project, String user, String branch,
-            String path) throws ServerException, IOException {
-        ensureProjectBranch(em, project, user, branch);
-        if (path == null)
-            throw new ServerException("null path");
-        User u = getUser(em, user);
-
-        String p = String.format("%s/%s/%d/%s%s", branchRoot, project, u.getId(), branch, path);
-        File f = new File(p);
-        // NOTE: We need to cache isFile() here.
-        boolean isFile = f.isFile();
-
-        if (!f.exists())
-            throw new NotFoundException(String.format("%s not found", p));
-
-        boolean recursive = false;
-        if (f.isDirectory())
-            recursive = true;
-
-        String branch_path = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
-        IGit git = GitFactory.create(Type.CGIT);
-        boolean force = true;
-        git.rm(branch_path, path.substring(1), recursive, force); // NOTE: Remove / from path
-
-        // The code is somewhat strange
-        // We always recreate to parent directory for a file
-        // in order to avoid implicit deletion of directories. This behavior confuses
-        // eclipse. We also need to remove the directory manually as git won't remove
-        // empty directories. (git doesn't track empty directories). This is direct
-        // consequence of the first behavior (recreating directories)
-        if (isFile) {
-            String localPath = FilenameUtils.getFullPath(p);
-            File localPathFile = new File(localPath);
-            localPathFile.mkdirs();
-        } else {
-            f.delete();
-        }
-    }
-
-    public void renameResource(EntityManager em, String project, String user, String branch,
-            String source, String destination) throws ServerException, IOException {
-        ensureProjectBranch(em, project, user, branch);
-        if (source == null)
-            throw new ServerException("null source");
-        User u = getUser(em, user);
-
-        String source_path = String.format("%s/%s/%d/%s%s", branchRoot, project, u.getId(), branch, source);
-        File f = new File(source_path);
-
-        if (!f.exists())
-            throw new NotFoundException(String.format("%s not found", source_path));
-
-        String branch_path = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
-        IGit git = GitFactory.create(Type.CGIT);
-        git.mv(branch_path, source.substring(1), destination.substring(1), true); // NOTE: Remove / from path
-    }
-
-    public void revertResource(EntityManager em, String project, String user, String branch,
-            String path) throws IOException, ServerException {
-        User u = getUser(em, user);
-        String branch_path = String.format("%s/%s/%d/%s", branchRoot, project, u.getId(), branch);
-        IGit git = GitFactory.create(Type.CGIT);
-        GitStatus status = git.getStatus(branch_path);
-        String localPath = path.substring(1);
-        GitStatus.Entry entry = null;
-        for (GitStatus.Entry f : status.files) {
-            if (f.file.equals(path.substring(1))) {
-                entry = f;
-                break;
-            }
-        }
-        if (entry != null) {
-            switch (entry.indexStatus) {
-            case 'A':
-                git.rm(branch_path, localPath, false, true);
-                break;
-            case 'R':
-                git.rm(branch_path, localPath, false, true);
-                git.reset(branch_path, GitResetMode.MIXED, entry.original, "HEAD");
-                git.checkout(branch_path, entry.original, false);
-                break;
-            case 'D':
-            case 'M':
-                git.reset(branch_path, GitResetMode.MIXED, localPath, "HEAD");
-            default:
-                git.checkout(branch_path, localPath, false);
-                break;
-            }
-        }
-    }
-
-    public void putResourceData(EntityManager em, String project, String user, String branch,
-            String path, byte[] data) throws ServerException, IOException  {
-        ensureProjectBranch(em, project, user, branch);
-        if (path == null)
-            throw new ServerException("null path");
-
-        String p = String.format("%s/%s/%s/%s%s", branchRoot, project, user, branch, path);
-        File f = new File(p);
-        File parent = f.getParentFile();
-
-        if (!parent.exists())
-            throw new NotFoundException(String.format("Directory %s not found", parent.getPath()));
-
-        FileOutputStream os = new FileOutputStream(f);
-        os.write(data);
-        os.close();
-
-        String branch_path = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
-        IGit git = GitFactory.create(Type.CGIT);
-        try {
-            git.add(branch_path, path.substring(1));  // NOTE: Remove / from path
-        } catch (Throwable e) {
-            // Rollback if git error
-            f.delete();
-            throw new ServerException("Failed to add file", e);
-        }
-    }
-
-    public void mkdir(String project, String user, String branch, String path) throws ServerException {
-        if (path == null)
-            throw new ServerException("null path");
-
-        String p = String.format("%s/%s/%s/%s%s", branchRoot, project, user, branch, path);
-        File f = new File(p);
-        if (!f.exists()) {
-            f.mkdirs();
-        }
-        else {
-            if (!f.isDirectory())
-                throw new ServerException(String.format("File %s already exists and is not a directory", p));
-        }
-    }
-
-    public BranchStatus getBranchStatus(EntityManager em, String project, String user, String branch) throws IOException, ServerException {
-        ensureProjectBranch(em, project, user, branch);
-        String p = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
-
-        IGit git = GitFactory.create(Type.CGIT);
-        GitState state = git.getState(p);
-        GitStatus status = git.getStatus(p);
-
-        Protocol.BranchStatus.State s;
-        if (state == GitState.CLEAN)
-            s = Protocol.BranchStatus.State.CLEAN;
-        else if (state == GitState.DIRTY)
-            s = Protocol.BranchStatus.State.DIRTY;
-        else if (state == GitState.MERGE)
-            s = Protocol.BranchStatus.State.MERGE;
-        else
-            throw new RuntimeException("Internal error. Unknown state: " + state);
-
-        BranchStatus.Builder builder = Protocol.BranchStatus
-        .newBuilder().setName(branch)
-        .setBranchState(s)
-        .setCommitsAhead(status.commitsAhead)
-        .setCommitsBehind(status.commitsBehind);
-
-        for (GitStatus.Entry e : status.files) {
-            String fn = String.format("/%s", e.file);
-            BranchStatus.Status.Builder status_builder = BranchStatus.Status.newBuilder().setName(fn).setIndexStatus("" + e.indexStatus).setWorkingTreeStatus("" + e.workingTreeStatus);
-            if (e.original != null) {
-                status_builder.setOriginal(String.format("/%s", e.original));
-            }
-            builder.addFileStatus(status_builder);
-        }
-
-        return builder.build();
-    }
-
-    public String[] getBranchNames(EntityManager em, String project, String user) {
-        String p = String.format("%s/%s/%s", branchRoot, project, user);
-        File d = new File(p);
-        if (!d.isDirectory())
-            return new String[] {};
-
-        List<String> list = new ArrayList<String>();
-        for (File f : d.listFiles()) {
-            if (f.isDirectory()) {
-                if (new File(f, ".git").isDirectory()) {
-                    list.add(f.getName());
-                }
-            }
-        }
-
-        String[] ret = new String[list.size()];
-        list.toArray(ret);
-
-        return ret;
-    }
-
-    public void updateBranch(EntityManager em, String project, String user, String branch) throws IOException, ServerException {
-        ensureProjectBranch(em, project, user, branch);
-        String p = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
-
-        IGit git = GitFactory.create(Type.CGIT);
-        git.pull(p);
-    }
-
-    public CommitDesc commitBranch(EntityManager em, String project, String user, String branch, String message) throws IOException, ServerException {
-        ensureProjectBranch(em, project, user, branch);
-        String p = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
-
-        IGit git = GitFactory.create(Type.CGIT);
-        return git.commitAll(p, message);
-    }
-
-    public void resolveResource(EntityManager em, String project, String user, String branch, String path,
-            ResolveStage stage) throws IOException, ServerException {
-        ensureProjectBranch(em, project, user, branch);
-        if (path == null)
-            throw new ServerException("null path");
-
-        String p = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
-
-        IGit git = GitFactory.create(Type.CGIT);
-        GitStage git_stage;
-        if (stage == ResolveStage.BASE) {
-            git_stage = GitStage.BASE;
-        }
-        else if (stage == ResolveStage.YOURS) {
-            git_stage = GitStage.YOURS;
-        }
-        else if (stage == ResolveStage.THEIRS) {
-            git_stage = GitStage.THEIRS;
-        }
-        else {
-            throw new RuntimeException("Internal error. Unknown stage: " + stage);
-        }
-
-        git.resolve(p, path.substring(1), git_stage);  // NOTE: Remove / from path
-    }
-
-    public CommitDesc commitMergeBranch(EntityManager em, String project, String user, String branch,
-            String message) throws IOException, ServerException {
-        ensureProjectBranch(em, project, user, branch);
-        String p = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
-
-        IGit git = GitFactory.create(Type.CGIT);
-        return git.commit(p, message);
-    }
-
-    public void publishBranch(EntityManager em, String project, String user, String branch) throws IOException, ServerException {
-        ensureProjectBranch(em, project, user, branch);
-        String p = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
-
-        IGit git = GitFactory.create(Type.CGIT);
-        git.push(p);
-    }
-
-    public void reset(EntityManager em, String project, String user, String branch, String mode, String target) throws IOException, ServerException {
-        ensureProjectBranch(em, project, user, branch);
-        String p = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
-
-        IGit git = GitFactory.create(Type.CGIT);
-        GitResetMode resetMode = GitResetMode.MIXED;
-        if (mode.equals("mixed")) {
-            resetMode = GitResetMode.MIXED;
-        } else if (mode.equals("soft")) {
-            resetMode = GitResetMode.SOFT;
-        } else if (mode.equals("hard")) {
-            resetMode = GitResetMode.HARD;
-        } else if (mode.equals("merge")) {
-            resetMode = GitResetMode.MERGE;
-        } else if (mode.equals("keep")) {
-            resetMode = GitResetMode.KEEP;
-        }
-        git.reset(p, resetMode, null, target);
-    }
-
     public Log log(EntityManager em, String project, int maxCount) throws IOException, ServerException {
         getProject(em, project);
         String sourcePath = String.format("%s/%s", configuration.getRepositoryRoot(), project);
         IGit git = GitFactory.create(Type.CGIT);
         return git.log(sourcePath, maxCount);
-    }
-
-    public Log logBranch(EntityManager em, String project, String user, String branch, int maxCount) throws IOException, ServerException {
-        ensureProjectBranch(em, project, user, branch);
-        String p = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
-
-        IGit git = GitFactory.create(Type.CGIT);
-        return git.log(p, maxCount);
     }
 
     static class BuildRunnable implements IBuildRunnable {
@@ -1153,7 +680,7 @@ public class Server implements ServerMBean {
             builds.put(build_number, rtbd);
         }
 
-        rtbd.buildRunnable = new BuildRunnable(this, build_number, branchRoot, project, user, branch, rebuild);
+        rtbd.buildRunnable = new BuildRunnable(this, build_number, branchRepository.getBranchRoot(), project, user, branch, rebuild);
         rtbd.buildThread = new Thread(rtbd.buildRunnable);
         rtbd.buildThread.start();
 
@@ -1255,6 +782,10 @@ public class Server implements ServerMBean {
 
     public Configuration getConfiguration() {
         return configuration;
+    }
+
+    public String getBranchRoot() {
+        return branchRepository.getBranchRoot();
     }
 
 
