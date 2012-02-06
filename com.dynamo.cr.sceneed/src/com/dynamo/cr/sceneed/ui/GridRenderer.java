@@ -173,6 +173,17 @@ public class GridRenderer implements INodeRenderer<GridNode> {
                         axis3 = tmp;
                     }
 
+                    // Render principal axis in RGB
+                    gl.glColor4d(1.0, 0.0, 0.0, 1.0);
+                    gl.glVertex3d(minValues[0], 0.0, 0.0);
+                    gl.glVertex3d(maxValues[0], 0.0, 0.0);
+                    gl.glColor4d(0.0, 1.0, 0.0, 1.0);
+                    gl.glVertex3d(0.0, minValues[1], 0.0);
+                    gl.glVertex3d(0.0, maxValues[1], 0.0);
+                    gl.glColor4d(0.0, 0.0, 1.0, 1.0);
+                    gl.glVertex3d(0.0, 0.0, minValues[2]);
+                    gl.glVertex3d(0.0, 0.0, maxValues[2]);
+
                     e += 1.0;
                 }
             }
