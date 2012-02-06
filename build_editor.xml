@@ -40,6 +40,13 @@
               <arg value="DYNAMO_HOME"/>
         </exec>
 
+        <exec dir="${buildDirectory}/plugins/com.dynamo.cr.builtins"
+              executable="ln">
+              <arg value="-s"/>
+              <arg value="${env.DYNAMO_HOME}"/>
+              <arg value="DYNAMO_HOME"/>
+        </exec>
+
     </target>
 
 
