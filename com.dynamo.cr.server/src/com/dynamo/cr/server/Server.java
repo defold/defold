@@ -198,7 +198,7 @@ public class Server implements ServerMBean {
             builtinsDirectory = configuration.getBuiltinsDirectory();
         branchRepository = new RemoteBranchRepository(this, configuration.getBranchRoot(), configuration.getRepositoryRoot(), builtinsDirectory, filterPatterns);
 
-        baseUri = String.format("http://%s:%d/", this.configuration.getHostname(), this.configuration.getServicePort());
+        baseUri = String.format("http://0.0.0.0:%d/", this.configuration.getServicePort());
         final Map<String, String> initParams = new HashMap<String, String>();
 
         /*
