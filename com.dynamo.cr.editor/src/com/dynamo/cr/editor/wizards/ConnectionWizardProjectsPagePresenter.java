@@ -39,9 +39,14 @@ public class ConnectionWizardProjectsPagePresenter {
     public void onSelectProject(ProjectInfo projectInfo) {
         if (projectInfo != null) {
             URI uri = ClientUtils.getProjectUri(client, projectInfo.getId());
-            IProjectClient projectClient = client.getClientFactory().getProjectClient(uri);
-            branchPresenter.setProjectResourceClient(projectClient);
-            display.setPageComplete(canFinish());
+            IProjectClient projectClient;
+            try {
+                projectClient = client.getClientFactory().getProjectClient(uri);
+                branchPresenter.setProjectResourceClient(projectClient);
+                display.setPageComplete(canFinish());
+            } catch (RepositoryException e) {
+                display.setErrorMessage(e.getMessage());
+            }
         }
     }
 

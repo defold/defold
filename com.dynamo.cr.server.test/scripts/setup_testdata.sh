@@ -14,6 +14,7 @@ setup_proj() {
     git add .
     git commit -m initial
     git config receive.denycurrentbranch ignore
+    git config http.receivepack true
     popd > /dev/null
 }
 

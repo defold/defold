@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.URI;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -19,11 +20,15 @@ import javax.ws.rs.core.UriBuilder;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 
 import com.dynamo.cr.client.ClientFactory;
 import com.dynamo.cr.client.ClientUtils;
 import com.dynamo.cr.client.IBranchClient;
 import com.dynamo.cr.client.IClientFactory;
+import com.dynamo.cr.client.IClientFactory.BranchLocation;
 import com.dynamo.cr.client.IProjectClient;
 import com.dynamo.cr.client.IProjectsClient;
 import com.dynamo.cr.client.IUsersClient;
@@ -55,8 +60,10 @@ import com.sun.jersey.api.client.config.ClientConfig;
 import com.sun.jersey.api.client.config.DefaultClientConfig;
 import com.sun.jersey.api.client.filter.HTTPBasicAuthFilter;
 
+@RunWith(value = Parameterized.class)
 public class ProjectResourceTest {
 
+    private BranchLocation branchLocation;
     private Server server;
     int port = 6500;
 
@@ -83,6 +90,16 @@ public class ProjectResourceTest {
     private User nonMember;
     private UserInfo nonMemberInfo;
     private WebResource nonMemberProjectsWebResource;
+
+    public ProjectResourceTest(BranchLocation branchLocation) {
+        this.branchLocation = branchLocation;
+    }
+
+    @Parameters
+    public static Collection<BranchLocation[]> data() {
+        BranchLocation[][] data = new BranchLocation[][] { { BranchLocation.LOCAL }, { BranchLocation.REMOTE } };
+        return Arrays.asList(data);
+    }
 
     void execCommand(String command) throws IOException {
         CommandUtil.Result r = CommandUtil.execCommand(new String[] {"sh", command});
@@ -155,7 +172,7 @@ public class ProjectResourceTest {
 
         client = Client.create(cc);
         client.addFilter(new HTTPBasicAuthFilter(ownerEmail, ownerPassword));
-        ownerFactory = new ClientFactory(client);
+        ownerFactory = new ClientFactory(client, this.branchLocation, "tmp/branch_root", this.ownerEmail, this.ownerPassword);
         usersClient = ownerFactory.getUsersClient(uri);
         ownerInfo = usersClient.getUserInfo(ownerEmail);
 
@@ -197,6 +214,10 @@ public class ProjectResourceTest {
 
     @Test
     public void launchInfo() throws Exception {
+        if (branchLocation == BranchLocation.LOCAL) {
+            // Launch info is not supported in local branches
+            return;
+        }
         ownerProjectClient.getLaunchInfo();
 
         ClientResponse response = memberProjectsWebResource.path("/launch_info").get(ClientResponse.class);
@@ -312,6 +333,11 @@ public class ProjectResourceTest {
 
     @Test
     public void simpleBenchMark() throws Exception {
+        if (branchLocation == BranchLocation.LOCAL) {
+            // Launch info is not supported in local branches
+            return;
+        }
+
         // Warm up the jit
         for (int i = 0; i < 2000; ++i) {
             ownerProjectClient.getLaunchInfo();
@@ -806,6 +832,11 @@ public class ProjectResourceTest {
 
     @Test
     public void build() throws Exception {
+        if (branchLocation == BranchLocation.LOCAL) {
+            // Building is not supported in local branches
+            return;
+        }
+
         PrintWriter writer = new PrintWriter(new File("tmp/build.sh"));
         writer.println("sleep 0.3");
         writer.println("echo HELLO");
@@ -828,6 +859,11 @@ public class ProjectResourceTest {
 
     @Test
     public void failingBuild() throws Exception {
+        if (branchLocation == BranchLocation.LOCAL) {
+            // Building is not supported in local branches
+            return;
+        }
+
         PrintWriter writer = new PrintWriter(new File("tmp/build.sh"));
         writer.println("exit 5");
         writer.close();
@@ -845,6 +881,11 @@ public class ProjectResourceTest {
 
     @Test
     public void cleanupBuilds() throws Exception {
+        if (branchLocation == BranchLocation.LOCAL) {
+            // Building is not supported in local branches
+            return;
+        }
+
         server.setCleanupBuildsInterval(50);
         server.setKeepBuildDescFor(700);
 
@@ -873,6 +914,11 @@ public class ProjectResourceTest {
 
     @Test
     public void cancelBuild() throws Exception {
+        if (branchLocation == BranchLocation.LOCAL) {
+            // Building is not supported in local branches
+            return;
+        }
+
         PrintWriter writer = new PrintWriter(new File("tmp/build.sh"));
         writer.println("echo HELLO");
         writer.println("sleep 1000");
@@ -899,6 +945,11 @@ public class ProjectResourceTest {
 
     @Test
     public void concurrentBuilds() throws Exception {
+        if (branchLocation == BranchLocation.LOCAL) {
+            // Building is not supported in local branches
+            return;
+        }
+
         PrintWriter writer = new PrintWriter(new File("tmp/build.sh"));
         writer.println("echo HELLO");
         writer.println("sleep 1000");

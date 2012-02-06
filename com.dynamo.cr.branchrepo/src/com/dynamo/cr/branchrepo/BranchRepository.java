@@ -18,24 +18,26 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.protocol.proto.Protocol;
+import com.dynamo.cr.protocol.proto.Protocol.BranchList;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
 import com.dynamo.cr.protocol.proto.Protocol.CommitDesc;
 import com.dynamo.cr.protocol.proto.Protocol.Log;
 import com.dynamo.cr.protocol.proto.Protocol.ResolveStage;
 import com.dynamo.cr.protocol.proto.Protocol.ResourceInfo.Builder;
 import com.dynamo.server.dgit.CommandUtil;
+import com.dynamo.server.dgit.CommandUtil.Result;
 import com.dynamo.server.dgit.GitFactory;
+import com.dynamo.server.dgit.GitFactory.Type;
 import com.dynamo.server.dgit.GitResetMode;
 import com.dynamo.server.dgit.GitStage;
 import com.dynamo.server.dgit.GitState;
 import com.dynamo.server.dgit.GitStatus;
 import com.dynamo.server.dgit.IGit;
-import com.dynamo.server.dgit.CommandUtil.Result;
-import com.dynamo.server.dgit.GitFactory.Type;
 
 public abstract class BranchRepository {
     private static Logger logger = LoggerFactory.getLogger(BranchRepository.class);
 
+    private Type gitType;
     private String branchRoot;
     private String repositoryRoot;
     private String builtinsDirectory;
@@ -45,11 +47,24 @@ public abstract class BranchRepository {
     private AtomicInteger resourceDataRequests = new AtomicInteger();
     private AtomicInteger resourceInfoRequests = new AtomicInteger();
 
-    public BranchRepository(String branchRoot, String repositoryRoot, String builtinsDirectory, Pattern[] filterPatterns) {
+    private String email;
+
+    private String password;
+
+    public BranchRepository(GitFactory.Type gitType,
+                            String branchRoot,
+                            String repositoryRoot,
+                            String builtinsDirectory,
+                            Pattern[] filterPatterns,
+                            String email,
+                            String password) {
+        this.gitType = gitType;
         this.branchRoot = branchRoot;
         this.repositoryRoot = repositoryRoot;
         this.builtinsDirectory = builtinsDirectory;
         this.filterPatterns = filterPatterns;
+        this.email = email;
+        this.password = password;
     }
 
     public int getResourceDataRequests() {
@@ -79,6 +94,15 @@ public abstract class BranchRepository {
         }
     }
 
+    private IGit getGit() {
+        IGit git = GitFactory.create(this.gitType);
+        if (email != null && password != null) {
+            git.setUsername(email);
+            git.setPassword(password);
+        }
+        return git;
+    }
+
     public void createBranch(String project, String user, String branch) throws BranchRepositoryException, IOException {
         // We check that the project really exists here
         ensureProject(project);
@@ -92,7 +116,7 @@ public abstract class BranchRepository {
 
         f.getParentFile().mkdirs();
 
-        IGit git = GitFactory.create(Type.CGIT);
+        IGit git = getGit();
         String sourcePath = String.format("%s/%s", this.repositoryRoot, project);
         git.cloneRepo(sourcePath, p);
 
@@ -227,7 +251,7 @@ public abstract class BranchRepository {
         long userId = Long.parseLong(user);
         String p = String.format("%s/%s/%d/%s%s", branchRoot, project, userId, branch, path);
         if (revision != null && !revision.equals("")) {
-            IGit git = GitFactory.create(Type.CGIT);
+            IGit git = getGit();
             try {
                 return git.show(String.format("%s/%s/%d/%s", branchRoot, project, userId, branch), path.substring(1), revision);
             } catch (IOException e) {
@@ -269,7 +293,7 @@ public abstract class BranchRepository {
             recursive = true;
 
         String branch_path = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
-        IGit git = GitFactory.create(Type.CGIT);
+        IGit git = getGit();
         boolean force = true;
         git.rm(branch_path, path.substring(1), recursive, force); // NOTE: Remove / from path
 
@@ -302,7 +326,7 @@ public abstract class BranchRepository {
             throw new BranchRepositoryException(String.format("%s not found", source_path), Status.NOT_FOUND);
 
         String branch_path = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
-        IGit git = GitFactory.create(Type.CGIT);
+        IGit git = getGit();
         git.mv(branch_path, source.substring(1), destination.substring(1), true); // NOTE: Remove / from path
     }
 
@@ -310,7 +334,7 @@ public abstract class BranchRepository {
             String path) throws IOException, BranchRepositoryException {
         long userId = Long.parseLong(user);
         String branch_path = String.format("%s/%s/%d/%s", branchRoot, project, userId, branch);
-        IGit git = GitFactory.create(Type.CGIT);
+        IGit git = getGit();
         GitStatus status = git.getStatus(branch_path);
         String localPath = path.substring(1);
         GitStatus.Entry entry = null;
@@ -358,7 +382,7 @@ public abstract class BranchRepository {
         os.close();
 
         String branch_path = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
-        IGit git = GitFactory.create(Type.CGIT);
+        IGit git = getGit();
         try {
             git.add(branch_path, path.substring(1));  // NOTE: Remove / from path
         } catch (Throwable e) {
@@ -387,7 +411,7 @@ public abstract class BranchRepository {
         ensureProjectBranch(project, user, branch);
         String p = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
 
-        IGit git = GitFactory.create(Type.CGIT);
+        IGit git = getGit();
         GitState state = git.getState(p);
         GitStatus status = git.getStatus(p);
 
@@ -440,11 +464,20 @@ public abstract class BranchRepository {
         return ret;
     }
 
+    public BranchList getBranchList(String project, String user) {
+        String[] branchNames = getBranchNames(project, user);
+        Protocol.BranchList.Builder b = Protocol.BranchList.newBuilder();
+        for (String branch : branchNames) {
+            b.addBranches(branch);
+        }
+        return b.build();
+    }
+
     public void updateBranch(String project, String user, String branch) throws IOException, BranchRepositoryException {
         ensureProjectBranch(project, user, branch);
         String p = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
 
-        IGit git = GitFactory.create(Type.CGIT);
+        IGit git = getGit();
         git.pull(p);
     }
 
@@ -452,7 +485,7 @@ public abstract class BranchRepository {
         ensureProjectBranch(project, user, branch);
         String p = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
 
-        IGit git = GitFactory.create(Type.CGIT);
+        IGit git = getGit();
         return git.commitAll(p, message);
     }
 
@@ -464,7 +497,7 @@ public abstract class BranchRepository {
 
         String p = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
 
-        IGit git = GitFactory.create(Type.CGIT);
+        IGit git = getGit();
         GitStage git_stage;
         if (stage == ResolveStage.BASE) {
             git_stage = GitStage.BASE;
@@ -487,7 +520,7 @@ public abstract class BranchRepository {
         ensureProjectBranch(project, user, branch);
         String p = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
 
-        IGit git = GitFactory.create(Type.CGIT);
+        IGit git = getGit();
         return git.commit(p, message);
     }
 
@@ -495,7 +528,7 @@ public abstract class BranchRepository {
         ensureProjectBranch(project, user, branch);
         String p = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
 
-        IGit git = GitFactory.create(Type.CGIT);
+        IGit git = getGit();
         git.push(p);
     }
 
@@ -503,7 +536,7 @@ public abstract class BranchRepository {
         ensureProjectBranch(project, user, branch);
         String p = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
 
-        IGit git = GitFactory.create(Type.CGIT);
+        IGit git = getGit();
         GitResetMode resetMode = GitResetMode.MIXED;
         if (mode.equals("mixed")) {
             resetMode = GitResetMode.MIXED;
@@ -523,7 +556,7 @@ public abstract class BranchRepository {
         ensureProjectBranch(project, user, branch);
         String p = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
 
-        IGit git = GitFactory.create(Type.CGIT);
+        IGit git = getGit();
         return git.log(p, maxCount);
     }
 

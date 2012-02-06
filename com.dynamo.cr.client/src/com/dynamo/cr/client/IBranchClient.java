@@ -37,15 +37,16 @@ public interface IBranchClient extends IClient {
 
     public void publish() throws RepositoryException;
 
-    public BuildDesc build(boolean rebuild) throws RepositoryException;
-
-    public BuildDesc getBuildStatus(int id) throws RepositoryException;
-
-    public BuildLog getBuildLogs(int id) throws RepositoryException;
-
     public Log log(int maxCount) throws RepositoryException;
 
     public void reset(String mode, String target) throws RepositoryException;
 
+    // Build related methods
+    public BuildDesc build(boolean rebuild) throws RepositoryException;
+
+    public BuildDesc getBuildStatus(int id) throws RepositoryException;
+
     public void cancelBuild(int id) throws RepositoryException;
+
+    public BuildLog getBuildLogs(int id) throws RepositoryException;
 }

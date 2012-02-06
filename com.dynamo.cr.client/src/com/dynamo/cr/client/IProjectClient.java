@@ -24,12 +24,12 @@ public interface IProjectClient extends IClient {
     public void createBranch(String branch)
             throws RepositoryException;
 
+    public ProjectInfo getProjectInfo() throws RepositoryException;
+
     public LaunchInfo getLaunchInfo() throws RepositoryException;
 
     public ApplicationInfo getApplicationInfo(String platform) throws RepositoryException;
 
     public InputStream getApplicationData(String platform) throws RepositoryException;
-
-    public ProjectInfo getProjectInfo() throws RepositoryException;
 
 }

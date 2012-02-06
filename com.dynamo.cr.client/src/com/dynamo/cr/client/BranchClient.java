@@ -34,13 +34,13 @@ public class BranchClient extends BaseClient implements IBranchClient {
 
             ClientResponse resp = sub_resource.accept(ProtobufProviders.APPLICATION_XPROTOBUF).get(ClientResponse.class);
             if (resp.getStatus() != 200) {
-                throwRespositoryException(resp);
+                ClientUtils.throwRespositoryException(resp);
             }
             ResourceInfo ret = resp.getEntity(ResourceInfo.class);
             return ret;
         }
         catch (ClientHandlerException e) {
-            throwRespositoryException(e);
+            ClientUtils.throwRespositoryException(e);
             return null; // Never reached
         }
     }
@@ -50,12 +50,12 @@ public class BranchClient extends BaseClient implements IBranchClient {
         try {
             ClientResponse resp = resource.path("/resources/data").queryParam("path", path).queryParam("revision", revision).get(ClientResponse.class);
             if (resp.getStatus() != 200) {
-                throwRespositoryException(resp);
+                ClientUtils.throwRespositoryException(resp);
             }
             return resp.getEntity(byte[].class);
         }
         catch (ClientHandlerException e) {
-            throwRespositoryException(e);
+            ClientUtils.throwRespositoryException(e);
             return null; // Never reached
         }
     }
@@ -65,11 +65,11 @@ public class BranchClient extends BaseClient implements IBranchClient {
         try {
             ClientResponse resp = resource.path("/resources/data").queryParam("path", path).put(ClientResponse.class, data);
             if (resp.getStatus() != 200 && resp.getStatus() != 204) {
-                throwRespositoryException(resp);
+                ClientUtils.throwRespositoryException(resp);
             }
         }
         catch (ClientHandlerException e) {
-            throwRespositoryException(e);
+            ClientUtils.throwRespositoryException(e);
         }
     }
 
@@ -78,11 +78,11 @@ public class BranchClient extends BaseClient implements IBranchClient {
         try {
             ClientResponse resp = resource.path("/resources/data").queryParam("path", path).queryParam("directory", "true").put(ClientResponse.class);
             if (resp.getStatus() != 200 && resp.getStatus() != 204) {
-                throwRespositoryException(resp);
+                ClientUtils.throwRespositoryException(resp);
             }
         }
         catch (ClientHandlerException e) {
-            throwRespositoryException(e);
+            ClientUtils.throwRespositoryException(e);
         }
     }
 
@@ -91,11 +91,11 @@ public class BranchClient extends BaseClient implements IBranchClient {
         try {
             ClientResponse resp = resource.path("/resources/info").queryParam("path", path).delete(ClientResponse.class);
             if (resp.getStatus() != 200 && resp.getStatus() != 204) {
-                throwRespositoryException(resp);
+                ClientUtils.throwRespositoryException(resp);
             }
         }
         catch (ClientHandlerException e) {
-            throwRespositoryException(e);
+            ClientUtils.throwRespositoryException(e);
         }
     }
 
@@ -104,11 +104,11 @@ public class BranchClient extends BaseClient implements IBranchClient {
         try {
             ClientResponse resp = resource.path("/resources/rename").queryParam("source", source).queryParam("destination", destination).post(ClientResponse.class);
             if (resp.getStatus() != 200 && resp.getStatus() != 204) {
-                throwRespositoryException(resp);
+                ClientUtils.throwRespositoryException(resp);
             }
         }
         catch (ClientHandlerException e) {
-            throwRespositoryException(e);
+            ClientUtils.throwRespositoryException(e);
         }
     }
 
@@ -117,11 +117,11 @@ public class BranchClient extends BaseClient implements IBranchClient {
         try {
             ClientResponse resp = resource.path("/resources/revert").queryParam("path", path).put(ClientResponse.class);
             if (resp.getStatus() != 200 && resp.getStatus() != 204) {
-                throwRespositoryException(resp);
+                ClientUtils.throwRespositoryException(resp);
             }
         }
         catch (ClientHandlerException e) {
-            throwRespositoryException(e);
+            ClientUtils.throwRespositoryException(e);
         }
 	}
 
@@ -138,13 +138,13 @@ public class BranchClient extends BaseClient implements IBranchClient {
             .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
             .post(ClientResponse.class, message);
             if (resp.getStatus() != 200 && resp.getStatus() != 204) {
-                throwRespositoryException(resp);
+                ClientUtils.throwRespositoryException(resp);
                 return null;
             }
             return resp.getEntity(CommitDesc.class);
         }
         catch (ClientHandlerException e) {
-            throwRespositoryException(e);
+            ClientUtils.throwRespositoryException(e);
             return null;
         }
     }
@@ -157,13 +157,13 @@ public class BranchClient extends BaseClient implements IBranchClient {
             .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
             .post(ClientResponse.class, message);
             if (resp.getStatus() != 200 && resp.getStatus() != 204) {
-                throwRespositoryException(resp);
+                ClientUtils.throwRespositoryException(resp);
                 return null;
             }
             return resp.getEntity(CommitDesc.class);
         }
         catch (ClientHandlerException e) {
-            throwRespositoryException(e);
+            ClientUtils.throwRespositoryException(e);
             return null;
         }
     }
@@ -176,84 +176,17 @@ public class BranchClient extends BaseClient implements IBranchClient {
                 .queryParam("stage", stage)
                 .post(ClientResponse.class);
             if (resp.getStatus() != 200 && resp.getStatus() != 204) {
-                throwRespositoryException(resp);
+                ClientUtils.throwRespositoryException(resp);
             }
         }
         catch (ClientHandlerException e) {
-            throwRespositoryException(e);
+            ClientUtils.throwRespositoryException(e);
         }
     }
 
     @Override
     public void publish() throws RepositoryException {
         wrapPost("publish");
-    }
-
-    @Override
-    public BuildDesc build(boolean rebuild) throws RepositoryException {
-        try {
-            ClientResponse resp = resource.path("builds").queryParam("rebuild", rebuild ? "true" : "false")
-                .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
-                .post(ClientResponse.class);
-            if (resp.getStatus() != 200 && resp.getStatus() != 204) {
-                throwRespositoryException(resp);
-            }
-            return resp.getEntity(BuildDesc.class);
-        }
-        catch (ClientHandlerException e) {
-            throwRespositoryException(e);
-            return null; // Never reached
-        }
-    }
-
-    @Override
-    public BuildDesc getBuildStatus(int id) throws RepositoryException {
-        try {
-            ClientResponse resp = resource.path("builds").queryParam("id", Integer.toString(id))
-                .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
-                .get(ClientResponse.class);
-            if (resp.getStatus() != 200 && resp.getStatus() != 204) {
-                throwRespositoryException(resp);
-            }
-            return resp.getEntity(BuildDesc.class);
-        }
-        catch (ClientHandlerException e) {
-            throwRespositoryException(e);
-            return null; // Never reached
-        }
-    }
-
-    @Override
-    public void cancelBuild(int id) throws RepositoryException {
-        try {
-            ClientResponse resp = resource.path("builds").queryParam("id", Integer.toString(id))
-                .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
-                .delete(ClientResponse.class);
-            if (resp.getStatus() != 200 && resp.getStatus() != 204) {
-                throwRespositoryException(resp);
-            }
-        }
-        catch (ClientHandlerException e) {
-            throwRespositoryException(e);
-        }
-    }
-
-    @Override
-    public BuildLog getBuildLogs(int id) throws RepositoryException {
-        try {
-            ClientResponse resp = resource.path("builds/log").queryParam("id", Integer.toString(id))
-                .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
-                .get(ClientResponse.class);
-            if (resp.getStatus() != 200 && resp.getStatus() != 204) {
-                throwRespositoryException(resp);
-            }
-            return resp.getEntity(BuildLog.class);
-        }
-        catch (ClientHandlerException e) {
-            throwRespositoryException(e);
-            return null; // Never reached
-        }
-
     }
 
     @Override
@@ -264,12 +197,12 @@ public class BranchClient extends BaseClient implements IBranchClient {
                 .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
                 .get(ClientResponse.class);
             if (resp.getStatus() != 200 && resp.getStatus() != 204) {
-                throwRespositoryException(resp);
+                ClientUtils.throwRespositoryException(resp);
             }
             return resp.getEntity(Log.class);
         }
         catch (ClientHandlerException e) {
-            throwRespositoryException(e);
+            ClientUtils.throwRespositoryException(e);
             return null; // Never reached
         }
     }
@@ -282,12 +215,79 @@ public class BranchClient extends BaseClient implements IBranchClient {
                     .queryParam("target", target)
                     .post(ClientResponse.class);
             if (resp.getStatus() != 200 && resp.getStatus() != 204) {
-                throwRespositoryException(resp);
+                ClientUtils.throwRespositoryException(resp);
             }
         }
         catch (ClientHandlerException e) {
-            throwRespositoryException(e);
+            ClientUtils.throwRespositoryException(e);
         }
+    }
+
+    @Override
+    public BuildDesc build(boolean rebuild) throws RepositoryException {
+        try {
+            ClientResponse resp = resource.path("builds").queryParam("rebuild", rebuild ? "true" : "false")
+                .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
+                .post(ClientResponse.class);
+            if (resp.getStatus() != 200 && resp.getStatus() != 204) {
+                ClientUtils.throwRespositoryException(resp);
+            }
+            return resp.getEntity(BuildDesc.class);
+        }
+        catch (ClientHandlerException e) {
+            ClientUtils.throwRespositoryException(e);
+            return null; // Never reached
+        }
+    }
+
+    @Override
+    public BuildDesc getBuildStatus(int id) throws RepositoryException {
+        try {
+            ClientResponse resp = resource.path("builds").queryParam("id", Integer.toString(id))
+                .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
+                .get(ClientResponse.class);
+            if (resp.getStatus() != 200 && resp.getStatus() != 204) {
+                ClientUtils.throwRespositoryException(resp);
+            }
+            return resp.getEntity(BuildDesc.class);
+        }
+        catch (ClientHandlerException e) {
+            ClientUtils.throwRespositoryException(e);
+            return null; // Never reached
+        }
+    }
+
+    @Override
+    public void cancelBuild(int id) throws RepositoryException {
+        try {
+            ClientResponse resp = resource.path("builds").queryParam("id", Integer.toString(id))
+                .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
+                .delete(ClientResponse.class);
+            if (resp.getStatus() != 200 && resp.getStatus() != 204) {
+                ClientUtils.throwRespositoryException(resp);
+            }
+        }
+        catch (ClientHandlerException e) {
+            ClientUtils.throwRespositoryException(e);
+        }
+    }
+
+    @Override
+    public BuildLog getBuildLogs(int id) throws RepositoryException {
+        try {
+            ClientResponse resp = resource.path("builds/log").queryParam("id", Integer.toString(id))
+                .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
+                .get(ClientResponse.class);
+            if (resp.getStatus() != 200 && resp.getStatus() != 204) {
+                ClientUtils.throwRespositoryException(resp);
+            }
+            return resp.getEntity(BuildLog.class);
+        }
+        catch (ClientHandlerException e) {
+            ClientUtils.throwRespositoryException(e);
+            return null; // Never reached
+        }
+
     }
 
 }

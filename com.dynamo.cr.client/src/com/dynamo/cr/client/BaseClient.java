@@ -20,24 +20,16 @@ public class BaseClient implements IClient {
         this.uri = uri;
     }
 
-    protected void throwRespositoryException(ClientResponse resp) throws RepositoryException {
-        throw new RepositoryException(resp.toString() + "\n" + resp.getEntity(String.class), resp.getClientResponseStatus().getStatusCode());
-    }
-
-    protected void throwRespositoryException(ClientHandlerException e) throws RepositoryException {
-        throw new RepositoryException(e.getMessage(), -1);
-    }
-
     protected void wrapPut(String path, byte[] data) throws RepositoryException {
         try {
             ClientResponse resp = resource.path(path).accept(ProtobufProviders.APPLICATION_XPROTOBUF).put(ClientResponse.class, data);
 
             if (resp.getStatus() != 200) {
-                throwRespositoryException(resp);
+                ClientUtils.throwRespositoryException(resp);
             }
         }
         catch (ClientHandlerException e) {
-            throwRespositoryException(e);
+            ClientUtils.throwRespositoryException(e);
         }
     }
 
@@ -45,12 +37,12 @@ public class BaseClient implements IClient {
         try {
             ClientResponse resp = resource.path(path).accept(ProtobufProviders.APPLICATION_XPROTOBUF).get(ClientResponse.class);
             if (resp.getStatus() != 200) {
-                throwRespositoryException(resp);
+                ClientUtils.throwRespositoryException(resp);
             }
             return resp.getEntity(klass);
         }
         catch (ClientHandlerException e) {
-            throwRespositoryException(e);
+            ClientUtils.throwRespositoryException(e);
             return null; // Never reached
         }
     }
@@ -59,11 +51,11 @@ public class BaseClient implements IClient {
         try {
             ClientResponse resp = resource.path(path).accept(ProtobufProviders.APPLICATION_XPROTOBUF).put(ClientResponse.class);
             if (resp.getStatus() != 200 && resp.getStatus() != 204) {
-                throwRespositoryException(resp);
+                ClientUtils.throwRespositoryException(resp);
             }
         }
         catch (ClientHandlerException e) {
-            throwRespositoryException(e);
+            ClientUtils.throwRespositoryException(e);
         }
     }
 
@@ -71,12 +63,12 @@ public class BaseClient implements IClient {
         try {
             ClientResponse resp = resource.path(path).accept(ProtobufProviders.APPLICATION_XPROTOBUF).post(ClientResponse.class);
             if (resp.getStatus() != 200) {
-                throwRespositoryException(resp);
+                ClientUtils.throwRespositoryException(resp);
             }
             return resp.getEntity(klass);
         }
         catch (ClientHandlerException e) {
-            throwRespositoryException(e);
+            ClientUtils.throwRespositoryException(e);
             return null; // Never reached
         }
     }
@@ -85,11 +77,11 @@ public class BaseClient implements IClient {
         try {
             ClientResponse resp = resource.path(path).accept(ProtobufProviders.APPLICATION_XPROTOBUF).post(ClientResponse.class);
             if (resp.getStatus() != 200 && resp.getStatus() != 204) {
-                throwRespositoryException(resp);
+                ClientUtils.throwRespositoryException(resp);
             }
         }
         catch (ClientHandlerException e) {
-            throwRespositoryException(e);
+            ClientUtils.throwRespositoryException(e);
         }
     }
 
@@ -97,11 +89,11 @@ public class BaseClient implements IClient {
         try {
             ClientResponse resp = resource.path(path).accept(ProtobufProviders.APPLICATION_XPROTOBUF).delete(ClientResponse.class);
             if (resp.getStatus() != 200 && resp.getStatus() != 204) {
-                throwRespositoryException(resp);
+                ClientUtils.throwRespositoryException(resp);
             }
         }
         catch (ClientHandlerException e) {
-            throwRespositoryException(e);
+            ClientUtils.throwRespositoryException(e);
         }
     }
 

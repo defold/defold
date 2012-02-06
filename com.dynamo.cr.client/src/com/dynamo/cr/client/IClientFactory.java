@@ -12,12 +12,18 @@ import com.sun.jersey.api.client.Client;
  */
 public interface IClientFactory {
 
+    public enum BranchLocation {
+        LOCAL,
+        REMOTE,
+    }
+
     /**
      * Get {@link IProjectClient} from uri
      * @param uri URI to get {@link IProjectClient} from
      * @return A new {@link IProjectClient}
+     * @throws RepositoryException
      */
-    public IProjectClient getProjectClient(URI uri);
+    public IProjectClient getProjectClient(URI uri) throws RepositoryException;
 
     /**
      * Get {@link IProjectsClient} from uri
@@ -30,8 +36,9 @@ public interface IClientFactory {
      * Get {@link IBranchClient} from uri
      * @param uri URI to get {@link IBranchClient} from
      * @return A new {@link IBranchClient}
+     * @throws RepositoryException
      */
-    public IBranchClient getBranchClient(URI uri);
+    public IBranchClient getBranchClient(URI uri) throws RepositoryException;
 
     /**
      * Get {@link IBranchClient} from uri

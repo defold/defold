@@ -36,7 +36,7 @@ public class DelegatingClientFactory implements IClientFactory {
     }
 
     @Override
-    public IProjectClient getProjectClient(URI uri) {
+    public IProjectClient getProjectClient(URI uri) throws RepositoryException {
         uri = normalize(uri);
         if (!projectClients.containsKey(uri)) {
             projectClients.put(uri, factory.getProjectClient(uri));
@@ -54,7 +54,7 @@ public class DelegatingClientFactory implements IClientFactory {
     }
 
     @Override
-    public IBranchClient getBranchClient(URI uri) {
+    public IBranchClient getBranchClient(URI uri) throws RepositoryException {
         uri = normalize(uri);
         if (!branchClients.containsKey(uri)) {
             branchClients.put(uri, factory.getBranchClient(uri));

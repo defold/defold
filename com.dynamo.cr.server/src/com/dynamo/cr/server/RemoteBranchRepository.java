@@ -6,6 +6,7 @@ import javax.persistence.EntityManager;
 
 import com.dynamo.cr.branchrepo.BranchRepository;
 import com.dynamo.cr.server.model.User;
+import com.dynamo.server.dgit.GitFactory;
 
 public class RemoteBranchRepository extends BranchRepository {
 
@@ -13,7 +14,7 @@ public class RemoteBranchRepository extends BranchRepository {
 
     public RemoteBranchRepository(Server server, String branchRoot, String repositoryRoot,
             String builtinsDirectory, Pattern[] filterPatterns) {
-        super(branchRoot, repositoryRoot, builtinsDirectory, filterPatterns);
+        super(GitFactory.Type.CGIT, branchRoot, repositoryRoot, builtinsDirectory, filterPatterns, null, null);
         this.server = server;
     }
 

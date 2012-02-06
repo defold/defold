@@ -53,6 +53,7 @@ import com.dynamo.cr.client.DelegatingClientFactory;
 import com.dynamo.cr.client.IBranchClient;
 import com.dynamo.cr.client.IBranchListener;
 import com.dynamo.cr.client.IClientFactory;
+import com.dynamo.cr.client.IClientFactory.BranchLocation;
 import com.dynamo.cr.client.IProjectClient;
 import com.dynamo.cr.client.IProjectsClient;
 import com.dynamo.cr.client.IUsersClient;
@@ -272,7 +273,7 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
         DefoldAuthFilter authFilter = new DefoldAuthFilter(email, authCookie, null);
         Client client = Client.create(cc);
         client.addFilter(authFilter);
-        factory = new DelegatingClientFactory(new ClientFactory(client));
+        factory = new DelegatingClientFactory(new ClientFactory(client, BranchLocation.REMOTE, null, email, authCookie));
         RepositoryFileSystemPlugin.setClientFactory(factory);
 
         boolean validAuthCookie = false;

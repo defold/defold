@@ -15,10 +15,12 @@ import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.eclipse.jgit.api.AddCommand;
 import org.eclipse.jgit.api.CheckoutCommand;
@@ -66,6 +68,7 @@ import org.eclipse.jgit.transport.Transport;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 import org.eclipse.jgit.treewalk.CanonicalTreeParser;
 import org.eclipse.jgit.treewalk.FileTreeIterator;
+import org.eclipse.jgit.treewalk.TreeWalk;
 
 import com.dynamo.cr.protocol.proto.Protocol.CommitDesc;
 import com.dynamo.cr.protocol.proto.Protocol.Log;
@@ -125,7 +128,7 @@ public class JGit implements IGit, TransportConfigCallback {
             throw new GitException("Pull if only valid if repository is in clean state");
         }
         Git git = getGit(directory);
-        PullCommand command = git.pull();
+        PullCommand command = git.pull().setTransportConfigCallback(this);
         try {
             PullResult result = command.call();
             return result.isSuccessful();
@@ -388,16 +391,26 @@ public class JGit implements IGit, TransportConfigCallback {
     }
 
     private ObjectId findBlobInCommit(Repository repo, ObjectId commit, String file) throws MissingObjectException, IncorrectObjectTypeException, IOException {
-        RevWalk walk = new RevWalk(repo);
-        RevCommit revCommit = walk.parseCommit(commit);
-        CanonicalTreeParser p = new CanonicalTreeParser(null, repo.newObjectReader(), revCommit.getTree());
-        while (!p.eof()) {
-            if (p.getEntryPathString().equals(file)) {
-                return p.getEntryObjectId();
-            }
-            p.next();
-        }
+        RevWalk revWalk = new RevWalk(repo);
+        RevCommit root = revWalk.parseCommit(commit);
+        revWalk.markStart(root);
+        Iterator<RevCommit> i = revWalk.iterator();
+        if (i.hasNext()) {
+            RevCommit revCommit = i.next();
+            TreeWalk treeWalk = TreeWalk.forPath(repo, file, revCommit.getTree());
+            if (treeWalk != null) {
+                treeWalk.setRecursive(true);
+                CanonicalTreeParser canonicalTreeParser = treeWalk.getTree(0, CanonicalTreeParser.class);
 
+                while (!canonicalTreeParser.eof()) {
+                    String p = canonicalTreeParser.getEntryPathString();
+                    if (p.equals(file)) {
+                        return canonicalTreeParser.getEntryObjectId();
+                    }
+                    canonicalTreeParser.next(1);
+                }
+            }
+        }
         return null;
     }
 
@@ -553,7 +566,7 @@ public class JGit implements IGit, TransportConfigCallback {
     @Override
     public int commitsAhead(String directory) throws IOException {
         Git git = getGit(directory);
-        wrapCall(git.fetch());
+        wrapCall(git.fetch().setTransportConfigCallback(this));
 
         ObjectId head = git.getRepository().resolve(Constants.HEAD);
         ObjectId originMaster = git.getRepository().resolve("origin/master");
@@ -573,7 +586,7 @@ public class JGit implements IGit, TransportConfigCallback {
     @Override
     public int commitsBehind(String directory) throws IOException {
         Git git = getGit(directory);
-        wrapCall(git.fetch());
+        wrapCall(git.fetch().setTransportConfigCallback(this));
 
         ObjectId head = git.getRepository().resolve(Constants.HEAD);
         ObjectId originMaster = git.getRepository().resolve("origin/master");
@@ -603,16 +616,25 @@ public class JGit implements IGit, TransportConfigCallback {
             boolean force) throws IOException {
         Git git = getGit(directory);
 
-        FileInputStream in = new FileInputStream(directory + "/" + source);
-        FileOutputStream out = new FileOutputStream(directory + "/" + destination);
-        IOUtils.copy(in, out);
+        File sourceFile = new File(directory + "/" + source);
+        File destFile = new File(directory + "/" + destination);
 
-        try {
-        } finally {
-            if (in != null)
-                in.close();
-            if (out != null) {
-                out.close();
+        if (sourceFile.isDirectory()) {
+            FileUtils.copyDirectory(sourceFile, destFile);
+        } else {
+            FileInputStream in = null;
+            FileOutputStream out = null;
+
+            try {
+                in = new FileInputStream(sourceFile);
+                out = new FileOutputStream(destFile);
+                IOUtils.copy(in, out);
+            } finally {
+                if (in != null)
+                    in.close();
+                if (out != null) {
+                    out.close();
+                }
             }
         }
 
@@ -689,7 +711,22 @@ public class JGit implements IGit, TransportConfigCallback {
     @Override
     public byte[] show(String directory, String file, String revision)
             throws IOException {
-        throw new RuntimeException("Not implemented.");
+        Git git = getGit(directory);
+
+        Repository repo = git.getRepository();
+        ObjectId revisionId = repo.resolve(revision);
+        if (revisionId == null) {
+            throw new IOException(String.format("Revision '%s' not found", revision));
+        }
+
+        ObjectId blob = findBlobInCommit(repo, revisionId, file);
+        if (blob != null) {
+            ObjectLoader loader = repo.open(blob);
+            return loader.getBytes();
+
+        } else {
+            throw new IOException(String.format("Revision '%s' for file '%s' not found", revision, file));
+        }
     }
 
     @Override
