@@ -68,6 +68,11 @@ public class CachingBranchClient implements IBranchClient {
     }
 
     @Override
+    public String getNativeLocation() {
+        return client.getNativeLocation();
+    }
+
+    @Override
     public byte[] getResourceData(String path, String revision)
             throws RepositoryException {
         return client.getResourceData(path, revision);

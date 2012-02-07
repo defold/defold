@@ -30,6 +30,7 @@ public class LocalBranchClient implements IBranchClient {
     private String project;
     private String user;
     private String branch;
+    private String branchRoot;
 
     /* package*/ LocalBranchClient(IClientFactory factory, URI uri, UserInfo userInfo, ProjectInfo projectInfo, String branchRoot, String email, String password) {
         this.factory = factory;
@@ -37,6 +38,7 @@ public class LocalBranchClient implements IBranchClient {
         this.projectId = projectInfo.getId();
         this.project = Long.toString(projectId);
         this.user = Long.toString(userInfo.getId());
+        this.branchRoot = branchRoot;
 
         branch = new Path(uri.getPath()).lastSegment();
 
@@ -50,6 +52,11 @@ public class LocalBranchClient implements IBranchClient {
                                                      /* TODO */ new Pattern[0],
                                                      userInfo,
                                                      password);
+    }
+
+    @Override
+    public String getNativeLocation() {
+        return new Path(branchRoot).append(project).append(user).append(branch).toOSString();
     }
 
     @Override

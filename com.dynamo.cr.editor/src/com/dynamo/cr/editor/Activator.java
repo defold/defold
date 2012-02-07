@@ -1,6 +1,9 @@
 package com.dynamo.cr.editor;
 
+import java.io.File;
+import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
+import java.net.Authenticator;
 import java.net.URI;
 import java.util.HashSet;
 import java.util.Set;
@@ -23,9 +26,12 @@ import org.eclipse.core.resources.IWorkspace;
 import org.eclipse.core.resources.IWorkspaceDescription;
 import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
+import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.NullProgressMonitor;
+import org.eclipse.core.runtime.Path;
+import org.eclipse.core.runtime.Platform;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.dialogs.Dialog;
 import org.eclipse.jface.operation.IRunnableWithProgress;
@@ -46,6 +52,7 @@ import org.eclipse.ui.statushandlers.StatusManager;
 import org.osgi.framework.BundleContext;
 import org.osgi.util.tracker.ServiceTracker;
 
+import com.dynamo.cr.builtins.Builtins;
 import com.dynamo.cr.client.BranchStatusChangedEvent;
 import com.dynamo.cr.client.ClientFactory;
 import com.dynamo.cr.client.ClientUtils;
@@ -60,6 +67,7 @@ import com.dynamo.cr.client.IUsersClient;
 import com.dynamo.cr.client.RepositoryException;
 import com.dynamo.cr.client.filter.DefoldAuthFilter;
 import com.dynamo.cr.common.providers.ProtobufProviders;
+import com.dynamo.cr.common.util.CommandUtil;
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.dialogs.OpenIDLoginDialog;
 import com.dynamo.cr.editor.fs.RepositoryFileSystemPlugin;
@@ -244,6 +252,15 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
     }
 
     public boolean connectProjectClient() {
+        /*
+         * NOTE: We're using HTTP Basic Auth for Git over HTTP
+         * Eclipse will popup a dialog for some reason. Could be that JGit
+         * only authenticate when "asked", ie when UNAUTHORIZED is returned.
+         * In that case eclipse will catch that and show a dialog. Using
+         * HTTP Basic Auth is a hack due to limitations in JGit. No support for custom HTTP
+         * headers. We should probably patch JGit and remove the line below at some point.
+         */
+        Authenticator.setDefault(null);
 
         /*
          * NOTE: We can't invoke getWorkbench() in start. The workbench is not started yet.
@@ -273,7 +290,20 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
         DefoldAuthFilter authFilter = new DefoldAuthFilter(email, authCookie, null);
         Client client = Client.create(cc);
         client.addFilter(authFilter);
-        factory = new DelegatingClientFactory(new ClientFactory(client, BranchLocation.REMOTE, null, email, authCookie));
+        BranchLocation branchLocation;
+        String branchRoot = null;
+        if (store.getBoolean(PreferenceConstants.P_USE_LOCAL_BRANCHES)) {
+            branchLocation = BranchLocation.LOCAL;
+            // TODO: Use getInstallLocation() or not?
+            // What happens when the application is installed? Use home-dir instead? Configurable?
+            String location = Platform.getInstallLocation().getURL().getPath();
+            IPath branchRootPath = new Path(location).append("branches");
+            new File(branchRootPath.toOSString()).mkdirs();
+            branchRoot = branchRootPath.toPortableString();
+        } else {
+            branchLocation = BranchLocation.REMOTE;
+        }
+        factory = new DelegatingClientFactory(new ClientFactory(client, branchLocation, branchRoot, email, authCookie));
         RepositoryFileSystemPlugin.setClientFactory(factory);
 
         boolean validAuthCookie = false;
@@ -420,6 +450,27 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
             showError("Error occured when creating project", e2);
         }
 
+        if (getPreferenceStore().getBoolean(PreferenceConstants.P_USE_LOCAL_BRANCHES)) {
+            String branchLocation = branchClient.getNativeLocation();
+            File dest = new File(new Path(branchLocation).append("builtins").toOSString());
+            if (dest.exists()) {
+                dest.delete();
+            }
+            String builtinsDirectory = Builtins.getDefault().getBuiltins();
+
+            // Create symbolic link to builtins.
+            // TODO: ln -s will not work on windows
+            CommandUtil.Result r;
+            try {
+                r = CommandUtil.execCommand(null, null, null, new String[] {"ln", "-s", builtinsDirectory, dest.getAbsolutePath()});
+                if (r.exitValue != 0) {
+                    showError("Unable to link builtins directory", null);
+                }
+            } catch (IOException e) {
+                showError("Error occured when creating project", e);
+            }
+        }
+
         setProjectExplorerInput(p.getFolder("content"));
         IBranchService branchService = (IBranchService)PlatformUI.getWorkbench().getService(IBranchService.class);
         if (branchService != null) {
@@ -458,8 +509,9 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
         String p = event.getProperty();
         if (p.equals(PreferenceConstants.P_SERVER_URI)) {
             connectProjectClient();
-        }
-        else if (p.equals(PreferenceConstants.P_SOCKS_PROXY) ||
+        } else if (p.equals(PreferenceConstants.P_USE_LOCAL_BRANCHES)) {
+            connectProjectClient();
+        } else if (p.equals(PreferenceConstants.P_SOCKS_PROXY) ||
                 p.equals(PreferenceConstants.P_SOCKS_PROXY_PORT)) {
             updateSocksProxy();
         }
