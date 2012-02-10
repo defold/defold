@@ -16,7 +16,7 @@ public class PreferencePage
 	extends FieldEditorPreferencePage
 	implements IWorkbenchPreferencePage {
 
-	private BooleanFieldEditor downloadApplicationField;
+	private BooleanFieldEditor customApplicationField;
     private FileFieldEditor applicationField;
 
     public PreferencePage() {
@@ -29,21 +29,22 @@ public class PreferencePage
         addField(new StringFieldEditor(PreferenceConstants.P_SERVER_URI, "Resource server URI:", getFieldEditorParent()));
         addField(new StringFieldEditor(PreferenceConstants.P_SOCKS_PROXY, "Socks proxy:", getFieldEditorParent()));
         addField(new IntegerFieldEditor(PreferenceConstants.P_SOCKS_PROXY_PORT, "Socks proxy port:", getFieldEditorParent()));
+        addField(new BooleanFieldEditor(PreferenceConstants.P_USE_LOCAL_BRANCHES, "Use local branches", getFieldEditorParent()));
 
-        downloadApplicationField = new BooleanFieldEditor(PreferenceConstants.P_DOWNLOAD_APPLICATION, "Download application:", getFieldEditorParent());
-        addField(downloadApplicationField);
+        customApplicationField = new BooleanFieldEditor(PreferenceConstants.P_CUSTOM_APPLICATION, "Custom application", getFieldEditorParent());
+        addField(customApplicationField);
         applicationField = new FileFieldEditor(PreferenceConstants.P_APPLICATION, "Application:", getFieldEditorParent());
 
         IPreferenceStore store = Activator.getDefault().getPreferenceStore();
-        applicationField.setEnabled(!store.getBoolean(PreferenceConstants.P_DOWNLOAD_APPLICATION), getFieldEditorParent());
+        applicationField.setEnabled(store.getBoolean(PreferenceConstants.P_CUSTOM_APPLICATION), getFieldEditorParent());
         addField(applicationField);
 	}
 
 	@Override
 	public void propertyChange(PropertyChangeEvent event) {
 	    super.propertyChange(event);
-	    if (event.getSource() == downloadApplicationField) {
-	        applicationField.setEnabled(!downloadApplicationField.getBooleanValue(), getFieldEditorParent());
+	    if (event.getSource() == customApplicationField) {
+	        applicationField.setEnabled(!customApplicationField.getBooleanValue(), getFieldEditorParent());
 	    }
 	}
 

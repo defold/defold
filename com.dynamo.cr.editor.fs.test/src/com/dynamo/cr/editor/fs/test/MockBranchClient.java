@@ -66,6 +66,11 @@ public class MockBranchClient implements IBranchClient {
     }
 
     @Override
+    public String getNativeLocation() {
+        return null;
+    }
+
+    @Override
     public byte[] getResourceData(String path, String revision)
             throws RepositoryException {
         throw new RuntimeException("Not impl.");

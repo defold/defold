@@ -5,7 +5,9 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -20,7 +22,6 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.jface.preference.IPreferenceStore;
-import org.eclipse.swt.widgets.Shell;
 import org.eclipse.ui.IEditorInput;
 import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.IFileEditorInput;
@@ -32,12 +33,12 @@ import org.eclipse.ui.console.MessageConsoleStream;
 import org.eclipse.ui.handlers.HandlerUtil;
 import org.eclipse.ui.internal.ide.actions.BuildUtilities;
 
+import com.dynamo.cr.client.IBranchClient;
 import com.dynamo.cr.client.RepositoryException;
 import com.dynamo.cr.editor.Activator;
 import com.dynamo.cr.editor.core.EditorCorePlugin;
 import com.dynamo.cr.editor.preferences.PreferenceConstants;
-import com.dynamo.cr.editor.util.DownloadApplication;
-import com.dynamo.cr.protocol.proto.Protocol.LaunchInfo;
+import com.dynamo.cr.engine.Engine;
 
 // this suppression is for the usage of BuildUtilities in the bottom of this class
 @SuppressWarnings("restriction")
@@ -56,8 +57,14 @@ public class LaunchHandler extends AbstractHandler {
         final IPreferenceStore store = Activator.getDefault().getPreferenceStore();
         final String socks_proxy = store.getString(PreferenceConstants.P_SOCKS_PROXY);
         final int socks_proxy_port = store.getInt(PreferenceConstants.P_SOCKS_PROXY_PORT);
+        final boolean localBranch = store.getBoolean(PreferenceConstants.P_USE_LOCAL_BRANCHES);
 
-        final LaunchInfo launchInfo = Activator.getDefault().projectClient.getLaunchInfo();
+        final List<String> argList = new ArrayList<String>();
+        if (localBranch) {
+            argList.add("{executable}");
+        } else {
+            argList.addAll(Activator.getDefault().projectClient.getLaunchInfo().getArgsList());
+        }
 
         Thread thread = new Thread(new Runnable() {
 
@@ -77,7 +84,7 @@ public class LaunchHandler extends AbstractHandler {
                     gdbCommandsWriter.close();
 
                     String command = String.format("gdb -x %s --args ", gdbCommandsFile.getAbsolutePath());
-                    for (String s : launchInfo.getArgsList()) {
+                    for (String s : argList) {
                         command += substituteVariables(s);
                         command += " ";
                     }
@@ -97,9 +104,9 @@ public class LaunchHandler extends AbstractHandler {
                     return args;
 
                 } else {
-                    String[] args = new String[launchInfo.getArgsCount()];
+                    String[] args = new String[argList.size()];
                     int i = 0;
-                    for (String s : launchInfo.getArgsList()) {
+                    for (String s : argList) {
                         args[i++] = substituteVariables(s);
                     }
                     return args;
@@ -119,7 +126,14 @@ public class LaunchHandler extends AbstractHandler {
                         env.put("DMSOCKS_PROXY_PORT", Integer.toString(socks_proxy_port));
                     }
 
+                    IBranchClient branchClient = Activator.getDefault().getBranchClient();
+                    IPreferenceStore store = Activator.getDefault().getPreferenceStore();
+
                     ProcessBuilder pb = new ProcessBuilder(args);
+                    if (store.getBoolean(PreferenceConstants.P_USE_LOCAL_BRANCHES)) {
+                        pb.directory(new File(branchClient.getNativeLocation()));
+                    }
+
                     pb.redirectErrorStream(true);
                     pb.environment().putAll(env);
 
@@ -193,29 +207,25 @@ public class LaunchHandler extends AbstractHandler {
 
     @Override
     public Object execute(ExecutionEvent event) throws ExecutionException {
-        final Shell shell = HandlerUtil.getActiveShell(event);
         String msg = event.getParameter(PARM_MSG);
         final boolean rebuild = msg != null && msg.equals("rebuild");
 
         IPreferenceStore store = Activator.getDefault().getPreferenceStore();
-        final String exe_name = store.getString(PreferenceConstants.P_APPLICATION);
-        final File exe = new File(exe_name);
+
+        String exeName = Engine.getDefault().getEnginePath();
+        if (store.getBoolean(PreferenceConstants.P_CUSTOM_APPLICATION)) {
+            exeName = store.getString(PreferenceConstants.P_APPLICATION);
+        }
+        final File exe = new File(exeName);
 
         if (!exe.exists()) {
-            if (!store.getBoolean(PreferenceConstants.P_DOWNLOAD_APPLICATION)) {
-                return new Status(IStatus.ERROR, Activator.PLUGIN_ID, String.format("Executable '%s' not found and 'Download application' is not activated in preferences", exe_name));
-            } else {
-                if (!DownloadApplication.downloadApplication(shell)) {
-                    // downloadApplication will display error dialog in cause of errors
-                    return null;
-                }
-            }
+            return new Status(IStatus.ERROR, Activator.PLUGIN_ID, String.format("Executable '%s' not found and", exeName));
         }
 
         this.variables = new HashMap<String, String>();
         this.variables.put("user", Long.toString(Activator.getDefault().userInfo.getId()));
         this.variables.put("branch", Activator.getDefault().activeBranch);
-        this.variables.put("executable", store.getString(PreferenceConstants.P_APPLICATION));
+        this.variables.put("executable", exeName);
         this.variables.put("project", Long.toString(Activator.getDefault().projectClient.getProjectId()));
 
         final IProject project = getActiveProject(event);
@@ -227,7 +237,15 @@ public class LaunchHandler extends AbstractHandler {
             @Override
             protected IStatus run(IProgressMonitor monitor) {
                 try {
-                    project.build(rebuild ? IncrementalProjectBuilder.FULL_BUILD : IncrementalProjectBuilder.INCREMENTAL_BUILD, monitor);
+                    Map<String, String> args = new HashMap<String, String>();
+                    final IPreferenceStore store = Activator.getDefault().getPreferenceStore();
+                    final boolean localBranch = store.getBoolean(PreferenceConstants.P_USE_LOCAL_BRANCHES);
+                    if (localBranch)
+                        args.put("location", "local");
+                    else
+                        args.put("location", "remote");
+
+                    project.build(rebuild ? IncrementalProjectBuilder.FULL_BUILD : IncrementalProjectBuilder.INCREMENTAL_BUILD,  "com.dynamo.cr.editor.builders.contentbuilder", args, monitor);
                     return launchGame();
                 } catch (Throwable e) {
                     // Return "OK" here in order to avoid dialogs when the build fails

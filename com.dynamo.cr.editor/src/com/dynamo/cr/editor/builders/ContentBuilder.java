@@ -25,6 +25,9 @@ import org.eclipse.ui.console.MessageConsoleStream;
 
 import com.dynamo.cr.client.IBranchClient;
 import com.dynamo.cr.client.RepositoryException;
+import com.dynamo.cr.common.util.CommandUtil;
+import com.dynamo.cr.common.util.CommandUtil.IListener;
+import com.dynamo.cr.common.util.CommandUtil.Result;
 import com.dynamo.cr.editor.Activator;
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.protocol.proto.Protocol.BuildDesc;
@@ -32,6 +35,9 @@ import com.dynamo.cr.protocol.proto.Protocol.BuildDesc.Activity;
 import com.dynamo.cr.protocol.proto.Protocol.BuildLog;
 
 public class ContentBuilder extends IncrementalProjectBuilder {
+
+    private MessageConsoleStream stream;
+    private IBranchClient branchClient;
 
     public ContentBuilder() {
     }
@@ -50,40 +56,116 @@ public class ContentBuilder extends IncrementalProjectBuilder {
     }
 
     @Override
-    protected IProject[] build(int kind, @SuppressWarnings("rawtypes") Map args, IProgressMonitor monitor)
+    protected IProject[] build(int kind, Map<String,String> args, IProgressMonitor monitor)
             throws CoreException {
+
+        branchClient = Activator.getDefault().getBranchClient();
+        if (branchClient == null)
+            return null;
+
         MessageConsole console = findConsole("console");
         console.activate();
-        MessageConsoleStream stream = console.newMessageStream();
+        stream = console.newMessageStream();
         console.clearConsole();
         stream.println("building...");
         getProject().deleteMarkers(IMarker.PROBLEM, true, IResource.DEPTH_INFINITE);
 
-        IBranchClient branch_client = Activator.getDefault().getBranchClient();
-        if (branch_client == null)
-            return null;
+        IProject[] ret;
+        if (args.get("location").equals("remote")) {
+            ret = buildRemote(kind, args, monitor);
+        } else {
+            ret = buildLocal(kind, args, monitor);
+        }
+        try {
+            stream.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return ret;
+    }
+
+    private IProject[] buildLocal(int kind, Map<String,String> args, final IProgressMonitor monitor) throws CoreException {
+        String branchLocation = branchClient.getNativeLocation();
+        String[] command;
+        if (kind == IncrementalProjectBuilder.FULL_BUILD) {
+            command = new String[] { "waf", "configure", "clean", "build" };
+
+        } else {
+            command = new String[] { "waf", "configure", "build" };
+        }
+
+        final Pattern workPattern = Pattern.compile("\\[\\s*(\\d+)/(\\d+)\\]");
 
         try {
-            BuildDesc build = branch_client.build(kind == IncrementalProjectBuilder.FULL_BUILD);
+            IListener listener = new IListener() {
+                int lastProgress = 0;
+                boolean taskStarted = false;
 
-            boolean task_started = false;
-            int last_progress = 0;
-            int total_worked = 0;
+                @Override
+                public void onStdErr(StringBuffer buffer) {
+                    Matcher m = workPattern.matcher(buffer.toString());
+
+                    int progress = -1;
+                    int workAmount = -1;
+                    while (m.find()) {
+                        progress = Integer.valueOf(m.group(1));
+                        workAmount = Integer.valueOf(m.group(2));
+                    }
+
+                    if (progress != -1) {
+                        if (!taskStarted) {
+                            monitor.beginTask("Building...", workAmount);
+                            taskStarted = true;
+                        }
+
+                        int work = progress - lastProgress;
+                        lastProgress = progress;
+                        monitor.worked(work);
+                        taskStarted = true;
+                    }
+
+                }
+
+                @Override
+                public void onStdOut(StringBuffer buffer) {}
+            };
+            Result r = CommandUtil.execCommand(branchLocation, null, listener, command);
+            parseLog(r.stdErr.toString());
+            stream.write(r.stdErr.toString());
+            if (r.exitValue != 0) {
+                throw new CoreException(new Status(IStatus.WARNING, Activator.PLUGIN_ID, "Build failed"));
+            }
+        } catch (IOException e) {
+            throw new CoreException(new Status(IStatus.ERROR, Activator.PLUGIN_ID, "Error occurred while building", e));
+        }
+        return null;
+    }
+
+    private IProject[] buildRemote(int kind, Map<String,String> args, IProgressMonitor monitor)
+            throws CoreException {
+
+
+        try {
+            BuildDesc build = branchClient.build(kind == IncrementalProjectBuilder.FULL_BUILD);
+
+            boolean taskStarted = false;
+            int lastProgress = 0;
+            int totalWorked = 0;
 
             while (true) {
-                build = branch_client.getBuildStatus(build.getId());
+                build = branchClient.getBuildStatus(build.getId());
 
-                if (!task_started && build.getWorkAmount() != -1) {
+                if (!taskStarted && build.getWorkAmount() != -1) {
                     monitor.beginTask("Building...", build.getWorkAmount());
-                    task_started = true;
+                    taskStarted = true;
                 }
 
                 if (build.getProgress() != -1) {
-                    int work = build.getProgress() - last_progress;
-                    total_worked += work;
-                    last_progress = build.getProgress();
+                    int work = build.getProgress() - lastProgress;
+                    totalWorked += work;
+                    lastProgress = build.getProgress();
                     monitor.worked(work);
-                    task_started = true;
+                    taskStarted = true;
                 }
 
                 if (build.getBuildActivity() == Activity.IDLE || monitor.isCanceled()) {
@@ -97,61 +179,23 @@ public class ContentBuilder extends IncrementalProjectBuilder {
             }
 
             if (monitor.isCanceled()) {
-                branch_client.cancelBuild(build.getId());
+                branchClient.cancelBuild(build.getId());
                 throw new OperationCanceledException();
             }
 
             if (build.getWorkAmount() != -1) {
-                int work = build.getProgress() - total_worked;
-                total_worked += work;
+                int work = build.getProgress() - totalWorked;
+                totalWorked += work;
                 monitor.worked(work);
             }
             monitor.done();
 
             if (build.getBuildResult() != BuildDesc.Result.OK) {
-                BuildLog logs = branch_client.getBuildLogs(build.getId());
+                BuildLog logs = branchClient.getBuildLogs(build.getId());
 
-                BufferedReader r = new BufferedReader(new StringReader(logs.getStdErr()));
-                String line = r.readLine();
-
-                // Patterns for error parsing
-                // Group convention:
-                // 1: Filename
-                // 2: Line number
-                // 3: Message
-                Pattern[] pattens = new Pattern[] {
-                    // ../content/models/box.model:4:29 : Message type "dmModelDDF.ModelDesc" has no field named "Textures2".
-                    Pattern.compile("(.*?):(\\d+):\\d+[ ]?:[ ]*(.*)"),
-
-                    //../content/models/box.model:0: error: is missing dependent resource file materials/simple.material2
-                    Pattern.compile("(.*?):(\\d+):[ ]*(.*)")
-                };
-                while (line != null) {
-                    line = line.trim();
-                    stream.println(line);
-
-                    for (Pattern p : pattens) {
-                        Matcher m = p.matcher(line);
-                        if (m.matches()) {
-                            // NOTE: We assume that the built file is always relative to from the build folder,
-                            // ie ../content/... This is how waf works.
-                            IFile resource = EditorUtil.getContentRoot(getProject()).getFolder("build").getFile(m.group(1));
-                            if (resource.exists())
-                            {
-                                IMarker marker = resource.createMarker(IMarker.PROBLEM);
-                                marker.setAttribute(IMarker.MESSAGE, m.group(3));
-                                marker.setAttribute(IMarker.LINE_NUMBER, Integer.parseInt(m.group(2)));
-                                marker.setAttribute(IMarker.SEVERITY, IMarker.SEVERITY_ERROR);
-                            }
-                            else {
-                                Activator.getDefault().logger.warning("Unable to locate: " + resource.getFullPath());
-                            }
-                            break; // for (Pattern...)
-                        }
-                    }
-                    line = r.readLine();
-                }
-                stream.println(logs.getStdErr());
+                String stdErr = logs.getStdErr();
+                parseLog(stdErr);
+                stream.println(stdErr);
 
                 throw new CoreException(new Status(IStatus.WARNING, Activator.PLUGIN_ID, "Build failed"));
             }
@@ -167,5 +211,49 @@ public class ContentBuilder extends IncrementalProjectBuilder {
         }
 
         return null;
+    }
+
+    private void parseLog(String stdErr)
+            throws IOException, CoreException {
+        BufferedReader r = new BufferedReader(new StringReader(stdErr));
+        String line = r.readLine();
+
+        // Patterns for error parsing
+        // Group convention:
+        // 1: Filename
+        // 2: Line number
+        // 3: Message
+        Pattern[] pattens = new Pattern[] {
+            // ../content/models/box.model:4:29 : Message type "dmModelDDF.ModelDesc" has no field named "Textures2".
+            Pattern.compile("(.*?):(\\d+):\\d+[ ]?:[ ]*(.*)"),
+
+            //../content/models/box.model:0: error: is missing dependent resource file materials/simple.material2
+            Pattern.compile("(.*?):(\\d+):[ ]*(.*)")
+        };
+        while (line != null) {
+            line = line.trim();
+            stream.println(line);
+
+            for (Pattern p : pattens) {
+                Matcher m = p.matcher(line);
+                if (m.matches()) {
+                    // NOTE: We assume that the built file is always relative to from the build folder,
+                    // ie ../content/... This is how waf works.
+                    IFile resource = EditorUtil.getContentRoot(getProject()).getFolder("build").getFile(m.group(1));
+                    if (resource.exists())
+                    {
+                        IMarker marker = resource.createMarker(IMarker.PROBLEM);
+                        marker.setAttribute(IMarker.MESSAGE, m.group(3));
+                        marker.setAttribute(IMarker.LINE_NUMBER, Integer.parseInt(m.group(2)));
+                        marker.setAttribute(IMarker.SEVERITY, IMarker.SEVERITY_ERROR);
+                    }
+                    else {
+                        Activator.getDefault().logger.warning("Unable to locate: " + resource.getFullPath());
+                    }
+                    break; // for (Pattern...)
+                }
+            }
+            line = r.readLine();
+        }
     }
 }

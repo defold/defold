@@ -10,6 +10,12 @@ import com.dynamo.cr.protocol.proto.Protocol.ResourceInfo;
 
 public interface IBranchClient extends IClient {
 
+    /**
+     * Get native file-system location for branch. Only available for local branches
+     * @return native file-system location
+     */
+    public String getNativeLocation();
+
     public byte[] getResourceData(String path, String revision) throws RepositoryException;
 
     public ResourceInfo getResourceInfo(String path)

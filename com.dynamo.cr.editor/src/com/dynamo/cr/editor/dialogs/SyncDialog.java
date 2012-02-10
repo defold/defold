@@ -12,7 +12,6 @@ import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
-import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.jface.dialogs.DialogPage;
 import org.eclipse.jface.dialogs.IDialogConstants;
@@ -72,7 +71,6 @@ import com.dynamo.cr.editor.compare.ConflictedResourceStatus.IResolveListener;
 import com.dynamo.cr.editor.compare.ConflictedResourceStatus.Resolve;
 import com.dynamo.cr.editor.compare.ResourceStatus;
 import com.dynamo.cr.editor.services.IBranchService;
-import com.dynamo.cr.editor.util.DownloadApplication;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus.Status;
 import com.dynamo.cr.protocol.proto.Protocol.CommitDesc;
@@ -219,12 +217,6 @@ public class SyncDialog extends TitleAreaDialog {
         case IDialogConstants.OK_ID:
             if (this.pages[this.state.ordinal()].onOk()) {
                 this.pages[this.state.ordinal()].onHide();
-                Display.getDefault().asyncExec(new Runnable() {
-                    @Override
-                    public void run() {
-                        DownloadApplication.downloadApplication(getShell());
-                    }
-                });
                 super.buttonPressed(buttonId);
             }
             break;

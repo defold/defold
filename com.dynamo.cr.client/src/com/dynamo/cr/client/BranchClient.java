@@ -23,6 +23,11 @@ public class BranchClient extends BaseClient implements IBranchClient {
     }
 
     @Override
+    public String getNativeLocation() {
+        return null;
+    }
+
+    @Override
     public BranchStatus getBranchStatus() throws RepositoryException {
         return wrapGet("", BranchStatus.class);
     }
