@@ -18,6 +18,7 @@ import javax.vecmath.Point2i;
 import javax.vecmath.Point3d;
 import javax.vecmath.Vector4d;
 
+import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.MouseEvent;
 import org.eclipse.swt.events.MouseListener;
@@ -47,6 +48,7 @@ import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.RenderContext;
 import com.dynamo.cr.sceneed.core.RenderContext.Pass;
 import com.dynamo.cr.sceneed.core.RenderData;
+import com.dynamo.cr.sceneed.core.SceneUtil;
 import com.dynamo.cr.sceneed.ui.RenderView.SelectResult.Pair;
 
 public class RenderView implements
@@ -244,9 +246,13 @@ IRenderView {
 
     @Override
     public void mouseMove(MouseEvent e) {
-        if (!CameraController.hasCameraControlModifiers(e) && this.selectionBoxNode.isVisible()) {
-            this.selectionBoxNode.setCurrent(e.x, e.y);
-            boxSelect();
+        if (this.selectionBoxNode.isVisible()) {
+            if (!CameraController.hasCameraControlModifiers(e)) {
+                this.selectionBoxNode.setCurrent(e.x, e.y);
+                boxSelect();
+            } else {
+                this.selectionBoxNode.setVisible(false);
+            }
         }
         for (MouseMoveListener listener : mouseMoveListeners) {
             listener.mouseMove(e);
@@ -270,8 +276,22 @@ IRenderView {
                 this.selectionBoxNode.setVisible(true);
                 this.selectionBoxNode.set(event.x, event.y);
             } else {
+                boolean multiSelect = (event.stateMask & SWT.SHIFT) != 0 || (!SceneUtil.isMac() && (event.stateMask & SWT.CTRL) != 0);
+                List<Node> selectedNodes = null;
+                if (multiSelect) {
+                    IStructuredSelection selection = (IStructuredSelection)this.selectionService.getSelection();
+                    @SuppressWarnings("unchecked")
+                    List<Object> selectionList = selection.toList();
+                    selectedNodes = new ArrayList<Node>(selectionList.size() + 1);
+                    selectedNodes.add(nodes.get(0));
+                    for (Object o : selectionList) {
+                        selectedNodes.add((Node)o);
+                    }
+                } else {
+                    selectedNodes = Collections.singletonList(nodes.get(0));
+                }
                 for (IRenderViewProvider provider : providers) {
-                    provider.onNodeHit(Collections.singletonList(nodes.get(0)));
+                    provider.onNodeHit(selectedNodes);
                 }
             }
         }

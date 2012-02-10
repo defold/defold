@@ -43,7 +43,7 @@ public class CameraController implements MouseListener, MouseMoveListener {
         this.renderView.addMouseListener(this);
         this.renderView.addMouseMoveListener(this);
         this.renderView.setCamera(camera);
-        this.isMac = System.getProperty("os.name").toLowerCase().indexOf("mac") >= 0;
+        isMac = SceneUtil.isMac();
     }
 
     @PreDestroy
@@ -172,7 +172,8 @@ public class CameraController implements MouseListener, MouseMoveListener {
     }
 
     public static boolean hasCameraControlModifiers(MouseEvent event) {
-        return (event.stateMask & (SWT.ALT | SWT.CTRL)) != 0;
+        return (event.stateMask & SWT.ALT) != 0
+                || (SceneUtil.isMac() && (event.stateMask & SWT.CTRL) != 0);
     }
 
     public void frameObjects() {
