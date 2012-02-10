@@ -8,6 +8,7 @@ import javax.vecmath.Matrix4d;
 import org.eclipse.jface.preference.IPreferenceStore;
 
 import com.dynamo.cr.sceneed.Activator;
+import com.dynamo.cr.sceneed.handlers.ShowGroupHandler;
 
 public class RenderUtil {
 
@@ -194,4 +195,9 @@ public class RenderUtil {
         gl.glMultMatrixd(a, 0);
     }
 
+    public static boolean isGroupVisible(String group) {
+        IPreferenceStore store = Activator.getDefault().getPreferenceStore();
+        boolean hidden = store.getBoolean(String.format(ShowGroupHandler.PREFERENCE_PATTERN, group));
+        return !hidden;
+    }
 }

@@ -24,6 +24,7 @@ Export-Package: com.dynamo.cr.sceneed,
  com.dynamo.cr.sceneed.core.operations,
  com.dynamo.cr.sceneed.core.util,
  com.dynamo.cr.sceneed.core.validators,
+ com.dynamo.cr.sceneed.handlers,
  com.dynamo.cr.sceneed.ui,
  com.dynamo.cr.sceneed.ui.preferences,
  com.dynamo.cr.sceneed.ui.util

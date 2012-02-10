@@ -67,7 +67,9 @@ public class NodeTypeRegistry implements INodeTypeRegistry {
                     nodeRenderer = (INodeRenderer<Node>) e.createExecutableExtension("renderer");
                 }
 
-                NodeType type = new NodeType(extension, nodeLoader, nodePresenter, nodeRenderer, resourceType, nodeClass);
+                String displayGroup = e.getAttribute("display-group");
+
+                NodeType type = new NodeType(extension, nodeLoader, nodePresenter, nodeRenderer, resourceType, nodeClass, displayGroup);
                 if (extension != null) {
                     this.extToClass.put(extension, nodeClass);
                 }

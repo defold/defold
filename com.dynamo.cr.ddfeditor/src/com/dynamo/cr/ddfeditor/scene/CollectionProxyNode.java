@@ -1,5 +1,6 @@
 package com.dynamo.cr.ddfeditor.scene;
 
+import com.dynamo.cr.go.core.CollectionNode;
 import com.dynamo.cr.go.core.ComponentTypeNode;
 import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
@@ -22,6 +23,13 @@ public class CollectionProxyNode extends ComponentTypeNode {
 
     public void setCollection(String collection) {
         this.collection = collection;
+    }
+
+    public void setCollectionNode(CollectionNode collection) {
+        if (!getChildren().isEmpty()) {
+            clearChildren();
+        }
+        addChild(collection);
     }
 
 }

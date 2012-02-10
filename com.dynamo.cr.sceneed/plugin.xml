@@ -42,6 +42,15 @@
             id="com.dynamo.cr.sceneed.ui.commands.frameObjects"
             name="Frame Objects">
       </command>
+      <command
+            id="com.dynamo.cr.sceneed.commands.showGroup"
+            name="Show Group">
+         <commandParameter
+               id="com.dynamo.cr.sceneed.commandParameters.group"
+               name="Group"
+               optional="false">
+         </commandParameter>
+      </command>
    </extension>
    <extension
          point="org.eclipse.ui.bindings">
@@ -237,20 +246,6 @@
                style="push">
          </command>
       </menuContribution>
-   </extension>
-   <extension
-         point="org.eclipse.ui.handlers">
-      <handler
-            class="com.dynamo.cr.sceneed.handlers.SelectManipulatorModeHandler"
-            commandId="com.dynamo.cr.sceneed.ui.commands.selectManipulatorMode">
-      </handler>
-      <handler
-            class="com.dynamo.cr.sceneed.handlers.FrameObjectsHandler"
-            commandId="com.dynamo.cr.sceneed.ui.commands.frameObjects">
-      </handler>
-   </extension>
-   <extension
-         point="org.eclipse.ui.menus">
       <menuContribution
             allPopups="false"
             locationURI="menu:org.eclipse.ui.main.menu?after=edit">
@@ -303,8 +298,31 @@
                      definitionId="com.dynamo.cr.scened.definitions.sceneEditorActive">
                </reference>
             </visibleWhen>
+            <menu
+                  id="com.dynamo.cr.sceneed.menus.show"
+                  label="Show">
+               <dynamic
+                     class="com.dynamo.cr.sceneed.ui.ShowGroupItems"
+                     id="com.dynamo.cr.sceneed.dynamics.showMenu">
+               </dynamic>
+            </menu>
          </menu>
       </menuContribution>
+   </extension>
+   <extension
+         point="org.eclipse.ui.handlers">
+      <handler
+            class="com.dynamo.cr.sceneed.handlers.SelectManipulatorModeHandler"
+            commandId="com.dynamo.cr.sceneed.ui.commands.selectManipulatorMode">
+      </handler>
+      <handler
+            class="com.dynamo.cr.sceneed.handlers.FrameObjectsHandler"
+            commandId="com.dynamo.cr.sceneed.ui.commands.frameObjects">
+      </handler>
+      <handler
+            class="com.dynamo.cr.sceneed.handlers.ShowGroupHandler"
+            commandId="com.dynamo.cr.sceneed.commands.showGroup">
+      </handler>
    </extension>
    <extension
          point="org.eclipse.core.expressions.definitions">

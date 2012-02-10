@@ -16,4 +16,6 @@ public interface INodeType {
 
     Class<?> getNodeClass();
 
+    String getDisplayGroup();
+
 }

@@ -1090,6 +1090,7 @@
    <extension
          point="com.dynamo.cr.nodetypes">
       <node-type
+            display-group="Tile Grids"
             id="com.dynamo.cr.tileeditor.scene.tileGridNode"
             loader="com.dynamo.cr.tileeditor.scene.TileGridLoader"
             node="com.dynamo.cr.tileeditor.scene.TileGridNode"
@@ -1097,6 +1098,7 @@
             resource-type="com.dynamo.cr.tileeditor.resourcetypes.TileGrid">
       </node-type>
       <node-type
+            display-group="Sprites"
             id="com.dynamo.cr.tileeditor.scene.sprite2Node"
             loader="com.dynamo.cr.tileeditor.scene.Sprite2Loader"
             node="com.dynamo.cr.tileeditor.scene.Sprite2Node"

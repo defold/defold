@@ -5,8 +5,8 @@ import com.dynamo.cr.sceneed.core.INodeLoader;
 import com.dynamo.cr.sceneed.core.INodeRenderer;
 import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.ISceneView;
-import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.ISceneView.INodePresenter;
+import com.dynamo.cr.sceneed.core.Node;
 
 public class NodeType implements INodeType {
 
@@ -16,14 +16,16 @@ public class NodeType implements INodeType {
     private final INodeRenderer<Node> renderer;
     private final IResourceType resourceType;
     private final Class<?> nodeClass;
+    private final String displayGroup;
 
-    public NodeType(String extension, INodeLoader<Node> loader, ISceneView.INodePresenter<Node> presenter, INodeRenderer<Node> renderer, IResourceType resourceType, Class<?> nodeClass) {
+    public NodeType(String extension, INodeLoader<Node> loader, ISceneView.INodePresenter<Node> presenter, INodeRenderer<Node> renderer, IResourceType resourceType, Class<?> nodeClass, String displayGroup) {
         this.extension = extension;
         this.loader = loader;
         this.presenter = presenter;
         this.renderer = renderer;
         this.resourceType = resourceType;
         this.nodeClass = nodeClass;
+        this.displayGroup = displayGroup;
     }
 
     @Override
@@ -54,6 +56,11 @@ public class NodeType implements INodeType {
     @Override
     public Class<?> getNodeClass() {
         return this.nodeClass;
+    }
+
+    @Override
+    public String getDisplayGroup() {
+        return this.displayGroup;
     }
 
 }

@@ -563,6 +563,7 @@
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.SpawnPoint">
       </node-type>
       <node-type
+            display-group="Physics"
             id="com.dynamo.cr.ddfeditor.scene.collisionObjectNode"
             loader="com.dynamo.cr.ddfeditor.scene.CollisionObjectLoader"
             node="com.dynamo.cr.ddfeditor.scene.CollisionObjectNode"
@@ -571,6 +572,7 @@
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.CollisionObject">
       </node-type>
       <node-type
+            display-group="Collection Proxies"
             id="com.dynamo.cr.ddfeditor.scene.collectionProxyNode"
             loader="com.dynamo.cr.ddfeditor.scene.CollectionProxyLoader"
             node="com.dynamo.cr.ddfeditor.scene.CollectionProxyNode"
@@ -607,28 +609,33 @@
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Model">
       </node-type>
       <node-type
+            display-group="Physics"
             id="com.dynamo.cr.ddfeditor.scene.convexShapeNode"
             loader="com.dynamo.cr.ddfeditor.scene.ConvexShapeLoader"
             node="com.dynamo.cr.ddfeditor.scene.ConvexShapeNode"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.ConvexShape">
       </node-type>
       <node-type
+            display-group="Sprites"
             id="com.dynamo.cr.ddfeditor.scene.spriteNode"
             loader="com.dynamo.cr.ddfeditor.scene.SpriteLoader"
             node="com.dynamo.cr.ddfeditor.scene.SpriteNode"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.sprite">
       </node-type>
       <node-type
+            display-group="Physics"
             id="com.dynamo.cr.ddfeditor.scene.sphereCollisionNode"
             node="com.dynamo.cr.ddfeditor.scene.SphereCollisionShapeNode"
             renderer="com.dynamo.cr.ddfeditor.scene.SphereCollisionShapeRenderer">
       </node-type>
       <node-type
+            display-group="Physics"
             id="com.dynamo.cr.ddfeditor.scene.boxCollisionNode"
             node="com.dynamo.cr.ddfeditor.scene.BoxCollisionShapeNode"
             renderer="com.dynamo.cr.ddfeditor.scene.BoxCollisionShapeRenderer">
       </node-type>
       <node-type
+            display-group="Physics"
             id="com.dynamo.cr.ddfeditor.scene.capsuleCollisionNode"
             node="com.dynamo.cr.ddfeditor.scene.CapsuleCollisionShapeNode"
             renderer="com.dynamo.cr.ddfeditor.scene.CapsuleCollisionShapeRenderer">

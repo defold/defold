@@ -655,14 +655,21 @@ IRenderView {
     @Override
     public void setupNode(RenderContext renderContext, Node node) {
         INodeType nodeType = this.nodeTypeRegistry.getNodeTypeClass(node.getClass());
+        boolean abort = false;
         if (nodeType != null) {
-            INodeRenderer<Node> renderer = nodeType.getRenderer();
-            if (renderer != null)
-                renderer.setup(renderContext, node);
+            if (RenderUtil.isGroupVisible(nodeType.getDisplayGroup())) {
+                INodeRenderer<Node> renderer = nodeType.getRenderer();
+                if (renderer != null)
+                    renderer.setup(renderContext, node);
+            } else {
+                abort = true;
+            }
         }
 
-        for (Node child : node.getChildren()) {
-            setupNode(renderContext, child);
+        if (!abort) {
+            for (Node child : node.getChildren()) {
+                setupNode(renderContext, child);
+            }
         }
     }
 

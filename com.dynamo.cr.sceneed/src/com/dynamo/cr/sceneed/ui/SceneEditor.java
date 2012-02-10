@@ -74,7 +74,6 @@ import com.dynamo.cr.sceneed.core.ManipulatorController;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.SceneModel;
 import com.dynamo.cr.sceneed.core.ScenePresenter;
-import com.dynamo.cr.sceneed.ui.preferences.PreferenceConstants;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
@@ -416,10 +415,7 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
     @Override
     public void propertyChange(PropertyChangeEvent event) {
         if (event.getSource().equals(Activator.getDefault().getPreferenceStore())) {
-            if (event.getProperty().equals(PreferenceConstants.P_TOP_BKGD_COLOR)
-                    || event.getProperty().equals(PreferenceConstants.P_BOTTOM_BKGD_COLOR)) {
-                this.renderView.refresh();
-            }
+            this.renderView.refresh();
         }
     }
 
