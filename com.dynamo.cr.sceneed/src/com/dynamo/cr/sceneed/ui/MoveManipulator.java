@@ -22,6 +22,7 @@ public class MoveManipulator extends RootManipulator {
     private List<Matrix4d> originalLocalTransforms = new ArrayList<Matrix4d>();
     private List<Matrix4d> newLocalTransforms = new ArrayList<Matrix4d>();
     private boolean transformChanged = false;
+    private Point3d originalTranslation = new Point3d();
 
     public MoveManipulator() {
         xAxisManipulator = new AxisManipulator(this, new float[] {1, 0, 0, 1});
@@ -39,11 +40,11 @@ public class MoveManipulator extends RootManipulator {
     @Override
     public boolean match(Object[] selection) {
         for (Object object : selection) {
-            if (object instanceof Node && ((Node) object).isFlagSet(Node.Flags.TRANSFORMABLE)) {
-                return true;
+            if (!(object instanceof Node) || !((Node) object).isFlagSet(Node.Flags.TRANSFORMABLE)) {
+                return false;
             }
         }
-        return false;
+        return true;
     }
 
     @Override
@@ -51,14 +52,16 @@ public class MoveManipulator extends RootManipulator {
         transformChanged = true;
         List<Node> selection = getSelection();
 
-        Matrix4d transform = new Matrix4d();
-        for (Node node : selection) {
-            // Change only the translation. The manipulator is in world-space
-            // and changing the whole transform would reset the rotation to unit
-            // as the manipulator is always operating in unit rotation space.
-            node.getWorldTransform(transform);
-            transform.set(new Vector3d(getTranslation()));
-            node.setWorldTransform(transform);
+        Vector3d delta = new Vector3d(getTranslation());
+        delta.sub(this.originalTranslation);
+        Vector3d translation = new Vector3d();
+        Point3d pTranslation = new Point3d();
+        int n = selection.size();
+        for (int i = 0; i < n; ++i) {
+            this.originalLocalTransforms.get(i).get(translation);
+            translation.add(delta);
+            pTranslation.set(translation);
+            selection.get(i).setTranslation(pTranslation);
         }
     }
 
@@ -70,10 +73,11 @@ public class MoveManipulator extends RootManipulator {
     protected void selectionChanged() {
         List<Node> sel = getSelection();
         Point3d center = new Point3d();
+        this.originalLocalTransforms.clear();
         for (Node node : sel) {
             Matrix4d transform = new Matrix4d();
             node.getLocalTransform(transform);
-            originalLocalTransforms.add(transform);
+            this.originalLocalTransforms.add(transform);
 
             transform = new Matrix4d();
             node.getWorldTransform(transform);
@@ -90,6 +94,11 @@ public class MoveManipulator extends RootManipulator {
     @Override
     public void refresh() {
         selectionChanged();
+    }
+
+    @Override
+    public void mouseDown(MouseEvent e) {
+        this.originalTranslation = getTranslation();
     }
 
     @Override

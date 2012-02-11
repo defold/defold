@@ -22,6 +22,7 @@ public class RotateManipulator extends RootManipulator {
     private List<Matrix4d> originalLocalTransforms = new ArrayList<Matrix4d>();
     private List<Matrix4d> newLocalTransforms = new ArrayList<Matrix4d>();
     private boolean transformChanged = false;
+    private Quat4d originalRotation = new Quat4d();
 
     public RotateManipulator() {
         xCircleManipulator = new CircleManipulator(this, new float[] {1, 0, 0, 1});
@@ -39,11 +40,11 @@ public class RotateManipulator extends RootManipulator {
     @Override
     public boolean match(Object[] selection) {
         for (Object object : selection) {
-            if (object instanceof Node && ((Node) object).isFlagSet(Node.Flags.TRANSFORMABLE)) {
-                return true;
+            if (!(object instanceof Node) || !((Node) object).isFlagSet(Node.Flags.TRANSFORMABLE)) {
+                return false;
             }
         }
-        return false;
+        return true;
     }
 
     @Override
@@ -53,8 +54,14 @@ public class RotateManipulator extends RootManipulator {
 
         Matrix4d transform = new Matrix4d();
         getWorldTransform(transform);
-        for (Node node : selection) {
-            node.setWorldTransform(transform);
+        Quat4d delta = getRotation();
+        delta.mulInverse(this.originalRotation);
+        Quat4d rotation = new Quat4d();
+        int n = selection.size();
+        for (int i = 0; i < n; ++i) {
+            this.originalLocalTransforms.get(i).get(rotation);
+            rotation.mul(delta);
+            selection.get(i).setRotation(rotation);
         }
     }
 
@@ -66,10 +73,11 @@ public class RotateManipulator extends RootManipulator {
     protected void selectionChanged() {
         List<Node> sel = getSelection();
         Vector4d center = new Vector4d();
+        this.originalLocalTransforms.clear();
         for (Node node : sel) {
             Matrix4d transform = new Matrix4d();
             node.getLocalTransform(transform);
-            originalLocalTransforms.add(transform);
+            this.originalLocalTransforms.add(transform);
 
             transform = new Matrix4d();
             node.getWorldTransform(transform);
@@ -93,6 +101,11 @@ public class RotateManipulator extends RootManipulator {
     @Override
     public void refresh() {
         selectionChanged();
+    }
+
+    @Override
+    public void mouseDown(MouseEvent e) {
+        this.originalRotation = getRotation();
     }
 
     @Override
