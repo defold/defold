@@ -98,6 +98,7 @@ public class RefComponentNode extends ComponentNode {
                 if (this.type != null) {
                     this.type.setModel(model);
                     this.type.setPath(this.component);
+                    this.type.setFlagsRecursively(Flags.LOCKED);
                     addChild(this.type);
                 }
             } catch (Throwable e) {

@@ -94,6 +94,7 @@ public class CollectionInstanceNode extends InstanceNode {
                 if (this.collectionNode != null) {
                     this.collectionNode.setModel(model);
                     this.collectionNode.setPath(this.collection);
+                    this.collectionNode.setFlagsRecursively(Flags.LOCKED);
                     addChild(this.collectionNode);
                 }
             } catch (Throwable e) {
