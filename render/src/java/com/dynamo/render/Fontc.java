@@ -273,7 +273,6 @@ public class Fontc {
         builder.setImageData(ByteString.copyFrom(imageBytes));
 
         if (fontMapFile != null) {
-            ImageIO.write(image, "png", new File(fontMapFile + ".png"));
             FileOutputStream output = new FileOutputStream(fontMapFile);
             builder.build().writeTo(output);
             output.close();
