@@ -1,5 +1,7 @@
 package com.dynamo.bob;
 
+import static org.apache.commons.io.FilenameUtils.normalize;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -13,6 +15,9 @@ import java.util.Set;
 
 import org.apache.commons.io.DirectoryWalker;
 import org.apache.commons.io.FilenameUtils;
+import org.eclipse.core.runtime.IProgressMonitor;
+import org.eclipse.core.runtime.SubProgressMonitor;
+import org.osgi.framework.Bundle;
 
 /**
  * Project abstraction. Contains input files, builder, tasks, etc
@@ -26,18 +31,26 @@ public class Project {
     private List<String> inputs = new ArrayList<String>();
     private ArrayList<Task<?>> tasks;
     private State state;
+    private String rootDirectory = ".";
     private String buildDirectory = "build";
     private Map<String, String> options = new HashMap<String, String>();
 
     public Project(IFileSystem fileSystem) {
         this.fileSystem = fileSystem;
+        this.fileSystem.setRootDirectory(rootDirectory);
         this.fileSystem.setBuildDirectory(buildDirectory);
     }
 
-    public Project(IFileSystem fileSystem, String buildDirectory) {
+    public Project(IFileSystem fileSystem, String sourceRootDirectory, String buildDirectory) {
+        this.rootDirectory = sourceRootDirectory;
         this.buildDirectory = buildDirectory;
         this.fileSystem = fileSystem;
+        this.fileSystem.setRootDirectory(rootDirectory);
         this.fileSystem.setBuildDirectory(buildDirectory);
+    }
+
+    public String getRootDirectory() {
+        return rootDirectory;
     }
 
     public String getBuildDirectory() {
@@ -48,9 +61,24 @@ public class Project {
      * Scan package for builder classes
      * @param pkg package name to be scanned
      */
-    @SuppressWarnings("unchecked")
     public void scanPackage(String pkg) {
         Set<String> classNames = ClassScanner.scan(pkg);
+        doScan(classNames);
+    }
+
+    /**
+     * OSGi-version of {@link #scanPackage(String)}
+     * Scan bundle package for builder classes
+     * @param bundle bundle to use for class scanning
+     * @param pkg package name to be scanned
+     */
+    public void scanBundlePackage(Bundle bundle, String pkg) {
+        Set<String> classNames = ClassScanner.scanBundle(bundle, pkg);
+        doScan(classNames);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void doScan(Set<String> classNames) {
         for (String className : classNames) {
             try {
                 Class<?> klass = Class.forName(className);
@@ -116,20 +144,45 @@ public class Project {
 
     /**
      * Build the project
+     * @param monitor
      * @return list of {@link TaskResult}. Only executed nodes are part of the list.
      * @throws IOException
      */
-    public List<TaskResult> build() throws IOException {
+    public List<TaskResult> build(IProgressMonitor monitor, String... commands) throws IOException {
         IResource stateResource = fileSystem.get(FilenameUtils.concat(buildDirectory, "state"));
         state = State.load(stateResource);
         createTasks();
-        List<TaskResult> result = runTasks();
+        List<TaskResult> result = new ArrayList<TaskResult>();
+
+        monitor.beginTask("", 100);
+
+        for (String command : commands) {
+            if (command.equals("build")) {
+                SubProgressMonitor m = new SubProgressMonitor(monitor, 99);
+                m.beginTask("Building...", tasks.size());
+                result = runTasks(m);
+                m.done();
+            } else if (command.equals("clean")) {
+                SubProgressMonitor m = new SubProgressMonitor(monitor, 1);
+                m.beginTask("Cleaning...", tasks.size());
+                for (Task<?> t : tasks) {
+                    List<IResource> outputs = t.getOutputs();
+                    for (IResource r : outputs) {
+                        r.remove();
+                        m.worked(1);
+                    }
+                }
+                m.done();
+            }
+        }
+
+        monitor.done();
         state.save(stateResource);
         return result;
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    private List<TaskResult> runTasks() throws IOException {
+    private List<TaskResult> runTasks(IProgressMonitor monitor) throws IOException {
 
         // set of all completed tasks. The set includes both task run
         // in this session and task already completed (output already exists with correct signatures, see below)
@@ -168,6 +221,7 @@ public class Project {
                 }
 
                 ++completedCount;
+                monitor.worked(1);
 
                 byte[] taskSignature = task.calculateSignature(this);
 
@@ -184,7 +238,7 @@ public class Project {
                 // signature from state on disk
                 List<byte[]> outputSigs = new ArrayList<byte[]>();
                 for (IResource r : task.getOutputs()) {
-                    byte[] s = state.getSignature(r.getPath());
+                    byte[] s = state.getSignature(r.getAbsPath());
                     outputSigs.add(s);
                 }
                 boolean allSigsEquals = true;
@@ -212,12 +266,12 @@ public class Project {
                     builder.build(task);
                     taskResult.setReturnCode(0);
                     for (IResource r : task.getOutputs()) {
-                        state.putSignature(r.getPath(), taskSignature);
+                        state.putSignature(r.getAbsPath(), taskSignature);
                     }
 
                     for (IResource r : task.getOutputs()) {
                         if (!r.exists()) {
-                            taskResult.setMessage(String.format("Output '%s' not found", r.getPath()));
+                            taskResult.setMessage(String.format("Output '%s' not found", r.getAbsPath()));
                             taskResult.setReturnCode(50);
                         }
                     }
@@ -275,8 +329,13 @@ public class Project {
         }
 
         public List<String> walk(String path) throws IOException {
+            path = normalize(path);
             result = new ArrayList<String>(1024);
             walk(new File(path), result);
+            for (int i = 0; i < result.size(); ++i) {
+                String relPath = result.get(i).substring(path.length()+1);
+                result.set(i, relPath);
+            }
             return result;
         }
 
@@ -309,13 +368,12 @@ public class Project {
     }
 
     /**
-     * Scan for input files
-     * @param path path to begin scanning in
+     * Find source files
+     * @param path path to begin in
      * @param skipDirs
      * @throws IOException
      */
-    public void scan(final String path, Set<String> skipDirs) throws IOException {
-
+    public void findSources(final String path, Set<String> skipDirs) throws IOException {
         Walker walker = new Walker(skipDirs);
         walker.walk(path);
         List<String> result = walker.getResult();

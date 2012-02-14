@@ -17,9 +17,12 @@ import java.util.Set;
 
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.eclipse.core.runtime.NullProgressMonitor;
+import org.eclipse.core.runtime.Platform;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.osgi.framework.Bundle;
 
 import com.dynamo.bob.AbstractFileSystem;
 import com.dynamo.bob.AbstractResource;
@@ -170,7 +173,7 @@ public class JBobTest {
         }
 
         public void addFile(MockResource resource) {
-            this.resources.put(resource.getPath(), resource);
+            this.resources.put(resource.getAbsPath(), resource);
         }
 
         @Override
@@ -187,12 +190,18 @@ public class JBobTest {
 
     private MockFileSystem fileSystem;
     private Project project;
+    private Bundle bundle;
 
     @Before
     public void setUp() throws Exception {
-        fileSystem = new MockFileSystem();;
+        bundle = Platform.getBundle("com.dynamo.cr.bob");
+        fileSystem = new MockFileSystem();
         project = new Project(fileSystem);
-        project.scanPackage("com.dynamo.bob.test");
+        project.scanBundlePackage(bundle, "com.dynamo.bob.test");
+    }
+
+    List<TaskResult> build() throws IOException {
+        return project.build(new NullProgressMonitor(), "build");
     }
 
     @After
@@ -201,7 +210,7 @@ public class JBobTest {
 
     @Test
     public void testFilePackageScan() throws Exception {
-        Set<String> classes = ClassScanner.scan("com.dynamo.bob.test");
+        Set<String> classes = ClassScanner.scanBundle(bundle, "com.dynamo.bob.test");
         assertThat(classes, hasItem("com.dynamo.bob.test.JBobTest"));
     }
 
@@ -209,10 +218,21 @@ public class JBobTest {
     public void testCopy() throws Exception {
         fileSystem.addFile("test.in", "test data".getBytes());
         project.setInputs(Arrays.asList("test.in"));
-        List<TaskResult> result = project.build();
+        List<TaskResult> result = build();
         assertThat(result.size(), is(1));
         IResource testOut = fileSystem.get("test.out").output();
         assertNotNull(testOut);
+        assertThat(new String(testOut.getContent()), is("test data"));
+    }
+
+    @Test
+    public void testAbsPath() throws Exception {
+        fileSystem.addFile("/root/test.in", "test data".getBytes());
+        project.setInputs(Arrays.asList("/root/test.in"));
+        List<TaskResult> result = build();
+        assertThat(result.size(), is(1));
+        IResource testOut = fileSystem.get("/root/test.out").output();
+        assertThat(testOut.exists(), is(true));
         assertThat(new String(testOut.getContent()), is("test data"));
     }
 
@@ -223,17 +243,17 @@ public class JBobTest {
         List<TaskResult> result;
 
         // build
-        result = project.build();
+        result = build();
         assertThat(result.size(), is(1));
 
         // rebuild with same input
-        result = project.build();
+        result = build();
         assertThat(result.size(), is(0));
 
         // rebuild with new input
         MockResource testIn = (MockResource) fileSystem.get("test.in");
         testIn.forceSetContent("test data prim".getBytes());
-        result = project.build();
+        result = build();
         assertThat(result.size(), is(1));
     }
 
@@ -244,14 +264,14 @@ public class JBobTest {
         List<TaskResult> result;
 
         // build
-        result = project.build();
+        result = build();
         assertThat(result.size(), is(1));
 
         // remove output
         fileSystem.get("test.out").output().remove();
 
         // rebuild
-        result = project.build();
+        result = build();
         assertThat(result.size(), is(1));
     }
 
@@ -261,14 +281,14 @@ public class JBobTest {
         project.setInputs(Arrays.asList("test.dynamic"));
 
         // build
-        List<TaskResult> result = project.build();
+        List<TaskResult> result = build();
         assertThat(result.size(), is(3));
 
         // remove generated output, ie input to another task
         fileSystem.get("test_0.numberc").output().remove();
 
         // rebuild
-        result = project.build();
+        result = build();
         assertThat(result.size(), is(1));
     }
 
@@ -279,12 +299,12 @@ public class JBobTest {
         List<TaskResult> result;
 
         // build
-        result = project.build();
+        result = build();
         assertThat(result.size(), is(1));
         assertThat(result.get(0).getReturnCode(), is(5));
 
         // build again
-        result = project.build();
+        result = build();
         assertThat(result.size(), is(1));
         assertThat(result.get(0).getReturnCode(), is(5));
     }
@@ -293,7 +313,7 @@ public class JBobTest {
     public void testMissingOutput() throws Exception {
         fileSystem.addFile("test.nooutput", "test data".getBytes());
         project.setInputs(Arrays.asList("test.nooutput"));
-        List<TaskResult> result = project.build();
+        List<TaskResult> result = build();
         assertThat(result.size(), is(1));
         assertThat(result.get(0).getReturnCode(), not(is(0)));
     }
@@ -307,7 +327,7 @@ public class JBobTest {
     public void testDynamic() throws Exception {
         fileSystem.addFile("test.dynamic", "1\n2\n".getBytes());
         project.setInputs(Arrays.asList("test.dynamic"));
-        List<TaskResult> result = project.build();
+        List<TaskResult> result = build();
         assertThat(result.size(), is(3));
         assertThat(getResourceString("test_0.numberc"), is("10"));
         assertThat(getResourceString("test_1.numberc"), is("20"));
@@ -323,16 +343,16 @@ public class JBobTest {
         List<TaskResult> result;
 
         // build
-        result = project.build();
+        result = build();
         assertThat(result.size(), is(1));
 
         // rebuild with new option
         project.setOption("COPTIM", "-O2");
-        result = project.build();
+        result = build();
         assertThat(result.size(), is(1));
 
         // rebuild with same option
-        result = project.build();
+        result = build();
         assertThat(result.size(), is(0));
     }
 

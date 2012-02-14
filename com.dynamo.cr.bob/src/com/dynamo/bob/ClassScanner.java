@@ -3,9 +3,13 @@ package com.dynamo.bob;
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
+import java.util.Collection;
 import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.Set;
+
+import org.osgi.framework.Bundle;
+import org.osgi.framework.wiring.BundleWiring;
 
 /**
  * Scan packages for classes.
@@ -50,5 +54,23 @@ public class ClassScanner {
 
         return classes;
     }
+
+    /**
+     * OSGi-version of {@link #scan(String)}
+     * Scan package in bundle for classes
+     * @param pkg package to scan
+     * @return set of canonical class names
+     */
+    public static Set<String> scanBundle(Bundle bundle, String pkg) {
+        Set<String> classes = new HashSet<String>();
+        Collection<String> foundClasses = bundle.adapt(BundleWiring.class).listResources(pkg.replace(".", "/"), "*.class", 0);
+        for (String name : foundClasses) {
+            name = name.replace("/", ".").replace("\\", ".");
+            name = name.substring(0, name.length() - 6);
+            classes.add(name);
+        }
+        return classes;
+    }
+
 
 }

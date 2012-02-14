@@ -47,7 +47,13 @@ public interface IResource {
     boolean exists();
 
     /**
-     * Get path for resource
+     * Get abs-path for resource
+     * @return path
+     */
+    String getAbsPath();
+
+    /**
+     * Get root-relative path for resource
      * @return path
      */
     String getPath();

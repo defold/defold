@@ -17,7 +17,7 @@ public class DefaultResource extends AbstractResource<DefaultFileSystem> {
 
     @Override
     public byte[] getContent() throws IOException {
-        File f = new File(path);
+        File f = new File(getAbsPath());
         if (!f.exists())
             return null;
 
@@ -33,9 +33,9 @@ public class DefaultResource extends AbstractResource<DefaultFileSystem> {
 
     @Override
     public void setContent(byte[] content) throws IOException {
-        File f = new File(path);
+        File f = new File(getAbsPath());
         if (!f.exists()) {
-            String dir = FilenameUtils.getFullPath(path);
+            String dir = FilenameUtils.getFullPath(getAbsPath());
             File dirFile = new File(dir);
             if (!dirFile.exists()) {
                 dirFile.mkdirs();
@@ -52,12 +52,12 @@ public class DefaultResource extends AbstractResource<DefaultFileSystem> {
 
     @Override
     public boolean exists() {
-        return new File(path).exists();
+        return new File(getAbsPath()).exists();
     }
 
     @Override
     public void remove() {
-        new File(path).delete();
+        new File(getAbsPath()).delete();
     }
 
 }

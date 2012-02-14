@@ -41,8 +41,8 @@ public class TileSetBuilder extends Builder<Void>  {
     public void build(Task<Void> task) throws CompileExceptionError,
             IOException {
 
-        String inFileName = task.input(0).getPath();
-        String outFileName = task.output(0).getPath();
+        String inFileName = task.input(0).getAbsPath();
+        String outFileName = task.output(0).getAbsPath();
 
         File inFile = new File(inFileName);
         File outFile = new File(outFileName);

@@ -1,5 +1,7 @@
 package com.dynamo.bob;
 
+import static org.apache.commons.io.FilenameUtils.concat;
+
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -46,6 +48,11 @@ public abstract class AbstractResource<F extends IFileSystem> implements IResour
     }
 
     @Override
+    public String getAbsPath() {
+        return concat(fileSystem.getRootDirectory(), path);
+    }
+
+    @Override
     public String getPath() {
         return path;
     }
@@ -62,8 +69,11 @@ public abstract class AbstractResource<F extends IFileSystem> implements IResour
         if (isOutput()) {
             return this;
         } else {
-            String p = FilenameUtils.concat(this.fileSystem.getBuildDirectory(), this.path);
-            return fileSystem.get(p);
+            String p = path;
+            if (p.startsWith("/"))
+                p = p.substring(1);
+            String buildPath = FilenameUtils.concat(this.fileSystem.getBuildDirectory(), p);
+            return fileSystem.get(buildPath);
         }
     }
 

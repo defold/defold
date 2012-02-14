@@ -17,9 +17,28 @@ public interface IFileSystem {
     /**
      * Set build directory. The directory where the output-files are put.
      * The source directory structure is typically mirrored to this directory.
+     * @note Must be a relative path
      * @param buildDirectory build directory
      */
     public void setBuildDirectory(String buildDirectory);
 
+    /**
+     * Get build directory
+     * @see #setBuildDirectory(String)
+     * @return build directory
+     */
     public String getBuildDirectory();
+
+    /**
+     * Set project root directory. Similar to cwd when building in command-line
+     * @param rootDirectory root directory
+     */
+    public void setRootDirectory(String rootDirectory);
+
+    /**
+     * Get root directory
+     * @see #setRootDirectory(String)
+     * @return root directory
+     */
+    public String getRootDirectory();
 }

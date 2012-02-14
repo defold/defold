@@ -5,6 +5,10 @@ public class DefaultFileSystem extends AbstractFileSystem<DefaultFileSystem, Def
 
     @Override
     public IResource get(String path) {
+        // Paths are always root relative.
+        if (path.startsWith("/"))
+            path = path.substring(1);
+
         return new DefaultResource(this, path);
     }
 
