@@ -1,14 +1,17 @@
 package com.dynamo.bob;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.commons.io.DirectoryWalker;
 import org.apache.commons.io.FilenameUtils;
 
 /**
@@ -20,7 +23,7 @@ public class Project {
 
     private IFileSystem fileSystem;
     private Map<String, Class<? extends Builder<?>>> extToBuilder = new HashMap<String, Class<? extends Builder<?>>>();
-    private ArrayList<String> inputs;
+    private List<String> inputs = new ArrayList<String>();
     private ArrayList<Task<?>> tasks;
     private State state;
     private String buildDirectory = "build";
@@ -29,6 +32,16 @@ public class Project {
     public Project(IFileSystem fileSystem) {
         this.fileSystem = fileSystem;
         this.fileSystem.setBuildDirectory(buildDirectory);
+    }
+
+    public Project(IFileSystem fileSystem, String buildDirectory) {
+        this.buildDirectory = buildDirectory;
+        this.fileSystem = fileSystem;
+        this.fileSystem.setBuildDirectory(buildDirectory);
+    }
+
+    public String getBuildDirectory() {
+        return buildDirectory;
     }
 
     /**
@@ -43,7 +56,9 @@ public class Project {
                 Class<?> klass = Class.forName(className);
                 BuilderParams params = klass.getAnnotation(BuilderParams.class);
                 if (params != null) {
-                    extToBuilder.put(params.inExt(), (Class<? extends Builder<?>>) klass);
+                    for (String inExt : params.inExts()) {
+                        extToBuilder.put(inExt, (Class<? extends Builder<?>>) klass);
+                    }
                 }
             } catch (Exception e) {
                 throw new RuntimeException(e);
@@ -116,8 +131,10 @@ public class Project {
     @SuppressWarnings({ "rawtypes", "unchecked" })
     private List<TaskResult> runTasks() throws IOException {
 
-        // avoid running tasks twice in case of failures etc
-        Set<Task> runTasks = new HashSet<Task>();
+        // set of all completed tasks. The set includes both task run
+        // in this session and task already completed (output already exists with correct signatures, see below)
+        // the set also contains failed tasks
+        Set<Task> completedTasks = new HashSet<Task>();
 
         // set of *all* possible output files
         Set<IResource> allOutputs = new HashSet<IResource>();
@@ -134,6 +151,7 @@ public class Project {
         // number of task completed. not the same as number of tasks run
         // this number is always incremented apart from when a task
         // is waiting for task(s) generating input to this task
+        // TODO: verify that this scheme really is sound
         int completedCount = 0;
 
         while (completedCount < tasks.size()) {
@@ -177,12 +195,15 @@ public class Project {
                     }
                 }
 
-                boolean shouldRun = (!allOutputExists || !allSigsEquals) && !runTasks.contains(task);
+                boolean shouldRun = (!allOutputExists || !allSigsEquals) && !completedTasks.contains(task);
 
-                if (!shouldRun)
+                if (!shouldRun) {
+                    completedTasks.add(task);
+                    completedOutputs.addAll(task.getOutputs());
                     continue;
+                }
 
-                runTasks.add(task);
+                completedTasks.add(task);
 
                 TaskResult taskResult = new TaskResult(task);
                 result.add(taskResult);
@@ -242,6 +263,67 @@ public class Project {
             return v;
         else
             return defaultValue;
+    }
+
+    class Walker extends DirectoryWalker<String> {
+
+        private Set<String> skipDirs;
+        private ArrayList<String> result;
+
+        public Walker(Set<String> skipDirs) {
+            this.skipDirs = skipDirs;
+        }
+
+        public List<String> walk(String path) throws IOException {
+            result = new ArrayList<String>(1024);
+            walk(new File(path), result);
+            return result;
+        }
+
+        @Override
+        protected void handleFile(File file, int depth,
+                Collection<String> results) throws IOException {
+            String p = FilenameUtils.normalize(file.getPath(), true);
+
+            String ext = "." + FilenameUtils.getExtension(p);
+            Class<? extends Builder<?>> builderClass = extToBuilder.get(ext);
+            if (builderClass != null)
+                results.add(p);
+        }
+
+        @Override
+        protected boolean handleDirectory(File directory, int depth,
+                Collection<String> results) throws IOException {
+            String path = FilenameUtils.normalize(directory.getPath());
+            for (String sd : skipDirs) {
+                if (path.endsWith(sd)) {
+                    return false;
+                }
+            }
+            return super.handleDirectory(directory, depth, results);
+        }
+
+        public List<String> getResult() {
+            return result;
+        }
+    }
+
+    /**
+     * Scan for input files
+     * @param path path to begin scanning in
+     * @param skipDirs
+     * @throws IOException
+     */
+    public void scan(final String path, Set<String> skipDirs) throws IOException {
+
+        Walker walker = new Walker(skipDirs);
+        walker.walk(path);
+        List<String> result = walker.getResult();
+        inputs = result;
+    }
+
+    public IResource getResource(String path) {
+        return fileSystem.get(path);
     }
 
 }

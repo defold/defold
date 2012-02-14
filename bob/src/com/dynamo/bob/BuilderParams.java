@@ -26,8 +26,8 @@ public @interface BuilderParams {
     String outExt();
 
     /**
-     * Get input extension
-     * @return input extension
+     * Get input extension(s)
+     * @return input extension(s)
      */
-    String inExt();
+    String[] inExts();
 }

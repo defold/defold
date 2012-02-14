@@ -48,14 +48,15 @@ public class State implements Serializable {
         if (content == null) {
             return new State();
         } else {
-            ObjectInputStream is = new ObjectInputStream(new ByteArrayInputStream(content));
-            State state;
             try {
-                state = (State) is.readObject();
-            } catch (ClassNotFoundException e) {
-                throw new RuntimeException(e);
+                ObjectInputStream is = new ObjectInputStream(new ByteArrayInputStream(content));
+                State state = (State) is.readObject();
+                return state;
+            } catch (Throwable e) {
+                System.err.println("Unable to load state");
+                e.printStackTrace();
+                return new State();
             }
-            return state;
         }
     }
 

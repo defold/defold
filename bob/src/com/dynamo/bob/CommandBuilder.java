@@ -84,7 +84,7 @@ public class CommandBuilder extends Builder<Void> {
         return Task.<Void>newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
-                .addOutput(input.changeExt(params.inExt()))
+                .addOutput(input.changeExt(params.outExt()))
                 .build();
     }
 

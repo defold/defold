@@ -1,5 +1,6 @@
 package com.dynamo.bob;
 
+import java.io.IOException;
 import java.security.MessageDigest;
 
 /**
@@ -42,15 +43,17 @@ public abstract class Builder<T> {
      * Create task from input
      * @param input input resource
      * @return new task
+     * @throws IOException
      */
-    public abstract Task<T> create(IResource input);
+    public abstract Task<T> create(IResource input) throws IOException;
 
     /**
      * Build task, ie compile
      * @param task task to build
      * @throws CompileExceptionError
+     * @throws IOException
      */
-    public abstract void build(Task<T> task) throws CompileExceptionError;
+    public abstract void build(Task<T> task) throws CompileExceptionError, IOException;
 
     /**
      * Add custom signature, eg command-line, etc

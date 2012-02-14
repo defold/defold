@@ -1,5 +1,7 @@
 package com.dynamo.bob;
 
+import java.io.IOException;
+
 /**
  * Copy builder. This class is abstract. Inherit from this class
  * and add appropriate {@link BuilderParams}
@@ -19,7 +21,7 @@ public abstract class CopyBuilder extends Builder<Void> {
     }
 
     @Override
-    public void build(Task<Void> task) {
+    public void build(Task<Void> task) throws IOException {
         IResource in = task.getInputs().get(0);
         IResource out = task.getOutputs().get(0);
         out.setContent(in.getContent());

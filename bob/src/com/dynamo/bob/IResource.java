@@ -1,5 +1,7 @@
 package com.dynamo.bob;
 
+import java.io.IOException;
+
 
 /**
  * Resource abstraction
@@ -7,7 +9,6 @@ package com.dynamo.bob;
  *
  */
 public interface IResource {
-
 
     /**
      * Create output-resource with new extension. The returned
@@ -19,22 +20,25 @@ public interface IResource {
 
     /**
      * Get content for resource.
-     * @return content. <code>null</code> is the resource doesn't exists
+     * @return content. <code>null</code> if the resource doesn't exists
+     * @throws IOException
      */
-    byte[] getContent();
+    byte[] getContent() throws IOException;
 
     /**
      * Set content for resource. #
      * @note only valid operation for output-resources, see {@link IResource#output()}
      * @param content content to set
+     * @throws IOException
      */
-    void setContent(byte[] content);
+    void setContent(byte[] content) throws IOException;
 
     /**
      * Get sha1 checksum for resource
      * @return sha1 checksum
+     * @throws IOException
      */
-    byte[] sha1();
+    byte[] sha1() throws IOException;
 
     /**
      * Check if the resource exists
@@ -55,8 +59,8 @@ public interface IResource {
 
     /**
      * Get resource in the same folder as "this" resource
-     * @param name
-     * @return
+     * @param name name of the resource
+     * @return {@link IResource}
      */
     IResource getResource(String name);
 

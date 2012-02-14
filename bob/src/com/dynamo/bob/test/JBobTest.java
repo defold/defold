@@ -6,8 +6,8 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.matchers.JUnitMatchers.hasItem;
 
+import java.io.IOException;
 import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -21,25 +21,25 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.dynamo.bob.AbstractFileSystem;
+import com.dynamo.bob.AbstractResource;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.ClassScanner;
 import com.dynamo.bob.CommandBuilder;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.CopyBuilder;
-import com.dynamo.bob.IFileSystem;
 import com.dynamo.bob.IResource;
 import com.dynamo.bob.Project;
-import com.dynamo.bob.ResourceUtil;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.TaskResult;
 
 public class JBobTest {
-    @BuilderParams(name = "InCopyBuilder", inExt = ".in", outExt = ".out")
+    @BuilderParams(name = "InCopyBuilder", inExts = ".in", outExt = ".out")
     public static class InCopyBuilder extends CopyBuilder {}
 
-    @BuilderParams(name = "CBuilder", inExt = ".c", outExt = ".o")
+    @BuilderParams(name = "CBuilder", inExts = ".c", outExt = ".o")
     public static class CBuilder extends CopyBuilder {
         @Override
         public void signature(MessageDigest digest) {
@@ -47,14 +47,14 @@ public class JBobTest {
         }
     }
 
-    @BuilderParams(name = "NoOutput", inExt = ".nooutput", outExt = ".nooutputc")
+    @BuilderParams(name = "NoOutput", inExts = ".nooutput", outExt = ".nooutputc")
     public static class NoOutputBuilder extends CopyBuilder {
         @Override
         public void build(Task<Void> task) {
         }
     }
 
-    @BuilderParams(name = "FailingBuilder", inExt = ".in_err", outExt = ".out_err")
+    @BuilderParams(name = "FailingBuilder", inExts = ".in_err", outExt = ".out_err")
     public static class FailingBuilder extends Builder<Void> {
         @Override
         public Task<Void> create(IResource input) {
@@ -67,11 +67,11 @@ public class JBobTest {
         }
     }
 
-    @BuilderParams(name = "DynamicBuilder", inExt = ".dynamic", outExt = ".number")
+    @BuilderParams(name = "DynamicBuilder", inExts = ".dynamic", outExt = ".number")
     public static class DynamicBuilder extends Builder<Void> {
 
         @Override
-        public Task<Void> create(IResource input) {
+        public Task<Void> create(IResource input) throws IOException {
             TaskBuilder<Void> builder = Task.<Void>newBuilder(this)
                     .setName(params.name())
                     .addInput(input);
@@ -98,7 +98,7 @@ public class JBobTest {
 
         @Override
         public void build(Task<Void> task)
-                throws CompileExceptionError {
+                throws CompileExceptionError, IOException {
             IResource input = task.input(0);
             String content = new String(input.getContent());
             String[] lst = content.split("\n");
@@ -109,7 +109,7 @@ public class JBobTest {
         }
     }
 
-    @BuilderParams(name = "NumberBuilder", inExt = ".number", outExt = ".numberc")
+    @BuilderParams(name = "NumberBuilder", inExts = ".number", outExt = ".numberc")
     public static class NumberBuilder extends Builder<Void> {
         @Override
         public Task<Void> create(IResource input) {
@@ -117,36 +117,20 @@ public class JBobTest {
         }
 
         @Override
-        public void build(Task<Void> task) throws CompileExceptionError {
+        public void build(Task<Void> task) throws CompileExceptionError, IOException {
             IResource input = task.input(0);
             int number = Integer.parseInt(new String(input.getContent()));
             task.output(0).setContent(Integer.toString(number * 10).getBytes());
         }
     }
 
-    class MockResource implements IResource {
+    public class MockResource extends AbstractResource<MockFileSystem> {
 
-        private MockFileSystem fileSystem;
-        private String path;
         private byte[] content;
 
         MockResource(MockFileSystem fileSystem, String path, byte[] content) {
-            this.fileSystem = fileSystem;
-            this.path = path;
+            super(fileSystem, path);
             this.content = content;
-        }
-
-        @Override
-        public boolean isOutput() {
-            return path.startsWith(fileSystem.buildDirectory + "/")
-            || path.startsWith(fileSystem.buildDirectory + "\\");
-        }
-
-        @Override
-        public IResource changeExt(String ext) {
-            String newName = ResourceUtil.changeExt(path, ext);
-            MockResource newResource = (MockResource) fileSystem.get(newName);
-            return newResource.output();
         }
 
         @Override
@@ -168,84 +152,34 @@ public class JBobTest {
         }
 
         @Override
-        public byte[] sha1() {
-            if (content == null) {
-                throw new IllegalArgumentException(String.format("Resource '%s' is not created", path));
-            }
-            MessageDigest sha1;
-            try {
-                sha1 = MessageDigest.getInstance("SHA1");
-            } catch (NoSuchAlgorithmException e) {
-                throw new RuntimeException(e);
-            }
-            sha1.update(content);
-            return sha1.digest();
-        }
-
-        @Override
         public boolean exists() {
             return content != null;
-        }
-
-        @Override
-        public String getPath() {
-            return path;
         }
 
         @Override
         public void remove() {
             content = null;
         }
-
-        @Override
-        public IResource getResource(String name) {
-            String basePath = FilenameUtils.getPath(this.path);
-            String fullPath = FilenameUtils.concat(basePath, name);
-            return this.fileSystem.get(fullPath);
-        }
-
-        @Override
-        public IResource output() {
-            if (isOutput()) {
-                return this;
-            } else {
-                String p = FilenameUtils.concat(this.fileSystem.buildDirectory, this.path);
-                return fileSystem.get(p);
-            }
-        }
-
-        @Override
-        public String toString() {
-            return path;
-        }
-
     }
 
-    class MockFileSystem implements IFileSystem {
-        Map<String, MockResource> files = new HashMap<String, MockResource>();
-        private String buildDirectory;
-
-        @Override
-        public void setBuildDirectory(String buildDirectory) {
-            this.buildDirectory = buildDirectory;
-        }
+    public class MockFileSystem extends AbstractFileSystem<MockFileSystem, MockResource> {
 
         public void addFile(String name, byte[] content) {
             name = FilenameUtils.normalize(name, true);
-            files.put(name, new MockResource(this, name, content));
+            resources.put(name, new MockResource(this, name, content));
         }
 
         public void addFile(MockResource resource) {
-            this.files.put(resource.path, resource);
+            this.resources.put(resource.getPath(), resource);
         }
 
         @Override
         public IResource get(String name) {
             name = FilenameUtils.normalize(name, true);
-            IResource r = files.get(name);
+            IResource r = resources.get(name);
             if (r == null) {
                 r = new MockResource(fileSystem, name, null);
-                files.put(name, (MockResource) r);
+                resources.put(name, (MockResource) r);
             }
             return r;
         }
@@ -322,6 +256,23 @@ public class JBobTest {
     }
 
     @Test
+    public void testRemoveGeneratedOutput() throws Exception {
+        fileSystem.addFile("test.dynamic", "1\n2\n".getBytes());
+        project.setInputs(Arrays.asList("test.dynamic"));
+
+        // build
+        List<TaskResult> result = project.build();
+        assertThat(result.size(), is(3));
+
+        // remove generated output, ie input to another task
+        fileSystem.get("test_0.numberc").output().remove();
+
+        // rebuild
+        result = project.build();
+        assertThat(result.size(), is(1));
+    }
+
+    @Test
     public void testCompileError() throws Exception {
         fileSystem.addFile("test.in_err", "test data_err".getBytes());
         project.setInputs(Arrays.asList("test.in_err"));
@@ -347,7 +298,7 @@ public class JBobTest {
         assertThat(result.get(0).getReturnCode(), not(is(0)));
     }
 
-    String getResourceString(String name) {
+    String getResourceString(String name) throws IOException {
         return new String(fileSystem.get(name).output().getContent());
     }
 
@@ -363,6 +314,7 @@ public class JBobTest {
         assertThat(result.get(1).getTask().getProductOf(), is((Task) result.get(0).getTask()));
         assertThat(result.get(2).getTask().getProductOf(), is((Task) result.get(0).getTask()));
     }
+
 
     @Test
     public void testChangeOptions() throws Exception {

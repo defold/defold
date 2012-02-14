@@ -15,6 +15,11 @@ public class CompileExceptionError extends Exception {
         this.returnCode = returnCode;
     }
 
+    public CompileExceptionError(String message) {
+        super(message);
+        this.returnCode = 5;
+    }
+
     public int getReturnCode() {
         return returnCode;
     }

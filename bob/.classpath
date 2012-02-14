@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.junit.JUNIT_CONTAINER/4"/>
+	<classpathentry kind="lib" path="lib/mockito-all-1.8.5.jar"/>
+	<classpathentry kind="lib" path="lib/commons-io-2.0.1.jar"/>
+	<classpathentry kind="lib" path="lib/commons-lang3-3.0-beta.jar"/>
+	<classpathentry kind="lib" path="DYNAMO_HOME/ext/share/java/protobuf-java-2.3.0.jar"/>
+	<classpathentry kind="lib" path="DYNAMO_HOME/share/java/input.jar"/>
+	<classpathentry kind="lib" path="DYNAMO_HOME/share/java/gamesys.jar"/>
+	<classpathentry kind="lib" path="DYNAMO_HOME/share/java/ddf.jar"/>
+	<classpathentry kind="lib" path="DYNAMO_HOME/share/java/gameobject.jar"/>
+	<classpathentry kind="lib" path="DYNAMO_HOME/share/java/fontc.jar"/>
+	<classpathentry kind="lib" path="DYNAMO_HOME/share/java/particle.jar"/>
+	<classpathentry kind="lib" path="DYNAMO_HOME/share/java/render.jar"/>
+	<classpathentry kind="lib" path="DYNAMO_HOME/share/java/tile.jar"/>
+	<classpathentry kind="lib" path="lib/javolution-5.5.1.jar" sourcepath="/Users/chmu/Downloads/javolution-5.5.1-sources.jar"/>
+	<classpathentry kind="lib" path="DYNAMO_HOME/share/java/graphics.jar"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>

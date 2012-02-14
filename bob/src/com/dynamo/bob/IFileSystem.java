@@ -20,4 +20,6 @@ public interface IFileSystem {
      * @param buildDirectory build directory
      */
     public void setBuildDirectory(String buildDirectory);
+
+    public String getBuildDirectory();
 }
