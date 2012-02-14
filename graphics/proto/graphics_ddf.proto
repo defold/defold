@@ -1,5 +1,8 @@
 package dmGraphics;
 
+option java_package = "com.dynamo.graphics.proto";
+option java_outer_classname = "Graphics";
+
 message TextureImage
 {
     enum TextureFormat
