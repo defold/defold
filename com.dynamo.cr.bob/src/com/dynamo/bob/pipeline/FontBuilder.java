@@ -50,9 +50,13 @@ public class FontBuilder extends Builder<Void>  {
         try {
             // TODO: The api for Fontc#run should perhaps be changed to accept an OutputStream instead
             // of a path to the file
+
+            // TODO: Workaround to create the path to the file
+            task.output(0).setContent(new byte[0]);
             String fontMapFile = task.output(0).getAbsPath();
             fontc.run(fontStream, fontDesc, fontMapFile);
         } catch (FontFormatException e) {
+            task.output(0).remove();
             throw new CompileExceptionError(e.getMessage());
         } finally {
             fontStream.close();
