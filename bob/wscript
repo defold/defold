@@ -22,8 +22,15 @@ def configure(conf):
     conf.check_tool('java')
 
     classpath = []
-    for j in 'commons-io-2.0.1.jar commons-lang3-3.0-beta.jar mockito-all-1.8.5.jar'.split():
+    for j in 'commons-io-2.0.1.jar commons-lang3-3.0-beta.jar mockito-all-1.8.5.jar javolution-5.5.1.jar'.split():
         classpath.append('../lib/%s' % j)
+
+    import glob
+    for j in glob.glob('%s/share/java/*.jar' % conf.env['DYNAMO_HOME']):
+        classpath.append(j)
+
+    for j in glob.glob('%s/ext/share/java/*.jar' % conf.env['DYNAMO_HOME']):
+        classpath.append(j)
 
     classpath.append(conf.env['DYNAMO_HOME'] + '/ext/share/java/junit-4.6.jar')
     classpath=os.pathsep.join(classpath)
