@@ -46,10 +46,16 @@ public class LocalBranchClient implements IBranchClient {
         repositoryRootPath = repositoryRootPath.removeLastSegments(1);
         URI repositoryRootUrl = UriBuilder.fromUri(projectInfo.getRepositoryUrl()).replacePath(repositoryRootPath.toPortableString()).build();
 
+        Pattern[] patterns = new Pattern[] {
+                Pattern.compile(".*?\\.git"),
+                Pattern.compile("/content/build"),
+                Pattern.compile("/build"),
+        };
+
         branchRepository = new LocalBranchRepository(branchRoot,
                                                      repositoryRootUrl.toString(),
                                                      /* TODO */ null,
-                                                     /* TODO */ new Pattern[0],
+                                                     patterns,
                                                      userInfo,
                                                      password);
     }
