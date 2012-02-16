@@ -1,6 +1,7 @@
 package com.dynamo.cr.editor;
 
 import org.eclipse.core.resources.ResourcesPlugin;
+import org.eclipse.core.runtime.preferences.InstanceScope;
 import org.eclipse.jface.preference.IPreferenceNode;
 import org.eclipse.jface.preference.IPreferenceStore;
 import org.eclipse.jface.preference.PreferenceManager;
@@ -79,6 +80,9 @@ public class ApplicationWorkbenchAdvisor extends WorkbenchAdvisor {
         // With local pipeline we could set <options allowLinking="false"/> to project nature instead
         IPreferenceStore store = IDEWorkbenchPlugin.getDefault().getPreferenceStore();
         store.setValue(IDEInternalPreferences.IMPORT_FILES_AND_FOLDERS_MODE, IDEInternalPreferences.IMPORT_FILES_AND_FOLDERS_MODE_MOVE_COPY);
+
+        // "Auto-refresh with native hooks or polling"
+        InstanceScope.INSTANCE.getNode("org.eclipse.core.resources").putBoolean(ResourcesPlugin.PREF_AUTO_REFRESH, true);
 
         // Remove unwanted preferences pages
         // TODO: We should perhaps remove these using activities instead?

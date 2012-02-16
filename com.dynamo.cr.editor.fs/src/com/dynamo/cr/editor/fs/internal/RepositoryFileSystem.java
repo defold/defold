@@ -27,7 +27,7 @@ import com.sun.jersey.api.client.config.DefaultClientConfig;
 
 public class RepositoryFileSystem extends FileSystem implements IResourceChangeListener {
 
-    private Map<String, CachingBranchClient> branchClients = new HashMap<String, CachingBranchClient>();
+    private Map<String, IBranchClient> branchClients = new HashMap<String, IBranchClient>();
     private static Logger logger = LoggerFactory.getLogger(RepositoryFileSystem.class);
 
     public RepositoryFileSystem() {
@@ -76,7 +76,13 @@ public class RepositoryFileSystem extends FileSystem implements IResourceChangeL
                 logger.error(e.getMessage(), e);
                 return EFS.getNullFileSystem().getStore(uri);
             }
-            branchClients.put(key, new CachingBranchClient(bc));
+            if (bc.getNativeLocation() != null) {
+                // No caching for local branches
+                branchClients.put(key, bc);
+            } else {
+                branchClients.put(key, new CachingBranchClient(bc));
+            }
+
         }
         branchClient = branchClients.get(key);
 
@@ -94,8 +100,11 @@ public class RepositoryFileSystem extends FileSystem implements IResourceChangeL
          * Should we merge client and fs such that we have a single factory with full control?
          */
         if (event.getType() == IResourceChangeEvent.PRE_REFRESH) {
-            for (CachingBranchClient client : branchClients.values()) {
-                client.flushAll();
+            for (IBranchClient client : branchClients.values()) {
+                if (client instanceof CachingBranchClient) {
+                    CachingBranchClient caching = (CachingBranchClient) client;
+                    caching.flushAll();
+                }
             }
         }
     }

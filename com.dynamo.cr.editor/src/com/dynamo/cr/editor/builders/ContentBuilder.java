@@ -3,7 +3,11 @@ package com.dynamo.cr.editor.builders;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.StringReader;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -22,12 +26,13 @@ import org.eclipse.ui.console.IConsole;
 import org.eclipse.ui.console.IConsoleManager;
 import org.eclipse.ui.console.MessageConsole;
 import org.eclipse.ui.console.MessageConsoleStream;
+import org.osgi.framework.Bundle;
 
+import com.dynamo.bob.DefaultFileSystem;
+import com.dynamo.bob.Project;
+import com.dynamo.bob.TaskResult;
 import com.dynamo.cr.client.IBranchClient;
 import com.dynamo.cr.client.RepositoryException;
-import com.dynamo.cr.common.util.CommandUtil;
-import com.dynamo.cr.common.util.CommandUtil.IListener;
-import com.dynamo.cr.common.util.CommandUtil.Result;
 import com.dynamo.cr.editor.Activator;
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.protocol.proto.Protocol.BuildDesc;
@@ -86,57 +91,53 @@ public class ContentBuilder extends IncrementalProjectBuilder {
 
     private IProject[] buildLocal(int kind, Map<String,String> args, final IProgressMonitor monitor) throws CoreException {
         String branchLocation = branchClient.getNativeLocation();
-        String[] command;
+
+        String buildDirectory = String.format("build/default");
+        Project project = new Project(new DefaultFileSystem(), branchLocation, buildDirectory);
+
+        Bundle bundle = Activator.getDefault().getBundle();
+        project.scanBundlePackage(bundle, "com.dynamo.bob");
+        project.scanBundlePackage(bundle, "com.dynamo.bob.pipeline");
+
+        Set<String> skipDirs = new HashSet<String>(Arrays.asList(".git", buildDirectory));
+
+        String[] commands;
         if (kind == IncrementalProjectBuilder.FULL_BUILD) {
-            command = new String[] { "waf", "configure", "clean", "build" };
+            commands = new String[] { "clean", "build" };
 
         } else {
-            command = new String[] { "waf", "configure", "build" };
+            commands = new String[] { "build" };
         }
 
-        final Pattern workPattern = Pattern.compile("\\[\\s*(\\d+)/(\\d+)\\]");
-
         try {
-            IListener listener = new IListener() {
-                int lastProgress = 0;
-                boolean taskStarted = false;
+            project.findSources(branchLocation, skipDirs);
+            List<TaskResult> result = project.build(monitor, commands);
+            int ret = 0;
+            for (TaskResult taskResult : result) {
+                ret = Math.max(ret, taskResult.getReturnCode());
+                if (taskResult.getReturnCode() != 0) {
 
-                @Override
-                public void onStdErr(StringBuffer buffer) {
-                    Matcher m = workPattern.matcher(buffer.toString());
-
-                    int progress = -1;
-                    int workAmount = -1;
-                    while (m.find()) {
-                        progress = Integer.valueOf(m.group(1));
-                        workAmount = Integer.valueOf(m.group(2));
+                    String input = taskResult.getTask().input(0).getPath();
+                    IFile resource = EditorUtil.getContentRoot(getProject()).getFile(input);
+                    if (resource.exists())
+                    {
+                        IMarker marker = resource.createMarker(IMarker.PROBLEM);
+                        marker.setAttribute(IMarker.MESSAGE, taskResult.getMessage());
+                        marker.setAttribute(IMarker.LINE_NUMBER, 0);
+                        marker.setAttribute(IMarker.SEVERITY, IMarker.SEVERITY_ERROR);
+                    }
+                    else {
+                        Activator.getDefault().logger.warning("Unable to locate: " + resource.getFullPath());
                     }
 
-                    if (progress != -1) {
-                        if (!taskStarted) {
-                            monitor.beginTask("Building...", workAmount);
-                            taskStarted = true;
-                        }
-
-                        int work = progress - lastProgress;
-                        lastProgress = progress;
-                        monitor.worked(work);
-                        taskStarted = true;
-                    }
-
+                    stream.println(taskResult.getMessage());
                 }
-
-                @Override
-                public void onStdOut(StringBuffer buffer) {}
-            };
-            Result r = CommandUtil.execCommand(branchLocation, null, listener, command);
-            parseLog(r.stdErr.toString());
-            stream.write(r.stdErr.toString());
-            if (r.exitValue != 0) {
-                throw new CoreException(new Status(IStatus.WARNING, Activator.PLUGIN_ID, "Build failed"));
+                if (ret != 0)
+                    throw new CoreException(new Status(IStatus.WARNING, Activator.PLUGIN_ID, "Build failed"));
             }
         } catch (IOException e) {
-            throw new CoreException(new Status(IStatus.ERROR, Activator.PLUGIN_ID, "Error occurred while building", e));
+            e.printStackTrace();
+            throw new CoreException(new Status(IStatus.WARNING, Activator.PLUGIN_ID, "Build failed"));
         }
         return null;
     }

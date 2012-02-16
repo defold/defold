@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
+	<classpathentry exported="true" kind="lib" path="DYNAMO_HOME/share/java/graphics.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/slf4j/janino.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/slf4j/logback-classic-0.9.29.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/slf4j/logback-core-0.9.29.jar"/>

@@ -1,0 +1,300 @@
+package com.dynamo.bob.pipeline;
+
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
+import org.apache.commons.io.FilenameUtils;
+
+import com.dynamo.bob.BuilderParams;
+import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.ProtoBuilder;
+import com.dynamo.bob.ProtoParams;
+import com.dynamo.camera.proto.Camera.CameraDesc;
+import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
+import com.dynamo.gameobject.proto.GameObject.CollectionInstanceDesc;
+import com.dynamo.gameobject.proto.GameObject.InstanceDesc;
+import com.dynamo.gamesystem.proto.GameSystem.CollectionProxyDesc;
+import com.dynamo.gamesystem.proto.GameSystem.LightDesc;
+import com.dynamo.gamesystem.proto.GameSystem.SpawnPointDesc;
+import com.dynamo.gui.proto.Gui.NodeDesc;
+import com.dynamo.gui.proto.Gui.SceneDesc;
+import com.dynamo.gui.proto.Gui.SceneDesc.FontDesc;
+import com.dynamo.gui.proto.Gui.SceneDesc.TextureDesc;
+import com.dynamo.input.proto.Input.GamepadMaps;
+import com.dynamo.input.proto.Input.InputBinding;
+import com.dynamo.model.proto.Model.ModelDesc;
+import com.dynamo.particle.proto.Particle;
+import com.dynamo.particle.proto.Particle.Emitter;
+import com.dynamo.physics.proto.Physics.CollisionObjectDesc;
+import com.dynamo.physics.proto.Physics.CollisionShape;
+import com.dynamo.physics.proto.Physics.CollisionShape.Shape;
+import com.dynamo.physics.proto.Physics.ConvexShape;
+import com.dynamo.proto.DdfMath.Point3;
+import com.dynamo.proto.DdfMath.Quat;
+import com.dynamo.render.proto.Material.MaterialDesc;
+import com.dynamo.render.proto.Render.RenderPrototypeDesc;
+import com.dynamo.sprite.proto.Sprite.SpriteDesc;
+import com.dynamo.sprite2.proto.Sprite2.Sprite2Desc;
+import com.dynamo.tile.proto.Tile.TileGrid;
+import com.google.protobuf.TextFormat;
+
+public class ProtoBuilders {
+
+    static String replaceTextureName(String str) {
+        return BuilderUtil.replaceExt(BuilderUtil.replaceExt(str, ".png", ".texturec"), ".tga", ".texturec");
+    }
+
+    @ProtoParams(messageClass = CollectionDesc.class)
+    @BuilderParams(name="Collection", inExts=".collection", outExt=".collectionc")
+    public static class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
+
+        @Override
+        protected CollectionDesc.Builder transform(CollectionDesc.Builder messageBuilder) {
+
+            for (int i = 0; i < messageBuilder.getInstancesCount(); ++i) {
+                InstanceDesc.Builder b = InstanceDesc.newBuilder().mergeFrom(messageBuilder.getInstances(i));
+                b.setPrototype(BuilderUtil.replaceExt(b.getPrototype(), ".go", ".goc"));
+                messageBuilder.setInstances(i, b);
+            }
+
+            for (int i = 0; i < messageBuilder.getCollectionInstancesCount(); ++i) {
+                CollectionInstanceDesc.Builder b = CollectionInstanceDesc.newBuilder().mergeFrom(messageBuilder.getCollectionInstances(i));
+                b.setCollection(BuilderUtil.replaceExt(b.getCollection(), ".collection", ".collectionc"));
+                messageBuilder.setCollectionInstances(i, b);
+            }
+
+            return messageBuilder;
+        }
+    }
+
+    @ProtoParams(messageClass = CollectionProxyDesc.class)
+    @BuilderParams(name="CollectionProxy", inExts=".collectionproxy", outExt=".collectionproxyc")
+    public static class CollectionProxyBuilder extends ProtoBuilder<CollectionProxyDesc.Builder> {
+        @Override
+        protected CollectionProxyDesc.Builder transform(CollectionProxyDesc.Builder messageBuilder) {
+            return messageBuilder.setCollection(BuilderUtil.replaceExt(messageBuilder.getCollection(), ".collection", ".collectionc"));
+        }
+    }
+
+    @ProtoParams(messageClass = Emitter.class)
+    @BuilderParams(name="emitter", inExts=".emitter", outExt=".emitterc")
+    public static class EmitterBuilder extends ProtoBuilder<Emitter.Builder> {
+        @Override
+        protected Emitter.Builder transform(Emitter.Builder messageBuilder) {
+
+            Particle.Texture_t.Builder tb = messageBuilder.getTexture().newBuilderForType().mergeFrom(messageBuilder.getTexture());
+            tb.setName(replaceTextureName(tb.getName()));
+
+            return messageBuilder
+                    .setMaterial(BuilderUtil.replaceExt(messageBuilder.getMaterial(), ".material", ".materialc"))
+                    .setTexture(tb);
+        }
+    }
+
+    @ProtoParams(messageClass = ModelDesc.class)
+    @BuilderParams(name="Model", inExts=".model", outExt=".modelc")
+    public static class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
+        @Override
+        protected ModelDesc.Builder transform(
+                ModelDesc.Builder messageBuilder) {
+
+            messageBuilder.setMesh(BuilderUtil.replaceExt(messageBuilder.getMesh(), ".dae", ".meshc"));
+            messageBuilder.setMaterial(BuilderUtil.replaceExt(messageBuilder.getMaterial(), ".material", ".materialc"));
+            List<String> newTextureList = new ArrayList<String>();
+            for (String t : messageBuilder.getTexturesList()) {
+                newTextureList.add(replaceTextureName(t));
+            }
+            messageBuilder.clearTextures();
+            messageBuilder.addAllTextures(newTextureList);
+            return messageBuilder;
+        }
+    }
+
+    @ProtoParams(messageClass = ConvexShape.class)
+    @BuilderParams(name="ConvexShape", inExts=".convexshape", outExt=".convexshapec")
+    public static class ConvexShapeBuilder extends ProtoBuilder<ConvexShape.Builder> {}
+
+
+    @ProtoParams(messageClass = CollisionObjectDesc.class)
+    @BuilderParams(name="CollisionObjectDesc", inExts=".collisionobject", outExt=".collisionobjectc")
+    public static class CollisionObjectBuilder extends ProtoBuilder<CollisionObjectDesc.Builder> {
+
+        @Override
+        protected CollisionObjectDesc.Builder transform(
+                CollisionObjectDesc.Builder messageBuilder) throws IOException {
+            // Merge convex shape resource with collision object
+            // NOTE: Special case for tilegrid resources. They are left as is
+            if (messageBuilder.hasCollisionShape() && !messageBuilder.getCollisionShape().endsWith(".tilegrid")) {
+                String p = FilenameUtils.concat(project.getRootDirectory(), messageBuilder.getCollisionShape().substring(1));
+                ConvexShape.Builder cb = ConvexShape.newBuilder();
+                BufferedReader reader = new BufferedReader(new FileReader(p));
+                try {
+                    TextFormat.merge(reader, cb);
+                    CollisionShape.Builder eb = CollisionShape.newBuilder().mergeFrom(messageBuilder.getEmbeddedCollisionShape());
+                    Shape.Builder sb = Shape.newBuilder()
+                            .setShapeType(CollisionShape.Type.valueOf(cb.getShapeType().getNumber()))
+                            .setPosition(Point3.newBuilder())
+                            .setRotation(Quat.newBuilder().setW(1))
+                            .setIndex(eb.getDataCount())
+                            .setCount(cb.getDataCount());
+                    eb.addShapes(sb);
+                    eb.addAllData(cb.getDataList());
+                    messageBuilder.setEmbeddedCollisionShape(eb);
+                    messageBuilder.setCollisionShape("");
+
+                } finally {
+                    reader.close();
+                }
+
+            }
+
+            messageBuilder.setCollisionShape(BuilderUtil.replaceExt(messageBuilder.getCollisionShape(), ".convexshape", ".convexshapec"));
+            messageBuilder.setCollisionShape(BuilderUtil.replaceExt(messageBuilder.getCollisionShape(), ".tilegrid", ".tilegridc"));
+            return messageBuilder;
+        }
+    }
+
+    @ProtoParams(messageClass = SceneDesc.class)
+    @BuilderParams(name="Gui", inExts=".gui", outExt=".guic")
+    public static class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
+        @Override
+        protected SceneDesc.Builder transform(SceneDesc.Builder messageBuilder) throws IOException, CompileExceptionError {
+            messageBuilder.setScript(BuilderUtil.replaceExt(messageBuilder.getScript(), ".gui_script", ".gui_scriptc"));
+            Set<String> fontNames = new HashSet<String>();
+            Set<String> textureNames = new HashSet<String>();
+
+            List<FontDesc> newFontList = new ArrayList<FontDesc>();
+            for (FontDesc f : messageBuilder.getFontsList()) {
+                fontNames.add(f.getName());
+                newFontList.add(FontDesc.newBuilder().mergeFrom(f).setFont(BuilderUtil.replaceExt(f.getFont(), ".font", ".fontc")).build());
+            }
+            messageBuilder.clearFonts();
+            messageBuilder.addAllFonts(newFontList);
+
+            List<TextureDesc> newTextureList = new ArrayList<TextureDesc>();
+            for (TextureDesc f : messageBuilder.getTexturesList()) {
+                textureNames.add(f.getName());
+                newTextureList.add(TextureDesc.newBuilder().mergeFrom(f).setTexture(replaceTextureName(f.getTexture())).build());
+            }
+            messageBuilder.clearTextures();
+            messageBuilder.addAllTextures(newTextureList);
+
+            for (NodeDesc n : messageBuilder.getNodesList()) {
+                if (n.hasTexture() && n.getTexture().length() > 0) {
+                    if (!textureNames.contains(n.getTexture())) {
+                        throw new CompileExceptionError(String.format("Texture '%s' not declared in gui-file", n.getTexture()), 5);
+                    }
+                }
+
+                if (n.hasFont() && n.getFont().length() > 0) {
+                    if (!fontNames.contains(n.getFont())) {
+                        throw new CompileExceptionError(String.format("Font '%s' not declared in gui-file", n.getFont()), 5);
+                    }
+                }
+
+            }
+
+            return messageBuilder;
+        }
+    }
+
+    @ProtoParams(messageClass = CameraDesc.class)
+    @BuilderParams(name="Camera", inExts=".camera", outExt=".camerac")
+    public static class CameraBuilder extends ProtoBuilder<CameraDesc.Builder> {}
+
+    @ProtoParams(messageClass = InputBinding.class)
+    @BuilderParams(name="InputBinding", inExts=".input_binding", outExt=".input_bindingc")
+    public static class InputBindingBuilder extends ProtoBuilder<InputBinding.Builder> {}
+
+    @ProtoParams(messageClass = GamepadMaps.class)
+    @BuilderParams(name="GamepadMaps", inExts=".gamepads", outExt=".gamepadsc")
+    public static class GamepadMapsBuilder extends ProtoBuilder<GamepadMaps.Builder> {}
+
+    @ProtoParams(messageClass = SpawnPointDesc.class)
+    @BuilderParams(name="SpawnPoint", inExts=".spawnpoint", outExt=".spawnpointc")
+    public static class SpawnPointBuilder extends ProtoBuilder<SpawnPointDesc.Builder> {
+        @Override
+        protected SpawnPointDesc.Builder transform(SpawnPointDesc.Builder messageBuilder) throws IOException,
+                CompileExceptionError {
+            return messageBuilder.setPrototype(BuilderUtil.replaceExt(messageBuilder.getPrototype(), ".go", ".goc"));
+        }
+    }
+
+    @ProtoParams(messageClass = LightDesc.class)
+    @BuilderParams(name="Light", inExts=".light", outExt=".lightc")
+    public static class LightBuilder extends ProtoBuilder<LightDesc.Builder> {}
+
+    @ProtoParams(messageClass = RenderPrototypeDesc.class)
+    @BuilderParams(name="Render", inExts=".render", outExt=".renderc")
+    public static class RenderPrototypeBuilder extends ProtoBuilder<RenderPrototypeDesc.Builder> {
+        @Override
+        protected RenderPrototypeDesc.Builder transform(
+                RenderPrototypeDesc.Builder messageBuilder)
+                throws IOException, CompileExceptionError {
+
+            messageBuilder.setScript(BuilderUtil.replaceExt(messageBuilder.getScript(), ".render_script", ".render_scriptc"));
+
+            List<RenderPrototypeDesc.MaterialDesc> newMaterialList = new ArrayList<RenderPrototypeDesc.MaterialDesc>();
+            for (RenderPrototypeDesc.MaterialDesc m : messageBuilder.getMaterialsList()) {
+                newMaterialList.add(RenderPrototypeDesc.MaterialDesc.newBuilder().mergeFrom(m).setMaterial(BuilderUtil.replaceExt(m.getMaterial(), ".material", ".materialc")).build());
+            }
+            messageBuilder.clearMaterials();
+            messageBuilder.addAllMaterials(newMaterialList);
+
+            return messageBuilder;
+        }
+    }
+
+    @ProtoParams(messageClass = SpriteDesc.class)
+    @BuilderParams(name="SpriteDesc", inExts=".sprite", outExt=".spritec")
+    public static class SpriteDescBuilder extends ProtoBuilder<SpriteDesc.Builder> {
+        @Override
+        protected SpriteDesc.Builder transform(
+                SpriteDesc.Builder messageBuilder)
+                throws IOException, CompileExceptionError {
+            messageBuilder.setTexture(replaceTextureName(messageBuilder.getTexture()));
+            return messageBuilder;
+        }
+    }
+
+    @ProtoParams(messageClass = Sprite2Desc.class)
+    @BuilderParams(name="Sprite2Desc", inExts=".sprite2", outExt=".sprite2c")
+    public static class Sprite2DescBuilder extends ProtoBuilder<Sprite2Desc.Builder> {
+        @Override
+        protected Sprite2Desc.Builder transform(
+                Sprite2Desc.Builder messageBuilder)
+                throws IOException, CompileExceptionError {
+            messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), ".tileset", ".tilesetc"));
+            return messageBuilder;
+        }
+    }
+
+    @ProtoParams(messageClass = TileGrid.class)
+    @BuilderParams(name="TileGrid", inExts=".tilegrid", outExt=".tilegridc")
+    public static class TileGridBuilder extends ProtoBuilder<TileGrid.Builder> {
+        @Override
+        protected TileGrid.Builder transform(TileGrid.Builder messageBuilder) throws IOException,
+                CompileExceptionError {
+            return messageBuilder.setTileSet(messageBuilder.getTileSet() + "c");
+        }
+    }
+
+    @ProtoParams(messageClass = MaterialDesc.class)
+    @BuilderParams(name="Material", inExts=".material", outExt=".materialc")
+    public static class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
+        @Override
+        protected MaterialDesc.Builder transform(
+                MaterialDesc.Builder messageBuilder)
+                throws IOException, CompileExceptionError {
+            messageBuilder.setVertexProgram(BuilderUtil.replaceExt(messageBuilder.getVertexProgram(), ".vp", ".vpc"));
+            messageBuilder.setFragmentProgram(BuilderUtil.replaceExt(messageBuilder.getFragmentProgram(), ".fp", ".fpc"));
+            return messageBuilder;
+        }
+    }
+
+}

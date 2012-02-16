@@ -1,6 +1,7 @@
 package com.dynamo.cr.editor.fs.internal;
 
 import java.io.ByteArrayInputStream;
+import java.io.File;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URI;
@@ -187,6 +188,18 @@ public class RepositoryFileStore extends FileStore implements IFileStore {
             client.renameResource(path.toPortableString(), destination_path);
         } catch (RepositoryException e) {
             RepositoryFileSystemPlugin.throwCoreExceptionError(e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public File toLocalFile(int options, IProgressMonitor monitor)
+            throws CoreException {
+        String nativeLocation = client.getNativeLocation();
+        if (nativeLocation != null) {
+            File file = new File(client.getNativeLocation());
+            return file;
+        } else {
+            return null;
         }
     }
 
