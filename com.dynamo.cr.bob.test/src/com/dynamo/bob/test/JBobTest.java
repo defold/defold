@@ -127,6 +127,22 @@ public class JBobTest {
         }
     }
 
+    @BuilderParams(name = "FailOnEmptyAlwaysOutput", inExts = ".foeao", outExt = ".foeaoc")
+    public static class FailOnEmptyAlwaysOutputBuilder extends Builder<Void> {
+        @Override
+        public Task<Void> create(IResource input) {
+            return defaultTask(input);
+        }
+
+        @Override
+        public void build(Task<Void> task) throws CompileExceptionError, IOException {
+            task.output(0).setContent(new byte[0]);
+            if (task.input(0).getContent().length == 0) {
+                throw new CompileExceptionError("Failed to build", 5);
+            }
+        }
+    }
+
     public class MockResource extends AbstractResource<MockFileSystem> {
 
         private byte[] content;
@@ -375,5 +391,30 @@ public class JBobTest {
         assertThat("gcc -O0 -c b.c -o x.o", is(StringUtils.join(lst2, " ")));
     }
 
+    @Test
+    public void testCompileErrorOutputCreated() throws Exception {
+        fileSystem.addFile("test.foeao", "test".getBytes());
+        project.setInputs(Arrays.asList("test.foeao"));
+        List<TaskResult> result;
+
+        // build
+        result = build();
+        assertThat(result.size(), is(1));
+        assertThat(result.get(0).getReturnCode(), is(0));
+
+        fileSystem.addFile("test.foeao", "".getBytes());
+
+        // fail build
+        result = build();
+        assertThat(result.size(), is(1));
+        assertThat(result.get(0).getReturnCode(), is(5));
+
+        fileSystem.addFile("test.foeao", "test".getBytes());
+
+        // remedy build
+        result = build();
+        assertThat(result.size(), is(1));
+        assertThat(result.get(0).getReturnCode(), is(0));
+    }
 }
 

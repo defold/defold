@@ -45,7 +45,9 @@ public class TileSetBuilder extends Builder<Void>  {
         String outFileName = task.output(0).getAbsPath();
         // TODO: Workaround to create the path to the file. TileSetC should be changed
         // to write to and OutputStream instead
-        task.output(0).setContent(new byte[0]);
+        if (!task.output(0).exists()) {
+            task.output(0).setContent(new byte[0]);
+        }
 
         File inFile = new File(inFileName);
         File outFile = new File(outFileName);

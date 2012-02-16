@@ -263,6 +263,9 @@ run:
                 TaskResult taskResult = new TaskResult(task);
                 result.add(taskResult);
                 Builder builder = task.getBuilder();
+                int returnCode = 0;
+                String message = null;
+                boolean abort = false;
                 try {
                     builder.build(task);
                     taskResult.setReturnCode(0);
@@ -279,12 +282,23 @@ run:
                     completedOutputs.addAll(task.getOutputs());
 
                 } catch (CompileExceptionError e) {
-                    taskResult.setReturnCode(e.getReturnCode());
-                    taskResult.setMessage(e.getMessage());
+                    returnCode = e.getReturnCode();
+                    message = e.getMessage();
                 } catch (Throwable e) {
-                    taskResult.setReturnCode(50);
-                    taskResult.setMessage(e.getMessage());
-                    break run;
+                    returnCode = 50;
+                    message = e.getMessage();
+                    abort = true;
+                }
+                if (returnCode != 0) {
+                    taskResult.setReturnCode(returnCode);
+                    taskResult.setMessage(message);
+                    // Clear sigs for all outputs when a task fails
+                    for (IResource r : task.getOutputs()) {
+                        state.putSignature(r.getAbsPath(), new byte[0]);
+                    }
+                    if (abort) {
+                        break run;
+                    }
                 }
             }
         }
