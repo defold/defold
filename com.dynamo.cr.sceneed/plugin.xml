@@ -335,6 +335,36 @@
             </instanceof>
          </with>
       </definition>
+      <definition
+            id="com.dynamo.cr.sceneed.definitions.selectionDeleteable">
+         <with
+               variable="selection">
+            <and>
+               <test
+                     property="com.dynamo.cr.sceneed.selection.siblings">
+               </test>
+            </and>
+         </with>
+      </definition>
+      <definition
+            id="com.dynamo.cr.sceneed.definitions.singleSelection">
+         <with
+               variable="selection">
+            <count
+                  value="1">
+            </count>
+         </with>
+      </definition>
+   </extension>
+   <extension
+         point="org.eclipse.core.expressions.propertyTesters">
+      <propertyTester
+            class="com.dynamo.cr.sceneed.core.propertytesters.SelectionPropertyTester"
+            id="com.dynamo.cr.sceneed.propertyTesters.selection"
+            namespace="com.dynamo.cr.sceneed.selection"
+            properties="siblings"
+            type="org.eclipse.jface.viewers.IStructuredSelection">
+      </propertyTester>
    </extension>
 
 </plugin>

@@ -368,10 +368,6 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
         }
     }
 
-    public ISceneView.IPresenter getPresenter() {
-        return this.presenter;
-    }
-
     @Override
     public ILoaderContext getLoaderContext() {
         return this.loaderContext;

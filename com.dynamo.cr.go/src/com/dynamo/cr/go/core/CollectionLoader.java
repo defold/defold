@@ -39,7 +39,7 @@ public class CollectionLoader implements INodeLoader<CollectionNode> {
             instanceNode.setRotation(LoaderUtil.toQuat4(instanceDesc.getRotation()));
             instanceNode.setId(instanceDesc.getId());
             instanceNode.setGameObject(path);
-            node.addInstance(instanceNode);
+            node.addChild(instanceNode);
         }
         n = desc.getCollectionInstancesCount();
         for (int i = 0; i < n; ++i) {
@@ -51,7 +51,7 @@ public class CollectionLoader implements INodeLoader<CollectionNode> {
             instanceNode.setRotation(LoaderUtil.toQuat4(instanceDesc.getRotation()));
             instanceNode.setId(instanceDesc.getId());
             instanceNode.setCollection(path);
-            node.addInstance(instanceNode);
+            node.addChild(instanceNode);
         }
         return node;
     }

@@ -53,4 +53,16 @@ public class NodeUtil {
         }
         return null;
     }
+
+    /**
+     * Returns the node to be selected if the supplied sibling nodes are removed.
+     * @param siblings Nodes to be removed, assumed to be siblings
+     * @return Node to be selected, or null
+     */
+    public static Node getSelectionReplacement(List<Node> siblings) {
+        if (siblings.isEmpty())
+            return null;
+        else
+            return siblings.get(0).getParent();
+    }
 }

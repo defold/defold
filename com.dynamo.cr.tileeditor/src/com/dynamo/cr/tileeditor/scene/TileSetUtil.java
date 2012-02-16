@@ -1,6 +1,7 @@
 package com.dynamo.cr.tileeditor.scene;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import org.eclipse.jface.viewers.IStructuredSelection;
@@ -8,12 +9,16 @@ import org.eclipse.jface.viewers.IStructuredSelection;
 import com.dynamo.cr.sceneed.core.Node;
 
 public class TileSetUtil {
-    public static CollisionGroupNode getCurrentCollisionGroup(IStructuredSelection selection) {
-        Object selected = selection.getFirstElement();
-        if (selected instanceof CollisionGroupNode) {
-            return (CollisionGroupNode) selected;
+    public static List<Node> getCurrentCollisionGroups(IStructuredSelection selection) {
+        Object[] selected = selection.toArray();
+        List<Node> result = new ArrayList<Node>(selected.length);
+        for (Object obj : selected) {
+            if (!(obj instanceof CollisionGroupNode)) {
+                return Collections.emptyList();
+            }
+            result.add((Node)obj);
         }
-        return null;
+        return result;
     }
 
     public static TileSetNode getCurrentTileSet(IStructuredSelection selection) {
@@ -48,12 +53,16 @@ public class TileSetUtil {
         return collisionGroupIds;
     }
 
-    public static AnimationNode getCurrentAnimation(IStructuredSelection selection) {
-        Object selected = selection.getFirstElement();
-        if (selected instanceof AnimationNode) {
-            return (AnimationNode) selected;
+    public static List<Node> getCurrentAnimations(IStructuredSelection selection) {
+        Object[] selected = selection.toArray();
+        List<Node> result = new ArrayList<Node>(selected.length);
+        for (Object obj : selected) {
+            if (!(obj instanceof AnimationNode)) {
+                return Collections.emptyList();
+            }
+            result.add((Node)obj);
         }
-        return null;
+        return result;
     }
 
 }

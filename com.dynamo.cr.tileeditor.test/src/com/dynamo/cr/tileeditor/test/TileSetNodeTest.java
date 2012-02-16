@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 import java.awt.Color;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import org.eclipse.core.commands.ExecutionException;
@@ -24,11 +25,12 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.sceneed.core.operations.RemoveChildrenOperation;
 import com.dynamo.cr.sceneed.core.test.AbstractNodeTest;
 import com.dynamo.cr.tileeditor.Activator;
 import com.dynamo.cr.tileeditor.operations.AddAnimationNodeOperation;
 import com.dynamo.cr.tileeditor.operations.AddCollisionGroupNodeOperation;
-import com.dynamo.cr.tileeditor.operations.RemoveAnimationNodeOperation;
 import com.dynamo.cr.tileeditor.operations.RemoveCollisionGroupNodeOperation;
 import com.dynamo.cr.tileeditor.operations.SetTileCollisionGroupsOperation;
 import com.dynamo.cr.tileeditor.scene.AnimationNode;
@@ -144,7 +146,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
     }
 
     private void removeCollisionGroup(CollisionGroupNode collisionGroup) throws ExecutionException {
-        RemoveCollisionGroupNodeOperation op = new RemoveCollisionGroupNodeOperation(collisionGroup, getPresenterContext());
+        RemoveCollisionGroupNodeOperation op = new RemoveCollisionGroupNodeOperation(Collections.singletonList((Node)collisionGroup), getPresenterContext());
         execute(op);
         verifySelection();
     }
@@ -158,7 +160,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
     }
 
     private void removeAnimation(AnimationNode animation) throws ExecutionException {
-        RemoveAnimationNodeOperation op = new RemoveAnimationNodeOperation(animation, getPresenterContext());
+        RemoveChildrenOperation op = new RemoveChildrenOperation(Collections.singletonList((Node)animation), getPresenterContext());
         execute(op);
         verifySelection();
     }

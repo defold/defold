@@ -273,7 +273,7 @@ public abstract class Node implements IAdaptable {
         return !this.children.isEmpty();
     }
 
-    protected final void addChild(Node child) {
+    public final void addChild(Node child) {
         if (child != null && !this.children.contains(child)) {
             if (child.childIndex >= 0 && child.childIndex < children.size()) {
                 children.add(child.childIndex, child);
@@ -282,15 +282,25 @@ public abstract class Node implements IAdaptable {
                 child.childIndex = children.size() - 1;
             }
             child.setParent(this);
+            childAdded(child);
         }
     }
 
-    protected final void removeChild(Node child) {
+    protected void childAdded(Node child) {
+
+    }
+
+    public final void removeChild(Node child) {
         if (child != null && this.children.contains(child)) {
             child.childIndex = this.children.indexOf(child);
             children.remove(child);
             child.setParent(null);
+            childRemoved(child);
         }
+    }
+
+    protected void childRemoved(Node child) {
+
     }
 
     protected final void clearChildren() {

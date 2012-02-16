@@ -30,16 +30,12 @@ public class CollectionNode extends Node {
         this.path = path;
     }
 
-    public void addInstance(InstanceNode instance) {
-        addChild(instance);
-        sortComponents();
+    @Override
+    protected void childAdded(Node child) {
+        sortInstances();
     }
 
-    public void removeInstance(InstanceNode instance) {
-        removeChild(instance);
-    }
-
-    public void sortComponents() {
+    public void sortInstances() {
         sortChildren(new Comparator<Node>() {
             @Override
             public int compare(Node o1, Node o2) {

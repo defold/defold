@@ -55,9 +55,9 @@ public class AnimationNode extends Node {
 
     public void setId(String id) {
         this.id = id;
-        TileSetNode tileSet = getTileSetNode();
-        if (tileSet != null) {
-            tileSet.sortAnimations();
+        Node parent = getParent();
+        if (parent != null) {
+            ((AnimationGroupNode)parent).sortAnimations();
         }
     }
 

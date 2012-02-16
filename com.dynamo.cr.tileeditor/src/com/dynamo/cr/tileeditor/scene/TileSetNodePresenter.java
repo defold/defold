@@ -9,9 +9,9 @@ import org.eclipse.jface.viewers.StructuredSelection;
 import com.dynamo.cr.sceneed.core.ISceneView.INodePresenter;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.sceneed.core.operations.RemoveChildrenOperation;
 import com.dynamo.cr.tileeditor.operations.AddAnimationNodeOperation;
 import com.dynamo.cr.tileeditor.operations.AddCollisionGroupNodeOperation;
-import com.dynamo.cr.tileeditor.operations.RemoveAnimationNodeOperation;
 import com.dynamo.cr.tileeditor.operations.RemoveCollisionGroupNodeOperation;
 import com.dynamo.cr.tileeditor.operations.SetTileCollisionGroupsOperation;
 import com.dynamo.cr.tileeditor.util.Animator;
@@ -28,10 +28,15 @@ public class TileSetNodePresenter implements INodePresenter<TileSetNode> {
     public void onBeginPaintTile(IPresenterContext presenterContext) {
         IStructuredSelection selection = presenterContext.getSelection();
         TileSetNode tileSet = TileSetUtil.getCurrentTileSet(selection);
+        List<Node> collisionGroups = TileSetUtil.getCurrentCollisionGroups(selection);
+        CollisionGroupNode collisionGroup = null;
+        int collisionGroupCount = collisionGroups.size();
+        if (collisionGroupCount == 1) {
+            collisionGroup = (CollisionGroupNode)collisionGroups.get(0);
+        }
         this.oldTileCollisionGroups = tileSet.getTileCollisionGroups();
         this.newTileCollisionGroups = new ArrayList<String>(this.oldTileCollisionGroups);
         this.currentCollisionGroup = "";
-        CollisionGroupNode collisionGroup = TileSetUtil.getCurrentCollisionGroup(selection);
         if (collisionGroup != null) {
             this.currentCollisionGroup = collisionGroup.getId();
         }
@@ -69,8 +74,8 @@ public class TileSetNodePresenter implements INodePresenter<TileSetNode> {
     }
 
     public void onRemoveCollisionGroup(IPresenterContext presenterContext) {
-        CollisionGroupNode collisionGroup = TileSetUtil.getCurrentCollisionGroup(presenterContext.getSelection());
-        presenterContext.executeOperation(new RemoveCollisionGroupNodeOperation(collisionGroup, presenterContext));
+        List<Node> collisionGroups = TileSetUtil.getCurrentCollisionGroups(presenterContext.getSelection());
+        presenterContext.executeOperation(new RemoveCollisionGroupNodeOperation(collisionGroups, presenterContext));
     }
 
     public void onSelectCollisionGroup(IPresenterContext presenterContext, int index) {
@@ -95,8 +100,8 @@ public class TileSetNodePresenter implements INodePresenter<TileSetNode> {
     }
 
     public void onRemoveAnimation(IPresenterContext presenterContext) {
-        AnimationNode animation = TileSetUtil.getCurrentAnimation(presenterContext.getSelection());
-        presenterContext.executeOperation(new RemoveAnimationNodeOperation(animation, presenterContext));
+        List<Node> animations = TileSetUtil.getCurrentAnimations(presenterContext.getSelection());
+        presenterContext.executeOperation(new RemoveChildrenOperation(animations, presenterContext));
     }
 
     public void onPlayAnimation(IPresenterContext presenterContext) {

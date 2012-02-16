@@ -1,13 +1,16 @@
 package com.dynamo.cr.go.core;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.eclipse.jface.viewers.IStructuredSelection;
 
 import com.dynamo.cr.go.core.operations.AddInstanceOperation;
-import com.dynamo.cr.go.core.operations.RemoveInstanceOperation;
 import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.sceneed.core.operations.RemoveChildrenOperation;
 
 public class CollectionPresenter implements ISceneView.INodePresenter<CollectionNode> {
 
@@ -28,7 +31,6 @@ public class CollectionPresenter implements ISceneView.INodePresenter<Collection
 
     public void onAddGameObject(IPresenterContext presenterContext, ILoaderContext loaderContext) {
         // Find selected collection
-        // TODO: Support multi selection
         CollectionNode parent = findCollectionFromSelection(presenterContext.getSelection());
         if (parent == null) {
             throw new UnsupportedOperationException("No collection in selection.");
@@ -50,7 +52,6 @@ public class CollectionPresenter implements ISceneView.INodePresenter<Collection
 
     public void onAddCollection(IPresenterContext presenterContext, ILoaderContext loaderContext) {
         // Find selected collection
-        // TODO: Support multi selection
         CollectionNode parent = findCollectionFromSelection(presenterContext.getSelection());
         if (parent == null) {
             throw new UnsupportedOperationException("No collection in selection.");
@@ -72,17 +73,13 @@ public class CollectionPresenter implements ISceneView.INodePresenter<Collection
 
     public void onRemoveInstance(IPresenterContext context) {
         // Find selected components
-        // TODO: Support multi selection
         IStructuredSelection structuredSelection = context.getSelection();
         Object[] nodes = structuredSelection.toArray();
-        InstanceNode instance = null;
+        List<Node> instances = new ArrayList<Node>(nodes.length);
         for (Object node : nodes) {
-            if (node instanceof InstanceNode) {
-                instance = (InstanceNode)node;
-                break;
-            }
+            instances.add((Node)node);
         }
-        context.executeOperation(new RemoveInstanceOperation(instance, context));
+        context.executeOperation(new RemoveChildrenOperation(instances, context));
     }
 
 }

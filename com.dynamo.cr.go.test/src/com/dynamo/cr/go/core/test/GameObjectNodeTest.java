@@ -7,6 +7,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.util.Collections;
 
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IStatus;
@@ -20,10 +21,10 @@ import com.dynamo.cr.go.core.GameObjectNode;
 import com.dynamo.cr.go.core.Messages;
 import com.dynamo.cr.go.core.RefComponentNode;
 import com.dynamo.cr.go.core.operations.AddComponentOperation;
-import com.dynamo.cr.go.core.operations.RemoveComponentOperation;
 import com.dynamo.cr.sceneed.core.INodeLoader;
 import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.sceneed.core.operations.RemoveChildrenOperation;
 import com.dynamo.cr.sceneed.core.test.AbstractNodeTest;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 
@@ -67,7 +68,7 @@ public class GameObjectNodeTest extends AbstractNodeTest {
     }
 
     private void removeComponent(int i) throws Exception {
-        execute(new RemoveComponentOperation(component(i), getPresenterContext()));
+        execute(new RemoveChildrenOperation(Collections.singletonList((Node)component(i)), getPresenterContext()));
         verifySelection();
     }
 

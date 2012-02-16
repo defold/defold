@@ -25,7 +25,7 @@ public class CollectionProxyLoader implements INodeLoader<CollectionProxyNode> {
         CollectionProxyDesc desc = builder.build();
         CollectionProxyNode collectionProxy = new CollectionProxyNode();
         collectionProxy.setCollection(desc.getCollection());
-        collectionProxy.setCollectionNode((CollectionNode)context.loadNode(desc.getCollection()));
+        collectionProxy.addChild((CollectionNode)context.loadNode(desc.getCollection()));
         return collectionProxy;
     }
 

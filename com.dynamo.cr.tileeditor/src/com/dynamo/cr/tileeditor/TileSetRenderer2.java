@@ -204,15 +204,15 @@ KeyListener {
             setupRenderData();
             this.context.release();
         }
-        Object selected = selection.getFirstElement();
-        if (selected instanceof CollisionGroupNode) {
-            CollisionGroupNode collisionGroup = (CollisionGroupNode)selected;
+        Object[] selectedObjects = selection.toArray();
+        if (selectedObjects.length == 1 && selectedObjects[0] instanceof CollisionGroupNode) {
+            CollisionGroupNode collisionGroup = (CollisionGroupNode)selectedObjects[0];
             setBrushCollisionGroup(collisionGroup.getId());
         } else {
             setBrushCollisionGroup("");
         }
-        if (selected instanceof AnimationNode) {
-            this.selectedAnimation = (AnimationNode)selected;
+        if (selectedObjects.length == 1 && selectedObjects[0] instanceof AnimationNode) {
+            this.selectedAnimation = (AnimationNode)selectedObjects[0];
         } else {
             this.selectedAnimation = null;
         }

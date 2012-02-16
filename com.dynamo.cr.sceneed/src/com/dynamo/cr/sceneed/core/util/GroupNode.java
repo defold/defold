@@ -22,14 +22,6 @@ public class GroupNode<T extends Node> extends Node {
         return nodes;
     }
 
-    public void addNode(T node) {
-        addChild(node);
-    }
-
-    public void removeNode(T node) {
-        removeChild(node);
-    }
-
     public void sortNodes(Comparator<? super Node> comparator) {
         super.sortChildren(comparator);
     }

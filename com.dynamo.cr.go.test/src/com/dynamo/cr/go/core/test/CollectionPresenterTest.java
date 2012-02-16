@@ -84,7 +84,7 @@ public class CollectionPresenterTest extends AbstractPresenterTest {
         CollectionNode collection = new CollectionNode();
         collection.setModel(this.getModel());
         InstanceNode instance = new GameObjectInstanceNode(null);
-        collection.addInstance(instance);
+        collection.addChild(instance);
         when(this.getPresenterContext().getSelection()).thenReturn(new StructuredSelection(instance));
 
         this.presenter.onRemoveInstance(this.getPresenterContext());

@@ -11,12 +11,12 @@ import com.dynamo.cr.editor.core.EditorCorePlugin;
 import com.dynamo.cr.editor.core.IResourceType;
 import com.dynamo.cr.editor.core.IResourceTypeRegistry;
 import com.dynamo.cr.go.core.operations.AddComponentOperation;
-import com.dynamo.cr.go.core.operations.RemoveComponentOperation;
 import com.dynamo.cr.sceneed.Activator;
 import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.sceneed.core.operations.RemoveChildrenOperation;
 
 public class GameObjectPresenter implements ISceneView.INodePresenter<GameObjectNode> {
 
@@ -86,17 +86,13 @@ public class GameObjectPresenter implements ISceneView.INodePresenter<GameObject
 
     public void onRemoveComponent(IPresenterContext context) {
         // Find selected components
-        // TODO: Support multi selection
         IStructuredSelection structuredSelection = context.getSelection();
-        Object[] nodes = structuredSelection.toArray();
-        ComponentNode component = null;
-        for (Object node : nodes) {
-            if (node instanceof ComponentNode) {
-                component = (ComponentNode)node;
-                break;
-            }
+        Object[] selection = structuredSelection.toArray();
+        List<Node> components = new ArrayList<Node>(selection.length);
+        for (Object node : selection) {
+            components.add((Node)node);
         }
-        context.executeOperation(new RemoveComponentOperation(component, context));
+        context.executeOperation(new RemoveChildrenOperation(components, context));
     }
 
     private String selectComponentType(IPresenterContext context) {

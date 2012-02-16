@@ -18,13 +18,9 @@ public class GameObjectNode extends Node {
         this.path = path;
     }
 
-    public void addComponent(ComponentNode component) {
-        addChild(component);
+    @Override
+    public void childAdded(Node child) {
         sortComponents();
-    }
-
-    public void removeComponent(ComponentNode component) {
-        removeChild(component);
     }
 
     public void sortComponents() {

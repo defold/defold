@@ -78,7 +78,7 @@ public class CollisionObjectLoader implements INodeLoader<CollisionObjectNode> {
                 throw new RuntimeException("Not implemented: " + shape.getShapeType());
             }
 
-            collisionObject.addShape(shapeNode);
+            collisionObject.addChild(shapeNode);
         }
 
         Node collisionShapeNode = context.loadNode(collisionObject.getCollisionShape());

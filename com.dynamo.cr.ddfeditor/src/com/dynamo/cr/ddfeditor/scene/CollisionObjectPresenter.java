@@ -1,17 +1,20 @@
 package com.dynamo.cr.ddfeditor.scene;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import javax.vecmath.Quat4d;
 import javax.vecmath.Vector4d;
 
 import org.eclipse.jface.viewers.IStructuredSelection;
 
 import com.dynamo.cr.ddfeditor.operations.AddShapeNodeOperation;
-import com.dynamo.cr.ddfeditor.operations.RemoveShapeNodeOperation;
 import com.dynamo.cr.go.core.ComponentNode;
 import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.sceneed.core.operations.RemoveChildrenOperation;
 
 
 public class CollisionObjectPresenter implements ISceneView.INodePresenter<CollisionObjectNode> {
@@ -35,7 +38,6 @@ public class CollisionObjectPresenter implements ISceneView.INodePresenter<Colli
     }
 
     public void onAddShape(IPresenterContext presenterContext, ILoaderContext loaderContext) {
-        // TODO: Support multi selection?
         CollisionObjectNode parent = findCollisionObjectFromSelection(presenterContext.getSelection());
         if (parent == null) {
             throw new UnsupportedOperationException("No collision object in selection.");
@@ -57,23 +59,19 @@ public class CollisionObjectPresenter implements ISceneView.INodePresenter<Colli
                 throw new RuntimeException("Unknown type: " + shapeType);
             }
 
-            presenterContext.executeOperation(new AddShapeNodeOperation(parent, shapeNode));
+            presenterContext.executeOperation(new AddShapeNodeOperation(parent, shapeNode, presenterContext));
         }
     }
 
     public void onRemoveShape(IPresenterContext presenterContext,
             ILoaderContext loaderContext) {
-        // TODO: Support multi selection?
         IStructuredSelection structuredSelection = presenterContext.getSelection();
         Object[] nodes = structuredSelection.toArray();
-        CollisionShapeNode component = null;
+        List<Node> shapes = new ArrayList<Node>(nodes.length);
         for (Object node : nodes) {
-            if (node instanceof CollisionShapeNode) {
-                component = (CollisionShapeNode)node;
-                break;
-            }
+            shapes.add((Node)node);
         }
-        presenterContext.executeOperation(new RemoveShapeNodeOperation(component));
+        presenterContext.executeOperation(new RemoveChildrenOperation(shapes, presenterContext));
 
     }
 

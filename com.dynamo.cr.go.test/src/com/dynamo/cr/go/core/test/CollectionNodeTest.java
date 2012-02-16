@@ -5,6 +5,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
 
 import java.io.IOException;
+import java.util.Collections;
 
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IStatus;
@@ -23,7 +24,8 @@ import com.dynamo.cr.go.core.GameObjectNode;
 import com.dynamo.cr.go.core.InstanceNode;
 import com.dynamo.cr.go.core.Messages;
 import com.dynamo.cr.go.core.operations.AddInstanceOperation;
-import com.dynamo.cr.go.core.operations.RemoveInstanceOperation;
+import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.sceneed.core.operations.RemoveChildrenOperation;
 import com.dynamo.cr.sceneed.core.test.AbstractNodeTest;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 
@@ -70,7 +72,7 @@ public class CollectionNodeTest extends AbstractNodeTest {
     }
 
     private void removeInstance(int i) throws Exception {
-        execute(new RemoveInstanceOperation(instance(i), getPresenterContext()));
+        execute(new RemoveChildrenOperation(Collections.singletonList((Node)instance(i)), getPresenterContext()));
         verifySelection();
     }
 
@@ -195,9 +197,9 @@ public class CollectionNodeTest extends AbstractNodeTest {
 
     @Test
     public void testBuildMessage() throws Exception {
-        addGameObject();
-
         addCollection();
+
+        addGameObject();
 
         CollectionDesc ddf = (CollectionDesc)this.loader.buildMessage(getLoaderContext(), this.collectionNode, null);
 
@@ -246,7 +248,7 @@ public class CollectionNodeTest extends AbstractNodeTest {
         addGameObject();
 
         GameObjectNode gameObject = new GameObjectNode();
-        gameObject.addComponent(new ComponentNode(new DummyComponentNode()));
+        gameObject.addChild(new ComponentNode(new DummyComponentNode()));
         registerLoadedNode("/invalid.go", gameObject);
 
         GameObjectInstanceNode instance = (GameObjectInstanceNode)instance(0);

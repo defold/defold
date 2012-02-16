@@ -43,7 +43,7 @@ public class GameObjectLoader implements INodeLoader<GameObjectNode> {
             componentNode.setRotation(LoaderUtil.toQuat4(componentDesc.getRotation()));
             componentNode.setId(componentDesc.getId());
             componentNode.setComponent(path);
-            gameObject.addComponent(componentNode);
+            gameObject.addChild(componentNode);
         }
         n = desc.getEmbeddedComponentsCount();
         for (int i = 0; i < n; ++i) {
@@ -53,7 +53,7 @@ public class GameObjectLoader implements INodeLoader<GameObjectNode> {
             componentType.setTranslation(LoaderUtil.toPoint3d(componentDesc.getPosition()));
             componentType.setRotation(LoaderUtil.toQuat4(componentDesc.getRotation()));
             component.setId(componentDesc.getId());
-            gameObject.addComponent(component);
+            gameObject.addChild(component);
         }
         return gameObject;
     }

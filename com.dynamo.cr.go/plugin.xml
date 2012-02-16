@@ -86,6 +86,34 @@
             </equals>
          </with>
       </definition>
+      <definition
+            id="com.dynamo.cr.go.core.definitions.referenceSelected">
+         <with
+               variable="selection">
+            <iterate>
+               <or>
+                  <instanceof
+                        value="com.dynamo.cr.go.core.RefComponentNode">
+                  </instanceof>
+                  <instanceof
+                        value="com.dynamo.cr.go.core.ComponentTypeNode">
+                  </instanceof>
+                  <instanceof
+                        value="com.dynamo.cr.go.core.GameObjectNode">
+                  </instanceof>
+                  <instanceof
+                        value="com.dynamo.cr.go.core.GameObjectInstanceNode">
+                  </instanceof>
+                  <instanceof
+                        value="com.dynamo.cr.go.core.CollectionNode">
+                  </instanceof>
+                  <instanceof
+                        value="com.dynamo.cr.go.core.CollectionInstanceNode">
+                  </instanceof>
+               </or>
+            </iterate>
+         </with>
+      </definition>
    </extension>
    <extension
          point="com.dynamo.cr.resourcetypes">
@@ -126,110 +154,118 @@
             class="com.dynamo.cr.go.ui.handlers.AddComponentHandler"
             commandId="com.dynamo.cr.sceneed.ui.commands.add">
          <activeWhen>
-            <or>
+            <and>
+               <or>
+                  <reference
+                        definitionId="com.dynamo.cr.go.core.definitions.gameObjectSelected">
+                  </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.go.core.definitions.componentSelected">
+                  </reference>
+               </or>
                <reference
-                     definitionId="com.dynamo.cr.go.core.definitions.gameObjectSelected">
+                     definitionId="com.dynamo.cr.sceneed.definitions.singleSelection">
                </reference>
-               <reference
-                     definitionId="com.dynamo.cr.go.core.definitions.componentSelected">
-               </reference>
-            </or>
+            </and>
          </activeWhen>
       </handler>
       <handler
             class="com.dynamo.cr.go.ui.handlers.RemoveComponentHandler"
             commandId="org.eclipse.ui.edit.delete">
          <activeWhen>
-            <reference
-                  definitionId="com.dynamo.cr.go.core.definitions.componentSelected">
-            </reference>
+            <and>
+               <reference
+                     definitionId="com.dynamo.cr.sceneed.definitions.selectionDeleteable">
+               </reference>
+               <reference
+                     definitionId="com.dynamo.cr.go.core.definitions.componentSelected">
+               </reference>
+            </and>
          </activeWhen>
       </handler>
       <handler
             class="com.dynamo.cr.go.ui.handlers.AddComponentFromFileHandler"
             commandId="com.dynamo.cr.sceneed.ui.commands.addLink">
          <activeWhen>
-            <or>
+            <and>
+               <or>
+                  <reference
+                        definitionId="com.dynamo.cr.go.core.definitions.gameObjectSelected">
+                  </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.go.core.definitions.componentSelected">
+                  </reference>
+               </or>
                <reference
-                     definitionId="com.dynamo.cr.go.core.definitions.gameObjectSelected">
+                     definitionId="com.dynamo.cr.sceneed.definitions.singleSelection">
                </reference>
-               <reference
-                     definitionId="com.dynamo.cr.go.core.definitions.componentSelected">
-               </reference>
-            </or>
+            </and>
          </activeWhen>
       </handler>
       <handler
             class="com.dynamo.cr.go.ui.handlers.OpenReferenceHandler"
             commandId="com.dynamo.cr.sceneed.ui.commands.enter">
          <activeWhen>
-            <with
-                  variable="selection">
-               <and>
-                  <count
-                        value="1">
-                  </count>
-                  <iterate>
-                     <or>
-                        <instanceof
-                              value="com.dynamo.cr.go.core.RefComponentNode">
-                        </instanceof>
-                        <instanceof
-                              value="com.dynamo.cr.go.core.ComponentTypeNode">
-                        </instanceof>
-                        <instanceof
-                              value="com.dynamo.cr.go.core.GameObjectNode">
-                        </instanceof>
-                        <instanceof
-                              value="com.dynamo.cr.go.core.GameObjectInstanceNode">
-                        </instanceof>
-                        <instanceof
-                              value="com.dynamo.cr.go.core.CollectionNode">
-                        </instanceof>
-                        <instanceof
-                              value="com.dynamo.cr.go.core.CollectionInstanceNode">
-                        </instanceof>
-                     </or>
-                  </iterate>
-               </and>
-            </with>
+            <and>
+               <reference
+                     definitionId="com.dynamo.cr.sceneed.definitions.singleSelection">
+               </reference>
+               <reference
+                     definitionId="com.dynamo.cr.go.core.definitions.referenceSelected">
+               </reference>
+            </and>
          </activeWhen>
       </handler>
       <handler
             class="com.dynamo.cr.go.ui.handlers.AddGameObjectHandler"
             commandId="com.dynamo.cr.sceneed.ui.commands.add">
          <activeWhen>
-            <or>
+            <and>
                <reference
-                     definitionId="com.dynamo.cr.go.core.definitions.collectionSelected">
+                     definitionId="com.dynamo.cr.sceneed.definitions.singleSelection">
                </reference>
-               <reference
-                     definitionId="com.dynamo.cr.go.core.definitions.instanceSelected">
-               </reference>
-            </or>
+               <or>
+                  <reference
+                        definitionId="com.dynamo.cr.go.core.definitions.collectionSelected">
+                  </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.go.core.definitions.instanceSelected">
+                  </reference>
+               </or>
+            </and>
          </activeWhen>
       </handler>
       <handler
             class="com.dynamo.cr.go.ui.handlers.AddCollectionHandler"
             commandId="com.dynamo.cr.sceneed.ui.commands.addLink">
          <activeWhen>
-            <or>
+            <and>
                <reference
-                     definitionId="com.dynamo.cr.go.core.definitions.collectionSelected">
+                     definitionId="com.dynamo.cr.sceneed.definitions.singleSelection">
                </reference>
-               <reference
-                     definitionId="com.dynamo.cr.go.core.definitions.instanceSelected">
-               </reference>
-            </or>
+               <or>
+                  <reference
+                        definitionId="com.dynamo.cr.go.core.definitions.collectionSelected">
+                  </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.go.core.definitions.instanceSelected">
+                  </reference>
+               </or>
+            </and>
          </activeWhen>
       </handler>
       <handler
             class="com.dynamo.cr.go.ui.handlers.RemoveInstanceHandler"
             commandId="org.eclipse.ui.edit.delete">
          <activeWhen>
-            <reference
-                  definitionId="com.dynamo.cr.go.core.definitions.instanceSelected">
-            </reference>
+            <and>
+               <reference
+                     definitionId="com.dynamo.cr.sceneed.definitions.selectionDeleteable">
+               </reference>
+               <reference
+                     definitionId="com.dynamo.cr.go.core.definitions.instanceSelected">
+               </reference>
+            </and>
          </activeWhen>
       </handler>
    </extension>

@@ -731,9 +731,14 @@
             class="com.dynamo.cr.tileeditor.commands.AddCollisionGroup"
             commandId="com.dynamo.cr.tileeditor.commands.AddCollisionGroup">
          <activeWhen>
-            <reference
-                  definitionId="com.dynamo.cr.tileeditor.definitions.tileSetEditorActive">
-            </reference>
+            <and>
+               <reference
+                     definitionId="com.dynamo.cr.sceneed.definitions.singleSelection">
+               </reference>
+               <reference
+                     definitionId="com.dynamo.cr.tileeditor.definitions.tileSetEditorActive">
+               </reference>
+            </and>
          </activeWhen>
       </handler>
       <handler
@@ -761,9 +766,14 @@
             class="com.dynamo.cr.tileeditor.commands.RemoveCollisionsGroup"
             commandId="org.eclipse.ui.edit.delete">
          <activeWhen>
-            <reference
-                  definitionId="com.dynamo.cr.tileeditor.definitions.tileSetEditorActive">
-            </reference>
+            <and>
+               <reference
+                     definitionId="com.dynamo.cr.sceneed.definitions.selectionDeleteable">
+               </reference>
+               <reference
+                     definitionId="com.dynamo.cr.tileeditor.definitions.tileSetEditorActive">
+               </reference>
+            </and>
          </activeWhen>
          <enabledWhen>
             <with
@@ -822,9 +832,14 @@
             class="com.dynamo.cr.tileeditor.commands.SetBrushCollisionGroup"
             commandId="com.dynamo.cr.tileeditor.commands.SetBrushCollisionGroup">
          <activeWhen>
-            <reference
-                  definitionId="com.dynamo.cr.tileeditor.definitions.tileSetEditorActive">
-            </reference>
+            <and>
+               <reference
+                     definitionId="com.dynamo.cr.sceneed.definitions.singleSelection">
+               </reference>
+               <reference
+                     definitionId="com.dynamo.cr.tileeditor.definitions.tileSetEditorActive">
+               </reference>
+            </and>
          </activeWhen>
          <enabledWhen>
             <with
@@ -849,9 +864,14 @@
             class="com.dynamo.cr.tileeditor.commands.RemoveLayer"
             commandId="org.eclipse.ui.edit.delete">
          <activeWhen>
-            <reference
-                  definitionId="com.dynamo.cr.tileeditor.definitions.gridEditorActive">
-            </reference>
+            <and>
+               <reference
+                     definitionId="com.dynamo.cr.sceneed.definitions.selectionDeleteable">
+               </reference>
+               <reference
+                     definitionId="com.dynamo.cr.tileeditor.definitions.gridEditorActive">
+               </reference>
+            </and>
          </activeWhen>
          <enabledWhen>
             <with
@@ -870,9 +890,14 @@
             class="com.dynamo.cr.tileeditor.commands.AddLayer"
             commandId="com.dynamo.cr.tileeditor.commands.AddLayer">
          <activeWhen>
-            <reference
-                  definitionId="com.dynamo.cr.tileeditor.definitions.gridEditorActive">
-            </reference>
+            <and>
+               <reference
+                     definitionId="com.dynamo.cr.sceneed.definitions.singleSelection">
+               </reference>
+               <reference
+                     definitionId="com.dynamo.cr.tileeditor.definitions.gridEditorActive">
+               </reference>
+            </and>
          </activeWhen>
       </handler>
       <handler
@@ -897,26 +922,36 @@
             class="com.dynamo.cr.tileeditor.handlers.AddCollisionGroupHandler"
             commandId="com.dynamo.cr.sceneed.ui.commands.add">
          <activeWhen>
-            <or>
+            <and>
                <reference
-                     definitionId="com.dynamo.cr.tileeditor.definitions.tileSetSelected">
+                     definitionId="com.dynamo.cr.sceneed.definitions.singleSelection">
                </reference>
-               <reference
-                     definitionId="com.dynamo.cr.tileeditor.definitions.collisionGroupSelected">
-               </reference>
-               <reference
-                     definitionId="com.dynamo.cr.tileeditor.definitions.collisionGroupGroupSelected">
-               </reference>
-            </or>
+               <or>
+                  <reference
+                        definitionId="com.dynamo.cr.tileeditor.definitions.tileSetSelected">
+                  </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.tileeditor.definitions.collisionGroupSelected">
+                  </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.tileeditor.definitions.collisionGroupGroupSelected">
+                  </reference>
+               </or>
+            </and>
          </activeWhen>
       </handler>
       <handler
             class="com.dynamo.cr.tileeditor.handlers.RemoveCollisionGroupHandler"
             commandId="org.eclipse.ui.edit.delete">
          <activeWhen>
-            <reference
-                  definitionId="com.dynamo.cr.tileeditor.definitions.collisionGroupSelected">
-            </reference>
+            <and>
+               <reference
+                     definitionId="com.dynamo.cr.sceneed.definitions.selectionDeleteable">
+               </reference>
+               <reference
+                     definitionId="com.dynamo.cr.tileeditor.definitions.collisionGroupSelected">
+               </reference>
+            </and>
          </activeWhen>
       </handler>
       <handler
@@ -942,35 +977,50 @@
             class="com.dynamo.cr.tileeditor.handlers.AddAnimationHandler"
             commandId="com.dynamo.cr.sceneed.ui.commands.addLink">
          <activeWhen>
-            <or>
+            <and>
                <reference
-                     definitionId="com.dynamo.cr.tileeditor.definitions.animationSelected">
+                     definitionId="com.dynamo.cr.sceneed.definitions.singleSelection">
                </reference>
-               <reference
-                     definitionId="com.dynamo.cr.tileeditor.definitions.animationGroupSelected">
-               </reference>
-               <reference
-                     definitionId="com.dynamo.cr.tileeditor.definitions.tileSetSelected">
-               </reference>
-            </or>
+               <or>
+                  <reference
+                        definitionId="com.dynamo.cr.tileeditor.definitions.animationSelected">
+                  </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.tileeditor.definitions.animationGroupSelected">
+                  </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.tileeditor.definitions.tileSetSelected">
+                  </reference>
+               </or>
+            </and>
          </activeWhen>
       </handler>
       <handler
             class="com.dynamo.cr.tileeditor.handlers.RemoveAnimationHandler"
             commandId="org.eclipse.ui.edit.delete">
          <activeWhen>
-            <reference
-                  definitionId="com.dynamo.cr.tileeditor.definitions.animationSelected">
-            </reference>
+            <and>
+               <reference
+                     definitionId="com.dynamo.cr.sceneed.definitions.selectionDeleteable">
+               </reference>
+               <reference
+                     definitionId="com.dynamo.cr.tileeditor.definitions.animationSelected">
+               </reference>
+            </and>
          </activeWhen>
       </handler>
       <handler
             class="com.dynamo.cr.tileeditor.handlers.TogglePlaybackHandler"
             commandId="com.dynamo.cr.tileeditor.commands.togglePlayback">
          <activeWhen>
-            <reference
-                  definitionId="com.dynamo.cr.tileeditor.definitions.animationSelected">
-            </reference>
+            <and>
+               <reference
+                     definitionId="com.dynamo.cr.sceneed.definitions.singleSelection">
+               </reference>
+               <reference
+                     definitionId="com.dynamo.cr.tileeditor.definitions.animationSelected">
+               </reference>
+            </and>
          </activeWhen>
       </handler>
    </extension>

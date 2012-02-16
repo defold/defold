@@ -1,6 +1,9 @@
 package com.dynamo.cr.tileeditor.util;
 
+import java.util.List;
+
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
+import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.tileeditor.scene.AnimationNode;
 import com.dynamo.cr.tileeditor.scene.TileSetUtil;
 
@@ -25,8 +28,9 @@ public class Animator implements Runnable {
     public void start(IPresenterContext presenterContext) {
         this.presenterContext = presenterContext;
         if (!this.running) {
-            AnimationNode node = TileSetUtil.getCurrentAnimation(this.presenterContext.getSelection());
-            if (node != null) {
+            List<Node> nodes = TileSetUtil.getCurrentAnimations(this.presenterContext.getSelection());
+            if (nodes.size() == 1) {
+                AnimationNode node = (AnimationNode)nodes.get(0);
                 this.animationNode = node;
                 this.animationNode.setPlaying(true);
                 this.running = true;
@@ -51,8 +55,8 @@ public class Animator implements Runnable {
     @Override
     public void run() {
         if (this.running) {
-            AnimationNode node = TileSetUtil.getCurrentAnimation(this.presenterContext.getSelection());
-            if (this.animationNode != node || !this.animationNode.isPlaying()) {
+            List<Node> nodes = TileSetUtil.getCurrentAnimations(this.presenterContext.getSelection());
+            if (nodes.size() != 1 || this.animationNode != nodes.get(0) || !this.animationNode.isPlaying()) {
                 this.running = false;
                 this.animationNode.setPlaying(false);
                 return;

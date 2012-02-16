@@ -665,22 +665,28 @@
             class="com.dynamo.cr.ddfeditor.ui.handlers.AddShapeHandler"
             commandId="com.dynamo.cr.sceneed.ui.commands.add">
          <activeWhen>
-            <or>
+            <and>
+               <reference
+                     definitionId="com.dynamo.cr.sceneed.definitions.singleSelection">
+               </reference>
                <reference
                      definitionId="com.dynamo.cr.ddfeditor.core.definitions.collisionObjectSelected">
                </reference>
-            </or>
+            </and>
          </activeWhen>
       </handler>
       <handler
             class="com.dynamo.cr.ddfeditor.ui.handlers.RemoveShapeHandler"
             commandId="org.eclipse.ui.edit.delete">
          <activeWhen>
-            <or>
+            <and>
+               <reference
+                     definitionId="com.dynamo.cr.sceneed.definitions.selectionDeleteable">
+               </reference>
                <reference
                      definitionId="com.dynamo.cr.ddfeditor.core.definitions.collisionShapeSelected">
                </reference>
-            </or>
+            </and>
          </activeWhen>
       </handler>
    </extension>

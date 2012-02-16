@@ -135,14 +135,6 @@ public class CollisionObjectNode extends ComponentTypeNode {
         return collisionShapeNode;
     }
 
-    public void addShape(CollisionShapeNode shapeNode) {
-        addChild(shapeNode);
-    }
-
-    public void removeShape(CollisionShapeNode shapeNode) {
-        removeChild(shapeNode);
-    }
-
     private final void updateAABB() {
         AABB aabb = new AABB();
         if (this.collisionShapeNode != null) {

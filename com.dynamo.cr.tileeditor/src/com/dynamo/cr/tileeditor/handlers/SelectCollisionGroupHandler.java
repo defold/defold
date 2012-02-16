@@ -1,5 +1,6 @@
 package com.dynamo.cr.tileeditor.handlers;
 
+import java.util.List;
 import java.util.Map;
 
 import org.eclipse.core.commands.AbstractHandler;
@@ -15,6 +16,7 @@ import org.eclipse.ui.handlers.HandlerUtil;
 import org.eclipse.ui.handlers.RadioState;
 import org.eclipse.ui.menus.UIElement;
 
+import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.tileeditor.TileSetEditor2;
 import com.dynamo.cr.tileeditor.scene.CollisionGroupNode;
 import com.dynamo.cr.tileeditor.scene.TileSetNode;
@@ -59,8 +61,9 @@ public class SelectCollisionGroupHandler extends AbstractHandler implements IEle
             if (selection instanceof IStructuredSelection) {
                 IStructuredSelection structuredSelection = (IStructuredSelection)selection;
                 int index = -1;
-                CollisionGroupNode collisionGroup = TileSetUtil.getCurrentCollisionGroup(structuredSelection);
-                if (collisionGroup != null) {
+                List<Node> collisionGroups = TileSetUtil.getCurrentCollisionGroups(structuredSelection);
+                if (collisionGroups.size() == 1) {
+                    CollisionGroupNode collisionGroup = (CollisionGroupNode)collisionGroups.get(0);
                     TileSetNode tileSet = collisionGroup.getTileSetNode();
                     index = tileSet.getCollisionGroups().indexOf(collisionGroup);
                 }
