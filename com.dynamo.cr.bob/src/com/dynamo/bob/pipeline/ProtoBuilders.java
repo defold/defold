@@ -129,7 +129,7 @@ public class ProtoBuilders {
                 CollisionObjectDesc.Builder messageBuilder) throws IOException {
             // Merge convex shape resource with collision object
             // NOTE: Special case for tilegrid resources. They are left as is
-            if (messageBuilder.hasCollisionShape() && !messageBuilder.getCollisionShape().endsWith(".tilegrid")) {
+            if (messageBuilder.hasCollisionShape() && !messageBuilder.getCollisionShape().isEmpty() && !messageBuilder.getCollisionShape().endsWith(".tilegrid")) {
                 String p = FilenameUtils.concat(project.getRootDirectory(), messageBuilder.getCollisionShape().substring(1));
                 ConvexShape.Builder cb = ConvexShape.newBuilder();
                 BufferedReader reader = new BufferedReader(new FileReader(p));
