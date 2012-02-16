@@ -25,7 +25,8 @@ public class PreferencePage
 		setDescription("Specify connection parameters:");
 	}
 
-	public void createFieldEditors() {
+	@Override
+    public void createFieldEditors() {
         addField(new StringFieldEditor(PreferenceConstants.P_SERVER_URI, "Resource server URI:", getFieldEditorParent()));
         addField(new StringFieldEditor(PreferenceConstants.P_SOCKS_PROXY, "Socks proxy:", getFieldEditorParent()));
         addField(new IntegerFieldEditor(PreferenceConstants.P_SOCKS_PROXY_PORT, "Socks proxy port:", getFieldEditorParent()));
@@ -44,14 +45,15 @@ public class PreferencePage
 	public void propertyChange(PropertyChangeEvent event) {
 	    super.propertyChange(event);
 	    if (event.getSource() == customApplicationField) {
-	        applicationField.setEnabled(!customApplicationField.getBooleanValue(), getFieldEditorParent());
+	        applicationField.setEnabled(customApplicationField.getBooleanValue(), getFieldEditorParent());
 	    }
 	}
 
 	/* (non-Javadoc)
 	 * @see org.eclipse.ui.IWorkbenchPreferencePage#init(org.eclipse.ui.IWorkbench)
 	 */
-	public void init(IWorkbench workbench) {
+	@Override
+    public void init(IWorkbench workbench) {
 	}
 
 }

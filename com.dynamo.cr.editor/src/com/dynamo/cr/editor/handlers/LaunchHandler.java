@@ -212,9 +212,11 @@ public class LaunchHandler extends AbstractHandler {
 
         IPreferenceStore store = Activator.getDefault().getPreferenceStore();
 
-        String exeName = Engine.getDefault().getEnginePath();
+        String exeName;
         if (store.getBoolean(PreferenceConstants.P_CUSTOM_APPLICATION)) {
             exeName = store.getString(PreferenceConstants.P_APPLICATION);
+        } else {
+            exeName = Engine.getDefault().getEnginePath();
         }
         final File exe = new File(exeName);
 
