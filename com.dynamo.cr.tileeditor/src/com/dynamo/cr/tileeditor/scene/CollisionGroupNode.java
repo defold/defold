@@ -11,12 +11,14 @@ import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.sceneed.core.validators.Unique;
 import com.dynamo.cr.tileeditor.Activator;
 
 public class CollisionGroupNode extends Node implements
 Comparable<CollisionGroupNode> {
 
     @Property
+    @Unique(scope = CollisionGroupNode.class)
     @NotEmpty(severity = IStatus.ERROR)
     private String id;
 

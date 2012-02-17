@@ -18,7 +18,7 @@ public class AnimationNode extends Node {
 
     @Property
     @NotEmpty
-    @Unique
+    @Unique(scope = AnimationNode.class)
     private String id = "";
 
     @Property

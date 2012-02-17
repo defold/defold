@@ -18,7 +18,7 @@ public class UniqueValidator implements IValidator<Object, Unique, IPropertyObje
         Node parent = node.getParent();
         if (parent != null) {
             for (Node sibling : parent.getChildren()) {
-                if (sibling != node) {
+                if (sibling != node && validationParameters.scope().isAssignableFrom(sibling.getClass())) {
                     @SuppressWarnings("unchecked")
                     IPropertyModel<? extends Node, ISceneModel> propertyModel = (IPropertyModel<? extends Node, ISceneModel>)sibling.getAdapter(IPropertyModel.class);
                     Object siblingValue = propertyModel.getPropertyValue(property);
