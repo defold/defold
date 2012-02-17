@@ -6,6 +6,7 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 import javax.imageio.ImageIO;
@@ -61,9 +62,6 @@ public class TileSetNode extends Node {
     @NotEmpty(severity = IStatus.ERROR)
     private String materialTag = "";
 
-    private CollisionGroupGroupNode collisionGroupsGroup;
-    private AnimationGroupNode animationsGroup;
-
     private List<CollisionGroupNode> tileCollisionGroups;
     // Used to simulate a shorter list of convex hulls.
     // convexHulls need to be retained in some cases to keep collision groups and keep undo functionality
@@ -81,10 +79,6 @@ public class TileSetNode extends Node {
         this.tileCollisionGroupCount = 0;
         this.convexHulls = new ArrayList<ConvexHull>();
 
-        this.collisionGroupsGroup = new CollisionGroupGroupNode();
-        addChild(this.collisionGroupsGroup);
-        this.animationsGroup = new AnimationGroupNode();
-        addChild(this.animationsGroup);
         this.textureHandle = new TextureHandle();
     }
 
@@ -213,32 +207,29 @@ public class TileSetNode extends Node {
         this.materialTag = materialTag;
     }
 
+    @Override
+    protected void childAdded(Node child) {
+        sortChildren();
+    }
+
     public List<CollisionGroupNode> getCollisionGroups() {
-        return this.collisionGroupsGroup.getNodes();
-    }
-
-    public void addCollisionGroup(CollisionGroupNode collisionGroup) {
-        this.collisionGroupsGroup.addChild(collisionGroup);
-    }
-
-    public void removeCollisionGroup(CollisionGroupNode collisionGroup) {
-        this.collisionGroupsGroup.removeChild(collisionGroup);
-    }
-
-    public CollisionGroupGroupNode getCollisionGroupGroupNode() {
-        return this.collisionGroupsGroup;
+        List<CollisionGroupNode> groups = new ArrayList<CollisionGroupNode>();
+        for (Node child : getChildren()) {
+            if (child instanceof CollisionGroupNode) {
+                groups.add((CollisionGroupNode)child);
+            }
+        }
+        return groups;
     }
 
     public List<AnimationNode> getAnimations() {
-        return this.animationsGroup.getNodes();
-    }
-
-    public void addAnimation(AnimationNode animation) {
-        this.animationsGroup.addChild(animation);
-    }
-
-    public void removeAnimation(AnimationNode animation) {
-        this.animationsGroup.removeChild(animation);
+        List<AnimationNode> animations = new ArrayList<AnimationNode>();
+        for (Node child : getChildren()) {
+            if (child instanceof AnimationNode) {
+                animations.add((AnimationNode)child);
+            }
+        }
+        return animations;
     }
 
     public List<ConvexHull> getConvexHulls() {
@@ -453,6 +444,37 @@ public class TileSetNode extends Node {
             return tilesPerRow * tilesPerColumn;
         }
         return 0;
+    }
+
+    public String getChildId(Node node) {
+        if (node instanceof AnimationNode) {
+            return ((AnimationNode)node).getId();
+        } else if (node instanceof CollisionGroupNode) {
+            return ((CollisionGroupNode)node).getId();
+        } else {
+            return null;
+        }
+    }
+
+    public void sortChildren() {
+        sortChildren(new Comparator<Node>() {
+            @Override
+            public int compare(Node o1, Node o2) {
+                if ((o1 instanceof AnimationNode && o2 instanceof CollisionGroupNode)
+                        || (o1 instanceof CollisionGroupNode && o2 instanceof AnimationNode)) {
+                    if (o1 instanceof CollisionGroupNode) {
+                        return 1;
+                    } else {
+                        return -1;
+                    }
+                } else {
+                    String id1 = getChildId(o1);
+                    String id2 = getChildId(o2);
+                    return id1.compareTo(id2);
+                }
+
+            }
+        });
     }
 
 }

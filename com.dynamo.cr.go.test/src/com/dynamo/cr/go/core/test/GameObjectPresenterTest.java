@@ -74,7 +74,7 @@ public class GameObjectPresenterTest extends AbstractPresenterTest {
     public void testRemoveComponent() throws Exception {
         GameObjectNode gameObject = new GameObjectNode();
         gameObject.setModel(this.getModel());
-        ComponentNode component = new ComponentNode(new DummyComponentNode());
+        ComponentNode component = new DummyComponentNode();
         gameObject.addChild(component);
         when(this.getPresenterContext().getSelection()).thenReturn(new StructuredSelection(component));
 

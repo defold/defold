@@ -1,7 +1,6 @@
 package com.dynamo.cr.go.core.operations;
 
 import com.dynamo.cr.go.core.ComponentNode;
-import com.dynamo.cr.go.core.ComponentTypeNode;
 import com.dynamo.cr.go.core.GameObjectNode;
 import com.dynamo.cr.go.core.RefComponentNode;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
@@ -21,8 +20,7 @@ public class AddComponentOperation extends AddChildOperation {
                 id = path.substring(index + 1);
             }
         } else {
-            ComponentTypeNode componentType = (ComponentTypeNode)component.getChildren().get(0);
-            id = gameObject.getModel().getExtension(componentType.getClass());
+            id = gameObject.getModel().getExtension(component.getClass());
         }
         id = NodeUtil.getUniqueId(gameObject, id, new NodeUtil.IdFetcher<Node>() {
             @Override

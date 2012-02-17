@@ -93,7 +93,6 @@ public class GameObjectInstanceNode extends InstanceNode {
                 this.gameObjectNode = (GameObjectNode)model.loadNode(this.gameObject);
                 if (this.gameObjectNode != null) {
                     this.gameObjectNode.setModel(model);
-                    this.gameObjectNode.setPath(this.gameObject);
                     this.gameObjectNode.setFlagsRecursively(Flags.LOCKED);
                     addChild(this.gameObjectNode);
                 }
@@ -101,8 +100,6 @@ public class GameObjectInstanceNode extends InstanceNode {
                 // no reason to handle exception since having a null type is invalid state, will be caught in validateComponent below
             }
             return true;
-        } else if (this.gameObjectNode != null) {
-            this.gameObjectNode.setPath(this.gameObject);
         }
         return false;
     }

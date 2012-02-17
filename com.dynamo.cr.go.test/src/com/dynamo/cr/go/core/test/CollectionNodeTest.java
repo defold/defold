@@ -17,7 +17,6 @@ import org.junit.Test;
 import com.dynamo.cr.go.core.CollectionInstanceNode;
 import com.dynamo.cr.go.core.CollectionLoader;
 import com.dynamo.cr.go.core.CollectionNode;
-import com.dynamo.cr.go.core.ComponentNode;
 import com.dynamo.cr.go.core.GameObjectInstanceNode;
 import com.dynamo.cr.go.core.GameObjectLoader;
 import com.dynamo.cr.go.core.GameObjectNode;
@@ -248,7 +247,7 @@ public class CollectionNodeTest extends AbstractNodeTest {
         addGameObject();
 
         GameObjectNode gameObject = new GameObjectNode();
-        gameObject.addChild(new ComponentNode(new DummyComponentNode()));
+        gameObject.addChild(new DummyComponentNode());
         registerLoadedNode("/invalid.go", gameObject);
 
         GameObjectInstanceNode instance = (GameObjectInstanceNode)instance(0);

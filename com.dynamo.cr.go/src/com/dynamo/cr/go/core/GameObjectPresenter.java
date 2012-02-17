@@ -51,7 +51,7 @@ public class GameObjectPresenter implements ISceneView.INodePresenter<GameObject
                 presenterContext.logException(e);
             }
             if (child != null) {
-                presenterContext.executeOperation(new AddComponentOperation(parent, new ComponentNode(child), presenterContext));
+                presenterContext.executeOperation(new AddComponentOperation(parent, child, presenterContext));
             } else {
                 throw new UnsupportedOperationException("Component type " + componentType + " not registered.");
             }

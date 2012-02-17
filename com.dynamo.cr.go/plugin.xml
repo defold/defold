@@ -155,16 +155,11 @@
             commandId="com.dynamo.cr.sceneed.ui.commands.add">
          <activeWhen>
             <and>
-               <or>
-                  <reference
-                        definitionId="com.dynamo.cr.go.core.definitions.gameObjectSelected">
-                  </reference>
-                  <reference
-                        definitionId="com.dynamo.cr.go.core.definitions.componentSelected">
-                  </reference>
-               </or>
                <reference
                      definitionId="com.dynamo.cr.sceneed.definitions.singleSelection">
+               </reference>
+               <reference
+                     definitionId="com.dynamo.cr.go.core.definitions.gameObjectSelected">
                </reference>
             </and>
          </activeWhen>
@@ -188,16 +183,11 @@
             commandId="com.dynamo.cr.sceneed.ui.commands.addLink">
          <activeWhen>
             <and>
-               <or>
-                  <reference
-                        definitionId="com.dynamo.cr.go.core.definitions.gameObjectSelected">
-                  </reference>
-                  <reference
-                        definitionId="com.dynamo.cr.go.core.definitions.componentSelected">
-                  </reference>
-               </or>
                <reference
                      definitionId="com.dynamo.cr.sceneed.definitions.singleSelection">
+               </reference>
+               <reference
+                     definitionId="com.dynamo.cr.go.core.definitions.gameObjectSelected">
                </reference>
             </and>
          </activeWhen>
@@ -224,14 +214,9 @@
                <reference
                      definitionId="com.dynamo.cr.sceneed.definitions.singleSelection">
                </reference>
-               <or>
-                  <reference
-                        definitionId="com.dynamo.cr.go.core.definitions.collectionSelected">
-                  </reference>
-                  <reference
-                        definitionId="com.dynamo.cr.go.core.definitions.instanceSelected">
-                  </reference>
-               </or>
+               <reference
+                     definitionId="com.dynamo.cr.go.core.definitions.collectionSelected">
+               </reference>
             </and>
          </activeWhen>
       </handler>
@@ -243,14 +228,9 @@
                <reference
                      definitionId="com.dynamo.cr.sceneed.definitions.singleSelection">
                </reference>
-               <or>
-                  <reference
-                        definitionId="com.dynamo.cr.go.core.definitions.collectionSelected">
-                  </reference>
-                  <reference
-                        definitionId="com.dynamo.cr.go.core.definitions.instanceSelected">
-                  </reference>
-               </or>
+               <reference
+                     definitionId="com.dynamo.cr.go.core.definitions.collectionSelected">
+               </reference>
             </and>
          </activeWhen>
       </handler>

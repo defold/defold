@@ -1,23 +1,16 @@
 package com.dynamo.cr.go.core;
 
-import com.dynamo.cr.sceneed.core.Node;
 
-public abstract class ComponentTypeNode extends Node {
+public abstract class ComponentTypeNode extends ComponentNode {
 
-    private String path;
-
-    public String getPath() {
-        return this.path;
-    }
-
-    public void setPath(String path) {
-        this.path = path;
+    public boolean isIdVisible() {
+        return getParent() != null;
     }
 
     @Override
     public String toString() {
-        if (this.path != null) {
-            return this.path;
+        if (getParent() == null && getModel() != null) {
+            return getModel().getTypeName(getClass());
         } else {
             return super.toString();
         }

@@ -37,7 +37,7 @@ public class TileSetPresenterTest extends AbstractPresenterTest {
         // Mocking
         TileSetNode tileSet = new TileSetNode();
         CollisionGroupNode collisionGroup = new CollisionGroupNode();
-        tileSet.addCollisionGroup(collisionGroup);
+        tileSet.addChild(collisionGroup);
 
         select(collisionGroup);
         this.presenter.onAddCollisionGroup(getPresenterContext());
@@ -52,10 +52,10 @@ public class TileSetPresenterTest extends AbstractPresenterTest {
     public void testRemoveCollisionGroup() {
         TileSetNode tileSet = new TileSetNode();
         CollisionGroupNode collisionGroup = new CollisionGroupNode();
-        tileSet.addCollisionGroup(collisionGroup);
+        tileSet.addChild(collisionGroup);
 
         select(collisionGroup);
-        this.presenter.onRemoveCollisionGroup(getPresenterContext());
+        this.presenter.onRemoveTileSetChildren(getPresenterContext());
         verifyExecution();
     }
 
@@ -63,7 +63,7 @@ public class TileSetPresenterTest extends AbstractPresenterTest {
     public void testSelectCollisionGroup() {
         TileSetNode tileSet = new TileSetNode();
         CollisionGroupNode collisionGroup = new CollisionGroupNode();
-        tileSet.addCollisionGroup(collisionGroup);
+        tileSet.addChild(collisionGroup);
 
         select(collisionGroup);
         this.presenter.onSelectCollisionGroup(getPresenterContext(), -1);
@@ -131,7 +131,7 @@ public class TileSetPresenterTest extends AbstractPresenterTest {
         // Mocking
         TileSetNode tileSet = new TileSetNode();
         AnimationNode animation = new AnimationNode();
-        tileSet.addAnimation(animation);
+        tileSet.addChild(animation);
 
         select(animation);
         this.presenter.onAddAnimation(getPresenterContext());
@@ -146,7 +146,7 @@ public class TileSetPresenterTest extends AbstractPresenterTest {
     public void testRemoveAnimation() {
         TileSetNode tileSet = new TileSetNode();
         AnimationNode animation = new AnimationNode();
-        tileSet.addAnimation(animation);
+        tileSet.addChild(animation);
 
         select(animation);
         this.presenter.onRemoveAnimation(getPresenterContext());

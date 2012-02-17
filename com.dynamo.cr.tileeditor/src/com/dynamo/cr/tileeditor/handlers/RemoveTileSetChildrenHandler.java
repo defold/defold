@@ -10,7 +10,7 @@ import com.dynamo.cr.tileeditor.TileSetEditor2;
 import com.dynamo.cr.tileeditor.scene.TileSetNode;
 import com.dynamo.cr.tileeditor.scene.TileSetNodePresenter;
 
-public class RemoveCollisionGroupHandler extends AbstractHandler {
+public class RemoveTileSetChildrenHandler extends AbstractHandler {
 
     @Override
     public Object execute(ExecutionEvent event) throws ExecutionException {
@@ -18,7 +18,7 @@ public class RemoveCollisionGroupHandler extends AbstractHandler {
         if (editorPart instanceof TileSetEditor2) {
             TileSetEditor2 tileSetEditor = (TileSetEditor2)editorPart;
             TileSetNodePresenter presenter = (TileSetNodePresenter)tileSetEditor.getNodePresenter(TileSetNode.class);
-            presenter.onRemoveCollisionGroup(tileSetEditor.getPresenterContext());
+            presenter.onRemoveTileSetChildren(tileSetEditor.getPresenterContext());
         }
         return null;
     }

@@ -237,7 +237,10 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
     public IStatus getPropertyStatus(T object, U world, Object id) {
         try {
             IPropertyAccessor<T, U> accessor = accessorClass.newInstance();
-            IStatus status = validate(object, accessor, (String) id, world);
+            IStatus status = Status.OK_STATUS;
+            if (isPropertyVisible(object, world, id)) {
+                return validate(object, accessor, (String) id, world);
+            }
             return status;
 
         } catch (IllegalArgumentException e) {

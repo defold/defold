@@ -49,11 +49,10 @@ public class GameObjectLoader implements INodeLoader<GameObjectNode> {
         for (int i = 0; i < n; ++i) {
             EmbeddedComponentDesc componentDesc = desc.getEmbeddedComponents(i);
             ComponentTypeNode componentType = (ComponentTypeNode)context.loadNode(componentDesc.getType(), new ByteArrayInputStream(componentDesc.getData().getBytes()));
-            ComponentNode component = new ComponentNode(componentType);
             componentType.setTranslation(LoaderUtil.toPoint3d(componentDesc.getPosition()));
             componentType.setRotation(LoaderUtil.toQuat4(componentDesc.getRotation()));
-            component.setId(componentDesc.getId());
-            gameObject.addChild(component);
+            componentType.setId(componentDesc.getId());
+            gameObject.addChild(componentType);
         }
         return gameObject;
     }
@@ -73,13 +72,12 @@ public class GameObjectLoader implements INodeLoader<GameObjectNode> {
                 componentBuilder.setComponent(component.getComponent());
                 builder.addComponents(componentBuilder);
                 progress.worked(1);
-            } else if (child instanceof ComponentNode) {
-                ComponentNode component = (ComponentNode)child;
+            } else if (child instanceof ComponentTypeNode) {
+                ComponentTypeNode componentType = (ComponentTypeNode)child;
                 EmbeddedComponentDesc.Builder componentBuilder = EmbeddedComponentDesc.newBuilder();
-                ComponentTypeNode componentType = (ComponentTypeNode)component.getChildren().get(0);
                 componentBuilder.setPosition(LoaderUtil.toPoint3(componentType.getTranslation()));
                 componentBuilder.setRotation(LoaderUtil.toQuat(componentType.getRotation()));
-                componentBuilder.setId(component.getId());
+                componentBuilder.setId(componentType.getId());
                 ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
                 SubMonitor partProgress = progress.newChild(1).setWorkRemaining(2);
                 INodeTypeRegistry registry = context.getNodeTypeRegistry();

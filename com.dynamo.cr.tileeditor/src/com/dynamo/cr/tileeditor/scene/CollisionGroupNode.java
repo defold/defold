@@ -42,6 +42,10 @@ Comparable<CollisionGroupNode> {
             unregisterId();
             this.id = id;
             registerId();
+            TileSetNode tileSet = getTileSetNode();
+            if (tileSet != null) {
+                getTileSetNode().sortChildren();
+            }
         }
     }
 
@@ -70,7 +74,7 @@ Comparable<CollisionGroupNode> {
     }
 
     public TileSetNode getTileSetNode() {
-        return (TileSetNode) getParent().getParent();
+        return (TileSetNode)getParent();
     }
 
     @Override

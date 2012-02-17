@@ -57,7 +57,7 @@ public class AnimationNode extends Node {
         this.id = id;
         Node parent = getParent();
         if (parent != null) {
-            ((AnimationGroupNode)parent).sortAnimations();
+            ((TileSetNode)parent).sortChildren();
         }
     }
 
@@ -82,8 +82,8 @@ public class AnimationNode extends Node {
     }
 
     public TileSetNode getTileSetNode() {
-        if (getParent() != null && getParent().getParent() != null) {
-            return (TileSetNode) getParent().getParent();
+        if (getParent() != null) {
+            return (TileSetNode)getParent();
         }
         return null;
     }

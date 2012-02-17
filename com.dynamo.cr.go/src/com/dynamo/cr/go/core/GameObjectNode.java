@@ -8,16 +8,6 @@ import com.dynamo.cr.sceneed.core.Node;
 
 public class GameObjectNode extends Node {
 
-    private String path;
-
-    public String getPath() {
-        return this.path;
-    }
-
-    public void setPath(String path) {
-        this.path = path;
-    }
-
     @Override
     public void childAdded(Node child) {
         sortComponents();
@@ -52,8 +42,8 @@ public class GameObjectNode extends Node {
 
     @Override
     public String toString() {
-        if (this.path != null) {
-            return this.path;
+        if (getParent() == null && getModel() != null) {
+            return getModel().getTypeName(getClass());
         } else {
             return super.toString();
         }

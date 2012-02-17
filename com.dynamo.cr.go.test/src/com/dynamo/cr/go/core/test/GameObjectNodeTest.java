@@ -54,8 +54,7 @@ public class GameObjectNodeTest extends AbstractNodeTest {
 
     private void addComponent() throws Exception {
         DummyComponentNode componentType = new DummyComponentNode();
-        ComponentNode component = new ComponentNode(componentType);
-        execute(new AddComponentOperation(this.goNode, component, getPresenterContext()));
+        execute(new AddComponentOperation(this.goNode, componentType, getPresenterContext()));
         verifySelection();
     }
 

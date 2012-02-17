@@ -18,9 +18,7 @@ import org.eclipse.ui.statushandlers.StatusManager;
 import com.dynamo.cr.go.Constants;
 import com.dynamo.cr.go.core.CollectionInstanceNode;
 import com.dynamo.cr.go.core.CollectionNode;
-import com.dynamo.cr.go.core.ComponentTypeNode;
 import com.dynamo.cr.go.core.GameObjectInstanceNode;
-import com.dynamo.cr.go.core.GameObjectNode;
 import com.dynamo.cr.go.core.RefComponentNode;
 import com.dynamo.cr.sceneed.core.Node;
 
@@ -40,12 +38,8 @@ public class OpenReferenceHandler extends AbstractHandler {
                 if (node.getParent() != null) {
                     if (selected instanceof RefComponentNode) {
                         path = ((RefComponentNode)selected).getComponent();
-                    } else if (selected instanceof ComponentTypeNode) {
-                        path = ((ComponentTypeNode)selected).getPath();
                     } else if (selected instanceof GameObjectInstanceNode) {
                         path = ((GameObjectInstanceNode)selected).getGameObject();
-                    } else if (selected instanceof GameObjectNode) {
-                        path = ((GameObjectNode)selected).getPath();
                     } else if (selected instanceof CollectionInstanceNode) {
                         path = ((CollectionInstanceNode)selected).getCollection();
                     } else if (selected instanceof CollectionNode) {

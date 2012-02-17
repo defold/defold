@@ -608,33 +608,9 @@
                   <reference
                         definitionId="com.dynamo.cr.tileeditor.definitions.collisionGroupSelected">
                   </reference>
-                  <reference
-                        definitionId="com.dynamo.cr.tileeditor.definitions.collisionGroupGroupSelected">
-                  </reference>
                </or>
             </visibleWhen>
          </command>
-         <menu
-               label="Collision Groups">
-            <dynamic
-                  class="com.dynamo.cr.tileeditor.menus.CollisionGroupsContributionItem"
-                  id="com.dynamo.cr.tileeditor.dynamics.collisionGroups2">
-            </dynamic>
-            <visibleWhen
-                  checkEnabled="false">
-               <or>
-                  <reference
-                        definitionId="com.dynamo.cr.tileeditor.definitions.tileSetSelected">
-                  </reference>
-                  <reference
-                        definitionId="com.dynamo.cr.tileeditor.definitions.collisionGroupSelected">
-                  </reference>
-                  <reference
-                        definitionId="com.dynamo.cr.tileeditor.definitions.collisionGroupGroupSelected">
-                  </reference>
-               </or>
-            </visibleWhen>
-         </menu>
          <command
                commandId="com.dynamo.cr.sceneed.ui.commands.addLink"
                label="Add Animation"
@@ -647,9 +623,6 @@
                   </reference>
                   <reference
                         definitionId="com.dynamo.cr.tileeditor.definitions.animationSelected">
-                  </reference>
-                  <reference
-                        definitionId="com.dynamo.cr.tileeditor.definitions.animationGroupSelected">
                   </reference>
                </or>
             </visibleWhen>
@@ -693,12 +666,6 @@
                   </reference>
                   <reference
                         definitionId="com.dynamo.cr.tileeditor.definitions.collisionGroupSelected">
-                  </reference>
-                  <reference
-                        definitionId="com.dynamo.cr.tileeditor.definitions.collisionGroupGroupSelected">
-                  </reference>
-                  <reference
-                        definitionId="com.dynamo.cr.tileeditor.definitions.animationGroupSelected">
                   </reference>
                   <reference
                         definitionId="com.dynamo.cr.tileeditor.definitions.animationSelected">
@@ -933,24 +900,26 @@
                   <reference
                         definitionId="com.dynamo.cr.tileeditor.definitions.collisionGroupSelected">
                   </reference>
-                  <reference
-                        definitionId="com.dynamo.cr.tileeditor.definitions.collisionGroupGroupSelected">
-                  </reference>
                </or>
             </and>
          </activeWhen>
       </handler>
       <handler
-            class="com.dynamo.cr.tileeditor.handlers.RemoveCollisionGroupHandler"
+            class="com.dynamo.cr.tileeditor.handlers.RemoveTileSetChildrenHandler"
             commandId="org.eclipse.ui.edit.delete">
          <activeWhen>
             <and>
                <reference
                      definitionId="com.dynamo.cr.sceneed.definitions.selectionDeleteable">
                </reference>
-               <reference
-                     definitionId="com.dynamo.cr.tileeditor.definitions.collisionGroupSelected">
-               </reference>
+               <or>
+                  <reference
+                        definitionId="com.dynamo.cr.tileeditor.definitions.collisionGroupSelected">
+                  </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.tileeditor.definitions.animationSelected">
+                  </reference>
+               </or>
             </and>
          </activeWhen>
       </handler>
@@ -966,10 +935,7 @@
                      definitionId="com.dynamo.cr.tileeditor.definitions.collisionGroupSelected">
                </reference>
                <reference
-                     definitionId="com.dynamo.cr.tileeditor.definitions.collisionGroupGroupSelected">
-               </reference>
-               <reference
-                     definitionId="com.dynamo.cr.tileeditor.definitions.animationGroupSelected">
+                     definitionId="com.dynamo.cr.tileeditor.definitions.animationSelected">
                </reference>
             </or></activeWhen>
       </handler>
@@ -986,26 +952,9 @@
                         definitionId="com.dynamo.cr.tileeditor.definitions.animationSelected">
                   </reference>
                   <reference
-                        definitionId="com.dynamo.cr.tileeditor.definitions.animationGroupSelected">
-                  </reference>
-                  <reference
                         definitionId="com.dynamo.cr.tileeditor.definitions.tileSetSelected">
                   </reference>
                </or>
-            </and>
-         </activeWhen>
-      </handler>
-      <handler
-            class="com.dynamo.cr.tileeditor.handlers.RemoveAnimationHandler"
-            commandId="org.eclipse.ui.edit.delete">
-         <activeWhen>
-            <and>
-               <reference
-                     definitionId="com.dynamo.cr.sceneed.definitions.selectionDeleteable">
-               </reference>
-               <reference
-                     definitionId="com.dynamo.cr.tileeditor.definitions.animationSelected">
-               </reference>
             </and>
          </activeWhen>
       </handler>
@@ -1072,30 +1021,6 @@
                   operator="or">
                <instanceof
                      value="com.dynamo.cr.tileeditor.scene.CollisionGroupNode">
-               </instanceof>
-            </iterate>
-         </with>
-      </definition>
-      <definition
-            id="com.dynamo.cr.tileeditor.definitions.collisionGroupGroupSelected">
-         <with
-               variable="selection">
-            <iterate
-                  operator="or">
-               <instanceof
-                     value="com.dynamo.cr.tileeditor.scene.CollisionGroupGroupNode">
-               </instanceof>
-            </iterate>
-         </with>
-      </definition>
-      <definition
-            id="com.dynamo.cr.tileeditor.definitions.animationGroupSelected">
-         <with
-               variable="selection">
-            <iterate
-                  operator="or">
-               <instanceof
-                     value="com.dynamo.cr.tileeditor.scene.AnimationGroupNode">
                </instanceof>
             </iterate>
          </with>

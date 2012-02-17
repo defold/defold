@@ -40,7 +40,7 @@ public class TileSetLoader implements INodeLoader<TileSetNode> {
         for (int i = 0; i < ddf.getCollisionGroupsCount(); ++i) {
             CollisionGroupNode groupNode = new CollisionGroupNode();
             groupNode.setId(ddf.getCollisionGroups(i));
-            node.addCollisionGroup(groupNode);
+            node.addChild(groupNode);
         }
         // Load tile collision groups
         List<String> tileCollisionGroups = new ArrayList<String>(ddf.getConvexHullsCount());
@@ -59,7 +59,7 @@ public class TileSetLoader implements INodeLoader<TileSetNode> {
             animNode.setFps(animDdf.getFps());
             animNode.setFlipHorizontal(animDdf.getFlipHorizontal() != 0);
             animNode.setFlipVertical(animDdf.getFlipVertical() != 0);
-            node.addAnimation(animNode);
+            node.addChild(animNode);
         }
 
         return node;

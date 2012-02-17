@@ -59,8 +59,9 @@ public class RemoveChildrenOperation extends AbstractSelectOperation {
     @Override
     protected IStatus doUndo(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
-        for (Node child : this.children) {
-            this.parent.addChild(child);
+        int n = this.children.size();
+        for (int i = n - 1; i >= 0; --i) {
+            this.parent.addChild(this.children.get(i));
         }
         return Status.OK_STATUS;
     }

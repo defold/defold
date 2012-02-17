@@ -9,7 +9,7 @@ import com.dynamo.cr.tileeditor.scene.TileSetNode;
 public class AddCollisionGroupNodeOperation extends AddChildOperation {
 
     public AddCollisionGroupNodeOperation(TileSetNode tileSet, CollisionGroupNode collisionGroup, IPresenterContext presenterContext) {
-        super("Add Collision Group", tileSet.getCollisionGroupGroupNode(), collisionGroup, presenterContext);
+        super("Add Collision Group", tileSet, collisionGroup, presenterContext);
         String id = "default";
         id = NodeUtil.getUniqueId(tileSet.getCollisionGroups(), id, new NodeUtil.IdFetcher<CollisionGroupNode>() {
             @Override

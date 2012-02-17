@@ -31,7 +31,7 @@ import com.dynamo.cr.sceneed.core.test.AbstractNodeTest;
 import com.dynamo.cr.tileeditor.Activator;
 import com.dynamo.cr.tileeditor.operations.AddAnimationNodeOperation;
 import com.dynamo.cr.tileeditor.operations.AddCollisionGroupNodeOperation;
-import com.dynamo.cr.tileeditor.operations.RemoveCollisionGroupNodeOperation;
+import com.dynamo.cr.tileeditor.operations.RemoveTileSetChildrenOperation;
 import com.dynamo.cr.tileeditor.operations.SetTileCollisionGroupsOperation;
 import com.dynamo.cr.tileeditor.scene.AnimationNode;
 import com.dynamo.cr.tileeditor.scene.CollisionGroupNode;
@@ -146,7 +146,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
     }
 
     private void removeCollisionGroup(CollisionGroupNode collisionGroup) throws ExecutionException {
-        RemoveCollisionGroupNodeOperation op = new RemoveCollisionGroupNodeOperation(Collections.singletonList((Node)collisionGroup), getPresenterContext());
+        RemoveTileSetChildrenOperation op = new RemoveTileSetChildrenOperation(Collections.singletonList((Node)collisionGroup), getPresenterContext());
         execute(op);
         verifySelection();
     }
@@ -700,7 +700,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
 
         // Full
         int n = Activator.MAX_COLLISION_GROUP_COUNT;
-        for (int i = 1; i <= n; ++i) {
+        for (int i = 1; i < n; ++i) {
             addCollisionGroup();
             String id = collisionGroup(i).getId();
             Color newColor = CollisionGroupNode.getCollisionGroupColor(id);
