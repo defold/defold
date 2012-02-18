@@ -196,9 +196,10 @@ KeyListener {
 
     public void refresh(IStructuredSelection selection) {
         if (!this.tileSet.validate().isOK()) {
-            this.resetView = true;
+            setEnabled(false);
             return;
         }
+        setEnabled(true);
         if (this.context != null) {
             this.context.makeCurrent();
             setupRenderData();
@@ -571,7 +572,7 @@ KeyListener {
         int tileWidth = this.tileSet.getTileWidth();
         int tileHeight = this.tileSet.getTileHeight();
         List<ConvexHull> hulls = this.tileSet.getConvexHulls();
-        List<String> tileCollisionGroups = this.tileSet.getTileCollisionGroups();
+        List<CollisionGroupNode> tileCollisionGroups = this.tileSet.getTileCollisionGroups();
         float[] hullVertices = this.tileSet.getConvexHullPoints();
         Vector2f uvMin = new Vector2f();
         Vector2f uvMax = new Vector2f();
@@ -610,7 +611,12 @@ KeyListener {
                             this.hullVertexBuffer.put(x0 + 0.5f + hullVertices[hi+0]);
                             this.hullVertexBuffer.put(y0 + 0.5f + hullVertices[hi+1]);
                         }
-                        Color color = getCollisionGroupColor(tileCollisionGroups.get(index));
+                        String groupId = null;
+                        CollisionGroupNode group = tileCollisionGroups.get(index);
+                        if (group != null) {
+                            groupId = group.getId();
+                        }
+                        Color color = getCollisionGroupColor(groupId);
                         color.getColorComponents(hc);
                         float hx0 = x0 - halfBorder;
                         float hx1 = x1 + halfBorder;
@@ -720,7 +726,12 @@ KeyListener {
             int hullCount = hulls.size();
             for (int i = 0; i < hullCount; ++i) {
                 ConvexHull hull = hulls.get(i);
-                c = getCollisionGroupColor(tileCollisionGroups.get(i));
+                String groupId = null;
+                CollisionGroupNode group = tileCollisionGroups.get(i);
+                if (group != null) {
+                    groupId = group.getId();
+                }
+                c = getCollisionGroupColor(groupId);
                 gl.glColor4f(c.getRed() * f, c.getGreen() * f, c.getBlue() *
                 f, c.getAlpha() * f);
                 gl.glDrawArrays(GL.GL_LINE_LOOP, hull.getIndex(), hull.getCount());

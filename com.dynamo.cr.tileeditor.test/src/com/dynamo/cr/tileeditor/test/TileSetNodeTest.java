@@ -106,7 +106,12 @@ public class TileSetNodeTest extends AbstractNodeTest {
     }
 
     private String tileCollisionGroup(int i) {
-        return this.node.getTileCollisionGroups().get(i);
+        CollisionGroupNode group = this.node.getTileCollisionGroups().get(i);
+        if (group != null) {
+            return group.getId();
+        } else {
+            return null;
+        }
     }
 
     private int animationCount() {
@@ -214,7 +219,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
         loadWithTileCollisionGroup("default1");
 
         assertThat(collisionGroup(0).getId(), is("default"));
-        assertThat(tileCollisionGroup(0), is(""));
+        assertThat(tileCollisionGroup(0), nullValue());
     }
 
     private void loadWithAnimation(String path) throws Exception {
@@ -339,24 +344,25 @@ public class TileSetNodeTest extends AbstractNodeTest {
         // Requirements
         testCreate();
         addCollisionGroup();
+        CollisionGroupNode group = collisionGroup(1);
 
         // Preconditions
-        assertThat(tileCollisionGroup(1), is(""));
-        assertThat(tileCollisionGroup(2), is(""));
+        assertThat(tileCollisionGroup(1), nullValue());
+        assertThat(tileCollisionGroup(2), nullValue());
 
         // simulate painting
-        List<String> oldGroups = this.node.getTileCollisionGroups();
-        List<String> newGroups = new ArrayList<String>(oldGroups);
-        newGroups.set(1, "default1");
-        newGroups.set(2, "default1");
-        SetTileCollisionGroupsOperation op = new SetTileCollisionGroupsOperation(this.node, oldGroups, newGroups, "default1");
+        List<CollisionGroupNode> oldGroups = this.node.getTileCollisionGroups();
+        List<CollisionGroupNode> newGroups = new ArrayList<CollisionGroupNode>(oldGroups);
+        newGroups.set(1, group);
+        newGroups.set(2, group);
+        SetTileCollisionGroupsOperation op = new SetTileCollisionGroupsOperation(this.node, oldGroups, newGroups, group);
         execute(op);
         assertThat(tileCollisionGroup(1), is("default1"));
         assertThat(tileCollisionGroup(2), is("default1"));
 
         undo();
-        assertThat(tileCollisionGroup(1), is(""));
-        assertThat(tileCollisionGroup(2), is(""));
+        assertThat(tileCollisionGroup(1), nullValue());
+        assertThat(tileCollisionGroup(2), nullValue());
 
         redo();
         assertThat(tileCollisionGroup(1), is("default1"));
@@ -401,10 +407,10 @@ public class TileSetNodeTest extends AbstractNodeTest {
 
         // setup
         // simulate painting
-        List<String> oldGroups = this.node.getTileCollisionGroups();
-        List<String> newGroups = new ArrayList<String>(oldGroups);
-        newGroups.set(1, "default");
-        SetTileCollisionGroupsOperation op = new SetTileCollisionGroupsOperation(this.node, oldGroups, newGroups, "default1");
+        List<CollisionGroupNode> oldGroups = this.node.getTileCollisionGroups();
+        List<CollisionGroupNode> newGroups = new ArrayList<CollisionGroupNode>(oldGroups);
+        newGroups.set(1, collisionGroup(0));
+        SetTileCollisionGroupsOperation op = new SetTileCollisionGroupsOperation(this.node, oldGroups, newGroups, collisionGroup(1));
         execute(op);
 
         // preconditions
@@ -444,7 +450,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
         // test
         removeCollisionGroup(collisionGroup(1));
         assertThat(collisionGroupCount(), is(1));
-        assertThat(tileCollisionGroup(1), is(""));
+        assertThat(tileCollisionGroup(1), nullValue());
 
         undo();
         assertThat(collisionGroupCount(), is(2));
@@ -453,7 +459,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
 
         redo();
         assertThat(collisionGroupCount(), is(1));
-        assertThat(tileCollisionGroup(1), is(""));
+        assertThat(tileCollisionGroup(1), nullValue());
         verifySelection();
     }
 

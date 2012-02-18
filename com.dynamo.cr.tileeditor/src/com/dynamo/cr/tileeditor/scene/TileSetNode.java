@@ -236,38 +236,22 @@ public class TileSetNode extends Node {
         return Collections.unmodifiableList(this.convexHulls);
     }
 
-    public List<String> getTileCollisionGroups() {
+    public List<CollisionGroupNode> getTileCollisionGroups() {
         int n = this.tileCollisionGroupCount;
-        List<String> tileCollisionGroups = new ArrayList<String>(n);
+        List<CollisionGroupNode> result = new ArrayList<CollisionGroupNode>(n);
         for (int i = 0; i < n; ++i) {
-            CollisionGroupNode collisionGroup = null;
-            if (i < this.tileCollisionGroups.size()) {
-                collisionGroup = this.tileCollisionGroups.get(i);
-            }
-            if (collisionGroup != null) {
-                tileCollisionGroups.add(collisionGroup.getId());
+            CollisionGroupNode group = this.tileCollisionGroups.get(i);
+            if (group != null && group.getParent() != null) {
+                result.add(group);
             } else {
-                tileCollisionGroups.add("");
+                result.add(null);
             }
         }
-        return tileCollisionGroups;
+        return result;
     }
 
-    public void setTileCollisionGroups(List<String> tileCollisionGroups) {
-        int newSize = tileCollisionGroups.size();
-        List<CollisionGroupNode> tileGroupNodes = new ArrayList<CollisionGroupNode>(newSize);
-        List<CollisionGroupNode> sortedCollisionGroups = getCollisionGroups();
-        Collections.sort(sortedCollisionGroups);
-        for (int i = 0; i < newSize; ++i) {
-            int index = Collections.binarySearch(sortedCollisionGroups, new CollisionGroupNode(tileCollisionGroups.get(i)));
-            if (index >= 0) {
-                tileGroupNodes.add(sortedCollisionGroups.get(index));
-            } else {
-                tileGroupNodes.add(null);
-            }
-        }
-        this.tileCollisionGroups = tileGroupNodes;
-        updateConvexHulls();
+    public void setTileCollisionGroups(List<CollisionGroupNode> tileCollisionGroups) {
+        this.tileCollisionGroups = new ArrayList<CollisionGroupNode>(tileCollisionGroups);
     }
 
     public float[] getConvexHullPoints() {

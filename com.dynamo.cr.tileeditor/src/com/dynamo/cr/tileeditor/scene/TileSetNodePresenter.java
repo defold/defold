@@ -19,9 +19,9 @@ import com.dynamo.cr.tileeditor.util.Animator;
 public class TileSetNodePresenter implements INodePresenter<TileSetNode> {
     // Used for painting collision groups onto tiles (convex hulls)
     // TODO remove this state, should be handled by a painter tool with state
-    private List<String> oldTileCollisionGroups;
-    private List<String> newTileCollisionGroups;
-    private String currentCollisionGroup;
+    private List<CollisionGroupNode> oldTileCollisionGroups;
+    private List<CollisionGroupNode> newTileCollisionGroups;
+    private CollisionGroupNode currentCollisionGroup;
     // Used for playing animations
     private Animator animator;
 
@@ -35,10 +35,10 @@ public class TileSetNodePresenter implements INodePresenter<TileSetNode> {
             collisionGroup = (CollisionGroupNode)collisionGroups.get(0);
         }
         this.oldTileCollisionGroups = tileSet.getTileCollisionGroups();
-        this.newTileCollisionGroups = new ArrayList<String>(this.oldTileCollisionGroups);
-        this.currentCollisionGroup = "";
+        this.newTileCollisionGroups = new ArrayList<CollisionGroupNode>(this.oldTileCollisionGroups);
+        this.currentCollisionGroup = null;
         if (collisionGroup != null) {
-            this.currentCollisionGroup = collisionGroup.getId();
+            this.currentCollisionGroup = collisionGroup;
         }
     }
 
@@ -60,7 +60,7 @@ public class TileSetNodePresenter implements INodePresenter<TileSetNode> {
         if (this.currentCollisionGroup != null) {
             IStructuredSelection selection = presenterContext.getSelection();
             TileSetNode tileSet = TileSetUtil.getCurrentTileSet(selection);
-            if (!this.newTileCollisionGroups.get(index).equals(this.currentCollisionGroup)) {
+            if (this.newTileCollisionGroups.get(index) != this.currentCollisionGroup) {
                 this.newTileCollisionGroups.set(index, this.currentCollisionGroup);
                 tileSet.setTileCollisionGroups(this.newTileCollisionGroups);
                 presenterContext.refreshView();

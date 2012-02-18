@@ -9,15 +9,16 @@ import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 
+import com.dynamo.cr.tileeditor.scene.CollisionGroupNode;
 import com.dynamo.cr.tileeditor.scene.TileSetNode;
 
 public class SetTileCollisionGroupsOperation extends AbstractOperation {
     TileSetNode tileSet;
-    List<String> oldTileCollisionGroups;
-    List<String> newTileCollisionGroups;
+    List<CollisionGroupNode> oldTileCollisionGroups;
+    List<CollisionGroupNode> newTileCollisionGroups;
 
-    public SetTileCollisionGroupsOperation(TileSetNode tileSet, List<String> oldTileCollisionGroups, List<String> newTileCollisionGroups, String collisionGroup) {
-        super(collisionGroup.equals("")?"Clear Collision Group":"Set Collision Group");
+    public SetTileCollisionGroupsOperation(TileSetNode tileSet, List<CollisionGroupNode> oldTileCollisionGroups, List<CollisionGroupNode> newTileCollisionGroups, CollisionGroupNode collisionGroup) {
+        super(collisionGroup == null ? "Clear Collision Group" : "Set Collision Group");
         this.tileSet = tileSet;
         this.oldTileCollisionGroups = oldTileCollisionGroups;
         this.newTileCollisionGroups = newTileCollisionGroups;

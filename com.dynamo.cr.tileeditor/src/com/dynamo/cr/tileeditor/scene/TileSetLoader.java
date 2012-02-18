@@ -4,7 +4,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
@@ -37,15 +39,18 @@ public class TileSetLoader implements INodeLoader<TileSetNode> {
         node.setCollision(ddf.getCollision());
         node.setMaterialTag(ddf.getMaterialTag());
         // Load collision groups
+        Map<String, CollisionGroupNode> collisionGroups = new HashMap<String, CollisionGroupNode>();
         for (int i = 0; i < ddf.getCollisionGroupsCount(); ++i) {
             CollisionGroupNode groupNode = new CollisionGroupNode();
-            groupNode.setId(ddf.getCollisionGroups(i));
+            String groupId = ddf.getCollisionGroups(i);
+            groupNode.setId(groupId);
             node.addChild(groupNode);
+            collisionGroups.put(groupId, groupNode);
         }
         // Load tile collision groups
-        List<String> tileCollisionGroups = new ArrayList<String>(ddf.getConvexHullsCount());
+        List<CollisionGroupNode> tileCollisionGroups = new ArrayList<CollisionGroupNode>(ddf.getConvexHullsCount());
         for (ConvexHull hull : ddf.getConvexHullsList()) {
-            tileCollisionGroups.add(hull.getCollisionGroup());
+            tileCollisionGroups.add(collisionGroups.get(hull.getCollisionGroup()));
         }
         node.setTileCollisionGroups(tileCollisionGroups);
         // Load animations
@@ -78,15 +83,19 @@ public class TileSetLoader implements INodeLoader<TileSetNode> {
                 .setMaterialTag(node.getMaterialTag());
         // Save tile collision groups
         List<com.dynamo.tile.ConvexHull> hulls = node.getConvexHulls();
-        List<String> tileCollisionGroups = node.getTileCollisionGroups();
+        List<CollisionGroupNode> tileCollisionGroups = node.getTileCollisionGroups();
         int count = hulls.size();
         for (int i = 0; i < count; ++i) {
             com.dynamo.tile.ConvexHull convexHull = hulls.get(i);
             Tile.ConvexHull.Builder convexHullBuilder = Tile.ConvexHull.newBuilder();
             convexHullBuilder.setIndex(convexHull.getIndex());
             convexHullBuilder.setCount(convexHull.getCount());
-            String collisionGroup = tileCollisionGroups.get(i);
-            convexHullBuilder.setCollisionGroup(collisionGroup);
+            String collisionGroupId = "";
+            CollisionGroupNode collisionGroup = tileCollisionGroups.get(i);
+            if (collisionGroup != null) {
+                collisionGroupId = collisionGroup.getId();
+            }
+            convexHullBuilder.setCollisionGroup(collisionGroupId);
             tileSetBuilder.addConvexHulls(convexHullBuilder);
         }
         // Save collision groups

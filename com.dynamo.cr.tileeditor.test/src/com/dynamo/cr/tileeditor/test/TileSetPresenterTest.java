@@ -100,7 +100,7 @@ public class TileSetPresenterTest extends AbstractPresenterTest {
         CollisionGroupNode collisionGroup = mock(CollisionGroupNode.class);
         when(collisionGroup.getId()).thenReturn("default");
         when(collisionGroup.getTileSetNode()).thenReturn(tileSet);
-        when(tileSet.getTileCollisionGroups()).thenReturn(Collections.nCopies(4, ""));
+        when(tileSet.getTileCollisionGroups()).thenReturn(Collections.nCopies(4, (CollisionGroupNode)null));
         select(collisionGroup);
 
         // Simulate painting
@@ -115,7 +115,7 @@ public class TileSetPresenterTest extends AbstractPresenterTest {
         verifyExecution();
 
         // Simulate erasing
-        when(tileSet.getTileCollisionGroups()).thenReturn(Collections.nCopies(4, "default"));
+        when(tileSet.getTileCollisionGroups()).thenReturn(Collections.nCopies(4, collisionGroup));
         select(tileSet);
         this.presenter.onBeginPaintTile(getPresenterContext());
         this.presenter.onPaintTile(getPresenterContext(), 1);

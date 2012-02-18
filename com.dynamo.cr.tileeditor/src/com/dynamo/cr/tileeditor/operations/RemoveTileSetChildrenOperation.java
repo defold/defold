@@ -2,9 +2,9 @@ package com.dynamo.cr.tileeditor.operations;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.runtime.IAdaptable;
@@ -21,30 +21,35 @@ import com.dynamo.cr.tileeditor.scene.TileSetNode;
 public class RemoveTileSetChildrenOperation extends RemoveChildrenOperation {
 
     final private TileSetNode tileSet;
-    final private List<String> oldTileCollisionGroups;
-    final private List<String> newTileCollisionGroups;
+    final private List<CollisionGroupNode> oldTileCollisionGroups;
+    final private List<CollisionGroupNode> newTileCollisionGroups;
 
     public RemoveTileSetChildrenOperation(List<Node> children, IPresenterContext presenterContext) {
         super(children, presenterContext);
         this.tileSet = (TileSetNode)children.get(0).getParent();
         this.oldTileCollisionGroups = this.tileSet.getTileCollisionGroups();
-        this.newTileCollisionGroups = new ArrayList<String>(this.oldTileCollisionGroups);
-        // Clear out all unused collision groups
-        Set<String> removedSet = new HashSet<String>();
-        for (Node node : children) {
-            if (node instanceof CollisionGroupNode) {
-                removedSet.add(((CollisionGroupNode)node).getId());
+        this.newTileCollisionGroups = new ArrayList<CollisionGroupNode>(this.oldTileCollisionGroups);
+        // Re-map tiles to other groups with the same ids
+        List<CollisionGroupNode> allGroups = this.tileSet.getCollisionGroups();
+        Map<CollisionGroupNode, CollisionGroupNode> replacements = new HashMap<CollisionGroupNode, CollisionGroupNode>();
+        for (Node child : children) {
+            if (child instanceof CollisionGroupNode) {
+                CollisionGroupNode group = (CollisionGroupNode)child;
+                boolean found = false;
+                for (CollisionGroupNode replacement : allGroups) {
+                    if (group != replacement && group.getId().equals(replacement.getId())) {
+                        replacements.put(group, replacement);
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    replacements.put(group, null);
+                }
             }
         }
-        List<Node> remainingGroups = new ArrayList<Node>(this.tileSet.getCollisionGroups());
-        remainingGroups.removeAll(children);
-        Set<String> remainingSet = new HashSet<String>();
-        for (Node node : remainingGroups) {
-            remainingSet.add(((CollisionGroupNode)node).getId());
-        }
-        removedSet.removeAll(remainingSet);
-        for (String group : removedSet) {
-            Collections.replaceAll(this.newTileCollisionGroups, group, "");
+        for (Map.Entry<CollisionGroupNode, CollisionGroupNode> entry : replacements.entrySet()) {
+            Collections.replaceAll(this.newTileCollisionGroups, entry.getKey(), entry.getValue());
         }
     }
 
