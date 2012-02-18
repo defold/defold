@@ -43,28 +43,24 @@ public class TileSetNodePresenter implements INodePresenter<TileSetNode> {
     }
 
     public void onEndPaintTile(IPresenterContext presenterContext) {
-        if (this.currentCollisionGroup != null) {
-            IStructuredSelection selection = presenterContext.getSelection();
-            TileSetNode tileSet = TileSetUtil.getCurrentTileSet(selection);
-            if (!this.oldTileCollisionGroups.equals(this.newTileCollisionGroups)) {
-                presenterContext.executeOperation(new SetTileCollisionGroupsOperation(
-                        tileSet, this.oldTileCollisionGroups,
-                        this.newTileCollisionGroups,
-                        this.currentCollisionGroup));
-            }
-            this.currentCollisionGroup = null;
+        IStructuredSelection selection = presenterContext.getSelection();
+        TileSetNode tileSet = TileSetUtil.getCurrentTileSet(selection);
+        if (!this.oldTileCollisionGroups.equals(this.newTileCollisionGroups)) {
+            presenterContext.executeOperation(new SetTileCollisionGroupsOperation(
+                    tileSet, this.oldTileCollisionGroups,
+                    this.newTileCollisionGroups,
+                    this.currentCollisionGroup));
         }
+        this.currentCollisionGroup = null;
     }
 
     public void onPaintTile(IPresenterContext presenterContext, int index) {
-        if (this.currentCollisionGroup != null) {
-            IStructuredSelection selection = presenterContext.getSelection();
-            TileSetNode tileSet = TileSetUtil.getCurrentTileSet(selection);
-            if (this.newTileCollisionGroups.get(index) != this.currentCollisionGroup) {
-                this.newTileCollisionGroups.set(index, this.currentCollisionGroup);
-                tileSet.setTileCollisionGroups(this.newTileCollisionGroups);
-                presenterContext.refreshView();
-            }
+        IStructuredSelection selection = presenterContext.getSelection();
+        TileSetNode tileSet = TileSetUtil.getCurrentTileSet(selection);
+        if (this.newTileCollisionGroups.get(index) != this.currentCollisionGroup) {
+            this.newTileCollisionGroups.set(index, this.currentCollisionGroup);
+            tileSet.setTileCollisionGroups(this.newTileCollisionGroups);
+            presenterContext.refreshView();
         }
     }
 

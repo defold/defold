@@ -45,7 +45,9 @@ public class TileSetLoader implements INodeLoader<TileSetNode> {
             String groupId = ddf.getCollisionGroups(i);
             groupNode.setId(groupId);
             node.addChild(groupNode);
-            collisionGroups.put(groupId, groupNode);
+            if (!collisionGroups.containsKey(groupId)) {
+                collisionGroups.put(groupId, groupNode);
+            }
         }
         // Load tile collision groups
         List<CollisionGroupNode> tileCollisionGroups = new ArrayList<CollisionGroupNode>(ddf.getConvexHullsCount());

@@ -254,6 +254,34 @@ public class TileSetNodeTest extends AbstractNodeTest {
         saveLoadCompare(this.loader, TileSet.newBuilder(), path);
     }
 
+    @Test
+    public void testLoadDuplicateCollisionGroupIds() throws Exception {
+        String img = "/2x5_16_1.png";
+        StringBuffer ddf = new StringBuffer();
+        ddf.append("image: \"").append(img).append("\" tile_width: 16 tile_height: 16 tile_margin: 0 tile_spacing: 1 ")
+            .append("collision: \"").append(img).append("\" material_tag: \"tile\" collision_groups: \"default\" collision_groups: \"default\"")
+            .append("animations: {id: \"anim\" start_tile: 1 end_tile: 4 playback: PLAYBACK2_ONCE_FORWARD ")
+            .append("fps: 30 flip_horizontal: 0 flip_vertical: 0}")
+            .append("convex_hulls: {index: 0 count: 3 collision_group: \"default\"} ");
+        float[] points = new float[] {
+                0.0f, 0.0f, 0.0f,
+                1.0f, 0.0f, 0.0f,
+                0.0f, 1.0f, 0.0f
+        };
+        for (float f : points) {
+            ddf.append("convex_hull_points: " + f + " ");
+        }
+
+        String path = "/faulty.tileset";
+        registerFile(path, ddf.toString());
+
+        this.node = this.loader.load(getLoaderContext(), getFile(path).getContents());
+        this.node.setModel(getModel());
+
+        assertThat(convexHullCount(), is(10));
+        assertThat(tileCollisionGroup(0), is("default"));
+    }
+
     /**
      * Use Case 1.1.1 - Create the Tile Set
      *

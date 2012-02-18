@@ -46,7 +46,8 @@ Comparable<CollisionGroupNode> {
             registerId();
             TileSetNode tileSet = getTileSetNode();
             if (tileSet != null) {
-                getTileSetNode().sortChildren();
+                tileSet.sortChildren();
+                tileSet.updateConvexHulls();
             }
         }
     }

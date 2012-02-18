@@ -360,14 +360,15 @@ public class TileSetNode extends Node {
         return new Status(IStatus.ERROR, Activator.PLUGIN_ID, NLS.bind(message, binding));
     }
 
-    private void updateConvexHulls() {
+    public void updateConvexHulls() {
         if (getModel() != null) {
-            IStatus status = validate();
-            if (status.isOK() && this.loadedCollision != null) {
-                ConvexHulls result = TileSetUtil.calculateConvexHulls(loadedCollision.getAlphaRaster(), PLANE_COUNT,
-                        loadedCollision.getWidth(), loadedCollision.getHeight(),
-                        tileWidth, tileHeight, tileMargin, tileSpacing);
-
+            ConvexHulls result = null;
+            if (this.loadedCollision != null && this.tileWidth > 0 && this.tileHeight > 0 && this.tileMargin >= 0 && this.tileSpacing >= 0) {
+                result = TileSetUtil.calculateConvexHulls(loadedCollision.getAlphaRaster(), PLANE_COUNT,
+                    loadedCollision.getWidth(), loadedCollision.getHeight(),
+                    tileWidth, tileHeight, tileMargin, tileSpacing);
+            }
+            if (result != null) {
                 int tileCount = result.hulls.length;
                 this.convexHulls = Arrays.asList(result.hulls);
                 // Add additional slots for tile collision groups (never shrink
