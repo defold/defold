@@ -67,6 +67,10 @@ public class AbstractPresenterTest {
         when(getPresenterContext().getSelection()).thenReturn(new StructuredSelection(node));
     }
 
+    protected void select(Node[] nodes) {
+        when(getPresenterContext().getSelection()).thenReturn(new StructuredSelection(nodes));
+    }
+
     protected void verifyRefresh() {
         ++this.refreshCounter;
         verify(this.presenterContext, times(this.refreshCounter)).refreshView();

@@ -58,6 +58,7 @@ import com.dynamo.cr.editor.ui.Logger;
 import com.dynamo.cr.properties.IFormPropertySheetPage;
 import com.dynamo.cr.sceneed.Activator;
 import com.dynamo.cr.sceneed.core.CameraController;
+import com.dynamo.cr.sceneed.core.IClipboard;
 import com.dynamo.cr.sceneed.core.IImageProvider;
 import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.IManipulatorMode;
@@ -121,6 +122,7 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
             bind(ILoaderContext.class).to(LoaderContext.class).in(Singleton.class);
             bind(IPresenterContext.class).to(PresenterContext.class).in(Singleton.class);
             bind(IImageProvider.class).toInstance(Activator.getDefault());
+            bind(IClipboard.class).to(SceneClipboard.class).in(Singleton.class);
 
             bind(CameraController.class).in(Singleton.class);
 
@@ -376,6 +378,11 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
     @Override
     public ISceneView.IPresenterContext getPresenterContext() {
         return this.presenterContext;
+    }
+
+    @Override
+    public ISceneView.IPresenter getScenePresenter() {
+        return this.presenter;
     }
 
     @Override

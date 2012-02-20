@@ -15,6 +15,14 @@
             id="com.dynamo.cr.sceneed.core.test.dummySphereScaleManipulator"
             node="com.dynamo.cr.sceneed.core.test.DummySphereScaleManipulator">
       </node-type>
+      <node-type
+            id="com.dynamo.cr.sceneed.test.dummyNode"
+            loader="com.dynamo.cr.sceneed.core.test.DummyLoader"
+            node="com.dynamo.cr.sceneed.core.test.DummyNode">
+         <child
+               node="com.dynamo.cr.sceneed.core.test.DummyChild">
+         </child>
+      </node-type>
    </extension>
 
 </plugin>

@@ -1,12 +1,14 @@
 package com.dynamo.cr.sceneed.core;
 
+import java.util.List;
+
 import com.dynamo.cr.editor.core.IResourceType;
 
 public interface INodeType {
 
     String getExtension();
 
-    INodeLoader<Node> getLoader();
+    INodeLoader getLoader();
 
     ISceneView.INodePresenter<?> getPresenter();
 
@@ -15,6 +17,7 @@ public interface INodeType {
     IResourceType getResourceType();
 
     Class<?> getNodeClass();
+    List<Class<?>> getChildClasses();
 
     String getDisplayGroup();
 

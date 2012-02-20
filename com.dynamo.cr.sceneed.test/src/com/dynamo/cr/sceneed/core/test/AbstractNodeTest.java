@@ -292,11 +292,12 @@ public abstract class AbstractNodeTest {
         return destinationFile;
     }
 
-    protected <T extends Node> T registerAndLoadNodeType(Class<T> nodeClass, String extension, INodeLoader<T> loader) throws IOException, CoreException {
+    protected <T extends Node> T registerAndLoadNodeType(Class<T> nodeClass, String extension, INodeLoader loader) throws IOException, CoreException {
         when(getModel().getExtension(nodeClass)).thenReturn(extension);
         IResourceType resourceType = this.resourceTypeRegistry.getResourceTypeFromExtension(extension);
         byte[] ddf = resourceType.getTemplateData();
-        T node = loader.load(getLoaderContext(), new ByteArrayInputStream(ddf));
+        @SuppressWarnings("unchecked")
+        T node = (T)loader.load(getLoaderContext(), nodeClass, new ByteArrayInputStream(ddf));
         node.setModel(getModel());
         when(this.presenterContext.getSelection()).thenReturn(new StructuredSelection(node));
         return node;
@@ -310,14 +311,14 @@ public abstract class AbstractNodeTest {
         when(getModel().loadNode(path)).thenReturn(node);
     }
 
-    protected <T extends Node> void saveLoadCompare(INodeLoader<T> loader, @SuppressWarnings("rawtypes") GeneratedMessage.Builder builder, String path) throws IOException, CoreException {
+    protected void saveLoadCompare(Class<? extends Node> nodeClass, INodeLoader loader, @SuppressWarnings("rawtypes") GeneratedMessage.Builder builder, String path) throws IOException, CoreException {
         IFile file = getFile(path);
         Reader reader = new InputStreamReader(file.getContents());
         TextFormat.merge(reader, builder);
         reader.close();
         Message directMessage = builder.build();
 
-        T node = loader.load(this.loaderContext, file.getContents());
+        Node node = loader.load(this.loaderContext, nodeClass, file.getContents());
         Message createdMessage = loader.buildMessage(this.loaderContext, node, new NullProgressMonitor());
         assertEquals(directMessage.toString(), createdMessage.toString());
     }

@@ -47,13 +47,14 @@ com.dynamo.cr.sceneed.core.ILoaderContext {
         return null;
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public Node loadNode(String extension, InputStream contents)
             throws IOException, CoreException {
         INodeType nodeType = this.nodeTypeRegistry.getNodeTypeFromExtension(extension);
         if (nodeType != null) {
-            INodeLoader<Node> loader = nodeType.getLoader();
-            return loader.load(this, contents);
+            INodeLoader loader = nodeType.getLoader();
+            return loader.load(this, (Class<? extends Node>)nodeType.getNodeClass(), contents);
         }
         return null;
     }

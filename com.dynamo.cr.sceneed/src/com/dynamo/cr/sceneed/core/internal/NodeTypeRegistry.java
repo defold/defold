@@ -1,6 +1,8 @@
 package com.dynamo.cr.sceneed.core.internal;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.eclipse.core.runtime.IConfigurationElement;
@@ -51,10 +53,14 @@ public class NodeTypeRegistry implements INodeTypeRegistry {
                 }
 
                 Class<?> nodeClass = bundle.loadClass(e.getAttribute("node"));
+                List<Class<?>> childClasses = new ArrayList<Class<?>>(e.getChildren().length);
+                for (IConfigurationElement element : e.getChildren()) {
+                    childClasses.add(bundle.loadClass(element.getAttribute("node")));
+                }
 
-                INodeLoader<Node> nodeLoader = null;
+                INodeLoader nodeLoader = null;
                 if (e.getAttribute("loader") != null) {
-                    nodeLoader = (INodeLoader<Node>)e.createExecutableExtension("loader");
+                    nodeLoader = (INodeLoader)e.createExecutableExtension("loader");
                 }
 
                 ISceneView.INodePresenter<Node> nodePresenter = null;
@@ -69,7 +75,7 @@ public class NodeTypeRegistry implements INodeTypeRegistry {
 
                 String displayGroup = e.getAttribute("display-group");
 
-                NodeType type = new NodeType(extension, nodeLoader, nodePresenter, nodeRenderer, resourceType, nodeClass, displayGroup);
+                NodeType type = new NodeType(extension, nodeLoader, nodePresenter, nodeRenderer, resourceType, nodeClass, childClasses, displayGroup);
                 if (extension != null) {
                     this.extToClass.put(extension, nodeClass);
                 }

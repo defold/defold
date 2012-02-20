@@ -1,5 +1,7 @@
 package com.dynamo.cr.sceneed.core.operations;
 
+import java.util.List;
+
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.AbstractOperation;
 import org.eclipse.core.runtime.IAdaptable;
@@ -22,6 +24,14 @@ public abstract class AbstractSelectOperation extends AbstractOperation {
 
         this.oldSelection = presenterContext.getSelection();
         this.newSelection = new StructuredSelection(selected);
+        this.presenterContext = presenterContext;
+    }
+
+    public AbstractSelectOperation(String label, List<Node> selected, IPresenterContext presenterContext) {
+        super(label);
+
+        this.oldSelection = presenterContext.getSelection();
+        this.newSelection = new StructuredSelection(selected.toArray());
         this.presenterContext = presenterContext;
     }
 

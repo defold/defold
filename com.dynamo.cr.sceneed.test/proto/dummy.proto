@@ -1,0 +1,17 @@
+package dmProtoBind;
+
+import "ddf/ddf_extensions.proto";
+import "ddf/ddf_math.proto";
+
+option java_package = "com.dynamo.cr.sceneed.test.proto";
+option java_outer_classname = "Dummy";
+
+message DummyChildDesc
+{
+    required int32 int_val = 1;
+}
+
+message DummyNodeDesc
+{
+    repeated DummyChildDesc children = 1;
+}

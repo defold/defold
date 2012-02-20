@@ -1,5 +1,7 @@
 package com.dynamo.cr.sceneed.core.internal;
 
+import java.util.List;
+
 import com.dynamo.cr.editor.core.IResourceType;
 import com.dynamo.cr.sceneed.core.INodeLoader;
 import com.dynamo.cr.sceneed.core.INodeRenderer;
@@ -11,20 +13,22 @@ import com.dynamo.cr.sceneed.core.Node;
 public class NodeType implements INodeType {
 
     private final String extension;
-    private final INodeLoader<Node> loader;
+    private final INodeLoader loader;
     private final ISceneView.INodePresenter<Node> presenter;
     private final INodeRenderer<Node> renderer;
     private final IResourceType resourceType;
     private final Class<?> nodeClass;
+    private final List<Class<?>> childClasses;
     private final String displayGroup;
 
-    public NodeType(String extension, INodeLoader<Node> loader, ISceneView.INodePresenter<Node> presenter, INodeRenderer<Node> renderer, IResourceType resourceType, Class<?> nodeClass, String displayGroup) {
+    public NodeType(String extension, INodeLoader loader, ISceneView.INodePresenter<Node> presenter, INodeRenderer<Node> renderer, IResourceType resourceType, Class<?> nodeClass, List<Class<?>> childClasses, String displayGroup) {
         this.extension = extension;
         this.loader = loader;
         this.presenter = presenter;
         this.renderer = renderer;
         this.resourceType = resourceType;
         this.nodeClass = nodeClass;
+        this.childClasses = childClasses;
         this.displayGroup = displayGroup;
     }
 
@@ -34,7 +38,7 @@ public class NodeType implements INodeType {
     }
 
     @Override
-    public INodeLoader<Node> getLoader() {
+    public INodeLoader getLoader() {
         return this.loader;
     }
 
@@ -56,6 +60,11 @@ public class NodeType implements INodeType {
     @Override
     public Class<?> getNodeClass() {
         return this.nodeClass;
+    }
+
+    @Override
+    public List<Class<?>> getChildClasses() {
+        return this.childClasses;
     }
 
     @Override

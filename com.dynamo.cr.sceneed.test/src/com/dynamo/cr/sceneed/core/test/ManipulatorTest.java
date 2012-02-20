@@ -36,6 +36,7 @@ import org.junit.Test;
 import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.editor.core.inject.LifecycleModule;
 import com.dynamo.cr.sceneed.Activator;
+import com.dynamo.cr.sceneed.core.IClipboard;
 import com.dynamo.cr.sceneed.core.IImageProvider;
 import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.IManipulatorMode;
@@ -82,6 +83,7 @@ public class ManipulatorTest {
             bind(ISceneView.IPresenter.class).to(ScenePresenter.class).in(Singleton.class);
             bind(IModelListener.class).to(ScenePresenter.class).in(Singleton.class);
             bind(ISceneModel.class).to(SceneModel.class).in(Singleton.class);
+            bind(IClipboard.class).to(TestClipboard.class).in(Singleton.class);
 
             // Heavy mocking of interfaces
             bind(INodeTypeRegistry.class).toInstance(mock(INodeTypeRegistry.class));

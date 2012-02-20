@@ -22,6 +22,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.dynamo.cr.editor.core.ILogger;
+import com.dynamo.cr.sceneed.core.IClipboard;
 import com.dynamo.cr.sceneed.core.IImageProvider;
 import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.IManipulatorRegistry;
@@ -30,8 +31,8 @@ import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
 import com.dynamo.cr.sceneed.core.IRenderView;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.ISceneView;
-import com.dynamo.cr.sceneed.core.ManipulatorController;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
+import com.dynamo.cr.sceneed.core.ManipulatorController;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.SceneModel;
 import com.dynamo.cr.sceneed.core.ScenePresenter;
@@ -72,6 +73,7 @@ public class SceneTest {
             bind(ISelectionService.class).toInstance(mock(ISelectionService.class));
             bind(IRenderView.class).toInstance(mock(IRenderView.class));
             bind(IManipulatorRegistry.class).toInstance(mock(IManipulatorRegistry.class));
+            bind(IClipboard.class).to(TestClipboard.class).in(Singleton.class);
         }
     }
 

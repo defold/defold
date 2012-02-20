@@ -12,7 +12,6 @@ import org.junit.Test;
 
 import com.dynamo.cr.editor.core.IResourceType;
 import com.dynamo.cr.editor.core.IResourceTypeRegistry;
-import com.dynamo.cr.sceneed.core.test.DummyNode.DummyLoader;
 
 public class NodeTest extends AbstractNodeTest {
 
