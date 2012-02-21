@@ -4,11 +4,12 @@
  * NOTE: This function is private in ntdll and changed in window 2000
  * We assume version >= NT5, ie windows 2000.
  */
-unsigned long __stdcall NtAllocateUuids(void* time  /* 8 bytes */,
-                                        void* range /* 4 bytes */,
-                                        void* sequence /* 4 bytes */,
-                                        void* seed /* 6 bytes */);
-#pragma comment(lib, "ntdll.lib")
+unsigned long (__stdcall* NtAllocateUuidsProto)(void* time  /* 8 bytes */,
+                                                void* range /* 4 bytes */,
+                                                void* sequence /* 4 bytes */,
+                                                void* seed /* 6 bytes */);
+#include <winbase.h>
+
 #else
 #include <uuid/uuid.h>
 #endif
@@ -21,6 +22,28 @@ namespace dmUUID
 #ifdef _WIN32
     void Generate(UUID* uuid)
     {
+        static NtAllocateUuidsProto* NtAllocateUuids = 0;
+        if (!NtAllocateUuids)
+        {
+            // NOTE: We don't call FreeLibrary as we keep a reference to NtAllocateUuids
+            // Yes, this is a potential leak but Loading/Closing the library
+            // for every call doesn't seems to be reasonable either
+            HMODULE ntdll = LoadLibrary("ntdll.dll");
+            assert(ntdll);
+            if (!ntdll)
+            {
+                dmLogFatal("Unable to load ntdll.dll (%x)", GetLastError());
+                return;
+            }
+            NtAllocateUuids = GetProcAddress(ntdll, "NtAllocateUuids");
+            assert(NtAllocateUuids);
+            if (!NtAllocateUuids)
+            {
+                dmLogFatal("Unable to find function NtAllocateUuids (%x)", GetLastError());
+                return;
+            }
+        }
+
         static unsigned char seed[6] = { '\0' };
         uint8_t* p = &uuid->m_UUID[0];
         NtAllocateUuids(p, p+8, p+12, &seed[0] );
