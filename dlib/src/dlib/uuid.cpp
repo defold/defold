@@ -22,7 +22,7 @@ namespace dmUUID
 #ifdef _WIN32
     void Generate(UUID* uuid)
     {
-        static NtAllocateUuidsProto* NtAllocateUuids = 0;
+        static NtAllocateUuidsProto NtAllocateUuids = 0;
         if (!NtAllocateUuids)
         {
             // NOTE: We don't call FreeLibrary as we keep a reference to NtAllocateUuids
