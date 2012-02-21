@@ -247,3 +247,11 @@ def build(bld):
 
     test_sys.install_path = None
 
+    test_uuid = bld.new_task_gen(features = 'cxx cprogram',
+                                source = 'test_uuid.cpp',
+                                uselib = 'GTEST THREAD',
+                                uselib_local = "dlib",
+                                includes = ['../../src'],
+                                target = 'test_uuid')
+
+    test_uuid.install_path = None
