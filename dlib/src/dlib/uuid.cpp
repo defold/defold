@@ -22,7 +22,7 @@ namespace dmUUID
     void Generate(UUID* uuid)
     {
         static unsigned char seed[6] = { '\0' };
-        char* p = &uuid->m_UUID[0];
+        uint8_t* p = &uuid->m_UUID[0];
         NtAllocateUuids(p, p+8, p+12, &seed[0] );
     }
 #else
