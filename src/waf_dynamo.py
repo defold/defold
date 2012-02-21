@@ -29,10 +29,13 @@ def default_flags(self):
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-m32'])
             # We link by default to uuid on linux. libuuid is wrapped in dlib (at least currently)
-        self.env.append_value('LINKFLAGS', ['-m32', '-luuid'])
-        # OSX only
+        self.env.append_value('LINKFLAGS', ['-m32'])
         if platform == "darwin":
+            # OSX only
             self.env.append_value('LINKFLAGS', ['-framework', 'Carbon'])
+        elif platform == "linux":
+            # Linux only
+            self.env.append_value('LINKFLAGS', ['-luuid'])
     elif platform == "armv6-darwin":
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-g', '-O0', '-gdwarf-2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-arch', 'armv6', '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION)])
