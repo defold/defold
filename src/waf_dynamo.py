@@ -28,7 +28,8 @@ def default_flags(self):
     if platform == "linux" or platform == "darwin":
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-m32'])
-        self.env.append_value('LINKFLAGS', ['-m32'])
+            # We link by default to uuid on linux. libuuid is wrapped in dlib (at least currently)
+        self.env.append_value('LINKFLAGS', ['-m32', '-luuid'])
         # OSX only
         if platform == "darwin":
             self.env.append_value('LINKFLAGS', ['-framework', 'Carbon'])
