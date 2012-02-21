@@ -15,6 +15,8 @@ typedef unsigned long (__stdcall* NtAllocateUuidsProto)(void* time  /* 8 bytes *
 #endif
 
 #include <stdint.h>
+#include <assert.h>
+#include "log.h"
 #include "uuid.h"
 
 namespace dmUUID
@@ -35,7 +37,7 @@ namespace dmUUID
                 dmLogFatal("Unable to load ntdll.dll (%x)", GetLastError());
                 return;
             }
-            NtAllocateUuids = GetProcAddress(ntdll, "NtAllocateUuids");
+            NtAllocateUuids = (NtAllocateUuidsProto) GetProcAddress(ntdll, "NtAllocateUuids");
             assert(NtAllocateUuids);
             if (!NtAllocateUuids)
             {
