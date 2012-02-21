@@ -8,7 +8,7 @@ unsigned long (__stdcall* NtAllocateUuidsProto)(void* time  /* 8 bytes */,
                                                 void* range /* 4 bytes */,
                                                 void* sequence /* 4 bytes */,
                                                 void* seed /* 6 bytes */);
-#include <winbase.h>
+#include "safe_windows.h"
 
 #else
 #include <uuid/uuid.h>
