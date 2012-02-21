@@ -4,10 +4,10 @@
  * NOTE: This function is private in ntdll and changed in window 2000
  * We assume version >= NT5, ie windows 2000.
  */
-unsigned long (__stdcall* NtAllocateUuidsProto)(void* time  /* 8 bytes */,
-                                                void* range /* 4 bytes */,
-                                                void* sequence /* 4 bytes */,
-                                                void* seed /* 6 bytes */);
+typedef unsigned long (__stdcall* NtAllocateUuidsProto)(void* time  /* 8 bytes */,
+                                                        void* range /* 4 bytes */,
+                                                        void* sequence /* 4 bytes */,
+                                                        void* seed /* 6 bytes */);
 #include "safe_windows.h"
 
 #else
