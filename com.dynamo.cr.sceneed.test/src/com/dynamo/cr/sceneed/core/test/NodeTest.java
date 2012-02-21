@@ -16,14 +16,14 @@ import com.dynamo.cr.editor.core.IResourceTypeRegistry;
 public class NodeTest extends AbstractNodeTest {
 
     private DummyNode node;
-    private DummyLoader loader;
+    private DummyNodeLoader loader;
 
     @Override
     @Before
     public void setup() throws CoreException, IOException {
         super.setup();
 
-        this.loader = new DummyLoader();
+        this.loader = new DummyNodeLoader();
 
         String extension = "dummy";
 

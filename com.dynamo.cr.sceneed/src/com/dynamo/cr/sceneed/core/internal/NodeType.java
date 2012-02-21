@@ -1,5 +1,6 @@
 package com.dynamo.cr.sceneed.core.internal;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import com.dynamo.cr.editor.core.IResourceType;
@@ -9,26 +10,27 @@ import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.ISceneView.INodePresenter;
 import com.dynamo.cr.sceneed.core.Node;
+import com.google.protobuf.Message;
 
 public class NodeType implements INodeType {
 
     private final String extension;
-    private final INodeLoader loader;
+    private final INodeLoader<? extends Node, ? extends Message> loader;
     private final ISceneView.INodePresenter<Node> presenter;
     private final INodeRenderer<Node> renderer;
     private final IResourceType resourceType;
     private final Class<?> nodeClass;
-    private final List<Class<?>> childClasses;
+    private final List<INodeType> referenceNodeTypes;
     private final String displayGroup;
 
-    public NodeType(String extension, INodeLoader loader, ISceneView.INodePresenter<Node> presenter, INodeRenderer<Node> renderer, IResourceType resourceType, Class<?> nodeClass, List<Class<?>> childClasses, String displayGroup) {
+    public NodeType(String extension, INodeLoader<? extends Node, ? extends Message> loader, ISceneView.INodePresenter<Node> presenter, INodeRenderer<Node> renderer, IResourceType resourceType, Class<?> nodeClass, String displayGroup) {
         this.extension = extension;
         this.loader = loader;
         this.presenter = presenter;
         this.renderer = renderer;
         this.resourceType = resourceType;
         this.nodeClass = nodeClass;
-        this.childClasses = childClasses;
+        this.referenceNodeTypes = new ArrayList<INodeType>();
         this.displayGroup = displayGroup;
     }
 
@@ -38,7 +40,7 @@ public class NodeType implements INodeType {
     }
 
     @Override
-    public INodeLoader getLoader() {
+    public INodeLoader<? extends Node, ? extends Message> getLoader() {
         return this.loader;
     }
 
@@ -63,13 +65,17 @@ public class NodeType implements INodeType {
     }
 
     @Override
-    public List<Class<?>> getChildClasses() {
-        return this.childClasses;
+    public List<INodeType> getReferenceNodeTypes() {
+        return this.referenceNodeTypes;
     }
 
     @Override
     public String getDisplayGroup() {
         return this.displayGroup;
+    }
+
+    public void addReferenceNodeType(INodeType referenceNodeType) {
+        this.referenceNodeTypes.add(referenceNodeType);
     }
 
 }

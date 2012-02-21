@@ -9,9 +9,16 @@ option java_outer_classname = "Dummy";
 message DummyChildDesc
 {
     required int32 int_val = 1;
+    required string type = 2;
+    required string data = 3;
 }
 
 message DummyNodeDesc
 {
     repeated DummyChildDesc children = 1;
+}
+
+message EmbeddedChildDesc
+{
+    required int32 embed_val = 1;
 }

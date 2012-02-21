@@ -17,12 +17,37 @@
       </node-type>
       <node-type
             id="com.dynamo.cr.sceneed.test.dummyNode"
-            loader="com.dynamo.cr.sceneed.core.test.DummyLoader"
-            node="com.dynamo.cr.sceneed.core.test.DummyNode">
-         <child
-               node="com.dynamo.cr.sceneed.core.test.DummyChild">
-         </child>
+            loader="com.dynamo.cr.sceneed.core.test.DummyNodeLoader"
+            node="com.dynamo.cr.sceneed.core.test.DummyNode"
+            resource-type="com.dynamo.cr.sceneed.test.resources.dummy">
+         <reference-node-type
+               node-type="com.dynamo.cr.sceneed.test.dummyChild">
+         </reference-node-type>
       </node-type>
+      <node-type
+            id="com.dynamo.cr.sceneed.test.dummyChild"
+            loader="com.dynamo.cr.sceneed.core.test.DummyChildLoader"
+            node="com.dynamo.cr.sceneed.core.test.DummyChild">
+      </node-type>
+      <node-type
+            id="com.dynamo.cr.sceneed.test.embeddedChild"
+            loader="com.dynamo.cr.sceneed.core.test.EmbeddedChildLoader"
+            node="com.dynamo.cr.sceneed.core.test.EmbeddedChild"
+            resource-type="com.dynamo.cr.sceneed.test.resources.embedded">
+      </node-type>
+   </extension>
+   <extension
+         point="com.dynamo.cr.resourcetypes">
+      <resource-type
+            file-extension="dummy"
+            id="com.dynamo.cr.sceneed.test.resources.dummy"
+            name="Dummy">
+      </resource-type>
+      <resource-type
+            file-extension="embedded"
+            id="com.dynamo.cr.sceneed.test.resources.embedded"
+            name="Embedded">
+      </resource-type>
    </extension>
 
 </plugin>

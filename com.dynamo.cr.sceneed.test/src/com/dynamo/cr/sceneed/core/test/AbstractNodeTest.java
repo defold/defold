@@ -52,7 +52,6 @@ import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.Node;
-import com.google.protobuf.GeneratedMessage;
 import com.google.protobuf.Message;
 import com.google.protobuf.TextFormat;
 
@@ -292,12 +291,11 @@ public abstract class AbstractNodeTest {
         return destinationFile;
     }
 
-    protected <T extends Node> T registerAndLoadNodeType(Class<T> nodeClass, String extension, INodeLoader loader) throws IOException, CoreException {
+    protected <T extends Node> T registerAndLoadNodeType(Class<T> nodeClass, String extension, INodeLoader<T, ? extends Message> loader) throws IOException, CoreException {
         when(getModel().getExtension(nodeClass)).thenReturn(extension);
         IResourceType resourceType = this.resourceTypeRegistry.getResourceTypeFromExtension(extension);
         byte[] ddf = resourceType.getTemplateData();
-        @SuppressWarnings("unchecked")
-        T node = (T)loader.load(getLoaderContext(), nodeClass, new ByteArrayInputStream(ddf));
+        T node = loader.load(getLoaderContext(), new ByteArrayInputStream(ddf));
         node.setModel(getModel());
         when(this.presenterContext.getSelection()).thenReturn(new StructuredSelection(node));
         return node;
@@ -311,14 +309,14 @@ public abstract class AbstractNodeTest {
         when(getModel().loadNode(path)).thenReturn(node);
     }
 
-    protected void saveLoadCompare(Class<? extends Node> nodeClass, INodeLoader loader, @SuppressWarnings("rawtypes") GeneratedMessage.Builder builder, String path) throws IOException, CoreException {
+    protected <T extends Node, U extends Message> void saveLoadCompare(Class<T> nodeClass, INodeLoader<T, Message> loader, U.Builder builder, String path) throws IOException, CoreException {
         IFile file = getFile(path);
         Reader reader = new InputStreamReader(file.getContents());
         TextFormat.merge(reader, builder);
         reader.close();
         Message directMessage = builder.build();
 
-        Node node = loader.load(this.loaderContext, nodeClass, file.getContents());
+        T node = loader.load(this.loaderContext, file.getContents());
         Message createdMessage = loader.buildMessage(this.loaderContext, node, new NullProgressMonitor());
         assertEquals(directMessage.toString(), createdMessage.toString());
     }

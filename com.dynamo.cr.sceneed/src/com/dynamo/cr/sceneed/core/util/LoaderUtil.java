@@ -1,11 +1,17 @@
 package com.dynamo.cr.sceneed.core.util;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
 import javax.vecmath.Vector4d;
 
 import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
+import com.google.protobuf.Message;
+import com.google.protobuf.TextFormat;
 
 public class LoaderUtil {
 
@@ -43,4 +49,8 @@ public class LoaderUtil {
         return new Point3d(p.getX(), p.getY(), p.getZ());
     }
 
+    public static <U extends Message> void loadBuilder(U.Builder builder, InputStream stream) throws IOException {
+        InputStreamReader reader = new InputStreamReader(stream);
+        TextFormat.merge(reader, builder);
+    }
 }

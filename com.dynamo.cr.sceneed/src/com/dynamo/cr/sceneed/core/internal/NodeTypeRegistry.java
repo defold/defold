@@ -1,8 +1,6 @@
 package com.dynamo.cr.sceneed.core.internal;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import org.eclipse.core.runtime.IConfigurationElement;
@@ -21,6 +19,7 @@ import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
 import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.Node;
+import com.google.protobuf.Message;
 
 public class NodeTypeRegistry implements INodeTypeRegistry {
 
@@ -53,14 +52,10 @@ public class NodeTypeRegistry implements INodeTypeRegistry {
                 }
 
                 Class<?> nodeClass = bundle.loadClass(e.getAttribute("node"));
-                List<Class<?>> childClasses = new ArrayList<Class<?>>(e.getChildren().length);
-                for (IConfigurationElement element : e.getChildren()) {
-                    childClasses.add(bundle.loadClass(element.getAttribute("node")));
-                }
 
-                INodeLoader nodeLoader = null;
+                INodeLoader<? extends Node, ? extends Message> nodeLoader = null;
                 if (e.getAttribute("loader") != null) {
-                    nodeLoader = (INodeLoader)e.createExecutableExtension("loader");
+                    nodeLoader = (INodeLoader<? extends Node, ? extends Message>) e.createExecutableExtension("loader");
                 }
 
                 ISceneView.INodePresenter<Node> nodePresenter = null;
@@ -75,13 +70,22 @@ public class NodeTypeRegistry implements INodeTypeRegistry {
 
                 String displayGroup = e.getAttribute("display-group");
 
-                NodeType type = new NodeType(extension, nodeLoader, nodePresenter, nodeRenderer, resourceType, nodeClass, childClasses, displayGroup);
+                NodeType type = new NodeType(extension, nodeLoader, nodePresenter, nodeRenderer, resourceType, nodeClass, displayGroup);
                 if (extension != null) {
                     this.extToClass.put(extension, nodeClass);
                 }
                 this.classToType.put(nodeClass, type);
 
                 this.idToNodeType.put(id, type);
+            }
+            // resolve child node types
+            for (IConfigurationElement e : config) {
+                String id = e.getAttribute("id");
+                NodeType type = (NodeType)this.idToNodeType.get(id);
+                for (IConfigurationElement element : e.getChildren()) {
+                    String refId = element.getAttribute("node-type");
+                    type.addReferenceNodeType(this.idToNodeType.get(refId));
+                }
             }
         } catch (Exception exception) {
             exception.printStackTrace();

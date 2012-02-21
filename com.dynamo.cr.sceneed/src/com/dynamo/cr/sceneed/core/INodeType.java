@@ -3,12 +3,13 @@ package com.dynamo.cr.sceneed.core;
 import java.util.List;
 
 import com.dynamo.cr.editor.core.IResourceType;
+import com.google.protobuf.Message;
 
 public interface INodeType {
 
     String getExtension();
 
-    INodeLoader getLoader();
+    INodeLoader<? extends Node, ? extends Message> getLoader();
 
     ISceneView.INodePresenter<?> getPresenter();
 
@@ -17,7 +18,7 @@ public interface INodeType {
     IResourceType getResourceType();
 
     Class<?> getNodeClass();
-    List<Class<?>> getChildClasses();
+    List<INodeType> getReferenceNodeTypes();
 
     String getDisplayGroup();
 

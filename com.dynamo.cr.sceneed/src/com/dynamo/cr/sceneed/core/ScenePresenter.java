@@ -6,7 +6,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.commons.io.input.ReaderInputStream;
 import org.eclipse.core.resources.IResourceChangeEvent;
@@ -62,9 +64,8 @@ public class ScenePresenter implements IPresenter, IModelListener {
     @Override
     public final void onLoad(String type, InputStream contents) throws IOException, CoreException {
         INodeType nodeType = this.nodeTypeRegistry.getNodeTypeFromExtension(type);
-        INodeLoader loader = nodeType.getLoader();
-        @SuppressWarnings("unchecked")
-        Node node = loader.load(this.loaderContext, (Class<? extends Node>)nodeType.getNodeClass(), contents);
+        INodeLoader<? extends Node, ? extends Message> loader = nodeType.getLoader();
+        Node node = loader.load(this.loaderContext, contents);
         this.model.setRoot(node);
     }
 
@@ -72,7 +73,8 @@ public class ScenePresenter implements IPresenter, IModelListener {
     public void onSave(OutputStream contents, IProgressMonitor monitor) throws IOException, CoreException {
         Node node = this.model.getRoot();
         INodeType nodeType = this.nodeTypeRegistry.getNodeTypeClass(node.getClass());
-        INodeLoader loader = nodeType.getLoader();
+        @SuppressWarnings("unchecked")
+        INodeLoader<Node, Message> loader = (INodeLoader<Node, Message>)nodeType.getLoader();
         Message message = loader.buildMessage(this.loaderContext, node, monitor);
         SceneUtil.saveMessage(message, contents, monitor);
         this.model.clearDirty();
@@ -114,6 +116,7 @@ public class ScenePresenter implements IPresenter, IModelListener {
         }
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public void onCopySelection(IPresenterContext presenterContext, ILoaderContext loaderContext, IProgressMonitor monitor) throws IOException, CoreException {
         IStructuredSelection selection = presenterContext.getSelection();
@@ -126,18 +129,22 @@ public class ScenePresenter implements IPresenter, IModelListener {
             List<NodeData> data = new ArrayList<NodeData>();
             NodeTransfer transfer = NodeTransfer.getInstance();
             Node parent = nodes.get(0).getParent();
-            INodeLoader parentLoader = this.nodeTypeRegistry.getNodeTypeClass(parent.getClass()).getLoader();
+            INodeType parentType = null;
+            if (parent != null) {
+                parentType = this.nodeTypeRegistry.getNodeTypeClass(parent.getClass());
+            }
             for (Node node : nodes) {
-                Message message = null;
-                if (parentLoader != null) {
-                    message = parentLoader.buildMessage(loaderContext, node, monitor);
-                } else {
-                    INodeType nodeType = this.nodeTypeRegistry.getNodeTypeClass(node.getClass());
-                    if (nodeType != null) {
-                        INodeLoader loader = nodeType.getLoader();
-                        message = loader.buildMessage(loaderContext, node, monitor);
+                Class<? extends Node> nodeClass = node.getClass();
+                if (parentType != null) {
+                    for (INodeType type : parentType.getReferenceNodeTypes()) {
+                        if (type.getNodeClass().isAssignableFrom(nodeClass)) {
+                            nodeClass = (Class<? extends Node>)type.getNodeClass();
+                            break;
+                        }
                     }
                 }
+                INodeLoader<Node, Message> loader = (INodeLoader<Node, Message>)this.nodeTypeRegistry.getNodeTypeClass(nodeClass).getLoader();
+                Message message = loader.buildMessage(loaderContext, node, monitor);
                 NodeData entry = new NodeData();
                 entry.type = node.getClass();
                 CharArrayWriter writer = new CharArrayWriter();
@@ -161,18 +168,22 @@ public class ScenePresenter implements IPresenter, IModelListener {
             List<NodeData> data = new ArrayList<NodeData>();
             NodeTransfer transfer = NodeTransfer.getInstance();
             Node parent = nodes.get(0).getParent();
-            INodeLoader parentLoader = this.nodeTypeRegistry.getNodeTypeClass(parent.getClass()).getLoader();
+            INodeType parentType = null;
+            if (parent != null) {
+                parentType = this.nodeTypeRegistry.getNodeTypeClass(parent.getClass());
+            }
             for (Node node : nodes) {
-                Message message = null;
-                if (parentLoader != null) {
-                    message = parentLoader.buildMessage(loaderContext, node, monitor);
-                } else {
-                    INodeType nodeType = this.nodeTypeRegistry.getNodeTypeClass(node.getClass());
-                    if (nodeType != null) {
-                        INodeLoader loader = nodeType.getLoader();
-                        message = loader.buildMessage(loaderContext, node, monitor);
+                Class<? extends Node> nodeClass = node.getClass();
+                if (parentType != null) {
+                    for (INodeType type : parentType.getReferenceNodeTypes()) {
+                        if (type.getNodeClass().isAssignableFrom(nodeClass)) {
+                            nodeClass = (Class<? extends Node>)type.getNodeClass();
+                            break;
+                        }
                     }
                 }
+                INodeLoader<Node, Message> loader = (INodeLoader<Node, Message>)this.nodeTypeRegistry.getNodeTypeClass(nodeClass).getLoader();
+                Message message = loader.buildMessage(loaderContext, node, monitor);
                 NodeData entry = new NodeData();
                 entry.type = node.getClass();
                 CharArrayWriter writer = new CharArrayWriter();
@@ -198,31 +209,38 @@ public class ScenePresenter implements IPresenter, IModelListener {
         if (data != null && data.size() > 0) {
             Node target = (Node)selection[0];
             INodeType targetType = null;
+            Map<Class<? extends Node>, INodeLoader<? extends Node, ? extends Message>> loaders = new HashMap<Class<? extends Node>, INodeLoader<? extends Node, ? extends Message>>();
             // Verify acceptance of child classes
             while (target != null) {
                 boolean accepted = true;
                 targetType = this.nodeTypeRegistry.getNodeTypeClass(target.getClass());
                 if (targetType != null) {
+                    all_entries:
                     for (NodeData entry : data) {
-                        if (!targetType.getChildClasses().contains(entry.type)) {
-                            accepted = false;
-                            break;
+                        for (INodeType nodeType : targetType.getReferenceNodeTypes()) {
+                            if (!nodeType.getNodeClass().isAssignableFrom(entry.type)) {
+                                accepted = false;
+                                break all_entries;
+                            } else {
+                                loaders.put(entry.type, nodeType.getLoader());
+                            }
                         }
                     }
                     if (accepted) {
                         break;
                     }
                 }
+                loaders.clear();
                 target = target.getParent();
             }
             if (target == null || targetType == null)
                 return;
-            INodeLoader targetLoader = targetType.getLoader();
             List<Node> nodes = new ArrayList<Node>(data.size());
             for (NodeData entry : data) {
+                INodeLoader<? extends Node, ? extends Message> loader = loaders.get(entry.type);
                 CharArrayReader r = new CharArrayReader(entry.data);
                 ReaderInputStream contents = new ReaderInputStream(r);
-                Node node = targetLoader.load(loaderContext, entry.type, contents);
+                Node node = loader.load(loaderContext, contents);
                 nodes.add(node);
             }
             context.executeOperation(new AddChildrenOperation("Paste", target, nodes, context));

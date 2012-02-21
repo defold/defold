@@ -52,7 +52,7 @@
    <element name="node-type">
       <complexType>
          <sequence minOccurs="0" maxOccurs="unbounded">
-            <element ref="child" minOccurs="0" maxOccurs="unbounded"/>
+            <element ref="reference-node-type" minOccurs="0" maxOccurs="unbounded"/>
          </sequence>
          <attribute name="id" type="string" use="required">
             <annotation>
@@ -121,15 +121,15 @@
       </complexType>
    </element>
 
-   <element name="child">
+   <element name="reference-node-type">
       <complexType>
-         <attribute name="node" type="string">
+         <attribute name="node-type" type="string" use="required">
             <annotation>
                <documentation>
                   
                </documentation>
                <appinfo>
-                  <meta.attribute kind="java" basedOn="com.dynamo.cr.sceneed.core.Node:"/>
+                  <meta.attribute kind="identifier" basedOn="com.dynamo.cr.nodetypes/node-type/@id"/>
                </appinfo>
             </annotation>
          </attribute>

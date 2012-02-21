@@ -8,7 +8,8 @@ import org.eclipse.core.runtime.IProgressMonitor;
 
 import com.google.protobuf.Message;
 
-public interface INodeLoader {
-    Node load(ILoaderContext context, Class<? extends Node> type, InputStream contents) throws IOException, CoreException;
-    Message buildMessage(ILoaderContext context, Node node, IProgressMonitor monitor) throws IOException, CoreException;
+public interface INodeLoader<T extends Node, U extends Message> {
+    T load(ILoaderContext context, InputStream contents) throws IOException, CoreException;
+    T load(ILoaderContext context, U message) throws IOException, CoreException;
+    U buildMessage(ILoaderContext context, T node, IProgressMonitor monitor) throws IOException, CoreException;
 }

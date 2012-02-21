@@ -19,10 +19,12 @@ import org.mockito.stubbing.Answer;
 
 import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.sceneed.Activator;
+import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
 import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.ScenePresenter;
+import com.dynamo.cr.sceneed.ui.LoaderContext;
 
 public class PresenterTest extends AbstractPresenterTest {
 
@@ -38,7 +40,8 @@ public class PresenterTest extends AbstractPresenterTest {
 
         this.view = mock(ISceneView.class);
         INodeTypeRegistry registry = Activator.getDefault().getNodeTypeRegistry();
-        this.presenter = new ScenePresenter(getModel(), this.view, registry, mock(ILogger.class), getLoaderContext(), new TestClipboard(), null);
+        ILoaderContext loaderContext = new LoaderContext(null, Activator.getDefault().getNodeTypeRegistry(), null);
+        this.presenter = new ScenePresenter(getModel(), this.view, registry, mock(ILogger.class), loaderContext, new TestClipboard(), null);
         this.history = new DefaultOperationHistory();
         this.undoContext = new UndoContext();
         doAnswer(new Answer<Void>() {
@@ -50,6 +53,7 @@ public class PresenterTest extends AbstractPresenterTest {
                 return null;
             }
         }).when(getPresenterContext()).executeOperation(any(IUndoableOperation.class));
+        setLoaderContext(loaderContext);
     }
 
     private void undo() throws ExecutionException {
@@ -63,11 +67,13 @@ public class PresenterTest extends AbstractPresenterTest {
     @Test
     public void testCopyPaste() throws Exception {
         DummyNode node = new DummyNode();
-        DummyChild child = new DummyChild();
+        EmbeddedChild child = new EmbeddedChild();
         child.setIntVal(1);
+        child.setEmbedVal(1);
         node.addChild(child);
-        DummyChild child2 = new DummyChild();
+        EmbeddedChild child2 = new EmbeddedChild();
         child2.setIntVal(2);
+        child2.setEmbedVal(2);
         node.addChild(child2);
 
         select(new Node[] {child, child2});
@@ -79,8 +85,12 @@ public class PresenterTest extends AbstractPresenterTest {
         this.presenter.onPasteIntoSelection(getPresenterContext());
 
         assertThat(node.getChildren().size(), is(4));
-        assertThat(((DummyChild)node.getChildren().get(2)).getIntVal(), is(1));
-        assertThat(((DummyChild)node.getChildren().get(3)).getIntVal(), is(2));
+        EmbeddedChild child3 = (EmbeddedChild)node.getChildren().get(2);
+        assertThat(child3.getIntVal(), is(1));
+        assertThat(child3.getEmbedVal(), is(1));
+        EmbeddedChild child4 = (EmbeddedChild)node.getChildren().get(3);
+        assertThat(child4.getIntVal(), is(2));
+        assertThat(child4.getEmbedVal(), is(2));
 
         undo();
         assertThat(node.getChildren().size(), is(2));
@@ -92,11 +102,13 @@ public class PresenterTest extends AbstractPresenterTest {
     @Test
     public void testCutPaste() throws Exception {
         DummyNode node = new DummyNode();
-        DummyChild child = new DummyChild();
+        EmbeddedChild child = new EmbeddedChild();
         child.setIntVal(1);
+        child.setEmbedVal(1);
         node.addChild(child);
-        DummyChild child2 = new DummyChild();
+        EmbeddedChild child2 = new EmbeddedChild();
         child2.setIntVal(2);
+        child2.setEmbedVal(2);
         node.addChild(child2);
 
         DummyNode node2 = new DummyNode();
@@ -112,8 +124,12 @@ public class PresenterTest extends AbstractPresenterTest {
         this.presenter.onPasteIntoSelection(getPresenterContext());
 
         assertThat(node2.getChildren().size(), is(2));
-        assertThat(((DummyChild)node2.getChildren().get(0)).getIntVal(), is(1));
-        assertThat(((DummyChild)node2.getChildren().get(1)).getIntVal(), is(2));
+        EmbeddedChild child3 = (EmbeddedChild)node2.getChildren().get(0);
+        assertThat(child3.getIntVal(), is(1));
+        assertThat(child3.getEmbedVal(), is(1));
+        EmbeddedChild child4 = (EmbeddedChild)node2.getChildren().get(1);
+        assertThat(child4.getIntVal(), is(2));
+        assertThat(child4.getEmbedVal(), is(2));
 
         undo();
         assertThat(node2.getChildren().size(), is(0));
