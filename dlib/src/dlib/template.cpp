@@ -1,4 +1,4 @@
-#include <strings.h>
+#include <string.h>
 #include "math.h"
 #include "template.h"
 #include "log.h"
