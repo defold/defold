@@ -18,7 +18,7 @@ namespace dmTemplate
         {
             if (fmt[0] == '$' && fmt[1] == '{')
             {
-                char* brace = strchr(fmt + 2, '}');
+                const char* brace = strchr(fmt + 2, '}');
                 if (!brace)
                     return RESULT_SYNTAX_ERROR;
 
