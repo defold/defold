@@ -307,7 +307,7 @@ bail:
     {
         SSDP* ssdp = (SSDP*) user_data;
 
-        char* last_slash = strrchr(request->m_Resource, '/');
+        const char* last_slash = strrchr(request->m_Resource, '/');
         if (!last_slash)
         {
             dmHttpServer::SetStatusCode(request, 400);
@@ -315,7 +315,7 @@ bail:
             dmHttpServer::Send(request, s, strlen(s));
             return;
         }
-        char* id = last_slash + 1;
+        const char* id = last_slash + 1;
 
         dmhash_t id_hash = dmHashString64(id);
         Device** device = ssdp->m_RegistredEntries.Get(id_hash);
@@ -535,7 +535,7 @@ bail:
         RequestParseState* state = (RequestParseState*) user_data;
         if (strcmp(key, "CACHE-CONTROL") == 0)
         {
-            char* p= strstr(value, "max-age=");
+            const char* p= strstr(value, "max-age=");
             if (p)
             {
                 state->m_MaxAge = atoi(p + sizeof("max-age=")-1);

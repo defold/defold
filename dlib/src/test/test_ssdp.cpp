@@ -225,7 +225,6 @@ TEST_F(dmSSDPTest, Expire)
 
 TEST_F(dmSSDPTest, Renew)
 {
-    Init();
     Init(1);
     dmTime::Sleep(1000000);
     UpdateServer();

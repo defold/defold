@@ -9,6 +9,7 @@
 #include <netinet/in.h>
 #elif defined(_WIN32)
 #include <winsock2.h>
+#include <ws2tcpip.h>
 #else
 #error "Unsupported platform"
 #endif
