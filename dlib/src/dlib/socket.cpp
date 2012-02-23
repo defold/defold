@@ -136,15 +136,10 @@ namespace dmSocket
         }
     }
 
-    Result SetReuseAddress(Socket socket, bool reuse)
+    static Result SetSockoptBool(Socket socket, int level, int name, bool option)
     {
-        int on = (int) reuse;
-        int ret;
-#ifdef _WIN32
-        ret = setsockopt(socket, SOL_SOCKET, SO_REUSEADDR, (const char*) &on, sizeof(on));
-#else
-        ret = setsockopt(socket, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
-#endif
+        int on = (int) option;
+        int ret = setsockopt(socket, level, name, (char *) &on, sizeof(on));
         if (ret < 0)
         {
             return NativeToResult(DM_SOCKET_ERRNO);
@@ -153,6 +148,40 @@ namespace dmSocket
         {
             return RESULT_OK;
         }
+    }
+
+    Result SetReuseAddress(Socket socket, bool reuse)
+    {
+        Result r = SetSockoptBool(socket, SOL_SOCKET, SO_REUSEADDR, reuse);
+#ifdef SO_REUSEPORT
+        if (r != RESULT_OK)
+            return r;
+        r = SetSockoptBool(socket, SOL_SOCKET, SO_REUSEPORT, reuse);
+#endif
+        return r;
+    }
+
+    Result SetBroadcast(Socket socket, bool broadcast)
+    {
+        return SetSockoptBool(socket, SOL_SOCKET, SO_BROADCAST, broadcast);
+    }
+
+    Result AddMembership(Socket socket, Address multi_addr, Address interface_addr, int ttl)
+    {
+        struct ip_mreq group;
+        group.imr_multiaddr.s_addr = htonl(multi_addr);
+        group.imr_interface.s_addr = htonl(interface_addr);
+
+        int ret = setsockopt(socket, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *)&group, sizeof(group));
+        if (ret < 0)
+            return NativeToResult(DM_SOCKET_ERRNO);
+
+        uint8_t ttl_byte = (uint8_t) ttl;
+        ret = setsockopt(socket, IPPROTO_IP, IP_MULTICAST_TTL, (char *)&ttl_byte, sizeof(ttl_byte));
+        if (ret < 0)
+            return NativeToResult(DM_SOCKET_ERRNO);
+
+        return RESULT_OK;
     }
 
     Result Delete(Socket socket)
@@ -184,7 +213,7 @@ namespace dmSocket
 
         if (s < 0)
         {
-            *address = sock_addr.sin_addr.s_addr;
+            *address = ntohl(sock_addr.sin_addr.s_addr);
             *accept_socket = s;
             return NativeToResult(DM_SOCKET_ERRNO);
         }
@@ -199,7 +228,7 @@ namespace dmSocket
     {
         struct sockaddr_in sock_addr;
         sock_addr.sin_family = AF_INET;
-        sock_addr.sin_addr.s_addr = address;
+        sock_addr.sin_addr.s_addr = htonl(address);
         sock_addr.sin_port  = htons(port);
         int ret = bind(socket, (struct sockaddr *) &sock_addr, sizeof(sock_addr));
 
@@ -217,7 +246,7 @@ namespace dmSocket
     {
         struct sockaddr_in sock_addr;
         sock_addr.sin_family = AF_INET;
-        sock_addr.sin_addr.s_addr = address;
+        sock_addr.sin_addr.s_addr = htonl(address);
         sock_addr.sin_port  = htons(port);
         int ret =connect(socket, (struct sockaddr *) &sock_addr, sizeof(sock_addr));
 
@@ -278,6 +307,30 @@ namespace dmSocket
         }
     }
 
+    Result SendTo(Socket socket, const void* buffer, int length, int* sent_bytes, Address to_addr, uint16_t to_port)
+    {
+        struct sockaddr_in addr;
+        addr.sin_family = AF_INET;
+        addr.sin_addr.s_addr = htonl(to_addr);
+        addr.sin_port = htons(to_port);
+
+        *sent_bytes = 0;
+#if defined(_WIN32)
+        int s = sendto(socket, (const char*) buffer, length, 0,  (const sockaddr*) &addr, sizeof(addr));
+#else
+        ssize_t s = sendto(socket, buffer, length, 0, (const sockaddr*) &addr, sizeof(addr));
+#endif
+        if (s < 0)
+        {
+            return NativeToResult(DM_SOCKET_ERRNO);
+        }
+        else
+        {
+            *sent_bytes = s;
+            return RESULT_OK;
+        }
+    }
+
     Result Receive(Socket socket, void* buffer, int length, int* received_bytes)
     {
         *received_bytes = 0;
@@ -294,6 +347,33 @@ namespace dmSocket
         else
         {
             *received_bytes = r;
+            return RESULT_OK;
+        }
+    }
+
+    Result ReceiveFrom(Socket socket, void* buffer, int length, int* received_bytes,
+                       Address* from_addr, uint16_t* from_port)
+    {
+        struct sockaddr_in from;
+
+        *received_bytes = 0;
+#ifdef _WIN32
+        int fromlen = sizeof(from);
+        int r = recvfrom(socket, (char*) buffer, length, 0, (struct sockaddr*) &from, &fromlen);
+#else
+        socklen_t fromlen = sizeof(from);
+        int r = recvfrom(socket, buffer, length, 0, (struct sockaddr*) &from, &fromlen);
+#endif
+
+        if (r < 0)
+        {
+            return NativeToResult(DM_SOCKET_ERRNO);
+        }
+        else
+        {
+            *received_bytes = r;
+            *from_addr = ntohl(from.sin_addr.s_addr);
+            *from_port = ntohs(from.sin_port);
             return RESULT_OK;
         }
     }
@@ -333,6 +413,43 @@ namespace dmSocket
             r = select(selector->m_Nfds + 1, &selector->m_FdSets[SELECTOR_KIND_READ], &selector->m_FdSets[SELECTOR_KIND_WRITE], &selector->m_FdSets[SELECTOR_KIND_EXCEPT], 0);
         else
             r = select(selector->m_Nfds + 1, &selector->m_FdSets[SELECTOR_KIND_READ], &selector->m_FdSets[SELECTOR_KIND_WRITE], &selector->m_FdSets[SELECTOR_KIND_EXCEPT], &timeout_val);
+
+        if (r < 0)
+        {
+            return NativeToResult(DM_SOCKET_ERRNO);
+        }
+        else
+        {
+            return RESULT_OK;
+        }
+    }
+
+    Result GetName(Socket socket, Address* address, uint16_t* port)
+    {
+        struct sockaddr_in addr;
+#ifdef _WIN32
+        int addr_len = sizeof(addr);
+#else
+        socklen_t addr_len = sizeof(addr);
+#endif
+        int r = getsockname(socket, (sockaddr *) &addr, &addr_len);
+        if (r < 0)
+        {
+            return NativeToResult(DM_SOCKET_ERRNO);
+        }
+        else
+        {
+            *address = ntohl(addr.sin_addr.s_addr);
+            *port = ntohs(addr.sin_port);
+            return RESULT_OK;
+        }
+    }
+
+    Result GetHostname(char* hostname, int hostname_length)
+    {
+        int r = gethostname(hostname, hostname_length);
+        if (hostname_length > 0)
+            hostname[hostname_length-1] = '\0';
 
         if (r < 0)
         {
@@ -396,21 +513,12 @@ namespace dmSocket
 
     Result SetNoDelay(Socket socket, bool no_delay)
     {
-        int flag = 1;
-        int r = setsockopt(socket, IPPROTO_TCP, TCP_NODELAY, (char *) &flag, sizeof(int));
-        if (r < 0)
-        {
-            return NativeToResult(DM_SOCKET_ERRNO);
-        }
-        else
-        {
-            return RESULT_OK;
-        }
+        return SetSockoptBool(socket, IPPROTO_TCP, TCP_NODELAY, no_delay);
     }
 
     Address AddressFromIPString(const char* address)
     {
-        return inet_addr(address);
+        return ntohl(inet_addr(address));
     }
 
     Result GetHostByName(const char* name, Address* address)
@@ -418,7 +526,7 @@ namespace dmSocket
         struct hostent* host = gethostbyname(name);
         if (host)
         {
-            *address = *((unsigned long *) host->h_addr_list[0]);
+            *address = ntohl(*((unsigned long *) host->h_addr_list[0]));
             return RESULT_OK;
         }
         else

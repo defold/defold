@@ -1,6 +1,8 @@
 #ifndef DM_HTTP_SERVER_H
 #define DM_HTTP_SERVER_H
 
+#include <dlib/socket.h>
+
 namespace dmHttpServer
 {
     /**
@@ -135,6 +137,14 @@ namespace dmHttpServer
      * @return RESULT_OK on success
      */
     Result Update(HServer server);
+
+    /**
+     * Get name for socket, ie address and port
+     * @param server Http server instance
+     * @param address Address (result)
+     * @param port Port (result)
+     */
+    void GetName(HServer server, dmSocket::Address* address, uint16_t* port);
 }
 
 #endif

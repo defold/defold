@@ -3,9 +3,17 @@
 
 namespace dmUUID
 {
-    struct UUID
+    union UUID
     {
         uint8_t m_UUID[16];
+        struct
+        {
+            uint32_t m_TimeLow;
+            uint16_t m_TimeMid;
+            uint16_t m_TimeHiAndVersion;
+            uint16_t m_ClockSeq;
+            uint8_t  m_Node[6];
+        };
     };
 
     /**

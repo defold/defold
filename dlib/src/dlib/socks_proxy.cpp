@@ -60,7 +60,7 @@ namespace dmSocksProxy
             return RESULT_SOCKET_ERROR;
         }
 
-        Request request = { 0x04, 0x01, htons(port), address, 0 };
+        Request request = { 0x04, 0x01, htons(port), htonl(address), 0 };
 
         const char* buf = (const char*) &request;
         int total_sent = 0;

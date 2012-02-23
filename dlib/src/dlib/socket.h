@@ -65,6 +65,8 @@ namespace dmSocket
 
     /**
      * Socket handle
+     * @note Use INVALID_SOCKET_HANDLE instead of zero for unset values. This is an exception
+     * from all other handles.
      */
     typedef int Socket;
 
@@ -167,12 +169,21 @@ namespace dmSocket
     Result Delete(Socket socket);
 
     /**
-     * Set resue socket address option on socket. Socket option SO_REUSEADDR on most platforms
-     * @param socket Socket to set resuse address ton
+     * Set reuse socket address option on socket. Socket option SO_REUSEADDR on most platforms
+     * @param socket Socket to set reuse address to
      * @param reuse True if reuse
      * @return RESULT_OK on success
      */
     Result SetReuseAddress(Socket socket, bool reuse);
+
+
+    /**
+     * Set broadcast address option on socket. Socket option SO_BROADCAST on most platforms.
+     * @param socket Socket to set reuse address to
+     * @param broadcast True if broadcast
+     * @return RESULT_OK on success
+     */
+    Result SetBroadcast(Socket socket, bool broadcast);
 
     /**
      * Set blocking option on a socket
@@ -189,6 +200,16 @@ namespace dmSocket
      * @return RESULT_OK on success
      */
     Result SetNoDelay(Socket socket, bool no_delay);
+
+    /**
+     * Add multicast membership
+     * @param socket socket to add membership on
+     * @param multi_addr multicast address
+     * @param interface_addr interface address
+     * @param ttl multicast package time to live
+     * @return RESULT_OK
+     */
+    Result AddMembership(Socket socket, Address multi_addr, Address interface_addr, int ttl);
 
     /**
      * Accept a connection on a socket
@@ -237,11 +258,23 @@ namespace dmSocket
      * Send a message on a socket
      * @param socket Socket to send a message on
      * @param buffer Buffer to send
-     * @param length Lenght of buffer to send
+     * @param length Length of buffer to send
      * @param sent_bytes Number of bytes sent (result)
      * @return RESULT_OK on success
      */
     Result Send(Socket socket, const void* buffer, int length, int* sent_bytes);
+
+    /**
+     * Send a message to a specific address
+     * @param socket Socket to send a message on
+     * @param buffer Buffer to send
+     * @param length Length of buffer to send
+     * @param sent_bytes Number of bytes sent (result)
+     * @param to_addr To address
+     * @param to_port From addres
+     * @return RESULT_OK on success
+     */
+    Result SendTo(Socket socket, const void* buffer, int length, int* sent_bytes, Address to_addr, uint16_t to_port);
 
     /**
      * Receive data on a socket
@@ -252,6 +285,20 @@ namespace dmSocket
      * @return RESULT_OK on success
      */
     Result Receive(Socket socket, void* buffer, int length, int* received_bytes);
+
+    /**
+     * Receive from socket
+     * @param socket Socket to receive data on
+     * @param buffer Buffer to receive to
+     * @param length Receive buffer length
+     * @param received_bytes Number of received bytes (result)
+     * @param from_addr From address (result)
+     * @param from_port To address (result)
+     * @return RESULT_OK on success
+     */
+    Result ReceiveFrom(Socket socket, void* buffer, int length, int* received_bytes,
+                       Address* from_addr, uint16_t* from_port);
+
 
     /**
      * Clear selector for socket. Similar to FD_CLR
@@ -291,6 +338,23 @@ namespace dmSocket
      * @return RESULT_OK on success
      */
     Result Select(Selector* selector, int32_t timeout);
+
+    /**
+     * Get name, address and port for socket
+     * @param socket Socket to get name for
+     * @param address Address (result)
+     * @param port Socket (result)
+     * @return RESULT_OK on success
+     */
+    Result GetName(Socket socket, Address*address, uint16_t* port);
+
+    /**
+     * Get local hostname
+     * @param hostname hostname buffer
+     * @param hostname_length hostname buffer length
+     * @return RESULT_OK on success
+     */
+    Result GetHostname(char* hostname, int hostname_length);
 
     /**
      * Get address from ip string

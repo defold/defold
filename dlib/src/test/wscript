@@ -264,3 +264,12 @@ def build(bld):
                                 target = 'test_template')
 
     test_template.install_path = None
+
+    test_ssdp = bld.new_task_gen(features = 'cxx cprogram',
+                                source = 'test_ssdp.cpp',
+                                uselib = 'GTEST THREAD',
+                                uselib_local = "dlib",
+                                includes = ['../../src'],
+                                target = 'test_ssdp')
+
+    test_ssdp.install_path = None

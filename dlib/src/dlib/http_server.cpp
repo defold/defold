@@ -23,6 +23,8 @@ namespace dmHttpServer
 
     struct Server
     {
+        dmSocket::Address   m_Address;
+        uint16_t            m_Port;
         HttpHeader          m_HttpHeader;
         HttpResponse        m_HttpResponse;
         void*               m_Userdata;
@@ -97,7 +99,18 @@ namespace dmHttpServer
             return RESULT_SOCKET_ERROR;
         }
 
+        dmSocket::Address address;
+        uint16_t actual_port;
+        r = dmSocket::GetName(socket, &address, &actual_port);
+        if (r != dmSocket::RESULT_OK)
+        {
+            dmSocket::Delete(socket);
+            return RESULT_SOCKET_ERROR;
+        }
+
         Server* ret = new Server();
+        ret->m_Address = address;
+        ret->m_Port = actual_port;
         ret->m_HttpHeader = params->m_HttpHeader;
         ret->m_HttpResponse = params->m_HttpResponse;
         ret->m_Userdata = params->m_Userdata;
@@ -498,5 +511,12 @@ bail:
         }
         return RESULT_OK;
     }
+
+    void GetName(HServer server, dmSocket::Address* address, uint16_t* port)
+    {
+        *address = server->m_Address;
+        *port = server->m_Port;
+    }
+
 }
 

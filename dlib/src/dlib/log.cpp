@@ -21,6 +21,9 @@ void dmLogInternal(dmLogSeverity severity, const char* domain, const char* forma
     const char* severity_str = 0;
     switch (severity)
     {
+        case DM_LOG_SEVERITY_DEBUG:
+            severity_str = "DEBUG";
+        break;
         case DM_LOG_SEVERITY_INFO:
             severity_str = "INFO";
             break;
