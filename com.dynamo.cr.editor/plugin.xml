@@ -374,4 +374,58 @@
           </activeWhen>
         </handler>
      </extension>
+   <extension
+         point="org.eclipse.ui.popupMenus">
+      <objectContribution
+            id="com.dynamo.cr.editor.showInFinder"
+            objectClass="org.eclipse.core.resources.IResource">
+         <action
+               class="com.dynamo.cr.editor.popup.actions.ShowInFileBrowser"
+               enablesFor="1"
+               id="com.dynamo.cr.editor.showInFinder"
+               label="Show in Finder"
+               menubarPath="additions">
+         </action>
+         <visibility>
+            <systemProperty
+                  name="com.defold.platform"
+                  value="darwin">
+            </systemProperty>
+         </visibility>
+      </objectContribution>
+      <objectContribution
+            id="com.dynamo.cr.editor.showInFinder"
+            objectClass="org.eclipse.core.resources.IResource">
+         <action
+               class="com.dynamo.cr.editor.popup.actions.ShowInFileBrowser"
+               enablesFor="1"
+               id="com.dynamo.cr.editor.showInExplorer"
+               label="Show in Explorer"
+               menubarPath="additions">
+         </action>
+         <visibility>
+            <systemProperty
+                  name="com.defold.platform"
+                  value="win32">
+            </systemProperty>
+         </visibility>
+      </objectContribution>
+      <objectContribution
+            id="com.dynamo.cr.editor.showInFileBrowser"
+            objectClass="org.eclipse.core.resources.IResource">
+         <action
+               class="com.dynamo.cr.editor.popup.actions.ShowInFileBrowser"
+               enablesFor="1"
+               id="com.dynamo.cr.editor.showInFileBrowser"
+               label="Show in File Browser"
+               menubarPath="additions">
+         </action>
+         <visibility>
+            <systemProperty
+                  name="com.defold.platform"
+                  value="linux">
+            </systemProperty>
+         </visibility>
+      </objectContribution>
+   </extension>
 </plugin>
