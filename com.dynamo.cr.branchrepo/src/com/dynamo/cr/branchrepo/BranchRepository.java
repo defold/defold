@@ -32,6 +32,7 @@ import com.dynamo.server.dgit.GitResetMode;
 import com.dynamo.server.dgit.GitStage;
 import com.dynamo.server.dgit.GitState;
 import com.dynamo.server.dgit.GitStatus;
+import com.dynamo.server.dgit.GitStatus.Entry;
 import com.dynamo.server.dgit.IGit;
 
 public abstract class BranchRepository {
@@ -441,6 +442,24 @@ public abstract class BranchRepository {
         }
 
         return builder.build();
+    }
+
+    public void autoStage(String project, String user, String branch) throws BranchRepositoryException, IOException {
+        ensureProjectBranch(project, user, branch);
+        String p = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
+        IGit git = getGit();
+        GitStatus status = git.getStatus(p);
+
+        for (Entry f : status.files) {
+            char ws = f.workingTreeStatus;
+            if (ws == '?' || ws == 'M') {
+                System.out.println("autostaging: " + f.file);
+                git.add(p, f.file);
+            }
+            else if (ws == 'D') {
+                git.rm(p, f.file, true, true);
+            }
+        }
     }
 
     public String[] getBranchNames(String project, String user) {

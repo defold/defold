@@ -30,6 +30,7 @@ import com.dynamo.server.dgit.GitResetMode;
 import com.dynamo.server.dgit.GitStage;
 import com.dynamo.server.dgit.GitState;
 import com.dynamo.server.dgit.GitStatus;
+import com.dynamo.server.dgit.GitStatus.Entry;
 import com.dynamo.server.dgit.IGit;
 import com.dynamo.server.dgit.GitFactory.Type;
 
@@ -161,6 +162,54 @@ public class GitTest {
         assertEquals("rename2.cpp", status.files.get(1).file);
         assertEquals('R', status.files.get(1).indexStatus);
         assertEquals(' ', status.files.get(1).workingTreeStatus);
+    }
+
+    @Test
+    public void newFile() throws IOException {
+        File repo = cloneInitial();
+
+        GitStatus status = git.getStatus(repo.getPath());
+        assertEquals(0, status.files.size());
+
+        FileWriter fw = new FileWriter(new File(repo, "new_file.txt"));
+        fw.write("testing\n");
+        fw.close();
+
+        status = git.getStatus(repo.getPath());
+        assertEquals(1, status.files.size());
+
+        Entry e = status.files.get(0);
+        assertEquals("new_file.txt", e.file);
+        assertEquals('?', e.indexStatus);
+        assertEquals('?', e.workingTreeStatus);
+    }
+
+    @Test
+    public void changeNewAndStagedFile() throws IOException {
+        File repo = cloneInitial();
+
+        GitStatus status = git.getStatus(repo.getPath());
+        assertEquals(0, status.files.size());
+
+        FileWriter fw = new FileWriter(new File(repo, "new_file.txt"));
+        fw.write("testing\n");
+        fw.close();
+
+        // Stage
+        git.add(repo.getPath(), "new_file.txt");
+
+        // Change again
+        fw = new FileWriter(new File(repo, "new_file.txt"), true);
+        fw.write("some appended content\n");
+        fw.close();
+
+        status = git.getStatus(repo.getPath());
+        assertEquals(1, status.files.size());
+
+        Entry e = status.files.get(0);
+        assertEquals("new_file.txt", e.file);
+        assertEquals('A', e.indexStatus);
+        assertEquals('M', e.workingTreeStatus);
     }
 
     @Test

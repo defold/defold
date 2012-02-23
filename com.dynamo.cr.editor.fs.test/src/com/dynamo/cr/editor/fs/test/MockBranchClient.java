@@ -111,6 +111,11 @@ public class MockBranchClient implements IBranchClient {
     }
 
     @Override
+    public void autoStage() throws RepositoryException {
+        throw new RuntimeException("Not impl.");
+    }
+
+    @Override
     public void putResourceData(String path, byte[] bytes)
             throws RepositoryException {
 

@@ -33,6 +33,11 @@ public class BranchClient extends BaseClient implements IBranchClient {
     }
 
     @Override
+    public void autoStage() {
+        // Only support in local client
+    }
+
+    @Override
     public ResourceInfo getResourceInfo(String path) throws RepositoryException {
         try {
             WebResource sub_resource = resource.path("/resources/info").queryParam("path", path);
