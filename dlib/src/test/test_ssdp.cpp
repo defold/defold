@@ -8,6 +8,7 @@
 #include "../dlib/log.h"
 #include "../dlib/dstrings.h"
 #include "../dlib/hash.h"
+#include "../dlib/socket.h"
 
 static const char* DEVICE_DESC =
 "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
