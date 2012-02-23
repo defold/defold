@@ -235,7 +235,10 @@ TEST_F(dmSSDPTest, Renew)
 int main(int argc, char **argv)
 {
     dmLogSetlevel(DM_LOG_SEVERITY_INFO);
+    dmSocket::Initialize();
     testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    int ret = RUN_ALL_TESTS();
+    dmSocket::Finalize();
+    return ret;
 }
 
