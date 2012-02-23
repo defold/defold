@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 import org.eclipse.jgit.api.AddCommand;
 import org.eclipse.jgit.api.CheckoutCommand;
@@ -649,6 +650,8 @@ public class JGit implements IGit, TransportConfigCallback {
 
             try {
                 in = new FileInputStream(sourceFile);
+                String p = FilenameUtils.getPath(destination);
+                new File(directory, p).mkdir();
                 out = new FileOutputStream(destFile);
                 IOUtils.copy(in, out);
             } finally {
@@ -679,9 +682,23 @@ public class JGit implements IGit, TransportConfigCallback {
     @Override
     public void checkout(String directory, String file, boolean force)
             throws IOException {
+
+        // TODO:
+        // This might be a bug in JGit
+        // We create directory where the file shoudl reside
+        String p = FilenameUtils.getPath(file);
+        File f = new File(directory, p);
+        if (!f.exists()) {
+            f.mkdirs();
+        }
+
         Git git = getGit(directory);
         CheckoutCommand command = git.checkout().addPath(file).setForce(force);
-        wrapCall(command);
+        try {
+            command.call();
+        } catch (Exception e) {
+            throw new GitException(e);
+        }
     }
 
     @Override

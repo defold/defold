@@ -213,6 +213,109 @@ public class GitTest {
     }
 
     @Test
+    public void renameRevertDirectoryDirectory1() throws IOException {
+        File repo = cloneInitial();
+
+        GitStatus status = git.getStatus(repo.getPath());
+        assertEquals(0, status.files.size());
+
+        new File(repo, "dir").mkdir();
+
+        FileWriter fw = new FileWriter(new File(repo, "dir/new_file.txt"));
+        fw.write("testing\n");
+        fw.close();
+
+        // Commit
+        git.add(repo.getPath(), "dir/new_file.txt");
+        git.commitAll(repo.getPath(), "commit1");
+
+        // Move
+        git.mv(repo.getPath(), "dir", "dir2", false);
+        git.commitAll(repo.getPath(), "commit2");
+
+        // NOTE: We move the file here and not th dir. See test below for the other version
+        git.mv(repo.getPath(), "dir2/new_file.txt", "dir/new_file.txt", false);
+        git.checkout(repo.getPath(), "dir/new_file.txt", false);
+        git.commitAll(repo.getPath(), "commit2");
+
+        status = git.getStatus(repo.getPath());
+        assertEquals(0, status.files.size());
+
+        String content = readEntireFile(new File(repo, "dir/new_file.txt"));
+        assertEquals("testing\n", content);
+    }
+
+    @Test
+    public void renameRevertDirectoryDirectory2() throws IOException {
+        File repo = cloneInitial();
+
+        GitStatus status = git.getStatus(repo.getPath());
+        assertEquals(0, status.files.size());
+
+        new File(repo, "dir").mkdir();
+
+        FileWriter fw = new FileWriter(new File(repo, "dir/new_file.txt"));
+        fw.write("testing\n");
+        fw.close();
+
+        // Commit
+        git.add(repo.getPath(), "dir/new_file.txt");
+        git.commitAll(repo.getPath(), "commit1");
+
+        // Move
+        git.mv(repo.getPath(), "dir", "dir2", false);
+        git.commitAll(repo.getPath(), "commit2");
+
+        // Move back
+        git.mv(repo.getPath(), "dir2", "dir", false);
+        git.commitAll(repo.getPath(), "commit2");
+
+        status = git.getStatus(repo.getPath());
+        assertEquals(0, status.files.size());
+
+        String content = readEntireFile(new File(repo, "dir/new_file.txt"));
+        assertEquals("testing\n", content);
+    }
+
+    @Test
+    public void unstageDeleted() throws IOException {
+        File repo = cloneInitial();
+
+        GitStatus status = git.getStatus(repo.getPath());
+        assertEquals(0, status.files.size());
+
+        new File(repo, "dir").mkdir();
+
+        FileWriter fw = new FileWriter(new File(repo, "dir/new_file.txt"));
+        fw.write("testing\n");
+        fw.close();
+
+        // Commit
+        git.add(repo.getPath(), "dir/new_file.txt");
+        git.commitAll(repo.getPath(), "commit1");
+
+        // Remove
+        git.rm(repo.getPath(), "dir/new_file.txt", false, false);
+        new File(repo.getPath(), "dir").delete();
+
+        status = git.getStatus(repo.getPath());
+        assertEquals(1, status.files.size());
+        Entry e = status.files.get(0);
+        assertEquals("dir/new_file.txt", e.file);
+        assertEquals('D', e.indexStatus);
+        assertEquals(' ', e.workingTreeStatus);
+
+        git.reset(repo.getPath(), GitResetMode.MIXED, "dir/new_file.txt", "HEAD");
+        git.checkout(repo.getPath(), "dir/new_file.txt", false);
+
+        status = git.getStatus(repo.getPath());
+        assertEquals(0, status.files.size());
+
+        String content = readEntireFile(new File(repo, "dir/new_file.txt"));
+        assertEquals("testing\n", content);
+    }
+
+    @Test
     public void commit() throws IOException {
         File repo = cloneInitial();
         GitState state = git.getState(repo.getPath());

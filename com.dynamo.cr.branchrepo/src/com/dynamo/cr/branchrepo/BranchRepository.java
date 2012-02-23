@@ -351,9 +351,18 @@ public abstract class BranchRepository {
                 git.rm(branch_path, localPath, false, true);
                 break;
             case 'R':
-                git.rm(branch_path, localPath, false, true);
+                git.mv(branch_path, localPath, entry.original, false);
                 git.reset(branch_path, GitResetMode.MIXED, entry.original, "HEAD");
                 git.checkout(branch_path, entry.original, false);
+                /*
+                    NOTE: Previous code. Could get it to work in JGit
+                    Perhaps some discrepancy? I leave the note and code
+                    here in case any problems
+
+                    git.rm(branch_path, localPath, false, true);
+                    git.reset(branch_path, GitResetMode.MIXED, entry.original, "HEAD");
+                    git.checkout(branch_path, entry.original, false);
+                */
                 break;
             case 'D':
             case 'M':

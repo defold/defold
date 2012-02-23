@@ -13,6 +13,7 @@ import java.util.StringTokenizer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.apache.commons.io.FilenameUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -335,6 +336,11 @@ public class CGit implements IGit {
     @Override
     public void mv(String directory, String source, String destination, boolean force) throws IOException {
         CommandUtil.Result r;
+
+        // Ensure that destination path exists
+        String p = FilenameUtils.getPath(destination);
+        new File(directory, p).mkdir();
+
         if (force)
             r = execGitCommand(directory, "git", "mv", "-f", source, destination);
         else
