@@ -570,7 +570,7 @@ bail:
         if (ssdp->m_DiscoveredDevices.Get(id) == 0)
         {
             Device device;
-            device.m_Expires = dmTime::GetTime() + state->m_MaxAge * 1000000llu;
+            device.m_Expires = dmTime::GetTime() + state->m_MaxAge * uint64_t(1000000);
 
             // New
             if (ssdp->m_DiscoveredDevices.Full())
@@ -590,7 +590,7 @@ bail:
             // Renew
             dmLogInfo("SSDP renew %s (announce/search-response)", usn);
             Device* old_device = ssdp->m_DiscoveredDevices.Get(id);
-            old_device->m_Expires = dmTime::GetTime() + state->m_MaxAge * 1000000llu;
+            old_device->m_Expires = dmTime::GetTime() + state->m_MaxAge * uint64_t(1000000);
         }
 
         if (ssdp->m_DiscoveredDevices.Full())
