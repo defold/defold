@@ -615,6 +615,7 @@ bail:
     static void SearchCallback(SearchResponseContext* ctx, const dmhash_t* key, Device** device)
     {
         dmLogDebug("Sending search response: %s", (*device)->m_DeviceDesc->m_UDN);
+        // TODO: Filter here?
         SSDP* ssdp = ctx->m_State->m_SSDP;
         Replacer replacer1(0, *device, ReplaceDeviceVar);
         Replacer replacer2(&replacer1, ctx, ReplaceSearchResponseVar);

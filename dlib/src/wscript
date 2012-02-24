@@ -1,5 +1,7 @@
 #! /usr/bin/env python
 
+import os
+
 def set_options(opt):
     pass
 
@@ -62,6 +64,27 @@ def build(bld):
 
         if 'linux' in bld.env['PLATFORM']:
             dlib.env.append_value('LINKFLAGS', [ '-ldl' ])
+
+    classpath = ['%s/ext/share/java/junit-4.6.jar' % bld.env.DYNAMO_HOME]
+    classpath = os.pathsep.join(classpath)
+
+    bld.new_task_gen(features='javac seq',
+                     classpath=classpath,
+                     source_root='java')
+
+    bld.env["JAVACFLAGS"] = '-g'
+    bld.add_group()
+
+    bld.new_task_gen(features='jar seq',
+                     basedir='java',
+                     destfile='upnp.jar')
+    bld.add_group()
+
+    bld.new_task_gen(features='javac seq',
+                     classpath=classpath  + os.pathsep + 'default/src/java',
+                     source_root='java_test')
+    bld.add_group()
+
 
 def configure(conf):
     pass

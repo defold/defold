@@ -38,6 +38,11 @@ void InitDeviceDesc(dmSSDP::DeviceDesc& device_desc)
     dmStrlCpy(device_desc.m_UDN, TEST_UDN, sizeof(device_desc.m_UDN));
 }
 
+void WaitPackage()
+{
+    dmTime::Sleep(50 * 1000);
+}
+
 class dmSSDPTest: public ::testing::Test
 {
 public:
@@ -64,15 +69,10 @@ public:
         Refresh();
     }
 
-    void UpdateServer(bool search = false)
+    void UpdateServer()
     {
-        dmSSDP::Update(m_Server, search);
+        dmSSDP::Update(m_Server, false);
         Refresh();
-    }
-
-    void WaitPackage()
-    {
-        dmTime::Sleep(50 * 1000);
     }
 
     void Refresh()
@@ -232,6 +232,107 @@ TEST_F(dmSSDPTest, Renew)
     UpdateClient();
     ASSERT_TRUE(TestDeviceDiscovered());
 }
+
+#ifndef _WIN32
+#include <sys/select.h>
+
+/*
+ * TODO:
+ * select() on file descriptors is not available on windows
+ * Port this test to use WaitForSingleObject or other windows appropriate stuff
+ */
+
+static const char* TEST_JAVA_UDN1 = "uuid:00000001-3d4f-339c-8c4d-f7c6da6771c8";
+static const char* TEST_JAVA_UDN2 = "uuid:00000002-3d4f-339c-8c4d-f7c6da6771c8";
+
+TEST(dmSSDP, JavaClient)
+{
+    /*
+     * About the servers:
+     * Server1: max-age=1, announce=true
+     * Server2: max-age=2, announce=false
+     *
+     * Server1 is used to test announce messages
+     * Server2 is used to test expiration (client-side)
+     *
+     * Any server can be used to test search
+     *
+     */
+    dmSSDP::HSSDP server1, server2;
+    dmSSDP::DeviceDesc device_desc1, device_desc2;
+
+    dmSSDP::Result r;
+    dmSSDP::NewParams server_params1;
+    server_params1.m_MaxAge = 1;
+    server_params1.m_Announce = 1;
+    r = dmSSDP::New(&server_params1, &server1);
+    ASSERT_EQ(dmSSDP::RESULT_OK, r);
+    device_desc1.m_Id = "my_root_device1";
+    device_desc1.m_DeviceDescription = DEVICE_DESC;
+    device_desc1.m_DeviceType = "upnp:rootdevice";
+    dmStrlCpy(device_desc1.m_UDN, TEST_JAVA_UDN1, sizeof(device_desc1.m_UDN));
+    r = dmSSDP::RegisterDevice(server1, &device_desc1);
+    ASSERT_EQ(dmSSDP::RESULT_OK, r);
+
+    dmSSDP::NewParams server_params2;
+    server_params2.m_MaxAge = 2;
+    server_params2.m_Announce = 0;
+    r = dmSSDP::New(&server_params2, &server2);
+    ASSERT_EQ(dmSSDP::RESULT_OK, r);
+    device_desc2.m_Id = "my_root_device2";
+    device_desc2.m_DeviceDescription = DEVICE_DESC;
+    device_desc2.m_DeviceType = "upnp:rootdevice";
+    dmStrlCpy(device_desc2.m_UDN, TEST_JAVA_UDN2, sizeof(device_desc2.m_UDN));
+    r = dmSSDP::RegisterDevice(server2, &device_desc2);
+    ASSERT_EQ(dmSSDP::RESULT_OK, r);
+
+    dmSSDP::Update(server1, false);
+    dmSSDP::Update(server2, false);
+    WaitPackage();
+
+    char* dynamo_home = getenv("DYNAMO_HOME");
+    char command[1024];
+    DM_SNPRINTF(command, sizeof(command),
+            "java -cp build/default/src/java:build/default/src/java_test:%s/ext/share/java/junit-4.6.jar  org.junit.runner.JUnitCore com.dynamo.upnp.SSDPTest", dynamo_home);
+
+    const char* mode = "r";
+    FILE* f = popen(command, mode);
+    fd_set set;
+    timeval timeout;
+    timeout.tv_sec = 0;
+    timeout.tv_usec = 5 * 1000;
+    int fd = fileno(f);
+    while (true) {
+        FD_ZERO(&set);
+        FD_SET(fd, &set);
+        int n = select(fd + 1, &set, 0, 0, &timeout);
+        if (n > 0) {
+            int c = fgetc(f);
+            if (c == EOF)
+                break;
+            fputc(c, stderr);
+        }
+
+        dmSSDP::Update(server1, false);
+        dmSSDP::Update(server2, false);
+    }
+
+    int ret = pclose(f);
+    ASSERT_EQ(0, ret);
+
+    r = dmSSDP::DeregisterDevice(server1, "my_root_device1");
+    ASSERT_EQ(dmSSDP::RESULT_OK, r);
+
+    r = dmSSDP::DeregisterDevice(server2, "my_root_device2");
+    ASSERT_EQ(dmSSDP::RESULT_OK, r);
+
+    r = dmSSDP::Delete(server1);
+    ASSERT_EQ(dmSSDP::RESULT_OK, r);
+    r = dmSSDP::Delete(server2);
+    ASSERT_EQ(dmSSDP::RESULT_OK, r);
+}
+
+#endif
 
 int main(int argc, char **argv)
 {
