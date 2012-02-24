@@ -11,6 +11,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.StringTokenizer;
+import java.util.Map.Entry;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -18,6 +19,8 @@ import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.xpath.XPathExpressionException;
 
 import org.xml.sax.SAXException;
+
+import com.dynamo.upnp.DeviceInfo;
 
 public class SSDP {
 
@@ -63,11 +66,10 @@ public class SSDP {
     private void expireDiscovered() {
         long now = System.currentTimeMillis();
         Set<String> toExpire = new HashSet<String>();
-        for (String id : discoveredDevices.keySet()) {
-            DeviceInfo dev = discoveredDevices.get(id);
-
+        for (Entry<String, DeviceInfo> e : discoveredDevices.entrySet()) {
+            DeviceInfo dev = e.getValue();
             if (now >= dev.expires) {
-                toExpire.add(id);
+                toExpire.add(e.getKey());
             }
         }
         for (String id : toExpire) {
