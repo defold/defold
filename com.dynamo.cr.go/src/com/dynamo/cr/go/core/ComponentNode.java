@@ -7,6 +7,7 @@ import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.validators.Unique;
 
+@SuppressWarnings("serial")
 public class ComponentNode extends Node {
 
     @Property

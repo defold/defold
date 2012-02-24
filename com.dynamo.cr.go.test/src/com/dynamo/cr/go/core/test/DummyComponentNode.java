@@ -9,6 +9,7 @@ import com.dynamo.cr.go.core.ComponentTypeNode;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.sceneed.Activator;
 
+@SuppressWarnings("serial")
 public class DummyComponentNode extends ComponentTypeNode {
 
     @Property

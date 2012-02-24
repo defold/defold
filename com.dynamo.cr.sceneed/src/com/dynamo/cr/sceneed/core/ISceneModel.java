@@ -36,5 +36,8 @@ public interface ISceneModel extends IPropertyObjectWorld {
     String getExtension(Class<? extends Node> nodeClass);
     String getTypeName(Class<? extends Node> nodeClass);
     Image getIcon(Class<? extends Node> nodeClass);
+    INodeLoader<Node> getNodeLoader(Class<? extends Node> nodeClass);
+    ILoaderContext getLoaderContext();
 
+    void logException(Throwable e);
 }

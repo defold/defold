@@ -12,6 +12,7 @@ import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.validators.Unique;
 import com.dynamo.cr.tileeditor.Activator;
 
+@SuppressWarnings("serial")
 public class LayerNode extends Node {
 
     @Property

@@ -20,6 +20,7 @@ import com.dynamo.cr.tileeditor.Activator;
 import com.dynamo.cr.tileeditor.core.Layer;
 import com.dynamo.tile.TileSetUtil;
 
+@SuppressWarnings("serial")
 public class TileGridNode extends ComponentTypeNode {
 
     @Property(isResource=true)

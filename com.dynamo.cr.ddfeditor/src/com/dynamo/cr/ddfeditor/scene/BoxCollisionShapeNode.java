@@ -7,6 +7,7 @@ import com.dynamo.cr.properties.GreaterThanZero;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.sceneed.core.AABB;
 
+@SuppressWarnings("serial")
 public class BoxCollisionShapeNode extends CollisionShapeNode {
 
     @Property

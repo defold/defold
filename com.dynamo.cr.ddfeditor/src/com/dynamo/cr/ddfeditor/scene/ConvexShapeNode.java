@@ -4,6 +4,7 @@ import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.physics.proto.Physics.ConvexShape;
 
+@SuppressWarnings("serial")
 public class ConvexShapeNode extends Node {
 
     private final ConvexShape convexShape;

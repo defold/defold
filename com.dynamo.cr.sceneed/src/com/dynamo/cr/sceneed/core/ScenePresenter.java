@@ -1,31 +1,27 @@
 package com.dynamo.cr.sceneed.core;
 
-import java.io.CharArrayReader;
-import java.io.CharArrayWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
-import org.apache.commons.io.input.ReaderInputStream;
 import org.eclipse.core.resources.IResourceChangeEvent;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
+import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.swt.dnd.Transfer;
 
-import com.dynamo.cr.editor.core.ILogger;
+import com.dynamo.cr.sceneed.Activator;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenter;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.operations.AddChildrenOperation;
 import com.dynamo.cr.sceneed.core.operations.RemoveChildrenOperation;
-import com.dynamo.cr.sceneed.core.util.NodeTransfer;
+import com.dynamo.cr.sceneed.core.util.NodeListTransfer;
 import com.google.inject.Inject;
 import com.google.protobuf.Message;
-import com.google.protobuf.TextFormat;
 
 public class ScenePresenter implements IPresenter, IModelListener {
 
@@ -37,7 +33,7 @@ public class ScenePresenter implements IPresenter, IModelListener {
     private ManipulatorController manipulatorController;
 
     @Inject
-    public ScenePresenter(ISceneModel model, ISceneView view, INodeTypeRegistry manager, ILogger logger, ILoaderContext loaderContext, IClipboard clipboard, ManipulatorController manipulatorController) {
+    public ScenePresenter(ISceneModel model, ISceneView view, INodeTypeRegistry manager, ILoaderContext loaderContext, IClipboard clipboard, ManipulatorController manipulatorController) {
         this.model = model;
         this.view = view;
         this.nodeTypeRegistry = manager;
@@ -64,17 +60,21 @@ public class ScenePresenter implements IPresenter, IModelListener {
     @Override
     public final void onLoad(String type, InputStream contents) throws IOException, CoreException {
         INodeType nodeType = this.nodeTypeRegistry.getNodeTypeFromExtension(type);
-        INodeLoader<? extends Node, ? extends Message> loader = nodeType.getLoader();
-        Node node = loader.load(this.loaderContext, contents);
-        this.model.setRoot(node);
+        INodeLoader<Node> loader = nodeType.getLoader();
+        try {
+            Node node = loader.load(this.loaderContext, contents);
+            this.model.setRoot(node);
+        } catch (Exception e) {
+            // Should never happen in production
+            throw new CoreException(new Status(IStatus.ERROR, Activator.PLUGIN_ID, "Node could not be loaded", e));
+        }
     }
 
     @Override
     public void onSave(OutputStream contents, IProgressMonitor monitor) throws IOException, CoreException {
         Node node = this.model.getRoot();
         INodeType nodeType = this.nodeTypeRegistry.getNodeTypeClass(node.getClass());
-        @SuppressWarnings("unchecked")
-        INodeLoader<Node, Message> loader = (INodeLoader<Node, Message>)nodeType.getLoader();
+        INodeLoader<Node> loader = nodeType.getLoader();
         Message message = loader.buildMessage(this.loaderContext, node, monitor);
         SceneUtil.saveMessage(message, contents, monitor);
         this.model.clearDirty();
@@ -96,27 +96,6 @@ public class ScenePresenter implements IPresenter, IModelListener {
         this.manipulatorController.refresh();
     }
 
-    private static class NodeData {
-        public Class<? extends Node> type;
-        public char[] data;
-        @SuppressWarnings("unchecked")
-        private void readObject(java.io.ObjectInputStream stream)
-                throws IOException, ClassNotFoundException {
-            this.type = (Class<? extends Node>)stream.readObject();
-            int dataSize = stream.readInt();
-            byte[] bytes = new byte[dataSize];
-            stream.read(bytes, 0, dataSize);
-            this.data = new String(bytes).toCharArray();
-        }
-        private void writeObject(java.io.ObjectOutputStream stream)
-            throws IOException {
-            stream.writeObject(this.type);
-            stream.writeInt(this.data.length);
-            stream.write(new String(this.data).getBytes());
-        }
-    }
-
-    @SuppressWarnings("unchecked")
     @Override
     public void onCopySelection(IPresenterContext presenterContext, ILoaderContext loaderContext, IProgressMonitor monitor) throws IOException, CoreException {
         IStructuredSelection selection = presenterContext.getSelection();
@@ -126,33 +105,8 @@ public class ScenePresenter implements IPresenter, IModelListener {
             nodes.add((Node)object);
         }
         if (nodes.size() > 0) {
-            List<NodeData> data = new ArrayList<NodeData>();
-            NodeTransfer transfer = NodeTransfer.getInstance();
-            Node parent = nodes.get(0).getParent();
-            INodeType parentType = null;
-            if (parent != null) {
-                parentType = this.nodeTypeRegistry.getNodeTypeClass(parent.getClass());
-            }
-            for (Node node : nodes) {
-                Class<? extends Node> nodeClass = node.getClass();
-                if (parentType != null) {
-                    for (INodeType type : parentType.getReferenceNodeTypes()) {
-                        if (type.getNodeClass().isAssignableFrom(nodeClass)) {
-                            nodeClass = (Class<? extends Node>)type.getNodeClass();
-                            break;
-                        }
-                    }
-                }
-                INodeLoader<Node, Message> loader = (INodeLoader<Node, Message>)this.nodeTypeRegistry.getNodeTypeClass(nodeClass).getLoader();
-                Message message = loader.buildMessage(loaderContext, node, monitor);
-                NodeData entry = new NodeData();
-                entry.type = node.getClass();
-                CharArrayWriter writer = new CharArrayWriter();
-                TextFormat.print(message, writer);
-                entry.data = writer.toCharArray();
-                data.add(entry);
-            }
-            this.clipboard.setContents(new Object[] {data}, new Transfer[] {transfer});
+            NodeListTransfer transfer = NodeListTransfer.getInstance();
+            this.clipboard.setContents(new Object[] {nodes}, new Transfer[] {transfer});
         }
     }
 
@@ -165,64 +119,37 @@ public class ScenePresenter implements IPresenter, IModelListener {
             nodes.add((Node)object);
         }
         if (nodes.size() > 0) {
-            List<NodeData> data = new ArrayList<NodeData>();
-            NodeTransfer transfer = NodeTransfer.getInstance();
-            Node parent = nodes.get(0).getParent();
-            INodeType parentType = null;
-            if (parent != null) {
-                parentType = this.nodeTypeRegistry.getNodeTypeClass(parent.getClass());
-            }
-            for (Node node : nodes) {
-                Class<? extends Node> nodeClass = node.getClass();
-                if (parentType != null) {
-                    for (INodeType type : parentType.getReferenceNodeTypes()) {
-                        if (type.getNodeClass().isAssignableFrom(nodeClass)) {
-                            nodeClass = (Class<? extends Node>)type.getNodeClass();
-                            break;
-                        }
-                    }
-                }
-                INodeLoader<Node, Message> loader = (INodeLoader<Node, Message>)this.nodeTypeRegistry.getNodeTypeClass(nodeClass).getLoader();
-                Message message = loader.buildMessage(loaderContext, node, monitor);
-                NodeData entry = new NodeData();
-                entry.type = node.getClass();
-                CharArrayWriter writer = new CharArrayWriter();
-                TextFormat.print(message, writer);
-                entry.data = writer.toCharArray();
-                data.add(entry);
-            }
+            NodeListTransfer transfer = NodeListTransfer.getInstance();
+            this.clipboard.setContents(new Object[] {nodes}, new Transfer[] {transfer});
             presenterContext.executeOperation(new RemoveChildrenOperation(nodes, presenterContext));
-            this.clipboard.setContents(new Object[] {data}, new Transfer[] {transfer});
         }
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public void onPasteIntoSelection(IPresenterContext context) throws IOException, CoreException {
         Object[] selection = context.getSelection().toArray();
         if (selection.length != 1) {
             return;
         }
-        NodeTransfer transfer = NodeTransfer.getInstance();
+        NodeListTransfer transfer = NodeListTransfer.getInstance();
 
-        @SuppressWarnings("unchecked")
-        List<NodeData> data = (List<NodeData>) this.clipboard.getContents(transfer);
-        if (data != null && data.size() > 0) {
+        List<Node> nodes = (List<Node>)this.clipboard.getContents(transfer);
+
+        if (nodes != null && nodes.size() > 0) {
             Node target = (Node)selection[0];
             INodeType targetType = null;
-            Map<Class<? extends Node>, INodeLoader<? extends Node, ? extends Message>> loaders = new HashMap<Class<? extends Node>, INodeLoader<? extends Node, ? extends Message>>();
             // Verify acceptance of child classes
             while (target != null) {
                 boolean accepted = true;
                 targetType = this.nodeTypeRegistry.getNodeTypeClass(target.getClass());
                 if (targetType != null) {
                     all_entries:
-                    for (NodeData entry : data) {
+                    for (Node node : nodes) {
                         for (INodeType nodeType : targetType.getReferenceNodeTypes()) {
-                            if (!nodeType.getNodeClass().isAssignableFrom(entry.type)) {
+                            if (!nodeType.getNodeClass().isAssignableFrom(node.getClass())) {
                                 accepted = false;
                                 break all_entries;
-                            } else {
-                                loaders.put(entry.type, nodeType.getLoader());
                             }
                         }
                     }
@@ -230,19 +157,10 @@ public class ScenePresenter implements IPresenter, IModelListener {
                         break;
                     }
                 }
-                loaders.clear();
                 target = target.getParent();
             }
             if (target == null || targetType == null)
                 return;
-            List<Node> nodes = new ArrayList<Node>(data.size());
-            for (NodeData entry : data) {
-                INodeLoader<? extends Node, ? extends Message> loader = loaders.get(entry.type);
-                CharArrayReader r = new CharArrayReader(entry.data);
-                ReaderInputStream contents = new ReaderInputStream(r);
-                Node node = loader.load(loaderContext, contents);
-                nodes.add(node);
-            }
             context.executeOperation(new AddChildrenOperation("Paste", target, nodes, context));
         }
     }

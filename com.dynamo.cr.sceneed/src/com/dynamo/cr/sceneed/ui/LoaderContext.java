@@ -7,7 +7,6 @@ import java.io.InputStream;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.CoreException;
-import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.Path;
 
 import com.dynamo.cr.editor.core.ILogger;
@@ -17,7 +16,6 @@ import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
 import com.dynamo.cr.sceneed.core.Node;
 import com.google.inject.Inject;
-import com.google.protobuf.Message;
 
 public class LoaderContext implements
 com.dynamo.cr.sceneed.core.ILoaderContext {
@@ -54,19 +52,12 @@ com.dynamo.cr.sceneed.core.ILoaderContext {
             throws IOException, CoreException {
         INodeType nodeType = this.nodeTypeRegistry.getNodeTypeFromExtension(extension);
         if (nodeType != null) {
-            INodeLoader<? extends Node, ? extends Message> loader = nodeType.getLoader();
-            return loader.load(this, contents);
-        }
-        return null;
-    }
-
-    @Override
-    public <T extends Node, U extends Message> T loadNode(Class<T> nodeClass, U message) throws IOException, CoreException {
-        INodeType nodeType = this.nodeTypeRegistry.getNodeTypeClass(nodeClass);
-        if (nodeType != null) {
-            @SuppressWarnings("unchecked")
-            INodeLoader<T, U> loader = (INodeLoader<T, U>) nodeType.getLoader();
-            return loader.load(this, message);
+            INodeLoader<Node> loader = nodeType.getLoader();
+            try {
+                return loader.load(this, contents);
+            } catch (Exception e) {
+                this.logger.logException(e);
+            }
         }
         return null;
     }
@@ -88,17 +79,6 @@ com.dynamo.cr.sceneed.core.ILoaderContext {
             IResourceType resourceType = nodeType.getResourceType();
             ByteArrayInputStream stream = new ByteArrayInputStream(resourceType.getTemplateData());
             return loadNode(extension, stream);
-        }
-        return null;
-    }
-
-    @Override
-    public Message buildNodeMessage(Node node, IProgressMonitor monitor) throws IOException, CoreException {
-        INodeType nodeType = this.nodeTypeRegistry.getNodeTypeClass(node.getClass());
-        if (nodeType != null) {
-            @SuppressWarnings("unchecked")
-            INodeLoader<Node, Message> loader = (INodeLoader<Node, Message>)nodeType.getLoader();
-            return loader.buildMessage(this, node, monitor);
         }
         return null;
     }

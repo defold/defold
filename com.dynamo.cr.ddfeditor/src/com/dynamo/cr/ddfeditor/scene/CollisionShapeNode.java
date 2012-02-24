@@ -10,6 +10,7 @@ import org.eclipse.osgi.util.NLS;
 import com.dynamo.cr.sceneed.Activator;
 import com.dynamo.cr.sceneed.core.Node;
 
+@SuppressWarnings("serial")
 public abstract class CollisionShapeNode extends Node {
 
     private IStatus boundsErrorStatus = null;

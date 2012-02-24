@@ -4,6 +4,7 @@ import org.eclipse.swt.events.MouseEvent;
 import org.eclipse.swt.events.MouseListener;
 import org.eclipse.swt.events.MouseMoveListener;
 
+@SuppressWarnings("serial")
 public abstract class Manipulator extends Node implements MouseListener, MouseMoveListener {
 
     private ManipulatorController controller;

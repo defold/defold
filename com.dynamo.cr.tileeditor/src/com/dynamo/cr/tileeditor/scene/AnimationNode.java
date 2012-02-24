@@ -14,6 +14,7 @@ import com.dynamo.cr.tileeditor.Activator;
 import com.dynamo.tile.proto.Tile;
 import com.dynamo.tile.proto.Tile.Playback2;
 
+@SuppressWarnings("serial")
 public class AnimationNode extends Node {
 
     @Property

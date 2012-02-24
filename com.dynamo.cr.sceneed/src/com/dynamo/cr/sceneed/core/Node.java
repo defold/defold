@@ -1,5 +1,9 @@
 package com.dynamo.cr.sceneed.core;
 
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -29,8 +33,9 @@ import com.dynamo.cr.properties.PropertyIntrospector;
 import com.dynamo.cr.properties.PropertyIntrospectorModel;
 import com.dynamo.cr.sceneed.Activator;
 
+@SuppressWarnings("serial")
 @Entity(commandFactory = SceneUndoableCommandFactory.class)
-public abstract class Node implements IAdaptable {
+public abstract class Node implements IAdaptable, Serializable {
 
     public enum Flags {
         TRANSFORMABLE,
@@ -442,5 +447,33 @@ public abstract class Node implements IAdaptable {
         transform.get(translation);
         this.translation.set(translation);
         rotation.set(transform);
+    }
+
+    private void writeObject(ObjectOutputStream out) throws IOException {
+        out.writeObject(this.children);
+        out.writeObject(this.flags);
+        out.writeObject(this.aabb);
+        out.writeObject(this.worldAABB);
+        out.writeBoolean(this.worldAABBDirty);
+        out.writeObject(this.translation);
+        out.writeObject(this.rotation);
+        out.writeObject(this.euler);
+    }
+
+    @SuppressWarnings({"unchecked"})
+    private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
+        List<Node> children = (List<Node>)in.readObject();
+        this.children = new ArrayList<Node>(children.size());
+        for (Node child : children) {
+            addChild(child);
+        }
+        this.childIndex = -1;
+        this.flags = (EnumSet<Flags>)in.readObject();
+        this.aabb = (AABB)in.readObject();
+        this.worldAABB = (AABB)in.readObject();
+        this.worldAABBDirty = in.readBoolean();
+        this.translation = (Point3d)in.readObject();
+        this.rotation = (Quat4d)in.readObject();
+        this.euler = (Vector3d)in.readObject();
     }
 }

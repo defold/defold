@@ -10,9 +10,9 @@ import com.dynamo.cr.go.core.InstanceNode;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.NodeUtil;
-import com.dynamo.cr.sceneed.core.operations.AddChildOperation;
+import com.dynamo.cr.sceneed.core.operations.AddChildrenOperation;
 
-public class AddInstanceOperation extends AddChildOperation {
+public class AddInstanceOperation extends AddChildrenOperation {
 
     public AddInstanceOperation(CollectionNode collection, InstanceNode instance, IPresenterContext presenterContext) {
         super((instance instanceof GameObjectInstanceNode) ? "Add Game Object" : "Add Collection", collection, instance, presenterContext);

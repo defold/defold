@@ -29,6 +29,7 @@ import com.dynamo.tile.ConvexHull;
 import com.dynamo.tile.TileSetUtil;
 import com.dynamo.tile.TileSetUtil.ConvexHulls;
 
+@SuppressWarnings("serial")
 public class TileSetNode extends Node {
 
     // TODO: Should be configurable

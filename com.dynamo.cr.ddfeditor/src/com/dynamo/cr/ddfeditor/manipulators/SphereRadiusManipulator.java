@@ -11,6 +11,7 @@ import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.ui.RootManipulator;
 import com.dynamo.cr.sceneed.ui.ScaleAxisManipulator;
 
+@SuppressWarnings("serial")
 public class SphereRadiusManipulator extends RootManipulator {
 
     private ScaleAxisManipulator scaleManipulator;

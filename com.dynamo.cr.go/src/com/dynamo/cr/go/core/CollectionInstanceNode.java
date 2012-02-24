@@ -11,6 +11,7 @@ import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Resource;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 
+@SuppressWarnings("serial")
 public class CollectionInstanceNode extends InstanceNode {
 
     @Property(isResource=true)

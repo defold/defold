@@ -2,6 +2,7 @@ package com.dynamo.cr.sceneed.core.test;
 
 import com.dynamo.cr.sceneed.core.Node;
 
+@SuppressWarnings("serial")
 public class DummyChild extends Node {
 
     private int intVal = 0;

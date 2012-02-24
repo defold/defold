@@ -68,6 +68,7 @@ import com.dynamo.cr.sceneed.core.IRenderView;
 import com.dynamo.cr.sceneed.core.ISceneEditor;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.ISceneView;
+import com.dynamo.cr.sceneed.core.ISceneView.IPresenter;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.ManipulatorController;
 import com.dynamo.cr.sceneed.core.Node;
@@ -395,6 +396,11 @@ public class TileSetEditor2 extends AbstractDefoldEditor implements ISceneEditor
                 this.tileSetRenderer.refresh(this.presenterContext.getSelection());
             }
         }
+    }
+
+    @Override
+    public IPresenter getScenePresenter() {
+        return this.presenter;
     }
 
 }

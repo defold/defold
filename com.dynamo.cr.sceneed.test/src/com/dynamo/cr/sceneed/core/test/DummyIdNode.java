@@ -4,6 +4,7 @@ import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.NodeUtil;
 
+@SuppressWarnings("serial")
 public class DummyIdNode extends DummyNode {
 
     public static class DummyIdFetcher implements NodeUtil.IdFetcher<Node> {

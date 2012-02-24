@@ -5,6 +5,7 @@ import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Resource;
 
+@SuppressWarnings("serial")
 public class CollectionProxyNode extends ComponentTypeNode {
 
     @Property(isResource=true)

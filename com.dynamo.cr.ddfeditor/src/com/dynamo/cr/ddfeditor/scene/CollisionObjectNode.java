@@ -12,6 +12,7 @@ import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.physics.proto.Physics.CollisionObjectType;
 
+@SuppressWarnings("serial")
 public class CollisionObjectNode extends ComponentTypeNode {
 
     @Property(isResource=true)

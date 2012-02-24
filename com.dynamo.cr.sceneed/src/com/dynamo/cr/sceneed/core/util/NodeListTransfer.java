@@ -9,11 +9,11 @@ import java.io.ObjectOutputStream;
 import org.eclipse.swt.dnd.ByteArrayTransfer;
 import org.eclipse.swt.dnd.TransferData;
 
-public class NodeTransfer extends ByteArrayTransfer {
+public class NodeListTransfer extends ByteArrayTransfer {
     private static final String TYPENAME = "com.dynamo.cr.sceneed.NodeList";
     private static final int TYPEID = registerType (TYPENAME);
 
-    private static NodeTransfer instance = new NodeTransfer ();
+    private static NodeListTransfer instance = new NodeListTransfer ();
 
     @Override
     protected void javaToNative(Object object, TransferData transferData) {
@@ -54,7 +54,7 @@ public class NodeTransfer extends ByteArrayTransfer {
         return new String [] { TYPENAME };
     }
 
-    public static NodeTransfer getInstance() {
+    public static NodeListTransfer getInstance() {
         return instance;
     }
 

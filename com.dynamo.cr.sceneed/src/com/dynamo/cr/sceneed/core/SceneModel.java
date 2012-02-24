@@ -285,4 +285,22 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
         return this.imageProvider.getImage(extension);
     }
 
+    @Override
+    public INodeLoader<Node> getNodeLoader(Class<? extends Node> nodeClass) {
+        INodeType nodeType = this.loaderContext.getNodeTypeRegistry().getNodeTypeClass(nodeClass);
+        if (nodeType != null) {
+            return nodeType.getLoader();
+        }
+        return null;
+    }
+
+    @Override
+    public ILoaderContext getLoaderContext() {
+        return this.loaderContext;
+    }
+
+    @Override
+    public void logException(Throwable e) {
+        this.logger.logException(e);
+    }
 }

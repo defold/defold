@@ -6,6 +6,7 @@ import org.eclipse.swt.events.MouseEvent;
 
 import com.dynamo.cr.sceneed.core.Manipulator;
 
+@SuppressWarnings("serial")
 public class ScaleAxisManipulator extends Manipulator {
 
     private RootManipulator rootManipulator;

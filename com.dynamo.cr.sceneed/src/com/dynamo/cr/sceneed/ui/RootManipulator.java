@@ -6,6 +6,7 @@ import java.util.List;
 import com.dynamo.cr.sceneed.core.Manipulator;
 import com.dynamo.cr.sceneed.core.Node;
 
+@SuppressWarnings("serial")
 public abstract class RootManipulator extends Manipulator {
 
     private List<Node> selection = new ArrayList<Node>();

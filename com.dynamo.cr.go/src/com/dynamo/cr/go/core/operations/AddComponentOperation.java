@@ -6,9 +6,9 @@ import com.dynamo.cr.go.core.RefComponentNode;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.NodeUtil;
-import com.dynamo.cr.sceneed.core.operations.AddChildOperation;
+import com.dynamo.cr.sceneed.core.operations.AddChildrenOperation;
 
-public class AddComponentOperation extends AddChildOperation {
+public class AddComponentOperation extends AddChildrenOperation {
 
     public AddComponentOperation(GameObjectNode gameObject, ComponentNode component, IPresenterContext presenterContext) {
         super("Add Component", gameObject, component, presenterContext);

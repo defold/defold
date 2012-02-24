@@ -18,6 +18,7 @@ import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.tileeditor.Activator;
 import com.dynamo.tile.TileSetUtil;
 
+@SuppressWarnings("serial")
 public class Sprite2Node extends ComponentTypeNode {
 
     @Property(isResource=true)

@@ -6,6 +6,7 @@ import java.util.List;
 
 import com.dynamo.cr.sceneed.core.Node;
 
+@SuppressWarnings("serial")
 public class GameObjectNode extends Node {
 
     @Override

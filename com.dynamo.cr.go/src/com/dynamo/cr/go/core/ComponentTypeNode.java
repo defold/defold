@@ -1,6 +1,7 @@
 package com.dynamo.cr.go.core;
 
 
+@SuppressWarnings("serial")
 public abstract class ComponentTypeNode extends ComponentNode {
 
     public boolean isIdVisible() {

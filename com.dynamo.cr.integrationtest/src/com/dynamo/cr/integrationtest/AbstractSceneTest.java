@@ -36,6 +36,7 @@ import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.sceneed.Activator;
+import com.dynamo.cr.sceneed.core.IClipboard;
 import com.dynamo.cr.sceneed.core.IImageProvider;
 import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.IManipulatorRegistry;
@@ -44,11 +45,12 @@ import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
 import com.dynamo.cr.sceneed.core.IRenderView;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.ISceneView;
-import com.dynamo.cr.sceneed.core.ManipulatorController;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
+import com.dynamo.cr.sceneed.core.ManipulatorController;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.SceneModel;
 import com.dynamo.cr.sceneed.core.ScenePresenter;
+import com.dynamo.cr.sceneed.core.test.TestClipboard;
 import com.dynamo.cr.sceneed.ui.LoaderContext;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
@@ -88,6 +90,7 @@ public abstract class AbstractSceneTest {
             bind(ISelectionService.class).toInstance(mock(ISelectionService.class));
             bind(IRenderView.class).toInstance(mock(IRenderView.class));
             bind(IManipulatorRegistry.class).toInstance(mock(IManipulatorRegistry.class));
+            bind(IClipboard.class).to(TestClipboard.class).in(Singleton.class);
         }
     }
 

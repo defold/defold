@@ -19,7 +19,6 @@ import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
 import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.Node;
-import com.google.protobuf.Message;
 
 public class NodeTypeRegistry implements INodeTypeRegistry {
 
@@ -53,9 +52,9 @@ public class NodeTypeRegistry implements INodeTypeRegistry {
 
                 Class<?> nodeClass = bundle.loadClass(e.getAttribute("node"));
 
-                INodeLoader<? extends Node, ? extends Message> nodeLoader = null;
+                INodeLoader<Node> nodeLoader = null;
                 if (e.getAttribute("loader") != null) {
-                    nodeLoader = (INodeLoader<? extends Node, ? extends Message>) e.createExecutableExtension("loader");
+                    nodeLoader = (INodeLoader<Node>) e.createExecutableExtension("loader");
                 }
 
                 ISceneView.INodePresenter<Node> nodePresenter = null;

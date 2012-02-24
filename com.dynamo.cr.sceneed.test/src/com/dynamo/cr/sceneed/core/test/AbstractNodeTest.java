@@ -291,7 +291,7 @@ public abstract class AbstractNodeTest {
         return destinationFile;
     }
 
-    protected <T extends Node> T registerAndLoadNodeType(Class<T> nodeClass, String extension, INodeLoader<T, ? extends Message> loader) throws IOException, CoreException {
+    protected <T extends Node> T registerAndLoadNodeType(Class<T> nodeClass, String extension, INodeLoader<T> loader) throws IOException, CoreException {
         when(getModel().getExtension(nodeClass)).thenReturn(extension);
         IResourceType resourceType = this.resourceTypeRegistry.getResourceTypeFromExtension(extension);
         byte[] ddf = resourceType.getTemplateData();
@@ -309,7 +309,7 @@ public abstract class AbstractNodeTest {
         when(getModel().loadNode(path)).thenReturn(node);
     }
 
-    protected <T extends Node, U extends Message> void saveLoadCompare(Class<T> nodeClass, INodeLoader<T, Message> loader, U.Builder builder, String path) throws IOException, CoreException {
+    protected <T extends Node> void saveLoadCompare(INodeLoader<T> loader, Message.Builder builder, String path) throws Exception {
         IFile file = getFile(path);
         Reader reader = new InputStreamReader(file.getContents());
         TextFormat.merge(reader, builder);

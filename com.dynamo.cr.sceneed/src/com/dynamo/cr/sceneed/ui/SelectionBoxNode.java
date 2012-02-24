@@ -4,6 +4,7 @@ import javax.vecmath.Point2i;
 
 import com.dynamo.cr.sceneed.core.Node;
 
+@SuppressWarnings("serial")
 public class SelectionBoxNode extends Node {
 
     private boolean visible;

@@ -3,6 +3,7 @@ package com.dynamo.cr.sceneed.core.test;
 import com.dynamo.cr.sceneed.core.Manipulator;
 import com.dynamo.cr.sceneed.ui.RootManipulator;
 
+@SuppressWarnings("serial")
 public class DummySphereScaleManipulator extends RootManipulator {
 
     @Override

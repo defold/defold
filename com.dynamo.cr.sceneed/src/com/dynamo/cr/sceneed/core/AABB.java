@@ -1,11 +1,14 @@
 package com.dynamo.cr.sceneed.core;
 
+import java.io.Serializable;
+
 import javax.vecmath.Matrix4d;
 import javax.vecmath.Point3d;
 import javax.vecmath.Vector3d;
 import javax.vecmath.Vector4d;
 
-public class AABB {
+@SuppressWarnings("serial")
+public class AABB implements Serializable {
     public Vector3d min = new Vector3d();
     public Vector3d max = new Vector3d();
     private boolean isIdentity;

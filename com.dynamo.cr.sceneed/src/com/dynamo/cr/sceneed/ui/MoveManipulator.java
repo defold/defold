@@ -14,6 +14,7 @@ import com.dynamo.cr.sceneed.core.Manipulator;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.operations.TransformNodeOperation;
 
+@SuppressWarnings("serial")
 public class MoveManipulator extends RootManipulator {
 
     private AxisManipulator xAxisManipulator;

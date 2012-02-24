@@ -6,6 +6,7 @@ import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.sceneed.core.Node;
 
+@SuppressWarnings("serial")
 public class CollectionNode extends Node {
 
     @Property

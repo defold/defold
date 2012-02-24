@@ -10,12 +10,11 @@ import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.ISceneView.INodePresenter;
 import com.dynamo.cr.sceneed.core.Node;
-import com.google.protobuf.Message;
 
 public class NodeType implements INodeType {
 
     private final String extension;
-    private final INodeLoader<? extends Node, ? extends Message> loader;
+    private final INodeLoader<Node> loader;
     private final ISceneView.INodePresenter<Node> presenter;
     private final INodeRenderer<Node> renderer;
     private final IResourceType resourceType;
@@ -23,7 +22,7 @@ public class NodeType implements INodeType {
     private final List<INodeType> referenceNodeTypes;
     private final String displayGroup;
 
-    public NodeType(String extension, INodeLoader<? extends Node, ? extends Message> loader, ISceneView.INodePresenter<Node> presenter, INodeRenderer<Node> renderer, IResourceType resourceType, Class<?> nodeClass, String displayGroup) {
+    public NodeType(String extension, INodeLoader<Node> loader, ISceneView.INodePresenter<Node> presenter, INodeRenderer<Node> renderer, IResourceType resourceType, Class<?> nodeClass, String displayGroup) {
         this.extension = extension;
         this.loader = loader;
         this.presenter = presenter;
@@ -40,7 +39,7 @@ public class NodeType implements INodeType {
     }
 
     @Override
-    public INodeLoader<? extends Node, ? extends Message> getLoader() {
+    public INodeLoader<Node> getLoader() {
         return this.loader;
     }
 

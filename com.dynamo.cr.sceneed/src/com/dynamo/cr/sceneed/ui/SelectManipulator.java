@@ -3,6 +3,7 @@ package com.dynamo.cr.sceneed.ui;
 import com.dynamo.cr.sceneed.core.Manipulator;
 import com.dynamo.cr.sceneed.core.Node;
 
+@SuppressWarnings("serial")
 public class SelectManipulator extends RootManipulator {
 
     @Override
