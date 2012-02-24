@@ -140,7 +140,12 @@ public class SSDP {
         if (response.statusCode == 200) {
             String usn = response.headers.get("USN");
             if (usn != null) {
-                discoveredDevices.put(usn, DeviceInfo.create(response.headers));
+                DeviceInfo device = DeviceInfo.create(response.headers);
+                if (device != null) {
+                    discoveredDevices.put(usn, device);
+                } else {
+                    logger.warning("Malformed response " + data);
+                }
             }
         }
     }
