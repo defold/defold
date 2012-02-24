@@ -1,4 +1,6 @@
 #include <stdio.h>
+#include <stdlib.h>
+#include <ctype.h>
 #include "ssdp.h"
 
 #include "array.h"
@@ -530,9 +532,18 @@ bail:
             state->m_RequestType = RT_UNKNOWN;
     }
 
-    static void HeaderCallback(void* user_data, const char* key, const char* value)
+    static void HeaderCallback(void* user_data, const char* orig_key, const char* value)
     {
         RequestParseState* state = (RequestParseState*) user_data;
+
+        char key[64];
+        key[sizeof(key)-1] = '\0'; // Ensure NULL termination
+        for (uint32_t i = 0; i < sizeof(key); ++i) {
+            key[i] = toupper(orig_key[i]);
+            if (key[i] == '\0')
+                break;
+        }
+
         if (strcmp(key, "CACHE-CONTROL") == 0)
         {
             const char* p= strstr(value, "max-age=");
