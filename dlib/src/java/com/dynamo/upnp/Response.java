@@ -50,7 +50,7 @@ public final class Response {
             } else {
                 int index = token.indexOf(":");
                 if (index != -1) {
-                    String key = token.substring(0, index);
+                    String key = token.substring(0, index).toUpperCase();;
                     String value = token.substring(index+1).trim();
                     headers.put(key, value);
                 }
