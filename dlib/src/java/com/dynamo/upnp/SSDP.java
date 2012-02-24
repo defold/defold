@@ -119,7 +119,12 @@ public class SSDP {
         if (request.method.equals("NOTIFY")) {
             String usn = request.headers.get("USN");
             if (usn != null) {
-                discoveredDevices.put(usn, DeviceInfo.create(request.headers));
+                DeviceInfo device = DeviceInfo.create(request.headers);
+                if (device != null) {
+                    discoveredDevices.put(usn, device);
+                } else {
+                    logger.warning("Malformed NOTIFY response " + data);
+                }
             }
         }
         // We ignore M-SEARCH requests
