@@ -117,6 +117,9 @@ public class PresenterTest extends AbstractPresenterTest {
         node.setModel(this.model);
         DummyChild child = new DummyChild();
         child.setIntVal(1);
+        DummyChild grandChild = new DummyChild();
+        grandChild.setIntVal(3);
+        child.addChild(grandChild);
         node.addChild(child);
         DummyChild child2 = new DummyChild();
         child2.setIntVal(2);
@@ -133,6 +136,10 @@ public class PresenterTest extends AbstractPresenterTest {
         assertThat(node.getChildren().size(), is(4));
         DummyChild child3 = (DummyChild)node.getChildren().get(2);
         assertThat(child3.getIntVal(), is(1));
+        assertThat(child3.getModel(), is(this.model));
+        List<Node> grandChildren = child3.getChildren();
+        assertThat(grandChildren.size(), is(1));
+        assertThat(((DummyChild)grandChildren.get(0)).getIntVal(), is(3));
         DummyChild child4 = (DummyChild)node.getChildren().get(3);
         assertThat(child4.getIntVal(), is(2));
 
