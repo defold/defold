@@ -254,8 +254,7 @@ TEST(dmSSDP, JavaClient)
      *
      * Server1 is used to test announce messages
      * Server2 is used to test expiration (client-side)
-     *
-     * Any server can be used to test search
+     * Server2 is also used for search as automatic announcement is disabled
      *
      */
     dmSSDP::HSSDP server1, server2;

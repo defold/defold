@@ -42,13 +42,13 @@ public class SSDPTest {
     @Test
     public void testSearch() throws Exception {
         ssdp.update(false);
-        assertNotDevice(USN1);
+        assertNotDevice(USN2);
 
         for (int i = 0; i < 5; ++i) {
             ssdp.update(true);
             Thread.sleep(100);
         }
-        assertDevice(USN1);
+        assertDevice(USN2);
     }
 
     @Test
