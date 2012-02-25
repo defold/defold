@@ -56,6 +56,16 @@ namespace dmHttpServer
     typedef void (*HttpHeader)(void* user_data, const char* key, const char* value);
 
     /**
+     * HTTP-content call-back. Called on requests with content (POST/PUT).
+     * @note This can be called multiple times to incrementally build up the full payload
+     * @param user_data User data
+     * @param request Request information
+     * @param content Content
+     * @param content_size Content size
+     */
+    typedef void (*HttpContent)(void* user_data, const Request* request, const void* content, uint32_t content_size);
+
+    /**
      * Http response callback. Called when response should be sent back to the client
      * @param user_data User data
      * @param request Request information
@@ -73,8 +83,11 @@ namespace dmHttpServer
         /// HTTP-header handle
         HttpHeader  m_HttpHeader;
 
-        //// HTTP-response callback
+        /// HTTP-response callback
         HttpResponse m_HttpResponse;
+
+        /// HTTP-content callback, optional
+        HttpContent  m_HttpContent;
 
         /// Max persistent client connections
         uint16_t    m_MaxConnections;

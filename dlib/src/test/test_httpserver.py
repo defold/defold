@@ -1,8 +1,13 @@
 import os
+import sys
 import unittest
 import httplib
 import random
 import atexit
+
+# Ensure that we load dlib from this directory and not the installed one
+sys.path = ['src/python'] + sys.path
+import dlib
 
 class TestHttpServer(unittest.TestCase):
 
@@ -46,6 +51,23 @@ class TestHttpServer(unittest.TestCase):
             r = c.getresponse()
             self.assertEqual(404, r.status)
             tmp = r.read()
+        c.close()
+
+    def testPOST(self):
+        c = httplib.HTTPConnection('localhost:8500')
+        data = ''
+        for i in range(30):
+            c.request('POST', '/post', data)
+            r = c.getresponse()
+            self.assertEqual(200, r.status)
+            tmp = r.read()
+            # The server responds with the hash of the sent content
+            self.assertEqual(dlib.dmHashBuffer64(data), int(tmp))
+            if i < 15:
+                data += chr(random.randint(0, 255))
+            else:
+                # And some larger chunks
+                data += 'X' * (35261)
         c.close()
 
 if __name__ == '__main__':

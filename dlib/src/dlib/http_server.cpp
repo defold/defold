@@ -27,6 +27,7 @@ namespace dmHttpServer
         uint16_t            m_Port;
         HttpHeader          m_HttpHeader;
         HttpResponse        m_HttpResponse;
+        HttpContent         m_HttpContent;
         void*               m_Userdata;
 
         // Connection timeout in useconds. NOTE: In params it is specified in seconds.
@@ -51,6 +52,8 @@ namespace dmHttpServer
         // NOTE: Currently not used. Could be used for PUT/POST request. (offset when sent data begins)
         uint32_t m_ContentLength;
         uint32_t m_ContentOffset;
+        // Total amount of data received in Server.m_Buffer
+        uint32_t m_TotalReceived;
 
         uint16_t m_CloseConnection : 1;
         uint16_t m_HeaderSent : 1;
@@ -68,6 +71,14 @@ namespace dmHttpServer
         memset(params, 0, sizeof(*params));
         params->m_MaxConnections = 16;
         params->m_ConnectionTimeout = 60;
+    }
+
+    static void HttpContentSlurp(void* user_data, const Request* request, const void* content_data, uint32_t content_data_size)
+    {
+        (void) user_data;
+        (void) request;
+        (void) content_data;
+        (void) content_data_size;
     }
 
     Result New(const NewParams* params, uint16_t port, HServer* server)
@@ -113,6 +124,12 @@ namespace dmHttpServer
         ret->m_Port = actual_port;
         ret->m_HttpHeader = params->m_HttpHeader;
         ret->m_HttpResponse = params->m_HttpResponse;
+        ret->m_HttpContent = params->m_HttpContent;
+        if (ret->m_HttpContent == 0)
+        {
+            // Set default HttpContent
+            ret->m_HttpContent = HttpContentSlurp;
+        }
         ret->m_Userdata = params->m_Userdata;
         ret->m_ConnectionTimeout = params->m_ConnectionTimeout * 1000000U;
         ret->m_ServerSocket = socket;
@@ -256,6 +273,34 @@ bail:
         request->m_Method = internal_req->m_Method;
         request->m_Resource = internal_req->m_Resource;
         request->m_Internal = internal_req;
+
+        assert(internal_req->m_TotalReceived >= internal_req->m_ContentOffset);
+        uint32_t n = internal_req->m_TotalReceived - internal_req->m_ContentOffset;
+        uint32_t total_content = 0;
+        if (n > 0)
+        {
+            server->m_HttpContent(server->m_Userdata, request, server->m_Buffer + internal_req->m_ContentOffset, n);
+            total_content += n;
+        }
+
+        while (total_content < internal_req->m_ContentLength)
+        {
+            int recv_bytes;
+            dmSocket::Result sr = dmSocket::Receive(internal_req->m_Socket, server->m_Buffer, BUFFER_SIZE, &recv_bytes);
+            if (sr != dmSocket::RESULT_OK)
+            {
+                goto bail;
+            }
+            total_content += recv_bytes;
+            server->m_HttpContent(server->m_Userdata, request, server->m_Buffer, recv_bytes);
+        }
+
+        if (total_content != internal_req->m_ContentLength)
+        {
+            dmLogWarning("Actual content differs from expected content-length (%d != %d)", total_content, internal_req->m_ContentLength);
+            goto bail;
+        }
+
         server->m_HttpResponse(server->m_Userdata, request);
 
         // Send headers and attributes even if no data is sent
@@ -386,6 +431,7 @@ bail:
                 }
 
                 total_recv += recv_bytes;
+                internal_req.m_TotalReceived = (uint32_t) total_recv;
                 // null-terminate the string.
                 server->m_Buffer[dmMath::Min(total_recv, (int) BUFFER_SIZE-1)] = '\0';
                 parse_result = dmHttpServerPrivate::ParseHeader(server->m_Buffer, &internal_req, &HandleRequest, &HandleHeader, &HandleReponse);
@@ -415,11 +461,11 @@ bail:
 
             default:
                 assert(0);
+                break;
         }
 
         if (internal_req.m_Result == RESULT_OK)
         {
-
             return (bool) !internal_req.m_CloseConnection;
         }
         else

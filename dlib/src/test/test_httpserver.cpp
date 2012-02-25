@@ -11,6 +11,7 @@
 #include "../dlib/http_server.h"
 #include "../dlib/http_server_private.h"
 #include "../dlib/http_client.h"
+#include "../dlib/hash.h"
 
 class dmHttpServerTest: public ::testing::Test
 {
@@ -21,6 +22,7 @@ public:
     int m_Major, m_Minor;
     int m_ContentOffset;
     std::string m_RequestMethod, m_Resource;
+    std::string m_Content;
     volatile bool m_Quit;
     std::string m_ClientData;
     volatile bool m_ServerStarted;
@@ -29,6 +31,13 @@ public:
     {
         dmHttpServerTest* self = (dmHttpServerTest*) user_data;
         self->m_Headers[key] = value;
+        self->m_Content.clear();
+    }
+
+    static void HttpContent(void* user_data, const dmHttpServer::Request* request, const void* content_data, uint32_t content_data_size)
+    {
+        dmHttpServerTest* self = (dmHttpServerTest*) user_data;
+        self->m_Content.append((const char*) content_data, content_data_size);
     }
 
     static void HttpResponse(void* user_data, const dmHttpServer::Request* request)
@@ -80,6 +89,12 @@ public:
         {
             self->m_Quit = true;
         }
+        else if (strstr(self->m_Resource.c_str(), "/post"))
+        {
+            char buf[32];
+            DM_SNPRINTF(buf, sizeof(buf), "%llu", dmHashBuffer64(self->m_Content.c_str(), self->m_Content.size()));
+            dmHttpServer::Send(request, buf, strlen(buf));
+        }
         else
         {
             dmHttpServer::SetStatusCode(request, 404);
@@ -116,6 +131,7 @@ public:
         params.m_Userdata = this;
         params.m_HttpHeader = dmHttpServerTest::HttpHeader;
         params.m_HttpResponse = dmHttpServerTest::HttpResponse;
+        params.m_HttpContent = dmHttpServerTest::HttpContent;
         dmHttpServer::Result r = dmHttpServer::New(&params, 8500, &m_Server);
         ASSERT_EQ(dmHttpServer::RESULT_OK, r);
     }
