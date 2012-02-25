@@ -3,6 +3,8 @@ package com.dynamo.cr.tileeditor.scene;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -463,4 +465,27 @@ public class TileSetNode extends Node {
         });
     }
 
+    private void writeObject(ObjectOutputStream out) throws IOException {
+        out.writeObject(this.image);
+        out.writeInt(this.tileWidth);
+        out.writeInt(this.tileHeight);
+        out.writeInt(this.tileMargin);
+        out.writeInt(this.tileSpacing);
+        out.writeObject(this.collision);
+        out.writeObject(this.materialTag);
+        out.writeObject(this.tileCollisionGroups);
+    }
+
+    @SuppressWarnings({"unchecked"})
+    private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
+        this.image = (String)in.readObject();
+        this.tileWidth = in.readInt();
+        this.tileHeight = in.readInt();
+        this.tileMargin = in.readInt();
+        this.tileSpacing = in.readInt();
+        this.collision = (String)in.readObject();
+        this.materialTag = (String)in.readObject();
+        this.tileCollisionGroups = (List<CollisionGroupNode>)in.readObject();
+        this.textureHandle = new TextureHandle();
+    }
 }

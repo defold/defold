@@ -1,5 +1,8 @@
 package com.dynamo.cr.tileeditor.scene;
 
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.nio.FloatBuffer;
 import java.util.ArrayList;
 import java.util.List;
@@ -90,6 +93,9 @@ public class TileGridNode extends ComponentTypeNode {
         super.setModel(model);
         if (model != null && this.tileSetNode == null) {
             reloadTileSet();
+        }
+        if (this.tileSetNode != null) {
+            this.tileSetNode.setModel(model);
         }
     }
 
@@ -202,5 +208,15 @@ public class TileGridNode extends ComponentTypeNode {
 
     private static TileSetUtil.Metrics calculateMetrics(TileSetNode node) {
         return TileSetUtil.calculateMetrics(node.getLoadedImage(), node.getTileWidth(), node.getTileHeight(), node.getTileMargin(), node.getTileSpacing(), null, 1.0f, 0.0f);
+    }
+
+    private void writeObject(ObjectOutputStream out) throws IOException {
+        out.writeObject(this.tileSet);
+        out.writeObject(this.tileSetNode);
+    }
+
+    private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
+        this.tileSet = (String)in.readObject();
+        this.tileSetNode = (TileSetNode)in.readObject();
     }
 }

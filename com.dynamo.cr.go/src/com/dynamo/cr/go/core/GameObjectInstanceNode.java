@@ -21,6 +21,10 @@ public class GameObjectInstanceNode extends InstanceNode {
 
     private GameObjectNode gameObjectNode;
 
+    public GameObjectInstanceNode() {
+        super();
+    }
+
     public GameObjectInstanceNode(GameObjectNode gameObject) {
         super();
         this.gameObjectNode = gameObject;

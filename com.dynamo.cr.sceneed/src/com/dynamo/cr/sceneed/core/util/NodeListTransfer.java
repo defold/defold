@@ -23,7 +23,8 @@ public class NodeListTransfer extends ByteArrayTransfer {
             ObjectOutputStream objectOut = new ObjectOutputStream(out);
             objectOut.writeObject(object);
             objectOut.close();
-            super.javaToNative(out.toByteArray(), transferData);
+            byte[] data = out.toByteArray();
+            super.javaToNative(data, transferData);
 
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -37,7 +38,9 @@ public class NodeListTransfer extends ByteArrayTransfer {
         try {
             ByteArrayInputStream in = new ByteArrayInputStream (buffer);
             ObjectInputStream objectIn = new ObjectInputStream(in);
-            return objectIn.readObject();
+            Object object = objectIn.readObject();
+            objectIn.close();
+            return object;
 
         } catch (Throwable e) {
             throw new RuntimeException(e);

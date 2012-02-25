@@ -570,6 +570,12 @@
             presenter="com.dynamo.cr.ddfeditor.scene.CollisionObjectPresenter"
             renderer="com.dynamo.cr.ddfeditor.scene.CollisionObjectRenderer"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.CollisionObject">
+         <reference-node-type
+               node-type="com.dynamo.cr.ddfeditor.scene.convexShapeNode">
+         </reference-node-type>
+         <reference-node-type
+               node-type="com.dynamo.cr.ddfeditor.scene.collisionShape">
+         </reference-node-type>
       </node-type>
       <node-type
             display-group="Collection Proxies"
@@ -657,6 +663,10 @@
       <node-type
             id="com.dynamo.cr.ddfeditor.manipulators.capsuleSizeManipulator"
             node="com.dynamo.cr.ddfeditor.manipulators.CapsuleSizeManipulator">
+      </node-type>
+      <node-type
+            id="com.dynamo.cr.ddfeditor.scene.collisionShape"
+            node="com.dynamo.cr.ddfeditor.scene.CollisionShapeNode">
       </node-type>
    </extension>
    <extension

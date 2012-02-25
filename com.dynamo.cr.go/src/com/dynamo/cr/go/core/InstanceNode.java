@@ -17,6 +17,7 @@ public class InstanceNode extends Node {
     private String id = "";
 
     public InstanceNode() {
+        super();
         setFlags(Flags.TRANSFORMABLE);
     }
 

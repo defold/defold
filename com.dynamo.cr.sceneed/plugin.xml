@@ -241,6 +241,21 @@
                visible="true">
          </separator>
          <command
+               commandId="org.eclipse.ui.edit.copy"
+               label="Copy"
+               style="push">
+         </command>
+         <command
+               commandId="org.eclipse.ui.edit.cut"
+               label="Cut"
+               style="push">
+         </command>
+         <command
+               commandId="org.eclipse.ui.edit.paste"
+               label="Paste"
+               style="push">
+         </command>
+         <command
                commandId="org.eclipse.ui.edit.delete"
                label="Delete"
                style="push">
@@ -323,6 +338,32 @@
             class="com.dynamo.cr.sceneed.handlers.ShowGroupHandler"
             commandId="com.dynamo.cr.sceneed.commands.showGroup">
       </handler>
+      <handler
+            class="com.dynamo.cr.sceneed.handlers.CopyNodesHandler"
+            commandId="org.eclipse.ui.edit.copy">
+         <activeWhen>
+            <reference
+                  definitionId="com.dynamo.cr.sceneed.definitions.selectionCopyable">
+            </reference></activeWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.sceneed.handlers.PasteNodesHandler"
+            commandId="org.eclipse.ui.edit.paste">
+         <activeWhen>
+            <reference
+                  definitionId="com.dynamo.cr.sceneed.definitions.selectionCopyable">
+            </reference>
+         </activeWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.sceneed.handlers.CutNodesHandler"
+            commandId="org.eclipse.ui.edit.cut">
+         <activeWhen>
+            <reference
+                  definitionId="com.dynamo.cr.sceneed.definitions.selectionDeleteable">
+            </reference>
+         </activeWhen>
+      </handler>
    </extension>
    <extension
          point="org.eclipse.core.expressions.definitions">
@@ -343,6 +384,10 @@
                <test
                      property="com.dynamo.cr.sceneed.selection.siblings">
                </test>
+               <test
+                     property="com.dynamo.cr.sceneed.selection.root"
+                     value="false">
+               </test>
             </and>
          </with>
       </definition>
@@ -355,6 +400,17 @@
             </count>
          </with>
       </definition>
+      <definition
+            id="com.dynamo.cr.sceneed.definitions.selectionCopyable">
+         <with
+               variable="selection">
+            <and>
+               <test
+                     property="com.dynamo.cr.sceneed.selection.siblings">
+               </test>
+            </and>
+         </with>
+      </definition>
    </extension>
    <extension
          point="org.eclipse.core.expressions.propertyTesters">
@@ -362,7 +418,7 @@
             class="com.dynamo.cr.sceneed.core.propertytesters.SelectionPropertyTester"
             id="com.dynamo.cr.sceneed.propertyTesters.selection"
             namespace="com.dynamo.cr.sceneed.selection"
-            properties="siblings"
+            properties="siblings,root"
             type="org.eclipse.jface.viewers.IStructuredSelection">
       </propertyTester>
    </extension>

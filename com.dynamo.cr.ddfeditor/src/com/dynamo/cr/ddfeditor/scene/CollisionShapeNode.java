@@ -15,6 +15,11 @@ public abstract class CollisionShapeNode extends Node {
 
     private IStatus boundsErrorStatus = null;
 
+    public CollisionShapeNode() {
+        super();
+        setFlags(Flags.TRANSFORMABLE);
+    }
+
     public CollisionShapeNode(Vector4d position, Quat4d rotation) {
         super(position, rotation);
         setFlags(Flags.TRANSFORMABLE);

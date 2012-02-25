@@ -42,9 +42,9 @@ public abstract class Node implements IAdaptable, Serializable {
         LOCKED,
     }
 
-    private ISceneModel model;
-    private List<Node> children = new ArrayList<Node>();
-    private Node parent;
+    private transient ISceneModel model;
+    private transient List<Node> children = new ArrayList<Node>();
+    private transient Node parent;
     private EnumSet<Flags> flags = EnumSet.noneOf(Flags.class);
 
     private AABB aabb = new AABB();
@@ -60,7 +60,7 @@ public abstract class Node implements IAdaptable, Serializable {
     protected Vector3d euler = new Vector3d(0, 0, 0);
 
     // Used to preserve order when adding/removing child nodes
-    private int childIndex = -1;
+    private transient int childIndex = -1;
 
     private static Map<Class<? extends Node>, PropertyIntrospector<Node, ISceneModel>> introspectors =
             new HashMap<Class<? extends Node>, PropertyIntrospector<Node, ISceneModel>>();
@@ -460,7 +460,7 @@ public abstract class Node implements IAdaptable, Serializable {
         out.writeObject(this.euler);
     }
 
-    @SuppressWarnings({"unchecked"})
+    @SuppressWarnings("unchecked")
     private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
         List<Node> children = (List<Node>)in.readObject();
         this.children = new ArrayList<Node>(children.size());

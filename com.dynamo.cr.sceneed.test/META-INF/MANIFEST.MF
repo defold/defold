@@ -18,3 +18,4 @@ Require-Bundle: org.eclipse.core.runtime;bundle-version="3.7.0",
  com.dynamo.cr.sceneed;bundle-version="1.0.0"
 Export-Package: com.dynamo.cr.sceneed.core.test
 Bundle-ActivationPolicy: lazy
+DynamicImport-Package: *

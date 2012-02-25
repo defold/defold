@@ -129,11 +129,11 @@ public class ScenePresenter implements IPresenter, IModelListener {
     @Override
     public void onPasteIntoSelection(IPresenterContext context) throws IOException, CoreException {
         Object[] selection = context.getSelection().toArray();
-        if (selection.length != 1) {
+        if (selection.length == 0) {
             return;
         }
-        NodeListTransfer transfer = NodeListTransfer.getInstance();
 
+        NodeListTransfer transfer = NodeListTransfer.getInstance();
         List<Node> nodes = (List<Node>)this.clipboard.getContents(transfer);
 
         if (nodes != null && nodes.size() > 0) {
@@ -144,13 +144,17 @@ public class ScenePresenter implements IPresenter, IModelListener {
                 boolean accepted = true;
                 targetType = this.nodeTypeRegistry.getNodeTypeClass(target.getClass());
                 if (targetType != null) {
-                    all_entries:
                     for (Node node : nodes) {
+                        boolean nodeAccepted = false;
                         for (INodeType nodeType : targetType.getReferenceNodeTypes()) {
-                            if (!nodeType.getNodeClass().isAssignableFrom(node.getClass())) {
-                                accepted = false;
-                                break all_entries;
+                            if (nodeType.getNodeClass().isAssignableFrom(node.getClass())) {
+                                nodeAccepted = true;
+                                break;
                             }
+                        }
+                        if (!nodeAccepted) {
+                            accepted = false;
+                            break;
                         }
                     }
                     if (accepted) {

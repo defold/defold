@@ -1,5 +1,9 @@
 package com.dynamo.cr.ddfeditor.scene;
 
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+
 import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.physics.proto.Physics.ConvexShape;
@@ -7,9 +11,14 @@ import com.dynamo.physics.proto.Physics.ConvexShape;
 @SuppressWarnings("serial")
 public class ConvexShapeNode extends Node {
 
-    private final ConvexShape convexShape;
+    private ConvexShape convexShape;
+
+    public ConvexShapeNode() {
+        super();
+    }
 
     public ConvexShapeNode(ConvexShape convexShape) {
+        super();
         this.convexShape = convexShape;
         updateAABB();
     }
@@ -48,4 +57,13 @@ public class ConvexShapeNode extends Node {
         }
         setAABB(aabb);
     }
+
+    private void writeObject(ObjectOutputStream out) throws IOException {
+        this.convexShape.writeTo(out);
+    }
+
+    private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
+        this.convexShape = ConvexShape.parseFrom(in);
+    }
+
 }

@@ -9,6 +9,9 @@
             node="com.dynamo.cr.go.core.GameObjectNode"
             presenter="com.dynamo.cr.go.core.GameObjectPresenter"
             resource-type="com.dynamo.cr.go.core.resourcetypes.gameObject">
+         <reference-node-type
+               node-type="com.dynamo.cr.go.core.nodes.component">
+         </reference-node-type>
       </node-type>
       <node-type
             id="com.dynamo.cr.go.core.nodes.collection"
@@ -16,6 +19,17 @@
             node="com.dynamo.cr.go.core.CollectionNode"
             presenter="com.dynamo.cr.go.core.CollectionPresenter"
             resource-type="com.dynamo.cr.go.resourcetypes.Collection">
+         <reference-node-type
+               node-type="com.dynamo.cr.go.core.nodes.instance">
+         </reference-node-type>
+      </node-type>
+      <node-type
+            id="com.dynamo.cr.go.core.nodes.instance"
+            node="com.dynamo.cr.go.core.InstanceNode">
+      </node-type>
+      <node-type
+            id="com.dynamo.cr.go.core.nodes.component"
+            node="com.dynamo.cr.go.core.ComponentNode">
       </node-type>
    </extension>
    <extension

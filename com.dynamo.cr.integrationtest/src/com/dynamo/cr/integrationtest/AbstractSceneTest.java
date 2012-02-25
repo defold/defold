@@ -2,8 +2,11 @@ package com.dynamo.cr.integrationtest;
 
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -14,6 +17,7 @@ import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.DefaultOperationHistory;
 import org.eclipse.core.commands.operations.IOperationHistory;
 import org.eclipse.core.commands.operations.IUndoContext;
+import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.core.commands.operations.UndoContext;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
@@ -28,8 +32,12 @@ import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Platform;
+import org.eclipse.jface.viewers.ISelection;
+import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.ui.ISelectionService;
 import org.junit.Before;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 import org.osgi.framework.Bundle;
 
 import com.dynamo.cr.editor.core.EditorUtil;
@@ -70,6 +78,9 @@ public abstract class AbstractSceneTest {
     private IImageProvider imageProvider;
     private IPresenterContext presenterContext;
     private ILoaderContext loaderContext;
+    private ISelection selection;
+
+    private int executionCount;
 
     protected class TestModule extends AbstractModule {
         @Override
@@ -132,6 +143,13 @@ public abstract class AbstractSceneTest {
         doThrow(new RuntimeException()).when(this.logger).logException(any(Throwable.class));
 
         this.presenterContext = mock(IPresenterContext.class);
+        doAnswer(new Answer<ISelection>() {
+            @Override
+            public ISelection answer(InvocationOnMock invocation) throws Throwable {
+                return selection;
+            }
+        }).when(this.presenterContext).getSelection();
+        this.selection = new StructuredSelection();
         this.imageProvider = mock(IImageProvider.class);
 
         this.nodeTypeRegistry = Activator.getDefault().getNodeTypeRegistry();
@@ -153,6 +171,8 @@ public abstract class AbstractSceneTest {
                 }
             }
         }, IResourceChangeEvent.POST_CHANGE);
+
+        this.executionCount = 0;
     }
 
     // Accessors
@@ -195,6 +215,10 @@ public abstract class AbstractSceneTest {
         this.history.redo(this.undoContext, null, null);
     }
 
+    protected void select(Node node) {
+        this.selection = new StructuredSelection(node);
+    }
+
     @SuppressWarnings("unchecked")
     protected void setNodeProperty(Node node, Object id, Object value) {
         IPropertyModel<? extends Node, ISceneModel> propertyModel = (IPropertyModel<? extends Node, ISceneModel>)node.getAdapter(IPropertyModel.class);
@@ -225,4 +249,8 @@ public abstract class AbstractSceneTest {
         }
     }
 
+    protected void verifyExcecution() {
+        ++this.executionCount;
+        verify(this.presenterContext, times(this.executionCount)).executeOperation(any(IUndoableOperation.class));
+    }
 }
