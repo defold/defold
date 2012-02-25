@@ -108,6 +108,15 @@ public class LocalBranchClient implements IBranchClient {
     }
 
     @Override
+    public void autoStage() throws RepositoryException {
+        try {
+            branchRepository.autoStage(project, user, branch);
+        } catch (Exception e) {
+            throw new RepositoryException("Unable to auto-stage files", e);
+        }
+    }
+
+    @Override
     public void putResourceData(String path, byte[] bytes)
             throws RepositoryException {
         try {

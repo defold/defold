@@ -73,6 +73,8 @@ public class EditorCorePlugin implements BundleActivator, IResourceTypeRegistry 
 		EditorCorePlugin.context = bundleContext;
         plugin = this;
 
+        System.setProperty("com.defold.platform", getPlatform());
+
         IConfigurationElement[] config = Platform.getExtensionRegistry()
         .getConfigurationElementsFor("com.dynamo.cr.resourcetypes");
         for (IConfigurationElement e : config) {

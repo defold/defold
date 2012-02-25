@@ -23,6 +23,8 @@ public interface IBranchClient extends IClient {
 
     public BranchStatus getBranchStatus() throws RepositoryException;
 
+    public void autoStage() throws RepositoryException;
+
     public void putResourceData(String path, byte[] bytes) throws RepositoryException;
 
     public void mkdir(String path) throws RepositoryException;

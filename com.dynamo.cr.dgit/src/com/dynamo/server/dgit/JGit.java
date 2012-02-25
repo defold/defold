@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 import org.eclipse.jgit.api.AddCommand;
 import org.eclipse.jgit.api.CheckoutCommand;
@@ -232,17 +233,42 @@ public class JGit implements IGit, TransportConfigCallback {
          * NOTE:
          * This method is.. strange..
          * There is not builtin support for "git status". Using the index,
-         * DiffFmt etc we try simulate "git status". We should perhaps reimplmenet
+         * DiffFmt etc we try simulate "git status". We should perhaps reimplement
          * this method using low-level jgit instead.
          */
         Git git = getGit(directory);
         Status status = git.status().call();
         Repository repo = git.getRepository();
 
-        Multimap<String, GitStatus.Entry> statusMap = ArrayListMultimap.create();
+        Multimap<String, GitStatus.Entry> multiStatusMap = ArrayListMultimap.create();
+        getStatusWorking(multiStatusMap, repo);
+        getStatusCached(multiStatusMap, repo);
 
-        getStatusWorking(statusMap, repo);
-        getStatusCached(statusMap, repo);
+        // Merge status from working and cached...
+        Map<String, GitStatus.Entry> statusMap = new HashMap<String, GitStatus.Entry>();
+        for (String p : multiStatusMap.keySet()) {
+            Entry newEntry = new Entry(' ', ' ', p);
+            Collection<Entry> entry = multiStatusMap.get(p);
+            for (Entry e : entry) {
+                if (e.indexStatus != ' ')
+                    newEntry.indexStatus = e.indexStatus;
+                if (e.workingTreeStatus != ' ')
+                    newEntry.workingTreeStatus = e.workingTreeStatus;
+                if (e.original != null)
+                    newEntry.original = e.original;
+            }
+            statusMap.put(p, newEntry);
+        }
+
+        // Set status to ?? for all untracked files
+        // Yet another hack... :-)
+        for (String p : statusMap.keySet()) {
+            if (status.getUntracked().contains(p)) {
+                Entry e = statusMap.get(p);
+                e.indexStatus = '?';
+                e.workingTreeStatus = '?';
+            }
+        }
 
         Map<String, DirCacheEntry> fullMerged = new HashMap<String, DirCacheEntry>();
         Map<String, DirCacheEntry> base = new HashMap<String, DirCacheEntry>();
@@ -269,7 +295,7 @@ public class JGit implements IGit, TransportConfigCallback {
         for (String file : allFiles) {
             if (status.getConflicting().contains(file)) {
 
-                statusMap.removeAll(file);
+                statusMap.remove(file);
 
                 boolean inBase = base.containsKey(file);
                 boolean inTheirs = theirs.containsKey(file);
@@ -332,7 +358,7 @@ public class JGit implements IGit, TransportConfigCallback {
                     else
                         index_status = 'D';
                     GitStatus.Entry new_e = new GitStatus.Entry(index_status, ' ', file_name);
-                    statusMap.removeAll(file_name);
+                    statusMap.remove(file_name);
                     statusMap.put(file_name, new_e);
                 }
             }
@@ -343,11 +369,8 @@ public class JGit implements IGit, TransportConfigCallback {
         gitStatus.commitsBehind = commitsBehind(directory);
 
         for (String file : statusMap.keySet()) {
-            Collection<Entry> entries = statusMap.get(file);
-            if (entries.size() != 1) {
-                throw new RuntimeException("Internal error");
-            }
-            gitStatus.files.add(entries.iterator().next());
+            Entry entry = statusMap.get(file);
+            gitStatus.files.add(entry);
         }
 
         // Sort the list. We always wan't to keep the order same regardless
@@ -627,6 +650,8 @@ public class JGit implements IGit, TransportConfigCallback {
 
             try {
                 in = new FileInputStream(sourceFile);
+                String p = FilenameUtils.getPath(destination);
+                new File(directory, p).mkdir();
                 out = new FileOutputStream(destFile);
                 IOUtils.copy(in, out);
             } finally {
@@ -657,9 +682,23 @@ public class JGit implements IGit, TransportConfigCallback {
     @Override
     public void checkout(String directory, String file, boolean force)
             throws IOException {
+
+        // TODO:
+        // This might be a bug in JGit
+        // We create directory where the file shoudl reside
+        String p = FilenameUtils.getPath(file);
+        File f = new File(directory, p);
+        if (!f.exists()) {
+            f.mkdirs();
+        }
+
         Git git = getGit(directory);
         CheckoutCommand command = git.checkout().addPath(file).setForce(force);
-        wrapCall(command);
+        try {
+            command.call();
+        } catch (Exception e) {
+            throw new GitException(e);
+        }
     }
 
     @Override

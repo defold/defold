@@ -196,7 +196,8 @@ public class RepositoryFileStore extends FileStore implements IFileStore {
             throws CoreException {
         String nativeLocation = client.getNativeLocation();
         if (nativeLocation != null) {
-            File file = new File(client.getNativeLocation());
+            IPath p = new Path(nativeLocation).append(this.path);
+            File file = new File(p.toOSString());
             return file;
         } else {
             return null;

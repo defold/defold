@@ -67,6 +67,21 @@ public class BranchService implements IBranchService {
         }
 
         BranchStatus branchStatus = client.getBranchStatus();
+
+        boolean autoStage = false;
+        for (BranchStatus.Status status : branchStatus.getFileStatusList()) {
+            String ws = status.getWorkingTreeStatus();
+            if (ws.equals("M") ||
+                ws.equals("?") ||
+                ws.equals("D")) {
+                autoStage = true;
+            }
+        }
+        if (autoStage) {
+            client.autoStage();
+            branchStatus = client.getBranchStatus();
+        }
+
         for (BranchStatus.Status status : branchStatus.getFileStatusList()) {
             IResource resource = locateResource(status.getName());
             if (resource != null) {

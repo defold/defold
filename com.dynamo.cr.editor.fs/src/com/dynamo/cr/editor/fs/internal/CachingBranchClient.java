@@ -104,6 +104,11 @@ public class CachingBranchClient implements IBranchClient {
     }
 
     @Override
+    public void autoStage() throws RepositoryException {
+        client.autoStage();
+    }
+
+    @Override
     public void putResourceData(String path, byte[] bytes)
             throws RepositoryException {
 

@@ -13,6 +13,7 @@ import java.util.StringTokenizer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.apache.commons.io.FilenameUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -67,8 +68,8 @@ public class CGit implements IGit {
 
     // We have two regexps due to problem with parsing "->" and non-greedy parsing.
     // It is perhaps possible to write in a single regexp but this seems to work.
-    static Pattern statusPattern1 = Pattern.compile("([MADRCU ])([MADU ])[ ](.*?)( -> )(.*?)?$");
-    static Pattern statusPattern2 = Pattern.compile("([MADRCU ])([MADU ])[ ](.*)$");
+    static Pattern statusPattern1 = Pattern.compile("([MADRCU\\? ])([MADU\\? ])[ ](.*?)( -> )(.*?)?$");
+    static Pattern statusPattern2 = Pattern.compile("([MADRCU\\? ])([MADU\\? ])[ ](.*)$");
 
     static GitStatus.Entry parseStatusEntry(String line) throws GitException {
         Matcher m1 = statusPattern1.matcher(line);
@@ -335,6 +336,11 @@ public class CGit implements IGit {
     @Override
     public void mv(String directory, String source, String destination, boolean force) throws IOException {
         CommandUtil.Result r;
+
+        // Ensure that destination path exists
+        String p = FilenameUtils.getPath(destination);
+        new File(directory, p).mkdir();
+
         if (force)
             r = execGitCommand(directory, "git", "mv", "-f", source, destination);
         else
