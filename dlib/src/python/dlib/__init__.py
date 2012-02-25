@@ -10,6 +10,7 @@ elif sys.platform == "win32":
     libname = "dlib_shared.dll"
     libdir = "bin"
 
+dlib = None
 try:
     # First try to load from the build directory
     # This is only used when running unit-tests. A bit budget but is works.
@@ -18,6 +19,7 @@ except:
     pass
 
 if not dlib:
+    # If not found load from default location in DYNAMO_HOME
     dlib = ctypes.cdll.LoadLibrary(os.path.join(os.environ['DYNAMO_HOME'], libdir, libname))
 
 dlib.dmHashBuffer32.argtypes = [ctypes.c_char_p, ctypes.c_uint32]
