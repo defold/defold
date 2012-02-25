@@ -145,7 +145,7 @@ namespace dmDDF
     Result SaveMessage(const void* message, const Descriptor* desc, void* context, SaveFunction save_function);
 
     /**
-     * Save messge to array
+     * Save message to array
      * @param message Message
      * @param desc DDF descriptor
      * @param buffer Buffer to save to
