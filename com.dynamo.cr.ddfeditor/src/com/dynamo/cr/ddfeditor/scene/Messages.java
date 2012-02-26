@@ -8,6 +8,10 @@ public class Messages extends NLS {
     // Collision shapes
     public static String CollisionShape_bounds_ERROR;
 
+    public static String CollectionProxyNode_collection_INVALID_REFERENCE;
+    public static String CollectionProxyNode_collection_INVALID_TYPE;
+    public static String CollectionProxyNode_collection_UNKNOWN_TYPE;
+
     static {
         // initialize resource bundle
         NLS.initializeMessages(BUNDLE_NAME, Messages.class);

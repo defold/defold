@@ -7,7 +7,6 @@ import java.io.InputStreamReader;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 
-import com.dynamo.cr.go.core.CollectionNode;
 import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.INodeLoader;
 import com.dynamo.gamesystem.proto.GameSystem.CollectionProxyDesc;
@@ -25,7 +24,6 @@ public class CollectionProxyLoader implements INodeLoader<CollectionProxyNode> {
         CollectionProxyDesc desc = builder.build();
         CollectionProxyNode collectionProxy = new CollectionProxyNode();
         collectionProxy.setCollection(desc.getCollection());
-        collectionProxy.addChild((CollectionNode)context.loadNode(desc.getCollection()));
         return collectionProxy;
     }
 
