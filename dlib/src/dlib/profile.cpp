@@ -59,6 +59,10 @@ namespace dmProfile
     dmThread::TlsKey g_TlsKey = dmThread::AllocTls();
     uint32_t g_ThreadCount = 0;
 
+    // Used when out of scopes in order to remove conditional branches
+    ScopeData g_DummyScopeData;
+    Scope g_DummyScope = { "foo", 0, &g_DummyScopeData };
+
     struct InitSpinLocks
     {
         InitSpinLocks()
@@ -228,8 +232,13 @@ namespace dmProfile
             dmLogWarning("Unable to start profile http-server (%d)", result);
         }
 
-        g_Scopes.SetCapacity(max_scopes);
-        g_Scopes.SetSize(0);
+        if (g_Scopes.Capacity() == 0)
+        {
+            // Only allocate first time and leave already allocated scopes as is
+            // Scopes are static variables in functions
+            g_Scopes.SetCapacity(max_scopes);
+            g_Scopes.SetSize(0);
+        }
 
         g_FreeProfiles.SetCapacity(PROFILE_BUFFER_COUNT);
         g_FreeProfiles.SetSize(0); // Could be > 0 if Initialized is called again after Finalize
@@ -307,6 +316,7 @@ namespace dmProfile
             {
                 g_Scopes[i].m_Internal = 0;
             }
+            g_DummyScope.m_Internal = 0;
 
             for (uint32_t i = 0; i < n_samples; ++i)
             {
@@ -492,9 +502,6 @@ namespace dmProfile
         dmSpinlock::Unlock(&g_ProfileLock);
     }
 
-    // Used when out of scopes in order to remove conditional branches
-    ScopeData g_DummyScopeData;
-    Scope g_DummyScope = { "foo", 0, &g_DummyScopeData };
     Scope* AllocateScope(const char* name)
     {
         dmSpinlock::Lock(&g_ProfileLock);
