@@ -43,14 +43,14 @@ public class CollectionProxyNode extends ComponentTypeNode {
         if (this.collectionNode != null) {
             this.collectionNode.setModel(model);
         }
+        if (model != null && !this.collection.isEmpty()) {
+            reloadCollection();
+        }
     }
 
     public IStatus validateCollection() {
         if (getModel() != null && !this.collection.isEmpty()) {
-            if (this.collectionNode == null) {
-                reloadCollection();
-            }
-            if (this.collectionNode != null && this.collectionStatus == null) {
+            if (this.collectionStatus == null && this.collectionNode != null) {
                 this.collectionStatus = this.collectionNode.validate();
             }
             if (this.collectionStatus != null) {
