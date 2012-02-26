@@ -310,7 +310,7 @@
             <visibleWhen
                   checkEnabled="false">
                <reference
-                     definitionId="com.dynamo.cr.scened.definitions.sceneEditorActive">
+                     definitionId="com.dynamo.cr.sceneed.definitions.sceneEditorActive">
                </reference>
             </visibleWhen>
             <menu
@@ -364,11 +364,20 @@
             </reference>
          </activeWhen>
       </handler>
+      <handler
+            class="com.dynamo.cr.sceneed.handlers.SelectAllHandler"
+            commandId="org.eclipse.ui.edit.selectAll">
+         <activeWhen>
+            <reference
+                  definitionId="com.dynamo.cr.sceneed.definitions.sceneEditorActive">
+            </reference>
+         </activeWhen>
+      </handler>
    </extension>
    <extension
          point="org.eclipse.core.expressions.definitions">
       <definition
-            id="com.dynamo.cr.scened.definitions.sceneEditorActive">
+            id="com.dynamo.cr.sceneed.definitions.sceneEditorActive">
          <with
                variable="activeEditor">
             <instanceof

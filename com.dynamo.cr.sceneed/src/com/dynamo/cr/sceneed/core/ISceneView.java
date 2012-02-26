@@ -17,6 +17,7 @@ public interface ISceneView {
 
     public interface IPresenter {
         void onSelect(IStructuredSelection selection);
+        void onSelectAll();
         void onRefresh();
 
         void onLoad(String type, InputStream contents) throws IOException, CoreException;

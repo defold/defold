@@ -12,6 +12,7 @@ import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.viewers.IStructuredSelection;
+import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.swt.dnd.Transfer;
 
 import com.dynamo.cr.sceneed.Activator;
@@ -45,6 +46,16 @@ public class ScenePresenter implements IPresenter, IModelListener {
     @Override
     public void onSelect(IStructuredSelection selection) {
         IStructuredSelection oldSelection = this.model.getSelection();
+        if (!oldSelection.toList().equals(selection.toList())) {
+            this.model.setSelection(selection);
+            this.view.refresh(selection, this.model.isDirty());
+        }
+    }
+
+    @Override
+    public void onSelectAll() {
+        IStructuredSelection oldSelection = this.model.getSelection();
+        IStructuredSelection selection = new StructuredSelection(this.model.getRoot().getChildren());
         if (!oldSelection.toList().equals(selection.toList())) {
             this.model.setSelection(selection);
             this.view.refresh(selection, this.model.isDirty());
