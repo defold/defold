@@ -39,7 +39,7 @@ public class SpriteNode extends ComponentTypeNode {
         super();
     }
 
-    private transient final IStatus deprecatedStatus = new Status(IStatus.WARNING, Activator.PLUGIN_ID, ".sprite is deprecated. Use .sprite2 instead.");
+    private static final IStatus deprecatedStatus = new Status(IStatus.WARNING, Activator.PLUGIN_ID, ".sprite is deprecated. Use .sprite2 instead.");
 
     @Override
     protected IStatus validateNode() {
