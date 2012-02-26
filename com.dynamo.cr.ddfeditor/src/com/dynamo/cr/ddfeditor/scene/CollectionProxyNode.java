@@ -40,11 +40,11 @@ public class CollectionProxyNode extends ComponentTypeNode {
     @Override
     public void setModel(ISceneModel model) {
         super.setModel(model);
+        if (model != null && this.collectionNode == null && !this.collection.isEmpty()) {
+            reloadCollection();
+        }
         if (this.collectionNode != null) {
             this.collectionNode.setModel(model);
-        }
-        if (model != null && !this.collection.isEmpty()) {
-            reloadCollection();
         }
     }
 

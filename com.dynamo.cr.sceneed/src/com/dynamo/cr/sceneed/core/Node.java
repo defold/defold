@@ -268,9 +268,11 @@ public abstract class Node implements IAdaptable, Serializable {
     }
 
     public void setModel(ISceneModel model) {
-        this.model = model;
-        for (Node child : this.children) {
-            child.setModel(model);
+        if (this.model != model) {
+            this.model = model;
+            for (Node child : this.children) {
+                child.setModel(model);
+            }
         }
     }
 
