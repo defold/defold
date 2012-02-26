@@ -5,7 +5,7 @@ package com.dynamo.cr.go.core;
 public abstract class ComponentTypeNode extends ComponentNode {
 
     public boolean isIdVisible() {
-        return getParent() != null;
+        return getParent() != null && getParent() instanceof GameObjectNode;
     }
 
     @Override

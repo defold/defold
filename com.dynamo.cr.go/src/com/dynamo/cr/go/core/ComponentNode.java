@@ -12,7 +12,7 @@ public class ComponentNode extends Node {
 
     @Property
     @NotEmpty(severity = IStatus.ERROR)
-    @Unique
+    @Unique(scope = ComponentNode.class)
     private String id;
 
     public ComponentNode() {
