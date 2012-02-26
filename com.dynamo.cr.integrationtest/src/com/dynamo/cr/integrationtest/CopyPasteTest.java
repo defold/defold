@@ -2,6 +2,7 @@ package com.dynamo.cr.integrationtest;
 
 import org.junit.Test;
 
+import com.dynamo.cr.ddfeditor.scene.CollectionProxyNode;
 import com.dynamo.cr.ddfeditor.scene.CollisionObjectNode;
 import com.dynamo.cr.ddfeditor.scene.ConvexShapeNode;
 import com.dynamo.cr.go.core.CollectionNode;
@@ -37,6 +38,15 @@ public class CopyPasteTest extends AbstractSceneTest {
         ScriptNode script = new ScriptNode();
 
         testCopyPaste(go, script);
+    }
+
+    @Test
+    public void testCollectionProxy() throws Exception {
+        GameObjectNode go = new GameObjectNode();
+        CollectionProxyNode proxy = new CollectionProxyNode();
+        proxy.setCollection("/logic/main.collection");
+
+        testCopyPaste(go, proxy);
     }
 
     private void testCopyPaste(Node parent, Node child) throws Exception {
