@@ -83,7 +83,7 @@ public class ManipulatorTest {
             bind(ISceneView.IPresenter.class).to(ScenePresenter.class).in(Singleton.class);
             bind(IModelListener.class).to(ScenePresenter.class).in(Singleton.class);
             bind(ISceneModel.class).to(SceneModel.class).in(Singleton.class);
-            bind(IClipboard.class).to(TestClipboard.class).in(Singleton.class);
+            bind(IClipboard.class).to(DummyClipboard.class).in(Singleton.class);
 
             // Heavy mocking of interfaces
             bind(INodeTypeRegistry.class).toInstance(mock(INodeTypeRegistry.class));

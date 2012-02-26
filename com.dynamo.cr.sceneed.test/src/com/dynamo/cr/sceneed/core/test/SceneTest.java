@@ -73,7 +73,7 @@ public class SceneTest {
             bind(ISelectionService.class).toInstance(mock(ISelectionService.class));
             bind(IRenderView.class).toInstance(mock(IRenderView.class));
             bind(IManipulatorRegistry.class).toInstance(mock(IManipulatorRegistry.class));
-            bind(IClipboard.class).to(TestClipboard.class).in(Singleton.class);
+            bind(IClipboard.class).to(DummyClipboard.class).in(Singleton.class);
         }
     }
 

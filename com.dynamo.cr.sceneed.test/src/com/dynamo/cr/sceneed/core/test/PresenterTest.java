@@ -53,7 +53,7 @@ public class PresenterTest extends AbstractPresenterTest {
         this.model = mock(ISceneModel.class);
         INodeTypeRegistry registry = Activator.getDefault().getNodeTypeRegistry();
         ILoaderContext loaderContext = new LoaderContext(null, Activator.getDefault().getNodeTypeRegistry(), null);
-        this.presenter = new ScenePresenter(getModel(), this.view, registry, loaderContext, new TestClipboard(), null);
+        this.presenter = new ScenePresenter(getModel(), this.view, registry, loaderContext, new DummyClipboard(), null);
         this.history = new DefaultOperationHistory();
         this.undoContext = new UndoContext();
         doAnswer(new Answer<Void>() {

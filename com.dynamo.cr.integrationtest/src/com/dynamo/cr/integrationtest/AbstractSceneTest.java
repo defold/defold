@@ -58,7 +58,7 @@ import com.dynamo.cr.sceneed.core.ManipulatorController;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.SceneModel;
 import com.dynamo.cr.sceneed.core.ScenePresenter;
-import com.dynamo.cr.sceneed.core.test.TestClipboard;
+import com.dynamo.cr.sceneed.core.test.DummyClipboard;
 import com.dynamo.cr.sceneed.ui.LoaderContext;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
@@ -101,7 +101,7 @@ public abstract class AbstractSceneTest {
             bind(ISelectionService.class).toInstance(mock(ISelectionService.class));
             bind(IRenderView.class).toInstance(mock(IRenderView.class));
             bind(IManipulatorRegistry.class).toInstance(mock(IManipulatorRegistry.class));
-            bind(IClipboard.class).to(TestClipboard.class).in(Singleton.class);
+            bind(IClipboard.class).to(DummyClipboard.class).in(Singleton.class);
         }
     }
 

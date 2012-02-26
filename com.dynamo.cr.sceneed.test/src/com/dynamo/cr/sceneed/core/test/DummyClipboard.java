@@ -12,7 +12,7 @@ import org.eclipse.swt.dnd.Transfer;
 
 import com.dynamo.cr.sceneed.core.IClipboard;
 
-public class TestClipboard implements IClipboard {
+public class DummyClipboard implements IClipboard {
 
     private Map<Transfer, byte[]> transfers = new HashMap<Transfer, byte[]>();
 
