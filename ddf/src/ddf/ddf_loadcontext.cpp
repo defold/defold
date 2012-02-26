@@ -4,12 +4,13 @@
 
 namespace dmDDF
 {
-    LoadContext::LoadContext(char* buffer, int buffer_size, bool dry_run)
+    LoadContext::LoadContext(char* buffer, int buffer_size, bool dry_run, uint32_t options)
     {
         m_Start = buffer;
         m_Current = buffer;
         m_End = buffer + buffer_size;
         m_DryRun = dry_run;
+        m_Options = options;
         if (!dry_run)
         {
             memset(buffer, 0, buffer_size);
@@ -59,7 +60,12 @@ namespace dmDDF
 
         return b;
     }
-    
+
+    uint32_t LoadContext::GetOffset(void* memory)
+    {
+        return ((uintptr_t) memory) - ((uintptr_t) m_Start);
+    }
+
     void LoadContext::SetMemoryBuffer(char* buffer, int buffer_size, bool dry_run)
     {
         m_Start = buffer;

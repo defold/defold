@@ -263,7 +263,8 @@ bail:
         request->m_Internal = internal_req;
         server->m_HttpResponse(server->m_Userdata, request);
 
-        if (internal_req->m_TotalContentReceived != internal_req->m_Request.m_ContentLength)
+        if (internal_req->m_Result == RESULT_OK &&
+            internal_req->m_TotalContentReceived != internal_req->m_Request.m_ContentLength)
         {
             dmLogWarning("Actual content differs from expected content-length (%d != %d)",
                     internal_req->m_TotalContentReceived,

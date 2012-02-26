@@ -23,6 +23,7 @@ namespace dmEngine
     void Delete(HEngine);
 
     bool Init(HEngine engine, int argc, char *argv[]);
+    uint16_t GetHttpPort(HEngine engine);
     int32_t Run(HEngine engine);
     void Exit(HEngine engine, int32_t code);
 

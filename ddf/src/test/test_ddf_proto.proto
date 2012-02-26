@@ -229,3 +229,10 @@ message TestDefault
 }
 
 message EmptyMsg {}
+
+message StringOffset
+{
+    required string str = 1;
+    repeated string str_arr = 2;
+}
+

@@ -138,15 +138,23 @@ namespace dmDDF
 
     Result LoadMessage(const void* buffer, uint32_t buffer_size, const Descriptor* desc, void** out_message)
     {
+        uint32_t size;
+        return LoadMessage(buffer, buffer_size, desc, out_message, 0, &size);
+    }
+
+    Result LoadMessage(const void* buffer, uint32_t buffer_size, const Descriptor* desc, void** out_message, uint32_t options, uint32_t* size)
+    {
         DM_PROFILE(DDF, "LoadMessage");
         assert(buffer);
         assert(desc);
         assert(out_message);
 
+        *size = 0;
+
         if (desc->m_MajorVersion != DDF_MAJOR_VERSION)
             return RESULT_VERSION_MISMATCH;
 
-        LoadContext load_context(0, 0, true);
+        LoadContext load_context(0, 0, true, options);
         Message dry_message = load_context.AllocMessage(desc);
 
         InputBuffer input_buffer((const char*) buffer, buffer_size);
@@ -169,6 +177,7 @@ namespace dmDDF
         e = DoLoadMessage(&load_context, &input_buffer, desc, &message);
         if ( e == RESULT_OK )
         {
+            *size = message_buffer_size;
             *out_message = (void*) message_buffer;
         }
         else

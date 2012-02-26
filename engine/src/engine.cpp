@@ -8,6 +8,7 @@
 #include <dlib/hash.h>
 #include <dlib/profile.h>
 #include <dlib/time.h>
+#include <dlib/math.h>
 #include <gamesys/model_ddf.h>
 #include <gamesys/physics_ddf.h>
 #include <gameobject/gameobject_ddf.h>
@@ -113,6 +114,7 @@ namespace dmEngine
     , m_Height(640)
     , m_InvPhysicalWidth(1.0f/960)
     , m_InvPhysicalHeight(1.0f/640)
+    , m_HttpServer(0)
     {
         m_Register = dmGameObject::NewRegister();
         m_InputBuffer.SetCapacity(64);
@@ -210,6 +212,153 @@ namespace dmEngine
         else
         {
             return dmGraphics::TEXTURE_FILTER_NEAREST;
+        }
+    }
+
+    static void HttpServerHeader(void* user_data, const char* key, const char* value)
+    {
+        (void) user_data;
+        (void) key;
+        (void) value;
+    }
+
+    static bool ParsePostUrl(const char* resource, dmMessage::HSocket* socket, const dmDDF::Descriptor** desc, dmhash_t* message_id)
+    {
+        // Syntax: http://host:port/post/socket/message_type
+
+        char buf[256];
+        dmStrlCpy(buf, resource, sizeof(buf));
+
+        char* last;
+        int i = 0;
+        char* s = dmStrTok(buf, "/", &last);
+        bool error = false;
+
+        while (s && !error)
+        {
+            switch (i)
+            {
+                case 0:
+                {
+                    if (strcmp(s, "post") != 0)
+                    {
+                        error = true;
+                    }
+                }
+                break;
+
+                case 1:
+                {
+                    dmMessage::Result mr = dmMessage::GetSocket(s, socket);
+                    if (mr != dmMessage::RESULT_OK)
+                    {
+                        error = true;
+                    }
+                }
+                break;
+
+                case 2:
+                {
+                    *message_id = dmHashString64(s);
+                    *desc = dmDDF::GetDescriptorFromHash(*message_id);
+                    if (*desc == 0)
+                    {
+                        error = true;
+                    }
+                }
+                break;
+            }
+
+            s = dmStrTok(0, "/", &last);
+            ++i;
+        }
+
+        return !error;
+    }
+
+    static void SlurpHttpContent(const dmHttpServer::Request* request)
+    {
+        char buf[256];
+        uint32_t total_recv = 0;
+
+        while (total_recv < request->m_ContentLength)
+        {
+            uint32_t recv_bytes = 0;
+            uint32_t to_read = dmMath::Min((uint32_t) sizeof(buf), request->m_ContentLength - total_recv);
+            dmHttpServer::Result r = dmHttpServer::Receive(request, buf, to_read, &recv_bytes);
+            if (r != dmHttpServer::RESULT_OK)
+                return;
+            total_recv += recv_bytes;
+        }
+    }
+
+    static void HandlePost(void* user_data, const dmHttpServer::Request* request)
+    {
+        char msg_buf[1024];
+        const char* error_msg = "";
+        dmHttpServer::Result r;
+        uint32_t recv_bytes = 0;
+        dmMessage::HSocket socket = 0;
+        const dmDDF::Descriptor* desc = 0;
+        dmhash_t message_id;
+
+        if (request->m_ContentLength > sizeof(msg_buf))
+        {
+            error_msg = "Too large message";
+            goto bail;
+        }
+
+        if (!ParsePostUrl(request->m_Resource, &socket, &desc, &message_id))
+        {
+            error_msg = "Invalid request";
+            goto bail;
+        }
+
+        r = dmHttpServer::Receive(request, msg_buf, request->m_ContentLength, &recv_bytes);
+        if (r == dmHttpServer::RESULT_OK)
+        {
+            void* msg;
+            uint32_t msg_size;
+            dmDDF::Result ddf_r = dmDDF::LoadMessage(msg_buf, recv_bytes, desc, &msg, dmDDF::OPTION_OFFSET_STRINGS, &msg_size);
+            if (ddf_r == dmDDF::RESULT_OK)
+            {
+                dmMessage::URL url;
+                url.m_Socket = socket;
+                url.m_Path = 0;
+                url.m_Fragment = 0;
+                dmMessage::Post(0, &url, message_id, 0, (uintptr_t) desc, msg, msg_size);
+            }
+        }
+        else
+        {
+            dmLogError("Error while reading message post data (%d)", r);
+            error_msg = "Internal error";
+            goto bail;
+        }
+
+        dmHttpServer::SetStatusCode(request, 200);
+        dmHttpServer::Send(request, "OK", strlen("OK"));
+        return;
+
+bail:
+        SlurpHttpContent(request);
+        dmLogError("%s", error_msg);
+        dmHttpServer::SetStatusCode(request, 400);
+        dmHttpServer::Send(request, error_msg, strlen(error_msg));
+    }
+
+    static void HttpServerResponse(void* user_data, const dmHttpServer::Request* request)
+    {
+        if (strcmp(request->m_Method, "POST") == 0)
+        {
+            HandlePost(user_data, request);
+        }
+        else
+        {
+            SlurpHttpContent(request);
+            dmHttpServer::SetStatusCode(request, 400);
+            const char* s = "Invalid request";
+            dmHttpServer::Send(request, s, strlen(s));
         }
     }
 
@@ -462,6 +611,20 @@ namespace dmEngine
             free(tmp);
         }
 
+
+        {
+            dmHttpServer::NewParams http_server_params;
+            http_server_params.m_HttpHeader = HttpServerHeader;
+            http_server_params.m_HttpResponse = HttpServerResponse;
+
+            dmHttpServer::Result hsr = dmHttpServer::New(&http_server_params, 0, &engine->m_HttpServer);
+            if (hsr != dmHttpServer::RESULT_OK)
+                return false;
+
+            dmSocket::Address address;
+            dmHttpServer::GetName(engine->m_HttpServer, &address, &engine->m_HttpPort);
+        }
+
         return true;
 
 bail:
@@ -488,6 +651,11 @@ bail:
         input_buffer->Push(input_action);
     }
 
+    uint16_t GetHttpPort(HEngine engine)
+    {
+        return engine->m_HttpPort;
+    }
+
     int32_t Run(HEngine engine)
     {
         const float fps = 60.0f;
@@ -506,6 +674,8 @@ bail:
                 // Flushing stdout/stderr solves this problem.
                 fflush(stdout);
                 fflush(stderr);
+
+                dmHttpServer::Update(engine->m_HttpServer);
 
                 {
                     DM_PROFILE(Engine, "Sim");

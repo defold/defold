@@ -281,7 +281,14 @@ namespace dmDDF
             memcpy(str_buf, buffer, buffer_len);
             str_buf[buffer_len] = '\0';
 
-            *string_field = str_buf;
+            if (load_context->GetOptions() & OPTION_OFFSET_STRINGS)
+            {
+                *string_field = (char*) load_context->GetOffset(str_buf);
+            }
+            else
+            {
+                *string_field = str_buf;
+            }
         }
     }
 
@@ -300,7 +307,15 @@ namespace dmDDF
             memcpy(str_buf, buffer, buffer_len);
             str_buf[buffer_len] = '\0';
 
-            memcpy((void*) dest, &str_buf, sizeof(const char*));
+            if (load_context->GetOptions() & OPTION_OFFSET_STRINGS)
+            {
+                const char* offset = (const char*) load_context->GetOffset(str_buf);
+                memcpy((void*) dest, &offset, sizeof(const char*));
+            }
+            else
+            {
+                memcpy((void*) dest, &str_buf, sizeof(const char*));
+            }
             repeated_field->m_ArrayCount++;
         }
     }

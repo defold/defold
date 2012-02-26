@@ -6,6 +6,7 @@
 #include <dlib/configfile.h>
 #include <dlib/hashtable.h>
 #include <dlib/message.h>
+#include <dlib/http_server.h>
 
 #include <resource/resource.h>
 
@@ -90,6 +91,9 @@ namespace dmEngine
         float                                       m_InvPhysicalHeight;
 
         RecordData                                  m_RecordData;
+
+        dmHttpServer::HServer                       m_HttpServer;
+        uint16_t                                    m_HttpPort;
     };
 
     void ReloadResources(HEngine engine, const char* extension);

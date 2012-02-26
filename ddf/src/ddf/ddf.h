@@ -117,6 +117,9 @@ namespace dmDDF
         (void) error;\
     } while(0)
 
+    /// Store strings as offset from base address. Useful when serializing the entire messages.
+    const uint32_t OPTION_OFFSET_STRINGS = (1 << 0);
+
     /**
      * Internal. Do not use.
      */
@@ -153,6 +156,18 @@ namespace dmDDF
      * @return RESULT_OK on success
      */
     Result LoadMessage(const void* buffer, uint32_t buffer_size, const Descriptor* desc, void** message);
+
+    /**
+     * Load/decode a DDF message from buffer
+     * @param buffer Input buffer
+     * @param buffer_size Input buffer size in bytes
+     * @param desc DDF descriptor
+     * @param message Pointer to message
+     * @param options options, eg OPTION_OFFSET_STRINGS
+     * @param size load message size [out]
+     * @return RESULT_OK on success
+     */
+    Result LoadMessage(const void* buffer, uint32_t buffer_size, const Descriptor* desc, void** message, uint32_t options, uint32_t* size);
 
     /**
      * Save function call-back

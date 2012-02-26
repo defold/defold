@@ -679,6 +679,36 @@ TEST(Descriptor, GetDescriptor)
     ASSERT_EQ(&DUMMY::TestDDF_MaterialDesc_DESCRIPTOR, dmDDF::GetDescriptor("material_desc"));
 }
 
+TEST(StringOffset, Load)
+{
+    const int count = 2;
+
+    TestDDF::StringOffset repated;
+    repated.set_str("a string");
+    repated.add_str_arr("foo");
+    repated.add_str_arr("bar");
+
+    std::string msg_str = repated.SerializeAsString();
+    const char* msg_buf = msg_str.c_str();
+    uint32_t msg_buf_size = msg_str.size();
+    void* message;
+
+    uint32_t msg_size;
+    dmDDF::Result e = dmDDF::LoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_StringOffset_DESCRIPTOR, &message, dmDDF::OPTION_OFFSET_STRINGS, &msg_size);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
+
+    DUMMY::TestDDF::StringOffset* msg = (DUMMY::TestDDF::StringOffset*) message;
+
+    ASSERT_STREQ(repated.str().c_str(), (const char*) (uintptr_t(msg->m_Str) + uintptr_t(msg)));
+    ASSERT_STREQ(repated.str_arr(0).c_str(), (const char*) (uintptr_t(msg->m_StrArr[0]) + uintptr_t(msg)));
+    ASSERT_STREQ(repated.str_arr(1).c_str(), (const char*) (uintptr_t(msg->m_StrArr[1]) + uintptr_t(msg)));
+
+    // NOTE: We don't save the message again as we do in most tests
+    // Currently no support to save messages with offset strings
+
+    dmDDF::FreeMessage(message);
+}
+
 int main(int argc, char **argv)
 {
     dmDDF::RegisterAllTypes();
