@@ -276,7 +276,9 @@ IRenderView {
                 this.selectionBoxNode.setVisible(true);
                 this.selectionBoxNode.set(event.x, event.y);
             } else {
-                boolean multiSelect = (event.stateMask & SWT.SHIFT) != 0 || (!SceneUtil.isMac() && (event.stateMask & SWT.CTRL) != 0);
+                boolean macModifiers = (event.stateMask & (SWT.MOD1 | SWT.SHIFT)) != 0;
+                boolean othersModifiers = (event.stateMask & SWT.CTRL) != 0;
+                boolean multiSelect = macModifiers || (!SceneUtil.isMac() && othersModifiers);
                 List<Node> selectedNodes = null;
                 if (multiSelect) {
                     IStructuredSelection selection = (IStructuredSelection)this.selectionService.getSelection();
