@@ -265,6 +265,22 @@ namespace dmProfile
         g_ActiveProfile = g_FreeProfiles[0];
         g_FreeProfiles.EraseSwap(0);
 
+        /*
+          Set up initial scope-data for the active profile as scope-data
+          is used in CalculateScopeProfile before initial profile swap is performed.
+          We now keep scopes over Initialize and Finalize.
+          Before that change all scopes where reallocated and the scope-data
+          was initialized at scope-allocation, see AllocateScope
+         */
+        uint32_t n = g_Scopes.Size();
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            ScopeData* scope_data = &g_ActiveProfile->m_ScopesData[i];
+            scope_data->m_Elapsed = 0;
+            scope_data->m_Count = 0;
+            g_ActiveProfile->m_ScopesData[i].m_Scope = &g_Scopes[i];
+        }
+
         g_CountersTable.SetCapacity(dmMath::Max(16U,  2 * max_counters / 3), max_counters);
         g_CountersTable.Clear();
 
