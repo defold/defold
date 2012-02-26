@@ -13,7 +13,7 @@ public class InstanceNode extends Node {
 
     @Property
     @NotEmpty(severity = IStatus.ERROR)
-    @Unique
+    @Unique(scope = InstanceNode.class, base = CollectionNode.class)
     private String id = "";
 
     public InstanceNode() {

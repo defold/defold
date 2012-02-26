@@ -6,6 +6,7 @@ import static org.junit.Assert.assertThat;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IStatus;
@@ -219,6 +220,19 @@ public class CollectionNodeTest extends AbstractNodeTest {
         addCollection();
         assertThat(instance(0).getId(), is("test2"));
         assertThat(instance(1).getId(), is("test"));
+    }
+
+    @Test
+    public void testChild() throws Exception {
+        registerFile("/child.collection", "name: \"default\" "
+                + "instances {id: \"node1\" prototype: \"/test.go\" children: \"node2\"} "
+                + "instances {id: \"node2\" prototype: \"/test.go\"}");
+
+        CollectionNode collection = this.loader.load(getLoaderContext(), getFile("/child.collection").getContents());
+        List<Node> gos = collection.getChildren();
+        assertThat(gos.size(), is(1));
+        List<Node> children = gos.get(0).getChildren();
+        assertThat(children.size(), is(1));
     }
 
     @Test

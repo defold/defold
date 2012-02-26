@@ -9,4 +9,5 @@ import com.dynamo.cr.properties.Validator;
 @Retention(RetentionPolicy.RUNTIME)
 public @interface Unique {
     Class<?> scope() default Object.class;
+    Class<?> base() default Object.class;
 }

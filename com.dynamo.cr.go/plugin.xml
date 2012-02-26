@@ -31,6 +31,13 @@
             id="com.dynamo.cr.go.core.nodes.component"
             node="com.dynamo.cr.go.core.ComponentNode">
       </node-type>
+      <node-type
+            id="com.dynamo.cr.go.core.nodes.gameObjectInstance"
+            node="com.dynamo.cr.go.core.GameObjectInstanceNode">
+         <reference-node-type
+               node-type="com.dynamo.cr.go.core.nodes.gameObjectInstance">
+         </reference-node-type>
+      </node-type>
    </extension>
    <extension
          point="org.eclipse.core.expressions.definitions">

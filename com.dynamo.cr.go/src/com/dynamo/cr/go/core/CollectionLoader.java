@@ -3,6 +3,11 @@ package com.dynamo.cr.go.core;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
@@ -29,6 +34,8 @@ public class CollectionLoader implements INodeLoader<CollectionNode> {
         CollectionDesc desc = builder.build();
         CollectionNode node = new CollectionNode();
         node.setName(desc.getName());
+        Map<String, GameObjectInstanceNode> idToInstance = new HashMap<String, GameObjectInstanceNode>();
+        Set<GameObjectInstanceNode> remainingInstances = new HashSet<GameObjectInstanceNode>();
         int n = desc.getInstancesCount();
         for (int i = 0; i < n; ++i) {
             InstanceDesc instanceDesc = desc.getInstances(i);
@@ -39,7 +46,21 @@ public class CollectionLoader implements INodeLoader<CollectionNode> {
             instanceNode.setRotation(LoaderUtil.toQuat4(instanceDesc.getRotation()));
             instanceNode.setId(instanceDesc.getId());
             instanceNode.setGameObject(path);
-            node.addChild(instanceNode);
+            idToInstance.put(instanceDesc.getId(), instanceNode);
+            remainingInstances.add(instanceNode);
+        }
+        for (int i = 0; i < n; ++i) {
+            InstanceDesc instanceDesc = desc.getInstances(i);
+            Node parent = idToInstance.get(instanceDesc.getId());
+            List<String> children = instanceDesc.getChildrenList();
+            for (String childId : children) {
+                Node child = idToInstance.get(childId);
+                parent.addChild(child);
+                remainingInstances.remove(child);
+            }
+        }
+        for (GameObjectInstanceNode instance : remainingInstances) {
+            node.addChild(instance);
         }
         n = desc.getCollectionInstancesCount();
         for (int i = 0; i < n; ++i) {
@@ -60,9 +81,14 @@ public class CollectionLoader implements INodeLoader<CollectionNode> {
     public Message buildMessage(ILoaderContext context, CollectionNode collection, IProgressMonitor monitor)
             throws IOException, CoreException {
         Builder builder = CollectionDesc.newBuilder();
-        SubMonitor progress = SubMonitor.convert(monitor, collection.getChildren().size());
         builder.setName(collection.getName());
-        for (Node child : collection.getChildren()) {
+        buildInstances(collection, builder, monitor);
+        return builder.build();
+    }
+
+    private void buildInstances(Node node, CollectionDesc.Builder builder, IProgressMonitor monitor) {
+        SubMonitor progress = SubMonitor.convert(monitor, node.getChildren().size());
+        for (Node child : node.getChildren()) {
             if (child instanceof GameObjectInstanceNode) {
                 GameObjectInstanceNode instance = (GameObjectInstanceNode)child;
                 InstanceDesc.Builder instanceBuilder = InstanceDesc.newBuilder();
@@ -70,7 +96,13 @@ public class CollectionLoader implements INodeLoader<CollectionNode> {
                 instanceBuilder.setRotation(LoaderUtil.toQuat(instance.getRotation()));
                 instanceBuilder.setId(instance.getId());
                 instanceBuilder.setPrototype(instance.getGameObject());
+                for (Node grandChild : child.getChildren()) {
+                    if (grandChild instanceof GameObjectInstanceNode) {
+                        instanceBuilder.addChildren(((GameObjectInstanceNode)grandChild).getId());
+                    }
+                }
                 builder.addInstances(instanceBuilder);
+                buildInstances(child, builder, monitor);
             } else if (child instanceof CollectionInstanceNode) {
                 CollectionInstanceNode instance = (CollectionInstanceNode)child;
                 CollectionInstanceDesc.Builder instanceBuilder = CollectionInstanceDesc.newBuilder();
@@ -82,7 +114,5 @@ public class CollectionLoader implements INodeLoader<CollectionNode> {
             }
             progress.worked(1);
         }
-        return builder.build();
     }
-
 }

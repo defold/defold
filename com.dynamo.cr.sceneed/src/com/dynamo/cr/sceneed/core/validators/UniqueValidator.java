@@ -15,19 +15,35 @@ public class UniqueValidator implements IValidator<Object, Unique, IPropertyObje
     @Override
     public IStatus validate(Unique validationParameters, Object object, String property, Object value, IPropertyObjectWorld world) {
         Node node = (Node)object;
-        Node parent = node.getParent();
-        if (parent != null) {
-            for (Node sibling : parent.getChildren()) {
-                if (sibling != node && validationParameters.scope().isAssignableFrom(sibling.getClass())) {
-                    @SuppressWarnings("unchecked")
-                    IPropertyModel<? extends Node, ISceneModel> propertyModel = (IPropertyModel<? extends Node, ISceneModel>)sibling.getAdapter(IPropertyModel.class);
-                    Object siblingValue = propertyModel.getPropertyValue(property);
-                    if (value.equals(siblingValue)) {
-                        return ValidatorUtil.createStatus(object, property, IStatus.ERROR, "DUPLICATE", Messages.UniqueValidator_DUPLICATE, new Object[] {value}); //$NON-NLS-1$
-                    }
-                }
+        Node base = node.getParent();
+        Class<?> scopeClass = validationParameters.scope();
+        Class<?> baseClass = validationParameters.base();
+        while (base != null && !baseClass.isAssignableFrom(base.getClass())) {
+            base = base.getParent();
+        }
+        if (base != null) {
+            boolean unique = testUniqueness(base, node, property, value, scopeClass);
+            if (!unique) {
+                return ValidatorUtil.createStatus(object, property, IStatus.ERROR, "DUPLICATE", Messages.UniqueValidator_DUPLICATE, new Object[] {value}); //$NON-NLS-1$
             }
         }
         return Status.OK_STATUS;
+    }
+
+    private static boolean testUniqueness(Node base, Node original, String property, Object value, Class<?> scopeClass) {
+        for (Node sibling : base.getChildren()) {
+            if (sibling != original && scopeClass.isAssignableFrom(sibling.getClass())) {
+                @SuppressWarnings("unchecked")
+                IPropertyModel<? extends Node, ISceneModel> propertyModel = (IPropertyModel<? extends Node, ISceneModel>)sibling.getAdapter(IPropertyModel.class);
+                Object siblingValue = propertyModel.getPropertyValue(property);
+                if (value.equals(siblingValue)) {
+                    return false;
+                }
+                if (!testUniqueness(sibling, original, property, value, scopeClass)) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 }
