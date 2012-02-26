@@ -136,6 +136,11 @@ namespace dmEngine
 
     void Delete(HEngine engine)
     {
+        if (engine->m_HttpServer)
+        {
+            dmHttpServer::Delete(engine->m_HttpServer);
+        }
+
         if (engine->m_MainCollection)
             dmResource::Release(engine->m_Factory, engine->m_MainCollection);
 
@@ -327,6 +332,7 @@ namespace dmEngine
                 url.m_Path = 0;
                 url.m_Fragment = 0;
                 dmMessage::Post(0, &url, message_id, 0, (uintptr_t) desc, msg, msg_size);
+                dmDDF::FreeMessage(msg);
             }
         }
         else
