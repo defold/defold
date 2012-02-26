@@ -40,10 +40,17 @@ namespace dmHttpServer
      */
     struct Request
     {
+        /// Request method
         const char* m_Method;
+        /// Request resource
         const char* m_Resource;
+        /// HTTP major version
         int         m_Major;
+        /// HTTP minor version
         int         m_Minor;
+        /// Content-Length header
+        uint32_t    m_ContentLength;
+        /// Internal data
         void*       m_Internal;
     };
 
@@ -54,16 +61,6 @@ namespace dmHttpServer
      * @param value Header attribute value
      */
     typedef void (*HttpHeader)(void* user_data, const char* key, const char* value);
-
-    /**
-     * HTTP-content call-back. Called on requests with content (POST/PUT).
-     * @note This can be called multiple times to incrementally build up the full payload
-     * @param user_data User data
-     * @param request Request information
-     * @param content Content
-     * @param content_size Content size
-     */
-    typedef void (*HttpContent)(void* user_data, const Request* request, const void* content, uint32_t content_size);
 
     /**
      * Http response callback. Called when response should be sent back to the client
@@ -85,9 +82,6 @@ namespace dmHttpServer
 
         /// HTTP-response callback
         HttpResponse m_HttpResponse;
-
-        /// HTTP-content callback, optional
-        HttpContent  m_HttpContent;
 
         /// Max persistent client connections
         uint16_t    m_MaxConnections;
@@ -137,6 +131,18 @@ namespace dmHttpServer
      * @return RESULT_ON on success
      */
     Result SendAttribute(const Request* request, const char* key, const char* value);
+
+    /**
+     * Receive request data
+     * @note The function will block until all data is read or if any socket error occur. Handling
+     * of partial content is not required.
+     * @param request Request
+     * @param data Data buffer to receive to
+     * @param buffer_size Buffer size
+     * @param received_bytes Number of bytes received [out]
+     * @return RESULT_OK on success
+     */
+    Result Receive(const Request* request, void* buffer, uint32_t buffer_size, uint32_t* received_bytes);
 
     /**
      * Delete http server instance

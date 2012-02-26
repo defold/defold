@@ -34,12 +34,6 @@ public:
         self->m_Content.clear();
     }
 
-    static void HttpContent(void* user_data, const dmHttpServer::Request* request, const void* content_data, uint32_t content_data_size)
-    {
-        dmHttpServerTest* self = (dmHttpServerTest*) user_data;
-        self->m_Content.append((const char*) content_data, content_data_size);
-    }
-
     static void HttpResponse(void* user_data, const dmHttpServer::Request* request)
     {
         dmHttpServerTest* self = (dmHttpServerTest*) user_data;
@@ -91,9 +85,27 @@ public:
         }
         else if (strstr(self->m_Resource.c_str(), "/post"))
         {
-            char buf[32];
-            DM_SNPRINTF(buf, sizeof(buf), "%llu", dmHashBuffer64(self->m_Content.c_str(), self->m_Content.size()));
-            dmHttpServer::Send(request, buf, strlen(buf));
+            uint32_t total = 0;
+
+            while (total < request->m_ContentLength)
+            {
+                // NOTE: Small buffer here to test buffer boundaries in dmHttpServer::Receive
+                char recv_buf[17];
+                uint32_t recv_bytes = 0;
+                uint32_t to_recv = dmMath::Min((uint32_t) sizeof(recv_buf), (uint32_t) (request->m_ContentLength - total));
+                dmHttpServer::Result r = dmHttpServer::Receive(request, recv_buf, to_recv, &recv_bytes);
+                if (r != dmHttpServer::RESULT_OK)
+                {
+                    dmHttpServer::SetStatusCode(request, 500);
+                    return;
+                }
+                total += recv_bytes;
+                self->m_Content.append((const char*) recv_buf, recv_bytes);
+            }
+
+            char str_buf[32];
+            DM_SNPRINTF(str_buf, sizeof(str_buf), "%llu", dmHashBuffer64(self->m_Content.c_str(), self->m_Content.size()));
+            dmHttpServer::Send(request, str_buf, strlen(str_buf));
         }
         else
         {
@@ -131,7 +143,6 @@ public:
         params.m_Userdata = this;
         params.m_HttpHeader = dmHttpServerTest::HttpHeader;
         params.m_HttpResponse = dmHttpServerTest::HttpResponse;
-        params.m_HttpContent = dmHttpServerTest::HttpContent;
         dmHttpServer::Result r = dmHttpServer::New(&params, 8500, &m_Server);
         ASSERT_EQ(dmHttpServer::RESULT_OK, r);
     }
@@ -237,9 +248,10 @@ TEST_F(dmHttpServerParserTest, TestHeaders)
     ASSERT_EQ((size_t) 3, m_Headers.size());
 }
 
+int g_PythonTestResult;
 void RunPythonThread(void*)
 {
-    system("python src/test/test_httpserver.py");
+    g_PythonTestResult = system("python src/test/test_httpserver.py");
 }
 
 TEST_F(dmHttpServerTest, TestServer)
@@ -254,6 +266,7 @@ TEST_F(dmHttpServerTest, TestServer)
     }
     ASSERT_LE(iter, 1000);
     dmThread::Join(thread);
+    ASSERT_EQ(0, g_PythonTestResult);
 }
 
 TEST_F(dmHttpServerTest, TestServerClient)
