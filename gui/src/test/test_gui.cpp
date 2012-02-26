@@ -70,7 +70,6 @@ public:
     virtual void SetUp()
     {
         m_ScriptContext = dmScript::NewContext(0);
-        dmScript::RegisterDDFType(m_ScriptContext, dmTestGuiDDF::AMessage::m_DDFDescriptor);
 
         dmMessage::NewSocket("test_m_Socket", &m_Socket);
         dmGui::NewContextParams context_params;
@@ -1595,6 +1594,7 @@ TEST_F(dmGuiTest, ScriptPicking)
 
 int main(int argc, char **argv)
 {
+    dmDDF::RegisterAllTypes();
     testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }

@@ -21,7 +21,6 @@ protected:
     virtual void SetUp()
     {
         m_ScriptContext = dmScript::NewContext(0);
-        dmScript::RegisterDDFType(m_ScriptContext, TestGameObjectDDF::Spawn::m_DDFDescriptor);
         dmGameObject::Initialize(m_ScriptContext);
 
         m_UpdateContext.m_DT = 1.0f / 60.0f;
@@ -279,8 +278,8 @@ TEST_F(ScriptTest, Null)
 
 int main(int argc, char **argv)
 {
+    dmDDF::RegisterAllTypes();
     testing::InitGoogleTest(&argc, argv);
-
     int ret = RUN_ALL_TESTS();
     return ret;
 }

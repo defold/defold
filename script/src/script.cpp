@@ -19,7 +19,6 @@ namespace dmScript
     HContext NewContext(dmConfigFile::HConfig config_file)
     {
         Context* context = new Context();
-        context->m_Descriptors.SetCapacity(17, 128);
         context->m_ConfigFile = config_file;
         return context;
     }
@@ -58,17 +57,4 @@ namespace dmScript
         lua_setglobal(L, SCRIPT_GET_USER_DATA_CALLBACK);
     }
 
-    bool RegisterDDFType(HContext context, const dmDDF::Descriptor* descriptor)
-    {
-        if (context->m_Descriptors.Full())
-        {
-            dmLogError("Unable to register ddf type. Out of resources.");
-            return false;
-        }
-        else
-        {
-            context->m_Descriptors.Put(dmHashString64(descriptor->m_Name), descriptor);
-            return true;
-        }
-    }
 }

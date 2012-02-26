@@ -61,6 +61,7 @@ TEST_F(EngineTest, GuiRenderCrash)
 
 int main(int argc, char **argv)
 {
+    dmDDF::RegisterAllTypes();
     testing::InitGoogleTest(&argc, argv);
 
     int ret = RUN_ALL_TESTS();

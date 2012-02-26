@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <dlib/array.h>
+#include <dlib/hash.h>
 
 #define DDF_OFFSET_OF(T, F) (((uintptr_t) (&((T*) 16)->F)) - 16)
 #define DDF_MAX_FIELDS (128)
@@ -45,6 +46,7 @@ namespace dmDDF
         uint32_t         m_Size;
         FieldDescriptor* m_Fields;
         uint8_t          m_FieldCount;  // TODO: Where to check < 255...?
+        void*            m_NextDescriptor;
     };
 
     struct RepeatedField
@@ -114,6 +116,33 @@ namespace dmDDF
         static const char error[(x)?1:-1] = {0};\
         (void) error;\
     } while(0)
+
+    /**
+     * Internal. Do not use.
+     */
+    struct InternalRegisterDescriptor
+    {
+        InternalRegisterDescriptor(Descriptor* descriptor);
+    };
+
+    /**
+     * Register all ddf-types available
+     */
+    void RegisterAllTypes();
+
+    /**
+     * Get Descriptor from name
+     * @param name type name
+     * @return Descriptor. NULL of not found
+     */
+    const Descriptor* GetDescriptor(const char* name);
+
+    /**
+     * Get Descriptor from hash
+     * @param hash hash of type name
+     * @return Descriptor. NULL of not found
+     */
+    const Descriptor* GetDescriptorFromHash(dmhash_t hash);
 
     /**
      * Load/decode a DDF message from buffer

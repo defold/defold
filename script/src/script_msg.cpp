@@ -437,26 +437,23 @@ namespace dmScript
             message_id = CheckHash(L, 2);
         }
 
-        uintptr_t descriptor = 0;
-
         char data[MAX_MESSAGE_DATA_SIZE];
         uint32_t data_size = 0;
 
-        const dmDDF::Descriptor** desc = 0x0;
+        const dmDDF::Descriptor* desc = 0x0;
         lua_getglobal(L, SCRIPT_CONTEXT);
         HContext context = (HContext)lua_touserdata(L, -1);
         lua_pop(L, 1);
         if (context != 0)
         {
-            desc = context->m_Descriptors.Get(message_id);
+            desc = dmDDF::GetDescriptorFromHash(message_id);
             if (desc != 0)
             {
-                descriptor = (uintptr_t)*desc;
                 if (top > 2)
                 {
-                    if ((*desc)->m_Size > MAX_MESSAGE_DATA_SIZE)
+                    if (desc->m_Size > MAX_MESSAGE_DATA_SIZE)
                     {
-                        return luaL_error(L, "The message is too large to be sent (%d bytes, max is %d).", (*desc)->m_Size, MAX_MESSAGE_DATA_SIZE);
+                        return luaL_error(L, "The message is too large to be sent (%d bytes, max is %d).", desc->m_Size, MAX_MESSAGE_DATA_SIZE);
                     }
                     luaL_checktype(L, 3, LUA_TTABLE);
                     lua_pushvalue(L, 3);
@@ -465,7 +462,7 @@ namespace dmScript
                 {
                     lua_newtable(L);
                 }
-                data_size = dmScript::CheckDDF(L, *desc, data, MAX_MESSAGE_DATA_SIZE, -1);
+                data_size = dmScript::CheckDDF(L, desc, data, MAX_MESSAGE_DATA_SIZE, -1);
                 lua_pop(L, 1);
             }
         }
@@ -485,7 +482,7 @@ namespace dmScript
         uintptr_t user_data;
         GetUserData(L, &user_data);
 
-        dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, user_data, descriptor, data, data_size);
+        dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, user_data, (uintptr_t) desc, data, data_size);
         if (result != dmMessage::RESULT_OK)
         {
             return luaL_error(L, "Could not send message to %s.", dmMessage::GetSocketName(receiver.m_Socket));

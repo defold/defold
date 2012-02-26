@@ -12,7 +12,6 @@ namespace dmScript
 {
     struct Context
     {
-        dmHashTable64<const dmDDF::Descriptor*> m_Descriptors;
         dmConfigFile::HConfig                   m_ConfigFile;
     };
 }

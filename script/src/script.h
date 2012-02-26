@@ -30,13 +30,6 @@ namespace dmScript
     void DeleteContext(HContext context);
 
     /**
-     * Registers a ddf type so it can be used as message when posting in scripts.
-     * @param descriptor DDF descriptor of the type
-     * @return wether the type could be registered
-     */
-    bool RegisterDDFType(HContext context, const dmDDF::Descriptor* descriptor);
-
-    /**
      * Callback used to resolve paths.
      * Implementations of this callback are expected to resolve the path given the lua state.
      * @param L lua state

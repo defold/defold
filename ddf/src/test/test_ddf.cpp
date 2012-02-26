@@ -671,8 +671,17 @@ TEST(TestDefault, LoadSave)
     dmDDF::FreeMessage(message);
 }
 
+TEST(Descriptor, GetDescriptor)
+{
+    ASSERT_EQ(&DUMMY::TestDDF_Simple_DESCRIPTOR, dmDDF::GetDescriptor("simple"));
+    ASSERT_EQ(&DUMMY::TestDDF_NestedType_DESCRIPTOR, dmDDF::GetDescriptor("nested_type"));
+    ASSERT_EQ(&DUMMY::TestDDF_NestedType_TheNestedType_DESCRIPTOR, dmDDF::GetDescriptor("the_nested_type"));
+    ASSERT_EQ(&DUMMY::TestDDF_MaterialDesc_DESCRIPTOR, dmDDF::GetDescriptor("material_desc"));
+}
+
 int main(int argc, char **argv)
 {
+    dmDDF::RegisterAllTypes();
     testing::InitGoogleTest(&argc, argv);
     int ret = RUN_ALL_TESTS();
     google::protobuf::ShutdownProtobufLibrary();

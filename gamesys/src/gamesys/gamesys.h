@@ -73,8 +73,6 @@ namespace dmGameSystem
         dmGameObject::HRegister m_Register;
     };
 
-    void RegisterDDFTypes(dmScript::HContext script_context);
-
     bool InitializeScriptLibs(const ScriptLibContext& context);
     void FinalizeScriptLibs(const ScriptLibContext& context);
 

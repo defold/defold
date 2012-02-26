@@ -321,6 +321,8 @@ def to_cxx_descriptor(context, pp_cpp, pp_h, message_type, namespace_lst):
     hash_string = str(message_type).replace(" ", "").replace("\n", "").replace("\r", "")
     pp_cpp.p('const uint64_t %s::%s::m_DDFHash = 0x%016XLL;' % ('::'.join(namespace_lst), message_type.name, dlib.dmHashBuffer64(hash_string)))
 
+    pp_cpp.p('dmDDF::InternalRegisterDescriptor g_Register_%s_%s(&%s_%s_DESCRIPTOR);' % (namespace, message_type.name, namespace, message_type.name))
+
     pp_cpp.p('')
 
 def to_cxx_enum_descriptor(context, pp_cpp, pp_h, enum_type, namespace_lst):

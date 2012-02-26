@@ -5,6 +5,8 @@
 #include <assert.h>
 
 #include <dlib/profile.h>
+#include <dlib/hash.h>
+#include <dlib/hashtable.h>
 #include "ddf.h"
 #include "ddf_inputbuffer.h"
 #include "ddf_load.h"
@@ -12,11 +14,57 @@
 #include "ddf_util.h"
 #include "config.h"
 
-// TODO:
-// Glšm inte att hantera messages som inte Šr repeated....
-
 namespace dmDDF
 {
+    Descriptor* g_FirstDescriptor = 0;
+    dmHashTable64<const Descriptor*> g_Descriptors;
+
+    void RegisterAllTypes()
+    {
+        const Descriptor* d = g_FirstDescriptor;
+        g_Descriptors.Clear();
+        while (d)
+        {
+            if (g_Descriptors.Full())
+            {
+                g_Descriptors.SetCapacity(587, g_Descriptors.Capacity() + 128);
+            }
+
+            dmhash_t name_hash = dmHashString64(d->m_Name);
+            if (g_Descriptors.Get(name_hash) != 0)
+            {
+                dmLogError("Name clash. Type %s already registered.", d->m_Name)
+            }
+            else
+            {
+                g_Descriptors.Put(name_hash, d);
+            }
+
+            d = (const Descriptor*) d->m_NextDescriptor;
+        }
+    }
+
+    InternalRegisterDescriptor::InternalRegisterDescriptor(Descriptor* descriptor)
+    {
+        descriptor->m_NextDescriptor = g_FirstDescriptor;
+        g_FirstDescriptor = descriptor;
+    }
+
+
+    const Descriptor* GetDescriptorFromHash(dmhash_t hash)
+    {
+        const Descriptor** d = g_Descriptors.Get(hash);
+        if (d)
+            return *d;
+        else
+            return 0;
+    }
+
+    const Descriptor* GetDescriptor(const char* name)
+    {
+        return GetDescriptorFromHash(dmHashString64(name));
+    }
+
     static Result CalculateRepeated(LoadContext* load_context, InputBuffer* ib, const Descriptor* desc)
     {
         assert(desc);

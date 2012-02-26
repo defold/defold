@@ -10,6 +10,7 @@
 
 int main(int argc, char *argv[])
 {
+    dmDDF::RegisterAllTypes();
     dmMemProfile::Initialize();
 
     dmSocket::Initialize();

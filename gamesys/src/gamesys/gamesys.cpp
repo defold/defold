@@ -58,28 +58,6 @@ namespace dmGameSystem
         m_Worlds.SetCapacity(8);
     }
 
-    void RegisterDDFTypes(dmScript::HContext script_context)
-    {
-        dmScript::RegisterDDFType(script_context, dmGamesysDDF::SetCamera::m_DDFDescriptor);
-        dmScript::RegisterDDFType(script_context, dmGamesysDDF::AcquireCameraFocus::m_DDFDescriptor);
-        dmScript::RegisterDDFType(script_context, dmGamesysDDF::ReleaseCameraFocus::m_DDFDescriptor);
-        dmScript::RegisterDDFType(script_context, dmPhysicsDDF::RayCastResponse::m_DDFDescriptor);
-        dmScript::RegisterDDFType(script_context, dmPhysicsDDF::RequestVelocity::m_DDFDescriptor);
-        dmScript::RegisterDDFType(script_context, dmPhysicsDDF::VelocityResponse::m_DDFDescriptor);
-        dmScript::RegisterDDFType(script_context, dmPhysicsDDF::ApplyForce::m_DDFDescriptor);
-        dmScript::RegisterDDFType(script_context, dmPhysicsDDF::CollisionResponse::m_DDFDescriptor);
-        dmScript::RegisterDDFType(script_context, dmPhysicsDDF::ContactPointResponse::m_DDFDescriptor);
-        dmScript::RegisterDDFType(script_context, dmPhysicsDDF::SetGridShapeHull::m_DDFDescriptor);
-        dmScript::RegisterDDFType(script_context, dmGameSystemDDF::Spawn::m_DDFDescriptor);
-        dmScript::RegisterDDFType(script_context, dmGameSystemDDF::SetTimeStep::m_DDFDescriptor);
-        dmScript::RegisterDDFType(script_context, dmGameSystemDDF::PlayAnimation::m_DDFDescriptor);
-        dmScript::RegisterDDFType(script_context, dmGameSystemDDF::AnimationDone::m_DDFDescriptor);
-        dmScript::RegisterDDFType(script_context, dmGameSystemDDF::PlayAnimation2::m_DDFDescriptor);
-        dmScript::RegisterDDFType(script_context, dmGameSystemDDF::AnimationDone2::m_DDFDescriptor);
-        dmScript::RegisterDDFType(script_context, dmGameSystemDDF::PlaySound::m_DDFDescriptor);
-        dmScript::RegisterDDFType(script_context, dmGameSystemDDF::SetTile::m_DDFDescriptor);
-    }
-
     dmResource::Result RegisterResourceTypes(dmResource::HFactory factory, dmRender::HRenderContext render_context, GuiContext* gui_context, dmInput::HContext input_context, PhysicsContext* physics_context)
     {
         dmResource::Result e;

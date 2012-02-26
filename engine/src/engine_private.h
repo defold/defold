@@ -93,7 +93,6 @@ namespace dmEngine
     };
 
     void ReloadResources(HEngine engine, const char* extension);
-    void RegisterDDFTypes(HEngine engine);
     bool LoadBootstrapContent(HEngine engine, dmConfigFile::HConfig config);
     void UnloadBootstrapContent(HEngine engine);
 }

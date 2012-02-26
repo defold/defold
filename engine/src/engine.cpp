@@ -295,8 +295,6 @@ namespace dmEngine
         engine->m_ScriptContext = dmScript::NewContext(engine->m_Config);
         dmGameObject::Initialize(engine->m_ScriptContext);
 
-        RegisterDDFTypes(engine);
-
         engine->m_HidContext = dmHID::NewContext(dmHID::NewContextParams());
         dmHID::Init(engine->m_HidContext);
 
@@ -676,27 +674,6 @@ bail:
         {
             dmLogError("Only system messages can be sent to the '%s' socket.\n", SYSTEM_SOCKET_NAME);
         }
-    }
-
-    void RegisterDDFTypes(HEngine engine)
-    {
-        dmGameSystem::RegisterDDFTypes(engine->m_ScriptContext);
-
-        dmScript::RegisterDDFType(engine->m_ScriptContext, dmEngineDDF::Exit::m_DDFDescriptor);
-        dmScript::RegisterDDFType(engine->m_ScriptContext, dmEngineDDF::ToggleProfile::m_DDFDescriptor);
-        dmScript::RegisterDDFType(engine->m_ScriptContext, dmEngineDDF::StartRecord::m_DDFDescriptor);
-        dmScript::RegisterDDFType(engine->m_ScriptContext, dmEngineDDF::StopRecord::m_DDFDescriptor);
-        dmScript::RegisterDDFType(engine->m_ScriptContext, dmRenderDDF::DrawText::m_DDFDescriptor);
-        dmScript::RegisterDDFType(engine->m_ScriptContext, dmRenderDDF::DrawLine::m_DDFDescriptor);
-        dmScript::RegisterDDFType(engine->m_ScriptContext, dmRenderDDF::ClearColor::m_DDFDescriptor);
-        dmScript::RegisterDDFType(engine->m_ScriptContext, dmModelDDF::SetTexture::m_DDFDescriptor);
-        dmScript::RegisterDDFType(engine->m_ScriptContext, dmModelDDF::SetConstant::m_DDFDescriptor);
-        dmScript::RegisterDDFType(engine->m_ScriptContext, dmModelDDF::ResetConstant::m_DDFDescriptor);
-        dmScript::RegisterDDFType(engine->m_ScriptContext, dmGameObjectDDF::AcquireInputFocus::m_DDFDescriptor);
-        dmScript::RegisterDDFType(engine->m_ScriptContext, dmGameObjectDDF::ReleaseInputFocus::m_DDFDescriptor);
-        dmScript::RegisterDDFType(engine->m_ScriptContext, dmGameObjectDDF::RequestTransform::m_DDFDescriptor);
-        dmScript::RegisterDDFType(engine->m_ScriptContext, dmGameObjectDDF::TransformResponse::m_DDFDescriptor);
-        dmScript::RegisterDDFType(engine->m_ScriptContext, dmGameObjectDDF::SetParent::m_DDFDescriptor);
     }
 
     bool LoadBootstrapContent(HEngine engine, dmConfigFile::HConfig config)

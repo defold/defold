@@ -44,8 +44,6 @@ protected:
         L = lua_open();
         luaL_openlibs(L);
         m_ScriptContext = dmScript::NewContext(0);
-        dmScript::RegisterDDFType(m_ScriptContext, TestScript::SubMsg::m_DDFDescriptor);
-        dmScript::RegisterDDFType(m_ScriptContext, TestScript::EmptyMsg::m_DDFDescriptor);
         dmScript::ScriptParams params;
         params.m_Context = m_ScriptContext;
         params.m_ResolvePathCallback = ResolvePathCallback;
@@ -526,8 +524,8 @@ TEST_F(ScriptMsgTest, TestPerf)
 
 int main(int argc, char **argv)
 {
+    dmDDF::RegisterAllTypes();
     testing::InitGoogleTest(&argc, argv);
-
     int ret = RUN_ALL_TESTS();
     return ret;
 }
