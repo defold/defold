@@ -86,6 +86,10 @@ public abstract class Node implements IAdaptable, Serializable {
         flags.add(flag);
     }
 
+    public void clearFlags(Flags flag) {
+        flags.remove(flag);
+    }
+
     public void setFlagsRecursively(Flags flag) {
         flags.add(flag);
         for (Node child : this.children) {
@@ -336,6 +340,11 @@ public abstract class Node implements IAdaptable, Serializable {
         } else {
             setModel(null);
         }
+        parentSet();
+    }
+
+    public void parentSet() {
+
     }
 
     public Image getIcon() {
