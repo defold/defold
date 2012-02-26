@@ -30,10 +30,10 @@ public class Sprite2Node extends ComponentTypeNode {
     @NotEmpty
     private String defaultAnimation = "";
 
-    private TileSetNode tileSetNode = null;
+    private transient TileSetNode tileSetNode = null;
 
     // Graphics resources
-    private FloatBuffer vertexData;
+    private transient FloatBuffer vertexData;
 
     @Override
     public void dispose() {

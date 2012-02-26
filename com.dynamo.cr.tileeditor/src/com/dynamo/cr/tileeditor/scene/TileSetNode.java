@@ -487,5 +487,6 @@ public class TileSetNode extends Node {
         this.materialTag = (String)in.readObject();
         this.tileCollisionGroups = (List<CollisionGroupNode>)in.readObject();
         this.textureHandle = new TextureHandle();
+        this.convexHulls = new ArrayList<ConvexHull>();
     }
 }

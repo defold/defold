@@ -31,10 +31,10 @@ public class TileGridNode extends ComponentTypeNode {
     @NotEmpty
     private String tileSet = "";
 
-    private TileSetNode tileSetNode = null;
+    private transient TileSetNode tileSetNode = null;
 
     // Graphics resources
-    private FloatBuffer vertexData;
+    private transient FloatBuffer vertexData;
 
     @Override
     public void dispose() {

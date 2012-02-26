@@ -19,7 +19,7 @@ public class RefComponentNode extends ComponentNode {
     @Resource
     @NotEmpty
     private String component;
-    private ComponentTypeNode type;
+    private transient ComponentTypeNode type;
 
     public RefComponentNode(ComponentTypeNode type) {
         super();
@@ -47,6 +47,9 @@ public class RefComponentNode extends ComponentNode {
     @Override
     public void setModel(ISceneModel model) {
         super.setModel(model);
+        if (model != null && this.type == null) {
+            reloadType();
+        }
         if (this.type != null) {
             this.type.setModel(model);
         }

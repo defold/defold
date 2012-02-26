@@ -19,7 +19,7 @@ public class GameObjectInstanceNode extends InstanceNode {
     @NotEmpty
     private String gameObject = "";
 
-    private GameObjectNode gameObjectNode;
+    private transient GameObjectNode gameObjectNode;
 
     public GameObjectInstanceNode() {
         super();
@@ -47,6 +47,9 @@ public class GameObjectInstanceNode extends InstanceNode {
     @Override
     public void setModel(ISceneModel model) {
         super.setModel(model);
+        if (model != null && this.gameObjectNode == null) {
+            reloadGameObject();
+        }
         if (this.gameObjectNode != null) {
             this.gameObjectNode.setModel(model);
         }
