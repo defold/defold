@@ -52,6 +52,8 @@ public abstract class BranchRepository {
 
     private String password;
 
+    private boolean isWin;
+
     public BranchRepository(GitFactory.Type gitType,
                             String branchRoot,
                             String repositoryRoot,
@@ -66,6 +68,7 @@ public abstract class BranchRepository {
         this.filterPatterns = filterPatterns;
         this.email = email;
         this.password = password;
+        this.isWin = System.getProperty("os.name").toLowerCase().indexOf("win") >= 0;
     }
 
     public int getResourceDataRequests() {
@@ -130,7 +133,12 @@ public abstract class BranchRepository {
             String dest = String.format("%s/builtins", p);
             // Create symbolic link to builtins. See deleteBranch()
             // TODO: ln -s will not work on windows
-            Result r = CommandUtil.execCommand(null, null, new String[] {"ln", "-s", builtinsDirectory, dest});
+            Result r = null;
+            if (this.isWin) {
+                r = CommandUtil.execCommand(null, null, new String[] {"mklink", "/D", dest, builtinsDirectory});
+            } else {
+                r = CommandUtil.execCommand(null, null, new String[] {"ln", "-s", builtinsDirectory, dest});
+            }
             if (r.exitValue != 0) {
                 logger.error(r.stdErr.toString());
                 FileUtils.deleteDirectory(new File(p));
@@ -169,7 +177,11 @@ public abstract class BranchRepository {
             String dest = String.format("%s/builtins", p);
             // Remove symbol link to builtins. See createBranch()
             // We need to remove the symbolic link *before* removeDir is invoked. FileUtil.removeDir follow links...
-            CommandUtil.execCommand(null, null, new String[] {"rm", dest});
+            if (this.isWin) {
+                CommandUtil.execCommand(null, null, new String[] {"rmdir", dest});
+            } else {
+                CommandUtil.execCommand(null, null, new String[] {"rm", dest});
+            }
             removeDir(new File(p));
         } catch (IOException e) {
             throw new BranchRepositoryException("", e);
