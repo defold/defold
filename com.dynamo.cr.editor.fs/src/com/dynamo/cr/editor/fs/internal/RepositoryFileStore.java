@@ -8,6 +8,7 @@ import java.net.URI;
 
 import javax.ws.rs.core.UriBuilder;
 
+import org.eclipse.core.filesystem.EFS;
 import org.eclipse.core.filesystem.IFileInfo;
 import org.eclipse.core.filesystem.IFileStore;
 import org.eclipse.core.filesystem.provider.FileInfo;
@@ -82,6 +83,10 @@ public class RepositoryFileStore extends FileStore implements IFileStore {
             result.setLength(info.getSize());
             result.setLastModified(info.getLastModified());
             result.setDirectory(info.getType() == ResourceType.DIRECTORY);
+            // TODO Remove this hack with a proper solution of making the builtins-dir unwritable
+            if (this.path.segmentCount() > 0 && this.path.segment(0).equals("builtins")) {
+                result.setAttribute(EFS.ATTRIBUTE_OWNER_WRITE, false);
+            }
         }
 
         //result.setAttribute(EFS.ATTRIBUTE_OWNER_READ | EFS.ATTRIBUTE_OWNER_WRITE, true);
