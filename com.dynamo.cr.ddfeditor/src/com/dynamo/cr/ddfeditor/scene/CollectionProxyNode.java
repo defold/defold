@@ -43,9 +43,6 @@ public class CollectionProxyNode extends ComponentTypeNode {
         if (model != null && this.collectionNode == null && !this.collection.isEmpty()) {
             reloadCollection();
         }
-        if (this.collectionNode != null) {
-            this.collectionNode.setModel(model);
-        }
     }
 
     public IStatus validateCollection() {

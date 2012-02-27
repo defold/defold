@@ -25,7 +25,6 @@ public class CollectionInstanceNode extends InstanceNode {
         super();
         this.collectionNode = collection;
         if (this.collectionNode != null) {
-            this.collectionNode.setModel(this.getModel());
             this.collectionNode.setFlagsRecursively(Flags.LOCKED);
             addChild(this.collectionNode);
         }
@@ -38,14 +37,6 @@ public class CollectionInstanceNode extends InstanceNode {
     public void setCollection(String collection) {
         this.collection = collection;
         reloadCollection();
-    }
-
-    @Override
-    public void setModel(ISceneModel model) {
-        super.setModel(model);
-        if (this.collectionNode != null) {
-            this.collectionNode.setModel(model);
-        }
     }
 
     public IStatus validateCollection() {

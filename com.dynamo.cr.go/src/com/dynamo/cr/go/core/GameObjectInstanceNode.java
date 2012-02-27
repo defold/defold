@@ -29,7 +29,6 @@ public class GameObjectInstanceNode extends InstanceNode {
         super();
         this.gameObjectNode = gameObject;
         if (this.gameObjectNode != null) {
-            this.gameObjectNode.setModel(this.getModel());
             this.gameObjectNode.setFlagsRecursively(Flags.LOCKED);
             addChild(this.gameObjectNode);
         }
@@ -49,9 +48,6 @@ public class GameObjectInstanceNode extends InstanceNode {
         super.setModel(model);
         if (model != null && this.gameObjectNode == null) {
             reloadGameObject();
-        }
-        if (this.gameObjectNode != null) {
-            this.gameObjectNode.setModel(model);
         }
     }
 

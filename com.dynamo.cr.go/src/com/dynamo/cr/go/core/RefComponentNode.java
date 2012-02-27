@@ -50,9 +50,6 @@ public class RefComponentNode extends ComponentNode {
         if (model != null && this.type == null) {
             reloadType();
         }
-        if (this.type != null) {
-            this.type.setModel(model);
-        }
     }
 
     public IStatus validateComponent() {
@@ -100,7 +97,6 @@ public class RefComponentNode extends ComponentNode {
                 clearChildren();
                 this.type = (ComponentTypeNode)model.loadNode(this.component);
                 if (this.type != null) {
-                    this.type.setModel(model);
                     this.type.setFlagsRecursively(Flags.LOCKED);
                     addChild(this.type);
                 }
