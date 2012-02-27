@@ -1,6 +1,7 @@
 package com.dynamo.cr.tileeditor;
 
 import javax.inject.Inject;
+import javax.vecmath.Point3d;
 
 import org.eclipse.jface.viewers.ILabelProvider;
 import org.eclipse.jface.viewers.IStructuredSelection;
@@ -65,5 +66,10 @@ public class TileSetSceneView implements ISceneView {
     public String selectFile(String title) {
         // TODO Auto-generated method stub
         return null;
+    }
+
+    @Override
+    public void getCameraFocusPoint(Point3d focusPoint) {
+        throw new RuntimeException("Not implemented");
     }
 }

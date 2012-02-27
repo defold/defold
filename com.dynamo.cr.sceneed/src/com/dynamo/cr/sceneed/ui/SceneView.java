@@ -1,6 +1,8 @@
 package com.dynamo.cr.sceneed.ui;
 
 import javax.inject.Inject;
+import javax.vecmath.Point3d;
+import javax.vecmath.Vector4d;
 
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IResource;
@@ -100,4 +102,9 @@ public class SceneView implements ISceneView {
         return null;
     }
 
+    @Override
+    public void getCameraFocusPoint(Point3d focusPoint) {
+        Vector4d p = this.editor.getCameraController().getFocusPoint();
+        focusPoint.set(p.x, p.y, p.z);
+    }
 }

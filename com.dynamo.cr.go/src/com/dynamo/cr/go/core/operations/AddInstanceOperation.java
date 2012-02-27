@@ -1,5 +1,7 @@
 package com.dynamo.cr.go.core.operations;
 
+import javax.vecmath.Point3d;
+
 import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.Path;
 
@@ -23,6 +25,9 @@ public class AddInstanceOperation extends AddChildrenOperation {
         } else if (instance instanceof CollectionInstanceNode) {
             path = ((CollectionInstanceNode)instance).getCollection();
         }
+        Point3d position = new Point3d();
+        presenterContext.getCameraFocusPoint(position);
+        instance.setTranslation(position);
         IPath p = new Path(path).removeFileExtension();
         id = p.lastSegment();
         id = NodeUtil.getUniqueId(collection, id, new NodeUtil.IdFetcher<Node>() {

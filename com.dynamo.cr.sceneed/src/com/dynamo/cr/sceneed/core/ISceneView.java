@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
+import javax.vecmath.Point3d;
+
 import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.core.resources.IResourceChangeEvent;
 import org.eclipse.core.runtime.CoreException;
@@ -43,6 +45,7 @@ public interface ISceneView {
         String selectFromList(String title, String message, String... lst);
         Object selectFromArray(String title, String message, Object[] input, ILabelProvider labelProvider);
         String selectFile(String title);
+        void getCameraFocusPoint(Point3d focusPoint);
     }
 
     public interface INodePresenter<T extends Node> {}
@@ -55,4 +58,6 @@ public interface ISceneView {
     String selectFromList(String title, String message, String... lst);
     Object selectFromArray(String title, String message, Object[] input, ILabelProvider labelProvider);
     String selectFile(String title);
+
+    void getCameraFocusPoint(Point3d focusPoint);
 }

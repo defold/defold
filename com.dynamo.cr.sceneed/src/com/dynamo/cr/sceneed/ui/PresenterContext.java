@@ -1,5 +1,7 @@
 package com.dynamo.cr.sceneed.ui;
 
+import javax.vecmath.Point3d;
+
 import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.jface.viewers.ILabelProvider;
 import org.eclipse.jface.viewers.IStructuredSelection;
@@ -71,5 +73,10 @@ com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext {
     @Override
     public String selectFile(String title) {
         return this.view.selectFile(title);
+    }
+
+    @Override
+    public void getCameraFocusPoint(Point3d focusPoint) {
+        this.view.getCameraFocusPoint(focusPoint);
     }
 }

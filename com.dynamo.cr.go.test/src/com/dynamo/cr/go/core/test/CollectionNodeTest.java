@@ -3,10 +3,14 @@ package com.dynamo.cr.go.core.test;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doAnswer;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+
+import javax.vecmath.Point3d;
 
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IStatus;
@@ -14,6 +18,8 @@ import org.eclipse.osgi.util.NLS;
 import org.hamcrest.core.IsInstanceOf;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
 import com.dynamo.cr.go.core.CollectionInstanceNode;
 import com.dynamo.cr.go.core.CollectionLoader;
@@ -134,6 +140,23 @@ public class CollectionNodeTest extends AbstractNodeTest {
         redo();
         assertOneInstance();
         verifySelection();
+    }
+
+    @Test
+    public void testAddCenteredInstances() throws Exception {
+        doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                Point3d p = (Point3d)invocation.getArguments()[0];
+                p.setX(1.0);
+                return null;
+            }
+        }).when(getPresenterContext()).getCameraFocusPoint(any(Point3d.class));
+
+        addGameObject();
+        assertThat(instance(0).getTranslation().getX(), is(1.0));
+        addCollection();
+        assertThat(instance(1).getTranslation().getX(), is(1.0));
     }
 
     @Test
