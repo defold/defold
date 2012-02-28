@@ -59,6 +59,10 @@ namespace dmProfile
     dmThread::TlsKey g_TlsKey = dmThread::AllocTls();
     uint32_t g_ThreadCount = 0;
 
+    // Used when out of scopes in order to remove conditional branches
+    ScopeData g_DummyScopeData;
+    Scope g_DummyScope = { "foo", 0, &g_DummyScopeData };
+
     struct InitSpinLocks
     {
         InitSpinLocks()
@@ -228,8 +232,13 @@ namespace dmProfile
             dmLogWarning("Unable to start profile http-server (%d)", result);
         }
 
-        g_Scopes.SetCapacity(max_scopes);
-        g_Scopes.SetSize(0);
+        if (g_Scopes.Capacity() == 0)
+        {
+            // Only allocate first time and leave already allocated scopes as is
+            // Scopes are static variables in functions
+            g_Scopes.SetCapacity(max_scopes);
+            g_Scopes.SetSize(0);
+        }
 
         g_FreeProfiles.SetCapacity(PROFILE_BUFFER_COUNT);
         g_FreeProfiles.SetSize(0); // Could be > 0 if Initialized is called again after Finalize
@@ -255,6 +264,22 @@ namespace dmProfile
 
         g_ActiveProfile = g_FreeProfiles[0];
         g_FreeProfiles.EraseSwap(0);
+
+        /*
+          Set up initial scope-data for the active profile as scope-data
+          is used in CalculateScopeProfile before initial profile swap is performed.
+          We now keep scopes over Initialize and Finalize.
+          Before that change all scopes where reallocated and the scope-data
+          was initialized at scope-allocation, see AllocateScope
+         */
+        uint32_t n = g_Scopes.Size();
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            ScopeData* scope_data = &g_ActiveProfile->m_ScopesData[i];
+            scope_data->m_Elapsed = 0;
+            scope_data->m_Count = 0;
+            g_ActiveProfile->m_ScopesData[i].m_Scope = &g_Scopes[i];
+        }
 
         g_CountersTable.SetCapacity(dmMath::Max(16U,  2 * max_counters / 3), max_counters);
         g_CountersTable.Clear();
@@ -307,6 +332,7 @@ namespace dmProfile
             {
                 g_Scopes[i].m_Internal = 0;
             }
+            g_DummyScope.m_Internal = 0;
 
             for (uint32_t i = 0; i < n_samples; ++i)
             {
@@ -492,9 +518,6 @@ namespace dmProfile
         dmSpinlock::Unlock(&g_ProfileLock);
     }
 
-    // Used when out of scopes in order to remove conditional branches
-    ScopeData g_DummyScopeData;
-    Scope g_DummyScope = { "foo", 0, &g_DummyScopeData };
     Scope* AllocateScope(const char* name)
     {
         dmSpinlock::Lock(&g_ProfileLock);
