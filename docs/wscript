@@ -58,17 +58,17 @@ def proto_file(self, node):
 
 def build(bld):
     dirs = ['src/business_plan', 'src/manual', 'src/presentation',
-            'src/demos/docs', 'src/tutorials/docs']
+            'src/demos/docs', 'src/tutorials/docs', 'src/blog']
     tsk = bld.new_task_gen(install_path='${DYNAMO_HOME}/share/doc')
     tsk.find_sources_in_dirs(dirs)
 
     # copy images
     img_pattern = '*.png'
-    img_dirs = ['src/manual/images']
+    img_dirs = ['src/manual/images', 'src/blog/images']
     for img_dir in img_dirs:
         for root, dirs, files in os.walk(img_dir):
             for dir in dirs:
-                bld.install_files('${PREFIX}/share/doc/images/%s' % (dir), os.path.join(root, dir, img_pattern))
+                bld.install_files('${PREFIX}/share/doc/images/%s' % (os.path.join(os.path.relpath(root, img_dir), dir)), os.path.join(root, dir, img_pattern))
 
 GAME_PROJECT = """
 [project]
