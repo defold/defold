@@ -1,5 +1,115 @@
 :max-width: 45em
 
+Update: Collection Editing & Local Branches
+-------------------------------------------
+_February 28, 2012_
+
+Collection Editing
+~~~~~~~~~~~~~~~~~~
+
+We have now finally ported the functionality of the old Collection Editor to the Scene Editor.
+This imposes a few changes, but all for the better we hope.
+Our ultimate goal is to have all the visual editing done in the Scene Editor so everything behaves the same way, whatever resource you are editing.
+
+Condensed Outline
+^^^^^^^^^^^^^^^^^
+
+In an effort to simplify the hierarchical content in the outline, we have tried to remove as many redundant items as possible.
+An example of this would be when you added a component to a game object, which resulted in one item containing the component id and a sub-item with all the specific component properties.
+Such items have now been merged into one, with all of the properties available in the same place.
+This should hopefully make it quicker to find the data you are looking for.
+
+image:images/blog/20120228/one_item_per_level.png["Merged properties"]
+
+Copy-Paste
+^^^^^^^^^^
+
+We have now implemented copy-paste (and cut of course) in the Scene Editor.
+This will hopefully make it easier to build things faster.
+We have also enabled multi-selection in the Outline View and box-selection in the Scene View.
+Drag-and-drop, which is related to this has yet to be implemented at a later time.
+
+Filtered Visualization
+^^^^^^^^^^^^^^^^^^^^^^
+
+You can now select which types of objects to be shown in the Scene View through *Scene > Show*.
+We added the most common ones, but let us know if there are any we have missed.
+
+image:images/blog/20120228/filtering.png["Visualization filtering"]
+
+Parenting Game Object Instances
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+To make a game object become the parent of another game object inside a collection, you would previously select both game objects in a specified order and use the Parent-command.
+Our goal is for this to be done by simply clicking the child game object and dragging it onto the parent.
+Until drag-and-drop has been implemented, you instead have to cut the child, then select the parent and paste the child, which will make it appear at a level below the parent.
+We realize that this is not really intuitive, but it's just a temporary solution.
+This also means that if you select a game object instance and hit copy-paste, the copy will actually appear below the original item as well.
+This can currently be considered a design bug.
+As soon as drag-and-drop has been implemented, this will of course be fixed and work much better.
+
+image:images/blog/20120228/hierarchy.png["Game Object Hierarchy"]
+
+Colored Axis
+^^^^^^^^^^^^
+
+We have realized that it's been a bit hard to navigate around in bigger collections, since there is no reference point of where the center (origo) is.
+We have colored the base axis to give you a point of reference where the different coordinates are zero.
+The colors are red, green and blue and correspond to x, y and z respectively.
+This comes from the common acronym RGB and is a standard in most 3D software.
+
+image:images/blog/20120228/axis_color.png["Colored Axis"]
+
+Local Branches
+~~~~~~~~~~~~~~
+
+There is a new setting in the preferences (*File > Preferences > Defold > Use local branches*) which controls whether the branches you create are stored on your own machine or on our server.
+
+image:images/blog/20120228/local_branch.png["Local Branch"]
+
+This is in other words optional, but we think the benefits of working on a local branch are better than when working against the server.
+Connecting to the project, opening files, building and running the game are all faster for a local branch.
+Since you have the files in your file system, you can also open them with other editors (like image and sound editors) and modify them without having to move them back and forth.
+
+There is also a new menu item in the context menu of the Project Explorer called *Show in file browser*, which you can use to locate the files on your machine.
+Whenever you edit the files this will be detected by the editor so it will stay updated.
+Note though that there might be a small delay before it is.
+So go ahead and try it out and see what you think!
+
+Windows Support
+~~~~~~~~~~~~~~~
+
+We have now officially dropped support for Windows XP, but still support Windows 7 and Vista of course.
+The reason for this is that there are new file system features in the later versions which we use for the local branches.
+If this is a problem for you, please let us know and we can surely work something out.
+
+Bundled Engine
+~~~~~~~~~~~~~~
+
+We have finally bundled the engine (the application used to run your games) with the editor.
+This means that you don't have to synchronize your branch anymore to receive the latest engine, it will be updated when you update the editor.
+
+Fixed Bugs
+~~~~~~~~~~
+
+. When adding game objects to collections, they were always placed at the center of the world instead of the center of the camera.
+. A game object could not spawn another game object if it was deleted in the same frame.
+. Better documentation of the go.delete-function.
+. Missing support for *Select All* in the Scene Editor.
+
+Roadmap
+~~~~~~~
+
+We are currently working on the drag and drop feature for the outline view and hope to release it at the end of this week.
+The iOS support is also well under way, but there is still more work needed to be done to get the right workflow we are looking for.
+The vision is to make the iOS device act just like another screen of your computer, so the configuration and manual steps involved are minimal.
+
+As always, remember to let us know about any suggestions, annoyances, issues, or plain great ideas you might get while using this release.
+
+Thanks for reading!
+
+/Team Defold
+
 Update - Introduction & Spawning
 --------------------------------
 _January 31, 2012_
