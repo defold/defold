@@ -102,10 +102,10 @@ This means that you don't have to synchronize your branch anymore to receive the
 Fixed Bugs
 ~~~~~~~~~~
 
-. When adding game objects to collections, they were always placed at the center of the world instead of the center of the camera.
-. A game object could not spawn another game object if it was deleted in the same frame.
-. Better documentation of the go.delete-function.
-. Missing support for *Select All* in the Scene Editor.
+* When adding game objects to collections, they were always placed at the center of the world instead of the center of the camera.
+* A game object could not spawn another game object if it was deleted in the same frame.
+* Better documentation of the go.delete-function.
+* Missing support for *Select All* in the Scene Editor.
 
 Roadmap
 ~~~~~~~
