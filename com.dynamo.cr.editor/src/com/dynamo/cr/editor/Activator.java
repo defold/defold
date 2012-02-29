@@ -11,6 +11,7 @@ import java.util.logging.Logger;
 
 import javax.ws.rs.core.UriBuilder;
 
+import org.apache.commons.io.FileUtils;
 import org.eclipse.core.net.proxy.IProxyData;
 import org.eclipse.core.net.proxy.IProxyService;
 import org.eclipse.core.resources.ICommand;
@@ -67,7 +68,6 @@ import com.dynamo.cr.client.IUsersClient;
 import com.dynamo.cr.client.RepositoryException;
 import com.dynamo.cr.client.filter.DefoldAuthFilter;
 import com.dynamo.cr.common.providers.ProtobufProviders;
-import com.dynamo.cr.common.util.CommandUtil;
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.dialogs.OpenIDLoginDialog;
 import com.dynamo.cr.editor.fs.RepositoryFileSystemPlugin;
@@ -454,20 +454,20 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
             String branchLocation = branchClient.getNativeLocation();
             File dest = new File(new Path(branchLocation).append("builtins").toOSString());
             if (dest.exists()) {
-                dest.delete();
+                try {
+                    FileUtils.deleteDirectory(dest);
+                } catch (IOException e) {
+                    showError("Could not delete builtins-directory, old resources might remain.", e);
+                }
             }
             String builtinsDirectory = Builtins.getDefault().getBuiltins();
 
-            // Create symbolic link to builtins.
-            // TODO: ln -s will not work on windows
-            CommandUtil.Result r;
+            // Copy builtins directory.
+            // The reason we don't use symlinks is that mklink on windows is broken (privileges).
             try {
-                r = CommandUtil.execCommand(null, null, null, new String[] {"ln", "-s", builtinsDirectory, dest.getAbsolutePath()});
-                if (r.exitValue != 0) {
-                    showError("Unable to link builtins directory", null);
-                }
+                FileUtils.copyDirectory(new File(builtinsDirectory), dest);
             } catch (IOException e) {
-                showError("Error occured when creating project", e);
+                showError("Unable to copy builtins directory", e);
             }
         }
 

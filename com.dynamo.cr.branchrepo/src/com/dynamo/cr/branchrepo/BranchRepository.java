@@ -14,8 +14,6 @@ import javax.ws.rs.core.Response.Status;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.protocol.proto.Protocol;
 import com.dynamo.cr.protocol.proto.Protocol.BranchList;
@@ -24,8 +22,6 @@ import com.dynamo.cr.protocol.proto.Protocol.CommitDesc;
 import com.dynamo.cr.protocol.proto.Protocol.Log;
 import com.dynamo.cr.protocol.proto.Protocol.ResolveStage;
 import com.dynamo.cr.protocol.proto.Protocol.ResourceInfo.Builder;
-import com.dynamo.server.dgit.CommandUtil;
-import com.dynamo.server.dgit.CommandUtil.Result;
 import com.dynamo.server.dgit.GitFactory;
 import com.dynamo.server.dgit.GitFactory.Type;
 import com.dynamo.server.dgit.GitResetMode;
@@ -36,7 +32,6 @@ import com.dynamo.server.dgit.GitStatus.Entry;
 import com.dynamo.server.dgit.IGit;
 
 public abstract class BranchRepository {
-    private static Logger logger = LoggerFactory.getLogger(BranchRepository.class);
 
     private Type gitType;
     private String branchRoot;
@@ -52,8 +47,6 @@ public abstract class BranchRepository {
 
     private String password;
 
-    private boolean isWin;
-
     public BranchRepository(GitFactory.Type gitType,
                             String branchRoot,
                             String repositoryRoot,
@@ -68,7 +61,6 @@ public abstract class BranchRepository {
         this.filterPatterns = filterPatterns;
         this.email = email;
         this.password = password;
-        this.isWin = System.getProperty("os.name").toLowerCase().indexOf("win") >= 0;
     }
 
     public int getResourceDataRequests() {
@@ -131,41 +123,15 @@ public abstract class BranchRepository {
 
         if (this.builtinsDirectory != null) {
             String dest = String.format("%s/builtins", p);
-            // Create symbolic link to builtins. See deleteBranch()
-            // TODO: ln -s will not work on windows
-            Result r = null;
-            if (this.isWin) {
-                r = CommandUtil.execCommand(null, null, new String[] {"mklink", "/D", dest, builtinsDirectory});
-            } else {
-                r = CommandUtil.execCommand(null, null, new String[] {"ln", "-s", builtinsDirectory, dest});
-            }
-            if (r.exitValue != 0) {
-                logger.error(r.stdErr.toString());
+            // Copy builtins into the branch. See deleteBranch()
+            // The reason for copying is that mklink on windows is really broken (privileges).
+            try {
+                FileUtils.copyDirectory(new File(builtinsDirectory), new File(dest));
+            } catch (IOException e) {
                 FileUtils.deleteDirectory(new File(p));
                 throw new BranchRepositoryException(String.format("Unable to create branch. Internal server error"));
             }
         }
-    }
-
-    // TODO: Could we use FileUtils#deleteDirectory from apache commons instead?
-    private static void removeDir(File dir) throws IOException {
-
-        if (!dir.exists())
-            return;
-
-        String[] list = dir.list();
-        for (int i = 0; i < list.length; i++) {
-            String s = list[i];
-            File f = new File(dir, s);
-            if (f.isDirectory()) {
-                removeDir(f);
-            }
-            else if (!f.delete()) throw new RuntimeException();
-
-        }
-
-        if (!dir.delete())
-            throw new RuntimeException();
     }
 
     public void deleteBranch(String project, String user, String branch) throws BranchRepositoryException  {
@@ -174,15 +140,7 @@ public abstract class BranchRepository {
 
         String p = String.format("%s/%s/%d/%s", branchRoot, project, userId, branch);
         try {
-            String dest = String.format("%s/builtins", p);
-            // Remove symbol link to builtins. See createBranch()
-            // We need to remove the symbolic link *before* removeDir is invoked. FileUtil.removeDir follow links...
-            if (this.isWin) {
-                CommandUtil.execCommand(null, null, new String[] {"rmdir", dest});
-            } else {
-                CommandUtil.execCommand(null, null, new String[] {"rm", dest});
-            }
-            removeDir(new File(p));
+            FileUtils.deleteDirectory(new File(p));
         } catch (IOException e) {
             throw new BranchRepositoryException("", e);
         }
