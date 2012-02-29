@@ -2,7 +2,7 @@
 
 Update: Collection Editing & Local Branches
 -------------------------------------------
-_February 28, 2012_
+_February 29, 2012_
 
 Collection Editing
 ~~~~~~~~~~~~~~~~~~
@@ -76,13 +76,6 @@ Whenever you edit the files this will be detected by the editor so it will stay 
 Note though that there might be a small delay before it is.
 So go ahead and try it out and see what you think!
 
-Windows Support
-~~~~~~~~~~~~~~~
-
-We have now officially dropped support for Windows XP, but still support Windows 7 and Vista of course.
-The reason for this is that there are new file system features in the later versions which we use for the local branches.
-If this is a problem for you, please let us know and we can surely work something out.
-
 Bundled Engine
 ~~~~~~~~~~~~~~
 
@@ -96,6 +89,11 @@ Fixed Bugs
 . A game object could not spawn another game object if it was deleted in the same frame.
 . Better documentation of the go.delete-function.
 . Missing support for *Select All* in the Scene Editor.
+
+New Bugs
+~~~~~~~~
+
+. When running the game, there are some errors starting with "ERROR:DDF: Name clash.". This can be disregarded and will be fixed at a later time.
 
 Roadmap
 ~~~~~~~
