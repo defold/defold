@@ -3,7 +3,6 @@ package com.dynamo.cr.editor;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
-import java.net.Authenticator;
 import java.net.URI;
 import java.util.HashSet;
 import java.util.Set;
@@ -260,7 +259,7 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
          * HTTP Basic Auth is a hack due to limitations in JGit. No support for custom HTTP
          * headers. We should probably patch JGit and remove the line below at some point.
          */
-        Authenticator.setDefault(null);
+        //Authenticator.setDefault(null);
 
         /*
          * NOTE: We can't invoke getWorkbench() in start. The workbench is not started yet.
