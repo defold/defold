@@ -27,7 +27,7 @@ public class Engine extends Plugin {
         String ext = "";
         String platform = EditorCorePlugin.getPlatform();
         if (platform.equals("win32")) {
-            ext = ".win32";
+            ext = ".exe";
         }
 
         URL bundleUrl = getBundle().getEntry("/bin/" + platform + "/dmengine" + ext);
@@ -40,12 +40,14 @@ public class Engine extends Plugin {
         }
     }
 
+    @Override
     public void start(BundleContext bundleContext) throws Exception {
         super.start(bundleContext);
         Engine.context = bundleContext;
         plugin = this;
     }
 
+    @Override
     public void stop(BundleContext bundleContext) throws Exception {
         super.stop(bundleContext);
         Engine.context = null;
