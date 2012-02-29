@@ -71,6 +71,9 @@ image::images/blog/20120228/axis_color.png["Colored Axis", align="center"]
 Local Branches
 ~~~~~~~~~~~~~~
 
+*NOTE!* This feature is currently only available to non-Windows users.
+We have an issue on the Windows platform that we haven't resolved yet, sorry for the inconvenience!
+
 There is a new setting in the preferences (*File > Preferences > Defold > Use local branches*) which controls whether the branches you create are stored on your own machine or on our server.
 
 ((((
