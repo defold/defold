@@ -271,8 +271,9 @@ public class ProjectResource extends BaseResource {
         EntityManager em = server.getEntityManagerFactory().createEntityManager();
         // Ensure user is valid
         server.getUser(em, user);
+        Log log = server.log(em, project, maxCount);
         em.close();
-        return server.log(em, project, maxCount);
+        return log;
     }
 
     @DELETE
