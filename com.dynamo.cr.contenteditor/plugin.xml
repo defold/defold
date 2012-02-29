@@ -9,7 +9,7 @@
             default="false"
             extensions="collection"
             icon="icons/bricks.png"
-            id="com.dynamo.cr.contenteditor.editors.CollectionEditor"
+            id="com.dynamo.cr.go.ui.collectionEditor"
             name="Collection Editor">
       </editor>
    </extension>
