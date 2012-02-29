@@ -87,7 +87,11 @@ Since you have the files in your file system, you can also open them with other 
 There is also a new menu item in the context menu of the Project Explorer called *Show in file browser*, which you can use to locate the files on your machine.
 Whenever you edit the files this will be detected by the editor so it will stay updated.
 Note though that there might be a small delay before it is.
-So go ahead and try it out and see what you think!
+
+To start using local branches, you should first synchronize all of your current changes.
+Then you check the box *Use local branches* in the preferences, as described above.
+Reconnect to your project (*File > Open Project*) and create a new branch.
+Note that creating a local branch might take a while as all files are downloaded to your local machine at once.
 
 Windows Support
 ~~~~~~~~~~~~~~~
@@ -109,6 +113,11 @@ Fixed Bugs
 * A game object could not spawn another game object if it was deleted in the same frame.
 * Better documentation of the go.delete-function.
 * Missing support for *Select All* in the Scene Editor.
+
+Known Bugs
+~~~~~~~~~~
+* When creating a local branch, it might take a while and there is no progress bar visible.
+* There are errors in the editor console starting with "ERROR:DDF: Name clash.". These can be safely disregarded and will be fixed at a later time.
 
 Roadmap
 ~~~~~~~
