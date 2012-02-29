@@ -34,7 +34,7 @@
                 <configuration>
                     <executable>sh</executable>
                     <arguments>
-                        <argument>scripts/copy_engine.sh</argument>
+                        <argument>scripts/copy_dmengine.sh</argument>
                     </arguments>
                 </configuration>
             </plugin>
