@@ -93,13 +93,6 @@ Then you check the box *Use local branches* in the preferences, as described abo
 Reconnect to your project (*File > Open Project*) and create a new branch.
 Note that creating a local branch might take a while as all files are downloaded to your local machine at once.
 
-Windows Support
-~~~~~~~~~~~~~~~
-
-We have now officially dropped support for Windows XP, but still support Windows 7 and Vista of course.
-The reason for this is that there are new file system features in the later versions which we use for the local branches.
-If this is a problem for you, please let us know and we can surely work something out.
-
 Bundled Engine
 ~~~~~~~~~~~~~~
 
