@@ -72,7 +72,7 @@ public abstract class AbstractResource<F extends IFileSystem> implements IResour
             String p = path;
             if (p.startsWith("/"))
                 p = p.substring(1);
-            String buildPath = FilenameUtils.concat(this.fileSystem.getBuildDirectory(), p);
+            String buildPath = FilenameUtils.separatorsToUnix(FilenameUtils.concat(this.fileSystem.getBuildDirectory(), p));
             return fileSystem.get(buildPath);
         }
     }

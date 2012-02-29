@@ -346,7 +346,7 @@ run:
         }
 
         public List<String> walk(String path) throws IOException {
-            path = normalize(path);
+            path = normalize(path, true);
             result = new ArrayList<String>(1024);
             walk(new File(path), result);
             for (int i = 0; i < result.size(); ++i) {
@@ -370,7 +370,7 @@ run:
         @Override
         protected boolean handleDirectory(File directory, int depth,
                 Collection<String> results) throws IOException {
-            String path = FilenameUtils.normalize(directory.getPath());
+            String path = FilenameUtils.normalize(directory.getPath(), true);
             for (String sd : skipDirs) {
                 if (path.endsWith(sd)) {
                     return false;
