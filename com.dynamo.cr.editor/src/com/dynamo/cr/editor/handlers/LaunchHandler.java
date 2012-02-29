@@ -217,11 +217,19 @@ public class LaunchHandler extends AbstractHandler {
             exeName = store.getString(PreferenceConstants.P_APPLICATION);
         } else {
             exeName = Engine.getDefault().getEnginePath();
+            String platform = EditorCorePlugin.getPlatform();
+            if (!platform.equals("win32")) {
+                try {
+                    Runtime.getRuntime().exec("chmod +x " + exeName);
+                } catch (IOException e) {
+                    return new Status(IStatus.ERROR, Activator.PLUGIN_ID, String.format("'%s' could not be made executable.", exeName));
+                }
+            }
         }
         final File exe = new File(exeName);
 
         if (!exe.exists()) {
-            return new Status(IStatus.ERROR, Activator.PLUGIN_ID, String.format("Executable '%s' not found and", exeName));
+            return new Status(IStatus.ERROR, Activator.PLUGIN_ID, String.format("Executable '%s' could not be found.", exeName));
         }
 
         this.variables = new HashMap<String, String>();
