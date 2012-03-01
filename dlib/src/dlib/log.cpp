@@ -3,6 +3,7 @@
 #include <string.h>
 #include <assert.h>
 #include "array.h"
+#include "dstrings.h"
 #include "log.h"
 #include "socket.h"
 #include "message.h"
@@ -328,7 +329,7 @@ void dmLogInternal(dmLogSeverity severity, const char* domain, const char* forma
     } msg_buf;
 
     int n = 0;
-    n += snprintf(msg_buf.buf + n, sizeof(msg_buf.buf) - n, "%s:%s: ", severity_str, domain);
+    n += DM_SNPRINTF(msg_buf.buf + n, sizeof(msg_buf.buf) - n, "%s:%s: ", severity_str, domain);
     if (n < 512)
     {
         n += vsnprintf(msg_buf.buf + n, sizeof(msg_buf.buf) - n, format, lst);
@@ -336,7 +337,7 @@ void dmLogInternal(dmLogSeverity severity, const char* domain, const char* forma
 
     if (n < 512)
     {
-        n += snprintf(msg_buf.buf + n, sizeof(msg_buf.buf) - n, "\n");
+        n += DM_SNPRINTF(msg_buf.buf + n, sizeof(msg_buf.buf) - n, "\n");
     }
 
     fwrite(msg_buf.buf, 1, n, stderr);

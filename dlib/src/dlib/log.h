@@ -1,6 +1,8 @@
 #ifndef DM_LOG_H
 #define DM_LOG_H
 
+#include <stdint.h>
+
 /**
  * @file
  * Logging functions. If DLIB_LOG_DOMAIN is defined the value of the defined is printed
