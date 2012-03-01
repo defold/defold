@@ -273,3 +273,12 @@ def build(bld):
                                 target = 'test_ssdp')
 
     test_ssdp.install_path = None
+
+    test_log = bld.new_task_gen(features = 'cxx cprogram',
+                                source = 'test_log.cpp',
+                                uselib = 'GTEST THREAD',
+                                uselib_local = "dlib",
+                                includes = ['../../src'],
+                                target = 'test_log')
+
+    test_log.install_path = None

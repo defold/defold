@@ -5,6 +5,16 @@
  * @file
  * Logging functions. If DLIB_LOG_DOMAIN is defined the value of the defined is printed
  * after severity. Otherwise DEFAULT will be printed.
+ *
+ * Network protocol:
+ * When connected a message with the following syntax is sent to the client
+ * code <space> msg\n
+ * eg 0 OK\n
+ *
+ * code > 0 indicates an error and the connections is closed by remote peer
+ *
+ * After connection is established log messages are streamed over the socket.
+ * No other messages with semantic meaning is sent.
  */
 
 /**
@@ -57,6 +67,25 @@ void dmLogInternal(dmLogSeverity severity, const char* domain, const char* forma
 #endif
 
 #endif
+
+/**
+ * Initialize logging system. Running this function is only required in order to start the log-server.
+ * The function will never fail even if the log-server can't be started. Any errors will be reported to stderr though
+ */
+void dmLogInitialize();
+
+
+/**
+ * Finalize logging system
+ */
+void dmLogFinalize();
+
+/**
+ * Get log server port
+ * @return server port. 0 if the server isn't started.
+ */
+uint16_t dmLogGetPort();
+
 
 /**
  * Set log level
