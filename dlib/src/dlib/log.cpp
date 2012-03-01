@@ -322,33 +322,33 @@ void dmLogInternal(dmLogSeverity severity, const char* domain, const char* forma
             break;
     }
 
-    struct
-    {
-        dmLogMessage msg;
-        char buf[512];
-    } msg_buf;
+
+    const uint32_t str_buf_size = 512;
+    char tmp_buf[sizeof(dmLogMessage) + str_buf_size];
+    dmLogMessage* msg = (dmLogMessage*) &tmp_buf[0];
+    char* str_buf = &tmp_buf[sizeof(dmLogMessage)];
 
     int n = 0;
-    n += DM_SNPRINTF(msg_buf.buf + n, sizeof(msg_buf.buf) - n, "%s:%s: ", severity_str, domain);
+    n += DM_SNPRINTF(str_buf + n, str_buf_size - n, "%s:%s: ", severity_str, domain);
     if (n < 512)
     {
-        n += vsnprintf(msg_buf.buf + n, sizeof(msg_buf.buf) - n, format, lst);
+        n += vsnprintf(str_buf + n, str_buf_size - n, format, lst);
     }
 
     if (n < 512)
     {
-        n += DM_SNPRINTF(msg_buf.buf + n, sizeof(msg_buf.buf) - n, "\n");
+        n += DM_SNPRINTF(str_buf + n, str_buf_size - n, "\n");
     }
 
-    fwrite(msg_buf.buf, 1, n, stderr);
+    fwrite(str_buf, 1, n, stderr);
     va_end(lst);
 
     dmLogServer* self = g_dmLogServer;
     if (self)
     {
-        msg_buf.msg.m_Type = dmLogMessage::MESSAGE;
+        msg->m_Type = dmLogMessage::MESSAGE;
         dmMessage::URL receiver;
         receiver.m_Socket = self->m_MessgeSocket;
-        dmMessage::Post(0, &receiver, 0, 0, 0, &msg_buf, sizeof(msg_buf.msg) + n);
+        dmMessage::Post(0, &receiver, 0, 0, 0, msg, sizeof(dmLogMessage) + n);
     }
 }
