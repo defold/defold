@@ -28,7 +28,11 @@ TEST(dmLog, Client)
     uint16_t port = dmLogGetPort();
     ASSERT_GT(port, 0);
     DM_SNPRINTF(buf, sizeof(buf), "python src/test/test_log.py %d", port);
+#ifdef _WIN32
+    FILE* f = _popen(buf, "rb");
+#else
     FILE* f = popen(buf, "r");
+#endif
     ASSERT_NE((void*) 0, f);
     // Wait for test_log.py to be ready, ie connection established
     int c = fgetc(f);
@@ -45,7 +49,11 @@ TEST(dmLog, Client)
             printf("%c", buf[i]);
     } while (n > 0);
 
+#ifdef _WIN32
+    _pclose(f);
+#else
     pclose(f);
+#endif
     dmThread::Join(log_thread);
     dmLogFinalize();
 }
