@@ -57,6 +57,7 @@ import com.dynamo.cr.editor.ui.Logger;
 import com.dynamo.cr.properties.IFormPropertySheetPage;
 import com.dynamo.cr.sceneed.Activator;
 import com.dynamo.cr.sceneed.core.CameraController;
+import com.dynamo.cr.sceneed.core.IClipboard;
 import com.dynamo.cr.sceneed.core.IImageProvider;
 import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.IManipulatorMode;
@@ -78,6 +79,7 @@ import com.dynamo.cr.sceneed.ui.ISceneOutlinePage;
 import com.dynamo.cr.sceneed.ui.LoaderContext;
 import com.dynamo.cr.sceneed.ui.PresenterContext;
 import com.dynamo.cr.sceneed.ui.RenderView;
+import com.dynamo.cr.sceneed.ui.SceneClipboard;
 import com.dynamo.cr.sceneed.ui.SceneOutlinePage;
 import com.dynamo.cr.sceneed.ui.ScenePropertySheetPage;
 import com.dynamo.cr.sceneed.ui.preferences.PreferenceConstants;
@@ -122,6 +124,7 @@ public class TileSetEditor2 extends AbstractDefoldEditor implements ISceneEditor
             bind(ILoaderContext.class).to(LoaderContext.class).in(Singleton.class);
             bind(IPresenterContext.class).to(PresenterContext.class).in(Singleton.class);
             bind(IImageProvider.class).toInstance(imageProvider);
+            bind(IClipboard.class).to(SceneClipboard.class).in(Singleton.class);
 
             bind(CameraController.class).in(Singleton.class);
 
@@ -208,7 +211,9 @@ public class TileSetEditor2 extends AbstractDefoldEditor implements ISceneEditor
     @Override
     public void dispose() {
         super.dispose();
-        ((SceneModel)this.sceneModel).dispose();
+        if (this.sceneModel != null) {
+            ((SceneModel)this.sceneModel).dispose();
+        }
         if (this.tileSetRenderer != null) {
             this.tileSetRenderer.dispose();
         }
