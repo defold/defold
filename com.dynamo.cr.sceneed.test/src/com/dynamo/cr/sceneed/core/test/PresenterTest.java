@@ -28,6 +28,7 @@ import org.mockito.stubbing.Answer;
 import com.dynamo.cr.sceneed.Activator;
 import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.INodeLoader;
+import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.ISceneView;
@@ -65,6 +66,13 @@ public class PresenterTest extends AbstractPresenterTest {
                 return null;
             }
         }).when(getPresenterContext()).executeOperation(any(IUndoableOperation.class));
+        doAnswer(new Answer<INodeType>() {
+            @Override
+            public INodeType answer(InvocationOnMock invocation) throws Throwable {
+                Class<? extends Node> nodeClass = (Class<? extends Node>)invocation.getArguments()[0];
+                return Activator.getDefault().getNodeTypeRegistry().getNodeTypeClass(nodeClass);
+            }
+        }).when(getPresenterContext()).getNodeType(any(Class.class));
         doAnswer(new Answer<INodeLoader<Node>>() {
             @Override
             public INodeLoader<Node> answer(InvocationOnMock invocation) throws Throwable {
@@ -80,6 +88,19 @@ public class PresenterTest extends AbstractPresenterTest {
 
     private void redo() throws ExecutionException {
         this.history.redo(this.undoContext, null, null);
+    }
+
+    private List<Node> duplicate(List<Node> nodes) throws Exception {
+        ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
+        ObjectOutputStream out = new ObjectOutputStream(byteOut);
+        out.writeObject(nodes);
+        byte[] data = byteOut.toByteArray();
+        out.close();
+        ObjectInputStream in = new ObjectInputStream(new ByteArrayInputStream(data));
+        @SuppressWarnings("unchecked")
+        List<Node> copies = (List<Node>)in.readObject();
+        in.close();
+        return copies;
     }
 
     @Test
@@ -212,4 +233,79 @@ public class PresenterTest extends AbstractPresenterTest {
         redo();
         assertThat(node.getChildren().size(), is(0));
     }
+
+    @Test
+    public void testDNDMove() throws Exception {
+        DummyNode node = new DummyNode();
+        node.setModel(this.model);
+        DummyChild child = new DummyChild();
+        child.setIntVal(1);
+        node.addChild(child);
+        DummyChild child2 = new DummyChild();
+        child2.setIntVal(2);
+        node.addChild(child2);
+
+        DummyNode node2 = new DummyNode();
+
+        List<Node> originals = new ArrayList<Node>(2);
+        originals.add(child);
+        originals.add(child2);
+
+        select(new Node[] {child, child2});
+        List<Node> copies = duplicate(originals);
+
+        this.presenter.onDNDMoveSelection(getPresenterContext(), copies, node2);
+
+        assertThat(node.getChildren().size(), is(0));
+        assertThat(node2.getChildren().size(), is(2));
+        DummyChild child3 = (DummyChild)node2.getChildren().get(0);
+        assertThat(child3.getIntVal(), is(1));
+        DummyChild child4 = (DummyChild)node2.getChildren().get(1);
+        assertThat(child4.getIntVal(), is(2));
+
+        undo();
+        assertThat(node2.getChildren().size(), is(0));
+        assertThat(node.getChildren().size(), is(2));
+
+        redo();
+        assertThat(node.getChildren().size(), is(0));
+        assertThat(node2.getChildren().size(), is(2));
+    }
+
+    @Test
+    public void testDNDDuplicate() throws Exception {
+        DummyNode node = new DummyNode();
+        node.setModel(this.model);
+        DummyChild child = new DummyChild();
+        child.setIntVal(1);
+        node.addChild(child);
+        DummyChild child2 = new DummyChild();
+        child2.setIntVal(2);
+        node.addChild(child2);
+
+        DummyNode node2 = new DummyNode();
+
+        List<Node> originals = new ArrayList<Node>(2);
+        originals.add(child);
+        originals.add(child2);
+
+        List<Node> copies = duplicate(originals);
+        this.presenter.onDNDDuplicateSelection(getPresenterContext(), copies, node2);
+
+        assertThat(node.getChildren().size(), is(2));
+        assertThat(node2.getChildren().size(), is(2));
+        DummyChild child3 = (DummyChild)node2.getChildren().get(0);
+        assertThat(child3.getIntVal(), is(1));
+        DummyChild child4 = (DummyChild)node2.getChildren().get(1);
+        assertThat(child4.getIntVal(), is(2));
+
+        undo();
+        assertThat(node2.getChildren().size(), is(0));
+        assertThat(node.getChildren().size(), is(2));
+
+        redo();
+        assertThat(node.getChildren().size(), is(2));
+        assertThat(node2.getChildren().size(), is(2));
+    }
+
 }

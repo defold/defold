@@ -49,6 +49,7 @@ import com.dynamo.cr.sceneed.core.IImageProvider;
 import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.IManipulatorRegistry;
 import com.dynamo.cr.sceneed.core.IModelListener;
+import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
 import com.dynamo.cr.sceneed.core.IRenderView;
 import com.dynamo.cr.sceneed.core.ISceneModel;
@@ -105,6 +106,7 @@ public abstract class AbstractSceneTest {
         }
     }
 
+    @SuppressWarnings("unchecked")
     @Before
     public void setup() throws CoreException, IOException {
         System.setProperty("java.awt.headless", "true");
@@ -142,6 +144,8 @@ public abstract class AbstractSceneTest {
         this.logger = mock(ILogger.class);
         doThrow(new RuntimeException()).when(this.logger).logException(any(Throwable.class));
 
+        this.nodeTypeRegistry = Activator.getDefault().getNodeTypeRegistry();
+
         this.presenterContext = mock(IPresenterContext.class);
         doAnswer(new Answer<ISelection>() {
             @Override
@@ -149,10 +153,15 @@ public abstract class AbstractSceneTest {
                 return selection;
             }
         }).when(this.presenterContext).getSelection();
+        doAnswer(new Answer<INodeType>() {
+            @Override
+            public INodeType answer(InvocationOnMock invocation) throws Throwable {
+                Class<? extends Node> nodeClass = (Class<? extends Node>)invocation.getArguments()[0];
+                return nodeTypeRegistry.getNodeTypeClass(nodeClass);
+            }
+        }).when(getPresenterContext()).getNodeType(any(Class.class));
         this.selection = new StructuredSelection();
         this.imageProvider = mock(IImageProvider.class);
-
-        this.nodeTypeRegistry = Activator.getDefault().getNodeTypeRegistry();
 
         Injector injector = Guice.createInjector(new TestModule());
         this.model = injector.getInstance(ISceneModel.class);

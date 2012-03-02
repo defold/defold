@@ -65,4 +65,35 @@ public class NodeUtil {
         else
             return siblings.get(0).getParent();
     }
+
+    public static Node findAcceptingParent(Node target, List<Node> nodes, ISceneView.IPresenterContext presenterContext) {
+        INodeType targetType = null;
+        // Verify acceptance of child classes
+        while (target != null) {
+            boolean accepted = true;
+            targetType = presenterContext.getNodeType(target.getClass());
+            if (targetType != null) {
+                for (Node node : nodes) {
+                    boolean nodeAccepted = false;
+                    for (INodeType nodeType : targetType.getReferenceNodeTypes()) {
+                        if (nodeType.getNodeClass().isAssignableFrom(node.getClass())) {
+                            nodeAccepted = true;
+                            break;
+                        }
+                    }
+                    if (!nodeAccepted) {
+                        accepted = false;
+                        break;
+                    }
+                }
+                if (accepted) {
+                    break;
+                }
+            }
+            target = target.getParent();
+        }
+        if (target == null || targetType == null)
+            return null;
+        return target;
+    }
 }

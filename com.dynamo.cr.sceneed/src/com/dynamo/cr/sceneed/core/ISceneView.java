@@ -3,6 +3,7 @@ package com.dynamo.cr.sceneed.core;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.List;
 
 import javax.vecmath.Point3d;
 
@@ -31,6 +32,8 @@ public interface ISceneView {
         void onCopySelection(IPresenterContext presenterContext, ILoaderContext loaderContext, IProgressMonitor monitor) throws IOException, CoreException;
         void onCutSelection(IPresenterContext presenterContext, ILoaderContext loaderContext, IProgressMonitor monitor) throws IOException, CoreException;
         void onPasteIntoSelection(IPresenterContext presenterContext) throws IOException, CoreException;
+        void onDNDMoveSelection(IPresenterContext presenterContext, List<Node> copies, Node targetParent);
+        void onDNDDuplicateSelection(IPresenterContext presenterContext, List<Node> copies, Node targetParent);
     }
 
     public interface IPresenterContext extends ILogger {
@@ -47,6 +50,7 @@ public interface ISceneView {
         Object selectFromArray(String title, String message, Object[] input, ILabelProvider labelProvider);
         String selectFile(String title);
         void getCameraFocusPoint(Point3d focusPoint);
+        INodeType getNodeType(Class<? extends Node> nodeClass);
     }
 
     public interface INodePresenter<T extends Node> {}

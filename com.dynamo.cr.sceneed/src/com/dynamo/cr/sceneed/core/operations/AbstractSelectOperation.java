@@ -37,20 +37,23 @@ public abstract class AbstractSelectOperation extends AbstractOperation {
 
     @Override
     public final IStatus execute(IProgressMonitor monitor, IAdaptable info) throws ExecutionException {
+        IStatus status = doExecute(monitor, info);
         this.presenterContext.setSelection(this.newSelection);
-        return doExecute(monitor, info);
+        return status;
     }
 
     @Override
     public final IStatus redo(IProgressMonitor monitor, IAdaptable info) throws ExecutionException {
+        IStatus status = doRedo(monitor, info);
         this.presenterContext.setSelection(this.newSelection);
-        return doRedo(monitor, info);
+        return status;
     }
 
     @Override
     public final IStatus undo(IProgressMonitor monitor, IAdaptable info) throws ExecutionException {
+        IStatus status = doUndo(monitor, info);
         this.presenterContext.setSelection(this.oldSelection);
-        return doUndo(monitor, info);
+        return status;
     }
 
     protected abstract IStatus doExecute(IProgressMonitor monitor, IAdaptable info) throws ExecutionException;

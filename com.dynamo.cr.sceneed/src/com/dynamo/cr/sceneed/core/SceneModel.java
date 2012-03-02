@@ -300,6 +300,11 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
     }
 
     @Override
+    public INodeType getNodeType(Class<? extends Node> nodeClass) {
+        return this.loaderContext.getNodeTypeRegistry().getNodeTypeClass(nodeClass);
+    }
+
+    @Override
     public void logException(Throwable e) {
         this.logger.logException(e);
     }

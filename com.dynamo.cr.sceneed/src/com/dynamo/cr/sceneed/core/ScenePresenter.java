@@ -19,6 +19,7 @@ import com.dynamo.cr.sceneed.Activator;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenter;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.operations.AddChildrenOperation;
+import com.dynamo.cr.sceneed.core.operations.MoveChildrenOperation;
 import com.dynamo.cr.sceneed.core.operations.RemoveChildrenOperation;
 import com.dynamo.cr.sceneed.core.util.NodeListTransfer;
 import com.google.inject.Inject;
@@ -146,36 +147,22 @@ public class ScenePresenter implements IPresenter, IModelListener {
         List<Node> nodes = (List<Node>)this.clipboard.getContents(transfer);
 
         if (nodes != null && nodes.size() > 0) {
-            Node target = (Node)selection[0];
-            INodeType targetType = null;
-            // Verify acceptance of child classes
-            while (target != null) {
-                boolean accepted = true;
-                targetType = this.nodeTypeRegistry.getNodeTypeClass(target.getClass());
-                if (targetType != null) {
-                    for (Node node : nodes) {
-                        boolean nodeAccepted = false;
-                        for (INodeType nodeType : targetType.getReferenceNodeTypes()) {
-                            if (nodeType.getNodeClass().isAssignableFrom(node.getClass())) {
-                                nodeAccepted = true;
-                                break;
-                            }
-                        }
-                        if (!nodeAccepted) {
-                            accepted = false;
-                            break;
-                        }
-                    }
-                    if (accepted) {
-                        break;
-                    }
-                }
-                target = target.getParent();
+            Node target = NodeUtil.findAcceptingParent((Node)selection[0], nodes, context);
+            if (target != null) {
+                context.executeOperation(new AddChildrenOperation("Paste", target, nodes, context));
             }
-            if (target == null || targetType == null)
-                return;
-            context.executeOperation(new AddChildrenOperation("Paste", target, nodes, context));
         }
+    }
+
+    @Override
+    public void onDNDMoveSelection(IPresenterContext presenterContext, List<Node> copies, Node targetParent) {
+        List<Node> originals = selectionToNodeList(presenterContext);
+        presenterContext.executeOperation(new MoveChildrenOperation(originals, targetParent, copies, presenterContext));
+    }
+
+    @Override
+    public void onDNDDuplicateSelection(IPresenterContext presenterContext, List<Node> copies, Node targetParent) {
+        presenterContext.executeOperation(new AddChildrenOperation("Duplicate", targetParent, copies, presenterContext));
     }
 
     private List<Node> selectionToNodeList(IPresenterContext presenterContext) {

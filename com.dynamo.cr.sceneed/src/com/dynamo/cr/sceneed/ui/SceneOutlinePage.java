@@ -21,6 +21,8 @@ import org.eclipse.jface.viewers.TreeViewer;
 import org.eclipse.jface.viewers.Viewer;
 import org.eclipse.jface.viewers.ViewerCell;
 import org.eclipse.swt.SWT;
+import org.eclipse.swt.dnd.DND;
+import org.eclipse.swt.dnd.Transfer;
 import org.eclipse.swt.events.MouseAdapter;
 import org.eclipse.swt.events.MouseEvent;
 import org.eclipse.swt.graphics.Image;
@@ -45,20 +47,24 @@ import com.dynamo.cr.editor.ui.DecoratingDefoldLabelProvider;
 import com.dynamo.cr.sceneed.Activator;
 import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.sceneed.core.util.NodeListTransfer;
+import com.dynamo.cr.sceneed.ui.util.NodeListDNDListener;
 
 public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlinePage, ISelectionListener {
 
     private static final String MENU_ID = "com.dynamo.cr.sceneed.menus.sceneOutlineContext";
 
     private final ISceneView.IPresenter presenter;
+    private final ISceneView.IPresenterContext presenterContext;
     private final UndoActionHandler undoHandler;
     private final RedoActionHandler redoHandler;
     private final RootItem root;
     private final ILogger logger;
 
     @Inject
-    public SceneOutlinePage(ISceneView.IPresenter presenter, UndoActionHandler undoHandler, RedoActionHandler redoHandler, ILogger logger) {
+    public SceneOutlinePage(ISceneView.IPresenter presenter, ISceneView.IPresenterContext presenterContext, UndoActionHandler undoHandler, RedoActionHandler redoHandler, ILogger logger) {
         this.presenter = presenter;
+        this.presenterContext = presenterContext;
         this.undoHandler = undoHandler;
         this.redoHandler = redoHandler;
         this.root = new RootItem();
@@ -292,6 +298,12 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
                 }
             }
         });
+
+        int operations = DND.DROP_MOVE | DND.DROP_COPY;
+        Transfer[] transferTypes = new Transfer[] {NodeListTransfer.getInstance()};
+        NodeListDNDListener dndListener = new NodeListDNDListener(viewer, this.presenter, this.presenterContext);
+        viewer.addDragSupport(operations, transferTypes, dndListener);
+        viewer.addDropSupport(operations, transferTypes, dndListener);
 
         this.presenter.onRefresh();
     }
