@@ -27,6 +27,9 @@
       <node-type
             id="com.dynamo.cr.sceneed.test.dummyChild"
             node="com.dynamo.cr.sceneed.core.test.DummyChild">
+         <reference-node-type
+               node-type="com.dynamo.cr.sceneed.test.dummyChild">
+         </reference-node-type>
       </node-type>
    </extension>
    <extension

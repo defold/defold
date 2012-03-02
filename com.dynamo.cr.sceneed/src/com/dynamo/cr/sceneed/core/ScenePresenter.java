@@ -138,8 +138,8 @@ public class ScenePresenter implements IPresenter, IModelListener {
     @SuppressWarnings("unchecked")
     @Override
     public void onPasteIntoSelection(IPresenterContext context) throws IOException, CoreException {
-        Object[] selection = context.getSelection().toArray();
-        if (selection.length == 0) {
+        List<Node> originals = selectionToNodeList(context);
+        if (originals.isEmpty()) {
             return;
         }
 
@@ -147,9 +147,20 @@ public class ScenePresenter implements IPresenter, IModelListener {
         List<Node> nodes = (List<Node>)this.clipboard.getContents(transfer);
 
         if (nodes != null && nodes.size() > 0) {
-            Node target = NodeUtil.findAcceptingParent((Node)selection[0], nodes, context);
+            // Always check for targets starting at the parent level
+            Node target = originals.get(0).getParent();
+            if (target == null && originals.size() == 1) {
+                target = originals.get(0);
+            }
             if (target != null) {
-                context.executeOperation(new AddChildrenOperation("Paste", target, nodes, context));
+                target = NodeUtil.findAcceptingParent(target, nodes, context);
+                // If a target could not be found, check at the selection level
+                if (target == null && originals.size() == 1) {
+                    target = NodeUtil.findAcceptingParent(originals.get(0), nodes, context);
+                }
+                if (target != null) {
+                    context.executeOperation(new AddChildrenOperation("Paste", target, nodes, context));
+                }
             }
         }
     }

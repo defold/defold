@@ -150,8 +150,6 @@ public class PresenterTest extends AbstractPresenterTest {
 
         this.presenter.onCopySelection(getPresenterContext(), getLoaderContext(), null);
 
-        select(node);
-
         this.presenter.onPasteIntoSelection(getPresenterContext());
 
         assertThat(node.getChildren().size(), is(4));
@@ -182,33 +180,27 @@ public class PresenterTest extends AbstractPresenterTest {
         child2.setIntVal(2);
         node.addChild(child2);
 
-        DummyNode node2 = new DummyNode();
-
         select(new Node[] {child, child2});
 
         this.presenter.onCutSelection(getPresenterContext(), getLoaderContext(), null);
 
         assertThat(node.getChildren().size(), is(0));
 
-        select(node2);
+        select(node);
 
         this.presenter.onPasteIntoSelection(getPresenterContext());
 
-        assertThat(node2.getChildren().size(), is(2));
-        DummyChild child3 = (DummyChild)node2.getChildren().get(0);
-        assertThat(child3.getIntVal(), is(1));
-        DummyChild child4 = (DummyChild)node2.getChildren().get(1);
-        assertThat(child4.getIntVal(), is(2));
+        assertThat(node.getChildren().size(), is(2));
 
         undo();
-        assertThat(node2.getChildren().size(), is(0));
+        assertThat(node.getChildren().size(), is(0));
         undo();
         assertThat(node.getChildren().size(), is(2));
 
         redo();
         assertThat(node.getChildren().size(), is(0));
         redo();
-        assertThat(node2.getChildren().size(), is(2));
+        assertThat(node.getChildren().size(), is(2));
     }
 
     @Test
