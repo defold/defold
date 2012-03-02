@@ -27,6 +27,7 @@ public interface ISceneView {
         void onSave(OutputStream contents, IProgressMonitor monitor) throws IOException, CoreException;
         void onResourceChanged(IResourceChangeEvent event) throws CoreException;
 
+        void onDeleteSelection(IPresenterContext presenterContext);
         void onCopySelection(IPresenterContext presenterContext, ILoaderContext loaderContext, IProgressMonitor monitor) throws IOException, CoreException;
         void onCutSelection(IPresenterContext presenterContext, ILoaderContext loaderContext, IProgressMonitor monitor) throws IOException, CoreException;
         void onPasteIntoSelection(IPresenterContext presenterContext) throws IOException, CoreException;

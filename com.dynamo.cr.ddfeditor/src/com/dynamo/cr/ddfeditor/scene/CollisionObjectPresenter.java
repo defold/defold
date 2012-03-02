@@ -1,8 +1,5 @@
 package com.dynamo.cr.ddfeditor.scene;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import javax.vecmath.Quat4d;
 import javax.vecmath.Vector4d;
 
@@ -14,7 +11,6 @@ import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.Node;
-import com.dynamo.cr.sceneed.core.operations.RemoveChildrenOperation;
 
 
 public class CollisionObjectPresenter implements ISceneView.INodePresenter<CollisionObjectNode> {
@@ -61,18 +57,6 @@ public class CollisionObjectPresenter implements ISceneView.INodePresenter<Colli
 
             presenterContext.executeOperation(new AddShapeNodeOperation(parent, shapeNode, presenterContext));
         }
-    }
-
-    public void onRemoveShape(IPresenterContext presenterContext,
-            ILoaderContext loaderContext) {
-        IStructuredSelection structuredSelection = presenterContext.getSelection();
-        Object[] nodes = structuredSelection.toArray();
-        List<Node> shapes = new ArrayList<Node>(nodes.length);
-        for (Object node : nodes) {
-            shapes.add((Node)node);
-        }
-        presenterContext.executeOperation(new RemoveChildrenOperation(shapes, presenterContext));
-
     }
 
 }

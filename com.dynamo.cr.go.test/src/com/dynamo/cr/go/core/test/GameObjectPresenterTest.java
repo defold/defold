@@ -14,7 +14,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.dynamo.cr.editor.core.IResourceType;
-import com.dynamo.cr.go.core.ComponentNode;
 import com.dynamo.cr.go.core.GameObjectNode;
 import com.dynamo.cr.go.core.GameObjectPresenter;
 import com.dynamo.cr.sceneed.core.test.AbstractPresenterTest;
@@ -70,16 +69,4 @@ public class GameObjectPresenterTest extends AbstractPresenterTest {
         verify(this.getPresenterContext(), times(1)).executeOperation(any(IUndoableOperation.class));
     }
 
-    @Test
-    public void testRemoveComponent() throws Exception {
-        GameObjectNode gameObject = new GameObjectNode();
-        gameObject.setModel(this.getModel());
-        ComponentNode component = new DummyComponentNode();
-        gameObject.addChild(component);
-        when(this.getPresenterContext().getSelection()).thenReturn(new StructuredSelection(component));
-
-        this.presenter.onRemoveComponent(this.getPresenterContext());
-
-        verify(this.getPresenterContext(), times(1)).executeOperation(any(IUndoableOperation.class));
-    }
 }

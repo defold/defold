@@ -16,7 +16,6 @@ import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.Node;
-import com.dynamo.cr.sceneed.core.operations.RemoveChildrenOperation;
 
 public class GameObjectPresenter implements ISceneView.INodePresenter<GameObjectNode> {
 
@@ -82,17 +81,6 @@ public class GameObjectPresenter implements ISceneView.INodePresenter<GameObject
                 throw new UnsupportedOperationException("Component " + path + " has unknown type.");
             }
         }
-    }
-
-    public void onRemoveComponent(IPresenterContext context) {
-        // Find selected components
-        IStructuredSelection structuredSelection = context.getSelection();
-        Object[] selection = structuredSelection.toArray();
-        List<Node> components = new ArrayList<Node>(selection.length);
-        for (Object node : selection) {
-            components.add((Node)node);
-        }
-        context.executeOperation(new RemoveChildrenOperation(components, context));
     }
 
     private String selectComponentType(IPresenterContext context) {

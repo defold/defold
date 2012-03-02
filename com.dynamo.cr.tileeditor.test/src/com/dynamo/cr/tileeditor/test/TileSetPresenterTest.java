@@ -49,17 +49,6 @@ public class TileSetPresenterTest extends AbstractPresenterTest {
     }
 
     @Test
-    public void testRemoveCollisionGroup() {
-        TileSetNode tileSet = new TileSetNode();
-        CollisionGroupNode collisionGroup = new CollisionGroupNode();
-        tileSet.addChild(collisionGroup);
-
-        select(collisionGroup);
-        this.presenter.onRemoveTileSetChildren(getPresenterContext());
-        verifyExecution();
-    }
-
-    @Test
     public void testSelectCollisionGroup() {
         TileSetNode tileSet = new TileSetNode();
         CollisionGroupNode collisionGroup = new CollisionGroupNode();

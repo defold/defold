@@ -905,25 +905,6 @@
          </activeWhen>
       </handler>
       <handler
-            class="com.dynamo.cr.tileeditor.handlers.RemoveTileSetChildrenHandler"
-            commandId="org.eclipse.ui.edit.delete">
-         <activeWhen>
-            <and>
-               <reference
-                     definitionId="com.dynamo.cr.sceneed.definitions.selectionDeleteable">
-               </reference>
-               <or>
-                  <reference
-                        definitionId="com.dynamo.cr.tileeditor.definitions.collisionGroupSelected">
-                  </reference>
-                  <reference
-                        definitionId="com.dynamo.cr.tileeditor.definitions.animationSelected">
-                  </reference>
-               </or>
-            </and>
-         </activeWhen>
-      </handler>
-      <handler
             class="com.dynamo.cr.tileeditor.handlers.SelectCollisionGroupHandler"
             commandId="com.dynamo.cr.tileeditor.commands.selectCollisionGroup">
          <activeWhen>

@@ -373,6 +373,17 @@
             </reference>
          </activeWhen>
       </handler>
+      <handler
+            class="com.dynamo.cr.sceneed.handlers.DeleteNodesHandler"
+            commandId="org.eclipse.ui.edit.delete">
+         <activeWhen>
+            <and>
+               <reference
+                     definitionId="com.dynamo.cr.sceneed.definitions.selectionDeleteable">
+               </reference>
+            </and>
+         </activeWhen>
+      </handler>
    </extension>
    <extension
          point="org.eclipse.core.expressions.definitions">

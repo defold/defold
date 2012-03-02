@@ -13,9 +13,7 @@ import org.junit.Test;
 
 import com.dynamo.cr.go.core.CollectionNode;
 import com.dynamo.cr.go.core.CollectionPresenter;
-import com.dynamo.cr.go.core.GameObjectInstanceNode;
 import com.dynamo.cr.go.core.GameObjectNode;
-import com.dynamo.cr.go.core.InstanceNode;
 import com.dynamo.cr.sceneed.core.test.AbstractPresenterTest;
 
 public class CollectionPresenterTest extends AbstractPresenterTest {
@@ -79,16 +77,4 @@ public class CollectionPresenterTest extends AbstractPresenterTest {
         verify(this.getPresenterContext(), times(1)).executeOperation(any(IUndoableOperation.class));
     }
 
-    @Test
-    public void testRemoveInstance() throws Exception {
-        CollectionNode collection = new CollectionNode();
-        collection.setModel(this.getModel());
-        InstanceNode instance = new GameObjectInstanceNode(null);
-        collection.addChild(instance);
-        when(this.getPresenterContext().getSelection()).thenReturn(new StructuredSelection(instance));
-
-        this.presenter.onRemoveInstance(this.getPresenterContext());
-
-        verify(this.getPresenterContext(), times(1)).executeOperation(any(IUndoableOperation.class));
-    }
 }

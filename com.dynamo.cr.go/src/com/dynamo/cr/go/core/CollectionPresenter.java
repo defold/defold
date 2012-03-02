@@ -1,8 +1,5 @@
 package com.dynamo.cr.go.core;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import org.eclipse.jface.viewers.IStructuredSelection;
 
 import com.dynamo.cr.go.core.operations.AddInstanceOperation;
@@ -10,7 +7,6 @@ import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.Node;
-import com.dynamo.cr.sceneed.core.operations.RemoveChildrenOperation;
 
 public class CollectionPresenter implements ISceneView.INodePresenter<CollectionNode> {
 
@@ -69,17 +65,6 @@ public class CollectionPresenter implements ISceneView.INodePresenter<Collection
             instance.setCollection(file);
             presenterContext.executeOperation(new AddInstanceOperation(parent, instance, presenterContext));
         }
-    }
-
-    public void onRemoveInstance(IPresenterContext context) {
-        // Find selected components
-        IStructuredSelection structuredSelection = context.getSelection();
-        Object[] nodes = structuredSelection.toArray();
-        List<Node> instances = new ArrayList<Node>(nodes.length);
-        for (Object node : nodes) {
-            instances.add((Node)node);
-        }
-        context.executeOperation(new RemoveChildrenOperation(instances, context));
     }
 
 }

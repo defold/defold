@@ -108,13 +108,16 @@ public class ScenePresenter implements IPresenter, IModelListener {
     }
 
     @Override
-    public void onCopySelection(IPresenterContext presenterContext, ILoaderContext loaderContext, IProgressMonitor monitor) throws IOException, CoreException {
-        IStructuredSelection selection = presenterContext.getSelection();
-        Object[] objects = selection.toArray();
-        List<Node> nodes = new ArrayList<Node>(objects.length);
-        for (Object object : objects) {
-            nodes.add((Node)object);
+    public void onDeleteSelection(IPresenterContext presenterContext) {
+        List<Node> nodes = selectionToNodeList(presenterContext);
+        if (nodes.size() > 0) {
+            presenterContext.executeOperation(new RemoveChildrenOperation(nodes, presenterContext));
         }
+    }
+
+    @Override
+    public void onCopySelection(IPresenterContext presenterContext, ILoaderContext loaderContext, IProgressMonitor monitor) throws IOException, CoreException {
+        List<Node> nodes = selectionToNodeList(presenterContext);
         if (nodes.size() > 0) {
             NodeListTransfer transfer = NodeListTransfer.getInstance();
             this.clipboard.setContents(new Object[] {nodes}, new Transfer[] {transfer});
@@ -123,12 +126,7 @@ public class ScenePresenter implements IPresenter, IModelListener {
 
     @Override
     public void onCutSelection(IPresenterContext presenterContext, ILoaderContext loaderContext, IProgressMonitor monitor) throws IOException, CoreException {
-        IStructuredSelection selection = presenterContext.getSelection();
-        Object[] objects = selection.toArray();
-        List<Node> nodes = new ArrayList<Node>(objects.length);
-        for (Object object : objects) {
-            nodes.add((Node)object);
-        }
+        List<Node> nodes = selectionToNodeList(presenterContext);
         if (nodes.size() > 0) {
             NodeListTransfer transfer = NodeListTransfer.getInstance();
             this.clipboard.setContents(new Object[] {nodes}, new Transfer[] {transfer});
@@ -178,5 +176,15 @@ public class ScenePresenter implements IPresenter, IModelListener {
                 return;
             context.executeOperation(new AddChildrenOperation("Paste", target, nodes, context));
         }
+    }
+
+    private List<Node> selectionToNodeList(IPresenterContext presenterContext) {
+        IStructuredSelection selection = presenterContext.getSelection();
+        Object[] objects = selection.toArray();
+        List<Node> nodes = new ArrayList<Node>(objects.length);
+        for (Object object : objects) {
+            nodes.add((Node)object);
+        }
+        return nodes;
     }
 }

@@ -12,7 +12,6 @@ import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.operations.RemoveChildrenOperation;
 import com.dynamo.cr.tileeditor.operations.AddAnimationNodeOperation;
 import com.dynamo.cr.tileeditor.operations.AddCollisionGroupNodeOperation;
-import com.dynamo.cr.tileeditor.operations.RemoveTileSetChildrenOperation;
 import com.dynamo.cr.tileeditor.operations.SetTileCollisionGroupsOperation;
 import com.dynamo.cr.tileeditor.util.Animator;
 
@@ -67,15 +66,6 @@ public class TileSetNodePresenter implements INodePresenter<TileSetNode> {
     public void onAddCollisionGroup(IPresenterContext presenterContext) {
         TileSetNode tileSet = TileSetUtil.getCurrentTileSet(presenterContext.getSelection());
         presenterContext.executeOperation(new AddCollisionGroupNodeOperation(tileSet, new CollisionGroupNode(), presenterContext));
-    }
-
-    public void onRemoveTileSetChildren(IPresenterContext presenterContext) {
-        Object[] selected = presenterContext.getSelection().toArray();
-        List<Node> children = new ArrayList<Node>(selected.length);
-        for (Object o : selected) {
-            children.add((Node)o);
-        }
-        presenterContext.executeOperation(new RemoveTileSetChildrenOperation(children, presenterContext));
     }
 
     public void onSelectCollisionGroup(IPresenterContext presenterContext, int index) {

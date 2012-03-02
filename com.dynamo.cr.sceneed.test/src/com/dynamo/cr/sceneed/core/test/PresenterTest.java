@@ -189,4 +189,27 @@ public class PresenterTest extends AbstractPresenterTest {
         redo();
         assertThat(node2.getChildren().size(), is(2));
     }
+
+    @Test
+    public void testDelete() throws Exception {
+        DummyNode node = new DummyNode();
+        node.setModel(this.model);
+        DummyChild child = new DummyChild();
+        child.setIntVal(1);
+        node.addChild(child);
+        DummyChild child2 = new DummyChild();
+        child2.setIntVal(2);
+        node.addChild(child2);
+
+        select(new Node[] {child, child2});
+
+        this.presenter.onDeleteSelection(getPresenterContext());
+
+        assertThat(node.getChildren().size(), is(0));
+
+        undo();
+        assertThat(node.getChildren().size(), is(2));
+        redo();
+        assertThat(node.getChildren().size(), is(0));
+    }
 }
