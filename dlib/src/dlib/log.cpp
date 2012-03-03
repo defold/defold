@@ -330,15 +330,16 @@ void dmLogInternal(dmLogSeverity severity, const char* domain, const char* forma
 
     int n = 0;
     n += DM_SNPRINTF(str_buf + n, str_buf_size - n, "%s:%s: ", severity_str, domain);
-    if (n < 512)
+    if (n < str_buf_size)
     {
         n += vsnprintf(str_buf + n, str_buf_size - n, format, lst);
     }
 
-    if (n < 512)
+    if (n < str_buf_size)
     {
         n += DM_SNPRINTF(str_buf + n, str_buf_size - n, "\n");
     }
+    str_buf[str_buf_size-1] = '\0';
 
     fwrite(str_buf, 1, n, stderr);
     va_end(lst);
@@ -349,6 +350,6 @@ void dmLogInternal(dmLogSeverity severity, const char* domain, const char* forma
         msg->m_Type = dmLogMessage::MESSAGE;
         dmMessage::URL receiver;
         receiver.m_Socket = self->m_MessgeSocket;
-        dmMessage::Post(0, &receiver, 0, 0, 0, msg, sizeof(dmLogMessage) + n);
+        dmMessage::Post(0, &receiver, 0, 0, 0, msg, sizeof(dmLogMessage) + n + 1);
     }
 }
