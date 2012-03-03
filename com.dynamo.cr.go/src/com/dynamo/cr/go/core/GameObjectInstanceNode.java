@@ -93,7 +93,7 @@ public class GameObjectInstanceNode extends InstanceNode {
         ISceneModel model = getModel();
         if (model != null) {
             try {
-                clearChildren();
+                removeChild(this.gameObjectNode);
                 this.gameObjectNode = (GameObjectNode)model.loadNode(this.gameObject);
                 if (this.gameObjectNode != null) {
                     this.gameObjectNode.setModel(model);
