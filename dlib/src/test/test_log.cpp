@@ -6,6 +6,7 @@
 #include "../dlib/hash.h"
 #include "../dlib/log.h"
 #include "../dlib/dstrings.h"
+#include "../dlib/socket.h"
 #include "../dlib/thread.h"
 #include "../dlib/time.h"
 
@@ -60,7 +61,10 @@ TEST(dmLog, Client)
 
 int main(int argc, char **argv)
 {
+    dmSocket::Initialize();
     testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    int ret = RUN_ALL_TESTS();
+    dmSocket::Finalize();
+    return ret;
 }
 
