@@ -64,7 +64,7 @@ public class LoginResource extends BaseResource {
                            @QueryParam("redirect_to") String redirectTo) throws ServerException {
 
         if (redirectTo == null) {
-            String warning = "Missing required query parameter \"login\"";
+            String warning = "Missing required query parameter \"redirect_to\"";
             logger.warn(warning);
             return badRequest(warning);
         }

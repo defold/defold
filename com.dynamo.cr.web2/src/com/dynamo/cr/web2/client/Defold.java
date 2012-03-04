@@ -28,6 +28,7 @@ import com.google.gwt.place.shared.Place;
 import com.google.gwt.place.shared.PlaceChangeEvent;
 import com.google.gwt.place.shared.PlaceController;
 import com.google.gwt.place.shared.PlaceHistoryHandler;
+import com.google.gwt.place.shared.PlaceHistoryMapper;
 import com.google.gwt.uibinder.client.UiBinder;
 import com.google.gwt.uibinder.client.UiField;
 import com.google.gwt.uibinder.client.UiHandler;
@@ -296,6 +297,10 @@ public class Defold implements EntryPoint {
 
     public void showLogin() {
         //deckPanel.showWidget(0);
+    }
+
+    public PlaceHistoryMapper getHistoryMapper() {
+        return historyMapper;
     }
 
     public String getUrl() {

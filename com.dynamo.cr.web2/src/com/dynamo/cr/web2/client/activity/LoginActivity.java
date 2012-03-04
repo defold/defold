@@ -26,6 +26,8 @@ public class LoginActivity extends AbstractActivity implements LoginView.Present
     @Override
     public void loginGoogle() {
         String url = clientFactory.getDefold().getUrl();
+
+        // The redirectToUrl is the #openid-activity, ie the url redirected to after login
         String redirectToUrl = Window.Location.createUrlBuilder().buildString();
         if (redirectToUrl.lastIndexOf('#') != -1) {
             redirectToUrl = redirectToUrl.substring(0, redirectToUrl.lastIndexOf('#'));

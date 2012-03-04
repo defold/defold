@@ -14,6 +14,8 @@ import com.google.gwt.http.client.RequestBuilder;
 import com.google.gwt.http.client.RequestCallback;
 import com.google.gwt.http.client.RequestException;
 import com.google.gwt.http.client.Response;
+import com.google.gwt.place.shared.Place;
+import com.google.gwt.user.client.Cookies;
 import com.google.gwt.user.client.ui.AcceptsOneWidget;
 
 public class OpenIDActivity extends AbstractActivity implements
@@ -27,8 +29,27 @@ public class OpenIDActivity extends AbstractActivity implements
         this.clientFactory = clientFactory;
     }
 
+    private Place getNewPlace() {
+        final Defold defold = clientFactory.getDefold();
+        String token = Cookies.getCookie("afterLoginPlaceToken");
+        Cookies.removeCookie("afterLoginPlaceToken");
+        System.out.println(token);
+
+        Place newPlace = null;
+        if (token != null) {
+            newPlace = defold.getHistoryMapper().getPlace(token);
+        }
+
+        if (newPlace == null) {
+            newPlace = new ProductInfoPlace();
+        }
+        return newPlace;
+    }
+
     @Override
     public void start(AcceptsOneWidget containerWidget, EventBus eventBus) {
+        final Place newPlace = getNewPlace();
+
         final OpenIDView openIDView = clientFactory.getOpenIDView();
         containerWidget.setWidget(openIDView.asWidget());
         openIDView.setPresenter(this);
@@ -58,7 +79,7 @@ public class OpenIDActivity extends AbstractActivity implements
                             String lastName = tokenExchangeInfo.getLastName();
                             String email = tokenExchangeInfo.getEmail();
                             defold.loginOk(firstName, lastName, email, tokenExchangeInfo.getAuthCookie(), tokenExchangeInfo.getUserId());
-                            clientFactory.getPlaceController().goTo(new ProductInfoPlace());
+                            clientFactory.getPlaceController().goTo(newPlace);
                         } else {
                             defold.showErrorMessage("Invalid server response");
                         }
