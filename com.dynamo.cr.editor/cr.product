@@ -7,6 +7,7 @@
    </configIni>
 
    <launcherArgs>
+      <vmArgs>-Declipse.p2.unsignedPolicy=allow</vmArgs>
       <vmArgsMac>-XstartOnFirstThread -Dorg.eclipse.swt.internal.carbon.smallFonts</vmArgsMac>
    </launcherArgs>
 
