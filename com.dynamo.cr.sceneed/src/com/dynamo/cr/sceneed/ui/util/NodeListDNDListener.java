@@ -79,6 +79,9 @@ public class NodeListDNDListener extends ViewerDropAdapter implements DragSource
         }
         Node targetNode = (Node)target;
         List<Node> nodes = getSelectedNodes();
+        if (nodes.contains(targetNode)) {
+            return false;
+        }
         Node parent = nodes.get(0).getParent();
         if (operation == DND.DROP_MOVE && parent == targetNode) {
             return false;
@@ -88,6 +91,9 @@ public class NodeListDNDListener extends ViewerDropAdapter implements DragSource
 
     @Override
     protected Object determineTarget(DropTargetEvent event) {
+        if (event.item == null) {
+            return null;
+        }
         Node target = (Node)event.item.getData();
         List<Node> nodes = getSelectedNodes();
         return NodeUtil.findAcceptingParent(target, nodes, this.presenterContext);
