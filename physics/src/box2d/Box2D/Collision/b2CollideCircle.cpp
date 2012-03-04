@@ -100,7 +100,7 @@ void b2CollidePolygonAndCircle(
 		manifold->localPoint = 0.5f * (v1 + v2);
 		manifold->points[0].localPoint = circleB->m_p;
 		manifold->points[0].id.key = 0;
-		// Defold modification
+		// Defold modification: set distance
 		manifold->points[0].distance = circleB->m_radius - separation;
 		return;
 	}
