@@ -1,0 +1,24 @@
+<!DOCTYPE ui:UiBinder SYSTEM "http://dl.google.com/gwt/DTD/xhtml.ent">
+<ui:UiBinder xmlns:ui="urn:ui:com.google.gwt.uibinder"
+    xmlns:g="urn:import:com.google.gwt.user.client.ui">
+
+    <ui:style>
+        .important {
+            font-weight: bold;
+        }
+
+        .image {
+           vertical-align: middle;
+        }
+    </ui:style>
+
+    <g:HTMLPanel>
+        <h2>Downloads</h2>
+        <div class="box boxHighlight">
+            <h3>Defold Editor</h3>
+            <div><a ui:field="mainDownload"></a></div>
+            <div><a ui:field="alt1Download"></a></div>
+            <div><a ui:field="alt2Download"></a></div>
+        </div>
+    </g:HTMLPanel>
+</ui:UiBinder>
