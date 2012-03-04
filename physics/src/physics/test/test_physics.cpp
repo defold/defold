@@ -1375,6 +1375,63 @@ TYPED_TEST(PhysicsTest, KinematicSleep)
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(box0_shape);
 }
 
+// Detecting native bug in box2d when the penetration distance assumes a negative amount
+TYPED_TEST(PhysicsTest, SphereBoxDeepPenetration)
+{
+    float radius = 0.5f;
+
+    VisualObject vo_a;
+    vo_a.m_Position.setY(1.0f);
+    dmPhysics::CollisionObjectData data_a;
+    typename TypeParam::CollisionShapeType shape_a = (*TestFixture::m_Test.m_NewSphereShapeFunc)(radius);
+    data_a.m_Group = 1 << FILTER_GROUP_A;
+    data_a.m_Mask = 1 << FILTER_GROUP_B;
+    data_a.m_UserData = &vo_a;
+    data_a.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
+    data_a.m_Mass = 0.0f;
+    typename TypeParam::CollisionObjectType box_co_a = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data_a, &shape_a, 1u);
+
+    VisualObject vo_b;
+    dmPhysics::CollisionObjectData data_b;
+    typename TypeParam::CollisionShapeType shape_b = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(radius, radius, radius));
+    data_b.m_Group = 1 << FILTER_GROUP_B;
+    data_b.m_Mask = 1 << FILTER_GROUP_A;
+    data_b.m_UserData = &vo_b;
+    data_b.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
+    data_b.m_Mass = 0.0f;
+    typename TypeParam::CollisionObjectType box_co_b = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data_b, &shape_b, 1u);
+
+    int collision_count[FILTER_GROUP_COUNT];
+    memset(collision_count, 0, FILTER_GROUP_COUNT * sizeof(int));
+    int contact_point_count[FILTER_GROUP_COUNT];
+    memset(contact_point_count, 0, FILTER_GROUP_COUNT * sizeof(int));
+
+    float distance = 0.0f;
+
+    TestFixture::m_StepWorldContext.m_CollisionCallback = 0;
+    TestFixture::m_StepWorldContext.m_CollisionUserData = 0;
+    TestFixture::m_StepWorldContext.m_ContactPointCallback = DistanceContactPointCallback;
+    TestFixture::m_StepWorldContext.m_ContactPointUserData = &distance;
+
+    int steps = 40;
+    float y = 1.0f;
+    float delta = 2.0f / steps;
+    for (int i = 0; i < steps; ++i) {
+        y -= delta;
+        vo_a.m_Position.setY(y);
+        distance = 0.0f;
+        (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+
+        float actual = 1.0f - dmMath::Abs(y);
+        ASSERT_NEAR(distance, actual, 0.0005f);
+    }
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, box_co_a);
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, box_co_b);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_a);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_b);
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);
