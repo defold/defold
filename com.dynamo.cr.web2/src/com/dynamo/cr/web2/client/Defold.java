@@ -12,7 +12,10 @@ import com.dynamo.cr.web2.client.place.DashboardPlace;
 import com.dynamo.cr.web2.client.place.DocumentationPlace;
 import com.dynamo.cr.web2.client.place.LoginPlace;
 import com.dynamo.cr.web2.client.place.ProductInfoPlace;
+import com.dynamo.cr.web2.client.ui.BrowserWarningDialog;
 import com.dynamo.cr.web2.client.ui.EditableLabel;
+import com.dynamo.cr.web2.shared.ClientUtil;
+import com.dynamo.cr.web2.shared.ClientUtil.Browser;
 import com.google.gwt.activity.shared.ActivityManager;
 import com.google.gwt.activity.shared.ActivityMapper;
 import com.google.gwt.core.client.EntryPoint;
@@ -245,6 +248,29 @@ public class Defold implements EntryPoint {
         new ShowLoginOnAuthenticationFailure().register(clientFactory, eventBus);
         messageNotification = new MessageNotification();
         messageNotification.setStyleName("message");
+
+        double version = ClientUtil.getBrowserVersion();
+        Browser browser = ClientUtil.getBrowser();
+        boolean supported = false;
+        switch (browser) {
+            case Chrome:
+                supported = version >= 17;
+                break;
+
+            case Safari:
+                supported = version >= 500;
+                break;
+
+            case Firefox:
+                supported = version >= 5;
+                break;
+        }
+
+        if (!supported) {
+            BrowserWarningDialog dialog = new BrowserWarningDialog();
+            dialog.center();
+            dialog.show();
+        }
     }
 
     public void loginOk(String firstName, String lastName, String email, String authCookie, int userId) {

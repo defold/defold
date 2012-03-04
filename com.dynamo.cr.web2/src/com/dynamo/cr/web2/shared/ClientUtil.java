@@ -11,6 +11,42 @@ public class ClientUtil {
         Undefined
     };
 
+    public enum Browser {
+        Chrome,
+        Safari,
+        Firefox,
+        Explorer {
+            @Override
+            public String toString() {
+                return "Internet Explorer";
+            }
+        },
+        Unknown,
+    };
+
+    public static native String getBrowserString() /*-{
+        return $wnd.BrowserDetect.browser;
+    }-*/;
+
+    public static native double getBrowserVersion() /*-{
+        return $wnd.BrowserDetect.version;
+    }-*/;
+
+    public static Browser getBrowser() {
+        String b = getBrowserString();
+        if (b.equals("Chrome")) {
+            return Browser.Chrome;
+        } else if (b.equals("Safari")) {
+            return Browser.Safari;
+        } else if (b.equals("Firefox")) {
+            return Browser.Firefox;
+        } else if (b.equals("Explorer")) {
+            return Browser.Explorer;
+        } else {
+            return Browser.Unknown;
+        }
+    }
+
     public static Platform detectPlatform() {
         String platform = Navigator.getPlatform().toLowerCase();
         if (platform.contains("win")) {
