@@ -342,9 +342,14 @@ namespace dmGui
         int property = (int) luaL_checknumber(L, 2);
         Vector4 to;
         if (dmScript::IsVector3(L, 3))
-            to = Vector4(*dmScript::CheckVector3(L, 3));
+        {
+            Vector4 original = dmGui::GetNodeProperty(scene, hnode, (dmGui::Property)property);
+            to = Vector4(*dmScript::CheckVector3(L, 3), original.getW());
+        }
         else
+        {
             to = *dmScript::CheckVector4(L, 3);
+        }
         int easing = (int) luaL_checknumber(L, 4);
         lua_Number duration = luaL_checknumber(L, 5);
         float delay = 0.0f;
@@ -459,13 +464,22 @@ namespace dmGui
     /*# creates a new box node
      *
      * @name gui.new_box_node
-     * @param pos node position (vector3)
+     * @param pos node position (vector3|vector4)
      * @param size node size (vector3)
      * @return new box node (node)
      */
     static int LuaNewBoxNode(lua_State* L)
     {
-        Vector3 pos = *dmScript::CheckVector3(L, 1);
+        Vector3 pos;
+        if (dmScript::IsVector4(L, 1))
+        {
+            Vector4* p4 = dmScript::CheckVector4(L, 1);
+            pos = Vector3(p4->getX(), p4->getY(), p4->getZ());
+        }
+        else
+        {
+            pos = *dmScript::CheckVector3(L, 1);
+        }
         Vector3 size = *dmScript::CheckVector3(L, 2);
         return LuaDoNewNode(L, Point3(pos), size, NODE_TYPE_BOX, 0);
     }
@@ -473,13 +487,22 @@ namespace dmGui
     /*# creates a new text node
      *
      * @name gui.new_text_node
-     * @param pos node position (vector3)
+     * @param pos node position (vector3|vector4)
      * @param text node text (string)
      * @return new text node (node)
      */
     static int LuaNewTextNode(lua_State* L)
     {
-        Vector3 pos = *dmScript::CheckVector3(L, 1);
+        Vector3 pos;
+        if (dmScript::IsVector4(L, 1))
+        {
+            Vector4* p4 = dmScript::CheckVector4(L, 1);
+            pos = Vector3(p4->getX(), p4->getY(), p4->getZ());
+        }
+        else
+        {
+            pos = *dmScript::CheckVector3(L, 1);
+        }
         Vector3 size = Vector3(1,1,1);
         const char* text = luaL_checkstring(L, 2);
         return LuaDoNewNode(L, Point3(pos), size, NODE_TYPE_TEXT, text);
@@ -767,7 +790,7 @@ namespace dmGui
      *
      * @name gui.get_position
      * @param node node to get the position from (node)
-     * @return node position (vector4)
+     * @return node position (vector3)
      */
 
     /*# sets the node position
@@ -781,7 +804,7 @@ namespace dmGui
      *
      * @name gui.get_rotation
      * @param node node to get the rotation from (node)
-     * @return node rotation (vector4)
+     * @return node rotation (vector3)
      */
 
     /*# sets the node rotation
@@ -795,7 +818,7 @@ namespace dmGui
      *
      * @name gui.get_scale
      * @param node node to get the scale from (node)
-     * @return node scale (vector4)
+     * @return node scale (vector3)
      */
 
     /*# sets the node scale
@@ -851,7 +874,7 @@ namespace dmGui
      *
      * @name gui.get_size
      * @param node node to get the size from (node)
-     * @return node size (vector4)
+     * @return node size (vector3)
      */
 
     /*# sets the node size
@@ -861,33 +884,51 @@ namespace dmGui
      * @param size new size (vector3|vector4)
      */
 
-#define LUAGETSET(name, property) \
+#define LUASET(name, property) \
+        int LuaSet##name(lua_State* L)\
+        {\
+            HNode hnode;\
+            InternalNode* n = LuaCheckNode(L, 1, &hnode);\
+            Vector4 v;\
+            if (dmScript::IsVector3(L, 2))\
+            {\
+                lua_getglobal(L, "__scene__");\
+                Scene* scene = (Scene*)lua_touserdata(L, -1);\
+                Vector4 original = dmGui::GetNodeProperty(scene, hnode, property);\
+                v = Vector4(*dmScript::CheckVector3(L, 2), original.getW());\
+            }\
+            else\
+                v = *dmScript::CheckVector4(L, 2);\
+            n->m_Node.m_Properties[property] = v;\
+            return 0;\
+        }\
+
+#define LUAGETSETV3(name, property) \
+    int LuaGet##name(lua_State* L)\
+    {\
+        InternalNode* n = LuaCheckNode(L, 1, 0);\
+        const Vector4& v = n->m_Node.m_Properties[property];\
+        dmScript::PushVector3(L, Vector3(v.getX(), v.getY(), v.getZ()));\
+        return 1;\
+    }\
+    LUASET(name, property)\
+
+#define LUAGETSETV4(name, property) \
     int LuaGet##name(lua_State* L)\
     {\
         InternalNode* n = LuaCheckNode(L, 1, 0);\
         dmScript::PushVector4(L, n->m_Node.m_Properties[property]);\
         return 1;\
     }\
-\
-    int LuaSet##name(lua_State* L)\
-    {\
-        InternalNode* n = LuaCheckNode(L, 1, 0);\
-        Vector4 pos;\
-        if (dmScript::IsVector3(L, 2))\
-            pos = Vector4(*dmScript::CheckVector3(L, 2));\
-        else\
-            pos = *dmScript::CheckVector4(L, 2);\
-        n->m_Node.m_Properties[property] = pos;\
-        return 0;\
-    }\
+    LUASET(name, property)\
 
-    LUAGETSET(Position, PROPERTY_POSITION)
-    LUAGETSET(Rotation, PROPERTY_ROTATION)
-    LUAGETSET(Scale, PROPERTY_SCALE)
-    LUAGETSET(Color, PROPERTY_COLOR)
-    LUAGETSET(Outline, PROPERTY_OUTLINE)
-    LUAGETSET(Shadow, PROPERTY_SHADOW)
-    LUAGETSET(Size, PROPERTY_SIZE)
+    LUAGETSETV3(Position, PROPERTY_POSITION)
+    LUAGETSETV3(Rotation, PROPERTY_ROTATION)
+    LUAGETSETV3(Scale, PROPERTY_SCALE)
+    LUAGETSETV4(Color, PROPERTY_COLOR)
+    LUAGETSETV4(Outline, PROPERTY_OUTLINE)
+    LUAGETSETV4(Shadow, PROPERTY_SHADOW)
+    LUAGETSETV3(Size, PROPERTY_SIZE)
 
 #undef LUAGETSET
 

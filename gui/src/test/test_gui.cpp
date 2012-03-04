@@ -502,6 +502,37 @@ TEST_F(dmGuiTest, ScriptAnimate)
     ASSERT_EQ(m_Scene->m_NodePool.Capacity(), m_Scene->m_NodePool.Remaining());
 }
 
+TEST_F(dmGuiTest, ScriptAnimatePreserveAlpha)
+{
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeId(m_Scene, node, "n");
+    const char* s = "function init(self)\n"
+                    "    self.node = gui.get_node(\"n\")\n"
+                    "    gui.set_color(self.node, vmath.vector4(0,0,0,0.5))\n"
+                    "    gui.animate(self.node, gui.PROP_COLOR, vmath.vector3(1,0,0), gui.EASING_NONE, 0.01)\n"
+                    "end\n"
+                    "function final(self)\n"
+                    "    gui.delete_node(self.node)\n"
+                    "end\n";
+
+    dmGui::Result r;
+    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    r = dmGui::InitScene(m_Scene);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    Vector4 color = dmGui::GetNodeProperty(m_Scene, node, dmGui::PROPERTY_COLOR);
+    ASSERT_NEAR(color.getX(), 1.0f, EPSILON);
+    ASSERT_NEAR(color.getW(), 0.5f, EPSILON);
+
+    r = dmGui::FinalScene(m_Scene);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+}
+
 TEST_F(dmGuiTest, ScriptAnimateComplete)
 {
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
@@ -760,6 +791,57 @@ TEST_F(dmGuiTest, ScriptNewNode)
 
     dmGui::Result r;
     r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+    r = dmGui::InitScene(m_Scene);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+    r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+}
+
+TEST_F(dmGuiTest, ScriptNewNodeVec4)
+{
+    const char* s = "function init(self)\n"
+                    "    self.n1 = gui.new_box_node(vmath.vector4(0,0,0,0), vmath.vector3(1,1,1))"
+                    "    self.n2 = gui.new_text_node(vmath.vector4(0,0,0,0), \"My Node\")"
+                    "end\n"
+                    "function update(self)\n"
+                    "end\n";
+
+    dmGui::Result r;
+    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+    r = dmGui::InitScene(m_Scene);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+    r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+}
+
+TEST_F(dmGuiTest, ScriptGetSet)
+{
+    const char* s = "function init(self)\n"
+                    "    self.n1 = gui.new_box_node(vmath.vector4(0,0,0,0), vmath.vector3(1,1,1))\n"
+                    "    local p = gui.get_position(self.n1)\n"
+                    "    assert(string.find(tostring(p), \"vector3\") ~= nil)\n"
+                    "    gui.set_position(self.n1, p)\n"
+                    "    local s = gui.get_scale(self.n1)\n"
+                    "    assert(string.find(tostring(s), \"vector3\") ~= nil)\n"
+                    "    gui.set_scale(self.n1, s)\n"
+                    "    local r = gui.get_rotation(self.n1)\n"
+                    "    assert(string.find(tostring(r), \"vector3\") ~= nil)\n"
+                    "    gui.set_rotation(self.n1, r)\n"
+                    "    local c = gui.get_color(self.n1)\n"
+                    "    assert(string.find(tostring(c), \"vector4\") ~= nil)\n"
+                    "    gui.set_color(self.n1, c)\n"
+                    "    gui.set_color(self.n1, vmath.vector4(0, 0, 0, 1))\n"
+                    "    gui.set_color(self.n1, vmath.vector3(0, 0, 0))\n"
+                    "    c = gui.get_color(self.n1)\n"
+                    "    assert(c.w == 1)\n"
+                   "end\n";
+
+    dmGui::Result r;
+    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+    r = dmGui::InitScene(m_Scene);
     ASSERT_EQ(dmGui::RESULT_OK, r);
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_OK, r);
