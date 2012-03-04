@@ -33,7 +33,8 @@ namespace dmDDF
             dmhash_t name_hash = dmHashString64(d->m_Name);
             if (g_Descriptors.Get(name_hash) != 0)
             {
-                dmLogError("Name clash. Type %s already registered.", d->m_Name)
+                // Logging is disabled. See case https://defold.fogbugz.com/default.asp?740
+                //dmLogError("Name clash. Type %s already registered.", d->m_Name)
             }
             else
             {
