@@ -131,6 +131,28 @@
             </command>
          </menu>
       </menuContribution>
+      <menuContribution
+            allPopups="false"
+            locationURI="menu:help">
+         <command
+               commandId="com.dynamo.crepo.commands.openWebLink"
+               label="Documentation..."
+               style="push">
+            <parameter
+                  name="com.dynamo.crepo.commands.openWebLink.url"
+                  value="http://www.defold.se/#documentation:">
+            </parameter>
+         </command>
+         <command
+               commandId="com.dynamo.crepo.commands.openWebLink"
+               label="Feedback..."
+               style="push">
+            <parameter
+                  name="com.dynamo.crepo.commands.openWebLink.url"
+                  value="http://defold.userecho.com">
+            </parameter>
+         </command>
+      </menuContribution>
    </extension>
    <extension
          point="org.eclipse.ui.commands">
@@ -196,6 +218,18 @@
             description="Switch OpenID Account"
             id="com.dynamo.crepo.commands.switchOpenID"
             name="Switch OpenID Account">
+      </command>
+      <command
+            categoryId="com.dynamo.crepo.category"
+            defaultHandler="com.dynamo.cr.editor.handlers.OpenWebLinkHandler"
+            description="Open Web Link"
+            id="com.dynamo.crepo.commands.openWebLink"
+            name="Open Web Link">
+         <commandParameter
+               id="com.dynamo.crepo.commands.openWebLink.url"
+               name="link"
+               optional="false">
+         </commandParameter>
       </command>
    </extension>
 
@@ -326,6 +360,14 @@
       <activityPatternBinding
             activityId="com.dynamo.cr.editor.activities.disableEclipseUI"
             pattern="_org\.eclipse\.ui\.views/org\.eclipse\.ui\.views\.properties\.NewPropertySheetCommand">
+      </activityPatternBinding>
+      <activityPatternBinding
+            activityId="com.dynamo.cr.editor.activities.disableEclipseUI"
+            pattern="org\.eclipse\.equinox\.p2\.ui\.sdk/org\.eclipse\.equinox\.p2\.ui\.sdk\.update">
+      </activityPatternBinding>
+      <activityPatternBinding
+            activityId="com.dynamo.cr.editor.activities.disableEclipseUI"
+            pattern="org\.eclipse\.equinox\.p2\.ui\.sdk/org\.eclipse\.equinox\.p2\.ui\.sdk\.install">
       </activityPatternBinding>
    </extension>
    <extension
