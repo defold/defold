@@ -1,8 +1,10 @@
 package com.dynamo.cr.editor.decorators;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.Vector;
 
 import org.eclipse.core.resources.IFolder;
@@ -13,6 +15,8 @@ import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.viewers.IDecoration;
 import org.eclipse.jface.viewers.ILabelProviderListener;
 import org.eclipse.jface.viewers.ILightweightLabelDecorator;
+import org.eclipse.jface.viewers.LabelProviderChangedEvent;
+import org.eclipse.swt.widgets.Display;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.statushandlers.StatusManager;
 
@@ -123,6 +127,9 @@ public class BranchStatusDecorator implements ILightweightLabelDecorator, IBranc
 
         IFolder contentRoot = EditorUtil.getContentRoot(project);
 
+        Set<IResource> changedResources = new HashSet<IResource>();
+        changedResources.addAll(resourceToStatus.keySet());
+
         BranchStatus branchStatus = event.getBranchStatus();
         List<BranchStatus.Status> fileStatusList = branchStatus.getFileStatusList();
         resourceToStatus.clear();
@@ -135,5 +142,22 @@ public class BranchStatusDecorator implements ILightweightLabelDecorator, IBranc
                 StatusManager.getManager().handle(status, StatusManager.LOG);
             }
         }
+        changedResources.addAll(resourceToStatus.keySet());
+
+        LabelProviderChangedEvent providerEvent = new LabelProviderChangedEvent(this, changedResources.toArray());
+        fireLabelProviderChanged(providerEvent);
+    }
+
+    private void fireLabelProviderChanged(final LabelProviderChangedEvent event) {
+        // Decorate using current UI thread
+        Display.getDefault().asyncExec(new Runnable() {
+            @Override
+            public void run()
+            {
+                for (ILabelProviderListener listener : listeners) {
+                    listener.labelProviderChanged(event);
+                }
+            }
+        });
     }
 }
