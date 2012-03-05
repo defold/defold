@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <?pde version="3.5"?>
 
-<product name="Defold Editor" uid="com.dynamo.cr.editor.product" id="com.dynamo.cr.editor.product" application="com.dynamo.cr.editor.application" version="1.0.60" useFeatures="false" includeLaunchers="true">
+<product name="Defold Editor" uid="com.dynamo.cr.editor.product" id="com.dynamo.cr.editor.product" application="com.dynamo.cr.editor.application" version="1.0.61" useFeatures="false" includeLaunchers="true">
 
    <configIni use="default">
    </configIni>
@@ -30,6 +30,7 @@
 
    <vm>
    </vm>
+
 
    <plugins>
       <plugin id="com.dynamo.cr.bob"/>
