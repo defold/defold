@@ -1,0 +1,27 @@
+#
+# Copyright (c) 2006, Oracle and/or its affiliates. All rights reserved.
+# Use is subject to license terms.
+#
+# %W% %E%
+#
+# Desktop entry for automatic execution of files identified as either the
+# x-jar or x-java-archive (historical) mime type.
+#
+# Note: This file may be installed under both "control-center-2.0" and
+# "applications".  Depending upon the version of GNOME, the copy in
+# "applications" may take precedence.
+#
+# One might be tempted to add "Java" to the Catergories, but the definition
+# is "uses Swing/ATW" whhich may not be true.
+#
+[Desktop Entry]
+Encoding=UTF-8
+Name=Java
+Comment=Java Virtual Machine
+Exec=java -jar
+Icon=sun-java.png
+Terminal=false
+Type=Application
+NoDisplay=true
+Categories=Applications;
+MimeType=application/x-java-archive;application/x-jar;

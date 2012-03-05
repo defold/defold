@@ -1,0 +1,501 @@
+# javafx-rt-windows-i586__V1.2.1_b28.jar
+SHA1-Digest-Manifest: NJO6IRnZizWr+AIFDnLWc90BwzY=
+
+# javafx-rt-windows-i586__V1.2.2_b5.jar
+SHA1-Digest-Manifest: 6do0Efqo8i7NAvVYZ6b/U3ZPYgE=
+
+# javafx-rt-natives-windows-i586__V1.2.1_b28.jar
+SHA1-Digest-Manifest: pImEWhMxOFFKGmXjnnwynHXM7CU=
+
+# javafx-rt-natives-windows-i586__V1.2.2_b5.jar
+SHA1-Digest-Manifest: 9HL24tWCvSreKEll3BwJWdkI+Ek=
+
+# jogl__V1.1.1a.jar
+SHA1-Digest-Manifest: PjIv7SwT7j6GiBCsXQzIFX2mqXQ=
+
+# gluegen-rt__V1.0b06a.jar
+SHA1-Digest-Manifest: FczEBfUR1EXNH1T9qzDTgDSU5+0=
+
+#JOGL demo runtimes
+
+# jogl.all.jar
+SHA1-Digest-Manifest: PqsWZOzLJR+btL9Z8o8fkij/kQ4=
+
+# gluegen-rt.jar
+SHA1-Digest-Manifest: blhixqDG/fiTK/n6UCFjpLakhEA=
+
+# gluegen-rt-natives-windows-i586.jar
+SHA1-Digest-Manifest: BvDhRfhMJzpFqiz07T8eNyd0oxQ=
+
+# nativewindow.all.jar
+SHA1-Digest-Manifest: fn9HQw0B5l6r/Pr1Fecmpcdn2WE=
+
+# nativewindow-natives-windows-i586.jar
+SHA1-Digest-Manifest: qK678TXlv3+pzgVv99yhAXLbe+0=
+
+# jogl-natives-windows-i586.jar
+SHA1-Digest-Manifest: YGRIjHLZewXvlXva6hdd5fNZJec=
+
+# JavaFX 1.2.3
+
+# applet-launcher__V1.2.3_b36.jar
+SHA1-Digest-Manifest: OOuvnw6gjlS+hnOkgN/m5dwnM2I=
+
+# gluegen-rt-natives-macosx-x86_64__V1.2.3_b36.jar
+SHA1-Digest-Manifest: wMHIhbDW2pV3FMtLovrtTeFS2mk=
+
+# gluegen-rt-natives-windows-amd64__V1.2.3_b36.jar
+SHA1-Digest-Manifest: gjXZ5Ri8rlrXLwgEMlTbGQyvn2g=
+
+# javafx-jmc-natives-windows-i586__V1.2.3_b36.jar
+SHA1-Digest-Manifest: 9S6TuE6s0q/rKqiuHJzFT0ZQtmU=
+
+# javafx-rt-linux-i586__V1.2.3_b36.jar
+SHA1-Digest-Manifest: QEq6Nw6e6/QrF7nYtFmzpIF8BM0=
+
+# javafx-rt-macosx-universal__V1.2.3_b36.jar
+SHA1-Digest-Manifest: o4cb6scwRNIy3XMB8Ab5tmA9rb0=
+
+# javafx-rt-natives-linux-i586__V1.2.3_b36.jar
+SHA1-Digest-Manifest: vXwKtrz2/cikSpQMAgPg1TDV6PA=
+
+# javafx-rt-natives-macosx-i386__V1.2.3_b36.jar
+SHA1-Digest-Manifest: h5ltxynZ0fi4we5KgIxB80GEzCM=
+
+# javafx-rt-natives-macosx-ppc__V1.2.3_b36.jar
+SHA1-Digest-Manifest: PVxJI4eVpS1dFDjXBxy7fc7v8lc=
+
+# javafx-rt-natives-macosx-universal__V1.2.3_b36.jar
+SHA1-Digest-Manifest: r8V4Gqem5ZeuX5QXLGnLe6tAdQc=
+
+# javafx-rt-natives-macosx-x86_64__V1.2.3_b36.jar
+SHA1-Digest-Manifest: y9r/A7kwQ0TUg8SxB7VN3XINX7Q=
+
+# javafx-rt-natives-solaris-i586__V1.2.3_b36.jar
+SHA1-Digest-Manifest: SkGpiaIF9D/raOU2wujdFV5arcw=
+
+# javafx-rt-natives-windows-i586__V1.2.3_b36.jar
+SHA1-Digest-Manifest: i6GJuM3BFTv2zB9832BDcomJdh0=
+
+# javafx-rt-solaris-i586__V1.2.3_b36.jar
+SHA1-Digest-Manifest: rIFZ9EiOkhGoOwwIGoA5sdTGRco=
+
+# javafx-rt-windows-i586__V1.2.3_b36.jar
+SHA1-Digest-Manifest: 2ZgfDdKO9oXdtOjCSXuf4Ebns2g=
+
+# javafx-sdk__V1.2.3_b36.jar
+SHA1-Digest-Manifest: jK25cZMHwlj2Cv782PTnDVjq7NI=
+
+# jogl-natives-windows-amd64__V1.2.3_b36.jar
+SHA1-Digest-Manifest: 8Hi0hkOkeUh6cSo7g0uAjOfWLdE=
+
+# JavaFX 1.1.1
+
+# applet-launcher__V1.1.1.jar
+SHA1-Digest-Manifest: hTyO9kp8tuzFK7CrOPQ6EzdRoa0=
+
+# Decora-D3D-natives-windows-i586__V1.1.1.jar
+SHA1-Digest-Manifest: Ux6RcIym1mRlLwZbEKupmzMC3hM=
+
+# Decora-D3D__V1.1.1.jar
+SHA1-Digest-Manifest: xZGhjDUMbo0Brvm8j+ItkZzIgZw=
+
+# Decora-HW__V1.1.1.jar
+SHA1-Digest-Manifest: iEOXErJj5l3OnfiK1oJMpqUkl5M=
+
+# Decora-OGL__V1.1.1.jar
+SHA1-Digest-Manifest: h9WQlfnKa+eEyuDHvgzjF2lBulk=
+
+# Decora-SSE-natives-macosx__V1.1.1.jar
+SHA1-Digest-Manifest: OiggXWJlpazyg53Sx0aZIrVJ+pQ=
+
+# Decora-SSE-natives-windows-i586__V1.1.1.jar
+SHA1-Digest-Manifest: wCwBn7ZAeUwwkPLdtxy6E00CNxw=
+
+# Decora-SSE__V1.1.1.jar
+SHA1-Digest-Manifest: S2TjeQlty/kyqeWj6iujApee4ao=
+
+# javafx-rt__V1.1.1.jar
+SHA1-Digest-Manifest: mJTSiNiD1Ay3qCikncf5gCFMCcg=
+
+# javafx-sdk__V1.1.1.jar
+SHA1-Digest-Manifest: Suv17PwWjdn+fIBNii4rlg07+sg=
+
+# jmc-natives-linux-i586__V1.1.1.jar
+SHA1-Digest-Manifest: egG01BcXZDNSFXc0UmY/5KCPFBg=
+
+# jmc-natives-macosx__V1.1.1.jar
+SHA1-Digest-Manifest: xHDcFKyfqbTqKu/A4J46IGh8KTY=
+
+# jmc-natives-windows-i586__V1.1.1.jar
+SHA1-Digest-Manifest: HEWh+/BIvemIdr/uvzXD4WDFszo=
+
+# jmc__V1.1.1.jar
+SHA1-Digest-Manifest: hEBWAiaU9ci8hbXVO/rGFla1O/k=
+
+# JavaFX 1.1.1
+
+# applet-launcher__V1.0.1.jar
+SHA1-Digest-Manifest: hTyO9kp8tuzFK7CrOPQ6EzdRoa0=
+
+# Decora-D3D-natives-windows-i586__V1.0.1.jar
+SHA1-Digest-Manifest: WofMHjbwtcAxjD1k8zmGC7+XeKE=
+
+# Decora-D3D__V1.0.1.jar
+SHA1-Digest-Manifest: mmWLypbCUuEmnVwnW4HClyp9DiY=
+
+# Decora-HW__V1.0.1.jar
+SHA1-Digest-Manifest: VpYSLoPYsd/dgYY3BYRpclTqICE=
+
+# Decora-OGL__V1.0.1.jar
+SHA1-Digest-Manifest: gg/uCcXncs95F/11NbQaGVKGZDc=
+
+# Decora-SSE-natives-macosx__V1.0.1.jar
+SHA1-Digest-Manifest: 25WUe8j0holZLVNZ6J0dlenWLnA=
+
+# Decora-SSE-natives-windows-i586__V1.0.1.jar
+SHA1-Digest-Manifest: iMbn+qYZiOq9dBMrh5aM5sAjV+U=
+
+# Decora-SSE__V1.0.1.jar
+SHA1-Digest-Manifest: zU7Q5PdTcG4mU/t0HM2AQPlQRxI=
+
+# javafx-rt__V1.0.1.jar
+SHA1-Digest-Manifest: vRnWH+sW7qdfqVIQO3UbQONT2/Q=
+
+# javafx-sdk__V1.0.1.jar
+SHA1-Digest-Manifest: oJmS2A6RPXYWTbShmj6dWWR6z0I=
+
+# jmc-natives-linux-i586__V1.0.1.jar
+SHA1-Digest-Manifest: Ao+ymKBvdK//VDOCOBh3S1aLEDE=
+
+# jmc-natives-macosx__V1.0.1.jar
+SHA1-Digest-Manifest: Clwx6bIHT/brAaEN3VMW62fIx0I=
+
+# jmc-natives-windows-i586__V1.0.1.jar
+SHA1-Digest-Manifest: CxM4ACDvHPiCGkSAu7nlGK83JXg=
+
+# jmc__V1.0.1.jar
+SHA1-Digest-Manifest: lmyYM5nl1uTK2uv8pDrQVl11GDs=
+
+# JOGL
+
+# Decora-JOGL__V1.1.1.jar
+SHA1-Digest-Manifest: QXg5+L9XdO/VbpxannGooFMZqr8=
+
+# Decora-JOGL__V1.1.0.jar
+SHA1-Digest-Manifest: QXg5+L9XdO/VbpxannGooFMZqr8=
+
+# jogl-natives-linux-amd64__V1.1.1a.jar
+SHA1-Digest-Manifest: SUiAPpzP+vtFJeDBcindWcycMFM=
+
+# jogl-natives-linux-amd64__V1.1.1.jar
+SHA1-Digest-Manifest: SUiAPpzP+vtFJeDBcindWcycMFM=
+
+# jogl-natives-linux-i586__V1.1.1a.jar
+SHA1-Digest-Manifest: tn35V1kzlxL9PZ5Mv/AvFUBw0Zo=
+
+# jogl-natives-linux-i586__V1.1.1.jar
+SHA1-Digest-Manifest: tn35V1kzlxL9PZ5Mv/AvFUBw0Zo=
+
+# jogl-natives-macosx-ppc__V1.1.1a.jar
+SHA1-Digest-Manifest: 8YT24q39X4vHXF817zCaO1iYeZU=
+
+# jogl-natives-macosx-ppc__V1.1.1.jar
+SHA1-Digest-Manifest: 8YT24q39X4vHXF817zCaO1iYeZU=
+
+# jogl-natives-macosx-universal__V1.1.1a.jar
+SHA1-Digest-Manifest: eHTos/pIVmVIEfzJ5xHVCpJY80s=
+
+# jogl-natives-macosx-universal__V1.1.1.jar
+SHA1-Digest-Manifest: eHTos/pIVmVIEfzJ5xHVCpJY80s=
+
+# jogl-natives-solaris-amd64__V1.1.1a.jar
+SHA1-Digest-Manifest: 7SEftCV0w9AwtqKdOJ5QHxnAZi0=
+
+# jogl-natives-solaris-amd64__V1.1.1.jar
+SHA1-Digest-Manifest: 7SEftCV0w9AwtqKdOJ5QHxnAZi0=
+
+# jogl-natives-solaris-i586__V1.1.1a.jar
+SHA1-Digest-Manifest: wp7uBYOhtJqebnRLHDaYzdSzNyE=
+
+# jogl-natives-solaris-i586__V1.1.1.jar
+SHA1-Digest-Manifest: wp7uBYOhtJqebnRLHDaYzdSzNyE=
+
+# jogl-natives-solaris-sparc__V1.1.1a.jar
+SHA1-Digest-Manifest: ebzpfUb1SrjSA2z68e/Gyr6sZ4s=
+
+# jogl-natives-solaris-sparc__V1.1.1.jar
+SHA1-Digest-Manifest: ebzpfUb1SrjSA2z68e/Gyr6sZ4s=
+
+# jogl-natives-solaris-sparcv9__V1.1.1a.jar
+SHA1-Digest-Manifest: L24pQzJnoowcul7Ldk9xVrHTyX8=
+
+# jogl-natives-solaris-sparcv9__V1.1.1.jar
+SHA1-Digest-Manifest: L24pQzJnoowcul7Ldk9xVrHTyX8=
+
+# jogl-natives-windows-amd64__V1.1.1a.jar
+SHA1-Digest-Manifest: 8Hi0hkOkeUh6cSo7g0uAjOfWLdE=
+
+# jogl-natives-windows-amd64__V1.1.1.jar
+SHA1-Digest-Manifest: 8Hi0hkOkeUh6cSo7g0uAjOfWLdE=
+
+# jogl-natives-windows-i586__V1.1.1a.jar
+SHA1-Digest-Manifest: DpR2pVidgnI/EISDCDWTh7CKHyE=
+
+# jogl-natives-windows-i586__V1.1.1.jar
+SHA1-Digest-Manifest: DpR2pVidgnI/EISDCDWTh7CKHyE=
+
+# jogl__V1.1.1a.jar
+SHA1-Digest-Manifest: IXfEDj4Oowy+OExU9tqNX/yEyG4=
+
+# jogl__V1.1.1.jar
+SHA1-Digest-Manifest: IXfEDj4Oowy+OExU9tqNX/yEyG4=
+
+# gluegen-rt-natives-linux-amd64__V1.0b06a.jar
+SHA1-Digest-Manifest: mWCR2AdEmq+9jv/tF6vfwSyWSj4=
+
+# gluegen-rt-natives-linux-amd64__V1.0b06.jar
+SHA1-Digest-Manifest: mWCR2AdEmq+9jv/tF6vfwSyWSj4=
+
+# gluegen-rt-natives-linux-i586__V1.0b06a.jar
+SHA1-Digest-Manifest: JWQd/xBC5HbRKdKNyfIozuicFmw=
+
+# gluegen-rt-natives-linux-i586__V1.0b06.jar
+SHA1-Digest-Manifest: JWQd/xBC5HbRKdKNyfIozuicFmw=
+
+# gluegen-rt-natives-macosx-ppc__V1.0b06a.jar
+SHA1-Digest-Manifest: 9mFUUvSDvRBHHFIYJ2QMFP1WT1A=
+
+# gluegen-rt-natives-macosx-ppc__V1.0b06.jar
+SHA1-Digest-Manifest: 9mFUUvSDvRBHHFIYJ2QMFP1WT1A=
+
+# gluegen-rt-natives-macosx-universal__V1.0b06a.jar
+SHA1-Digest-Manifest: s8ypudj+MrTd0hVcsKEPgwufiG8=
+
+# gluegen-rt-natives-macosx-universal__V1.0b06.jar
+SHA1-Digest-Manifest: s8ypudj+MrTd0hVcsKEPgwufiG8=
+
+# gluegen-rt-natives-solaris-amd64__V1.0b06a.jar
+SHA1-Digest-Manifest: 4pPw3F54UCrStkbIMdmMcjYD7Qs=
+
+# gluegen-rt-natives-solaris-amd64__V1.0b06.jar
+SHA1-Digest-Manifest: 4pPw3F54UCrStkbIMdmMcjYD7Qs=
+
+# gluegen-rt-natives-solaris-i586__V1.0b06a.jar
+SHA1-Digest-Manifest: DK8g47UGc+yWngVQuFR9VepP/dQ=
+
+# gluegen-rt-natives-solaris-i586__V1.0b06.jar
+SHA1-Digest-Manifest: DK8g47UGc+yWngVQuFR9VepP/dQ=
+
+# gluegen-rt-natives-solaris-sparc__V1.0b06a.jar
+SHA1-Digest-Manifest: e3TVJSMsoVj+C3bJv6MomiO+MYE=
+
+# gluegen-rt-natives-solaris-sparc__V1.0b06.jar
+SHA1-Digest-Manifest: e3TVJSMsoVj+C3bJv6MomiO+MYE=
+
+# gluegen-rt-natives-solaris-sparcv9__V1.0b06a.jar
+SHA1-Digest-Manifest: tNm5RTcuzyeUsy+SYCGdBqKYIfg=
+
+# gluegen-rt-natives-solaris-sparcv9__V1.0b06.jar
+SHA1-Digest-Manifest: tNm5RTcuzyeUsy+SYCGdBqKYIfg=
+
+# gluegen-rt-natives-windows-amd64__V1.0b06a.jar
+SHA1-Digest-Manifest: gjXZ5Ri8rlrXLwgEMlTbGQyvn2g=
+
+# gluegen-rt-natives-windows-amd64__V1.0b06.jar
+SHA1-Digest-Manifest: gjXZ5Ri8rlrXLwgEMlTbGQyvn2g=
+
+# gluegen-rt-natives-windows-i586__V1.0b06a.jar
+SHA1-Digest-Manifest: bOJKwYthgnr872NcgEFH+NhFR5I=
+
+# gluegen-rt-natives-windows-i586__V1.0b06.jar
+SHA1-Digest-Manifest: bOJKwYthgnr872NcgEFH+NhFR5I=
+
+# gluegen-rt__V1.0b06a.jar
+SHA1-Digest-Manifest: NFtC8B0eIsy6/C4RBDuy2o/ks6U=
+
+# gluegen-rt__V1.0b06.jar
+SHA1-Digest-Manifest: NFtC8B0eIsy6/C4RBDuy2o/ks6U=
+
+# More gluegen
+
+# applet-launcher.jar
+SHA1-Digest-Manifest: VSuZT2pgKojO7ezuoXEeiY0zAqg=
+
+# gluegen-rt.jar
+SHA1-Digest-Manifest: C/DWE9KsfkQQGaVajAT55sRB3lI=
+
+# gluegen-rt-natives-windows-i586.jar
+SHA1-Digest-Manifest: bOJKwYthgnr872NcgEFH+NhFR5I=
+
+# gluegen-rt-natives-windows-amd64.jar
+SHA1-Digest-Manifest: gjXZ5Ri8rlrXLwgEMlTbGQyvn2g=
+
+# gluegen-rt-natives-linux-i586.jar
+SHA1-Digest-Manifest: JWQd/xBC5HbRKdKNyfIozuicFmw=
+
+# gluegen-rt-natives-linux-amd64.jar
+SHA1-Digest-Manifest: mWCR2AdEmq+9jv/tF6vfwSyWSj4=
+
+# gluegen-rt-natives-solaris-sparc.jar
+SHA1-Digest-Manifest: e3TVJSMsoVj+C3bJv6MomiO+MYE=
+
+# gluegen-rt-natives-solaris-sparcv9.jar
+SHA1-Digest-Manifest: tNm5RTcuzyeUsy+SYCGdBqKYIfg=
+
+# gluegen-rt-natives-solaris-i586.jar
+SHA1-Digest-Manifest: DK8g47UGc+yWngVQuFR9VepP/dQ=
+
+# gluegen-rt-natives-solaris-amd64.jar
+SHA1-Digest-Manifest: 4pPw3F54UCrStkbIMdmMcjYD7Qs=
+
+# gluegen-rt-natives-macosx-ppc.jar
+SHA1-Digest-Manifest: 9mFUUvSDvRBHHFIYJ2QMFP1WT1A=
+
+# gluegen-rt-natives-macosx-universal.jar
+SHA1-Digest-Manifest: s8ypudj+MrTd0hVcsKEPgwufiG8=
+
+# Java3D
+
+# j3dcore.jar
+SHA1-Digest-Manifest: q32LO2ymMouhLGPGEXHj8iMPxwg=
+
+# j3dutils.jar
+SHA1-Digest-Manifest: +I6h46PtfnHlqHToM4vtBYf6Sbo=
+
+# vecmath.jar
+SHA1-Digest-Manifest: wyoyLOQXl3La0idGTL9FnhKGCog=
+
+# joalmixer.jar
+SHA1-Digest-Manifest: eBxwVnJ+C3+NzTRYANHNfBt0kDQ=
+
+# j3dcore-ogl-chk_dll.jar
+SHA1-Digest-Manifest: 1g2aqFVC/bqOdYlKCNpHj4sUe1o=
+
+# j3dcore-ogl_dll.jar
+SHA1-Digest-Manifest: QdsPocZVWIgacy1LuCk7XdGRKOs=
+
+# j3dcore-d3d_dll.jar
+SHA1-Digest-Manifest: V6pU8vAFm2TwjixnqC5+/hH6oT4=
+
+# j3dcore-ogl_dll.jar
+SHA1-Digest-Manifest: 6zUjjFktd9psN2IZZ69HdglgwXw=
+
+# lib_j3dcore-ogl_so.jar
+SHA1-Digest-Manifest: 1xOpin2wIE3lH1e6FcWmbn+bh6c=
+
+# lib_j3dcore-ogl_so.jar
+SHA1-Digest-Manifest: nnI8Tgc7cVDRhzFOenDKX7GFZys=
+
+# lib_j3dcore-ogl_so.jar
+SHA1-Digest-Manifest: UJpK8iCpFZOxGelUSyCAzDG4lwI=
+
+# lib_j3dcore-ogl_so.jar
+SHA1-Digest-Manifest: 2xPyjuYHhwcnm7V6JhSSeltZTjU=
+
+# lib_j3dcore-ogl_so.jar
+SHA1-Digest-Manifest: 6oRfkNGiY8mSNkzWGedWblV9EYs=
+
+# lib_j3dcore-ogl_so.jar
+SHA1-Digest-Manifest: 4j8WUb+zOjDPJ+ouqGfUQD9eHyc=
+
+# JOAL
+
+# joal.jar
+SHA1-Digest-Manifest: tLSVOd35UBG6O3ygs1ytgT2GsO0=
+
+# joal-natives-windows-i586.jar
+SHA1-Digest-Manifest: dkSxLL1wf2da/hzCXfxqxTfJ/aw=
+
+# joal-natives-linux-i586.jar
+SHA1-Digest-Manifest: r6K92Av4Gx/2pmerOTZeljg+vk4=
+
+# joal-natives-macosx-ppc.jar
+SHA1-Digest-Manifest: C5NqjEYh8dpmbALIeWq/L3s11pU=
+
+# joal-natives-macosx-universal.jar
+SHA1-Digest-Manifest: 5Bjpp545tA7weKeJFMsEgvFZ/3Y=
+
+# JOGL
+
+# jogl.jar
+SHA1-Digest-Manifest: 9KZFJDUedKxFjaClCYSnCMkWkzE=
+
+# jogl-natives-windows-i586.jar
+SHA1-Digest-Manifest: /makispaP+1cPqT1Xx0ASDuMc3k=
+
+# jogl-natives-windows-amd64.jar
+SHA1-Digest-Manifest: Y3gCUCqiVLrv/yJafRn+SaSjfNA=
+
+# jogl-natives-linux-i586.jar
+SHA1-Digest-Manifest: nLbh5AychWVdsvSrpDrPtOWdqvI=
+
+# jogl-natives-linux-amd64.jar
+SHA1-Digest-Manifest: mR+Wm79PMOTzQ/jT9WQ6v/zOE5o=
+
+# jogl-natives-solaris-sparc.jar
+SHA1-Digest-Manifest: FLWXSu8+vJcnTK7gsx4zzpzeGAE=
+
+# jogl-natives-solaris-sparcv9.jar
+SHA1-Digest-Manifest: JevoWvBagJ5VPWVtlfVvdxfH/G4=
+
+# jogl-natives-solaris-i586.jar
+SHA1-Digest-Manifest: iEd4mKOgu0DIfXB/aCZ4yke++Uw=
+
+# jogl-natives-solaris-amd64.jar
+SHA1-Digest-Manifest: AHlneDM3JVHHCb2k6BRrw8Q1H1w=
+
+# jogl-natives-macosx-ppc.jar
+SHA1-Digest-Manifest: YxBfWuqSMEN9DISnFso/9PN9CcY=
+
+# jogl-natives-macosx-universal.jar
+SHA1-Digest-Manifest: NddWCXHa2FBLkpcVxTRPfskhI1g=
+
+# gluegen-rt.jar
+SHA1-Digest-Manifest: C/DWE9KsfkQQGaVajAT55sRB3lI=
+
+# gluegen-rt-natives-windows-i586.jar
+SHA1-Digest-Manifest: bOJKwYthgnr872NcgEFH+NhFR5I=
+
+# gluegen-rt-natives-windows-amd64.jar
+SHA1-Digest-Manifest: gjXZ5Ri8rlrXLwgEMlTbGQyvn2g=
+
+# gluegen-rt-natives-linux-i586.jar
+SHA1-Digest-Manifest: JWQd/xBC5HbRKdKNyfIozuicFmw=
+
+# gluegen-rt-natives-linux-amd64.jar
+SHA1-Digest-Manifest: mWCR2AdEmq+9jv/tF6vfwSyWSj4=
+
+# gluegen-rt-natives-solaris-sparc.jar
+SHA1-Digest-Manifest: e3TVJSMsoVj+C3bJv6MomiO+MYE=
+
+# gluegen-rt-natives-solaris-sparcv9.jar
+SHA1-Digest-Manifest: tNm5RTcuzyeUsy+SYCGdBqKYIfg=
+
+# gluegen-rt-natives-solaris-i586.jar
+SHA1-Digest-Manifest: DK8g47UGc+yWngVQuFR9VepP/dQ=
+
+# gluegen-rt-natives-solaris-amd64.jar
+SHA1-Digest-Manifest: 4pPw3F54UCrStkbIMdmMcjYD7Qs=
+
+# gluegen-rt-natives-macosx-ppc.jar
+SHA1-Digest-Manifest: 9mFUUvSDvRBHHFIYJ2QMFP1WT1A=
+
+# gluegen-rt-natives-macosx-universal.jar
+SHA1-Digest-Manifest: s8ypudj+MrTd0hVcsKEPgwufiG8=
+
+# joal.jar
+SHA1-Digest-Manifest: tLSVOd35UBG6O3ygs1ytgT2GsO0=
+
+# joal-natives-windows-i586.jar
+SHA1-Digest-Manifest: dkSxLL1wf2da/hzCXfxqxTfJ/aw=
+
+# joal-natives-linux-i586.jar
+SHA1-Digest-Manifest: r6K92Av4Gx/2pmerOTZeljg+vk4=
+
+# joal-natives-macosx-ppc.jar
+SHA1-Digest-Manifest: C5NqjEYh8dpmbALIeWq/L3s11pU=
+
+# joal-natives-macosx-universal.jar
+SHA1-Digest-Manifest: 5Bjpp545tA7weKeJFMsEgvFZ/3Y=
+

@@ -1,0 +1,165 @@
+# %W% %E%
+#
+# Copyright (c) 2003, Oracle and/or its affiliates. All rights reserved.
+#
+
+# Version
+
+version=1
+
+# Component Font Mappings
+
+allfonts.chinese-gb18030=-misc-zysong18030-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+allfonts.chinese-gb18030.motif=-isas-song ti-medium-r-normal--*-%d-*-*-c-*-gb2312.1980-0
+allfonts.chinese-big5=-arphic technology co.-ar pl mingti2l big5-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+allfonts.chinese-big5.motif=-taipei-fixed-medium-r-normal--*-%d-*-*-c-*-big5-0
+allfonts.lucida=-b&h-lucidasans-medium-r-normal-sans-*-%d-*-*-p-*-iso8859-1
+
+serif.plain.japanese-x0208=-misc-kochi mincho-medium-r-normal--*-%d-*-*-c-*-jisx0208.1983-0
+serif.plain.korean=-misc-baekmuk batang-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+serif.plain.korean.motif=-misc-baekmuk batang-medium-r-normal--*-%d-*-*-c-*-ksc5601.1987-0
+serif.plain.latin-1=-b&h-lucidabright-medium-r-normal--*-%d-*-*-p-*-iso8859-1
+serif.plain.latin-1.motif=-b&h-luxi serif-medium-r-normal--*-%d-*-*-p-*-iso8859-1
+
+serif.bold.japanese-x0208=-misc-kochi mincho-medium-r-normal--*-%d-*-*-c-*-jisx0208.1983-0
+serif.bold.korean=-misc-baekmuk batang-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+serif.bold.korean.motif=-misc-baekmuk batang-medium-r-normal--*-%d-*-*-c-*-ksc5601.1987-0
+serif.bold.latin-1=-b&h-lucidabright-demibold-r-normal--*-%d-*-*-p-*-iso8859-1
+serif.bold.latin-1.motif=-b&h-luxi serif-bold-r-normal--*-%d-*-*-p-*-iso8859-1
+
+serif.italic.japanese-x0208=-misc-kochi mincho-medium-r-normal--*-%d-*-*-c-*-jisx0208.1983-0
+serif.italic.korean=-misc-baekmuk batang-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+serif.italic.korean.motif=-misc-baekmuk batang-medium-r-normal--*-%d-*-*-c-*-ksc5601.1987-0
+serif.italic.latin-1=-b&h-lucidabright-medium-i-normal--*-%d-*-*-p-*-iso8859-1
+serif.italic.latin-1.motif=-b&h-luxi serif-medium-i-normal--*-%d-*-*-p-*-iso8859-1
+
+serif.bolditalic.japanese-x0208=-misc-kochi mincho-medium-r-normal--*-%d-*-*-c-*-jisx0208.1983-0
+serif.bolditalic.korean=-misc-baekmuk batang-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+serif.bolditalic.korean.motif=-misc-baekmuk batang-medium-r-normal--*-%d-*-*-c-*-ksc5601.1987-0
+serif.bolditalic.latin-1=-b&h-lucidabright-demibold-i-normal--*-%d-*-*-p-*-iso8859-1
+serif.bolditalic.latin-1.motif=-b&h-luxi serif-bold-i-normal--*-%d-*-*-p-*-iso8859-1
+
+sansserif.plain.japanese-x0208=-misc-kochi gothic-medium-r-normal--*-%d-*-*-c-*-jisx0208.1983-0
+sansserif.plain.korean=-misc-baekmuk gulim-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+sansserif.plain.korean.motif=-misc-baekmuk gulim-medium-r-normal--*-%d-*-*-c-*-ksc5601.1987-0
+sansserif.plain.latin-1=-b&h-lucidasans-medium-r-normal-sans-*-%d-*-*-p-*-iso8859-1
+sansserif.plain.latin-1.motif=-b&h-luxi sans-medium-r-normal--*-%d-*-*-p-*-iso8859-1
+
+sansserif.bold.japanese-x0208=-misc-kochi gothic-medium-r-normal--*-%d-*-*-c-*-jisx0208.1983-0
+sansserif.bold.korean=-misc-baekmuk gulim-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+sansserif.bold.korean.motif=-misc-baekmuk gulim-medium-r-normal--*-%d-*-*-c-*-ksc5601.1987-0
+sansserif.bold.latin-1=-b&h-lucidasans-bold-r-normal-sans-*-%d-*-*-p-*-iso8859-1
+sansserif.bold.latin-1.motif=-b&h-luxi sans-bold-r-normal--*-%d-*-*-p-*-iso8859-1
+
+sansserif.italic.japanese-x0208=-misc-kochi gothic-medium-r-normal--*-%d-*-*-c-*-jisx0208.1983-0
+sansserif.italic.korean=-misc-baekmuk gulim-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+sansserif.italic.korean.motif=-misc-baekmuk gulim-medium-r-normal--*-%d-*-*-c-*-ksc5601.1987-0
+sansserif.italic.latin-1=-b&h-lucidasans-medium-i-normal-sans-*-%d-*-*-p-*-iso8859-1
+sansserif.italic.latin-1.motif=-b&h-luxi sans-medium-i-normal--*-%d-*-*-p-*-iso8859-1
+
+sansserif.bolditalic.japanese-x0208=-misc-kochi gothic-medium-r-normal--*-%d-*-*-c-*-jisx0208.1983-0
+sansserif.bolditalic.korean=-misc-baekmuk gulim-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+sansserif.bolditalic.korean.motif=-misc-baekmuk gulim-medium-r-normal--*-%d-*-*-c-*-ksc5601.1987-0
+sansserif.bolditalic.latin-1=-b&h-lucidasans-bold-i-normal-sans-*-%d-*-*-p-*-iso8859-1
+sansserif.bolditalic.latin-1.motif=-b&h-luxi sans-bold-i-normal--*-%d-*-*-p-*-iso8859-1
+
+monospaced.plain.japanese-x0208=-misc-kochi mincho-medium-r-normal--*-%d-*-*-c-*-jisx0208.1983-0
+monospaced.plain.korean=-misc-baekmuk batang-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+monospaced.plain.korean.motif=-misc-baekmuk batang-medium-r-normal--*-%d-*-*-c-*-ksc5601.1987-0
+monospaced.plain.latin-1=-b&h-lucidatypewriter-medium-r-normal-sans-*-%d-*-*-m-*-iso8859-1
+monospaced.plain.latin-1.motif=-b&h-luxi mono-medium-r-normal--*-%d-*-*-m-*-iso8859-1
+
+monospaced.bold.japanese-x0208=-misc-kochi mincho-medium-r-normal--*-%d-*-*-c-*-jisx0208.1983-0
+monospaced.bold.korean=-misc-baekmuk batang-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+monospaced.bold.korean.motif=-misc-baekmuk batang-medium-r-normal--*-%d-*-*-c-*-ksc5601.1987-0
+monospaced.bold.latin-1=-b&h-lucidatypewriter-bold-r-normal-sans-*-%d-*-*-m-*-iso8859-1
+monospaced.bold.latin-1.motif=-b&h-luxi mono-bold-r-normal--*-%d-*-*-m-*-iso8859-1
+
+monospaced.italic.japanese-x0208=-misc-kochi mincho-medium-r-normal--*-%d-*-*-c-*-jisx0208.1983-0
+monospaced.italic.korean=-misc-baekmuk batang-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+monospaced.italic.korean.motif=-misc-baekmuk batang-medium-r-normal--*-%d-*-*-c-*-ksc5601.1987-0
+monospaced.italic.latin-1=-b&h-lucidatypewriter-medium-i-normal-sans-*-%d-*-*-m-*-iso8859-1
+monospaced.italic.latin-1.motif=-b&h-luxi mono-medium-i-normal--*-%d-*-*-m-*-iso8859-1
+
+monospaced.bolditalic.japanese-x0208=-misc-kochi mincho-medium-r-normal--*-%d-*-*-c-*-jisx0208.1983-0
+monospaced.bolditalic.korean=-misc-baekmuk batang-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+monospaced.bolditalic.korean.motif=-misc-baekmuk batang-medium-r-normal--*-%d-*-*-c-*-ksc5601.1987-0
+monospaced.bolditalic.latin-1=-b&h-lucidatypewriter-bold-i-normal-sans-*-%d-*-*-m-*-iso8859-1
+monospaced.bolditalic.latin-1.motif=-b&h-luxi mono-bold-i-normal--*-%d-*-*-m-*-iso8859-1
+
+dialog.plain.japanese-x0208=-misc-kochi gothic-medium-r-normal--*-%d-*-*-c-*-jisx0208.1983-0
+dialog.plain.korean=-misc-baekmuk gulim-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+dialog.plain.korean.motif=-misc-baekmuk gulim-medium-r-normal--*-%d-*-*-c-*-ksc5601.1987-0
+dialog.plain.latin-1=-b&h-lucidasans-medium-r-normal-sans-*-%d-*-*-p-*-iso8859-1
+dialog.plain.latin-1.motif=-b&h-luxi sans-medium-r-normal--*-%d-*-*-p-*-iso8859-1
+
+dialog.bold.japanese-x0208=-misc-kochi gothic-medium-r-normal--*-%d-*-*-c-*-jisx0208.1983-0
+dialog.bold.korean=-misc-baekmuk gulim-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+dialog.bold.korean.motif=-misc-baekmuk gulim-medium-r-normal--*-%d-*-*-c-*-ksc5601.1987-0
+dialog.bold.latin-1=-b&h-lucidasans-bold-r-normal-sans-*-%d-*-*-p-*-iso8859-1
+dialog.bold.latin-1.motif=-b&h-luxi sans-bold-r-normal--*-%d-*-*-p-*-iso8859-1
+
+dialog.italic.japanese-x0208=-misc-kochi gothic-medium-r-normal--*-%d-*-*-c-*-jisx0208.1983-0
+dialog.italic.korean=-misc-baekmuk gulim-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+dialog.italic.korean.motif=-misc-baekmuk gulim-medium-r-normal--*-%d-*-*-c-*-ksc5601.1987-0
+dialog.italic.latin-1=-b&h-lucidasans-medium-i-normal-sans-*-%d-*-*-p-*-iso8859-1
+dialog.italic.latin-1.motif=-b&h-luxi sans-medium-i-normal--*-%d-*-*-p-*-iso8859-1
+
+dialog.bolditalic.japanese-x0208=-misc-kochi gothic-medium-r-normal--*-%d-*-*-c-*-jisx0208.1983-0
+dialog.bolditalic.korean=-misc-baekmuk gulim-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+dialog.bolditalic.korean.motif=-misc-baekmuk gulim-medium-r-normal--*-%d-*-*-c-*-ksc5601.1987-0
+dialog.bolditalic.latin-1=-b&h-lucidasans-bold-i-normal-sans-*-%d-*-*-p-*-iso8859-1
+dialog.bolditalic.latin-1.motif=-b&h-luxi sans-bold-i-normal--*-%d-*-*-p-*-iso8859-1
+
+dialoginput.plain.japanese-x0208=-misc-kochi mincho-medium-r-normal--*-%d-*-*-c-*-jisx0208.1983-0
+dialoginput.plain.korean=-misc-baekmuk batang-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+dialoginput.plain.korean.motif=-misc-baekmuk batang-medium-r-normal--*-%d-*-*-c-*-ksc5601.1987-0
+dialoginput.plain.latin-1=-b&h-lucidatypewriter-medium-r-normal-sans-*-%d-*-*-m-*-iso8859-1
+dialoginput.plain.latin-1.motif=-b&h-luxi mono-medium-r-normal--*-%d-*-*-m-*-iso8859-1
+
+dialoginput.bold.japanese-x0208=-misc-kochi mincho-medium-r-normal--*-%d-*-*-c-*-jisx0208.1983-0
+dialoginput.bold.korean=-misc-baekmuk batang-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+dialoginput.bold.korean.motif=-misc-baekmuk batang-medium-r-normal--*-%d-*-*-c-*-ksc5601.1987-0
+dialoginput.bold.latin-1=-b&h-lucidatypewriter-bold-r-normal-sans-*-%d-*-*-m-*-iso8859-1
+dialoginput.bold.latin-1.motif=-b&h-luxi mono-bold-r-normal--*-%d-*-*-m-*-iso8859-1
+
+dialoginput.italic.japanese-x0208=-misc-kochi mincho-medium-r-normal--*-%d-*-*-c-*-jisx0208.1983-0
+dialoginput.italic.korean=-misc-baekmuk batang-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+dialoginput.italic.korean.motif=-misc-baekmuk batang-medium-r-normal--*-%d-*-*-c-*-ksc5601.1987-0
+dialoginput.italic.latin-1=-b&h-lucidatypewriter-medium-i-normal-sans-*-%d-*-*-m-*-iso8859-1
+dialoginput.italic.latin-1.motif=-b&h-luxi mono-medium-i-normal--*-%d-*-*-m-*-iso8859-1
+
+dialoginput.bolditalic.japanese-x0208=-misc-kochi mincho-medium-r-normal--*-%d-*-*-c-*-jisx0208.1983-0
+dialoginput.bolditalic.korean=-misc-baekmuk batang-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+dialoginput.bolditalic.korean.motif=-misc-baekmuk batang-medium-r-normal--*-%d-*-*-c-*-ksc5601.1987-0
+dialoginput.bolditalic.latin-1=-b&h-lucidatypewriter-bold-i-normal-sans-*-%d-*-*-m-*-iso8859-1
+dialoginput.bolditalic.latin-1.motif=-b&h-luxi mono-bold-i-normal--*-%d-*-*-m-*-iso8859-1
+
+# Search Sequences
+
+sequence.allfonts=latin-1
+sequence.allfonts.Big5=latin-1,chinese-big5
+sequence.allfonts.x-euc-jp-linux=latin-1,japanese-x0208
+sequence.allfonts.EUC-KR=latin-1,korean
+sequence.allfonts.GB18030=latin-1,chinese-gb18030
+sequence.fallback=lucida,chinese-big5,chinese-gb18030,japanese-x0208,korean
+
+# Exclusion Ranges
+
+exclusion.japanese-x0208=0390-03d6,2200-22ef,2701-27be,20a0-20aa,2153-215f,2166-2168,216a-216f,2173-2182
+
+# Font File Names
+
+filename.-arphic_technology_co.-ar_pl_mingti2l_big5-medium-r-normal--*-%d-*-*-c-*-iso10646-1=/usr/share/fonts/zh_TW/TrueType/bsmi00lp.ttf
+filename.-misc-baekmuk_batang-medium-r-normal--*-%d-*-*-c-*-iso10646-1=/usr/share/fonts/ko/TrueType/batang.ttf
+filename.-misc-baekmuk_gulim-medium-r-normal--*-%d-*-*-c-*-iso10646-1=/usr/share/fonts/ko/TrueType/gulim.ttf
+filename.-misc-kochi_gothic-medium-r-normal--*-%d-*-*-c-*-jisx0208.1983-0=/usr/share/fonts/ja/TrueType/kochi-gothic-subst.ttf
+filename.-misc-kochi_mincho-medium-r-normal--*-%d-*-*-c-*-jisx0208.1983-0=/usr/share/fonts/ja/TrueType/kochi-mincho-subst.ttf
+filename.-misc-zysong18030-medium-r-normal--*-%d-*-*-c-*-iso10646-1=/usr/share/fonts/zh_CN/TrueType/zysong.ttf
+
+# AWT X11 font paths
+awtfontpath.latin-1=/usr/X11R6/lib/X11/fonts/Type1
+awtfontpath.chinese-big5=/usr/share/fonts/zh_TW/TrueType
+awtfontpath.chinese-gb18030=/usr/share/fonts/zh_CN/TrueType
+awtfontpath.japanese-x0208=/usr/share/fonts/ja/TrueType
+awtfontpath.korean=/usr/share/fonts/ko/TrueType

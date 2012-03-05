@@ -1,0 +1,120 @@
+% VERSION 2
+% WARNING: this file is auto-generated; do not edit
+% UNSUPPORTED: this file and its format may change and/or
+%   may be removed in a future release
+! alt-rt.jar
+java/math
+java/util
+! alt-string.jar
+java/lang
+# charsets.jar
+META-INF/services/java.nio.charset.spi.CharsetProvider
+sun/nio
+sun/io
+# jce.jar
+javax/crypto
+sun/security
+META-INF/JCE_RSA.RSA
+META-INF/JCE_RSA.SF
+! jsse.jar
+com/sun/security/
+sun/net
+javax/security
+javax/net
+com/sun/net/
+! management-agent.jar
+@ resources.jar
+com/sun/java/util/jar/pack/
+META-INF/services/javax.print.PrintServiceLookup
+com/sun/corba/
+META-INF/services/javax.sound.midi.spi.SoundbankReader
+sun/print
+META-INF/services/javax.sound.midi.spi.MidiFileReader
+javax/swing
+META-INF/services/javax.sound.sampled.spi.AudioFileReader
+META-INF/services/javax.sound.midi.spi.MidiDeviceProvider
+sun/net
+META-INF/services/javax.sound.sampled.spi.AudioFileWriter
+com/sun/imageio/
+com/sun/servicetag/
+META-INF/services/java.sql.Driver
+META-INF/mimetypes.default
+sun/org
+META-INF/services/javax.sound.midi.spi.MidiFileWriter
+sun/rmi
+javax/sql
+META-INF/services/javax.script.ScriptEngineFactory
+com/sun/rowset/
+META-INF/services/javax.print.StreamPrintServiceFactory
+META-INF/mailcap.default
+sun/text
+javax/xml
+META-INF/services/javax.sound.sampled.spi.MixerProvider
+com/sun/java/swing/
+com/sun/jndi/
+com/sun/xml/
+com/sun/org/
+META-INF/services/javax.sound.sampled.spi.FormatConversionProvider
+! rt.jar
+com/sun/java/util/jar/pack/
+com/sun/beans/
+org/ietf/
+com/sun/java/browser/
+sun/jkernel
+sun/font
+sun/awt
+com/sun/rmi/
+org/w3c/
+com/sun/activation/
+sun/rmi
+sun/beans
+com/sun/script/
+sun/management
+sun/applet
+com/sun/rowset/
+sun/io
+sun/audio
+sun/text
+sunw/util/
+sun/reflect
+sunw/io/
+com/sun/java/swing/
+com/sun/xml/
+com/sun/accessibility/
+sun/instrument
+java/
+com/sun/corba/
+com/sun/media/
+sun/swing
+sun/print
+sun/dc
+com/sun/management/
+com/sun/awt/
+sun/security
+sun/jdbc
+sun/net
+com/sun/jmx/
+sun/nio
+com/sun/demo/
+com/sun/imageio/
+com/sun/servicetag/
+sun/corba
+com/sun/net/
+com/sun/swing/
+sun/org
+com/sun/istack/
+org/jcp/
+com/sun/naming/
+org/omg/
+org/xml/
+sun/tools
+com/sun/security/
+com/sun/image/
+sun/util
+com/sun/jndi/
+com/sun/java_cup/
+com/oracle/
+sun/misc
+com/sun/org/
+javax/
+sun/java2d

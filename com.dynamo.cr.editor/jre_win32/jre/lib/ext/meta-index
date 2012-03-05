@@ -1,0 +1,22 @@
+% VERSION 2
+% WARNING: this file is auto-generated; do not edit
+% UNSUPPORTED: this file and its format may change and/or
+%   may be removed in a future release
+# dnsns.jar
+META-INF/services/sun.net.spi.nameservice.NameServiceDescriptor
+sun/net
+# localedata.jar
+sun/text
+sun/util
+# sunjce_provider.jar
+com/sun/crypto/
+META-INF/JCE_RSA.RSA
+META-INF/JCE_RSA.SF
+# sunmscapi.jar
+sun/security
+META-INF/JCE_RSA.RSA
+META-INF/JCE_RSA.SF
+# sunpkcs11.jar
+sun/security
+META-INF/JCE_RSA.RSA
+META-INF/JCE_RSA.SF
