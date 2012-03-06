@@ -103,7 +103,7 @@ public class ContentBuilder extends IncrementalProjectBuilder {
 
         String[] commands;
         if (kind == IncrementalProjectBuilder.FULL_BUILD) {
-            commands = new String[] { "clean", "build" };
+            commands = new String[] { "distclean", "build" };
 
         } else {
             commands = new String[] { "build" };
