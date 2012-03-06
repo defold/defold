@@ -185,6 +185,30 @@ public class GitTest {
     }
 
     @Test
+    public void renameEmpty() throws IOException {
+        File repo = cloneInitial();
+
+        GitStatus status = git.getStatus(repo.getPath());
+        assertEquals(0, status.files.size());
+
+        File newDir = new File(repo, "new_dir");
+        File newDirPrim = new File(repo, "new_dir_prim");
+        assertFalse(newDir.exists());
+        assertFalse(newDirPrim.exists());
+
+        newDir.mkdir();
+        assertTrue(newDir.exists());
+        assertFalse(newDirPrim.exists());
+
+        git.mv(repo.getPath(), "new_dir", "new_dir_prim", true);
+        assertFalse(newDir.exists());
+        assertTrue(newDirPrim.exists());
+
+        status = git.getStatus(repo.getPath());
+        assertEquals(0, status.files.size());
+    }
+
+    @Test
     public void changeNewAndStagedFile() throws IOException {
         File repo = cloneInitial();
 

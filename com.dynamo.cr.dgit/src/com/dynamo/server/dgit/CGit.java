@@ -336,16 +336,25 @@ public class CGit implements IGit {
     @Override
     public void mv(String directory, String source, String destination, boolean force) throws IOException {
         CommandUtil.Result r;
+        File sourceFile = new File(directory + "/" + source);
+        File destFile = new File(directory + "/" + destination);
 
-        // Ensure that destination path exists
-        String p = FilenameUtils.getPath(destination);
-        new File(directory, p).mkdir();
+        if (sourceFile.isDirectory() && sourceFile.list().length == 0) {
+            // Git doesn't track emtpy dirs. Just move the directory
+            sourceFile.delete();
+            destFile.mkdir();
+        } else {
+            // Ensure that destination path exists
+            String p = FilenameUtils.getPath(destination);
+            new File(directory, p).mkdir();
 
-        if (force)
-            r = execGitCommand(directory, "git", "mv", "-f", source, destination);
-        else
-            r = execGitCommand(directory, "git", "mv", source, destination);
-        checkResult(r);
+            if (force)
+                r = execGitCommand(directory, "git", "mv", "-f", source, destination);
+            else
+                r = execGitCommand(directory, "git", "mv", source, destination);
+            checkResult(r);
+        }
+
     }
 
     @Override

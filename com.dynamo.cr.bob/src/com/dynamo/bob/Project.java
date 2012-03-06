@@ -14,6 +14,8 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.commons.io.DirectoryWalker;
+import org.apache.commons.io.FileSystemUtils;
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.SubProgressMonitor;
@@ -172,6 +174,12 @@ public class Project {
                         m.worked(1);
                     }
                 }
+                m.done();
+            } else if (command.equals("distclean")) {
+                SubProgressMonitor m = new SubProgressMonitor(monitor, 1);
+                m.beginTask("Cleaning...", tasks.size());
+                FileUtils.deleteDirectory(new File(FilenameUtils.concat(rootDirectory, buildDirectory)));
+                m.worked(1);
                 m.done();
             }
         }
