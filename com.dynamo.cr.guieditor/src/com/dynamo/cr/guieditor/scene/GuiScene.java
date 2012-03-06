@@ -58,7 +58,7 @@ import com.google.protobuf.TextFormat;
 @Entity(commandFactory = UndoableCommandFactory.class)
 public class GuiScene implements IPropertyObjectWorld, IAdaptable, IResourceChangeListener, IDisposable {
 
-    @Property(isResource = true)
+    @Property(isResource = true, extensions={"gui_script"})
     private String script;
 
     private SceneDesc sceneDesc;

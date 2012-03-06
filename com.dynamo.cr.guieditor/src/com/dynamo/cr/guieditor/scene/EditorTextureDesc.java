@@ -16,7 +16,7 @@ public class EditorTextureDesc implements IAdaptable {
     @Property
     private String name;
 
-    @Property(isResource = true)
+    @Property(isResource = true, extensions={"jpg", "png"})
     private String texture;
 
     private GuiScene scene;

@@ -15,7 +15,9 @@ import com.dynamo.cr.sceneed.core.ISceneModel;
 @SuppressWarnings("serial")
 public class RefComponentNode extends ComponentNode {
 
-    @Property(isResource=true)
+    @Property(isResource=true, extensions = {
+            "camera", "collisionobject", "gui", "light", "model", "script", "spawnpoint", "sprite", "sprite2", "tilegrid"
+    })
     @Resource
     @NotEmpty
     private String component;

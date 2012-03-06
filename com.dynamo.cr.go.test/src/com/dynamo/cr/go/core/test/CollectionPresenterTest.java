@@ -44,7 +44,7 @@ public class CollectionPresenterTest extends AbstractPresenterTest {
         CollectionNode collection = new CollectionNode();
         collection.setModel(this.getModel());
         when(this.getPresenterContext().getSelection()).thenReturn(new StructuredSelection(collection));
-        when(this.getPresenterContext().selectFile(anyString())).thenReturn("/test.go");
+        when(this.getPresenterContext().selectFile(anyString(), any(String[].class))).thenReturn("/test.go");
         when(this.getLoaderContext().loadNode("/test.go")).thenReturn(new GameObjectNode());
 
         this.presenter.onAddGameObject(this.getPresenterContext(), this.getLoaderContext());
@@ -69,7 +69,7 @@ public class CollectionPresenterTest extends AbstractPresenterTest {
         CollectionNode collection = new CollectionNode();
         collection.setModel(this.getModel());
         when(this.getPresenterContext().getSelection()).thenReturn(new StructuredSelection(collection));
-        when(this.getPresenterContext().selectFile(anyString())).thenReturn("/test.collection");
+        when(this.getPresenterContext().selectFile(anyString(), any(String[].class))).thenReturn("/test.collection");
         when(this.getLoaderContext().loadNode("/test.collection")).thenReturn(new CollectionNode());
 
         this.presenter.onAddCollection(this.getPresenterContext(), this.getLoaderContext());

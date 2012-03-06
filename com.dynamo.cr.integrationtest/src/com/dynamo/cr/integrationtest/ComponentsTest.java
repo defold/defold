@@ -108,7 +108,7 @@ public class ComponentsTest extends AbstractSceneTest {
                 file.create(new ByteArrayInputStream(data != null ? data : "".getBytes()), true, null);
 
                 // Setup picking of the file from gui
-                when(getPresenterContext().selectFile(anyString())).thenReturn(path);
+                when(getPresenterContext().selectFile(anyString(), any(String[].class))).thenReturn(path);
 
                 // Perform operation
                 presenter.onAddComponentFromFile(getPresenterContext(), getLoaderContext());

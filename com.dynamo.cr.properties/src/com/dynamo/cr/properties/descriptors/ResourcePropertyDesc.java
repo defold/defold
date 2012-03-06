@@ -16,6 +16,7 @@ import org.eclipse.ui.dialogs.ListDialog;
 import org.eclipse.ui.dialogs.ResourceListSelectionDialog;
 
 import com.dynamo.cr.editor.core.EditorUtil;
+import com.dynamo.cr.editor.ui.FilteredResourceListSelectionDialog;
 import com.dynamo.cr.properties.IPropertyEditor;
 import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.properties.IPropertyObjectWorld;
@@ -25,9 +26,11 @@ import com.dynamo.cr.properties.PropertyUtil;
 public class ResourcePropertyDesc<T, U extends IPropertyObjectWorld> extends PropertyDesc<T, U>  {
 
     private IContainer contentRoot;
+    String[] extensions;
 
-    public ResourcePropertyDesc(String id, String name) {
+    public ResourcePropertyDesc(String id, String name, String[] extensions) {
         super(id, name);
+        this.extensions = extensions;
     }
 
     private class Editor implements IPropertyEditor<T, U>, Listener {
@@ -102,9 +105,8 @@ public class ResourcePropertyDesc<T, U extends IPropertyObjectWorld> extends Pro
             } else if (event.type == SWT.FocusOut && !value.equals(oldValue)) {
                 updateValue = true;
             } else if (event.type == SWT.Selection) {
-                ResourceListSelectionDialog dialog = new ResourceListSelectionDialog(
-                        getControl().getShell(), contentRoot, IResource.FILE
-                                | IResource.DEPTH_INFINITE);
+                ResourceListSelectionDialog dialog = new FilteredResourceListSelectionDialog(
+                        getControl().getShell(), contentRoot, IResource.FILE, extensions);
 
                 int ret = dialog.open();
                 if (ret == ListDialog.OK) {

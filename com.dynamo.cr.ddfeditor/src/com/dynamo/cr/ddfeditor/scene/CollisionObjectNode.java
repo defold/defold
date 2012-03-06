@@ -15,7 +15,7 @@ import com.dynamo.physics.proto.Physics.CollisionObjectType;
 @SuppressWarnings("serial")
 public class CollisionObjectNode extends ComponentTypeNode {
 
-    @Property(isResource=true)
+    @Property(isResource=true, extensions={"convexshape"})
     @Resource
     private String collisionShape = "";
     @Property private CollisionObjectType type = CollisionObjectType.COLLISION_OBJECT_TYPE_DYNAMIC;

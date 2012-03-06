@@ -12,7 +12,7 @@ import com.dynamo.cr.properties.Resource;
 @SuppressWarnings("serial")
 public class SpriteNode extends ComponentTypeNode {
 
-    @Property(isResource=true)
+    @Property(isResource=true, extensions={"jpg", "png"})
     @Resource
     @NotEmpty
     private String texture = "";

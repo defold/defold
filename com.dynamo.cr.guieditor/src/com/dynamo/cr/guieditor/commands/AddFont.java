@@ -12,6 +12,7 @@ import org.eclipse.ui.dialogs.ResourceListSelectionDialog;
 import org.eclipse.ui.handlers.HandlerUtil;
 
 import com.dynamo.cr.editor.core.EditorUtil;
+import com.dynamo.cr.editor.ui.FilteredResourceListSelectionDialog;
 import com.dynamo.cr.guieditor.IGuiEditor;
 import com.dynamo.cr.guieditor.operations.AddFontOperation;
 import com.dynamo.cr.guieditor.scene.GuiScene;
@@ -42,7 +43,7 @@ public class AddFont extends AbstractHandler {
             IGuiEditor editor = (IGuiEditor) editorPart;
             IFileEditorInput input = (IFileEditorInput) editorPart.getEditorInput();
             IContainer contentRoot = EditorUtil.findContentRoot(input.getFile());
-            ResourceListSelectionDialog dialog = new ResourceListSelectionDialog(editorPart.getSite().getShell(), contentRoot, IResource.FILE | IResource.DEPTH_INFINITE);
+            ResourceListSelectionDialog dialog = new FilteredResourceListSelectionDialog(editorPart.getSite().getShell(), contentRoot, IResource.FILE, new String[] {"font"});
             int ret = dialog.open();
             if (ret == ListDialog.OK) {
                 IResource r = (IResource) dialog.getResult()[0];

@@ -16,6 +16,7 @@ import org.eclipse.ui.dialogs.ListDialog;
 import org.eclipse.ui.dialogs.ResourceListSelectionDialog;
 
 import com.dynamo.cr.editor.core.EditorUtil;
+import com.dynamo.cr.editor.ui.FilteredResourceListSelectionDialog;
 import com.dynamo.cr.properties.IFormPropertySheetPage;
 import com.dynamo.cr.sceneed.core.IRenderView;
 import com.dynamo.cr.sceneed.core.ISceneView;
@@ -90,8 +91,8 @@ public class SceneView implements ISceneView {
     }
 
     @Override
-    public String selectFile(String title) {
-        ResourceListSelectionDialog dialog = new ResourceListSelectionDialog(this.editor.getSite().getShell(), this.contentRoot, IResource.FILE | IResource.DEPTH_INFINITE);
+    public String selectFile(String title, String[] extensions) {
+        ResourceListSelectionDialog dialog = new FilteredResourceListSelectionDialog(this.editor.getSite().getShell(), this.contentRoot, IResource.FILE, extensions);
         dialog.setTitle(title);
 
         int ret = dialog.open();

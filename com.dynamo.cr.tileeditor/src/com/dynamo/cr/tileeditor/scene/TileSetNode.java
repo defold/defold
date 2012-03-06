@@ -37,7 +37,7 @@ public class TileSetNode extends Node {
     // TODO: Should be configurable
     private static final int PLANE_COUNT = 16;
 
-    @Property(isResource = true)
+    @Property(isResource = true, extensions={"jpg", "png"})
     @Resource
     private String image = "";
 
@@ -57,7 +57,7 @@ public class TileSetNode extends Node {
     @Range(min=0)
     private int tileSpacing;
 
-    @Property(isResource = true)
+    @Property(isResource = true, extensions={"jpg", "png"})
     @Resource
     private String collision = "";
 
