@@ -258,7 +258,7 @@ public class Defold implements EntryPoint {
                 break;
 
             case Safari:
-                supported = version >= 500;
+                supported = version >= 5;
                 break;
 
             case Firefox:
