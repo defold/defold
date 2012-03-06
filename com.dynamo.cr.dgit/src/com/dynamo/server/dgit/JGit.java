@@ -642,40 +642,46 @@ public class JGit implements IGit, TransportConfigCallback {
         File sourceFile = new File(directory + "/" + source);
         File destFile = new File(directory + "/" + destination);
 
-        if (sourceFile.isDirectory()) {
-            FileUtils.copyDirectory(sourceFile, destFile);
+        if (sourceFile.isDirectory() && sourceFile.list().length == 0) {
+            // Git doesn't track emtpy dirs. Just move the directory
+            sourceFile.delete();
+            destFile.mkdir();
         } else {
-            FileInputStream in = null;
-            FileOutputStream out = null;
+            if (sourceFile.isDirectory()) {
+                FileUtils.copyDirectory(sourceFile, destFile);
+            } else {
+                FileInputStream in = null;
+                FileOutputStream out = null;
 
-            try {
-                in = new FileInputStream(sourceFile);
-                String p = FilenameUtils.getPath(destination);
-                new File(directory, p).mkdir();
-                out = new FileOutputStream(destFile);
-                IOUtils.copy(in, out);
-            } finally {
-                if (in != null)
-                    in.close();
-                if (out != null) {
-                    out.close();
+                try {
+                    in = new FileInputStream(sourceFile);
+                    String p = FilenameUtils.getPath(destination);
+                    new File(directory, p).mkdir();
+                    out = new FileOutputStream(destFile);
+                    IOUtils.copy(in, out);
+                } finally {
+                    if (in != null)
+                        in.close();
+                    if (out != null) {
+                        out.close();
+                    }
                 }
             }
-        }
 
-        AddCommand addCommand = git.add().addFilepattern(destination);
-        try {
-            addCommand.call();
-        } catch (NoFilepatternException e) {
-            new File(directory + "/" + destination).delete();
-            throw new IOException(e);
-        }
+            AddCommand addCommand = git.add().addFilepattern(destination);
+            try {
+                addCommand.call();
+            } catch (NoFilepatternException e) {
+                new File(directory + "/" + destination).delete();
+                throw new IOException(e);
+            }
 
-        RmCommand rmCommand = git.rm().addFilepattern(source);
-        try {
-            rmCommand.call();
-        } catch (NoFilepatternException e) {
-            throw new IOException(e);
+            RmCommand rmCommand = git.rm().addFilepattern(source);
+            try {
+                rmCommand.call();
+            } catch (NoFilepatternException e) {
+                throw new IOException(e);
+            }
         }
     }
 
