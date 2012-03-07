@@ -54,7 +54,7 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
 
     public static PropertyIntrospector<Layer, GridModel> layerIntrospector = new PropertyIntrospector<Layer, GridModel>(Layer.class);
 
-    @Property(isResource = true)
+    @Property(isResource = true, extensions={"tileset"})
     @Resource
     @NotEmpty
     private String tileSet;

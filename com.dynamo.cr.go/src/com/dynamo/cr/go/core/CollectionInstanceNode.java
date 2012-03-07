@@ -14,7 +14,7 @@ import com.dynamo.cr.sceneed.core.ISceneModel;
 @SuppressWarnings("serial")
 public class CollectionInstanceNode extends InstanceNode {
 
-    @Property(isResource=true)
+    @Property(isResource=true, extensions={"collection"})
     @Resource
     @NotEmpty
     private String collection = "";

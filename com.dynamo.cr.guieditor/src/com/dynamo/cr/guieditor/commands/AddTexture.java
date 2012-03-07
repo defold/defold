@@ -8,10 +8,10 @@ import org.eclipse.core.resources.IResource;
 import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.IFileEditorInput;
 import org.eclipse.ui.dialogs.ListDialog;
-import org.eclipse.ui.dialogs.ResourceListSelectionDialog;
 import org.eclipse.ui.handlers.HandlerUtil;
 
 import com.dynamo.cr.editor.core.EditorUtil;
+import com.dynamo.cr.editor.ui.FilteredResourceListSelectionDialog;
 import com.dynamo.cr.guieditor.IGuiEditor;
 import com.dynamo.cr.guieditor.operations.AddTextureOperation;
 import com.dynamo.cr.guieditor.scene.GuiScene;
@@ -42,7 +42,7 @@ public class AddTexture extends AbstractHandler {
             IGuiEditor editor = (IGuiEditor) editorPart;
             IFileEditorInput input = (IFileEditorInput) editorPart.getEditorInput();
             IContainer contentRoot = EditorUtil.findContentRoot(input.getFile());
-            ResourceListSelectionDialog dialog = new ResourceListSelectionDialog(editorPart.getSite().getShell(), contentRoot, IResource.FILE | IResource.DEPTH_INFINITE);
+            FilteredResourceListSelectionDialog dialog = new FilteredResourceListSelectionDialog(editorPart.getSite().getShell(), contentRoot, IResource.FILE, new String[] {"jpg", "png"});
             int ret = dialog.open();
             if (ret == ListDialog.OK)
             {

@@ -16,7 +16,7 @@ public class EditorFontDesc implements IAdaptable {
     @Property
     private String name;
 
-    @Property(isResource = true)
+    @Property(isResource = true, extensions={"font"})
     private String font;
 
     private GuiScene scene;

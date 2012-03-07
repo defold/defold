@@ -53,7 +53,7 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
     // TODO: Should be configurable
     private static final int PLANE_COUNT = 16;
 
-    @Property(isResource = true)
+    @Property(isResource = true, extensions={"jpg", "png"})
     @Resource
     @NotEmpty
     String image;
@@ -69,7 +69,7 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
     @Property
     @Range(min=0)
     int tileSpacing;
-    @Property(isResource = true)
+    @Property(isResource = true, extensions={"jpg", "png"})
     @Resource
     @NotEmpty
     String collision;

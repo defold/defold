@@ -61,7 +61,7 @@ public class GameObjectPresenterTest extends AbstractPresenterTest {
         GameObjectNode gameObject = new GameObjectNode();
         gameObject.setModel(this.getModel());
         when(this.getPresenterContext().getSelection()).thenReturn(new StructuredSelection(gameObject));
-        when(this.getPresenterContext().selectFile(anyString())).thenReturn("dummy");
+        when(this.getPresenterContext().selectFile(anyString(), any(String[].class))).thenReturn("dummy");
         when(this.getLoaderContext().loadNode("dummy")).thenReturn(new DummyComponentNode());
 
         this.presenter.onAddComponentFromFile(this.getPresenterContext(), this.getLoaderContext());

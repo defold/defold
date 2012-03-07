@@ -16,7 +16,7 @@ import com.dynamo.cr.sceneed.core.ISceneModel;
 @SuppressWarnings("serial")
 public class CollectionProxyNode extends ComponentTypeNode {
 
-    @Property(isResource=true)
+    @Property(isResource=true, extensions={"collection"})
     @Resource
     @NotEmpty
     private String collection = "";

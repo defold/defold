@@ -21,7 +21,7 @@ import com.dynamo.tile.TileSetUtil;
 @SuppressWarnings("serial")
 public class Sprite2Node extends ComponentTypeNode {
 
-    @Property(isResource=true)
+    @Property(isResource=true, extensions={"tileset"})
     @Resource
     @NotEmpty
     private String tileSet = "";

@@ -73,8 +73,8 @@ com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext {
     }
 
     @Override
-    public String selectFile(String title) {
-        return this.view.selectFile(title);
+    public String selectFile(String title, String[] extensions) {
+        return this.view.selectFile(title, extensions);
     }
 
     @Override

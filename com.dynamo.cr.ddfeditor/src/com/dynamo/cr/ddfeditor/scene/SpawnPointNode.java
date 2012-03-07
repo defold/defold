@@ -8,7 +8,7 @@ import com.dynamo.cr.properties.Resource;
 @SuppressWarnings("serial")
 public class SpawnPointNode extends ComponentTypeNode {
 
-    @Property(isResource=true)
+    @Property(isResource=true, extensions={"go"})
     @Resource
     @NotEmpty
     private String prototype = "";

@@ -3,6 +3,7 @@ package com.dynamo.cr.integrationtest;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.junit.Assert.assertThat;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.when;
 
@@ -57,7 +58,7 @@ public class GameObjectReloadTest extends AbstractSceneTest {
         String tileSet = "/tileset/test.tileset";
         String defaultAnimation = "test";
 
-        when(getPresenterContext().selectFile(anyString())).thenReturn(path);
+        when(getPresenterContext().selectFile(anyString(), any(String[].class))).thenReturn(path);
         Sprite2Node componentType = new Sprite2Node();
         componentType.setTileSet(tileSet);
         componentType.setDefaultAnimation(defaultAnimation);

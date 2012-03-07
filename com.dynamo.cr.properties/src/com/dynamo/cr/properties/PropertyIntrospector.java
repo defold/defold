@@ -90,7 +90,7 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
                         IPropertyDesc<T, U> descriptor;
                         if (field.getType() == String.class) {
                             if (property.isResource())
-                                descriptor = new ResourcePropertyDesc<T, U>(propertyId, propertyDisplayName);
+                                descriptor = new ResourcePropertyDesc<T, U>(propertyId, propertyDisplayName, property.extensions());
                             else
                                 descriptor = new TextPropertyDesc<T, U>(propertyId, propertyDisplayName);
                         } else if (field.getType() == Vector4d.class) {

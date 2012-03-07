@@ -63,7 +63,7 @@ public class TileSetSceneView implements ISceneView {
     }
 
     @Override
-    public String selectFile(String title) {
+    public String selectFile(String title, String[] extensions) {
         // TODO Auto-generated method stub
         return null;
     }

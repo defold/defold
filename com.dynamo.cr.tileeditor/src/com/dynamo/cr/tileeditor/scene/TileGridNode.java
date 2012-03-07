@@ -26,7 +26,7 @@ import com.dynamo.tile.TileSetUtil;
 @SuppressWarnings("serial")
 public class TileGridNode extends ComponentTypeNode {
 
-    @Property(isResource=true)
+    @Property(isResource=true, extensions={"tileset"})
     @Resource
     @NotEmpty
     private String tileSet = "";

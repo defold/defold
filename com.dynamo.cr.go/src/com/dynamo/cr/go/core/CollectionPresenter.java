@@ -31,7 +31,7 @@ public class CollectionPresenter implements ISceneView.INodePresenter<Collection
         if (parent == null) {
             throw new UnsupportedOperationException("No collection in selection.");
         }
-        String file = presenterContext.selectFile(Messages.CollectionPresenter_ADD_GAME_OBJECT);
+        String file = presenterContext.selectFile(Messages.CollectionPresenter_ADD_GAME_OBJECT, new String[] {"go"});
         if (file != null) {
             GameObjectNode gameObject = null;
             try {
@@ -52,7 +52,7 @@ public class CollectionPresenter implements ISceneView.INodePresenter<Collection
         if (parent == null) {
             throw new UnsupportedOperationException("No collection in selection.");
         }
-        String file = presenterContext.selectFile(Messages.CollectionPresenter_ADD_SUB_COLLECTION);
+        String file = presenterContext.selectFile(Messages.CollectionPresenter_ADD_SUB_COLLECTION, new String[] {"collection"});
         if (file != null) {
             CollectionNode collection = null;
             try {

@@ -14,7 +14,7 @@ import com.dynamo.cr.sceneed.core.ISceneModel;
 @SuppressWarnings("serial")
 public class GameObjectInstanceNode extends InstanceNode {
 
-    @Property(isResource=true)
+    @Property(isResource=true, extensions={"go"})
     @Resource
     @NotEmpty
     private String gameObject = "";
