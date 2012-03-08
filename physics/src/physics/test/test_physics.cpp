@@ -411,7 +411,7 @@ TYPED_TEST(PhysicsTest, GroundBoxCollision)
         (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
     }
 
-    ASSERT_NEAR(ground_height_half_ext + box_half_ext, box_visual_object.m_Position.getY(), 2.0f * TestFixture::m_Test.m_PolygonRadius / TestFixture::SCALE);
+    ASSERT_NEAR(ground_height_half_ext + box_half_ext, box_visual_object.m_Position.getY(), 2.0f * TestFixture::m_Test.m_PolygonRadius / PHYSICS_SCALE);
 
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, ground_co);
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, box_co);
@@ -449,7 +449,7 @@ TYPED_TEST(PhysicsTest, ShapeTransform)
         (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
     }
 
-    ASSERT_NEAR(ground_height_half_ext + box_half_ext * sqrt(2.0f), box_visual_object.m_Position.getY(), 2.0f * TestFixture::m_Test.m_PolygonRadius / TestFixture::SCALE);
+    ASSERT_NEAR(ground_height_half_ext + box_half_ext * sqrt(2.0f), box_visual_object.m_Position.getY(), 2.0f * TestFixture::m_Test.m_PolygonRadius / PHYSICS_SCALE);
 
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, ground_co);
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, box_co);
@@ -598,7 +598,7 @@ TYPED_TEST(PhysicsTest, TriggerCollisions)
         (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
     }
 
-    ASSERT_NEAR(1.0f, dynamic_vo.m_Position.getY(), 2.0f * TestFixture::m_Test.m_PolygonRadius / TestFixture::SCALE);
+    ASSERT_NEAR(1.0f, dynamic_vo.m_Position.getY(), 2.0f * TestFixture::m_Test.m_PolygonRadius / PHYSICS_SCALE);
     ASSERT_EQ(0.0f, static_vo.m_Position.getY());
     ASSERT_EQ(1u, dynamic_vo.m_FirstCollisionGroup);
     ASSERT_EQ(1u, static_vo.m_FirstCollisionGroup);

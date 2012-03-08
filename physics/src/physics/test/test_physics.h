@@ -23,16 +23,17 @@ void SetWorldTransform(void* visual_object, const Vectormath::Aos::Point3& posit
 bool CollisionCallback(void* user_data_a, uint16_t group_a, void* user_data_b, uint16_t group_b, void* user_data);
 bool ContactPointCallback(const dmPhysics::ContactPoint& contact_point, void* user_data);
 
+static const float PHYSICS_SCALE = 0.5f;
+
 template<typename T>
 class PhysicsTest : public ::testing::Test
 {
 protected:
-    static const float SCALE = 0.5f;
 
     virtual void SetUp()
     {
         dmPhysics::NewContextParams context_params = dmPhysics::NewContextParams();
-        context_params.m_Scale = SCALE;
+        context_params.m_Scale = PHYSICS_SCALE;
         m_Context = (*m_Test.m_NewContextFunc)(context_params);
         dmPhysics::NewWorldParams world_params;
         world_params.m_GetWorldTransformCallback = GetWorldTransform;
