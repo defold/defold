@@ -27,10 +27,12 @@ template<typename T>
 class PhysicsTest : public ::testing::Test
 {
 protected:
+    static const float SCALE = 0.5f;
+
     virtual void SetUp()
     {
         dmPhysics::NewContextParams context_params = dmPhysics::NewContextParams();
-        context_params.m_Scale = 2.0f;
+        context_params.m_Scale = SCALE;
         m_Context = (*m_Test.m_NewContextFunc)(context_params);
         dmPhysics::NewWorldParams world_params;
         world_params.m_GetWorldTransformCallback = GetWorldTransform;

@@ -146,7 +146,7 @@ TYPED_TEST(PhysicsTest, MultipleGroups)
         (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
     }
 
-    ASSERT_GT(1.52f, vo_b.m_Position.getY());
+    ASSERT_GT(1.5f + 2.0f * TestFixture::m_Test.m_PolygonRadius / TestFixture::SCALE, vo_b.m_Position.getY());
 
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, static_co);
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, dynamic_co);
