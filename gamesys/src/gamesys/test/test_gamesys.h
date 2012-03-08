@@ -148,6 +148,6 @@ void GamesysTest<T>::TearDown()
     dmInput::DeleteContext(m_InputContext);
     dmHID::Final(m_HidContext);
     dmHID::DeleteContext(m_HidContext);
-    dmPhysics::DeleteContext3D(m_PhysicsContext.m_Context3D);
+    dmPhysics::DeleteContext2D(m_PhysicsContext.m_Context2D);
     dmScript::DeleteContext(m_ScriptContext);
 }
