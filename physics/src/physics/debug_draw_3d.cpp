@@ -32,21 +32,22 @@ namespace dmPhysics
     {
         if (m_Callbacks->m_DrawLines != 0x0)
         {
-            Vectormath::Aos::Point3 points[2] =
-            {
-                Vectormath::Aos::Point3(from.getX(), from.getY(), from.getZ()),
-                Vectormath::Aos::Point3(to.getX(), to.getY(), to.getZ())
-            };
+            float inv_scale = m_Callbacks->m_InvScale;
+            Vectormath::Aos::Point3 points[2];
+            FromBt(from, points[0], inv_scale);
+            FromBt(to, points[1], inv_scale);
             (*m_Callbacks->m_DrawLines)(points, 2, Vectormath::Aos::Vector4(color.getX(), color.getY(), color.getZ(), m_Callbacks->m_Alpha), m_Callbacks->m_UserData);
         }
     }
 
-    void DebugDraw3D::drawContactPoint(const btVector3 &PointOnB, const btVector3 &normalOnB, btScalar distance, int lifeTime, const btVector3 &color)
+    void DebugDraw3D::drawContactPoint(const btVector3 &pointOnB, const btVector3 &normalOnB, btScalar distance, int lifeTime, const btVector3 &color)
     {
         using namespace Vectormath::Aos;
 
-        Point3 p(PointOnB.getX(), PointOnB.getY(), PointOnB.getZ());
-        Vector3 n(normalOnB.getX(), normalOnB.getY(), normalOnB.getZ());
+        Point3 p;
+        FromBt(pointOnB, p, m_Callbacks->m_InvScale);
+        Vector3 n;
+        FromBt(normalOnB, n, 1.0f); // Don't scale normals
         assert(lengthSqr(n) > 0.0f);
         Vector3 t1;
         if (fabs(n.getX()) < fabs(n.getY()))
@@ -82,7 +83,9 @@ namespace dmPhysics
 
     void DebugDraw3D::draw3dText(const btVector3 &location, const char *textString)
     {
-        dmLogInfo("[%.2f, %.2f, %.2f]: %s\n", location.getX(), location.getY(), location.getZ(), textString);
+        Vectormath::Aos::Point3 pos;
+        FromBt(location, pos, m_Callbacks->m_InvScale);
+        dmLogInfo("[%.2f, %.2f, %.2f]: %s\n", pos.getX(), pos.getY(), pos.getZ(), textString);
     }
 
     void DebugDraw3D::setDebugMode(int debugMode)

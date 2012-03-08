@@ -42,8 +42,10 @@ namespace dmPhysics
 
         dmArray<World2D*>           m_Worlds;
         DebugCallbacks              m_DebugCallbacks;
-        Vectormath::Aos::Vector3    m_Gravity;
+        b2Vec2                      m_Gravity;
         dmMessage::HSocket          m_Socket;
+        float                       m_Scale;
+        float                       m_InvScale;
     };
 
     class ProcessRayCastResultCallback2D : public b2RayCastCallback
@@ -65,11 +67,36 @@ namespace dmPhysics
         /// closest hit, 1 to continue
         virtual float32 ReportFixture(b2Fixture* fixture, int32 index, const b2Vec2& point, const b2Vec2& normal, float32 fraction);
 
+        HContext2D m_Context;
         RayCastResponse m_Response;
         void* m_IgnoredUserData;
         uint16_t m_CollisionGroup;
         uint16_t m_CollisionMask;
     };
+
+    inline void ToB2(const Vectormath::Aos::Point3& p0, b2Vec2& p1, float scale)
+    {
+        p1.Set(p0.getX() * scale, p0.getY() * scale);
+    }
+
+    inline void ToB2(const Vectormath::Aos::Vector3& p0, b2Vec2& p1, float scale)
+    {
+        p1.Set(p0.getX() * scale, p0.getY() * scale);
+    }
+
+    inline void FromB2(const b2Vec2& p0, Vectormath::Aos::Vector3& p1, float inv_scale)
+    {
+        p1.setX(p0.x * inv_scale);
+        p1.setY(p0.y * inv_scale);
+        p1.setZ(0.0f);
+    }
+
+    inline void FromB2(const b2Vec2& p0, Vectormath::Aos::Point3& p1, float inv_scale)
+    {
+        p1.setX(p0.x * inv_scale);
+        p1.setY(p0.y * inv_scale);
+        p1.setZ(0.0f);
+    }
 }
 
 #endif // PHYSICS_2D_H

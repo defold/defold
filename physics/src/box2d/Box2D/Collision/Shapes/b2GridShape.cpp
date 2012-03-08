@@ -12,7 +12,7 @@ using namespace std;
 
 b2GridShape::b2GridShape(const b2HullSet* hullSet,
                          const b2Vec2 position,
-                         uint32 cellWidth, uint32 cellHeight,
+                         float32 cellWidth, float32 cellHeight,
                          uint32 rowCount, uint32 columnCount)
     : m_hullSet(hullSet),
       m_cellWidth(cellWidth), m_cellHeight(cellHeight),
@@ -262,12 +262,14 @@ uint32 b2GridShape::GetEdgeShapesForCell(uint32 index, b2EdgeShape* edgeShapes, 
     return edgeCount;
 }
 
-static bool hasEdge(b2Vec2 p0, b2Vec2 p1, b2Vec2* vertices, uint32 n, uint32 cellWidth, uint32 cellHeight)
+static bool hasEdge(b2Vec2 p0, b2Vec2 p1, b2Vec2* vertices, uint32 n, float32 cellWidth, float32 cellHeight)
 {
     const float32 epsilon = 0.01f;
     // Calculate absolute tolerance values by scaling epsilon with the magnitude
     // of the compared. We assume that the cell dimensions will be close to the max magnitude of the compared values
-    const float32 absTol = epsilon * b2Max(cellWidth, cellHeight);
+    float32 absTol = epsilon * b2Max(cellWidth, cellHeight);
+    // Square it since we compare with squared distances below
+    absTol *= absTol;
 
     for (uint32 i = 0; i < n; ++i)
     {

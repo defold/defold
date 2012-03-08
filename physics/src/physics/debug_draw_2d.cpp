@@ -18,12 +18,13 @@ namespace dmPhysics
         {
             const uint32_t MAX_SEGMENT_COUNT = 16;
             Vectormath::Aos::Point3 points[MAX_SEGMENT_COUNT*2];
+            float inv_scale = m_Callbacks->m_InvScale;
             uint32_t segment_count = dmMath::Min(MAX_SEGMENT_COUNT, (uint32_t)vertexCount);
             for (uint32_t i = 0; i < segment_count; ++i)
             {
-                points[2*i] = Vectormath::Aos::Point3(vertices[i].x, vertices[i].y, 0.0f);
+                FromB2(vertices[i], points[2*i], inv_scale);
                 uint32_t j = (i + 1) % segment_count;
-                points[2*i + 1] = Vectormath::Aos::Point3(vertices[j].x, vertices[j].y, 0.0f);
+                FromB2(vertices[j], points[2*i + 1], inv_scale);
             }
             (*m_Callbacks->m_DrawLines)(points, segment_count * 2, Vectormath::Aos::Vector4(color.r, color.g, color.b, m_Callbacks->m_Alpha), m_Callbacks->m_UserData);
         }
@@ -36,19 +37,22 @@ namespace dmPhysics
             const uint32_t MAX_TRI_COUNT = 16;
             Vectormath::Aos::Point3 points[MAX_TRI_COUNT*3];
             uint32_t triangle_count = dmMath::Min(MAX_TRI_COUNT, (uint32_t)vertexCount);
-            b2Vec2 center(0.0f, 0.0f);
+            b2Vec2 b2_center(0.0f, 0.0f);
             for (uint32_t i = 0; i < triangle_count; ++i)
             {
-                center += vertices[i];
+                b2_center += vertices[i];
             }
-            center.x /= triangle_count;
-            center.y /= triangle_count;
+            b2_center.x /= triangle_count;
+            b2_center.y /= triangle_count;
+            float inv_scale = m_Callbacks->m_InvScale;
+            Vectormath::Aos::Vector3 center;
+            FromB2(b2_center, center, inv_scale);
             for (uint32_t i = 0; i < triangle_count; ++i)
             {
-                points[3*i + 0] = Vectormath::Aos::Point3(vertices[i].x, vertices[i].y, 0.0f);
-                points[3*i + 1] = Vectormath::Aos::Point3(center.x, center.y, 0.0f);
+                FromB2(vertices[i], points[3*i + 0], inv_scale);
+                points[3*i + 1] = Vectormath::Aos::Point3(center);
                 uint32_t j = (i + 1) % triangle_count;
-                points[3*i + 2] = Vectormath::Aos::Point3(vertices[j].x, vertices[j].y, 0.0f);
+                FromB2(vertices[j], points[3*i + 2], inv_scale);
             }
             (*m_Callbacks->m_DrawTriangles)(points, triangle_count * 3, Vectormath::Aos::Vector4(color.r, color.g, color.b, m_Callbacks->m_Alpha), m_Callbacks->m_UserData);
         }
@@ -58,7 +62,10 @@ namespace dmPhysics
     {
         if (m_Callbacks->m_DrawLines)
         {
-            Vectormath::Aos::Point3 c(center.x, center.y, 0.0f);
+            float inv_scale = m_Callbacks->m_InvScale;
+            Vectormath::Aos::Point3 c;
+            FromB2(center, c, inv_scale);
+            radius *= inv_scale;
             const uint32_t MAX_SEGMENT_COUNT = 16;
             Vectormath::Aos::Point3 points[MAX_SEGMENT_COUNT * 2];
             float angle = 0.0f;
@@ -81,7 +88,10 @@ namespace dmPhysics
     {
         if (m_Callbacks->m_DrawTriangles)
         {
-            Vectormath::Aos::Point3 c(center.x, center.y, 0.0f);
+            float inv_scale = m_Callbacks->m_InvScale;
+            Vectormath::Aos::Point3 c;
+            FromB2(center, c, inv_scale);
+            radius *= inv_scale;
             const uint32_t MAX_TRI_COUNT = 16;
             Vectormath::Aos::Point3 points[MAX_TRI_COUNT * 3];
             float angle = 0.0f;
@@ -105,11 +115,10 @@ namespace dmPhysics
     {
         if (m_Callbacks->m_DrawLines)
         {
-            Vectormath::Aos::Point3 points[2] =
-            {
-                Vectormath::Aos::Point3(p1.x, p1.y, 0.0f),
-                Vectormath::Aos::Point3(p2.x, p2.y, 0.0f)
-            };
+            float inv_scale = m_Callbacks->m_InvScale;
+            Vectormath::Aos::Point3 points[2];
+            FromB2(p1, points[0], inv_scale);
+            FromB2(p2, points[1], inv_scale);
             (*m_Callbacks->m_DrawLines)(points, 2, Vectormath::Aos::Vector4(color.r, color.g, color.b, m_Callbacks->m_Alpha), m_Callbacks->m_UserData);
         }
     }
@@ -119,8 +128,8 @@ namespace dmPhysics
         if (m_Callbacks->m_DrawLines)
         {
             b2Vec2 origin = b2Mul(xf, b2Vec2(0.0f, 0.0f));
-            b2Vec2 x = b2Mul(xf, b2Vec2(m_Callbacks->m_Scale, 0.0f));
-            b2Vec2 y = b2Mul(xf, b2Vec2(0.0f, m_Callbacks->m_Scale));
+            b2Vec2 x = b2Mul(xf, b2Vec2(m_Callbacks->m_DebugScale, 0.0f));
+            b2Vec2 y = b2Mul(xf, b2Vec2(0.0f, m_Callbacks->m_DebugScale));
             DrawSegment(origin, x, b2Color(1.0f, 0.0f, 0.0f));
             DrawSegment(origin, y, b2Color(0.0f, 1.0f, 0.0f));
         }
@@ -130,7 +139,9 @@ namespace dmPhysics
     {
         if (m_Callbacks->m_DrawLines)
         {
-            b2Vec2 dp = m_Callbacks->m_Scale * d;
+            b2Vec2 dp = m_Callbacks->m_DebugScale * d;
+            // Scale for later "un-scale"
+            dp *= m_Callbacks->m_Scale;
             b2Vec2 n(dp.y, -dp.x);
             n *= 0.15f;
             b2Vec2 head = 0.35f * dp;

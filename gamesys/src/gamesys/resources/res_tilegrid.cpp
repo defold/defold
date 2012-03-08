@@ -2,13 +2,15 @@
 
 #include <dlib/log.h>
 #include <vectormath/ppu/cpp/vec_aos.h>
+
+#include "gamesys.h"
 #include "gamesys_ddf.h"
 
 namespace dmGameSystem
 {
     using namespace Vectormath::Aos;
 
-    dmResource::Result AcquireResources(dmResource::HFactory factory, const void* buffer, uint32_t buffer_size,
+    dmResource::Result AcquireResources(dmPhysics::HContext2D context, dmResource::HFactory factory, const void* buffer, uint32_t buffer_size,
                           TileGridResource* tile_grid, const char* filename)
     {
         dmGameSystemDDF::TileGrid* tile_grid_ddf;
@@ -63,7 +65,7 @@ namespace dmGameSystem
                     tile_grid->m_MinCellY = min_y;
                     offset.setX(cell_width * 0.5f * (min_x + max_x));
                     offset.setY(cell_height * 0.5f * (min_y + max_y));
-                    tile_grid->m_GridShape = dmPhysics::NewGridShape2D(hull_set, offset, cell_width, cell_height, tile_grid->m_RowCount, tile_grid->m_ColumnCount);
+                    tile_grid->m_GridShape = dmPhysics::NewGridShape2D(context, hull_set, offset, cell_width, cell_height, tile_grid->m_RowCount, tile_grid->m_ColumnCount);
                 }
                 else
                 {
@@ -104,7 +106,7 @@ namespace dmGameSystem
     {
         TileGridResource* tile_grid = new TileGridResource();
 
-        dmResource::Result r = AcquireResources(factory, buffer, buffer_size, tile_grid, filename);
+        dmResource::Result r = AcquireResources(((PhysicsContext*)context)->m_Context2D, factory, buffer, buffer_size, tile_grid, filename);
         if (r == dmResource::RESULT_OK)
         {
             resource->m_Resource = (void*) tile_grid;
@@ -136,7 +138,7 @@ namespace dmGameSystem
         // TODO: Reload is temporarily disabled until issue 678 is fixed
 //        TileGridResource* tile_grid = (TileGridResource*)resource->m_Resource;
 //        TileGridResource tmp_tile_grid;
-//        dmResource::Result r = AcquireResources(factory, buffer, buffer_size, &tmp_tile_grid, filename);
+//        dmResource::Result r = AcquireResources(((PhysicsContext*)context)->m_Context2D, factory, buffer, buffer_size, &tmp_tile_grid, filename);
 //        if (r == dmResource::RESULT_OK)
 //        {
 //            ReleaseResources(factory, tile_grid);

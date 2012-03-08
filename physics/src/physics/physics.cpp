@@ -16,6 +16,7 @@ namespace dmPhysics
     NewContextParams::NewContextParams()
     : m_Gravity(0.0f, -10.0f, 0.0f)
     , m_WorldCount(4)
+    , m_Scale(1.0f)
     {
 
     }
@@ -75,6 +76,8 @@ namespace dmPhysics
     , m_DrawTriangles(0x0)
     , m_UserData(0x0)
     , m_Alpha(1.0f)
+    , m_Scale(1.0f)
+    , m_DebugScale(1.0f)
     {
 
     }

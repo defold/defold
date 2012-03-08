@@ -13,14 +13,17 @@ namespace dmPhysics
     Context2D::Context2D()
     : m_Worlds()
     , m_DebugCallbacks()
-    , m_Gravity(0.0f, -10.0f, 0.0f)
+    , m_Gravity(0.0f, -10.0f)
     , m_Socket(0)
+    , m_Scale(1.0f)
+    , m_InvScale(1.0f)
     {
 
     }
 
     World2D::World2D(HContext2D context, const NewWorldParams& params)
-    : m_World(b2Vec2(context->m_Gravity.getX(), context->m_Gravity.getY()))
+    : m_Context(context)
+    , m_World(context->m_Gravity)
     , m_RayCastRequests()
     , m_DebugDraw(&context->m_DebugCallbacks)
     , m_ContactListener(this)
@@ -32,7 +35,8 @@ namespace dmPhysics
     }
 
     ProcessRayCastResultCallback2D::ProcessRayCastResultCallback2D()
-    : m_IgnoredUserData(0x0)
+    : m_Context(0x0)
+    , m_IgnoredUserData(0x0)
     , m_CollisionGroup((uint16_t)~0u)
     , m_CollisionMask((uint16_t)~0u)
     {
@@ -57,8 +61,8 @@ namespace dmPhysics
             m_Response.m_Fraction = fraction;
             m_Response.m_CollisionObjectGroup = fixture->GetFilterData(index).categoryBits;
             m_Response.m_CollisionObjectUserData = fixture->GetBody()->GetUserData();
-            m_Response.m_Normal = Vectormath::Aos::Vector3(normal.x, normal.y, 0.0f);
-            m_Response.m_Position = Vectormath::Aos::Point3(point.x, point.y, 0.0f);
+            FromB2(normal, m_Response.m_Normal, 1.0f); // Don't scale normal
+            FromB2(point, m_Response.m_Position, m_Context->m_InvScale);
             return fraction;
         }
         else
@@ -96,19 +100,20 @@ namespace dmPhysics
                 {
                     b2WorldManifold world_manifold;
                     contact->GetWorldManifold(&world_manifold);
+                    float inv_scale = m_World->m_Context->m_InvScale;
                     int32 n_p = contact->GetManifold()->pointCount;
                     for (int32 i = 0; i < n_p; ++i)
                     {
                         ContactPoint cp;
-                        cp.m_PositionA = Vectormath::Aos::Point3(world_manifold.points[i].x, world_manifold.points[i].y, 0.0f);
-                        cp.m_PositionB = Vectormath::Aos::Point3(world_manifold.points[i].x, world_manifold.points[i].y, 0.0f);
+                        FromB2(world_manifold.points[i], cp.m_PositionA, inv_scale);
+                        FromB2(world_manifold.points[i], cp.m_PositionB, inv_scale);
                         cp.m_UserDataA = fixture_a->GetBody()->GetUserData();
                         cp.m_UserDataB = fixture_b->GetBody()->GetUserData();
-                        cp.m_Normal = Vectormath::Aos::Vector3(world_manifold.normal.x, world_manifold.normal.y, 0.0f);
+                        FromB2(world_manifold.normal, cp.m_Normal, 1.0f); // Don't scale normal
                         b2Vec2 rv = fixture_b->GetBody()->GetLinearVelocity() - fixture_a->GetBody()->GetLinearVelocity();
-                        cp.m_RelativeVelocity = Vectormath::Aos::Vector3(rv.x, rv.y, 0.0f);
-                        cp.m_Distance = contact->GetManifold()->points[i].distance;
-                        cp.m_AppliedImpulse = impulse->normalImpulses[0];
+                        FromB2(rv, cp.m_RelativeVelocity, inv_scale);
+                        cp.m_Distance = contact->GetManifold()->points[i].distance * inv_scale;
+                        cp.m_AppliedImpulse = impulse->normalImpulses[0] * inv_scale;
                         cp.m_InvMassA = 1.0f / fixture_a->GetBody()->GetMass();
                         cp.m_InvMassB = 1.0f / fixture_b->GetBody()->GetMass();
                         cp.m_GroupA = fixture_a->GetFilterData(index_a).categoryBits;
@@ -127,9 +132,16 @@ namespace dmPhysics
 
     HContext2D NewContext2D(const NewContextParams& params)
     {
+        if (params.m_Scale < MIN_SCALE || params.m_Scale > MAX_SCALE)
+        {
+            dmLogFatal("Physics scale is outside the valid range %.2f - %.2f.", MIN_SCALE, MAX_SCALE);
+            return 0x0;
+        }
         Context2D* context = new Context2D();
         context->m_Worlds.SetCapacity(params.m_WorldCount);
-        context->m_Gravity = params.m_Gravity;
+        ToB2(params.m_Gravity, context->m_Gravity, params.m_Scale);
+        context->m_Scale = params.m_Scale;
+        context->m_InvScale = 1.0f / params.m_Scale;
         dmMessage::Result result = dmMessage::NewSocket(PHYSICS_SOCKET_NAME, &context->m_Socket);
         if (result != dmMessage::RESULT_OK)
         {
@@ -181,9 +193,11 @@ namespace dmPhysics
         delete world;
     }
 
-    void StepWorld2D(HWorld2D world, const StepWorldContext& context)
+    void StepWorld2D(HWorld2D world, const StepWorldContext& step_context)
     {
-        float dt = context.m_DT;
+        float dt = step_context.m_DT;
+        HContext2D context = world->m_Context;
+        float scale = context->m_Scale;
         // Update transforms of kinematic bodies
         if (world->m_GetWorldTransformCallback)
         {
@@ -191,15 +205,17 @@ namespace dmPhysics
             {
                 if (body->GetType() == b2_kinematicBody)
                 {
-                    Vectormath::Aos::Point3 old_position = GetWorldPosition2D(body);
-                    Vectormath::Aos::Quat old_rotation = GetWorldRotation2D(body);
+                    Vectormath::Aos::Point3 old_position = GetWorldPosition2D(context, body);
+                    Vectormath::Aos::Quat old_rotation = GetWorldRotation2D(context, body);
                     Vectormath::Aos::Point3 position;
                     Vectormath::Aos::Quat rotation;
                     (*world->m_GetWorldTransformCallback)(body->GetUserData(), position, rotation);
                     float angle = atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()), 1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ()));
-                    body->SetTransform(b2Vec2(position.getX(), position.getY()), angle);
-                    position = GetWorldPosition2D(body);
-                    rotation = GetWorldRotation2D(body);
+                    b2Vec2 b2_position;
+                    ToB2(position, b2_position, scale);
+                    body->SetTransform(b2_position, angle);
+                    position = GetWorldPosition2D(context, body);
+                    rotation = GetWorldRotation2D(context, body);
                     if ((distSqr(old_position, position) > 0.0f || lengthSqr(Vectormath::Aos::Vector4(rotation - old_rotation)) > 0.0f))
                     {
                         body->SetSleepingAllowed(false);
@@ -211,8 +227,9 @@ namespace dmPhysics
                 }
             }
         }
-        world->m_ContactListener.SetStepWorldContext(&context);
+        world->m_ContactListener.SetStepWorldContext(&step_context);
         world->m_World.Step(dt, 10, 10);
+        float inv_scale = world->m_Context->m_InvScale;
         // Update transforms of dynamic bodies
         if (world->m_SetWorldTransformCallback)
         {
@@ -220,7 +237,8 @@ namespace dmPhysics
             {
                 if (body->GetType() == b2_dynamicBody && body->IsActive())
                 {
-                    Vectormath::Aos::Point3 position(body->GetPosition().x, body->GetPosition().y, 0.0f);
+                    Vectormath::Aos::Point3 position;
+                    FromB2(body->GetPosition(), position, inv_scale);
                     Vectormath::Aos::Quat rotation = Vectormath::Aos::Quat::rotationZ(body->GetAngle());
                     (*world->m_SetWorldTransformCallback)(body->GetUserData(), position, rotation);
                 }
@@ -231,21 +249,24 @@ namespace dmPhysics
         if (size > 0)
         {
             ProcessRayCastResultCallback2D callback;
+            callback.m_Context = world->m_Context;
             for (uint32_t i = 0; i < size; ++i)
             {
                 RayCastRequest& request = world->m_RayCastRequests[i];
-                b2Vec2 from(request.m_From.getX(), request.m_From.getY());
-                b2Vec2 to(request.m_To.getX(), request.m_To.getY());
+                b2Vec2 from;
+                ToB2(request.m_From, from, scale);
+                b2Vec2 to;
+                ToB2(request.m_To, to, scale);
                 callback.m_IgnoredUserData = request.m_IgnoredUserData;
                 callback.m_CollisionMask = request.m_Mask;
                 callback.m_Response.m_Hit = 0;
                 world->m_World.RayCast(&callback, from, to);
-                (*context.m_RayCastCallback)(callback.m_Response, request, context.m_RayCastUserData);
+                (*step_context.m_RayCastCallback)(callback.m_Response, request, step_context.m_RayCastUserData);
             }
             world->m_RayCastRequests.SetSize(0);
         }
         // Report sensor collisions
-        if (context.m_CollisionCallback)
+        if (step_context.m_CollisionCallback)
         {
             for (b2Contact* contact = world->m_World.GetContactList(); contact; contact = contact->GetNext())
             {
@@ -256,11 +277,11 @@ namespace dmPhysics
 
                 if (contact->IsTouching() && (fixture_a->IsSensor() || fixture_b->IsSensor()))
                 {
-                    context.m_CollisionCallback(fixture_a->GetUserData(),
+                    step_context.m_CollisionCallback(fixture_a->GetUserData(),
                                                 fixture_a->GetFilterData(index_a).categoryBits,
                                                 fixture_b->GetUserData(),
                                                 fixture_b->GetFilterData(index_b).categoryBits,
-                                                context.m_CollisionUserData);
+                                                step_context.m_CollisionUserData);
                 }
             }
         }
@@ -271,36 +292,47 @@ namespace dmPhysics
         world->m_World.DrawDebugData();
     }
 
-    HCollisionShape2D NewCircleShape2D(float radius)
+    HCollisionShape2D NewCircleShape2D(HContext2D context, float radius)
     {
         b2CircleShape* shape = new b2CircleShape();
         shape->m_p = b2Vec2(0.0f, 0.0f);
-        shape->m_radius = radius;
+        shape->m_radius = radius * context->m_Scale;
         return shape;
     }
 
-    HCollisionShape2D NewBoxShape2D(const Vectormath::Aos::Vector3& half_extents)
+    HCollisionShape2D NewBoxShape2D(HContext2D context, const Vectormath::Aos::Vector3& half_extents)
     {
         b2PolygonShape* shape = new b2PolygonShape();
-        shape->SetAsBox(half_extents.getX(), half_extents.getY());
+        float scale = context->m_Scale;
+        shape->SetAsBox(half_extents.getX() * scale, half_extents.getY() * scale);
         return shape;
     }
 
-    HCollisionShape2D NewPolygonShape2D(const float* vertices, uint32_t vertex_count)
+    HCollisionShape2D NewPolygonShape2D(HContext2D context, const float* vertices, uint32_t vertex_count)
     {
         b2PolygonShape* shape = new b2PolygonShape();
-        shape->Set((b2Vec2*)vertices, vertex_count);
+        float scale = context->m_Scale;
+        const uint32_t elem_count = vertex_count * 2;
+        float* v = new float[elem_count];
+        for (uint32_t i = 0; i < elem_count; ++i)
+        {
+            v[i] = vertices[i] * scale;
+        }
+        shape->Set((b2Vec2*)v, vertex_count);
+        delete [] v;
         return shape;
     }
 
-    HHullSet2D NewHullSet2D(const float* vertices, uint32_t vertex_count,
+    HHullSet2D NewHullSet2D(HContext2D context, const float* vertices, uint32_t vertex_count,
                             const HullDesc* hulls, uint32_t hull_count)
     {
         assert(sizeof(HullDesc) == sizeof(const b2HullSet::Hull));
         // NOTE: We cast HullDesc* to const b2HullSet::Hull* here
         // We assume that they have the same physical layout
-        return new b2HullSet((const b2Vec2*) vertices, vertex_count,
+        // NOTE: No scaling of the vertices here since they are already assumed to be in a virtual "unit-space"
+        b2HullSet* hull_set = new b2HullSet((const b2Vec2*) vertices, vertex_count,
                              (const b2HullSet::Hull*) hulls, hull_count);
+        return hull_set;
     }
 
     void DeleteHullSet2D(HHullSet2D hull_set)
@@ -308,13 +340,15 @@ namespace dmPhysics
         delete (b2HullSet*) hull_set;
     }
 
-    HCollisionShape2D NewGridShape2D(HHullSet2D hull_set,
+    HCollisionShape2D NewGridShape2D(HContext2D context, HHullSet2D hull_set,
                                      const Vectormath::Aos::Point3& position,
                                      uint32_t cell_width, uint32_t cell_height,
                                      uint32_t row_count, uint32_t column_count)
     {
-        b2Vec2 p(position.getX(), position.getY());
-        return new b2GridShape((b2HullSet*) hull_set, p, cell_width, cell_height, row_count, column_count);
+        float scale = context->m_Scale;
+        b2Vec2 p;
+        ToB2(position, p, scale);
+        return new b2GridShape((b2HullSet*) hull_set, p, cell_width * scale, cell_height * scale, row_count, column_count);
     }
 
     void SetGridShapeHull(HCollisionObject2D collision_object, HCollisionShape2D collision_shape, uint32_t row, uint32_t column, uint32_t hull)
@@ -380,11 +414,13 @@ namespace dmPhysics
      *  c = (1 - 2 * q.z * q.z, 2 * q.z * q.w)
      *
      */
-    static b2Shape* TransformCopyShape(const b2Shape* shape,
+    static b2Shape* TransformCopyShape(HContext2D context,
+                                       const b2Shape* shape,
                                        const Vectormath::Aos::Vector3& translation,
                                        const Vectormath::Aos::Quat& rotation)
     {
-        b2Vec2 t(translation.getX(), translation.getY());
+        b2Vec2 t;
+        ToB2(translation, t, context->m_Scale);
         b2Rot r;
         r.SetComplex(1 - 2 * rotation.getZ() * rotation.getZ(), 2 * rotation.getZ() * rotation.getW());
         b2Transform transform(t, r);
@@ -507,6 +543,7 @@ namespace dmPhysics
             break;
         }
 
+        HContext2D context = world->m_Context;
         b2BodyDef def;
         if (world->m_GetWorldTransformCallback != 0x0)
         {
@@ -515,7 +552,7 @@ namespace dmPhysics
                 Vectormath::Aos::Point3 position;
                 Vectormath::Aos::Quat rotation;
                 (*world->m_GetWorldTransformCallback)(data.m_UserData, position, rotation);
-                def.position = b2Vec2(position.getX(), position.getY());
+                ToB2(position, def.position, context->m_Scale);
                 def.angle = atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()), 1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ()));
             }
             else
@@ -546,11 +583,11 @@ namespace dmPhysics
 
             if (translations && rotations)
             {
-                s = TransformCopyShape(s, translations[reverse_i], rotations[reverse_i]);
+                s = TransformCopyShape(context, s, translations[reverse_i], rotations[reverse_i]);
             }
             else
             {
-                s = TransformCopyShape(s, zero_vec3, Vectormath::Aos::Quat::identity());
+                s = TransformCopyShape(context, s, zero_vec3, Vectormath::Aos::Quat::identity());
             }
 
             b2FixtureDef f_def;
@@ -614,39 +651,50 @@ namespace dmPhysics
         return ((b2Body*)collision_object)->GetUserData();
     }
 
-    void ApplyForce2D(HCollisionObject2D collision_object, const Vectormath::Aos::Vector3& force, const Vectormath::Aos::Point3& position)
+    void ApplyForce2D(HContext2D context, HCollisionObject2D collision_object, const Vectormath::Aos::Vector3& force, const Vectormath::Aos::Point3& position)
     {
-        ((b2Body*)collision_object)->ApplyForce(b2Vec2(force.getX(), force.getY()), b2Vec2(position.getX(), position.getY()));
+        float scale = context->m_Scale;
+        b2Vec2 b2_force;
+        ToB2(force, b2_force, scale);
+        b2Vec2 b2_position;
+        ToB2(position, b2_position, scale);
+        ((b2Body*)collision_object)->ApplyForce(b2_force, b2_position);
     }
 
-    Vectormath::Aos::Vector3 GetTotalForce2D(HCollisionObject2D collision_object)
+    Vectormath::Aos::Vector3 GetTotalForce2D(HContext2D context, HCollisionObject2D collision_object)
     {
-        const b2Vec2& force = ((b2Body*)collision_object)->GetForce();
-        return Vectormath::Aos::Vector3(force.x, force.y, 0.0f);
+        const b2Vec2& b2_force = ((b2Body*)collision_object)->GetForce();
+        Vectormath::Aos::Vector3 force;
+        FromB2(b2_force, force, context->m_InvScale);
+        return force;
     }
 
-    Vectormath::Aos::Point3 GetWorldPosition2D(HCollisionObject2D collision_object)
+    Vectormath::Aos::Point3 GetWorldPosition2D(HContext2D context, HCollisionObject2D collision_object)
     {
-        const b2Vec2& position = ((b2Body*)collision_object)->GetPosition();
-        return Vectormath::Aos::Point3(position.x, position.y, 0.0f);
+        const b2Vec2& b2_position = ((b2Body*)collision_object)->GetPosition();
+        Vectormath::Aos::Point3 position;
+        FromB2(b2_position, position, context->m_InvScale);
+        return position;
     }
 
-    Vectormath::Aos::Quat GetWorldRotation2D(HCollisionObject2D collision_object)
+    Vectormath::Aos::Quat GetWorldRotation2D(HContext2D context, HCollisionObject2D collision_object)
     {
         float rotation = ((b2Body*)collision_object)->GetAngle();
         return Vectormath::Aos::Quat::rotationZ(rotation);
     }
 
-    Vectormath::Aos::Vector3 GetLinearVelocity2D(HCollisionObject2D collision_object)
+    Vectormath::Aos::Vector3 GetLinearVelocity2D(HContext2D context, HCollisionObject2D collision_object)
     {
-        b2Vec2 lin_vel = ((b2Body*)collision_object)->GetLinearVelocity();
-        return Vectormath::Aos::Vector3(lin_vel.x, lin_vel.y, 0.0f);
+        b2Vec2 b2_lin_vel = ((b2Body*)collision_object)->GetLinearVelocity();
+        Vectormath::Aos::Vector3 lin_vel;
+        FromB2(b2_lin_vel, lin_vel, context->m_InvScale);
+        return lin_vel;
     }
 
-    Vectormath::Aos::Vector3 GetAngularVelocity2D(HCollisionObject2D collision_object)
+    Vectormath::Aos::Vector3 GetAngularVelocity2D(HContext2D context, HCollisionObject2D collision_object)
     {
         float ang_vel = ((b2Body*)collision_object)->GetAngularVelocity();
-        return Vectormath::Aos::Vector3(0.0f, 0.0f, ang_vel);
+        return Vectormath::Aos::Vector3(0.0f, 0.0f, ang_vel * context->m_InvScale);
     }
 
     bool IsEnabled2D(HCollisionObject2D collision_object)
@@ -672,7 +720,9 @@ namespace dmPhysics
                 Vectormath::Aos::Quat rotation;
                 (*world->m_GetWorldTransformCallback)(body->GetUserData(), position, rotation);
                 float angle = atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()), 1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ()));
-                body->SetTransform(b2Vec2(position.getX(), position.getY()), angle);
+                b2Vec2 b2_position;
+                ToB2(position, b2_position, world->m_Context->m_Scale);
+                body->SetTransform(b2_position, angle);
             }
         }
         body->SetActive(enabled);

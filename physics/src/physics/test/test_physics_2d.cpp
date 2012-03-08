@@ -125,9 +125,9 @@ TYPED_TEST(PhysicsTest, MultipleGroups)
     data.m_Mask = 1 << 3;
     typename TypeParam::CollisionShapeType shapes[2];
     float v1[] = {0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f};
-    shapes[0] = (*TestFixture::m_Test.m_NewConvexHullShapeFunc)(v1, 4);
+    shapes[0] = (*TestFixture::m_Test.m_NewConvexHullShapeFunc)(TestFixture::m_Context, v1, 4);
     float v2[] = {0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 2.0f, 0.0f, 2.0f};
-    shapes[1] = (*TestFixture::m_Test.m_NewConvexHullShapeFunc)(v2, 4);
+    shapes[1] = (*TestFixture::m_Test.m_NewConvexHullShapeFunc)(TestFixture::m_Context, v2, 4);
     typename TypeParam::CollisionObjectType static_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, shapes, 2u);
     dmPhysics::SetCollisionObjectFilter(static_co, 1, 0, 1 << 1, 1 << 3);
 
@@ -138,7 +138,7 @@ TYPED_TEST(PhysicsTest, MultipleGroups)
     data.m_UserData = &vo_b;
     data.m_Group = 1 << 3;
     data.m_Mask = 1 << 2;
-    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(0.5f, 0.5f, 0.0f));
+    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(0.5f, 0.5f, 0.0f));
     typename TypeParam::CollisionObjectType dynamic_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
 
     for (uint32_t i = 0; i < 40; ++i)
@@ -173,6 +173,7 @@ TYPED_TEST(PhysicsTest, GridShapePolygon)
         data.m_UserData = &vo_a;
         data.m_Group = 0xffff;
         data.m_Mask = 0xffff;
+        data.m_Restitution = 0.0f;
 
         const float hull_vertices[] = {  // 1x1 around origo
                                         -0.5f, -0.5f,
@@ -187,8 +188,8 @@ TYPED_TEST(PhysicsTest, GridShapePolygon)
                                         -0.5f,  0.0f };
 
         const dmPhysics::HullDesc hulls[] = { {0, 4}, {4, 4} };
-        dmPhysics::HHullSet2D hull_set = dmPhysics::NewHullSet2D(hull_vertices, 8, hulls, 2);
-        dmPhysics::HCollisionShape2D grid_shape = dmPhysics::NewGridShape2D(hull_set, Point3(0,0,0), cell_width, cell_height, rows, columns);
+        dmPhysics::HHullSet2D hull_set = dmPhysics::NewHullSet2D(TestFixture::m_Context, hull_vertices, 8, hulls, 2);
+        dmPhysics::HCollisionShape2D grid_shape = dmPhysics::NewGridShape2D(TestFixture::m_Context, hull_set, Point3(0,0,0), cell_width, cell_height, rows, columns);
         typename TypeParam::CollisionObjectType grid_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &grid_shape, 1u);
 
         for (int32_t row = 0; row < rows; ++row)
@@ -206,7 +207,8 @@ TYPED_TEST(PhysicsTest, GridShapePolygon)
         data.m_UserData = &vo_b;
         data.m_Group = 0xffff;
         data.m_Mask = 0xffff;
-        typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(0.5f, 0.5f, 0.0f));
+        data.m_Restitution = 0.0f;
+        typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(0.5f, 0.5f, 0.0f));
         typename TypeParam::CollisionObjectType dynamic_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
 
         for (int32_t col = 0; col < columns; ++col)
@@ -316,8 +318,8 @@ TYPED_TEST(PhysicsTest, GridShapeSphere)
                                     -0.5f,  0.0f };
 
     const dmPhysics::HullDesc hulls[] = { {0, 4}, {4, 4} };
-    dmPhysics::HHullSet2D hull_set = dmPhysics::NewHullSet2D(hull_vertices, 8, hulls, 2);
-    dmPhysics::HCollisionShape2D grid_shape = dmPhysics::NewGridShape2D(hull_set, Point3(0,0,0), cell_width, cell_height, rows, columns);
+    dmPhysics::HHullSet2D hull_set = dmPhysics::NewHullSet2D(TestFixture::m_Context, hull_vertices, 8, hulls, 2);
+    dmPhysics::HCollisionShape2D grid_shape = dmPhysics::NewGridShape2D(TestFixture::m_Context, hull_set, Point3(0,0,0), cell_width, cell_height, rows, columns);
     typename TypeParam::CollisionObjectType grid_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &grid_shape, 1u);
 
     for (int32_t row = 0; row < rows; ++row)
@@ -335,7 +337,7 @@ TYPED_TEST(PhysicsTest, GridShapeSphere)
     data.m_UserData = &vo_b;
     data.m_Group = 0xffff;
     data.m_Mask = 0xffff;
-    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewSphereShapeFunc)(0.5f);
+    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewSphereShapeFunc)(TestFixture::m_Context, 0.5f);
     typename TypeParam::CollisionObjectType dynamic_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
 
     for (uint32_t i = 0; i < 30; ++i)
@@ -404,8 +406,8 @@ TYPED_TEST(PhysicsTest, GridShapeCrack)
                                    -0.5f,  0.5f};
 
     const dmPhysics::HullDesc hulls[] = { {0, 4}, {0, 4} };
-    dmPhysics::HHullSet2D hull_set = dmPhysics::NewHullSet2D(hull_vertices, 4, hulls, 2);
-    dmPhysics::HCollisionShape2D grid_shape = dmPhysics::NewGridShape2D(hull_set, Point3(0,0,0), cell_width, cell_height, rows, columns);
+    dmPhysics::HHullSet2D hull_set = dmPhysics::NewHullSet2D(TestFixture::m_Context, hull_vertices, 4, hulls, 2);
+    dmPhysics::HCollisionShape2D grid_shape = dmPhysics::NewGridShape2D(TestFixture::m_Context, hull_set, Point3(0,0,0), cell_width, cell_height, rows, columns);
     typename TypeParam::CollisionObjectType grid_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &grid_shape, 1u);
 
     for (int32_t row = 0; row < rows; ++row)
@@ -423,7 +425,7 @@ TYPED_TEST(PhysicsTest, GridShapeCrack)
     data.m_UserData = &vo_b;
     data.m_Group = 0xffff;
     data.m_Mask = 0xffff;
-    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(2.0f, 8.0f, 8.0f));
+    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(2.0f, 8.0f, 8.0f));
     typename TypeParam::CollisionObjectType dynamic_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
 
     CrackUserData crack_data;
@@ -485,8 +487,8 @@ TYPED_TEST(PhysicsTest, GridShapeCorner)
                                    -0.5f,  0.5f};
 
     const dmPhysics::HullDesc hulls[] = { {0, 4}, {0, 4} };
-    dmPhysics::HHullSet2D hull_set = dmPhysics::NewHullSet2D(hull_vertices, 4, hulls, 2);
-    dmPhysics::HCollisionShape2D grid_shape = dmPhysics::NewGridShape2D(hull_set, Point3(0,0,0), cell_width, cell_height, rows, columns);
+    dmPhysics::HHullSet2D hull_set = dmPhysics::NewHullSet2D(TestFixture::m_Context, hull_vertices, 4, hulls, 2);
+    dmPhysics::HCollisionShape2D grid_shape = dmPhysics::NewGridShape2D(TestFixture::m_Context, hull_set, Point3(0,0,0), cell_width, cell_height, rows, columns);
     typename TypeParam::CollisionObjectType grid_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &grid_shape, 1u);
 
     for (int32_t row = 0; row < rows; ++row)
@@ -504,7 +506,7 @@ TYPED_TEST(PhysicsTest, GridShapeCorner)
     data.m_UserData = &vo_b;
     data.m_Group = 0xffff;
     data.m_Mask = 0xffff;
-    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(2.0f, 8.0f, 8.0f));
+    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(2.0f, 8.0f, 8.0f));
     typename TypeParam::CollisionObjectType dynamic_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
 
     CrackUserData crack_data;
@@ -555,8 +557,8 @@ TYPED_TEST(PhysicsTest, GridShapeSphereDistance)
                                    -0.5f,  0.5f};
 
     const dmPhysics::HullDesc hulls[] = { {0, 4}, {0, 4}, {0, 4} };
-    dmPhysics::HHullSet2D hull_set = dmPhysics::NewHullSet2D(hull_vertices, 4, hulls, 3);
-    dmPhysics::HCollisionShape2D grid_shape = dmPhysics::NewGridShape2D(hull_set, Point3(0,0,0), cell_width, cell_height, rows, columns);
+    dmPhysics::HHullSet2D hull_set = dmPhysics::NewHullSet2D(TestFixture::m_Context, hull_vertices, 4, hulls, 3);
+    dmPhysics::HCollisionShape2D grid_shape = dmPhysics::NewGridShape2D(TestFixture::m_Context, hull_set, Point3(0,0,0), cell_width, cell_height, rows, columns);
     typename TypeParam::CollisionObjectType grid_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &grid_shape, 1u);
 
     for (int32_t row = 0; row < rows; ++row)
@@ -574,7 +576,7 @@ TYPED_TEST(PhysicsTest, GridShapeSphereDistance)
     data.m_UserData = &vo_b;
     data.m_Group = 0xffff;
     data.m_Mask = 0xffff;
-    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewSphereShapeFunc)(8.0f);
+    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewSphereShapeFunc)(TestFixture::m_Context, 8.0f);
     typename TypeParam::CollisionObjectType dynamic_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
 
     CrackUserData crack_data;

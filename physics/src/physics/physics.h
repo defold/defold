@@ -44,6 +44,10 @@ namespace dmPhysics
     /// Empty cell value, see SetGridShapeHull
     const uint32_t GRIDSHAPE_EMPTY_CELL = 0xffffffff;
 
+    /// Boundary values for allowed scaling
+    static const float MIN_SCALE = 0.01f;
+    static const float MAX_SCALE = 1.0f;
+
     /**
      * HullDesc structure
      */
@@ -146,6 +150,8 @@ namespace dmPhysics
         Vectormath::Aos::Vector3 m_Gravity;
         /// Number of 3D worlds the context supports
         uint32_t m_WorldCount;
+        /// How the physics worlds are scaled in relation to the game world
+        float m_Scale;
     };
 
     /**
@@ -295,71 +301,79 @@ namespace dmPhysics
     /**
      * Create a new 3D sphere shape.
      *
+     * @param context Physics context
      * @param radius Sphere radius
      * @return Shape
      */
-    HCollisionShape3D NewSphereShape3D(float radius);
+    HCollisionShape3D NewSphereShape3D(HContext3D context, float radius);
 
     /**
      * Create a new 2D circle shape
      *
+     * @param context Physics context
      * @param radius Circle radius
      * @return Shape
      */
-    HCollisionShape2D NewCircleShape2D(float radius);
+    HCollisionShape2D NewCircleShape2D(HContext2D context, float radius);
 
     /**
      * Create a new 3D box shape
      *
+     * @param context Physics context
      * @param half_extents Box half extents
      * @return Shape
      */
-    HCollisionShape3D NewBoxShape3D(const Vectormath::Aos::Vector3& half_extents);
+    HCollisionShape3D NewBoxShape3D(HContext3D context, const Vectormath::Aos::Vector3& half_extents);
 
     /**
      * Create a new 2D box shape
      *
+     * @param context Physics context
      * @param half_extents Box half extents
      * @return Shape
      */
-    HCollisionShape2D NewBoxShape2D(const Vectormath::Aos::Vector3& half_extents);
+    HCollisionShape2D NewBoxShape2D(HContext2D context, const Vectormath::Aos::Vector3& half_extents);
 
     /**
      * Create a new 3D capsule shape
+     * @param context Physics context
      * @param radius Radius of top and bottom half-spheres of the capsule
      * @param height Height of the capsule; the distance between the two half-spheres
      * @return Shape
      */
-    HCollisionShape3D NewCapsuleShape3D(float radius, float height);
+    HCollisionShape3D NewCapsuleShape3D(HContext3D context, float radius, float height);
 
     /**
      * Create a new 3D convex hull shape
      *
+     * @param context Physics context
      * @param vertices Vertices. x0, y0, z0, x1, ...
      * @param vertex_count Vertex count
      * @return Shape
      */
-    HCollisionShape3D NewConvexHullShape3D(const float* vertices, uint32_t vertex_count);
+    HCollisionShape3D NewConvexHullShape3D(HContext3D context, const float* vertices, uint32_t vertex_count);
 
     /**
      * Create a new 2D polygon shape
      *
+     * @param context Physics context
      * @param vertices Vertices. x0, y0, x1, ...
      * @param vertex_count Vertex count
      * @return Shape
      */
-    HCollisionShape2D NewPolygonShape2D(const float* vertices, uint32_t vertex_count);
+    HCollisionShape2D NewPolygonShape2D(HContext2D context, const float* vertices, uint32_t vertex_count);
 
     /**
      * Create a new hull set. A hull set is a set of hulls
      * that can be shared by several grid-shapes
+     * @param context Physics context
      * @param vertices vertices [x0, y0, x1, ...]
      * @param vertex_count vertex count
      * @param hulls hulls
      * @param hull_count hull count
      * @return new hull set
      */
-    HHullSet2D NewHullSet2D(const float* vertices, uint32_t vertex_count,
+    HHullSet2D NewHullSet2D(HContext2D context, const float* vertices, uint32_t vertex_count,
                             const HullDesc* hulls, uint32_t hull_count);
 
     /**
@@ -373,6 +387,7 @@ namespace dmPhysics
      * @param hull_set hull set to use. The handle to hull-set is
      * stored in grid-shape and the handle must be valid throughout the
      * life-time of the grid-shape
+     * @param context Physics context
      * @param position local offset. when zero the boundary AABB is symmetric around local origin
      * @param cell_width cell width
      * @param cell_height cell height
@@ -380,7 +395,7 @@ namespace dmPhysics
      * @param cells_per_column
      * @return new grid-snape
      */
-    HCollisionShape2D NewGridShape2D(HHullSet2D hull_set,
+    HCollisionShape2D NewGridShape2D(HContext2D context, HHullSet2D hull_set,
                                      const Vectormath::Aos::Point3& position,
                                      uint32_t cell_width, uint32_t cell_height,
                                      uint32_t row_count, uint32_t column_count);
@@ -582,100 +597,112 @@ namespace dmPhysics
     /**
      * Apply a force to the specified 3D collision object at the specified position
      *
+     * @param context Physics context
      * @param collision_object Collision object receiving the force, must be of type COLLISION_OBJECT_TYPE_DYNAMIC
      * @param force Force to be applied (world space)
      * @param position Position of where the force will be applied (world space)
      */
-    void ApplyForce3D(HCollisionObject3D collision_object, const Vectormath::Aos::Vector3& force, const Vectormath::Aos::Point3& position);
+    void ApplyForce3D(HContext3D context, HCollisionObject3D collision_object, const Vectormath::Aos::Vector3& force, const Vectormath::Aos::Point3& position);
 
     /**
      * Apply a force to the specified 2D collision object at the specified position
      *
+     * @param context Physics context
      * @param collision_object Collision object receiving the force, must be of type COLLISION_OBJECT_TYPE_DYNAMIC
      * @param force Force to be applied (world space)
      * @param position Position of where the force will be applied (world space)
      */
-    void ApplyForce2D(HCollisionObject2D collision_object, const Vectormath::Aos::Vector3& force, const Vectormath::Aos::Point3& position);
+    void ApplyForce2D(HContext2D context, HCollisionObject2D collision_object, const Vectormath::Aos::Vector3& force, const Vectormath::Aos::Point3& position);
 
     /**
      * Return the total force currently applied to the specified 3D collision object.
      *
+     * @param context Physics context
      * @param collision_object Which collision object to inspect. For objects with another type than COLLISION_OBJECT_TYPE_DYNAMIC, the force will always be of zero size.
      * @return The total force (world space).
      */
-    Vectormath::Aos::Vector3 GetTotalForce3D(HCollisionObject3D collision_object);
+    Vectormath::Aos::Vector3 GetTotalForce3D(HContext3D context, HCollisionObject3D collision_object);
 
     /**
      * Return the total force currently applied to the specified 2D collision object.
      *
+     * @param context Physics context
      * @param collision_object Which collision object to inspect. For objects with another type than COLLISION_OBJECT_TYPE_DYNAMIC, the force will always be of zero size.
      * @return The total force (world space).
      */
-    Vectormath::Aos::Vector3 GetTotalForce2D(HCollisionObject2D collision_object);
+    Vectormath::Aos::Vector3 GetTotalForce2D(HContext2D context, HCollisionObject2D collision_object);
 
     /**
      * Return the world position of the specified 3D collision object.
      *
+     * @param context Physics context
      * @param collision_object Collision object handle
      * @return The world space position
      */
-    Vectormath::Aos::Point3 GetWorldPosition3D(HCollisionObject3D collision_object);
+    Vectormath::Aos::Point3 GetWorldPosition3D(HContext3D context, HCollisionObject3D collision_object);
 
     /**
      * Return the world position of the specified 2D collision object.
      *
+     * @param context Physics context
      * @param collision_object Collision object handle
      * @return The world space position
      */
-    Vectormath::Aos::Point3 GetWorldPosition2D(HCollisionObject2D collision_object);
+    Vectormath::Aos::Point3 GetWorldPosition2D(HContext2D context, HCollisionObject2D collision_object);
 
     /**
      * Return the world rotation of the specified 3D collision object.
      *
+     * @param context Physics context
      * @param collision_object Collision object handle
      * @return The world space rotation
      */
-    Vectormath::Aos::Quat GetWorldRotation3D(HCollisionObject3D collision_object);
+    Vectormath::Aos::Quat GetWorldRotation3D(HContext3D context, HCollisionObject3D collision_object);
 
     /**
      * Return the world rotation of the specified 2D collision object.
      *
+     * @param context Physics context
      * @param collision_object Collision object handle
      * @return The world space rotation
      */
-    Vectormath::Aos::Quat GetWorldRotation2D(HCollisionObject2D collision_object);
+    Vectormath::Aos::Quat GetWorldRotation2D(HContext2D context, HCollisionObject2D collision_object);
 
     /**
      * Return the linear velocity of the 3D collision object.
      *
+     * @param context Physics context
      * @param collision_object
      * @return The linear velocity.
      */
-    Vectormath::Aos::Vector3 GetLinearVelocity3D(HCollisionObject3D collision_object);
+    Vectormath::Aos::Vector3 GetLinearVelocity3D(HContext3D context, HCollisionObject3D collision_object);
 
     /**
      * Return the linear velocity of the 2D collision object.
      *
+     * @param context Physics context
      * @param collision_object
      * @return The linear velocity.
      */
-    Vectormath::Aos::Vector3 GetLinearVelocity2D(HCollisionObject2D collision_object);
+    Vectormath::Aos::Vector3 GetLinearVelocity2D(HContext2D context, HCollisionObject2D collision_object);
 
     /**
      * Return the linear velocity of the 3D collision object.
      *
+     * @param context Physics context
      * @param collision_object
      * @return The angular velocity. The direction of the vector coincides with the axis of rotation, the magnitude is the angle of rotation.
      */
-    Vectormath::Aos::Vector3 GetAngularVelocity3D(HCollisionObject3D collision_object);
+    Vectormath::Aos::Vector3 GetAngularVelocity3D(HContext3D context, HCollisionObject3D collision_object);
 
     /**
      * Return the linear velocity of the 2D collision object.
      *
+     * @param context Physics context
      * @param collision_object
      * @return The angular velocity. The direction of the vector coincides with the axis of rotation, the magnitude is the angle of rotation.
      */
-    Vectormath::Aos::Vector3 GetAngularVelocity2D(HCollisionObject2D collision_object);
+    Vectormath::Aos::Vector3 GetAngularVelocity2D(HContext2D context, HCollisionObject2D collision_object);
 
     /**
      * Return whether the 3D collision object is enabled or not.
@@ -806,8 +833,12 @@ namespace dmPhysics
         void* m_UserData;
         /// Alpha to use for everything rendered
         float m_Alpha;
-        /// Scale to use for rendered transforms
+        /// Scale from game world to physics world
         float m_Scale;
+        /// Scale from physics world to game world
+        float m_InvScale;
+        /// Scale to use for rendered debug graphics (transforms, arrows, etc)
+        float m_DebugScale;
     };
 
     /**

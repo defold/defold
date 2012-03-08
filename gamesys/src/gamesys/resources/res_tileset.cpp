@@ -6,7 +6,7 @@
 
 namespace dmGameSystem
 {
-    dmResource::Result AcquireResources(dmResource::HFactory factory, const void* buffer, uint32_t buffer_size,
+    dmResource::Result AcquireResources(dmPhysics::HContext2D context, dmResource::HFactory factory, const void* buffer, uint32_t buffer_size,
                           TileSetResource* tile_set, const char* filename)
     {
         dmGameSystemDDF::TileSet* tile_set_ddf;
@@ -41,7 +41,7 @@ namespace dmGameSystem
                 norm_points[i*2] = (points[i*2]) * recip_tile_width - 0.5f;
                 norm_points[i*2+1] = (points[i*2+1]) * recip_tile_height - 0.5f;
             }
-            tile_set->m_HullSet = dmPhysics::NewHullSet2D(norm_points, n_points, hull_descs, n_hulls);
+            tile_set->m_HullSet = dmPhysics::NewHullSet2D(context, norm_points, n_points, hull_descs, n_hulls);
             delete [] hull_descs;
             delete [] norm_points;
 
@@ -79,7 +79,7 @@ namespace dmGameSystem
     {
         TileSetResource* tile_set = new TileSetResource();
 
-        dmResource::Result r = AcquireResources(factory, buffer, buffer_size, tile_set, filename);
+        dmResource::Result r = AcquireResources(((PhysicsContext*)context)->m_Context2D, factory, buffer, buffer_size, tile_set, filename);
         if (r == dmResource::RESULT_OK)
         {
             resource->m_Resource = (void*) tile_set;
@@ -110,7 +110,7 @@ namespace dmGameSystem
     {
         TileSetResource* tile_set = (TileSetResource*)resource->m_Resource;
         TileSetResource tmp_tile_set;
-        dmResource::Result r = AcquireResources(factory, buffer, buffer_size, &tmp_tile_set, filename);
+        dmResource::Result r = AcquireResources(((PhysicsContext*)context)->m_Context2D, factory, buffer, buffer_size, &tmp_tile_set, filename);
         if (r == dmResource::RESULT_OK)
         {
             ReleaseResources(factory, tile_set);

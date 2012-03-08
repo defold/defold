@@ -95,8 +95,8 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("renderc", render_context, ResRenderPrototypeCreate, ResRenderPrototypeDestroy, ResRenderPrototypeRecreate);
         REGISTER_RESOURCE_TYPE("spritec", 0, ResSpriteCreate, ResSpriteDestroy, ResSpriteRecreate);
         REGISTER_RESOURCE_TYPE("sprite2c", 0, ResSprite2Create, ResSprite2Destroy, ResSprite2Recreate);
-        REGISTER_RESOURCE_TYPE("tilesetc", 0, ResTileSetCreate, ResTileSetDestroy, ResTileSetRecreate);
-        REGISTER_RESOURCE_TYPE("tilegridc", 0, ResTileGridCreate, ResTileGridDestroy, ResTileGridRecreate);
+        REGISTER_RESOURCE_TYPE("tilesetc", physics_context, ResTileSetCreate, ResTileSetDestroy, ResTileSetRecreate);
+        REGISTER_RESOURCE_TYPE("tilegridc", physics_context, ResTileGridCreate, ResTileGridDestroy, ResTileGridRecreate);
 
 #undef REGISTER_RESOURCE_TYPE
 

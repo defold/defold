@@ -169,7 +169,7 @@ TYPED_TEST_CASE(PhysicsTest, TestTypes);
 TYPED_TEST(PhysicsTest, BoxShape)
 {
     dmPhysics::CollisionObjectData data;
-    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(1.0f, 1.0f, 1.0f));
+    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(1.0f, 1.0f, 1.0f));
     typename TypeParam::CollisionObjectType co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
 
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, co);
@@ -179,7 +179,7 @@ TYPED_TEST(PhysicsTest, BoxShape)
 TYPED_TEST(PhysicsTest, SphereShape)
 {
     dmPhysics::CollisionObjectData data;
-    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewSphereShapeFunc)(1.0f);
+    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewSphereShapeFunc)(TestFixture::m_Context, 1.0f);
     typename TypeParam::CollisionObjectType co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
 
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, co);
@@ -191,7 +191,7 @@ TYPED_TEST(PhysicsTest, CapsuleShape)
     if (TestFixture::m_Test.m_NewCapsuleShapeFunc != 0x0)
     {
         dmPhysics::CollisionObjectData data;
-        typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewCapsuleShapeFunc)(0.5f, 1.0f);
+        typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewCapsuleShapeFunc)(TestFixture::m_Context, 0.5f, 1.0f);
         typename TypeParam::CollisionObjectType co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
 
         (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, co);
@@ -202,7 +202,7 @@ TYPED_TEST(PhysicsTest, CapsuleShape)
 TYPED_TEST(PhysicsTest, ConvexHullShape)
 {
     dmPhysics::CollisionObjectData data;
-    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewConvexHullShapeFunc)(TestFixture::m_Test.m_Vertices, TestFixture::m_Test.m_VertexCount);
+    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewConvexHullShapeFunc)(TestFixture::m_Context, TestFixture::m_Test.m_Vertices, TestFixture::m_Test.m_VertexCount);
     typename TypeParam::CollisionObjectType co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
 
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, co);
@@ -212,7 +212,7 @@ TYPED_TEST(PhysicsTest, ConvexHullShape)
 TYPED_TEST(PhysicsTest, DynamicConstruction)
 {
     dmPhysics::CollisionObjectData data;
-    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(1.0f, 1.0f, 1.0f));
+    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(1.0f, 1.0f, 1.0f));
     data.m_Mass = 0.0f;
     typename TypeParam::CollisionObjectType co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
 
@@ -231,7 +231,7 @@ TYPED_TEST(PhysicsTest, DynamicConstruction)
 TYPED_TEST(PhysicsTest, KinematicConstruction)
 {
     dmPhysics::CollisionObjectData data;
-    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(1.0f, 1.0f, 1.0f));
+    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(1.0f, 1.0f, 1.0f));
     data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
     typename TypeParam::CollisionObjectType co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
 
@@ -250,7 +250,7 @@ TYPED_TEST(PhysicsTest, KinematicConstruction)
 TYPED_TEST(PhysicsTest, StaticConstruction)
 {
     dmPhysics::CollisionObjectData data;
-    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(1.0f, 1.0f, 1.0f));
+    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(1.0f, 1.0f, 1.0f));
     data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
     typename TypeParam::CollisionObjectType co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
 
@@ -270,7 +270,7 @@ TYPED_TEST(PhysicsTest, StaticConstruction)
 TYPED_TEST(PhysicsTest, TriggerConstruction)
 {
     dmPhysics::CollisionObjectData data;
-    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(1.0f, 1.0f, 1.0f));
+    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(1.0f, 1.0f, 1.0f));
     data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_TRIGGER;
     typename TypeParam::CollisionObjectType co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
 
@@ -298,17 +298,17 @@ TYPED_TEST(PhysicsTest, WorldTransformCallbacks)
     vo.m_Position = start_pos;
     vo.m_Rotation = start_rot;
     dmPhysics::CollisionObjectData data;
-    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(1.0f, 1.0f, 1.0f));
+    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(1.0f, 1.0f, 1.0f));
     data.m_UserData = &vo;
     typename TypeParam::CollisionObjectType dynamic_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
 
-    Vectormath::Aos::Point3 body_pos = (*TestFixture::m_Test.m_GetWorldPositionFunc)(dynamic_co);
+    Vectormath::Aos::Point3 body_pos = (*TestFixture::m_Test.m_GetWorldPositionFunc)(TestFixture::m_Context, dynamic_co);
     for (int i = 0; i < 3; ++i)
     {
         ASSERT_EQ(start_pos.getElem(i), vo.m_Position.getElem(i));
         ASSERT_EQ(start_pos.getElem(i), body_pos.getElem(i));
     }
-    Vectormath::Aos::Quat body_rot = (*TestFixture::m_Test.m_GetWorldRotationFunc)(dynamic_co);
+    Vectormath::Aos::Quat body_rot = (*TestFixture::m_Test.m_GetWorldRotationFunc)(TestFixture::m_Context, dynamic_co);
     for (int i = 0; i < 4; ++i)
     {
         ASSERT_EQ(start_rot.getElem(i), vo.m_Rotation.getElem(i));
@@ -318,7 +318,7 @@ TYPED_TEST(PhysicsTest, WorldTransformCallbacks)
     (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 
     ASSERT_GT(start_pos.getY(), vo.m_Position.getY());
-    ASSERT_GT(start_pos.getY(), (*TestFixture::m_Test.m_GetWorldPositionFunc)(dynamic_co).getY());
+    ASSERT_GT(start_pos.getY(), (*TestFixture::m_Test.m_GetWorldPositionFunc)(TestFixture::m_Context, dynamic_co).getY());
 
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, dynamic_co);
 
@@ -331,14 +331,14 @@ TYPED_TEST(PhysicsTest, WorldTransformCallbacks)
     typename TypeParam::CollisionObjectType kinematic_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
 
     ASSERT_EQ(0.0f, vo.m_Position.getY());
-    ASSERT_EQ(0.0f, (*TestFixture::m_Test.m_GetWorldPositionFunc)(kinematic_co).getY());
+    ASSERT_EQ(0.0f, (*TestFixture::m_Test.m_GetWorldPositionFunc)(TestFixture::m_Context, kinematic_co).getY());
 
     vo.m_Position.setY(1.0f);
 
     (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 
     ASSERT_EQ(1.0f, vo.m_Position.getY());
-    ASSERT_EQ(1.0f, (*TestFixture::m_Test.m_GetWorldPositionFunc)(kinematic_co).getY());
+    ASSERT_EQ(1.0f, (*TestFixture::m_Test.m_GetWorldPositionFunc)(TestFixture::m_Context, kinematic_co).getY());
 
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, kinematic_co);
 
@@ -350,14 +350,14 @@ TYPED_TEST(PhysicsTest, WorldTransformCallbacks)
     typename TypeParam::CollisionObjectType static_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
 
     ASSERT_EQ(0.0f, vo.m_Position.getY());
-    ASSERT_EQ(0.0f, (*TestFixture::m_Test.m_GetWorldPositionFunc)(static_co).getY());
+    ASSERT_EQ(0.0f, (*TestFixture::m_Test.m_GetWorldPositionFunc)(TestFixture::m_Context, static_co).getY());
 
     vo.m_Position.setY(1.0f);
 
     (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 
     ASSERT_EQ(1.0f, vo.m_Position.getY());
-    ASSERT_EQ(0.0f, (*TestFixture::m_Test.m_GetWorldPositionFunc)(static_co).getY());
+    ASSERT_EQ(0.0f, (*TestFixture::m_Test.m_GetWorldPositionFunc)(TestFixture::m_Context, static_co).getY());
 
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, static_co);
 
@@ -369,14 +369,14 @@ TYPED_TEST(PhysicsTest, WorldTransformCallbacks)
     typename TypeParam::CollisionObjectType trigger_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
 
     ASSERT_EQ(0.0f, vo.m_Position.getY());
-    ASSERT_EQ(0.0f, (*TestFixture::m_Test.m_GetWorldPositionFunc)(trigger_co).getY());
+    ASSERT_EQ(0.0f, (*TestFixture::m_Test.m_GetWorldPositionFunc)(TestFixture::m_Context, trigger_co).getY());
 
     vo.m_Position.setY(1.0f);
 
     (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 
     ASSERT_EQ(1.0f, vo.m_Position.getY());
-    ASSERT_EQ(1.0f, (*TestFixture::m_Test.m_GetWorldPositionFunc)(trigger_co).getY());
+    ASSERT_EQ(1.0f, (*TestFixture::m_Test.m_GetWorldPositionFunc)(TestFixture::m_Context, trigger_co).getY());
 
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, trigger_co);
 
@@ -390,7 +390,7 @@ TYPED_TEST(PhysicsTest, GroundBoxCollision)
 
     VisualObject ground_visual_object;
     dmPhysics::CollisionObjectData ground_data;
-    typename TypeParam::CollisionShapeType ground_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(100, ground_height_half_ext, 100));
+    typename TypeParam::CollisionShapeType ground_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(100, ground_height_half_ext, 100));
     ground_data.m_Mass = 0.0f;
     ground_data.m_Restitution = 0.0f;
     ground_data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
@@ -402,7 +402,7 @@ TYPED_TEST(PhysicsTest, GroundBoxCollision)
     box_visual_object.m_Position = start_position;
     dmPhysics::CollisionObjectData box_data;
     box_data.m_Restitution = 0.0f;
-    typename TypeParam::CollisionShapeType box_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    typename TypeParam::CollisionShapeType box_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(box_half_ext, box_half_ext, box_half_ext));
     box_data.m_UserData = &box_visual_object;
     typename TypeParam::CollisionObjectType box_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, box_data, &box_shape, 1u);
 
@@ -426,7 +426,7 @@ TYPED_TEST(PhysicsTest, ShapeTransform)
 
     VisualObject ground_visual_object;
     dmPhysics::CollisionObjectData ground_data;
-    typename TypeParam::CollisionShapeType ground_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(100, ground_height_half_ext, 100));
+    typename TypeParam::CollisionShapeType ground_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(100, ground_height_half_ext, 100));
     ground_data.m_Mass = 0.0f;
     ground_data.m_Restitution = 0.0f;
     ground_data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
@@ -438,7 +438,7 @@ TYPED_TEST(PhysicsTest, ShapeTransform)
     box_visual_object.m_Position = start_position;
     dmPhysics::CollisionObjectData box_data;
     box_data.m_Restitution = 0.0f;
-    typename TypeParam::CollisionShapeType box_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    typename TypeParam::CollisionShapeType box_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(box_half_ext, box_half_ext, box_half_ext));
     box_data.m_UserData = &box_visual_object;
     Vectormath::Aos::Vector3 trans(0, 0, 0);
     Vectormath::Aos::Quat rot = Vectormath::Aos::Quat::rotationZ(0.25f * M_PI);
@@ -464,7 +464,7 @@ TYPED_TEST(PhysicsTest, KinematicStaticCollision)
 
     VisualObject ground_visual_object;
     dmPhysics::CollisionObjectData ground_data;
-    typename TypeParam::CollisionShapeType ground_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(100, ground_height_half_ext, 100));
+    typename TypeParam::CollisionShapeType ground_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(100, ground_height_half_ext, 100));
     ground_data.m_Mass = 0.0f;
     ground_data.m_Restitution = 0.0f;
     ground_data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
@@ -479,7 +479,7 @@ TYPED_TEST(PhysicsTest, KinematicStaticCollision)
     box_data.m_Restitution = 0.0f;
     box_data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
     box_data.m_UserData = &box_visual_object;
-    typename TypeParam::CollisionShapeType box_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    typename TypeParam::CollisionShapeType box_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(box_half_ext, box_half_ext, box_half_ext));
     typename TypeParam::CollisionObjectType box_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, box_data, &box_shape, 1u);
 
     (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
@@ -507,7 +507,7 @@ TYPED_TEST(PhysicsTest, CollisionCallbacks)
 
     VisualObject ground_visual_object;
     dmPhysics::CollisionObjectData ground_data;
-    typename TypeParam::CollisionShapeType ground_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(100, ground_height_half_ext, 100));
+    typename TypeParam::CollisionShapeType ground_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(100, ground_height_half_ext, 100));
     ground_data.m_Mass = 0.0f;
     ground_data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
     ground_data.m_UserData = &ground_visual_object;
@@ -516,7 +516,7 @@ TYPED_TEST(PhysicsTest, CollisionCallbacks)
     VisualObject box_visual_object;
     box_visual_object.m_Position = Point3(0, 10, 0);
     dmPhysics::CollisionObjectData box_data;
-    typename TypeParam::CollisionShapeType box_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    typename TypeParam::CollisionShapeType box_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(box_half_ext, box_half_ext, box_half_ext));
     box_data.m_UserData = &box_visual_object;
     typename TypeParam::CollisionObjectType box_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, box_data, &box_shape, 1u);
 
@@ -576,7 +576,7 @@ TYPED_TEST(PhysicsTest, TriggerCollisions)
     static_vo.m_Position = Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f);
     static_vo.m_Rotation = Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f);
     dmPhysics::CollisionObjectData static_data;
-    typename TypeParam::CollisionShapeType static_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    typename TypeParam::CollisionShapeType static_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(box_half_ext, box_half_ext, box_half_ext));
     static_data.m_Mass = 0.0f;
     static_data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
     static_data.m_UserData = &static_vo;
@@ -586,7 +586,7 @@ TYPED_TEST(PhysicsTest, TriggerCollisions)
     dynamic_vo.m_Position = Vectormath::Aos::Point3(0.0f, 1.0f, 0.0f);
     dynamic_vo.m_Rotation = Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f);
     dmPhysics::CollisionObjectData dynamic_data;
-    typename TypeParam::CollisionShapeType dynamic_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    typename TypeParam::CollisionShapeType dynamic_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(box_half_ext, box_half_ext, box_half_ext));
     dynamic_data.m_UserData = &dynamic_vo;
     typename TypeParam::CollisionObjectType dynamic_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, dynamic_data, &dynamic_shape, 1u);
 
@@ -618,7 +618,7 @@ TYPED_TEST(PhysicsTest, TriggerCollisions)
     trigger_vo.m_Position = Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f);
     trigger_vo.m_Rotation = Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f);
     dmPhysics::CollisionObjectData trigger_data;
-    typename TypeParam::CollisionShapeType trigger_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    typename TypeParam::CollisionShapeType trigger_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(box_half_ext, box_half_ext, box_half_ext));
     trigger_data.m_Mass = 0.0f;
     trigger_data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_TRIGGER;
     trigger_data.m_UserData = &trigger_vo;
@@ -648,7 +648,7 @@ TYPED_TEST(PhysicsTest, TriggerCollisions)
     // Test trigger collision: dynamic body moving into trigger
 
     static_vo = VisualObject();
-    static_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    static_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(box_half_ext, box_half_ext, box_half_ext));
     static_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, static_data, &static_shape, 1u);
 
     trigger_vo.m_Position = Vectormath::Aos::Point3(0.0f, 1.1f, 0.0f);
@@ -686,7 +686,7 @@ TYPED_TEST(PhysicsTest, TriggerCollisions)
     kinematic_vo.m_Rotation = Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f);
     kinematic_vo.m_CollisionCount = 0;
     dmPhysics::CollisionObjectData kinematic_data;
-    typename TypeParam::CollisionShapeType kinematic_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    typename TypeParam::CollisionShapeType kinematic_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(box_half_ext, box_half_ext, box_half_ext));
     kinematic_data.m_Mass = 0.0f;
     kinematic_data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
     kinematic_data.m_UserData = &kinematic_vo;
@@ -730,26 +730,26 @@ TYPED_TEST(PhysicsTest, ApplyForce)
 {
     float box_half_ext = 0.5f;
     dmPhysics::CollisionObjectData data;
-    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(box_half_ext, box_half_ext, box_half_ext));
     typename TypeParam::CollisionObjectType box_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
 
-    Vector3 lin_vel = (*TestFixture::m_Test.m_GetLinearVelocityFunc)(box_co);
+    Vector3 lin_vel = (*TestFixture::m_Test.m_GetLinearVelocityFunc)(TestFixture::m_Context, box_co);
     ASSERT_EQ(0.0f, lengthSqr(lin_vel));
-    Vector3 ang_vel = (*TestFixture::m_Test.m_GetAngularVelocityFunc)(box_co);
+    Vector3 ang_vel = (*TestFixture::m_Test.m_GetAngularVelocityFunc)(TestFixture::m_Context, box_co);
     ASSERT_EQ(0.0f, lengthSqr(ang_vel));
 
     Vector3 force(0.0f, 1.0f, 0.0f);
-    (*TestFixture::m_Test.m_ApplyForceFunc)(box_co, force, Point3(0.5f*box_half_ext, 0.0f, 0.0f));
-    Vector3 total_force = (*TestFixture::m_Test.m_GetTotalForceFunc)(box_co);
+    (*TestFixture::m_Test.m_ApplyForceFunc)(TestFixture::m_Context, box_co, force, Point3(0.5f*box_half_ext, 0.0f, 0.0f));
+    Vector3 total_force = (*TestFixture::m_Test.m_GetTotalForceFunc)(TestFixture::m_Context, box_co);
     ASSERT_NEAR(total_force.getX(), force.getX(), 0.01f);
     ASSERT_NEAR(total_force.getY(), force.getY(), 0.01f);
     ASSERT_NEAR(total_force.getZ(), force.getZ(), 0.01f);
 
     (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 
-    lin_vel = (*TestFixture::m_Test.m_GetLinearVelocityFunc)(box_co);
+    lin_vel = (*TestFixture::m_Test.m_GetLinearVelocityFunc)(TestFixture::m_Context, box_co);
     ASSERT_NE(0.0f, lengthSqr(lin_vel));
-    ang_vel = (*TestFixture::m_Test.m_GetAngularVelocityFunc)(box_co);
+    ang_vel = (*TestFixture::m_Test.m_GetAngularVelocityFunc)(TestFixture::m_Context, box_co);
     ASSERT_NE(0.0f, lengthSqr(ang_vel));
 
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, box_co);
@@ -765,7 +765,7 @@ TYPED_TEST(PhysicsTest, EnableDisable)
     float box_half_ext = 0.5f;
     dmPhysics::CollisionObjectData data;
     data.m_UserData = &vo;
-    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(box_half_ext, box_half_ext, box_half_ext));
     typename TypeParam::CollisionObjectType box_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
 
     ASSERT_TRUE((*TestFixture::m_Test.m_IsEnabledFunc)(box_co));
@@ -774,10 +774,10 @@ TYPED_TEST(PhysicsTest, EnableDisable)
 
     (*TestFixture::m_Test.m_SetEnabledFunc)(TestFixture::m_World, box_co, true);
 
-    Point3 p = (*TestFixture::m_Test.m_GetWorldPositionFunc)(box_co);
+    Point3 p = (*TestFixture::m_Test.m_GetWorldPositionFunc)(TestFixture::m_Context, box_co);
     ASSERT_NE(0.0f, lengthSqr(Vector3(p)));
 
-    Vector3 lin_vel = (*TestFixture::m_Test.m_GetLinearVelocityFunc)(box_co);
+    Vector3 lin_vel = (*TestFixture::m_Test.m_GetLinearVelocityFunc)(TestFixture::m_Context, box_co);
     ASSERT_NE(0.0f, lengthSqr(lin_vel));
 
     (*TestFixture::m_Test.m_SetEnabledFunc)(TestFixture::m_World, box_co, false);
@@ -791,10 +791,10 @@ TYPED_TEST(PhysicsTest, EnableDisable)
     (*TestFixture::m_Test.m_SetEnabledFunc)(TestFixture::m_World, box_co, true);
     ASSERT_TRUE((*TestFixture::m_Test.m_IsEnabledFunc)(box_co));
 
-    p = (*TestFixture::m_Test.m_GetWorldPositionFunc)(box_co);
+    p = (*TestFixture::m_Test.m_GetWorldPositionFunc)(TestFixture::m_Context, box_co);
     ASSERT_EQ(0.0f, lengthSqr(Vector3(p)));
 
-    lin_vel = (*TestFixture::m_Test.m_GetLinearVelocityFunc)(box_co);
+    lin_vel = (*TestFixture::m_Test.m_GetLinearVelocityFunc)(TestFixture::m_Context, box_co);
     ASSERT_EQ(0.0f, lengthSqr(lin_vel));
 
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, box_co);
@@ -841,7 +841,7 @@ TYPED_TEST(PhysicsTest, RayCasting)
     float box_half_ext = 0.5f;
     VisualObject vo;
     dmPhysics::CollisionObjectData data;
-    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(box_half_ext, box_half_ext, box_half_ext));
     data.m_Mass = 0.0f;
     data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
     data.m_UserData = &vo;
@@ -888,7 +888,7 @@ TYPED_TEST(PhysicsTest, InsideRayCasting)
     float box_half_ext = 0.5f;
     VisualObject vo;
     dmPhysics::CollisionObjectData data;
-    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(box_half_ext, box_half_ext, box_half_ext));
     data.m_Mass = 0.0f;
     data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
     data.m_UserData = &vo;
@@ -925,7 +925,7 @@ TYPED_TEST(PhysicsTest, IgnoreRayCasting)
     float box_half_ext = 0.5f;
     VisualObject vo;
     dmPhysics::CollisionObjectData data;
-    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(box_half_ext, box_half_ext, box_half_ext));
     data.m_Mass = 0.0f;
     data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
     data.m_UserData = &vo;
@@ -957,7 +957,7 @@ TYPED_TEST(PhysicsTest, TriggerRayCasting)
     float box_half_ext = 0.5f;
     VisualObject vo;
     dmPhysics::CollisionObjectData data;
-    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(box_half_ext, box_half_ext, box_half_ext));
     data.m_Mass = 0.0f;
     data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_TRIGGER;
     data.m_UserData = &vo;
@@ -996,7 +996,7 @@ TYPED_TEST(PhysicsTest, FilteredRayCasting)
 
     VisualObject vo_a;
     dmPhysics::CollisionObjectData data_a;
-    typename TypeParam::CollisionShapeType shape_a = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    typename TypeParam::CollisionShapeType shape_a = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(box_half_ext, box_half_ext, box_half_ext));
     data_a.m_Mass = 0.0f;
     data_a.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
     data_a.m_Group = GROUP_A;
@@ -1007,7 +1007,7 @@ TYPED_TEST(PhysicsTest, FilteredRayCasting)
     VisualObject vo_b;
     vo_b.m_Position.setY(-1.0f);
     dmPhysics::CollisionObjectData data_b;
-    typename TypeParam::CollisionShapeType shape_b = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    typename TypeParam::CollisionShapeType shape_b = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(box_half_ext, box_half_ext, box_half_ext));
     data_b.m_Mass = 0.0f;
     data_b.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
     data_b.m_Group = GROUP_B;
@@ -1097,7 +1097,7 @@ TYPED_TEST(PhysicsTest, CollisionFiltering)
     VisualObject vo_a;
     vo_a.m_Position.setY(1.1f);
     dmPhysics::CollisionObjectData data_a;
-    typename TypeParam::CollisionShapeType shape_a = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    typename TypeParam::CollisionShapeType shape_a = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(box_half_ext, box_half_ext, box_half_ext));
     data_a.m_Group = 1 << FILTER_GROUP_A;
     data_a.m_Mask = 1 << FILTER_GROUP_B;
     data_a.m_UserData = &vo_a;
@@ -1106,7 +1106,7 @@ TYPED_TEST(PhysicsTest, CollisionFiltering)
     VisualObject vo_b;
     vo_b.m_Position.setX(-0.6f);
     dmPhysics::CollisionObjectData data_b;
-    typename TypeParam::CollisionShapeType shape_b = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    typename TypeParam::CollisionShapeType shape_b = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(box_half_ext, box_half_ext, box_half_ext));
     data_b.m_Group = 1 << FILTER_GROUP_B;
     data_b.m_Mask = 1 << FILTER_GROUP_A;
     data_b.m_Mass = 0.0f;
@@ -1117,7 +1117,7 @@ TYPED_TEST(PhysicsTest, CollisionFiltering)
     VisualObject vo_c;
     vo_c.m_Position.setX(0.6f);
     dmPhysics::CollisionObjectData data_c;
-    typename TypeParam::CollisionShapeType shape_c = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    typename TypeParam::CollisionShapeType shape_c = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(box_half_ext, box_half_ext, box_half_ext));
     data_c.m_Group = 1 << FILTER_GROUP_C;
     data_c.m_Mask = 1 << FILTER_GROUP_C;
     data_c.m_Mass = 0.0f;
@@ -1159,9 +1159,9 @@ TYPED_TEST(PhysicsTest, CollisionFiltering)
 TYPED_TEST(PhysicsTest, ReplaceShapes)
 {
     float size = 0.5f;
-    typename TypeParam::CollisionShapeType shape1 = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(size, size, size));
-    typename TypeParam::CollisionShapeType dummy = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(size, size, size));
-    typename TypeParam::CollisionShapeType shape2 = (*TestFixture::m_Test.m_NewSphereShapeFunc)(size);
+    typename TypeParam::CollisionShapeType shape1 = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(size, size, size));
+    typename TypeParam::CollisionShapeType dummy = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(size, size, size));
+    typename TypeParam::CollisionShapeType shape2 = (*TestFixture::m_Test.m_NewSphereShapeFunc)(TestFixture::m_Context, size);
     dmPhysics::CollisionObjectData data_a;
     typename TypeParam::CollisionShapeType shapes[] = {shape1, dummy};
     typename TypeParam::CollisionObjectType box_co_a = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data_a, shapes, 2u);
@@ -1194,7 +1194,7 @@ TYPED_TEST(PhysicsTest, UserData)
     VisualObject vo_b;
     dmPhysics::CollisionObjectData data;
     data.m_UserData = &vo_a;
-    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(1.0f, 1.0f, 1.0f));
+    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(1.0f, 1.0f, 1.0f));
     typename TypeParam::CollisionObjectType co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
 
     ASSERT_EQ((void*)&vo_a, (*TestFixture::m_Test.m_GetCollisionObjectUserDataFunc)(co));
@@ -1228,7 +1228,7 @@ TYPED_TEST(PhysicsTest, DrawDebug)
     (*TestFixture::m_Test.m_SetDebugCallbacksFunc)(TestFixture::m_Context, callbacks);
 
     dmPhysics::CollisionObjectData data;
-    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(1.0f, 1.0f, 1.0f));
+    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(1.0f, 1.0f, 1.0f));
     typename TypeParam::CollisionObjectType co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
 
     ASSERT_FALSE(drew);
@@ -1255,7 +1255,7 @@ TYPED_TEST(PhysicsTest, SphereSphereDistance)
     VisualObject vo_a;
     vo_a.m_Position.setY(0.75f);
     dmPhysics::CollisionObjectData data_a;
-    typename TypeParam::CollisionShapeType shape_a = (*TestFixture::m_Test.m_NewSphereShapeFunc)(radius);
+    typename TypeParam::CollisionShapeType shape_a = (*TestFixture::m_Test.m_NewSphereShapeFunc)(TestFixture::m_Context, radius);
     data_a.m_Group = 1 << FILTER_GROUP_A;
     data_a.m_Mask = 1 << FILTER_GROUP_B;
     data_a.m_UserData = &vo_a;
@@ -1265,7 +1265,7 @@ TYPED_TEST(PhysicsTest, SphereSphereDistance)
 
     VisualObject vo_b;
     dmPhysics::CollisionObjectData data_b;
-    typename TypeParam::CollisionShapeType shape_b = (*TestFixture::m_Test.m_NewSphereShapeFunc)(radius);
+    typename TypeParam::CollisionShapeType shape_b = (*TestFixture::m_Test.m_NewSphereShapeFunc)(TestFixture::m_Context, radius);
     data_b.m_Group = 1 << FILTER_GROUP_B;
     data_b.m_Mask = 1 << FILTER_GROUP_A;
     data_b.m_UserData = &vo_b;
@@ -1302,7 +1302,7 @@ TYPED_TEST(PhysicsTest, SphereBoxDistance)
     VisualObject vo_a;
     vo_a.m_Position.setY(0.75f);
     dmPhysics::CollisionObjectData data_a;
-    typename TypeParam::CollisionShapeType shape_a = (*TestFixture::m_Test.m_NewSphereShapeFunc)(radius);
+    typename TypeParam::CollisionShapeType shape_a = (*TestFixture::m_Test.m_NewSphereShapeFunc)(TestFixture::m_Context, radius);
     data_a.m_Group = 1 << FILTER_GROUP_A;
     data_a.m_Mask = 1 << FILTER_GROUP_B;
     data_a.m_UserData = &vo_a;
@@ -1312,7 +1312,7 @@ TYPED_TEST(PhysicsTest, SphereBoxDistance)
 
     VisualObject vo_b;
     dmPhysics::CollisionObjectData data_b;
-    typename TypeParam::CollisionShapeType shape_b = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(radius, radius, radius));
+    typename TypeParam::CollisionShapeType shape_b = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(radius, radius, radius));
     data_b.m_Group = 1 << FILTER_GROUP_B;
     data_b.m_Mask = 1 << FILTER_GROUP_A;
     data_b.m_UserData = &vo_b;
@@ -1351,7 +1351,7 @@ TYPED_TEST(PhysicsTest, KinematicSleep)
     dmPhysics::CollisionObjectData box0_data;
     box0_data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
     box0_data.m_Mass = 0.0f;
-    typename TypeParam::CollisionShapeType box0_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    typename TypeParam::CollisionShapeType box0_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(box_half_ext, box_half_ext, box_half_ext));
     box0_data.m_UserData = &box0_vo;
     typename TypeParam::CollisionObjectType box0_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, box0_data, &box0_shape, 1u);
 
@@ -1383,7 +1383,7 @@ TYPED_TEST(PhysicsTest, SphereBoxDeepPenetration)
     VisualObject vo_a;
     vo_a.m_Position.setY(1.0f);
     dmPhysics::CollisionObjectData data_a;
-    typename TypeParam::CollisionShapeType shape_a = (*TestFixture::m_Test.m_NewSphereShapeFunc)(radius);
+    typename TypeParam::CollisionShapeType shape_a = (*TestFixture::m_Test.m_NewSphereShapeFunc)(TestFixture::m_Context, radius);
     data_a.m_Group = 1 << FILTER_GROUP_A;
     data_a.m_Mask = 1 << FILTER_GROUP_B;
     data_a.m_UserData = &vo_a;
@@ -1393,7 +1393,7 @@ TYPED_TEST(PhysicsTest, SphereBoxDeepPenetration)
 
     VisualObject vo_b;
     dmPhysics::CollisionObjectData data_b;
-    typename TypeParam::CollisionShapeType shape_b = (*TestFixture::m_Test.m_NewBoxShapeFunc)(Vector3(radius, radius, radius));
+    typename TypeParam::CollisionShapeType shape_b = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(radius, radius, radius));
     data_b.m_Group = 1 << FILTER_GROUP_B;
     data_b.m_Mask = 1 << FILTER_GROUP_A;
     data_b.m_UserData = &vo_b;

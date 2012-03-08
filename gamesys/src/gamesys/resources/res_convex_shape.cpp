@@ -37,9 +37,9 @@ namespace dmGameSystem
             else
             {
                 if (context->m_3D)
-                    resource->m_Shape3D = dmPhysics::NewSphereShape3D(convex_shape->m_Data[0]);
+                    resource->m_Shape3D = dmPhysics::NewSphereShape3D(context->m_Context3D, convex_shape->m_Data[0]);
                 else
-                    resource->m_Shape2D = dmPhysics::NewCircleShape2D(convex_shape->m_Data[0]);
+                    resource->m_Shape2D = dmPhysics::NewCircleShape2D(context->m_Context2D, convex_shape->m_Data[0]);
             }
             break;
         case dmPhysicsDDF::ConvexShape::TYPE_BOX:
@@ -51,9 +51,9 @@ namespace dmGameSystem
             else
             {
                 if (context->m_3D)
-                    resource->m_Shape3D = dmPhysics::NewBoxShape3D(Vectormath::Aos::Vector3(convex_shape->m_Data[0], convex_shape->m_Data[1], convex_shape->m_Data[2]));
+                    resource->m_Shape3D = dmPhysics::NewBoxShape3D(context->m_Context3D, Vectormath::Aos::Vector3(convex_shape->m_Data[0], convex_shape->m_Data[1], convex_shape->m_Data[2]));
                 else
-                    resource->m_Shape2D = dmPhysics::NewBoxShape2D(Vectormath::Aos::Vector3(convex_shape->m_Data[0], convex_shape->m_Data[1], convex_shape->m_Data[2]));
+                    resource->m_Shape2D = dmPhysics::NewBoxShape2D(context->m_Context2D, Vectormath::Aos::Vector3(convex_shape->m_Data[0], convex_shape->m_Data[1], convex_shape->m_Data[2]));
             }
             break;
         case dmPhysicsDDF::ConvexShape::TYPE_CAPSULE:
@@ -65,7 +65,7 @@ namespace dmGameSystem
             else
             {
                 if (context->m_3D)
-                    resource->m_Shape3D = dmPhysics::NewCapsuleShape3D(convex_shape->m_Data[0], convex_shape->m_Data[1]);
+                    resource->m_Shape3D = dmPhysics::NewCapsuleShape3D(context->m_Context3D, convex_shape->m_Data[0], convex_shape->m_Data[1]);
                 else
                     // TODO: Add support
                     dmLogError("%s", "Capsules are not supported in 2D.");
@@ -80,7 +80,7 @@ namespace dmGameSystem
             else
             {
                 if (context->m_3D)
-                    resource->m_Shape3D = dmPhysics::NewConvexHullShape3D(&convex_shape->m_Data[0], convex_shape->m_Data.m_Count);
+                    resource->m_Shape3D = dmPhysics::NewConvexHullShape3D(context->m_Context3D, &convex_shape->m_Data[0], convex_shape->m_Data.m_Count / 3);
                 else
                 {
                     const uint32_t data_size = 2 * convex_shape->m_Data.m_Count / 3;
@@ -89,7 +89,7 @@ namespace dmGameSystem
                     {
                         data_2d[i] = convex_shape->m_Data[i/2*3 + i%2];
                     }
-                    resource->m_Shape2D = dmPhysics::NewPolygonShape2D(data_2d, data_size/2);
+                    resource->m_Shape2D = dmPhysics::NewPolygonShape2D(context->m_Context2D, data_2d, data_size/2);
                     delete [] data_2d;
                 }
             }

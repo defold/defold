@@ -675,11 +675,11 @@ namespace dmGameSystem
             dmPhysicsDDF::ApplyForce* af = (dmPhysicsDDF::ApplyForce*) params.m_Message->m_Data;
             if (physics_context->m_3D)
             {
-                dmPhysics::ApplyForce3D(component->m_Object3D, af->m_Force, af->m_Position);
+                dmPhysics::ApplyForce3D(physics_context->m_Context3D, component->m_Object3D, af->m_Force, af->m_Position);
             }
             else
             {
-                dmPhysics::ApplyForce2D(component->m_Object2D, af->m_Force, af->m_Position);
+                dmPhysics::ApplyForce2D(physics_context->m_Context2D, component->m_Object2D, af->m_Force, af->m_Position);
             }
         }
         else if (params.m_Message->m_Id == dmHashString64(dmPhysicsDDF::RequestVelocity::m_DDFDescriptor->m_Name))
@@ -687,13 +687,13 @@ namespace dmGameSystem
             dmPhysicsDDF::VelocityResponse response;
             if (physics_context->m_3D)
             {
-                response.m_LinearVelocity = dmPhysics::GetLinearVelocity3D(component->m_Object3D);
-                response.m_AngularVelocity = dmPhysics::GetAngularVelocity3D(component->m_Object3D);
+                response.m_LinearVelocity = dmPhysics::GetLinearVelocity3D(physics_context->m_Context3D, component->m_Object3D);
+                response.m_AngularVelocity = dmPhysics::GetAngularVelocity3D(physics_context->m_Context3D, component->m_Object3D);
             }
             else
             {
-                response.m_LinearVelocity = dmPhysics::GetLinearVelocity2D(component->m_Object2D);
-                response.m_AngularVelocity = dmPhysics::GetAngularVelocity2D(component->m_Object2D);
+                response.m_LinearVelocity = dmPhysics::GetLinearVelocity2D(physics_context->m_Context2D, component->m_Object2D);
+                response.m_AngularVelocity = dmPhysics::GetAngularVelocity2D(physics_context->m_Context2D, component->m_Object2D);
             }
             dmhash_t message_id = dmHashString64(dmPhysicsDDF::VelocityResponse::m_DDFDescriptor->m_Name);
             uintptr_t descriptor = (uintptr_t)dmPhysicsDDF::VelocityResponse::m_DDFDescriptor;

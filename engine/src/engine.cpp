@@ -519,6 +519,15 @@ bail:
         physics_params.m_Gravity.setX(dmConfigFile::GetFloat(engine->m_Config, "physics.gravity_x", 0.0f));
         physics_params.m_Gravity.setY(dmConfigFile::GetFloat(engine->m_Config, "physics.gravity_y", -10.0f));
         physics_params.m_Gravity.setZ(dmConfigFile::GetFloat(engine->m_Config, "physics.gravity_z", 0.0f));
+        physics_params.m_Scale = dmConfigFile::GetFloat(engine->m_Config, "physics.scale", 1.0f);
+        if (physics_params.m_Scale < dmPhysics::MIN_SCALE || physics_params.m_Scale > dmPhysics::MAX_SCALE)
+        {
+            dmLogWarning("Physics scale must be in the range %.2f - %.2f and has been clamped.", dmPhysics::MIN_SCALE, dmPhysics::MAX_SCALE);
+            if (physics_params.m_Scale < dmPhysics::MIN_SCALE)
+                physics_params.m_Scale = dmPhysics::MIN_SCALE;
+            if (physics_params.m_Scale > dmPhysics::MAX_SCALE)
+                physics_params.m_Scale = dmPhysics::MAX_SCALE;
+        }
         if (strncmp(physics_type, "3D", 2) == 0)
         {
             engine->m_PhysicsContext.m_3D = true;
@@ -536,7 +545,9 @@ bail:
         debug_callbacks.m_DrawLines = PhysicsDebugRender::DrawLines;
         debug_callbacks.m_DrawTriangles = PhysicsDebugRender::DrawTriangles;
         debug_callbacks.m_Alpha = dmConfigFile::GetFloat(engine->m_Config, "physics.debug_alpha", 0.9f);
-        debug_callbacks.m_Scale = dmConfigFile::GetFloat(engine->m_Config, "physics.debug_scale", 30.0f);
+        debug_callbacks.m_Scale = physics_params.m_Scale;
+        debug_callbacks.m_InvScale = 1.0f / physics_params.m_Scale;
+        debug_callbacks.m_DebugScale = dmConfigFile::GetFloat(engine->m_Config, "physics.debug_scale", 30.0f);
         if (engine->m_PhysicsContext.m_3D)
             dmPhysics::SetDebugCallbacks3D(engine->m_PhysicsContext.m_Context3D, debug_callbacks);
         else
