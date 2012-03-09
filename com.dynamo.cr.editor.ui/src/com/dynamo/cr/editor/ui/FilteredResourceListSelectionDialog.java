@@ -15,6 +15,7 @@ public class FilteredResourceListSelectionDialog extends ResourceListSelectionDi
     public FilteredResourceListSelectionDialog(Shell parentShell, IContainer container, int typesMask, final String[] extensions) {
         super(parentShell, container, typesMask);
         this.extensions = extensions;
+        setTitle("Select Resource");
     }
 
     @Override
