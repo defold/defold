@@ -1,0 +1,249 @@
+#!/bin/bash
+#
+# %W% %E%
+#
+# Copyright (c) 2006, 2010, Oracle and/or its affiliates. All rights reserved.
+# ORACLE PROPRIETARY/CONFIDENTIAL. Use is subject to license terms.
+#
+# Shell Script to run the Java(tm) Plug-in control panel.
+#
+# Parse the command-line options
+# -r means make associate with the container (i.e browser)
+# -u means remove the association with the container
+# -c provides the location of the container install
+# -j provides the location of the jre install
+# if neither -r or -u are specified, run the ControlPanel UI
+
+USAGE='usage: ControlPanel [ (-u scheme | -r scheme) -c cpath -j jrepath ]'
+JLERROR='ControlPanel: Error: Invalid JRE location: '
+CLERROR='ControlPanel: Error: Invalid container location: '
+IPERROR='ControlPanel: Error: Insufficient permission'
+ISERROR='ControlPanel: Error: Invalid scheme: '
+XLERROR='ControlPanel: Error: Invalid link or copy: '
+
+check_container_dir() {
+
+   if [ ! -d ${1} ]; then
+      echo "${CLERROR}${2}"
+      exit 1
+   fi
+   if [ ! -w ${1} ]; then
+      echo "${IPERROR}"
+      exit 1
+   fi
+}
+
+link_logic() {
+   if [ ${mode} = "reg" ]; then
+      ln -s ${1} ${2}
+   else
+      rm -f ${2}
+   fi
+}
+
+#
+# Get the absolute path to a symbolic link's reference.
+#
+# Parameters:
+#     $* : path - the path to the file (link) to dereference (can have spaces in
+#                 the path).
+#
+# Output:
+#     This function writes the path to the link reference to stdout.
+#
+# Note: This function is not capable of detecting that one or more directories
+#       in the path is also a link and unravelling that.
+#
+dereference() {
+    path="$*"
+    result=
+
+    #
+    # Make sure the path is absolute
+    #
+    parent="`cd \`dirname \"${path}\"\`; pwd`"
+    child="`basename \"${path}\"`"
+
+    #
+    # if parent == child, then path == /, and is already absolute
+    #
+    if [ "${parent}" != "${child}" ]; then
+        path="${parent}/${child}"
+    fi
+
+    if [ -h "${path}" ]; then
+        path=`ls -l "${path}" | sed -e "s#^.*${path} -> ##"`
+
+        # make sure the path is still absolute (starts with '/')
+        if expr "${path}" : '[^/]' > /dev/null; then
+            path="${parent}/${path}"
+        fi
+    fi
+
+    echo ${path}
+}
+
+#
+# Check for all the parts required to launch the control panel relative to the
+# given path.
+#
+#
+# Parameters:
+#     $* : path - the path to examine, presumably the resolved path to this
+#                 script (can have spaces in the path).
+#
+# Output:
+#     If successful, this function outputs the absolute path to a directory
+#     containing the Java binary, and ../lib/deploy.jar; otherwise it outputs
+#     an empty string.  (Output is to stdout.)
+#
+# Note: the assumption is that this function returns either:
+#
+#            <jdk-root>/jre/bin, or
+#            <jre-root>/bin
+#
+#       However, as long as the directory pointed by the path returned by this
+#       function contains:
+#
+#            ./java
+#            ../lib/deploy.jar
+#
+#       it should be possible to successfully launch the JCP from the given
+#       information.
+#
+check_parts() {
+    result="`cd \`dirname \"$*\"\`; pwd`"
+
+    # if this is a JDK, we need the JRE subdir
+    if [ -d "${result}/../jre/bin" ]; then
+        result="`cd \`dirname \"$*\"\`/../jre/bin; pwd`"
+    fi
+
+    if [ ! -x "${result}/java" ] || [ ! -f "${result}/../lib/deploy.jar" ]; then
+        result=
+    fi
+
+    echo ${result}
+}
+
+#
+# Launch the Java Control Panel.
+#
+# Parameters:
+#     $* : path - the path of this script (can have spaces in the path).
+#
+launch_jcp() {
+    path="$*"
+    while [ -h ${path} ]; do
+        path="`dereference ${path}`"
+    done
+
+    java_home="`check_parts ${path}`"
+    if [ -n "${java_home}" ]; then
+	# launch the JCP using paths relative to 
+	${java_home}/java -Djavaplugin.user.profile=${USER_JPI_PROFILE}    \
+	                  -Xbootclasspath/a:${java_home}/../lib/deploy.jar \
+	                  ${_JAVA_VM_OPTIONS}                              \
+	                  com.sun.deploy.panel.ControlPanel
+    else
+        echo "${XLERROR}${java_home}"
+        exit 1
+    fi
+}
+
+#
+# Manage the process of registering/unregistering the Java Plug-in with a given
+# container (browser).
+#
+manage_container() {
+   # Do the "right" thing based on the provided scheme.
+   plugin_stem=${java_home}/plugin/${proc}
+   if [ ! -d ${plugin_stem} ]; then
+      echo "${JLERROR}${java_home}"
+      exit 1
+   fi
+
+   case ${scheme} in
+        ns4 | ns4E )
+              plugin_location="${plugin_stem}/ns4"
+              if [ ${mode} = "reg" ]; then
+                 echo "${plugin_location}"
+              fi
+              ;;
+       ns4L ) 
+              plugin_location="${plugin_stem}/ns4"
+              filename=`ls ${plugin_location}`
+              container_target="${container_home}/plugins"
+              check_container_dir ${container_target} ${container_home}
+              link_logic ${plugin_location}/${filename} ${container_target}/${filename}
+              ;;
+     ns610 | ns610L )
+              plugin_location="${plugin_stem}/ns610"
+              filename=`ls ${plugin_location}`
+              container_target="${container_home}/plugins"
+              check_container_dir ${container_target} ${container_home}
+              link_logic ${plugin_location}/${filename} ${container_target}/${filename}
+              ;;
+          * ) 
+              echo ${ISERROR}${scheme}
+              exit 1
+   esac
+}
+
+while getopts ":r:u:c:j:" opt; do
+   case $opt in
+      r ) mode="reg";scheme=${OPTARG}
+          ;;
+      u ) mode="unreg";scheme=${OPTARG}
+          ;;
+      c ) container_home=${OPTARG}
+          ;;
+      j ) java_home=${OPTARG}
+          ;;
+      : ) echo ${USAGE}
+          exit 1
+          ;;
+     \? ) echo ${USAGE}
+          exit 1
+          ;;
+   esac
+done
+
+os=`uname -s`
+if [ "${os}" = "Linux" ]; then
+    case "`uname -m`" in
+	i[3-9]86  | ia32 | ia64 | x86_64)
+	    proc=i386
+	    ;;
+	sparc*)
+	    proc=sparc
+	    ;;
+	arm*)
+	    proc=arm
+	    ;;
+	ppc*)
+	    proc=ppc
+	    ;;
+	*)
+	    proc="`uname -m`"
+	    ;;
+    esac
+else
+    proc=`uname -p`
+fi
+
+if [ -z "${scheme}" ] &&
+   [ -z "${java_home}" ] && [ -z "${container_home}" ]
+then
+    # just run the control panel
+    launch_jcp $0
+elif [ -n "${scheme}" ] &&
+     [ -n "${java_home}" ] && [ -n "${container_home}" ]
+then
+    # try to register/unregister the plugin
+    manage_container
+else
+    # one or more missing args
+    echo ${USAGE}
+    exit 1
+fi   
