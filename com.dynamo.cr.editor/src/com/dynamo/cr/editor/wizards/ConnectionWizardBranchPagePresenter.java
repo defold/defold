@@ -1,9 +1,12 @@
 package com.dynamo.cr.editor.wizards;
 
+import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Collection;
 
+import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.jface.dialogs.MessageDialog;
+import org.eclipse.jface.operation.IRunnableWithProgress;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.ui.IWorkbenchPage;
 
@@ -32,6 +35,7 @@ public class ConnectionWizardBranchPagePresenter {
         boolean isPageComplete();
         void setSelected(String name);
         Shell getShell();
+        void runWithProgress(IRunnableWithProgress runnable);
     }
 
     private IDisplay display;
@@ -49,16 +53,42 @@ public class ConnectionWizardBranchPagePresenter {
         display.setPageComplete(canFinish());
     }
 
+    private class CreateBranchRunnable implements IRunnableWithProgress {
+
+        String name;
+        RepositoryException exception;
+
+        public CreateBranchRunnable(String name) {
+            this.name = name;
+        }
+
+        @Override
+        public void run(IProgressMonitor monitor)
+                throws InvocationTargetException, InterruptedException {
+            monitor.beginTask("Downloading data...", IProgressMonitor.UNKNOWN);
+            try {
+                client.createBranch(name);
+            } catch (RepositoryException e) {
+                this.exception = e;
+            }
+        }
+    }
+
     public void onNewBranch() {
         String name = display.openNewBranchDialog();
         if (name == null)
             return;
 
         try {
-            client.createBranch(name);
-            updateBranchList();
-            display.setSelected(name);
-            display.setPageComplete(canFinish());
+            CreateBranchRunnable createBranchRunnable = new CreateBranchRunnable(name);
+            display.runWithProgress(createBranchRunnable);
+            if (createBranchRunnable.exception != null) {
+                display.setErrorMessage(createBranchRunnable.exception.getMessage());
+            } else {
+                updateBranchList();
+                display.setSelected(name);
+                display.setPageComplete(canFinish());
+            }
         } catch (Throwable e) {
             display.setErrorMessage(e.getMessage());
         }

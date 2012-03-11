@@ -5,6 +5,8 @@ import java.util.Collection;
 import org.eclipse.jface.dialogs.IDialogPage;
 import org.eclipse.jface.dialogs.IInputValidator;
 import org.eclipse.jface.dialogs.InputDialog;
+import org.eclipse.jface.dialogs.ProgressMonitorDialog;
+import org.eclipse.jface.operation.IRunnableWithProgress;
 import org.eclipse.jface.window.Window;
 import org.eclipse.jface.wizard.WizardPage;
 import org.eclipse.swt.SWT;
@@ -177,6 +179,18 @@ public class ConnectionWizardBranchPageView extends WizardPage implements Listen
             i++;
         }
         assert false;
+    }
+
+    @Override
+    public void runWithProgress(IRunnableWithProgress runnable) {
+        ProgressMonitorDialog dialog = new ProgressMonitorDialog(getShell());
+        try {
+            dialog.run(true, false, runnable);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        } finally {
+            dialog.close();
+        }
     }
 
 }
