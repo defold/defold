@@ -369,6 +369,22 @@
             activityId="com.dynamo.cr.editor.activities.disableEclipseUI"
             pattern="org\.eclipse\.equinox\.p2\.ui\.sdk/org\.eclipse\.equinox\.p2\.ui\.sdk\.install">
       </activityPatternBinding>
+      <activityPatternBinding
+            activityId="com.dynamo.cr.editor.activities.disableEclipseUI"
+            pattern="org\.eclipse\.team\.ui/org\.eclipse\.team\.ui\.applyPatch">
+      </activityPatternBinding>
+      <activityPatternBinding
+            activityId="com.dynamo.cr.editor.activities.disableEclipseUI"
+            pattern="org\.eclipse\.team\.ui/org\.eclipse\.team\.ui\.showLocalHistory">
+      </activityPatternBinding>
+      <activityPatternBinding
+            activityId="com.dynamo.cr.editor.activities.disableEclipseUI"
+            pattern="org\.eclipse\.team\.ui/nonbound\.org\.eclipse\.team\.ui\.ConfigureProject">
+      </activityPatternBinding>
+      <activityPatternBinding
+            activityId="com.dynamo.cr.editor.activities.disableEclipseUI"
+            pattern="org\.eclipse\.ui\.navigator\.resources/org\.eclipse\.ui\.navigator\.resources\.PortingActions">
+      </activityPatternBinding>
    </extension>
    <extension
          point="org.eclipse.ui.decorators">
