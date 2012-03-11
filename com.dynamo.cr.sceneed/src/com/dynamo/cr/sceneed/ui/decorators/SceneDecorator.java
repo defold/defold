@@ -13,6 +13,8 @@ import com.dynamo.cr.sceneed.core.Node;
 
 public class SceneDecorator implements ILightweightLabelDecorator {
 
+    public static final String DECORATOR_ID = "com.dynamo.cr.sceneed.ui.sceneDecorator";
+
     private Vector<ILabelProviderListener> listeners;
 
     public SceneDecorator() {
@@ -43,7 +45,7 @@ public class SceneDecorator implements ILightweightLabelDecorator {
 
         if (element instanceof Node) {
             Node node = (Node)element;
-            IStatus status = node.validate();
+            IStatus status = node.getStatus();
             switch (status.getSeverity()) {
             case IStatus.INFO:
                 decoration.addOverlay(getDescriptor(Activator.IMG_OVERLAY_INFO));

@@ -53,7 +53,7 @@ public class CollectionNodeTest extends AbstractNodeTest {
         registerFile("/test.go", "");
         registerFile("/test.collection", "name: \"default\"");
 
-        this.collectionNode = registerAndLoadNodeType(CollectionNode.class, "collection", this.loader);
+        this.collectionNode = registerAndLoadRoot(CollectionNode.class, "collection", this.loader);
     }
 
     // Helpers
@@ -286,9 +286,10 @@ public class CollectionNodeTest extends AbstractNodeTest {
         GameObjectNode gameObject = new GameObjectNode();
         gameObject.addChild(new DummyComponentNode());
         registerLoadedNode("/invalid.go", gameObject);
+        registerFile("/invalid.go", "");
 
         GameObjectInstanceNode instance = (GameObjectInstanceNode)instance(0);
-        instance.setGameObject("/invalid.go");
+        setNodeProperty(instance, "gameObject", "/invalid.go");
 
         assertNodePropertyStatus(instance, "gameObject", IStatus.ERROR, Messages.GameObjectInstanceNode_gameObject_INVALID_REFERENCE);
 
@@ -305,8 +306,9 @@ public class CollectionNodeTest extends AbstractNodeTest {
         addCollection();
 
         registerLoadedNode("/invalid.collection", new CollectionNode());
+        registerFile("/invalid.collection", "");
         CollectionInstanceNode instance = (CollectionInstanceNode)instance(0);
-        instance.setCollection("/invalid.collection");
+        setNodeProperty(instance, "collection", "/invalid.collection");
 
         assertNodePropertyStatus(instance, "collection", IStatus.ERROR, Messages.CollectionInstanceNode_collection_INVALID_REFERENCE);
 

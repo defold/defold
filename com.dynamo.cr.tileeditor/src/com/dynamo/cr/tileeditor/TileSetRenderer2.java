@@ -125,7 +125,7 @@ KeyListener {
 
             // if the image is already set, set the corresponding texture
             this.resetView = true;
-            if (this.tileSet != null && this.tileSet.validate().isOK()) {
+            if (this.tileSet != null && this.tileSet.getStatus().isOK()) {
                 setupRenderData();
             }
 
@@ -195,7 +195,7 @@ KeyListener {
     }
 
     public void refresh(IStructuredSelection selection) {
-        if (!this.tileSet.validate().isOK()) {
+        if (!this.tileSet.getStatus().isOK()) {
             setEnabled(false);
             return;
         }

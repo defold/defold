@@ -22,7 +22,6 @@ public class CollectionProxyNode extends ComponentTypeNode {
     private String collection = "";
 
     private CollectionNode collectionNode;
-    private transient IStatus collectionStatus;
 
     public CollectionProxyNode() {
         super();
@@ -47,11 +46,9 @@ public class CollectionProxyNode extends ComponentTypeNode {
 
     public IStatus validateCollection() {
         if (getModel() != null && !this.collection.isEmpty()) {
-            if (this.collectionStatus == null && this.collectionNode != null) {
-                this.collectionStatus = this.collectionNode.validate();
-            }
-            if (this.collectionStatus != null) {
-                if (!this.collectionStatus.isOK()) {
+            IStatus collectionStatus = this.collectionNode.getStatus();
+            if (collectionStatus != null) {
+                if (!collectionStatus.isOK()) {
                     return new Status(IStatus.ERROR, Activator.PLUGIN_ID, Messages.CollectionProxyNode_collection_INVALID_REFERENCE);
                 }
             } else {
@@ -82,8 +79,6 @@ public class CollectionProxyNode extends ComponentTypeNode {
                 return true;
             }
         }
-        // clear cached status in case the file might be contained in the collection
-        this.collectionStatus = null;
         return false;
     }
 
@@ -92,12 +87,10 @@ public class CollectionProxyNode extends ComponentTypeNode {
         if (model != null) {
             try {
                 clearChildren();
-                this.collectionStatus = null;
                 this.collectionNode = (CollectionNode)model.loadNode(this.collection);
                 if (this.collectionNode != null) {
                     this.collectionNode.setModel(model);
                     this.collectionNode.setFlagsRecursively(Flags.LOCKED);
-                    this.collectionStatus = this.collectionNode.validate();
                     addChild(this.collectionNode);
                 }
             } catch (Throwable e) {

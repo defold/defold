@@ -61,6 +61,8 @@ public abstract class Node implements IAdaptable, Serializable {
 
     // Used to preserve order when adding/removing child nodes
     private transient int childIndex = -1;
+    // Cached status
+    private transient IStatus status = Status.OK_STATUS;
 
     private static Map<Class<? extends Node>, PropertyIntrospector<Node, ISceneModel>> introspectors =
             new HashMap<Class<? extends Node>, PropertyIntrospector<Node, ISceneModel>>();
@@ -357,8 +359,26 @@ public abstract class Node implements IAdaptable, Serializable {
         }
     }
 
-    public final IStatus validate() {
-        IStatus status = Status.OK_STATUS;
+    public final IStatus getStatus() {
+        return this.status;
+    }
+
+    public final void updateStatus() {
+        if (this.model == null)
+            return;
+
+        this.status = Status.OK_STATUS;
+
+        if (!this.children.isEmpty()) {
+            MultiStatus childStatuses = new MultiStatus(Activator.PLUGIN_ID, 0, null, null);
+            for (Node child : this.children) {
+                child.updateStatus();
+                childStatuses.merge(child.getStatus());
+            }
+            if (!childStatuses.isOK()) {
+                this.status = childStatuses;
+            }
+        }
 
         @SuppressWarnings("unchecked")
         IPropertyModel<? extends Node, ISceneModel> model = (IPropertyModel<? extends Node, ISceneModel>) getAdapter(IPropertyModel.class);
@@ -366,32 +386,21 @@ public abstract class Node implements IAdaptable, Serializable {
         if (!ownStatus.isOK()) {
             MultiStatus multiStatus = new MultiStatus(Activator.PLUGIN_ID, 0, null, null);
             multiStatus.merge(ownStatus);
-            status = multiStatus;
+            if (!this.status.isOK()) {
+                multiStatus.merge(this.status);
+            }
+            this.status = multiStatus;
         }
 
         IStatus nodeStatus = validateNode();
-        if (status.isOK()) {
-            status = nodeStatus;
-        } else {
-            if (!(status instanceof MultiStatus)) {
-                MultiStatus multiStatus = new MultiStatus(Activator.PLUGIN_ID, 0, null, null);
-                multiStatus.merge(status);
-                status = multiStatus;
+        if (!nodeStatus.isOK()) {
+            MultiStatus multiStatus = new MultiStatus(Activator.PLUGIN_ID, 0, null, null);
+            multiStatus.merge(nodeStatus);
+            if (!this.status.isOK()) {
+                multiStatus.merge(this.status);
             }
-            ((MultiStatus)status).merge(nodeStatus);
+            this.status = multiStatus;
         }
-        // Only test children if everything else is fine
-        if (status.isOK()) {
-            if (!this.children.isEmpty()) {
-                MultiStatus multiStatus = new MultiStatus(Activator.PLUGIN_ID, 0, null, null);
-                for (Node child : this.children) {
-                    multiStatus.merge(child.validate());
-                }
-                status = multiStatus;
-            }
-        }
-
-        return status;
     }
 
     protected IStatus validateNode() {

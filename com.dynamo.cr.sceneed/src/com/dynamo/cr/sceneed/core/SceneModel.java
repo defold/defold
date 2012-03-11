@@ -90,6 +90,7 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
             this.root = root;
             if (root != null) {
                 root.setModel(this);
+                this.root.updateStatus();
             }
             this.listener.rootChanged(root);
             if (root != null) {
@@ -118,6 +119,7 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
     }
 
     private void notifyChange() {
+        this.root.updateStatus();
         this.listener.stateChanged(this.selection, isDirty());
     }
 

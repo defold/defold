@@ -36,7 +36,7 @@ public class NodeTest extends AbstractNodeTest {
 
         setResourceTypeRegistry(registry);
 
-        this.node = registerAndLoadNodeType(DummyNode.class, extension, this.loader);
+        this.node = registerAndLoadRoot(DummyNode.class, extension, this.loader);
     }
 
     @Test

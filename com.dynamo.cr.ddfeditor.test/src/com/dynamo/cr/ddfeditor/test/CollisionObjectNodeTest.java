@@ -41,7 +41,7 @@ public class CollisionObjectNodeTest extends AbstractNodeTest {
 
         this.loader = new CollisionObjectLoader();
 
-        this.node = registerAndLoadNodeType(CollisionObjectNode.class, "collisionobject", this.loader);
+        this.node = registerAndLoadRoot(CollisionObjectNode.class, "collisionobject", this.loader);
 
         String ddf = "collision_shape: \"/box.convexshape\" " +
                 "type: COLLISION_OBJECT_TYPE_KINEMATIC " +
@@ -97,6 +97,7 @@ public class CollisionObjectNodeTest extends AbstractNodeTest {
         IFile coFile = getFile("/collision_objects/bounds_error.collisionobject");
         CollisionObjectNode co = this.loader.load(getLoaderContext(), coFile.getContents());
         assertNotNull(co);
+        getModel().setRoot(co);
 
         List<Node> children = co.getChildren();
         assertThat(children.size(), is(2));
@@ -105,13 +106,13 @@ public class CollisionObjectNodeTest extends AbstractNodeTest {
         assertThat(children.get(i), instanceOf(SphereCollisionShapeNode.class));
         SphereCollisionShapeNode sphere = (SphereCollisionShapeNode) children.get(i);
         assertThat(sphere.getRadius(), is(0.0));
-        assertThat(sphere.validate().getSeverity(), is(IStatus.ERROR));
+        assertThat(sphere.getStatus().getSeverity(), is(IStatus.ERROR));
         assertNodeStatus(sphere, IStatus.ERROR, Messages.CollisionShape_bounds_ERROR);
         assertNodeStatus(sphere, IStatus.ERROR, com.dynamo.cr.properties.Messages.GreaterThanZero_OUTSIDE_RANGE);
 
         // Set radius to valid value. The shape should now be valid
-        sphere.setRadius(1.0);
-        assertThat(sphere.validate().getSeverity(), is(IStatus.OK));
+        setNodeProperty(sphere, "radius", 1.0);
+        assertThat(sphere.getStatus().getSeverity(), is(IStatus.OK));
 
         ++i;
         assertThat(children.get(i), instanceOf(BoxCollisionShapeNode.class));
@@ -119,17 +120,17 @@ public class CollisionObjectNodeTest extends AbstractNodeTest {
         assertThat(box.getWidth(), is(0.0));
         assertThat(box.getHeight(), is(0.0));
         assertThat(box.getDepth(), is(0.0));
-        assertThat(box.validate().getSeverity(), is(IStatus.ERROR));
+        assertThat(box.getStatus().getSeverity(), is(IStatus.ERROR));
         assertNodeStatus(box, IStatus.ERROR, Messages.CollisionShape_bounds_ERROR);
 
         // Set box width to valid value. Bounds error should be cleared but height and depth are still equal to zero
-        box.setWidth(1);
-        assertThat(box.validate().getSeverity(), is(IStatus.ERROR));
+        setNodeProperty(box, "width", 1.0);
+        assertThat(box.getStatus().getSeverity(), is(IStatus.ERROR));
         assertNodeStatus(box, IStatus.ERROR, com.dynamo.cr.properties.Messages.GreaterThanZero_OUTSIDE_RANGE);
 
-        box.setHeight(1);
-        box.setDepth(1);
-        assertThat(box.validate().getSeverity(), is(IStatus.OK));
+        setNodeProperty(box, "height", 1.0);
+        setNodeProperty(box, "depth", 1.0);
+        assertThat(box.getStatus().getSeverity(), is(IStatus.OK));
     }
 
     @Test

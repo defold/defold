@@ -56,7 +56,8 @@ public class Sprite2Node extends ComponentTypeNode {
 
     public IStatus validateTileSet() {
         if (this.tileSetNode != null) {
-            IStatus status = this.tileSetNode.validate();
+            this.tileSetNode.updateStatus();
+            IStatus status = this.tileSetNode.getStatus();
             if (!status.isOK()) {
                 return new Status(IStatus.ERROR, Activator.PLUGIN_ID, Messages.Sprite2Node_tileSet_INVALID_REFERENCE);
             }
@@ -160,7 +161,7 @@ public class Sprite2Node extends ComponentTypeNode {
     }
 
     private void updateVertexData() {
-        if (this.tileSetNode == null || this.tileSetNode.getLoadedImage() == null || !validate().isOK() || !this.tileSetNode.validate().isOK()) {
+        if (this.tileSetNode == null || this.tileSetNode.getLoadedImage() == null || !getStatus().isOK() || !this.tileSetNode.getStatus().isOK()) {
             this.vertexData = null;
             return;
         }

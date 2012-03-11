@@ -46,7 +46,7 @@ public class GameObjectNodeTest extends AbstractNodeTest {
         registerFile("/test.test", "x: 0 y: 0 z: 0");
         registerFile("/test.test2", "");
 
-        this.goNode = registerAndLoadNodeType(GameObjectNode.class, "go", this.loader);
+        this.goNode = registerAndLoadRoot(GameObjectNode.class, "go", this.loader);
         registerNodeType(DummyComponentNode.class, "test");
     }
 
