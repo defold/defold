@@ -80,6 +80,8 @@ game_binding = /input/game.input_bindingc
 [display]
 width = 1280
 height = 720
+[physics]
+scale = 0.02
 """
 
 GIT_IGNORE="""
