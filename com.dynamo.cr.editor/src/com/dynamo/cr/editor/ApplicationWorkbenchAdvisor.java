@@ -1,6 +1,7 @@
 package com.dynamo.cr.editor;
 
 import org.eclipse.core.resources.ResourcesPlugin;
+import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.preferences.InstanceScope;
 import org.eclipse.jface.preference.IPreferenceNode;
 import org.eclipse.jface.preference.IPreferenceStore;
@@ -46,6 +47,19 @@ public class ApplicationWorkbenchAdvisor extends WorkbenchAdvisor {
             dumpPreferencesNodes(subs, indent + 2);
         }
 
+    }
+
+    @Override
+    public boolean preShutdown() {
+        boolean ret = super.preShutdown();
+        try {
+            // Save the full workspace before quit
+            // Otherwise eclipse will warn about unsaved changes
+            ResourcesPlugin.getWorkspace().save(true, null);
+        } catch (final CoreException e) {
+            // We ignore this one
+        }
+        return ret;
     }
 
     @Override

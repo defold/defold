@@ -188,6 +188,10 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
         super.start(bundleContext);
         this.logger = Logger.getLogger(Activator.PLUGIN_ID);
 
+        // We clear this property in order to avoid the following warning on OSX:
+        // "System property http.nonProxyHosts has been set to local|*.local|169.254/16|*.169.254/16 by an external source. This value will be overwritten using the values from the preferences"
+        System.clearProperty("http.nonProxyHosts");
+
         proxyTracker = new ServiceTracker(bundleContext, IProxyService.class
                 .getName(), null);
         proxyTracker.open();

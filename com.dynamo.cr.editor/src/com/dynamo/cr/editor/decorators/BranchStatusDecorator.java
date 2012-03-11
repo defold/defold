@@ -56,8 +56,8 @@ public class BranchStatusDecorator implements ILightweightLabelDecorator, IBranc
         if (branchService != null) {
             branchService.removeBranchListener(this);
         } else {
-            Status status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, "Unable to locate IBranchService");
-            StatusManager.getManager().handle(status, StatusManager.LOG);
+            // When exiting the branch service might not be available.
+            // so we skip to log here.
         }
     }
 
