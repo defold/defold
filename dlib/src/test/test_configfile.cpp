@@ -66,6 +66,15 @@ TEST(ConfigFile, TestFile)
     dmConfigFile::Delete(config);
 }
 
+TEST(ConfigFile, MissingTrailingNewline)
+{
+    dmConfigFile::HConfig config;
+    dmConfigFile::Result r = dmConfigFile::Load("src/test/data/missing_trailing_nl.config", 0, (const char**) 0, &config);
+    ASSERT_EQ(dmConfigFile::RESULT_OK, r);
+    ASSERT_STREQ("456", dmConfigFile::GetString(config, "main.foo", 0));
+    dmConfigFile::Delete(config);
+}
+
 #ifndef _WIN32
 // No support for http server on windows
 TEST(ConfigFile, TestHttp)
