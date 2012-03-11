@@ -42,7 +42,7 @@ public class CollectionInstanceNode extends InstanceNode {
     public IStatus validateCollection() {
         if (getModel() != null && !this.collection.isEmpty()) {
             if (this.collectionNode != null) {
-                IStatus status = this.collectionNode.validate();
+                IStatus status = this.collectionNode.getStatus();
                 if (!status.isOK()) {
                     return new Status(IStatus.ERROR, Constants.PLUGIN_ID, Messages.CollectionInstanceNode_collection_INVALID_REFERENCE);
                 }

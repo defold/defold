@@ -54,7 +54,7 @@ public class GameObjectInstanceNode extends InstanceNode {
     public IStatus validateGameObject() {
         if (getModel() != null && !this.gameObject.isEmpty()) {
             if (this.gameObjectNode != null) {
-                IStatus status = this.gameObjectNode.validate();
+                IStatus status = this.gameObjectNode.getStatus();
                 if (!status.isOK()) {
                     return new Status(IStatus.ERROR, Constants.PLUGIN_ID, Messages.GameObjectInstanceNode_gameObject_INVALID_REFERENCE);
                 }
@@ -96,7 +96,6 @@ public class GameObjectInstanceNode extends InstanceNode {
                 removeChild(this.gameObjectNode);
                 this.gameObjectNode = (GameObjectNode)model.loadNode(this.gameObject);
                 if (this.gameObjectNode != null) {
-                    this.gameObjectNode.setModel(model);
                     this.gameObjectNode.setFlagsRecursively(Flags.LOCKED);
                     addChild(this.gameObjectNode);
                 }

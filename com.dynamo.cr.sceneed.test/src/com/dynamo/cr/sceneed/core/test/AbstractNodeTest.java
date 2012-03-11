@@ -23,8 +23,10 @@ import java.util.Map;
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.DefaultOperationHistory;
 import org.eclipse.core.commands.operations.IOperationHistory;
+import org.eclipse.core.commands.operations.IOperationHistoryListener;
 import org.eclipse.core.commands.operations.IUndoContext;
 import org.eclipse.core.commands.operations.IUndoableOperation;
+import org.eclipse.core.commands.operations.OperationHistoryEvent;
 import org.eclipse.core.commands.operations.UndoContext;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
@@ -65,6 +67,7 @@ public abstract class AbstractNodeTest {
     private IUndoContext undoContext;
     private INodeTypeRegistry nodeTypeRegistry;
     private IResourceTypeRegistry resourceTypeRegistry;
+    private Node root;
 
     private Map<String, IFile> fileStore;
 
@@ -80,8 +83,9 @@ public abstract class AbstractNodeTest {
         doAnswer(new Answer<Object>() {
             @Override
             public Object answer(InvocationOnMock invocation) throws Throwable {
-                Node root = (Node)invocation.getArguments()[0];
+                root = (Node)invocation.getArguments()[0];
                 root.setModel(model);
+                root.updateStatus();
                 return null;
             }
         }).when(this.model).setRoot(any(Node.class));
@@ -96,6 +100,18 @@ public abstract class AbstractNodeTest {
         this.presenterContext = mock(ISceneView.IPresenterContext.class);
 
         this.history = new DefaultOperationHistory();
+        this.history.addOperationHistoryListener(new IOperationHistoryListener() {
+            @Override
+            public void historyNotification(OperationHistoryEvent event) {
+                switch (event.getEventType()) {
+                case OperationHistoryEvent.DONE:
+                case OperationHistoryEvent.UNDONE:
+                case OperationHistoryEvent.REDONE:
+                    root.updateStatus();
+                    break;
+                }
+            }
+        });
         this.undoContext = new UndoContext();
 
         setupFileStore();
@@ -216,7 +232,7 @@ public abstract class AbstractNodeTest {
     }
 
     protected void assertNodeStatus(Node node, int severity, String message) {
-        assertStatus(node.validate(), severity, message);
+        assertStatus(node.getStatus(), severity, message);
     }
 
     protected void assertStatus(IStatus status, int severity, String message) {
@@ -291,12 +307,12 @@ public abstract class AbstractNodeTest {
         return destinationFile;
     }
 
-    protected <T extends Node> T registerAndLoadNodeType(Class<T> nodeClass, String extension, INodeLoader<T> loader) throws IOException, CoreException {
+    protected <T extends Node> T registerAndLoadRoot(Class<T> nodeClass, String extension, INodeLoader<T> loader) throws IOException, CoreException {
         when(getModel().getExtension(nodeClass)).thenReturn(extension);
         IResourceType resourceType = this.resourceTypeRegistry.getResourceTypeFromExtension(extension);
         byte[] ddf = resourceType.getTemplateData();
         T node = loader.load(getLoaderContext(), new ByteArrayInputStream(ddf));
-        node.setModel(getModel());
+        this.model.setRoot(node);
         when(this.presenterContext.getSelection()).thenReturn(new StructuredSelection(node));
         return node;
     }

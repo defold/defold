@@ -57,7 +57,7 @@ public class RefComponentNode extends ComponentNode {
     public IStatus validateComponent() {
         if (getModel() != null && this.component != null && !this.component.isEmpty()) {
             if (this.type != null) {
-                IStatus status = this.type.validate();
+                IStatus status = this.type.getStatus();
                 if (!status.isOK()) {
                     return new Status(IStatus.ERROR, Constants.PLUGIN_ID, Messages.RefComponentNode_component_INVALID_REFERENCE);
                 }

@@ -28,12 +28,15 @@ import org.eclipse.swt.events.MouseEvent;
 import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.Menu;
 import org.eclipse.ui.IActionBars;
+import org.eclipse.ui.IDecoratorManager;
 import org.eclipse.ui.ISelectionListener;
 import org.eclipse.ui.IWorkbenchActionConstants;
 import org.eclipse.ui.IWorkbenchPart;
+import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.actions.ActionFactory;
 import org.eclipse.ui.contexts.IContextService;
 import org.eclipse.ui.handlers.IHandlerService;
@@ -48,6 +51,7 @@ import com.dynamo.cr.sceneed.Activator;
 import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.util.NodeListTransfer;
+import com.dynamo.cr.sceneed.ui.decorators.SceneDecorator;
 import com.dynamo.cr.sceneed.ui.util.NodeListDNDListener;
 
 public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlinePage, ISelectionListener {
@@ -60,6 +64,9 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
     private final RedoActionHandler redoHandler;
     private final RootItem root;
     private final ILogger logger;
+    private final OutlineLabelProvider labelProvider;
+
+    private boolean fireSelections = true;
 
     @Inject
     public SceneOutlinePage(ISceneView.IPresenter presenter, ISceneView.IPresenterContext presenterContext, UndoActionHandler undoHandler, RedoActionHandler redoHandler, ILogger logger) {
@@ -69,6 +76,7 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
         this.redoHandler = redoHandler;
         this.root = new RootItem();
         this.logger = logger;
+        this.labelProvider = new OutlineLabelProvider();
     }
 
     @Override
@@ -100,10 +108,19 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
 
     @Override
     public void refresh() {
+        this.fireSelections = false;
         TreeViewer viewer = getTreeViewer();
         if (viewer != null && !viewer.getTree().isDisposed()) {
-            viewer.refresh();
+            viewer.refresh(true);
+            Display.getDefault().asyncExec(new Runnable() {
+                @Override
+                public void run() {
+                    IDecoratorManager idm = PlatformUI.getWorkbench().getDecoratorManager();
+                    idm.update(SceneDecorator.DECORATOR_ID);
+                }
+            });
         }
+        this.fireSelections = true;
     }
 
     private static class RootItem {
@@ -111,6 +128,7 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
     }
 
     class OutlineContentProvider implements ITreeContentProvider {
+
         @Override
         public void dispose() {
         }
@@ -208,7 +226,7 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
         public String getToolTipText(Object element) {
             if (element instanceof Node) {
                 Node node = (Node)element;
-                IStatus status = node.validate();
+                IStatus status = node.getStatus();
                 return getMostSevereStatusText(status);
             }
             return super.getToolTipText(element);
@@ -218,7 +236,7 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
         public Image getToolTipImage(Object object) {
             if (object instanceof Node) {
                 Node node = (Node)object;
-                IStatus status = node.validate();
+                IStatus status = node.getStatus();
                 switch (status.getSeverity()) {
                 case IStatus.INFO:
                     return Activator.getDefault().getImageRegistry().get(Activator.IMG_OVERLAY_INFO);
@@ -261,7 +279,7 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
         ColumnViewerToolTipSupport.enableFor(viewer);
         viewer.getTree().setHeaderVisible(false);
         viewer.setContentProvider(new OutlineContentProvider());
-        viewer.setLabelProvider(new DecoratingDefoldLabelProvider(new OutlineLabelProvider(), Activator.getDefault().getWorkbench().getDecoratorManager().getLabelDecorator(), DecorationContext.DEFAULT_CONTEXT));
+        viewer.setLabelProvider(new DecoratingDefoldLabelProvider(this.labelProvider, Activator.getDefault().getWorkbench().getDecoratorManager().getLabelDecorator(), DecorationContext.DEFAULT_CONTEXT));
         viewer.setInput(this.root);
         viewer.expandToLevel(2);
 
@@ -315,9 +333,11 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
 
     @Override
     public void selectionChanged(IWorkbenchPart part, ISelection selection) {
-        if (part instanceof SceneEditor) {
-            TreeViewer viewer = getTreeViewer();
-            viewer.setSelection(selection, true);
+        if (this.fireSelections) {
+            if (part instanceof SceneEditor) {
+                TreeViewer viewer = getTreeViewer();
+                viewer.setSelection(selection, true);
+            }
         }
     }
 

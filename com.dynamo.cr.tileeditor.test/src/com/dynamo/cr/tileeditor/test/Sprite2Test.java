@@ -46,7 +46,7 @@ public class Sprite2Test extends AbstractNodeTest {
             registerLoadedNode(path, tileSet);
         }
 
-        this.spriteNode = registerAndLoadNodeType(Sprite2Node.class, "sprite2", this.loader);
+        this.spriteNode = registerAndLoadRoot(Sprite2Node.class, "sprite2", this.loader);
     }
 
     // Helpers
