@@ -9,6 +9,7 @@ public class TaskResult {
     private int returnCode;
     private String message = "OK";
     private Task<?> task;
+    private Throwable exception;
 
     public TaskResult(Task<?> task) {
         this.task = task;
@@ -57,5 +58,21 @@ public class TaskResult {
     @Override
     public String toString() {
         return String.format("%s (%d)", message, returnCode);
+    }
+
+    /**
+     * Set exception. Should only be set, ie not null, when unexpected errors occur
+     * @param exception exception to set. null is accepted.
+     */
+    public void setException(Throwable exception) {
+        this.exception = exception;
+    }
+
+    /**
+     * Get exception. If not null a unexpected error has occurred.
+     * @return exception. null of no exception is set.
+     */
+    public Throwable getException() {
+        return exception;
     }
 }

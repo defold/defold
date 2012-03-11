@@ -117,6 +117,11 @@ public class ContentBuilder extends IncrementalProjectBuilder {
                 ret = Math.max(ret, taskResult.getReturnCode());
                 if (taskResult.getReturnCode() != 0) {
 
+                    Throwable exception = taskResult.getException();
+                    if (exception != null) {
+                        // This is an unexpected error. Log it.
+                        Activator.logException(exception);
+                    }
                     String input = taskResult.getTask().input(0).getPath();
                     IFile resource = EditorUtil.getContentRoot(getProject()).getFile(input);
                     if (resource.exists())

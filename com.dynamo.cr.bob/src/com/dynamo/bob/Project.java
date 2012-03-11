@@ -14,7 +14,6 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.commons.io.DirectoryWalker;
-import org.apache.commons.io.FileSystemUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.eclipse.core.runtime.IProgressMonitor;
@@ -273,6 +272,7 @@ run:
                 Builder builder = task.getBuilder();
                 int returnCode = 0;
                 String message = null;
+                Throwable exception = null;
                 boolean abort = false;
                 try {
                     builder.build(task);
@@ -295,11 +295,13 @@ run:
                 } catch (Throwable e) {
                     returnCode = 50;
                     message = e.getMessage();
+                    exception = e;
                     abort = true;
                 }
                 if (returnCode != 0) {
                     taskResult.setReturnCode(returnCode);
                     taskResult.setMessage(message);
+                    taskResult.setException(exception);
                     // Clear sigs for all outputs when a task fails
                     for (IResource r : task.getOutputs()) {
                         state.putSignature(r.getAbsPath(), new byte[0]);

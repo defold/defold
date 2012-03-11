@@ -63,10 +63,16 @@ public class GameObjectBuilder extends Builder<Void> {
         TextFormat.merge(new String(input.getContent()), protoBuilder);
 
         for (ComponentDesc c : protoBuilder.getComponentsList()) {
-            IResource r = project.getResource(c.getComponent().substring(1));
-            if (!r.exists()) {
-                String msg = String.format("%s:0: error: is missing dependent resource file '%s'", input.getPath(), c.getComponent());;
+            String component = c.getComponent();
+            if (component.isEmpty()) {
+                String msg = String.format("%s:0: error: no resource file specified for component '%s'", input.getPath(), c.getId());
                 throw new CompileExceptionError(msg);
+            } else {
+                IResource r = project.getResource(component.substring(1));
+                if (!r.exists()) {
+                    String msg = String.format("%s:0: error: is missing dependent resource file '%s'", input.getPath(), component);
+                    throw new CompileExceptionError(msg);
+                }
             }
         }
 
