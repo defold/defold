@@ -315,7 +315,9 @@ namespace dmConfigFile
         Context* context = (Context*) user_data;
         if (strcmp("Content-Length", key) == 0)
         {
-            context->m_BufferSize = (int) strtol(value, 0, 10);
+            // NOTE: We allocate n + 1 bytes in order to ensure that
+            // the file has a terminating newline
+            context->m_BufferSize = (int) strtol(value, 0, 10) + 1;
             context->m_Buffer = new char[context->m_BufferSize];
         }
     }
@@ -380,7 +382,10 @@ namespace dmConfigFile
             long file_size = ftell(f);
             fseek(f, 0, SEEK_SET);
 
-            context.m_Buffer = new char[file_size];
+            // NOTE: We allocate n + 1 bytes in order to ensure that
+            // the file has a terminating newline
+            int buffer_size = (int) file_size + 1;
+            context.m_Buffer = new char[buffer_size];
             if (fread(context.m_Buffer, 1, file_size, f) != (size_t) file_size)
             {
                 fclose(f);
@@ -388,8 +393,11 @@ namespace dmConfigFile
                 return RESULT_UNEXPECTED_EOF;
             }
             fclose(f);
-            context.m_BufferSize = (int) file_size;
+            context.m_BufferSize = (int) buffer_size;
         }
+
+        // Ensure terminating newline. The buffer-size is file-size + 1
+        context.m_Buffer[context.m_BufferSize-1] = '\n';
 
         context.m_Argc = argc;
         context.m_Argv = argv;
