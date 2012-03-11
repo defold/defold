@@ -45,8 +45,7 @@ public class ConnectionWizardBranchPageView extends WizardPage implements Listen
      * @see IDialogPage#createControl(Composite)
      */
     @Override
-    public void createControl(Composite parent)
-    {
+    public void createControl(Composite parent) {
         Composite composite = new Composite(parent, SWT.NONE);
 
         GridLayout gl = new GridLayout();
@@ -78,8 +77,7 @@ public class ConnectionWizardBranchPageView extends WizardPage implements Listen
      * the wizard can be finished
      */
     @Override
-    public void handleEvent(Event e)
-    {
+    public void handleEvent(Event e) {
         if (e.widget == newBranchButton)
             presenter.onNewBranch();
         else if (e.widget == deleteBranchButton)
@@ -95,8 +93,7 @@ public class ConnectionWizardBranchPageView extends WizardPage implements Listen
     }
 
     @Override
-    public boolean canFlipToNextPage()
-    {
+    public boolean canFlipToNextPage() {
         return false;
     }
 
@@ -111,7 +108,6 @@ public class ConnectionWizardBranchPageView extends WizardPage implements Listen
 
     public void setPresenter(ConnectionWizardBranchPagePresenter presenter) {
         this.presenter = presenter;
-
     }
 
     @Override
