@@ -4,8 +4,6 @@ import org.eclipse.jface.preference.BooleanFieldEditor;
 import org.eclipse.jface.preference.FieldEditorPreferencePage;
 import org.eclipse.jface.preference.FileFieldEditor;
 import org.eclipse.jface.preference.IPreferenceStore;
-import org.eclipse.jface.preference.IntegerFieldEditor;
-import org.eclipse.jface.preference.StringFieldEditor;
 import org.eclipse.jface.util.PropertyChangeEvent;
 import org.eclipse.ui.IWorkbench;
 import org.eclipse.ui.IWorkbenchPreferencePage;
@@ -22,14 +20,10 @@ public class PreferencePage
     public PreferencePage() {
 		super(GRID);
 		setPreferenceStore(Activator.getDefault().getPreferenceStore());
-		setDescription("Specify connection parameters:");
 	}
 
 	@Override
     public void createFieldEditors() {
-        addField(new StringFieldEditor(PreferenceConstants.P_SERVER_URI, "Resource server URI:", getFieldEditorParent()));
-        addField(new StringFieldEditor(PreferenceConstants.P_SOCKS_PROXY, "Socks proxy:", getFieldEditorParent()));
-        addField(new IntegerFieldEditor(PreferenceConstants.P_SOCKS_PROXY_PORT, "Socks proxy port:", getFieldEditorParent()));
         addField(new BooleanFieldEditor(PreferenceConstants.P_USE_LOCAL_BRANCHES, "Use local branches", getFieldEditorParent()));
 
         customApplicationField = new BooleanFieldEditor(PreferenceConstants.P_CUSTOM_APPLICATION, "Custom application", getFieldEditorParent());

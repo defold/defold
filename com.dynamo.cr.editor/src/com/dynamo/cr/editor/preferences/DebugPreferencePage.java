@@ -2,6 +2,8 @@ package com.dynamo.cr.editor.preferences;
 
 import org.eclipse.jface.preference.BooleanFieldEditor;
 import org.eclipse.jface.preference.FieldEditorPreferencePage;
+import org.eclipse.jface.preference.IntegerFieldEditor;
+import org.eclipse.jface.preference.StringFieldEditor;
 import org.eclipse.jface.util.PropertyChangeEvent;
 import org.eclipse.ui.IWorkbench;
 import org.eclipse.ui.IWorkbenchPreferencePage;
@@ -26,6 +28,10 @@ public class DebugPreferencePage extends FieldEditorPreferencePage implements IW
 
     @Override
     protected void createFieldEditors() {
+        addField(new StringFieldEditor(PreferenceConstants.P_SERVER_URI, "Resource server URI:", getFieldEditorParent()));
+        addField(new StringFieldEditor(PreferenceConstants.P_SOCKS_PROXY, "Socks proxy:", getFieldEditorParent()));
+        addField(new IntegerFieldEditor(PreferenceConstants.P_SOCKS_PROXY_PORT, "Socks proxy port:", getFieldEditorParent()));
+
         runInDebuggerField = new BooleanFieldEditor(PreferenceConstants.P_RUN_IN_DEBUGGER, "Run in debugger", getFieldEditorParent());
         addField(runInDebuggerField);
 

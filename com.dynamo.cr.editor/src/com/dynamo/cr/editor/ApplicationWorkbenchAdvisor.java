@@ -105,6 +105,12 @@ public class ApplicationWorkbenchAdvisor extends WorkbenchAdvisor {
         pm.remove("org.eclipse.ui.preferencePages.Workbench/org.eclipse.ui.preferencePages.Editors/org.eclipse.ui.preferencePages.GeneralTextEditor/org.eclipse.ui.editors.preferencePages.LinkedModePreferencePage");
         pm.remove("org.eclipse.ui.preferencePages.Workbench/org.eclipse.ui.preferencePages.Editors/org.eclipse.ui.preferencePages.GeneralTextEditor/org.eclipse.ui.editors.preferencePages.HyperlinkDetectorsPreferencePage");
 
+        if (System.getProperty("osgi.dev") == null)
+        {
+            // Remove debug preferences for end-users
+            pm.remove("com.dynamo.rclient.preferences.PreferencePage/com.dynamo.rclient.preferences.DebugPreferencePage");
+        }
+
         // NOTE: Uncomment line below to dump all preference nodes. Use / as separator. See above
         //dumpPreferencesNodes(pm.getRootSubNodes(), 0);
     }
