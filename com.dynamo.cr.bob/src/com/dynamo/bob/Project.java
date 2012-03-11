@@ -95,7 +95,7 @@ public class Project {
         }
     }
 
-    private Task<?> doCreateTask(String input) {
+    private Task<?> doCreateTask(String input) throws CompileExceptionError {
         String ext = "." + FilenameUtils.getExtension(input);
         Class<? extends Builder<?>> builderClass = extToBuilder.get(ext);
         Builder<?> builder;
@@ -106,6 +106,9 @@ public class Project {
                 IResource inputResource = fileSystem.get(input);
                 Task<?> task = builder.create(inputResource);
                 return task;
+            } catch (CompileExceptionError e) {
+                // Just pass CompileExceptionError on unmodified
+                throw e;
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -120,8 +123,9 @@ public class Project {
      * that create intermediate output/input-files
      * @param input input resource
      * @return task
+     * @throws CompileExceptionError
      */
-    public Task<?> buildResource(IResource input) {
+    public Task<?> buildResource(IResource input) throws CompileExceptionError {
         Task<?> task = doCreateTask(input.getPath());
         if (task != null) {
             tasks.add(task);
@@ -129,7 +133,7 @@ public class Project {
         return task;
     }
 
-    private void createTasks() {
+    private void createTasks() throws CompileExceptionError {
         tasks = new ArrayList<Task<?>>();
         for (String input : inputs) {
             Task<?> task = doCreateTask(input);
@@ -148,8 +152,20 @@ public class Project {
      * @param monitor
      * @return list of {@link TaskResult}. Only executed nodes are part of the list.
      * @throws IOException
+     * @throws CompileExceptionError
      */
-    public List<TaskResult> build(IProgressMonitor monitor, String... commands) throws IOException {
+    public List<TaskResult> build(IProgressMonitor monitor, String... commands) throws IOException, CompileExceptionError {
+        try {
+            return doBuild(monitor, commands);
+        } catch (CompileExceptionError e) {
+            // Pass on unmodified
+            throw e;
+        } catch (Throwable e) {
+            throw new CompileExceptionError(e.getMessage(), e, 5);
+        }
+    }
+
+    private List<TaskResult> doBuild(IProgressMonitor monitor, String... commands) throws IOException, CompileExceptionError {
         IResource stateResource = fileSystem.get(FilenameUtils.concat(buildDirectory, "state"));
         state = State.load(stateResource);
         createTasks();

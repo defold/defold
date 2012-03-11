@@ -13,7 +13,6 @@ import com.dynamo.bob.IResource;
 import com.dynamo.bob.Task;
 import com.dynamo.render.Fontc;
 import com.dynamo.render.proto.Font.FontDesc;
-import com.google.protobuf.TextFormat;
 
 @BuilderParams(name = "Font", inExts = ".font", outExt = ".fontc")
 public class FontBuilder extends Builder<Void>  {
@@ -28,7 +27,7 @@ public class FontBuilder extends Builder<Void>  {
             IOException {
 
         FontDesc.Builder fontDescbuilder = FontDesc.newBuilder();
-        TextFormat.merge(new String(task.input(0).getContent()), fontDescbuilder);
+        ProtoUtil.merge(task.input(0), fontDescbuilder);
         FontDesc fontDesc = fontDescbuilder.build();
         if (fontDesc.getFont().length() == 0) {
             throw new CompileExceptionError("No ttf font specified in " + task.input(0).getPath() + ".");

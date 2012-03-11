@@ -1,17 +1,14 @@
 package com.dynamo.bob.pipeline;
 
-import java.io.BufferedReader;
-import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import org.apache.commons.io.FilenameUtils;
-
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.IResource;
 import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.ProtoParams;
 import com.dynamo.camera.proto.Camera.CameraDesc;
@@ -41,7 +38,6 @@ import com.dynamo.render.proto.Render.RenderPrototypeDesc;
 import com.dynamo.sprite.proto.Sprite.SpriteDesc;
 import com.dynamo.sprite2.proto.Sprite2.Sprite2Desc;
 import com.dynamo.tile.proto.Tile.TileGrid;
-import com.google.protobuf.TextFormat;
 
 public class ProtoBuilders {
 
@@ -126,31 +122,24 @@ public class ProtoBuilders {
 
         @Override
         protected CollisionObjectDesc.Builder transform(
-                CollisionObjectDesc.Builder messageBuilder) throws IOException {
+                CollisionObjectDesc.Builder messageBuilder) throws IOException, CompileExceptionError {
             // Merge convex shape resource with collision object
             // NOTE: Special case for tilegrid resources. They are left as is
             if (messageBuilder.hasCollisionShape() && !messageBuilder.getCollisionShape().isEmpty() && !messageBuilder.getCollisionShape().endsWith(".tilegrid")) {
-                String p = FilenameUtils.concat(project.getRootDirectory(), messageBuilder.getCollisionShape().substring(1));
+                IResource shapeResource = project.getResource(messageBuilder.getCollisionShape().substring(1));
                 ConvexShape.Builder cb = ConvexShape.newBuilder();
-                BufferedReader reader = new BufferedReader(new FileReader(p));
-                try {
-                    TextFormat.merge(reader, cb);
-                    CollisionShape.Builder eb = CollisionShape.newBuilder().mergeFrom(messageBuilder.getEmbeddedCollisionShape());
-                    Shape.Builder sb = Shape.newBuilder()
-                            .setShapeType(CollisionShape.Type.valueOf(cb.getShapeType().getNumber()))
-                            .setPosition(Point3.newBuilder())
-                            .setRotation(Quat.newBuilder().setW(1))
-                            .setIndex(eb.getDataCount())
-                            .setCount(cb.getDataCount());
-                    eb.addShapes(sb);
-                    eb.addAllData(cb.getDataList());
-                    messageBuilder.setEmbeddedCollisionShape(eb);
-                    messageBuilder.setCollisionShape("");
-
-                } finally {
-                    reader.close();
-                }
-
+                ProtoUtil.merge(shapeResource, cb);
+                CollisionShape.Builder eb = CollisionShape.newBuilder().mergeFrom(messageBuilder.getEmbeddedCollisionShape());
+                Shape.Builder sb = Shape.newBuilder()
+                        .setShapeType(CollisionShape.Type.valueOf(cb.getShapeType().getNumber()))
+                        .setPosition(Point3.newBuilder())
+                        .setRotation(Quat.newBuilder().setW(1))
+                        .setIndex(eb.getDataCount())
+                        .setCount(cb.getDataCount());
+                eb.addShapes(sb);
+                eb.addAllData(cb.getDataList());
+                messageBuilder.setEmbeddedCollisionShape(eb);
+                messageBuilder.setCollisionShape("");
             }
 
             messageBuilder.setCollisionShape(BuilderUtil.replaceExt(messageBuilder.getCollisionShape(), ".convexshape", ".convexshapec"));

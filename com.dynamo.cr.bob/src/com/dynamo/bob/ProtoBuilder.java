@@ -1,14 +1,12 @@
 package com.dynamo.bob;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.lang.reflect.Method;
 
+import com.dynamo.bob.pipeline.ProtoUtil;
 import com.google.protobuf.GeneratedMessage;
 import com.google.protobuf.Message;
-import com.google.protobuf.TextFormat;
 
 public abstract class ProtoBuilder<B extends GeneratedMessage.Builder<B>> extends Builder<Void> {
 
@@ -40,10 +38,7 @@ public abstract class ProtoBuilder<B extends GeneratedMessage.Builder<B>> extend
             throw new RuntimeException(e);
         }
 
-        InputStreamReader reader = new InputStreamReader(new ByteArrayInputStream(task.input(0).getContent()));
-        TextFormat.merge(reader, builder);
-        reader.close();
-
+        ProtoUtil.merge(task.input(0), builder);
         builder = transform(builder);
 
         Message msg = builder.build();

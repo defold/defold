@@ -10,7 +10,7 @@ import org.eclipse.core.runtime.NullProgressMonitor;
 
 public class Bob {
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws IOException, CompileExceptionError {
         String buildDirectory = "build/default";
         Project project = new Project(new DefaultFileSystem(), ".", buildDirectory);
 

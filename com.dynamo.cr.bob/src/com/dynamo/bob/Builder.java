@@ -44,8 +44,9 @@ public abstract class Builder<T> {
      * @param input input resource
      * @return new task
      * @throws IOException
+     * @throws CompileExceptionError
      */
-    public abstract Task<T> create(IResource input) throws IOException;
+    public abstract Task<T> create(IResource input) throws IOException, CompileExceptionError;
 
     /**
      * Build task, ie compile

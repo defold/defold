@@ -15,6 +15,7 @@ import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IMarker;
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.IResource;
+import org.eclipse.core.resources.IResourceStatus;
 import org.eclipse.core.resources.IncrementalProjectBuilder;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
@@ -28,6 +29,7 @@ import org.eclipse.ui.console.MessageConsole;
 import org.eclipse.ui.console.MessageConsoleStream;
 import org.osgi.framework.Bundle;
 
+import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.DefaultFileSystem;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.TaskResult;
@@ -141,8 +143,16 @@ public class ContentBuilder extends IncrementalProjectBuilder {
                     throw new CoreException(new Status(IStatus.WARNING, Activator.PLUGIN_ID, "Build failed"));
             }
         } catch (IOException e) {
-            e.printStackTrace();
             throw new CoreException(new Status(IStatus.WARNING, Activator.PLUGIN_ID, "Build failed"));
+        } catch (CompileExceptionError e) {
+            if (e.getResource() != null) {
+                IFile resource = EditorUtil.getContentRoot(getProject()).getFile(e.getResource().getPath());
+                IMarker marker = resource.createMarker(IMarker.PROBLEM);
+                marker.setAttribute(IMarker.MESSAGE, e.getMessage());
+                marker.setAttribute(IMarker.LINE_NUMBER, 0);
+                marker.setAttribute(IMarker.SEVERITY, IMarker.SEVERITY_ERROR);
+            }
+            throw new CoreException(new Status(IResourceStatus.WARNING, Activator.PLUGIN_ID, "Build failed", e));
         }
         return null;
     }

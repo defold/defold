@@ -16,15 +16,14 @@ import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.gameobject.proto.GameObject.ComponentDesc;
 import com.dynamo.gameobject.proto.GameObject.EmbeddedComponentDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
-import com.google.protobuf.TextFormat;
 
 @BuilderParams(name = "GameObject", inExts = ".go", outExt = ".goc")
 public class GameObjectBuilder extends Builder<Void> {
 
     @Override
-    public Task<Void> create(IResource input) throws IOException {
+    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
         PrototypeDesc.Builder b = PrototypeDesc.newBuilder();
-        TextFormat.merge(new String(input.getContent()), b);
+        ProtoUtil.merge(input, b);
         PrototypeDesc proto = b.build();
 
         TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
@@ -60,8 +59,7 @@ public class GameObjectBuilder extends Builder<Void> {
         IResource input = task.getInputs().get(0);
 
         PrototypeDesc.Builder protoBuilder = PrototypeDesc.newBuilder();
-        TextFormat.merge(new String(input.getContent()), protoBuilder);
-
+        ProtoUtil.merge(input, protoBuilder);
         for (ComponentDesc c : protoBuilder.getComponentsList()) {
             String component = c.getComponent();
             if (component.isEmpty()) {

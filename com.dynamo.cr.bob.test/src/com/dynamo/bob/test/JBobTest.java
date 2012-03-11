@@ -70,11 +70,24 @@ public class JBobTest {
         }
     }
 
+    @BuilderParams(name = "CreateException", inExts = ".in_ce", outExt = ".out_ce")
+    public static class CreateExceptionBuilder extends Builder<Void> {
+        @Override
+        public Task<Void> create(IResource input) {
+            throw new RuntimeException("error");
+        }
+
+        @Override
+        public void build(Task<Void> task) throws CompileExceptionError {
+        }
+    }
+
+
     @BuilderParams(name = "DynamicBuilder", inExts = ".dynamic", outExt = ".number")
     public static class DynamicBuilder extends Builder<Void> {
 
         @Override
-        public Task<Void> create(IResource input) throws IOException {
+        public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
             TaskBuilder<Void> builder = Task.<Void>newBuilder(this)
                     .setName(params.name())
                     .addInput(input);
@@ -216,7 +229,7 @@ public class JBobTest {
         project.scanBundlePackage(bundle, "com.dynamo.bob.test");
     }
 
-    List<TaskResult> build() throws IOException {
+    List<TaskResult> build() throws IOException, CompileExceptionError {
         return project.build(new NullProgressMonitor(), "build");
     }
 
@@ -323,6 +336,14 @@ public class JBobTest {
         result = build();
         assertThat(result.size(), is(1));
         assertThat(result.get(0).getReturnCode(), is(5));
+    }
+
+    @Test(expected=CompileExceptionError.class)
+    public void testCreateError() throws Exception {
+        fileSystem.addFile("test.in_ce", "test".getBytes());
+        project.setInputs(Arrays.asList("test.in_ce"));
+        // build
+        build();
     }
 
     @Test
