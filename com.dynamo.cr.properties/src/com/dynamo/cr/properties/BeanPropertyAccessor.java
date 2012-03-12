@@ -7,6 +7,7 @@ import java.beans.PropertyDescriptor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
+import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
 import javax.vecmath.Vector3d;
 import javax.vecmath.Vector4d;
@@ -69,6 +70,8 @@ public class BeanPropertyAccessor implements IPropertyAccessor<Object, IProperty
                 mergeVector4dValue(obj, (Vector4d) oldValue, (Double[]) newValue);
             } else if (oldValue instanceof Vector3d && newValue instanceof Double[]) {
                 mergeVector3dValue(obj, (Vector3d) oldValue, (Double[]) newValue);
+            } else if (oldValue instanceof Point3d && newValue instanceof Double[]) {
+                mergePoint3dValue(obj, (Point3d) oldValue, (Double[]) newValue);
             } else if (oldValue instanceof Quat4d && newValue instanceof Double[]) {
                 mergeQuat4dValue(obj, (Quat4d) oldValue, (Double[]) newValue);
             } else if (oldValue instanceof RGB && newValue instanceof Double[]) {
@@ -96,6 +99,16 @@ public class BeanPropertyAccessor implements IPropertyAccessor<Object, IProperty
 
     private void mergeVector3dValue(Object obj, Vector3d oldValue, Double[] delta) throws IllegalArgumentException, IllegalAccessException, InvocationTargetException {
         Vector3d toSet = new Vector3d();
+
+        toSet.x = delta[0] != null ? delta[0] : oldValue.x;
+        toSet.y = delta[1] != null ? delta[1] : oldValue.y;
+        toSet.z = delta[2] != null ? delta[2] : oldValue.z;
+
+        propertyDescriptor.getWriteMethod().invoke(obj, toSet);
+    }
+
+    private void mergePoint3dValue(Object obj, Point3d oldValue, Double[] delta) throws IllegalArgumentException, IllegalAccessException, InvocationTargetException {
+        Point3d toSet = new Point3d();
 
         toSet.x = delta[0] != null ? delta[0] : oldValue.x;
         toSet.y = delta[1] != null ? delta[1] : oldValue.y;

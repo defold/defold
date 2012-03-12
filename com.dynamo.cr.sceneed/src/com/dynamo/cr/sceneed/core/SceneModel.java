@@ -132,13 +132,13 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
         IStatus status = null;
         try {
             status = this.history.execute(operation, null, null);
+            if (status != Status.OK_STATUS) {
+                this.logger.logException(status.getException());
+            }
         } catch (final ExecutionException e) {
             this.logger.logException(e);
         }
 
-        if (status != Status.OK_STATUS) {
-            this.logger.logException(status.getException());
-        }
     }
 
     @Override
