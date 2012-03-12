@@ -15,16 +15,20 @@
             <table>
 	            <tr>
 		            <td>
-				        <div class="box">
-	                        <h3>Tutorials</h3>
-					        Step by step tutorials and videos
-					        <ul>
-					            <li><g:Hyperlink targetHistoryToken="tutorials:side_scroller">Side-Scroller</g:Hyperlink></li>
-					        </ul>
-				        </div>
+                        <div class="box">
+                            <h3>Guides</h3>
+                            Here we take a closer look on different areas of the platform
+                            <ul>
+                                <li><g:Hyperlink targetHistoryToken="guide:introduction">Introduction</g:Hyperlink></li>
+                                <li><g:Hyperlink targetHistoryToken="guide:scripting_debugging">Scripting &amp; Debugging</g:Hyperlink></li>
+                                <li><g:Hyperlink targetHistoryToken="guide:message_passing">Message Passing</g:Hyperlink></li>
+                                <li><g:Hyperlink targetHistoryToken="guide:reload">Hot Reloading</g:Hyperlink></li>
+                                <li><g:Hyperlink targetHistoryToken="guide:tiles">Tile Grids</g:Hyperlink></li>
+                            </ul>
+                        </div>
                         <div class="box">
                             <h3>Reference</h3>
-                            Script function and messages reference
+                            Script function and message reference
                             <ul>
                                 <li><g:Hyperlink targetHistoryToken="reference:engine">Engine</g:Hyperlink></li>
                                 <li><g:Hyperlink targetHistoryToken="reference:go">GameObject</g:Hyperlink></li>
@@ -38,10 +42,17 @@
 
                     <td>
                         <div class="box">
-                            <h3>Script Samples</h3>
-                            Script samples with demo video
+                            <h3>Tutorials</h3>
+                            Step by step tutorials and videos
                             <ul>
-                                <li><g:Hyperlink targetHistoryToken="script_sample:hud">Hud</g:Hyperlink></li>
+                                <li><g:Hyperlink targetHistoryToken="tutorials:side_scroller">Side-Scroller</g:Hyperlink></li>
+                            </ul>
+                        </div>
+                        <div class="box">
+                            <h3>Script Samples</h3>
+                            Script samples and videos
+                            <ul>
+                                <li><g:Hyperlink targetHistoryToken="script_sample:hud">HUD</g:Hyperlink></li>
                                 <li><g:Hyperlink targetHistoryToken="script_sample:main_menu">Main Menu</g:Hyperlink></li>
                                 <li><g:Hyperlink targetHistoryToken="script_sample:parallax">Parallax</g:Hyperlink></li>
                                 <li><g:Hyperlink targetHistoryToken="script_sample:level_complete">Level Complete</g:Hyperlink></li>

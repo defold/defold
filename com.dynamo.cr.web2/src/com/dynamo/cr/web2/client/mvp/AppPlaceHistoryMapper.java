@@ -3,7 +3,7 @@ package com.dynamo.cr.web2.client.mvp;
 import com.dynamo.cr.web2.client.place.BlogPlace;
 import com.dynamo.cr.web2.client.place.DashboardPlace;
 import com.dynamo.cr.web2.client.place.DocumentationPlace;
-import com.dynamo.cr.web2.client.place.GettingStartedPlace;
+import com.dynamo.cr.web2.client.place.GuidePlace;
 import com.dynamo.cr.web2.client.place.LoginPlace;
 import com.dynamo.cr.web2.client.place.NewProjectPlace;
 import com.dynamo.cr.web2.client.place.OpenIDPlace;
@@ -25,6 +25,6 @@ import com.google.gwt.place.shared.WithTokenizers;
         NewProjectPlace.Tokenizer.class, OpenIDPlace.Tokenizer.class,
         DocumentationPlace.Tokenizer.class, TutorialsPlace.Tokenizer.class,
         BlogPlace.Tokenizer.class, ScriptSamplePlace.Tokenizer.class,
-        ReferencePlace.Tokenizer.class, GettingStartedPlace.Tokenizer.class })
+        ReferencePlace.Tokenizer.class, GuidePlace.Tokenizer.class })
 public interface AppPlaceHistoryMapper extends PlaceHistoryMapper {
 }

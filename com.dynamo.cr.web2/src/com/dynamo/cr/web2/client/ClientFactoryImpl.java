@@ -3,7 +3,7 @@ package com.dynamo.cr.web2.client;
 import com.dynamo.cr.web2.client.ui.BlogView;
 import com.dynamo.cr.web2.client.ui.DashboardView;
 import com.dynamo.cr.web2.client.ui.DocumentationView;
-import com.dynamo.cr.web2.client.ui.GettingStartedView;
+import com.dynamo.cr.web2.client.ui.GuideView;
 import com.dynamo.cr.web2.client.ui.LoginView;
 import com.dynamo.cr.web2.client.ui.NewProjectView;
 import com.dynamo.cr.web2.client.ui.OpenIDView;
@@ -31,7 +31,7 @@ public class ClientFactoryImpl implements ClientFactory {
     private static final BlogView blogView = new BlogView();
     private static final ScriptSampleView scriptSampleView = new ScriptSampleView();
     private static final ReferenceView referenceView = new ReferenceView();
-    private static final GettingStartedView gettingStartedView = new GettingStartedView();
+    private static final GuideView guideView = new GuideView();
 
     private Defold defold;
 
@@ -111,8 +111,8 @@ public class ClientFactoryImpl implements ClientFactory {
     }
 
     @Override
-    public GettingStartedView getGettingStartedView() {
-        return gettingStartedView;
+    public GuideView getGuideView() {
+        return guideView;
     }
 
 }

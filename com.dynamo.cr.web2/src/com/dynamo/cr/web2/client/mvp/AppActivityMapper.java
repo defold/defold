@@ -4,7 +4,7 @@ import com.dynamo.cr.web2.client.ClientFactory;
 import com.dynamo.cr.web2.client.activity.BlogActivity;
 import com.dynamo.cr.web2.client.activity.DashboardActivity;
 import com.dynamo.cr.web2.client.activity.DocumentationActivity;
-import com.dynamo.cr.web2.client.activity.GettingStartedActivity;
+import com.dynamo.cr.web2.client.activity.GuideActivity;
 import com.dynamo.cr.web2.client.activity.LoginActivity;
 import com.dynamo.cr.web2.client.activity.NewProjectActivity;
 import com.dynamo.cr.web2.client.activity.OpenIDActivity;
@@ -16,7 +16,7 @@ import com.dynamo.cr.web2.client.activity.TutorialsActivity;
 import com.dynamo.cr.web2.client.place.BlogPlace;
 import com.dynamo.cr.web2.client.place.DashboardPlace;
 import com.dynamo.cr.web2.client.place.DocumentationPlace;
-import com.dynamo.cr.web2.client.place.GettingStartedPlace;
+import com.dynamo.cr.web2.client.place.GuidePlace;
 import com.dynamo.cr.web2.client.place.LoginPlace;
 import com.dynamo.cr.web2.client.place.NewProjectPlace;
 import com.dynamo.cr.web2.client.place.OpenIDPlace;
@@ -75,8 +75,8 @@ public class AppActivityMapper implements ActivityMapper {
             return new ScriptSampleActivity((ScriptSamplePlace) place, clientFactory);
         else if (place instanceof ReferencePlace)
             return new ReferenceActivity((ReferencePlace) place, clientFactory);
-        else if (place instanceof GettingStartedPlace)
-            return new GettingStartedActivity((GettingStartedPlace) place, clientFactory);
+        else if (place instanceof GuidePlace)
+            return new GuideActivity((GuidePlace) place, clientFactory);
 
 		return null;
 	}

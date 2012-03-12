@@ -9,27 +9,27 @@ import com.google.gwt.user.client.ui.HTMLPanel;
 import com.google.gwt.user.client.ui.Image;
 import com.google.gwt.user.client.ui.Widget;
 
-public class GettingStartedView extends Composite implements IAsciiDocView {
+public class GuideView extends Composite implements IAsciiDocView {
 
     public interface Presenter {
-        void onGettingStarted();
+        void onGuide(String name);
     }
 
     private static DashboardUiBinder uiBinder = GWT
             .create(DashboardUiBinder.class);
 
-    interface DashboardUiBinder extends UiBinder<Widget, GettingStartedView> {
+    interface DashboardUiBinder extends UiBinder<Widget, GuideView> {
     }
 
-    @UiField HTMLPanel gettingStarted;
+    @UiField HTMLPanel guide;
     @UiField Image loader;
 
-    public GettingStartedView() {
+    public GuideView() {
         initWidget(uiBinder.createAndBindUi(this));
         loader.setVisible(false);
     }
 
-    public void setPresenter(GettingStartedView.Presenter listener) {
+    public void setPresenter(GuideView.Presenter listener) {
     }
 
     @Override
@@ -39,9 +39,9 @@ public class GettingStartedView extends Composite implements IAsciiDocView {
          * remove the inline css. The inline css disturb the default one. See ascii.css
          * for more information.
          */
-        gettingStarted.clear();
+        guide.clear();
         loader.setVisible(false);
-        gettingStarted.add(AsciiDocUtil.extractBody(html));
+        guide.add(AsciiDocUtil.extractBody(html));
     }
 
     @Override
@@ -51,6 +51,6 @@ public class GettingStartedView extends Composite implements IAsciiDocView {
 
     @Override
     public void clear() {
-        gettingStarted.clear();
+        guide.clear();
     }
 }

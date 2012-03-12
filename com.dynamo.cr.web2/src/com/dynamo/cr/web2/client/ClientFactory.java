@@ -3,7 +3,7 @@ package com.dynamo.cr.web2.client;
 import com.dynamo.cr.web2.client.ui.BlogView;
 import com.dynamo.cr.web2.client.ui.DashboardView;
 import com.dynamo.cr.web2.client.ui.DocumentationView;
-import com.dynamo.cr.web2.client.ui.GettingStartedView;
+import com.dynamo.cr.web2.client.ui.GuideView;
 import com.dynamo.cr.web2.client.ui.LoginView;
 import com.dynamo.cr.web2.client.ui.NewProjectView;
 import com.dynamo.cr.web2.client.ui.OpenIDView;
@@ -32,5 +32,5 @@ public interface ClientFactory
     BlogView getBlogView();
     ScriptSampleView getScriptSampleView();
     ReferenceView getReferenceView();
-    GettingStartedView getGettingStartedView();
+    GuideView getGuideView();
 }

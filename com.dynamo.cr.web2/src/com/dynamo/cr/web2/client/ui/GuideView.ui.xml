@@ -10,7 +10,7 @@
 
     <g:FlowPanel>
         <g:Image url="images/ajax-loader.gif" styleName="{style.loader}" ui:field="loader"></g:Image>
-        <g:HTMLPanel ui:field="gettingStarted">
+        <g:HTMLPanel ui:field="guide">
         </g:HTMLPanel>
     </g:FlowPanel>
 
