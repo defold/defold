@@ -10,13 +10,13 @@ message GlobalData
     required dmMath.Vector3 vec_value = 4;
 }
 
-message Spawn
+message Factory
 {
     required string prototype = 1;
     required dmMath.Point3 pos = 2;
 }
 
-message SpawnResult
+message FactoryResult
 {
     required int32 status = 1;
 }

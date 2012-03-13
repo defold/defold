@@ -114,7 +114,7 @@ The factory component is responsible for making sure the bonus stars appear in t
 Modify the Factory Script
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Now we will make sure the factory game object starts spawning the bonus stars by modifying its script.
+Now we will make sure the factory game object starts creating the bonus stars by modifying its script.
 
 . Open +factory.script+ with *Edit > Open Resource...*.
 . Near the bottom of the file, change:

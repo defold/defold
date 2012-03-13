@@ -66,19 +66,19 @@ struct TestScript01Context
 
 void TestScript01SystemDispatch(dmMessage::Message* message, void* user_ptr)
 {
-    TestGameObjectDDF::Spawn* s = (TestGameObjectDDF::Spawn*) message->m_Data;
+    TestGameObjectDDF::Factory* f = (TestGameObjectDDF::Factory*) message->m_Data;
     // NOTE: We relocate the string here (from offset to pointer)
-    s->m_Prototype = (const char*) ((uintptr_t) s->m_Prototype + (uintptr_t) s);
+    f->m_Prototype = (const char*) ((uintptr_t) f->m_Prototype + (uintptr_t) f);
     TestScript01Context* context = (TestScript01Context*)user_ptr;
     bool* dispatch_result = &context->m_Result;
 
-    TestGameObjectDDF::SpawnResult result;
+    TestGameObjectDDF::FactoryResult result;
     result.m_Status = 1010;
     dmMessage::URL receiver = message->m_Sender;
-    dmDDF::Descriptor* descriptor = TestGameObjectDDF::SpawnResult::m_DDFDescriptor;
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(&message->m_Receiver, &message->m_Sender, dmHashString64(descriptor->m_Name), 0, (uintptr_t)descriptor, &result, sizeof(TestGameObjectDDF::SpawnResult)));
+    dmDDF::Descriptor* descriptor = TestGameObjectDDF::FactoryResult::m_DDFDescriptor;
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(&message->m_Receiver, &message->m_Sender, dmHashString64(descriptor->m_Name), 0, (uintptr_t)descriptor, &result, sizeof(TestGameObjectDDF::FactoryResult)));
 
-    *dispatch_result = s->m_Pos.getX() == 1.0 && s->m_Pos.getY() == 2.0 && s->m_Pos.getZ() == 3.0 && strcmp("test", s->m_Prototype) == 0;
+    *dispatch_result = f->m_Pos.getX() == 1.0 && f->m_Pos.getY() == 2.0 && f->m_Pos.getZ() == 3.0 && strcmp("test", f->m_Prototype) == 0;
 }
 
 void TestScript01CollectionDispatch(dmMessage::Message *message_object, void* user_ptr)

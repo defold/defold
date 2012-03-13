@@ -6,12 +6,12 @@ import "ddf/ddf_math.proto";
 option java_package = "com.dynamo.gamesystem.proto";
 option java_outer_classname = "GameSystem";
 
-message SpawnPointDesc
+message FactoryDesc
 {
     required string prototype = 1 [(resource)=true];
 }
 
-message Spawn
+message Create
 {
     required dmMath.Point3  position = 1;
     required dmMath.Quat    rotation = 2;

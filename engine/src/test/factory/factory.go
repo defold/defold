@@ -4,12 +4,12 @@ components {
 }
 embedded_components {
   id: "factory_a"
-  type: "spawnpoint"
+  type: "factory"
   data: "prototype: \"/factory/a.go\""
 }
 embedded_components {
   id: "factory_b"
-  type: "spawnpoint"
+  type: "factory"
   data: "prototype: \"/factory/b.go\""
 }
 

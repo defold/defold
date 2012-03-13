@@ -8,6 +8,6 @@ components {
 }
 embedded_components {
   id: "factory"
-  type: "spawnpoint"
+  type: "factory"
   data: "prototype: \"/attacker_target/explosion.go\""
 }

@@ -193,7 +193,7 @@ def transform_gameobject(msg):
         c.component = c.component.replace('.model', '.modelc')
         c.component = c.component.replace('.script', '.scriptc')
         c.component = c.component.replace('.wav', '.wavc')
-        c.component = c.component.replace('.spawnpoint', '.spawnpointc')
+        c.component = c.component.replace('.factory', '.factoryc')
         c.component = c.component.replace('.light', '.lightc')
         c.component = c.component.replace('.sprite', '.spritec')
         c.component = c.component.replace('.tileset', '.tilesetc')
@@ -226,7 +226,7 @@ def transform_gui(msg):
                 raise Exception('Font "%s" not declared in gui-file' % (n.font))
     return msg
 
-def transform_spawnpoint(msg):
+def transform_factory(msg):
     msg.prototype = msg.prototype.replace('.go', '.goc')
     return msg
 
@@ -281,7 +281,7 @@ def conf(prj):
     register(prj, '.camera', make_proto('camera_ddf_pb2', 'CameraDesc'))
     register(prj, '.input_binding', make_proto('input_ddf_pb2', 'InputBinding'))
     register(prj, '.gamepads', make_proto('input_ddf_pb2', 'GamepadMaps'))
-    register(prj, '.spawnpoint', make_proto('gamesys_ddf_pb2', 'SpawnPointDesc', transform_spawnpoint))
+    register(prj, '.factory', make_proto('gamesys_ddf_pb2', 'FactoryDesc', transform_factory))
     register(prj, '.light', make_proto('gamesys_ddf_pb2', 'LightDesc'))
     register(prj, '.render', make_proto('render.render_ddf_pb2', 'render_ddf_pb2.RenderPrototypeDesc', transform_render))
     register(prj, '.sprite', make_proto('sprite_ddf_pb2', 'SpriteDesc', transform_sprite))

@@ -21,7 +21,7 @@
 #include "resources/res_camera.h"
 #include "resources/res_input_binding.h"
 #include "resources/res_gamepad_map.h"
-#include "resources/res_spawn_point.h"
+#include "resources/res_factory.h"
 #include "resources/res_light.h"
 #include "resources/res_render_script.h"
 #include "resources/res_render_prototype.h"
@@ -36,7 +36,7 @@
 #include "components/comp_gui.h"
 #include "components/comp_sound.h"
 #include "components/comp_camera.h"
-#include "components/comp_spawn_point.h"
+#include "components/comp_factory.h"
 #include "components/comp_light.h"
 #include "components/comp_sprite.h"
 #include "components/comp_tilegrid.h"
@@ -87,7 +87,7 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("camerac", 0, ResCameraCreate, ResCameraDestroy, ResCameraRecreate);
         REGISTER_RESOURCE_TYPE("input_bindingc", input_context, ResInputBindingCreate, ResInputBindingDestroy, ResInputBindingRecreate);
         REGISTER_RESOURCE_TYPE("gamepadsc", 0, ResGamepadMapCreate, ResGamepadMapDestroy, ResGamepadMapRecreate);
-        REGISTER_RESOURCE_TYPE("spawnpointc", 0, ResSpawnPointCreate, ResSpawnPointDestroy, ResSpawnPointRecreate);
+        REGISTER_RESOURCE_TYPE("factoryc", 0, ResFactoryCreate, ResFactoryDestroy, ResFactoryRecreate);
         REGISTER_RESOURCE_TYPE("lightc", 0, ResLightCreate, ResLightDestroy, ResLightRecreate);
         REGISTER_RESOURCE_TYPE("render_scriptc", render_context, ResRenderScriptCreate, ResRenderScriptDestroy, ResRenderScriptRecreate);
         REGISTER_RESOURCE_TYPE("renderc", render_context, ResRenderPrototypeCreate, ResRenderPrototypeDestroy, ResRenderPrototypeRecreate);
@@ -183,10 +183,10 @@ namespace dmGameSystem
                 &CompEmitterCreate, &CompEmitterDestroy, 0, 0,
                 &CompEmitterUpdate, 0, &CompEmitterOnMessage, 0, &CompEmitterOnReload);
 
-        REGISTER_COMPONENT_TYPE("spawnpointc", 900, render_context,
-                CompSpawnPointNewWorld, CompSpawnPointDeleteWorld,
-                CompSpawnPointCreate, CompSpawnPointDestroy, 0, 0,
-                0, 0, CompSpawnPointOnMessage, 0, 0);
+        REGISTER_COMPONENT_TYPE("factoryc", 900, render_context,
+                CompFactoryNewWorld, CompFactoryDeleteWorld,
+                CompFactoryCreate, CompFactoryDestroy, 0, 0,
+                0, 0, CompFactoryOnMessage, 0, 0);
 
         REGISTER_COMPONENT_TYPE("lightc", 1000, render_context,
                 CompLightNewWorld, CompLightDeleteWorld,

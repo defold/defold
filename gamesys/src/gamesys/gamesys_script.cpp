@@ -157,9 +157,9 @@ namespace dmGameSystem
 
             const uint32_t buffer_size = 256;
             char buffer[buffer_size];
-            dmGameSystemDDF::Spawn* request = (dmGameSystemDDF::Spawn*)buffer;
+            dmGameSystemDDF::Create* request = (dmGameSystemDDF::Create*)buffer;
 
-            uint32_t msg_size = sizeof(dmGameSystemDDF::Spawn);
+            uint32_t msg_size = sizeof(dmGameSystemDDF::Create);
             if (top >= 2 && !lua_isnil(L, 2))
             {
                 request->m_Position = Vectormath::Aos::Point3(*dmScript::CheckVector3(L, 2));
@@ -188,7 +188,7 @@ namespace dmGameSystem
 
             dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-            dmMessage::Post(&sender, &receiver, dmHashString64(dmGameSystemDDF::Spawn::m_DDFDescriptor->m_Name), user_data, (uintptr_t)dmGameSystemDDF::Spawn::m_DDFDescriptor, buffer, msg_size + table_size);
+            dmMessage::Post(&sender, &receiver, dmHashString64(dmGameSystemDDF::Create::m_DDFDescriptor->m_Name), user_data, (uintptr_t)dmGameSystemDDF::Create::m_DDFDescriptor, buffer, msg_size + table_size);
             assert(top == lua_gettop(L));
             dmScript::PushHash(L, request->m_Id);
             return 1;

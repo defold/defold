@@ -70,7 +70,7 @@ def transform_gameobject(task, msg):
         c.component = c.component.replace('.model', '.modelc')
         c.component = c.component.replace('.script', '.scriptc')
         c.component = c.component.replace('.wav', '.wavc')
-        c.component = c.component.replace('.spawnpoint', '.spawnpointc')
+        c.component = c.component.replace('.factory', '.factoryc')
         c.component = c.component.replace('.light', '.lightc')
         c.component = c.component.replace('.sprite', '.spritec')
         c.component = c.component.replace('.tileset', '.tilesetc')
@@ -103,7 +103,7 @@ def transform_gui(task, msg):
                 raise Exception('Font "%s" not declared in gui-file' % (n.font))
     return msg
 
-def transform_spawnpoint(task, msg):
+def transform_factory(task, msg):
     msg.prototype = msg.prototype.replace('.go', '.goc')
     return msg
 
@@ -243,7 +243,7 @@ proto_compile_task('gui',  'gui_ddf_pb2', 'SceneDesc', '.gui', '.guic', transfor
 proto_compile_task('camera', 'camera_ddf_pb2', 'CameraDesc', '.camera', '.camerac')
 proto_compile_task('input_binding', 'input_ddf_pb2', 'InputBinding', '.input_binding', '.input_bindingc')
 proto_compile_task('gamepads', 'input_ddf_pb2', 'GamepadMaps', '.gamepads', '.gamepadsc')
-proto_compile_task('spawnpoint', 'gamesys_ddf_pb2', 'SpawnPointDesc', '.spawnpoint', '.spawnpointc', transform_spawnpoint)
+proto_compile_task('factory', 'gamesys_ddf_pb2', 'FactoryDesc', '.factory', '.factoryc', transform_factory)
 proto_compile_task('light', 'gamesys_ddf_pb2', 'LightDesc', '.light', '.lightc')
 proto_compile_task('render', 'render.render_ddf_pb2', 'render_ddf_pb2.RenderPrototypeDesc', '.render', '.renderc', transform_render)
 proto_compile_task('sprite', 'sprite_ddf_pb2', 'SpriteDesc', '.sprite', '.spritec', transform_sprite)

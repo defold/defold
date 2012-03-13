@@ -1,5 +1,5 @@
-#ifndef DM_GAMESYS_RES_SPAWN_POINT_H
-#define DM_GAMESYS_RES_SPAWN_POINT_H
+#ifndef DM_GAMESYS_RES_FACTORY_H
+#define DM_GAMESYS_RES_FACTORY_H
 
 #include <stdint.h>
 
@@ -9,27 +9,27 @@
 
 namespace dmGameSystem
 {
-    struct SpawnPointResource
+    struct FactoryResource
     {
-        dmGameSystemDDF::SpawnPointDesc* m_SpawnPointDesc;
-        void*                            m_Prototype;
+        dmGameSystemDDF::FactoryDesc*   m_FactoryDesc;
+        void*                           m_Prototype;
     };
 
-    dmResource::Result ResSpawnPointCreate(dmResource::HFactory factory,
+    dmResource::Result ResFactoryCreate(dmResource::HFactory factory,
             void* context,
             const void* buffer, uint32_t buffer_size,
             dmResource::SResourceDescriptor* resource,
             const char* filename);
 
-    dmResource::Result ResSpawnPointDestroy(dmResource::HFactory factory,
+    dmResource::Result ResFactoryDestroy(dmResource::HFactory factory,
             void* context,
             dmResource::SResourceDescriptor* resource);
 
-    dmResource::Result ResSpawnPointRecreate(dmResource::HFactory factory,
+    dmResource::Result ResFactoryRecreate(dmResource::HFactory factory,
             void* context,
             const void* buffer, uint32_t buffer_size,
             dmResource::SResourceDescriptor* resource,
             const char* filename);
 }
 
-#endif // DM_GAMESYS_RES_SPAWN_POINT_H
+#endif // DM_GAMESYS_RES_FACTORY_H

@@ -10,7 +10,7 @@
 
 using namespace Vectormath::Aos;
 
-class SpawnTest : public ::testing::Test
+class FactoryTest : public ::testing::Test
 {
 protected:
     virtual void SetUp()
@@ -22,7 +22,7 @@ protected:
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
-        m_Factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test/spawn");
+        m_Factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test/factory");
         m_Register = dmGameObject::NewRegister();
         dmGameObject::RegisterResourceTypes(m_Factory, m_Register);
         dmGameObject::RegisterComponentTypes(m_Factory, m_Register);
@@ -44,7 +44,7 @@ public:
     dmResource::HFactory m_Factory;
 };
 
-TEST_F(SpawnTest, Spawn)
+TEST_F(FactoryTest, Factory)
 {
     const int count = 10;
     for (int i = 0; i < count; ++i)

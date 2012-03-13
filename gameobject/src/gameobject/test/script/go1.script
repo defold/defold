@@ -32,12 +32,12 @@ function update(self, dt)
     p = go.get_position(hash("my_object01"))
     assert(p.y == 123.0)
 
-    msg.post("@system:", "spawn", {prototype = "test", pos = vmath.vector3(1, 2, 3)})
+    msg.post("@system:", "factory", {prototype = "test", pos = vmath.vector3(1, 2, 3)})
 end
 
 function on_message(self, message_id, message)
     assert(go.get_id() == hash("my_object01"), "on_message id mismatch")
-    assert(message_id == hash("spawn_result"))
+    assert(message_id == hash("factory_result"))
     assert(message.status == 1010)
 end
 

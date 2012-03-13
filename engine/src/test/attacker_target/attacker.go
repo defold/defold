@@ -11,7 +11,7 @@ components {
   component: "/attacker_target/shot.wav"
 }
 embedded_components {
-  id: "bullet_spawner"
-  type: "spawnpoint"
+  id: "bullet_factory"
+  type: "factory"
   data: "prototype: \"/attacker_target/bullet.go\"\n"
 }

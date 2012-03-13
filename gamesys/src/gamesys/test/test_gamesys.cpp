@@ -433,22 +433,22 @@ INSTANTIATE_TEST_CASE_P(Sound, ComponentTest, ::testing::ValuesIn(valid_sound_go
 const char* invalid_sound_gos[] = {"/sound/invalid_sound.goc", "/sound/invalid_sound.goc"};
 INSTANTIATE_TEST_CASE_P(Sound, ComponentFailTest, ::testing::ValuesIn(invalid_sound_gos));
 
-/* Spawn Point */
+/* Factory */
 
-const char* valid_sp_resources[] = {"/spawn_point/valid.spawnpointc"};
-INSTANTIATE_TEST_CASE_P(SpawnPoint, ResourceTest, ::testing::ValuesIn(valid_sp_resources));
+const char* valid_sp_resources[] = {"/factory/valid.factoryc"};
+INSTANTIATE_TEST_CASE_P(Factory, ResourceTest, ::testing::ValuesIn(valid_sp_resources));
 
 ResourceFailParams invalid_sp_resources[] =
 {
-    {"/spawn_point/valid.spawnpointc", "/spawn_point/missing.spawnpointc"},
+    {"/factory/valid.factoryc", "/factory/missing.factoryc"},
 };
-INSTANTIATE_TEST_CASE_P(SpawnPoint, ResourceFailTest, ::testing::ValuesIn(invalid_sp_resources));
+INSTANTIATE_TEST_CASE_P(Factory, ResourceFailTest, ::testing::ValuesIn(invalid_sp_resources));
 
-const char* valid_sp_gos[] = {"/spawn_point/valid_spawn_point.goc"};
-INSTANTIATE_TEST_CASE_P(SpawnPoint, ComponentTest, ::testing::ValuesIn(valid_sp_gos));
+const char* valid_sp_gos[] = {"/factory/valid_factory.goc"};
+INSTANTIATE_TEST_CASE_P(Factory, ComponentTest, ::testing::ValuesIn(valid_sp_gos));
 
-const char* invalid_sp_gos[] = {"/spawn_point/invalid_spawn_point.goc"};
-INSTANTIATE_TEST_CASE_P(SpawnPoint, ComponentFailTest, ::testing::ValuesIn(invalid_sp_gos));
+const char* invalid_sp_gos[] = {"/factory/invalid_factory.goc"};
+INSTANTIATE_TEST_CASE_P(Factory, ComponentFailTest, ::testing::ValuesIn(invalid_sp_gos));
 
 /* Sprite */
 

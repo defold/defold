@@ -144,17 +144,6 @@ namespace dmGameObject
     // Max component types could not be larger than 255 since the index is stored as a uint8_t
     const uint32_t MAX_COMPONENT_TYPES = 255;
 
-    /**
-     * TODO: This needs a revisit once the collection refactoring is done
-     */
-    struct SpawnMessage
-    {
-        HCollection m_Collection;
-        char m_Prototype[64];
-        Vectormath::Aos::Point3 m_Position;
-        Vectormath::Aos::Quat m_Rotation;
-    };
-
     #define DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX (512)
     struct Register
     {

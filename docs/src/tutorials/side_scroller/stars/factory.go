@@ -15,7 +15,7 @@ components {
 }
 embedded_components {
   id: "star_factory"
-  type: "spawnpoint"
+  type: "factory"
   data: "prototype: \"/stars/star.go\"\n"
   position {
     x: 0.0

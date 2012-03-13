@@ -81,7 +81,7 @@ namespace dmGameSystem
         }
         else
         {
-            dmLogError("Collection spawn point could not be created since the buffer is full (%ud).", proxy_world->m_Components.Size());
+            dmLogError("Collection proxy could not be created since the buffer is full (%ud).", proxy_world->m_Components.Size());
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
     }

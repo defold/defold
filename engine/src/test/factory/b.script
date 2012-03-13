@@ -1,9 +1,9 @@
 function init(self, params)
-    self.spawner = params.spawner
+    self.factory = params.factory
 end
 
 function on_message(self, message_id, message, sender)
     if message_id == hash("hello") then
-        msg.post(self.spawner, "done")
+        msg.post(self.factory, "done")
     end
 end

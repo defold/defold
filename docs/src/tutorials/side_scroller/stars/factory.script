@@ -19,6 +19,6 @@ function update(self, dt)
 		if math.random() < bonus_prob then
 			-- component = "#bonus_factory"
 		end
-		msg.post(component, "spawn", {position = p, rotation = vmath.quat()})
+		msg.post(component, "create", {position = p, rotation = vmath.quat()})
 	end
 end
