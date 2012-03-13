@@ -9,6 +9,6 @@ animations {
   id: "anim"
   start_tile: 1
   end_tile: 2
-  playback: PLAYBACK2_LOOP_FORWARD
+  playback: PLAYBACK_LOOP_FORWARD
   fps: 3
 }

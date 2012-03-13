@@ -10,7 +10,7 @@ animations {
   id: "bonus_star"
   start_tile: 2
   end_tile: 2
-  playback: PLAYBACK2_ONCE_FORWARD
+  playback: PLAYBACK_ONCE_FORWARD
   fps: 30
   flip_horizontal: 0
   flip_vertical: 0
@@ -19,7 +19,7 @@ animations {
   id: "star"
   start_tile: 1
   end_tile: 1
-  playback: PLAYBACK2_ONCE_FORWARD
+  playback: PLAYBACK_ONCE_FORWARD
   fps: 30
   flip_horizontal: 0
   flip_vertical: 0
