@@ -882,7 +882,7 @@ bail:
         dmInput::RegisterGamepads(engine->m_InputContext, gamepad_maps_ddf);
         dmResource::Release(engine->m_Factory, gamepad_maps_ddf);
 
-        const char* game_input_binding = dmConfigFile::GetString(config, "input.game_binding", "input/game.input_bindingc");
+        const char* game_input_binding = dmConfigFile::GetString(config, "input.game_binding", "/input/game.input_bindingc");
         fact_error = dmResource::Get(engine->m_Factory, game_input_binding, (void**)&engine->m_GameInputBinding);
         if (fact_error != dmResource::RESULT_OK)
             return false;

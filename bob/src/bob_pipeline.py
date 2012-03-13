@@ -195,11 +195,7 @@ def transform_gameobject(msg):
         c.component = c.component.replace('.wav', '.wavc')
         c.component = c.component.replace('.spawnpoint', '.spawnpointc')
         c.component = c.component.replace('.light', '.lightc')
-        # Temp rename for sprite2. Otherwise the rule .sprite -> .spritec would replace
-        # Using replace is not entirely correct
-        c.component = c.component.replace('.sprite2', '.dummysprite2c')
         c.component = c.component.replace('.sprite', '.spritec')
-        c.component = c.component.replace('.dummysprite2c', '.sprite2c')
         c.component = c.component.replace('.tileset', '.tilesetc')
         c.component = c.component.replace('.tilegrid', '.tilegridc')
     return msg
@@ -241,10 +237,6 @@ def transform_render(msg):
     return msg
 
 def transform_sprite(msg):
-    msg.texture = transform_texture_name(msg.texture)
-    return msg
-
-def transform_sprite2(msg):
     msg.tile_set = msg.tile_set.replace('.tileset', '.tilesetc')
     return msg
 
@@ -293,7 +285,6 @@ def conf(prj):
     register(prj, '.light', make_proto('gamesys_ddf_pb2', 'LightDesc'))
     register(prj, '.render', make_proto('render.render_ddf_pb2', 'render_ddf_pb2.RenderPrototypeDesc', transform_render))
     register(prj, '.sprite', make_proto('sprite_ddf_pb2', 'SpriteDesc', transform_sprite))
-    register(prj, '.sprite2', make_proto('sprite2_ddf_pb2', 'Sprite2Desc', transform_sprite2))
     register(prj, '.tilegrid', make_proto('tile_ddf_pb2', 'TileGrid', transform_tilegrid))
     register(prj, '.material', make_proto('render.material_ddf_pb2', 'material_ddf_pb2.MaterialDesc', transform_material))
 

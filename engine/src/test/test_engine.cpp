@@ -36,13 +36,13 @@ TEST_F(EngineTest, EmptyNewDelete)
 
 TEST_F(EngineTest, ProjectFail)
 {
-    const char* argv[] = {"test_engine", "test.projectc"};
+    const char* argv[] = {"test_engine", "game.projectc"};
     ASSERT_FALSE(dmEngine::Init(m_Engine, 2, (char**)argv));
 }
 
 TEST_F(EngineTest, Project)
 {
-    const char* argv[] = {"test_engine", "build/default/src/test/test.projectc"};
+    const char* argv[] = {"test_engine", "build/default/src/test/game.projectc"};
 
     ASSERT_TRUE(dmEngine::Init(m_Engine, 2, (char**)argv));
 
@@ -53,7 +53,7 @@ TEST_F(EngineTest, Project)
 
 TEST_F(EngineTest, GuiRenderCrash)
 {
-    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/gui_render_crash/gui_render_crash.collectionc", "build/default/src/test/test.projectc"};
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/gui_render_crash/gui_render_crash.collectionc", "build/default/src/test/game.projectc"};
 
     ASSERT_TRUE(dmEngine::Init(m_Engine, 3, (char**)argv));
 
@@ -74,7 +74,7 @@ void HtttPostThread(void* params)
 
 TEST_F(EngineTest, HttpPost)
 {
-    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/http_post/http_post.collectionc", "build/default/src/test/test.projectc"};
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/http_post/http_post.collectionc", "build/default/src/test/game.projectc"};
 
     ASSERT_TRUE(dmEngine::Init(m_Engine, 3, (char**)argv));
     uint32_t port = dmEngine::GetHttpPort(m_Engine);

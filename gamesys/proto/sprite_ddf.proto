@@ -8,91 +8,46 @@ option java_outer_classname = "Sprite";
 
 message SpriteDesc
 {
-    required string texture         = 1 [(resource)=true];
-    required float  width           = 2;
-    required float  height          = 3;
-    optional uint32 tile_width      = 4 [default = 0];
-    optional uint32 tile_height     = 5 [default = 0];
-    optional uint32 tiles_per_row   = 6 [default = 1];
-    optional uint32 tile_count      = 7 [default = 1];
-}
-
-enum Playback
-{
-    PLAYBACK_NONE = 0 [(displayName) = "None"];
-    PLAYBACK_ONCE_FORWARD = 1 [(displayName) = "Once Forward"];
-    PLAYBACK_ONCE_BACKWARD = 2 [(displayName) = "Once Backward"];
-    PLAYBACK_LOOP_FORWARD = 3 [(displayName) = "Loop Forward"];
-    PLAYBACK_LOOP_BACKWARD = 4 [(displayName) = "Loop Backward"];
-    PLAYBACK_LOOP_PINGPONG = 5 [(displayName) = "Ping Pong"];
+    required string tile_set            = 1 [(resource)=true];
+    required string default_animation   = 2;
 }
 
 /*# plays a sprite animation
- * <b>DEPRECATED API. Use play_animation2 with sprite2 component instead</b>
  * <p>
- * Post this message to a sprite-component to make it play an animation of its tiles.
- * The tiles are enumerated starting with 1 at top left and then right along each row.
- * </p>
- * <p>
- * There are several different playback modes to use for the animation:
- * <table>
- *   <th>Mode</th><th>Value</th><th>Description</th>
- *   <tr><td><code>PLAYBACK_NONE</code></td><td>0</td><td>Moves to the specified start tile, but stops there</td></tr>
- *   <tr><td><code>PLAYBACK_ONCE_FORWARD</code></td><td>1</td><td>Plays from start to end and stops</td></tr>
- *   <tr><td><code>PLAYBACK_ONCE_BACKWARD</code></td><td>2</td><td>Plays from end to start and stops</td></tr>
- *   <tr><td><code>PLAYBACK_LOOP_FORWARD</code></td><td>3</td><td>Plays from start to end and restarts from the start tile</td></tr>
- *   <tr><td><code>PLAYBACK_LOOP_BACKWARD</code></td><td>4</td><td>Plays from end to start and restarts from the end tile</td></tr>
- *   <tr><td><code>PLAYBACK_LOOP_PINGPONG</code></td><td>5</td><td>Plays from start to end, from end to start, from start to end, etc</td></tr>
- * </table>
- * </p>
- * <p>
- * It is important to use the modes properly. Assume that a sprite has 9 tiles and
- * we want to play an animation backwards from tile 3 to 1. If we specify 3 as
- * <code>start_tile</code> and 1 as <code>end_tile</code> and mode
- * <code>PLAYBACK_ONCE_FORWARD</code>, the animation would play from tile 3,
- * continue to tile 9 and then wrap around to tile 1.
+ * Post this message to a sprite-component to make it play an animation from its tile set.
  * </p>
  *
  * @message
  * @name play_animation
- * @param start_tile the start tile of the animation (number)
- * @param end_tile the end tile of the animation (number)
- * @param playback playback mode of the animation, see above for a description (number)
- * @param fps the playback speed measured as frames (tiles) per second, 30 by default (number)
+ * @param id the id of the animation to play
  * @examples
  * <p>
- * In the examples, it is assumed that the instance of the script has a sprite-component with id "sprite". The sprite itself is assumed to be a 3x3 tile map, targeted at 30 fps.
- * </p>
- * How to play a simple animation of a 3x3 tile sprite, from first to last tile:
+ * In the examples, it is assumed that the instance of the script has a sprite-component with id "sprite". The sprite itself is assumed to be bound to a tile set with animations "walk" and "jump".
  * <pre>
- * msg.post("#sprite", "play_animation", {start_tile = 1, end_tile = 9, playback = 1})
+ * msg.post("#sprite", "play_animation", {id = hash("jump")})
  * </pre>
- * How to sequence two animations together. The first animation plays forward along the first row and the second plays backwards along the last row.
+ * How to sequence two animations together.
  * <pre>
  * function init(self)
- *     -- play first animation at init
- *     msg.post("#sprite", "play_animation", {start_tile = 1, end_tile = 3, playback = 1})
+ *     -- play jump animation at init
+ *     msg.post("#sprite", "play_animation", {id = hash("jump")})
  * end
  *
  * function on_message(self, message_id, message, sender)
  *     -- check for animation done response
  *     if message_id == hash("animation_done") then
- *         -- start the second backwards animation
- *         msg.post("#sprite", "play_animation", {start_tile = 6, end_tile = 9, playback = 1})
+ *         -- start the walk animation
+ *         msg.post("#sprite", "play_animation", {id = hash("walk")})
  *     end
  * end
  * </pre>
  */
 message PlayAnimation
 {
-    required uint32     start_tile  = 1;
-    required uint32     end_tile    = 2;
-    required Playback   playback    = 3;
-    optional float      fps         = 4 [default = 30.0];
+    required uint64 id = 1;
 }
 
 /*# reports that an animation has completed
- * <b>DEPRECATED API. Use animation_done2 with sprite2 component instead</b>
  * This message is sent to the sender of a <code>play_animation</code> message when the animation has completed.
  * Note that only animations played either forward or backward once ever completes. See <code>play_animation</code>
  * for more information and examples of how to use this message.

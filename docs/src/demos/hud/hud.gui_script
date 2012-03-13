@@ -37,7 +37,7 @@ local function spawn_stars(self, amount)
 		-- increment the angle by the step to get an even distribution of stars
 		angle = angle + angle_step
 		-- direction of the star movement
-		local dir = vmath.vector4(math.cos(angle), math.sin(angle), 0, 0)
+		local dir = vmath.vector3(math.cos(angle), math.sin(angle), 0)
 		-- start/end positions of the star
 		local start_p = p + dir * start_distance
 		local end_p = p + dir * end_distance
@@ -114,7 +114,7 @@ function on_message(self, message_id, message, sender)
 		gui.animate(node, gui.PROP_COLOR, vmath.vector4(1, 1, 1, 1), gui.EASING_OUT, 0.3)
 		gui.animate(node, gui.PROP_OUTLINE, vmath.vector4(0, 0, 0, 1), gui.EASING_OUT, 0.3)
 		-- float
-		local offset = vmath.vector4(0, 20, 0, 0)
+		local offset = vmath.vector3(0, 20, 0)
 		gui.animate(node, gui.PROP_POSITION, gui.get_position(node) + offset, gui.EASING_NONE, 0.5, 0.0, float_done)
 	end
 end

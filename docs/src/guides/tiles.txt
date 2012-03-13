@@ -1,0 +1,28 @@
+Tile Grids
+==========
+
+A tile grid is a component which is used for placing tiles over an area in a grid-based fashion, typically a level.
+The tiles are fetched from a tile set and can also have physics attached for collision detection.
+
+Painting Tiles
+--------------
+
+. Open the tile grid you want to paint in.
+. Make sure there are no flagged issues in the Property or Outline views.
+. Select a layer to paint into in the Outline.
+. Select a tile to use (*Space* to show the palette).
+
+Attaching Physics
+-----------------
+
+. Open the tile set you connected to the tile grid.
+.. Make sure the tile set you connected to the tile grid has an image set for collisions.
+   They should be rendered as lines on top of the texture in the Editor view.
+.. Make sure you have painted collision groups in the tile set for the tiles to support collision.
+. Open the game object to which you have added the tile grid.
+.. Add a collision object component.
+... Set its type to static.
+... Add the collision group of the game objects you want it to collide with in its mask.
+... Add the tile grid as its shape.
+. Open the other game objects you want to collide with the tile grid.
+.. Make sure they have collision objects. Check that the collision groups of the tiles are added to their masks.

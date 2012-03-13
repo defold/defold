@@ -193,10 +193,10 @@ image::images/editor/tileset.png["Tile Set", align="center"]
 image::images/editor/tile_set_hull.png["Tile Set", align="center"]
 ((((
 
-Sprite2
-~~~~~~~
+Sprite
+~~~~~~
 
-image:images/icons/pictures.png["Sprite 2"]
+image:images/icons/pictures.png["Sprite"]
 
 A sprite is a component that extends game objects with graphics.
 It displays one of the smaller images of a tile set and have built-in support for flip-book-animation.
@@ -316,15 +316,28 @@ The editor contains almost all the tools necessary to make your games, except gr
 The different areas are described in the image below.
 
 ((((
-image::images/editor/editor.png["Factory", align="center"]
+image::images/editor/editor.png["Editor Overview", align="center"]
 ((((
 
-When there is a new version available, you can update from inside the editor with *Help > Check for Updates*.
-We always let you know when there is a new version to fetch and what it contains.
+*File > Open Project* is the place to start.
+When you have selected your project, you also need to create a branch.
+A branch is like a personal view of your project.
+To share the content you make with the other members in your project, use *File > Synchronize*.
+This also updates your own branch with any changes made by the others.
 
-((((
-image::images/editor/update_editor.png["Factory", align="center"]
-((((
+The Project Explorer, Outline and Changed Files views have different context menus you should check out.
+The main menu is also updated to reflect your current selection, so keep an eye on that too.
+
+To use and navigate in the Scene Editor, which is the center area in the overview image above, we use key bindings similar to Maya.
+
+* Use your mouse and keyboard modifiers to navigate.
+* Windows/Linux: Alt+Middle Mouse Button and Alt+Right Mouse Button
+  - Mac: Alt+Mouse Button and Alt+Ctrl+Mouse Button
+  - Hold down Shift to select multiple objects.
+* When an object is selected, you can activate different manipulators for that object in the Scene menu.
+
+The Editor checks for updates automatically at start-up.
+Each time we release a new version, we post a thorough description of the changes in the blog.
 
 Let's get to work!
 ------------------

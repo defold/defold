@@ -26,22 +26,24 @@ extern uint32_t SPRITE_VPC_SIZE;
 extern unsigned char SPRITE_FPC[];
 extern uint32_t SPRITE_FPC_SIZE;
 
+using namespace Vectormath::Aos;
 namespace dmGameSystem
 {
     struct Component
     {
         dmGameObject::HInstance     m_Instance;
+        Point3                      m_Position;
+        Quat                        m_Rotation;
         dmGameObject::HInstance     m_ListenerInstance;
         dmhash_t                    m_ListenerComponent;
-        SpriteResource*             m_Resource;
-        dmGameSystemDDF::Playback   m_Playback;
+        SpriteResource*            m_Resource;
         float                       m_FrameTime;
         float                       m_FrameTimer;
-        uint16_t                    m_StartTile;
-        uint16_t                    m_EndTile;
+        uint16_t                    m_CurrentAnimation;
         uint16_t                    m_CurrentTile;
         uint8_t                     m_Enabled : 1;
         uint8_t                     m_PlayBackwards : 1;
+        uint8_t                     m_Playing : 1;
     };
 
     struct SpriteWorld
@@ -107,6 +109,32 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
+    bool PlayAnimation(Component* component, dmhash_t animation_id)
+    {
+        bool anim_found = false;
+        TileSetResource* tile_set = component->m_Resource->m_TileSet;
+        uint32_t n = tile_set->m_AnimationIds.Size();
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            if (animation_id == tile_set->m_AnimationIds[i])
+            {
+                component->m_CurrentAnimation = i;
+                anim_found = true;
+                break;
+            }
+        }
+        if (anim_found)
+        {
+            dmGameSystemDDF::Animation* animation = &tile_set->m_TileSet->m_Animations[component->m_CurrentAnimation];
+            component->m_CurrentTile = animation->m_StartTile - 1;
+            component->m_PlayBackwards = 0;
+            component->m_FrameTime = 1.0f / animation->m_Fps;
+            component->m_FrameTimer = 0.0f;
+            component->m_Playing = animation->m_Playback != dmGameSystemDDF::PLAYBACK_NONE;
+        }
+        return anim_found;
+    }
+
     dmGameObject::CreateResult CompSpriteCreate(const dmGameObject::ComponentCreateParams& params)
     {
         SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
@@ -119,10 +147,13 @@ namespace dmGameSystem
         uint32_t index = sprite_world->m_ComponentIndices.Pop();
         Component* component = &sprite_world->m_Components[index];
         component->m_Instance = params.m_Instance;
+        component->m_Position = params.m_Position;
+        component->m_Rotation = params.m_Rotation;
         component->m_Resource = (SpriteResource*)params.m_Resource;
         component->m_ListenerInstance = 0x0;
         component->m_ListenerComponent = 0xff;
         component->m_Enabled = 1;
+        PlayAnimation(component, component->m_Resource->m_DefaultAnimation);
 
         *params.m_UserData = (uintptr_t)component;
         return dmGameObject::CREATE_RESULT_OK;
@@ -138,26 +169,22 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
+    static uint32_t CalculateTileCount(uint32_t tile_size, uint32_t image_size, uint32_t tile_margin, uint32_t tile_spacing)
+    {
+        uint32_t actual_tile_size = (2 * tile_margin + tile_spacing + tile_size);
+        if (actual_tile_size > 0) {
+            return (image_size + tile_spacing)/actual_tile_size;
+        } else {
+            return 0;
+        }
+    }
+
     dmGameObject::UpdateResult CompSpriteUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
         SpriteContext* sprite_context = (SpriteContext*)params.m_Context;
         dmRender::HRenderContext render_context = sprite_context->m_RenderContext;
         SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
 
-        Point3 positions[] =
-        {
-            Point3(-0.5f, -0.5f, 0.0f),
-            Point3(-0.5f, 0.5f, 0.0f),
-            Point3(0.5f, -0.5f, 0.0f),
-            Point3(0.5f, 0.5f, 0.0f),
-        };
-        float uvs[][2] =
-        {
-            {0.0f, 1.0f},
-            {0.0f, 0.0f},
-            {1.0f, 1.0f},
-            {1.0f, 0.0f}
-        };
         struct Vertex
         {
             float x;
@@ -182,15 +209,27 @@ namespace dmGameSystem
             Component* component = &sprite_world->m_Components[i];
             if (component->m_Enabled)
             {
-                dmGameSystemDDF::SpriteDesc* ddf = component->m_Resource->m_DDF;
-                dmGraphics::HTexture texture = component->m_Resource->m_Texture;
-
+                TileSetResource* tile_set = component->m_Resource->m_TileSet;
+                dmGameSystemDDF::TileSet* tile_set_ddf = tile_set->m_TileSet;
+                dmGraphics::HTexture texture = tile_set->m_Texture;
+                dmGameSystemDDF::Animation* animation_ddf = &tile_set_ddf->m_Animations[component->m_CurrentAnimation];
 
                 // Generate vertex data
+                Point3 world_pos = dmGameObject::GetWorldPosition(component->m_Instance);
+                Quat world_rot = dmGameObject::GetWorldRotation(component->m_Instance);
+                const Quat& local_rot = component->m_Rotation;
+                const Point3& local_pos = component->m_Position;
+                Quat rotation = world_rot * local_rot;
+                Point3 position = rotate(world_rot, Vector3(local_pos)) + world_pos;
+                Matrix4 world = Matrix4::rotation(rotation);
+                world *= Matrix4::scale(Vector3(tile_set_ddf->m_TileWidth, tile_set_ddf->m_TileHeight, 1.0f));
 
-                Matrix4 world = Matrix4::rotation(dmGameObject::GetWorldRotation(component->m_Instance));
-                world *= Matrix4::scale(Vector3(ddf->m_Width, ddf->m_Height, 1.0f));
-                Point3 position = dmGameObject::GetWorldPosition(component->m_Instance);
+                if (!sprite_context->m_Subpixels)
+                {
+                    position.setX((int) position.getX());
+                    position.setY((int) position.getY());
+                }
+
                 world.setCol3(Vector4(position));
 
                 // Render object
@@ -209,29 +248,55 @@ namespace dmGameSystem
                 sprite_world->m_RenderObjects.Push(ro);
                 dmRender::AddToRender(render_context, &sprite_world->m_RenderObjects[sprite_world->m_RenderObjects.Size() - 1]);
 
-                float tile_uv_width = ddf->m_TileWidth / (float)dmGraphics::GetTextureWidth(texture);
-                float tile_uv_height = ddf->m_TileHeight / (float)dmGraphics::GetTextureHeight(texture);
-                uint16_t tile_x = component->m_CurrentTile % ddf->m_TilesPerRow;
-                uint16_t tile_y = component->m_CurrentTile / ddf->m_TilesPerRow;
-                Vertex* v = (Vertex*)vertex_buffer + vertex_index;
-                for (uint32_t j = 0; j < 4; ++j)
-                {
-                    Point3 position = positions[j];
-                    v[j].x = position.getX();
-                    v[j].y = position.getY();
-                    v[j].z = position.getZ();
-                    v[j].u = (uvs[j][0] + tile_x) * tile_uv_width;
-                    v[j].v = (uvs[j][1] + tile_y) * tile_uv_height;
-                }
+                uint16_t texture_width = dmGraphics::GetTextureWidth(texture);
+                uint16_t texture_height = dmGraphics::GetTextureHeight(texture);
+                float texture_width_recip = 1.0f / texture_width;
+                float texture_height_recip = 1.0f / texture_height;
+                uint32_t tiles_per_row = CalculateTileCount(tile_set_ddf->m_TileWidth, texture_width, tile_set_ddf->m_TileMargin, tile_set_ddf->m_TileSpacing);
+                uint32_t tiles_per_column = CalculateTileCount(tile_set_ddf->m_TileHeight, texture_height, tile_set_ddf->m_TileMargin, tile_set_ddf->m_TileSpacing);
+                uint32_t tile_count = tiles_per_row * tiles_per_column;
+                uint16_t tile_x = component->m_CurrentTile % tiles_per_row;
+                uint16_t tile_y = component->m_CurrentTile / tiles_per_row;
+                Vertex *v = (Vertex*)((vertex_buffer)) + vertex_index;
+
+                float tile_width = tile_set_ddf->m_TileWidth;
+                float tile_height = tile_set_ddf->m_TileHeight;
+
+                v[0].x = -0.5f;
+                v[0].y = -0.5f;
+                v[0].z = 0.0f;
+                v[0].u = (tile_x * tile_width) * texture_width_recip;
+                v[0].v = ((tile_y + 1) * tile_height) * texture_height_recip;
+
+                v[1].x = -0.5f;
+                v[1].y = 0.5f;
+                v[1].z = 0.0f;
+                v[1].u = (tile_x * tile_width) * texture_width_recip;
+                v[1].v = (tile_y * tile_height) * texture_height_recip;
+
+                v[2].x = 0.5f;
+                v[2].y = -0.5f;
+                v[2].z = 0.0f;
+                v[2].u = ((tile_x + 1) * tile_width) * texture_width_recip;
+                v[2].v = ((tile_y + 1) * tile_height) * texture_height_recip;
+
+                v[3].x = 0.5f;
+                v[3].y = 0.5f;
+                v[3].z = 0.0f;
+                v[3].u = ((tile_x + 1) * tile_width) * texture_width_recip;
+                v[3].v = (tile_y * tile_height) * texture_height_recip;
+
                 vertex_index += 4;
 
+                int16_t start_tile = (int16_t)animation_ddf->m_StartTile - 1;
+                int16_t end_tile = (int16_t)animation_ddf->m_EndTile - 1;
                 // Stop once-animation and broadcast animation_done
-                if (component->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_FORWARD
-                    || component->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD)
+                if (animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_FORWARD
+                    || animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD)
                 {
-                    if (component->m_CurrentTile == component->m_EndTile)
+                    if (component->m_CurrentTile == end_tile)
                     {
-                        component->m_Playback = dmGameSystemDDF::PLAYBACK_NONE;
+                        component->m_Playing = 0;
                         if (component->m_ListenerInstance != 0x0)
                         {
                             dmhash_t message_id = dmHashString64(dmGameSystemDDF::AnimationDone::m_DDFDescriptor->m_Name);
@@ -263,32 +328,32 @@ namespace dmGameSystem
                     }
                 }
                 // Animate
-                if (component->m_Playback != dmGameSystemDDF::PLAYBACK_NONE)
+                if (component->m_Playing)
                 {
                     component->m_FrameTimer += params.m_UpdateContext->m_DT;
                     if (component->m_FrameTimer >= component->m_FrameTime)
                     {
                         component->m_FrameTimer -= component->m_FrameTime;
                         int16_t current_tile = (int16_t)component->m_CurrentTile;
-                        switch (component->m_Playback)
+                        switch (animation_ddf->m_Playback)
                         {
                             case dmGameSystemDDF::PLAYBACK_ONCE_FORWARD:
-                                if (current_tile != component->m_EndTile)
+                                if (current_tile != end_tile)
                                     ++current_tile;
                                 break;
                             case dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD:
-                                if (current_tile != component->m_EndTile)
+                                if (current_tile != end_tile)
                                     --current_tile;
                                 break;
                             case dmGameSystemDDF::PLAYBACK_LOOP_FORWARD:
-                                if (current_tile == component->m_EndTile)
-                                    current_tile = component->m_StartTile;
+                                if (current_tile == end_tile)
+                                    current_tile = start_tile;
                                 else
                                     ++current_tile;
                                 break;
                             case dmGameSystemDDF::PLAYBACK_LOOP_BACKWARD:
-                                if (current_tile == component->m_EndTile)
-                                    current_tile = component->m_StartTile;
+                                if (current_tile == end_tile)
+                                    current_tile = start_tile;
                                 else
                                     --current_tile;
                                 break;
@@ -302,12 +367,12 @@ namespace dmGameSystem
                                 break;
                         }
                         if (current_tile < 0)
-                            current_tile = ddf->m_TileCount - 1;
-                        else if ((uint16_t)current_tile >= ddf->m_TileCount)
+                            current_tile = tile_count - 1;
+                        else if ((uint16_t)current_tile >= tile_count)
                             current_tile = 0;
                         component->m_CurrentTile = (uint16_t)current_tile;
-                        if (component->m_Playback == dmGameSystemDDF::PLAYBACK_LOOP_PINGPONG)
-                            if (current_tile == component->m_StartTile || current_tile == component->m_EndTile)
+                        if (animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_LOOP_PINGPONG)
+                            if (current_tile == start_tile || current_tile == end_tile)
                                 component->m_PlayBackwards = ~component->m_PlayBackwards;
                     }
                 }
@@ -339,15 +404,11 @@ namespace dmGameSystem
             if (params.m_Message->m_Id == dmHashString64(dmGameSystemDDF::PlayAnimation::m_DDFDescriptor->m_Name))
             {
                 dmGameSystemDDF::PlayAnimation* ddf = (dmGameSystemDDF::PlayAnimation*)params.m_Message->m_Data;
-                component->m_Playback = ddf->m_Playback;
-                component->m_StartTile = ddf->m_StartTile - 1;
-                component->m_EndTile = ddf->m_EndTile - 1;
-                component->m_CurrentTile = ddf->m_StartTile - 1;
-                component->m_PlayBackwards = 0;
-                component->m_FrameTime = 1.0f / ddf->m_Fps;
-                component->m_FrameTimer = 0.0f;
-                component->m_ListenerInstance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(component->m_Instance), params.m_Message->m_Sender.m_Path);
-                component->m_ListenerComponent = params.m_Message->m_Sender.m_Fragment;
+                if (PlayAnimation(component, ddf->m_Id))
+                {
+                    component->m_ListenerInstance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(component->m_Instance), params.m_Message->m_Sender.m_Path);
+                    component->m_ListenerComponent = params.m_Message->m_Sender.m_Fragment;
+                }
             }
         }
         return dmGameObject::UPDATE_RESULT_OK;
@@ -356,8 +417,6 @@ namespace dmGameSystem
     void CompSpriteOnReload(const dmGameObject::ComponentOnReloadParams& params)
     {
         Component* component = (Component*)*params.m_UserData;
-        component->m_StartTile = 0;
-        component->m_EndTile = 0;
         component->m_CurrentTile = 0;
         component->m_FrameTimer = 0.0f;
         component->m_FrameTime = 0.0f;

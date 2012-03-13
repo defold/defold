@@ -17,25 +17,46 @@ namespace dmGameSystem
         {
             return dmResource::RESULT_FORMAT_ERROR;
         }
-        if (resource->m_DDF->m_TileCount == 0 || resource->m_DDF->m_TilesPerRow == 0)
-        {
-            dmLogError("%s", "tile_count and tiles_per_row must both be over 0");
-            return dmResource::RESULT_FORMAT_ERROR;
-        }
-        dmResource::Result fr = dmResource::Get(factory, resource->m_DDF->m_Texture, (void**)&resource->m_Texture);
+        dmResource::Result fr = dmResource::Get(factory, resource->m_DDF->m_TileSet, (void**)&resource->m_TileSet);
         if (fr != dmResource::RESULT_OK)
         {
             return fr;
         }
-        return dmResource::RESULT_OK;
+        resource->m_DefaultAnimation = dmHashString64(resource->m_DDF->m_DefaultAnimation);
+        uint32_t n_animations = resource->m_TileSet->m_AnimationIds.Size();
+        bool found = false;
+        for (uint32_t i = 0; i < n_animations; ++i)
+        {
+            if (resource->m_TileSet->m_AnimationIds[i] == resource->m_DefaultAnimation)
+            {
+                found = true;
+                break;
+            }
+        }
+        if (!found)
+        {
+            if (resource->m_DDF->m_DefaultAnimation == 0 || resource->m_DDF->m_DefaultAnimation[0] == '\0')
+            {
+                dmLogError("No default animation specified");
+            }
+            else
+            {
+                dmLogError("Default animation '%s' not found", resource->m_DDF->m_DefaultAnimation);
+            }
+            return dmResource::RESULT_FORMAT_ERROR;;
+        }
+        else
+        {
+            return dmResource::RESULT_OK;
+        }
     }
 
     void ReleaseResources(dmResource::HFactory factory, SpriteResource* resource)
     {
         if (resource->m_DDF != 0x0)
             dmDDF::FreeMessage(resource->m_DDF);
-        if (resource->m_Texture != 0x0)
-            dmResource::Release(factory, resource->m_Texture);
+        if (resource->m_TileSet != 0x0)
+            dmResource::Release(factory, resource->m_TileSet);
     }
 
     dmResource::Result ResSpriteCreate(dmResource::HFactory factory,

@@ -82,9 +82,9 @@ Create the Game Object
 In order to have bonus stars appear, we first need to create a game object, which works as a blueprint.
 
 . Add a new game object called +bonus_star.go+ in the +stars+-directory with *File > New > Game Object File*.
-. Add a _Sprite2_ component to the game object with *Game Object > Add Component*.
+. Add a _Sprite_ component to the game object with *Game Object > Add Component*.
   This attaches graphics to the bonus star.
-. In the Outline-view (upper right), a new item appeared called _sprite2_. Expand it and select the item called _Sprite2_ to reveal its properties in the Properties-view below.
+. In the Outline-view (upper right), a new item appeared called _sprite_. Expand it and select the item called _Sprite_ to reveal its properties in the Properties-view below.
 .. Set _Tile Set_ to +stars.tileset+ by using the browse-button *...*. The tile set contains the graphics for the bonus star.
 .. Set _Default Animation_ to +bonus_star+ and hit *ENTER*. +bonus_star+ is a 1-frame animation of the bonus star defined in the tile set.
   A blue star should appear on the screen.

@@ -207,7 +207,6 @@ message SetParent
  *   <li>Collision Object</li>
  *   <li>Gui</li>
  *   <li>Sprite</li>
- *   <li>Sprite2</li>
  * </ul>
  * </p>
  *
@@ -235,7 +234,6 @@ message Enable
  *   <li>Collision Object</li>
  *   <li>Gui</li>
  *   <li>Sprite</li>
- *   <li>Sprite2</li>
  * </ul>
  * </p>
  *

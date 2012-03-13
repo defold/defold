@@ -72,11 +72,7 @@ def transform_gameobject(task, msg):
         c.component = c.component.replace('.wav', '.wavc')
         c.component = c.component.replace('.spawnpoint', '.spawnpointc')
         c.component = c.component.replace('.light', '.lightc')
-        # Temp rename for sprite2. Otherwise the rule .sprite -> .spritec would replace
-        # Using replace is not entirely correct
-        c.component = c.component.replace('.sprite2', '.dummysprite2c')
         c.component = c.component.replace('.sprite', '.spritec')
-        c.component = c.component.replace('.dummysprite2c', '.sprite2c')
         c.component = c.component.replace('.tileset', '.tilesetc')
         c.component = c.component.replace('.tilegrid', '.tilegridc')
     return msg
@@ -118,10 +114,6 @@ def transform_render(task, msg):
     return msg
 
 def transform_sprite(task, msg):
-    msg.texture = transform_texture_name(task, msg.texture)
-    return msg
-
-def transform_sprite2(task, msg):
     msg.tile_set = msg.tile_set.replace('.tileset', '.tilesetc')
     return msg
 
@@ -255,7 +247,6 @@ proto_compile_task('spawnpoint', 'gamesys_ddf_pb2', 'SpawnPointDesc', '.spawnpoi
 proto_compile_task('light', 'gamesys_ddf_pb2', 'LightDesc', '.light', '.lightc')
 proto_compile_task('render', 'render.render_ddf_pb2', 'render_ddf_pb2.RenderPrototypeDesc', '.render', '.renderc', transform_render)
 proto_compile_task('sprite', 'sprite_ddf_pb2', 'SpriteDesc', '.sprite', '.spritec', transform_sprite)
-proto_compile_task('sprite2', 'sprite2_ddf_pb2', 'Sprite2Desc', '.sprite2', '.sprite2c', transform_sprite2)
 proto_compile_task('tilegrid', 'tile_ddf_pb2', 'TileGrid', '.tilegrid', '.tilegridc', transform_tilegrid)
 
 TaskGen.declare_chain('project', 'cat < ${SRC} > ${TGT}', ext_in='.project', ext_out='.projectc', reentrant = False)

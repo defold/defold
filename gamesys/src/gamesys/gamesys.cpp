@@ -26,7 +26,6 @@
 #include "resources/res_render_script.h"
 #include "resources/res_render_prototype.h"
 #include "resources/res_sprite.h"
-#include "resources/res_sprite2.h"
 #include "resources/res_tileset.h"
 #include "resources/res_tilegrid.h"
 
@@ -40,13 +39,12 @@
 #include "components/comp_spawn_point.h"
 #include "components/comp_light.h"
 #include "components/comp_sprite.h"
-#include "components/comp_sprite2.h"
 #include "components/comp_tilegrid.h"
 
 #include "camera_ddf.h"
 #include "physics_ddf.h"
 #include "tile_ddf.h"
-#include "sprite2_ddf.h"
+#include "sprite_ddf.h"
 
 namespace dmGameSystem
 {
@@ -94,7 +92,6 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("render_scriptc", render_context, ResRenderScriptCreate, ResRenderScriptDestroy, ResRenderScriptRecreate);
         REGISTER_RESOURCE_TYPE("renderc", render_context, ResRenderPrototypeCreate, ResRenderPrototypeDestroy, ResRenderPrototypeRecreate);
         REGISTER_RESOURCE_TYPE("spritec", 0, ResSpriteCreate, ResSpriteDestroy, ResSpriteRecreate);
-        REGISTER_RESOURCE_TYPE("sprite2c", 0, ResSprite2Create, ResSprite2Destroy, ResSprite2Recreate);
         REGISTER_RESOURCE_TYPE("tilesetc", physics_context, ResTileSetCreate, ResTileSetDestroy, ResTileSetRecreate);
         REGISTER_RESOURCE_TYPE("tilegridc", physics_context, ResTileGridCreate, ResTileGridDestroy, ResTileGridRecreate);
 
@@ -200,11 +197,6 @@ namespace dmGameSystem
                 CompSpriteNewWorld, CompSpriteDeleteWorld,
                 CompSpriteCreate, CompSpriteDestroy, 0, 0,
                 CompSpriteUpdate, 0, CompSpriteOnMessage, 0, CompSpriteOnReload);
-
-        REGISTER_COMPONENT_TYPE("sprite2c", 1150, sprite_context,
-                CompSprite2NewWorld, CompSprite2DeleteWorld,
-                CompSprite2Create, CompSprite2Destroy, 0, 0,
-                CompSprite2Update, 0, CompSprite2OnMessage, 0, CompSprite2OnReload);
 
         REGISTER_COMPONENT_TYPE("tilegridc", 1200, render_context,
                 CompTileGridNewWorld, CompTileGridDeleteWorld,

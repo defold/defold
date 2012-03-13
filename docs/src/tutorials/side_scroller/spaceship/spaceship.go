@@ -30,8 +30,8 @@ embedded_components {
   }
 }
 embedded_components {
-  id: "sprite2"
-  type: "sprite2"
+  id: "sprite"
+  type: "sprite"
   data: "tile_set: \"/spaceship/spaceship.tileset\"\ndefault_animation: \"anim\"\n"
   position {
     x: 0.0

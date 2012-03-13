@@ -3,17 +3,19 @@
 
 #include <stdint.h>
 
+#include <dlib/hash.h>
 #include <resource/resource.h>
 
-#include <graphics/graphics.h>
-
 #include "sprite_ddf.h"
+
+#include "res_tileset.h"
 
 namespace dmGameSystem
 {
     struct SpriteResource
     {
-        dmGraphics::HTexture m_Texture;
+        dmhash_t m_DefaultAnimation;
+        TileSetResource* m_TileSet;
         dmGameSystemDDF::SpriteDesc* m_DDF;
     };
 
