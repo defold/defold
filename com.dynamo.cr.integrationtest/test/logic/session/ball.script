@@ -63,7 +63,7 @@ function on_message(self, message_id, message)
             if message.group == 8 and self.mode == self.mode_normal then
                 self.pow_counter = self.pow_counter + 1
                 if self.pow_counter >= 8 then
-                    msg.post("#spawnpoint", "spawn_object", { position = go.get_position(), rotation = vmath.quat(0,0,0,1) })
+                    msg.post("#factory", "create", { position = go.get_position(), rotation = vmath.quat(0,0,0,1) })
                     self.pow_counter = 0
                 end
             end

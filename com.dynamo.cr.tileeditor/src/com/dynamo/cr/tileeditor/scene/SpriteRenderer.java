@@ -12,13 +12,13 @@ import com.dynamo.cr.sceneed.core.RenderContext.Pass;
 import com.dynamo.cr.sceneed.core.RenderData;
 import com.sun.opengl.util.texture.Texture;
 
-public class Sprite2Renderer implements INodeRenderer<Sprite2Node> {
+public class SpriteRenderer implements INodeRenderer<SpriteNode> {
 
     private static final float COLOR[] = new float[] { 1.0f, 1.0f, 1.0f, 1.0f };
     private static final EnumSet<Pass> passes = EnumSet.of(Pass.OUTLINE, Pass.TRANSPARENT, Pass.SELECTION);
 
     @Override
-    public void setup(RenderContext renderContext, Sprite2Node node) {
+    public void setup(RenderContext renderContext, SpriteNode node) {
         if (passes.contains(renderContext.getPass())) {
             TileSetNode tileSet = node.getTileSetNode();
             if (tileSet != null && tileSet.getTextureHandle().getTexture() != null && node.getVertexData() != null) {
@@ -28,8 +28,8 @@ public class Sprite2Renderer implements INodeRenderer<Sprite2Node> {
     }
 
     @Override
-    public void render(RenderContext renderContext, Sprite2Node node,
-            RenderData<Sprite2Node> renderData) {
+    public void render(RenderContext renderContext, SpriteNode node,
+            RenderData<SpriteNode> renderData) {
         TileSetNode tileSet = node.getTileSetNode();
         Texture texture = tileSet.getTextureHandle().getTexture();
         FloatBuffer v = node.getVertexData();

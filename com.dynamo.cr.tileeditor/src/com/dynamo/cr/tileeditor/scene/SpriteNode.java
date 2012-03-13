@@ -19,7 +19,7 @@ import com.dynamo.cr.tileeditor.Activator;
 import com.dynamo.tile.TileSetUtil;
 
 @SuppressWarnings("serial")
-public class Sprite2Node extends ComponentTypeNode {
+public class SpriteNode extends ComponentTypeNode {
 
     @Property(isResource=true, extensions={"tileset"})
     @Resource
@@ -59,10 +59,10 @@ public class Sprite2Node extends ComponentTypeNode {
             this.tileSetNode.updateStatus();
             IStatus status = this.tileSetNode.getStatus();
             if (!status.isOK()) {
-                return new Status(IStatus.ERROR, Activator.PLUGIN_ID, Messages.Sprite2Node_tileSet_INVALID_REFERENCE);
+                return new Status(IStatus.ERROR, Activator.PLUGIN_ID, Messages.SpriteNode_tileSet_INVALID_REFERENCE);
             }
         } else if (!this.tileSet.isEmpty()) {
-            return new Status(IStatus.ERROR, Activator.PLUGIN_ID, Messages.Sprite2Node_tileSet_INVALID_TYPE);
+            return new Status(IStatus.ERROR, Activator.PLUGIN_ID, Messages.SpriteNode_tileSet_INVALID_TYPE);
         }
         return Status.OK_STATUS;
     }
@@ -87,7 +87,7 @@ public class Sprite2Node extends ComponentTypeNode {
                     }
                 }
                 if (!exists) {
-                    return new Status(IStatus.ERROR, Activator.PLUGIN_ID, NLS.bind(Messages.Sprite2Node_defaultAnimation_INVALID, this.defaultAnimation));
+                    return new Status(IStatus.ERROR, Activator.PLUGIN_ID, NLS.bind(Messages.SpriteNode_defaultAnimation_INVALID, this.defaultAnimation));
                 }
             }
         }
@@ -148,6 +148,7 @@ public class Sprite2Node extends ComponentTypeNode {
                     if (node instanceof TileSetNode) {
                         this.tileSetNode = (TileSetNode)node;
                         this.tileSetNode.setModel(getModel());
+                        updateStatus();
                     }
                 } catch (Exception e) {
                     // no reason to handle exception since having a null type is invalid state, will be caught in validateComponent below

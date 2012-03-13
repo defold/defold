@@ -127,7 +127,6 @@ import com.dynamo.cr.scene.graph.NodeFactory;
 import com.dynamo.cr.scene.graph.PrototypeNode;
 import com.dynamo.cr.scene.graph.Scene;
 import com.dynamo.cr.scene.graph.SceneEvent;
-import com.dynamo.cr.scene.graph.Sprite2Node;
 import com.dynamo.cr.scene.graph.SpriteNode;
 import com.dynamo.cr.scene.graph.TileGridNode;
 import com.dynamo.cr.scene.math.AABB;
@@ -143,7 +142,6 @@ import com.dynamo.cr.scene.resource.ModelLoader;
 import com.dynamo.cr.scene.resource.PrototypeLoader;
 import com.dynamo.cr.scene.resource.Resource;
 import com.dynamo.cr.scene.resource.ResourceFactory;
-import com.dynamo.cr.scene.resource.Sprite2Loader;
 import com.dynamo.cr.scene.resource.SpriteLoader;
 import com.dynamo.cr.scene.resource.TextureLoader;
 import com.dynamo.cr.scene.resource.TileGridLoader;
@@ -390,7 +388,6 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         resourceFactory.addLoader("camera", new CameraLoader());
         resourceFactory.addLoader("light", new LightLoader());
         resourceFactory.addLoader("sprite", new SpriteLoader());
-        resourceFactory.addLoader("sprite2", new Sprite2Loader());
         resourceFactory.addLoader("collisionobject", new CollisionLoader());
         resourceFactory.addLoader("convexshape", new ConvexShapeLoader());
         resourceFactory.addLoader("collection", new CollectionLoader());
@@ -409,7 +406,6 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         factory.addCreator("camera", CameraNode.getCreator());
         factory.addCreator("light", LightNode.getCreator());
         factory.addCreator("sprite", SpriteNode.getCreator());
-        factory.addCreator("sprite2", Sprite2Node.getCreator());
         factory.addCreator("collisionobject", CollisionNode.getCreator());
         factory.addCreator("tilegrid", TileGridNode.getCreator());
 

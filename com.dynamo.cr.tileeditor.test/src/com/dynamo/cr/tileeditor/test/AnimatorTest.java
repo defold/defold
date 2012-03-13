@@ -18,7 +18,7 @@ import org.mockito.stubbing.Answer;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.tileeditor.scene.AnimationNode;
 import com.dynamo.cr.tileeditor.util.Animator;
-import com.dynamo.tile.proto.Tile.Playback2;
+import com.dynamo.tile.proto.Tile.Playback;
 
 public class AnimatorTest {
 
@@ -83,7 +83,7 @@ public class AnimatorTest {
 
     @Test
     public void testStartOnce() {
-        this.node.setPlayback(Playback2.PLAYBACK2_ONCE_FORWARD);
+        this.node.setPlayback(Playback.PLAYBACK_ONCE_FORWARD);
 
         select();
         assertFalse(this.node.hasFinished());
@@ -95,7 +95,7 @@ public class AnimatorTest {
 
     @Test
     public void testStartLoop() {
-        this.node.setPlayback(Playback2.PLAYBACK2_LOOP_FORWARD);
+        this.node.setPlayback(Playback.PLAYBACK_LOOP_FORWARD);
 
         select();
         assertFalse(this.node.hasFinished());

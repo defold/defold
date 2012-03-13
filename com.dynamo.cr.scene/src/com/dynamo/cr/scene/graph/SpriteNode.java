@@ -1,15 +1,16 @@
 package com.dynamo.cr.scene.graph;
 
 import java.io.IOException;
+import java.nio.FloatBuffer;
 
 import javax.media.opengl.GL;
+import javax.vecmath.Point3d;
 
 import org.eclipse.core.runtime.CoreException;
 
 import com.dynamo.cr.scene.resource.Resource;
 import com.dynamo.cr.scene.resource.SpriteResource;
 import com.dynamo.cr.scene.util.Constants;
-import com.dynamo.sprite.proto.Sprite.SpriteDesc;
 import com.sun.opengl.util.texture.Texture;
 
 public class SpriteNode extends ComponentNode<SpriteResource> {
@@ -28,92 +29,81 @@ public class SpriteNode extends ComponentNode<SpriteResource> {
 
     public SpriteNode(String identifier, SpriteResource spriteResource, Scene scene) {
         super(identifier, spriteResource, scene);
-        float width = spriteResource.getSpriteDesc().getWidth();
-        float height = spriteResource.getSpriteDesc().getHeight();
-        m_AABB.union(-width/2, -height/2, 0);
-        m_AABB.union(width/2, height/2, 0);
-        if (spriteResource.getTextureResource() == null) {
-            setError(ERROR_FLAG_RESOURCE_ERROR, "The sprite texture '" + spriteResource.getSpriteDesc().getTexture() + "' could not be loaded.");
+        this.m_AABB = spriteResource.getAABB();
+        if (spriteResource.getTileSetResource() == null) {
+            setError(ERROR_FLAG_RESOURCE_ERROR, "The tile set '" + spriteResource.getSprite().getTileSet() + "' could not be loaded.");
         }
     }
 
     @Override
     public void draw(DrawContext context) {
 
-        SpriteDesc spriteDesc = this.resource.getSpriteDesc();
-
-        float[] exts = new float[2];
-        exts[0] = 0.5f * spriteDesc.getWidth();
-        exts[1] = 0.5f * spriteDesc.getHeight();
-
         GL gl = context.m_GL;
 
-        if ((getFlags() & FLAG_GHOST) == FLAG_GHOST) {
-            gl.glColor3fv(Constants.GHOST_COLOR, 0);
-            gl.glPolygonMode(GL.GL_FRONT, GL.GL_FILL);
-            gl.glBegin(GL.GL_QUADS);
-            gl.glVertex3f(-exts[0], exts[1], 0);
-            gl.glVertex3f(exts[0], exts[1], 0);
-            gl.glVertex3f(exts[0], -exts[1], 0);
-            gl.glVertex3f(-exts[0], -exts[1], 0);
-            gl.glEnd();
-        }
-        else {
+        FloatBuffer vb = this.resource.getVertexBuffer();
+
+        if (vb != null) {
             Texture texture = null;
-            if (this.resource.getTextureResource() != null)
-                texture = this.resource.getTextureResource().getTexture();
-
-            float[] uvs = { 1.0f, 1.0f };
-            if (texture != null) {
-                gl.glEnable(GL.GL_BLEND);
-                gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
-
-                texture.enable();
-                gl.glTexEnvf(GL.GL_TEXTURE_ENV, GL.GL_TEXTURE_ENV_MODE, GL.GL_REPLACE);
-                gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST);
-                gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST);
-                gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP);
-                gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_WRAP_T, GL.GL_CLAMP);
-                if (texture.getWidth() > 0)
-                    uvs[0] = spriteDesc.getTileWidth() / (float)texture.getWidth();
-                if (texture.getHeight() > 0)
-                    uvs[1] = spriteDesc.getTileHeight() / (float)texture.getHeight();
-                texture.bind();
+            if (this.resource.getTileSetResource() != null) {
+                texture = this.resource.getTileSetResource().getTextureResource().getTexture();
             }
-            gl.glPolygonMode(GL.GL_FRONT, GL.GL_FILL);
-            gl.glBegin(GL.GL_QUADS);
-            gl.glTexCoord2f(0.0f, 0.0f);
-            gl.glVertex3f(-exts[0], exts[1], 0);
-            gl.glTexCoord2f(uvs[0], 0.0f);
-            gl.glVertex3f(exts[0], exts[1], 0);
-            gl.glTexCoord2f(uvs[0], uvs[1]);
-            gl.glVertex3f(exts[0], -exts[1], 0);
-            gl.glTexCoord2f(0.0f, uvs[1]);
-            gl.glVertex3f(-exts[0], -exts[1], 0);
-            gl.glEnd();
 
-            if (texture != null) {
+            boolean ghostMode = (getFlags() & FLAG_GHOST) == FLAG_GHOST;
+            if (ghostMode) {
+                gl.glColor3fv(Constants.GHOST_COLOR, 0);
+            } else {
+                if (texture != null) {
+                    texture.enable();
+                    gl.glTexEnvf(GL.GL_TEXTURE_ENV, GL.GL_TEXTURE_ENV_MODE, GL.GL_REPLACE);
+                    gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST);
+                    gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST);
+                    gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP);
+                    gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_WRAP_T, GL.GL_CLAMP);
+                    texture.bind();
+                }
+                gl.glColor3f(1.0f, 1.0f, 1.0f);
+            }
+
+            gl.glPolygonMode(GL.GL_FRONT, GL.GL_FILL);
+
+            gl.glEnable(GL.GL_BLEND);
+            gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
+
+            gl.glEnableClientState(GL.GL_VERTEX_ARRAY);
+            gl.glEnableClientState(GL.GL_TEXTURE_COORD_ARRAY);
+
+            gl.glInterleavedArrays(GL.GL_T2F_V3F, 0, vb);
+
+            gl.glDrawArrays(GL.GL_QUADS, 0, vb.capacity() / 5);
+
+            gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
+            gl.glDisableClientState(GL.GL_TEXTURE_COORD_ARRAY);
+
+            gl.glDisable(GL.GL_BLEND);
+
+            if (!ghostMode && texture != null) {
                 texture.disable();
-                gl.glDisable(GL.GL_BLEND);
             }
-
-            gl.glPolygonMode(GL.GL_FRONT, GL.GL_LINE);
-
-            if (context.isSelected(this))
-                gl.glColor3fv(Constants.SELECTED_COLOR, 0);
-            else
-                gl.glColor3fv(Constants.OBJECT_COLOR, 0);
-
-            gl.glBegin(GL.GL_LINE_LOOP);
-            gl.glVertex3f(-exts[0], exts[1], 0);
-            gl.glVertex3f(exts[0], exts[1], 0);
-            gl.glVertex3f(exts[0], -exts[1], 0);
-            gl.glVertex3f(-exts[0], -exts[1], 0);
-            gl.glEnd();
-
-            gl.glPolygonMode(GL.GL_FRONT, GL.GL_FILL);
-
         }
+
+        gl.glPolygonMode(GL.GL_FRONT, GL.GL_LINE);
+
+        if (context.isSelected(this)) {
+            gl.glColor3fv(Constants.SELECTED_COLOR, 0);
+        } else {
+            gl.glColor3fv(Constants.OBJECT_COLOR, 0);
+        }
+
+        Point3d min = this.m_AABB.getMin();
+        Point3d max = this.m_AABB.getMax();
+        gl.glBegin(GL.GL_LINE_LOOP);
+        gl.glVertex3d(min.getX(), max.getY(), 0);
+        gl.glVertex3d(max.getX(), max.getY(), 0);
+        gl.glVertex3d(max.getX(), min.getY(), 0);
+        gl.glVertex3d(min.getX(), min.getY(), 0);
+        gl.glEnd();
+
+        gl.glPolygonMode(GL.GL_FRONT, GL.GL_FILL);
     }
 
     @Override

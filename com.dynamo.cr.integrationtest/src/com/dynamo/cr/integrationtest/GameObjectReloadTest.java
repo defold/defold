@@ -22,8 +22,8 @@ import com.dynamo.cr.go.core.ComponentTypeNode;
 import com.dynamo.cr.go.core.GameObjectNode;
 import com.dynamo.cr.go.core.RefComponentNode;
 import com.dynamo.cr.go.core.operations.AddComponentOperation;
-import com.dynamo.cr.tileeditor.scene.Sprite2Node;
-import com.dynamo.sprite2.proto.Sprite2.Sprite2Desc;
+import com.dynamo.cr.tileeditor.scene.SpriteNode;
+import com.dynamo.sprite.proto.Sprite.SpriteDesc;
 import com.google.protobuf.TextFormat;
 
 public class GameObjectReloadTest extends AbstractSceneTest {
@@ -35,8 +35,8 @@ public class GameObjectReloadTest extends AbstractSceneTest {
         getPresenter().onLoad("go", new ByteArrayInputStream("".getBytes()));
     }
 
-    private void saveSprite2Component(String path, String tileSet, String defaultAnimation) throws IOException, CoreException {
-        Sprite2Desc.Builder builder = Sprite2Desc.newBuilder();
+    private void saveSpriteComponent(String path, String tileSet, String defaultAnimation) throws IOException, CoreException {
+        SpriteDesc.Builder builder = SpriteDesc.newBuilder();
         builder.setTileSet(tileSet).setDefaultAnimation(defaultAnimation);
         IFile file = getContentRoot().getFile(new Path(path));
         CharArrayWriter output = new CharArrayWriter();
@@ -54,19 +54,19 @@ public class GameObjectReloadTest extends AbstractSceneTest {
 
     @Test
     public void testReloadComponentFromFile() throws Exception {
-        String path = "/sprite2/reload.sprite2";
+        String path = "/sprite/reload.sprite";
         String tileSet = "/tileset/test.tileset";
         String defaultAnimation = "test";
 
         when(getPresenterContext().selectFile(anyString(), any(String[].class))).thenReturn(path);
-        Sprite2Node componentType = new Sprite2Node();
+        SpriteNode componentType = new SpriteNode();
         componentType.setTileSet(tileSet);
         componentType.setDefaultAnimation(defaultAnimation);
 
-        saveSprite2Component(path, "", "");
+        saveSpriteComponent(path, "", "");
 
         GameObjectNode go = (GameObjectNode)getModel().getRoot();
-        RefComponentNode component = new RefComponentNode(new Sprite2Node());
+        RefComponentNode component = new RefComponentNode(new SpriteNode());
         component.setComponent(path);
         AddComponentOperation op = new AddComponentOperation(go, component, getPresenterContext());
         getModel().executeOperation(op);
@@ -74,7 +74,7 @@ public class GameObjectReloadTest extends AbstractSceneTest {
         assertNodePropertyStatus(component, "component", IStatus.ERROR, null);
         ComponentTypeNode type = component.getType();
 
-        saveSprite2Component(path, tileSet, defaultAnimation);
+        saveSpriteComponent(path, tileSet, defaultAnimation);
 
         assertNodePropertyStatus(component, "component", IStatus.OK, null);
         assertThat((RefComponentNode)go.getChildren().get(0), is(component));

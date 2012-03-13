@@ -1,4 +1,4 @@
-package com.dynamo.cr.ddfeditor.refactoring;
+package com.dynamo.cr.tileeditor.core.refactoring;
 
 import com.dynamo.cr.editor.core.GenericRefactorParticipant;
 import com.dynamo.sprite.proto.Sprite.SpriteDesc;

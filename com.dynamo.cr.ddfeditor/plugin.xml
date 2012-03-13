@@ -34,9 +34,9 @@
             class="com.dynamo.cr.sceneed.ui.SceneEditor"
             contributorClass="com.dynamo.cr.editor.ui.DefoldEditorActionBarContributor"
             default="false"
-            extensions="spawnpoint"
+            extensions="factory"
             icon="icons/lightning.png"
-            id="com.dynamo.cr.ddfeditor.spawnPointEditor"
+            id="com.dynamo.cr.ddfeditor.factoryEditor"
             name="Scene Editor">
       </editor>
       <editor
@@ -120,15 +120,6 @@
             id="com.dynamo.cr.ddfeditor.collectionProxyEditor"
             name="Scene Editor">
       </editor>
-      <editor
-            class="com.dynamo.cr.sceneed.ui.SceneEditor"
-            contributorClass="com.dynamo.cr.editor.ui.DefoldEditorActionBarContributor"
-            default="false"
-            extensions="sprite"
-            icon="icons/pictures.png"
-            id="com.dynamo.cr.ddfeditor.spriteEditor"
-            name="Scene Editor">
-      </editor>
    </extension>
    <extension
          point="org.eclipse.ui.newWizards">
@@ -155,10 +146,10 @@
       </wizard>
       <wizard
             category="com.dynamo.cr.editor.wizardCategory"
-            class="com.dynamo.cr.ddfeditor.wizards.SpawnPointNewWizard"
+            class="com.dynamo.cr.ddfeditor.wizards.FactoryNewWizard"
             icon="icons/lightning.png"
-            id="com.dynamo.cr.ddfeditor.wizards.SpawnPointNewWizard"
-            name="Spawn Point File">
+            id="com.dynamo.cr.ddfeditor.wizards.FactoryNewWizard"
+            name="Factory File">
       </wizard>
       <wizard
             category="com.dynamo.cr.editor.wizardCategory"
@@ -216,13 +207,6 @@
             id="com.dynamo.cr.ddfeditor.wizards.ConvexShapeNewWizard"
             name="Convex Shape File">
       </wizard>
-      <wizard
-            category="com.dynamo.cr.editor.wizardCategory"
-            class="com.dynamo.cr.ddfeditor.wizards.SpriteNewWizard"
-            icon="icons/pictures.png"
-            id="com.dynamo.cr.ddfeditor.wizards.spriteNewWizard"
-            name="Sprite File">
-      </wizard>
    </extension>
    <extension
          point="org.eclipse.ui.navigator.navigatorContent">
@@ -243,7 +227,7 @@
       </commonWizard>
       <commonWizard
             type="new"
-            wizardId="com.dynamo.cr.ddfeditor.wizards.SpawnPointNewWizard">
+            wizardId="com.dynamo.cr.ddfeditor.wizards.FactoryNewWizard">
          <enablement></enablement>
       </commonWizard>
       <commonWizard
@@ -279,11 +263,6 @@
       <commonWizard
             type="new"
             wizardId="com.dynamo.cr.ddfeditor.wizards.ConvexShapeNewWizard">
-         <enablement></enablement>
-      </commonWizard>
-      <commonWizard
-            type="new"
-            wizardId="com.dynamo.cr.ddfeditor.wizards.spriteNewWizard">
          <enablement></enablement>
       </commonWizard>
    </extension>
@@ -327,11 +306,11 @@
       </resource-type>
       <resource-type
             embeddable="true"
-            file-extension="spawnpoint"
-            id="com.dynamo.cr.ddfeditor.resourcetypes.SpawnPoint"
-            name="Spawn Point"
-            proto-message-class="com.dynamo.gamesystem.proto.GameSystem$SpawnPointDesc"
-            resource-refactor-participant-class="com.dynamo.cr.ddfeditor.refactoring.SpawnPointRefactorParticipant"
+            file-extension="factory"
+            id="com.dynamo.cr.ddfeditor.resourcetypes.Factory"
+            name="Factory"
+            proto-message-class="com.dynamo.gamesystem.proto.GameSystem$FactoryDesc"
+            resource-refactor-participant-class="com.dynamo.cr.ddfeditor.refactoring.FactoryRefactorParticipant"
             template-data="prototype: &apos;&apos;"
             type-class="component">
          <references>
@@ -496,21 +475,6 @@
             name="Mesh"
             type-class="mesh">
       </resource-type>
-      <resource-type
-            embeddable="true"
-            file-extension="sprite"
-            id="com.dynamo.cr.ddfeditor.resourcetypes.sprite"
-            name="Sprite"
-            proto-message-class="com.dynamo.sprite.proto.Sprite$SpriteDesc"
-            resource-refactor-participant-class="com.dynamo.cr.ddfeditor.refactoring.SpriteRefactorParticipant"
-            template-data="texture: &apos;&apos; width: 1 height: 1"
-            type-class="component">
-         <references>
-            <reference-type-class
-                  type-class="image">
-            </reference-type-class>
-         </references>
-      </resource-type>
     </extension>
    <extension
          point="org.eclipse.ui.perspectiveExtensions">
@@ -526,7 +490,7 @@
                id="com.dynamo.cr.ddfeditor.wizards.LightNewWizard">
          </newWizardShortcut>
          <newWizardShortcut
-               id="com.dynamo.cr.ddfeditor.wizards.SpawnPointNewWizard">
+               id="com.dynamo.cr.ddfeditor.wizards.FactoryNewWizard">
          </newWizardShortcut>
          <newWizardShortcut
                id="com.dynamo.cr.ddfeditor.wizards.CollisionObjectNewWizard">
@@ -549,18 +513,15 @@
          <newWizardShortcut
                id="com.dynamo.cr.ddfeditor.wizards.ConvexShapeNewWizard">
          </newWizardShortcut>
-         <newWizardShortcut
-               id="com.dynamo.cr.ddfeditor.wizards.spriteNewWizard">
-         </newWizardShortcut>
       </perspectiveExtension>
    </extension>
    <extension
          point="com.dynamo.cr.nodetypes">
       <node-type
-            id="com.dynamo.cr.ddfeditor.scene.spawnPointNode"
-            loader="com.dynamo.cr.ddfeditor.scene.SpawnPointLoader"
-            node="com.dynamo.cr.ddfeditor.scene.SpawnPointNode"
-            resource-type="com.dynamo.cr.ddfeditor.resourcetypes.SpawnPoint">
+            id="com.dynamo.cr.ddfeditor.scene.factoryNode"
+            loader="com.dynamo.cr.ddfeditor.scene.FactoryLoader"
+            node="com.dynamo.cr.ddfeditor.scene.FactoryNode"
+            resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Factory">
       </node-type>
       <node-type
             display-group="Physics"
@@ -620,13 +581,6 @@
             loader="com.dynamo.cr.ddfeditor.scene.ConvexShapeLoader"
             node="com.dynamo.cr.ddfeditor.scene.ConvexShapeNode"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.ConvexShape">
-      </node-type>
-      <node-type
-            display-group="Sprites"
-            id="com.dynamo.cr.ddfeditor.scene.spriteNode"
-            loader="com.dynamo.cr.ddfeditor.scene.SpriteLoader"
-            node="com.dynamo.cr.ddfeditor.scene.SpriteNode"
-            resource-type="com.dynamo.cr.ddfeditor.resourcetypes.sprite">
       </node-type>
       <node-type
             display-group="Physics"

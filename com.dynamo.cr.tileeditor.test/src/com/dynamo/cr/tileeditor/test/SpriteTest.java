@@ -15,23 +15,23 @@ import org.junit.Test;
 
 import com.dynamo.cr.sceneed.core.test.AbstractNodeTest;
 import com.dynamo.cr.tileeditor.scene.Messages;
-import com.dynamo.cr.tileeditor.scene.Sprite2Loader;
-import com.dynamo.cr.tileeditor.scene.Sprite2Node;
+import com.dynamo.cr.tileeditor.scene.SpriteLoader;
+import com.dynamo.cr.tileeditor.scene.SpriteNode;
 import com.dynamo.cr.tileeditor.scene.TileSetLoader;
 import com.dynamo.cr.tileeditor.scene.TileSetNode;
-import com.dynamo.sprite2.proto.Sprite2.Sprite2Desc;
+import com.dynamo.sprite.proto.Sprite.SpriteDesc;
 
-public class Sprite2Test extends AbstractNodeTest {
+public class SpriteTest extends AbstractNodeTest {
 
-    private Sprite2Loader loader;
-    private Sprite2Node spriteNode;
+    private SpriteLoader loader;
+    private SpriteNode spriteNode;
 
     @Override
     @Before
     public void setup() throws CoreException, IOException {
         super.setup();
 
-        this.loader = new Sprite2Loader();
+        this.loader = new SpriteLoader();
 
         String[] paths = {"/test.tileset2", "/invalid.tileset2"};
         String[] contents = {
@@ -46,7 +46,7 @@ public class Sprite2Test extends AbstractNodeTest {
             registerLoadedNode(path, tileSet);
         }
 
-        this.spriteNode = registerAndLoadRoot(Sprite2Node.class, "sprite2", this.loader);
+        this.spriteNode = registerAndLoadRoot(SpriteNode.class, "sprite", this.loader);
     }
 
     // Helpers
@@ -64,7 +64,7 @@ public class Sprite2Test extends AbstractNodeTest {
     @Test
     public void testLoad() throws Exception {
         assertThat(this.spriteNode.getTileSet(), is(""));
-        assertThat(this.spriteNode.getDefaultAnimation(), is(""));
+        assertThat(this.spriteNode.getDefaultAnimation(), is("anim"));
     }
 
     private void create() throws Exception {
@@ -77,7 +77,7 @@ public class Sprite2Test extends AbstractNodeTest {
 
         create();
 
-        Sprite2Desc ddf = (Sprite2Desc)this.loader.buildMessage(getLoaderContext(), this.spriteNode, null);
+        SpriteDesc ddf = (SpriteDesc)this.loader.buildMessage(getLoaderContext(), this.spriteNode, null);
 
         assertThat(ddf.getTileSet(), is(this.spriteNode.getTileSet()));
         assertThat(ddf.getDefaultAnimation(), is(this.spriteNode.getDefaultAnimation()));
@@ -105,17 +105,18 @@ public class Sprite2Test extends AbstractNodeTest {
         assertPropertyStatus("tileSet", IStatus.ERROR, null); // default message
 
         setProperty("tileSet", "/invalid.tileset2");
-        assertPropertyStatus("tileSet", IStatus.ERROR, Messages.Sprite2Node_tileSet_INVALID_REFERENCE);
+        assertPropertyStatus("tileSet", IStatus.ERROR, Messages.SpriteNode_tileSet_INVALID_REFERENCE);
 
         registerFile("/test.test", "");
         setProperty("tileSet", "/test.test");
-        assertPropertyStatus("tileSet", IStatus.ERROR, Messages.Sprite2Node_tileSet_INVALID_TYPE);
+        assertPropertyStatus("tileSet", IStatus.ERROR, Messages.SpriteNode_tileSet_INVALID_TYPE);
 
-        assertPropertyStatus("defaultAnimation", IStatus.INFO, Messages.Sprite2Node_defaultAnimation_EMPTY);
+        setProperty("defaultAnimation", "");
+        assertPropertyStatus("defaultAnimation", IStatus.INFO, Messages.SpriteNode_defaultAnimation_EMPTY);
 
         setProperty("tileSet", "/test.tileset2");
         setProperty("defaultAnimation", "test");
-        assertPropertyStatus("defaultAnimation", IStatus.ERROR, NLS.bind(Messages.Sprite2Node_defaultAnimation_INVALID, "test"));
+        assertPropertyStatus("defaultAnimation", IStatus.ERROR, NLS.bind(Messages.SpriteNode_defaultAnimation_INVALID, "test"));
     }
 
 }

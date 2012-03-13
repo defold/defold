@@ -1,7 +1,0 @@
-texture: "/graphics/pow.png"
-width: 32.0
-height: 32.0
-tile_width: 32
-tile_height: 32
-tiles_per_row: 1
-tile_count: 1

@@ -41,7 +41,6 @@ import com.dynamo.cr.scene.resource.LightLoader;
 import com.dynamo.cr.scene.resource.LightResource;
 import com.dynamo.cr.scene.resource.ResourceFactory;
 import com.dynamo.cr.scene.resource.SpriteLoader;
-import com.dynamo.cr.scene.resource.SpriteResource;
 import com.dynamo.cr.scene.resource.TextureLoader;
 import com.dynamo.cr.scene.resource.TextureResource;
 import com.dynamo.gamesystem.proto.GameSystem.LightDesc;
@@ -50,7 +49,6 @@ import com.dynamo.physics.proto.Physics.CollisionObjectDesc;
 import com.dynamo.physics.proto.Physics.CollisionObjectType;
 import com.dynamo.physics.proto.Physics.ConvexShape;
 import com.dynamo.proto.DdfMath.Vector3;
-import com.dynamo.sprite.proto.Sprite.SpriteDesc;
 import com.google.protobuf.TextFormat;
 
 public class ReloadResourceTest {
@@ -144,9 +142,11 @@ public class ReloadResourceTest {
         CameraDesc.Builder builder = CameraDesc.newBuilder();
         CameraDesc newMessage = builder.setAspectRatio(1.0f).setAutoAspectRatio(1).setFarZ(1.0f).setFov(1.0f).setNearZ(1.0f).build();
         testReload(path, resource, newMessage, new IMessageHelper<CameraResource, CameraDesc>() {
+            @Override
             public CameraDesc getMessage(CameraResource resource) {
                 return resource.getCameraDesc();
             }
+            @Override
             public void print(CameraDesc message, StringWriter writer) throws IOException {
                 TextFormat.print(message, writer);
             }
@@ -160,9 +160,11 @@ public class ReloadResourceTest {
         CollisionObjectDesc.Builder builder = CollisionObjectDesc.newBuilder();
         CollisionObjectDesc newMessage = builder.setCollisionShape("test").setFriction(1.0f).setGroup("1").addMask("1").setMass(2.0f).setRestitution(1.0f).setType(CollisionObjectType.COLLISION_OBJECT_TYPE_DYNAMIC).build();
         testReload(path, resource, newMessage, new IMessageHelper<CollisionResource, CollisionObjectDesc>() {
+            @Override
             public CollisionObjectDesc getMessage(CollisionResource resource) {
                 return resource.getCollisionDesc();
             }
+            @Override
             public void print(CollisionObjectDesc message, StringWriter writer) throws IOException {
                 TextFormat.print(message, writer);
             }
@@ -176,9 +178,11 @@ public class ReloadResourceTest {
         ConvexShape.Builder builder = ConvexShape.newBuilder();
         ConvexShape newMessage = builder.setShapeType(ConvexShape.Type.TYPE_SPHERE).addData(1.0f).build();
         testReload(path, resource, newMessage, new IMessageHelper<ConvexShapeResource, ConvexShape>() {
+            @Override
             public ConvexShape getMessage(ConvexShapeResource resource) {
                 return resource.getConvexShape();
             }
+            @Override
             public void print(ConvexShape message, StringWriter writer) throws IOException {
                 TextFormat.print(message, writer);
             }
@@ -193,26 +197,12 @@ public class ReloadResourceTest {
         Vector3 color = Vector3.newBuilder().setX(1.0f).setY(1.0f).setZ(1.0f).build();
         LightDesc newMessage = builder.setId("id").setColor(color).setIntensity(1.0f).setType(LightType.SPOT).setRange(1.0f).setDecay(100.0f).build();
         testReload(path, resource, newMessage, new IMessageHelper<LightResource, LightDesc>() {
+            @Override
             public LightDesc getMessage(LightResource resource) {
                 return resource.getLightDesc();
             }
+            @Override
             public void print(LightDesc message, StringWriter writer) throws IOException {
-                TextFormat.print(message, writer);
-            }
-        });
-    }
-
-    @Test
-    public void testSprite() throws CoreException, CreateException, IOException {
-        String path = "logic/session/ball.sprite";
-        SpriteResource resource = (SpriteResource)factory.load(monitor, path);
-        SpriteDesc.Builder builder = SpriteDesc.newBuilder();
-        SpriteDesc newMessage = builder.setTileCount(1).setTilesPerRow(1).setHeight(1.0f).setTexture("textures/test.png").setTileHeight(1).setTileWidth(1).setWidth(1.0f).build();
-        testReload(path, resource, newMessage, new IMessageHelper<SpriteResource, SpriteDesc>() {
-            public SpriteDesc getMessage(SpriteResource resource) {
-                return resource.getSpriteDesc();
-            }
-            public void print(SpriteDesc message, StringWriter writer) throws IOException {
                 TextFormat.print(message, writer);
             }
         });

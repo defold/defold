@@ -48,7 +48,12 @@ public class GameObjectLoader implements INodeLoader<GameObjectNode> {
         n = desc.getEmbeddedComponentsCount();
         for (int i = 0; i < n; ++i) {
             EmbeddedComponentDesc componentDesc = desc.getEmbeddedComponents(i);
-            ComponentTypeNode componentType = (ComponentTypeNode)context.loadNode(componentDesc.getType(), new ByteArrayInputStream(componentDesc.getData().getBytes()));
+            // TODO temp hack to "convert" from sprite2 to sprite
+            String type = componentDesc.getType();
+            if (type.equals("sprite2")) {
+                type = "sprite";
+            }
+            ComponentTypeNode componentType = (ComponentTypeNode)context.loadNode(type, new ByteArrayInputStream(componentDesc.getData().getBytes()));
             componentType.setTranslation(LoaderUtil.toPoint3d(componentDesc.getPosition()));
             componentType.setRotation(LoaderUtil.toQuat4(componentDesc.getRotation()));
             componentType.setId(componentDesc.getId());

@@ -7,10 +7,13 @@ import java.io.InputStream;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.CoreException;
+import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Path;
+import org.eclipse.core.runtime.Status;
 
 import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.editor.core.IResourceType;
+import com.dynamo.cr.sceneed.Activator;
 import com.dynamo.cr.sceneed.core.INodeLoader;
 import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
@@ -56,7 +59,7 @@ com.dynamo.cr.sceneed.core.ILoaderContext {
             try {
                 return loader.load(this, contents);
             } catch (Exception e) {
-                this.logger.logException(e);
+                throw new CoreException(new Status(IStatus.ERROR, Activator.PLUGIN_ID, e.getMessage(), e));
             }
         }
         return null;

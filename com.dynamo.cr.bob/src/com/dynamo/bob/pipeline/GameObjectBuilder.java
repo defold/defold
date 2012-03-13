@@ -115,13 +115,9 @@ public class GameObjectBuilder extends Builder<Void> {
         {".model", ".modelc"},
         {".script", ".scriptc"},
         {".wav", ".wavc"},
-        {".spawnpoint", ".spawnpointc"},
+        {".factory", ".factoryc"},
         {".light", ".lightc"},
-        // Temp rename for sprite2. Otherwise the rule .sprite -> .spritec would replace
-        // Using replace is not entirely correct. We should just fix replaceExt...
-        {".sprite2", ".dummysprite2c"},
         {".sprite", ".spritec"},
-        {".dummysprite2c", ".sprite2c"},
         {".tileset", ".tilesetc"},
         {".tilegrid", ".tilegridc"},
     };

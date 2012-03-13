@@ -34,7 +34,7 @@
             class="com.dynamo.cr.sceneed.ui.SceneEditor"
             contributorClass="com.dynamo.cr.editor.ui.DefoldEditorActionBarContributor"
             default="false"
-            extensions="sprite2"
+            extensions="sprite"
             icon="icons/pictures.png"
             id="com.dynamo.cr.tileeditor.spriteEditor"
             name="Sprite Editor">
@@ -48,7 +48,7 @@
             name="Tile Set"
             proto-message-class="com.dynamo.tile.proto.Tile$TileSet"
             resource-refactor-participant-class="com.dynamo.cr.tileeditor.core.refactoring.TileSetRefactorParticipant"
-            template-data="image: &apos;&apos; tile_width: 16 tile_height: 16 tile_margin: 0 tile_spacing: 0 collision: &apos;&apos; material_tag: &apos;tile&apos; collision_groups: &apos;default&apos;"
+            template-data="image: &apos;&apos; tile_width: 16 tile_height: 16 tile_margin: 0 tile_spacing: 0 collision: &apos;&apos; material_tag: &apos;tile&apos; collision_groups: &apos;default&apos; animations: {id: &apos;anim&apos; start_tile: 1 end_tile: 1}"
             type-class="tile_set">
          <references>
             <reference-type-class
@@ -72,12 +72,12 @@
       </resource-type>
       <resource-type
             embeddable="true"
-            file-extension="sprite2"
-            id="com.dynamo.cr.tileeditor.core.resourcetypes.sprite2"
-            name="Sprite2"
-            proto-message-class="com.dynamo.sprite2.proto.Sprite2$Sprite2Desc"
-            resource-refactor-participant-class="com.dynamo.cr.tileeditor.core.refactoring.Sprite2RefactorParticipant"
-            template-data="tile_set: &quot;&quot; default_animation: &quot;&quot;"
+            file-extension="sprite"
+            id="com.dynamo.cr.tileeditor.core.resourcetypes.sprite"
+            name="Sprite"
+            proto-message-class="com.dynamo.sprite.proto.Sprite$SpriteDesc"
+            resource-refactor-participant-class="com.dynamo.cr.tileeditor.core.refactoring.SpriteRefactorParticipant"
+            template-data="tile_set: &quot;&quot; default_animation: &quot;anim&quot;"
             type-class="component">
          <references>
             <reference-resource-type
@@ -107,7 +107,7 @@
             class="com.dynamo.cr.tileeditor.wizards.SpriteNewWizard"
             icon="icons/pictures.png"
             id="com.dynamo.cr.tileeditor.wizards.spriteNewWizard"
-            name="Sprite2 File">
+            name="Sprite File">
       </wizard>
    </extension>
    <extension
@@ -1055,11 +1055,11 @@
       </node-type>
       <node-type
             display-group="Sprites"
-            id="com.dynamo.cr.tileeditor.scene.sprite2Node"
-            loader="com.dynamo.cr.tileeditor.scene.Sprite2Loader"
-            node="com.dynamo.cr.tileeditor.scene.Sprite2Node"
-            renderer="com.dynamo.cr.tileeditor.scene.Sprite2Renderer"
-            resource-type="com.dynamo.cr.tileeditor.core.resourcetypes.sprite2">
+            id="com.dynamo.cr.tileeditor.scene.spriteNode"
+            loader="com.dynamo.cr.tileeditor.scene.SpriteLoader"
+            node="com.dynamo.cr.tileeditor.scene.SpriteNode"
+            renderer="com.dynamo.cr.tileeditor.scene.SpriteRenderer"
+            resource-type="com.dynamo.cr.tileeditor.core.resourcetypes.sprite">
       </node-type>
       <node-type
             id="com.dynamo.cr.tileeditor.nodetypes.tileSet"

@@ -17,7 +17,7 @@ import com.dynamo.cr.tileeditor.scene.AnimationNode;
 import com.dynamo.cr.tileeditor.scene.CollisionGroupNode;
 import com.dynamo.cr.tileeditor.scene.TileSetNode;
 import com.dynamo.cr.tileeditor.scene.TileSetNodePresenter;
-import com.dynamo.tile.proto.Tile.Playback2;
+import com.dynamo.tile.proto.Tile.Playback;
 
 public class TileSetPresenterTest extends AbstractPresenterTest {
 
@@ -148,7 +148,7 @@ public class TileSetPresenterTest extends AbstractPresenterTest {
         AnimationNode animation = new AnimationNode();
         animation.setStartTile(1);
         animation.setEndTile(4);
-        animation.setPlayback(Playback2.PLAYBACK2_ONCE_FORWARD);
+        animation.setPlayback(Playback.PLAYBACK_ONCE_FORWARD);
         animation.setFps(30);
         select(animation);
 

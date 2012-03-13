@@ -45,7 +45,7 @@ import com.dynamo.cr.sceneed.ui.LoaderContext;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.gamesystem.proto.GameSystem.CollectionProxyDesc;
-import com.dynamo.gamesystem.proto.GameSystem.SpawnPointDesc;
+import com.dynamo.gamesystem.proto.GameSystem.FactoryDesc;
 import com.dynamo.gui.proto.Gui.SceneDesc;
 import com.dynamo.model.proto.Model.ModelDesc;
 import com.dynamo.physics.proto.Physics.CollisionObjectDesc;
@@ -53,7 +53,6 @@ import com.dynamo.render.proto.Font.FontDesc;
 import com.dynamo.render.proto.Material.MaterialDesc;
 import com.dynamo.render.proto.Render.RenderPrototypeDesc;
 import com.dynamo.sprite.proto.Sprite.SpriteDesc;
-import com.dynamo.sprite2.proto.Sprite2.Sprite2Desc;
 import com.dynamo.tile.proto.Tile.TileSet;
 import com.google.protobuf.Message;
 import com.google.protobuf.Message.Builder;
@@ -196,20 +195,6 @@ public class RefactorTest {
     private <Desc> void testRenameAndDelete(Builder builder, String referer, String referee, ReferenceFetcher<Desc> referenceFetcher) throws IOException, CoreException {
         testRename(builder.clone(), referer, referee, referenceFetcher);
         testDelete(builder.clone(), referer, referee, referenceFetcher);
-    }
-
-    /*
-     * Sprites
-     */
-
-    @Test
-    public void testPngForSprite() throws CoreException, IOException {
-        testRenameAndDelete(SpriteDesc.newBuilder(), "logic/session/ball.sprite", "/graphics/ball.png", new ReferenceFetcher<SpriteDesc>() {
-            @Override
-            public String[] getReferences(SpriteDesc desc) {
-                return new String[] {desc.getTexture()};
-            }
-        });
     }
 
     /*
@@ -495,15 +480,15 @@ public class RefactorTest {
     }
 
     @Test
-    public void testGOForEmbeddedSpawnPoint() throws CoreException, IOException {
+    public void testGOForEmbeddedFactory() throws CoreException, IOException {
         testRenameAndDelete(PrototypeDesc.newBuilder(), "logic/session/ball.go", "/logic/session/pow.go", new ReferenceFetcher<PrototypeDesc>() {
             @Override
             public String[] getReferences(PrototypeDesc desc) {
-                SpawnPointDesc.Builder builder = SpawnPointDesc.newBuilder();
+                FactoryDesc.Builder builder = FactoryDesc.newBuilder();
                 try {
                     TextFormat.merge(desc.getEmbeddedComponents(1).getData(), builder);
-                    SpawnPointDesc spawnPointDesc = builder.build();
-                    return new String[] { spawnPointDesc.getPrototype() };
+                    FactoryDesc factoryDesc = builder.build();
+                    return new String[] { factoryDesc.getPrototype() };
                 } catch (ParseException e) {
                     return new String[] {};
                 }
@@ -512,15 +497,15 @@ public class RefactorTest {
     }
 
     @Test
-    public void testTileSetForEmbeddedSprite2() throws CoreException, IOException {
-        testRenameAndDelete(PrototypeDesc.newBuilder(), "logic/embedded_sprite2.go", "/tileset/test.tileset", new ReferenceFetcher<PrototypeDesc>() {
+    public void testTileSetForEmbeddedSprite() throws CoreException, IOException {
+        testRenameAndDelete(PrototypeDesc.newBuilder(), "logic/embedded_sprite.go", "/tileset/test.tileset", new ReferenceFetcher<PrototypeDesc>() {
             @Override
             public String[] getReferences(PrototypeDesc desc) {
-                Sprite2Desc.Builder builder = Sprite2Desc.newBuilder();
+                SpriteDesc.Builder builder = SpriteDesc.newBuilder();
                 try {
                     TextFormat.merge(desc.getEmbeddedComponents(0).getData(), builder);
-                    Sprite2Desc sprite2Desc = builder.build();
-                    return new String[] { sprite2Desc.getTileSet() };
+                    SpriteDesc spriteDesc = builder.build();
+                    return new String[] { spriteDesc.getTileSet() };
                 } catch (ParseException e) {
                     return new String[] {};
                 }
@@ -651,8 +636,6 @@ public class RefactorTest {
     @Test
     public void testRenameGraphicsFolder() throws CoreException, IOException {
         // Rename the graphics folder. ie rename and update N files
-        SpriteDesc preBallSprite = (SpriteDesc) loadMessageFile("logic/session/ball.sprite", SpriteDesc.newBuilder());
-        assertEquals("/graphics/ball.png", preBallSprite.getTexture());
         SceneDesc preGui = (SceneDesc) loadMessageFile("logic/session/hud.gui", SceneDesc.newBuilder());
         assertEquals("/graphics/left_hud.png", preGui.getTextures(0).getTexture());
 
@@ -661,8 +644,6 @@ public class RefactorTest {
         RenameResourceDescriptor descriptor = rename(graphics.getFullPath(), "graphics2");
         Change undoChange = perform(descriptor);
 
-        SpriteDesc postBallSprite = (SpriteDesc) loadMessageFile("logic/session/ball.sprite", SpriteDesc.newBuilder());
-        assertEquals("/graphics2/ball.png", postBallSprite.getTexture());
         SceneDesc postGui = (SceneDesc) loadMessageFile("logic/session/hud.gui", SceneDesc.newBuilder());
         assertEquals("/graphics2/left_hud.png", postGui.getTextures(0).getTexture());
 

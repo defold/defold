@@ -78,7 +78,7 @@ public class ScenePresenter implements IPresenter, IModelListener {
             this.model.setRoot(node);
         } catch (Exception e) {
             // Should never happen in production
-            throw new CoreException(new Status(IStatus.ERROR, Activator.PLUGIN_ID, "Node could not be loaded", e));
+            throw new CoreException(new Status(IStatus.ERROR, Activator.PLUGIN_ID, type + " node could not be loaded: " + e.getMessage(), e));
         }
     }
 

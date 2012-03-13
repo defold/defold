@@ -60,10 +60,10 @@ public class TileGridNode extends ComponentTypeNode {
             this.tileSetNode.updateStatus();
             IStatus status = this.tileSetNode.getStatus();
             if (!status.isOK()) {
-                return new Status(IStatus.ERROR, Activator.PLUGIN_ID, Messages.Sprite2Node_tileSet_INVALID_REFERENCE);
+                return new Status(IStatus.ERROR, Activator.PLUGIN_ID, Messages.SpriteNode_tileSet_INVALID_REFERENCE);
             }
         } else if (!this.tileSet.isEmpty()) {
-            return new Status(IStatus.ERROR, Activator.PLUGIN_ID, Messages.Sprite2Node_tileSet_INVALID_TYPE);
+            return new Status(IStatus.ERROR, Activator.PLUGIN_ID, Messages.SpriteNode_tileSet_INVALID_TYPE);
         }
         return Status.OK_STATUS;
     }

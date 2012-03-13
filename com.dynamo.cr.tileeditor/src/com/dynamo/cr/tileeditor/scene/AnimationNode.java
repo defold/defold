@@ -12,7 +12,7 @@ import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.validators.Unique;
 import com.dynamo.cr.tileeditor.Activator;
 import com.dynamo.tile.proto.Tile;
-import com.dynamo.tile.proto.Tile.Playback2;
+import com.dynamo.tile.proto.Tile.Playback;
 
 @SuppressWarnings("serial")
 public class AnimationNode extends Node {
@@ -31,7 +31,7 @@ public class AnimationNode extends Node {
     private int endTile = 1;
 
     @Property
-    private Tile.Playback2 playback = Playback2.PLAYBACK2_ONCE_FORWARD;
+    private Tile.Playback playback = Playback.PLAYBACK_ONCE_FORWARD;
 
     @Property
     @GreaterThanZero
@@ -73,7 +73,7 @@ public class AnimationNode extends Node {
 
     public IStatus validateStartTile() {
         TileSetNode tileSet = getTileSetNode();
-        if (tileSet != null) {
+        if (tileSet != null && tileSet.getLoadedImage() != null) {
             int tileCount = tileSet.calculateTileCount();
             if (this.startTile > tileCount) {
                 return new Status(IStatus.ERROR, Activator.PLUGIN_ID, NLS.bind(Messages.AnimationNode_startTile_INVALID, tileCount));
@@ -99,7 +99,7 @@ public class AnimationNode extends Node {
 
     public IStatus validateEndTile() {
         TileSetNode tileSet = getTileSetNode();
-        if (tileSet != null) {
+        if (tileSet != null && tileSet.getLoadedImage() != null) {
             int tileCount = tileSet.calculateTileCount();
             if (this.endTile > tileCount) {
                 return new Status(IStatus.ERROR, Activator.PLUGIN_ID, NLS.bind(Messages.AnimationNode_endTile_INVALID, tileCount));
@@ -108,11 +108,11 @@ public class AnimationNode extends Node {
         return Status.OK_STATUS;
     }
 
-    public Tile.Playback2 getPlayback() {
+    public Tile.Playback getPlayback() {
         return this.playback;
     }
 
-    public void setPlayback(Tile.Playback2 playback) {
+    public void setPlayback(Tile.Playback playback) {
         this.playback = playback;
     }
 
@@ -146,17 +146,17 @@ public class AnimationNode extends Node {
 
     public void setCursor(float cursor) {
         this.cursor = cursor;
-        if (this.playback != Playback2.PLAYBACK2_NONE) {
+        if (this.playback != Playback.PLAYBACK_NONE) {
             int tile = (int)(cursor * this.fps);
             int tileCount = this.endTile - this.startTile + 1;
-            boolean once = this.playback == Playback2.PLAYBACK2_ONCE_FORWARD || this.playback == Playback2.PLAYBACK2_ONCE_BACKWARD;
+            boolean once = this.playback == Playback.PLAYBACK_ONCE_FORWARD || this.playback == Playback.PLAYBACK_ONCE_BACKWARD;
             if (once) {
                 if (tile < 0) {
                     tile = 0;
                 } else if (tile >= tileCount) {
                     tile = tileCount - 1;
                 }
-            } else if (this.playback == Playback2.PLAYBACK2_LOOP_PINGPONG) {
+            } else if (this.playback == Playback.PLAYBACK_LOOP_PINGPONG) {
                 // Length of one cycle, forward and backward
                 int cycleLength = tileCount * 2 - 2;
                 tile %= cycleLength;
@@ -166,7 +166,7 @@ public class AnimationNode extends Node {
             } else {
                 tile %= tileCount;
             }
-            boolean backwards = this.playback == Playback2.PLAYBACK2_ONCE_BACKWARD || this.playback == Playback2.PLAYBACK2_LOOP_BACKWARD;
+            boolean backwards = this.playback == Playback.PLAYBACK_ONCE_BACKWARD || this.playback == Playback.PLAYBACK_LOOP_BACKWARD;
             if (backwards) {
                 tile = tileCount - 1 - tile;
             }
@@ -177,12 +177,12 @@ public class AnimationNode extends Node {
     }
 
     public boolean hasFinished() {
-        boolean once = this.playback == Playback2.PLAYBACK2_ONCE_FORWARD || this.playback == Playback2.PLAYBACK2_ONCE_BACKWARD;
+        boolean once = this.playback == Playback.PLAYBACK_ONCE_FORWARD || this.playback == Playback.PLAYBACK_ONCE_BACKWARD;
         if (once) {
             int delta = (int)(cursor * this.fps);
             int tileCount = this.endTile - this.startTile + 1;
             return delta >= tileCount;
-        } else if (this.playback == Playback2.PLAYBACK2_NONE) {
+        } else if (this.playback == Playback.PLAYBACK_NONE) {
             return true;
         }
         return false;

@@ -16,8 +16,8 @@ import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 import com.dynamo.gameobject.proto.GameObject.CollectionInstanceDesc;
 import com.dynamo.gameobject.proto.GameObject.InstanceDesc;
 import com.dynamo.gamesystem.proto.GameSystem.CollectionProxyDesc;
+import com.dynamo.gamesystem.proto.GameSystem.FactoryDesc;
 import com.dynamo.gamesystem.proto.GameSystem.LightDesc;
-import com.dynamo.gamesystem.proto.GameSystem.SpawnPointDesc;
 import com.dynamo.gui.proto.Gui.NodeDesc;
 import com.dynamo.gui.proto.Gui.SceneDesc;
 import com.dynamo.gui.proto.Gui.SceneDesc.FontDesc;
@@ -36,7 +36,6 @@ import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.render.proto.Material.MaterialDesc;
 import com.dynamo.render.proto.Render.RenderPrototypeDesc;
 import com.dynamo.sprite.proto.Sprite.SpriteDesc;
-import com.dynamo.sprite2.proto.Sprite2.Sprite2Desc;
 import com.dynamo.tile.proto.Tile.TileGrid;
 
 public class ProtoBuilders {
@@ -204,11 +203,11 @@ public class ProtoBuilders {
     @BuilderParams(name="GamepadMaps", inExts=".gamepads", outExt=".gamepadsc")
     public static class GamepadMapsBuilder extends ProtoBuilder<GamepadMaps.Builder> {}
 
-    @ProtoParams(messageClass = SpawnPointDesc.class)
-    @BuilderParams(name="SpawnPoint", inExts=".spawnpoint", outExt=".spawnpointc")
-    public static class SpawnPointBuilder extends ProtoBuilder<SpawnPointDesc.Builder> {
+    @ProtoParams(messageClass = FactoryDesc.class)
+    @BuilderParams(name="Factory", inExts=".factory", outExt=".factoryc")
+    public static class FactoryBuilder extends ProtoBuilder<FactoryDesc.Builder> {
         @Override
-        protected SpawnPointDesc.Builder transform(SpawnPointDesc.Builder messageBuilder) throws IOException,
+        protected FactoryDesc.Builder transform(FactoryDesc.Builder messageBuilder) throws IOException,
                 CompileExceptionError {
             return messageBuilder.setPrototype(BuilderUtil.replaceExt(messageBuilder.getPrototype(), ".go", ".goc"));
         }
@@ -245,18 +244,6 @@ public class ProtoBuilders {
         @Override
         protected SpriteDesc.Builder transform(
                 SpriteDesc.Builder messageBuilder)
-                throws IOException, CompileExceptionError {
-            messageBuilder.setTexture(replaceTextureName(messageBuilder.getTexture()));
-            return messageBuilder;
-        }
-    }
-
-    @ProtoParams(messageClass = Sprite2Desc.class)
-    @BuilderParams(name="Sprite2Desc", inExts=".sprite2", outExt=".sprite2c")
-    public static class Sprite2DescBuilder extends ProtoBuilder<Sprite2Desc.Builder> {
-        @Override
-        protected Sprite2Desc.Builder transform(
-                Sprite2Desc.Builder messageBuilder)
                 throws IOException, CompileExceptionError {
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), ".tileset", ".tilesetc"));
             return messageBuilder;

@@ -8,7 +8,6 @@ import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 
 import com.dynamo.cr.scene.graph.CreateException;
-import com.dynamo.sprite.proto.Sprite;
 import com.dynamo.sprite.proto.Sprite.SpriteDesc;
 import com.dynamo.sprite.proto.Sprite.SpriteDesc.Builder;
 import com.google.protobuf.TextFormat;
@@ -18,25 +17,25 @@ public class SpriteLoader implements IResourceLoader {
     @Override
     public Resource load(IProgressMonitor monitor, String name,
             InputStream stream, IResourceFactory factory)
-            throws IOException, CreateException, CoreException {
+                    throws IOException, CreateException, CoreException {
 
         InputStreamReader reader = new InputStreamReader(stream);
-        Builder builder = Sprite.SpriteDesc.newBuilder();
+        Builder builder = SpriteDesc.newBuilder();
         TextFormat.merge(reader, builder);
-        SpriteDesc desc = builder.build();
-        return new SpriteResource(name, desc, (TextureResource)factory.load(monitor, desc.getTexture()));
+        SpriteDesc sprite = builder.build();
+        return new SpriteResource(name, sprite, (TileSetResource)factory.load(monitor, sprite.getTileSet()));
     }
 
     @Override
     public void reload(Resource resource, IProgressMonitor monitor, String name,
             InputStream stream, IResourceFactory factory)
-            throws IOException, CreateException, CoreException {
+                    throws IOException, CreateException, CoreException {
         InputStreamReader reader = new InputStreamReader(stream);
-        Builder builder = Sprite.SpriteDesc.newBuilder();
+        Builder builder = SpriteDesc.newBuilder();
         TextFormat.merge(reader, builder);
-        SpriteDesc desc = builder.build();
+        SpriteDesc sprite = builder.build();
         SpriteResource spriteResource = (SpriteResource)resource;
-        spriteResource.setSpriteDesc(desc);
-        spriteResource.setTextureResource((TextureResource)factory.load(monitor, desc.getTexture()));
+        spriteResource.setSprite(sprite);
+        spriteResource.setTileSetResource((TileSetResource)factory.load(monitor, sprite.getTileSet()));
     }
 }

@@ -9,7 +9,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
-import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.CharArrayWriter;
 import java.io.IOException;
@@ -38,7 +37,6 @@ import com.dynamo.cr.scene.graph.Node;
 import com.dynamo.cr.scene.graph.NodeFactory;
 import com.dynamo.cr.scene.graph.PrototypeNode;
 import com.dynamo.cr.scene.graph.Scene;
-import com.dynamo.cr.scene.graph.SpriteNode;
 import com.dynamo.cr.scene.math.AABB;
 import com.dynamo.cr.scene.resource.CameraResource;
 import com.dynamo.cr.scene.resource.CollectionResource;
@@ -50,12 +48,10 @@ import com.dynamo.cr.scene.resource.ModelResource;
 import com.dynamo.cr.scene.resource.PrototypeResource;
 import com.dynamo.cr.scene.resource.Resource;
 import com.dynamo.cr.scene.resource.ResourceFactory;
-import com.dynamo.cr.scene.resource.SpriteResource;
 import com.dynamo.cr.scene.resource.TextureResource;
 import com.dynamo.cr.scene.test.util.SceneContext;
 import com.dynamo.cr.scene.util.Mesh;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
-import com.dynamo.sprite.proto.Sprite.SpriteDesc;
 import com.google.protobuf.TextFormat;
 
 public class SceneTest {
@@ -159,9 +155,9 @@ public class SceneTest {
         ComponentNode n2 = getComponentNode(children, "test.collisionobject");
         ComponentNode n3 = getComponentNode(children, "box.model");
 
-        assertThat(n1.getParent(), equalTo((Node) node));
-        assertThat(n2.getParent(), equalTo((Node) node));
-        assertThat(n3.getParent(), equalTo((Node) node));
+        assertThat(n1.getParent(), equalTo(node));
+        assertThat(n2.getParent(), equalTo(node));
+        assertThat(n3.getParent(), equalTo(node));
 
         assertThat(node.contains(n1), is(true));
         assertThat(node.contains(n2), is(true));
@@ -407,8 +403,7 @@ public class SceneTest {
         final int TYPE_LIGHT = 5;
         final int TYPE_MODEL = 6;
         final int TYPE_PROTOTYPE = 7;
-        final int TYPE_SPRITE = 8;
-        final int TYPE_COUNT = 9;
+        final int TYPE_COUNT = 8;
 
         Node[][] nodes = new Node[TYPE_COUNT][2];
 
@@ -429,13 +424,6 @@ public class SceneTest {
         nodes[TYPE_MODEL][1] = new ModelNode("model1", new ModelResource("", null, new MeshResource("", mesh), new ArrayList<TextureResource>()), this.scene);
         nodes[TYPE_PROTOTYPE][0] = new PrototypeNode("prototype0", new PrototypeResource("", null, new ArrayList<Resource>(), new ArrayList<Vector4d>(), new ArrayList<Quat4d>()), this.scene, this.nodeFactory);
         nodes[TYPE_PROTOTYPE][1] = new PrototypeNode("prototype1", new PrototypeResource("", null, new ArrayList<Resource>(), new ArrayList<Vector4d>(), new ArrayList<Quat4d>()), this.scene, this.nodeFactory);
-        SpriteDesc spriteDesc = SpriteDesc.newBuilder()
-                    .setTexture("")
-                    .setWidth(4)
-                    .setHeight(4).build();
-
-        nodes[TYPE_SPRITE][0] = new SpriteNode("sprite0", new SpriteResource("", spriteDesc, new TextureResource("", new BufferedImage(1, 1, BufferedImage.TYPE_4BYTE_ABGR))), this.scene);
-        nodes[TYPE_SPRITE][1] = new SpriteNode("sprite1", new SpriteResource("", spriteDesc, new TextureResource("", new BufferedImage(1, 1, BufferedImage.TYPE_4BYTE_ABGR))), this.scene);
 
         for (int i = 0; i < TYPE_COUNT; ++i) {
             assertTrue(nodes[i][0] != null);
@@ -458,7 +446,6 @@ public class SceneTest {
         accepts[TYPE_PROTOTYPE][TYPE_COLLISION] = true;
         accepts[TYPE_PROTOTYPE][TYPE_LIGHT] = true;
         accepts[TYPE_PROTOTYPE][TYPE_MODEL] = true;
-        accepts[TYPE_PROTOTYPE][TYPE_SPRITE] = true;
 
         accepts[TYPE_INSTANCE][TYPE_INSTANCE] = true;
         accepts[TYPE_INSTANCE][TYPE_PROTOTYPE] = true;

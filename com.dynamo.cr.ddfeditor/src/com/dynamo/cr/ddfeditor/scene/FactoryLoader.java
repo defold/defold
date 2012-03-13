@@ -9,28 +9,28 @@ import org.eclipse.core.runtime.IProgressMonitor;
 
 import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.INodeLoader;
-import com.dynamo.gamesystem.proto.GameSystem.SpawnPointDesc;
+import com.dynamo.gamesystem.proto.GameSystem.FactoryDesc;
 import com.google.protobuf.Message;
 import com.google.protobuf.TextFormat;
 
-public class SpawnPointLoader implements INodeLoader<SpawnPointNode> {
+public class FactoryLoader implements INodeLoader<FactoryNode> {
 
     @Override
-    public SpawnPointNode load(ILoaderContext context, InputStream contents)
+    public FactoryNode load(ILoaderContext context, InputStream contents)
             throws IOException, CoreException {
         InputStreamReader reader = new InputStreamReader(contents);
-        SpawnPointDesc.Builder builder = SpawnPointDesc.newBuilder();
+        FactoryDesc.Builder builder = FactoryDesc.newBuilder();
         TextFormat.merge(reader, builder);
-        SpawnPointDesc desc = builder.build();
-        SpawnPointNode spawnPoint = new SpawnPointNode();
-        spawnPoint.setPrototype(desc.getPrototype());
-        return spawnPoint;
+        FactoryDesc desc = builder.build();
+        FactoryNode factory = new FactoryNode();
+        factory.setPrototype(desc.getPrototype());
+        return factory;
     }
 
     @Override
-    public Message buildMessage(ILoaderContext context, SpawnPointNode node,
+    public Message buildMessage(ILoaderContext context, FactoryNode node,
             IProgressMonitor monitor) throws IOException, CoreException {
-        SpawnPointDesc.Builder builder = SpawnPointDesc.newBuilder();
+        FactoryDesc.Builder builder = FactoryDesc.newBuilder();
         builder.setPrototype(node.getPrototype());
         return builder.build();
     }

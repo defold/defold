@@ -8,8 +8,7 @@ import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
 import com.dynamo.cr.tileeditor.scene.AnimationNode;
-import com.dynamo.tile.proto.Tile.Playback2;
-
+import com.dynamo.tile.proto.Tile.Playback;
 public class AnimationTest {
 
     @Test
@@ -17,7 +16,7 @@ public class AnimationTest {
         AnimationNode node = new AnimationNode();
         node.setStartTile(1);
         node.setEndTile(4);
-        node.setPlayback(Playback2.PLAYBACK2_NONE);
+        node.setPlayback(Playback.PLAYBACK_NONE);
         node.setFps(30);
 
         node.setCursor(0.0f);
@@ -39,7 +38,7 @@ public class AnimationTest {
         AnimationNode node = new AnimationNode();
         node.setStartTile(1);
         node.setEndTile(4);
-        node.setPlayback(Playback2.PLAYBACK2_ONCE_FORWARD);
+        node.setPlayback(Playback.PLAYBACK_ONCE_FORWARD);
         node.setFps(30);
 
         float dt = 1.0f/30;
@@ -75,7 +74,7 @@ public class AnimationTest {
         AnimationNode node = new AnimationNode();
         node.setStartTile(1);
         node.setEndTile(4);
-        node.setPlayback(Playback2.PLAYBACK2_ONCE_BACKWARD);
+        node.setPlayback(Playback.PLAYBACK_ONCE_BACKWARD);
         node.setFps(30);
 
         float dt = 1.0f/30;
@@ -111,7 +110,7 @@ public class AnimationTest {
         AnimationNode node = new AnimationNode();
         node.setStartTile(1);
         node.setEndTile(4);
-        node.setPlayback(Playback2.PLAYBACK2_LOOP_FORWARD);
+        node.setPlayback(Playback.PLAYBACK_LOOP_FORWARD);
         node.setFps(30);
 
         float dt = 1.0f/30;
@@ -131,7 +130,7 @@ public class AnimationTest {
         AnimationNode node = new AnimationNode();
         node.setStartTile(1);
         node.setEndTile(4);
-        node.setPlayback(Playback2.PLAYBACK2_LOOP_BACKWARD);
+        node.setPlayback(Playback.PLAYBACK_LOOP_BACKWARD);
         node.setFps(30);
 
         float dt = 1.0f/30;
@@ -151,7 +150,7 @@ public class AnimationTest {
         AnimationNode node = new AnimationNode();
         node.setStartTile(1);
         node.setEndTile(4);
-        node.setPlayback(Playback2.PLAYBACK2_LOOP_PINGPONG);
+        node.setPlayback(Playback.PLAYBACK_LOOP_PINGPONG);
         node.setFps(30);
 
         float dt = 1.0f/30;

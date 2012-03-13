@@ -6,14 +6,14 @@ import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Resource;
 
 @SuppressWarnings("serial")
-public class SpawnPointNode extends ComponentTypeNode {
+public class FactoryNode extends ComponentTypeNode {
 
     @Property(isResource=true, extensions={"go"})
     @Resource
     @NotEmpty
     private String prototype = "";
 
-    public SpawnPointNode() {
+    public FactoryNode() {
         super();
     }
 

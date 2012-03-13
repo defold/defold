@@ -6,7 +6,7 @@ import com.dynamo.cr.editor.ui.AbstractNewDdfWizard;
 public class SpriteNewWizard extends AbstractNewDdfWizard {
     @Override
     public String getTitle() {
-        return "Sprite2 file";
+        return "Sprite file";
     }
 
     @Override
@@ -16,7 +16,7 @@ public class SpriteNewWizard extends AbstractNewDdfWizard {
 
     @Override
     public String getExtension() {
-        return "sprite2";
+        return "sprite";
     }
 
 }

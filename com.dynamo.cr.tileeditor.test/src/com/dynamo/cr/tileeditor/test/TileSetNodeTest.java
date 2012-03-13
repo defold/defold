@@ -227,7 +227,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
         StringBuffer ddf = new StringBuffer();
         ddf.append("image: \"").append(img).append("\" tile_width: 16 tile_height: 16 tile_margin: 0 tile_spacing: 1 ")
             .append("collision: \"").append(img).append("\" material_tag: \"tile\" collision_groups: \"default\" ")
-            .append("animations: {id: \"anim\" start_tile: 1 end_tile: 4 playback: PLAYBACK2_ONCE_FORWARD ")
+            .append("animations: {id: \"anim\" start_tile: 1 end_tile: 4 playback: PLAYBACK_ONCE_FORWARD ")
             .append("fps: 30 flip_horizontal: 0 flip_vertical: 0}");
 
         registerFile(path, ddf.toString());
@@ -246,7 +246,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
         assertThat(animation.getId(), is("anim"));
         assertThat(animation.getStartTile(), is(1));
         assertThat(animation.getEndTile(), is(4));
-        assertThat(animation.getPlayback(), is(Tile.Playback2.PLAYBACK2_ONCE_FORWARD));
+        assertThat(animation.getPlayback(), is(Tile.Playback.PLAYBACK_ONCE_FORWARD));
         assertThat(animation.getFps(), is(30));
         assertFalse(animation.isFlipHorizontal());
         assertFalse(animation.isFlipVertical());
@@ -260,7 +260,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
         StringBuffer ddf = new StringBuffer();
         ddf.append("image: \"").append(img).append("\" tile_width: 16 tile_height: 16 tile_margin: 0 tile_spacing: 1 ")
             .append("collision: \"").append(img).append("\" material_tag: \"tile\" collision_groups: \"default\" collision_groups: \"default\"")
-            .append("animations: {id: \"anim\" start_tile: 1 end_tile: 4 playback: PLAYBACK2_ONCE_FORWARD ")
+            .append("animations: {id: \"anim\" start_tile: 1 end_tile: 4 playback: PLAYBACK_ONCE_FORWARD ")
             .append("fps: 30 flip_horizontal: 0 flip_vertical: 0}")
             .append("convex_hulls: {index: 0 count: 3 collision_group: \"default\"} ");
         float[] points = new float[] {
@@ -525,19 +525,19 @@ public class TileSetNodeTest extends AbstractNodeTest {
     public void testAddAnimation() throws Exception {
         testCreate();
 
-        assertThat(animationCount(), is(0));
+        assertThat(animationCount(), is(1));
 
         addAnimation();
-        assertThat(animationCount(), is(1));
-        assertThat(animation(0).getId(), is("anim"));
+        assertThat(animationCount(), is(2));
+        assertThat(animation(1).getId(), is("anim1"));
 
         undo();
-        assertThat(animationCount(), is(0));
+        assertThat(animationCount(), is(1));
         verifySelection();
 
         redo();
-        assertThat(animationCount(), is(1));
-        assertThat(animation(0).getId(), is("anim"));
+        assertThat(animationCount(), is(2));
+        assertThat(animation(1).getId(), is("anim1"));
         verifySelection();
     }
 
@@ -545,11 +545,9 @@ public class TileSetNodeTest extends AbstractNodeTest {
     public void testRemoveAnimation() throws Exception {
         testCreate();
 
-        AnimationNode animation = addAnimation();
-
         assertThat(animationCount(), is(1));
 
-        removeAnimation(animation);
+        removeAnimation(animation(0));
         assertThat(animationCount(), is(0));
 
         undo();

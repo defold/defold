@@ -32,6 +32,7 @@ public class CompileExceptionError extends Exception {
             IResource resource) {
         super(message, e);
         this.resource = resource;
+        this.returnCode = 5;
     }
 
     public int getReturnCode() {
