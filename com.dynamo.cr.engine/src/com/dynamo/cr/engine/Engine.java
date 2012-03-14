@@ -30,7 +30,7 @@ public class Engine extends Plugin {
             ext = ".exe";
         }
 
-        URL bundleUrl = getBundle().getEntry("/bin/" + platform + "/dmengine" + ext);
+        URL bundleUrl = getBundle().getEntry("/engine/" + platform + "/dmengine" + ext);
         URL fileUrl;
         try {
             fileUrl = FileLocator.toFileURL(bundleUrl);
