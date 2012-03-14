@@ -17,6 +17,14 @@ public class LoginInfo extends BaseResponse {
         return this.email;
     }-*/;
 
+    public final native String getFirstName() /*-{
+        return this.first_name;
+    }-*/;
+
+    public final native String getLastName() /*-{
+        return this.last_name;
+    }-*/;
+
 }
 
 

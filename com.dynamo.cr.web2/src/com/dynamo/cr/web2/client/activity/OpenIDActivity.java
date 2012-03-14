@@ -117,10 +117,7 @@ public class OpenIDActivity extends AbstractActivity implements
                     }
                     else if (status == 200) {
                         LoginInfo loginInfo = LoginInfo.getResponse(response.getText());
-                        // TODO: This is a bug. First name last name will be "" after registering.
-                        // First and last name is not part of LoginInfo.
-                        // It's part of TokenExchange that is used for "regular" login
-                        defold.loginOk("", "", loginInfo.getEmail(), loginInfo.getAuth(), loginInfo.getUserId());
+                        defold.loginOk(loginInfo.getFirstName(), loginInfo.getLastName(), loginInfo.getEmail(), loginInfo.getAuth(), loginInfo.getUserId());
                         clientFactory.getPlaceController().goTo(new ProductInfoPlace());
                     } else {
                         defold.showErrorMessage("Registration failed: " + response.getText());

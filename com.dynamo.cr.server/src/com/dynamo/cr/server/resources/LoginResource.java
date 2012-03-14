@@ -243,7 +243,9 @@ public class LoginResource extends BaseResource {
         LoginInfo.Builder loginInfoBuilder = LoginInfo.newBuilder()
             .setEmail(user.getEmail())
             .setUserId(user.getId())
-            .setAuthCookie(cookie);
+            .setAuthCookie(cookie)
+            .setFirstName(user.getFirstName())
+            .setLastName(user.getLastName());
 
         return Response
             .ok()
@@ -285,7 +287,9 @@ public class LoginResource extends BaseResource {
             LoginInfo.Builder loginInfoBuilder = LoginInfo.newBuilder()
                 .setEmail(email)
                 .setUserId(user.getId())
-                .setAuthCookie(cookie);
+                .setAuthCookie(cookie)
+                .setFirstName(user.getFirstName())
+                .setLastName(user.getLastName());
 
             return Response
                 .status(Status.OK)

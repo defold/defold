@@ -71,6 +71,8 @@ message LoginInfo {
     required string email = 1;
     required int64 user_id = 2;
     required string auth_cookie = 3;
+    optional string first_name = 4;
+    optional string last_name = 5;
 }
 
 message UserInfo {
