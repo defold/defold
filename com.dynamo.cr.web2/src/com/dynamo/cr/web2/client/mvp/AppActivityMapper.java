@@ -2,6 +2,7 @@ package com.dynamo.cr.web2.client.mvp;
 
 import com.dynamo.cr.web2.client.ClientFactory;
 import com.dynamo.cr.web2.client.activity.BlogActivity;
+import com.dynamo.cr.web2.client.activity.ContentActivity;
 import com.dynamo.cr.web2.client.activity.DashboardActivity;
 import com.dynamo.cr.web2.client.activity.DocumentationActivity;
 import com.dynamo.cr.web2.client.activity.GuideActivity;
@@ -14,6 +15,7 @@ import com.dynamo.cr.web2.client.activity.ReferenceActivity;
 import com.dynamo.cr.web2.client.activity.ScriptSampleActivity;
 import com.dynamo.cr.web2.client.activity.TutorialsActivity;
 import com.dynamo.cr.web2.client.place.BlogPlace;
+import com.dynamo.cr.web2.client.place.ContentPlace;
 import com.dynamo.cr.web2.client.place.DashboardPlace;
 import com.dynamo.cr.web2.client.place.DocumentationPlace;
 import com.dynamo.cr.web2.client.place.GuidePlace;
@@ -77,6 +79,8 @@ public class AppActivityMapper implements ActivityMapper {
             return new ReferenceActivity((ReferencePlace) place, clientFactory);
         else if (place instanceof GuidePlace)
             return new GuideActivity((GuidePlace) place, clientFactory);
+        else if (place instanceof ContentPlace)
+            return new ContentActivity((ContentPlace) place, clientFactory);
 
 		return null;
 	}

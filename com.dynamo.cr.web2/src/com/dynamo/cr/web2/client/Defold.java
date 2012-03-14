@@ -20,6 +20,7 @@ import com.google.gwt.activity.shared.ActivityManager;
 import com.google.gwt.activity.shared.ActivityMapper;
 import com.google.gwt.core.client.EntryPoint;
 import com.google.gwt.core.client.GWT;
+import com.google.gwt.dom.client.AnchorElement;
 import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.event.logical.shared.ValueChangeEvent;
 import com.google.gwt.http.client.Request;
@@ -58,6 +59,7 @@ public class Defold implements EntryPoint {
     @UiField SimplePanel panel;
     @UiField Anchor dashBoard;
     @UiField EditableLabel editableLabel;
+    @UiField AnchorElement email;
     private MessageNotification messageNotification;
 
     private EventBus eventBus;
@@ -235,6 +237,9 @@ public class Defold implements EntryPoint {
             this.url = url;
         }
         editableLabel.setValue(this.url);
+
+        email.setHref("mailto:info@defold.se");
+        email.setInnerText("info@defold.se");
 
         // RootPanel or RootLayoutPanel?
         RootPanel.get().add(outer);

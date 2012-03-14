@@ -1,6 +1,7 @@
 package com.dynamo.cr.web2.client;
 
 import com.dynamo.cr.web2.client.ui.BlogView;
+import com.dynamo.cr.web2.client.ui.ContentView;
 import com.dynamo.cr.web2.client.ui.DashboardView;
 import com.dynamo.cr.web2.client.ui.DocumentationView;
 import com.dynamo.cr.web2.client.ui.GuideView;
@@ -32,6 +33,7 @@ public class ClientFactoryImpl implements ClientFactory {
     private static final ScriptSampleView scriptSampleView = new ScriptSampleView();
     private static final ReferenceView referenceView = new ReferenceView();
     private static final GuideView guideView = new GuideView();
+    private static final ContentView contentView = new ContentView();
 
     private Defold defold;
 
@@ -113,6 +115,11 @@ public class ClientFactoryImpl implements ClientFactory {
     @Override
     public GuideView getGuideView() {
         return guideView;
+    }
+
+    @Override
+    public ContentView getContentView() {
+        return contentView;
     }
 
 }

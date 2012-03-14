@@ -1,6 +1,7 @@
 package com.dynamo.cr.web2.client;
 
 import com.dynamo.cr.web2.client.ui.BlogView;
+import com.dynamo.cr.web2.client.ui.ContentView;
 import com.dynamo.cr.web2.client.ui.DashboardView;
 import com.dynamo.cr.web2.client.ui.DocumentationView;
 import com.dynamo.cr.web2.client.ui.GuideView;
@@ -33,4 +34,5 @@ public interface ClientFactory
     ScriptSampleView getScriptSampleView();
     ReferenceView getReferenceView();
     GuideView getGuideView();
+    ContentView getContentView();
 }
