@@ -13,6 +13,8 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.dynamo.cr.server.queue.ConstantBackoff;
+import com.dynamo.cr.server.queue.ExponentialBackoff;
 import com.dynamo.cr.server.queue.JobQueue;
 import com.dynamo.cr.server.test.Util;
 import com.google.common.base.Function;
@@ -79,8 +81,11 @@ public class JobQueueTest {
     }
 
     static class AlwaysFail implements Function<byte[], Void> {
+        int count;
+
         @Override
         public Void apply(byte[] arg) {
+            ++count;
             throw new RuntimeException("Failed");
         }
     }
@@ -88,7 +93,7 @@ public class JobQueueTest {
     @Test
     public void testAdd() throws Exception {
         int n = 100;
-        JobQueue jobQueue = new JobQueue(factory, "add", 1000, 1);
+        JobQueue jobQueue = new JobQueue(factory, "add", new ConstantBackoff(1000), 1);
         for (int i = 0; i < n; ++i) {
             jobQueue.newJob(Integer.toString(i).getBytes());
         }
@@ -101,11 +106,31 @@ public class JobQueueTest {
         assertEquals((n - 1) * (n / 2), sum.sum);
     }
 
+    @Test(timeout = 20000)
+    public void testExponentialBackoff() throws Exception {
+        int n = 4;
+        ExponentialBackoff backoff = new ExponentialBackoff(2);
+        JobQueue jobQueue = new JobQueue(factory, "add", backoff, 10);
+        for (int i = 0; i < n; ++i) {
+            jobQueue.newJob(Integer.toString(i).getBytes());
+        }
+
+        AlwaysFail fail = new AlwaysFail();
+        long start = System.currentTimeMillis();
+        // Backoff delays (power 2 set above)
+        // sum(0 1 2 4) = 7
+        while (System.currentTimeMillis() - start < (7+1) * 1000) {
+            jobQueue.process(fail);
+            Thread.sleep(50);
+        }
+        assertEquals(4 * n, fail.count);
+    }
+
     @Test
     public void testMultiQueue() throws Exception {
         int n = 100;
-        JobQueue jobQueue1 = new JobQueue(factory, "add1", 1000, 1);
-        JobQueue jobQueue2 = new JobQueue(factory, "add2", 1000, 1);
+        JobQueue jobQueue1 = new JobQueue(factory, "add1", new ConstantBackoff(1000), 1);
+        JobQueue jobQueue2 = new JobQueue(factory, "add2", new ConstantBackoff(1000), 1);
         for (int i = 0; i < n; ++i) {
             jobQueue1.newJob(Integer.toString(i).getBytes());
             jobQueue2.newJob(Integer.toString(i * 10).getBytes());
@@ -123,7 +148,7 @@ public class JobQueueTest {
     @Test
     public void testRetry1() throws Exception {
         int n = 4;
-        JobQueue jobQueue = new JobQueue(factory, "add", 1000, 1);
+        JobQueue jobQueue = new JobQueue(factory, "add", new ConstantBackoff(1000), 1);
         for (int i = 0; i < n; ++i) {
             jobQueue.newJob(Integer.toString(i).getBytes());
         }
@@ -141,7 +166,7 @@ public class JobQueueTest {
     public void testRetry2() throws Exception {
         int n = 4;
         int minRetryDelay = 1;
-        JobQueue jobQueue = new JobQueue(factory, "add", minRetryDelay, 2);
+        JobQueue jobQueue = new JobQueue(factory, "add", new ConstantBackoff(minRetryDelay), 2);
         for (int i = 0; i < n; ++i) {
             jobQueue.newJob(Integer.toString(i).getBytes());
         }
@@ -164,7 +189,7 @@ public class JobQueueTest {
         int n = 4;
         int minRetryDelay = 1;
         int maxRetries = 3;
-        JobQueue jobQueue = new JobQueue(factory, "add", minRetryDelay,
+        JobQueue jobQueue = new JobQueue(factory, "add", new ConstantBackoff(minRetryDelay),
                 maxRetries);
         for (int i = 0; i < n; ++i) {
             jobQueue.newJob(Integer.toString(i).getBytes());
@@ -206,7 +231,7 @@ public class JobQueueTest {
         int n = 500;
         int producerDelay = 5;
         int consumerDelay = 10;
-        JobQueue jobQueue = new JobQueue(factory, "add", 1000, 1);
+        JobQueue jobQueue = new JobQueue(factory, "add", new ConstantBackoff(1000), 1);
         Producer producer = new Producer(jobQueue, n, producerDelay);
         producer.start();
 
@@ -226,7 +251,7 @@ public class JobQueueTest {
         int n = 500;
         int producerDelay = 10;
         int consumerDelay = 5;
-        JobQueue jobQueue = new JobQueue(factory, "add", 1000, 1);
+        JobQueue jobQueue = new JobQueue(factory, "add", new ConstantBackoff(1000), 1);
         Producer producer = new Producer(jobQueue, n, producerDelay);
         producer.start();
 

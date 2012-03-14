@@ -6,7 +6,6 @@ import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
 
 import org.joda.time.DateTime;
-import org.joda.time.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,19 +16,30 @@ public class JobQueue {
 
     private EntityManagerFactory factory;
     private String queue;
-    private int minRetryDelay;
+    private IBackoff backoff;
     private int maxRetries;
     private static Logger logger = LoggerFactory.getLogger(JobQueue.class);
 
+    /**
+     * Create a new job queue
+     * @param factory {@link EntityManagerFactory}
+     * @param queue queue name. must be unique, mail-queue
+     * @param backoff backoff function. {@link IBackoff}
+     * @param maxRetries maximum number of retries until the job is discarded
+     */
     public JobQueue(EntityManagerFactory factory,
                     String queue,
-                    int minRetryDelay, int maxRetries) {
+                    IBackoff backoff, int maxRetries) {
         this.factory = factory;
         this.queue = queue;
-        this.minRetryDelay = minRetryDelay;
+        this.backoff = backoff;
         this.maxRetries = maxRetries;
     }
 
+    /**
+     * Create a new job with data
+     * @param data job data
+     */
     public void newJob(byte[] data) {
         Job job = new Job(data, queue);
         EntityManager em = factory.createEntityManager();
@@ -43,6 +53,10 @@ public class JobQueue {
         }
     }
 
+    /**
+     * Process job queue.
+     * @param function job process function. Raise any exception to indicate failure.
+     */
     public void process(Function<byte[], Void> function) {
         EntityManager em = factory.createEntityManager();
         try {
@@ -52,15 +66,15 @@ public class JobQueue {
             for (Job job : list) {
 
                 DateTime now = new DateTime();
-                DateTime lastProcessed = new DateTime(job.getLastProcessed());
-                Duration duration = new Duration(lastProcessed, now);
-                if (duration.getStandardSeconds() >= minRetryDelay) {
+                DateTime earliest = new DateTime(job.getEarliest());
+
+                if (now.isAfter(earliest)) {
                     try {
                         // Process
                         function.apply(job.getData());
                         em.remove(job);
                     } catch (Throwable e) {
-                        job.setLastProcessed(now.toDate());
+                        job.setEarliest(now.plusSeconds(backoff.getDelay(job.getRetries())).toDate());
                         job.setRetries(job.getRetries() + 1);
                         if (job.getRetries() >= maxRetries) {
                             logger.warn("Removing job {} after {} retries", job.toString(), job.getRetries());
@@ -80,6 +94,10 @@ public class JobQueue {
         }
     }
 
+    /**
+     * Get current job queue length
+     * @return job queue length
+     */
     public int getQueueLength() {
         EntityManager em = factory.createEntityManager();
         try {

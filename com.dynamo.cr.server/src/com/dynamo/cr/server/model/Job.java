@@ -25,7 +25,7 @@ public class Job {
     private byte[] data;
 
     @Temporal(TemporalType.TIMESTAMP)
-    private Date lastProcessed = new Date(0);
+    private Date earliest = new Date();
 
     @Column(nullable = false)
     int retries = 0;
@@ -50,12 +50,12 @@ public class Job {
         return data;
     }
 
-    public Date getLastProcessed() {
-        return lastProcessed;
+    public Date getEarliest() {
+        return earliest;
     }
 
-    public void setLastProcessed(Date lastProcessed) {
-        this.lastProcessed = lastProcessed;
+    public void setEarliest(Date earliest) {
+        this.earliest = earliest;
     }
 
     public int getRetries() {
@@ -68,6 +68,6 @@ public class Job {
 
     @Override
     public String toString() {
-        return String.format("job (%d, %s)", getId(), getLastProcessed());
+        return String.format("job (%d, %s)", getId(), getEarliest());
     }
 }
