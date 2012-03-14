@@ -8,6 +8,7 @@
         <class>com.dynamo.cr.server.model.User</class>
         <class>com.dynamo.cr.server.model.NewUser</class>
         <class>com.dynamo.cr.server.model.Project</class>
+        <class>com.dynamo.cr.server.model.Job</class>
         <properties>
             <property name="javax.persistence.jdbc.driver" value="org.postgresql.Driver" />
             <property name="javax.persistence.jdbc.url" value="jdbc:postgresql://localhost/cr_production" />
