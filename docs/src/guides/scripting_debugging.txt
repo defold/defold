@@ -13,7 +13,7 @@ We have extended Lua with Defold-specific functions, check the link:#reference:[
 Auto-Completion
 ---------------
 
-To fill out function names, you can use *Ctrl+Space* (*Command+Space* for Mac users) to bring up a list of the functions matching what you are typing.
+To fill out function names, you can use *Ctrl+Space* to bring up a list of the functions matching what you are typing.
 
 Debugging
 ---------
@@ -36,3 +36,6 @@ When you have problems with spatial calculations, like movement and physics, you
 ----
 msg.post("@render:", "draw_line", {start_point = my_start, end_point = my_end, color = my_color})
 ----
+
+Whenever the need arises we will add tool-support for debugging the scripts with breakpoints and all those fancy things too.
+Do you want it? Then tell us using the feedback-link to the left. :)

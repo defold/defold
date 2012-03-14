@@ -58,7 +58,8 @@ def proto_file(self, node):
 
 def build(bld):
     dirs = ['src/business_plan', 'src/guides', 'src/presentation',
-            'src/demos/docs', 'src/tutorials/docs', 'src/blog']
+            'src/demos/docs', 'src/tutorials/docs', 'src/blog',
+            'src/content']
     tsk = bld.new_task_gen(install_path='${DYNAMO_HOME}/share/doc')
     tsk.find_sources_in_dirs(dirs)
 
