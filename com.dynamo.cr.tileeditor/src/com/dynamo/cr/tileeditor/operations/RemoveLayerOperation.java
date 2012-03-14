@@ -21,8 +21,13 @@ public class RemoveLayerOperation extends AbstractOperation {
         this.model = model;
         this.layer = model.getSelectedLayer();
         int index = model.getLayers().indexOf(this.layer);
-        if (index == model.getLayers().size()-1) {
-            this.prevSelectedLayer = model.getLayers().get(index - 1);
+        int count = model.getLayers().size();
+        if (index == count-1) {
+            if (index > 0) {
+                this.prevSelectedLayer = model.getLayers().get(index - 1);
+            } else {
+                this.prevSelectedLayer = null;
+            }
         } else {
             this.prevSelectedLayer = model.getLayers().get(index + 1);
         }
