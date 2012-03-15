@@ -260,6 +260,23 @@ public class Server implements ServerMBean {
             throw new RuntimeException("Invalid version of git or not found");
         }
 
+        if (configuration.getDataServerEnabled() != 0) {
+            initDataServer();
+        }
+
+        MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+        ObjectName name;
+        try {
+            name = new ObjectName("com.dynamo:type=Server");
+            if (!mbs.isRegistered(name)) {
+                mbs.registerMBean(this, name);
+            }
+        } catch (Throwable e) {
+            logger.error(e.getMessage(), e);
+        }
+    }
+
+    public void initDataServer() throws IOException {
         jettyServer = new org.eclipse.jetty.server.Server();
 
         SocketConnector connector = new SocketConnector();
@@ -369,17 +386,6 @@ public class Server implements ServerMBean {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-
-        MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
-        ObjectName name;
-        try {
-            name = new ObjectName("com.dynamo:type=Server");
-            if (!mbs.isRegistered(name)) {
-                mbs.registerMBean(this, name);
-            }
-        } catch (Throwable e) {
-            logger.error(e.getMessage(), e);
-        }
     }
 
     public SecureRandom getSecureRandom() {
@@ -470,10 +476,12 @@ public class Server implements ServerMBean {
         }
 
         httpServer.stop();
-        try {
-            jettyServer.stop();
-        } catch (Exception e) {
-            logger.error(e.getMessage(), e);
+        if (jettyServer != null) {
+            try {
+                jettyServer.stop();
+            } catch (Exception e) {
+                logger.error(e.getMessage(), e);
+            }
         }
         emf.close();
     }

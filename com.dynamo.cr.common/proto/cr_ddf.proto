@@ -41,5 +41,6 @@ message Configuration
     optional string repository_group = 15;
     optional string builtins_directory = 16;
     required string hostname = 17;
+    optional int32 data_server_enabled = 18 [default=1];
 }
 
