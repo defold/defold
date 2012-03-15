@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
+	<classpathentry exported="true" kind="lib" path="ext/joda-time-2.1.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/jersey-servlet-1.11.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/jersey-grizzly2-servlet-1.11.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/grizzly-http-servlet-2.1.2.jar"/>
