@@ -66,7 +66,8 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
     private final ILogger logger;
     private final OutlineLabelProvider labelProvider;
 
-    private boolean fireSelections = true;
+    // update viewer with selections
+    private boolean updateSelection = true;
 
     @Inject
     public SceneOutlinePage(ISceneView.IPresenter presenter, ISceneView.IPresenterContext presenterContext, UndoActionHandler undoHandler, RedoActionHandler redoHandler, ILogger logger) {
@@ -108,7 +109,6 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
 
     @Override
     public void refresh() {
-        this.fireSelections = false;
         TreeViewer viewer = getTreeViewer();
         if (viewer != null && !viewer.getTree().isDisposed()) {
             viewer.refresh(true);
@@ -120,7 +120,11 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
                 }
             });
         }
-        this.fireSelections = true;
+    }
+
+    @Override
+    public void setUpdateSelection(boolean updateSelection) {
+        this.updateSelection = updateSelection;
     }
 
     private static class RootItem {
@@ -333,12 +337,19 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
 
     @Override
     public void selectionChanged(IWorkbenchPart part, ISelection selection) {
-        if (this.fireSelections) {
+        if (this.updateSelection) {
             if (part instanceof SceneEditor) {
-                TreeViewer viewer = getTreeViewer();
-                viewer.setSelection(selection, true);
+                setSelection(selection);
             }
         }
     }
 
+    @Override
+    public void setSelection(ISelection selection) {
+        if (this.updateSelection) {
+            this.updateSelection = false;
+            super.setSelection(selection);
+            this.updateSelection = true;
+        }
+    }
 }

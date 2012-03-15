@@ -72,4 +72,16 @@ public class TileSetSceneView implements ISceneView {
     public void getCameraFocusPoint(Point3d focusPoint) {
         throw new RuntimeException("Not implemented");
     }
+
+    @Override
+    public void startBoxSelect() {
+        // TODO Auto-generated method stub
+
+    }
+
+    @Override
+    public void endBoxSelect() {
+        // TODO Auto-generated method stub
+
+    }
 }

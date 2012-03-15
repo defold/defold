@@ -27,6 +27,9 @@ public class SceneRenderViewProvider implements IRenderViewProvider, ISelectionP
     // SelectionProvider
     private final List<ISelectionChangedListener> selectionListeners = new ArrayList<ISelectionChangedListener>();
     private IStructuredSelection selection = new StructuredSelection();
+    // if the selection change originated from this provider or not
+    // used to avoid feedback loops in the selection system
+    private boolean firedSelection = false;
 
     @Inject
     public SceneRenderViewProvider(IRenderView renderView) {
@@ -104,14 +107,18 @@ public class SceneRenderViewProvider implements IRenderViewProvider, ISelectionP
 
     @Override
     public void setSelection(ISelection selection) {
-        if (selection instanceof IStructuredSelection) {
-            this.selection = (IStructuredSelection)selection;
-            SelectionChangedEvent event = new SelectionChangedEvent(this, this.selection);
-            for (ISelectionChangedListener listener : this.selectionListeners) {
-                listener.selectionChanged(event);
+        if (!this.firedSelection) {
+            this.firedSelection = true;
+            if (selection instanceof IStructuredSelection) {
+                this.selection = (IStructuredSelection)selection;
+                SelectionChangedEvent event = new SelectionChangedEvent(this, this.selection);
+                for (ISelectionChangedListener listener : this.selectionListeners) {
+                    listener.selectionChanged(event);
+                }
             }
+            renderView.refresh();
+            this.firedSelection = false;
         }
-        renderView.refresh();
     }
 
 }

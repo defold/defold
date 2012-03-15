@@ -43,7 +43,6 @@ public class SceneView implements ISceneView {
         this.propertySheetPage.refresh();
         this.renderView.refresh();
         this.sceneRenderViewProvider.setSelection(selection);
-        this.outline.setSelection(selection);
         this.editor.setDirty(dirty);
     }
 
@@ -108,4 +107,15 @@ public class SceneView implements ISceneView {
         Vector4d p = this.editor.getCameraController().getFocusPoint();
         focusPoint.set(p.x, p.y, p.z);
     }
+
+    @Override
+    public void startBoxSelect() {
+//        this.outline.setUpdateSelection(false);
+    }
+
+    @Override
+    public void endBoxSelect() {
+//        this.outline.setUpdateSelection(true);
+    }
+
 }

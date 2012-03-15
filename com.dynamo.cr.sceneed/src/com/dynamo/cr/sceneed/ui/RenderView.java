@@ -43,6 +43,7 @@ import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
 import com.dynamo.cr.sceneed.core.IRenderView;
 import com.dynamo.cr.sceneed.core.IRenderViewProvider;
+import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.Manipulator;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.RenderContext;
@@ -59,7 +60,8 @@ IRenderView {
 
     private final INodeTypeRegistry nodeTypeRegistry;
     private final ILogger logger;
-    private ISelectionService selectionService;
+    private final ISelectionService selectionService;
+    private final ISceneView sceneView;
 
     private GLCanvas canvas;
     private GLContext context;
@@ -80,10 +82,11 @@ IRenderView {
     private SelectionBoxNode selectionBoxNode;
 
     @Inject
-    public RenderView(INodeTypeRegistry manager, ILogger logger, ISelectionService selectionService) {
+    public RenderView(INodeTypeRegistry manager, ILogger logger, ISelectionService selectionService, ISceneView sceneView) {
         this.nodeTypeRegistry = manager;
         this.logger = logger;
         this.selectionService = selectionService;
+        this.sceneView = sceneView;
         this.selectionBoxNode = new SelectionBoxNode();
         this.selectionBoxRenderViewProvider = new SelectionBoxRenderViewProvider(this, this.selectionBoxNode);
         addRenderProvider(this.selectionBoxRenderViewProvider);
@@ -275,6 +278,7 @@ IRenderView {
             if (nodes.isEmpty()) {
                 this.selectionBoxNode.setVisible(true);
                 this.selectionBoxNode.set(event.x, event.y);
+                this.sceneView.startBoxSelect();
             } else {
                 boolean macModifiers = (event.stateMask & (SWT.MOD1 | SWT.SHIFT)) != 0;
                 boolean othersModifiers = (event.stateMask & SWT.CTRL) != 0;
@@ -308,6 +312,7 @@ IRenderView {
         if (!CameraController.hasCameraControlModifiers(e)) {
             if (this.selectionBoxNode.isVisible()) {
                 this.selectionBoxNode.setCurrent(e.x, e.y);
+                this.sceneView.endBoxSelect();
                 boxSelect();
                 this.selectionBoxNode.setVisible(false);
             }

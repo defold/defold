@@ -65,4 +65,7 @@ public interface ISceneView {
     String selectFile(String title, String[] extensions);
 
     void getCameraFocusPoint(Point3d focusPoint);
+
+    void startBoxSelect();
+    void endBoxSelect();
 }
