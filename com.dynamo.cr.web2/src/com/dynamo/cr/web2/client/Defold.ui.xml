@@ -10,6 +10,22 @@
 			overflow: auto;
 			margin-top: 32px;
 		}
+		
+        #loginBar {
+            width: 100%;
+            position: relative;
+            height: 15px;
+        }
+        #login {
+            top: 0px;
+            right: 0px;
+            position: absolute;
+        }
+        #host {
+            top: 0px;
+            left: 0px;
+            position: absolute;
+        }
 
 		.logoLink {
 	       float: left;
@@ -19,6 +35,10 @@
 
     <g:HTMLPanel>
         <g:HTMLPanel styleName="{style.dock}">
+            <div id="loginBar">
+                <div id="debugHost"><p2:EditableLabel value="http://example.com" ui:field="editableLabel" /></div>
+                <div id="login"><g:Anchor ui:field="logout">Logout</g:Anchor></div>
+            </div>
             <div id="topBar">
                 <g:Hyperlink targetHistoryToken="/"  styleName="{style.logoLink}"><img src="/images/3dlogo.png"/></g:Hyperlink>
                 <ul class="nav nav1" style="margin-top: 16px;">
@@ -46,7 +66,6 @@
                 <h3>About</h3>
                 <ul>
                      <li><a href="#content:story">Story</a></li>
-                     <li><p2:EditableLabel value="http://example.com" ui:field="editableLabel" /></li>
                  </ul>
                  </td>
 
@@ -70,11 +89,6 @@
            </table>
 
           </div>
-          <div style="margin-top: 120px; margin-right: 16px;">
-            <span style="float: right">
-                <g:Anchor ui:field="logout">Logout</g:Anchor>
-            </span>
-        </div>
         </div>
     </g:HTMLPanel>
 

@@ -39,6 +39,7 @@ import com.google.gwt.uibinder.client.UiHandler;
 import com.google.gwt.user.client.Cookies;
 import com.google.gwt.user.client.DOM;
 import com.google.gwt.user.client.Element;
+import com.google.gwt.user.client.Window;
 import com.google.gwt.user.client.ui.Anchor;
 import com.google.gwt.user.client.ui.HTMLPanel;
 import com.google.gwt.user.client.ui.RootPanel;
@@ -232,11 +233,15 @@ public class Defold implements EntryPoint {
         PlaceHistoryHandler historyHandler = new PlaceHistoryHandler(historyMapper);
         historyHandler.register(placeController, eventBus, defaultPlace);
 
-        String url = Cookies.getCookie("url");
-        if (url != null) {
-            this.url = url;
+        if (Window.Location.getHostName().equals("127.0.0.1")) {
+            String url = Cookies.getCookie("url");
+            if (url != null) {
+                this.url = url;
+            }
+            editableLabel.setValue(this.url);
+        } else {
+            editableLabel.setVisible(false);
         }
-        editableLabel.setValue(this.url);
 
         email.setHref("mailto:info@defold.se");
         email.setInnerText("info@defold.se");
