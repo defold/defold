@@ -52,7 +52,8 @@ public class DefaultResource extends AbstractResource<DefaultFileSystem> {
 
     @Override
     public boolean exists() {
-        return new File(getAbsPath()).exists();
+        File file = new File(getAbsPath());
+        return file.exists() && file.isFile();
     }
 
     @Override

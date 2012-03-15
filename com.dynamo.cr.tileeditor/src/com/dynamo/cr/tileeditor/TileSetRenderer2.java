@@ -31,6 +31,7 @@ import org.eclipse.swt.widgets.Listener;
 import org.eclipse.ui.services.IDisposable;
 
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
+import com.dynamo.cr.sceneed.ui.util.TextureHandle;
 import com.dynamo.cr.tileeditor.scene.AnimationNode;
 import com.dynamo.cr.tileeditor.scene.CollisionGroupNode;
 import com.dynamo.cr.tileeditor.scene.TileSetNode;
@@ -80,12 +81,13 @@ KeyListener {
     private FloatBuffer hullVertexBuffer;
     private FloatBuffer hullFrameVertexBuffer;
     private BufferedImage tileSetImage;
-    private Texture tileSetTexture;
+    private TextureHandle tileSetTexture;
     private Texture backgroundTexture;
     private Texture transparentTexture;
 
     public TileSetRenderer2() {
         this.mac = System.getProperty("os.name").equals("Mac OS X");
+        this.tileSetTexture = new TextureHandle();
     }
 
     public void setPresenter(TileSetNodePresenter presenter, IPresenterContext presenterContext) {
@@ -166,10 +168,8 @@ KeyListener {
     private void setupRenderData() {
         BufferedImage loadedImage = this.tileSet.getLoadedImage();
         if (loadedImage != null && !loadedImage.equals(this.tileSetImage)) {
-            this.tileSetTexture = loadTexture(loadedImage, this.tileSetTexture);
-            if (this.tileSetTexture != null) {
-                this.tileSetImage = loadedImage;
-            }
+            this.tileSetImage = loadedImage;
+            this.tileSetTexture.setImage(loadedImage);
         }
 
         float[] hullVertices = this.tileSet.getConvexHullPoints();
@@ -647,13 +647,14 @@ KeyListener {
         gl.glDepthMask(true);
         gl.glEnable(GL.GL_BLEND);
         gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
-        if (this.tileSetTexture != null) {
-            this.tileSetTexture.bind();
-            this.tileSetTexture.setTexParameteri(GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST);
-            this.tileSetTexture.setTexParameteri(GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST);
-            this.tileSetTexture.setTexParameteri(GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP);
-            this.tileSetTexture.setTexParameteri(GL.GL_TEXTURE_WRAP_T, GL.GL_CLAMP);
-            this.tileSetTexture.enable();
+        Texture texture = this.tileSetTexture.getTexture();
+        if (texture != null) {
+            texture.bind();
+            texture.setTexParameteri(GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST);
+            texture.setTexParameteri(GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST);
+            texture.setTexParameteri(GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP);
+            texture.setTexParameteri(GL.GL_TEXTURE_WRAP_T, GL.GL_CLAMP);
+            texture.enable();
         } else {
             this.transparentTexture.bind();
             this.transparentTexture.enable();
@@ -663,8 +664,8 @@ KeyListener {
 
         gl.glDrawArrays(GL.GL_QUADS, 0, vertexCount);
 
-        if (this.tileSetTexture != null) {
-            this.tileSetTexture.disable();
+        if (texture != null) {
+            texture.disable();
         } else {
             this.transparentTexture.disable();
         }

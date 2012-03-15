@@ -27,6 +27,7 @@ import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.Listener;
 import org.eclipse.ui.services.IDisposable;
 
+import com.dynamo.cr.sceneed.ui.util.TextureHandle;
 import com.dynamo.cr.tileeditor.core.TileSetPresenter;
 import com.dynamo.tile.TileSetUtil;
 import com.sun.opengl.util.BufferUtil;
@@ -66,7 +67,7 @@ KeyListener {
 
     // Render data
     private BufferedImage image;
-    private Texture texture;
+    private TextureHandle texture;
     private BufferedImage collision;
     private int tileWidth;
     private int tileHeight;
@@ -84,6 +85,7 @@ KeyListener {
 
     public TileSetRenderer(TileSetPresenter presenter) {
         this.presenter = presenter;
+        this.texture = new TextureHandle();
 
         this.mac = System.getProperty("os.name").equals("Mac OS X");
     }
@@ -119,7 +121,7 @@ KeyListener {
 
         // if the image is already set, set the corresponding texture
         if (this.image != null) {
-            this.texture = TextureIO.newTexture(image, false);
+            this.texture.setImage(this.image);
         }
 
         this.context.release();
@@ -151,20 +153,7 @@ KeyListener {
 
     public void setImage(BufferedImage image) {
         if (this.image != image) {
-            if (this.context != null) {
-                this.context.makeCurrent();
-                if (this.texture != null) {
-                    if (image != null) {
-                        this.texture.updateImage(TextureIO.newTextureData(image, false));
-                    } else {
-                        this.texture.dispose();
-                        this.texture = null;
-                    }
-                } else {
-                    this.texture = TextureIO.newTexture(image, false);
-                }
-                this.context.release();
-            }
+            this.texture.setImage(image);
             if (this.image == null) {
                 this.resetView = true;
             }
@@ -615,13 +604,14 @@ KeyListener {
         gl.glDepthMask(true);
         gl.glEnable(GL.GL_BLEND);
         gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
-        if (this.texture != null) {
-            this.texture.bind();
-            this.texture.setTexParameteri(GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST);
-            this.texture.setTexParameteri(GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST);
-            this.texture.setTexParameteri(GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP);
-            this.texture.setTexParameteri(GL.GL_TEXTURE_WRAP_T, GL.GL_CLAMP);
-            this.texture.enable();
+        Texture texture = this.texture.getTexture();
+        if (texture != null) {
+            texture.bind();
+            texture.setTexParameteri(GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST);
+            texture.setTexParameteri(GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST);
+            texture.setTexParameteri(GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP);
+            texture.setTexParameteri(GL.GL_TEXTURE_WRAP_T, GL.GL_CLAMP);
+            texture.enable();
         } else {
             this.transparentTexture.bind();
             this.transparentTexture.enable();
@@ -631,8 +621,8 @@ KeyListener {
 
         gl.glDrawArrays(GL.GL_QUADS, 0, vertexCount);
 
-        if (this.texture != null) {
-            this.texture.disable();
+        if (texture != null) {
+            texture.disable();
         } else {
             this.transparentTexture.disable();
         }

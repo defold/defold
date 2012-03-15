@@ -1,21 +1,44 @@
 package com.dynamo.bob.pipeline;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStreamReader;
 
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.IResource;
 import com.dynamo.bob.Task;
+import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.tile.TileSetc;
+import com.dynamo.tile.proto.Tile.TileSet;
+import com.google.protobuf.TextFormat;
 
 @BuilderParams(name = "TileSet", inExts = ".tileset", outExt = ".tilesetc")
 public class TileSetBuilder extends Builder<Void>  {
 
     @Override
-    public Task<Void> create(IResource input) throws IOException {
-        return defaultTask(input);
+    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
+        TileSet.Builder builder = TileSet.newBuilder();
+        TextFormat.merge(new InputStreamReader(new ByteArrayInputStream(input.getContent())), builder);
+        TileSet tileSet = builder.build();
+        String imgPath = tileSet.getCollision();
+        IResource image = this.project.getResource(imgPath);
+        if (!imgPath.isEmpty() && !image.exists()) {
+            String msg = String.format("%s:0: error: is missing dependent resource file '%s'", input.getPath(), tileSet.getCollision());
+            throw new CompileExceptionError(msg, new FileNotFoundException(), input);
+        } else {
+            TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
+                    .setName(params.name())
+                    .addInput(input)
+                    .addOutput(input.changeExt(params.outExt()));
+            if (image.exists()) {
+                taskBuilder.addInput(image);
+            }
+            return taskBuilder.build();
+        }
     }
 
     static File locateGameProjectDirectory(String start) throws IOException {

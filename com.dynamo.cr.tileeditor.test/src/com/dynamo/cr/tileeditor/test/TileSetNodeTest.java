@@ -7,9 +7,11 @@ import static org.hamcrest.CoreMatchers.nullValue;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.when;
 
 import java.awt.Color;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -327,14 +329,18 @@ public class TileSetNodeTest extends AbstractNodeTest {
         setProperty("image", tileSetPath);
         setProperty("collision", tileSetPath);
         List<ConvexHull> preHulls = this.node.getConvexHulls();
+        BufferedImage preImage = this.node.getLoadedImage();
 
         // Simulate reload
         IFile tileSetFile = copyFile(tileSetHalfPath, tileSetPath);
-        this.node.handleReload(tileSetFile);
+        boolean result = this.node.handleReload(tileSetFile);
+        assertTrue(result);
 
         List<ConvexHull> postHulls = this.node.getConvexHulls();
+        BufferedImage postImage = this.node.getLoadedImage();
 
         assertNotSame(preHulls.size(), postHulls.size());
+        assertNotSame(preImage.getHeight(), postImage.getHeight());
     }
 
     /**
