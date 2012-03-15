@@ -1,6 +1,8 @@
 package com.dynamo.cr.server.resources.test;
 
+import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 import java.io.File;
@@ -39,6 +41,7 @@ import com.dynamo.server.dgit.IGit;
 import com.google.common.io.Files;
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientResponse;
+import com.sun.jersey.api.client.UniformInterfaceException;
 import com.sun.jersey.api.client.WebResource;
 import com.sun.jersey.api.client.config.ClientConfig;
 import com.sun.jersey.api.client.config.DefaultClientConfig;
@@ -416,6 +419,35 @@ public class ProjectsResourceTest {
         assertTrue(gitObjectDir.exists());
 
         em.close();
+    }
+
+    @Test
+    public void newProjectCap() throws Exception {
+        for (int i = 0; i < 5; ++i) {
+            NewProject newProject = NewProject.newBuilder()
+                    .setName("test project" + i)
+                    .setDescription("New test project").build();
+            joeProjectsWebResource
+                    .path(joeUser.getId().toString())
+                    .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
+                    .type(ProtobufProviders.APPLICATION_XPROTOBUF)
+                    .post(ProjectInfo.class, newProject);
+        }
+        // Should fail
+        NewProject newProject = NewProject.newBuilder()
+                .setName("test project")
+                .setDescription("New test project").build();
+        try {
+            joeProjectsWebResource
+                    .path(joeUser.getId().toString())
+                    .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
+                    .type(ProtobufProviders.APPLICATION_XPROTOBUF)
+                    .post(ProjectInfo.class, newProject);
+            assertTrue(false);
+        } catch (UniformInterfaceException e) {
+            assertThat(e.getResponse().getStatus(), is(400));
+            return;
+        }
     }
 
     private static ProjectInfo createTemplateProject(TestUser testUser, String templateId) {
