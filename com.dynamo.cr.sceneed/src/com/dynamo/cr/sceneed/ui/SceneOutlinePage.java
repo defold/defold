@@ -15,6 +15,7 @@ import org.eclipse.jface.viewers.DecorationContext;
 import org.eclipse.jface.viewers.DelegatingStyledCellLabelProvider.IStyledLabelProvider;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.ITreeContentProvider;
+import org.eclipse.jface.viewers.SelectionChangedEvent;
 import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.jface.viewers.StyledString;
 import org.eclipse.jface.viewers.TreeViewer;
@@ -66,8 +67,8 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
     private final ILogger logger;
     private final OutlineLabelProvider labelProvider;
 
-    // update viewer with selections
-    private boolean updateSelection = true;
+    // Used to stop selection being propagated when set programmatically
+    private boolean fireSelections;
 
     @Inject
     public SceneOutlinePage(ISceneView.IPresenter presenter, ISceneView.IPresenterContext presenterContext, UndoActionHandler undoHandler, RedoActionHandler redoHandler, ILogger logger) {
@@ -78,6 +79,7 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
         this.root = new RootItem();
         this.logger = logger;
         this.labelProvider = new OutlineLabelProvider();
+        this.fireSelections = true;
     }
 
     @Override
@@ -98,12 +100,14 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
     public void setInput(Node node) {
         TreeViewer viewer = getTreeViewer();
         if (viewer != null) {
+            this.fireSelections = false;
             this.root.node = node;
             viewer.setInput(this.root);
             if (node != null) {
                 viewer.setSelection(new StructuredSelection(node));
             }
             viewer.expandToLevel(2);
+            this.fireSelections = true;
         }
     }
 
@@ -111,7 +115,9 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
     public void refresh() {
         TreeViewer viewer = getTreeViewer();
         if (viewer != null && !viewer.getTree().isDisposed()) {
+            this.fireSelections = false;
             viewer.refresh(true);
+            this.fireSelections = true;
             Display.getDefault().asyncExec(new Runnable() {
                 @Override
                 public void run() {
@@ -120,11 +126,6 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
                 }
             });
         }
-    }
-
-    @Override
-    public void setUpdateSelection(boolean updateSelection) {
-        this.updateSelection = updateSelection;
     }
 
     private static class RootItem {
@@ -299,8 +300,6 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
                 .getService(IContextService.class);
         contextService.activateContext(Activator.SCENEED_CONTEXT_ID);
 
-        getSite().getPage().addSelectionListener(this);
-
         viewer.getTree().addMouseListener(new MouseAdapter() {
             @Override
             public void mouseDoubleClick(MouseEvent event) {
@@ -337,19 +336,21 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
 
     @Override
     public void selectionChanged(IWorkbenchPart part, ISelection selection) {
-        if (this.updateSelection) {
-            if (part instanceof SceneEditor) {
-                setSelection(selection);
-            }
-        }
+        // Dodge any selection changed coming from the part, only respond to "manual" setSelection
+        // setSelection is called from presenter#refresh > view#refresh > this#setSelection
     }
 
     @Override
     public void setSelection(ISelection selection) {
-        if (this.updateSelection) {
-            this.updateSelection = false;
-            super.setSelection(selection);
-            this.updateSelection = true;
+        this.fireSelections = false;
+        super.setSelection(selection);
+        this.fireSelections = true;
+    }
+
+    @Override
+    public void selectionChanged(SelectionChangedEvent event) {
+        if (this.fireSelections) {
+            super.selectionChanged(event);
         }
     }
 }

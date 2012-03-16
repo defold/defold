@@ -57,7 +57,7 @@ public interface ISceneView {
 
     void setRoot(Node root);
     void refresh(IStructuredSelection selection, boolean dirty);
-    void refreshRenderView(IStructuredSelection selection);
+    void refreshRenderView();
     void asyncExec(Runnable runnable);
 
     String selectFromList(String title, String message, String... lst);
@@ -66,6 +66,4 @@ public interface ISceneView {
 
     void getCameraFocusPoint(Point3d focusPoint);
 
-    void startBoxSelect();
-    void endBoxSelect();
 }

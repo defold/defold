@@ -83,9 +83,9 @@ public class FormPropertySheetPage implements IFormPropertySheetPage {
         }
 
         if (selection instanceof IStructuredSelection) {
-            sourcePart = part;
-            viewer.setInput(((IStructuredSelection) selection).toArray());
+            this.sourcePart = part;
         }
+        setSelection(selection);
 
         if (sourcePart != null) {
             sourcePart.getSite().getPage().addPartListener(partListener);
@@ -96,6 +96,13 @@ public class FormPropertySheetPage implements IFormPropertySheetPage {
     public void refresh() {
         if (viewer != null && !this.viewer.getControl().isDisposed()) {
             viewer.refresh();
+        }
+    }
+
+    @Override
+    public void setSelection(ISelection selection) {
+        if (this.viewer != null && selection instanceof IStructuredSelection) {
+            viewer.setInput(((IStructuredSelection) selection).toArray());
         }
     }
 

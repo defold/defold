@@ -10,6 +10,4 @@ public interface ISceneOutlinePage extends IContentOutlinePage {
 
     public void refresh();
 
-    public void setUpdateSelection(boolean updateSelection);
-
 }

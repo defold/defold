@@ -151,20 +151,6 @@ KeyListener {
         }
     }
 
-    private static Texture loadTexture(BufferedImage image, Texture texture) {
-        if (texture != null) {
-            if (image != null) {
-                texture.updateImage(TextureIO.newTextureData(image, false));
-            } else {
-                texture.dispose();
-                texture = null;
-            }
-        } else {
-            texture = TextureIO.newTexture(image, false);
-        }
-        return texture;
-    }
-
     private void setupRenderData() {
         BufferedImage loadedImage = this.tileSet.getLoadedImage();
         if (loadedImage != null && !loadedImage.equals(this.tileSetImage)) {
@@ -434,7 +420,7 @@ KeyListener {
         }
     }
 
-    private void requestPaint() {
+    public void requestPaint() {
         if (this.paintRequested || this.canvas == null)
             return;
         this.paintRequested = true;

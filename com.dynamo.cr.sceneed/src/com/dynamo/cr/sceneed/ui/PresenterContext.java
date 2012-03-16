@@ -39,7 +39,7 @@ com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext {
 
     @Override
     public void refreshRenderView() {
-        this.view.refreshRenderView(this.model.getSelection());
+        this.view.refreshRenderView();
     }
 
     @Override

@@ -9,6 +9,7 @@ import org.eclipse.core.resources.IResource;
 import org.eclipse.jface.dialogs.Dialog;
 import org.eclipse.jface.viewers.ArrayContentProvider;
 import org.eclipse.jface.viewers.ILabelProvider;
+import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.LabelProvider;
 import org.eclipse.swt.widgets.Display;
@@ -31,6 +32,10 @@ public class SceneView implements ISceneView {
     @Inject private IContainer contentRoot;
     @Inject private SceneRenderViewProvider sceneRenderViewProvider;
 
+    private boolean refreshRequested;
+    private ISelection lastSelection;
+    private boolean lastDirty;
+
     @Override
     public void setRoot(Node root) {
         this.outline.setInput(root);
@@ -39,15 +44,33 @@ public class SceneView implements ISceneView {
 
     @Override
     public void refresh(IStructuredSelection selection, boolean dirty) {
-        this.outline.refresh();
-        this.propertySheetPage.refresh();
-        this.renderView.refresh();
-        this.sceneRenderViewProvider.setSelection(selection);
-        this.editor.setDirty(dirty);
+        this.lastSelection = selection;
+        this.lastDirty = dirty;
+        sceneRenderViewProvider.setSelection(selection);
+        renderView.refresh();
+
+        // The rest is expensive, so force a low frequency
+        if (this.refreshRequested) {
+            return;
+        }
+        this.refreshRequested = true;
+
+        Display.getDefault().timerExec(100, new Runnable() {
+
+            @Override
+            public void run() {
+                refreshRequested = false;
+                outline.refresh();
+                outline.setSelection(lastSelection);
+                propertySheetPage.setSelection(lastSelection);
+                propertySheetPage.refresh();
+                editor.setDirty(lastDirty);
+            }
+        });
     }
 
     @Override
-    public void refreshRenderView(IStructuredSelection selection) {
+    public void refreshRenderView() {
         this.renderView.refresh();
     }
 
@@ -106,16 +129,6 @@ public class SceneView implements ISceneView {
     public void getCameraFocusPoint(Point3d focusPoint) {
         Vector4d p = this.editor.getCameraController().getFocusPoint();
         focusPoint.set(p.x, p.y, p.z);
-    }
-
-    @Override
-    public void startBoxSelect() {
-//        this.outline.setUpdateSelection(false);
-    }
-
-    @Override
-    public void endBoxSelect() {
-//        this.outline.setUpdateSelection(true);
     }
 
 }
