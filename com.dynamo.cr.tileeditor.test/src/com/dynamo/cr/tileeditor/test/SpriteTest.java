@@ -109,7 +109,7 @@ public class SpriteTest extends AbstractNodeTest {
 
         registerFile("/test.test", "");
         setProperty("tileSet", "/test.test");
-        assertPropertyStatus("tileSet", IStatus.ERROR, Messages.SpriteNode_tileSet_INVALID_TYPE);
+        assertPropertyStatus("tileSet", IStatus.ERROR, Messages.SpriteNode_tileSet_CONTENT_ERROR);
 
         setProperty("defaultAnimation", "");
         assertPropertyStatus("defaultAnimation", IStatus.INFO, Messages.SpriteNode_defaultAnimation_EMPTY);
