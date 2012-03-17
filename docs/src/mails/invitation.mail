@@ -1,0 +1,29 @@
+Hi,
+
+${inviter} wants you to start using the Defold alpha!
+Defold is a service for making interactive applications and is currently specialized on 2D games.
+Our key goal with Defold is to enable anyone to make games in a simple, yet professional manner.
+We know that few people can make games by themselves, which is why collaboration is fundamental in Defold.
+
+You should get started by creating an account here:
+${registration_link}
+
+When you create a project, you can invite other people to join your project.
+We highly recommend you doing so to experience how collaboration works in Defold.
+
+Help
+After you have registered, you are taken to the dashboard which contains information on how to get started.
+There are lots of other useful information on the documentation page: ${documentation_link}
+If you still feel left in uncertainty, you should head to our forum: ${forum_link}
+If you want to know what we are working on as it happens, you should follow us on twitter: ${twitter_account}
+
+Alpha
+Defold is currently in an alpha stage, which means that the service is not yet complete and has many knots which still need to be untied.
+This is why it's currently 100% free to use, and will be for an additional ${free_alpha_months} when you register during the alpha stage.
+Later on we will charge a monthly fee of ${beta_rate} to use the service.
+When that time comes you will be notified and have the option to either continue or quit using the service.
+As we are in alpha stage, we are in dire need of your feedback and hope that you will let us know of any arising questions.
+
+We would be really happy to have you onboard and hope Defold can be as useful to you as we want it to!
+
+/The Defold Team
