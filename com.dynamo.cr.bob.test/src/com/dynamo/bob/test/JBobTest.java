@@ -67,7 +67,7 @@ public class JBobTest {
 
         @Override
         public void build(Task<Void> task) throws CompileExceptionError {
-            throw new CompileExceptionError("Failed to build");
+            throw new CompileExceptionError(task.input(0), "Failed to build");
         }
     }
 
@@ -152,7 +152,7 @@ public class JBobTest {
         public void build(Task<Void> task) throws CompileExceptionError, IOException {
             task.output(0).setContent(new byte[0]);
             if (task.input(0).getContent().length == 0) {
-                throw new CompileExceptionError("Failed to build");
+                throw new CompileExceptionError(task.input(0), "Failed to build");
             }
         }
     }

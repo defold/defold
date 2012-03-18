@@ -2,7 +2,6 @@ package com.dynamo.bob.pipeline;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStreamReader;
 
@@ -24,20 +23,29 @@ public class TileSetBuilder extends Builder<Void>  {
         TileSet.Builder builder = TileSet.newBuilder();
         TextFormat.merge(new InputStreamReader(new ByteArrayInputStream(input.getContent())), builder);
         TileSet tileSet = builder.build();
-        String imgPath = tileSet.getCollision();
+        String imgPath = tileSet.getImage();
+        String collisionPath = tileSet.getCollision();
         IResource image = this.project.getResource(imgPath);
-        if (!imgPath.isEmpty() && !image.exists()) {
-            String msg = String.format("%s:0: error: is missing dependent resource file '%s'", input.getPath(), tileSet.getCollision());
-            throw new CompileExceptionError(msg, new FileNotFoundException(), input);
-        } else {
+        IResource collision = this.project.getResource(collisionPath);
+        if (image.exists() || collision.exists()) {
             TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
                     .setName(params.name())
                     .addInput(input)
                     .addOutput(input.changeExt(params.outExt()));
-            if (image.exists()) {
-                taskBuilder.addInput(image);
+            if (collision.exists()) {
+                taskBuilder.addInput(collision);
             }
             return taskBuilder.build();
+        } else {
+            if (!imgPath.isEmpty()) {
+                BuilderUtil.checkFile(this.project, input, "image", imgPath);
+            } else if (!collisionPath.isEmpty()) {
+                BuilderUtil.checkFile(this.project, input, "collision", collisionPath);
+            } else {
+                throw new CompileExceptionError(input, Messages.TileSetBuilder_MISSING_IMAGE_AND_COLLISION);
+            }
+            // will not be reached
+            return null;
         }
     }
 

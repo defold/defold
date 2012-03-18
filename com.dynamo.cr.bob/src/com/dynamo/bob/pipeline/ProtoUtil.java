@@ -13,7 +13,7 @@ public class ProtoUtil {
         try {
             TextFormat.merge(new String(input.getContent()), builder);
         } catch (TextFormat.ParseException e) {
-            throw new CompileExceptionError(e.getMessage(), e, input);
+            throw new CompileExceptionError(input, e.getMessage(), e);
         }
     }
 }

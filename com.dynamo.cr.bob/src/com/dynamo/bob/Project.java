@@ -161,7 +161,7 @@ public class Project {
             // Pass on unmodified
             throw e;
         } catch (Throwable e) {
-            throw new CompileExceptionError(e.getMessage(), e);
+            throw new CompileExceptionError(null, e.getMessage(), e);
         }
     }
 

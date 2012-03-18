@@ -11,16 +11,12 @@ public class CompileExceptionError extends Exception {
 
     private IResource resource;
 
-    public CompileExceptionError(String message) {
+    public CompileExceptionError(IResource resource, String message) {
         super(message);
+        this.resource = resource;
     }
 
-    public CompileExceptionError(String message, Throwable e) {
-        super(message, e);
-    }
-
-    public CompileExceptionError(String message, Throwable e,
-            IResource resource) {
+    public CompileExceptionError(IResource resource, String message, Throwable e) {
         super(message, e);
         this.resource = resource;
     }

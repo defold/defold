@@ -46,7 +46,7 @@ public class TextureBuilder extends Builder<Void> {
         } else if (numComponents == 4 && hasAlpha == true) {
             format = TextureFormat.TEXTURE_FORMAT_RGBA;
         } else {
-            throw new CompileExceptionError(String.format("Unsupported color model: '%s'", colorModel.toString()));
+            throw new CompileExceptionError(task.input(0), String.format("Unsupported color model: '%s'", colorModel.toString()));
         }
 
         int width = image.getWidth();

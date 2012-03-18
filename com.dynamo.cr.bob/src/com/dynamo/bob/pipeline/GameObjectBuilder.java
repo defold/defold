@@ -62,22 +62,13 @@ public class GameObjectBuilder extends Builder<Void> {
         ProtoUtil.merge(input, protoBuilder);
         for (ComponentDesc c : protoBuilder.getComponentsList()) {
             String component = c.getComponent();
-            if (component.isEmpty()) {
-                String msg = String.format("%s:0: error: no resource file specified for component '%s'", input.getPath(), c.getId());
-                throw new CompileExceptionError(msg);
-            } else {
-                IResource r = project.getResource(component.substring(1));
-                if (!r.exists()) {
-                    String msg = String.format("%s:0: error: is missing dependent resource file '%s'", input.getPath(), component);
-                    throw new CompileExceptionError(msg);
-                }
-            }
+            BuilderUtil.checkFile(this.project, input, "component", component);
         }
 
         int i = 0;
         for (EmbeddedComponentDesc ec : protoBuilder.getEmbeddedComponentsList()) {
             if (ec.getId().length() == 0) {
-                throw new CompileExceptionError("missing required field 'id'");
+                throw new CompileExceptionError(input, "missing required field 'id'");
             }
 
             task.output(i+1).setContent(ec.getData().getBytes());
