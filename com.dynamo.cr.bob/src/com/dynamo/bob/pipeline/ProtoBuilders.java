@@ -175,13 +175,13 @@ public class ProtoBuilders {
             for (NodeDesc n : messageBuilder.getNodesList()) {
                 if (n.hasTexture() && n.getTexture().length() > 0) {
                     if (!textureNames.contains(n.getTexture())) {
-                        throw new CompileExceptionError(String.format("Texture '%s' not declared in gui-file", n.getTexture()), 5);
+                        throw new CompileExceptionError(String.format("Texture '%s' not declared in gui-file", n.getTexture()));
                     }
                 }
 
                 if (n.hasFont() && n.getFont().length() > 0) {
                     if (!fontNames.contains(n.getFont())) {
-                        throw new CompileExceptionError(String.format("Font '%s' not declared in gui-file", n.getFont()), 5);
+                        throw new CompileExceptionError(String.format("Font '%s' not declared in gui-file", n.getFont()));
                     }
                 }
 

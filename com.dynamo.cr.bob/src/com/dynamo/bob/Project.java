@@ -161,7 +161,7 @@ public class Project {
             // Pass on unmodified
             throw e;
         } catch (Throwable e) {
-            throw new CompileExceptionError(e.getMessage(), e, 5);
+            throw new CompileExceptionError(e.getMessage(), e);
         }
     }
 
@@ -286,36 +286,36 @@ run:
                 TaskResult taskResult = new TaskResult(task);
                 result.add(taskResult);
                 Builder builder = task.getBuilder();
-                int returnCode = 0;
+                boolean ok = true;
                 String message = null;
                 Throwable exception = null;
                 boolean abort = false;
                 try {
                     builder.build(task);
-                    taskResult.setReturnCode(0);
                     for (IResource r : task.getOutputs()) {
                         state.putSignature(r.getAbsPath(), taskSignature);
                     }
 
                     for (IResource r : task.getOutputs()) {
                         if (!r.exists()) {
-                            taskResult.setMessage(String.format("Output '%s' not found", r.getAbsPath()));
-                            taskResult.setReturnCode(50);
+                            message = String.format("Output '%s' not found", r.getAbsPath());
+                            ok = false;
+                            break;
                         }
                     }
                     completedOutputs.addAll(task.getOutputs());
 
                 } catch (CompileExceptionError e) {
-                    returnCode = e.getReturnCode();
+                    ok = false;
                     message = e.getMessage();
                 } catch (Throwable e) {
-                    returnCode = 50;
+                    ok = false;
                     message = e.getMessage();
                     exception = e;
                     abort = true;
                 }
-                if (returnCode != 0) {
-                    taskResult.setReturnCode(returnCode);
+                if (!ok) {
+                    taskResult.setOk(ok);
                     taskResult.setMessage(message);
                     taskResult.setException(exception);
                     // Clear sigs for all outputs when a task fails

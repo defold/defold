@@ -6,7 +6,7 @@ package com.dynamo.bob;
  *
  */
 public class TaskResult {
-    private int returnCode;
+    private boolean ok = true;
     private String message = "OK";
     private Task<?> task;
     private Throwable exception;
@@ -16,19 +16,19 @@ public class TaskResult {
     }
 
     /**
-     * Set return code. 0 for success. Similar to shell return codes.
-     * @param returnCode return code to set
+     * Set if the task completed successfully.
+     * @param ok If the task was successfully completed or not.
      */
-    public void setReturnCode(int returnCode) {
-        this.returnCode = returnCode;
+    public void setOk(boolean ok) {
+        this.ok = ok;
     }
 
     /**
-     * Get return code. 0 for success. Similar to shell return codes.
-     * @return return code
+     * Return whether the task was completed successfully or not.
+     * @return success status
      */
-    public int getReturnCode() {
-        return returnCode;
+    public boolean isOk() {
+        return this.ok;
     }
 
     /**
@@ -57,7 +57,7 @@ public class TaskResult {
 
     @Override
     public String toString() {
-        return String.format("%s (%d)", message, returnCode);
+        return String.format("%s (%s)", message, this.ok ? "ok" : "failed");
     }
 
     /**

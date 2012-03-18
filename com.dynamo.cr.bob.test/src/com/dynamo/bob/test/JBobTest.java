@@ -1,9 +1,10 @@
 package com.dynamo.bob.test;
 
 import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.CoreMatchers.not;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 import static org.junit.matchers.JUnitMatchers.hasItem;
 
 import java.io.IOException;
@@ -66,7 +67,7 @@ public class JBobTest {
 
         @Override
         public void build(Task<Void> task) throws CompileExceptionError {
-            throw new CompileExceptionError("Failed to build", 5);
+            throw new CompileExceptionError("Failed to build");
         }
     }
 
@@ -151,7 +152,7 @@ public class JBobTest {
         public void build(Task<Void> task) throws CompileExceptionError, IOException {
             task.output(0).setContent(new byte[0]);
             if (task.input(0).getContent().length == 0) {
-                throw new CompileExceptionError("Failed to build", 5);
+                throw new CompileExceptionError("Failed to build");
             }
         }
     }
@@ -330,12 +331,12 @@ public class JBobTest {
         // build
         result = build();
         assertThat(result.size(), is(1));
-        assertThat(result.get(0).getReturnCode(), is(5));
+        assertFalse(result.get(0).isOk());
 
         // build again
         result = build();
         assertThat(result.size(), is(1));
-        assertThat(result.get(0).getReturnCode(), is(5));
+        assertFalse(result.get(0).isOk());
     }
 
     @Test(expected=CompileExceptionError.class)
@@ -352,7 +353,7 @@ public class JBobTest {
         project.setInputs(Arrays.asList("test.nooutput"));
         List<TaskResult> result = build();
         assertThat(result.size(), is(1));
-        assertThat(result.get(0).getReturnCode(), not(is(0)));
+        assertFalse(result.get(0).isOk());
     }
 
     String getResourceString(String name) throws IOException {
@@ -421,21 +422,21 @@ public class JBobTest {
         // build
         result = build();
         assertThat(result.size(), is(1));
-        assertThat(result.get(0).getReturnCode(), is(0));
+        assertTrue(result.get(0).isOk());
 
         fileSystem.addFile("test.foeao", "".getBytes());
 
         // fail build
         result = build();
         assertThat(result.size(), is(1));
-        assertThat(result.get(0).getReturnCode(), is(5));
+        assertFalse(result.get(0).isOk());
 
         fileSystem.addFile("test.foeao", "test".getBytes());
 
         // remedy build
         result = build();
         assertThat(result.size(), is(1));
-        assertThat(result.get(0).getReturnCode(), is(0));
+        assertTrue(result.get(0).isOk());
     }
 }
 
