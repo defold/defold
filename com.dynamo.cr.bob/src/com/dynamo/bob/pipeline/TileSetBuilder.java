@@ -42,7 +42,7 @@ public class TileSetBuilder extends Builder<Void>  {
             } else if (!collisionPath.isEmpty()) {
                 BuilderUtil.checkFile(this.project, input, "collision", collisionPath);
             } else {
-                throw new CompileExceptionError(input, Messages.TileSetBuilder_MISSING_IMAGE_AND_COLLISION);
+                throw new CompileExceptionError(input, 0, Messages.TileSetBuilder_MISSING_IMAGE_AND_COLLISION);
             }
             // will not be reached
             return null;

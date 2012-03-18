@@ -17,13 +17,13 @@ public class BuilderUtil {
     static File checkFile(Project project, IResource owner, String field, String path) throws CompileExceptionError {
         if (path.isEmpty()) {
             String message = NLS.bind(Messages.BuilderUtil_EMPTY_RESOURCE, field);
-            throw new CompileExceptionError(owner, message);
+            throw new CompileExceptionError(owner, 0, message);
         }
         IResource resource = project.getResource(path);
         File file = new File(resource.getAbsPath());
         if (!file.exists()) {
             String message = NLS.bind(Messages.BuilderUtil_MISSING_RESOURCE, field, path);
-            throw new CompileExceptionError(owner, message);
+            throw new CompileExceptionError(owner, 0, message);
         }
         return file;
     }

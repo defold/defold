@@ -188,13 +188,13 @@ public class ProtoBuilders {
             for (NodeDesc n : messageBuilder.getNodesList()) {
                 if (n.hasTexture() && n.getTexture().length() > 0) {
                     if (!textureNames.contains(n.getTexture())) {
-                        throw new CompileExceptionError(input, NLS.bind(Messages.GuiBuilder_MISSING_TEXTURE, n.getTexture()));
+                        throw new CompileExceptionError(input, 0, NLS.bind(Messages.GuiBuilder_MISSING_TEXTURE, n.getTexture()));
                     }
                 }
 
                 if (n.hasFont() && n.getFont().length() > 0) {
                     if (!fontNames.contains(n.getFont())) {
-                        throw new CompileExceptionError(input, NLS.bind(Messages.GuiBuilder_MISSING_FONT, n.getFont()));
+                        throw new CompileExceptionError(input, 0, NLS.bind(Messages.GuiBuilder_MISSING_FONT, n.getFont()));
                     }
                 }
 

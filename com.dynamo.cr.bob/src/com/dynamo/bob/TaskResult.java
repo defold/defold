@@ -10,6 +10,7 @@ public class TaskResult {
     private String message = "OK";
     private Task<?> task;
     private Throwable exception;
+    private int lineNumber = 0;
 
     public TaskResult(Task<?> task) {
         this.task = task;
@@ -74,5 +75,21 @@ public class TaskResult {
      */
     public Throwable getException() {
         return exception;
+    }
+
+    /**
+     * Set line number. Only used when the task failed.
+     * @param lineNumber must be positive
+     */
+    public void setLineNumber(int lineNumber) {
+        this.lineNumber = lineNumber;
+    }
+
+    /**
+     * Get line number. Only relevant when the task failed.
+     * @return line number
+     */
+    public int getLineNumber() {
+        return this.lineNumber;
     }
 }

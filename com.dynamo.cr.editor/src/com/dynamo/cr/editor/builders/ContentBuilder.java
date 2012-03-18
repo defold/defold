@@ -136,7 +136,7 @@ public class ContentBuilder extends IncrementalProjectBuilder {
                     {
                         IMarker marker = resource.createMarker(IMarker.PROBLEM);
                         marker.setAttribute(IMarker.MESSAGE, taskResult.getMessage());
-                        marker.setAttribute(IMarker.LINE_NUMBER, 0);
+                        marker.setAttribute(IMarker.LINE_NUMBER, taskResult.getLineNumber());
                         marker.setAttribute(IMarker.SEVERITY, IMarker.SEVERITY_ERROR);
                     }
                     else {
@@ -152,7 +152,7 @@ public class ContentBuilder extends IncrementalProjectBuilder {
                 IFile resource = EditorUtil.getContentRoot(getProject()).getFile(e.getResource().getPath());
                 IMarker marker = resource.createMarker(IMarker.PROBLEM);
                 marker.setAttribute(IMarker.MESSAGE, e.getMessage());
-                marker.setAttribute(IMarker.LINE_NUMBER, 0);
+                marker.setAttribute(IMarker.LINE_NUMBER, e.getLineNumber());
                 marker.setAttribute(IMarker.SEVERITY, IMarker.SEVERITY_ERROR);
             } else {
                 throw new CoreException(new Status(IStatus.ERROR, Activator.PLUGIN_ID, IResourceStatus.BUILD_FAILED, "Build failed", e));

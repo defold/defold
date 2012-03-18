@@ -45,7 +45,7 @@ public class FontBuilder extends Builder<Void>  {
             fontc.run(fontStream, fontDesc, fontMapFile);
         } catch (FontFormatException e) {
             task.output(0).remove();
-            throw new CompileExceptionError(task.input(0), e.getMessage());
+            throw new CompileExceptionError(task.input(0), 0, e.getMessage());
         } finally {
             fontStream.close();
         }

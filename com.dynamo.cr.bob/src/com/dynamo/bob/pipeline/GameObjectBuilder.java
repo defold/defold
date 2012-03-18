@@ -68,7 +68,7 @@ public class GameObjectBuilder extends Builder<Void> {
         int i = 0;
         for (EmbeddedComponentDesc ec : protoBuilder.getEmbeddedComponentsList()) {
             if (ec.getId().length() == 0) {
-                throw new CompileExceptionError(input, "missing required field 'id'");
+                throw new CompileExceptionError(input, 0, "missing required field 'id'");
             }
 
             task.output(i+1).setContent(ec.getData().getBytes());
