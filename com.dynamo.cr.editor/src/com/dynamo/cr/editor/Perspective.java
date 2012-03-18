@@ -31,8 +31,10 @@ public class Perspective implements IPerspectiveFactory {
         IFolderLayout folder = layout.createFolder("com.dynamo.cr.editor.bottom", IPageLayout.BOTTOM, 0.7f, editorArea);
         folder.addView(IConsoleConstants.ID_CONSOLE_VIEW);
         layout.getViewLayout(IConsoleConstants.ID_CONSOLE_VIEW).setCloseable(false);
-        folder.addView("org.eclipse.ui.views.ProblemView");
-        layout.getViewLayout("org.eclipse.ui.views.ProblemView").setCloseable(false);
+        folder.addView(IPageLayout.ID_PROGRESS_VIEW);
+        layout.getViewLayout(IPageLayout.ID_PROGRESS_VIEW).setCloseable(false);
+        folder.addView(IPageLayout.ID_PROBLEM_VIEW);
+        layout.getViewLayout(IPageLayout.ID_PROBLEM_VIEW).setCloseable(false);
 
         folder.addView("org.eclipse.pde.runtime.LogView");
         layout.getViewLayout("org.eclipse.pde.runtime.LogView").setCloseable(false);

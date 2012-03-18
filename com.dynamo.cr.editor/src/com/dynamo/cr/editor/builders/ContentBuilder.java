@@ -22,11 +22,9 @@ import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.OperationCanceledException;
 import org.eclipse.core.runtime.Status;
-import org.eclipse.ui.console.ConsolePlugin;
-import org.eclipse.ui.console.IConsole;
-import org.eclipse.ui.console.IConsoleManager;
-import org.eclipse.ui.console.MessageConsole;
-import org.eclipse.ui.console.MessageConsoleStream;
+import org.eclipse.swt.widgets.Display;
+import org.eclipse.ui.IPageLayout;
+import org.eclipse.ui.PartInitException;
 import org.osgi.framework.Bundle;
 
 import com.dynamo.bob.CompileExceptionError;
@@ -43,23 +41,37 @@ import com.dynamo.cr.protocol.proto.Protocol.BuildLog;
 
 public class ContentBuilder extends IncrementalProjectBuilder {
 
-    private MessageConsoleStream stream;
     private IBranchClient branchClient;
 
     public ContentBuilder() {
     }
 
-    private MessageConsole findConsole(String name) {
-        ConsolePlugin plugin = ConsolePlugin.getDefault();
-        IConsoleManager conMan = plugin.getConsoleManager();
-        IConsole[] existing = conMan.getConsoles();
-        for (int i = 0; i < existing.length; i++)
-            if (name.equals(existing[i].getName()))
-                return (MessageConsole) existing[i];
-        // no console found, so create a new one
-        MessageConsole myConsole = new MessageConsole(name, null);
-        conMan.addConsoles(new IConsole[] { myConsole });
-        return myConsole;
+    private void showProgressView() {
+        Display.getDefault().asyncExec(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    Activator.getDefault().getWorkbench().getActiveWorkbenchWindow().getActivePage().showView(IPageLayout.ID_PROGRESS_VIEW);
+                } catch (PartInitException pe) {
+                    // Unexpected
+                    Activator.logException(pe);
+                }
+            }
+        });
+    }
+
+    private void showProblemsView() {
+        Display.getDefault().asyncExec(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    Activator.getDefault().getWorkbench().getActiveWorkbenchWindow().getActivePage().showView(IPageLayout.ID_PROBLEM_VIEW);
+                } catch (PartInitException pe) {
+                    // Unexpected
+                    Activator.logException(pe);
+                }
+            }
+        });
     }
 
     @Override
@@ -70,28 +82,23 @@ public class ContentBuilder extends IncrementalProjectBuilder {
         if (branchClient == null)
             return null;
 
-        MessageConsole console = findConsole("console");
-        console.activate();
-        stream = console.newMessageStream();
-        console.clearConsole();
-        stream.println("building...");
+        showProgressView();
+
         getProject().deleteMarkers(IMarker.PROBLEM, true, IResource.DEPTH_INFINITE);
 
-        IProject[] ret;
+        boolean ret = false;
         if (args.get("location").equals("remote")) {
             ret = buildRemote(kind, args, monitor);
         } else {
             ret = buildLocal(kind, args, monitor);
         }
-        try {
-            stream.close();
-        } catch (IOException e) {
-            e.printStackTrace();
+        if (!ret) {
+            showProblemsView();
         }
-        return ret;
+        return null;
     }
 
-    private IProject[] buildLocal(int kind, Map<String,String> args, final IProgressMonitor monitor) throws CoreException {
+    private boolean buildLocal(int kind, Map<String,String> args, final IProgressMonitor monitor) throws CoreException {
         String branchLocation = branchClient.getNativeLocation();
 
         String buildDirectory = String.format("build/default");
@@ -111,11 +118,13 @@ public class ContentBuilder extends IncrementalProjectBuilder {
             commands = new String[] { "build" };
         }
 
+        boolean ret = true;
         try {
             project.findSources(branchLocation, skipDirs);
             List<TaskResult> result = project.build(monitor, commands);
             for (TaskResult taskResult : result) {
                 if (!taskResult.isOk()) {
+                    ret = false;
                     Throwable exception = taskResult.getException();
                     if (exception != null) {
                         // This is an unexpected error. Log it.
@@ -133,31 +142,29 @@ public class ContentBuilder extends IncrementalProjectBuilder {
                     else {
                         Activator.getDefault().logger.warning("Unable to locate: " + resource.getFullPath());
                     }
-
-                    stream.println(taskResult.getMessage());
-
-                    throw new CoreException(new Status(IStatus.ERROR, Activator.PLUGIN_ID, "Build failed"));
                 }
             }
         } catch (IOException e) {
-            throw new CoreException(new Status(IStatus.ERROR, Activator.PLUGIN_ID, "Build failed"));
+            throw new CoreException(new Status(IStatus.ERROR, Activator.PLUGIN_ID, IResourceStatus.BUILD_FAILED, "Build failed", e));
         } catch (CompileExceptionError e) {
             if (e.getResource() != null) {
+                ret = false;
                 IFile resource = EditorUtil.getContentRoot(getProject()).getFile(e.getResource().getPath());
                 IMarker marker = resource.createMarker(IMarker.PROBLEM);
                 marker.setAttribute(IMarker.MESSAGE, e.getMessage());
                 marker.setAttribute(IMarker.LINE_NUMBER, 0);
                 marker.setAttribute(IMarker.SEVERITY, IMarker.SEVERITY_ERROR);
+            } else {
+                throw new CoreException(new Status(IStatus.ERROR, Activator.PLUGIN_ID, IResourceStatus.BUILD_FAILED, "Build failed", e));
             }
-            throw new CoreException(new Status(IResourceStatus.ERROR, Activator.PLUGIN_ID, "Build failed", e));
         }
-        return null;
+        return ret;
     }
 
-    private IProject[] buildRemote(int kind, Map<String,String> args, IProgressMonitor monitor)
+    private boolean buildRemote(int kind, Map<String,String> args, IProgressMonitor monitor)
             throws CoreException {
 
-
+        boolean result = false;
         try {
             BuildDesc build = branchClient.build(kind == IncrementalProjectBuilder.FULL_BUILD);
 
@@ -208,22 +215,19 @@ public class ContentBuilder extends IncrementalProjectBuilder {
 
                 String stdErr = logs.getStdErr();
                 parseLog(stdErr);
-                stream.println(stdErr);
-
-                throw new CoreException(new Status(IStatus.WARNING, Activator.PLUGIN_ID, "Build failed"));
             }
             else
             {
-                stream.println("build finished successfully");
+                result = true;
             }
 
         } catch (RepositoryException e1) {
-            throw new CoreException(new Status(IStatus.ERROR, Activator.PLUGIN_ID, "Error occurred while building", e1));
+            throw new CoreException(new Status(IStatus.ERROR, Activator.PLUGIN_ID, IResourceStatus.BUILD_FAILED, "Build failed", e1));
         } catch (IOException e1) {
-            throw new CoreException(new Status(IStatus.ERROR, Activator.PLUGIN_ID, "Error occurred while building", e1));
+            throw new CoreException(new Status(IStatus.ERROR, Activator.PLUGIN_ID, IResourceStatus.BUILD_FAILED, "Build failed", e1));
         }
 
-        return null;
+        return result;
     }
 
     private void parseLog(String stdErr)
@@ -245,7 +249,6 @@ public class ContentBuilder extends IncrementalProjectBuilder {
         };
         while (line != null) {
             line = line.trim();
-            stream.println(line);
 
             for (Pattern p : pattens) {
                 Matcher m = p.matcher(line);
