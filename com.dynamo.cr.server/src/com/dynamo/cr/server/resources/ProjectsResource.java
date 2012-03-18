@@ -25,8 +25,8 @@ import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.server.dgit.GitFactory;
-import com.dynamo.server.dgit.IGit;
 import com.dynamo.server.dgit.GitFactory.Type;
+import com.dynamo.server.dgit.IGit;
 
 @Path("/projects/{user}")
 @RolesAllowed(value = { "user" })
@@ -48,6 +48,14 @@ public class ProjectsResource extends BaseResource {
         EntityManager em = server.getEntityManagerFactory().createEntityManager();
 
         User user = server.getUser(em, userId);
+
+        ProjectInfoList list = getProjects(userId);
+        int n = list.getProjectsCount();
+        int maxProjectCount = server.getConfiguration().getMaxProjectCount();
+        if (maxProjectCount <= n) {
+            throw new ServerException(String.format("Max number of projects (%d) has already been reached.", maxProjectCount));
+        }
+
         em.getTransaction().begin();
         Project project = ModelUtil.newProject(em, user, newProject.getName(), newProject.getDescription());
         em.getTransaction().commit();

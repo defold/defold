@@ -120,7 +120,7 @@ public class SceneTest {
         select(root);
         verifyRefresh();
         select(root);
-        verifyNoRefresh();
+        verifyRefresh();
         select(child);
         verifyRefresh();
     }

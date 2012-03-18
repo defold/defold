@@ -59,12 +59,11 @@ IRenderView {
 
     private final INodeTypeRegistry nodeTypeRegistry;
     private final ILogger logger;
-    private ISelectionService selectionService;
+    private final ISelectionService selectionService;
 
     private GLCanvas canvas;
     private GLContext context;
     private final int[] viewPort = new int[4];
-    private boolean paintRequested = false;
     private boolean enabled = true;
 
     private List<MouseListener> mouseListeners = new ArrayList<MouseListener>();
@@ -78,6 +77,8 @@ IRenderView {
     private static final int MIN_SELECTION_BOX = 16;
     private SelectionBoxRenderViewProvider selectionBoxRenderViewProvider;
     private SelectionBoxNode selectionBoxNode;
+
+    private boolean paintRequested = false;
 
     @Inject
     public RenderView(INodeTypeRegistry manager, ILogger logger, ISelectionService selectionService) {
@@ -310,6 +311,7 @@ IRenderView {
                 this.selectionBoxNode.setCurrent(e.x, e.y);
                 boxSelect();
                 this.selectionBoxNode.setVisible(false);
+                requestPaint();
             }
         }
         for (MouseListener listener : mouseListeners) {
@@ -490,9 +492,10 @@ IRenderView {
     public void requestPaint() {
         if (this.paintRequested || this.canvas == null)
             return;
+
         this.paintRequested = true;
 
-        Display.getDefault().timerExec(10, new Runnable() {
+        Display.getCurrent().timerExec(10, new Runnable() {
 
             @Override
             public void run() {

@@ -47,7 +47,7 @@ public class ScenePresenter implements IPresenter, IModelListener {
     @Override
     public void onSelect(IStructuredSelection selection) {
         IStructuredSelection oldSelection = this.model.getSelection();
-        if (!oldSelection.toList().equals(selection.toList())) {
+        if (oldSelection != selection) {
             this.model.setSelection(selection);
             this.view.refresh(selection, this.model.isDirty());
         }
@@ -57,7 +57,7 @@ public class ScenePresenter implements IPresenter, IModelListener {
     public void onSelectAll() {
         IStructuredSelection oldSelection = this.model.getSelection();
         IStructuredSelection selection = new StructuredSelection(this.model.getRoot().getChildren());
-        if (!oldSelection.toList().equals(selection.toList())) {
+        if (oldSelection != selection) {
             this.model.setSelection(selection);
             this.view.refresh(selection, this.model.isDirty());
         }

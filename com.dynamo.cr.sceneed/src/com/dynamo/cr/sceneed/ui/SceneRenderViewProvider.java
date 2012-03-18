@@ -36,7 +36,6 @@ public class SceneRenderViewProvider implements IRenderViewProvider, ISelectionP
 
     public void setRoot(Node root) {
         this.root = root;
-        renderView.refresh();
     }
 
     @PreDestroy
@@ -104,14 +103,13 @@ public class SceneRenderViewProvider implements IRenderViewProvider, ISelectionP
 
     @Override
     public void setSelection(ISelection selection) {
-        if (selection instanceof IStructuredSelection) {
+        if (this.selection != selection && selection instanceof IStructuredSelection) {
             this.selection = (IStructuredSelection)selection;
             SelectionChangedEvent event = new SelectionChangedEvent(this, this.selection);
             for (ISelectionChangedListener listener : this.selectionListeners) {
                 listener.selectionChanged(event);
             }
         }
-        renderView.refresh();
     }
 
 }

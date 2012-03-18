@@ -21,11 +21,13 @@ public class Bob {
 
         project.findSources(".", skipDirs);
         List<TaskResult> result = project.build(new NullProgressMonitor());
-        int ret = 0;
+        boolean ret = true;
         for (TaskResult taskResult : result) {
             System.out.println(taskResult);
-            ret = Math.max(ret, taskResult.getReturnCode());
+            if (!taskResult.isOk()) {
+                ret = false;
+            }
         }
-        System.exit(ret);
+        System.exit(ret ? 0 : 1);
     }
 }

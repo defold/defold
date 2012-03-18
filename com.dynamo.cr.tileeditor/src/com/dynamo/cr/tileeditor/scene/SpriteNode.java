@@ -62,7 +62,7 @@ public class SpriteNode extends ComponentTypeNode {
                 return new Status(IStatus.ERROR, Activator.PLUGIN_ID, Messages.SpriteNode_tileSet_INVALID_REFERENCE);
             }
         } else if (!this.tileSet.isEmpty()) {
-            return new Status(IStatus.ERROR, Activator.PLUGIN_ID, Messages.SpriteNode_tileSet_INVALID_TYPE);
+            return new Status(IStatus.ERROR, Activator.PLUGIN_ID, Messages.SpriteNode_tileSet_CONTENT_ERROR);
         }
         return Status.OK_STATUS;
     }

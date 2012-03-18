@@ -53,6 +53,10 @@ public class GameObjectLoader implements INodeLoader<GameObjectNode> {
             if (type.equals("sprite2")) {
                 type = "sprite";
             }
+            // TODO temp hack to "convert" from spawnpoint to factory
+            if (type.equals("spawnpoint")) {
+                type = "factory";
+            }
             ComponentTypeNode componentType = (ComponentTypeNode)context.loadNode(type, new ByteArrayInputStream(componentDesc.getData().getBytes()));
             componentType.setTranslation(LoaderUtil.toPoint3d(componentDesc.getPosition()));
             componentType.setRotation(LoaderUtil.toQuat4(componentDesc.getRotation()));

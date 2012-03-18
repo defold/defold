@@ -35,15 +35,16 @@ public class TileSetSceneView implements ISceneView {
     @Override
     public void refresh(IStructuredSelection selection, boolean dirty) {
         this.outline.refresh();
+        this.outline.setSelection(selection);
+        this.propertySheetPage.setSelection(selection);
         this.propertySheetPage.refresh();
         this.renderer.refresh(selection);
-        this.outline.setSelection(selection);
         this.editor.setDirty(dirty);
     }
 
     @Override
-    public void refreshRenderView(IStructuredSelection selection) {
-        this.renderer.refresh(selection);
+    public void refreshRenderView() {
+        this.renderer.requestPaint();
     }
 
     @Override
@@ -72,4 +73,5 @@ public class TileSetSceneView implements ISceneView {
     public void getCameraFocusPoint(Point3d focusPoint) {
         throw new RuntimeException("Not implemented");
     }
+
 }

@@ -114,11 +114,8 @@ public class ContentBuilder extends IncrementalProjectBuilder {
         try {
             project.findSources(branchLocation, skipDirs);
             List<TaskResult> result = project.build(monitor, commands);
-            int ret = 0;
             for (TaskResult taskResult : result) {
-                ret = Math.max(ret, taskResult.getReturnCode());
-                if (taskResult.getReturnCode() != 0) {
-
+                if (!taskResult.isOk()) {
                     Throwable exception = taskResult.getException();
                     if (exception != null) {
                         // This is an unexpected error. Log it.
@@ -138,12 +135,12 @@ public class ContentBuilder extends IncrementalProjectBuilder {
                     }
 
                     stream.println(taskResult.getMessage());
+
+                    throw new CoreException(new Status(IStatus.ERROR, Activator.PLUGIN_ID, "Build failed"));
                 }
-                if (ret != 0)
-                    throw new CoreException(new Status(IStatus.WARNING, Activator.PLUGIN_ID, "Build failed"));
             }
         } catch (IOException e) {
-            throw new CoreException(new Status(IStatus.WARNING, Activator.PLUGIN_ID, "Build failed"));
+            throw new CoreException(new Status(IStatus.ERROR, Activator.PLUGIN_ID, "Build failed"));
         } catch (CompileExceptionError e) {
             if (e.getResource() != null) {
                 IFile resource = EditorUtil.getContentRoot(getProject()).getFile(e.getResource().getPath());
@@ -152,7 +149,7 @@ public class ContentBuilder extends IncrementalProjectBuilder {
                 marker.setAttribute(IMarker.LINE_NUMBER, 0);
                 marker.setAttribute(IMarker.SEVERITY, IMarker.SEVERITY_ERROR);
             }
-            throw new CoreException(new Status(IResourceStatus.WARNING, Activator.PLUGIN_ID, "Build failed", e));
+            throw new CoreException(new Status(IResourceStatus.ERROR, Activator.PLUGIN_ID, "Build failed", e));
         }
         return null;
     }

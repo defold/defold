@@ -34,7 +34,7 @@ public class Messages extends NLS {
     public static String TileGridNode_tileSet_EMPTY;
 
     public static String SpriteNode_tileSet_INVALID_REFERENCE;
-    public static String SpriteNode_tileSet_INVALID_TYPE;
+    public static String SpriteNode_tileSet_CONTENT_ERROR;
     public static String SpriteNode_defaultAnimation_EMPTY;
     public static String SpriteNode_defaultAnimation_INVALID;
 
