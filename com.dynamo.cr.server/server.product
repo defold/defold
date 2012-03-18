@@ -30,6 +30,9 @@
       <plugin id="com.dynamo.cr.dgit"/>
       <plugin id="com.dynamo.cr.server"/>
       <plugin id="com.google.common"/>
+      <plugin id="com.google.inject"/>
+      <plugin id="javax.activation"/>
+      <plugin id="javax.mail"/>
       <plugin id="javax.servlet"/>
       <plugin id="org.eclipse.core.contenttype"/>
       <plugin id="org.eclipse.core.jobs"/>

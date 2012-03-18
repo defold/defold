@@ -2,7 +2,6 @@ package com.dynamo.cr.server;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -20,6 +19,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import javax.inject.Inject;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 import javax.persistence.EntityManager;
@@ -37,8 +37,6 @@ import org.eclipse.jetty.server.handler.HandlerList;
 import org.eclipse.jetty.server.handler.ResourceHandler;
 import org.eclipse.jetty.util.resource.Resource;
 import org.eclipse.jgit.http.server.GitServlet;
-import org.eclipse.persistence.config.PersistenceUnitProperties;
-import org.eclipse.persistence.jpa.osgi.PersistenceProvider;
 import org.glassfish.grizzly.http.server.HttpServer;
 import org.glassfish.grizzly.servlet.ServletHandler;
 import org.slf4j.Logger;
@@ -50,7 +48,6 @@ import ch.qos.logback.core.joran.spi.JoranException;
 import ch.qos.logback.core.util.StatusPrinter;
 
 import com.dynamo.cr.branchrepo.BranchRepository;
-import com.dynamo.cr.proto.Config;
 import com.dynamo.cr.proto.Config.Configuration;
 import com.dynamo.cr.protocol.proto.Protocol.BuildDesc;
 import com.dynamo.cr.protocol.proto.Protocol.BuildDesc.Activity;
@@ -60,6 +57,7 @@ import com.dynamo.cr.protocol.proto.Protocol.Log;
 import com.dynamo.cr.server.auth.GitSecurityFilter;
 import com.dynamo.cr.server.auth.OpenIDAuthenticator;
 import com.dynamo.cr.server.auth.SecurityFilter;
+import com.dynamo.cr.server.mail.IMailProcessor;
 import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
@@ -69,7 +67,6 @@ import com.dynamo.cr.server.resources.ResourceUtil;
 import com.dynamo.server.dgit.GitFactory;
 import com.dynamo.server.dgit.GitFactory.Type;
 import com.dynamo.server.dgit.IGit;
-import com.google.protobuf.TextFormat;
 import com.sun.jersey.api.container.filter.RolesAllowedResourceFilterFactory;
 import com.sun.jersey.api.container.grizzly2.servlet.GrizzlyWebContainerFactory;
 
@@ -89,6 +86,8 @@ public class Server implements ServerMBean {
     private OpenIDAuthenticator openIDAuthentication = new OpenIDAuthenticator(MAX_ACTIVE_LOGINS);
     private SecureRandom secureRandom;
     private BranchRepository branchRepository;
+
+    private IMailProcessor mailProcessor;
 
     private int cleanupBuildsInterval = 10 * 1000; // 10 seconds
     private int keepBuildDescFor = 100 * 1000; // 100 seconds
@@ -151,7 +150,14 @@ public class Server implements ServerMBean {
         this.keepBuildDescFor = keepBuildDescFor;
     }
 
-    public Server(String configuration_file) throws IOException {
+    @Inject
+    public Server(EntityManagerFactory emf,
+                  Configuration configuration,
+                  IMailProcessor mailProcessor) throws IOException {
+
+        this.emf = emf;
+        this.configuration = configuration;
+        this.mailProcessor = mailProcessor;
 
         LoggerContext lc = (LoggerContext) LoggerFactory.getILoggerFactory();
 
@@ -179,19 +185,12 @@ public class Server implements ServerMBean {
         this.cleanupThread = new CleanBuildsThread();
         this.cleanupThread.start();
 
-        loadConfig(configuration_file);
-
-        HashMap<String, Object> props = new HashMap<String, Object>();
-        props.put(PersistenceUnitProperties.CLASSLOADER, this.getClass().getClassLoader());
-        // NOTE: JPA-PersistenceUnits: in plug-in MANIFEST.MF has to be set. Otherwise the persistence unit is not found.
-        emf = new PersistenceProvider().createEntityManagerFactory(configuration.getPersistenceUnitName(), props);
-        if (emf == null) {
-            // TODO: We should not continue...
-            logger.error("Persistant unit '{}' not found", configuration.getPersistenceUnitName());
+        filterPatterns = new Pattern[configuration.getFiltersCount()];
+        int i = 0;
+        for (String f : configuration.getFiltersList()) {
+            filterPatterns[i++] = Pattern.compile(f);
         }
-        else {
-            bootStrapUsers();
-        }
+        bootStrapUsers();
 
         String builtinsDirectory = null;
         if (configuration.hasBuiltinsDirectory())
@@ -263,6 +262,8 @@ public class Server implements ServerMBean {
         if (configuration.getDataServerEnabled() != 0) {
             initDataServer();
         }
+
+        this.mailProcessor.start();
 
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
         ObjectName name;
@@ -388,6 +389,10 @@ public class Server implements ServerMBean {
         }
     }
 
+    public IMailProcessor getMailProcessor() {
+        return mailProcessor;
+    }
+
     public SecureRandom getSecureRandom() {
         return secureRandom;
     }
@@ -445,25 +450,11 @@ public class Server implements ServerMBean {
         em.close();
     }
 
-    void loadConfig(String file_name) throws IOException {
-
-        FileReader fr = new FileReader(file_name);
-        Config.Configuration.Builder conf_builder = Config.Configuration.newBuilder();
-        TextFormat.merge(fr, conf_builder);
-
-        configuration = conf_builder.build();
-
-        filterPatterns = new Pattern[configuration.getFiltersCount()];
-        int i = 0;
-        for (String f : configuration.getFiltersList()) {
-            filterPatterns[i++] = Pattern.compile(f);
-        }
-
-    }
-
     public void stop() {
         assert ResourceConfig.server != null;
         ResourceConfig.server = null;
+
+        mailProcessor.stop();
 
         if (this.cleanupThread != null) {
             this.cleanupThread.interrupt();
@@ -500,13 +491,6 @@ public class Server implements ServerMBean {
             throw new ServerException(String.format("No such user %s", userId), javax.ws.rs.core.Response.Status.NOT_FOUND);
 
         return user;
-    }
-
-    public static void main(String[] args) throws IOException {
-        Server s = new Server("config/jetbot.config");
-        System.in.read();
-        s.stop();
-        System.exit(0);
     }
 
     public String getBaseURI() {

@@ -1,14 +1,21 @@
 package com.dynamo.cr.server.resources.test;
 
+import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThat;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.net.URI;
+import java.util.ArrayList;
+import java.util.List;
 
+import javax.mail.MessagingException;
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
 import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriBuilder;
 
 import org.codehaus.jackson.JsonNode;
@@ -25,18 +32,24 @@ import com.dynamo.cr.protocol.proto.Protocol.LoginInfo;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfoList;
 import com.dynamo.cr.server.Server;
+import com.dynamo.cr.server.mail.EMail;
+import com.dynamo.cr.server.mail.IMailer;
+import com.dynamo.cr.server.model.Invitation;
+import com.dynamo.cr.server.model.ModelUtil;
+import com.dynamo.cr.server.model.NewUser;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.model.User.Role;
 import com.dynamo.cr.server.test.Util;
+import com.google.inject.Guice;
+import com.google.inject.Injector;
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientResponse;
-import com.sun.jersey.api.client.WebResource;
 import com.sun.jersey.api.client.ClientResponse.Status;
-import com.sun.jersey.api.client.config.ClientConfig;
+import com.sun.jersey.api.client.WebResource;
 import com.sun.jersey.api.client.config.DefaultClientConfig;
 import com.sun.jersey.api.client.filter.HTTPBasicAuthFilter;
 
-public class UsersResourceTest {
+public class UsersResourceTest extends AbstractResourceTest {
 
     private Server server;
 
@@ -54,6 +67,26 @@ public class UsersResourceTest {
     private WebResource joeUsersWebResource;
     private WebResource bobUsersWebResource;
     private WebResource joeDefoldAuthUsersWebResource;
+    private Module module;
+
+    private TestMailer mailer;
+
+    private EntityManagerFactory emf;
+
+    private DefaultClientConfig clientConfig;
+
+    private WebResource anonymousResource;
+
+    static class TestMailer implements IMailer {
+
+        List<EMail> emails = new ArrayList<EMail>();
+
+        @Override
+        public void send(EMail email) throws MessagingException {
+            emails.add(email);
+        }
+
+    }
 
     @Before
     public void setUp() throws Exception {
@@ -65,7 +98,11 @@ public class UsersResourceTest {
             Util.dropAllTables();
         }
 
-        server = new Server("test_data/crepo_test.config");
+        mailer = new TestMailer();
+        module = new Module(mailer);
+        Injector injector = Guice.createInjector(module);
+        emf = injector.getInstance(EntityManagerFactory.class);
+        server = injector.getInstance(Server.class);
 
         EntityManagerFactory emf = server.getEntityManagerFactory();
         EntityManager em = emf.createEntityManager();
@@ -97,32 +134,35 @@ public class UsersResourceTest {
 
         em.getTransaction().commit();
 
-        ClientConfig cc = new DefaultClientConfig();
-        cc.getClasses().add(JsonProviders.ProtobufMessageBodyReader.class);
-        cc.getClasses().add(JsonProviders.ProtobufMessageBodyWriter.class);
-        cc.getClasses().add(ProtobufProviders.ProtobufMessageBodyReader.class);
-        cc.getClasses().add(ProtobufProviders.ProtobufMessageBodyWriter.class);
+        clientConfig = new DefaultClientConfig();
+        clientConfig.getClasses().add(JsonProviders.ProtobufMessageBodyReader.class);
+        clientConfig.getClasses().add(JsonProviders.ProtobufMessageBodyWriter.class);
+        clientConfig.getClasses().add(ProtobufProviders.ProtobufMessageBodyReader.class);
+        clientConfig.getClasses().add(ProtobufProviders.ProtobufMessageBodyWriter.class);
 
-        Client client = Client.create(cc);
+        Client client = Client.create(clientConfig);
         client.addFilter(new HTTPBasicAuthFilter(adminEmail, adminPasswd));
 
         URI uri = UriBuilder.fromUri(String.format("http://localhost/users")).port(port).build();
         adminUsersWebResource = client.resource(uri);
 
-        client = Client.create(cc);
+        client = Client.create(clientConfig);
         client.addFilter(new HTTPBasicAuthFilter(joeEmail, joePasswd));
         uri = UriBuilder.fromUri(String.format("http://localhost/users")).port(port).build();
         joeUsersWebResource = client.resource(uri);
 
-        client = Client.create(cc);
+        client = Client.create(clientConfig);
         client.addFilter(new DefoldAuthFilter(joeEmail, null, joePasswd));
         uri = UriBuilder.fromUri(String.format("http://localhost")).port(port).build();
         joeDefoldAuthUsersWebResource = client.resource(uri);
 
-        client = Client.create(cc);
+        client = Client.create(clientConfig);
         client.addFilter(new HTTPBasicAuthFilter(bobEmail, bobPasswd));
         uri = UriBuilder.fromUri(String.format("http://localhost/users")).port(port).build();
         bobUsersWebResource = client.resource(uri);
+
+        uri = UriBuilder.fromUri(String.format("http://localhost")).port(port).build();
+        anonymousResource = client.resource(uri);
     }
 
     @After
@@ -314,4 +354,183 @@ public class UsersResourceTest {
         assertEquals(joeEmail, userInfo.getEmail());
     }
 
+    @Test
+    public void testInvite() throws Exception {
+        assertThat(mailer.emails.size(), is(0));
+
+        ClientResponse response = joeUsersWebResource
+            .path(String.format("/%d/invite/newuser@foo.com", joeUser.getId()))
+            .put(ClientResponse.class);
+
+        assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
+
+        // Mail processes runs in a separate thread. Wait some time..
+        Thread.sleep(200);
+        assertThat(mailer.emails.size(), is(1));
+    }
+
+    @Test
+    public void testInviteTwice() throws Exception {
+        assertThat(mailer.emails.size(), is(0));
+        ClientResponse response = joeUsersWebResource
+            .path(String.format("/%d/invite/newuser@foo.com", joeUser.getId()))
+            .put(ClientResponse.class);
+        assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
+
+        // Mail processes runs in a separate thread. Wait some time..
+        Thread.sleep(200);
+        assertThat(mailer.emails.size(), is(1));
+
+        response = joeUsersWebResource
+                .path(String.format("/%d/invite/newuser@foo.com", joeUser.getId()))
+                .put(ClientResponse.class);
+        assertEquals(Response.Status.CONFLICT.getStatusCode(), response.getStatus());
+
+        // Mail processes runs in a separate thread. Wait some time..
+        Thread.sleep(200);
+        assertThat(mailer.emails.size(), is(1));
+    }
+
+    @SuppressWarnings("unchecked")
+    List<NewUser> newUsers(EntityManager em) {
+        return em.createQuery("select u from NewUser u").getResultList();
+    }
+
+    @SuppressWarnings("unchecked")
+    List<Invitation> invitations(EntityManager em) {
+        return em.createQuery("select i from Invitation i").getResultList();
+    }
+
+    @Test
+    public void testInviteRegistration() throws Exception {
+        EntityManager em = emf.createEntityManager();
+
+        String email = "newuser@foo.com";
+        assertNull(ModelUtil.findUserByEmail(em, email));
+
+        // Create a NewUser-entry manually. Currently we
+        // can't test the OpenID-login in unit-tests
+        String token = "test-token";
+        em.getTransaction().begin();
+        NewUser newUser = new NewUser();
+        newUser.setFirstName("first");
+        newUser.setLastName("last");
+        newUser.setEmail(email);
+        newUser.setLoginToken(token);
+        em.persist(newUser);
+        em.getTransaction().commit();
+
+        // Invite newuser@foo.com
+        ClientResponse response = joeUsersWebResource
+            .path(String.format("/%d/invite/newuser@foo.com", joeUser.getId()))
+            .put(ClientResponse.class);
+
+        assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
+        // Mail processes runs in a separate thread. Wait some time..
+        Thread.sleep(200);
+        assertThat(mailer.emails.size(), is(1));
+        assertThat(1, is(newUsers(em).size()));
+        assertThat(1, is(invitations(em).size()));
+
+        // The message contains only the key, see config-file
+        String key = mailer.emails.get(0).getMessage();
+        response = anonymousResource.path("/login/openid/register/" + token)
+            .queryParam("key", key)
+            .put(ClientResponse.class);
+        assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
+
+        User u = ModelUtil.findUserByEmail(em, email);
+        assertThat("first", is(u.getFirstName()));
+        assertThat("last", is(u.getLastName()));
+
+        assertThat(0, is(newUsers(em).size()));
+        assertThat(0, is(invitations(em).size()));
+    }
+
+    @Test
+    public void testRegistrationInvalidToken() throws Exception {
+        EntityManager em = emf.createEntityManager();
+
+        String email = "newuser@foo.com";
+        assertNull(ModelUtil.findUserByEmail(em, email));
+
+        // Create a NewUser-entry manually. Currently we
+        // can't test the OpenID-login in unit-tests
+        String token = "test-token";
+        em.getTransaction().begin();
+        NewUser newUser = new NewUser();
+        newUser.setFirstName("first");
+        newUser.setLastName("last");
+        newUser.setEmail(email);
+        newUser.setLoginToken(token);
+        em.persist(newUser);
+        em.getTransaction().commit();
+
+        // Invite newuser@foo.com
+        ClientResponse response = joeUsersWebResource
+            .path(String.format("/%d/invite/newuser@foo.com", joeUser.getId()))
+            .put(ClientResponse.class);
+
+        assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
+        // Mail processes runs in a separate thread. Wait some time..
+        Thread.sleep(200);
+        assertThat(mailer.emails.size(), is(1));
+        assertThat(1, is(newUsers(em).size()));
+        assertThat(1, is(invitations(em).size()));
+
+        // The message contains only the key, see config-file
+        String key = mailer.emails.get(0).getMessage();
+        response = anonymousResource.path("/login/openid/register/" + "invalid-token")
+            .queryParam("key", key)
+            .put(ClientResponse.class);
+        assertEquals(Response.Status.BAD_REQUEST.getStatusCode(), response.getStatus());
+
+        assertNull(ModelUtil.findUserByEmail(em, email));
+        assertThat(1, is(newUsers(em).size()));
+        assertThat(1, is(invitations(em).size()));
+    }
+
+    @Test
+    public void testInviteInvalidKey() throws Exception {
+        EntityManager em = emf.createEntityManager();
+
+        String email = "newuser@foo.com";
+        assertNull(ModelUtil.findUserByEmail(em, email));
+
+        // Create a NewUser-entry manually. Currently we
+        // can't test the OpenID-login in unit-tests
+        String token = "test-token";
+        em.getTransaction().begin();
+        NewUser newUser = new NewUser();
+        newUser.setFirstName("first");
+        newUser.setLastName("last");
+        newUser.setEmail(email);
+        newUser.setLoginToken(token);
+        em.persist(newUser);
+        em.getTransaction().commit();
+
+        // Invite newuser@foo.com
+        ClientResponse response = joeUsersWebResource
+            .path(String.format("/%d/invite/newuser@foo.com", joeUser.getId()))
+            .put(ClientResponse.class);
+
+        assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
+        // Mail processes runs in a separate thread. Wait some time..
+        Thread.sleep(200);
+        assertThat(mailer.emails.size(), is(1));
+        assertThat(1, is(newUsers(em).size()));
+        assertThat(1, is(invitations(em).size()));
+
+        String key = "invalid-key";
+        response = anonymousResource.path("/login/openid/register/" + token)
+            .queryParam("key", key)
+            .put(ClientResponse.class);
+        assertEquals(Response.Status.UNAUTHORIZED.getStatusCode(), response.getStatus());
+
+        assertNull(ModelUtil.findUserByEmail(em, email));
+        assertThat(1, is(newUsers(em).size()));
+        assertThat(1, is(invitations(em).size()));
+    }
+
 }
+

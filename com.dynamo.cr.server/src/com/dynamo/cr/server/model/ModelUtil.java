@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Set;
 
 import javax.persistence.EntityManager;
+import javax.persistence.TypedQuery;
 
 public class ModelUtil {
 
@@ -59,6 +60,19 @@ public class ModelUtil {
         for (User connectedUser : connections) {
             connectedUser.getConnections().remove(user);
             entityManager.persist(connectedUser);
+        }
+
+        // Remove any invitations
+        TypedQuery<Invitation> q = entityManager.createQuery("select i from Invitation i where i.inviter = :user", Invitation.class);
+        q.setParameter("user", user);
+        for (Invitation invitation : q.getResultList()) {
+            entityManager.remove(invitation);
+        }
+
+        // Remove invitation account if exists
+        InvitationAccount account = entityManager.find(InvitationAccount.class, user.getId());
+        if (account != null) {
+            entityManager.remove(account);
         }
 
         entityManager.remove(user);

@@ -53,6 +53,7 @@ import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.test.Util;
 import com.dynamo.cr.server.util.FileUtil;
 import com.dynamo.server.dgit.CommandUtil;
+import com.google.inject.Guice;
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientResponse;
 import com.sun.jersey.api.client.WebResource;
@@ -61,7 +62,7 @@ import com.sun.jersey.api.client.config.DefaultClientConfig;
 import com.sun.jersey.api.client.filter.HTTPBasicAuthFilter;
 
 @RunWith(value = Parameterized.class)
-public class ProjectResourceTest {
+public class ProjectResourceTest extends AbstractResourceTest {
 
     private BranchLocation branchLocation;
     private Server server;
@@ -129,7 +130,7 @@ public class ProjectResourceTest {
             Util.dropAllTables();
         }
 
-        server = new Server("test_data/crepo_test.config");
+        server = Guice.createInjector(new Module()).getInstance(Server.class);
 
         EntityManagerFactory emf = server.getEntityManagerFactory();
         EntityManager em = emf.createEntityManager();

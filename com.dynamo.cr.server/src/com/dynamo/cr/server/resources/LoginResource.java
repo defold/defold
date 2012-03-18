@@ -5,6 +5,7 @@ import java.util.List;
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
 import javax.persistence.Query;
+import javax.persistence.TypedQuery;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.GET;
 import javax.ws.rs.PUT;
@@ -33,6 +34,7 @@ import com.dynamo.cr.protocol.proto.Protocol.TokenExchangeInfo.Type;
 import com.dynamo.cr.server.ServerException;
 import com.dynamo.cr.server.auth.AuthCookie;
 import com.dynamo.cr.server.auth.OpenIDAuthenticator;
+import com.dynamo.cr.server.model.Invitation;
 import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.NewUser;
 import com.dynamo.cr.server.model.User;
@@ -207,51 +209,68 @@ public class LoginResource extends BaseResource {
     public Response register(@PathParam("token") String token,
                              @QueryParam("key") String key) throws ServerException {
 
-        if (key == null || !key.toLowerCase().equals("de5a6bf2-5f20-436e-836d-0fbe14c480cb")) {
+        if (key == null) {
             throw new ServerException("Invalid registration key", Status.UNAUTHORIZED);
         }
 
         EntityManager em = emf.createEntityManager();
-        em.getTransaction().begin();
+        try {
+            TypedQuery<Invitation> q = em.createQuery("select i from Invitation i where i.registrationKey = :key", Invitation.class);
+            List<Invitation> lst = q.setParameter("key", key).getResultList();
+            if (lst.size() == 0) {
+                throw new ServerException("Invalid registration key", Status.UNAUTHORIZED);
+            }
 
-        List<NewUser> list = em.createQuery("select u from NewUser u where u.loginToken = :loginToken", NewUser.class).setParameter("loginToken", token).getResultList();
-        if (list.size() == 0) {
-            logger.error("Unable to find NewUser row for {}", token);
-            throw new ServerException("Unable to register.", Status.BAD_REQUEST);
+            em.getTransaction().begin();
+
+            // Remove invitation
+            em.remove(lst.get(0));
+
+            List<NewUser> list = em.createQuery("select u from NewUser u where u.loginToken = :loginToken", NewUser.class).setParameter("loginToken", token).getResultList();
+            if (list.size() == 0) {
+                logger.error("Unable to find NewUser row for {}", token);
+                // TODO: When we support per-request transaction this should be removed
+                // In general transaction handling is broken due to lack of rollbacks
+                em.getTransaction().rollback();
+                throw new ServerException("Unable to register.", Status.BAD_REQUEST);
+            }
+
+            NewUser newUser = list.get(0);
+
+            // Generate some random password for OpenID accounts.
+            byte[] passwordBytes = new byte[32];
+            server.getSecureRandom().nextBytes(passwordBytes);
+            String password = Base64.encodeBase64String(passwordBytes);
+
+            User user = new User();
+            user.setEmail(newUser.getEmail());
+            user.setFirstName(newUser.getFirstName());
+            user.setLastName(newUser.getLastName());
+            user.setPassword(password);
+            em.persist(user);
+            em.remove(newUser);
+            em.getTransaction().commit();
+
+            logger.info("New user registred: {}", user.getEmail());
+
+            String cookie = AuthCookie.login(user.getEmail());
+
+            LoginInfo.Builder loginInfoBuilder = LoginInfo.newBuilder()
+                .setEmail(user.getEmail())
+                .setUserId(user.getId())
+                .setAuthCookie(cookie)
+                .setFirstName(user.getFirstName())
+                .setLastName(user.getLastName());
+
+            return Response
+                .ok()
+                .entity(loginInfoBuilder.build())
+                .type(MediaType.APPLICATION_JSON_TYPE)
+                .build();
         }
-
-        NewUser newUser = list.get(0);
-
-        // Generate some random password for OpenID accounts.
-        byte[] passwordBytes = new byte[32];
-        server.getSecureRandom().nextBytes(passwordBytes);
-        String password = Base64.encodeBase64String(passwordBytes);
-
-        User user = new User();
-        user.setEmail(newUser.getEmail());
-        user.setFirstName(newUser.getFirstName());
-        user.setLastName(newUser.getLastName());
-        user.setPassword(password);
-        em.persist(user);
-        em.remove(newUser);
-        em.getTransaction().commit();
-
-        logger.info("New user registred: {}", user.getEmail());
-
-        String cookie = AuthCookie.login(user.getEmail());
-
-        LoginInfo.Builder loginInfoBuilder = LoginInfo.newBuilder()
-            .setEmail(user.getEmail())
-            .setUserId(user.getId())
-            .setAuthCookie(cookie)
-            .setFirstName(user.getFirstName())
-            .setLastName(user.getLastName());
-
-        return Response
-            .ok()
-            .entity(loginInfoBuilder.build())
-            .type(MediaType.APPLICATION_JSON_TYPE)
-            .build();
+        finally {
+            em.close();
+        }
     }
 
     @GET

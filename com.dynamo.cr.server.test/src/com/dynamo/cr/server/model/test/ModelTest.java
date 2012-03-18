@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
@@ -22,6 +23,8 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.dynamo.cr.server.model.Invitation;
+import com.dynamo.cr.server.model.InvitationAccount;
 import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
@@ -68,28 +71,23 @@ public class ModelTest {
         factory.close();
     }
 
+    User newUser(String email, String firstName, String lastName, String password) {
+        User u = new User();
+        u.setEmail(email);
+        u.setFirstName(firstName);
+        u.setLastName(lastName);
+        u.setPassword(password);
+        return u;
+    }
+
     void createData() {
         em.getTransaction().begin();
 
-        User u1 = new User();
-        u1.setEmail(CARL_CONTENT_EMAIL);
-        u1.setFirstName("Carl");
-        u1.setLastName("Content");
-        u1.setPassword("carl");
+        User u1 = newUser(CARL_CONTENT_EMAIL, "Carl", "Content", "carl");
         em.persist(u1);
-
-        User u2 = new User();
-        u2.setEmail(JOE_CODER_EMAIL);
-        u2.setFirstName("Joe");
-        u2.setLastName("Coder");
-        u2.setPassword("joe");
+        User u2 = newUser(JOE_CODER_EMAIL, "Joe", "Coder", "joe");
         em.persist(u2);
-
-        User u3 = new User();
-        u3.setEmail(LISA_USER_EMAIL);
-        u3.setFirstName("Lisa");
-        u3.setLastName("User");
-        u3.setPassword("lisa");
+        User u3 = newUser(LISA_USER_EMAIL, "Lisa", "User", "lisa");
         em.persist(u3);
 
         // Create new projects
@@ -293,4 +291,64 @@ public class ModelTest {
         assertEquals(1, allProjects.size());
     }
 
+    @Test
+    public void testInvitation() throws Exception {
+        em.getTransaction().begin();
+        User inviter = newUser("inviter@foo.com", "Mr", "Inviter", "123");
+        em.persist(inviter);
+        em.getTransaction().commit();
+
+        Invitation invitation = new Invitation();
+        invitation.setEmail("foo@bar.com");
+        invitation.setInviter(inviter);
+        invitation.setRegistrationKey(UUID.randomUUID().toString());
+        em.getTransaction().begin();
+        em.persist(invitation);
+        em.getTransaction().commit();
+
+        em.getTransaction().begin();
+        ModelUtil.removeUser(em, inviter);
+        em.getTransaction().commit();
+
+        List<Invitation> lst = em.createQuery("select i from Invitation i", Invitation.class).getResultList();
+        for (Invitation i : lst) {
+            System.out.println(i);
+        }
+    }
+
+    @Test(expected=RollbackException.class)
+    public void testInvitationDuplicate() throws Exception {
+        em.getTransaction().begin();
+        User inviter = newUser("inviter@foo.com", "Mr", "Inviter", "123");
+        em.persist(inviter);
+
+        Invitation invitation = new Invitation();
+        invitation.setEmail("foo@bar.com");
+        invitation.setInviter(inviter);
+        invitation.setRegistrationKey(UUID.randomUUID().toString());
+        em.persist(invitation);
+
+        invitation = new Invitation();
+        invitation.setEmail("foo@bar.com");
+        invitation.setInviter(inviter);
+        invitation.setRegistrationKey(UUID.randomUUID().toString());
+        em.persist(invitation);
+        em.getTransaction().commit();
+    }
+
+    @Test
+    public void testInvitationAccount() throws Exception {
+        em.getTransaction().begin();
+        User inviter = newUser("inviter@foo.com", "Mr", "Inviter", "123");
+        InvitationAccount account = new InvitationAccount();
+        account.setUser(inviter);
+        em.persist(inviter);
+        em.persist(account);
+        em.getTransaction().commit();
+
+        em.getTransaction().begin();
+        ModelUtil.removeUser(em, inviter);
+        em.getTransaction().commit();
+    }
 }
+

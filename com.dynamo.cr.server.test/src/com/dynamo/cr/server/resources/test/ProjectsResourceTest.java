@@ -37,6 +37,7 @@ import com.dynamo.server.dgit.CommandUtil;
 import com.dynamo.server.dgit.GitFactory;
 import com.dynamo.server.dgit.IGit;
 import com.google.common.io.Files;
+import com.google.inject.Guice;
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientResponse;
 import com.sun.jersey.api.client.WebResource;
@@ -45,7 +46,7 @@ import com.sun.jersey.api.client.config.DefaultClientConfig;
 import com.sun.jersey.api.client.filter.HTTPBasicAuthFilter;
 
 
-public class ProjectsResourceTest {
+public class ProjectsResourceTest extends AbstractResourceTest {
     private Server server;
 
     private static class TestUser {
@@ -120,7 +121,7 @@ public class ProjectsResourceTest {
 
         execCommand("scripts/setup_template_project.sh", "proj1");
 
-        server = new Server("test_data/crepo_test.config");
+        server = Guice.createInjector(new Module()).getInstance(Server.class);
 
         EntityManagerFactory emf = server.getEntityManagerFactory();
         EntityManager em = emf.createEntityManager();
