@@ -5,6 +5,7 @@ import static org.junit.Assert.assertEquals;
 import java.io.File;
 import java.util.HashMap;
 
+import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
 
 import org.eclipse.persistence.config.PersistenceUnitProperties;
@@ -22,7 +23,7 @@ import com.google.common.base.Function;
 public class JobQueueTest {
 
     private static final String PERSISTENCE_UNIT_NAME = "unit-test";
-    private static EntityManagerFactory factory;
+    private EntityManagerFactory factory;
 
     @Before
     public void setUp() throws Exception {
@@ -90,19 +91,44 @@ public class JobQueueTest {
         }
     }
 
+    void process(JobQueue jobQueue, Function<byte[], Void> f) {
+        EntityManager em = factory.createEntityManager();
+        em.getTransaction().begin();
+        jobQueue.process(em, f);
+        em.getTransaction().commit();
+        em.close();
+    }
+
+    void newJob(JobQueue jobQueue, byte[] data) {
+        EntityManager em = factory.createEntityManager();
+        em.getTransaction().begin();
+        jobQueue.newJob(em, data);
+        em.getTransaction().commit();
+        em.close();
+    }
+
+    int queueLength(JobQueue jobQueue) {
+        EntityManager em = factory.createEntityManager();
+        try {
+            return jobQueue.getQueueLength(em);
+        } finally {
+            em.close();
+        }
+    }
+
     @Test
     public void testAdd() throws Exception {
         int n = 100;
-        JobQueue jobQueue = new JobQueue(factory, "add", new ConstantBackoff(1000), 1);
+        JobQueue jobQueue = new JobQueue("add", new ConstantBackoff(1000), 1);
         for (int i = 0; i < n; ++i) {
-            jobQueue.newJob(Integer.toString(i).getBytes());
+            newJob(jobQueue, Integer.toString(i).getBytes());
         }
 
         Sum sum = new Sum();
         // Process queue
-        jobQueue.process(sum);
+        process(jobQueue, sum);
         // Process again. Should be empty now
-        jobQueue.process(sum);
+        process(jobQueue, sum);
         assertEquals((n - 1) * (n / 2), sum.sum);
     }
 
@@ -110,9 +136,9 @@ public class JobQueueTest {
     public void testExponentialBackoff() throws Exception {
         int n = 4;
         ExponentialBackoff backoff = new ExponentialBackoff(2);
-        JobQueue jobQueue = new JobQueue(factory, "add", backoff, 10);
+        JobQueue jobQueue = new JobQueue("add", backoff, 10);
         for (int i = 0; i < n; ++i) {
-            jobQueue.newJob(Integer.toString(i).getBytes());
+            newJob(jobQueue, Integer.toString(i).getBytes());
         }
 
         AlwaysFail fail = new AlwaysFail();
@@ -120,7 +146,7 @@ public class JobQueueTest {
         // Backoff delays (power 2 set above)
         // sum(0 1 2 4) = 7
         while (System.currentTimeMillis() - start < (7+1) * 1000) {
-            jobQueue.process(fail);
+            process(jobQueue, fail);
             Thread.sleep(50);
         }
         assertEquals(4 * n, fail.count);
@@ -129,18 +155,18 @@ public class JobQueueTest {
     @Test
     public void testMultiQueue() throws Exception {
         int n = 100;
-        JobQueue jobQueue1 = new JobQueue(factory, "add1", new ConstantBackoff(1000), 1);
-        JobQueue jobQueue2 = new JobQueue(factory, "add2", new ConstantBackoff(1000), 1);
+        JobQueue jobQueue1 = new JobQueue("add1", new ConstantBackoff(1000), 1);
+        JobQueue jobQueue2 = new JobQueue("add2", new ConstantBackoff(1000), 1);
         for (int i = 0; i < n; ++i) {
-            jobQueue1.newJob(Integer.toString(i).getBytes());
-            jobQueue2.newJob(Integer.toString(i * 10).getBytes());
+            newJob(jobQueue1, Integer.toString(i).getBytes());
+            newJob(jobQueue2, Integer.toString(i * 10).getBytes());
         }
         Sum sum1 = new Sum();
         Sum sum2 = new Sum();
         // Process queue 1
-        jobQueue1.process(sum1);
+        process(jobQueue1, sum1);
         // Process queue 2
-        jobQueue2.process(sum2);
+        process(jobQueue2, sum2);
         assertEquals((n - 1) * (n / 2), sum1.sum);
         assertEquals((n - 1) * (n / 2) * 10, sum2.sum);
     }
@@ -148,17 +174,17 @@ public class JobQueueTest {
     @Test
     public void testRetry1() throws Exception {
         int n = 4;
-        JobQueue jobQueue = new JobQueue(factory, "add", new ConstantBackoff(1000), 1);
+        JobQueue jobQueue = new JobQueue("add", new ConstantBackoff(1000), 1);
         for (int i = 0; i < n; ++i) {
-            jobQueue.newJob(Integer.toString(i).getBytes());
+            newJob(jobQueue, Integer.toString(i).getBytes());
         }
 
         // Process queue, all fail
-        jobQueue.process(new AlwaysFail());
+        process(jobQueue, new AlwaysFail());
 
         // Process again. minRetryDelay too large. Sum should be zero
         Sum sum = new Sum();
-        jobQueue.process(sum);
+        process(jobQueue, sum);
         assertEquals(0, sum.sum);
     }
 
@@ -166,13 +192,13 @@ public class JobQueueTest {
     public void testRetry2() throws Exception {
         int n = 4;
         int minRetryDelay = 1;
-        JobQueue jobQueue = new JobQueue(factory, "add", new ConstantBackoff(minRetryDelay), 2);
+        JobQueue jobQueue = new JobQueue("add", new ConstantBackoff(minRetryDelay), 2);
         for (int i = 0; i < n; ++i) {
-            jobQueue.newJob(Integer.toString(i).getBytes());
+            newJob(jobQueue, Integer.toString(i).getBytes());
         }
 
         // Process queue, all fail
-        jobQueue.process(new AlwaysFail());
+        process(jobQueue, new AlwaysFail());
 
         // Sleep minRetryDelay
         Thread.sleep(minRetryDelay * 1000);
@@ -180,7 +206,7 @@ public class JobQueueTest {
         // Process again. minRetryDelay set to 1 second. All jobs
         // should be processed now
         Sum sum = new Sum();
-        jobQueue.process(sum);
+        process(jobQueue, sum);
         assertEquals((n - 1) * (n / 2), sum.sum);
     }
 
@@ -189,21 +215,21 @@ public class JobQueueTest {
         int n = 4;
         int minRetryDelay = 1;
         int maxRetries = 3;
-        JobQueue jobQueue = new JobQueue(factory, "add", new ConstantBackoff(minRetryDelay),
+        JobQueue jobQueue = new JobQueue("add", new ConstantBackoff(minRetryDelay),
                 maxRetries);
         for (int i = 0; i < n; ++i) {
-            jobQueue.newJob(Integer.toString(i).getBytes());
+            newJob(jobQueue, Integer.toString(i).getBytes());
         }
 
         for (int i = 0; i < maxRetries; ++i) {
-            assertEquals(n, jobQueue.getQueueLength());
-            jobQueue.process(new AlwaysFail());
+            assertEquals(n, queueLength(jobQueue));
+            process(jobQueue, new AlwaysFail());
             Thread.sleep(minRetryDelay * 1000);
         }
-        assertEquals(0, jobQueue.getQueueLength());
+        assertEquals(0, queueLength(jobQueue));
     }
 
-    static class Producer extends Thread {
+    class Producer extends Thread {
         private JobQueue jobQueue;
         private int n;
         private int delay;
@@ -216,7 +242,7 @@ public class JobQueueTest {
         @Override
         public void run() {
             for (int i = 0; i < n; ++i) {
-                jobQueue.newJob(Integer.toString(i).getBytes());
+                newJob(jobQueue, Integer.toString(i).getBytes());
                 try {
                     Thread.sleep(delay);
                 } catch (InterruptedException e) {
@@ -231,13 +257,13 @@ public class JobQueueTest {
         int n = 500;
         int producerDelay = 5;
         int consumerDelay = 10;
-        JobQueue jobQueue = new JobQueue(factory, "add", new ConstantBackoff(1000), 1);
+        JobQueue jobQueue = new JobQueue("add", new ConstantBackoff(1000), 1);
         Producer producer = new Producer(jobQueue, n, producerDelay);
         producer.start();
 
         Sum sum = new Sum(consumerDelay);
         while (true) {
-            jobQueue.process(sum);
+            process(jobQueue, sum);
             if (sum.sum == (n - 1) * (n / 2)) {
                 break;
             }
@@ -251,13 +277,13 @@ public class JobQueueTest {
         int n = 500;
         int producerDelay = 10;
         int consumerDelay = 5;
-        JobQueue jobQueue = new JobQueue(factory, "add", new ConstantBackoff(1000), 1);
+        JobQueue jobQueue = new JobQueue("add", new ConstantBackoff(1000), 1);
         Producer producer = new Producer(jobQueue, n, producerDelay);
         producer.start();
 
         Sum sum = new Sum(consumerDelay);
         while (true) {
-            jobQueue.process(sum);
+            process(jobQueue, sum);
             if (sum.sum == (n - 1) * (n / 2)) {
                 break;
             }

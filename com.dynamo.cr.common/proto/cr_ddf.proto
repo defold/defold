@@ -43,5 +43,21 @@ message Configuration
     required string hostname = 17;
     optional int32 data_server_enabled = 18 [default=1];
     optional int32 max_project_count = 19 [default=5];
+
+    // smtp
+    required string smtp_host = 20;
+    required string smtp_username = 21;
+    required string smtp_password = 22;
+
+    // email
+    required EMailTemplate registrationTemplate = 23;
+    required EMailTemplate invitationTemplate = 24;
+}
+
+message EMailTemplate
+{
+    required string from = 1;
+    required string subject = 2;
+    required string message = 3;
 }
 
