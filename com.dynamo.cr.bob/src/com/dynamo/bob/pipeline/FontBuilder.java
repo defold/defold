@@ -29,20 +29,9 @@ public class FontBuilder extends Builder<Void>  {
         FontDesc.Builder fontDescbuilder = FontDesc.newBuilder();
         ProtoUtil.merge(task.input(0), fontDescbuilder);
         FontDesc fontDesc = fontDescbuilder.build();
-        if (fontDesc.getFont().length() == 0) {
-            throw new CompileExceptionError("No ttf font specified in " + task.input(0).getPath() + ".");
-        }
-        IResource ttfResource = project.getResource(fontDesc.getFont());
-        File ttfFile = new File(ttfResource.getAbsPath());
-        if (!ttfFile.exists()) {
-            throw new CompileExceptionError(String.format("%s:0 error: is missing the dependent ttf-file '%s'", task.input(0).getPath(), fontDesc.getFont()));
-        }
 
-        IResource materialResource = project.getResource(fontDesc.getMaterial());
-        File materialFile = new File(materialResource.getAbsPath());
-        if (!materialFile.isFile()) {
-            throw new CompileExceptionError(String.format("%s:0 error: is missing the dependent material-file '%s'", task.input(0).getPath(), fontDesc.getMaterial()));
-        }
+        File ttfFile = BuilderUtil.checkFile(this.project, task.input(0), "font", fontDesc.getFont());
+        BuilderUtil.checkFile(this.project, task.input(0), "material", fontDesc.getMaterial());
 
         Fontc fontc = new Fontc();
         BufferedInputStream fontStream = new BufferedInputStream(new FileInputStream(ttfFile));
@@ -56,7 +45,7 @@ public class FontBuilder extends Builder<Void>  {
             fontc.run(fontStream, fontDesc, fontMapFile);
         } catch (FontFormatException e) {
             task.output(0).remove();
-            throw new CompileExceptionError(e.getMessage());
+            throw new CompileExceptionError(task.input(0), 0, e.getMessage());
         } finally {
             fontStream.close();
         }

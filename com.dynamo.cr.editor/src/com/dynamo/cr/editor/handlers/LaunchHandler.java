@@ -14,9 +14,12 @@ import java.util.Map.Entry;
 import org.eclipse.core.commands.AbstractHandler;
 import org.eclipse.core.commands.ExecutionEvent;
 import org.eclipse.core.commands.ExecutionException;
+import org.eclipse.core.resources.IMarker;
 import org.eclipse.core.resources.IProject;
+import org.eclipse.core.resources.IResource;
 import org.eclipse.core.resources.IncrementalProjectBuilder;
 import org.eclipse.core.resources.ResourcesPlugin;
+import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
@@ -145,12 +148,15 @@ public class LaunchHandler extends AbstractHandler {
                     console.clearConsole();
                     MessageConsoleStream stream = console.newMessageStream();
 
-                    stream.println("DMSOCKS_PROXY=" + socks_proxy);
-                    stream.println("DMSOCKS_PROXY_PORT=" + socks_proxy_port);
-                    for (String s : args) {
-                        stream.print(s + " ");
+                    // Dump env and exe args when debugging
+                    if (System.getProperty("osgi.dev") != null) {
+                        stream.println("DMSOCKS_PROXY=" + socks_proxy);
+                        stream.println("DMSOCKS_PROXY_PORT=" + socks_proxy_port);
+                        for (String s : args) {
+                            stream.print(s + " ");
+                        }
+                        stream.println("");
                     }
-                    stream.println("");
 
                     String line = std.readLine();
                     while (line != null) {
@@ -246,21 +252,26 @@ public class LaunchHandler extends AbstractHandler {
         Job job = new Job("Build") {
             @Override
             protected IStatus run(IProgressMonitor monitor) {
-                try {
-                    Map<String, String> args = new HashMap<String, String>();
-                    final IPreferenceStore store = Activator.getDefault().getPreferenceStore();
-                    final boolean localBranch = store.getBoolean(PreferenceConstants.P_USE_LOCAL_BRANCHES);
-                    if (localBranch)
-                        args.put("location", "local");
-                    else
-                        args.put("location", "remote");
+                Map<String, String> args = new HashMap<String, String>();
+                final IPreferenceStore store = Activator.getDefault().getPreferenceStore();
+                final boolean localBranch = store.getBoolean(PreferenceConstants.P_USE_LOCAL_BRANCHES);
+                if (localBranch)
+                    args.put("location", "local");
+                else
+                    args.put("location", "remote");
 
+                try {
                     project.build(rebuild ? IncrementalProjectBuilder.FULL_BUILD : IncrementalProjectBuilder.INCREMENTAL_BUILD,  "com.dynamo.cr.editor.builders.contentbuilder", args, monitor);
-                    return launchGame();
-                } catch (Throwable e) {
-                    // Return "OK" here in order to avoid dialogs when the build fails
-                    // We could perhaps check for a specific status value?
-                    return Status.OK_STATUS;
+                    int severity = project.findMaxProblemSeverity(IMarker.PROBLEM, true, IResource.DEPTH_INFINITE);
+                    if (severity < IMarker.SEVERITY_ERROR) {
+                        return launchGame();
+                    } else {
+                        return Status.OK_STATUS;
+                    }
+                } catch (CoreException e) {
+                    return e.getStatus();
+                } catch (RepositoryException e) {
+                    return new Status(IStatus.ERROR, Activator.PLUGIN_ID, "Could not launch game.", e);
                 }
             }
         };

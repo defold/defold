@@ -6,6 +6,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import org.eclipse.osgi.util.NLS;
+
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.IResource;
@@ -49,16 +51,18 @@ public class ProtoBuilders {
     public static class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
 
         @Override
-        protected CollectionDesc.Builder transform(CollectionDesc.Builder messageBuilder) {
+        protected CollectionDesc.Builder transform(IResource resource, CollectionDesc.Builder messageBuilder) throws CompileExceptionError {
 
             for (int i = 0; i < messageBuilder.getInstancesCount(); ++i) {
                 InstanceDesc.Builder b = InstanceDesc.newBuilder().mergeFrom(messageBuilder.getInstances(i));
+                BuilderUtil.checkFile(this.project, resource, "prototype", b.getPrototype());
                 b.setPrototype(BuilderUtil.replaceExt(b.getPrototype(), ".go", ".goc"));
                 messageBuilder.setInstances(i, b);
             }
 
             for (int i = 0; i < messageBuilder.getCollectionInstancesCount(); ++i) {
                 CollectionInstanceDesc.Builder b = CollectionInstanceDesc.newBuilder().mergeFrom(messageBuilder.getCollectionInstances(i));
+                BuilderUtil.checkFile(this.project, resource, "collection", b.getCollection());
                 b.setCollection(BuilderUtil.replaceExt(b.getCollection(), ".collection", ".collectionc"));
                 messageBuilder.setCollectionInstances(i, b);
             }
@@ -71,7 +75,8 @@ public class ProtoBuilders {
     @BuilderParams(name="CollectionProxy", inExts=".collectionproxy", outExt=".collectionproxyc")
     public static class CollectionProxyBuilder extends ProtoBuilder<CollectionProxyDesc.Builder> {
         @Override
-        protected CollectionProxyDesc.Builder transform(CollectionProxyDesc.Builder messageBuilder) {
+        protected CollectionProxyDesc.Builder transform(IResource resource, CollectionProxyDesc.Builder messageBuilder) throws CompileExceptionError {
+            BuilderUtil.checkFile(this.project, resource, "collection", messageBuilder.getCollection());
             return messageBuilder.setCollection(BuilderUtil.replaceExt(messageBuilder.getCollection(), ".collection", ".collectionc"));
         }
     }
@@ -80,11 +85,16 @@ public class ProtoBuilders {
     @BuilderParams(name="emitter", inExts=".emitter", outExt=".emitterc")
     public static class EmitterBuilder extends ProtoBuilder<Emitter.Builder> {
         @Override
-        protected Emitter.Builder transform(Emitter.Builder messageBuilder) {
+        protected Emitter.Builder transform(IResource resource, Emitter.Builder messageBuilder) throws CompileExceptionError {
 
             Particle.Texture_t.Builder tb = messageBuilder.getTexture().newBuilderForType().mergeFrom(messageBuilder.getTexture());
-            tb.setName(replaceTextureName(tb.getName()));
+            String texture = tb.getName();
+            if (!texture.isEmpty()) {
+                BuilderUtil.checkFile(this.project, resource, "name", texture);
+                tb.setName(replaceTextureName(texture));
+            }
 
+            BuilderUtil.checkFile(this.project, resource, "material", messageBuilder.getMaterial());
             return messageBuilder
                     .setMaterial(BuilderUtil.replaceExt(messageBuilder.getMaterial(), ".material", ".materialc"))
                     .setTexture(tb);
@@ -95,10 +105,11 @@ public class ProtoBuilders {
     @BuilderParams(name="Model", inExts=".model", outExt=".modelc")
     public static class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
         @Override
-        protected ModelDesc.Builder transform(
-                ModelDesc.Builder messageBuilder) {
+        protected ModelDesc.Builder transform(IResource resource, ModelDesc.Builder messageBuilder) throws CompileExceptionError {
 
+            BuilderUtil.checkFile(this.project, resource, "mesh", messageBuilder.getMesh());
             messageBuilder.setMesh(BuilderUtil.replaceExt(messageBuilder.getMesh(), ".dae", ".meshc"));
+            BuilderUtil.checkFile(this.project, resource, "material", messageBuilder.getMaterial());
             messageBuilder.setMaterial(BuilderUtil.replaceExt(messageBuilder.getMaterial(), ".material", ".materialc"));
             List<String> newTextureList = new ArrayList<String>();
             for (String t : messageBuilder.getTexturesList()) {
@@ -120,8 +131,10 @@ public class ProtoBuilders {
     public static class CollisionObjectBuilder extends ProtoBuilder<CollisionObjectDesc.Builder> {
 
         @Override
-        protected CollisionObjectDesc.Builder transform(
-                CollisionObjectDesc.Builder messageBuilder) throws IOException, CompileExceptionError {
+        protected CollisionObjectDesc.Builder transform(IResource resource, CollisionObjectDesc.Builder messageBuilder) throws IOException, CompileExceptionError {
+            if (messageBuilder.getEmbeddedCollisionShape().getShapesCount() == 0) {
+                BuilderUtil.checkFile(this.project, resource, "collision shape", messageBuilder.getCollisionShape());
+            }
             // Merge convex shape resource with collision object
             // NOTE: Special case for tilegrid resources. They are left as is
             if (messageBuilder.hasCollisionShape() && !messageBuilder.getCollisionShape().isEmpty() && !messageBuilder.getCollisionShape().endsWith(".tilegrid")) {
@@ -151,7 +164,7 @@ public class ProtoBuilders {
     @BuilderParams(name="Gui", inExts=".gui", outExt=".guic")
     public static class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         @Override
-        protected SceneDesc.Builder transform(SceneDesc.Builder messageBuilder) throws IOException, CompileExceptionError {
+        protected SceneDesc.Builder transform(IResource input, SceneDesc.Builder messageBuilder) throws IOException, CompileExceptionError {
             messageBuilder.setScript(BuilderUtil.replaceExt(messageBuilder.getScript(), ".gui_script", ".gui_scriptc"));
             Set<String> fontNames = new HashSet<String>();
             Set<String> textureNames = new HashSet<String>();
@@ -175,13 +188,13 @@ public class ProtoBuilders {
             for (NodeDesc n : messageBuilder.getNodesList()) {
                 if (n.hasTexture() && n.getTexture().length() > 0) {
                     if (!textureNames.contains(n.getTexture())) {
-                        throw new CompileExceptionError(String.format("Texture '%s' not declared in gui-file", n.getTexture()));
+                        throw new CompileExceptionError(input, 0, NLS.bind(Messages.GuiBuilder_MISSING_TEXTURE, n.getTexture()));
                     }
                 }
 
                 if (n.hasFont() && n.getFont().length() > 0) {
                     if (!fontNames.contains(n.getFont())) {
-                        throw new CompileExceptionError(String.format("Font '%s' not declared in gui-file", n.getFont()));
+                        throw new CompileExceptionError(input, 0, NLS.bind(Messages.GuiBuilder_MISSING_FONT, n.getFont()));
                     }
                 }
 
@@ -207,8 +220,9 @@ public class ProtoBuilders {
     @BuilderParams(name="Factory", inExts=".factory", outExt=".factoryc")
     public static class FactoryBuilder extends ProtoBuilder<FactoryDesc.Builder> {
         @Override
-        protected FactoryDesc.Builder transform(FactoryDesc.Builder messageBuilder) throws IOException,
+        protected FactoryDesc.Builder transform(IResource resource, FactoryDesc.Builder messageBuilder) throws IOException,
                 CompileExceptionError {
+            BuilderUtil.checkFile(this.project, resource, "prototype", messageBuilder.getPrototype());
             return messageBuilder.setPrototype(BuilderUtil.replaceExt(messageBuilder.getPrototype(), ".go", ".goc"));
         }
     }
@@ -221,14 +235,15 @@ public class ProtoBuilders {
     @BuilderParams(name="Render", inExts=".render", outExt=".renderc")
     public static class RenderPrototypeBuilder extends ProtoBuilder<RenderPrototypeDesc.Builder> {
         @Override
-        protected RenderPrototypeDesc.Builder transform(
-                RenderPrototypeDesc.Builder messageBuilder)
+        protected RenderPrototypeDesc.Builder transform(IResource resource, RenderPrototypeDesc.Builder messageBuilder)
                 throws IOException, CompileExceptionError {
 
+            BuilderUtil.checkFile(this.project, resource, "script", messageBuilder.getScript());
             messageBuilder.setScript(BuilderUtil.replaceExt(messageBuilder.getScript(), ".render_script", ".render_scriptc"));
 
             List<RenderPrototypeDesc.MaterialDesc> newMaterialList = new ArrayList<RenderPrototypeDesc.MaterialDesc>();
             for (RenderPrototypeDesc.MaterialDesc m : messageBuilder.getMaterialsList()) {
+                BuilderUtil.checkFile(this.project, resource, "material", m.getMaterial());
                 newMaterialList.add(RenderPrototypeDesc.MaterialDesc.newBuilder().mergeFrom(m).setMaterial(BuilderUtil.replaceExt(m.getMaterial(), ".material", ".materialc")).build());
             }
             messageBuilder.clearMaterials();
@@ -242,9 +257,9 @@ public class ProtoBuilders {
     @BuilderParams(name="SpriteDesc", inExts=".sprite", outExt=".spritec")
     public static class SpriteDescBuilder extends ProtoBuilder<SpriteDesc.Builder> {
         @Override
-        protected SpriteDesc.Builder transform(
-                SpriteDesc.Builder messageBuilder)
+        protected SpriteDesc.Builder transform(IResource resource, SpriteDesc.Builder messageBuilder)
                 throws IOException, CompileExceptionError {
+            BuilderUtil.checkFile(this.project, resource, "tile set", messageBuilder.getTileSet());
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), ".tileset", ".tilesetc"));
             return messageBuilder;
         }
@@ -254,8 +269,9 @@ public class ProtoBuilders {
     @BuilderParams(name="TileGrid", inExts=".tilegrid", outExt=".tilegridc")
     public static class TileGridBuilder extends ProtoBuilder<TileGrid.Builder> {
         @Override
-        protected TileGrid.Builder transform(TileGrid.Builder messageBuilder) throws IOException,
+        protected TileGrid.Builder transform(IResource resource, TileGrid.Builder messageBuilder) throws IOException,
                 CompileExceptionError {
+            BuilderUtil.checkFile(this.project, resource, "tile set", messageBuilder.getTileSet());
             return messageBuilder.setTileSet(messageBuilder.getTileSet() + "c");
         }
     }
@@ -264,10 +280,11 @@ public class ProtoBuilders {
     @BuilderParams(name="Material", inExts=".material", outExt=".materialc")
     public static class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         @Override
-        protected MaterialDesc.Builder transform(
-                MaterialDesc.Builder messageBuilder)
+        protected MaterialDesc.Builder transform(IResource resource, MaterialDesc.Builder messageBuilder)
                 throws IOException, CompileExceptionError {
+            BuilderUtil.checkFile(this.project, resource, "vertex program", messageBuilder.getVertexProgram());
             messageBuilder.setVertexProgram(BuilderUtil.replaceExt(messageBuilder.getVertexProgram(), ".vp", ".vpc"));
+            BuilderUtil.checkFile(this.project, resource, "fragment program", messageBuilder.getFragmentProgram());
             messageBuilder.setFragmentProgram(BuilderUtil.replaceExt(messageBuilder.getFragmentProgram(), ".fp", ".fpc"));
             return messageBuilder;
         }

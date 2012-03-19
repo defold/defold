@@ -1,6 +1,8 @@
 package com.dynamo.bob.pipeline;
 
 import java.io.IOException;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.IResource;
@@ -13,7 +15,14 @@ public class ProtoUtil {
         try {
             TextFormat.merge(new String(input.getContent()), builder);
         } catch (TextFormat.ParseException e) {
-            throw new CompileExceptionError(e.getMessage(), e, input);
+            // 1:7: String missing ending quote.
+            Pattern pattern = Pattern.compile("(\\d+):(\\d+): (.*)");
+            Matcher m = pattern.matcher(e.getMessage());
+            if (m.matches()) {
+                throw new CompileExceptionError(input, Integer.parseInt(m.group(1)), m.group(3), e);
+            } else {
+                throw new CompileExceptionError(input, 0, e.getMessage(), e);
+            }
         }
     }
 }

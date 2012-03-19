@@ -161,7 +161,7 @@ public class Project {
             // Pass on unmodified
             throw e;
         } catch (Throwable e) {
-            throw new CompileExceptionError(e.getMessage(), e);
+            throw new CompileExceptionError(null, 0, e.getMessage(), e);
         }
     }
 
@@ -287,6 +287,7 @@ run:
                 result.add(taskResult);
                 Builder builder = task.getBuilder();
                 boolean ok = true;
+                int lineNumber = 0;
                 String message = null;
                 Throwable exception = null;
                 boolean abort = false;
@@ -307,6 +308,7 @@ run:
 
                 } catch (CompileExceptionError e) {
                     ok = false;
+                    lineNumber = e.getLineNumber();
                     message = e.getMessage();
                 } catch (Throwable e) {
                     ok = false;
@@ -316,6 +318,7 @@ run:
                 }
                 if (!ok) {
                     taskResult.setOk(ok);
+                    taskResult.setLineNumber(lineNumber);
                     taskResult.setMessage(message);
                     taskResult.setException(exception);
                     // Clear sigs for all outputs when a task fails

@@ -16,7 +16,7 @@ public abstract class ProtoBuilder<B extends GeneratedMessage.Builder<B>> extend
         protoParams = getClass().getAnnotation(ProtoParams.class);
     }
 
-    protected B transform(B messageBuilder) throws IOException, CompileExceptionError {
+    protected B transform(IResource resource, B messageBuilder) throws IOException, CompileExceptionError {
         return messageBuilder;
     }
 
@@ -39,7 +39,7 @@ public abstract class ProtoBuilder<B extends GeneratedMessage.Builder<B>> extend
         }
 
         ProtoUtil.merge(task.input(0), builder);
-        builder = transform(builder);
+        builder = transform(task.input(0), builder);
 
         Message msg = builder.build();
         ByteArrayOutputStream out = new ByteArrayOutputStream(4 * 1024);
