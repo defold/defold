@@ -10,7 +10,6 @@ import com.dynamo.cr.proto.Config.ProjectTemplate;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectTemplateInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectTemplateInfo.Builder;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectTemplateInfoList;
-import com.dynamo.cr.server.ServerException;
 
 @Path("/repository")
 @RolesAllowed(value = { "user" })
@@ -18,7 +17,7 @@ public class RepositoryResource extends BaseResource {
 
     @GET
     @Path("/project_templates")
-    public ProjectTemplateInfoList getProjectTemplates() throws ServerException {
+    public ProjectTemplateInfoList getProjectTemplates() {
         List<ProjectTemplate> projectTemplates = server.getConfiguration().getProjectTemplatesList();
         ProjectTemplateInfoList.Builder infoListBuilder = ProjectTemplateInfoList.newBuilder();
         for (ProjectTemplate projectTemplate : projectTemplates) {

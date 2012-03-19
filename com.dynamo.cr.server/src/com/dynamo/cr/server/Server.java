@@ -15,6 +15,7 @@ import java.security.SecureRandom;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -24,6 +25,7 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
+import javax.servlet.ServletContextEvent;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -37,6 +39,7 @@ import org.eclipse.jetty.server.handler.HandlerList;
 import org.eclipse.jetty.server.handler.ResourceHandler;
 import org.eclipse.jetty.util.resource.Resource;
 import org.eclipse.jgit.http.server.GitServlet;
+import org.eclipse.persistence.config.PersistenceUnitProperties;
 import org.glassfish.grizzly.http.server.HttpServer;
 import org.glassfish.grizzly.servlet.ServletHandler;
 import org.slf4j.Logger;
@@ -63,12 +66,25 @@ import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.model.User.Role;
 import com.dynamo.cr.server.openid.OpenID;
+import com.dynamo.cr.server.resources.LoginResource;
+import com.dynamo.cr.server.resources.ProjectResource;
+import com.dynamo.cr.server.resources.ProjectsResource;
+import com.dynamo.cr.server.resources.RepositoryResource;
 import com.dynamo.cr.server.resources.ResourceUtil;
+import com.dynamo.cr.server.resources.UsersResource;
+import com.dynamo.inject.persist.PersistFilter;
+import com.dynamo.inject.persist.jpa.JpaPersistModule;
 import com.dynamo.server.dgit.GitFactory;
 import com.dynamo.server.dgit.GitFactory.Type;
 import com.dynamo.server.dgit.IGit;
+import com.google.inject.Guice;
+import com.google.inject.Injector;
+import com.google.inject.servlet.GuiceFilter;
+import com.google.inject.servlet.GuiceServletContextListener;
+import com.google.inject.servlet.ServletModule;
 import com.sun.jersey.api.container.filter.RolesAllowedResourceFilterFactory;
-import com.sun.jersey.api.container.grizzly2.servlet.GrizzlyWebContainerFactory;
+import com.sun.jersey.guice.spi.container.servlet.GuiceContainer;
+import com.sun.jersey.spi.container.servlet.ServletContainer;
 
 public class Server implements ServerMBean {
 
@@ -150,6 +166,105 @@ public class Server implements ServerMBean {
         this.keepBuildDescFor = keepBuildDescFor;
     }
 
+    public static class Config extends GuiceServletContextListener {
+
+        private Server server;
+
+        public Config(Server server) {
+            this.server = server;
+        }
+
+        @Override
+        protected Injector getInjector() {
+            return Guice.createInjector(new ServletModule(){
+                @Override
+                protected void configureServlets() {
+                    Properties props = new Properties();
+                    props.put(PersistenceUnitProperties.CLASSLOADER, server.getClass().getClassLoader());
+                    install(new JpaPersistModule("unit-test").properties(props));
+
+                    bind(Server.class).toInstance(server);
+                    bind(BranchRepository.class).toInstance(server.branchRepository);
+
+                    bind(RepositoryResource.class);
+                    bind(ProjectResource.class);
+                    bind(ProjectsResource.class);
+                    bind(UsersResource.class);
+                    bind(LoginResource.class);
+
+                    Map<String, String> params = new HashMap<String, String>();
+                    params.put("com.sun.jersey.config.property.resourceConfigClass",
+                            "com.dynamo.cr.server.ResourceConfig");
+
+                    params.put(ResourceConfig.PROPERTY_CONTAINER_REQUEST_FILTERS,
+                            PreLoggingRequestFilter.class.getName() +  ";" + SecurityFilter.class.getName());
+                    params.put(ResourceConfig.PROPERTY_RESOURCE_FILTER_FACTORIES,
+                            RolesAllowedResourceFilterFactory.class.getName());
+                    params.put(ResourceConfig.PROPERTY_CONTAINER_RESPONSE_FILTERS,
+                            CrossSiteHeaderResponseFilter.class.getName() + ";" + PostLoggingResponseFilter.class.getName());
+
+                    filter("*").through(PersistFilter.class);
+                    serve("*").with(GuiceContainer.class, params);
+                }
+            });
+        }
+    }
+
+    public class GuiceHandler extends ServletHandler {
+        private final GuiceServletContextListener guiceServletContextListener;
+
+        public GuiceHandler(Config guiceServletContextListener) {
+            this.guiceServletContextListener = guiceServletContextListener;
+        }
+
+        @Override
+        public void start() {
+            guiceServletContextListener.contextInitialized(new ServletContextEvent(getServletCtx()));
+            super.start();
+        }
+
+        @Override
+        public void destroy() {
+            super.destroy();
+            guiceServletContextListener.contextDestroyed(new ServletContextEvent(getServletCtx()));
+        }
+    }
+
+    HttpServer createHttpServer() throws IOException {
+        HttpServer server = HttpServer.createSimpleServer("/", configuration.getServicePort());
+        Config config = new Config(this);
+        ServletHandler handler = new GuiceHandler(config);
+        handler.addFilter(new GuiceFilter(), "GuiceFilter", null);
+        handler.setServletInstance(new ServletContainer());
+
+        /*
+         * NOTE:
+         * Class scanning in jersey with "com.sun.jersey.config.property.packages"
+         * is not compatible with OSGi.
+         * Therefore are all resource classes specified in class ResourceConfig
+         * using  "com.sun.jersey.config.property.resourceConfigClass" instead
+         *
+         * Old "code":
+         * initParams.put("com.sun.jersey.config.property.packages", "com.dynamo.cr.server.resources;com.dynamo.cr.server.auth;com.dynamo.cr.common.providers");
+         */
+
+        handler.addInitParameter("com.sun.jersey.config.property.resourceConfigClass",
+                "com.dynamo.cr.server.ResourceConfig");
+
+        handler.addInitParameter(ResourceConfig.PROPERTY_CONTAINER_REQUEST_FILTERS,
+                PreLoggingRequestFilter.class.getName() +  ";" + SecurityFilter.class.getName());
+        handler.addInitParameter(ResourceConfig.PROPERTY_RESOURCE_FILTER_FACTORIES,
+                RolesAllowedResourceFilterFactory.class.getName());
+        handler.addInitParameter(ResourceConfig.PROPERTY_CONTAINER_RESPONSE_FILTERS,
+                CrossSiteHeaderResponseFilter.class.getName() + ";" + PostLoggingResponseFilter.class.getName());
+
+        server.getServerConfiguration().addHttpHandler(handler, "/*");
+        server.start();
+        return server;
+    }
+
+    public Server() {}
+
     @Inject
     public Server(EntityManagerFactory emf,
                   Configuration configuration,
@@ -198,34 +313,8 @@ public class Server implements ServerMBean {
         branchRepository = new RemoteBranchRepository(this, configuration.getBranchRoot(), configuration.getRepositoryRoot(), builtinsDirectory, filterPatterns);
 
         baseUri = String.format("http://0.0.0.0:%d/", this.configuration.getServicePort());
-        final Map<String, String> initParams = new HashMap<String, String>();
 
-        /*
-         * NOTE:
-         * Class scanning in jersey with "com.sun.jersey.config.property.packages"
-         * is not compatible with OSGi.
-         * Therefore are all resource classes specified in class ResourceConfig
-         * using  "com.sun.jersey.config.property.resourceConfigClass" instead
-         *
-         * Old "code":
-         * initParams.put("com.sun.jersey.config.property.packages", "com.dynamo.cr.server.resources;com.dynamo.cr.server.auth;com.dynamo.cr.common.providers");
-         */
-        initParams.put("com.sun.jersey.config.property.resourceConfigClass",
-                       "com.dynamo.cr.server.ResourceConfig");
-
-        assert ResourceConfig.server == null;
-        ResourceConfig.server = this;
-        ResourceConfig.branchRepository = branchRepository;
-        ResourceConfig.emf = emf;
-
-        initParams.put(ResourceConfig.PROPERTY_CONTAINER_REQUEST_FILTERS,
-                PreLoggingRequestFilter.class.getName() +  ";" + SecurityFilter.class.getName());
-        initParams.put(ResourceConfig.PROPERTY_RESOURCE_FILTER_FACTORIES,
-                RolesAllowedResourceFilterFactory.class.getName());
-        initParams.put(ResourceConfig.PROPERTY_CONTAINER_RESPONSE_FILTERS,
-                CrossSiteHeaderResponseFilter.class.getName() + ";" + PostLoggingResponseFilter.class.getName());
-
-        httpServer = GrizzlyWebContainerFactory.create(baseUri, initParams);
+        httpServer = createHttpServer();
         GitServlet gitServlet = new GitServlet();
         ServletHandler gitHandler = new ServletHandler(gitServlet);
         gitHandler.addFilter(new GitSecurityFilter(emf), "gitAuth", null);
@@ -451,9 +540,6 @@ public class Server implements ServerMBean {
     }
 
     public void stop() {
-        assert ResourceConfig.server != null;
-        ResourceConfig.server = null;
-
         mailProcessor.stop();
 
         if (this.cleanupThread != null) {

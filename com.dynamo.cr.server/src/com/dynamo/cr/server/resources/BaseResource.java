@@ -1,5 +1,7 @@
 package com.dynamo.cr.server.resources;
 
+import javax.inject.Inject;
+import javax.persistence.EntityManager;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
@@ -11,14 +13,17 @@ import com.dynamo.cr.branchrepo.BranchRepository;
 import com.dynamo.cr.server.Server;
 
 public class BaseResource {
-    @Context
+    @Inject
     protected Server server;
 
-    @Context
+    @Inject
     protected BranchRepository branchRepository;
 
     @Context
     protected SecurityContext securityContext;
+
+    @Inject
+    protected EntityManager em;
 
     protected void throwWebApplicationException(Status status, String msg) {
         Response response = Response

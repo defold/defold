@@ -7,7 +7,6 @@ import java.util.Set;
 import java.util.UUID;
 
 import javax.annotation.security.RolesAllowed;
-import javax.persistence.EntityManager;
 import javax.persistence.TypedQuery;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
@@ -27,6 +26,7 @@ import com.dynamo.cr.server.mail.EMail;
 import com.dynamo.cr.server.model.Invitation;
 import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.User;
+import com.dynamo.inject.persist.Transactional;
 
 @Path("/users")
 @RolesAllowed(value = { "user" })
@@ -43,125 +43,95 @@ public class UsersResource extends BaseResource {
 
     @GET
     @Path("/{email}")
-    public UserInfo getUserInfo(@PathParam("email") String email) throws ServerException {
-        EntityManager em = server.getEntityManagerFactory().createEntityManager();
-        try {
-            User u = ModelUtil.findUserByEmail(em, email);
-            if (u == null) {
-                throw new WebApplicationException(Response.Status.NOT_FOUND);
-            }
+    public UserInfo getUserInfo(@PathParam("email") String email) {
+        User u = ModelUtil.findUserByEmail(em, email);
+        if (u == null) {
+            throw new WebApplicationException(Response.Status.NOT_FOUND);
+        }
 
-            return createUserInfo(u);
-        }
-        finally {
-            em.close();
-        }
+        return createUserInfo(u);
     }
 
     @PUT
     @Path("/{user}/connections/{user2}")
-    public void connect(@PathParam("user") String user, @PathParam("user2") String user2) throws ServerException {
+    @Transactional
+    public void connect(@PathParam("user") String user, @PathParam("user2") String user2) {
         if (user.equals(user2)) {
             throw new ServerException("A user can not be connected to him/herself.", Response.Status.FORBIDDEN);
         }
-        EntityManager em = server.getEntityManagerFactory().createEntityManager();
-        try {
-            User u = server.getUser(em, user);
-            User u2 = server.getUser(em, user2);
 
-            em.getTransaction().begin();
-            u.getConnections().add(u2);
-            em.persist(u);
-            em.getTransaction().commit();
-        }
-        finally {
-            em.close();
-        }
+        User u = server.getUser(em, user);
+        User u2 = server.getUser(em, user2);
+
+        u.getConnections().add(u2);
+        em.persist(u);
     }
 
     @GET
     @Path("/{user}/connections")
-    public UserInfoList getConnections(@PathParam("user") String user) throws ServerException {
-        EntityManager em = server.getEntityManagerFactory().createEntityManager();
-        try
-        {
-            User u = server.getUser(em, user);
+    public UserInfoList getConnections(@PathParam("user") String user) {
+        User u = server.getUser(em, user);
 
-            Set<User> connections = u.getConnections();
-            UserInfoList.Builder b = UserInfoList.newBuilder();
-            for (User connection : connections) {
-                b.addUsers(createUserInfo(connection));
-            }
+        Set<User> connections = u.getConnections();
+        UserInfoList.Builder b = UserInfoList.newBuilder();
+        for (User connection : connections) {
+            b.addUsers(createUserInfo(connection));
+        }
 
-            return b.build();
-        }
-        finally {
-            em.close();
-        }
+        return b.build();
     }
 
     @POST
     @Path("/")
     @RolesAllowed(value = { "admin" })
-    public UserInfo registerUser(RegisterUser registerUser) throws ServerException {
-        EntityManager em = server.getEntityManagerFactory().createEntityManager();
+    @Transactional
+    public UserInfo registerUser(RegisterUser registerUser) {
         /*
          * NOTE: Old registration method as admin role
          * OpenID registration is the only supported method. We should
          * probably remove this and related tests soon
          */
 
-        try {
-            em.getTransaction().begin();
-            User user = new User();
-            user.setEmail(registerUser.getEmail());
-            user.setFirstName(registerUser.getFirstName());
-            user.setLastName(registerUser.getLastName());
-            user.setPassword(registerUser.getPassword());
-            em.persist(user);
-            em.getTransaction().commit();
+        User user = new User();
+        user.setEmail(registerUser.getEmail());
+        user.setFirstName(registerUser.getFirstName());
+        user.setLastName(registerUser.getLastName());
+        user.setPassword(registerUser.getPassword());
+        em.persist(user);
+        em.flush();
 
-            UserInfo userInfo = createUserInfo(user);
-            return userInfo;
-        }
-        finally {
-            em.close();
-        }
+        UserInfo userInfo = createUserInfo(user);
+        return userInfo;
     }
 
     @PUT
     @Path("/{user}/invite/{email}")
-    public Response invite(@PathParam("user") String user, @PathParam("email") String email) throws ServerException {
-        EntityManager em = server.getEntityManagerFactory().createEntityManager();
-        try {
-            TypedQuery<Invitation> q = em.createQuery("select i from Invitation i where i.email = :email", Invitation.class);
-            List<Invitation> lst = q.setParameter("email", email).getResultList();
-            if (lst.size() > 0) {
-                throwWebApplicationException(Status.CONFLICT, "User already invited");
-            }
-
-            String key = UUID.randomUUID().toString();
-            User u = server.getUser(em, user);
-
-            EMailTemplate template = server.getConfiguration().getInvitationTemplate();
-            Map<String, String> params = new HashMap<String, String>();
-            params.put("inviter", String.format("%s %s", u.getFirstName(), u.getLastName()));
-            params.put("key", key);
-            EMail emailMessage = EMail.format(template, email, params);
-
-            em.getTransaction().begin();
-            Invitation invitation = new Invitation();
-            invitation.setEmail(email);
-            invitation.setInviter(u);
-            invitation.setRegistrationKey(key);
-            em.persist(invitation);
-            server.getMailProcessor().send(em, emailMessage);
-            em.getTransaction().commit();
-            server.getMailProcessor().process();
+    @Transactional
+    public Response invite(@PathParam("user") String user, @PathParam("email") String email) {
+        TypedQuery<Invitation> q = em.createQuery("select i from Invitation i where i.email = :email", Invitation.class);
+        List<Invitation> lst = q.setParameter("email", email).getResultList();
+        if (lst.size() > 0) {
+            throwWebApplicationException(Status.CONFLICT, "User already invited");
         }
-        finally {
-            em.close();
-        }
+
+        String key = UUID.randomUUID().toString();
+        User u = server.getUser(em, user);
+
+        EMailTemplate template = server.getConfiguration().getInvitationTemplate();
+        Map<String, String> params = new HashMap<String, String>();
+        params.put("inviter", String.format("%s %s", u.getFirstName(), u.getLastName()));
+        params.put("key", key);
+        EMail emailMessage = EMail.format(template, email, params);
+
+        Invitation invitation = new Invitation();
+        invitation.setEmail(email);
+        invitation.setInviter(u);
+        invitation.setRegistrationKey(key);
+        em.persist(invitation);
+        server.getMailProcessor().send(em, emailMessage);
+        em.flush();
+        // TODO: process() should be invoked after transaction is completed
+        server.getMailProcessor().process();
 
         return okResponse("User %s invited", email);
     }

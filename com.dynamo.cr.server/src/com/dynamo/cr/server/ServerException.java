@@ -2,8 +2,11 @@ package com.dynamo.cr.server;
 
 import javax.ws.rs.core.Response.Status;
 
-
-public class ServerException extends Exception {
+/*
+ * NOTE: ServerException must be a subclass of RuntimeException
+ * as transactions are only rollbacked by default for RuntimeExceptions
+ */
+public class ServerException extends RuntimeException {
 
     private Status status = Status.BAD_REQUEST;
 

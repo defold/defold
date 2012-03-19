@@ -101,10 +101,8 @@ public class UsersResourceTest extends AbstractResourceTest {
         mailer = new TestMailer();
         module = new Module(mailer);
         Injector injector = Guice.createInjector(module);
-        emf = injector.getInstance(EntityManagerFactory.class);
         server = injector.getInstance(Server.class);
-
-        EntityManagerFactory emf = server.getEntityManagerFactory();
+        emf = server.getEntityManagerFactory();
         EntityManager em = emf.createEntityManager();
 
         em.getTransaction().begin();

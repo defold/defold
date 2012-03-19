@@ -2,8 +2,6 @@ package com.dynamo.cr.server.resources;
 
 import java.util.List;
 
-import javax.persistence.EntityManager;
-import javax.persistence.EntityManagerFactory;
 import javax.persistence.Query;
 import javax.persistence.TypedQuery;
 import javax.servlet.http.HttpServletRequest;
@@ -40,14 +38,12 @@ import com.dynamo.cr.server.model.NewUser;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.openid.OpenIDException;
 import com.dynamo.cr.server.openid.OpenIDIdentity;
+import com.dynamo.inject.persist.Transactional;
 
 @Path("/login")
 public class LoginResource extends BaseResource {
 
     protected static Logger logger = LoggerFactory.getLogger(LoginResource.class);
-
-    @Context
-    private EntityManagerFactory emf;
 
     private Response badRequest(String message) {
         return Response
@@ -63,7 +59,7 @@ public class LoginResource extends BaseResource {
                            @Context UriInfo uriInfo,
                            @Context HttpServletRequest request,
                            @PathParam("provider") String provider,
-                           @QueryParam("redirect_to") String redirectTo) throws ServerException {
+                           @QueryParam("redirect_to") String redirectTo) {
 
         if (redirectTo == null) {
             String warning = "Missing required query parameter \"redirect_to\"";
@@ -108,7 +104,7 @@ public class LoginResource extends BaseResource {
                                       @Context UriInfo uriInfo,
                                       @PathParam("provider") String provider,
                                       @PathParam("token") String token,
-                                      @QueryParam("redirect_to") String redirectTo) throws ServerException {
+                                      @QueryParam("redirect_to") String redirectTo) {
 
         String openIdMode = uriInfo.getQueryParameters().getFirst("openid.mode");
 
@@ -151,9 +147,10 @@ public class LoginResource extends BaseResource {
 
     @GET
     @Path("/openid/exchange/{token}")
+    @Transactional
     public TokenExchangeInfo exchangeToken(@Context HttpHeaders headers,
                                            @Context UriInfo uriInfo,
-                                           @PathParam("token") String token) throws ServerException {
+                                           @PathParam("token") String token) {
 
         OpenIDAuthenticator openIDAuthenticator = server.getOpenIDAuthentication();
         OpenIDAuthenticator.Authenticator authenticator;
@@ -172,7 +169,6 @@ public class LoginResource extends BaseResource {
             .setEmail(identity.getEmail())
             .setLoginToken(token);
 
-        EntityManager em = emf.createEntityManager();
         User user = ModelUtil.findUserByEmail(em, identity.getEmail());
         if (user != null) {
 
@@ -182,8 +178,6 @@ public class LoginResource extends BaseResource {
 
         } else {
             tokenExchangeInfoBuilder.setType(Type.SIGNUP);
-
-            em.getTransaction().begin();
 
             // Delete old pending NewUser entries.
             Query deleteQuery = em.createQuery("delete from NewUser u where u.email = :email").setParameter("email", identity.getEmail());
@@ -198,7 +192,6 @@ public class LoginResource extends BaseResource {
             newUser.setEmail(identity.getEmail());
             newUser.setLoginToken(token);
             em.persist(newUser);
-            em.getTransaction().commit();
         }
 
         return tokenExchangeInfoBuilder.build();
@@ -206,76 +199,66 @@ public class LoginResource extends BaseResource {
 
     @PUT
     @Path("/openid/register/{token}")
+    @Transactional
     public Response register(@PathParam("token") String token,
-                             @QueryParam("key") String key) throws ServerException {
+                             @QueryParam("key") String key) {
 
         if (key == null) {
             throw new ServerException("Invalid registration key", Status.UNAUTHORIZED);
         }
 
-        EntityManager em = emf.createEntityManager();
-        try {
-            TypedQuery<Invitation> q = em.createQuery("select i from Invitation i where i.registrationKey = :key", Invitation.class);
-            List<Invitation> lst = q.setParameter("key", key).getResultList();
-            if (lst.size() == 0) {
-                throw new ServerException("Invalid registration key", Status.UNAUTHORIZED);
-            }
-
-            em.getTransaction().begin();
-
-            // Remove invitation
-            em.remove(lst.get(0));
-
-            List<NewUser> list = em.createQuery("select u from NewUser u where u.loginToken = :loginToken", NewUser.class).setParameter("loginToken", token).getResultList();
-            if (list.size() == 0) {
-                logger.error("Unable to find NewUser row for {}", token);
-                // TODO: When we support per-request transaction this should be removed
-                // In general transaction handling is broken due to lack of rollbacks
-                em.getTransaction().rollback();
-                throw new ServerException("Unable to register.", Status.BAD_REQUEST);
-            }
-
-            NewUser newUser = list.get(0);
-
-            // Generate some random password for OpenID accounts.
-            byte[] passwordBytes = new byte[32];
-            server.getSecureRandom().nextBytes(passwordBytes);
-            String password = Base64.encodeBase64String(passwordBytes);
-
-            User user = new User();
-            user.setEmail(newUser.getEmail());
-            user.setFirstName(newUser.getFirstName());
-            user.setLastName(newUser.getLastName());
-            user.setPassword(password);
-            em.persist(user);
-            em.remove(newUser);
-            em.getTransaction().commit();
-
-            logger.info("New user registred: {}", user.getEmail());
-
-            String cookie = AuthCookie.login(user.getEmail());
-
-            LoginInfo.Builder loginInfoBuilder = LoginInfo.newBuilder()
-                .setEmail(user.getEmail())
-                .setUserId(user.getId())
-                .setAuthCookie(cookie)
-                .setFirstName(user.getFirstName())
-                .setLastName(user.getLastName());
-
-            return Response
-                .ok()
-                .entity(loginInfoBuilder.build())
-                .type(MediaType.APPLICATION_JSON_TYPE)
-                .build();
+        TypedQuery<Invitation> q = em.createQuery("select i from Invitation i where i.registrationKey = :key", Invitation.class);
+        List<Invitation> lst = q.setParameter("key", key).getResultList();
+        if (lst.size() == 0) {
+            throw new ServerException("Invalid registration key", Status.UNAUTHORIZED);
         }
-        finally {
-            em.close();
+
+        // Remove invitation
+        em.remove(lst.get(0));
+
+        List<NewUser> list = em.createQuery("select u from NewUser u where u.loginToken = :loginToken", NewUser.class).setParameter("loginToken", token).getResultList();
+        if (list.size() == 0) {
+            logger.error("Unable to find NewUser row for {}", token);
+            throw new ServerException("Unable to register.", Status.BAD_REQUEST);
         }
+
+        NewUser newUser = list.get(0);
+
+        // Generate some random password for OpenID accounts.
+        byte[] passwordBytes = new byte[32];
+        server.getSecureRandom().nextBytes(passwordBytes);
+        String password = Base64.encodeBase64String(passwordBytes);
+
+        User user = new User();
+        user.setEmail(newUser.getEmail());
+        user.setFirstName(newUser.getFirstName());
+        user.setLastName(newUser.getLastName());
+        user.setPassword(password);
+        em.persist(user);
+        em.remove(newUser);
+        em.flush();
+
+        logger.info("New user registred: {}", user.getEmail());
+
+        String cookie = AuthCookie.login(user.getEmail());
+
+        LoginInfo.Builder loginInfoBuilder = LoginInfo.newBuilder()
+            .setEmail(user.getEmail())
+            .setUserId(user.getId())
+            .setAuthCookie(cookie)
+            .setFirstName(user.getFirstName())
+            .setLastName(user.getLastName());
+
+        return Response
+            .ok()
+            .entity(loginInfoBuilder.build())
+            .type(MediaType.APPLICATION_JSON_TYPE)
+            .build();
     }
 
     @GET
     @Path("")
-    public Response login(@Context HttpHeaders headers) throws ServerException {
+    public Response login(@Context HttpHeaders headers) {
 
         String email = headers.getRequestHeaders().getFirst("X-Email");
         String password = headers.getRequestHeaders().getFirst("X-Password");
@@ -284,7 +267,6 @@ public class LoginResource extends BaseResource {
             throw new ServerException(Status.BAD_REQUEST.toString(), Status.BAD_REQUEST);
         }
 
-        EntityManager em = emf.createEntityManager();
         User user = ModelUtil.findUserByEmail(em, email);
         if (user != null && user.authenticate(password)) {
 

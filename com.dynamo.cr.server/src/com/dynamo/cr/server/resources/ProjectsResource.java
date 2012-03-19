@@ -4,7 +4,6 @@ import java.io.File;
 import java.util.List;
 
 import javax.annotation.security.RolesAllowed;
-import javax.persistence.EntityManager;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
@@ -24,6 +23,7 @@ import com.dynamo.cr.server.ServerException;
 import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
+import com.dynamo.inject.persist.Transactional;
 import com.dynamo.server.dgit.GitFactory;
 import com.dynamo.server.dgit.GitFactory.Type;
 import com.dynamo.server.dgit.IGit;
@@ -34,7 +34,7 @@ public class ProjectsResource extends BaseResource {
 
     protected static Logger logger = LoggerFactory.getLogger(ProjectsResource.class);
 
-    ProjectTemplate findProjectTemplate(String id) throws ServerException {
+    ProjectTemplate findProjectTemplate(String id) {
         List<ProjectTemplate> lst = server.getConfiguration().getProjectTemplatesList();
         for (ProjectTemplate projectTemplate : lst) {
             if (projectTemplate.getId().equals(id))
@@ -44,9 +44,8 @@ public class ProjectsResource extends BaseResource {
     }
 
     @POST
-    public ProjectInfo newProject(@PathParam("user") String userId, NewProject newProject) throws ServerException {
-        EntityManager em = server.getEntityManagerFactory().createEntityManager();
-
+    @Transactional
+    public ProjectInfo newProject(@PathParam("user") String userId, NewProject newProject) {
         User user = server.getUser(em, userId);
 
         ProjectInfoList list = getProjects(userId);
@@ -56,9 +55,8 @@ public class ProjectsResource extends BaseResource {
             throw new ServerException(String.format("Max number of projects (%d) has already been reached.", maxProjectCount));
         }
 
-        em.getTransaction().begin();
         Project project = ModelUtil.newProject(em, user, newProject.getName(), newProject.getDescription());
-        em.getTransaction().commit();
+        em.flush();
 
         try {
             Configuration configuration = server.getConfiguration();
@@ -86,20 +84,15 @@ public class ProjectsResource extends BaseResource {
         }
         catch (Throwable e) {
             logger.error(e.getMessage(), e);
-            em.getTransaction().begin();
             ModelUtil.removeProject(em, project);
-            em.getTransaction().commit();
-            em.close();
             throw new ServerException("Unable to create project. Internal error.", Status.INTERNAL_SERVER_ERROR);
         }
-        em.close();
 
         return ResourceUtil.createProjectInfo(server.getConfiguration(), project);
     }
 
     @GET
-    public ProjectInfoList getProjects(@PathParam("user") String userId) throws ServerException {
-        EntityManager em = server.getEntityManagerFactory().createEntityManager();
+    public ProjectInfoList getProjects(@PathParam("user") String userId) {
         User user = server.getUser(em, userId);
 
         List<Project> list = em.createQuery("select p from Project p where :user member of p.members", Project.class).setParameter("user", user).getResultList();

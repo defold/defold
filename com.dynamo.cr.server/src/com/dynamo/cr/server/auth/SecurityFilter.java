@@ -5,6 +5,7 @@ import java.net.URLDecoder;
 import java.security.Principal;
 import java.util.List;
 
+import javax.inject.Inject;
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
 import javax.ws.rs.WebApplicationException;
@@ -38,7 +39,7 @@ public class SecurityFilter implements ContainerRequestFilter {
 
     private static final String REALM = "HTTPS Example authentication";
 
-    @Context
+    @Inject
     private EntityManagerFactory emf;
 
     public ContainerRequest filter(ContainerRequest request) {

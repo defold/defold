@@ -2,13 +2,16 @@ package com.dynamo.cr.server.resources.test;
 
 import static org.mockito.Mockito.mock;
 
+import java.util.Properties;
+
 import javax.inject.Singleton;
 import javax.persistence.EntityManagerFactory;
 
+import org.eclipse.persistence.config.PersistenceUnitProperties;
+import org.eclipse.persistence.jpa.osgi.PersistenceProvider;
+
 import com.dynamo.cr.proto.Config.Configuration;
 import com.dynamo.cr.server.ConfigurationProvider;
-import com.dynamo.cr.server.EntityManagerFactoryProvider;
-import com.dynamo.cr.server.Server;
 import com.dynamo.cr.server.mail.IMailProcessor;
 import com.dynamo.cr.server.mail.IMailer;
 import com.dynamo.cr.server.mail.MailProcessor;
@@ -34,8 +37,11 @@ public class AbstractResourceTest {
             bind(Configuration.class).toProvider(ConfigurationProvider.class).in(Singleton.class);
             bind(IMailProcessor.class).to(MailProcessor.class).in(Singleton.class);
             bind(IMailer.class).toInstance(mailer);
-            bind(EntityManagerFactory.class).toProvider(EntityManagerFactoryProvider.class).in(Singleton.class);
-            bind(Server.class).in(Singleton.class);
+
+            Properties props = new Properties();
+            props.put(PersistenceUnitProperties.CLASSLOADER, this.getClass().getClassLoader());
+            EntityManagerFactory emf = new PersistenceProvider().createEntityManagerFactory("unit-test", props);
+            bind(EntityManagerFactory.class).toInstance(emf);
         }
     }
 }
