@@ -543,8 +543,8 @@ public class Server implements ServerMBean {
         mailProcessor.stop();
 
         if (this.cleanupThread != null) {
-            this.cleanupThread.interrupt();
             this.cleanupThread.quit();
+            this.cleanupThread.interrupt();
             try {
                 this.cleanupThread.join();
             } catch (InterruptedException e) {
