@@ -17,6 +17,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -113,6 +115,8 @@ public class Server implements ServerMBean {
     private Map<Integer, RuntimeBuildDesc> builds = new HashMap<Integer, RuntimeBuildDesc>();
 
     private CleanBuildsThread cleanupThread;
+
+    private ExecutorService executorService;
 
     class CleanBuildsThread extends Thread {
         private boolean quit = false;
@@ -356,6 +360,8 @@ public class Server implements ServerMBean {
 
         this.mailProcessor.start();
 
+        this.executorService = Executors.newSingleThreadExecutor();
+
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
         ObjectName name;
         try {
@@ -366,6 +372,10 @@ public class Server implements ServerMBean {
         } catch (Throwable e) {
             logger.error(e.getMessage(), e);
         }
+    }
+
+    public ExecutorService getExecutorService() {
+        return executorService;
     }
 
     public void initDataServer() throws IOException {

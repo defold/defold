@@ -146,8 +146,20 @@ public class UsersResource extends BaseResource {
         em.persist(invitation);
         server.getMailProcessor().send(em, emailMessage);
         em.flush();
-        // TODO: process() should be invoked after transaction is completed
-        server.getMailProcessor().process();
+
+        // NOTE: This is totally arbitrary. server.getMailProcessor().process()
+        // should be invoked *after* the transaction is commited. Commits are
+        // however container managed. Thats why we run a bit later.. budget..
+        // The mail is eventually sent though as we periodically process the queue
+        server.getExecutorService().execute(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) { e.printStackTrace(); }
+                server.getMailProcessor().process();
+            }
+        });
 
         return okResponse("User %s invited", email);
     }

@@ -13,7 +13,6 @@ import java.util.HashSet;
 import java.util.Set;
 
 import javax.persistence.EntityManager;
-import javax.persistence.EntityManagerFactory;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriBuilder;
 
@@ -46,14 +45,11 @@ import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ResourceInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ResourceType;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
-import com.dynamo.cr.server.Server;
 import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
-import com.dynamo.cr.server.test.Util;
 import com.dynamo.cr.server.util.FileUtil;
 import com.dynamo.server.dgit.CommandUtil;
-import com.google.inject.Guice;
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientResponse;
 import com.sun.jersey.api.client.WebResource;
@@ -65,7 +61,6 @@ import com.sun.jersey.api.client.filter.HTTPBasicAuthFilter;
 public class ProjectResourceTest extends AbstractResourceTest {
 
     private BranchLocation branchLocation;
-    private Server server;
     int port = 6500;
 
     String ownerEmail = "owner@foo.com";
@@ -122,21 +117,10 @@ public class ProjectResourceTest extends AbstractResourceTest {
 
     @Before
     public void setUp() throws Exception {
-        // "drop-and-create-tables" can't handle model changes correctly. We need to drop all tables first.
-        // Eclipse-link only drops tables currently specified. When the model change the table set also change.
-        File tmp_testdb = new File("tmp/testdb");
-        if (tmp_testdb.exists()) {
-            getClass().getClassLoader().loadClass("org.apache.derby.jdbc.EmbeddedDriver");
-            Util.dropAllTables();
-        }
+        setupUpTest();
 
-        server = Guice.createInjector(new Module()).getInstance(Server.class);
-
-        EntityManagerFactory emf = server.getEntityManagerFactory();
         EntityManager em = emf.createEntityManager();
-
         em.getTransaction().begin();
-
         owner = new User();
         owner.setEmail(ownerEmail);
         owner.setFirstName("undefined");
@@ -206,7 +190,6 @@ public class ProjectResourceTest extends AbstractResourceTest {
 
     @After
     public void tearDown() throws Exception {
-        server.stop();
     }
 
     /*

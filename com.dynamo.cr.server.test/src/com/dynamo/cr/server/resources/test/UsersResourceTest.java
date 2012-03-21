@@ -6,14 +6,10 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 
 import java.io.ByteArrayInputStream;
-import java.io.File;
 import java.net.URI;
-import java.util.ArrayList;
 import java.util.List;
 
-import javax.mail.MessagingException;
 import javax.persistence.EntityManager;
-import javax.persistence.EntityManagerFactory;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriBuilder;
@@ -21,7 +17,6 @@ import javax.ws.rs.core.UriBuilder;
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.node.ObjectNode;
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -31,18 +26,12 @@ import com.dynamo.cr.common.providers.ProtobufProviders;
 import com.dynamo.cr.protocol.proto.Protocol.LoginInfo;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfoList;
-import com.dynamo.cr.server.Server;
-import com.dynamo.cr.server.mail.EMail;
-import com.dynamo.cr.server.mail.IMailer;
 import com.dynamo.cr.server.model.Invitation;
 import com.dynamo.cr.server.model.InvitationAccount;
 import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.NewUser;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.model.User.Role;
-import com.dynamo.cr.server.test.Util;
-import com.google.inject.Guice;
-import com.google.inject.Injector;
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientResponse;
 import com.sun.jersey.api.client.ClientResponse.Status;
@@ -52,8 +41,6 @@ import com.sun.jersey.api.client.filter.HTTPBasicAuthFilter;
 
 public class UsersResourceTest extends AbstractResourceTest {
 
-    private Server server;
-
     int port = 6500;
     String joeEmail = "joe@foo.com";
     String joePasswd = "secret2";
@@ -61,51 +48,21 @@ public class UsersResourceTest extends AbstractResourceTest {
     String bobPasswd = "secret3";
     String adminEmail = "admin@foo.com";
     String adminPasswd = "secret";
-    private User joeUser;
-    private User adminUser;
-    private User bobUser;
-    private WebResource adminUsersWebResource;
-    private WebResource joeUsersWebResource;
-    private WebResource bobUsersWebResource;
-    private WebResource joeDefoldAuthUsersWebResource;
-    private Module module;
-
-    private TestMailer mailer;
-
-    private EntityManagerFactory emf;
-
-    private DefaultClientConfig clientConfig;
-
-    private WebResource anonymousResource;
-
-    static class TestMailer implements IMailer {
-
-        List<EMail> emails = new ArrayList<EMail>();
-
-        @Override
-        public void send(EMail email) throws MessagingException {
-            emails.add(email);
-        }
-
-    }
+    User joeUser;
+    User adminUser;
+    User bobUser;
+    WebResource adminUsersWebResource;
+    WebResource joeUsersWebResource;
+    WebResource bobUsersWebResource;
+    WebResource joeDefoldAuthUsersWebResource;
+    DefaultClientConfig clientConfig;
+    WebResource anonymousResource;
 
     @Before
     public void setUp() throws Exception {
-        // "drop-and-create-tables" can't handle model changes correctly. We need to drop all tables first.
-        // Eclipse-link only drops tables currently specified. When the model change the table set also change.
-        File tmp_testdb = new File("tmp/testdb");
-        if (tmp_testdb.exists()) {
-            getClass().getClassLoader().loadClass("org.apache.derby.jdbc.EmbeddedDriver");
-            Util.dropAllTables();
-        }
+        setupUpTest();
 
-        mailer = new TestMailer();
-        module = new Module(mailer);
-        Injector injector = Guice.createInjector(module);
-        server = injector.getInstance(Server.class);
-        emf = server.getEntityManagerFactory();
         EntityManager em = emf.createEntityManager();
-
         em.getTransaction().begin();
         adminUser = new User();
         adminUser.setEmail(adminEmail);
@@ -167,11 +124,6 @@ public class UsersResourceTest extends AbstractResourceTest {
 
         uri = UriBuilder.fromUri(String.format("http://localhost")).port(port).build();
         anonymousResource = client.resource(uri);
-    }
-
-    @After
-    public void tearDown() throws Exception {
-        server.stop();
     }
 
     @Test

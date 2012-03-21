@@ -11,7 +11,6 @@ import java.io.IOException;
 import java.net.URI;
 
 import javax.persistence.EntityManager;
-import javax.persistence.EntityManagerFactory;
 import javax.persistence.TypedQuery;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.UriBuilder;
@@ -29,17 +28,14 @@ import com.dynamo.cr.protocol.proto.Protocol.NewProject;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfoList;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfoList;
-import com.dynamo.cr.server.Server;
 import com.dynamo.cr.server.auth.AuthCookie;
 import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.model.User.Role;
-import com.dynamo.cr.server.test.Util;
 import com.dynamo.server.dgit.CommandUtil;
 import com.dynamo.server.dgit.GitFactory;
 import com.dynamo.server.dgit.IGit;
 import com.google.common.io.Files;
-import com.google.inject.Guice;
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientResponse;
 import com.sun.jersey.api.client.UniformInterfaceException;
@@ -50,8 +46,6 @@ import com.sun.jersey.api.client.filter.HTTPBasicAuthFilter;
 
 
 public class ProjectsResourceTest extends AbstractResourceTest {
-    private Server server;
-
     private static class TestUser {
         User user;
         String email;
@@ -114,21 +108,10 @@ public class ProjectsResourceTest extends AbstractResourceTest {
 
     @Before
     public void setUp() throws Exception {
-        // "drop-and-create-tables" can't handle model changes correctly. We need to drop all tables first.
-        // Eclipse-link only drops tables currently specified. When the model change the table set also change.
-        File tmp_testdb = new File("tmp/testdb");
-        if (tmp_testdb.exists()) {
-            getClass().getClassLoader().loadClass("org.apache.derby.jdbc.EmbeddedDriver");
-            Util.dropAllTables();
-        }
-
+        setupUpTest();
         execCommand("scripts/setup_template_project.sh", "proj1");
 
-        server = Guice.createInjector(new Module()).getInstance(Server.class);
-
-        EntityManagerFactory emf = server.getEntityManagerFactory();
         EntityManager em = emf.createEntityManager();
-
         em.getTransaction().begin();
         adminUser = new User();
         adminUser.setEmail(adminEmail);
@@ -196,7 +179,6 @@ public class ProjectsResourceTest extends AbstractResourceTest {
         adminClient.destroy();
         joeClient.destroy();
         bobClient.destroy();
-        server.stop();
     }
 
     @Test
