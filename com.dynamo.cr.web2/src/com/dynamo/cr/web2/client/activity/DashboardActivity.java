@@ -2,6 +2,7 @@ package com.dynamo.cr.web2.client.activity;
 
 import com.dynamo.cr.web2.client.ClientFactory;
 import com.dynamo.cr.web2.client.Defold;
+import com.dynamo.cr.web2.client.InvitationAccountInfo;
 import com.dynamo.cr.web2.client.MD5;
 import com.dynamo.cr.web2.client.ProjectInfo;
 import com.dynamo.cr.web2.client.ProjectInfoList;
@@ -41,6 +42,25 @@ public class DashboardActivity extends AbstractActivity implements DashboardView
         });
     }
 
+    private void loadInvitationCount() {
+        final DashboardView dashboardView = clientFactory.getDashboardView();
+        final Defold defold = clientFactory.getDefold();
+        defold.getResource("/users/" + defold.getUserId() + "/invitation_account",
+                new ResourceCallback<InvitationAccountInfo>() {
+
+                    @Override
+                    public void onSuccess(InvitationAccountInfo invitationAccount,
+                            Request request, Response response) {
+                        dashboardView.setInvitationAccount(invitationAccount);
+                    }
+
+                    @Override
+                    public void onFailure(Request request, Response response) {
+                        defold.showErrorMessage("Invitation data could not be loaded.");
+                    }
+                });
+    }
+
     @Override
     public void start(AcceptsOneWidget containerWidget, EventBus eventBus) {
         final DashboardView dashboardView = clientFactory.getDashboardView();
@@ -48,6 +68,7 @@ public class DashboardActivity extends AbstractActivity implements DashboardView
         containerWidget.setWidget(dashboardView.asWidget());
         loadProjects();
         loadGravatar();
+        loadInvitationCount();
     }
 
     private void loadGravatar() {
@@ -101,5 +122,25 @@ public class DashboardActivity extends AbstractActivity implements DashboardView
     @Override
     public boolean isOwner(ProjectInfo projectInfo) {
         return clientFactory.getDefold().getUserId() == projectInfo.getOwner().getId();
+    }
+
+    @Override
+    public void invite(String recipient) {
+        final Defold defold = clientFactory.getDefold();
+        // TODO validate email
+        defold.putResource("/users/" + defold.getUserId() + "/invite/" + recipient, "",
+            new ResourceCallback<String>() {
+
+                @Override
+                public void onSuccess(String result,
+                        Request request, Response response) {
+                    loadInvitationCount();
+                }
+
+                @Override
+                public void onFailure(Request request, Response response) {
+                    defold.showErrorMessage("Invitation failed: " + response.getText());
+                }
+            });
     }
 }

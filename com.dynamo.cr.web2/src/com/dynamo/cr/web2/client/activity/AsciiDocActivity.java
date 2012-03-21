@@ -33,19 +33,19 @@ public abstract class AsciiDocActivity extends AbstractActivity {
 
                     } else {
                         view.setLoading(false);
-                        clientFactory.getDefold().showErrorMessage("Unable to load documentation");
+                        clientFactory.getDefold().showErrorMessage("Unable to load document");
                     }
                 }
 
                 @Override
                 public void onError(Request request, Throwable exception) {
                     view.setLoading(false);
-                    clientFactory.getDefold().showErrorMessage("Unable to load documentation");
+                    clientFactory.getDefold().showErrorMessage("Unable to load document");
                 }
             });
         } catch (RequestException e) {
             view.setLoading(false);
-            clientFactory.getDefold().showErrorMessage("Unable to load documentation");
+            clientFactory.getDefold().showErrorMessage("Unable to load document");
         }
     }
 

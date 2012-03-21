@@ -7,8 +7,6 @@ import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
-import javax.persistence.JoinColumn;
-import javax.persistence.OneToOne;
 import javax.persistence.Table;
 import javax.persistence.Temporal;
 import javax.persistence.TemporalType;
@@ -23,12 +21,14 @@ public class Invitation {
     @Column(nullable = false, unique = true)
     private String email;
 
-    @OneToOne
-    @JoinColumn(nullable = false)
-    private User inviter;
+    @Column(nullable = false)
+    private String inviterEmail;
 
     @Column(nullable = false, unique = true)
     private String registrationKey;
+
+    @Column(nullable = false)
+    private int initialInvitationCount;
 
     @Temporal(TemporalType.TIMESTAMP)
     private Date date = new Date();
@@ -48,12 +48,12 @@ public class Invitation {
         this.email = email;
     }
 
-    public User getInviter() {
-        return inviter;
+    public String getInviterEmail() {
+        return inviterEmail;
     }
 
-    public void setInviter(User inviter) {
-        this.inviter = inviter;
+    public void setInviterEmail(String inviterEmail) {
+        this.inviterEmail = inviterEmail;
     }
 
     public String getRegistrationKey() {
@@ -64,12 +64,20 @@ public class Invitation {
         this.registrationKey = registrationKey;
     }
 
+    public int getInitialInvitationCount() {
+        return this.initialInvitationCount;
+    }
+
+    public void setInitialInvitationCount(int initialInvitationCount) {
+        this.initialInvitationCount = initialInvitationCount;
+    }
+
     public Date getDate() {
         return date;
     }
 
     @Override
     public String toString() {
-        return String.format("invitation (%s, %s)", email, inviter);
+        return String.format("invitation (%s, %s)", email, inviterEmail);
     }
 }

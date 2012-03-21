@@ -54,6 +54,7 @@ import ch.qos.logback.core.util.StatusPrinter;
 
 import com.dynamo.cr.branchrepo.BranchRepository;
 import com.dynamo.cr.proto.Config.Configuration;
+import com.dynamo.cr.proto.Config.InvitationCountEntry;
 import com.dynamo.cr.protocol.proto.Protocol.BuildDesc;
 import com.dynamo.cr.protocol.proto.Protocol.BuildDesc.Activity;
 import com.dynamo.cr.protocol.proto.Protocol.BuildLog;
@@ -63,6 +64,7 @@ import com.dynamo.cr.server.auth.GitSecurityFilter;
 import com.dynamo.cr.server.auth.OpenIDAuthenticator;
 import com.dynamo.cr.server.auth.SecurityFilter;
 import com.dynamo.cr.server.mail.IMailProcessor;
+import com.dynamo.cr.server.model.InvitationAccount;
 import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
@@ -587,6 +589,23 @@ public class Server implements ServerMBean {
             throw new ServerException(String.format("No such user %s", userId), javax.ws.rs.core.Response.Status.NOT_FOUND);
 
         return user;
+    }
+
+    public InvitationAccount getInvitationAccount(EntityManager em, String userId) throws ServerException {
+        InvitationAccount invitationAccount = em.find(InvitationAccount.class, Long.parseLong(userId));
+        if (invitationAccount == null)
+            throw new ServerException(String.format("No such invitation account %s", userId), javax.ws.rs.core.Response.Status.NOT_FOUND);
+
+        return invitationAccount;
+    }
+
+    public int getInvitationCount(int originalCount) {
+        for (InvitationCountEntry entry : this.configuration.getInvitationCountMapList()) {
+            if (entry.getKey() == originalCount) {
+                return entry.getValue();
+            }
+        }
+        return 0;
     }
 
     public String getBaseURI() {

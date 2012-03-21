@@ -1,5 +1,6 @@
 package com.dynamo.cr.web2.client.ui;
 
+import com.dynamo.cr.web2.client.InvitationAccountInfo;
 import com.dynamo.cr.web2.client.ProjectInfo;
 import com.dynamo.cr.web2.client.ProjectInfoList;
 import com.google.gwt.core.client.GWT;
@@ -27,6 +28,8 @@ public class DashboardView extends Composite {
 
         boolean isOwner(ProjectInfo projectInfo);
 
+        void invite(String recipient);
+
     }
 
     private static DashboardUiBinder uiBinder = GWT
@@ -37,6 +40,7 @@ public class DashboardView extends Composite {
     @UiField SpanElement firstName;
     @UiField SpanElement lastName;
     @UiField SpanElement email;
+    @UiField InvitationBox invitationBox;
 
     interface DashboardUiBinder extends UiBinder<Widget, DashboardView> {
     }
@@ -62,8 +66,20 @@ public class DashboardView extends Composite {
         projects.clear();
     }
 
+    public void setInvitationAccount(InvitationAccountInfo invitationAccount) {
+        int invitationCount = invitationAccount.getCurrentCount();
+        if (invitationCount > 0) {
+            invitationBox.setInvitationCount(invitationCount);
+            invitationBox.setVisible(true);
+        } else {
+            invitationBox.setVisible(false);
+        }
+    }
+
     public void setPresenter(DashboardView.Presenter listener) {
         this.listener = listener;
+        this.invitationBox.setPresenter(listener);
+        this.invitationBox.setVisible(false);
     }
 
     @UiHandler("newProjectButton")

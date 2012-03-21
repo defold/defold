@@ -39,7 +39,6 @@ import com.google.gwt.uibinder.client.UiHandler;
 import com.google.gwt.user.client.Cookies;
 import com.google.gwt.user.client.DOM;
 import com.google.gwt.user.client.Element;
-import com.google.gwt.user.client.Window;
 import com.google.gwt.user.client.ui.Anchor;
 import com.google.gwt.user.client.ui.HTMLPanel;
 import com.google.gwt.user.client.ui.RootPanel;
@@ -233,7 +232,7 @@ public class Defold implements EntryPoint {
         PlaceHistoryHandler historyHandler = new PlaceHistoryHandler(historyMapper);
         historyHandler.register(placeController, eventBus, defaultPlace);
 
-        if (Window.Location.getHostName().equals("127.0.0.1")) {
+        if (ClientUtil.isDev()) {
             String url = Cookies.getCookie("url");
             if (url != null) {
                 this.url = url;
@@ -253,6 +252,8 @@ public class Defold implements EntryPoint {
         if (Cookies.getCookie("auth") != null && Cookies.getCookie("email") != null) {
             logout.setVisible(Cookies.getCookie("auth") != null);
             logout.setText("Logout (" + Cookies.getCookie("email") + ")");
+        } else {
+            logout.setVisible(false);
         }
 
         new ShowLoginOnAuthenticationFailure().register(clientFactory, eventBus);
@@ -302,7 +303,7 @@ public class Defold implements EntryPoint {
     public int getUserId() {
         String userId = Cookies.getCookie("user_id");
         if (userId == null) {
-            clientFactory.getPlaceController().goTo(new LoginPlace());
+            clientFactory.getPlaceController().goTo(new LoginPlace(""));
             return -1;
         } else {
             return Integer.parseInt(userId);
@@ -322,6 +323,17 @@ public class Defold implements EntryPoint {
     public String getEmail() {
         String email = Cookies.getCookie("email");
         return email;
+    }
+
+    public String getRegistrationKey() {
+        String registrationKey = Cookies.getCookie("registration_key");
+        if (registrationKey == null) {
+            clientFactory.getPlaceController().goTo(new LoginPlace(""));
+            showErrorMessage("Your session expired. Please click the registration link again.");
+            return null;
+        } else {
+            return registrationKey;
+        }
     }
 
     @UiHandler("logout")

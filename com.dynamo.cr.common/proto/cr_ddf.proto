@@ -50,8 +50,13 @@ message Configuration
     required string smtp_password = 22;
 
     // email
-    required EMailTemplate registrationTemplate = 23;
-    required EMailTemplate invitationTemplate = 24;
+    required EMailTemplate registration_template = 23;
+    required EMailTemplate invitation_template = 24;
+
+    // invitations
+    repeated InvitationCountEntry invitation_count_map = 25;
+    optional string test_registration_key = 26 [default=""];
+    optional int32 test_invitation_count = 27 [default=0];
 }
 
 message EMailTemplate
@@ -61,3 +66,8 @@ message EMailTemplate
     required string message = 3;
 }
 
+message InvitationCountEntry
+{
+    required int32 key = 1;
+    required int32 value = 2;
+}

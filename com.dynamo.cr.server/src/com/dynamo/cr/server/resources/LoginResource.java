@@ -33,6 +33,7 @@ import com.dynamo.cr.server.ServerException;
 import com.dynamo.cr.server.auth.AuthCookie;
 import com.dynamo.cr.server.auth.OpenIDAuthenticator;
 import com.dynamo.cr.server.model.Invitation;
+import com.dynamo.cr.server.model.InvitationAccount;
 import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.NewUser;
 import com.dynamo.cr.server.model.User;
@@ -203,18 +204,26 @@ public class LoginResource extends BaseResource {
     public Response register(@PathParam("token") String token,
                              @QueryParam("key") String key) {
 
-        if (key == null) {
+        if (key == null || key.isEmpty()) {
             throw new ServerException("Invalid registration key", Status.UNAUTHORIZED);
         }
 
-        TypedQuery<Invitation> q = em.createQuery("select i from Invitation i where i.registrationKey = :key", Invitation.class);
-        List<Invitation> lst = q.setParameter("key", key).getResultList();
-        if (lst.size() == 0) {
-            throw new ServerException("Invalid registration key", Status.UNAUTHORIZED);
-        }
+        int initialInvitationCount = 0;
 
-        // Remove invitation
-        em.remove(lst.get(0));
+        String testKey = this.server.getConfiguration().getTestRegistrationKey();
+        if (testKey.equals(key)) {
+            initialInvitationCount = this.server.getConfiguration().getTestInvitationCount();
+        } else {
+            TypedQuery<Invitation> q = em.createQuery("select i from Invitation i where i.registrationKey = :key", Invitation.class);
+            List<Invitation> lst = q.setParameter("key", key).getResultList();
+            if (lst.size() == 0) {
+                throw new ServerException("Invalid registration key", Status.UNAUTHORIZED);
+            }
+            Invitation invitation = lst.get(0);
+            initialInvitationCount = invitation.getInitialInvitationCount();
+            // Remove invitation
+            em.remove(lst.get(0));
+        }
 
         List<NewUser> list = em.createQuery("select u from NewUser u where u.loginToken = :loginToken", NewUser.class).setParameter("loginToken", token).getResultList();
         if (list.size() == 0) {
@@ -235,6 +244,11 @@ public class LoginResource extends BaseResource {
         user.setLastName(newUser.getLastName());
         user.setPassword(password);
         em.persist(user);
+        InvitationAccount account = new InvitationAccount();
+        account.setUser(user);
+        account.setOriginalCount(initialInvitationCount);
+        account.setCurrentCount(initialInvitationCount);
+        em.persist(account);
         em.remove(newUser);
         em.flush();
 

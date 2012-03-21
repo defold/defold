@@ -5,6 +5,16 @@ import com.google.gwt.place.shared.PlaceTokenizer;
 import com.google.gwt.place.shared.Prefix;
 
 public class LoginPlace extends Place {
+    private String registrationKey;
+
+    public LoginPlace(String registrationKey) {
+        this.registrationKey = registrationKey;
+    }
+
+    public String getRegistrationKey() {
+        return this.registrationKey;
+    }
+
     @Prefix("login")
     public static class Tokenizer implements PlaceTokenizer<LoginPlace> {
         @Override
@@ -14,7 +24,7 @@ public class LoginPlace extends Place {
 
         @Override
         public LoginPlace getPlace(String token) {
-            return new LoginPlace();
+            return new LoginPlace(token);
         }
     }
 }
