@@ -4,10 +4,10 @@ import com.dynamo.cr.web2.client.ClientFactory;
 import com.dynamo.cr.web2.client.Defold;
 import com.dynamo.cr.web2.client.LoginInfo;
 import com.dynamo.cr.web2.client.TokenExchangeInfo;
+import com.dynamo.cr.web2.client.place.DashboardPlace;
 import com.dynamo.cr.web2.client.place.OpenIDPlace;
 import com.dynamo.cr.web2.client.place.ProductInfoPlace;
 import com.dynamo.cr.web2.client.ui.OpenIDView;
-import com.google.gwt.activity.shared.AbstractActivity;
 import com.google.gwt.event.shared.EventBus;
 import com.google.gwt.http.client.Request;
 import com.google.gwt.http.client.RequestBuilder;
@@ -18,22 +18,20 @@ import com.google.gwt.place.shared.Place;
 import com.google.gwt.user.client.Cookies;
 import com.google.gwt.user.client.ui.AcceptsOneWidget;
 
-public class OpenIDActivity extends AbstractActivity implements
+public class OpenIDActivity extends AsciiDocActivity implements
         OpenIDView.Presenter {
-    private ClientFactory clientFactory;
     private String loginToken;
     private TokenExchangeInfo tokenExchangeInfo;
 
     public OpenIDActivity(OpenIDPlace place, ClientFactory clientFactory) {
+        super(clientFactory);
         loginToken = place.getLoginToken();
-        this.clientFactory = clientFactory;
     }
 
     private Place getNewPlace() {
         final Defold defold = clientFactory.getDefold();
         String token = Cookies.getCookie("afterLoginPlaceToken");
         Cookies.removeCookie("afterLoginPlaceToken");
-        System.out.println(token);
 
         Place newPlace = null;
         if (token != null) {
@@ -55,6 +53,8 @@ public class OpenIDActivity extends AbstractActivity implements
         openIDView.setPresenter(this);
 
         final Defold defold = clientFactory.getDefold();
+
+        loadAsciiDoc(openIDView, "eula");
 
         RequestBuilder builder = new RequestBuilder(RequestBuilder.GET,
                 defold.getUrl() + "/login/openid/exchange/" + loginToken);
@@ -103,6 +103,9 @@ public class OpenIDActivity extends AbstractActivity implements
     public void register(String registrationKey) {
         final Defold defold = clientFactory.getDefold();
 
+        if (registrationKey.isEmpty()) {
+            registrationKey = defold.getRegistrationKey();
+        }
         RequestBuilder builder = new RequestBuilder(RequestBuilder.PUT, defold.getUrl() + "/login/openid/register/" + loginToken + "?key=" + registrationKey);
         builder.setHeader("Accept", "application/json");
 
@@ -118,7 +121,7 @@ public class OpenIDActivity extends AbstractActivity implements
                     else if (status == 200) {
                         LoginInfo loginInfo = LoginInfo.getResponse(response.getText());
                         defold.loginOk(loginInfo.getFirstName(), loginInfo.getLastName(), loginInfo.getEmail(), loginInfo.getAuth(), loginInfo.getUserId());
-                        clientFactory.getPlaceController().goTo(new ProductInfoPlace());
+                        clientFactory.getPlaceController().goTo(new DashboardPlace());
                     } else {
                         defold.showErrorMessage("Registration failed: " + response.getText());
                     }
@@ -134,4 +137,5 @@ public class OpenIDActivity extends AbstractActivity implements
             defold.showErrorMessage("Network error");
         }
     }
+
 }

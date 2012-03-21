@@ -1,5 +1,6 @@
 package com.dynamo.cr.web2.shared;
 
+import com.google.gwt.user.client.Window;
 import com.google.gwt.user.client.Window.Navigator;
 
 public class ClientUtil {
@@ -58,5 +59,9 @@ public class ClientUtil {
         } else {
             return Platform.Undefined;
         }
+    }
+
+    public static boolean isDev() {
+        return Window.Location.getHostName().equals("127.0.0.1");
     }
 }

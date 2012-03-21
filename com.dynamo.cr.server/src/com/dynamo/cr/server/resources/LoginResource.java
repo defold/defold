@@ -204,19 +204,26 @@ public class LoginResource extends BaseResource {
     public Response register(@PathParam("token") String token,
                              @QueryParam("key") String key) {
 
-        if (key == null) {
+        if (key == null || key.isEmpty()) {
             throw new ServerException("Invalid registration key", Status.UNAUTHORIZED);
         }
 
-        TypedQuery<Invitation> q = em.createQuery("select i from Invitation i where i.registrationKey = :key", Invitation.class);
-        List<Invitation> lst = q.setParameter("key", key).getResultList();
-        if (lst.size() == 0) {
-            throw new ServerException("Invalid registration key", Status.UNAUTHORIZED);
+        int initialInvitationCount = 0;
+
+        String testKey = this.server.getConfiguration().getTestRegistrationKey();
+        if (testKey.equals(key)) {
+            initialInvitationCount = this.server.getConfiguration().getTestInvitationCount();
+        } else {
+            TypedQuery<Invitation> q = em.createQuery("select i from Invitation i where i.registrationKey = :key", Invitation.class);
+            List<Invitation> lst = q.setParameter("key", key).getResultList();
+            if (lst.size() == 0) {
+                throw new ServerException("Invalid registration key", Status.UNAUTHORIZED);
+            }
+            Invitation invitation = lst.get(0);
+            initialInvitationCount = invitation.getInitialInvitationCount();
+            // Remove invitation
+            em.remove(lst.get(0));
         }
-        Invitation invitation = lst.get(0);
-        int initialInvitationCount = invitation.getInitialInvitationCount();
-        // Remove invitation
-        em.remove(lst.get(0));
 
         List<NewUser> list = em.createQuery("select u from NewUser u where u.loginToken = :loginToken", NewUser.class).setParameter("loginToken", token).getResultList();
         if (list.size() == 0) {

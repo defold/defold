@@ -5,12 +5,21 @@
 
     <ui:style>
         .guid {
-        	font-size: 0.8em;
+            font-size: 0.8em;
+        }
+        .loader {
+            margin: 8px;
+        }
+        .eula {
+            width: 960px;
+            height: 300px;
+            overflow: scroll;
+            overflow-x: hidden;
         }
     </ui:style>
 
     <g:HTMLPanel>
-        <g:DeckPanel ui:field="deckPanel" width="300px">
+        <g:DeckPanel ui:field="deckPanel" width="100%">
 
             <g:HTMLPanel>
                 <h2>Confirm Registration</h2>
@@ -21,23 +30,20 @@
                     </div>
 
                     <div class="formRow">
-                        Your OpenID is not yet registered here. Do you want to register a new account?
-                        Defold is currently in closed beta phase and a beta registration key is required.<br/>
+                        <g:FlowPanel>
+                            <g:Image url="images/ajax-loader.gif" styleName="{style.loader}" ui:field="loader"></g:Image>
+                            <g:HTMLPanel ui:field="eula" styleName="{style.eula}">
+                            </g:HTMLPanel>
+                        </g:FlowPanel>
                     </div>
 
                     <div class="formRow">
+                        <g:Button ui:field="registerButton">Register and Accept Terms</g:Button>
+                    </div>
+                    <g:HTMLPanel styleName="formRow" ui:field="registrationKeyBox">
                         <div class="formLabel">Registration Key</div>
                         <g:TextBox ui:field="registrationKey" styleName="{style.guid}"/>
-                    </div>
-
-                    <div class="formRow">
-                        <div class="formLabel">End User Agreement</div>
-                        <g:TextArea ui:field="eula" height="100px" text="EULA HERE!" readOnly="true"/>
-                    </div>
-
-                    <div class="formRow">
-                        <g:Button ui:field="registerButton">Register and Accept Agreement</g:Button>
-                    </div>
+                    </g:HTMLPanel>
                 </div>
             </g:HTMLPanel>
             <g:HTMLPanel>

@@ -34,6 +34,7 @@
 		            </p>
                     <h2>New here?</h2>
                     <p>Go <a href="#guide:introduction">here</a> for an introduction.</p>
+                    <p2:InvitationBox ui:field="invitationBox"></p2:InvitationBox>
                     <p2:DownloadBox></p2:DownloadBox>
 		        </td>
 

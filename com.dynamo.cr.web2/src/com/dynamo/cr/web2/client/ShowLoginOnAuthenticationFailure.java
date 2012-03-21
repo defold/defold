@@ -17,6 +17,7 @@ public class ShowLoginOnAuthenticationFailure implements
         return AuthenticationFailureEvent.register(eventBus, this);
     }
 
+    @Override
     public void onAuthFailure(AuthenticationFailureEvent requestEvent) {
         Place currentPlace = clientFactory.getPlaceController().getWhere();
 
@@ -29,6 +30,6 @@ public class ShowLoginOnAuthenticationFailure implements
             String token = clientFactory.getDefold().getHistoryMapper().getToken(currentPlace);
             Cookies.setCookie("afterLoginPlaceToken", token);
         }
-        clientFactory.getPlaceController().goTo(new LoginPlace());
+        clientFactory.getPlaceController().goTo(new LoginPlace(""));
     }
 }
