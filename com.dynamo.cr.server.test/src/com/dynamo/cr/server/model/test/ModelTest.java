@@ -80,15 +80,29 @@ public class ModelTest {
         return u;
     }
 
+    InvitationAccount newInvitationAccount(User user, int originalCount) {
+        InvitationAccount account = new InvitationAccount();
+        account.setUser(user);
+        account.setOriginalCount(originalCount);
+        account.setCurrentCount(originalCount);
+        return account;
+    }
+
     void createData() {
         em.getTransaction().begin();
 
         User u1 = newUser(CARL_CONTENT_EMAIL, "Carl", "Content", "carl");
         em.persist(u1);
+        InvitationAccount a1 = newInvitationAccount(u1, 1);
+        em.persist(a1);
         User u2 = newUser(JOE_CODER_EMAIL, "Joe", "Coder", "joe");
         em.persist(u2);
+        InvitationAccount a2 = newInvitationAccount(u2, 1);
+        em.persist(a2);
         User u3 = newUser(LISA_USER_EMAIL, "Lisa", "User", "lisa");
         em.persist(u3);
+        InvitationAccount a3 = newInvitationAccount(u3, 1);
+        em.persist(a3);
 
         // Create new projects
         Project p1 = ModelUtil.newProject(em, u1, "Carl Contents Project", "Carl Contents Project Description");
@@ -292,15 +306,32 @@ public class ModelTest {
     }
 
     @Test
+    public void testInvitationAccount() throws Exception {
+        em.getTransaction().begin();
+        User inviter = newUser("inviter@foo.com", "Mr", "Inviter", "123");
+        InvitationAccount account = newInvitationAccount(inviter, 1);
+        em.persist(inviter);
+        em.persist(account);
+        em.getTransaction().commit();
+
+        em.getTransaction().begin();
+        ModelUtil.removeUser(em, inviter);
+        em.getTransaction().commit();
+    }
+
+    @Test
     public void testInvitation() throws Exception {
         em.getTransaction().begin();
         User inviter = newUser("inviter@foo.com", "Mr", "Inviter", "123");
         em.persist(inviter);
+        InvitationAccount account = newInvitationAccount(inviter, 1);
+        em.persist(account);
         em.getTransaction().commit();
 
         Invitation invitation = new Invitation();
         invitation.setEmail("foo@bar.com");
-        invitation.setInviter(inviter);
+        invitation.setInviterEmail(inviter.getEmail());
+        invitation.setInitialInvitationCount(1);
         invitation.setRegistrationKey(UUID.randomUUID().toString());
         em.getTransaction().begin();
         em.persist(invitation);
@@ -321,34 +352,24 @@ public class ModelTest {
         em.getTransaction().begin();
         User inviter = newUser("inviter@foo.com", "Mr", "Inviter", "123");
         em.persist(inviter);
+        InvitationAccount account = newInvitationAccount(inviter, 1);
+        em.persist(account);
 
         Invitation invitation = new Invitation();
         invitation.setEmail("foo@bar.com");
-        invitation.setInviter(inviter);
+        invitation.setInviterEmail(inviter.getEmail());
+        invitation.setInitialInvitationCount(1);
         invitation.setRegistrationKey(UUID.randomUUID().toString());
         em.persist(invitation);
 
         invitation = new Invitation();
         invitation.setEmail("foo@bar.com");
-        invitation.setInviter(inviter);
+        invitation.setInviterEmail(inviter.getEmail());
+        invitation.setInitialInvitationCount(1);
         invitation.setRegistrationKey(UUID.randomUUID().toString());
         em.persist(invitation);
         em.getTransaction().commit();
     }
 
-    @Test
-    public void testInvitationAccount() throws Exception {
-        em.getTransaction().begin();
-        User inviter = newUser("inviter@foo.com", "Mr", "Inviter", "123");
-        InvitationAccount account = new InvitationAccount();
-        account.setUser(inviter);
-        em.persist(inviter);
-        em.persist(account);
-        em.getTransaction().commit();
-
-        em.getTransaction().begin();
-        ModelUtil.removeUser(em, inviter);
-        em.getTransaction().commit();
-    }
 }
 

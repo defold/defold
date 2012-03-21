@@ -33,6 +33,7 @@ import com.dynamo.cr.server.ServerException;
 import com.dynamo.cr.server.auth.AuthCookie;
 import com.dynamo.cr.server.auth.OpenIDAuthenticator;
 import com.dynamo.cr.server.model.Invitation;
+import com.dynamo.cr.server.model.InvitationAccount;
 import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.NewUser;
 import com.dynamo.cr.server.model.User;
@@ -212,7 +213,8 @@ public class LoginResource extends BaseResource {
         if (lst.size() == 0) {
             throw new ServerException("Invalid registration key", Status.UNAUTHORIZED);
         }
-
+        Invitation invitation = lst.get(0);
+        int initialInvitationCount = invitation.getInitialInvitationCount();
         // Remove invitation
         em.remove(lst.get(0));
 
@@ -235,6 +237,11 @@ public class LoginResource extends BaseResource {
         user.setLastName(newUser.getLastName());
         user.setPassword(password);
         em.persist(user);
+        InvitationAccount account = new InvitationAccount();
+        account.setUser(user);
+        account.setOriginalCount(initialInvitationCount);
+        account.setCurrentCount(initialInvitationCount);
+        em.persist(account);
         em.remove(newUser);
         em.flush();
 

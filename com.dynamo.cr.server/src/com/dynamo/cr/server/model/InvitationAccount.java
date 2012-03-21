@@ -1,5 +1,6 @@
 package com.dynamo.cr.server.model;
 
+import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.Id;
 import javax.persistence.JoinColumn;
@@ -14,6 +15,12 @@ public class InvitationAccount {
     @JoinColumn(nullable = false)
     private User user;
 
+    @Column(nullable = false)
+    private int originalCount;
+
+    @Column(nullable = false)
+    private int currentCount;
+
     public InvitationAccount() {
     }
 
@@ -23,6 +30,22 @@ public class InvitationAccount {
 
     public void setUser(User user) {
         this.user = user;
+    }
+
+    public int getOriginalCount() {
+        return this.originalCount;
+    }
+
+    public void setOriginalCount(int originalCount) {
+        this.originalCount = originalCount;
+    }
+
+    public int getCurrentCount() {
+        return this.currentCount;
+    }
+
+    public void setCurrentCount(int currentCount) {
+        this.currentCount = currentCount;
     }
 
     @Override

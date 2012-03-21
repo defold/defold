@@ -52,6 +52,9 @@ message Configuration
     // email
     required EMailTemplate registrationTemplate = 23;
     required EMailTemplate invitationTemplate = 24;
+
+    // invitations
+    repeated InvitationCountEntry invitationCountMap = 25;
 }
 
 message EMailTemplate
@@ -61,3 +64,8 @@ message EMailTemplate
     required string message = 3;
 }
 
+message InvitationCountEntry
+{
+    required int32 key = 1;
+    required int32 value = 2;
+}

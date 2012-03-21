@@ -24,6 +24,7 @@ import com.dynamo.cr.protocol.proto.Protocol.UserInfoList;
 import com.dynamo.cr.server.ServerException;
 import com.dynamo.cr.server.mail.EMail;
 import com.dynamo.cr.server.model.Invitation;
+import com.dynamo.cr.server.model.InvitationAccount;
 import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.inject.persist.Transactional;
@@ -113,6 +114,12 @@ public class UsersResource extends BaseResource {
         if (lst.size() > 0) {
             throwWebApplicationException(Status.CONFLICT, "User already invited");
         }
+        InvitationAccount a = server.getInvitationAccount(em, user);
+        if (a.getCurrentCount() == 0) {
+            throwWebApplicationException(Status.FORBIDDEN, "Inviter has no invitations left");
+        }
+        a.setCurrentCount(a.getCurrentCount() - 1);
+        em.persist(a);
 
         String key = UUID.randomUUID().toString();
         User u = server.getUser(em, user);
@@ -125,8 +132,9 @@ public class UsersResource extends BaseResource {
 
         Invitation invitation = new Invitation();
         invitation.setEmail(email);
-        invitation.setInviter(u);
+        invitation.setInviterEmail(u.getEmail());
         invitation.setRegistrationKey(key);
+        invitation.setInitialInvitationCount(server.getInvitationCount(a.getOriginalCount()));
         em.persist(invitation);
         server.getMailProcessor().send(em, emailMessage);
         em.flush();

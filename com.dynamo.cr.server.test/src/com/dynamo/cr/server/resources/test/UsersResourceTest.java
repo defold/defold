@@ -35,6 +35,7 @@ import com.dynamo.cr.server.Server;
 import com.dynamo.cr.server.mail.EMail;
 import com.dynamo.cr.server.mail.IMailer;
 import com.dynamo.cr.server.model.Invitation;
+import com.dynamo.cr.server.model.InvitationAccount;
 import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.NewUser;
 import com.dynamo.cr.server.model.User;
@@ -121,6 +122,11 @@ public class UsersResourceTest extends AbstractResourceTest {
         joeUser.setPassword(joePasswd);
         joeUser.setRole(Role.USER);
         em.persist(joeUser);
+        InvitationAccount joeAccount = new InvitationAccount();
+        joeAccount.setUser(joeUser);
+        joeAccount.setOriginalCount(1);
+        joeAccount.setCurrentCount(1);
+        em.persist(joeAccount);
 
         bobUser = new User();
         bobUser.setEmail(bobEmail);
@@ -389,6 +395,20 @@ public class UsersResourceTest extends AbstractResourceTest {
         assertThat(mailer.emails.size(), is(1));
     }
 
+    @Test
+    public void testNoRemainingInvitations() throws Exception {
+        assertThat(mailer.emails.size(), is(0));
+        ClientResponse response = joeUsersWebResource
+            .path(String.format("/%d/invite/newuser@foo.com", joeUser.getId()))
+            .put(ClientResponse.class);
+        assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
+
+        response = joeUsersWebResource
+                .path(String.format("/%d/invite/newuser2@foo.com", joeUser.getId()))
+                .put(ClientResponse.class);
+        assertEquals(Response.Status.FORBIDDEN.getStatusCode(), response.getStatus());
+    }
+
     @SuppressWarnings("unchecked")
     List<NewUser> newUsers(EntityManager em) {
         return em.createQuery("select u from NewUser u").getResultList();
@@ -440,6 +460,66 @@ public class UsersResourceTest extends AbstractResourceTest {
         User u = ModelUtil.findUserByEmail(em, email);
         assertThat("first", is(u.getFirstName()));
         assertThat("last", is(u.getLastName()));
+        InvitationAccount a = server.getInvitationAccount(em, u.getId().toString());
+        assertThat(2, is(a.getOriginalCount()));
+        assertThat(2, is(a.getCurrentCount()));
+
+        assertThat(0, is(newUsers(em).size()));
+        assertThat(0, is(invitations(em).size()));
+    }
+
+    @Test
+    public void testInviteRegistrationDeletedInviter() throws Exception {
+        EntityManager em = emf.createEntityManager();
+
+        String email = "newuser@foo.com";
+        assertNull(ModelUtil.findUserByEmail(em, email));
+
+        // Create a NewUser-entry manually. Currently we
+        // can't test the OpenID-login in unit-tests
+        String token = "test-token";
+        em.getTransaction().begin();
+        NewUser newUser = new NewUser();
+        newUser.setFirstName("first");
+        newUser.setLastName("last");
+        newUser.setEmail(email);
+        newUser.setLoginToken(token);
+        em.persist(newUser);
+        em.getTransaction().commit();
+
+        // Invite newuser@foo.com
+        ClientResponse response = joeUsersWebResource
+            .path(String.format("/%d/invite/newuser@foo.com", joeUser.getId()))
+            .put(ClientResponse.class);
+
+        assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
+        // Mail processes runs in a separate thread. Wait some time..
+        Thread.sleep(200);
+        assertThat(mailer.emails.size(), is(1));
+        assertThat(1, is(newUsers(em).size()));
+        assertThat(1, is(invitations(em).size()));
+
+        // Delete inviter
+        em.getTransaction().begin();
+        // Get managed entity
+        User inviter = server.getUser(em, joeUser.getId().toString());
+        // Delete
+        ModelUtil.removeUser(em, inviter);
+        em.getTransaction().commit();
+
+        // The message contains only the key, see config-file
+        String key = mailer.emails.get(0).getMessage();
+        response = anonymousResource.path("/login/openid/register/" + token)
+            .queryParam("key", key)
+            .put(ClientResponse.class);
+        assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
+
+        User u = ModelUtil.findUserByEmail(em, email);
+        assertThat("first", is(u.getFirstName()));
+        assertThat("last", is(u.getLastName()));
+        InvitationAccount a = server.getInvitationAccount(em, u.getId().toString());
+        assertThat(2, is(a.getOriginalCount()));
+        assertThat(2, is(a.getCurrentCount()));
 
         assertThat(0, is(newUsers(em).size()));
         assertThat(0, is(invitations(em).size()));
