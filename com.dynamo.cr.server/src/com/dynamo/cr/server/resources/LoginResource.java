@@ -36,6 +36,7 @@ import com.dynamo.cr.server.model.Invitation;
 import com.dynamo.cr.server.model.InvitationAccount;
 import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.NewUser;
+import com.dynamo.cr.server.model.Prospect;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.openid.OpenIDException;
 import com.dynamo.cr.server.openid.OpenIDIdentity;
@@ -232,6 +233,12 @@ public class LoginResource extends BaseResource {
         }
 
         NewUser newUser = list.get(0);
+
+        // Remove prospect (if registered with different email than invitation
+        Prospect p = ModelUtil.findProspectByEmail(em, newUser.getEmail());
+        if (p != null) {
+            em.remove(p);
+        }
 
         // Generate some random password for OpenID accounts.
         byte[] passwordBytes = new byte[32];

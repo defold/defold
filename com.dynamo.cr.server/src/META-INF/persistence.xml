@@ -11,6 +11,7 @@
         <class>com.dynamo.cr.server.model.Job</class>
         <class>com.dynamo.cr.server.model.Invitation</class>
         <class>com.dynamo.cr.server.model.InvitationAccount</class>
+        <class>com.dynamo.cr.server.model.Prospect</class>
         <properties>
             <property name="javax.persistence.jdbc.driver" value="org.postgresql.Driver" />
             <property name="javax.persistence.jdbc.url" value="jdbc:postgresql://localhost/cr_production" />

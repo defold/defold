@@ -348,6 +348,23 @@ public class UsersResourceTest extends AbstractResourceTest {
     }
 
     @Test
+    public void testInviteProspect() throws Exception {
+        EntityManager em = emf.createEntityManager();
+
+        ClientResponse response = anonymousResource
+                .path("/prospects/newuser@foo.com").put(ClientResponse.class);
+        assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
+
+        response = joeUsersWebResource
+            .path(String.format("/%d/invite/newuser@foo.com", joeUser.getId()))
+            .put(ClientResponse.class);
+        assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
+
+        int prospectCount = em.createQuery("select p from Prospect p").getResultList().size();
+        assertThat(prospectCount, is(0));
+    }
+
+    @Test
     public void testNoRemainingInvitations() throws Exception {
         assertThat(mailer.emails.size(), is(0));
         ClientResponse response = joeUsersWebResource

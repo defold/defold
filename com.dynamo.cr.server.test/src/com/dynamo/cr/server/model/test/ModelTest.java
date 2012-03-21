@@ -1,12 +1,15 @@
 package com.dynamo.cr.server.model.test;
 
+import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
@@ -27,6 +30,7 @@ import com.dynamo.cr.server.model.Invitation;
 import com.dynamo.cr.server.model.InvitationAccount;
 import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.Project;
+import com.dynamo.cr.server.model.Prospect;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.test.Util;
 
@@ -368,6 +372,38 @@ public class ModelTest {
         invitation.setInitialInvitationCount(1);
         invitation.setRegistrationKey(UUID.randomUUID().toString());
         em.persist(invitation);
+        em.getTransaction().commit();
+    }
+
+    @Test
+    public void testProspect() throws Exception {
+        Prospect prospect = new Prospect();
+        prospect.setEmail("foo@bar.com");
+        em.getTransaction().begin();
+        em.persist(prospect);
+        Date d = new Date();
+        em.getTransaction().commit();
+
+        List<Prospect> lst = em.createQuery("select p from Prospect p", Prospect.class).getResultList();
+        assertThat(lst.size(), is(1));
+        Prospect p = lst.get(0);
+        assertThat(p.getEmail(), is("foo@bar.com"));
+        boolean recently = (p.getDate().getTime() - d.getTime()) < 100;
+        assertTrue(recently);
+    }
+
+    @Test(expected=RollbackException.class)
+    public void testProspectDuplicate() throws Exception {
+        Prospect prospect = new Prospect();
+        prospect.setEmail("foo@bar.com");
+        em.getTransaction().begin();
+        em.persist(prospect);
+        em.getTransaction().commit();
+
+        prospect = new Prospect();
+        prospect.setEmail("foo@bar.com");
+        em.getTransaction().begin();
+        em.persist(prospect);
         em.getTransaction().commit();
     }
 

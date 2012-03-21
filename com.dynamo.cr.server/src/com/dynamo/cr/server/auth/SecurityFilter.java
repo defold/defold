@@ -42,11 +42,14 @@ public class SecurityFilter implements ContainerRequestFilter {
     @Inject
     private EntityManagerFactory emf;
 
+    @Override
     public ContainerRequest filter(ContainerRequest request) {
         MDC.put("userId", Long.toString(-1));
-        if (!request.getAbsolutePath().getPath().equals("/login") && !request.getAbsolutePath().getPath().startsWith("/login/openid/google")
-                && !request.getAbsolutePath().getPath().startsWith("/login/openid/exchange") && !request.getAbsolutePath().getPath().startsWith("/login/openid/register")) {
-            // Only authenticate users for paths != /login or != /login/openid
+        String path = request.getAbsolutePath().getPath();
+        if (!path.equals("/login") && !path.startsWith("/login/openid/google")
+                && !path.startsWith("/login/openid/exchange") && !path.startsWith("/login/openid/register")
+                && !path.startsWith("/prospects")) {
+            // Only authenticate users for paths != /login or != /login/openid or != /prospects
             User user = authenticate(request);
             request.setSecurityContext(new Authorizer(user));
             if (user != null) {
@@ -133,12 +136,14 @@ public class SecurityFilter implements ContainerRequestFilter {
             this.user = user;
             this.principal = new Principal() {
 
+                @Override
                 public String getName() {
                     return user.getEmail();
                 }
             };
         }
 
+        @Override
         public Principal getUserPrincipal() {
             return this.principal;
         }
@@ -153,6 +158,7 @@ public class SecurityFilter implements ContainerRequestFilter {
             return false;
         }
 
+        @Override
         public boolean isUserInRole(String role) {
             if (role.equals("admin")) {
                 return user.getRole() == Role.ADMIN;
@@ -183,10 +189,12 @@ public class SecurityFilter implements ContainerRequestFilter {
             return false;
         }
 
+        @Override
         public boolean isSecure() {
             return "https".equals(uriInfo.getRequestUri().getScheme());
         }
 
+        @Override
         public String getAuthenticationScheme() {
             return SecurityContext.BASIC_AUTH;
         }

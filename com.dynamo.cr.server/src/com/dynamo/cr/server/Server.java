@@ -73,6 +73,7 @@ import com.dynamo.cr.server.openid.OpenID;
 import com.dynamo.cr.server.resources.LoginResource;
 import com.dynamo.cr.server.resources.ProjectResource;
 import com.dynamo.cr.server.resources.ProjectsResource;
+import com.dynamo.cr.server.resources.ProspectsResource;
 import com.dynamo.cr.server.resources.RepositoryResource;
 import com.dynamo.cr.server.resources.ResourceUtil;
 import com.dynamo.cr.server.resources.UsersResource;
@@ -197,6 +198,7 @@ public class Server implements ServerMBean {
                     bind(ProjectsResource.class);
                     bind(UsersResource.class);
                     bind(LoginResource.class);
+                    bind(ProspectsResource.class);
 
                     Map<String, String> params = new HashMap<String, String>();
                     params.put("com.sun.jersey.config.property.resourceConfigClass",

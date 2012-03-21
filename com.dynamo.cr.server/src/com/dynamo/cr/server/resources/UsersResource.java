@@ -27,6 +27,7 @@ import com.dynamo.cr.server.mail.EMail;
 import com.dynamo.cr.server.model.Invitation;
 import com.dynamo.cr.server.model.InvitationAccount;
 import com.dynamo.cr.server.model.ModelUtil;
+import com.dynamo.cr.server.model.Prospect;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.inject.persist.Transactional;
 
@@ -128,6 +129,12 @@ public class UsersResource extends BaseResource {
         }
         a.setCurrentCount(a.getCurrentCount() - 1);
         em.persist(a);
+
+        // Remove prospects
+        Prospect p = ModelUtil.findProspectByEmail(em, email);
+        if (p != null) {
+            em.remove(p);
+        }
 
         String key = UUID.randomUUID().toString();
         User u = server.getUser(em, user);
