@@ -6,8 +6,9 @@ import javax.vecmath.Vector4d;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.osgi.util.NLS;
+import org.eclipse.swt.graphics.Image;
 
-import com.dynamo.cr.sceneed.Activator;
+import com.dynamo.cr.ddfeditor.Activator;
 import com.dynamo.cr.sceneed.core.Node;
 
 @SuppressWarnings("serial")
@@ -39,6 +40,11 @@ public abstract class CollisionShapeNode extends Node {
             return boundsErrorStatus;
         else
             return Status.OK_STATUS;
+    }
+
+    @Override
+    public Image getIcon() {
+        return Activator.getDefault().getImageRegistry().get(Activator.COLLISION_SHAPE_IMAGE_ID);
     }
 
 }

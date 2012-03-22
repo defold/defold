@@ -76,5 +76,4 @@ public class BoxCollisionShapeNode extends CollisionShapeNode {
         return "Box Shape";
     }
 
-
 }

@@ -13,6 +13,9 @@ public class Activator extends AbstractUIPlugin {
     public static final String PLUGIN_ID = "com.dynamo.cr.ddfeditor";
     private static Activator plugin;
 
+    // Image ids
+    public static final String COLLISION_SHAPE_IMAGE_ID = "COLLISION_SHAPE"; //$NON-NLS-1$
+
     public Activator() {
     }
 
@@ -44,6 +47,7 @@ public class Activator extends AbstractUIPlugin {
         registerImage(reg, "page_add", "icons/page_add.png");
         registerImage(reg, "delete", "icons/delete.png");
         registerImage(reg, "exclamation", "icons/exclamation.png");
+        registerImage(reg, COLLISION_SHAPE_IMAGE_ID, "icons/draw_ellipse.png");
     }
 
     private void registerImage(ImageRegistry registry, String key,
