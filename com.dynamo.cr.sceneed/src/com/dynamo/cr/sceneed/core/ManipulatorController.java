@@ -19,19 +19,12 @@ import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.swt.events.MouseEvent;
 import org.eclipse.swt.events.MouseListener;
 import org.eclipse.swt.events.MouseMoveListener;
-import org.eclipse.ui.IEditorPart;
-import org.eclipse.ui.ISelectionListener;
-import org.eclipse.ui.ISelectionService;
-import org.eclipse.ui.IWorkbenchPart;
-import org.eclipse.ui.part.IContributedContentsView;
-import org.eclipse.ui.views.contentoutline.ContentOutline;
 
 import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.sceneed.ui.RootManipulator;
 
-public class ManipulatorController implements ISelectionListener, IRenderViewProvider, MouseListener, MouseMoveListener {
+public class ManipulatorController implements IRenderViewProvider, MouseListener, MouseMoveListener {
 
-    private ISelectionService selectionService;
     private IRenderView renderView;
     private IManipulatorRegistry manipulatorRegistry;
     private IManipulatorMode manipulatorMode;
@@ -41,16 +34,13 @@ public class ManipulatorController implements ISelectionListener, IRenderViewPro
     private IOperationHistory undoHistory;
     private IUndoContext undoContext;
     private ILogger logger;
-    private IEditorPart editorPart;
 
     @Inject
-    public ManipulatorController(ISelectionService selectionService,
-                                 IRenderView renderView,
+    public ManipulatorController(IRenderView renderView,
                                  IManipulatorRegistry manipulatorRegistry,
                                  IOperationHistory undoHistory,
                                  IUndoContext undoContext,
                                  ILogger logger) {
-        this.selectionService = selectionService;
         this.renderView = renderView;
         this.manipulatorRegistry = manipulatorRegistry;
         this.undoHistory = undoHistory;
@@ -59,15 +49,10 @@ public class ManipulatorController implements ISelectionListener, IRenderViewPro
         this.renderView.addMouseListener(this);
         this.renderView.addMouseMoveListener(this);
         this.renderView.addRenderProvider(this);
-        this.selectionService.addSelectionListener(this);
     }
 
     public IRenderView getRenderView() {
         return renderView;
-    }
-
-    public void setSelectionService(ISelectionService selectionService) {
-        this.selectionService = selectionService;
     }
 
     public void setManipulatorMode(IManipulatorMode manipulatorMode) {
@@ -78,7 +63,6 @@ public class ManipulatorController implements ISelectionListener, IRenderViewPro
 
     @PreDestroy
     public void dispose() {
-        this.selectionService.removeSelectionListener(this);
         this.renderView.removeMouseListener(this);
         this.renderView.removeMouseMoveListener(this);
         this.renderView.removeRenderProvider(this);
@@ -113,31 +97,20 @@ public class ManipulatorController implements ISelectionListener, IRenderViewPro
         }
     }
 
-    @Override
-    public void selectionChanged(IWorkbenchPart part, ISelection selection) {
-        boolean currentSelection = false;
-        if (part == editorPart) {
-            currentSelection = true;
-        } else if (part instanceof ContentOutline) {
-            IContributedContentsView view = (IContributedContentsView)((ContentOutline)part).getAdapter(IContributedContentsView.class);
-            currentSelection = view.getContributingPart() == editorPart;
-        }
-
-        if (currentSelection) {
-            this.selectionList.clear();
-            if (selection instanceof IStructuredSelection) {
-                IStructuredSelection structSel = (IStructuredSelection) selection;
-                Iterator<?> i = structSel.iterator();
-                while (i.hasNext()) {
-                    Object o = i.next();
-                    if (o instanceof Node) {
-                        Node node = (Node) o;
-                        this.selectionList.add(node);
-                    }
+    public void setSelection(ISelection selection) {
+        this.selectionList.clear();
+        if (selection instanceof IStructuredSelection) {
+            IStructuredSelection structSel = (IStructuredSelection) selection;
+            Iterator<?> i = structSel.iterator();
+            while (i.hasNext()) {
+                Object o = i.next();
+                if (o instanceof Node) {
+                    Node node = (Node) o;
+                    this.selectionList.add(node);
                 }
             }
-            selectManipulator();
         }
+        selectManipulator();
     }
 
     private static List<Manipulator> getAllManipulators(Manipulator m) {
@@ -222,10 +195,6 @@ public class ManipulatorController implements ISelectionListener, IRenderViewPro
 
     public boolean isManipulatorSelected(Manipulator m) {
         return m == this.selectedManipulator;
-    }
-
-    public void setEditorPart(IEditorPart editorPart) {
-        this.editorPart = editorPart;
     }
 
     public void refresh() {

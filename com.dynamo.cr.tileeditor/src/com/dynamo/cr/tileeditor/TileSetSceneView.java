@@ -10,6 +10,7 @@ import org.eclipse.swt.widgets.Display;
 import com.dynamo.cr.properties.IFormPropertySheetPage;
 import com.dynamo.cr.sceneed.core.IImageProvider;
 import com.dynamo.cr.sceneed.core.ISceneView;
+import com.dynamo.cr.sceneed.core.ManipulatorController;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.ui.ISceneOutlinePage;
 import com.dynamo.cr.tileeditor.scene.TileSetNode;
@@ -24,6 +25,7 @@ public class TileSetSceneView implements ISceneView {
     private TileSetEditor2 editor;
     @Inject
     IImageProvider imageProvider;
+    @Inject ManipulatorController manipulatorController;
 
     @Override
     public void setRoot(Node root) {
@@ -38,6 +40,7 @@ public class TileSetSceneView implements ISceneView {
         this.outline.setSelection(selection);
         this.propertySheetPage.setSelection(selection);
         this.propertySheetPage.refresh();
+        this.manipulatorController.setSelection(selection);
         this.renderer.refresh(selection);
         this.editor.setDirty(dirty);
     }

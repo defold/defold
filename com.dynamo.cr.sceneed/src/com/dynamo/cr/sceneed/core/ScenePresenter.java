@@ -32,16 +32,14 @@ public class ScenePresenter implements IPresenter, IModelListener {
     private final INodeTypeRegistry nodeTypeRegistry;
     private final ILoaderContext loaderContext;
     private final IClipboard clipboard;
-    private ManipulatorController manipulatorController;
 
     @Inject
-    public ScenePresenter(ISceneModel model, ISceneView view, INodeTypeRegistry manager, ILoaderContext loaderContext, IClipboard clipboard, ManipulatorController manipulatorController) {
+    public ScenePresenter(ISceneModel model, ISceneView view, INodeTypeRegistry manager, ILoaderContext loaderContext, IClipboard clipboard) {
         this.model = model;
         this.view = view;
         this.nodeTypeRegistry = manager;
         this.loaderContext = loaderContext;
         this.clipboard = clipboard;
-        this.manipulatorController = manipulatorController;
     }
 
     @Override
@@ -105,7 +103,6 @@ public class ScenePresenter implements IPresenter, IModelListener {
     @Override
     public void stateChanged(IStructuredSelection selection, boolean dirty) {
         this.view.refresh(selection, dirty);
-        this.manipulatorController.refresh();
     }
 
     @Override

@@ -181,7 +181,6 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
         this.manipulatorController = injector.getInstance(ManipulatorController.class);
         IManipulatorMode selectMode = manipulatorRegistry.getMode(Activator.SELECT_MODE_ID);
         manipulatorController.setManipulatorMode(selectMode);
-        manipulatorController.setEditorPart(this);
 
         this.cameraController = injector.getInstance(CameraController.class);
 

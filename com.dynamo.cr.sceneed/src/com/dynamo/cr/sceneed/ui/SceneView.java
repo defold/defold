@@ -21,6 +21,7 @@ import com.dynamo.cr.editor.ui.FilteredResourceListSelectionDialog;
 import com.dynamo.cr.properties.IFormPropertySheetPage;
 import com.dynamo.cr.sceneed.core.IRenderView;
 import com.dynamo.cr.sceneed.core.ISceneView;
+import com.dynamo.cr.sceneed.core.ManipulatorController;
 import com.dynamo.cr.sceneed.core.Node;
 
 public class SceneView implements ISceneView {
@@ -31,6 +32,7 @@ public class SceneView implements ISceneView {
     @Inject private SceneEditor editor;
     @Inject private IContainer contentRoot;
     @Inject private SceneRenderViewProvider sceneRenderViewProvider;
+    @Inject private ManipulatorController manipulatorController;
 
     private boolean refreshRequested;
     private ISelection lastSelection;
@@ -47,6 +49,8 @@ public class SceneView implements ISceneView {
         this.lastSelection = selection;
         this.lastDirty = dirty;
         sceneRenderViewProvider.setSelection(selection);
+        manipulatorController.setSelection(selection);
+        manipulatorController.refresh();
         renderView.refresh();
 
         // The rest is expensive, so force a low frequency

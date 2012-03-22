@@ -180,7 +180,6 @@ public class TileSetEditor2 extends AbstractDefoldEditor implements ISceneEditor
         this.manipulatorController = injector.getInstance(ManipulatorController.class);
         IManipulatorMode selectMode = manipulatorRegistry.getMode(Activator.SELECT_MODE_ID);
         manipulatorController.setManipulatorMode(selectMode);
-        manipulatorController.setEditorPart(this);
 
         this.presenter = injector.getInstance(ISceneView.IPresenter.class);
         this.presenterContext = injector.getInstance(ISceneView.IPresenterContext.class);

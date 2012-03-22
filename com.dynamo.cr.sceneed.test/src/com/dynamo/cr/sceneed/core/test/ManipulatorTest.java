@@ -27,8 +27,6 @@ import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.swt.events.MouseEvent;
-import org.eclipse.ui.IEditorPart;
-import org.eclipse.ui.ISelectionService;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -41,16 +39,12 @@ import com.dynamo.cr.sceneed.core.IImageProvider;
 import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.IManipulatorMode;
 import com.dynamo.cr.sceneed.core.IManipulatorRegistry;
-import com.dynamo.cr.sceneed.core.IModelListener;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
 import com.dynamo.cr.sceneed.core.IRenderView;
-import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.Manipulator;
 import com.dynamo.cr.sceneed.core.ManipulatorController;
 import com.dynamo.cr.sceneed.core.Node;
-import com.dynamo.cr.sceneed.core.SceneModel;
-import com.dynamo.cr.sceneed.core.ScenePresenter;
 import com.dynamo.cr.sceneed.core.operations.TransformNodeOperation;
 import com.dynamo.cr.sceneed.ui.RootManipulator;
 import com.google.inject.AbstractModule;
@@ -60,29 +54,22 @@ import com.google.inject.Injector;
 public class ManipulatorTest {
 
     private IManipulatorRegistry manipulatorRegistry;
-    private ISelectionService selectionService;
     private IRenderView renderView;
     private ManipulatorController manipulatorController;
     private LifecycleModule module;
     private IOperationHistory undoHistory;
     private UndoContext undoContext;
     private ILogger logger;
-    private IEditorPart editorPart;
-    private ISceneModel sceneModel;
 
     class TestModule extends AbstractModule {
         @Override
         protected void configure() {
-            bind(ISelectionService.class).toInstance(selectionService);
             bind(IRenderView.class).toInstance(renderView);
             bind(IManipulatorRegistry.class).toInstance(manipulatorRegistry);
             bind(ILogger.class).toInstance(logger);
             bind(IOperationHistory.class).toInstance(undoHistory);
             bind(IUndoContext.class).toInstance(undoContext);
             bind(ManipulatorController.class).in(Singleton.class);
-            bind(ISceneView.IPresenter.class).to(ScenePresenter.class).in(Singleton.class);
-            bind(IModelListener.class).to(ScenePresenter.class).in(Singleton.class);
-            bind(ISceneModel.class).to(SceneModel.class).in(Singleton.class);
             bind(IClipboard.class).to(DummyClipboard.class).in(Singleton.class);
 
             // Heavy mocking of interfaces
@@ -96,7 +83,6 @@ public class ManipulatorTest {
 
     @Before
     public void setup() throws CoreException, IOException {
-        selectionService = mock(ISelectionService.class);
         renderView = mock(IRenderView.class);
         undoContext = new UndoContext();
         undoHistory = new DefaultOperationHistory();
@@ -108,9 +94,6 @@ public class ManipulatorTest {
         Injector injector = Guice.createInjector(module);
 
         manipulatorController = injector.getInstance(ManipulatorController.class);
-        editorPart = mock(IEditorPart.class);
-        manipulatorController.setEditorPart(editorPart);
-        sceneModel = injector.getInstance(ISceneModel.class);
     }
 
     @After
@@ -160,9 +143,8 @@ public class ManipulatorTest {
         DummySphere sphere = new DummySphere();
         selectionList.add(sphere);
         StructuredSelection selection = new StructuredSelection(selectionList);
-        manipulatorController.selectionChanged(editorPart, selection);
-        // If root is not set refresh is not propagated
-        this.sceneModel.setRoot(sphere);
+        manipulatorController.setSelection(selection);
+        manipulatorController.refresh();
 
         RootManipulator rootManipulator = manipulatorController.getRootManipulator();
         assertNotNull(rootManipulator);
@@ -172,6 +154,8 @@ public class ManipulatorTest {
 
         // Change node position
         moveTo(sphere, new Vector4d(10, 0, 0, 0));
+
+        manipulatorController.refresh();
 
         // Ensure that the manipulator follows..
         assertThat(sphere.getTranslation().getX(), is(rootManipulator.getTranslation().getX()));
@@ -185,7 +169,7 @@ public class ManipulatorTest {
         ArrayList<Node> selectionList = new ArrayList<Node>();
         selectionList.add(new DummySphere());
         StructuredSelection selection = new StructuredSelection(selectionList);
-        manipulatorController.selectionChanged(editorPart, selection);
+        manipulatorController.setSelection(selection);
 
         RootManipulator rootManipulator = manipulatorController.getRootManipulator();
         assertNotNull(rootManipulator);
@@ -209,7 +193,7 @@ public class ManipulatorTest {
         ArrayList<Node> selectionList = new ArrayList<Node>();
         selectionList.add(new DummySphere());
         StructuredSelection selection = new StructuredSelection(selectionList);
-        manipulatorController.selectionChanged(editorPart, selection);
+        manipulatorController.setSelection(selection);
 
         MouseEvent e = mock(MouseEvent.class);
         assertThat(0, is(undoHistory.getUndoHistory(undoContext).length));
