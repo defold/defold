@@ -47,7 +47,10 @@ public class CapsuleSizeManipulator extends RootManipulator {
     @Override
     public void manipulatorChanged(Manipulator manipulator) {
         sizeChanged = true;
-        double factor = 0.5;
+        double factor = 1.0;
+        if (manipulator == yScaleManipulator) {
+            factor = 2.0;
+        }
         for (Node node : getSelection()) {
             if (node instanceof CapsuleCollisionShapeNode) {
                 CapsuleCollisionShapeNode capsule = (CapsuleCollisionShapeNode) node;
@@ -70,6 +73,7 @@ public class CapsuleSizeManipulator extends RootManipulator {
         radius = originalRadius = node.getRadius();
         height = originalHeight = node.getHeight();
         setTranslation(node.getTranslation());
+        setRotation(node.getRotation());
     }
 
     @Override

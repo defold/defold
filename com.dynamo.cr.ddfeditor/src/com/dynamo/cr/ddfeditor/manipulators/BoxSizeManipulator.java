@@ -51,7 +51,7 @@ public class BoxSizeManipulator extends RootManipulator {
     @Override
     public void manipulatorChanged(Manipulator manipulator) {
         sizeChanged = true;
-        double factor = 0.5;
+        double factor = 2.0;
         for (Node node : getSelection()) {
             if (node instanceof BoxCollisionShapeNode) {
                 BoxCollisionShapeNode box = (BoxCollisionShapeNode) node;
@@ -79,6 +79,7 @@ public class BoxSizeManipulator extends RootManipulator {
         height = originalHeight = node.getHeight();
         depth = originalDepth = node.getDepth();
         setTranslation(node.getTranslation());
+        setRotation(node.getRotation());
     }
 
     @Override

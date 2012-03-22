@@ -39,7 +39,7 @@ public class SphereRadiusManipulator extends RootManipulator {
     @Override
     public void manipulatorChanged(Manipulator manipulator) {
         radiusChanged = true;
-        double factor = 0.5;
+        double factor = 1.0;
         for (Node node : getSelection()) {
             if (node instanceof SphereCollisionShapeNode) {
                 SphereCollisionShapeNode sphere = (SphereCollisionShapeNode) node;
