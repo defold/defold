@@ -42,7 +42,7 @@ Attaching Physics
 Unlike a tile grid, sprites do not yet support physics fetched from the tile set.
 This feature will however come at a later time.
 For the time being, you add physics like you would for any game object.
-See the link:#guides:physics[physics guide] for more info.
+See the link:#guide:physics[physics guide] for more info.
 
 Texture Filtering and Sampling
 ------------------------------
