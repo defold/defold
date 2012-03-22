@@ -30,6 +30,20 @@ Attaching Physics
 . Open the other game objects you want to collide with the tile grid.
 .. Make sure they have collision objects. Check that the collision groups of the tiles are added to their masks.
 
+Sprites
+-------
+
+A sprite is a component which is typically used for flip-book animated objects, like creatures and props.
+The tiles to display and animate through are fetched from a tile set.
+
+Attaching Physics
+~~~~~~~~~~~~~~~~~
+
+Unlike a tile grid, sprites do not yet support physics fetched from the tile set.
+This feature will however come at a later time.
+For the time being, you add physics like you would for any game object.
+See the link:#guides:physics[physics guide] for more info.
+
 Texture Filtering and Sampling
 ------------------------------
 
