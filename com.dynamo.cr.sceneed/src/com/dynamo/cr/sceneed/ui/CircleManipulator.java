@@ -55,16 +55,17 @@ public class CircleManipulator extends Manipulator {
             this.angle = mouseAngle;
 
             Matrix4d transform = new Matrix4d();
-            getWorldTransform(transform);
+            getLocalTransform(transform);
             Vector4d axis = new Vector4d(1, 0, 0, 0);
             transform.transform(axis);
 
             AxisAngle4d aa = new AxisAngle4d(axis.getX(), axis.getY(), axis.getZ(), this.angle);
-            Quat4d quat = new Quat4d();
-            quat.set(aa);
+            Quat4d delta = new Quat4d();
+            delta.set(aa);
             // Combine original rotation with local manipulator rotation
-            quat.mul(originalRotation);
-            rootManipulator.setRotation(quat);
+            Quat4d q = new Quat4d(originalRotation);
+            q.mul(delta);
+            rootManipulator.setRotation(q);
             rootManipulator.transformChanged();
         }
     }

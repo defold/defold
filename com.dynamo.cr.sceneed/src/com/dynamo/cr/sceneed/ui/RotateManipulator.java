@@ -23,7 +23,6 @@ public class RotateManipulator extends RootManipulator {
     private List<Matrix4d> originalLocalTransforms = new ArrayList<Matrix4d>();
     private List<Matrix4d> newLocalTransforms = new ArrayList<Matrix4d>();
     private boolean transformChanged = false;
-    private Quat4d originalRotation = new Quat4d();
 
     public RotateManipulator() {
         xCircleManipulator = new CircleManipulator(this, new float[] {1, 0, 0, 1});
@@ -53,15 +52,9 @@ public class RotateManipulator extends RootManipulator {
         transformChanged = true;
         List<Node> selection = getSelection();
 
-        Matrix4d transform = new Matrix4d();
-        getWorldTransform(transform);
-        Quat4d delta = getRotation();
-        delta.mulInverse(this.originalRotation);
-        Quat4d rotation = new Quat4d();
+        Quat4d rotation = getRotation();
         int n = selection.size();
         for (int i = 0; i < n; ++i) {
-            this.originalLocalTransforms.get(i).get(rotation);
-            rotation.mul(delta);
             selection.get(i).setRotation(rotation);
         }
     }
@@ -105,11 +98,6 @@ public class RotateManipulator extends RootManipulator {
     }
 
     @Override
-    public void mouseDown(MouseEvent e) {
-        this.originalRotation = getRotation();
-    }
-
-    @Override
     public void mouseUp(MouseEvent e) {
         if (transformChanged) {
             for (Node node : getSelection()) {
@@ -118,7 +106,7 @@ public class RotateManipulator extends RootManipulator {
                 newLocalTransforms.add(transform);
             }
 
-            TransformNodeOperation operation = new TransformNodeOperation("Move", getSelection(), originalLocalTransforms, newLocalTransforms);
+            TransformNodeOperation operation = new TransformNodeOperation("Rotate", getSelection(), originalLocalTransforms, newLocalTransforms);
             getController().executeOperation(operation);
         }
     }
