@@ -514,7 +514,8 @@ void free(void *ptr)
         dmAtomicSub32(&dmMemProfile::g_ExtStats->m_TotalActive, (uint32_t) usable_size);
     }
 
-    dmMemProfile::DumpBacktrace('F', ptr, usable_size);
+    if (ptr)
+        dmMemProfile::DumpBacktrace('F', ptr, usable_size);
     freep(ptr);
 }
 
