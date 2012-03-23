@@ -3,6 +3,27 @@
     xsi:schemaLocation="http://java.sun.com/xml/ns/persistence http://java.sun.com/xml/ns/persistence/persistence_2_0.xsd"
     version="2.0" xmlns="http://java.sun.com/xml/ns/persistence">
 
+    <persistence-unit name="unit-test" transaction-type="RESOURCE_LOCAL">
+
+        <class>com.dynamo.cr.server.model.User</class>
+        <class>com.dynamo.cr.server.model.NewUser</class>
+        <class>com.dynamo.cr.server.model.Project</class>
+        <class>com.dynamo.cr.server.model.Job</class>
+        <class>com.dynamo.cr.server.model.Invitation</class>
+        <class>com.dynamo.cr.server.model.InvitationAccount</class>
+        <class>com.dynamo.cr.server.model.Prospect</class>
+        <properties>
+            <property name="javax.persistence.jdbc.driver" value="org.apache.derby.jdbc.EmbeddedDriver" />
+            <property name="javax.persistence.jdbc.url" value="jdbc:derby:tmp/testdb;create=true" />
+            <property name="javax.persistence.jdbc.user" value="test" />
+            <property name="javax.persistence.jdbc.password" value="test" />
+
+            <!-- EclipseLink should create the database schema automatically -->
+            <property name="eclipselink.ddl-generation" value="create-tables" />
+            <property name="eclipselink.ddl-generation.output-mode" value="database" />
+        </properties>
+
+    </persistence-unit>
     <persistence-unit name="production" transaction-type="RESOURCE_LOCAL">
 
         <class>com.dynamo.cr.server.model.User</class>

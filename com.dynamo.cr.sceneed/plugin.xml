@@ -29,8 +29,18 @@
             id="com.dynamo.cr.sceneed.ui.commands.selectManipulatorMode"
             name="Select Manipulator Mode">
          <state
-               class="org.eclipse.ui.handlers.RadioState"
                id="org.eclipse.ui.commands.radioState">
+            <class
+                  class="org.eclipse.ui.handlers.RadioState">
+               <parameter
+                     name="default"
+                     value="com.dynamo.cr.sceneed.core.manipulators.select-mode">
+               </parameter>
+               <parameter
+                     name="persisted"
+                     value="false">
+               </parameter>
+            </class>
          </state>
          <commandParameter
                id="org.eclipse.ui.commands.radioStateParameter"
@@ -305,7 +315,7 @@
             <command
                   commandId="com.dynamo.cr.sceneed.ui.commands.frameObjects"
                   label="Frame Objects"
-                  style="radio">
+                  style="push">
             </command>
             <visibleWhen
                   checkEnabled="false">
