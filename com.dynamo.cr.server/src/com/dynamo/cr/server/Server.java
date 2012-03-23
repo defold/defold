@@ -188,7 +188,7 @@ public class Server implements ServerMBean {
                 protected void configureServlets() {
                     Properties props = new Properties();
                     props.put(PersistenceUnitProperties.CLASSLOADER, server.getClass().getClassLoader());
-                    install(new JpaPersistModule("unit-test").properties(props));
+                    install(new JpaPersistModule(server.getConfiguration().getPersistenceUnitName()).properties(props));
 
                     bind(Server.class).toInstance(server);
                     bind(BranchRepository.class).toInstance(server.branchRepository);
