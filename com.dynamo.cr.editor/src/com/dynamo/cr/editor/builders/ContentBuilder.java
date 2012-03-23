@@ -24,6 +24,7 @@ import org.eclipse.core.runtime.OperationCanceledException;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.ui.IPageLayout;
+import org.eclipse.ui.IWorkbenchPage;
 import org.eclipse.ui.PartInitException;
 import org.osgi.framework.Bundle;
 
@@ -51,7 +52,7 @@ public class ContentBuilder extends IncrementalProjectBuilder {
             @Override
             public void run() {
                 try {
-                    Activator.getDefault().getWorkbench().getActiveWorkbenchWindow().getActivePage().showView(IPageLayout.ID_PROGRESS_VIEW);
+                    Activator.getDefault().getWorkbench().getActiveWorkbenchWindow().getActivePage().showView(IPageLayout.ID_PROGRESS_VIEW, null, IWorkbenchPage.VIEW_VISIBLE);
                 } catch (PartInitException pe) {
                     // Unexpected
                     Activator.logException(pe);
@@ -65,7 +66,7 @@ public class ContentBuilder extends IncrementalProjectBuilder {
             @Override
             public void run() {
                 try {
-                    Activator.getDefault().getWorkbench().getActiveWorkbenchWindow().getActivePage().showView(IPageLayout.ID_PROBLEM_VIEW);
+                    Activator.getDefault().getWorkbench().getActiveWorkbenchWindow().getActivePage().showView(IPageLayout.ID_PROBLEM_VIEW, null, IWorkbenchPage.VIEW_VISIBLE);
                 } catch (PartInitException pe) {
                     // Unexpected
                     Activator.logException(pe);
