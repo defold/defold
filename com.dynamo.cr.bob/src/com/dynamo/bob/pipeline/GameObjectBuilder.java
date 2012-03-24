@@ -109,8 +109,8 @@ public class GameObjectBuilder extends Builder<Void> {
         {".factory", ".factoryc"},
         {".light", ".lightc"},
         {".sprite", ".spritec"},
-        {".tileset", ".tilesetc"},
         {".tilegrid", ".tilegridc"},
+        {".tilemap", ".tilegridc"},
     };
 
     private PrototypeDesc.Builder transformGo(

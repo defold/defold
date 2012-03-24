@@ -15,7 +15,7 @@ import com.dynamo.tile.TileSetc;
 import com.dynamo.tile.proto.Tile.TileSet;
 import com.google.protobuf.TextFormat;
 
-@BuilderParams(name = "TileSet", inExts = ".tileset", outExt = ".tilesetc")
+@BuilderParams(name = "TileSet", inExts = {".tileset", ".tilesource"}, outExt = ".tilesetc")
 public class TileSetBuilder extends Builder<Void>  {
 
     @Override

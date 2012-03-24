@@ -26,10 +26,10 @@ import com.dynamo.tile.TileSetUtil;
 @SuppressWarnings("serial")
 public class TileGridNode extends ComponentTypeNode {
 
-    @Property(isResource=true, extensions={"tileset"})
+    @Property(isResource=true, extensions={"tileset", "tilesource"})
     @Resource
     @NotEmpty
-    private String tileSet = "";
+    private String tileSource = "";
 
     private transient TileSetNode tileSetNode = null;
 
@@ -44,25 +44,25 @@ public class TileGridNode extends ComponentTypeNode {
         }
     }
 
-    public String getTileSet() {
-        return tileSet;
+    public String getTileSource() {
+        return tileSource;
     }
 
-    public void setTileSet(String tileSet) {
-        if (!this.tileSet.equals(tileSet)) {
-            this.tileSet = tileSet;
-            reloadTileSet();
+    public void setTileSource(String tileSource) {
+        if (!this.tileSource.equals(tileSource)) {
+            this.tileSource = tileSource;
+            reloadTileSource();
         }
     }
 
-    public IStatus validateTileSet() {
+    public IStatus validateTileSource() {
         if (this.tileSetNode != null) {
             this.tileSetNode.updateStatus();
             IStatus status = this.tileSetNode.getStatus();
             if (!status.isOK()) {
                 return new Status(IStatus.ERROR, Activator.PLUGIN_ID, Messages.SpriteNode_tileSet_INVALID_REFERENCE);
             }
-        } else if (!this.tileSet.isEmpty()) {
+        } else if (!this.tileSource.isEmpty()) {
             return new Status(IStatus.ERROR, Activator.PLUGIN_ID, Messages.SpriteNode_tileSet_CONTENT_ERROR);
         }
         return Status.OK_STATUS;
@@ -93,7 +93,7 @@ public class TileGridNode extends ComponentTypeNode {
     public void setModel(ISceneModel model) {
         super.setModel(model);
         if (model != null && this.tileSetNode == null) {
-            reloadTileSet();
+            reloadTileSource();
         }
         if (this.tileSetNode != null) {
             this.tileSetNode.setModel(model);
@@ -103,9 +103,9 @@ public class TileGridNode extends ComponentTypeNode {
     @Override
     public boolean handleReload(IFile file) {
         boolean reloaded = false;
-        IFile tileSetFile = getModel().getFile(this.tileSet);
+        IFile tileSetFile = getModel().getFile(this.tileSource);
         if (tileSetFile.exists() && tileSetFile.equals(file)) {
-            if (reloadTileSet()) {
+            if (reloadTileSource()) {
                 reloaded = true;
             }
         }
@@ -117,13 +117,13 @@ public class TileGridNode extends ComponentTypeNode {
         return reloaded;
     }
 
-    private boolean reloadTileSet() {
+    private boolean reloadTileSource() {
         ISceneModel model = getModel();
         if (model != null) {
             this.tileSetNode = null;
-            if (!this.tileSet.isEmpty()) {
+            if (!this.tileSource.isEmpty()) {
                 try {
-                    Node node = model.loadNode(this.tileSet);
+                    Node node = model.loadNode(this.tileSource);
                     if (node instanceof TileSetNode) {
                         this.tileSetNode = (TileSetNode)node;
                         this.tileSetNode.setModel(getModel());
@@ -212,12 +212,12 @@ public class TileGridNode extends ComponentTypeNode {
     }
 
     private void writeObject(ObjectOutputStream out) throws IOException {
-        out.writeObject(this.tileSet);
+        out.writeObject(this.tileSource);
         out.writeObject(this.tileSetNode);
     }
 
     private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
-        this.tileSet = (String)in.readObject();
+        this.tileSource = (String)in.readObject();
         this.tileSetNode = (TileSetNode)in.readObject();
     }
 }

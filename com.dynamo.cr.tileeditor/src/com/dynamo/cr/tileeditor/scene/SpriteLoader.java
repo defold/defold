@@ -24,7 +24,7 @@ public class SpriteLoader implements INodeLoader<SpriteNode> {
         TextFormat.merge(reader, builder);
         SpriteDesc ddf = builder.build();
         SpriteNode node = new SpriteNode();
-        node.setTileSet(ddf.getTileSet());
+        node.setTileSource(ddf.getTileSet());
         node.setDefaultAnimation(ddf.getDefaultAnimation());
         return node;
     }
@@ -33,7 +33,7 @@ public class SpriteLoader implements INodeLoader<SpriteNode> {
     public Message buildMessage(ILoaderContext context, SpriteNode node,
             IProgressMonitor monitor) throws IOException, CoreException {
         SpriteDesc.Builder builder = SpriteDesc.newBuilder();
-        builder.setTileSet(node.getTileSet()).setDefaultAnimation(node.getDefaultAnimation());
+        builder.setTileSet(node.getTileSource()).setDefaultAnimation(node.getDefaultAnimation());
         return builder.build();
     }
 }

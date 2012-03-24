@@ -11,7 +11,10 @@ import com.dynamo.bob.Project;
 public class BuilderUtil {
 
     static String replaceExt(String str, String from, String to) {
-        return str.replace(from, to);
+        if (str.endsWith(from)) {
+            return str.replace(from, to);
+        }
+        return str;
     }
 
     static File checkFile(Project project, IResource owner, String field, String path) throws CompileExceptionError {

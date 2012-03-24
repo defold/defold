@@ -16,19 +16,19 @@
             class="com.dynamo.cr.tileeditor.GridEditor"
             contributorClass="com.dynamo.cr.editor.ui.DefoldEditorActionBarContributor"
             default="false"
-            extensions="tilegrid"
+            extensions="tilegrid,tilemap"
             icon="icons/tile_grid.png"
             id="com.dynamo.cr.tileeditor.GridEditor"
-            name="Tile Grid Editor">
+            name="Tile Map Editor">
       </editor>
       <editor
             class="com.dynamo.cr.tileeditor.TileSetEditor2"
             contributorClass="com.dynamo.cr.editor.ui.DefoldEditorActionBarContributor"
             default="true"
-            extensions="tileset"
+            extensions="tileset,tilesource"
             icon="icons/tile_set.png"
             id="com.dynamo.cr.tileeditor.tileSetEditor"
-            name="Tile Set Editor">
+            name="Tile Source Editor">
       </editor>
       <editor
             class="com.dynamo.cr.sceneed.ui.SceneEditor"
@@ -85,6 +85,34 @@
             </reference-resource-type>
          </references>
       </resource-type>
+      <resource-type
+            file-extension="tilesource"
+            id="com.dynamo.cr.tileeditor.resourcetypes.tileSource"
+            name="Tile Source"
+            proto-message-class="com.dynamo.tile.proto.Tile$TileSet"
+            resource-refactor-participant-class="com.dynamo.cr.tileeditor.core.refactoring.TileSetRefactorParticipant"
+            template-data="image: &apos;&apos; tile_width: 16 tile_height: 16 tile_margin: 0 tile_spacing: 0 collision: &apos;&apos; material_tag: &apos;tile&apos; collision_groups: &apos;default&apos; animations: {id: &apos;anim&apos; start_tile: 1 end_tile: 1}"
+            type-class="tile_set">
+         <references>
+            <reference-type-class
+                  type-class="image">
+            </reference-type-class>
+         </references>
+      </resource-type>
+      <resource-type
+            file-extension="tilemap"
+            id="com.dynamo.cr.tileeditor.resourcetypes.tileMap"
+            name="Tile Map"
+            proto-message-class="com.dynamo.tile.proto.Tile$TileGrid"
+            resource-refactor-participant-class="com.dynamo.cr.tileeditor.core.refactoring.TileGridRefactorParticipant"
+            template-data="tile_set: &quot;&quot; layers: {id: &quot;layer1&quot; z: 0 is_visible: 1}"
+            type-class="component">
+         <references>
+            <reference-resource-type
+                  resource-type="com.dynamo.cr.tileeditor.resourcetypes.TileSet">
+            </reference-resource-type>
+         </references>
+      </resource-type>
    </extension>
    <extension
          point="org.eclipse.ui.newWizards">
@@ -93,14 +121,14 @@
             class="com.dynamo.cr.tileeditor.wizards.TileSetNewWizard"
             icon="icons/tile_set.png"
             id="com.dynamo.cr.tileeditor.wizards.TileSetNewWizard"
-            name="Tile Set File">
+            name="Tile Source File">
       </wizard>
       <wizard
             category="com.dynamo.cr.editor.wizardCategory"
             class="com.dynamo.cr.tileeditor.wizards.GridNewWizard"
             icon="icons/tile_grid.png"
             id="com.dynamo.cr.tileeditor.wizards.GridNewWizard"
-            name="Tile Grid File">
+            name="Tile Map File">
       </wizard>
       <wizard
             category="com.dynamo.cr.editor.wizardCategory"
@@ -1044,7 +1072,7 @@
    <extension
          point="com.dynamo.cr.nodetypes">
       <node-type
-            display-group="Tile Grids"
+            display-group="Tile Maps"
             id="com.dynamo.cr.tileeditor.scene.tileGridNode"
             loader="com.dynamo.cr.tileeditor.scene.TileGridLoader"
             node="com.dynamo.cr.tileeditor.scene.TileGridNode"
@@ -1065,6 +1093,21 @@
             node="com.dynamo.cr.tileeditor.scene.TileSetNode"
             presenter="com.dynamo.cr.tileeditor.scene.TileSetNodePresenter"
             resource-type="com.dynamo.cr.tileeditor.resourcetypes.TileSet">
+      </node-type>
+      <node-type
+            display-group="Tile Maps"
+            id="com.dynamo.cr.tileeditor.scene.tileMapNode"
+            loader="com.dynamo.cr.tileeditor.scene.TileGridLoader"
+            node="com.dynamo.cr.tileeditor.scene.TileGridNode"
+            renderer="com.dynamo.cr.tileeditor.scene.TileGridRenderer"
+            resource-type="com.dynamo.cr.tileeditor.resourcetypes.tileMap">
+      </node-type>
+      <node-type
+            id="com.dynamo.cr.tileeditor.nodetypes.tileSource"
+            loader="com.dynamo.cr.tileeditor.scene.TileSetLoader"
+            node="com.dynamo.cr.tileeditor.scene.TileSetNode"
+            presenter="com.dynamo.cr.tileeditor.scene.TileSetNodePresenter"
+            resource-type="com.dynamo.cr.tileeditor.resourcetypes.tileSource">
       </node-type>
    </extension>
    <extension

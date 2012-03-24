@@ -54,10 +54,10 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
 
     public static PropertyIntrospector<Layer, GridModel> layerIntrospector = new PropertyIntrospector<Layer, GridModel>(Layer.class);
 
-    @Property(isResource = true, extensions={"tileset"})
+    @Property(isResource = true, extensions={"tileset", "tilesource"})
     @Resource
     @NotEmpty
-    private String tileSet;
+    private String tileSource;
 
     private final IOperationHistory history;
     private final IUndoContext undoContext;
@@ -90,19 +90,19 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
         return propertyModel.getStatus();
     }
 
-    public String getTileSet() {
-        return this.tileSet;
+    public String getTileSource() {
+        return this.tileSource;
     }
 
-    public void setTileSet(String tileSet) {
-        if ((this.tileSet == null && tileSet != null) || (this.tileSet != null && !this.tileSet.equals(tileSet))) {
-            String oldTileSet = this.tileSet;
-            this.tileSet = tileSet;
-            if (this.tileSet != null && !this.tileSet.equals("")) {
+    public void setTileSource(String tileSet) {
+        if ((this.tileSource == null && tileSet != null) || (this.tileSource != null && !this.tileSource.equals(tileSet))) {
+            String oldTileSet = this.tileSource;
+            this.tileSource = tileSet;
+            if (this.tileSource != null && !this.tileSource.equals("")) {
                 if (this.tileSetModel == null) {
                     this.tileSetModel = new TileSetModel(this.contentRoot, null, null, this.logger);
                 }
-                IFile file = this.contentRoot.getFile(new Path(this.tileSet));
+                IFile file = this.contentRoot.getFile(new Path(this.tileSource));
                 try {
                     this.tileSetModel.load(file.getContents());
                 } catch (Exception e) {
@@ -115,7 +115,7 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
         }
     }
 
-    protected IStatus validateTileSet() {
+    protected IStatus validateTileSource() {
         if (this.tileSetModel != null) {
             IStatus status = this.tileSetModel.validate();
             if (status.getSeverity() > IStatus.INFO || (this.tileSetModel.getImage().isEmpty() && this.tileSetModel.getCollision().isEmpty())) {
@@ -241,7 +241,7 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
         try {
             TextFormat.merge(new InputStreamReader(is), tileGridBuilder);
             TileGrid tileGrid = tileGridBuilder.build();
-            setTileSet(tileGrid.getTileSet());
+            setTileSource(tileGrid.getTileSet());
             List<Layer> layers = new ArrayList<Layer>(tileGrid.getLayersCount());
             for (Tile.TileLayer layerDDF : tileGrid.getLayersList()) {
                 Layer layer = new Layer();
@@ -271,7 +271,7 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
 
     public void save(OutputStream os, IProgressMonitor monitor) throws IOException {
         TileGrid.Builder tileGridBuilder = TileGrid.newBuilder()
-                .setTileSet(this.tileSet);
+                .setTileSet(this.tileSource);
         for (Layer layer : this.layers) {
             TileLayer.Builder layerBuilder = TileLayer.newBuilder()
                     .setId(layer.getId())
@@ -334,8 +334,8 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
         if (this.tileSetModel != null && this.tileSetModel.handleResourceChanged(event)) {
             return true;
         } else {
-            if (this.tileSet != null && this.tileSet.length() > 0) {
-                final IFile file = this.contentRoot.getFile(new Path(this.tileSet));
+            if (this.tileSource != null && this.tileSource.length() > 0) {
+                final IFile file = this.contentRoot.getFile(new Path(this.tileSource));
                 final boolean[] reload = new boolean[] {false};
 
                 try {

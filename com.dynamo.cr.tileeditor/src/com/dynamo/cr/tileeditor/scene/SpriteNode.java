@@ -21,10 +21,10 @@ import com.dynamo.tile.TileSetUtil;
 @SuppressWarnings("serial")
 public class SpriteNode extends ComponentTypeNode {
 
-    @Property(isResource=true, extensions={"tileset"})
+    @Property(isResource=true, extensions={"tileset", "tilesource"})
     @Resource
     @NotEmpty
-    private String tileSet = "";
+    private String tileSource = "";
 
     @Property
     @NotEmpty
@@ -43,25 +43,25 @@ public class SpriteNode extends ComponentTypeNode {
         }
     }
 
-    public String getTileSet() {
-        return tileSet;
+    public String getTileSource() {
+        return tileSource;
     }
 
-    public void setTileSet(String tileSet) {
-        if (!this.tileSet.equals(tileSet)) {
-            this.tileSet = tileSet;
-            reloadTileSet();
+    public void setTileSource(String tileSource) {
+        if (!this.tileSource.equals(tileSource)) {
+            this.tileSource = tileSource;
+            reloadTileSource();
         }
     }
 
-    public IStatus validateTileSet() {
+    public IStatus validateTileSource() {
         if (this.tileSetNode != null) {
             this.tileSetNode.updateStatus();
             IStatus status = this.tileSetNode.getStatus();
             if (!status.isOK()) {
                 return new Status(IStatus.ERROR, Activator.PLUGIN_ID, Messages.SpriteNode_tileSet_INVALID_REFERENCE);
             }
-        } else if (!this.tileSet.isEmpty()) {
+        } else if (!this.tileSource.isEmpty()) {
             return new Status(IStatus.ERROR, Activator.PLUGIN_ID, Messages.SpriteNode_tileSet_CONTENT_ERROR);
         }
         return Status.OK_STATUS;
@@ -115,17 +115,17 @@ public class SpriteNode extends ComponentTypeNode {
     public void setModel(ISceneModel model) {
         super.setModel(model);
         if (model != null && this.tileSetNode == null) {
-            reloadTileSet();
+            reloadTileSource();
         }
     }
 
     @Override
     public boolean handleReload(IFile file) {
         boolean reloaded = false;
-        if (!this.tileSet.isEmpty()) {
-            IFile tileSetFile = getModel().getFile(this.tileSet);
+        if (!this.tileSource.isEmpty()) {
+            IFile tileSetFile = getModel().getFile(this.tileSource);
             if (tileSetFile.exists() && tileSetFile.equals(file)) {
-                if (reloadTileSet()) {
+                if (reloadTileSource()) {
                     reloaded = true;
                 }
             }
@@ -138,13 +138,13 @@ public class SpriteNode extends ComponentTypeNode {
         return reloaded;
     }
 
-    private boolean reloadTileSet() {
+    private boolean reloadTileSource() {
         ISceneModel model = getModel();
         if (model != null) {
             this.tileSetNode = null;
-            if (!this.tileSet.isEmpty()) {
+            if (!this.tileSource.isEmpty()) {
                 try {
-                    Node node = model.loadNode(this.tileSet);
+                    Node node = model.loadNode(this.tileSource);
                     if (node instanceof TileSetNode) {
                         this.tileSetNode = (TileSetNode)node;
                         this.tileSetNode.setModel(getModel());

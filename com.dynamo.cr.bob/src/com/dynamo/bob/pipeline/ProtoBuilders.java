@@ -137,7 +137,7 @@ public class ProtoBuilders {
             }
             // Merge convex shape resource with collision object
             // NOTE: Special case for tilegrid resources. They are left as is
-            if (messageBuilder.hasCollisionShape() && !messageBuilder.getCollisionShape().isEmpty() && !messageBuilder.getCollisionShape().endsWith(".tilegrid")) {
+            if (messageBuilder.hasCollisionShape() && !messageBuilder.getCollisionShape().isEmpty() && !(messageBuilder.getCollisionShape().endsWith(".tilegrid") || messageBuilder.getCollisionShape().endsWith(".tilemap"))) {
                 IResource shapeResource = project.getResource(messageBuilder.getCollisionShape().substring(1));
                 ConvexShape.Builder cb = ConvexShape.newBuilder();
                 ProtoUtil.merge(shapeResource, cb);
@@ -156,6 +156,7 @@ public class ProtoBuilders {
 
             messageBuilder.setCollisionShape(BuilderUtil.replaceExt(messageBuilder.getCollisionShape(), ".convexshape", ".convexshapec"));
             messageBuilder.setCollisionShape(BuilderUtil.replaceExt(messageBuilder.getCollisionShape(), ".tilegrid", ".tilegridc"));
+            messageBuilder.setCollisionShape(BuilderUtil.replaceExt(messageBuilder.getCollisionShape(), ".tilemap", ".tilegridc"));
             return messageBuilder;
         }
     }
@@ -259,20 +260,23 @@ public class ProtoBuilders {
         @Override
         protected SpriteDesc.Builder transform(IResource resource, SpriteDesc.Builder messageBuilder)
                 throws IOException, CompileExceptionError {
-            BuilderUtil.checkFile(this.project, resource, "tile set", messageBuilder.getTileSet());
-            messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), ".tileset", ".tilesetc"));
+            BuilderUtil.checkFile(this.project, resource, "tile source", messageBuilder.getTileSet());
+            messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tileset", "tilesetc"));
+            messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tilesource", "tilesetc"));
             return messageBuilder;
         }
     }
 
     @ProtoParams(messageClass = TileGrid.class)
-    @BuilderParams(name="TileGrid", inExts=".tilegrid", outExt=".tilegridc")
+    @BuilderParams(name="TileGrid", inExts={".tilegrid", ".tilemap"}, outExt=".tilegridc")
     public static class TileGridBuilder extends ProtoBuilder<TileGrid.Builder> {
         @Override
         protected TileGrid.Builder transform(IResource resource, TileGrid.Builder messageBuilder) throws IOException,
                 CompileExceptionError {
-            BuilderUtil.checkFile(this.project, resource, "tile set", messageBuilder.getTileSet());
-            return messageBuilder.setTileSet(messageBuilder.getTileSet() + "c");
+            BuilderUtil.checkFile(this.project, resource, "tile source", messageBuilder.getTileSet());
+            messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tileset", "tilesetc"));
+            messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tilesource", "tilesetc"));
+            return messageBuilder;
         }
     }
 
