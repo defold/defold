@@ -33,7 +33,7 @@ def transform_collisionobject(task, msg):
 
     # Merge convex shape resource with collision object
     # NOTE: Special case for tilegrid resources. They are left as is
-    if msg.collision_shape and not msg.collision_shape.endswith('.tilegrid'):
+    if msg.collision_shape and not (msg.collision_shape.endswith('.tilegrid') or msg.collision_shape.endswith('.tilemap')):
         p = os.path.join(task.generator.content_root, msg.collision_shape[1:])
         convex_msg = physics_ddf_pb2.ConvexShape()
         with open(p, 'rb') as in_f:
@@ -53,6 +53,7 @@ def transform_collisionobject(task, msg):
 
     msg.collision_shape = msg.collision_shape.replace('.convexshape', '.convexshapec')
     msg.collision_shape = msg.collision_shape.replace('.tilegrid', '.tilegridc')
+    msg.collision_shape = msg.collision_shape.replace('.tilemap', '.tilegridc')
     return msg
 
 def transform_emitter(task, msg):
@@ -74,7 +75,9 @@ def transform_gameobject(task, msg):
         c.component = c.component.replace('.light', '.lightc')
         c.component = c.component.replace('.sprite', '.spritec')
         c.component = c.component.replace('.tileset', '.tilesetc')
+        c.component = c.component.replace('.tilesource', '.tilesetc')
         c.component = c.component.replace('.tilegrid', '.tilegridc')
+        c.component = c.component.replace('.tilemap', '.tilegridc')
     return msg
 
 def transform_model(task, msg):
@@ -115,10 +118,12 @@ def transform_render(task, msg):
 
 def transform_sprite(task, msg):
     msg.tile_set = msg.tile_set.replace('.tileset', '.tilesetc')
+    msg.tile_set = msg.tile_set.replace('.tilesource', '.tilesetc')
     return msg
 
 def transform_tilegrid(task, msg):
-    msg.tile_set = msg.tile_set + 'c'
+    msg.tile_set = msg.tile_set.replace('.tileset', '.tilesetc')
+    msg.tile_set = msg.tile_set.replace('.tilesource', '.tilesetc')
     return msg
 
 def write_embedded(task):
@@ -248,6 +253,7 @@ proto_compile_task('light', 'gamesys_ddf_pb2', 'LightDesc', '.light', '.lightc')
 proto_compile_task('render', 'render.render_ddf_pb2', 'render_ddf_pb2.RenderPrototypeDesc', '.render', '.renderc', transform_render)
 proto_compile_task('sprite', 'sprite_ddf_pb2', 'SpriteDesc', '.sprite', '.spritec', transform_sprite)
 proto_compile_task('tilegrid', 'tile_ddf_pb2', 'TileGrid', '.tilegrid', '.tilegridc', transform_tilegrid)
+proto_compile_task('tilemap', 'tile_ddf_pb2', 'TileGrid', '.tilemap', '.tilegridc', transform_tilegrid)
 
 TaskGen.declare_chain('project', 'cat < ${SRC} > ${TGT}', ext_in='.project', ext_out='.projectc', reentrant = False)
 
@@ -323,7 +329,7 @@ Task.simple_task_type('tileset', '${JAVA} -classpath ${CLASSPATH} com.dynamo.til
                       before='cc cxx',
                       shell=False)
 
-@extension('.tileset')
+@extension(['.tileset', '.tilesource'])
 def tileset_file(self, node):
     classpath = [self.env['DYNAMO_HOME'] + '/ext/share/java/protobuf-java-2.3.0.jar',
                  self.env['DYNAMO_HOME'] + '/share/java/ddf.jar',
