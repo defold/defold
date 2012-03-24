@@ -60,7 +60,7 @@ public class GameObjectReloadTest extends AbstractSceneTest {
 
         when(getPresenterContext().selectFile(anyString(), any(String[].class))).thenReturn(path);
         SpriteNode componentType = new SpriteNode();
-        componentType.setTileSet(tileSet);
+        componentType.setTileSource(tileSet);
         componentType.setDefaultAnimation(defaultAnimation);
 
         saveSpriteComponent(path, "", "");
