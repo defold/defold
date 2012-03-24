@@ -1,17 +1,10 @@
-tile_set: "/parallax/cloud2.tileset"
+tile_set: "/parallax/cloud1.tilesource"
 layers {
   id: "layer1"
   z: 0.0
   is_visible: 1
   cell {
-    x: 4
-    y: 6
-    tile: 0
-    h_flip: 0
-    v_flip: 0
-  }
-  cell {
-    x: 4
+    x: 0
     y: 0
     tile: 0
     h_flip: 0
@@ -19,13 +12,20 @@ layers {
   }
   cell {
     x: 2
-    y: 4
+    y: 2
     tile: 0
     h_flip: 0
     v_flip: 0
   }
   cell {
-    x: 5
+    x: 0
+    y: 3
+    tile: 0
+    h_flip: 0
+    v_flip: 0
+  }
+  cell {
+    x: 6
     y: 2
     tile: 0
     h_flip: 0
@@ -33,55 +33,20 @@ layers {
   }
   cell {
     x: 4
-    y: 3
+    y: 2
     tile: 0
     h_flip: 0
     v_flip: 0
   }
   cell {
-    x: 15
-    y: 7
-    tile: 0
-    h_flip: 0
-    v_flip: 0
-  }
-  cell {
-    x: 10
+    x: 11
     y: 1
     tile: 0
     h_flip: 0
     v_flip: 0
   }
   cell {
-    x: 14
-    y: 3
-    tile: 0
-    h_flip: 0
-    v_flip: 0
-  }
-  cell {
-    x: -12
-    y: 4
-    tile: 0
-    h_flip: 0
-    v_flip: 0
-  }
-  cell {
-    x: -9
-    y: 3
-    tile: 0
-    h_flip: 0
-    v_flip: 0
-  }
-  cell {
     x: -11
-    y: 0
-    tile: 0
-    h_flip: 0
-    v_flip: 0
-  }
-  cell {
-    x: -12
     y: 2
     tile: 0
     h_flip: 0
@@ -89,27 +54,13 @@ layers {
   }
   cell {
     x: -7
-    y: 1
+    y: 3
     tile: 0
     h_flip: 0
     v_flip: 0
   }
   cell {
-    x: -8
-    y: 5
-    tile: 0
-    h_flip: 0
-    v_flip: 0
-  }
-  cell {
-    x: -6
-    y: 4
-    tile: 0
-    h_flip: 0
-    v_flip: 0
-  }
-  cell {
-    x: -2
+    x: -5
     y: 1
     tile: 0
     h_flip: 0
@@ -118,6 +69,13 @@ layers {
   cell {
     x: -4
     y: 3
+    tile: 0
+    h_flip: 0
+    v_flip: 0
+  }
+  cell {
+    x: -2
+    y: 1
     tile: 0
     h_flip: 0
     v_flip: 0

@@ -32,7 +32,7 @@ embedded_components {
 embedded_components {
   id: "sprite"
   type: "sprite"
-  data: "tile_set: \"/stars/stars.tileset\"\ndefault_animation: \"star\"\n"
+  data: "tile_set: \"/stars/stars.tilesource\"\ndefault_animation: \"star\"\n"
   position {
     x: 0.0
     y: 0.0

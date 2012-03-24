@@ -177,20 +177,20 @@ image:images/icons/factory.png["Factory"]
 A factory is a component that can create other game objects in the game world on the fly.
 They can be used to make enemies or power-ups appear when the game is running.
 
-Tile Set
-~~~~~~~~
-image:images/icons/small_tiles.png["Tile Set"]
+Tile Source
+~~~~~~~~~~~
+image:images/icons/small_tiles.png["Tile Source"]
 
-A tile set describes a texture that is composed of multiple smaller images.
-You can define animations of the smaller images in the tile set.
+A tile source describes a texture that is composed of multiple smaller images.
+You can define animations of the smaller images in the tile source.
 It can also calculate collision shapes automatically from image data.
-They are used by the sprite and tile grid components to share graphics resources.
+They are used by the sprite and tile map components to share graphics resources.
 
 ((((
-image::images/editor/tileset.png["Tile Set", align="center"]
+image::images/editor/tileset.png["Tile Source", align="center"]
 ((((
 ((((
-image::images/editor/tile_set_hull.png["Tile Set", align="center"]
+image::images/editor/tile_set_hull.png["Tile Source", align="center"]
 ((((
 
 Sprite
@@ -199,24 +199,24 @@ Sprite
 image:images/icons/pictures.png["Sprite"]
 
 A sprite is a component that extends game objects with graphics.
-It displays one of the smaller images of a tile set and have built-in support for flip-book-animation.
+It displays one of the smaller images of a tile source and have built-in support for flip-book-animation.
 It is usually used for characters and items.
 
-Tile Grid
-~~~~~~~~~
+Tile Map
+~~~~~~~~
 
-image:images/icons/layer_grid.png["Tile Grid"]
+image:images/icons/layer_grid.png["Tile Map"]
 
-Tile grid components display images from a tile set in a grid based fashion.
+Tile map components display images from a tile source in a grid based fashion.
 It is most commonly used to build the environment of the game world, e.g. ledges in a platform-game or obstacles in an RTS-game.
 It also supports automatic generation of collision shapes based on the images.
 The displayed images can be changed to visualize changes in the game world, like a ledge being destroyed.
 
 ((((
-image::images/editor/tilegrid_1.png["Tile Grid", align="center"]
+image::images/editor/tilegrid_1.png["Tile Map", align="center"]
 ((((
 ((((
-image::images/editor/tilegrid_2.png["Tile Grid", align="center"]
+image::images/editor/tilegrid_2.png["Tile Map", align="center"]
 ((((
 
 Gui

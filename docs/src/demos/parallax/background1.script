@@ -2,7 +2,7 @@ function init(self)
     msg.post("@render:", "clear_color", { color = vmath.vector4(0.52, 0.80, 1, 0) } )
 end
 
--- the background is a tilegrid in a gameobject
+-- the background is a tilemap in a gameobject
 -- we move the gameobject for the parallax effect
 
 function update(self, dt)

@@ -1,4 +1,4 @@
--- the background is a tilegrid in a gameobject
+-- the background is a tilemap in a gameobject
 -- we move the gameobject for the parallax effect
 
 function update(self, dt)

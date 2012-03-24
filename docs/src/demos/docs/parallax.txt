@@ -9,7 +9,7 @@ link:#new_project:[Create a project] and select +Script Sample: Parallax+ as 'Pr
 
 link:/youtube_embed/parallax.ivf[Parallax]
 
-The cloud layers are built as two separate game objects, containing a *Tile Grid* and *Script* each.
+The cloud layers are built as two separate game objects, containing a *Tile Map* and *Script* each.
 The layers are moved at different speeds, to give the parallax effect.
 This is done in +update+ of +background1.script+ and +background2.script+ below.
 

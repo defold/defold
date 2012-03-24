@@ -3,6 +3,6 @@ components {
   component: "/background/small_clouds.script"
 }
 components {
-  id: "tilegrid"
-  component: "/background/small_clouds.tilegrid"
+  id: "tilemap"
+  component: "/background/small_clouds.tilemap"
 }

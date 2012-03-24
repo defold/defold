@@ -3,6 +3,6 @@ components {
   component: "/parallax/background1.script"
 }
 components {
-  id: "tilegrid"
-  component: "/parallax/background1.tilegrid"
+  id: "tilemap"
+  component: "/parallax/background1.tilemap"
 }

@@ -3,6 +3,6 @@ components {
   component: "/background/large_clouds.script"
 }
 components {
-  id: "tilegrid"
-  component: "/background/large_clouds.tilegrid"
+  id: "tilemap"
+  component: "/background/large_clouds.tilemap"
 }

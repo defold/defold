@@ -32,7 +32,7 @@ embedded_components {
 embedded_components {
   id: "sprite"
   type: "sprite"
-  data: "tile_set: \"/spaceship/spaceship.tileset\"\ndefault_animation: \"anim\"\n"
+  data: "tile_set: \"/spaceship/spaceship.tilesource\"\ndefault_animation: \"anim\"\n"
   position {
     x: 0.0
     y: 0.0

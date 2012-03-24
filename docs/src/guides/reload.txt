@@ -1,7 +1,7 @@
 Hot Reloading
 =============
 
-NOTE: This is not yet implemented for collections, game objects and tile grids.
+NOTE: This is not yet implemented for collections, game objects and tile maps.
 
 While the game is running, you can edit a file and reload it inside the running game with *Edit > Reload* Resource.
 This is a simple way to test your changes without having to restart the game.

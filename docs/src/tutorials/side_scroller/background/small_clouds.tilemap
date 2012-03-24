@@ -1,4 +1,4 @@
-tile_set: "/background/small_cloud.tileset"
+tile_set: "/background/small_cloud.tilesource"
 layers {
   id: "layer1"
   z: 0.0

@@ -1,16 +1,16 @@
 Tiles
 =====
 
-Tile Grids
-----------
+Tile Maps
+---------
 
-A tile grid is a component which is used for placing tiles over an area in a grid-based fashion, typically a level.
-The tiles are fetched from a tile set and can also have physics attached for collision detection.
+A tile map is a component which is used for placing tiles over an area in a grid-based fashion, typically a level.
+The tiles are fetched from a tile source and can also have physics attached for collision detection.
 
 Painting Tiles
 ~~~~~~~~~~~~~~
 
-. Open the tile grid you want to paint in.
+. Open the tile map you want to paint in.
 . Make sure there are no flagged issues in the Property or Outline views.
 . Select a layer to paint into in the Outline.
 . Select a tile to use (*Space* to show the palette).
@@ -18,28 +18,28 @@ Painting Tiles
 Attaching Physics
 ~~~~~~~~~~~~~~~~~
 
-. Open the tile set you connected to the tile grid.
-.. Make sure the tile set you connected to the tile grid has an image set for collisions.
+. Open the tile source you connected to the tile map.
+.. Make sure the tile source you connected to the tile map has an image set for collisions.
    They should be rendered as lines on top of the texture in the Editor view.
-.. Make sure you have painted collision groups in the tile set for the tiles to support collision.
-. Open the game object to which you have added the tile grid.
+.. Make sure you have painted collision groups in the tile source for the tiles to support collision.
+. Open the game object to which you have added the tile map.
 .. Add a collision object component.
 ... Set its type to static.
 ... Add the collision group of the game objects you want it to collide with in its mask.
-... Add the tile grid as its shape.
-. Open the other game objects you want to collide with the tile grid.
+... Add the tile map as its shape.
+. Open the other game objects you want to collide with the tile map.
 .. Make sure they have collision objects. Check that the collision groups of the tiles are added to their masks.
 
 Sprites
 -------
 
 A sprite is a component which is typically used for flip-book animated objects, like creatures and props.
-The tiles to display and animate through are fetched from a tile set.
+The tiles to display and animate through are fetched from a tile source.
 
 Attaching Physics
 ~~~~~~~~~~~~~~~~~
 
-Unlike a tile grid, sprites do not yet support physics fetched from the tile set.
+Unlike a tile map, sprites do not yet support physics fetched from the tile source.
 This feature will however come at a later time.
 For the time being, you add physics like you would for any game object.
 See the link:#guide:physics[physics guide] for more info.
@@ -79,7 +79,7 @@ If you don't specify anything, both are linear by default.
 Linear Filtering and Tile Bleeding
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-If you use linear filtering and a tile set where each tile lies immediately next to the others (no borders or margins), there is a risk you will experience tile bleeding.
+If you use linear filtering and a tile source where each tile lies immediately next to the others (no borders or margins), there is a risk you will experience tile bleeding.
 If a neighboring tile has colored pixels on its edges, they might appear from time to time in the tile you are trying to use, distorting the graphics.
 The best solution to this is to make a transparent border between the tiles in the texture.
 You then make sure that no tiles will bleed over to the other ones when doing this kind of sub-pixel sampling.
