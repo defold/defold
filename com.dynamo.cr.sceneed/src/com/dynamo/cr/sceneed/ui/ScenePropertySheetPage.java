@@ -1,9 +1,7 @@
 package com.dynamo.cr.sceneed.ui;
 
 import org.eclipse.core.resources.IContainer;
-import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.ui.IActionBars;
-import org.eclipse.ui.IWorkbenchPart;
 import org.eclipse.ui.actions.ActionFactory;
 import org.eclipse.ui.operations.RedoActionHandler;
 import org.eclipse.ui.operations.UndoActionHandler;
@@ -28,13 +26,6 @@ public class ScenePropertySheetPage extends FormPropertySheetPage {
         super.setActionBars(actionBars);
         actionBars.setGlobalActionHandler(ActionFactory.UNDO.getId(), this.undoHandler);
         actionBars.setGlobalActionHandler(ActionFactory.REDO.getId(), this.redoHandler);
-    }
-
-    @Override
-    public void selectionChanged(IWorkbenchPart part,
-            ISelection selection) {
-        // Dodge any selection changed coming from the part, only respond to "manual" setSelection
-        // setSelection is called from presenter#refresh > view#refresh > this#setSelection
     }
 
 }

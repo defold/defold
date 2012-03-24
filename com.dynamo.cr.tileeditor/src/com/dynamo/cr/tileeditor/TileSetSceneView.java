@@ -6,26 +6,22 @@ import javax.vecmath.Point3d;
 import org.eclipse.jface.viewers.ILabelProvider;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.swt.widgets.Display;
+import org.eclipse.ui.IWorkbenchPart;
 
 import com.dynamo.cr.properties.IFormPropertySheetPage;
-import com.dynamo.cr.sceneed.core.IImageProvider;
-import com.dynamo.cr.sceneed.core.ISceneView;
+import com.dynamo.cr.sceneed.core.AbstractSceneView;
 import com.dynamo.cr.sceneed.core.ManipulatorController;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.ui.ISceneOutlinePage;
 import com.dynamo.cr.tileeditor.scene.TileSetNode;
 
-public class TileSetSceneView implements ISceneView {
+public class TileSetSceneView extends AbstractSceneView {
 
     @Inject private ISceneOutlinePage outline;
     @Inject private IFormPropertySheetPage propertySheetPage;
-    @Inject
-    private TileSetRenderer2 renderer;
-    @Inject
-    private TileSetEditor2 editor;
-    @Inject
-    IImageProvider imageProvider;
-    @Inject ManipulatorController manipulatorController;
+    @Inject private TileSetRenderer2 renderer;
+    @Inject private TileSetEditor2 editor;
+    @Inject private ManipulatorController manipulatorController;
 
     @Override
     public void setRoot(Node root) {
@@ -36,6 +32,7 @@ public class TileSetSceneView implements ISceneView {
 
     @Override
     public void refresh(IStructuredSelection selection, boolean dirty) {
+        setSelection(selection);
         this.outline.refresh();
         this.outline.setSelection(selection);
         this.propertySheetPage.setSelection(selection);
@@ -77,4 +74,8 @@ public class TileSetSceneView implements ISceneView {
         throw new RuntimeException("Not implemented");
     }
 
+    @Override
+    protected IWorkbenchPart getPart() {
+        return this.editor;
+    }
 }

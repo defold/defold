@@ -22,8 +22,6 @@ import org.eclipse.jface.action.IStatusLineManager;
 import org.eclipse.jface.preference.IPreferenceStore;
 import org.eclipse.jface.util.IPropertyChangeListener;
 import org.eclipse.jface.util.PropertyChangeEvent;
-import org.eclipse.jface.viewers.ISelection;
-import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.window.Window;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Display;
@@ -32,7 +30,6 @@ import org.eclipse.ui.IEditorInput;
 import org.eclipse.ui.IEditorSite;
 import org.eclipse.ui.IFileEditorInput;
 import org.eclipse.ui.IPartListener;
-import org.eclipse.ui.ISelectionListener;
 import org.eclipse.ui.ISelectionService;
 import org.eclipse.ui.IWorkbenchPart;
 import org.eclipse.ui.PartInitException;
@@ -43,10 +40,8 @@ import org.eclipse.ui.dialogs.SaveAsDialog;
 import org.eclipse.ui.operations.RedoActionHandler;
 import org.eclipse.ui.operations.UndoActionHandler;
 import org.eclipse.ui.part.FileEditorInput;
-import org.eclipse.ui.part.IContributedContentsView;
 import org.eclipse.ui.progress.IProgressService;
 import org.eclipse.ui.statushandlers.StatusManager;
-import org.eclipse.ui.views.contentoutline.ContentOutline;
 import org.eclipse.ui.views.contentoutline.IContentOutlinePage;
 import org.eclipse.ui.views.properties.IPropertySheetPage;
 
@@ -79,7 +74,7 @@ import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
 
-public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, ISelectionListener, IPropertyChangeListener, IPartListener {
+public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, IPropertyChangeListener, IPartListener {
 
     private ISceneOutlinePage outlinePage;
     private IFormPropertySheetPage propertySheetPage;
@@ -97,6 +92,7 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
     private INodeTypeRegistry nodeTypeRegistry;
     // TODO Currently only needed for dispose(), see below
     private ISceneModel sceneModel;
+    private ISceneView sceneView;
 
     private boolean dirty;
     private SceneRenderViewProvider sceneRenderViewProvider;
@@ -189,6 +185,7 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
         this.loaderContext = injector.getInstance(ILoaderContext.class);
 
         this.sceneModel = injector.getInstance(ISceneModel.class);
+        this.sceneView = injector.getInstance(ISceneView.class);
 
         IPreferenceStore store = Activator.getDefault().getPreferenceStore();
         store.addPropertyChangeListener(this);
@@ -236,11 +233,12 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
         // instead of textures in "this" editor/context. OpenGL handles
         // are just numbers.
 
+        getSite().getPage().removeSelectionListener(this.sceneView);
+
         module.close();
         IPreferenceStore store = Activator.getDefault().getPreferenceStore();
         store.removePropertyChangeListener(this);
 
-        getSite().getPage().removeSelectionListener(this);
         getSite().getPage().removePartListener(this);
     }
 
@@ -346,9 +344,9 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
                 .getService(IContextService.class);
         contextService.activateContext(Activator.SCENEED_CONTEXT_ID);
 
-        // Set the outline as selection provider
+        // Set the render view as selection provider
         getSite().setSelectionProvider(this.sceneRenderViewProvider);
-        getSite().getPage().addSelectionListener(this);
+        getSite().getPage().addSelectionListener(this.sceneView);
 
         this.presenter.onRefresh();
     }
@@ -391,20 +389,6 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
             return nodeType.getPresenter();
         }
         return null;
-    }
-
-    @Override
-    public void selectionChanged(IWorkbenchPart part, ISelection selection) {
-        boolean currentSelection = false;
-        if (part == this) {
-            currentSelection = true;
-        } else if (part instanceof ContentOutline) {
-            IContributedContentsView view = (IContributedContentsView)((ContentOutline)part).getAdapter(IContributedContentsView.class);
-            currentSelection = view.getContributingPart() == this;
-        }
-        if (currentSelection && selection instanceof IStructuredSelection) {
-            this.presenter.onSelect((IStructuredSelection)selection);
-        }
     }
 
     public void setDirty(boolean dirty) {

@@ -13,9 +13,7 @@ import org.eclipse.jface.viewers.ColumnLabelProvider;
 import org.eclipse.jface.viewers.ColumnViewerToolTipSupport;
 import org.eclipse.jface.viewers.DecorationContext;
 import org.eclipse.jface.viewers.DelegatingStyledCellLabelProvider.IStyledLabelProvider;
-import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.ITreeContentProvider;
-import org.eclipse.jface.viewers.SelectionChangedEvent;
 import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.jface.viewers.StyledString;
 import org.eclipse.jface.viewers.TreeViewer;
@@ -34,9 +32,7 @@ import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.Menu;
 import org.eclipse.ui.IActionBars;
 import org.eclipse.ui.IDecoratorManager;
-import org.eclipse.ui.ISelectionListener;
 import org.eclipse.ui.IWorkbenchActionConstants;
-import org.eclipse.ui.IWorkbenchPart;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.actions.ActionFactory;
 import org.eclipse.ui.contexts.IContextService;
@@ -55,7 +51,7 @@ import com.dynamo.cr.sceneed.core.util.NodeListTransfer;
 import com.dynamo.cr.sceneed.ui.decorators.SceneDecorator;
 import com.dynamo.cr.sceneed.ui.util.NodeListDNDListener;
 
-public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlinePage, ISelectionListener {
+public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlinePage {
 
     private static final String MENU_ID = "com.dynamo.cr.sceneed.menus.sceneOutlineContext";
 
@@ -67,9 +63,6 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
     private final ILogger logger;
     private final OutlineLabelProvider labelProvider;
 
-    // Used to stop selection being propagated when set programmatically
-    private boolean fireSelections;
-
     @Inject
     public SceneOutlinePage(ISceneView.IPresenter presenter, ISceneView.IPresenterContext presenterContext, UndoActionHandler undoHandler, RedoActionHandler redoHandler, ILogger logger) {
         this.presenter = presenter;
@@ -79,7 +72,6 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
         this.root = new RootItem();
         this.logger = logger;
         this.labelProvider = new OutlineLabelProvider();
-        this.fireSelections = true;
     }
 
     @Override
@@ -93,21 +85,18 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
     @Override
     public void dispose() {
         super.dispose();
-        getSite().getPage().removeSelectionListener(this);
     }
 
     @Override
     public void setInput(Node node) {
         TreeViewer viewer = getTreeViewer();
         if (viewer != null) {
-            this.fireSelections = false;
             this.root.node = node;
             viewer.setInput(this.root);
             if (node != null) {
                 viewer.setSelection(new StructuredSelection(node));
             }
             viewer.expandToLevel(2);
-            this.fireSelections = true;
         }
     }
 
@@ -115,9 +104,7 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
     public void refresh() {
         TreeViewer viewer = getTreeViewer();
         if (viewer != null && !viewer.getTree().isDisposed()) {
-            this.fireSelections = false;
             viewer.refresh(true);
-            this.fireSelections = true;
             Display.getDefault().asyncExec(new Runnable() {
                 @Override
                 public void run() {
@@ -334,23 +321,4 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
         return SWT.MULTI | SWT.H_SCROLL | SWT.V_SCROLL;
     }
 
-    @Override
-    public void selectionChanged(IWorkbenchPart part, ISelection selection) {
-        // Dodge any selection changed coming from the part, only respond to "manual" setSelection
-        // setSelection is called from presenter#refresh > view#refresh > this#setSelection
-    }
-
-    @Override
-    public void setSelection(ISelection selection) {
-        this.fireSelections = false;
-        super.setSelection(selection);
-        this.fireSelections = true;
-    }
-
-    @Override
-    public void selectionChanged(SelectionChangedEvent event) {
-        if (this.fireSelections) {
-            super.selectionChanged(event);
-        }
-    }
 }

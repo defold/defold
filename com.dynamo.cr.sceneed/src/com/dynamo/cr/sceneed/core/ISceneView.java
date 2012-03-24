@@ -13,10 +13,11 @@ import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.jface.viewers.ILabelProvider;
 import org.eclipse.jface.viewers.IStructuredSelection;
+import org.eclipse.ui.ISelectionListener;
 
 import com.dynamo.cr.editor.core.ILogger;
 
-public interface ISceneView {
+public interface ISceneView extends ISelectionListener {
 
     public interface IPresenter {
         void onSelect(IStructuredSelection selection);

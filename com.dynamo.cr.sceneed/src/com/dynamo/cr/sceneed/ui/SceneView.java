@@ -13,18 +13,21 @@ import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.LabelProvider;
 import org.eclipse.swt.widgets.Display;
+import org.eclipse.ui.IWorkbenchPart;
 import org.eclipse.ui.dialogs.ListDialog;
 import org.eclipse.ui.dialogs.ResourceListSelectionDialog;
 
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.ui.FilteredResourceListSelectionDialog;
 import com.dynamo.cr.properties.IFormPropertySheetPage;
+import com.dynamo.cr.sceneed.core.AbstractSceneView;
 import com.dynamo.cr.sceneed.core.IRenderView;
-import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.ManipulatorController;
 import com.dynamo.cr.sceneed.core.Node;
 
-public class SceneView implements ISceneView {
+public class SceneView extends AbstractSceneView {
+
+    private static final int REFRESH_DELAY = 100;
 
     @Inject private ISceneOutlinePage outline;
     @Inject private IFormPropertySheetPage propertySheetPage;
@@ -35,8 +38,6 @@ public class SceneView implements ISceneView {
     @Inject private ManipulatorController manipulatorController;
 
     private boolean refreshRequested;
-    private ISelection lastSelection;
-    private boolean lastDirty;
 
     @Override
     public void setRoot(Node root) {
@@ -46,8 +47,9 @@ public class SceneView implements ISceneView {
 
     @Override
     public void refresh(IStructuredSelection selection, boolean dirty) {
-        this.lastSelection = selection;
-        this.lastDirty = dirty;
+        editor.setDirty(dirty);
+
+        setSelection(selection);
         sceneRenderViewProvider.setSelection(selection);
         manipulatorController.setSelection(selection);
         manipulatorController.refresh();
@@ -59,18 +61,33 @@ public class SceneView implements ISceneView {
         }
         this.refreshRequested = true;
 
-        Display.getDefault().timerExec(100, new Runnable() {
+        Display.getDefault().timerExec(60, new Refresher(selection));
+    }
 
-            @Override
-            public void run() {
+    private class Refresher implements Runnable {
+        private ISelection selection;
+
+        public Refresher(ISelection selection) {
+            this.selection = selection;
+        }
+
+        @Override
+        public void run() {
+            ISelection selection = getSelection();
+            if (this.selection != selection) {
+                // Keep delaying as long as the selection is changing
+                Display.getDefault().timerExec(REFRESH_DELAY, this);
+                this.selection = selection;
+            } else {
                 refreshRequested = false;
+                setIgnoreOutlineSelection(true);
                 outline.refresh();
-                outline.setSelection(lastSelection);
-                propertySheetPage.setSelection(lastSelection);
+                outline.setSelection(selection);
+                setIgnoreOutlineSelection(false);
+                propertySheetPage.setSelection(selection);
                 propertySheetPage.refresh();
-                editor.setDirty(lastDirty);
             }
-        });
+        }
     }
 
     @Override
@@ -134,5 +151,11 @@ public class SceneView implements ISceneView {
         Vector4d p = this.editor.getCameraController().getFocusPoint();
         focusPoint.set(p.x, p.y, p.z);
     }
+
+    @Override
+    protected IWorkbenchPart getPart() {
+        return this.editor;
+    }
+
 
 }

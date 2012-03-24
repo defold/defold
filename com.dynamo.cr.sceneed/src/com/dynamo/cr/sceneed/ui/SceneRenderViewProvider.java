@@ -81,6 +81,7 @@ public class SceneRenderViewProvider implements IRenderViewProvider, ISelectionP
         }
         StructuredSelection newSelection = new StructuredSelection(selected);
         setSelection(newSelection);
+        fireSelectionChanged(newSelection);
     }
 
     // SelectionProvider
@@ -105,10 +106,13 @@ public class SceneRenderViewProvider implements IRenderViewProvider, ISelectionP
     public void setSelection(ISelection selection) {
         if (this.selection != selection && selection instanceof IStructuredSelection) {
             this.selection = (IStructuredSelection)selection;
-            SelectionChangedEvent event = new SelectionChangedEvent(this, this.selection);
-            for (ISelectionChangedListener listener : this.selectionListeners) {
-                listener.selectionChanged(event);
-            }
+        }
+    }
+
+    private void fireSelectionChanged(ISelection selection) {
+        SelectionChangedEvent event = new SelectionChangedEvent(this, this.selection);
+        for (ISelectionChangedListener listener : this.selectionListeners) {
+            listener.selectionChanged(event);
         }
     }
 
