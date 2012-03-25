@@ -594,31 +594,8 @@ Listener {
 
         gl.glColor3f(1.0f, 1.0f, 1.0f);
 
-        if (this.activeCell != null && this.brushTile != -1) {
-            int x = this.activeCell.x;
-            int y = this.activeCell.y;
-            float x0 = x * this.tileWidth;
-            float x1 = x0 + this.tileWidth;
-            float y0 = y * this.tileHeight;
-            float y1 = y0 + this.tileHeight;
-            x = this.brushTile % metrics.tilesPerRow;
-            y = this.brushTile / metrics.tilesPerRow;
-            float u0 = (x * (tileSpacing + 2*tileMargin + tileWidth) + tileMargin) * recipImageWidth;
-            float u1 = u0 + tileWidth * recipImageWidth;
-            float v0 = (y * (tileSpacing + 2*tileMargin + tileHeight) + tileMargin) * recipImageHeight;
-            float v1 = v0 + tileHeight * recipImageHeight;
-
-            gl.glBegin(GL.GL_QUADS);
-            gl.glTexCoord2f(u0, v1);
-            gl.glVertex2f(x0, y0);
-            gl.glTexCoord2f(u0, v0);
-            gl.glVertex2f(x0, y1);
-            gl.glTexCoord2f(u1, v0);
-            gl.glVertex2f(x1, y1);
-            gl.glTexCoord2f(u1, v1);
-            gl.glVertex2f(x1, y0);
-            gl.glEnd();
-        }
+        gl.glEnable(GL.GL_BLEND);
+        gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
 
         Point2f min = new Point2f();
         Point2f max = new Point2f();
@@ -627,9 +604,6 @@ Listener {
         calculateCellBounds(min, max, cellMin, cellMax);
 
         float z = 0.0f;
-
-        gl.glEnable(GL.GL_BLEND);
-        gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
 
         Map<Long, Cell> cells = new HashMap<Long, Cell>();
         for (Layer layer : this.layers) {
@@ -640,7 +614,8 @@ Listener {
                     int y = Layer.toCellY(entry.getKey());
                     if ((x + 1) >= cellMin.getX() && x <= cellMax.getX() && (y + 1) >= cellMin.getY() && y <= cellMax.getY()) {
                         // Do not draw over active cell
-                        if (!(activeCell != null && activeCell.x == x && activeCell.y == y)) {
+                        boolean currentCell = layer.equals(this.selectedLayer) && activeCell != null && activeCell.x == x && activeCell.y == y;
+                        if (!currentCell) {
                             cells.put(entry.getKey(), entry.getValue());
                         }
                     }
@@ -688,6 +663,34 @@ Listener {
                 gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
                 gl.glDisableClientState(GL.GL_TEXTURE_COORD_ARRAY);
                 gl.glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+
+                if (this.selectedLayer != null && layer.equals(this.selectedLayer)) {
+                    if (this.activeCell != null && this.brushTile != -1) {
+                        int x = this.activeCell.x;
+                        int y = this.activeCell.y;
+                        float x0 = x * this.tileWidth;
+                        float x1 = x0 + this.tileWidth;
+                        float y0 = y * this.tileHeight;
+                        float y1 = y0 + this.tileHeight;
+                        x = this.brushTile % metrics.tilesPerRow;
+                        y = this.brushTile / metrics.tilesPerRow;
+                        float u0 = (x * (tileSpacing + 2*tileMargin + tileWidth) + tileMargin) * recipImageWidth;
+                        float u1 = u0 + tileWidth * recipImageWidth;
+                        float v0 = (y * (tileSpacing + 2*tileMargin + tileHeight) + tileMargin) * recipImageHeight;
+                        float v1 = v0 + tileHeight * recipImageHeight;
+
+                        gl.glBegin(GL.GL_QUADS);
+                        gl.glTexCoord2f(u0, v1);
+                        gl.glVertex2f(x0, y0);
+                        gl.glTexCoord2f(u0, v0);
+                        gl.glVertex2f(x0, y1);
+                        gl.glTexCoord2f(u1, v0);
+                        gl.glVertex2f(x1, y1);
+                        gl.glTexCoord2f(u1, v1);
+                        gl.glVertex2f(x1, y0);
+                        gl.glEnd();
+                    }
+                    }
             }
 
         }
@@ -783,12 +786,21 @@ Listener {
         gl.glVertex2f(0.0f, viewPortHeight);
         gl.glEnd();
 
-        gl.glDisable(GL.GL_BLEND);
-
         // Build tile set data
 
         Vector3f offset = new Vector3f((float)Math.floor(0.5f * (viewPortWidth - metrics.visualWidth)), (float)Math.floor(0.5f * (viewPortHeight - metrics.visualHeight)), 0.0f);
         gl.glTranslatef(offset.x, offset.y, offset.z);
+
+        // Render palette background
+
+        gl.glColor4f(1.0f, 1.0f, 1.0f, 0.3f);
+
+        gl.glBegin(GL.GL_QUADS);
+        gl.glVertex2f(0.0f, 0.0f);
+        gl.glVertex2f(metrics.visualWidth, 0.0f);
+        gl.glVertex2f(metrics.visualWidth, metrics.visualHeight);
+        gl.glVertex2f(0.0f, metrics.visualHeight);
+        gl.glEnd();
 
         final int vertexCount = metrics.tilesPerRow * metrics.tilesPerColumn * 4;
         final int componentCount = 5;
@@ -802,8 +814,8 @@ Listener {
         Vector4f[] overlays = new Vector4f[3];
         float[] overlayColors = new float[3];
         overlays[0] = new Vector4f(0.0f, 0.0f, metrics.visualWidth, metrics.visualHeight);
-        overlayColors[0] = 0.4f;
-        overlayColors[1] = 1.0f;
+        overlayColors[0] = 0.2f;
+        overlayColors[1] = 0.7f;
         overlayColors[2] = 1.0f;
 
         for (int y = 0; y < metrics.tilesPerColumn; ++y) {
@@ -881,6 +893,7 @@ Listener {
         gl.glEnd();
 
         gl.glColor3f(1.0f, 1.0f, 1.0f);
+        gl.glDisable(GL.GL_BLEND);
         gl.glDisable(GL.GL_DEPTH_TEST);
 
     }
