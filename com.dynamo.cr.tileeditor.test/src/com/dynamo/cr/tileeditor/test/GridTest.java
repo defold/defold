@@ -240,7 +240,7 @@ public class GridTest implements IResourceChangeListener {
     }
 
     private String tileSet() {
-        return this.model.getTileSet();
+        return this.model.getTileSource();
     }
 
     private int cellTile(Layer layer, int x, int y) {
@@ -260,7 +260,7 @@ public class GridTest implements IResourceChangeListener {
     public void testNewGrid() throws Exception {
         newGrid();
 
-        assertEquals("", this.model.getTileSet());
+        assertEquals("", this.model.getTileSource());
         assertEquals(1, this.model.getLayers().size());
         Layer layer = this.model.getLayers().get(0);
         assertEquals("layer1", layer.getId());
@@ -288,7 +288,7 @@ public class GridTest implements IResourceChangeListener {
 
         verify(this.view, times(1)).setValidModel(eq(true));
 
-        setGridProperty("tileSet", "/mario.tileset");
+        setGridProperty("tileSource", "/mario.tileset");
 
         assertThat(tileSet(), is("/mario.tileset"));
         verify(this.view, times(1)).setTileSet(any(BufferedImage.class), eq(16), eq(16), eq(0), eq(1));
@@ -576,13 +576,13 @@ public class GridTest implements IResourceChangeListener {
         newGrid();
         newMarioTileSet();
 
-        assertTrue(!propertyModel.getPropertyStatus("tileSet").isOK());
-        assertMessage(Messages.GridModel_tileSet_EMPTY, "tileSet");
-        assertMessageSeverity(IStatus.INFO, "tileSet");
+        assertTrue(!propertyModel.getPropertyStatus("tileSource").isOK());
+        assertMessage(Messages.GridModel_tileSource_EMPTY, "tileSource");
+        assertMessageSeverity(IStatus.INFO, "tileSource");
         verify(this.view, times(1)).refreshProperties();
 
-        setGridProperty("tileSet", "/mario.tileset");
-        assertTrue(propertyModel.getPropertyStatus("tileSet").isOK());
+        setGridProperty("tileSource", "/mario.tileset");
+        assertTrue(propertyModel.getPropertyStatus("tileSource").isOK());
         verify(this.view, times(2)).refreshProperties();
     }
 
@@ -596,20 +596,20 @@ public class GridTest implements IResourceChangeListener {
         newMarioTileSet();
         newGrid();
 
-        assertTrue(!propertyModel.getPropertyStatus("tileSet").isOK());
+        assertTrue(!propertyModel.getPropertyStatus("tileSource").isOK());
         verify(this.view, times(1)).refreshProperties();
         verify(this.view, times(1)).setValidModel(eq(true));
 
         String invalidPath = "/test";
-        setGridProperty("tileSet", invalidPath);
-        assertTrue(!propertyModel.getPropertyStatus("tileSet").isOK());
-        assertMessage(NLS.bind(Messages.GridModel_tileSet_NOT_FOUND, invalidPath), "tileSet");
+        setGridProperty("tileSource", invalidPath);
+        assertTrue(!propertyModel.getPropertyStatus("tileSource").isOK());
+        assertMessage(NLS.bind(Messages.GridModel_tileSource_NOT_FOUND, invalidPath), "tileSource");
 
         verify(this.view, times(2)).refreshProperties();
         verify(this.view, times(1)).setValidModel(eq(false));
 
-        setGridProperty("tileSet", "/mario.tileset");
-        assertTrue(propertyModel.getPropertyStatus("tileSet").isOK());
+        setGridProperty("tileSource", "/mario.tileset");
+        assertTrue(propertyModel.getPropertyStatus("tileSource").isOK());
         verify(this.view, times(3)).refreshProperties();
         verify(this.view, times(2)).setValidModel(eq(true));
     }
@@ -626,14 +626,14 @@ public class GridTest implements IResourceChangeListener {
 
         saveTileSet(file, tileSetModel);
 
-        assertEquals(Messages.GRID_INVALID_TILESET, this.propertyModel.getPropertyStatus("tileSet").getMessage());
-        assertTrue(!this.propertyModel.getPropertyStatus("tileSet").isOK());
+        assertEquals(Messages.GRID_INVALID_TILESET, this.propertyModel.getPropertyStatus("tileSource").getMessage());
+        assertTrue(!this.propertyModel.getPropertyStatus("tileSource").isOK());
 
         undo();
 
         saveTileSet(file, tileSetModel);
 
-        assertTrue(this.propertyModel.getPropertyStatus("tileSet").isOK());
+        assertTrue(this.propertyModel.getPropertyStatus("tileSource").isOK());
     }
 
     /**
@@ -648,9 +648,9 @@ public class GridTest implements IResourceChangeListener {
 
         String tileSetPath = "/mario.tileset";
 
-        assertTrue(!propertyModel.getPropertyStatus("tileSet").isOK());
-        setGridProperty("tileSet", tileSetPath);
-        assertTrue(propertyModel.getPropertyStatus("tileSet").isOK());
+        assertTrue(!propertyModel.getPropertyStatus("tileSource").isOK());
+        setGridProperty("tileSource", tileSetPath);
+        assertTrue(propertyModel.getPropertyStatus("tileSource").isOK());
 
         IFile tileSetFile = this.contentRoot.getFile(new Path(tileSetPath));
 
@@ -718,7 +718,7 @@ public class GridTest implements IResourceChangeListener {
         assertThat(presenter.isDirty(), is(false));
         verify(this.view, times(dirtyFalseCount)).setDirty(false);
 
-        setGridProperty("tileSet", "/mario.tileset");
+        setGridProperty("tileSource", "/mario.tileset");
         assertThat(presenter.isDirty(), is(true));
         verify(this.view, times(++dirtyTrueCount)).setDirty(true);
 

@@ -21,8 +21,8 @@ public class Messages extends NLS {
     public static String TileSetModel_tileSpacing_OUTSIDE_RANGE;
     public static String TileSetModel_materialTag_EMPTY;
 
-    public static String GridModel_tileSet_NOT_FOUND;
-    public static String GridModel_tileSet_EMPTY;
+    public static String GridModel_tileSource_NOT_FOUND;
+    public static String GridModel_tileSource_EMPTY;
 
     static {
         // initialize resource bundle

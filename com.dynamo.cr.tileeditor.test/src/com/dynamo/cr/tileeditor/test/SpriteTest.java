@@ -63,12 +63,12 @@ public class SpriteTest extends AbstractNodeTest {
 
     @Test
     public void testLoad() throws Exception {
-        assertThat(this.spriteNode.getTileSet(), is(""));
+        assertThat(this.spriteNode.getTileSource(), is(""));
         assertThat(this.spriteNode.getDefaultAnimation(), is("anim"));
     }
 
     private void create() throws Exception {
-        setProperty("tileSet", "/test.tileset2");
+        setProperty("tileSource", "/test.tileset2");
         setProperty("defaultAnimation", "default");
     }
 
@@ -79,7 +79,7 @@ public class SpriteTest extends AbstractNodeTest {
 
         SpriteDesc ddf = (SpriteDesc)this.loader.buildMessage(getLoaderContext(), this.spriteNode, null);
 
-        assertThat(ddf.getTileSet(), is(this.spriteNode.getTileSet()));
+        assertThat(ddf.getTileSet(), is(this.spriteNode.getTileSource()));
         assertThat(ddf.getDefaultAnimation(), is(this.spriteNode.getDefaultAnimation()));
     }
 
@@ -99,22 +99,22 @@ public class SpriteTest extends AbstractNodeTest {
 
     @Test
     public void testMessages() throws Exception {
-        assertPropertyStatus("tileSet", IStatus.INFO, null); // default message
+        assertPropertyStatus("tileSource", IStatus.INFO, null); // default message
 
-        setProperty("tileSet", "/non_existant");
-        assertPropertyStatus("tileSet", IStatus.ERROR, null); // default message
+        setProperty("tileSource", "/non_existant");
+        assertPropertyStatus("tileSource", IStatus.ERROR, null); // default message
 
-        setProperty("tileSet", "/invalid.tileset2");
-        assertPropertyStatus("tileSet", IStatus.ERROR, Messages.SpriteNode_tileSet_INVALID_REFERENCE);
+        setProperty("tileSource", "/invalid.tileset2");
+        assertPropertyStatus("tileSource", IStatus.ERROR, Messages.SpriteNode_tileSet_INVALID_REFERENCE);
 
         registerFile("/test.test", "");
-        setProperty("tileSet", "/test.test");
-        assertPropertyStatus("tileSet", IStatus.ERROR, Messages.SpriteNode_tileSet_CONTENT_ERROR);
+        setProperty("tileSource", "/test.test");
+        assertPropertyStatus("tileSource", IStatus.ERROR, Messages.SpriteNode_tileSet_CONTENT_ERROR);
 
         setProperty("defaultAnimation", "");
         assertPropertyStatus("defaultAnimation", IStatus.INFO, Messages.SpriteNode_defaultAnimation_EMPTY);
 
-        setProperty("tileSet", "/test.tileset2");
+        setProperty("tileSource", "/test.tileset2");
         setProperty("defaultAnimation", "test");
         assertPropertyStatus("defaultAnimation", IStatus.ERROR, NLS.bind(Messages.SpriteNode_defaultAnimation_INVALID, "test"));
     }
