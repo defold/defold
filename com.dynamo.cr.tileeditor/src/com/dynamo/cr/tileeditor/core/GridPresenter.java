@@ -152,6 +152,10 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
                 if (propName.equals("cells")) {
                     int layerIndex = this.model.getLayers().indexOf(source);
                     this.view.setCells(layerIndex, (Map<Long, Cell>)evt.getNewValue());
+                } else {
+                    this.view.setLayers(this.model.getLayers());
+                    Layer selectedLayer = (Layer)evt.getSource();
+                    this.view.setSelectedLayer(selectedLayer);
                 }
             }
         }
