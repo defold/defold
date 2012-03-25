@@ -11,6 +11,9 @@ import com.dynamo.cr.go.core.GameObjectNode;
 import com.dynamo.cr.luaeditor.scene.ScriptNode;
 import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.tileeditor.scene.AnimationNode;
+import com.dynamo.cr.tileeditor.scene.CollisionGroupNode;
+import com.dynamo.cr.tileeditor.scene.TileSetNode;
 import com.dynamo.physics.proto.Physics.ConvexShape;
 
 public class CopyPasteTest extends AbstractSceneTest {
@@ -47,6 +50,22 @@ public class CopyPasteTest extends AbstractSceneTest {
         proxy.setCollection("/logic/main.collection");
 
         testCopyPaste(go, proxy);
+    }
+
+    @Test
+    public void testAnimation() throws Exception {
+        TileSetNode tileSet = new TileSetNode();
+        AnimationNode animation = new AnimationNode();
+
+        testCopyPaste(tileSet, animation);
+    }
+
+    @Test
+    public void testCollisionGroup() throws Exception {
+        TileSetNode tileSet = new TileSetNode();
+        CollisionGroupNode collisionGroup = new CollisionGroupNode();
+
+        testCopyPaste(tileSet, collisionGroup);
     }
 
     private void testCopyPaste(Node parent, Node child) throws Exception {

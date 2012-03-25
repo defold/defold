@@ -1093,6 +1093,12 @@
             node="com.dynamo.cr.tileeditor.scene.TileSetNode"
             presenter="com.dynamo.cr.tileeditor.scene.TileSetNodePresenter"
             resource-type="com.dynamo.cr.tileeditor.resourcetypes.TileSet">
+         <reference-node-type
+               node-type="com.dynamo.cr.tileeditor.nodetypes.animation">
+         </reference-node-type>
+         <reference-node-type
+               node-type="com.dynamo.cr.tileeditor.nodetypes.collisionGroup">
+         </reference-node-type>
       </node-type>
       <node-type
             display-group="Tile Maps"
@@ -1108,6 +1114,20 @@
             node="com.dynamo.cr.tileeditor.scene.TileSetNode"
             presenter="com.dynamo.cr.tileeditor.scene.TileSetNodePresenter"
             resource-type="com.dynamo.cr.tileeditor.resourcetypes.tileSource">
+         <reference-node-type
+               node-type="com.dynamo.cr.tileeditor.nodetypes.animation">
+         </reference-node-type>
+         <reference-node-type
+               node-type="com.dynamo.cr.tileeditor.nodetypes.collisionGroup">
+         </reference-node-type>
+      </node-type>
+      <node-type
+            id="com.dynamo.cr.tileeditor.nodetypes.animation"
+            node="com.dynamo.cr.tileeditor.scene.AnimationNode">
+      </node-type>
+      <node-type
+            id="com.dynamo.cr.tileeditor.nodetypes.collisionGroup"
+            node="com.dynamo.cr.tileeditor.scene.CollisionGroupNode">
       </node-type>
    </extension>
    <extension
