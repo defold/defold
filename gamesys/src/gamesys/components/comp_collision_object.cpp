@@ -209,8 +209,8 @@ namespace dmGameSystem
             dmPhysics::HCollisionObject2D collision_object = 0;
             if (resource->m_TileGrid)
             {
-                dmPhysics::HCollisionShape2D shape = resource->m_TileGridResource->m_GridShape;
-                collision_object = dmPhysics::NewCollisionObject2D(physics_world, data, &shape, 1);
+                dmArray<dmPhysics::HCollisionShape2D>& shapes = resource->m_TileGridResource->m_GridShapes;
+                collision_object = dmPhysics::NewCollisionObject2D(physics_world, data, &shapes.Front(), shapes.Size());
             }
             else
             {
@@ -226,17 +226,18 @@ namespace dmGameSystem
                 if (component->m_Object2D != 0x0)
                     dmPhysics::DeleteCollisionObject2D(physics_world, component->m_Object2D);
                 component->m_Object2D = collision_object;
-                if (component->m_Resource->m_TileGrid)
+                if (resource->m_TileGrid)
                 {
-                    dmPhysics::HCollisionShape2D shape = resource->m_TileGridResource->m_GridShape;
-                    TileGridResource* tile_grid_resource = component->m_Resource->m_TileGridResource;
+                    TileGridResource* tile_grid_resource = resource->m_TileGridResource;
                     dmGameSystemDDF::TileGrid* tile_grid = tile_grid_resource->m_TileGrid;
-                    TileSetResource* tile_set_resource = tile_grid_resource->m_TileSet;
-                    dmGameSystemDDF::TileSet* tile_set = tile_set_resource->m_TileSet;
-                    uint32_t layer_count = tile_grid->m_Layers.m_Count;
-                    for (uint32_t i = 0; i < layer_count; ++i)
+                    dmArray<dmPhysics::HCollisionShape2D>& shapes = resource->m_TileGridResource->m_GridShapes;
+                    uint32_t shape_count = shapes.Size();
+                    for (uint32_t i = 0; i < shape_count; ++i)
                     {
+                        dmPhysics::HCollisionShape2D shape = shapes[i];
                         dmGameSystemDDF::TileLayer* layer = &tile_grid->m_Layers[i];
+                        TileSetResource* tile_set_resource = tile_grid_resource->m_TileSet;
+                        dmGameSystemDDF::TileSet* tile_set = tile_set_resource->m_TileSet;
                         uint32_t cell_count = layer->m_Cell.m_Count;
                         for (uint32_t j = 0; j < cell_count; ++j)
                         {
@@ -250,7 +251,7 @@ namespace dmGameSystem
                                 dmPhysics::SetGridShapeHull(component->m_Object2D, shape, cell_y, cell_x, tile);
                                 uint16_t child = cell_x + tile_grid_resource->m_ColumnCount * cell_y;
                                 uint16_t group = GetGroupBitIndex(world, tile_set_resource->m_HullCollisionGroups[tile]);
-                                dmPhysics::SetCollisionObjectFilter(component->m_Object2D, 0, child, group, data.m_Mask);
+                                dmPhysics::SetCollisionObjectFilter(component->m_Object2D, i, child, group, data.m_Mask);
                             }
                         }
                     }
@@ -721,7 +722,7 @@ namespace dmGameSystem
             uint32_t column = ddf->m_Column;
             uint32_t row = ddf->m_Row;
             uint32_t hull = ddf->m_Hull;
-            dmPhysics::SetGridShapeHull(component->m_Object2D, component->m_Resource->m_TileGridResource->m_GridShape, row, column, hull);
+            dmPhysics::SetGridShapeHull(component->m_Object2D, component->m_Resource->m_TileGridResource->m_GridShapes[ddf->m_Shape], row, column, hull);
         }
         return dmGameObject::UPDATE_RESULT_OK;
     }

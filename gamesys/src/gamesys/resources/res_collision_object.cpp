@@ -162,8 +162,18 @@ range_error:
                         resource->m_TileGridResource = (TileGridResource*)res;
                         resource->m_TileGrid = 1;
                         // Add the tile grid as the first and only shape
-                        resource->m_Shapes2D[0] = resource->m_TileGridResource->m_GridShape;
-                        resource->m_ShapeCount++;
+                        dmArray<dmPhysics::HCollisionShape2D>& shapes = resource->m_TileGridResource->m_GridShapes;
+                        uint32_t shape_count = shapes.Size();
+                        if (shape_count > COLLISION_OBJECT_MAX_SHAPES)
+                        {
+                            dmLogWarning("The collision object '%s' has a tile map containing more than %d layers, the rest will be ignored.", filename, COLLISION_OBJECT_MAX_SHAPES);
+                            shape_count = COLLISION_OBJECT_MAX_SHAPES;
+                        }
+                        for (uint32_t i = 0; i < shape_count; ++i)
+                        {
+                            resource->m_Shapes2D[i] = resource->m_TileGridResource->m_GridShapes[i];
+                        }
+                        resource->m_ShapeCount = shape_count;
                         return true;
                     }
                     // NOTE: Fall-trough "by design" here, ie not "else return false"

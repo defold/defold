@@ -16,13 +16,13 @@ namespace dmGameSystem
             memset(this, 0, sizeof(TileGridResource));
         }
 
-        TileSetResource*                m_TileSet;
-        dmGameSystemDDF::TileGrid*      m_TileGrid;
-        dmPhysics::HCollisionShape2D    m_GridShape;
-        uint32_t                        m_ColumnCount;
-        uint32_t                        m_RowCount;
-        int32_t                         m_MinCellX;
-        int32_t                         m_MinCellY;
+        TileSetResource*                        m_TileSet;
+        dmGameSystemDDF::TileGrid*              m_TileGrid;
+        dmArray<dmPhysics::HCollisionShape2D>   m_GridShapes;
+        uint32_t                                m_ColumnCount;
+        uint32_t                                m_RowCount;
+        int32_t                                 m_MinCellX;
+        int32_t                                 m_MinCellY;
     };
 
     dmResource::Result ResTileGridCreate(dmResource::HFactory factory,

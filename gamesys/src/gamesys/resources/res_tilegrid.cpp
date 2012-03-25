@@ -36,12 +36,12 @@ namespace dmGameSystem
                 int32_t max_x = INT32_MIN;
                 int32_t max_y = INT32_MIN;
                 uint32_t layer_count = tile_grid_ddf->m_Layers.m_Count;
-                uint32_t total_cell_count = 0;
+                tile_grid->m_GridShapes.SetCapacity(layer_count);
+                tile_grid->m_GridShapes.SetSize(layer_count);
                 for (uint32_t i = 0; i < layer_count; ++i)
                 {
                     dmGameSystemDDF::TileLayer* layer = &tile_grid_ddf->m_Layers[i];
                     uint32_t cell_count = layer->m_Cell.m_Count;
-                    total_cell_count += cell_count;
                     for (uint32_t j = 0; j < cell_count; ++j)
                     {
                         dmGameSystemDDF::TileCell* cell = &layer->m_Cell[j];
@@ -54,9 +54,6 @@ namespace dmGameSystem
                         if (max_y < cell->m_Y + 1)
                             max_y = cell->m_Y + 1;
                     }
-                }
-                if (total_cell_count > 0)
-                {
                     uint32_t cell_width = tile_set_ddf->m_TileWidth;
                     uint32_t cell_height = tile_set_ddf->m_TileHeight;
                     tile_grid->m_ColumnCount = max_x - min_x;
@@ -65,18 +62,8 @@ namespace dmGameSystem
                     tile_grid->m_MinCellY = min_y;
                     offset.setX(cell_width * 0.5f * (min_x + max_x));
                     offset.setY(cell_height * 0.5f * (min_y + max_y));
-                    tile_grid->m_GridShape = dmPhysics::NewGridShape2D(context, hull_set, offset, cell_width, cell_height, tile_grid->m_RowCount, tile_grid->m_ColumnCount);
+                    tile_grid->m_GridShapes[i] = dmPhysics::NewGridShape2D(context, hull_set, offset, cell_width, cell_height, tile_grid->m_RowCount, tile_grid->m_ColumnCount);
                 }
-                else
-                {
-                    dmLogError("No hull-set in tile-grid '%s'", filename);
-                    r = dmResource::RESULT_FORMAT_ERROR;
-                }
-            }
-            else
-            {
-                dmLogError("Zero cell count in tile-grid '%s'", filename);
-                r = dmResource::RESULT_FORMAT_ERROR;
             }
         }
         else
@@ -94,8 +81,12 @@ namespace dmGameSystem
         if (tile_grid->m_TileGrid)
             dmDDF::FreeMessage(tile_grid->m_TileGrid);
 
-        if (tile_grid->m_GridShape)
-            dmPhysics::DeleteCollisionShape2D(tile_grid->m_GridShape);
+        uint32_t n = tile_grid->m_GridShapes.Size();
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            if (tile_grid->m_GridShapes[i])
+                dmPhysics::DeleteCollisionShape2D(tile_grid->m_GridShapes[i]);
+        }
     }
 
     dmResource::Result ResTileGridCreate(dmResource::HFactory factory,

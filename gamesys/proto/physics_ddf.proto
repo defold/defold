@@ -271,7 +271,8 @@ message VelocityResponse
 // System message (TileGrid=>CollisionObject)
 message SetGridShapeHull
 {
-    required uint32 row = 1;
-    required uint32 column = 2;
-    required uint32 hull = 3;
+    required uint32 shape = 1;
+    required uint32 row = 2;
+    required uint32 column = 3;
+    required uint32 hull = 4;
 }

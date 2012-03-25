@@ -355,6 +355,7 @@ namespace dmGameSystem
             // Broadcast to any collision object components
             // TODO Filter broadcast to only collision objects
             dmPhysicsDDF::SetGridShapeHull set_hull_ddf;
+            set_hull_ddf.m_Shape = layer_index;
             set_hull_ddf.m_Column = cell_x;
             set_hull_ddf.m_Row = cell_y;
             set_hull_ddf.m_Hull = tile;
