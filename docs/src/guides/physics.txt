@@ -17,6 +17,7 @@ The three different _types_ defines how the position is controlled.
 * *Static* - the collision object will never move, which is beneficial for performance
 * *Dynamic* - the collision object is affected by gravity and other collision objects, also moves the game object
 * *Kinematic* - the collision object is moved by the game object (e.g. a script component), but can still affects other collision objects
+* *Trigger* - the collision object is moved by the game object (e.g. a script component), but does not affect other collision objects (gives collision response but no contact points)
 
 Collision Filtering
 -------------------
