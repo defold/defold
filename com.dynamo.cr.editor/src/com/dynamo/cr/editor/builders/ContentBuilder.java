@@ -26,6 +26,10 @@ import org.eclipse.swt.widgets.Display;
 import org.eclipse.ui.IPageLayout;
 import org.eclipse.ui.IWorkbenchPage;
 import org.eclipse.ui.PartInitException;
+import org.eclipse.ui.console.ConsolePlugin;
+import org.eclipse.ui.console.IConsole;
+import org.eclipse.ui.console.IConsoleManager;
+import org.eclipse.ui.console.MessageConsole;
 import org.osgi.framework.Bundle;
 
 import com.dynamo.bob.CompileExceptionError;
@@ -75,6 +79,26 @@ public class ContentBuilder extends IncrementalProjectBuilder {
         });
     }
 
+    private void showConsole() {
+        ConsolePlugin plugin = ConsolePlugin.getDefault();
+        IConsoleManager conMan = plugin.getConsoleManager();
+        IConsole[] existing = conMan.getConsoles();
+        String name = "console";
+        MessageConsole console = null;
+        for (int i = 0; i < existing.length; i++) {
+            if (name.equals(existing[i].getName())) {
+                console = (MessageConsole) existing[i];
+                break;
+            }
+        }
+        // no console found, so create a new one
+        if (console == null) {
+            console = new MessageConsole(name, null);
+            conMan.addConsoles(new IConsole[] { console });
+        }
+        console.activate();
+    }
+
     @Override
     protected IProject[] build(int kind, Map<String,String> args, IProgressMonitor monitor)
             throws CoreException {
@@ -95,6 +119,8 @@ public class ContentBuilder extends IncrementalProjectBuilder {
         }
         if (!ret) {
             showProblemsView();
+        } else {
+            showConsole();
         }
         return null;
     }
