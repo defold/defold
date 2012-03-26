@@ -1,5 +1,160 @@
 :max-width: 45em
 
+Update: Invitations & Beta Registration
+---------------------------------------
+_March 26, 2012_
+
+We are currently working extremely hard for the Alpha release due next weekend.
+This is when Defold will be publicly unveiled and we are trying to get everything as polished as possible in time for this major event.
+
+Going into Alpha means that more people will be invited to use the service.
+You, our beloved pre-alpha users, will also receive a number of invitations to hand out.
+We will still not charge anything during the Alpha phase.
+We are still working on the details of our licensing model, it will be thoroughly explained by next weekend.
+
+Since we have so much to do, this update post will be rather brief, at least relatively how much it contains.
+
+Invitations & Beta Registration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Starting next weekend, anyone can register for Beta access on the link:/[front page].
+In addition to this we, as well as you, can invite a limited amount of interested people for Alpha access.
+We can't open the gates completely yet, as we can't handle too much support at the same time.
+That might make us sacrifice the quality of the support, and we want every user to have the best possible experience.
+
+Local Branches for Windows
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+We fixed the issues involving using local branches on Windows.
+We have also bundled both Java and OpenAL (which we use for sound) with the application so no need to install separate software.
+
+New Names
+~~~~~~~~~
+
+We have not been entirely happy with the naming of some concepts in the Defold service and decided to fix the worst ones.
+This is what has changed:
+
+* _Sprite2_ => _Sprite_ (Sprite2 was a new format that has now completely replaced the old one)
+* _Spawn Point_ => _Factory_
+* _Tile Set_ => _Tile Source_
+* _Tile Grid_ => _Tile Map_
+
+We hope you agree that the new names are easier to understand.
+
+Other Features
+~~~~~~~~~~~~~~
+
+* Browsing for resources is filtered by extension
+* Optimized performance in the Scene Editor
+* Cleaned Preferences from settings only used for internal debugging
+* A progress bar is shown when creating a branch
+* Improved error handling in the pipeline
+* Tabs are automatically shown when building/reloading to show progress and errors
+* Physics can be scaled for increased numerical precision
+* More link:#documentation:[documentation]
+** link:#guide:scripting_debugging[Scripting & Debugging]
+** link:#guide:message_passing[Message Passing]
+** link:#guide:reload[Hot Reloading]
+** link:#guide:physics[Physics]
+** link:#guide:tiles[Tiles]
+** link:#guide:game_project[game.project]
+* Web site footer
+** link:#content:story[Defold Story]
+** link:#content:eula[Terms of Service]
+** Support links
+** Social links
+
+Fixed Bugs
+~~~~~~~~~~
+
+* Rebuild did not rebuild all content
+* Renaming empty directories did not work
+* Safari version (web) was not correctly checked
+* Some menu items pointed to removed functionality (items were removed)
+* Errors and warnings in Problems and Error Log tabs
+* Name of user was missing in web page after registration
+* Problems when deleting layers from tile maps
+* Tiles were not properly updated (graphics/physics) when the textures were modified externally
+* Icon was missing for embedded shapes in the Outline view
+* Various issues with manipulators in the Scene Editor
+** Not properly updated when adding/removing objects
+** Rotation manipulator did not behave correctly for 3D rotations
+** Scale manipulators seemed to be in world space but acted in local space
+** The manipulation selection in the Scene-menu was not properly updated
+* Various inconsistencies when selection was updated as a result of something else (e.g. undo)
+* Animations and collision groups in tile sources could not be copy-pasted
+* Palette and brush was not correctly rendered (transparency) for tile maps
+* Changing the properties of a layer made its tiles seem like they didn't belong to it (dimmed out)
+* game.project without a final blank line could not be read by the engine
+* Tile maps with multiple layers did not get correct collision shapes
+* Triggers did not collide correctly with tile maps
+
+Known Bugs
+~~~~~~~~~~
+
+* Kinematic and dynamic collision objects completely within the collision of a tile map won't generate collision responses
+* Box selecting many objects on Windows has poor performance (hitches)
+* Tiles with different collision groups are not properly stitched (might result in bumps or stops when sliding objects over them)
+
+
+Mini-Update: Bug Fixes
+----------------------
+_March 5, 2012_
+
+We found a few issues with drag and drop that we felt were important to fix.
+With them came a list of other useful fixes as well.
+This release includes:
+
+* More stable drag and drop (errors would occur when dropping items onto themselves or in empty areas) 
+* We are testing another service for reporting issues and giving feedback called User-Echo.
+  You can try it out by clicking the Feedback-tab to the left in the web site.
+  There is a link to the service in the footer called "Forum".
+  We also added a link from the editor at *Help > Feedback...*
+* Added a link to the documentation in a similar manner at *Help > Documentation...*
+* The editor will now check for updates automatically on start-up.
+  So this would be the last one you manually update to.
+* Links to download the editor from the website was missing, they have been added in the dashboard.
+* The status of files (modified, added, etc) in the project explorer was not updated after commit.
+* When spheres and polygon (box) collision shapes intersected much enough, the engine would experience computation failures with severe frame drops.
+* The errors when running the game (starting with "ERROR:DDF: Name clash.") have been removed.
+* We have changed some functions related to node properties in gui scripting to be more compatible with each other (mostly by accepting both vector3 and vector4 as arguments).
+
+Right now we are aiming to be ready to take in more external users in a 
+week, so expect more great updates in not too much time!
+To be able to do this however, we need all of you to move over to the local 
+branches. We need to switch off our content server in order to open up the 
+firewall, since that server has no adequate authorization mechanism in 
+place. We will contact you about this individually though, so await further 
+instructions. :)
+
+/Team Defold
+
+Mini-Update: Copy-Paste & Drag 'n Drop
+--------------------------------------
+_March 3, 2012_
+
+We have just made another smaller release, to fix a few lingering issues from the last one.
+Copy/cut/paste has been slightly changed, drag and drop in the outline view has been implemented.
+The Tile Set Editor failed to open from the last release, this has also been fixed.
+
+Copy/cut/paste
+~~~~~~~~~~~~~~
+
+When you select an item in the outline, the parent of that item will be used as target for the paste operation.
+So if you select an item and hit copy-paste, that item will essentially be duplicated as another item under the same parent.
+
+Drag And Drop
+~~~~~~~~~~~~~
+
+You can now drag around items in the outline.
+The only really useful thing at the moment is to use it for rearranging the game object hierarchies, like making a game object the child of another game object.
+It can also be used to move shapes between different collision objects, but that is a rare use case.
+It's great to have it in place though, since it will be used for more things later on.
+
+That's it for this time!
+
+/Team Defold
+
 Update: Collection Editing & Local Branches
 -------------------------------------------
 _February 28, 2012_
