@@ -5,16 +5,18 @@ The Defold Story
 
 Why are games so hard to make?
 
-Three years ago we wanted to make our own games, low-scale and simple productions.
+Three years ago we wanted to go indie and make our own games, low-scale and simple productions.
 We come from a background of making big-budget AAA titles and scanned the field for suitable engines to use.
 As none of the options conformed to our standards of what game development should be like, we decided to make our own.
 Like most programmers, we thought we could do this and better than anything else on the market in almost no time at all.
-We thought a couple of months would be enough. It took three years to get to an alpha stage. :-)
+We thought a couple of months would be enough.
+
+It took three years to get to an alpha stage. :-)
 
 // Mission
 
 We wanted to create a game development environment with a professional workflow, but still simple to use.
-We wanted to create a small, fast and agile (_buzzword alert_) game engine.
+We wanted to create a small, fast and flexible (_buzzword alert_) game engine.
 We wanted to make simple tools that can be used to create complex things.
 An engine without any hacks or quick-fixes.
 Where collaboration is built into the core.
@@ -27,17 +29,17 @@ We think that performance in games can be a success-factor.
 With battery-life in the calculation, we think performance is as important as ever.
 No game should ever hitch.
 No software should ever crash.
-These are two of our top priorities.
+These are things we value.
 
 // Implementation
 
 As we progressed on this quest we started to realize that this might be a platform that more game developers want to use.
-Our platform started to shape up and almost become a living thing, dictating what we should be working on and what it needed to be complete.
+Our platform started to shape up and almost became a living thing, dictating what we should be working on and what it needed to be complete.
 So we put all of our own game ideas on the shelf and focused on making Defold shine as a platform for game development, whatever game it might be.
 
 // Motivation
 
-In light of all of this, we have tried to make the engine as light-weight as possible.
+In light of all this, we have tried to make the engine as light-weight as possible.
 There should be no such thing as a "player" or an "enemy" game object in a game engine.
 Those are complex things that should be built from simple parts.
 We do not provide built-in shadows.
