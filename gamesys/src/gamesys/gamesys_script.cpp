@@ -126,6 +126,7 @@ namespace dmGameSystem
      * @param [position] the position of the new game object, the position of the game object containing the factory is used by default (vector3)
      * @param [rotation] the rotation of the new game object, the rotation of the game object containing the factory is used by default (quat)
      * @param [init-params] the parameters that will be the sent to the init-functions of any scripts attached to the new game object (table)
+     * @return the id of the spawned game object (hash)
      * @examples
      * How to create a new game object:
      * <pre>

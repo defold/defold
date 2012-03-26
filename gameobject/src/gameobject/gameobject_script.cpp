@@ -688,6 +688,7 @@ bail:
      * @param self reference to the script state to be used for storing data (script_ref)
      * @param action_id id of the received input action, as mapped in the input_binding-file (hash)
      * @param action a table containing the input data, see above for a description (table)
+     * @return optional boolean to signal if the input should be consumed (not passed on to others) or not, default is false (boolean)
      * @examples
      * <p>
      * This example demonstrates how a game object instance can be moved as a response to user input.
