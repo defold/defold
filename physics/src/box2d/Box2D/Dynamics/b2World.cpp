@@ -1099,8 +1099,8 @@ void b2World::DrawShape(b2Fixture* fixture, const b2Transform& xf, const b2Color
             uint32 cellCount = grid->GetChildCount();
             b2PolygonShape poly;
             b2EdgeShape edgeShapes[b2_maxPolygonVertices];
-            const float32 shade = 0.8f;
-            b2Color fillColor(color.r * shade, color.g * shade, color.b * shade);
+            const float32 fillShade = 0.8f;
+            b2Color fillColor(color.r * fillShade, color.g * fillShade, color.b * fillShade);
             for (uint32 i = 0; i < cellCount; ++i)
             {
                 const b2Filter& filter = fixture->GetFilterData(i);
@@ -1119,16 +1119,6 @@ void b2World::DrawShape(b2Fixture* fixture, const b2Transform& xf, const b2Color
                         b2Vec2 v1 = b2Mul(xf, edge->m_vertex1);
                         b2Vec2 v2 = b2Mul(xf, edge->m_vertex2);
                         m_debugDraw->DrawSegment(v1, v2, color);
-                        if (edge->m_hasVertex0)
-                        {
-                            b2Vec2 v0 = b2Mul(xf, edge->m_vertex0);
-                            m_debugDraw->DrawSegment(v0, v1, color);
-                        }
-                        if (edge->m_hasVertex3)
-                        {
-                            b2Vec2 v3 = b2Mul(xf, edge->m_vertex3);
-                            m_debugDraw->DrawSegment(v2, v3, color);
-                        }
                     }
                 }
             }

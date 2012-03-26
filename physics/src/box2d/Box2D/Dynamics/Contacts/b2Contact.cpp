@@ -180,7 +180,16 @@ void b2Contact::Update(b2ContactListener* listener)
 	{
 		const b2Shape* shapeA = m_fixtureA->GetShape();
 		const b2Shape* shapeB = m_fixtureB->GetShape();
-		touching = b2TestOverlap(shapeA, m_indexA, shapeB, m_indexB, xfA, xfB);
+		// Defold mod, Fake manifold update to test grid, not currently involved in overlap-test (b2Distance.cpp:83)
+		if (shapeA->m_type == b2Shape::e_grid || shapeB->m_type == b2Shape::e_grid)
+		{
+		    Evaluate(&m_manifold, xfA, xfB);
+		    touching = m_manifold.pointCount > 0;
+		}
+		else
+		{
+		    touching = b2TestOverlap(shapeA, m_indexA, shapeB, m_indexB, xfA, xfB);
+		}
 
 		// Sensors don't generate manifolds.
 		m_manifold.pointCount = 0;

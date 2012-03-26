@@ -143,7 +143,7 @@ void b2ContactManager::Collide()
 		bool activeA = (bodyA->IsAwake() || bodyA->GetType() == b2_kinematicBody) && bodyA->m_type != b2_staticBody;
 		bool activeB = (bodyB->IsAwake() || bodyB->GetType() == b2_kinematicBody) && bodyB->m_type != b2_staticBody;
 
-		// At least one body must be awake and it must be dynamic or kinematic.
+		// Defold Mod: At least one body must be awake and it must be dynamic or kinematic
 		if (activeA == false && activeB == false)
 		{
 			c = c->GetNext();

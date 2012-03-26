@@ -354,6 +354,80 @@ TYPED_TEST(PhysicsTest, GridShapeSphere)
     dmPhysics::DeleteHullSet2D(hull_set);
 }
 
+bool TriggerCollisionCallback(void* user_data_a, uint16_t group_a, void* user_data_b, uint16_t group_b, void* user_data)
+{
+    VisualObject* vo = (VisualObject*)user_data_a;
+    if (vo->m_CollisionCount == 0)
+        vo->m_FirstCollisionGroup = group_a;
+    ++vo->m_CollisionCount;
+
+    vo = (VisualObject*)user_data_b;
+    if (vo->m_CollisionCount == 0)
+        vo->m_FirstCollisionGroup = group_b;
+    ++vo->m_CollisionCount;
+    int* count = (int*)user_data;
+    *count += 1;
+    return true;
+}
+
+TYPED_TEST(PhysicsTest, GridShapeTrigger)
+{
+    /*
+     * Simplified version of GridShapePolygon
+     */
+    int32_t rows = 1;
+    int32_t columns = 2;
+    int32_t cell_width = 16;
+    int32_t cell_height = 16;
+
+    VisualObject vo_a;
+    vo_a.m_Position = Point3(0, 0, 0);
+    dmPhysics::CollisionObjectData data;
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
+    data.m_Mass = 0.0f;
+    data.m_UserData = &vo_a;
+    data.m_Group = 0xffff;
+    data.m_Mask = 0xffff;
+
+    const float hull_vertices[] = {  // 1x1 around origo
+                                    -0.5f, -0.5f,
+                                     0.5f, -0.5f,
+                                     0.5f,  0.5f,
+                                    -0.5f,  0.5f };
+
+    const dmPhysics::HullDesc hulls[] = { {0, 4} };
+    dmPhysics::HHullSet2D hull_set = dmPhysics::NewHullSet2D(TestFixture::m_Context, hull_vertices, 4, hulls, 1);
+    dmPhysics::HCollisionShape2D grid_shape = dmPhysics::NewGridShape2D(TestFixture::m_Context, hull_set, Point3(0,0,0), cell_width, cell_height, rows, columns);
+    typename TypeParam::CollisionObjectType grid_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &grid_shape, 1u);
+
+    dmPhysics::SetGridShapeHull(grid_co, grid_shape, 0, 0, 0);
+    dmPhysics::SetGridShapeHull(grid_co, grid_shape, 0, 1, 0);
+
+    VisualObject vo_b;
+    vo_b.m_Position = Point3(4.0f, 4.0f, 0.0f);
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_TRIGGER;
+    data.m_Mass = 0.0f;
+    data.m_UserData = &vo_b;
+    data.m_Group = 0xffff;
+    data.m_Mask = 0xffff;
+    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(0.1f, 0.1f, 0.1f));
+    typename TypeParam::CollisionObjectType dynamic_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
+
+    TestFixture::m_StepWorldContext.m_CollisionCallback = TriggerCollisionCallback;
+    for (int i = 0; i < 500; ++i)
+    {
+        (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+        ASSERT_EQ(i+1, TestFixture::m_CollisionCount);
+        ASSERT_EQ(0, TestFixture::m_ContactPointCount);
+    }
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, grid_co);
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, dynamic_co);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(grid_shape);
+    dmPhysics::DeleteHullSet2D(hull_set);
+}
+
 struct CrackUserData
 {
     CrackUserData()

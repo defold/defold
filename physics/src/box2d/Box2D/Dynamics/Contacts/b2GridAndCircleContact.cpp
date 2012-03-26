@@ -47,7 +47,8 @@ void b2GridAndCircleContact::Evaluate(b2Manifold* manifold, const b2Transform& x
     }
 
     const uint32 completeHull = ~0u;
-    if (m_edgeMask == completeHull)
+    // TODO Checking sensor here is a work-around for the budget edge-collisions below (see case 808)
+    if (m_edgeMask == completeHull || m_fixtureB->IsSensor())
     {
         b2PolygonShape polyA;
         gridShape->GetPolygonShapeForCell(m_indexA, polyA);
