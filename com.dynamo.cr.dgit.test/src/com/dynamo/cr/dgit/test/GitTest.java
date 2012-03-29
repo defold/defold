@@ -1,4 +1,5 @@
-package com.dynamo.cr.server.git.test;
+package com.dynamo.cr.dgit.test;
+
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
@@ -26,13 +27,13 @@ import com.dynamo.cr.protocol.proto.Protocol.Log;
 import com.dynamo.server.dgit.CommandUtil;
 import com.dynamo.server.dgit.GitException;
 import com.dynamo.server.dgit.GitFactory;
+import com.dynamo.server.dgit.GitFactory.Type;
 import com.dynamo.server.dgit.GitResetMode;
 import com.dynamo.server.dgit.GitStage;
 import com.dynamo.server.dgit.GitState;
 import com.dynamo.server.dgit.GitStatus;
 import com.dynamo.server.dgit.GitStatus.Entry;
 import com.dynamo.server.dgit.IGit;
-import com.dynamo.server.dgit.GitFactory.Type;
 
 @RunWith(value = Parameterized.class)
 public class GitTest {
