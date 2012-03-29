@@ -571,6 +571,11 @@ public class JGit implements IGit, TransportConfigCallback {
         }
     }
 
+    @Override
+    public void pushInitial(String directory) throws IOException {
+        throw new RuntimeException("Not implemented.");
+    }
+
     private <T> void wrapCall(GitCommand<T> command) throws IOException {
         try {
             command.call();

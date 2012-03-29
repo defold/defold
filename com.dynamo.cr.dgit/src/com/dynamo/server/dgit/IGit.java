@@ -89,6 +89,13 @@ public interface IGit {
     void push(String directory) throws IOException;
 
     /**
+     * Push initial. (git push origin master)
+     * @param directory Directory
+     * @throws IOException
+     */
+    void pushInitial(String directory) throws IOException;
+
+    /**
      * Add file (git add)
      * @param directory Directory
      * @param file File to add

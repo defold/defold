@@ -35,7 +35,7 @@ import com.dynamo.server.dgit.IGit;
 @RunWith(value = Parameterized.class)
 public class GitStressTest {
 
-    private Type type;
+    private final IGit git;
 
     public static final String MASTER = "tmp/source_repo";
     public static final String FILE_FMT = "%d.txt";
@@ -43,7 +43,7 @@ public class GitStressTest {
     public static final int LINE_COUNT = 10;
 
     public GitStressTest(Type type) {
-        this.type = type;
+        this.git = GitFactory.create(type);
     }
 
     @Parameters
@@ -64,7 +64,7 @@ public class GitStressTest {
 
     @Before
     public void setUp() throws IOException, InterruptedException {
-        execCommand("scripts/setup_testgit_repo.sh");
+        RepoUtil.setupTestRepo(this.git);
     }
 
     private static class Client {
@@ -259,9 +259,8 @@ public class GitStressTest {
 
     @Test //(timeout=1000)
     public void testStress() throws Exception {
-        IGit git = GitFactory.create(this.type);
-        Client u1 = new Client(Client.Name.A, git);
-        Client u2 = new Client(Client.Name.B, git);
+        Client u1 = new Client(Client.Name.A, this.git);
+        Client u2 = new Client(Client.Name.B, this.git);
         final boolean sync = true;
         if (sync) {
             final int iterations = 10;

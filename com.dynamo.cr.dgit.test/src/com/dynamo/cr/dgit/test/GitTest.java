@@ -24,7 +24,6 @@ import org.junit.runners.Parameterized.Parameters;
 
 import com.dynamo.cr.protocol.proto.Protocol.CommitDesc;
 import com.dynamo.cr.protocol.proto.Protocol.Log;
-import com.dynamo.server.dgit.CommandUtil;
 import com.dynamo.server.dgit.GitException;
 import com.dynamo.server.dgit.GitFactory;
 import com.dynamo.server.dgit.GitFactory.Type;
@@ -47,23 +46,15 @@ public class GitTest {
 
     @Parameters
     public static Collection<Type[]> data() {
-        Type[][] data = new Type[][] { { Type.JGIT }, { Type.CGIT } };
+        // No support for jgit yet
+        Type[][] data = new Type[][] { /*{ Type.JGIT },*/ { Type.CGIT } };
         return Arrays.asList(data);
-    }
-
-    void execCommand(String command) throws IOException {
-        CommandUtil.Result r = CommandUtil.execCommand(new String[] {"/bin/bash", command});
-        if (r.exitValue != 0) {
-            System.err.println(r.stdOut);
-            System.err.println(r.stdErr);
-        }
-        assertEquals(0, r.exitValue);
     }
 
     @Before
     public void setUp() throws IOException, InterruptedException {
-        execCommand("scripts/setup_testgit_repo.sh");
         git = GitFactory.create(type);
+        RepoUtil.setupTestRepo(git);
     }
 
     String readEntireFile(File file) throws IOException {
@@ -96,7 +87,7 @@ public class GitTest {
         git.pull(repo.getPath());
         assertEquals(-1, readEntireFile(new File(repo, "main.cpp")).indexOf("stdint"));
 
-        execCommand("scripts/add_source_repo_commit.sh");
+        RepoUtil.addSourceCommit(git);
 
         assertEquals(-1, readEntireFile(new File(repo, "main.cpp")).indexOf("stdint"));
         git.pull(repo.getPath());
@@ -368,7 +359,7 @@ public class GitTest {
     public void pullWithDirtyState() throws IOException {
         File repo = cloneInitial();
 
-        execCommand("scripts/add_source_repo_commit.sh");
+        RepoUtil.addSourceCommit(git);
 
         FileWriter fw = new FileWriter(new File(repo, "main.cpp"));
         fw.write("testing\n");
@@ -381,7 +372,7 @@ public class GitTest {
     public void mergeConflict() throws IOException {
         File repo = cloneInitial();
 
-        execCommand("scripts/add_source_repo_commit.sh");
+        RepoUtil.addSourceCommit(git);
 
         FileWriter fw = new FileWriter(new File(repo, "main.cpp"));
         fw.write("testing\n");
@@ -411,7 +402,7 @@ public class GitTest {
     public void unresolvedMerge() throws IOException {
         File repo = cloneInitial();
 
-        execCommand("scripts/add_source_repo_commit.sh");
+        RepoUtil.addSourceCommit(git);
 
         FileWriter fw = new FileWriter(new File(repo, "main.cpp"));
         fw.write("testing\n");
@@ -440,7 +431,7 @@ public class GitTest {
         assertEquals(0, git.commitsAhead(repo.getPath()));
         assertEquals(0, git.commitsBehind(repo.getPath()));
 
-        execCommand("scripts/add_source_repo_commit.sh");
+        RepoUtil.addSourceCommit(git);
         assertEquals(-1, readEntireFile(new File(repo, "main.cpp")).indexOf("testing"));
 
         assertEquals(0, git.commitsAhead(repo.getPath()));
@@ -491,7 +482,7 @@ public class GitTest {
         assertEquals(0, git.commitsAhead(repo.getPath()));
         assertEquals(0, git.commitsBehind(repo.getPath()));
 
-        execCommand("scripts/delete_source_repo_commit.sh");
+        RepoUtil.deleteSourceCommit(git);
         assertEquals(-1, readEntireFile(new File(repo, "main.cpp")).indexOf("testing"));
 
         assertEquals(0, git.commitsAhead(repo.getPath()));
@@ -536,7 +527,7 @@ public class GitTest {
         assertEquals(0, git.commitsAhead(repo.getPath()));
         assertEquals(0, git.commitsBehind(repo.getPath()));
 
-        execCommand("scripts/add_source_repo_commit.sh");
+        RepoUtil.addSourceCommit(git);
         assertEquals(-1, readEntireFile(new File(repo, "main.cpp")).indexOf("testing"));
 
         assertEquals(0, git.commitsAhead(repo.getPath()));
@@ -577,7 +568,7 @@ public class GitTest {
     public void resolveTheirs() throws IOException {
         File repo = cloneInitial();
 
-        execCommand("scripts/add_source_repo_commit.sh");
+        RepoUtil.addSourceCommit(git);
         assertEquals(-1, readEntireFile(new File(repo, "main.cpp")).indexOf("testing"));
 
         FileWriter fw = new FileWriter(new File(repo, "main.cpp"));
@@ -622,7 +613,7 @@ public class GitTest {
         assertEquals(0, git.commitsAhead(repo.getPath()));
         assertEquals(0, git.commitsBehind(repo.getPath()));
 
-        execCommand("scripts/delete_source_repo_commit.sh");
+        RepoUtil.deleteSourceCommit(git);
         assertEquals(-1, readEntireFile(new File(repo, "main.cpp")).indexOf("testing"));
 
         assertEquals(0, git.commitsAhead(repo.getPath()));
@@ -668,7 +659,7 @@ public class GitTest {
         assertEquals(0, git.commitsAhead(repo.getPath()));
         assertEquals(0, git.commitsBehind(repo.getPath()));
 
-        execCommand("scripts/add_source_repo_commit.sh");
+        RepoUtil.addSourceCommit(git);
         assertEquals(-1, readEntireFile(new File(repo, "main.cpp")).indexOf("testing"));
 
         assertEquals(0, git.commitsAhead(repo.getPath()));
@@ -712,7 +703,7 @@ public class GitTest {
         // Test that we can checkout again... First YOURS then THEIRS
         File repo = cloneInitial();
 
-        execCommand("scripts/add_source_repo_commit.sh");
+        RepoUtil.addSourceCommit(git);
         assertEquals(-1, readEntireFile(new File(repo, "main.cpp")).indexOf("testing"));
 
         FileWriter fw = new FileWriter(new File(repo, "main.cpp"));
@@ -772,7 +763,7 @@ public class GitTest {
     @Test(expected = GitException.class)
     public void pushFail() throws IOException {
         File repo = cloneInitial();
-        execCommand("scripts/add_source_repo_commit.sh");
+        RepoUtil.addSourceCommit(git);
 
         assertEquals(-1, readEntireFile(new File("tmp/tmp_source_repo", "main.cpp")).indexOf("testing"));
 

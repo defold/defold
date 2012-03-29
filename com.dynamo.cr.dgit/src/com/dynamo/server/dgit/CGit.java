@@ -288,6 +288,12 @@ public class CGit implements IGit {
     }
 
     @Override
+    public void pushInitial(String directory) throws IOException {
+        CommandUtil.Result r = execGitCommand(directory, "git", "push", "origin", "master");
+        checkResult(r);
+    }
+
+    @Override
     public void add(String directory, String file) throws IOException {
         CommandUtil.Result r = execGitCommand(directory, "git", "add", file);
         checkResult(r);

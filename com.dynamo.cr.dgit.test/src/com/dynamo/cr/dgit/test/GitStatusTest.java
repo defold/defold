@@ -1,7 +1,6 @@
 package com.dynamo.cr.dgit.test;
 
 import static org.hamcrest.CoreMatchers.is;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
@@ -18,7 +17,6 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 
-import com.dynamo.server.dgit.CommandUtil;
 import com.dynamo.server.dgit.GitFactory;
 import com.dynamo.server.dgit.GitFactory.Type;
 import com.dynamo.server.dgit.GitState;
@@ -32,31 +30,21 @@ public class GitStatusTest {
     private IGit git;
     private String repoA;
 
-    public static final String MASTER = "tmp/source_repo";
-
     public GitStatusTest(Type type) {
         this.type = type;
     }
 
     @Parameters
     public static Collection<Type[]> data() {
-        Type[][] data = new Type[][] { { Type.JGIT }, { Type.CGIT } };
+        // No support for jgit yet
+        Type[][] data = new Type[][] { /*{ Type.JGIT },*/ { Type.CGIT } };
         return Arrays.asList(data);
-    }
-
-    private void execCommand(String command) throws IOException {
-        CommandUtil.Result r = CommandUtil.execCommand(new String[] {"/bin/bash", command});
-        if (r.exitValue != 0) {
-            System.err.println(r.stdOut);
-            System.err.println(r.stdErr);
-        }
-        assertEquals(0, r.exitValue);
     }
 
     @Before
     public void setUp() throws IOException, InterruptedException {
-        execCommand("scripts/setup_empty_testgit_repo.sh");
         this.git = GitFactory.create(this.type);
+        RepoUtil.setupEmptyTestRepo(this.git);
         this.repoA = cloneRepo("a");
     }
 
@@ -66,7 +54,7 @@ public class GitStatusTest {
             FileUtils.delete(f);
         }
         String repo = f.getPath();
-        this.git.cloneRepo(MASTER, repo);
+        this.git.cloneRepo(RepoUtil.MASTER, repo);
         return repo;
     }
 
