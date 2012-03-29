@@ -1,7 +1,7 @@
 Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
 Bundle-Name: Git
-Bundle-SymbolicName: com.dynamo.cr.dgit
+Bundle-SymbolicName: com.dynamo.cr.dgit;singleton:=true
 Bundle-Version: 1.0.0.qualifier
 Bundle-Vendor: DYNAMO
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
@@ -40,10 +40,14 @@ Export-Package: com.dynamo.server.dgit;uses:="com.dynamo.cr.protocol.proto,org.s
  org.eclipse.jgit.treewalk.filter,
  org.eclipse.jgit.util,
  org.eclipse.jgit.util.io
-Require-Bundle: com.dynamo.cr.common;bundle-version="1.0.0",
+Require-Bundle: org.eclipse.core.runtime;bundle-version="3.7.0",
+ com.dynamo.cr.common;bundle-version="1.0.0",
  com.google.common;bundle-version="0.0.9",
  javax.servlet;bundle-version="2.5.0"
 Bundle-ClassPath: .,
  lib/jsch-0.1.44-1.jar,
  lib/org.eclipse.jgit-1.2.0.201112221803-r.jar,
  lib/org.eclipse.jgit.http.server-1.2.0.201112221803-r.jar
+Bundle-ActivationPolicy: lazy
+Bundle-Activator: com.dynamo.server.dgit.DGit
+Eclipse-BundleShape: dir

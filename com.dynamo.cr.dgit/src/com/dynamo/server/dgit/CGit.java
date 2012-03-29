@@ -53,6 +53,10 @@ public class CGit implements IGit {
     }
 
     static CommandUtil.Result execGitCommand(String working_dir, String... command) throws IOException {
+        // Prepend git path
+        String gitDir = DGit.getDefault().getGitDir();
+        command[0] = gitDir + command[0];
+        // execute
         return CommandUtil.execCommand(working_dir, null, command);
     }
 
@@ -117,11 +121,11 @@ public class CGit implements IGit {
         r = execGitCommand(directory, "git", "repo-config", "core.sharedRepository", "group");
         checkResult(r);
 
-        r = execGitCommand(null, "chmod", "-R", "g+ws", directory);
+        r = CommandUtil.execCommand(new String[] {"chmod", "-R", "g+ws", directory});
         checkResult(r);
 
         if (group != null) {
-            r = execGitCommand(null, "chgrp", "-R", group, directory);
+            r = CommandUtil.execCommand(new String[] {"chgrp", "-R", group, directory});
             checkResult(r);
         }
     }
@@ -412,11 +416,11 @@ public class CGit implements IGit {
         r = execGitCommand(path, "git", "repo-config", "core.sharedRepository", "group");
         checkResult(r);
 
-        r = execGitCommand(null, "chmod", "-R", "g+ws", path);
+        r = CommandUtil.execCommand(new String[] {"chmod", "-R", "g+ws", path});
         checkResult(r);
 
         if (group != null) {
-            r = execGitCommand(null, "chgrp", "-R", group, path);
+            r = CommandUtil.execCommand(new String[] {"chgrp", "-R", group, path});
             checkResult(r);
         }
     }
