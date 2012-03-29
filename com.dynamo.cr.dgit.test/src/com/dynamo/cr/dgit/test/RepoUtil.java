@@ -21,7 +21,17 @@ public class RepoUtil {
             for (String f : files) {
                 File file = new File(tmp, f);
                 if (f.contains("repo") && file.isDirectory()) {
-                    FileUtils.deleteDirectory(file);
+                    try {
+                        FileUtils.deleteDirectory(file);
+                    } catch (IOException e) {
+                        // Fix for unknown lock-delay on windows (not anti-virus)
+                        try {
+                            Thread.sleep(1000);
+                        } catch (InterruptedException e2) {
+
+                        }
+                        FileUtils.deleteDirectory(file);
+                    }
                 }
             }
         }

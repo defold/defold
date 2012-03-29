@@ -40,7 +40,7 @@ public class DGit extends Plugin {
         }
     }
 
-    private static String getPlatform() {
+    public static String getPlatform() {
         String os_name = System.getProperty("os.name").toLowerCase();
 
         if (os_name.indexOf("win") != -1)

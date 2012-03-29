@@ -416,18 +416,26 @@ public class CGit implements IGit {
         r = execGitCommand(path, "git", "repo-config", "core.sharedRepository", "group");
         checkResult(r);
 
-        r = CommandUtil.execCommand(new String[] {"chmod", "-R", "g+ws", path});
-        checkResult(r);
-
-        if (group != null) {
-            r = CommandUtil.execCommand(new String[] {"chgrp", "-R", group, path});
+        String platform = DGit.getPlatform();
+        if (!platform.equals("win32")) {
+            r = CommandUtil.execCommand(new String[] {"chmod", "-R", "g+ws", path});
             checkResult(r);
+
+            if (group != null) {
+                r = CommandUtil.execCommand(new String[] {"chgrp", "-R", group, path});
+                checkResult(r);
+            }
         }
     }
 
     @Override
     public void rmRepo(String path) throws IOException {
-        Result r = CommandUtil.execCommand(new String[] {"rm", "-rf", path});
+        Result r;
+        if (DGit.getPlatform().equals("win32")) {
+            r = execGitCommand(null, "rm", "-rf", path);
+        } else {
+            r = CommandUtil.execCommand(new String[] {"rm", "-rf", path});
+        }
         checkResult(r);
     }
 
@@ -440,15 +448,14 @@ public class CGit implements IGit {
 
     @Override
     public Log log(String directory, int maxCount) throws IOException {
-        Result r = execGitCommand(directory, "git", "log", "--pretty=format:%H%x00%cn%x00%ce%x00%ci%x00%s");
+        Result r = execGitCommand(directory, "git", "log", "--pretty=format:%H%x1F%cn%x1F%ce%x1F%ci%x1F%s");
         checkResult(r);
         Log.Builder logBuilder = Log.newBuilder();
         BufferedReader reader = new BufferedReader(new StringReader(r.stdOut.toString()));
         String line;
         int index = 0;
         while (index < maxCount && (line = reader.readLine()) != null) {
-            line = line.trim();
-            String[] tokens = line.split("\0");
+            String[] tokens = line.split("\\x1F");
             String id = tokens[0];
             String name = tokens[1];
             String email = tokens[2];
