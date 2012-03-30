@@ -21,6 +21,14 @@ public class DGit extends Plugin {
     public void start(BundleContext context) throws Exception {
         super.start(context);
         plugin = this;
+        if (!getPlatform().equals("win32")) {
+            File gitDir = new File(getGitDir());
+            String[] bins = {"git", "git-merge", "git-pull", "git-receive-pack", "git-upload-pack"};
+            for (String bin : bins) {
+                File f = new File(gitDir, bin);
+                Runtime.getRuntime().exec("chmod +x " + f.getPath());
+            }
+        }
     }
 
     @Override
