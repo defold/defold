@@ -57,7 +57,8 @@ public class LocalBranchClient implements IBranchClient {
                                                      /* TODO */ null,
                                                      patterns,
                                                      userInfo,
-                                                     password);
+                                                     password,
+                                                     repositoryRootUrl.getHost());
     }
 
     @Override

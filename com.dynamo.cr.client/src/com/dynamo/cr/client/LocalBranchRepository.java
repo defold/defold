@@ -11,8 +11,8 @@ public class LocalBranchRepository extends BranchRepository {
     private UserInfo userInfo;
 
     public LocalBranchRepository(String branchRoot, String repositoryRoot,
-            String builtinsDirectory, Pattern[] filterPatterns, UserInfo userInfo, String password) {
-        super(GitFactory.Type.JGIT, branchRoot, repositoryRoot, builtinsDirectory, filterPatterns, userInfo.getEmail(), password);
+            String builtinsDirectory, Pattern[] filterPatterns, UserInfo userInfo, String password, String repositoryHost) {
+        super(GitFactory.Type.CGIT, branchRoot, repositoryRoot, builtinsDirectory, filterPatterns, userInfo.getEmail(), password, repositoryHost);
         this.userInfo = userInfo;
     }
 

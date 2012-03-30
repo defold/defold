@@ -1,5 +1,6 @@
 package com.dynamo.server.dgit;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 
@@ -38,6 +39,21 @@ public class DGit extends Plugin {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public static File getNetRC() {
+        String userHome = System.getProperty("user.home");
+        File defoldDir = new File(userHome, ".defold");
+        if (!defoldDir.exists()) {
+            defoldDir.mkdir();
+        }
+        File netRC;
+        if (getPlatform().equals("win32")) {
+            netRC = new File(defoldDir, "_netrc");
+        } else {
+            netRC = new File(defoldDir, ".netrc");
+        }
+        return netRC;
     }
 
     public static String getPlatform() {

@@ -855,4 +855,8 @@ public class JGit implements IGit, TransportConfigCallback {
         this.passWord = passWord;
     }
 
+    @Override
+    public void setHost(String host) {
+        throw new RuntimeException("Not implemented.");
+    }
 }

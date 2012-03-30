@@ -17,7 +17,6 @@ import javax.ws.rs.core.UriBuilder;
 
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.node.ObjectNode;
-import org.eclipse.jgit.api.errors.JGitInternalException;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -33,6 +32,7 @@ import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.model.User.Role;
 import com.dynamo.server.dgit.CommandUtil;
+import com.dynamo.server.dgit.GitException;
 import com.dynamo.server.dgit.GitFactory;
 import com.dynamo.server.dgit.IGit;
 import com.google.common.io.Files;
@@ -451,16 +451,18 @@ public class ProjectsResourceTest extends AbstractResourceTest {
     }
 
     private static IGit httpAuthGit(TestUser testUser) {
-        IGit git = GitFactory.create(GitFactory.Type.JGIT);
+        IGit git = GitFactory.create(GitFactory.Type.CGIT);
         git.setUsername(testUser.email);
         git.setPassword(testUser.password);
+        git.setHost("localhost");
         return git;
     }
 
     private static IGit openIDGit(TestUser testUser) {
-        IGit git = GitFactory.create(GitFactory.Type.JGIT);
+        IGit git = GitFactory.create(GitFactory.Type.CGIT);
         git.setUsername(testUser.email);
         git.setPassword(AuthCookie.login(testUser.email));
+        git.setHost("localhost");
         return git;
     }
 
@@ -490,15 +492,13 @@ public class ProjectsResourceTest extends AbstractResourceTest {
         cloneRepoOpenID(joe, projectInfo);
     }
 
-    // NOTE: HTTP FORBIDDEN results in JGitInternalException. This might (hopefully)
-    // in newer versions of JGit. Same in next test below
-    @Test(expected=JGitInternalException.class)
+    @Test(expected=GitException.class)
     public void cloneHTTPBasicAuthAccessDenied() throws Exception {
         ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
         cloneRepoHttpAuth(bob, projectInfo);
     }
 
-    @Test(expected=JGitInternalException.class)
+    @Test(expected=GitException.class)
     public void cloneOpenIDAccessDenied() throws Exception {
         ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
         cloneRepoOpenID(bob, projectInfo);
