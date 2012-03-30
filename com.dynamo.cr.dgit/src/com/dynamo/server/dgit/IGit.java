@@ -211,6 +211,8 @@ public interface IGit {
 
     void setPassword(String passWord);
 
+    void setHost(String host);
+
     void config(String directory, String key, String value) throws IOException;
 
 }

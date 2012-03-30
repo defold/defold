@@ -3,6 +3,7 @@ package com.dynamo.server.dgit;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,10 +23,19 @@ public class CommandUtil {
         public void onStdOut(StringBuffer buffer);
     }
 
-    public static Result execCommand(String working_dir, IListener listener, String[] command) throws IOException {
+    public static Result execCommand(String workingDir, IListener listener, String[] command) throws IOException {
+        return execCommand(workingDir, listener, command, null);
+    }
+
+    public static Result execCommand(String workingDir, IListener listener, String[] command, Map<String, String> env) throws IOException {
         ProcessBuilder pb = new ProcessBuilder(command);
-        if (working_dir != null)
-            pb.directory(new File(working_dir));
+        if (workingDir != null)
+            pb.directory(new File(workingDir));
+
+        if (env != null) {
+            Map<String, String> environment = pb.environment();
+            environment.putAll(env);
+        }
 
         Process p = pb.start();
         InputStream std = p.getInputStream();

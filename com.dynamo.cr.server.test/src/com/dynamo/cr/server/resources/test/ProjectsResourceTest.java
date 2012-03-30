@@ -451,16 +451,18 @@ public class ProjectsResourceTest extends AbstractResourceTest {
     }
 
     private static IGit httpAuthGit(TestUser testUser) {
-        IGit git = GitFactory.create(GitFactory.Type.JGIT);
+        IGit git = GitFactory.create(GitFactory.Type.CGIT);
         git.setUsername(testUser.email);
         git.setPassword(testUser.password);
+        git.setHost("localhost");
         return git;
     }
 
     private static IGit openIDGit(TestUser testUser) {
-        IGit git = GitFactory.create(GitFactory.Type.JGIT);
+        IGit git = GitFactory.create(GitFactory.Type.CGIT);
         git.setUsername(testUser.email);
         git.setPassword(AuthCookie.login(testUser.email));
+        git.setHost("localhost");
         return git;
     }
 

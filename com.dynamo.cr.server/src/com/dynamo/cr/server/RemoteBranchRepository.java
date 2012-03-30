@@ -14,7 +14,7 @@ public class RemoteBranchRepository extends BranchRepository {
 
     public RemoteBranchRepository(Server server, String branchRoot, String repositoryRoot,
             String builtinsDirectory, Pattern[] filterPatterns) {
-        super(GitFactory.Type.CGIT, branchRoot, repositoryRoot, builtinsDirectory, filterPatterns, null, null);
+        super(GitFactory.Type.CGIT, branchRoot, repositoryRoot, builtinsDirectory, filterPatterns, null, null, null);
         this.server = server;
     }
 

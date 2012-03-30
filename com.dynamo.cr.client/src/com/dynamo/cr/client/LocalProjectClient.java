@@ -49,7 +49,8 @@ public class LocalProjectClient implements IProjectClient {
                                                      /* TODO */ null,
                                                      /* TODO */ new Pattern[0],
                                                      userInfo,
-                                                     password);
+                                                     password,
+                                                     repositoryRootUrl.getHost());
     }
 
     @Override

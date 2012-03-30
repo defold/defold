@@ -44,8 +44,8 @@ public abstract class BranchRepository {
     private AtomicInteger resourceInfoRequests = new AtomicInteger();
 
     private String email;
-
     private String password;
+    private String host;
 
     public BranchRepository(GitFactory.Type gitType,
                             String branchRoot,
@@ -53,7 +53,8 @@ public abstract class BranchRepository {
                             String builtinsDirectory,
                             Pattern[] filterPatterns,
                             String email,
-                            String password) {
+                            String password,
+                            String repositoryHost) {
         this.gitType = gitType;
         this.branchRoot = branchRoot;
         this.repositoryRoot = repositoryRoot;
@@ -61,6 +62,7 @@ public abstract class BranchRepository {
         this.filterPatterns = filterPatterns;
         this.email = email;
         this.password = password;
+        this.host = repositoryHost;
     }
 
     public int getResourceDataRequests() {
@@ -95,6 +97,7 @@ public abstract class BranchRepository {
         if (email != null && password != null) {
             git.setUsername(email);
             git.setPassword(password);
+            git.setHost(host);
         }
         return git;
     }

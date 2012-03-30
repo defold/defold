@@ -3,11 +3,14 @@ package com.dynamo.server.dgit;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.regex.Matcher;
@@ -23,6 +26,10 @@ import com.dynamo.server.dgit.CommandUtil.Result;
 import com.dynamo.server.dgit.GitStatus.Entry;
 
 public class CGit implements IGit {
+
+    private String username;
+    private String password;
+    private String host;
 
     protected static Logger logger = LoggerFactory.getLogger(CGit.class);
 
@@ -52,13 +59,40 @@ public class CGit implements IGit {
         }
     }
 
-    static CommandUtil.Result execGitCommand(String working_dir, String... command) throws IOException {
+    private void updateNetRC(File netRC) throws IOException {
+        FileWriter fw = null;
+        try {
+            fw = new FileWriter(netRC);
+            fw.write(String.format("machine %s login %s password %s", this.host, this.username, this.password));
+        } catch (IOException e) {
+            throw e;
+        } finally {
+            if (fw != null) {
+                fw.close();
+            }
+        }
+    }
+
+    private CommandUtil.Result execGitCommand(String working_dir, String... command) throws IOException {
+        Map<String, String> env = new HashMap<String, String>();
+        // fix netrc file
+        if (this.host != null) {
+            File netRC = DGit.getNetRC();
+            updateNetRC(netRC);
+            // Redirect home in env
+            if (DGit.getPlatform().equals("win32")) {
+                env.put("USERPROFILE", netRC.getParent());
+            } else {
+                env.put("HOME", netRC.getParent());
+            }
+        }
         // Prepend git path
         String gitDir = DGit.getDefault().getGitDir();
         command[0] = gitDir + command[0];
         // execute
-        return CommandUtil.execCommand(working_dir, null, command);
+        return CommandUtil.execCommand(working_dir, null, command, env);
     }
+
 
     static void checkResult(CommandUtil.Result r) throws GitException {
         checkResult(r, 0);
@@ -485,11 +519,16 @@ public class CGit implements IGit {
 
     @Override
     public void setUsername(String userName) {
-        throw new RuntimeException("Not implemented.");
+        this.username = userName;
     }
 
     @Override
     public void setPassword(String passWord) {
-        throw new RuntimeException("Not implemented.");
+        this.password = passWord;
+    }
+
+    @Override
+    public void setHost(String host) {
+        this.host = host;
     }
 }
