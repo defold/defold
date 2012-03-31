@@ -86,10 +86,13 @@ public class CGit implements IGit {
                 env.put("HOME", netRC.getParent());
             }
         }
-        // Prepend git path
+
         String gitDir = DGit.getDefault().getGitDir();
-        command[0] = gitDir + command[0];
-        // execute
+        String gitBinDir = String.format("%s/bin/", gitDir);
+        String gitExecPath = String.format(gitDir + "/libexec/git-core");
+        env.put("GIT_EXEC_PATH", gitExecPath);
+        // Prepend git path
+        command[0] = gitBinDir + command[0];
         return CommandUtil.execCommand(working_dir, null, command, env);
     }
 

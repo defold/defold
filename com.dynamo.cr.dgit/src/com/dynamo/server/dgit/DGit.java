@@ -39,7 +39,7 @@ public class DGit extends Plugin {
 
     public String getGitDir() {
         String platform = DGit.getPlatform();
-        URL bundleUrl = getBundle().getEntry("/git/" + platform + "/bin/");
+        URL bundleUrl = getBundle().getEntry("/git/" + platform);
         URL fileUrl;
         try {
             fileUrl = FileLocator.toFileURL(bundleUrl);
