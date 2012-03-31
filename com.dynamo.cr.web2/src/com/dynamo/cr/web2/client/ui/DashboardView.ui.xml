@@ -21,19 +21,22 @@
         <table style="width: 100%;">
 	        <tr>
 	            <td width="55%">
-		            <g:Image ui:field="gravatar" styleName="{style.image}" url="http://www.gravatar.com/avatar/123?s=64"></g:Image>
-		            <div>
-		              Profile picture from <a href="http://gravatar.com" target="_blank">gravatar.com</a>
-		            </div>
-		            <p>
-			            <h3>
-				            <span ui:field="firstName"></span>
-				            <span ui:field="lastName"></span>
-				            (<span ui:field="email"></span>)
-			            </h3>
-		            </p>
+                    <h2>
+                        <span ui:field="firstName"></span>
+                        <span ui:field="lastName"></span>
+                    </h2>
+                    <div class="box boxHighlight">
+                        <g:Image ui:field="gravatar" styleName="{style.image}" url="http://www.gravatar.com/avatar/123?s=64"></g:Image>
+                        <div>
+                          Profile picture from <a href="http://gravatar.com" target="_blank">gravatar.com</a>
+                        </div>
+                    </div>
+                    <p>
+                        <h3>
+                        </h3>
+                    </p>
                     <h2>New here?</h2>
-                    <p>Go <a href="#guide:introduction">here</a> for an introduction.</p>
+                    <div class="box boxHighlight">Go <a href="#guide:introduction">here</a> for an introduction.</div>
                     <p2:InvitationBox ui:field="invitationBox"></p2:InvitationBox>
                     <p2:DownloadBox></p2:DownloadBox>
 		        </td>

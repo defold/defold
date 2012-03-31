@@ -39,7 +39,6 @@ public class DashboardView extends Composite {
     @UiField Image gravatar;
     @UiField SpanElement firstName;
     @UiField SpanElement lastName;
-    @UiField SpanElement email;
     @UiField InvitationBox invitationBox;
 
     interface DashboardUiBinder extends UiBinder<Widget, DashboardView> {
@@ -94,6 +93,5 @@ public class DashboardView extends Composite {
     public void setName(String firstName, String lastName, String email) {
         this.firstName.setInnerText(firstName);
         this.lastName.setInnerText(lastName);
-        this.email.setInnerText(email);
     }
 }
