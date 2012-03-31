@@ -1,4 +1,8 @@
 #!/bin/sh
+
+# NOTE: On Linux at least libcurl4-openssl-dev and gettext packages are required apart from gcc etc
+# Probably some other dev packages as well
+
 set -e
 VERSION=1.7.9.5
 
