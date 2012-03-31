@@ -27,7 +27,6 @@ public class DGit extends Plugin {
 
             for (File d : new File[] {binDir, libExecDir}) {
                 for (File f : d.listFiles()) {
-                    System.out.println(f);
                     Runtime.getRuntime().exec("chmod +x " + f.getPath());
                 }
             }
