@@ -80,17 +80,15 @@ public class CGit implements IGit {
             File netRC = DGit.getNetRC();
             updateNetRC(netRC);
             // Redirect home in env
-            if (DGit.getPlatform().equals("win32")) {
-                env.put("USERPROFILE", netRC.getParent());
-            } else {
-                env.put("HOME", netRC.getParent());
-            }
+            env.put("HOME", netRC.getParent());
         }
 
         String gitDir = DGit.getDefault().getGitDir();
         String gitBinDir = String.format("%s/bin/", gitDir);
         String gitExecPath = String.format(gitDir + "/libexec/git-core");
-        env.put("GIT_EXEC_PATH", gitExecPath);
+        if (!DGit.getPlatform().equals("win32")) {
+            env.put("GIT_EXEC_PATH", gitExecPath);
+        }
         // Prepend git path
         command[0] = gitBinDir + command[0];
         return CommandUtil.execCommand(working_dir, null, command, env);
