@@ -290,8 +290,8 @@ public class Defold implements EntryPoint {
         nowLong = nowLong + (1000 * 60 * 60 * 24 * 7);
         expires.setTime(nowLong);
 
-        Cookies.setCookie("first_name", firstName);
-        Cookies.setCookie("last_name", lastName);
+        Cookies.setCookie("first_name", firstName, expires);
+        Cookies.setCookie("last_name", lastName, expires);
         Cookies.setCookie("user_id", Integer.toString(userId), expires);
         Cookies.setCookie("email", email, expires);
         Cookies.setCookie("auth", authCookie, expires);
