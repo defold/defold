@@ -27,7 +27,7 @@ for x in git git-receive-pack git-upload-pack; do
     cp -v $GIT_DIR/bin/$x git/$PLATFORM/bin/
 done
 
-for x in git-pull git-sh-setup git-sh-i18n git-merge; do
+for x in git-pull git-sh-setup git-sh-i18n git-merge git-remote-http git-remote-https; do
     cp -v $GIT_DIR/libexec/git-core/$x git/$PLATFORM/libexec/git-core
 done
 
