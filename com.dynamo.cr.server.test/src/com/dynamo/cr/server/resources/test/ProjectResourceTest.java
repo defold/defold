@@ -831,7 +831,7 @@ public class ProjectResourceTest extends AbstractResourceTest {
         BuildDesc buildDesc = ownerBranchClient.build(true);
         BuildDesc status = ownerBranchClient.getBuildStatus(buildDesc.getId());
         assertEquals(BuildDesc.Activity.BUILDING, status.getBuildActivity());
-        Thread.sleep(700);
+        Thread.sleep(1000);
         status = ownerBranchClient.getBuildStatus(buildDesc.getId());
         assertEquals(BuildDesc.Activity.IDLE, status.getBuildActivity());
 
