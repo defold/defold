@@ -22,11 +22,14 @@ public class DGit extends Plugin {
         super.start(context);
         plugin = this;
         if (!getPlatform().equals("win32")) {
-            File gitDir = new File(getGitDir());
-            String[] bins = {"git", "git-merge", "git-pull", "git-receive-pack", "git-upload-pack"};
-            for (String bin : bins) {
-                File f = new File(gitDir, bin);
-                Runtime.getRuntime().exec("chmod +x " + f.getPath());
+            File binDir = new File(getGitDir() + "/bin");
+            File libExecDir = new File(getGitDir() + "/libexec/git-core");
+
+            for (File d : new File[] {binDir, libExecDir}) {
+                for (File f : d.listFiles()) {
+                    System.out.println(f);
+                    Runtime.getRuntime().exec("chmod +x " + f.getPath());
+                }
             }
         }
     }
