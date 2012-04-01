@@ -351,10 +351,11 @@ public class Server implements ServerMBean {
         logger.info("git base uri: {}", baseUri);
         httpServer.getServerConfiguration().addHttpHandler(gitHandler, baseUri);
 
+        /*
         if (!GitFactory.create(Type.CGIT).checkGitVersion()) {
             // TODO: Hmm, exception...
             throw new RuntimeException("Invalid version of git or not found");
-        }
+        }*/
 
         if (configuration.getDataServerEnabled() != 0) {
             initDataServer();
