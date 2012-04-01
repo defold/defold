@@ -5,9 +5,9 @@ The Defold Story
 
 Why are games so hard to make?
 
-Three years ago we wanted to go indie and make our own games, low-scale and simple productions.
+During the spring of 2009 we wanted to go indie and make our own games, low-scale and simple productions.
 We come from a background of making big-budget AAA titles and scanned the field for suitable engines to use.
-As none of the options conformed to our standards of what game development should be like, we decided to make our own.
+As none of the options met our expectations of what game development should be like, we decided to make our own.
 Like most programmers, we thought we could do this and better than anything else on the market in almost no time at all.
 We thought a couple of months would be enough.
 
