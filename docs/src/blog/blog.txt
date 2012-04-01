@@ -1,5 +1,32 @@
 :max-width: 45em
 
+Update: Alpha!
+--------------
+_April 1, 2012_
+
+After lots of work and late nights, we have finally arrived at the alpha stage.
+Although there is plenty more to add and fix, Defold is now functional to use for game development.
+
+Big thanks to everyone who helped us get here!
+
+Alpha and Beta Access
+~~~~~~~~~~~~~~~~~~~~~
+
+You, our beloved pre-alpha Defolders, have been given five invitations each.
+You can use them in the dashboard to invite your friends.
+Each invited person will be given less invitations to hand out and the whole system gracefully limits itself.
+There's always a chance of receiving more invitations by contacting us.
+
+Invited people can set up a free account immediately.
+We have also provided an open application for beta access on the front page.
+Once we reach the beta phase, we will start to draw from this queue as our capacity grows.
+
+We will close down the old top-secret communication channels and urge you all to start using the feedback button to the left on the web site instead.
+
+Onwards and upwards!
+
+/Team Defold
+
 Update: Invitations & Beta Registration
 ---------------------------------------
 _March 26, 2012_
