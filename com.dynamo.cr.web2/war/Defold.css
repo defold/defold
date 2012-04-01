@@ -172,6 +172,44 @@ div.frontBox > h1 {
 	margin-bottom: 38px;
 }
 
+/* usp */
+
+div.uspContainer {
+    padding: 40px;
+    border: 1px solid #D2D3D4;
+    background: #FBFCFD;
+    border-radius: 6px;
+    margin-top: 42px;
+    margin-left: 32px;
+    margin-right: 32px;
+}
+
+div.usp {
+	width: 300px;
+    padding-left: 40px;
+    padding-right: 40px;
+    margin: 20px;
+}
+
+div.usp ul {
+    list-style: none;
+    padding: 0px;
+    margin: 0px;
+    margin-top: 16px;
+}
+
+div.usp ul > li {
+    list-style-image: url("/images/bullet.png");
+    line-height: 1.5em;
+    font-size: 16px;
+    padding: 0 0 0 10px;
+}
+
+div.usp h3 {
+	font-size: 26px;
+	line-height: 1.3em;
+}
+
 /* checklist */
 
 ul.check {
