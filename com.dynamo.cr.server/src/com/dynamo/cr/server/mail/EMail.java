@@ -25,12 +25,14 @@ public class EMail implements Serializable {
     }
 
     public static EMail format(EMailTemplate template, String to, Map<String, String> params) {
+        String subject = template.getSubject();
         String msg = template.getMessage();
         for (Entry<String, String> e : params.entrySet()) {
             String key = String.format("${%s}", e.getKey());
             msg = msg.replace(key, e.getValue());
+            subject = subject.replace(key, e.getValue());
         }
-        return new EMail(template.getFrom(), to, template.getSubject(), msg);
+        return new EMail(template.getFrom(), to, subject, msg);
     }
 
     public String getSubject() {
