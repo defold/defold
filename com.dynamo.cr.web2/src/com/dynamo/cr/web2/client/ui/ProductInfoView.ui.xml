@@ -11,20 +11,33 @@
 		}
 
 		.registerEmail {
-			width: 17em;
+			width: 24em;
 		}
 	</ui:style>
 	<g:HTMLPanel>
 
         <h1
             style="color: black; text-align: center; font-size: 65px; margin-bottom: 42px; margin-top: 30px">Create Games Like A Pro</h1>
+
         <h3
             style="text-align: center; line-height: 1.5em; font-style: italic;">Defold is everything you need to create high-quality shippable
             2D games with your friends.</h3>
 
-		<div style="text-align: center; margin-top: 20px;">
+		<div style="text-align: center; margin-top: 20px; margin-bottom: 20px;">
 			<img src="/images/front_page_image.png"></img>
 		</div>
+
+        <div class="testamonial">
+        <h1>
+
+        The Defold engine and tools are built on powerful and simple concepts that are fun to use because they work *with* me and allows me to focus on my game's specific design problems. It clearly shows that the Defold developers has put their long industry experience and massive design and implementation effort into creating a great, unique platform.
+        </h1>
+
+        <h2>
+        Mikael Säker <br/>
+        (Battlefield 3, The Darkness, The Chronicles of Riddick)
+        </h2>
+        </div>
 
 		<div class="uspContainer">
 
@@ -83,8 +96,7 @@
 
 		<div style="width: 914px; margin-top: 60px; text-align: center;">
 			<h1
-				style="color: black; font-size: 50px; width: 100%; margin-bottom: 42px;">Interested?</h1>
-			<h2 style="width: 100%;">Register for the beta phase!</h2>
+				style="color: black; font-size: 50px; width: 100%; margin-bottom: 22px;">Interested?</h1>
 			<g:DeckPanel ui:field="registerDeck">
 				<g:HTMLPanel>
 					<g:TextBox styleName="{style.registerEmail}" ui:field="registerEmail"></g:TextBox>
