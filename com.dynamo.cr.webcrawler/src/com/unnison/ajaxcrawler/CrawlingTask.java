@@ -91,12 +91,14 @@ public class CrawlingTask extends HttpServlet {
         HashSet<String> hrefs = new HashSet<String>();
         for (HtmlAnchor a : anchors) {
             String href = a.getHrefAttribute();
+            // NOTE: Defold change
+            // We don't have true google style hash-bang ajax url:s yet
+            // We changed from #! to #
             if (href.startsWith("#")) {
                 hrefs.add(href);
             }
         }
 
-        System.out.println(hrefs);
 
         for (String href : hrefs) {
             Key placeKey = Datastore.createKey(hostKey, HostPlace.class, baseUrl + href);
@@ -110,9 +112,14 @@ public class CrawlingTask extends HttpServlet {
                 // We put the place with the current date as lastFetch so another task wont try to fetch it
                 place.setLastFetch(new Date());
                 places.add(place);
-                System.out.println("Adding: " + href);
 
-                queues.add(url("/crawlingtask").param("url", baseUrl + href));
+                if (href.indexOf('/') == -1) {
+                    // NOTE: Defold change
+                    // Fragments with slashes resulted in invalid url
+                    // We skip these, eg #/, #reference:engine/exit etc
+                    // We should perhaps not use slashes in fragments?
+                    queues.add(url("/crawlingtask").param("url", baseUrl + "/" + href));
+                }
 
                 if (queues.size() == 10) {
                     System.out.println("Adding 10 tasks");
