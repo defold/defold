@@ -71,8 +71,6 @@ def build(bld):
             for dir in dirs:
                 bld.install_files('${PREFIX}/share/doc/images/%s' % (os.path.join(os.path.relpath(root, img_dir), dir)), os.path.join(root, dir, img_pattern))
 
-    bld.install_files('${PREFIX}/share/doc/mails', 'src/mails/*.mail')
-
 GAME_PROJECT = """
 [project]
 title = %(title)s
