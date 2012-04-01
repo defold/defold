@@ -338,7 +338,12 @@ public class Defold implements EntryPoint {
 
     @UiHandler("logout")
     void onLogoutClick(ClickEvent event) {
+        Cookies.removeCookie("first_name");
+        Cookies.removeCookie("last_name");
+        Cookies.removeCookie("user_id");
+        Cookies.removeCookie("email");
         Cookies.removeCookie("auth");
+        Cookies.removeCookie("registration_key");
         logout.setVisible(false);
         clientFactory.getPlaceController().goTo(new ProductInfoPlace());
     }
