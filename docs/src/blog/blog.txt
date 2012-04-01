@@ -1,5 +1,30 @@
 :max-width: 45em
 
+Mini-Update: Fix for Mac
+------------------------
+_April 1, 2012_
+
+We unfortunately shipped a serious bug with the alpha-release.
+It occurred for Mac-users when trying to save files in the editor (obscure error dialog).
+There is now a new version (1.1.1) available and it will be automatically installed the next time you start the editor.
+
+How could this happen?
+~~~~~~~~~~~~~~~~~~~~~~
+
+We use a version control system called _git_ for sharing the projects and hastily stripped and bundled this during the week for the alpha release.
+The problem was that we packaged it on a dev machine which had a non-standard setup of components.
+This caused missing dependencies for users with standard machines.
+
+How will this not happen again?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+We have a vanilla mac which we will make as vanilla as possible and will test all further versions on there before releasing.
+We are still learning when it comes to deploying multi-platform and this was something we had missed.
+
+Sorry for the hassle!
+
+/Team Defold
+
 Update: Alpha!
 --------------
 _April 1, 2012_
