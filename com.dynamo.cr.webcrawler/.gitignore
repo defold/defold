@@ -4,9 +4,7 @@ war/WEB-INF/classes
 war/WEB-INF/lib/*.jar
 war/WEB-INF/appengine-generated
 war/defold/
-war/doc/*.json
 war/site/
 war/images/
-test-classes/*
 gwt-unitCache/*
 

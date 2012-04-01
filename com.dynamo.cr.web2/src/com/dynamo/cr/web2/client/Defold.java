@@ -70,7 +70,7 @@ public class Defold implements EntryPoint {
 
     private com.google.gwt.dom.client.Element prevActiveNavElement;
 
-    private AppPlaceHistoryMapper historyMapper;
+    private PlaceHistoryMapper historyMapper;
 
     interface DefoldUiBinder extends UiBinder<HTMLPanel, Defold> {
     }
@@ -222,7 +222,7 @@ public class Defold implements EntryPoint {
         activityManager.setDisplay(panel);
 
         // Start PlaceHistoryHandler with our PlaceHistoryMapper
-        historyMapper = GWT.create(AppPlaceHistoryMapper.class);
+        historyMapper = new FilterPlaceHistoryMapper((PlaceHistoryMapper) GWT.create(AppPlaceHistoryMapper.class));
         // NOTE: We must add this early in order to catch "first page"
         eventBus.addHandler(PlaceChangeEvent.TYPE, new NavigationHandler());
 

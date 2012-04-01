@@ -2,4 +2,4 @@
 mkdir -p war/doc
 cp -v $DYNAMO_HOME/share/doc/*doc*.json war/doc
 cp -v $DYNAMO_HOME/share/doc/*.html war/site
-cp -v -r -u $DYNAMO_HOME/share/doc/images war
+cp -v -r $DYNAMO_HOME/share/doc/images war
