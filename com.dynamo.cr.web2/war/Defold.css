@@ -6,6 +6,7 @@
     height: 110px;
 }
 
+
 /* named to defoldFootar in order to avoid nameclash with asciidoc */
 #defoldFooter {
     background-color: #2D2E2F;
@@ -98,6 +99,10 @@ a {
     font-weight: 500;
 }
 
+a img {
+	border: none;
+}
+
 tr {
     vertical-align: top;
 }
@@ -110,12 +115,30 @@ pre {
 	overflow: auto;
 }
 
-/* boxes */
 
+div.testamonial {
+	width: 500px;
+	margin: 0 auto;
+}
+
+div.testamonial h1 {
+    font-size: 16px;
+    font-style: italic;
+    line-height: 1.5em;
+    margin: 0 auto;
+}
+
+div.testamonial h2 {
+    font-size: 14px;
+    font-weight: 500;
+    font-style: italic;
+}
+
+/* boxes */
 div.box {
     width: 255px;
     padding: 15px;
-    margin: 0px 50px 15px 0px;
+    margin: 0px 20px 15px 0px;
     border: 1px solid #D2D3D4;
     background: #FBFCFD;
     border-radius: 6px;

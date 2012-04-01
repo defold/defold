@@ -17,7 +17,7 @@ import com.google.gwt.user.client.ui.Widget;
 
 public class ProductInfoView extends Composite implements KeyPressHandler {
 
-    private static final String REGISTER_BOX_BLUR = "enter your email";
+    private static final String REGISTER_BOX_BLUR = "enter your email for beta access";
 
     private static final Binder binder = GWT.create(Binder.class);
 

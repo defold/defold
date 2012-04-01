@@ -12,7 +12,7 @@
     <g:FlowPanel>
         <g:HTMLPanel>
             <h1>Documentation</h1>
-            <table>
+            <table width="100%">
 	            <tr>
 		            <td>
                         <div class="box">
