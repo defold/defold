@@ -10,7 +10,7 @@ TEXTDOMAIN=git
 export TEXTDOMAIN
 if test -z "$GIT_TEXTDOMAINDIR"
 then
-	TEXTDOMAINDIR="/Users/chmu/Projects/dynamo/com.dynamo.cr/com.dynamo.cr.dgit/tmp/build/share/locale"
+	TEXTDOMAINDIR="/Users/builder/dynamo/com.dynamo.cr/com.dynamo.cr.dgit/tmp/build/share/locale"
 else
 	TEXTDOMAINDIR="$GIT_TEXTDOMAINDIR"
 fi
