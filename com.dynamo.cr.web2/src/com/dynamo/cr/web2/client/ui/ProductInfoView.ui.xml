@@ -1,92 +1,101 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE ui:UiBinder SYSTEM "http://dl.google.com/gwt/DTD/xhtml.ent">
 <ui:UiBinder xmlns:ui='urn:ui:com.google.gwt.uibinder'
-    xmlns:g='urn:import:com.google.gwt.user.client.ui'>
+	xmlns:g='urn:import:com.google.gwt.user.client.ui'>
 
-    <ui:style>
-        .buttonPanel {
-	       text-align: center;
-	       clear: both;
-	       margin-top: 8px;
-        }
-        .registerEmail {
-            width: 17em;
-        }
-    </ui:style>
-    <g:HTMLPanel>
+	<ui:style>
+		.buttonPanel {
+			text-align: center;
+			clear: both;
+			margin-top: 8px;
+		}
 
-        <h1 style="text-align: center; width: 914px; font-size: 50px; margin-bottom: 42px; padding-top: 20px">Games For Real!</h1>
-        <div style="width: 928px;">
-            <g:DeckPanel ui:field="deck">
-                <g:HTMLPanel>
-                    <div style='width: 914px; height: 400px; background-image: url("/images/fabric.png");'>
-                            <img src="/images/turn-key.png" style="float: right; width: 400px; height: 340px; padding-top: 60px; "></img>
-                            <div class="frontBox">
-                            <h1>Turn-Key Solution</h1>
-                                <ul class="check">
-                                    <li><a href="#new_project:">Create</a> a project from templates</li>
-                                    <li><a href="http://cr.defold.com/downloads/cr-editor/1.0">Download</a> the Defold Editor</li>
-                                    <li>Start making games!</li>
-                                </ul>
-                            </div>
-                    </div>
-                </g:HTMLPanel>
-                <g:HTMLPanel>
-                    <div style='width: 914px; height: 400px; background-image: url("/images/fabric.png");'>
-                            <img src="/images/complete-env.png" style="float: right; width: 453px; height: 340px; padding-top: 30px; margin-right: 20px;"></img>
-                            <div class="frontBox">
-                            <h1>Complete</h1>
-                                <ul class="check">
-                                    <li>One application for everything</li>
-                                    <li>Features for professionals</li>
-                                    <li>Built-in content pipeline</li>
-                                </ul>
-                            </div>
-                    </div>
-                </g:HTMLPanel>
-                <g:HTMLPanel>
-                    <div style='width: 914px; height: 400px; background-image: url("/images/fabric.png");'>
-                            <img src="/images/collab.png" style="float: right; width: 400px; height: 320px; padding-top: 80px; "></img>
-                            <div class="frontBox">
-                            <h1>Collaboration</h1>
-                                <ul class="check">
-                                    <li>Online collaboration</li>
-                                    <li>Built-in version control</li>
-                                </ul>
-                            </div>
-                    </div>
+		.registerEmail {
+			width: 17em;
+		}
+	</ui:style>
+	<g:HTMLPanel>
 
-                </g:HTMLPanel>
-                <g:HTMLPanel>
-                    <div style='width: 914px; height: 400px; background-image: url("/images/fabric.png");'>
-                            <img src="/images/2d.png" style="float: right; width: 420px; height: 350px; padding-top: 50px;"></img>
-                            <div class="frontBox">
-                            <h1>2D Features</h1>
-                                <ul class="check">
-                                    <li>Tools tailored for 2D editing</li>
-                                    <li>Automatic physics contour</li>
-                                    <li>Tile based editing</li>
-                                    <li>Tile physics stitching</li>
-                                </ul>
-                            </div>
-                    </div>
-                </g:HTMLPanel>
-            </g:DeckPanel>
-            <g:FlowPanel styleName="{style.buttonPanel}"  ui:field="buttonPanel"></g:FlowPanel>
-        </div>
+        <h1
+            style="color: black; text-align: center; font-size: 65px; margin-bottom: 42px; margin-top: 30px">Create Games Like A Pro</h1>
+        <h3
+            style="text-align: center; line-height: 1.5em; font-style: italic;">Defold is everything you need to create high-quality shippable
+            2D games with your friends.</h3>
 
-        <div style="width: 914px; padding-top: 20px; text-align: center;">
-            <h1 style="font-size: 50px; width: 100%; margin-bottom: 42px;">Interested?</h1>
-            <h2 style="width: 100%;">Register for the beta phase!</h2>
-            <g:DeckPanel ui:field="registerDeck">
-                <g:HTMLPanel>
-                    <g:TextBox styleName="{style.registerEmail}" ui:field="registerEmail"></g:TextBox>
-                </g:HTMLPanel>
-                <g:HTMLPanel>
-                    Thank you! We will notify you as soon as there's a seat available.
-                </g:HTMLPanel>
-            </g:DeckPanel>
-        </div>
-        <div style="height: 50px;"></div>
-    </g:HTMLPanel>
+		<div style="text-align: center; margin-top: 20px;">
+			<img src="/images/front_page_image.png"></img>
+		</div>
+
+		<div class="uspContainer">
+
+			<table>
+				<tr>
+					<td width="100%">
+						<div class="usp">
+							<h3>Faster than lightning</h3>
+							<ul>
+								<li>Prototype, build, polish and iterate</li>
+								<li>Test your changes in the running game within seconds</li>
+								<li>iOS will be supported in beta, Android later</li>
+							</ul>
+						</div>
+					</td>
+
+					<td width="100%">
+						<div class="usp">
+							<h3>Collaboration included</h3>
+							<ul>
+								<li>Share your projects with your friends</li>
+								<li>Sync your changes with them through Defold - no IT or
+									servers required</li>
+							</ul>
+						</div>
+					</td>
+				</tr>
+
+				<tr>
+					<td width="100%">
+						<div class="usp">
+							<h3>Simple tools, complete power</h3>
+							<ul>
+								<li>Make tiled graphics and animated sprites with physics that
+									just work</li>
+								<li>Everything is scriptable - even the rendering pipeline!</li>
+							</ul>
+						</div>
+					</td>
+
+					<td width="100%">
+						<div class="usp">
+							<h3>We LOVE game dev</h3>
+							<ul>
+								<li>Features and fixes are released every few weeks, not years</li>
+								<li>Report an issue and we will fix it as soon as we can</li>
+								<li>Defold is made by senior professional game developers - we
+									would love to help you make your games shine!</li>
+								<li>We have a ton of exciting ideas yet to be implemented</li>
+							</ul>
+						</div>
+					</td>
+				</tr>
+			</table>
+		</div>
+
+		<div style="width: 914px; margin-top: 60px; text-align: center;">
+			<h1
+				style="color: black; font-size: 50px; width: 100%; margin-bottom: 42px;">Interested?</h1>
+			<h2 style="width: 100%;">Register for the beta phase!</h2>
+			<g:DeckPanel ui:field="registerDeck">
+				<g:HTMLPanel>
+					<g:TextBox styleName="{style.registerEmail}" ui:field="registerEmail"></g:TextBox>
+				</g:HTMLPanel>
+				<g:HTMLPanel>
+					Thank you! We will notify you as soon as there's a seat available.
+				</g:HTMLPanel>
+			</g:DeckPanel>
+		</div>
+
+
+		<div style="height: 50px;"></div>
+	</g:HTMLPanel>
 </ui:UiBinder>

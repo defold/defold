@@ -28,18 +28,6 @@
                                 <li><g:Hyperlink targetHistoryToken="guide:game_project">Project Settings</g:Hyperlink></li>
                             </ul>
                         </div>
-                        <div class="box">
-                            <h3>Reference</h3>
-                            Script function and message reference
-                            <ul>
-                                <li><g:Hyperlink targetHistoryToken="reference:engine">Engine</g:Hyperlink></li>
-                                <li><g:Hyperlink targetHistoryToken="reference:go">GameObject</g:Hyperlink></li>
-                                <li><g:Hyperlink targetHistoryToken="reference:gamesys">GameSys</g:Hyperlink></li>
-                                <li><g:Hyperlink targetHistoryToken="reference:render">Render</g:Hyperlink></li>
-                                <li><g:Hyperlink targetHistoryToken="reference:script">Script</g:Hyperlink></li>
-                                <li><g:Hyperlink targetHistoryToken="reference:gui">Gui</g:Hyperlink></li>
-                            </ul>
-                        </div>
 		            </td>
 
                     <td>
@@ -58,6 +46,20 @@
                                 <li><g:Hyperlink targetHistoryToken="script_sample:main_menu">Main Menu</g:Hyperlink></li>
                                 <li><g:Hyperlink targetHistoryToken="script_sample:parallax">Parallax</g:Hyperlink></li>
                                 <li><g:Hyperlink targetHistoryToken="script_sample:level_complete">Level Complete</g:Hyperlink></li>
+                            </ul>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="box">
+                            <h3>Reference</h3>
+                            Script function and message reference
+                            <ul>
+                                <li><g:Hyperlink targetHistoryToken="reference:engine">Engine</g:Hyperlink></li>
+                                <li><g:Hyperlink targetHistoryToken="reference:go">GameObject</g:Hyperlink></li>
+                                <li><g:Hyperlink targetHistoryToken="reference:gamesys">GameSys</g:Hyperlink></li>
+                                <li><g:Hyperlink targetHistoryToken="reference:render">Render</g:Hyperlink></li>
+                                <li><g:Hyperlink targetHistoryToken="reference:script">Script</g:Hyperlink></li>
+                                <li><g:Hyperlink targetHistoryToken="reference:gui">Gui</g:Hyperlink></li>
                             </ul>
                         </div>
                     </td>
