@@ -709,10 +709,13 @@ public class ProjectResourceTest extends AbstractResourceTest {
     }
 
     @Test
-    public void updateBranchMergeResolveTheirs() throws IOException, RepositoryException {
+    public void updateBranchMergeResolveTheirs() throws IOException, RepositoryException, InterruptedException {
         // Create branch
         ownerProjectClient.createBranch("branch1");
-
+        // TODO: Sleep here to avoid random failures on server
+        // The problem could be related to mtime
+        // See bug 825
+        Thread.sleep(1000);
         // Update resource
         ownerBranchClient.putResourceData("/content/file1.txt", "new file1 data".getBytes());
 
