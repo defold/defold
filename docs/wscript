@@ -106,7 +106,6 @@ def install_sample(bld, sample_dir):
 
     shutil.copytree(sample_dir, '%s/%s' % (target_dir, name))
     shutil.copytree('%s/../input' % sample_dir, '%s/input' % target_dir)
-    shutil.copy('%s/../wscript' % sample_dir, target_dir)
 
     f = open('%s/game.project' % target_dir, 'w')
     f.write(GAME_PROJECT % { 'title' : name, 'main_collection' : ('/%s/main.collectionc' % name) } )
