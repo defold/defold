@@ -50,7 +50,6 @@ message Configuration
     required string smtp_password = 22;
 
     // email
-    required EMailTemplate registration_template = 23;
     required EMailTemplate invitation_template = 24;
 
     // invitations
