@@ -1,5 +1,58 @@
 :max-width: 45em
 
+Mini-Update: Another Important Fix & Connection Problems
+--------------------------------------------------------
+
+Another bug made any new user since the alpha release and until 18:44 CET today have an editor with incorrect default preferences.
+This would manifest itself as the game failing to start.
+This was fixed in release 1.1.2.
+Anyone who downloaded the editor after 18:44 CET (or upgraded the editor when it starts up) won't be affected.
+
+We have also experienced lots of random problems from our DNS provider.
+These problems, which caused none of our servers to be reachable, manifested themselves in many different ways.
+Examples are the web site not being reachable, failures to create new projects and branches, etc.
+One thing they all had in common was that they would go away after a minute or two.
+
+A few new bugs was also found when testing:
+
+* Opening a project from a clean installation of the editor will result in an error message (only on Mac):
+  "GET http://cr.defold.se:9998/users/ returned a response status of 405".
+  This only happens once and a workaround is to hit *Cancel* and reconnect. We will start to fix this soon.
+* When creating a branch in the editor on Windows, a Windows firewall might kick in and make the branch creation fail.
+  A workaround (until we raise the timeout) is to just try again after you give Defold.exe permissions to connect.
+
+More info about the issues
+~~~~~~~~~~~~~~~~~~~~~~~~~~d
+
+The first preference bug would make the editor start the game against our server instead of your local machine.
+We previously had a service where you would keep your files on our server, but work with them and test them like they were on your local machine.
+(A copy of your files are always kept on our servers, this just concerned which ones you would work on).
+We disabled this service because of security issues before releasing the alpha version.
+The reason we didn't detect the bug was that we only tested previous editor installations with different stored preferences than the default ones.
+This made us happily connect to our local machines each time we tested a newer editor.
+From now on, we will test clean installations on all platforms (Mac/Win/Linux) before making new releases.
+We agree this seems very obvious in hindsight. It also helped us spot the bugs mentioned above. :)
+
+The DNS instability was resolved by our provider (FS-data) after 10 hours and was very poorly handled by them.
+We were in contact with them several times during the day by mail and phone, without ever given answers to any of our questions.
+We take up-time and system stability very seriously.
+We believe that as a service provider (like ourselves), you should detect your errors before your users do.
+If you fail to do that, you should make sure that
+This is why we always go on about what we are doing wrong and how we will better ourselves, because that is to us the only way forward.
+Since we rely on our DNS working all the time, we naturally have to make these same demands against our providers.
+The only way we can fix this, is therefore to get these answers from them or switch provider.
+We will get back to you whenever we know more about this.
+Does any of you know a good DNS provider we could use? :)
+
+Sorry for the problems, but hopefully we will start seeing fewer and fewer of these.
+And keep up the great feedback, it's a really fast way to make *everything* better.
+And although we love your feedback as it is, please try the feedback button to the left on the web site instead of sending it to us personally.
+Even if you know us.
+Then others can take part in the discussions or know about the issues as well.
+We know it's scary when it's all empty and clean, but you get to say FIRST! :)
+
+/Team Defold
+
 Mini-Update: Fix for Mac
 ------------------------
 _April 1, 2012_
