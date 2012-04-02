@@ -193,8 +193,6 @@ public class Defold implements EntryPoint {
         private native void trackHit(String pageName) /*-{
             try {
                 $wnd._gaq.push(['_setAccount', 'UA-83690-3']);
-                $wnd._gaq.push(['_setDomainName', 'defold.se']);
-                $wnd._gaq.push(['_setAllowLinker', true]);
                 $wnd._gaq.push(['_trackPageview', pageName]);
             } catch(err) {
             }
