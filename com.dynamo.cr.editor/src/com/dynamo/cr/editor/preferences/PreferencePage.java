@@ -24,8 +24,6 @@ public class PreferencePage
 
 	@Override
     public void createFieldEditors() {
-        addField(new BooleanFieldEditor(PreferenceConstants.P_USE_LOCAL_BRANCHES, "Use local branches", getFieldEditorParent()));
-
         customApplicationField = new BooleanFieldEditor(PreferenceConstants.P_CUSTOM_APPLICATION, "Custom application", getFieldEditorParent());
         addField(customApplicationField);
         applicationField = new FileFieldEditor(PreferenceConstants.P_APPLICATION, "Application:", getFieldEditorParent());

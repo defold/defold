@@ -201,6 +201,8 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
         //connectProjectClient();
         IPreferenceStore store = getPreferenceStore();
         store.addPropertyChangeListener(this);
+        // TODO This is a hack to make sure noone is using remote branches, which is not currently supported
+        store.setValue(PreferenceConstants.P_USE_LOCAL_BRANCHES, true);
         updateSocksProxy();
         deleteAllCrProjects();
 

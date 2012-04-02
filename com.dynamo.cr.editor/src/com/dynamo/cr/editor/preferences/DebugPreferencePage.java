@@ -29,6 +29,7 @@ public class DebugPreferencePage extends FieldEditorPreferencePage implements IW
     @Override
     protected void createFieldEditors() {
         addField(new StringFieldEditor(PreferenceConstants.P_SERVER_URI, "Resource server URI:", getFieldEditorParent()));
+        addField(new BooleanFieldEditor(PreferenceConstants.P_USE_LOCAL_BRANCHES, "Use local branches", getFieldEditorParent()));
         addField(new StringFieldEditor(PreferenceConstants.P_SOCKS_PROXY, "Socks proxy:", getFieldEditorParent()));
         addField(new IntegerFieldEditor(PreferenceConstants.P_SOCKS_PROXY_PORT, "Socks proxy port:", getFieldEditorParent()));
 
