@@ -21,6 +21,9 @@ A few new bugs was also found when testing:
 * When creating a branch in the editor on Windows, a Windows firewall might kick in and make the branch creation fail.
   A workaround (until we raise the timeout) is to just try again after you give Defold.exe permissions to connect.
 
+As we are working out how to best communicate the status of our service, please follow us on twitter: link:http://twitter.com/DefoldEngine[@DefoldEngine].
+For the time being, we will post everything there as it happens.
+
 More info about the issues
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
