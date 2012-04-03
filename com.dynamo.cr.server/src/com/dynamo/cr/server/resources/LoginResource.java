@@ -206,7 +206,7 @@ public class LoginResource extends BaseResource {
                              @QueryParam("key") String key) {
 
         if (key == null || key.isEmpty()) {
-            throw new ServerException("Invalid registration key", Status.UNAUTHORIZED);
+            throw new ServerException("A registration key is required", Status.UNAUTHORIZED);
         }
 
         int initialInvitationCount = 0;

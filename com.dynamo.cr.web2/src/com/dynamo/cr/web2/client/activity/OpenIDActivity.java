@@ -104,7 +104,8 @@ public class OpenIDActivity extends AsciiDocActivity implements
         final Defold defold = clientFactory.getDefold();
 
         if (registrationKey.isEmpty()) {
-            registrationKey = defold.getRegistrationKey();
+            defold.showErrorMessage("You need a registration key for alpha access.");
+            return;
         }
         RequestBuilder builder = new RequestBuilder(RequestBuilder.PUT, defold.getUrl() + "/login/openid/register/" + loginToken + "?key=" + registrationKey);
         builder.setHeader("Accept", "application/json");
@@ -115,10 +116,7 @@ public class OpenIDActivity extends AsciiDocActivity implements
                 @Override
                 public void onResponseReceived(Request request, Response response) {
                     int status = response.getStatusCode();
-                    if (status == 0) {
-                        defold.showErrorMessage("Network error");
-                    }
-                    else if (status == 200) {
+                    if (status == 200) {
                         LoginInfo loginInfo = LoginInfo.getResponse(response.getText());
                         defold.loginOk(loginInfo.getFirstName(), loginInfo.getLastName(), loginInfo.getEmail(), loginInfo.getAuth(), loginInfo.getUserId());
                         clientFactory.getPlaceController().goTo(new DashboardPlace());
