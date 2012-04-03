@@ -37,13 +37,13 @@
                         </g:FlowPanel>
                     </div>
 
-                    <div class="formRow">
-                        <g:Button ui:field="registerButton">Register and Accept Terms</g:Button>
-                    </div>
                     <g:HTMLPanel styleName="formRow" ui:field="registrationKeyBox">
                         <div class="formLabel">Registration Key</div>
                         <g:TextBox ui:field="registrationKey" styleName="{style.guid}"/>
                     </g:HTMLPanel>
+                    <div class="formRow">
+                        <g:Button ui:field="registerButton">Register and Accept Terms</g:Button>
+                    </div>
                 </div>
             </g:HTMLPanel>
             <g:HTMLPanel>

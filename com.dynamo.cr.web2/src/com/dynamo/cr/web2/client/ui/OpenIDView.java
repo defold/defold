@@ -1,7 +1,6 @@
 package com.dynamo.cr.web2.client.ui;
 
 import com.dynamo.cr.web2.client.AsciiDocUtil;
-import com.dynamo.cr.web2.shared.ClientUtil;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.uibinder.client.UiBinder;
@@ -63,16 +62,11 @@ public class OpenIDView extends Composite implements IAsciiDocView {
         firstNameLabel.setText("");
         lastNameLabel.setText("");
         emailLabel.setText("");
-        boolean dev = ClientUtil.isDev();
-        // For testing
-        registrationKeyBox.setVisible(dev);
-        if (dev) {
-            String registrationKey = Cookies.getCookie("registration_key");
-            if (registrationKey != null) {
-                this.registrationKey.setText(registrationKey);
-            } else {
-                this.registrationKey.setText("");
-            }
+        String registrationKey = Cookies.getCookie("registration_key");
+        if (registrationKey != null) {
+            this.registrationKey.setText(registrationKey);
+        } else {
+            this.registrationKey.setText("");
         }
     }
 
