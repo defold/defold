@@ -313,7 +313,7 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
         RepositoryFileSystemPlugin.setClientFactory(factory);
 
         boolean validAuthCookie = false;
-        if (email != null && authCookie != null) {
+        if (email != null && !email.isEmpty() && authCookie != null && !authCookie.isEmpty()) {
             // Try to validate auth-cookie
             IUsersClient usersClient = factory.getUsersClient(UriBuilder.fromUri(usersUriString).build());
 
@@ -334,11 +334,16 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
                 return false;
             }
             email = openIDdialog.getEmail();
-
+            authCookie = openIDdialog.getAuthCookie();
             authFilter.setEmail(email);
-            authFilter.setAuthCookie(openIDdialog.getAuthCookie());
+            authFilter.setAuthCookie(authCookie);
+
+            // Recreate factory since we now have credentials
+            factory = new DelegatingClientFactory(new ClientFactory(client, branchLocation, branchRoot, email, authCookie));
+            RepositoryFileSystemPlugin.setClientFactory(factory);
+
             store.setValue(PreferenceConstants.P_EMAIL, email);
-            store.setValue(PreferenceConstants.P_AUTH_COOKIE, openIDdialog.getAuthCookie());
+            store.setValue(PreferenceConstants.P_AUTH_COOKIE, authCookie);
         }
 
         IUsersClient usersClient = factory.getUsersClient(UriBuilder.fromUri(usersUriString).build());

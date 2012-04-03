@@ -22,7 +22,9 @@ public class ConnectHandler extends AbstractHandler {
             return null;
         }
 
-        IWorkbenchPage page = HandlerUtil.getActivePart(event).getSite().getPage();
+        // Fetch page straight from activator since getting part from event (via HandlerUtil)
+        // does not work for win/linux if the openid-dialog just was shown
+        IWorkbenchPage page = Activator.getDefault().getWorkbench().getActiveWorkbenchWindow().getActivePage();
         ConnectionWizard wiz = new ConnectionWizard(page);
 
         WizardDialog dialog = new WizardDialog(HandlerUtil.getActiveShell(event), wiz);
