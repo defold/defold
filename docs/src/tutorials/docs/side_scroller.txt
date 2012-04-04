@@ -34,14 +34,14 @@ The speed of the space ship could be faster.
 +
 [source,lua]
 ---------------
-local player_speed = 60
+local max_speed = 60
 ---------------
 +
 to:
 +
 [source,lua]
 ---------------
-local player_speed = 150
+local max_speed = 150
 ---------------
 +
 This will increase the movement speed of the space ship.
