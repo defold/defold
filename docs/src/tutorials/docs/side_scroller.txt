@@ -84,7 +84,7 @@ In order to have bonus stars appear, we first need to create a game object, whic
 . Add a new game object called +bonus_star.go+ in the +stars+-directory with *File > New > Game Object File*.
 . Add a _Sprite_ component to the game object with *Game Object > Add Component*.
   This attaches graphics to the bonus star.
-. In the Outline-view (upper right), a new item appeared called _sprite_. Expand it and select the item called _Sprite_ to reveal its properties in the Properties-view below.
+. In the Outline-view (upper right), a new item appeared called _sprite_. Its properties are displayed in the Properties-view below.
 .. Set _Tile Source_ to +stars.tilesource+ by using the browse-button *...*. The tile source contains the graphics for the bonus star.
 .. Set _Default Animation_ to +bonus_star+ and hit *ENTER*. +bonus_star+ is a 1-frame animation of the bonus star defined in the tile source.
   A blue star should appear on the screen.
@@ -107,9 +107,8 @@ The factory component is responsible for making sure the bonus stars appear in t
 
 . Open the file +factory.go+ with *Edit > Open Resource...*.
 . Add another _Factory_ component to it with *Game Object > Add Component*.
-. Set its _Id_ to +bonus_factory+.
-. Expand the _bonus_factory_ item in the Outline-view and select the _Factory_ item.
 .. Set its _Prototype_ to +bonus_star.go+ with the browse-button.
+.. Set its _Id_ to +bonus_factory+.
 
 Modify the Factory Script
 ~~~~~~~~~~~~~~~~~~~~~~~~~
