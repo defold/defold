@@ -73,6 +73,7 @@ public class SpriteNode extends ComponentTypeNode {
 
     public void setDefaultAnimation(String defaultAnimation) {
         this.defaultAnimation = defaultAnimation;
+        updateStatus();
         updateVertexData();
     }
 
