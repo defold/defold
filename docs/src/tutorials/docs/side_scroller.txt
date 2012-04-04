@@ -140,4 +140,4 @@ You Win!
 
 Now go ahead and create more games in Defold!
 For more information see the link:#documentation:[documentation], specifically the "User Guide" and "Samples".
-If you get stuck, please turn to the link:http://groups.google.com/group/defold-users[user group] and we will do our best to help you get back on track.
+If you get stuck, please turn to the link:http://defold.userecho.com/[feedback-site] and we will do our best to help you get back on track.
