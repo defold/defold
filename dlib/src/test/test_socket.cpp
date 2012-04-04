@@ -162,7 +162,7 @@ TEST(Socket, ClientServer1)
         if (g_ServerThread1Running)
             break;
 
-        dmTime::Sleep(100);
+        dmTime::Sleep(10000);
     }
     dmTime::Sleep(500); // Make sure that we are in "accept"
 
