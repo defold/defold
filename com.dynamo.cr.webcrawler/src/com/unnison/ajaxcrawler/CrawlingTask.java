@@ -15,21 +15,7 @@
  */
 package com.unnison.ajaxcrawler;
 
-import static com.google.appengine.api.labs.taskqueue.TaskOptions.Builder.url;
-
-import com.google.appengine.api.datastore.Key;
-import com.google.appengine.api.labs.taskqueue.Queue;
-import com.google.appengine.api.labs.taskqueue.QueueFactory;
-import com.google.appengine.api.labs.taskqueue.TaskOptions;
-
-import com.gargoylesoftware.htmlunit.BrowserVersion;
-import com.gargoylesoftware.htmlunit.WebClient;
-import com.gargoylesoftware.htmlunit.html.HtmlAnchor;
-import com.gargoylesoftware.htmlunit.html.HtmlPage;
-import com.unnison.ajaxcrawler.model.Host;
-import com.unnison.ajaxcrawler.model.HostPlace;
-
-import org.slim3.datastore.Datastore;
+import static com.google.appengine.api.taskqueue.TaskOptions.Builder.withUrl;
 
 import java.io.IOException;
 import java.net.URL;
@@ -43,7 +29,25 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import org.slim3.datastore.Datastore;
+
+import com.gargoylesoftware.htmlunit.BrowserVersion;
+import com.gargoylesoftware.htmlunit.WebClient;
+import com.gargoylesoftware.htmlunit.html.HtmlAnchor;
+import com.gargoylesoftware.htmlunit.html.HtmlPage;
+import com.google.appengine.api.datastore.Key;
+import com.google.appengine.api.taskqueue.Queue;
+import com.google.appengine.api.taskqueue.QueueFactory;
+import com.google.appengine.api.taskqueue.TaskOptions;
+import com.unnison.ajaxcrawler.model.Host;
+import com.unnison.ajaxcrawler.model.HostPlace;
+
 public class CrawlingTask extends HttpServlet {
+
+    /**
+     *
+     */
+    private static final long serialVersionUID = 3467414411679278488L;
 
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
@@ -118,7 +122,7 @@ public class CrawlingTask extends HttpServlet {
                     // Fragments with slashes resulted in invalid url
                     // We skip these, eg #/, #reference:engine/exit etc
                     // We should perhaps not use slashes in fragments?
-                    queues.add(url("/crawlingtask").param("url", baseUrl + "/" + href));
+                    queues.add(withUrl("/crawlingtask").param("url", baseUrl + "/" + href));
                 }
 
                 if (queues.size() == 10) {
