@@ -1,5 +1,6 @@
 package com.dynamo.bob.pipeline;
 
+import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.awt.image.ColorModel;
 import java.awt.image.Raster;
@@ -31,7 +32,35 @@ public class TextureBuilder extends Builder<Void> {
             IOException {
 
         ByteArrayInputStream is = new ByteArrayInputStream(task.input(0).getContent());
-        BufferedImage image = ImageIO.read(is);
+        BufferedImage origImage = ImageIO.read(is);
+        BufferedImage image;
+        if (origImage.getType() == BufferedImage.TYPE_BYTE_INDEXED) {
+            /*
+             * If the image is of indexed type convert to:
+             * TYPE_BYTE_GRAY if #components == 1
+             * TYPE_4BYTE_ABGR is #components != 1 && has-alpha
+             * TYPE_4BYTE_ABGR is #components != 1 && !has-alpha
+             */
+
+            int type;
+            if (origImage.getColorModel().getNumComponents() == 1) {
+                type = BufferedImage.TYPE_BYTE_GRAY;
+            } else if (origImage.getColorModel().hasAlpha()) {
+                type = BufferedImage.TYPE_4BYTE_ABGR;
+            } else {
+                type = BufferedImage.TYPE_3BYTE_BGR;
+            }
+
+            image = new BufferedImage(origImage.getWidth(), origImage.getHeight(), type);
+            Graphics2D g2d = image.createGraphics();
+            g2d.drawImage(origImage, 0, 0, null);
+            g2d.dispose();
+
+        } else {
+            // Keep image as is
+            image = origImage;
+        }
+
         TextureImage.Builder textureBuilder = TextureImage.newBuilder();
 
         ColorModel colorModel = image.getColorModel();

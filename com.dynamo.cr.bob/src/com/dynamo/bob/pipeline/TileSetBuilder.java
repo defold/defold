@@ -49,8 +49,9 @@ public class TileSetBuilder extends Builder<Void>  {
         }
     }
 
-    static File locateGameProjectDirectory(String start) throws IOException {
+    static File locateGameProjectDirectory(IResource resource) throws IOException, CompileExceptionError {
 
+        String start = resource.getAbsPath();
         File current = new File(start).getCanonicalFile();
         File game_project;
         while (true) {
@@ -61,8 +62,7 @@ public class TileSetBuilder extends Builder<Void>  {
             }
             String parent = current.getParent();
             if (parent == null) {
-                System.err.println("game.project cound not be located");
-                System.exit(5);
+                throw new CompileExceptionError(resource, 0, "game.project cound not be located");
             }
             current = new File(current.getParent());
         }
@@ -82,7 +82,7 @@ public class TileSetBuilder extends Builder<Void>  {
 
         File inFile = new File(inFileName);
         File outFile = new File(outFileName);
-        File contentRoot = locateGameProjectDirectory(inFileName);
+        File contentRoot = locateGameProjectDirectory(task.input(0));
         TileSetc tileSetC = new TileSetc(contentRoot);
         tileSetC.compile(inFile, outFile);
     }
