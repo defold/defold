@@ -73,21 +73,24 @@ void b2GridShape::ComputeAABB(b2AABB* aabb, const b2Transform& transform, int32 
     int row = childIndex / m_columnCount;
     int col = childIndex - m_columnCount * row;
 
-    float32 halfWidth = m_cellWidth * m_columnCount * 0.5f;
-    float32 halfHeight = m_cellHeight * m_rowCount * 0.5f;
+    b2Vec2 halfDims(m_cellWidth * m_columnCount * 0.5f, m_cellHeight * m_rowCount * 0.5f);
+    b2Vec2 offset = m_position - halfDims;
 
-    b2Vec2 min(m_cellWidth * col - halfWidth, m_cellHeight * row - halfHeight);
-    b2Vec2 max(m_cellWidth * (col + 1) - halfWidth, m_cellHeight * (row + 1) - halfHeight);
+    float32 x0 = m_cellWidth * col - m_radius;
+    float32 x1 = m_cellWidth * (col + 1) + m_radius;
+    float32 y0 = m_cellHeight * row - m_radius;
+    float32 y1 = m_cellHeight * (row + 1) + m_radius;
 
-    b2Vec2 v_min = b2Mul(transform, min);
-    b2Vec2 v_max = b2Mul(transform, max);
+    b2Vec2 v00 = b2Mul(transform, b2Vec2(x0, y0) + offset);
+    b2Vec2 v10 = b2Mul(transform, b2Vec2(x1, y0) + offset);
+    b2Vec2 v01 = b2Mul(transform, b2Vec2(x0, y1) + offset);
+    b2Vec2 v11 = b2Mul(transform, b2Vec2(x1, y1) + offset);
 
-    b2Vec2 lower = b2Min(v_min, v_max);
-    b2Vec2 upper = b2Max(v_min, v_max);
+    b2Vec2 lower(b2Min(b2Min(v00.x, v01.x), b2Min(v10.x, v11.x)), b2Min(b2Min(v00.y, v01.y), b2Min(v10.y, v11.y)));
+    b2Vec2 upper(b2Max(b2Max(v00.x, v01.x), b2Max(v10.x, v11.x)), b2Max(b2Max(v00.y, v01.y), b2Max(v10.y, v11.y)));
 
-    b2Vec2 r(m_radius, m_radius);
-    aabb->lowerBound = lower - r + m_position;
-    aabb->upperBound = upper + r + m_position;
+    aabb->lowerBound = lower;
+    aabb->upperBound = upper;
 }
 
 void b2GridShape::ComputeMass(b2MassData* massData, float32 density) const
