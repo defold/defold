@@ -73,6 +73,7 @@
                  <td>
                      <h3>Social</h3>
                      <ul>
+                         <li><a href="#blog:">Blog</a></li>
                          <li><a href="http://www.facebook.com/pages/Defold/393752703986118" target="_blank">Facebook</a></li>
                          <li><a href="http://www.twitter.com/defoldengine" target="_blank">Twitter</a></li>
                      </ul>
