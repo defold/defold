@@ -1,5 +1,6 @@
 package com.dynamo.tile;
 
+import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -34,7 +35,12 @@ public class TileSetc {
                 + File.separator + fileName);
         InputStream is = new BufferedInputStream(new FileInputStream(file));
         try {
-            return ImageIO.read(is);
+            BufferedImage origImage = ImageIO.read(is);
+            BufferedImage image = new BufferedImage(origImage.getWidth(), origImage.getHeight(), BufferedImage.TYPE_4BYTE_ABGR);
+            Graphics2D g2d = image.createGraphics();
+            g2d.drawImage(origImage, 0, 0, null);
+            g2d.dispose();
+            return image;
         } finally {
             is.close();
         }
@@ -62,8 +68,7 @@ public class TileSetc {
                 int height = collisionImage.getHeight();
 
                 if (collisionImage.getAlphaRaster() == null) {
-                    System.err.format("Collision image '%s' is missing alpha channel%n");
-                    System.exit(5);
+                    throw new RuntimeException(String.format("Collision image '%s' is missing alpha channel%n", collisionPath));
                 }
 
                 ConvexHulls convexHulls = TileSetUtil.calculateConvexHulls(
