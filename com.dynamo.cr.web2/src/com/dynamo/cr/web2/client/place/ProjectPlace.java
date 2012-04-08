@@ -4,7 +4,7 @@ import com.google.gwt.place.shared.Place;
 import com.google.gwt.place.shared.PlaceTokenizer;
 import com.google.gwt.place.shared.Prefix;
 
-public class ProjectPlace extends Place {
+public class ProjectPlace extends DefoldPlace {
 
     private String id;
     public ProjectPlace(String id) {
@@ -13,6 +13,11 @@ public class ProjectPlace extends Place {
 
     public String getId() {
         return id;
+    }
+
+    @Override
+    public String getTitle() {
+        return "Project Info";
     }
 
     @Prefix("project")

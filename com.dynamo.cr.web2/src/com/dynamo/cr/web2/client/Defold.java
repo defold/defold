@@ -9,6 +9,7 @@ import com.dynamo.cr.web2.client.mvp.AppActivityMapper;
 import com.dynamo.cr.web2.client.mvp.AppPlaceHistoryMapper;
 import com.dynamo.cr.web2.client.place.BlogPlace;
 import com.dynamo.cr.web2.client.place.DashboardPlace;
+import com.dynamo.cr.web2.client.place.DefoldPlace;
 import com.dynamo.cr.web2.client.place.DocumentationPlace;
 import com.dynamo.cr.web2.client.place.LoginPlace;
 import com.dynamo.cr.web2.client.place.ProductInfoPlace;
@@ -21,6 +22,7 @@ import com.google.gwt.activity.shared.ActivityMapper;
 import com.google.gwt.core.client.EntryPoint;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.dom.client.AnchorElement;
+import com.google.gwt.dom.client.Document;
 import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.event.logical.shared.ValueChangeEvent;
 import com.google.gwt.http.client.Request;
@@ -200,7 +202,14 @@ public class Defold implements EntryPoint {
 
         @Override
         public void onPlaceChange(PlaceChangeEvent event) {
-            String token = historyMapper.getToken(event.getNewPlace());
+            Place place = event.getNewPlace();
+            if (place instanceof DefoldPlace) {
+                DefoldPlace defoldPlace = (DefoldPlace) place;
+                Document.get().setTitle("Defold - " + defoldPlace.getTitle());
+            } else {
+                Document.get().setTitle("Defold");
+            }
+            String token = historyMapper.getToken(place);
             trackHit(token);
         }
     }

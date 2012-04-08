@@ -1,10 +1,9 @@
 package com.dynamo.cr.web2.client.place;
 
-import com.google.gwt.place.shared.Place;
 import com.google.gwt.place.shared.PlaceTokenizer;
 import com.google.gwt.place.shared.Prefix;
 
-public class GuidePlace extends Place {
+public class GuidePlace extends DefoldPlace {
 
     private String id;
 
@@ -14,6 +13,11 @@ public class GuidePlace extends Place {
 
     public String getId() {
         return id;
+    }
+
+    @Override
+    public String getTitle() {
+        return niceify(id);
     }
 
     @Prefix("guide")

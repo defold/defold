@@ -1,12 +1,16 @@
 package com.dynamo.cr.web2.client.place;
 
-import com.google.gwt.place.shared.Place;
 import com.google.gwt.place.shared.PlaceTokenizer;
 import com.google.gwt.place.shared.Prefix;
 
-public class BlogPlace extends Place {
+public class BlogPlace extends DefoldPlace {
 
     public BlogPlace() {
+    }
+
+    @Override
+    public String getTitle() {
+        return "Blog";
     }
 
     @Prefix("blog")

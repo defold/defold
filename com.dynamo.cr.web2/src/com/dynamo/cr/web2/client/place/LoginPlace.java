@@ -4,7 +4,7 @@ import com.google.gwt.place.shared.Place;
 import com.google.gwt.place.shared.PlaceTokenizer;
 import com.google.gwt.place.shared.Prefix;
 
-public class LoginPlace extends Place {
+public class LoginPlace extends DefoldPlace {
     private String registrationKey;
 
     public LoginPlace(String registrationKey) {
@@ -13,6 +13,11 @@ public class LoginPlace extends Place {
 
     public String getRegistrationKey() {
         return this.registrationKey;
+    }
+
+    @Override
+    public String getTitle() {
+        return "Login";
     }
 
     @Prefix("login")

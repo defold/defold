@@ -1,10 +1,14 @@
 package com.dynamo.cr.web2.client.place;
 
-import com.google.gwt.place.shared.Place;
 import com.google.gwt.place.shared.PlaceTokenizer;
 import com.google.gwt.place.shared.Prefix;
 
-public class NewProjectPlace extends Place {
+public class NewProjectPlace extends DefoldPlace {
+
+    @Override
+    public String getTitle() {
+        return "New Project";
+    }
 
     @Prefix("new_project")
     public static class Tokenizer implements PlaceTokenizer<NewProjectPlace> {
