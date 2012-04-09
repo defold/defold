@@ -440,7 +440,7 @@ void b2Body::SynchronizeFixtures()
 	}
 }
 
-void b2Body::SynchronizeSingle(int32 index)
+void b2Body::SynchronizeSingle(b2Shape* shape, int32 index)
 {
     b2Transform xf1;
     xf1.q.Set(m_sweep.a0);
@@ -449,7 +449,10 @@ void b2Body::SynchronizeSingle(int32 index)
     b2BroadPhase* broadPhase = &m_world->m_contactManager.m_broadPhase;
     for (b2Fixture* f = m_fixtureList; f; f = f->m_next)
     {
-        f->SynchronizeSingle(broadPhase, index, xf1, m_xf);
+        if (f->GetShape() == shape)
+        {
+            f->SynchronizeSingle(broadPhase, index, xf1, m_xf);
+        }
     }
 }
 

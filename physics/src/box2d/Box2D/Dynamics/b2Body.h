@@ -420,7 +420,8 @@ private:
 	~b2Body();
 
     void SynchronizeFixtures();
-    void SynchronizeSingle(int32 index);
+    // Defold mod
+    void SynchronizeSingle(b2Shape* shape, int32 index);
     void SynchronizeTransform();
 
 	// This is used to prevent connected bodies from colliding.

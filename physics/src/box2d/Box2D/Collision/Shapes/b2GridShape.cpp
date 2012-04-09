@@ -346,5 +346,5 @@ void b2GridShape::SetCellHull(b2Body* body, uint32 row, uint32 column, uint32 hu
     b2GridShape::Cell* cell = &m_cells[index];
     cell->m_Index = hull;
 
-    body->SynchronizeSingle(index);
+    body->SynchronizeSingle(this, index);
 }

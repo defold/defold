@@ -675,6 +675,46 @@ TYPED_TEST(PhysicsTest, GridShapeSphereDistance)
     dmPhysics::DeleteHullSet2D(hull_set);
 }
 
+// Tests that many grid shapes can be constructed and having an increasing number of tiles per shape (earlier bug)
+TYPED_TEST(PhysicsTest, GridShapeMultiLayered)
+{
+    int32_t rows = 1;
+    int32_t columns = 3;
+    int32_t cell_width = 16;
+    int32_t cell_height = 16;
+
+    const float hull_vertices[] = {-0.5f, -0.5f,
+                                    0.5f, -0.5f,
+                                    0.5f,  0.5f,
+                                   -0.5f,  0.5f};
+
+    const dmPhysics::HullDesc hulls[] = { {0, 4}, {0, 4}, {0, 4} };
+    dmPhysics::HHullSet2D hull_set = dmPhysics::NewHullSet2D(TestFixture::m_Context, hull_vertices, 4, hulls, 3);
+    dmPhysics::HCollisionShape2D grid_shapes[2];
+    grid_shapes[0] = dmPhysics::NewGridShape2D(TestFixture::m_Context, hull_set, Point3(0,0,0), cell_width, cell_height, rows, 1);
+    grid_shapes[1] = dmPhysics::NewGridShape2D(TestFixture::m_Context, hull_set, Point3(0,0,0), cell_width, cell_height, rows, 2);
+    dmPhysics::CollisionObjectData data;
+    typename TypeParam::CollisionObjectType grid_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, grid_shapes, 2u);
+
+    for (int32_t layer = 0; layer < 2; ++layer)
+    {
+        for (int32_t row = 0; row < rows; ++row)
+        {
+            // increasing number of columns per layer (testing earlier bug)
+            columns = layer + 1;
+            for (int32_t col = 0; col < columns; ++col)
+            {
+                dmPhysics::SetGridShapeHull(grid_co, grid_shapes[layer], row, col, 0);
+            }
+        }
+    }
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, grid_co);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(grid_shapes[0]);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(grid_shapes[1]);
+    dmPhysics::DeleteHullSet2D(hull_set);
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);
