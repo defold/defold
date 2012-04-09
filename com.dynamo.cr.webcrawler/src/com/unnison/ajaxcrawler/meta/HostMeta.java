@@ -1,6 +1,6 @@
 package com.unnison.ajaxcrawler.meta;
 
-//@javax.annotation.Generated(value = { "slim3-gen", "@VERSION@" }, date = "2012-04-06 11:47:52")
+//@javax.annotation.Generated(value = { "slim3-gen", "@VERSION@" }, date = "2012-04-09 14:23:12")
 /** */
 public final class HostMeta extends org.slim3.datastore.ModelMeta<com.unnison.ajaxcrawler.model.Host> {
 
