@@ -1,5 +1,26 @@
 #include <assert.h>
+#include <stdarg.h>
 #include "dstrings.h"
+
+#if defined(_WIN32)
+#include <stdlib.h>
+#endif
+
+int DM_SNPRINTF(char *buffer, size_t count, const char *format, ...)
+{
+    va_list argp;
+    va_start(argp, format);
+#if defined(_WIN32)
+    int result = _vsnprintf_s(buffer, count, _TRUNCATE, argp);
+#else
+    int result = vsnprintf(buffer, count, format, argp);
+#endif
+    va_end(argp);
+    // MS-compliance
+    if (count == 0 || (count > 0 && result >= (int)count))
+        return -1;
+    return result;
+}
 
 /*      $NetBSD: strtok_r.c,v 1.9 2003/08/07 16:43:53 agc Exp $ */
 

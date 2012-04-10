@@ -3,6 +3,35 @@
 #include <string.h>
 #include "dlib/dstrings.h"
 
+TEST(dmStrings, dmSnprintfEmpty)
+{
+    int res = DM_SNPRINTF(0x0, 0, "");
+    ASSERT_EQ(-1, res);
+    char buffer[1];
+    res = DM_SNPRINTF(buffer, 1, "");
+    ASSERT_EQ(0, res);
+    res = DM_SNPRINTF(buffer, 1, 0x0);
+    ASSERT_EQ(-1, res);
+}
+
+TEST(dmStrings, dmSnprintf)
+{
+    char buffer[4];
+    const char* format = "%s";
+    int res = DM_SNPRINTF(buffer, 4, format, "abc");
+    ASSERT_EQ(3, res);
+    ASSERT_EQ(0, buffer[3]);
+}
+
+TEST(dmStrings, dmSnprintfOverflow)
+{
+    char buffer[4];
+    const char* format = "%s";
+    int res = DM_SNPRINTF(buffer, 4, format, "abcd");
+    ASSERT_EQ(-1, res);
+    ASSERT_EQ(0, buffer[3]);
+}
+
 TEST(dmStrings, dmStrTok1)
 {
     char* string = strdup("");

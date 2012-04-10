@@ -17,7 +17,10 @@ assert(v.z == 0, "v.z is not 0")
 local v1 = vmath.vector3(v)
 -- equals
 assert(v == v1, "v != v1")
--- concat
+-- concat (long fract-expansions)
+v.x = math.pi + 1000
+v.y = math.pi + 1000
+v.z = math.pi + 1000
 print("v: " .. v)
 
 -- new index

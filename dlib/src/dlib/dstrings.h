@@ -3,11 +3,14 @@
 
 #include <stdio.h>
 
-#if defined(_WIN32)
-#define DM_SNPRINTF _snprintf
-#else
-#define DM_SNPRINTF snprintf
-#endif
+/**
+ * Size-bounded string formating. Resulting string is guaranteed to be 0-terminated.
+ * @param buffer Buffer to write to
+ * @param count Size of the buffer
+ * @param format String format
+ * @return Size of the resulting string (excl terminating 0) if it fits, -1 otherwise
+ */
+int DM_SNPRINTF(char *buffer, size_t count, const char *format, ...);
 
 /**
  * Tokenize strings. Equivalent to BSD strsep_r
