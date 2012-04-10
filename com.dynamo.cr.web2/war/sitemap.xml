@@ -3,32 +3,32 @@
         xmlns:image="http://www.sitemaps.org/schemas/sitemap-image/1.1"
         xmlns:video="http://www.sitemaps.org/schemas/sitemap-video/1.1">
 
-  <url><loc>http://www.defold.com</loc></url>
+  <url><loc>http://www.defold.com</loc><changefreq>daily</changefreq></url>
 
-  <url><loc>http://www.defold.com/#!blog:</loc></url>
+  <url><loc>http://www.defold.com/#!blog:</loc><changefreq>daily</changefreq></url>
 
-  <url><loc>http://www.defold.com/#!documentation:</loc></url>
+  <url><loc>http://www.defold.com/#!documentation:</loc><changefreq>daily</changefreq></url>
 
-  <url><loc>http://www.defold.com/#!guide:introduction</loc></url>
-  <url><loc>http://www.defold.com/#!guide:scripting_debugging</loc></url>
-  <url><loc>http://www.defold.com/#!guide:message_passing</loc></url>
-  <url><loc>http://www.defold.com/#!guide:reload</loc></url>
-  <url><loc>http://www.defold.com/#!guide:physics</loc></url>
-  <url><loc>http://www.defold.com/#!guide:tiles</loc></url>
-  <url><loc>http://www.defold.com/#!guide:game_project</loc></url>
+  <url><loc>http://www.defold.com/#!guide:introduction</loc><changefreq>daily</changefreq></url>
+  <url><loc>http://www.defold.com/#!guide:scripting_debugging</loc><changefreq>daily</changefreq></url>
+  <url><loc>http://www.defold.com/#!guide:message_passing</loc><changefreq>daily</changefreq></url>
+  <url><loc>http://www.defold.com/#!guide:reload</loc><changefreq>daily</changefreq></url>
+  <url><loc>http://www.defold.com/#!guide:physics</loc><changefreq>daily</changefreq></url>
+  <url><loc>http://www.defold.com/#!guide:tiles</loc><changefreq>daily</changefreq></url>
+  <url><loc>http://www.defold.com/#!guide:game_project</loc><changefreq>daily</changefreq></url>
 
-  <url><loc>http://www.defold.com/#!reference:engine</loc></url>
-  <url><loc>http://www.defold.com/#!reference:go</loc></url>
-  <url><loc>http://www.defold.com/#!reference:gamesys</loc></url>
-  <url><loc>http://www.defold.com/#!reference:render</loc></url>
-  <url><loc>http://www.defold.com/#!reference:script</loc></url>
-  <url><loc>http://www.defold.com/#!reference:gui</loc></url>
+  <url><loc>http://www.defold.com/#!reference:engine</loc><changefreq>daily</changefreq></url>
+  <url><loc>http://www.defold.com/#!reference:go</loc><changefreq>daily</changefreq></url>
+  <url><loc>http://www.defold.com/#!reference:gamesys</loc><changefreq>daily</changefreq></url>
+  <url><loc>http://www.defold.com/#!reference:render</loc><changefreq>daily</changefreq></url>
+  <url><loc>http://www.defold.com/#!reference:script</loc><changefreq>daily</changefreq></url>
+  <url><loc>http://www.defold.com/#!reference:gui</loc><changefreq>daily</changefreq></url>
 
-  <url><loc>http://www.defold.com/#!script_sample:hud</loc></url>
-  <url><loc>http://www.defold.com/#!script_sample:main_menu</loc></url>
-  <url><loc>http://www.defold.com/#!script_sample:parallax</loc></url>
-  <url><loc>http://www.defold.com/#!script_sample:level_complete</loc></url>
+  <url><loc>http://www.defold.com/#!script_sample:hud</loc><changefreq>daily</changefreq></url>
+  <url><loc>http://www.defold.com/#!script_sample:main_menu</loc><changefreq>daily</changefreq></url>
+  <url><loc>http://www.defold.com/#!script_sample:parallax</loc><changefreq>daily</changefreq></url>
+  <url><loc>http://www.defold.com/#!script_sample:level_complete</loc><changefreq>daily</changefreq></url>
 
-  <url><loc>http://www.defold.com/#!content:story</loc></url>
+  <url><loc>http://www.defold.com/#!content:story</loc><changefreq>daily</changefreq></url>
 
 </urlset>

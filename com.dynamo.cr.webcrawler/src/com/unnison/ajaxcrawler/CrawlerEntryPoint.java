@@ -1,12 +1,12 @@
 /*
  * Copyright 2010 Gal Dolber.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
  * the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
  * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
@@ -15,13 +15,7 @@
  */
 package com.unnison.ajaxcrawler;
 
-import static com.google.appengine.api.labs.taskqueue.TaskOptions.Builder.url;
-
-import com.google.appengine.api.labs.taskqueue.QueueFactory;
-
-import com.unnison.ajaxcrawler.model.Host;
-
-import org.slim3.datastore.Datastore;
+import static com.google.appengine.api.taskqueue.TaskOptions.Builder.withUrl;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -32,7 +26,17 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import org.slim3.datastore.Datastore;
+
+import com.google.appengine.api.taskqueue.QueueFactory;
+import com.unnison.ajaxcrawler.model.Host;
+
 public class CrawlerEntryPoint extends HttpServlet {
+
+    /**
+     *
+     */
+    private static final long serialVersionUID = -7549443280623976702L;
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
@@ -53,7 +57,7 @@ public class CrawlerEntryPoint extends HttpServlet {
             ArrayList<String> indexes = host.getIndexes();
             for (String index : indexes) {
                 QueueFactory.getDefaultQueue().add(
-                    url("/crawlingtask").param("url", index).param("fetchRatio", String.valueOf(host.getFetchRatio())));
+                    withUrl("/crawlingtask").param("url", index).param("fetchRatio", String.valueOf(host.getFetchRatio())));
             }
             host.setLastFetch(new Date());
             Datastore.put(host);

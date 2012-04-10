@@ -4,7 +4,7 @@ import com.google.gwt.place.shared.Place;
 import com.google.gwt.place.shared.PlaceTokenizer;
 import com.google.gwt.place.shared.Prefix;
 
-public class ReferencePlace extends Place {
+public class ReferencePlace extends DefoldPlace {
 
     private String id;
     public ReferencePlace(String id) {
@@ -13,6 +13,11 @@ public class ReferencePlace extends Place {
 
     public String getId() {
         return id;
+    }
+
+    @Override
+    public String getTitle() {
+        return niceify(id) + " Reference";
     }
 
     @Prefix("reference")

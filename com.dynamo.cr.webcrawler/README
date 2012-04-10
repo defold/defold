@@ -7,3 +7,11 @@ How to update the crawler:
 * Repeat for .com
 
 * The default fetchRatio is 7 days. Go to Datastore Viewer in the admin page and change to 1
+
+
+# fetch blog from crawler
+curl 'http://defoldcrawler.appspot.com/ajaxcrawler?url=http://www.defold.com%2f%23blog:'
+
+# fetch as google bot
+curl 'http://www.defold.com?_escaped_fragment_=blog:'
+

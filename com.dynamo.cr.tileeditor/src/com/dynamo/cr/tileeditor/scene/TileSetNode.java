@@ -1,5 +1,6 @@
 package com.dynamo.cr.tileeditor.scene;
 
+import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
@@ -308,7 +309,12 @@ public class TileSetNode extends Node {
             IFile file = getModel().getFile(fileName);
             InputStream is = file.getContents();
             try {
-                return ImageIO.read(is);
+                BufferedImage origImage = ImageIO.read(is);
+                BufferedImage image = new BufferedImage(origImage.getWidth(), origImage.getHeight(), BufferedImage.TYPE_4BYTE_ABGR);
+                Graphics2D g2d= image.createGraphics();
+                g2d.drawImage(origImage, 0, 0, null);
+                g2d.dispose();
+                return image;
             } finally {
                 is.close();
             }
