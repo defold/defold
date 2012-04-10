@@ -3,6 +3,7 @@ package com.dynamo.cr.integrationtest;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -89,7 +90,7 @@ public class ComponentsTest extends AbstractSceneTest {
                 }
             }
             if (isComponentType) {
-                IResourceType resourceType = nodeType.getResourceType();
+                final IResourceType resourceType = nodeType.getResourceType();
                 if (resourceType.isEmbeddable()) {
                     // Setup picking of the type from gui
                     when(getPresenterContext().selectFromArray(anyString(), anyString(), any(Object[].class), any(ILabelProvider.class))).thenReturn(resourceType);
@@ -99,7 +100,7 @@ public class ComponentsTest extends AbstractSceneTest {
                     verify(getPresenterContext(), times(count++)).executeOperation(any(AddComponentOperation.class));
                 }
 
-                String path = String.format("tmp/test.%s", resourceType.getFileExtension());
+                final String path = String.format("tmp/test.%s", resourceType.getFileExtension());
                 IFile file = getContentRoot().getFile(new Path(path));
                 if (file.exists()) {
                     file.delete(true, null);
@@ -108,7 +109,19 @@ public class ComponentsTest extends AbstractSceneTest {
                 file.create(new ByteArrayInputStream(data != null ? data : "".getBytes()), true, null);
 
                 // Setup picking of the file from gui
-                when(getPresenterContext().selectFile(anyString(), any(String[].class))).thenReturn(path);
+                doAnswer(new Answer<String>() {
+                    @Override
+                    public String answer(InvocationOnMock invocation) throws Throwable {
+                        String[] exts = (String[])invocation.getArguments()[1];
+                        for (String ext : exts) {
+                            if (ext.equals(resourceType.getFileExtension())) {
+                                return path;
+                            }
+                        }
+                        return null;
+                    }
+
+                }).when(getPresenterContext()).selectFile(anyString(), any(String[].class));
 
                 // Perform operation
                 presenter.onAddComponentFromFile(getPresenterContext(), getLoaderContext());

@@ -16,7 +16,7 @@ import com.dynamo.cr.sceneed.core.ISceneModel;
 public class RefComponentNode extends ComponentNode {
 
     @Property(isResource=true, extensions = {
-            "camera", "collisionobject", "gui", "light", "model", "script", "factory", "sprite", "tilegrid", "tilemap"
+            "camera", "collectionproxy", "collisionobject", "emitter", "factory", "gui", "light", "model", "script", "sprite", "tilegrid", "tilemap", "wav"
     })
     @Resource
     @NotEmpty
