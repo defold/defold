@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <stdarg.h>
+
 #include "dstrings.h"
 
 #if defined(_WIN32)
@@ -8,10 +9,13 @@
 
 int DM_SNPRINTF(char *buffer, size_t count, const char *format, ...)
 {
+    // MS-compliance
+    if (buffer == 0x0 || count == 0 || format == 0x0)
+        return -1;
     va_list argp;
     va_start(argp, format);
 #if defined(_WIN32)
-    int result = _vsnprintf_s(buffer, count, _TRUNCATE, argp);
+    int result = _vsnprintf_s(buffer, count, _TRUNCATE, format, argp);
 #else
     int result = vsnprintf(buffer, count, format, argp);
 #endif
