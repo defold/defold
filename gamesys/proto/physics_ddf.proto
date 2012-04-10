@@ -171,7 +171,7 @@ message CollisionResponse
  * @param other_mass the mass of the other collision object in kg (number)
  * @param other_id the id of the instance the collision object is in contact with (hash)
  * @param other_position the world position of the other collision object (vector3)
- * @param group the collision group of the other collision object (number)
+ * @param group the collision group of the other collision object (hash)
  * @examples
  * How to take action when a contact point occurs:
  * <pre>
