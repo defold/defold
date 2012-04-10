@@ -68,6 +68,15 @@ public class NodeUtil {
 
     public static Node findAcceptingParent(Node target, List<Node> nodes, ISceneView.IPresenterContext presenterContext) {
         INodeType targetType = null;
+        // Verify that the target is not a descendant, in which case use common parent instead
+        Node t = target;
+        while (t != null) {
+            if (nodes.contains(t)) {
+                target = t.getParent();
+                break;
+            }
+            t = t.getParent();
+        }
         // Verify acceptance of child classes
         while (target != null) {
             boolean accepted = true;
