@@ -28,9 +28,6 @@ import org.eclipse.jface.preference.IPreferenceStore;
 import org.eclipse.ui.IEditorInput;
 import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.IFileEditorInput;
-import org.eclipse.ui.console.ConsolePlugin;
-import org.eclipse.ui.console.IConsole;
-import org.eclipse.ui.console.IConsoleManager;
 import org.eclipse.ui.console.MessageConsole;
 import org.eclipse.ui.console.MessageConsoleStream;
 import org.eclipse.ui.handlers.HandlerUtil;
@@ -41,6 +38,7 @@ import com.dynamo.cr.client.RepositoryException;
 import com.dynamo.cr.editor.Activator;
 import com.dynamo.cr.editor.core.EditorCorePlugin;
 import com.dynamo.cr.editor.preferences.PreferenceConstants;
+import com.dynamo.cr.editor.ui.ViewUtil;
 import com.dynamo.cr.engine.Engine;
 
 // this suppression is for the usage of BuildUtilities in the bottom of this class
@@ -143,7 +141,7 @@ public class LaunchHandler extends AbstractHandler {
                     Process p = pb.start();
                     BufferedReader std = new BufferedReader(new InputStreamReader(p.getInputStream()));
 
-                    MessageConsole console = findConsole("console");
+                    MessageConsole console = ViewUtil.getConsole();
                     console.activate();
                     console.clearConsole();
                     MessageConsoleStream stream = console.newMessageStream();
@@ -182,19 +180,6 @@ public class LaunchHandler extends AbstractHandler {
             string = string.replace(key, entry.getValue());
         }
         return string;
-    }
-
-    private MessageConsole findConsole(String name) {
-        ConsolePlugin plugin = ConsolePlugin.getDefault();
-        IConsoleManager conMan = plugin.getConsoleManager();
-        IConsole[] existing = conMan.getConsoles();
-        for (int i = 0; i < existing.length; i++)
-            if (name.equals(existing[i].getName()))
-                return (MessageConsole) existing[i];
-        // no console found, so create a new one
-        MessageConsole myConsole = new MessageConsole(name, null);
-        conMan.addConsoles(new IConsole[] { myConsole });
-        return myConsole;
     }
 
     IProject getActiveProject(ExecutionEvent event) {
