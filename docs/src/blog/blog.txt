@@ -9,7 +9,19 @@ Thanks to all you wonderful game devs who give us feedback in the link:http://de
 We really hope you feel it pays off to do this, as we try to attend to everything as quickly as possible.
 Don't forget to use your votes if you think we are fixing the wrong things!
 
-Fixed bugs:
+Automatic Update Failing on Windows
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+There is an issue with the automatic update of the Defold Editor on Windows.
+The symptom is that a new release is discovered and installed, but the application is not restarted.
+At every successive boot of the application, the new release will again be detected, but not installed.
+
+A workaround to this is to simply remove the installation and download the editor again.
+Just don't forget to *sync your files* before you do this as your changes would otherwise be deleted.
+Sorry for the inconvenience, we are working on finding the cause.
+
+Fixed Bugs
+~~~~~~~~~~
 
 * Cycles in the scene graph were not detected
 * Some component types (e.g. sound) could not be added to game objects as files
@@ -19,7 +31,6 @@ Fixed bugs:
 * Rotated tile maps had incorrect broad-phase AABBs when used for collisions
 * More minor documentation bugs
 
-The most pressing issues now seems to have been detected and fixed (fingers crossed!).
 We will have a planning session tonight to outline what should go into the beta.
 The results will be posted here tomorrow, so stay tuned!
 
