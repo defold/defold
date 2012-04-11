@@ -1,7 +1,32 @@
 :max-width: 45em
 
-Mini-Update: 1.1.3
-------------------
+Release 1.1.4
+-------------
+_April 11, 2012_
+
+We have just released another batch of bug fixes.
+Thanks to all you wonderful game devs who give us feedback in the link:http://defold.userecho.com/[forums]!
+We really hope you feel it pays off to do this, as we try to attend to everything as quickly as possible.
+Don't forget to use your votes if you think we are fixing the wrong things!
+
+Fixed bugs:
+
+* Cycles in the scene graph were not detected
+* Some component types (e.g. sound) could not be added to game objects as files
+* Images with indexed colors could not be used as textures and tile sources
+* Crash on Windows when debug-printing vmath types (e.g. vector3)
+* Crash for certain setups of tile map layers
+* Rotated tile maps had incorrect broad-phase AABBs when used for collisions
+* More minor documentation bugs
+
+The most pressing issues now seems to have been detected and fixed (fingers crossed!).
+We will have a planning session tonight to outline what should go into the beta.
+The results will be posted here tomorrow, so stay tuned!
+
+/Team Defold
+
+Release 1.1.3
+-------------
 _April 4, 2012_
 
 Failing Invitations & Safari
@@ -40,8 +65,8 @@ We hope you like our updates so far. Let us know how we could improve if not!
 
 /Team Defold
 
-Mini-Update: Another Important Fix & Connection Problems
---------------------------------------------------------
+Release 1.1.2: Another Important Fix & Connection Problems
+----------------------------------------------------------
 _April 2, 2012_
 
 Another bug made any new user since the alpha release and until 18:44 CET today have an editor with incorrect default preferences.
@@ -96,8 +121,8 @@ We know it's scary when it's all empty and clean, but you get to say FIRST! :)
 
 /Team Defold
 
-Mini-Update: Fix for Mac
-------------------------
+Release 1.1.1: Fix for Mac
+--------------------------
 _April 1, 2012_
 
 We unfortunately shipped a serious bug with the alpha-release.
@@ -121,8 +146,8 @@ Sorry for the hassle!
 
 /Team Defold
 
-Update: Alpha!
---------------
+Release 1.1.0: Alpha!
+---------------------
 _April 1, 2012_
 
 After lots of work and late nights, we have finally arrived at the alpha stage.
