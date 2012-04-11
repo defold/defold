@@ -12,7 +12,7 @@ public class DocumentationPlace extends DefoldPlace {
     }
 
 
-    @Prefix("documentation")
+    @Prefix("!documentation")
     public static class Tokenizer implements PlaceTokenizer<DocumentationPlace> {
         @Override
         public String getToken(DocumentationPlace place) {

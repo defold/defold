@@ -13,7 +13,7 @@ public class BlogPlace extends DefoldPlace {
         return "Blog";
     }
 
-    @Prefix("blog")
+    @Prefix("!blog")
     public static class Tokenizer implements PlaceTokenizer<BlogPlace> {
         @Override
         public String getToken(BlogPlace place) {

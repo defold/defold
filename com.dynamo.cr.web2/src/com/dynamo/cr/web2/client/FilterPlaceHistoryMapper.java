@@ -13,13 +13,7 @@ public class FilterPlaceHistoryMapper implements PlaceHistoryMapper {
 
     @Override
     public Place getPlace(String token) {
-        // Remove ! from token. Google ajax-style url:s
-        // have are of the hash-bang-form, ie #!.
-        // By removing ! we are comptabible with google ajax links
-        // used for crawling.
-        if (token.startsWith("!")) {
-            token = token.substring(1);
-        }
+        // Currently not in use. We used to convert hash-bang to hash-links here.
         return mapper.getPlace(token);
     }
 

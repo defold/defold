@@ -19,7 +19,7 @@ public class TutorialsPlace extends DefoldPlace {
         return niceify(id);
     }
 
-    @Prefix("tutorials")
+    @Prefix("!tutorials")
     public static class Tokenizer implements PlaceTokenizer<TutorialsPlace> {
         @Override
         public String getToken(TutorialsPlace place) {

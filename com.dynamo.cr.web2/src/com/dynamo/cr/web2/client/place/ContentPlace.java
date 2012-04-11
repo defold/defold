@@ -20,7 +20,7 @@ public class ContentPlace extends DefoldPlace {
         return niceify(id);
     }
 
-    @Prefix("content")
+    @Prefix("!content")
     public static class Tokenizer implements PlaceTokenizer<ContentPlace> {
         @Override
         public String getToken(ContentPlace place) {

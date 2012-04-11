@@ -19,7 +19,7 @@ public class ScriptSamplePlace extends DefoldPlace {
         return niceify(id);
     }
 
-    @Prefix("script_sample")
+    @Prefix("!script_sample")
     public static class Tokenizer implements PlaceTokenizer<ScriptSamplePlace> {
         @Override
         public String getToken(ScriptSamplePlace place) {

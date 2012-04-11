@@ -1,6 +1,5 @@
 package com.dynamo.cr.web2.client.place;
 
-import com.google.gwt.place.shared.Place;
 import com.google.gwt.place.shared.PlaceTokenizer;
 import com.google.gwt.place.shared.Prefix;
 
@@ -20,7 +19,7 @@ public class ReferencePlace extends DefoldPlace {
         return niceify(id) + " Reference";
     }
 
-    @Prefix("reference")
+    @Prefix("!reference")
     public static class Tokenizer implements PlaceTokenizer<ReferencePlace> {
         @Override
         public String getToken(ReferencePlace place) {

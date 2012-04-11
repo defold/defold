@@ -19,13 +19,13 @@
                             <h3>Guides</h3>
                             Here we take a closer look on different areas of the platform
                             <ul>
-                                <li><g:Hyperlink targetHistoryToken="guide:introduction">Introduction</g:Hyperlink></li>
-                                <li><g:Hyperlink targetHistoryToken="guide:scripting_debugging">Scripting &amp; Debugging</g:Hyperlink></li>
-                                <li><g:Hyperlink targetHistoryToken="guide:message_passing">Message Passing</g:Hyperlink></li>
-                                <li><g:Hyperlink targetHistoryToken="guide:reload">Hot Reloading</g:Hyperlink></li>
-                                <li><g:Hyperlink targetHistoryToken="guide:physics">Physics</g:Hyperlink></li>
-                                <li><g:Hyperlink targetHistoryToken="guide:tiles">Tiles</g:Hyperlink></li>
-                                <li><g:Hyperlink targetHistoryToken="guide:game_project">Project Settings</g:Hyperlink></li>
+                                <li><g:Hyperlink targetHistoryToken="!guide:introduction">Introduction</g:Hyperlink></li>
+                                <li><g:Hyperlink targetHistoryToken="!guide:scripting_debugging">Scripting &amp; Debugging</g:Hyperlink></li>
+                                <li><g:Hyperlink targetHistoryToken="!guide:message_passing">Message Passing</g:Hyperlink></li>
+                                <li><g:Hyperlink targetHistoryToken="!guide:reload">Hot Reloading</g:Hyperlink></li>
+                                <li><g:Hyperlink targetHistoryToken="!guide:physics">Physics</g:Hyperlink></li>
+                                <li><g:Hyperlink targetHistoryToken="!guide:tiles">Tiles</g:Hyperlink></li>
+                                <li><g:Hyperlink targetHistoryToken="!guide:game_project">Project Settings</g:Hyperlink></li>
                             </ul>
                         </div>
 		            </td>
@@ -35,17 +35,17 @@
                             <h3>Tutorials</h3>
                             Step by step tutorials and videos
                             <ul>
-                                <li><g:Hyperlink targetHistoryToken="tutorials:side_scroller">Side-Scroller</g:Hyperlink></li>
+                                <li><g:Hyperlink targetHistoryToken="!tutorials:side_scroller">Side-Scroller</g:Hyperlink></li>
                             </ul>
                         </div>
                         <div class="box">
                             <h3>Script Samples</h3>
                             Script samples and videos
                             <ul>
-                                <li><g:Hyperlink targetHistoryToken="script_sample:hud">HUD</g:Hyperlink></li>
-                                <li><g:Hyperlink targetHistoryToken="script_sample:main_menu">Main Menu</g:Hyperlink></li>
-                                <li><g:Hyperlink targetHistoryToken="script_sample:parallax">Parallax</g:Hyperlink></li>
-                                <li><g:Hyperlink targetHistoryToken="script_sample:level_complete">Level Complete</g:Hyperlink></li>
+                                <li><g:Hyperlink targetHistoryToken="!script_sample:hud">HUD</g:Hyperlink></li>
+                                <li><g:Hyperlink targetHistoryToken="!script_sample:main_menu">Main Menu</g:Hyperlink></li>
+                                <li><g:Hyperlink targetHistoryToken="!script_sample:parallax">Parallax</g:Hyperlink></li>
+                                <li><g:Hyperlink targetHistoryToken="!script_sample:level_complete">Level Complete</g:Hyperlink></li>
                             </ul>
                         </div>
                     </td>
@@ -54,12 +54,12 @@
                             <h3>Reference</h3>
                             Script function and message reference
                             <ul>
-                                <li><g:Hyperlink targetHistoryToken="reference:engine">Engine</g:Hyperlink></li>
-                                <li><g:Hyperlink targetHistoryToken="reference:go">GameObject</g:Hyperlink></li>
-                                <li><g:Hyperlink targetHistoryToken="reference:gamesys">GameSys</g:Hyperlink></li>
-                                <li><g:Hyperlink targetHistoryToken="reference:render">Render</g:Hyperlink></li>
-                                <li><g:Hyperlink targetHistoryToken="reference:script">Script</g:Hyperlink></li>
-                                <li><g:Hyperlink targetHistoryToken="reference:gui">Gui</g:Hyperlink></li>
+                                <li><g:Hyperlink targetHistoryToken="!reference:engine">Engine</g:Hyperlink></li>
+                                <li><g:Hyperlink targetHistoryToken="!reference:go">GameObject</g:Hyperlink></li>
+                                <li><g:Hyperlink targetHistoryToken="!reference:gamesys">GameSys</g:Hyperlink></li>
+                                <li><g:Hyperlink targetHistoryToken="!reference:render">Render</g:Hyperlink></li>
+                                <li><g:Hyperlink targetHistoryToken="!reference:script">Script</g:Hyperlink></li>
+                                <li><g:Hyperlink targetHistoryToken="!reference:gui">Gui</g:Hyperlink></li>
                             </ul>
                         </div>
                     </td>

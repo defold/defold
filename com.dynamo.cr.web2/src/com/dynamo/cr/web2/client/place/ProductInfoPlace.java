@@ -10,7 +10,7 @@ public class ProductInfoPlace extends DefoldPlace {
         return "Welcome";
     }
 
-    @Prefix("product_info")
+    @Prefix("!product_info")
     public static class Tokenizer implements PlaceTokenizer<ProductInfoPlace> {
         @Override
         public String getToken(ProductInfoPlace place) {

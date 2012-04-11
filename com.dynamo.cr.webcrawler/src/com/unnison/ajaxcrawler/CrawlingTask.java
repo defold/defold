@@ -95,10 +95,7 @@ public class CrawlingTask extends HttpServlet {
         HashSet<String> hrefs = new HashSet<String>();
         for (HtmlAnchor a : anchors) {
             String href = a.getHrefAttribute();
-            // NOTE: Defold change
-            // We don't have true google style hash-bang ajax url:s yet
-            // We changed from #! to #
-            if (href.startsWith("#")) {
+            if (href.startsWith("#!")) {
                 hrefs.add(href);
             }
         }

@@ -39,7 +39,8 @@ public final class CrawlFilter implements Filter {
             chain.doFilter(request, response);
         } else {
             URL url = new URL(r.getRequestURL().toString());
-            String reqUrl = String.format("http://%s/#%s", url.getHost(), r.getParameter("_escaped_fragment_"));
+            String reqUrl = String.format("http://%s/#!%s", url.getHost(), r.getParameter("_escaped_fragment_"));
+
 
             // Fetch the snapshot
             URL fetchUrl = new URL(snapshootService + "/ajaxcrawler?url=" + URLEncoder.encode(reqUrl, "UTF-8"));

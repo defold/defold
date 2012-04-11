@@ -3,9 +3,9 @@
         xmlns:image="http://www.sitemaps.org/schemas/sitemap-image/1.1"
         xmlns:video="http://www.sitemaps.org/schemas/sitemap-video/1.1">
 
-  <url><loc>http://www.defold.com</loc><changefreq>daily</changefreq></url>
+  <url><loc>http://www.defold.com</loc><changefreq>hourly</changefreq></url>
 
-  <url><loc>http://www.defold.com/#!blog:</loc><changefreq>daily</changefreq></url>
+  <url><loc>http://www.defold.com/#!blog:</loc><changefreq>hourly</changefreq></url>
 
   <url><loc>http://www.defold.com/#!documentation:</loc><changefreq>daily</changefreq></url>
 

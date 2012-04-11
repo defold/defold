@@ -210,7 +210,12 @@ public class Defold implements EntryPoint {
                 Document.get().setTitle("Defold");
             }
             String token = historyMapper.getToken(place);
-            trackHit(token);
+            if (!ClientUtil.isDev()) {
+                if (token.startsWith("!")) {
+                    token = token.substring(1);
+                }
+                trackHit(token);
+            }
         }
     }
 

@@ -36,7 +36,7 @@
                         </h3>
                     </p>
                     <h2>New here?</h2>
-                    <div class="box boxHighlight">Go <a href="#guide:introduction">here</a> for an introduction.</div>
+                    <div class="box boxHighlight">Go <a href="#!guide:introduction">here</a> for an introduction.</div>
                     <p2:InvitationBox ui:field="invitationBox"></p2:InvitationBox>
                     <p2:DownloadBox></p2:DownloadBox>
 		        </td>

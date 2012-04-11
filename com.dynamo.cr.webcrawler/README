@@ -10,7 +10,7 @@ How to update the crawler:
 
 
 # fetch blog from crawler
-curl 'http://defoldcrawler.appspot.com/ajaxcrawler?url=http://www.defold.com%2f%23blog:'
+curl 'http://defoldcrawler.appspot.com/ajaxcrawler?url=http://www.defold.com%2f%23%21blog:'
 
 # fetch as google bot
 curl 'http://www.defold.com?_escaped_fragment_=blog:'

@@ -20,7 +20,7 @@ public class GuidePlace extends DefoldPlace {
         return niceify(id);
     }
 
-    @Prefix("guide")
+    @Prefix("!guide")
     public static class Tokenizer implements PlaceTokenizer<GuidePlace> {
         @Override
         public String getToken(GuidePlace place) {
