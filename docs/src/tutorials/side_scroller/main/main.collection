@@ -45,7 +45,7 @@ instances {
   }
 }
 instances {
-  id: "spaceship.go"
+  id: "spaceship"
   prototype: "/spaceship/spaceship.go"
   position {
     x: 60.0
