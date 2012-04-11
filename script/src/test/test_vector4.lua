@@ -11,7 +11,11 @@ assert(v.w == 4, "v.w is not 4")
 local v1 = vmath.vector4(v)
 -- equals
 assert(v == v1, "v != v1")
--- concat
+-- concat (long fract-expansions)
+v.x = math.pi + 1000
+v.y = math.pi + 1000
+v.z = math.pi + 1000
+v.w = math.pi + 1000
 print("v: " .. v)
 
 -- new index

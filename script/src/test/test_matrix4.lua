@@ -24,7 +24,23 @@ m.m00 = 2
 local m1 = vmath.matrix4(m)
 -- equals
 assert(m == m1, "m != m1")
--- concat
+-- concat (long fract-expansions)
+m.m00 = math.pi + 1000
+m.m01 = math.pi + 1000
+m.m02 = math.pi + 1000
+m.m03 = math.pi + 1000
+m.m10 = math.pi + 1000
+m.m11 = math.pi + 1000
+m.m12 = math.pi + 1000
+m.m13 = math.pi + 1000
+m.m20 = math.pi + 1000
+m.m21 = math.pi + 1000
+m.m22 = math.pi + 1000
+m.m23 = math.pi + 1000
+m.m30 = math.pi + 1000
+m.m31 = math.pi + 1000
+m.m32 = math.pi + 1000
+m.m33 = math.pi + 1000
 print("m: " .. m)
 
 -- new index

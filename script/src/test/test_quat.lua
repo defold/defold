@@ -18,7 +18,11 @@ assert(q.w == 1, "q.w is not 1")
 local q1 = vmath.quat(q)
 -- equals
 assert(q == q1, "q != q1")
--- concat
+-- concat (long fract-expansions)
+q.x = math.pi + 1000
+q.y = math.pi + 1000
+q.z = math.pi + 1000
+q.w = math.pi + 1000
 print("q: " .. q)
 
 -- new index

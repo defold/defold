@@ -150,7 +150,7 @@ namespace dmScript
     {
         const char* s = luaL_checkstring(L, 1);
         Vectormath::Aos::Vector3* v = CheckVector3(L, 2);
-        size_t size = 32 + strlen(s);
+        size_t size = 48 + strlen(s);
         char* buffer = new char[size];
         DM_SNPRINTF(buffer, size, "%s[%f, %f, %f]", s, v->getX(), v->getY(), v->getZ());
         lua_pushstring(L, buffer);
@@ -324,7 +324,7 @@ namespace dmScript
     {
         const char* s = luaL_checkstring(L, 1);
         Vectormath::Aos::Vector4* v = CheckVector4(L, 2);
-        size_t size = 48 + strlen(s);
+        size_t size = 64 + strlen(s);
         char* buffer = new char[size];
         DM_SNPRINTF(buffer, size, "%s[%f, %f, %f, %f]", s, v->getX(), v->getY(), v->getZ(), v->getW());
         lua_pushstring(L, buffer);
@@ -466,7 +466,7 @@ namespace dmScript
     {
         const char* s = luaL_checkstring(L, 1);
         Vectormath::Aos::Quat* q = CheckQuat(L, 2);
-        size_t size = 48 + strlen(s);
+        size_t size = 64 + strlen(s);
         char* buffer = new char[size];
         DM_SNPRINTF(buffer, size, "%s[%f, %f, %f, %f]", s, q->getX(), q->getY(), q->getZ(), q->getW());
         lua_pushstring(L, buffer);
