@@ -62,7 +62,7 @@ Bugs fixed in this release are:
 
 * Errors when opening a project for the first time
 * Incorrect type (number instead of hash) for collision groups in reference docs
-* Out-dated instructions in the link:#tutorials:side_scroller[Side-Scroller Tutorial]
+* Out-dated instructions in the link:#!tutorials:side_scroller[Side-Scroller Tutorial]
 * The bonus star was not displayed correctly in the tutorial after setting _Default Animation_
 
 The Windows-firewall problem described in the last post could not be reproduced.
@@ -235,16 +235,16 @@ Other Features
 * Improved error handling in the pipeline
 * Tabs are automatically shown when building/reloading to show progress and errors
 * Physics can be scaled for increased numerical precision
-* More link:#documentation:[documentation]
-** link:#guide:scripting_debugging[Scripting & Debugging]
-** link:#guide:message_passing[Message Passing]
-** link:#guide:reload[Hot Reloading]
-** link:#guide:physics[Physics]
-** link:#guide:tiles[Tiles]
-** link:#guide:game_project[game.project]
+* More link:#!documentation:[documentation]
+** link:#!guide:scripting_debugging[Scripting & Debugging]
+** link:#!guide:message_passing[Message Passing]
+** link:#!guide:reload[Hot Reloading]
+** link:#!guide:physics[Physics]
+** link:#!guide:tiles[Tiles]
+** link:#!guide:game_project[game.project]
 * Web site footer
-** link:#content:story[Defold Story]
-** link:#content:eula[Terms of Service]
+** link:#!content:story[Defold Story]
+** link:#!content:eula[Terms of Service]
 ** Support links
 ** Social links
 
@@ -289,7 +289,7 @@ We found a few issues with drag and drop that we felt were important to fix.
 With them came a list of other useful fixes as well.
 This release includes:
 
-* More stable drag and drop (errors would occur when dropping items onto themselves or in empty areas) 
+* More stable drag and drop (errors would occur when dropping items onto themselves or in empty areas)
 * We are testing another service for reporting issues and giving feedback called User-Echo.
   You can try it out by clicking the Feedback-tab to the left in the web site.
   There is a link to the service in the footer called "Forum".
@@ -303,12 +303,12 @@ This release includes:
 * The errors when running the game (starting with "ERROR:DDF: Name clash.") have been removed.
 * We have changed some functions related to node properties in gui scripting to be more compatible with each other (mostly by accepting both vector3 and vector4 as arguments).
 
-Right now we are aiming to be ready to take in more external users in a 
+Right now we are aiming to be ready to take in more external users in a
 week, so expect more great updates in not too much time!
-To be able to do this however, we need all of you to move over to the local 
-branches. We need to switch off our content server in order to open up the 
-firewall, since that server has no adequate authorization mechanism in 
-place. We will contact you about this individually though, so await further 
+To be able to do this however, we need all of you to move over to the local
+branches. We need to switch off our content server in order to open up the
+firewall, since that server has no adequate authorization mechanism in
+place. We will contact you about this individually though, so await further
 instructions. :)
 
 /Team Defold
@@ -473,8 +473,8 @@ The last two weeks we have been busy improving the documentation and implementin
 Introduction
 ~~~~~~~~~~~~
 
-We have worked hard at writing more documentation and are finally ready to show the new link:#getting_started:[introduction].
-It comes with a new link:#tutorials:side_scroller[tutorial], which demonstrates tweaking and the construction of game objects.
+We have worked hard at writing more documentation and are finally ready to show the new link:#!getting_started:[introduction].
+It comes with a new link:#!tutorials:side_scroller[tutorial], which demonstrates tweaking and the construction of game objects.
 We hope that you can gain some more insight into our design from the introduction.
 Hopefully, most of it should be old news by now but helpful for new users.
 
@@ -563,7 +563,7 @@ Please let us know what you think about that, do you like it or does it get too 
 Enable/Disable for Collision Objects
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Collision Object components can now be enabled and disabled through message-passing (see link:#reference:go/enable[enable] and link:#reference:go/disable[disable]).
+Collision Object components can now be enabled and disabled through message-passing (see link:#!reference:go/enable[enable] and link:#!reference:go/disable[disable]).
 Disabled collision objects are temporarily removed from the physics simulation, which means they don't collide with other objects.
 
 Dynamic collision objects also cease to move the game objects they belong to when disabled.
@@ -654,7 +654,7 @@ Web Site Face Lift
 As you have probably noticed by now, our web site has had a major face lift.
 We have also restructured the information a bit, but everything should hopefully be easier to find now.
 
-We have also added two new features to the link:#dashboard:[dashboard].
+We have also added two new features to the link:#!dashboard:[dashboard].
 
 The first is that we now use link:http://www.gravatar.com[Gravatar] to supply the avatars for us.
 To have your own avatar appear in the dashboard, link:https://en.gravatar.com/site/signup/[register] with Gravatar and setup your avatar there.
@@ -673,7 +673,7 @@ image::images/blog/20120108/project_activity.png["Activity with Gravatars", alig
 Script Samples
 ~~~~~~~~~~~~~~
 
-We have added a few script samples on the link:#documentation:[documentation] page.
+We have added a few script samples on the link:#!documentation:[documentation] page.
 We hope they will both inspire and provide aid in understanding how to make animations and effects using scripting.
 There are both samples that deals with gui animation (*HUD*, *Level Complete* and *Main Menu*) and game object animation (*Parallax*).
 

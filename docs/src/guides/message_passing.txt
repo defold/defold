@@ -40,7 +40,7 @@ _Fragment_ is also only used when passing messages to game objects, in which cas
 If fragment is omitted, the message will be sent to every component in the specified game object.
 This is called broad-casting.
 
-There are two types of messages, predefined messages in Defold (which you can find in the link:#reference:engine[reference]) and user defined messages.
+There are two types of messages, predefined messages in Defold (which you can find in the link:#!reference:engine[reference]) and user defined messages.
 Predefined messages must contain specific data and can only be sent to specific components or systems (this is detailed in the reference documentation).
 User defined messages can only be sent to other scripts.
 In this case you pick whatever data you want to pass along.
