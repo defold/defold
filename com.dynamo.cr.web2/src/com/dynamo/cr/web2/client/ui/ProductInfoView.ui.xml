@@ -27,17 +27,23 @@
 			<img src="/images/front_page_image.png"></img>
 		</div>
 
-        <div class="testamonial">
-        <h1>
-
-        &quot;The Defold engine and tools are built on powerful and simple concepts that are fun to use because they work <b>with</b> me and allows me to focus on my game's specific design problems. It clearly shows that the Defold developers have put their long industry experience and massive design and implementation effort into creating a great, unique platform.&quot;
-        </h1>
-
-        <h2>
-        Mikael Säker <br/>
-        (Battlefield 3, The Darkness, The Chronicles of Riddick)
-        </h2>
+        <div style="width: 914px; margin-top: 40px; text-align: center;">
+            <h1
+                style="color: black; font-size: 50px; width: 100%; margin-bottom: 30px;">Interested?</h1>
+            <p style="font-size: 16px;">
+                We are currently in <b>closed alpha</b>. If you know anyone already using Defold, ask them to invite you!<br/>
+                Everybody can register for the <b>open beta</b>, which will start in June.
+            </p>
+            <g:DeckPanel ui:field="registerDeck">
+                <g:HTMLPanel>
+                    <g:TextBox styleName="{style.registerEmail}" ui:field="registerEmail"></g:TextBox>
+                </g:HTMLPanel>
+                <g:HTMLPanel>
+                    Thank you! We will notify you as soon as the open beta has started.
+                </g:HTMLPanel>
+            </g:DeckPanel>
         </div>
+
 
 		<div class="uspContainer">
 
@@ -94,20 +100,16 @@
 			</table>
 		</div>
 
-		<div style="width: 914px; margin-top: 60px; text-align: center;">
-			<h1
-				style="color: black; font-size: 50px; width: 100%; margin-bottom: 22px;">Interested?</h1>
-			<g:DeckPanel ui:field="registerDeck">
-				<g:HTMLPanel>
-					<g:TextBox styleName="{style.registerEmail}" ui:field="registerEmail"></g:TextBox>
-				</g:HTMLPanel>
-				<g:HTMLPanel>
-					Thank you! We will notify you as soon as there's a seat available.
-				</g:HTMLPanel>
-			</g:DeckPanel>
-		</div>
+        <div class="testamonial">
+        <h1 style="text-align: justify;">
+            &quot;The Defold engine and tools are built on powerful and simple concepts that are fun to use because they work <b>with</b> me and allows me to focus on my game's specific design problems. It clearly shows that the Defold developers have put their long industry experience and massive design and implementation effort into creating a great, unique platform.&quot;
+        </h1>
 
+        <h2 style="text-align: right;">
+        Mikael Säker <br/>
+        (Battlefield 3, The Darkness, The Chronicles of Riddick)
+        </h2>
+        </div>
 
-		<div style="height: 50px;"></div>
 	</g:HTMLPanel>
 </ui:UiBinder>

@@ -42,14 +42,14 @@
             <div id="topBar">
                 <g:Hyperlink targetHistoryToken="/"  styleName="{style.logoLink}"><img src="/images/3dlogo.png"/></g:Hyperlink>
                 <ul class="nav nav1" style="margin-top: 16px;">
-                    <li id="dashboard">
-                        <g:Anchor ui:field="dashBoard">Dashboard</g:Anchor>
-                    </li>
                     <li id="blog">
                         <g:Anchor ui:field="blog">Blog</g:Anchor>
                     </li>
                     <li id="documentation">
                         <g:Anchor ui:field="documentation">Documentation</g:Anchor>
+                    </li>
+                    <li id="dashboard">
+                        <g:Anchor ui:field="dashBoard">Dashboard</g:Anchor>
                     </li>
                 </ul>
             </div>
