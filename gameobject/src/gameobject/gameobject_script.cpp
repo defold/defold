@@ -273,6 +273,12 @@ namespace dmGameObject
                 id = dmScript::CheckHash(L, 1);
             }
             instance = GetInstanceFromIdentifier(collection, id);
+
+            if (instance == 0)
+            {
+                luaL_error(L, "Failed to delete GameObject, '%s' not found.", dmHashReverse64(id, 0));
+            }
+
         }
         dmGameObject::Delete(collection, instance);
         return 0;
