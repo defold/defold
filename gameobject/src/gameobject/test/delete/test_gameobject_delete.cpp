@@ -201,6 +201,19 @@ TEST_F(DeleteTest, TestScriptDeleteOther)
     ASSERT_EQ(1, m_Collection->m_InstanceIndices.Size());
 }
 
+TEST_F(DeleteTest, TestScriptDeleteNonExistent)
+{
+    dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "/delete_non_existent.goc");
+    ASSERT_NE((void*)0, (void*)instance);
+    instance = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::SetIdentifier(m_Collection, instance, "test_id");
+    ASSERT_NE((void*)0, (void*)instance);
+    ASSERT_NE(1, m_Collection->m_InstanceIndices.Size());
+    ASSERT_FALSE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_EQ(2, m_Collection->m_InstanceIndices.Size());
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);
