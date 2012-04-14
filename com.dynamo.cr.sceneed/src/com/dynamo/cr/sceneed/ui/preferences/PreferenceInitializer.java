@@ -4,6 +4,7 @@ import org.eclipse.core.runtime.preferences.AbstractPreferenceInitializer;
 import org.eclipse.jface.preference.IPreferenceStore;
 
 import com.dynamo.cr.sceneed.Activator;
+import com.dynamo.cr.sceneed.core.SceneUtil;
 
 /**
  * Class used to initialize default preference values.
@@ -24,5 +25,10 @@ public class PreferenceInitializer extends AbstractPreferenceInitializer {
         store.setDefault(PreferenceConstants.P_GRID_SIZE, 100);
         store.setDefault(PreferenceConstants.P_GRID_COLOR, "114,123,130");
         store.setDefault(PreferenceConstants.P_SELECTION_COLOR, "131,188,212");
+        if (SceneUtil.isMac()) {
+            store.setDefault(PreferenceConstants.P_MOUSE_TYPE, SceneUtil.MouseType.ONE_BUTTON.name());
+        } else {
+            store.setDefault(PreferenceConstants.P_MOUSE_TYPE, SceneUtil.MouseType.THREE_BUTTON.name());
+        }
     }
 }

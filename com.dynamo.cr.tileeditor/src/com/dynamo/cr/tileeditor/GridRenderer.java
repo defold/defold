@@ -39,6 +39,8 @@ import org.eclipse.ui.handlers.IHandlerService;
 import org.eclipse.ui.services.IDisposable;
 
 import com.dynamo.cr.editor.core.ILogger;
+import com.dynamo.cr.sceneed.core.SceneUtil;
+import com.dynamo.cr.sceneed.core.SceneUtil.MouseType;
 import com.dynamo.cr.tileeditor.core.IGridView;
 import com.dynamo.cr.tileeditor.core.Layer;
 import com.dynamo.cr.tileeditor.core.Layer.Cell;
@@ -66,7 +68,6 @@ Listener {
     private GLContext context;
     private final IntBuffer viewPort = BufferUtil.newIntBuffer(4);
     private boolean paintRequested = false;
-    private final boolean mac = System.getProperty("os.name").equals("Mac OS X");
     private boolean enabled = true;
     private Point2i activeCell = null;
     private int activeTile = -1;
@@ -419,22 +420,31 @@ Listener {
                 }
             }
         } else {
-            if ((this.mac && event.stateMask == (SWT.ALT | SWT.CTRL))
-                    || (!this.mac && event.button == 2 && event.stateMask == SWT.ALT)) {
-                this.cameraMode = CAMERA_MODE_PAN;
-                this.activeCell = null;
-            } else if ((this.mac && event.stateMask == (SWT.CTRL))
-                    || (!this.mac && event.button == 3 && event.stateMask == SWT.ALT)) {
-                this.cameraMode = CAMERA_MODE_ZOOM;
-                this.activeCell = null;
-            } else {
-                this.cameraMode = CAMERA_MODE_NONE;
+            this.cameraMode = CAMERA_MODE_NONE;
+            MouseType mouseType = SceneUtil.getMouseType();
+            switch (mouseType) {
+            case ONE_BUTTON:
                 if (event.button == 1) {
-                    if (this.activeCell != null) {
-                        this.presenter.onPaintBegin();
-                        this.presenter.onPaint(this.activeCell.getX(), this.activeCell.getY());
+                    if (event.stateMask == (SWT.ALT | SWT.CTRL)) {
+                        this.cameraMode = CAMERA_MODE_PAN;
+                    } else if (event.stateMask == SWT.CTRL) {
+                        this.cameraMode = CAMERA_MODE_ZOOM;
                     }
                 }
+                break;
+            case THREE_BUTTON:
+                if (event.stateMask == SWT.ALT) {
+                    if (event.button == 2) {
+                        this.cameraMode = CAMERA_MODE_PAN;
+                    } else if (event.button == 3) {
+                        this.cameraMode = CAMERA_MODE_ZOOM;
+                    }
+                }
+                break;
+            }
+            if (this.cameraMode == CAMERA_MODE_NONE && event.button == 1 && this.activeCell != null) {
+                this.presenter.onPaintBegin();
+                this.presenter.onPaint(this.activeCell.getX(), this.activeCell.getY());
             }
         }
     }

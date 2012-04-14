@@ -16,6 +16,8 @@ import org.eclipse.swt.events.MouseListener;
 import org.eclipse.swt.events.MouseMoveListener;
 import org.eclipse.ui.ISelectionService;
 
+import com.dynamo.cr.sceneed.core.SceneUtil.MouseType;
+
 public class CameraController implements MouseListener, MouseMoveListener {
 
     private static enum State {
@@ -28,7 +30,6 @@ public class CameraController implements MouseListener, MouseMoveListener {
     private int lastX;
     private int lastY;
     private State state = State.IDLE;
-    private boolean isMac = false;
     private IRenderView renderView;
     private Camera camera = new Camera(Camera.Type.ORTHOGRAPHIC);
     private Vector4d focusPoint = new Vector4d(0.0, 0.0, 0.0, 1.0);
@@ -43,7 +44,6 @@ public class CameraController implements MouseListener, MouseMoveListener {
         this.renderView.addMouseListener(this);
         this.renderView.addMouseMoveListener(this);
         this.renderView.setCamera(camera);
-        isMac = SceneUtil.isMac();
     }
 
     @PreDestroy
@@ -64,18 +64,31 @@ public class CameraController implements MouseListener, MouseMoveListener {
     public void mouseDown(MouseEvent event) {
         lastX = event.x;
         lastY = event.y;
-
-        if ((isMac && event.stateMask == (SWT.ALT | SWT.CTRL))
-                || (!isMac && event.button == 2 && event.stateMask == SWT.ALT)) {
-            state = State.TRACK;
-        } else if ((isMac && event.stateMask == (SWT.ALT))
-                || (!isMac && event.button == 1 && event.stateMask == SWT.ALT)) {
-            state = State.ROTATE;
-        } else if ((isMac && event.stateMask == (SWT.CTRL))
-                || (!isMac && event.button == 3 && event.stateMask == SWT.ALT)) {
-            state = State.DOLLY;
-        } else {
-            state = State.IDLE;
+        state = State.IDLE;
+        MouseType mouseType = SceneUtil.getMouseType();
+        switch (mouseType) {
+        case ONE_BUTTON:
+            if (event.button == 1) {
+                if (event.stateMask == (SWT.ALT | SWT.CTRL)) {
+                    state = State.TRACK;
+                } else if (event.stateMask == SWT.ALT) {
+                    state = State.ROTATE;
+                } else if (event.stateMask == SWT.CTRL) {
+                    state = State.DOLLY;
+                }
+            }
+            break;
+        case THREE_BUTTON:
+            if (event.stateMask == SWT.ALT) {
+                if (event.button == 2) {
+                    state = State.TRACK;
+                } else if (event.button == 1) {
+                    state = State.ROTATE;
+                } else if (event.button == 3) {
+                    state = State.DOLLY;
+                }
+            }
+            break;
         }
     }
 
@@ -172,8 +185,10 @@ public class CameraController implements MouseListener, MouseMoveListener {
     }
 
     public static boolean hasCameraControlModifiers(MouseEvent event) {
-        return (event.stateMask & SWT.ALT) != 0
-                || (SceneUtil.isMac() && (event.stateMask & SWT.CTRL) != 0);
+        MouseType type = SceneUtil.getMouseType();
+
+        return (type == MouseType.THREE_BUTTON && (event.stateMask & SWT.ALT) != 0)
+                || (type == MouseType.ONE_BUTTON && (event.stateMask & (SWT.CTRL|SWT.ALT)) != 0);
     }
 
     public void frameObjects() {
