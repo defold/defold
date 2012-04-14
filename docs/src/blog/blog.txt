@@ -1,5 +1,65 @@
 :max-width: 45em
 
+Script Properties Design
+------------------------
+_April 15, 2012_
+
+We have started designing how the script properties should work.
+Now we want you to join in and criticize our decisions, so we can make even better ones.
+The document is right link:https://docs.google.com/document/d/18u_9Jhuuj-NEHCVKTH7gj127Hs62fT1KKwecRRbkz44/edit[here], anybody can comment.
+
+We are very excited to see how this works out.
+Hopefully we can do this (or something better) for all upcoming features.
+Transparency and knowledge sharing ftw!
+
+/Team Defold
+
+Beta Plans
+----------
+_April 12, 2012_
+
+We have now gone through everything we want in place for the Beta release due June.
+In general, we will focus more on bugs and annoyances than new features.
+We value the feedback you provide and are open to change our plans, should anything come up.
+Our planning is very dynamic so expect anything to change.
+
+Some new features are too important to postpone.
+We are excited to test a new experimental approach to designing these.
+During the years, we have worked out a pretty robust way of designing, implementing and testing new features.
+This time we want to try involving you in the initial design, to collect feedback as early as possible.
+How this will happen exactly is not yet clear, but probably something like a publicly accessible Google doc where you can add comments.
+Let's see how it turns out! :)
+
+Script Properties
+~~~~~~~~~~~~~~~~~
+
+For game objects that use the same logic script, it is common that you want their behaviors to differ slightly from each other.
+This feature is the ability to tweak scripts with different initial values to basically reuse the logic for different configurations.
+A practical example would be an enemy that has twice the health of another, but the same general behavior.
+
+iOS
+~~~
+
+We are working on a smooth work-flow of testing the game on an iOS device.
+This would have the same features as when running it on your local machine, like hot-reloading and profiling.
+It obviously includes full touch support in the input system.
+
+Auto-Completion and Tags
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Some properties rely on the user to specify the exact same IDs in different places.
+This is error-prone and we are looking at different ways to support auto-completion and tags, commonly found in web interfaces.
+A related feature is improved auto-completion when scripting.
+
+Improved Tile Map Editing
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The current painting of tiles is very rudimentary and would benefit from more features, like copy-paste and the ability to move painted tiles.
+
+There are of course a ton of bugs to fix as well, so we have plenty to do this spring!
+
+/Team Defold
+
 Release 1.1.4
 -------------
 _April 11, 2012_
