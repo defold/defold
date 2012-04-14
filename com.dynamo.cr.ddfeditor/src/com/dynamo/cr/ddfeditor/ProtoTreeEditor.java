@@ -22,6 +22,7 @@ import org.eclipse.jface.viewers.TextCellEditor;
 import org.eclipse.jface.viewers.TreeViewer;
 import org.eclipse.jface.viewers.TreeViewerColumn;
 import org.eclipse.swt.SWT;
+import org.eclipse.swt.custom.CCombo;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.Composite;
@@ -87,6 +88,15 @@ public class ProtoTreeEditor implements Listener {
     class EnumCellEditor extends ComboBoxCellEditor {
         public EnumCellEditor(Composite parent) {
             super(parent, new String[] {}, SWT.READ_ONLY);
+        }
+
+        @Override
+        protected Control createControl(Composite parent) {
+            // TODO Auto-generated method stub
+            Control control = super.createControl(parent);
+            CCombo combo = (CCombo)control;
+            combo.setVisibleItemCount(10);
+            return control;
         }
 
         public void setEnumDescriptor(EnumDescriptor enumDescriptor) {
