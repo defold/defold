@@ -15,6 +15,9 @@ public class Messages extends NLS {
     public static String PreferencePage_GridManualValue;
     public static String PreferencePage_GridColor;
     public static String PreferencePage_SelectionColor;
+    public static String PreferencePage_MouseType;
+    public static String PreferencePage_MouseTypeOneValue;
+    public static String PreferencePage_MouseTypeThreeValue;
 
     static {
         // initialize resource bundle

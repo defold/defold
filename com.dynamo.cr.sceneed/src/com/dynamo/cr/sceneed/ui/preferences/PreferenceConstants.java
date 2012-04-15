@@ -12,4 +12,5 @@ public class PreferenceConstants {
     public static final String P_GRID_MANUAL_VALUE = "manual";
     public static final String P_GRID_COLOR = "SceneEditor.GridColor";
     public static final String P_SELECTION_COLOR = "SceneEditor.SelectionColor";
+    public static final String P_MOUSE_TYPE = "SceneEditor.MouseType";
 }

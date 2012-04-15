@@ -1,6 +1,7 @@
 package com.dynamo.cr.sceneed.ui.preferences;
 
 import org.eclipse.jface.preference.ColorFieldEditor;
+import org.eclipse.jface.preference.ComboFieldEditor;
 import org.eclipse.jface.preference.FieldEditorPreferencePage;
 import org.eclipse.jface.preference.IntegerFieldEditor;
 import org.eclipse.jface.preference.RadioGroupFieldEditor;
@@ -8,6 +9,7 @@ import org.eclipse.ui.IWorkbench;
 import org.eclipse.ui.IWorkbenchPreferencePage;
 
 import com.dynamo.cr.sceneed.Activator;
+import com.dynamo.cr.sceneed.core.SceneUtil;
 import com.dynamo.cr.sceneed.ui.Messages;
 
 public class PreferencePage
@@ -61,6 +63,14 @@ implements IWorkbenchPreferencePage {
                 String.format(labelFormat, Messages.PreferencePage_GridColor),
                 this.gridField.getRadioBoxControl(getFieldEditorParent()));
         addField(gridColorField);
+
+        ComboFieldEditor mouseTypeField = new ComboFieldEditor(PreferenceConstants.P_MOUSE_TYPE,
+                String.format(labelFormat, Messages.PreferencePage_MouseType),
+                new String[][] {
+            {Messages.PreferencePage_MouseTypeOneValue, SceneUtil.MouseType.ONE_BUTTON.name()},
+            {Messages.PreferencePage_MouseTypeThreeValue, SceneUtil.MouseType.THREE_BUTTON.name()}
+            }, getFieldEditorParent());
+        addField(mouseTypeField);
     }
 
     @Override
