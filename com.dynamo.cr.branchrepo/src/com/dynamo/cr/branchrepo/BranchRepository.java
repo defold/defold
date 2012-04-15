@@ -437,9 +437,12 @@ public abstract class BranchRepository {
             if (ws == '?' || ws == 'M') {
                 System.out.println("autostaging: " + f.file);
                 git.add(p, f.file);
-            }
-            else if (ws == 'D') {
-                git.rm(p, f.file, true, true);
+            } else if (ws == 'D') {
+                if (f.indexStatus == 'A') {
+                    git.reset(p, GitResetMode.MIXED, f.file, "HEAD");
+                } else {
+                    git.rm(p, f.file, true, true);
+                }
             }
         }
     }
