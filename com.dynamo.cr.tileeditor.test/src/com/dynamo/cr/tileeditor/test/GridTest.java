@@ -779,4 +779,12 @@ public class GridTest implements IResourceChangeListener {
             }
         }
     }
+
+    @Test
+    public void testIndexed() throws Exception {
+        String image = "/indexed_1x4_16.png";
+        TileSetModel tileSet = newTileSet("/mario.tileset", image, 0);
+        tileSet.setCollision(image);
+        assertEquals(tileSet.getConvexHulls().size(), 4);
+    }
 }

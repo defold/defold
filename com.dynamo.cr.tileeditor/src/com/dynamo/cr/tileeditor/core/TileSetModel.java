@@ -1,5 +1,6 @@
 package com.dynamo.cr.tileeditor.core;
 
+import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.beans.PropertyChangeEvent;
 import java.io.IOException;
@@ -409,7 +410,12 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
             IFile file = this.contentRoot.getFile(new Path(fileName));
             InputStream is = file.getContents();
             try {
-                return ImageIO.read(is);
+                BufferedImage origImage = ImageIO.read(is);
+                BufferedImage image = new BufferedImage(origImage.getWidth(), origImage.getHeight(), BufferedImage.TYPE_4BYTE_ABGR);
+                Graphics2D g2d= image.createGraphics();
+                g2d.drawImage(origImage, 0, 0, null);
+                g2d.dispose();
+                return image;
             } finally {
                 is.close();
             }
