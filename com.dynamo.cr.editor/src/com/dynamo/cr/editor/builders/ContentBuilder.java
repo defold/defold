@@ -31,6 +31,7 @@ import org.osgi.framework.Bundle;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.DefaultFileSystem;
 import com.dynamo.bob.Project;
+import com.dynamo.bob.Task;
 import com.dynamo.bob.TaskResult;
 import com.dynamo.cr.client.IBranchClient;
 import com.dynamo.cr.client.RepositoryException;
@@ -134,8 +135,14 @@ public class ContentBuilder extends IncrementalProjectBuilder {
                         // This is an unexpected error. Log it.
                         Activator.logException(exception);
                     }
-                    String input = taskResult.getTask().input(0).getPath();
+                    Task<?> task = taskResult.getTask();
+                    String input = task.input(0).getPath();
                     IFile resource = EditorUtil.getContentRoot(getProject()).getFile(input);
+                    while (!resource.exists() && task.getProductOf() != null) {
+                        task = task.getProductOf();
+                        input = task.input(0).getPath();
+                        resource = EditorUtil.getContentRoot(getProject()).getFile(input);
+                    }
                     if (resource.exists())
                     {
                         IMarker marker = resource.createMarker(IMarker.PROBLEM);
