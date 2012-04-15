@@ -13,7 +13,11 @@ public class FilterPlaceHistoryMapper implements PlaceHistoryMapper {
 
     @Override
     public Place getPlace(String token) {
-        // Currently not in use. We used to convert hash-bang to hash-links here.
+        // Twitter, gmail, etc remove the trailing colon in links
+        // If no colon exists in url we append one.
+        if (token.indexOf(':') == -1) {
+            token += ":";
+        }
         return mapper.getPlace(token);
     }
 

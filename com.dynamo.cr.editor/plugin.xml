@@ -431,6 +431,20 @@
               </not>
           </activeWhen>
         </handler>
+       <handler
+             class="com.dynamo.cr.editor.handlers.AboutHandler"
+             commandId="org.eclipse.ui.help.aboutAction">
+          <activeWhen>
+             <with
+                   variable="activeWorkbenchWindow.activePerspective">
+                <not>
+                   <equals
+                         value="not_false_equals_true">
+                   </equals>
+                </not>
+             </with>
+          </activeWhen>
+       </handler>
      </extension>
    <extension
          point="org.eclipse.ui.popupMenus">
