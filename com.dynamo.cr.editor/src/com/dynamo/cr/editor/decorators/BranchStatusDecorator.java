@@ -74,17 +74,16 @@ public class BranchStatusDecorator implements ILightweightLabelDecorator, IBranc
     @Override
     public void decorate(Object element, IDecoration decoration) {
 
-        IResource resource = null;
+        BranchStatus.Status fileStatus = null;
         if (element instanceof IResource) {
-            resource = (IResource) element;
-
+            IResource resource = (IResource) element;
+            fileStatus = resourceToStatus.get(resource);
         } else if (element instanceof ResourceStatus) {
             ResourceStatus resourceStatus = (ResourceStatus)element;
-            resource = resourceStatus.getResource();
+            fileStatus = resourceStatus.getStatus();
         }
 
-        if (resource != null && resourceToStatus.containsKey(resource)) {
-            BranchStatus.Status fileStatus = resourceToStatus.get(resource);
+        if (fileStatus != null) {
             doDecorate(decoration, fileStatus.getIndexStatus(), fileStatus.getWorkingTreeStatus());
         }
     }
