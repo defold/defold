@@ -62,13 +62,14 @@ public class TileSetc {
             outBuilder.clearConvexHullPoints();
 
             String collisionPath = tileSet.getCollision();
+            BufferedImage collisionImage = null;
             if (!collisionPath.equals("")) {
-                BufferedImage collisionImage = loadImageFile(collisionPath);
+                collisionImage = loadImageFile(collisionPath);
                 int width = collisionImage.getWidth();
                 int height = collisionImage.getHeight();
 
                 if (collisionImage.getAlphaRaster() == null) {
-                    throw new RuntimeException(String.format("Collision image '%s' is missing alpha channel%n", collisionPath));
+                    throw new RuntimeException(String.format("Collision image '%s' is missing alpha channel", collisionPath));
                 }
 
                 ConvexHulls convexHulls = TileSetUtil.calculateConvexHulls(
@@ -96,7 +97,15 @@ public class TileSetc {
                 }
             }
 
-            String compiledImageName = tileSet.getImage();
+            String imagePath = tileSet.getImage();
+            BufferedImage image = loadImageFile(imagePath);
+            if (image != null && (image.getWidth() < tileSet.getTileWidth() || image.getHeight() < tileSet.getTileHeight())) {
+                throw new RuntimeException("Invalid tile dimensions");
+            }
+            if (image != null && collisionImage != null && (image.getWidth() != collisionImage.getWidth() || image.getHeight() != collisionImage.getHeight())) {
+                throw new RuntimeException("Image dimensions differ");
+            }
+            String compiledImageName = imagePath;
             int index = compiledImageName.lastIndexOf('.');
             compiledImageName = compiledImageName.substring(0, index) + ".texturec";
             outBuilder.setImage(compiledImageName);

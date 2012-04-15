@@ -20,6 +20,13 @@ namespace dmGameSystem
         if (r == dmResource::RESULT_OK)
         {
             tile_set->m_TileSet = tile_set_ddf;
+            uint16_t width = dmGraphics::GetTextureWidth(tile_set->m_Texture);
+            uint16_t height = dmGraphics::GetTextureHeight(tile_set->m_Texture);
+            // Check dimensions
+            if (width < tile_set_ddf->m_TileWidth || height < tile_set_ddf->m_TileHeight)
+            {
+                return dmResource::RESULT_INVALID_DATA;
+            }
             uint32_t n_hulls = tile_set_ddf->m_ConvexHulls.m_Count;
             tile_set->m_HullCollisionGroups.SetCapacity(n_hulls);
             tile_set->m_HullCollisionGroups.SetSize(n_hulls);

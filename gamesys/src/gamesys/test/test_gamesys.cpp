@@ -471,6 +471,13 @@ INSTANTIATE_TEST_CASE_P(Sprite, ComponentFailTest, ::testing::ValuesIn(invalid_s
 const char* valid_tileset_resources[] = {"/tile/valid.tilesetc"};
 INSTANTIATE_TEST_CASE_P(TileSet, ResourceTest, ::testing::ValuesIn(valid_tileset_resources));
 
+ResourceFailParams invalid_tileset_resources[] =
+{
+    {"/tile/valid.tilesetc", "/tile/invalid_width.tilesetc"},
+    {"/tile/valid.tilesetc", "/tile/invalid_height.tilesetc"}
+};
+INSTANTIATE_TEST_CASE_P(TileSet, ResourceFailTest, ::testing::ValuesIn(invalid_tileset_resources));
+
 /* TileGrid */
 const char* valid_tilegrid_resources[] = {"/tile/valid.tilegridc"};
 INSTANTIATE_TEST_CASE_P(TileGrid, ResourceTest, ::testing::ValuesIn(valid_tilegrid_resources));
