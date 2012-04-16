@@ -152,6 +152,12 @@
                   value="http://defold.userecho.com">
             </parameter>
          </command>
+         <command
+               commandId="org.eclipse.ui.help.aboutAction"
+               icon="icons/about_24.png"
+               label="About Defold"
+               style="push">
+         </command>
       </menuContribution>
    </extension>
    <extension
