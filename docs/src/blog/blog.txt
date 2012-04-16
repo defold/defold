@@ -7,17 +7,6 @@ _April 16, 2012_
 This release contains more important bug fixes, it feels like we now have gotten the worst ones out of the way.
 This means that we can pay more attention to the reported issues and the design of the bigger features for the beta release.
 
-Windows Auto-Update Problem
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The problem with automatic updates on Windows came from Windows locking some of the files in the installation.
-These files were attempted to be removed by the update procedure, which then failed.
-This left the editor in a confused state, which resulted in the never-ending updates there after.
-The update procedure has now been reconfigured to handle this in a better way.
-We will be more careful about the tests for release from now on, so we can make sure both updating the editor from an older release and installing from scratch works well.
-Although this is now fixed, the current installations has this bug in them so you still need to manually download a new one from the Dashboard.
-That should hopefully be the last time though.
-
 Synchronization Problems for Mac OSX 10.6
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
