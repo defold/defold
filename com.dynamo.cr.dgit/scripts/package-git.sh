@@ -18,8 +18,8 @@ ROOT=`pwd`
 if [ $PLATFORM == "darwin" ]; then
     SDK='/Developer/SDKs/MacOSX10.6.sdk'
     [ ! -e $SDK ] && echo "SDK $SDK not found!" && exit 1
-	export CFLAGS='-isysroot $SDK'
-	export LDFLAGS='-isysroot $SDK'
+	export CFLAGS="-isysroot $SDK"
+	export LDFLAGS="-isysroot $SDK"
 fi
 GIT_DIR=${ROOT}/tmp/build
 rm -rf tmp
