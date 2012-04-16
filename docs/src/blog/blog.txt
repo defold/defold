@@ -18,7 +18,7 @@ We will be more careful about the tests for release from now on, so we can make 
 Although this is now fixed, the current installations has this bug in them so you still need to manually download a new one from the Dashboard.
 That should hopefully be the last time though.
 
-Synchronization-problems for Mac OSX 10.6
+Synchronization Problems for Mac OSX 10.6
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 We had bundled git (which we use for syncing and sharing projects) from a build which was incompatible with OSX 10.6.
@@ -33,7 +33,7 @@ Mouse Setups for Scene Navigation
 This is actually a new feature, which should be interesting if you run Defold on a laptop with Windows or Linux.
 To navigate in the Scene Editor (for visual placement), we used two separate styles similar to Maya based on if you run Mac or not.
 The non-Mac setup assumes you have a three-button mouse and relies on the middle-button for panning.
-This is now changed to be a preference (*File > Preferences > Defold > Scene Editor > Mouse Type*), which you can set if you want to use the One-button style.
+This is now changed to be a preference (*File > Preferences > Defold > Scene Editor > Mouse Type*), which you can set if you want to use the one-button style.
 
 More Fixes
 ~~~~~~~~~~
@@ -47,7 +47,7 @@ More Fixes
 * A jaw-dropping About-dialog (*Help > About Defold*)
 
 We are also happy to see the discussions taking place in our link:https://docs.google.com/document/d/18u_9Jhuuj-NEHCVKTH7gj127Hs62fT1KKwecRRbkz44/edit[design document] for script properties.
-Thanks to everyone participating, know that you are shaping Defold to a better game dev environment! :)
+Thanks to everyone participating, know that you are shaping Defold into a better game dev environment! :)
 
 Script Properties Design
 ------------------------
