@@ -398,7 +398,7 @@
             default="true"
             extensions="collection"
             icon="icons/bricks.png"
-            id="com.dynamo.cr.contenteditor.editors.CollectionEditor"
+            id="com.dynamo.cr.go.editors.CollectionEditor"
             name="Scene Editor">
       </editor>
    </extension>

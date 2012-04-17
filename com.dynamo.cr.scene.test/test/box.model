@@ -1,4 +1,0 @@
-name: "box"
-mesh: "box.dae"
-material: "test.material"
-textures: "test.png"

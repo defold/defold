@@ -88,9 +88,6 @@
         <module>../com.dynamo.cr.editor.fs</module>
         <module>../com.dynamo.cr.editor.fs.test</module>
         <module>../com.dynamo.cr.editor.ui</module>
-        <module>../com.dynamo.cr.scene</module>
-        <module>../com.dynamo.cr.scene.test</module>
-        <module>../com.dynamo.cr.contenteditor</module>
         <module>../com.dynamo.cr.luaeditor</module>
         <module>../com.dynamo.cr.luaeditor.test</module>
         <module>../com.dynamo.cr.cgeditor</module>

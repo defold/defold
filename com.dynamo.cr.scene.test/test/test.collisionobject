@@ -1,6 +1,0 @@
-collision_shape: "test.convexshape"
-type: COLLISION_OBJECT_TYPE_DYNAMIC
-mass: 1
-friction: 0
-restitution: 0
-group: "0"

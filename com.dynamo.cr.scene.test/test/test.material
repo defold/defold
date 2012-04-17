@@ -1,3 +1,0 @@
-name: "test_material"
-fragment_program: "test.fp"
-vertex_program: "test.vp"

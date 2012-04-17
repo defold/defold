@@ -1,8 +1,0 @@
-name: "recurse2"
-collection_instances
-{
-    id: "recurse"
-    collection: "recurse.collection"
-    position { x: 0 y: 0 z: 0 }
-    rotation { x: 0 y: 0 z: 0 w: 0 }
-}
