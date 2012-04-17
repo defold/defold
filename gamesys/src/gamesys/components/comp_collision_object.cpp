@@ -614,7 +614,7 @@ namespace dmGameSystem
         {
             dmPhysics::StepWorld2D(world->m_World2D, step_world_context);
         }
-        if (collision_user_data.m_Count >= 128)
+        if (collision_user_data.m_Count >= MAX_COLLISION_COUNT)
         {
             if (!g_CollisionOverflowWarning)
             {
@@ -626,7 +626,7 @@ namespace dmGameSystem
         {
             g_CollisionOverflowWarning = false;
         }
-        if (contact_user_data.m_Count >= 128)
+        if (contact_user_data.m_Count >= MAX_CONTACT_COUNT)
         {
             if (!g_ContactOverflowWarning)
             {
