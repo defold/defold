@@ -52,7 +52,7 @@ public class ReferenceActivity extends AbstractActivity implements ReferenceView
     public void onDocumentationElement(String documentName, String elementName) {
         final ReferenceView referenceView = clientFactory.getReferenceView();
         referenceView.scrollTo(elementName);
-        History.newItem("reference:" + documentName + "/" + elementName, false);
+        History.newItem("!reference:" + documentName + "/" + elementName, false);
     }
 
     private void loadDocument(final String name) {
