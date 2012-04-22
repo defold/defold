@@ -200,13 +200,6 @@
             id="com.dynamo.cr.ddfeditor.wizards.EmitterNewWizard"
             name="Emitter File">
       </wizard>
-      <wizard
-            category="com.dynamo.cr.editor.wizardCategory"
-            class="com.dynamo.cr.ddfeditor.wizards.ConvexShapeNewWizard"
-            icon="icons/draw_ellipse.png"
-            id="com.dynamo.cr.ddfeditor.wizards.ConvexShapeNewWizard"
-            name="Convex Shape File">
-      </wizard>
    </extension>
    <extension
          point="org.eclipse.ui.navigator.navigatorContent">
@@ -258,11 +251,6 @@
       <commonWizard
             type="new"
             wizardId="com.dynamo.cr.ddfeditor.wizards.InputBindingNewWizard">
-         <enablement></enablement>
-      </commonWizard>
-      <commonWizard
-            type="new"
-            wizardId="com.dynamo.cr.ddfeditor.wizards.ConvexShapeNewWizard">
          <enablement></enablement>
       </commonWizard>
    </extension>
