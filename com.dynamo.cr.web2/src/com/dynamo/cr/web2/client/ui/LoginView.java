@@ -13,10 +13,12 @@ public class LoginView extends Composite {
 
     public interface Presenter {
         void loginGoogle();
+        void loginYahoo();
     }
 
     private static final Binder binder = GWT.create(Binder.class);
     @UiField Button loginGoogleButton;
+    @UiField Button loginYahooButton;
     private LoginView.Presenter listener;
 
     interface Binder extends UiBinder<Widget, LoginView> {
@@ -34,4 +36,10 @@ public class LoginView extends Composite {
     void onLoginGoogleButtonClick(ClickEvent event) {
         listener.loginGoogle();
     }
+
+    @UiHandler("loginYahooButton")
+    void onLoginYahooButtonClick(ClickEvent event) {
+        listener.loginYahoo();
+    }
+
 }

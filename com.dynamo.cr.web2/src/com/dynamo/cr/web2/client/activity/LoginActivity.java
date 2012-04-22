@@ -32,8 +32,7 @@ public class LoginActivity extends AbstractActivity implements LoginView.Present
 		loginView.setPresenter(this);
 	}
 
-    @Override
-    public void loginGoogle() {
+	private void loginGeneric(String provider) {
         String url = clientFactory.getDefold().getUrl();
 
         // The redirectToUrl is the #openid-activity, ie the url redirected to after login
@@ -42,7 +41,18 @@ public class LoginActivity extends AbstractActivity implements LoginView.Present
             redirectToUrl = redirectToUrl.substring(0, redirectToUrl.lastIndexOf('#'));
         }
         redirectToUrl += "#openid:{token}_{action}";
-        String openAuthUrl = url + "/login/openid/google?redirect_to=" + URL.encodeQueryString(redirectToUrl);
+        String openAuthUrl = url + "/login/openid/" + provider + "?redirect_to=" + URL.encodeQueryString(redirectToUrl);
         Window.Location.replace(openAuthUrl);
+	}
+
+    @Override
+    public void loginGoogle() {
+        loginGeneric("google");
     }
+
+    @Override
+    public void loginYahoo() {
+        loginGeneric("yahoo");
+    }
+
 }

@@ -8,6 +8,8 @@
 	    </div>
 
 	    <g:Button ui:field="loginGoogleButton" text="" styleName="openIDGoogle"></g:Button>
+	    <div style="height: 16px"></div>
+        <g:Button ui:field="loginYahooButton" text="" styleName="openIDYahoo"></g:Button>
 
 	    <div style="height: 250px"></div>
 

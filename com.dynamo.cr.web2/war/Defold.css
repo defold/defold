@@ -467,6 +467,20 @@ button.openIDGoogle {
     font-size: 14px;
 }
 
+button.openIDYahoo {
+    background-position: center;
+    width: 198px;
+    height: 30px;
+    font-weight: 500;
+    background:#ffffff url('/images/yahoo_openid.png') no-repeat center center;
+    color: #3C6414;
+    font-family: 'Open Sans', sans-serif;
+    border: 1px solid #888;
+    padding: 6px 16px 6px 16px;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
 button.openIDGoogle:hover {
     border: 1px solid #aaa;
     cursor: pointer;

@@ -14,6 +14,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -32,15 +34,6 @@ public class OpenID {
     private static final String[] requiredKeys = new String[] {
         "openid.assoc_handle",
         "openid.claimed_id",
-        "openid.ext1.mode",
-        "openid.ext1.type.email",
-        "openid.ext1.type.firstname",
-        "openid.ext1.type.language",
-        "openid.ext1.type.lastname",
-        "openid.ext1.value.email",
-        "openid.ext1.value.firstname",
-        "openid.ext1.value.language",
-        "openid.ext1.value.lastname",
         "openid.identity",
         "openid.op_endpoint",
         "openid.response_nonce",
@@ -105,6 +98,7 @@ public class OpenID {
                 .queryParam("openid.ax.mode", "fetch_request")
                 .queryParam("openid.ax.type.email", "http://axschema.org/contact/email")
                 .queryParam("openid.ax.type.fullname", "http://axschema.org/namePerson")
+                .queryParam("openid.ax.type.alias", "http://axschema.org/namePerson/friendly")
                 .queryParam("openid.ax.type.language", "http://axschema.org/pref/language")
                 .queryParam("openid.ax.type.firstname", "http://axschema.org/namePerson/first")
                 .queryParam("openid.ax.type.lastname", "http://axschema.org/namePerson/last")
@@ -134,9 +128,21 @@ public class OpenID {
     public OpenIDIdentity verify(URI uri) throws OpenIDException {
         MultiMap<String> queryParams = new MultiMap<String>();
 
+        Pattern nsPattern = Pattern.compile("openid\\.ns\\.(.*?)");
+        String axNameSpace = null;
+
         List<NameValuePair> nameValueList = URLEncodedUtils.parse(uri, "UTF-8");
         for (NameValuePair pair : nameValueList) {
             queryParams.put(pair.getName(), pair.getValue());
+
+            Matcher matcher = nsPattern.matcher(pair.getName());
+            if (matcher.matches() && pair.getValue().equals("http://openid.net/srv/ax/1.0")) {
+                axNameSpace = matcher.group(1);
+            }
+        }
+
+        if (axNameSpace == null) {
+            throw new OpenIDException(String.format("Authentication is missing required ax namespace"));
         }
 
         for (String key : requiredKeys) {
@@ -161,8 +167,47 @@ public class OpenID {
 
         // Ensure that all values that we trust are signed
         for (String key : requiredKeys) {
-            if (toSignKeys.contains(key)) {
+            if (!toSignKeys.contains(key.substring("openid.".length()))) {
                 throw new OpenIDException(String.format("Required key '%s' is not signed", key));
+            }
+        }
+
+        if (!toSignKeys.contains(axNameSpace + "." + "value.email")) {
+            throw new OpenIDException(String.format("Required key value.email is not signed"));
+        }
+
+        if (!toSignKeys.contains(axNameSpace + "." + "value.language")) {
+            throw new OpenIDException(String.format("Required key value.language is not signed"));
+        }
+
+        /*
+         * NOTE: We don't check that firstname, lastname or fullname are correctly signed
+         * It doesn't really matter. People could fake their names anyway.
+         */
+        String firstName = queryParams.getString("openid." + axNameSpace + ".value.firstname");
+        String lastName = queryParams.getString("openid." + axNameSpace + ".value.lastname");
+        if (firstName == null) {
+            /*
+             * Yahoo is "special" and will return fullname instead of first and last
+             * Yahoo can even skip the fullname in you have an really old account
+             * with no names filled in.
+             */
+            String fullName = queryParams.getString("openid." + axNameSpace + ".value.fullname");
+            if (fullName != null) {
+                String[] lst = fullName.split(" ", 2);
+                if (lst.length > 0) {
+                    firstName = lst[0];
+                } else {
+                    firstName = "";
+                }
+                if (lst.length > 1) {
+                    lastName = lst[1];
+                } else {
+                    lastName = "";
+                }
+            } else {
+                firstName = "";
+                lastName = "";
             }
         }
 
@@ -186,12 +231,13 @@ public class OpenID {
 
             if (Arrays.equals(sign, signedMessage)) {
                 OpenIDIdentity ret = new OpenIDIdentity();
-                // NOTE: All these keys must be present in requiredKeys in order to be trusted
+                // NOTE: All these keys, aport from name(s), must be present in requiredKeys in order to be trusted
+
                 ret.setIdentity(queryParams.getString("openid.identity"));
-                ret.setEmail(queryParams.getString("openid.ext1.value.email"));
-                ret.setFirstName(queryParams.getString("openid.ext1.value.firstname"));
-                ret.setLastName(queryParams.getString("openid.ext1.value.lastname"));
-                ret.setLanguage(queryParams.getString("openid.ext1.value.language"));
+                ret.setEmail(queryParams.getString("openid." + axNameSpace + ".value.email"));
+                ret.setFirstName(firstName);
+                ret.setLastName(lastName);
+                ret.setLanguage(queryParams.getString("openid." + axNameSpace + ".value.language"));
                 return ret;
             } else {
                 throw new OpenIDException("Authentication failed. Signature validation failed.");

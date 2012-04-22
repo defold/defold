@@ -46,7 +46,9 @@ public class SecurityFilter implements ContainerRequestFilter {
     public ContainerRequest filter(ContainerRequest request) {
         MDC.put("userId", Long.toString(-1));
         String path = request.getAbsolutePath().getPath();
-        if (!path.equals("/login") && !path.startsWith("/login/openid/google")
+        if (!path.equals("/login")
+                && !path.startsWith("/login/openid/google")
+                && !path.startsWith("/login/openid/yahoo")
                 && !path.startsWith("/login/openid/exchange") && !path.startsWith("/login/openid/register")
                 && !path.startsWith("/prospects")) {
             // Only authenticate users for paths != /login or != /login/openid or != /prospects

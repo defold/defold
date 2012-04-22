@@ -22,6 +22,7 @@ public class EndPointResolver implements IEndPointResolver {
     static {
         try {
             providers.put("google", new URL("https://www.google.com/accounts/o8/id"));
+            providers.put("yahoo", new URL("http://open.login.yahooapis.com/openid20/www.yahoo.com/xrds"));
         } catch (MalformedURLException e) {
             logger.error("Internal error", e);
         }

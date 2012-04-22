@@ -69,7 +69,7 @@ public class LoginResource extends BaseResource {
             return badRequest(warning);
         }
 
-        if (!provider.equals("google")) {
+        if (!(provider.equals("google") || provider.equals("yahoo"))) {
             return badRequest("Unsupported OpenID provder");
         }
 
@@ -85,7 +85,7 @@ public class LoginResource extends BaseResource {
                                                    .build().toString();
         String authenticationUrl;
         try {
-            authenticationUrl = server.getOpenID().getAuthenticationUrl("google", String.format("http://%s:%d", host, port), returnTo);
+            authenticationUrl = server.getOpenID().getAuthenticationUrl(provider, String.format("http://%s:%d", host, port), returnTo);
             return Response
                 .status(Status.TEMPORARY_REDIRECT)
                 .type(MediaType.TEXT_PLAIN)
