@@ -1,6 +1,8 @@
 package com.dynamo.cr.luaeditor.test;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
@@ -16,6 +18,22 @@ public class LuaContentAssistProcessorTest {
 
         result = LuaContentAssistProcessor.parseLine("");
         assertEquals(null, result);
+
+        result = LuaContentAssistProcessor.parseLine("ha");
+        assertNotNull(result);
+        assertEquals("", result.getNamespace());
+        assertEquals("ha", result.getFunction());
+        assertTrue(!result.inFunction());
+        assertEquals(0, result.getMatchStart());
+        assertEquals(2, result.getMatchEnd());
+
+        result = LuaContentAssistProcessor.parseLine("hash(");
+        assertNotNull(result);
+        assertEquals("", result.getNamespace());
+        assertEquals("hash", result.getFunction());
+        assertTrue(result.inFunction());
+        assertEquals(0, result.getMatchStart());
+        assertEquals(4, result.getMatchEnd());
 
         result = LuaContentAssistProcessor.parseLine("gui.");
         assertEquals("gui", result.getNamespace());

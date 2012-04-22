@@ -28,18 +28,35 @@ public class LuaContentAssistProcessor implements IContentAssistProcessor {
     }
 
     public static LuaParseResult parseLine(String line) {
-        Pattern pattern = Pattern.compile("([a-zA-Z0-9_]+)\\.([a-zA-Z0-9_]*)([\\(]?)");
-        Matcher matcher = pattern.matcher(line);
+        Pattern pattern1 = Pattern.compile("([a-zA-Z0-9_]+)([\\(]?)");
+        Pattern pattern2 = Pattern.compile("([a-zA-Z0-9_]+)\\.([a-zA-Z0-9_]*)([\\(]?)");
+
+        Matcher matcher1 = pattern1.matcher(line);
+        Matcher matcher2 = pattern2.matcher(line);
         LuaParseResult result = null;
 
-        while (matcher.find()) {
-            int start = matcher.start();
-            int end = matcher.end();
-            boolean inFunction = matcher.group(3).length() > 0;
+        while (matcher2.find()) {
+            int start = matcher2.start();
+            int end = matcher2.end();
+            boolean inFunction = matcher2.group(3).length() > 0;
             if (inFunction)
                 --end;
-            result = new LuaParseResult(matcher.group(1), matcher.group(2), inFunction, start, end);
+            result = new LuaParseResult(matcher2.group(1), matcher2.group(2), inFunction, start, end);
         }
+
+        if (result != null) {
+            return result;
+        }
+
+        while (matcher1.find()) {
+            int start = matcher1.start();
+            int end = matcher1.end();
+            boolean inFunction = matcher1.group(2).length() > 0;
+            if (inFunction)
+                --end;
+            result = new LuaParseResult("", matcher1.group(1), inFunction, start, end);
+        }
+
         return result;
     }
 
@@ -48,7 +65,11 @@ public class LuaContentAssistProcessor implements IContentAssistProcessor {
             int offset) {
         List<ICompletionProposal> proposals = new ArrayList<ICompletionProposal>();
 
-        Image luaImage = LuaEditorPlugin.getDefault().getLuaImage();
+        Image packageImage = LuaEditorPlugin.getDefault().getImage(LuaEditorPlugin.PACKAGE_IMAGE_ID);
+        Image functionImage = LuaEditorPlugin.getDefault().getImage(LuaEditorPlugin.FUNCTION_IMAGE_ID);
+        Image constantImage = LuaEditorPlugin.getDefault().getImage(LuaEditorPlugin.CONSTANT_IMAGE_ID);
+        Image messageImage = LuaEditorPlugin.getDefault().getImage(LuaEditorPlugin.MESSAGE_IMAGE_ID);
+
         IDocument doc = viewer.getDocument();
         try {
             int line_nr = doc.getLineOfOffset(offset);
@@ -92,14 +113,35 @@ public class LuaContentAssistProcessor implements IContentAssistProcessor {
                         additionalInfo.append("&#160;&#160;&#160;&#160;<b>");
                         additionalInfo.append(element.getReturn());
                     }
+                } else if (element.getType() == Type.NAMESPACE) {
+                    s += ".";
                 }
 
                 int completeLength = parseResult.getNamespace().length() + parseResult.getFunction().length() + 1;
 
+                Image image = null;
+                switch (element.getType()) {
+                case FUNCTION:
+                    image = functionImage;
+                    break;
+
+                case MESSAGE:
+                    image = messageImage;
+                    break;
+
+                case NAMESPACE:
+                    image = packageImage;
+                    break;
+
+                case VARIABLE:
+                    image = constantImage;
+                    break;
+                }
+
                 int cursorPosition = s.length() - completeLength;
                 if (parseResult.inFunction()) {
                     // If we are in a function, eg gui.animate(... only show the list of items and do not insert
-                    proposals.add(new CompletionProposal("", offset, 0, 0, luaImage, s, null, additionalInfo.toString()));
+                    proposals.add(new CompletionProposal("", offset, 0, 0, image, s, null, additionalInfo.toString()));
                 } else {
                     // Default case, do actual completion
                     int matchLen = parseResult.getMatchEnd() - parseResult.getMatchStart();
@@ -107,7 +149,7 @@ public class LuaContentAssistProcessor implements IContentAssistProcessor {
                     int replacementLength = matchLen - parseResult.getNamespace().length() - 1;
                     String replacementString = s.substring(parseResult.getNamespace().length() + 1);
                     int newCursorPosition = cursorPosition + parseResult.getFunction().length();
-                    proposals.add(new CompletionProposal(replacementString, replacementOffset, replacementLength, newCursorPosition, luaImage, s, null, additionalInfo.toString()));
+                    proposals.add(new CompletionProposal(replacementString, replacementOffset, replacementLength, newCursorPosition, image, s, null, additionalInfo.toString()));
                 }
 
             }

@@ -21,17 +21,22 @@ import org.osgi.framework.BundleContext;
 import com.dynamo.scriptdoc.proto.ScriptDoc;
 import com.dynamo.scriptdoc.proto.ScriptDoc.Document;
 import com.dynamo.scriptdoc.proto.ScriptDoc.Document.Builder;
+import com.dynamo.scriptdoc.proto.ScriptDoc.Element;
 
 public class LuaEditorPlugin extends AbstractUIPlugin {
 
     public static final String PLUGIN_ID = "com.dynamo.cr.luaeditor"; //$NON-NLS-1$
 
+    public static final String PACKAGE_IMAGE_ID = "icons/package.png";
+    public static final String FUNCTION_IMAGE_ID = "icons/function.png";
+    public static final String CONSTANT_IMAGE_ID = "icons/constant.png";
+    public static final String MESSAGE_IMAGE_ID = "icons/message.png";
+
     private static LuaEditorPlugin plugin;
     private Map<String, List<ScriptDoc.Element>> nameSpaceToElementList = new HashMap<String, List<ScriptDoc.Element>>();
 
-    private Image luaImage;
-
-    private ImageDescriptor luaImageDesc;
+    private Map<String, Image> images = new HashMap<String, Image>();
+    private Map<String, ImageDescriptor> imageDescs = new HashMap<String, ImageDescriptor>();
 
     public LuaEditorPlugin() {
     }
@@ -49,14 +54,15 @@ public class LuaEditorPlugin extends AbstractUIPlugin {
             for (ScriptDoc.Element element : elements) {
                 String qualName = element.getName();
                 int index = qualName.indexOf('.');
+                String ns = "";
                 if (index != -1) {
-                    String ns = qualName.substring(0, index);
-                    if (!nameSpaceToElementList.containsKey(ns)) {
-                        nameSpaceToElementList.put(ns, new ArrayList<ScriptDoc.Element>());
-                    }
-                    List<ScriptDoc.Element> list = nameSpaceToElementList.get(ns);
-                    list.add(element);
+                    ns = qualName.substring(0, index);
                 }
+                if (!nameSpaceToElementList.containsKey(ns)) {
+                    nameSpaceToElementList.put(ns, new ArrayList<ScriptDoc.Element>());
+                }
+                List<ScriptDoc.Element> list = nameSpaceToElementList.get(ns);
+                list.add(element);
             }
 
         } catch (IOException e) {
@@ -70,6 +76,21 @@ public class LuaEditorPlugin extends AbstractUIPlugin {
         loadDocumentation("DYNAMO_HOME/share/doc/go_doc.sdoc");
         loadDocumentation("DYNAMO_HOME/share/doc/render_doc.sdoc");
         loadDocumentation("DYNAMO_HOME/share/doc/gui_doc.sdoc");
+        loadDocumentation("DYNAMO_HOME/share/doc/engine_doc.sdoc");
+        loadDocumentation("DYNAMO_HOME/share/doc/gamesys_doc.sdoc");
+
+        // Add all namespaces to the global namespace
+        for (String ns : nameSpaceToElementList.keySet()) {
+            Element e = ScriptDoc.Element.newBuilder()
+                    .setType(ScriptDoc.Type.NAMESPACE)
+                    .setName(ns)
+                    .setBrief("")
+                    .setDescription("")
+                    .setReturn("")
+                    .build();
+            nameSpaceToElementList.get("").add(e);
+        }
+
     }
 
     public ScriptDoc.Element[] getDocumentation(LuaParseResult parseResult) {
@@ -77,7 +98,13 @@ public class LuaEditorPlugin extends AbstractUIPlugin {
         ArrayList<ScriptDoc.Element> list = new ArrayList<ScriptDoc.Element>(64);
         String ns = parseResult.getNamespace().toLowerCase();
         String function = parseResult.getFunction().toLowerCase();
-        String qualified = String.format("%s.%s", ns, function);
+        String qualified;
+
+        if (ns.length() == 0) {
+            qualified = function;
+        } else {
+            qualified = String.format("%s.%s", ns, function);
+        }
 
         if (nameSpaceToElementList.containsKey(ns)) {
             List<ScriptDoc.Element> elements = nameSpaceToElementList.get(ns);
@@ -86,6 +113,7 @@ public class LuaEditorPlugin extends AbstractUIPlugin {
                     list.add(element);
                 }
             }
+
         }
 
         ScriptDoc.Element[] ret = list.toArray(new ScriptDoc.Element[list.size()]);
@@ -99,11 +127,15 @@ public class LuaEditorPlugin extends AbstractUIPlugin {
 
     }
 
-    public Image getLuaImage() {
-        if (luaImage == null && luaImageDesc != null)
-            this.luaImage = luaImageDesc.createImage();
-
-        return luaImage;
+    public Image getImage(String path) {
+        ImageDescriptor id = imageDescs.get(path);
+        if (id != null) {
+            if (!images.containsKey(path)) {
+                images.put(path, id.createImage());
+            }
+            return images.get(path);
+        }
+        return null;
     }
 
     @Override
@@ -111,13 +143,21 @@ public class LuaEditorPlugin extends AbstractUIPlugin {
         LuaEditorPlugin.plugin = this;
         super.start(context);
         loadDocumentation();
-        luaImageDesc = imageDescriptorFromPlugin(PLUGIN_ID, "icons/lua.gif");
+
+        for (String s : new String[] { PACKAGE_IMAGE_ID, FUNCTION_IMAGE_ID, CONSTANT_IMAGE_ID, MESSAGE_IMAGE_ID } ) {
+            imageDescs.put(s, imageDescriptorFromPlugin(PLUGIN_ID, s));
+        }
     }
 
     @Override
     public void stop(BundleContext context) throws Exception {
         LuaEditorPlugin.plugin = null;
         super.stop(context);
+
+        for (Image i : images.values()) {
+            i.dispose();
+        }
+
     }
 
     public static LuaEditorPlugin getDefault() {
