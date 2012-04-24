@@ -26,13 +26,6 @@
               <arg value="DYNAMO_HOME"/>
         </exec>
 
-        <exec dir="${buildDirectory}/plugins/com.dynamo.cr.contenteditor"
-              executable="ln">
-              <arg value="-s"/>
-              <arg value="${env.DYNAMO_HOME}"/>
-              <arg value="DYNAMO_HOME"/>
-        </exec>
-
         <exec dir="${buildDirectory}/plugins/com.dynamo.cr.luaeditor"
               executable="ln">
               <arg value="-s"/>
