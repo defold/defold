@@ -18,8 +18,18 @@ import com.dynamo.render.proto.Font.FontDesc;
 public class FontBuilder extends Builder<Void>  {
 
     @Override
-    public Task<Void> create(IResource input) throws IOException {
-        return defaultTask(input);
+    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
+        FontDesc.Builder fontDescbuilder = FontDesc.newBuilder();
+        ProtoUtil.merge(input, fontDescbuilder);
+        FontDesc fontDesc = fontDescbuilder.build();
+
+        Task<Void> task = Task.<Void>newBuilder(this)
+                .setName(params.name())
+                .addInput(input)
+                .addInput(input.getResource(fontDesc.getFont()))
+                .addOutput(input.changeExt(params.outExt()))
+                .build();
+        return task;
     }
 
     @Override
