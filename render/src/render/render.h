@@ -127,6 +127,9 @@ namespace dmRender
         uint32_t                        m_FragmentProgramDataSize;
         uint32_t                        m_MaxCharacters;
         uint32_t                        m_CommandBufferSize;
+        /// Max debug vertex count
+        /// NOTE: This is per debug-type and not the total sum
+        uint32_t                        m_MaxDebugVertexCount;
     };
 
     static const HRenderType INVALID_RENDER_TYPE_HANDLE = ~0;

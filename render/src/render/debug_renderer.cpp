@@ -15,20 +15,19 @@ using namespace Vectormath::Aos;
 
 namespace dmRender
 {
-    static const uint32_t MAX_VERTEX_COUNT = 10000;
-
     struct DebugVertex
     {
         Vector4 m_Position;
         Vector4 m_Color;
     };
 
-    void InitializeDebugRenderer(dmRender::HRenderContext render_context, const void* vp_data, uint32_t vp_data_size, const void* fp_data, uint32_t fp_data_size)
+    void InitializeDebugRenderer(dmRender::HRenderContext render_context, uint32_t max_vertex_count, const void* vp_data, uint32_t vp_data_size, const void* fp_data, uint32_t fp_data_size)
     {
         DebugRenderer& debug_renderer = render_context->m_DebugRenderer;
+        debug_renderer.m_MaxVertexCount = max_vertex_count;
 
         debug_renderer.m_RenderContext = render_context;
-        const uint32_t buffer_size = MAX_VERTEX_COUNT * sizeof(DebugVertex);
+        const uint32_t buffer_size = max_vertex_count * sizeof(DebugVertex);
         const uint32_t total_buffer_size = MAX_DEBUG_RENDER_TYPE_COUNT * buffer_size;
         debug_renderer.m_VertexBuffer = dmGraphics::NewVertexBuffer(render_context->m_GraphicsContext, total_buffer_size, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         dmGraphics::VertexElement ve[] =
@@ -108,6 +107,17 @@ namespace dmRender
         }
     }
 
+    static void LogVertexWarning(HRenderContext context)
+    {
+        static bool has_warned = false;
+        if (!has_warned)
+        {
+
+            dmLogWarning("Out of debug vertex data (%u). Increase graphics.max_debug_vertices to avoid this warning.", context->m_DebugRenderer.m_MaxVertexCount);
+            has_warned = true;
+        }
+    }
+
 #define ADD_TO_RENDER(object)\
     if (object.m_VertexCount == 0)\
     {\
@@ -119,9 +129,9 @@ namespace dmRender
         DebugRenderTypeData& type_data = context->m_DebugRenderer.m_TypeData[DEBUG_RENDER_TYPE_FACE_2D];
         RenderObject& ro = type_data.m_RenderObject;
         const uint32_t vertex_count = 6;
-        ADD_TO_RENDER(ro);
-        if (ro.m_VertexCount + vertex_count < MAX_VERTEX_COUNT)
+        if (ro.m_VertexCount + vertex_count < context->m_DebugRenderer.m_MaxVertexCount)
         {
+            ADD_TO_RENDER(ro);
             DebugVertex v[vertex_count];
             v[0].m_Position = Vector4(x0, y0, 0.0f, 0.0f);
             v[1].m_Position = Vector4(x0, y1, 0.0f, 0.0f);
@@ -137,7 +147,7 @@ namespace dmRender
         }
         else
         {
-            dmLogWarning("Out of Square2d vertex data");
+            LogVertexWarning(context);
         }
     }
 
@@ -146,9 +156,9 @@ namespace dmRender
         DebugRenderTypeData& type_data = context->m_DebugRenderer.m_TypeData[DEBUG_RENDER_TYPE_FACE_3D];
         RenderObject& ro = type_data.m_RenderObject;
         const uint32_t vertex_count = 3;
-        ADD_TO_RENDER(ro);
-        if (ro.m_VertexCount + vertex_count < MAX_VERTEX_COUNT)
+        if (ro.m_VertexCount + vertex_count < context->m_DebugRenderer.m_MaxVertexCount)
         {
+            ADD_TO_RENDER(ro);
             DebugVertex v[vertex_count];
             for (uint32_t i = 0; i < vertex_count; ++i)
             {
@@ -161,7 +171,7 @@ namespace dmRender
         }
         else
         {
-            dmLogWarning("Out of Triangle3d vertex data");
+            LogVertexWarning(context);
         }
     }
 
@@ -170,9 +180,9 @@ namespace dmRender
         DebugRenderTypeData& type_data = context->m_DebugRenderer.m_TypeData[DEBUG_RENDER_TYPE_LINE_2D];
         RenderObject& ro = type_data.m_RenderObject;
         const uint32_t vertex_count = 2;
-        ADD_TO_RENDER(ro);
-        if (ro.m_VertexCount + vertex_count < MAX_VERTEX_COUNT)
+        if (ro.m_VertexCount + vertex_count < context->m_DebugRenderer.m_MaxVertexCount)
         {
+            ADD_TO_RENDER(ro);
             DebugVertex v[vertex_count];
             v[0].m_Position = Vector4(x0, y0, 0.0f, 0.0f);
             v[0].m_Color = color0;
@@ -184,7 +194,7 @@ namespace dmRender
         }
         else
         {
-            dmLogWarning("Out of Line2D vertex data");
+            LogVertexWarning(context);
         }
     }
 
@@ -193,9 +203,9 @@ namespace dmRender
         DebugRenderTypeData& type_data = context->m_DebugRenderer.m_TypeData[DEBUG_RENDER_TYPE_LINE_3D];
         RenderObject& ro = type_data.m_RenderObject;
         const uint32_t vertex_count = 2;
-        ADD_TO_RENDER(ro);
-        if (ro.m_VertexCount + vertex_count < MAX_VERTEX_COUNT)
+        if (ro.m_VertexCount + vertex_count < context->m_DebugRenderer.m_MaxVertexCount)
         {
+            ADD_TO_RENDER(ro);
             DebugVertex v[vertex_count];
             v[0].m_Position = Vector4(start);
             v[0].m_Color = start_color;
@@ -207,7 +217,7 @@ namespace dmRender
         }
         else
         {
-            dmLogWarning("Out of Line3D vertex data");
+            LogVertexWarning(context);
         }
     }
 

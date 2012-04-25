@@ -467,6 +467,7 @@ bail:
         render_params.m_MaxCharacters = 2048 * 4;
         render_params.m_CommandBufferSize = 1024;
         render_params.m_ScriptContext = engine->m_ScriptContext;
+        render_params.m_MaxDebugVertexCount = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_debug_vertices", 10000);
         engine->m_RenderContext = dmRender::NewRenderContext(engine->m_GraphicsContext, render_params);
 
         engine->m_EmitterContext.m_RenderContext = engine->m_RenderContext;
