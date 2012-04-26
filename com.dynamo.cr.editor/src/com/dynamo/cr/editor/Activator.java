@@ -159,11 +159,12 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
     void deleteAllCrProjects() throws CoreException {
         IProject[] projects = ResourcesPlugin.getWorkspace().getRoot().getProjects();
         for (IProject p : projects) {
-            if (p.isOpen()) {
-                IProjectNature nature = p.getNature("com.dynamo.cr.editor.core.crnature");
-                if (nature != null) {
-                    p.delete(true, new NullProgressMonitor());
-                }
+            if (!p.isOpen()) {
+                p.open(new NullProgressMonitor());
+            }
+            IProjectNature nature = p.getNature("com.dynamo.cr.editor.core.crnature");
+            if (nature != null) {
+                p.delete(true, new NullProgressMonitor());
             }
         }
     }
