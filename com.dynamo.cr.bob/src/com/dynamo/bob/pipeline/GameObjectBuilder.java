@@ -41,6 +41,11 @@ public class GameObjectBuilder extends Builder<Void> {
             taskBuilder.addOutput(genResource);
 
             Task<?> embedTask = project.buildResource(genResource);
+            if (embedTask == null) {
+                throw new CompileExceptionError(input,
+                                                0,
+                                                String.format("Failed to create build task for component '%s'", ec.getId()));
+            }
             embedTasks.add(embedTask);
             ++i;
         }
