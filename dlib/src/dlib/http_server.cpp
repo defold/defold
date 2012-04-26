@@ -129,6 +129,7 @@ namespace dmHttpServer
 
     void Delete(HServer server)
     {
+        // TODO: Shutdown connections
         dmSocket::Delete(server->m_ServerSocket);
         delete server;
     }
