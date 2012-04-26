@@ -72,10 +72,9 @@ namespace dmGameObject
             memset(this, 0, sizeof(*this));
         }
         const UpdateContext* m_UpdateContext;
-        uint8_t* m_InitParams;
     };
 
-    ScriptResult RunScript(HCollection collection, HScript script, ScriptFunction script_function, HScriptInstance script_instance, const RunScriptParams& params)
+    ScriptResult RunScript(HScript script, ScriptFunction script_function, HScriptInstance script_instance, const RunScriptParams& params)
     {
         DM_PROFILE(Script, "RunScript");
 
@@ -98,14 +97,8 @@ namespace dmGameObject
 
             if (script_function == SCRIPT_FUNCTION_INIT)
             {
-                if (params.m_InitParams != 0x0)
-                {
-                    dmScript::PushTable(L, (const char*)params.m_InitParams);
-                }
-                else
-                {
-                    lua_newtable(L);
-                }
+                // Backwards compatibility
+                lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
                 ++arg_count;
             }
             if (script_function == SCRIPT_FUNCTION_UPDATE)
@@ -154,9 +147,18 @@ namespace dmGameObject
 
         int top = lua_gettop(g_LuaState);
         (void)top;
+
+        AppendProperties(script_instance->m_Properties, params.m_Properties);
+        AppendProperties(script_instance->m_Properties, script_instance->m_Script->m_Properties);
+
+        lua_State* L = g_LuaState;
+        lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_ScriptDataReference);
+        const dmArray<PropertyDef>& property_defs = script_instance->m_Script->m_PropertyDefs;
+        PropertiesToLuaTable(property_defs, script_instance->m_Properties, L, -1);
+        lua_pop(L, 1);
+
         RunScriptParams run_params;
-        run_params.m_InitParams = params.m_InitParams;
-        ScriptResult ret = RunScript(params.m_Collection, script_instance->m_Script, SCRIPT_FUNCTION_INIT, script_instance, run_params);
+        ScriptResult ret = RunScript(script_instance->m_Script, SCRIPT_FUNCTION_INIT, script_instance, run_params);
         assert(top == lua_gettop(g_LuaState));
         if (ret == SCRIPT_RESULT_FAILED)
         {
@@ -174,7 +176,7 @@ namespace dmGameObject
 
         int top = lua_gettop(g_LuaState);
         (void)top;
-        ScriptResult ret = RunScript(params.m_Collection, script_instance->m_Script, SCRIPT_FUNCTION_FINAL, script_instance, RunScriptParams());
+        ScriptResult ret = RunScript(script_instance->m_Script, SCRIPT_FUNCTION_FINAL, script_instance, RunScriptParams());
         assert(top == lua_gettop(g_LuaState));
         if (ret == SCRIPT_RESULT_FAILED)
         {
@@ -198,7 +200,7 @@ namespace dmGameObject
         for (uint32_t i = 0; i < size; ++i)
         {
             HScriptInstance script_instance = script_world->m_Instances[i];
-            ScriptResult ret = RunScript(params.m_Collection, script_instance->m_Script, SCRIPT_FUNCTION_UPDATE, script_instance, run_params);
+            ScriptResult ret = RunScript(script_instance->m_Script, SCRIPT_FUNCTION_UPDATE, script_instance, run_params);
             if (ret == SCRIPT_RESULT_FAILED)
             {
                 result = UPDATE_RESULT_UNKNOWN_ERROR;
@@ -384,36 +386,27 @@ namespace dmGameObject
 
     void CompScriptOnReload(const ComponentOnReloadParams& params)
     {
-        ScriptInstance* script_instance = (ScriptInstance*)*params.m_UserData;
+        HScriptInstance script_instance = (HScriptInstance)*params.m_UserData;
 
-        int function_ref = script_instance->m_Script->m_FunctionReferences[SCRIPT_FUNCTION_ONRELOAD];
-        if (function_ref != LUA_NOREF)
-        {
-            lua_State* L = g_LuaState;
-            int top = lua_gettop(L);
-            (void)top;
+        int top = lua_gettop(g_LuaState);
+        (void)top;
 
-            lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
-            lua_pushlightuserdata(L, (void*) script_instance);
-            lua_rawset(L, LUA_GLOBALSINDEX);
+        // Clean stale properties and add new
+        lua_State* L = g_LuaState;
+        lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_ScriptDataReference);
+        ClearPropertiesFromLuaTable(script_instance->m_Script->m_OldPropertyDefs, script_instance->m_Properties, L, -1);
+        PropertiesToLuaTable(script_instance->m_Script->m_PropertyDefs, script_instance->m_Properties, L, -1);
+        lua_pop(L, 1);
 
-            lua_rawgeti(L, LUA_REGISTRYINDEX, function_ref);
-            lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
+        RunScriptParams run_params;
+        RunScript(script_instance->m_Script, SCRIPT_FUNCTION_ONRELOAD, script_instance, run_params);
+        assert(top == lua_gettop(g_LuaState));
+    }
 
-            int ret = lua_pcall(L, 1, 0, 0);
-            const char* function_name = SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONRELOAD];
-            if (ret != 0)
-            {
-                dmLogError("Error running script %s: %s", function_name, lua_tostring(L, lua_gettop(L)));
-                lua_pop(L, 1);
-            }
-
-            lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
-            lua_pushnil(L);
-            lua_rawset(L, LUA_GLOBALSINDEX);
-
-            assert(top == lua_gettop(L));
-        }
+    void CompScriptSetProperties(const ComponentSetPropertiesParams& params)
+    {
+        HScriptInstance script_instance = (HScriptInstance)*params.m_UserData;
+        SetProperties(script_instance->m_Properties, params.m_PropertyBuffer, params.m_PropertyBufferSize);
     }
 
     Result RegisterComponentTypes(dmResource::HFactory factory, HRegister regist)
@@ -432,6 +425,7 @@ namespace dmGameObject
         script_component.m_OnMessageFunction = &CompScriptOnMessage;
         script_component.m_OnInputFunction = &CompScriptOnInput;
         script_component.m_OnReloadFunction = &CompScriptOnReload;
+        script_component.m_SetPropertiesFunction = &CompScriptSetProperties;
         script_component.m_InstanceHasUserData = true;
         script_component.m_UpdateOrderPrio = 200;
         return RegisterComponentType(regist, script_component);

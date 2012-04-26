@@ -8,4 +8,4 @@ game_binding = /default.input_bindingc
 [resource]
 uri = build/default/src/test
 [physics]
-world_count = 8
+world_count = 9

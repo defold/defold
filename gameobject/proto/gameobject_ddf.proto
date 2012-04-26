@@ -6,12 +6,28 @@ import "ddf/ddf_math.proto";
 option java_package = "com.dynamo.gameobject.proto";
 option java_outer_classname = "GameObject";
 
+enum PropertyType
+{
+    PROPERTY_TYPE_NUMBER = 0;
+    PROPERTY_TYPE_HASH = 1;
+    PROPERTY_TYPE_URL = 2;
+    PROPERTY_TYPE_COUNT = 3;
+}
+
+message PropertyDesc
+{
+    required string id = 1;
+    required string value = 2;
+    required PropertyType type = 3;
+}
+
 message ComponentDesc
 {
     required string id = 1;
     required string component = 2 [(resource) = true];
     optional dmMath.Point3  position    = 3;
     optional dmMath.Quat    rotation    = 4;
+    repeated PropertyDesc properties    = 5;
 }
 
 message EmbeddedComponentDesc
@@ -29,6 +45,12 @@ message PrototypeDesc
     repeated EmbeddedComponentDesc embedded_components = 2;
 }
 
+message ComponentPropertyDesc
+{
+    required string id = 1;
+    repeated PropertyDesc properties = 2;
+}
+
 message InstanceDesc
 {
     required string         id          = 1;
@@ -36,6 +58,7 @@ message InstanceDesc
     repeated string         children    = 3;
     optional dmMath.Point3  position    = 4;
     optional dmMath.Quat    rotation    = 5;
+    repeated ComponentPropertyDesc component_properties = 6;
 }
 
 message CollectionInstanceDesc

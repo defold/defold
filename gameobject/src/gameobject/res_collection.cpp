@@ -5,6 +5,7 @@
 
 #include "gameobject.h"
 #include "gameobject_private.h"
+#include "gameobject_props.h"
 
 #include "../proto/gameobject_ddf.h"
 
@@ -80,6 +81,55 @@ namespace dmGameObject
                 if (dmGameObject::SetIdentifier(collection, instance, tmp_ident) != dmGameObject::RESULT_OK)
                 {
                     dmLogError("Unable to set identifier %s for %s. Name clash?", tmp_ident, instance_desc.m_Id);
+                }
+
+                // Set properties
+
+                uint32_t comp_prop_count = instance_desc.m_ComponentProperties.m_Count;
+                for (uint32_t i = 0; i < comp_prop_count; ++i)
+                {
+                    const dmGameObjectDDF::ComponentPropertyDesc& comp_prop = instance_desc.m_ComponentProperties[i];
+                    uint8_t index;
+                    dmGameObject::Result result = GetComponentIndex(instance, dmHashString64(comp_prop.m_Id), &index);
+                    if (result == RESULT_COMPONENT_NOT_FOUND)
+                    {
+                        dmLogWarning("The component '%s' could not be found in '%s' when setting properties.", comp_prop.m_Id, instance_desc.m_Id);
+                        continue;
+                    }
+                    dmArray<Prototype::Component>& components = instance->m_Prototype->m_Components;
+                    ComponentType* type = components[index].m_Type;
+                    // TODO: fix this better
+                    uint32_t next_component_instance_data = 0;
+                    uint32_t comp_count = components.Size();
+                    uintptr_t* component_instance_data = 0;
+                    for (uint32_t j = 0; j < comp_count; ++j)
+                    {
+                        Prototype::Component& component = components[i];
+                        ComponentType* component_type = component.m_Type;
+                        if (component_type->m_InstanceHasUserData)
+                        {
+                            component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data++];
+                        }
+                    }
+                    if (type->m_SetPropertiesFunction != 0x0)
+                    {
+                        ComponentSetPropertiesParams params;
+                        params.m_Instance = instance;
+                        const uint32_t buffer_size = 1024;
+                        uint8_t buffer[buffer_size];
+                        uint32_t actual = SerializeProperties(comp_prop.m_Properties.m_Data, comp_prop.m_Properties.m_Count, buffer, buffer_size);
+                        if (buffer_size < actual)
+                        {
+                            dmLogError("Properties could not be stored when loading %s: too many properties.", filename);
+                        }
+                        else
+                        {
+                            params.m_PropertyBuffer = buffer;
+                            params.m_PropertyBufferSize = actual;
+                            params.m_UserData = component_instance_data;
+                            type->m_SetPropertiesFunction(params);
+                        }
+                    }
                 }
             }
             else

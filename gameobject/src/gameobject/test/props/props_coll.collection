@@ -1,0 +1,13 @@
+name: "main"
+instances {
+  id: "props_coll"
+  prototype: "/props_coll.goc"
+  component_properties {
+    id: "script"
+    properties {
+      id: "number1"
+      value: "200"
+      type: PROPERTY_TYPE_NUMBER
+    }
+  }
+}

@@ -8,6 +8,7 @@
 #include <dlib/mutex.h>
 
 #include "gameobject.h"
+#include "gameobject_props.h"
 
 extern "C"
 {
@@ -16,6 +17,7 @@ extern "C"
 
 namespace dmGameObject
 {
+#define SCRIPT_NAME "__script__"
 #define SCRIPT_INSTANCE_NAME "__script_instance__"
 
     extern const char* ID_SEPARATOR;
@@ -44,7 +46,8 @@ namespace dmGameObject
                 m_Resource(resource),
                 m_ResourceType(resource_type),
                 m_Position(position),
-                m_Rotation(rotation)
+                m_Rotation(rotation),
+                m_Properties(0x0)
             {
             }
 
@@ -56,6 +59,7 @@ namespace dmGameObject
             uint32_t        m_ResourceType;
             Point3          m_Position;
             Quat            m_Rotation;
+            HProperties     m_Properties;
         };
 
         dmArray<Component>     m_Components;

@@ -94,11 +94,11 @@ namespace dmGameSystem
                 {
                     dmGameSystemDDF::Create* create = (dmGameSystemDDF::Create*) params.m_Message->m_Data;
                     uint32_t msg_size = sizeof(dmGameSystemDDF::Create);
-                    uint32_t table_buffer_size = message->m_DataSize - msg_size;
-                    uint8_t* table_buffer = 0x0;
-                    if (table_buffer_size > 0)
+                    uint32_t property_buffer_size = message->m_DataSize - msg_size;
+                    uint8_t* property_buffer = 0x0;
+                    if (property_buffer_size > 0)
                     {
-                        table_buffer = (uint8_t*)(((uintptr_t)create) + msg_size);
+                        property_buffer = (uint8_t*)(((uintptr_t)create) + msg_size);
                     }
                     FactoryComponent* fc = (FactoryComponent*) *params.m_UserData;
                     dmhash_t id = create->m_Id;
@@ -106,7 +106,7 @@ namespace dmGameSystem
                     {
                         id = dmGameObject::GenerateUniqueInstanceId(collection);
                     }
-                    dmGameObject::Spawn(collection, fc->m_Resource->m_FactoryDesc->m_Prototype, id, table_buffer, create->m_Position, create->m_Rotation);
+                    dmGameObject::Spawn(collection, fc->m_Resource->m_FactoryDesc->m_Prototype, id, property_buffer, property_buffer_size, create->m_Position, create->m_Rotation);
                 }
             }
             else

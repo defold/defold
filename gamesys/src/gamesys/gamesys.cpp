@@ -53,7 +53,7 @@ namespace dmGameSystem
     , m_RenderContext(0)
     , m_GuiContext(0)
     {
-        m_Worlds.SetCapacity(8);
+        m_Worlds.SetCapacity(128);
     }
 
     dmResource::Result RegisterResourceTypes(dmResource::HFactory factory, dmRender::HRenderContext render_context, GuiContext* gui_context, dmInput::HContext input_context, PhysicsContext* physics_context)

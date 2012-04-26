@@ -249,7 +249,7 @@ namespace dmScript
     };
 
     /*# creates a new URL
-     * The URL references the address of the component of the calling script.
+     * The URL is empty and cannot be used to send messages to.
      *
      * @name msg.url
      * @return a new URL (url)
@@ -283,6 +283,12 @@ namespace dmScript
     {
         int top = lua_gettop(L);
         dmMessage::URL url;
+        dmMessage::ResetURL(url);
+        if (top == 0)
+        {
+            PushURL(L, url);
+            return 1;
+        }
         GetURL(L, &url);
         if (top == 1 && !lua_isnil(L, 1))
         {
@@ -422,7 +428,9 @@ namespace dmScript
         int top = lua_gettop(L);
 
         dmMessage::URL sender;
+        dmMessage::ResetURL(sender);
         dmMessage::URL receiver;
+        dmMessage::ResetURL(receiver);
 
         GetURL(L, &sender);
         ResolveURL(L, 1, &receiver, &sender);

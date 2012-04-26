@@ -32,6 +32,9 @@ namespace dmGameObject
     /// Collection handle
     typedef struct Collection* HCollection;
 
+    /// Properties handle
+    typedef struct Properties* HProperties;
+
     /**
      * Result enum
      */
@@ -226,8 +229,8 @@ namespace dmGameObject
         void* m_Context;
         /// User data storage pointer
         uintptr_t* m_UserData;
-        /// Buffer containing serialized init parameters
-        uint8_t* m_InitParams;
+        /// Properties handle
+        HProperties m_Properties;
     };
 
     /**
@@ -372,6 +375,20 @@ namespace dmGameObject
      */
     typedef void (*ComponentOnReload)(const ComponentOnReloadParams& params);
 
+    struct ComponentSetPropertiesParams
+    {
+        /// Instance handle
+        HInstance m_Instance;
+        /// Serialized properties data
+        uint8_t* m_PropertyBuffer;
+        /// Properties data size
+        uint32_t m_PropertyBufferSize;
+        /// User data storage pointer
+        uintptr_t* m_UserData;
+    };
+
+    typedef void (*ComponentSetProperties)(const ComponentSetPropertiesParams& params);
+
     /**
      * Collection of component registration data.
      */
@@ -393,6 +410,7 @@ namespace dmGameObject
         ComponentOnMessage      m_OnMessageFunction;
         ComponentOnInput        m_OnInputFunction;
         ComponentOnReload       m_OnReloadFunction;
+        ComponentSetProperties  m_SetPropertiesFunction;
         uint32_t                m_InstanceHasUserData : 1;
         uint32_t                m_Reserved : 31;
         uint16_t                m_UpdateOrderPrio;
@@ -464,11 +482,18 @@ namespace dmGameObject
 
     /**
      * Set update order priority. Zero is highest priority.
+     * @param regist Register
      * @param resource_type Resource type
      * @param prio Priority
      * @return RESULT_OK on success
      */
     Result SetUpdateOrderPrio(HRegister regist, uint32_t resource_type, uint16_t prio);
+
+    /**
+     * Sort component types according to update order priority.
+     * @param regist Register
+     */
+    void SortComponentTypes(HRegister regist);
 
     /**
      * Create a new gameobject instance
@@ -491,12 +516,13 @@ namespace dmGameObject
      * @param collection Gameobject collection
      * @param prototype_name Prototype file name
      * @param id Id of the spawned instance
-     * @param init_params Buffer with serialized init parameters
+     * @param property_buffer Buffer with serialized properties
+     * @param property_buffer_size Size of property buffer
      * @param position Position of the spawed object
      * @param rotation Rotation of the spawned object
      * return the spawned instance, 0 at failure
      */
-    HInstance Spawn(HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* init_params, const Point3& position, const Quat& rotation);
+    HInstance Spawn(HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation);
 
     /**
      * Delete gameobject instance
@@ -736,6 +762,8 @@ namespace dmGameObject
     Result RegisterComponentTypes(dmResource::HFactory factory, HRegister regist);
 
     lua_State* GetLuaState();
+
+    uint32_t LuaTableToProperties(lua_State* L, int index, uint8_t* buffer, uint32_t buffer_size);
 }
 
 #endif // GAMEOBJECT_H

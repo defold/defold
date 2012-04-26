@@ -1,0 +1,5 @@
+components {
+  id: "script"
+  component: "/props_go.scriptc"
+  properties {id: "number1" value: "200" type: PROPERTY_TYPE_NUMBER}
+}

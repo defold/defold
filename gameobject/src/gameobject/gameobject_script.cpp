@@ -26,7 +26,7 @@ extern "C"
 
 namespace dmGameObject
 {
-    #define SCRIPTINSTANCE "ScriptInstance"
+#define SCRIPTINSTANCE "ScriptInstance"
 
     const char* SCRIPT_FUNCTION_NAMES[MAX_SCRIPT_FUNCTION_COUNT] =
     {
@@ -116,6 +116,16 @@ namespace dmGameObject
         {"__newindex",  ScriptInstance_newindex},
         {0, 0}
     };
+
+    static Script* Script_Check(lua_State *L)
+    {
+        lua_pushliteral(L, SCRIPT_NAME);
+        lua_rawget(L, LUA_GLOBALSINDEX);
+        Script* i = (Script*)lua_touserdata(L, -1);
+        lua_pop(L, 1);
+        if (i == NULL) luaL_error(L, "Lua state did not contain any '%s'.", SCRIPT_NAME);
+        return i;
+    }
 
     static ScriptInstance* ScriptInstance_Check(lua_State *L)
     {
@@ -306,9 +316,61 @@ namespace dmGameObject
         return 2;
     }
 
+    int Script_Property(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void)top;
+
+        Script* script = Script_Check(L);
+        const char* id = luaL_checkstring(L, 1);
+
+        if (script->m_PropertyDefs.Full())
+        {
+            script->m_PropertyDefs.OffsetCapacity(8);
+        }
+        bool valid_type = false;
+        PropertyDef p;
+        if (lua_isnumber(L, 2))
+        {
+            lua_Number default_val = lua_tonumber(L, 2);
+            p.m_Type = dmGameObjectDDF::PROPERTY_TYPE_NUMBER;
+            p.m_Number = default_val;
+            valid_type = true;
+        }
+        else if (dmScript::IsURL(L, 2))
+        {
+            dmMessage::URL url = *dmScript::CheckURL(L, 2);
+            p.m_Type = dmGameObjectDDF::PROPERTY_TYPE_URL;
+            p.m_URL = url;
+            valid_type = true;
+        }
+        else if (dmScript::IsHash(L, 2))
+        {
+            dmhash_t hash = dmScript::CheckHash(L, 2);
+            p.m_Type = dmGameObjectDDF::PROPERTY_TYPE_HASH;
+            p.m_Hash = hash;
+            valid_type = true;
+        }
+        if (valid_type)
+        {
+            p.m_Name = strdup(id);
+            p.m_Id = dmHashString64(id);
+            script->m_PropertyDefs.Push(p);
+        }
+        else
+        {
+            return luaL_error(L, "Invalid type (%s) supplied to go.property, must be either a number, hash or URL.", lua_typename(L, lua_type(L, 2)));
+        }
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
     void GetURLCallback(lua_State* L, dmMessage::URL* url)
     {
-        ScriptInstance* i = ScriptInstance_Check(L);
+        lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
+        lua_rawget(L, LUA_GLOBALSINDEX);
+        ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, -1);
+        lua_pop(L, 1);
 
         url->m_Socket = i->m_Instance->m_Collection->m_ComponentSocket;
         url->m_Path = i->m_Instance->m_Identifier;
@@ -346,6 +408,7 @@ namespace dmGameObject
         {"get_id",              Script_GetId},
         {"delete",              Script_Delete},
         {"screen_ray",          Script_ScreenRay},
+        {"property",            Script_Property},
         {0, 0}
     };
 
@@ -433,6 +496,11 @@ namespace dmGameObject
         int ret = lua_load(L, &ReadScript, &data, filename);
         if (ret == 0)
         {
+            // Script-reference
+            lua_pushliteral(L, SCRIPT_NAME);
+            lua_pushlightuserdata(L, (void*) script);
+            lua_rawset(L, LUA_GLOBALSINDEX);
+
             ret = lua_pcall(L, 0, LUA_MULTRET, 0);
             if (ret == 0)
             {
@@ -465,6 +533,9 @@ namespace dmGameObject
                 dmLogError("Error running script: %s", lua_tostring(L,-1));
                 lua_pop(L, 1);
             }
+            lua_pushliteral(L, SCRIPT_NAME);
+            lua_pushnil(L);
+            lua_rawset(L, LUA_GLOBALSINDEX);
         }
         else
         {
@@ -485,22 +556,63 @@ bail:
     {
         lua_State* L = g_LuaState;
 
-        Script temp_script;
-        if (LoadScript(L, buffer, buffer_size, filename, &temp_script))
+        HScript script = new Script();
+        script->m_PropertyDefs.SetCapacity(0);
+        script->m_OldPropertyDefs.SetCapacity(0);
+        if (LoadScript(L, buffer, buffer_size, filename, script))
         {
-            HScript script = new Script();
-            *script = temp_script;
+            script->m_Properties = NewProperties();
+            if (script->m_PropertyDefs.Size() > 0)
+            {
+                const uint32_t buffer_size = 1024;
+                uint8_t buffer[buffer_size];
+                uint32_t actual = SerializeProperties(script->m_PropertyDefs, buffer, buffer_size);
+                if (buffer_size < actual)
+                {
+                    dmLogError("Properties could not be stored when loading %s: too many properties.", filename);
+                }
+                else
+                {
+                    SetProperties(script->m_Properties, buffer, actual);
+                }
+            }
             return script;
         }
         else
         {
+            delete script;
             return 0;
         }
     }
 
     bool ReloadScript(HScript script, const void* buffer, uint32_t buffer_size, const char* filename)
     {
-        return LoadScript(g_LuaState, buffer, buffer_size, filename, script);
+        uint32_t count = script->m_OldPropertyDefs.Size();
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            free((void*)script->m_OldPropertyDefs[i].m_Name);
+        }
+        script->m_OldPropertyDefs.SetSize(0);
+        script->m_OldPropertyDefs.Swap(script->m_PropertyDefs);
+        bool result = LoadScript(g_LuaState, buffer, buffer_size, filename, script);
+        if (result)
+        {
+            if (script->m_PropertyDefs.Size() > 0)
+            {
+                const uint32_t buffer_size = 1024;
+                uint8_t buffer[buffer_size];
+                uint32_t actual = SerializeProperties(script->m_PropertyDefs, buffer, buffer_size);
+                if (buffer_size < actual)
+                {
+                    dmLogError("Properties could not be stored when loading %s: too many properties.", filename);
+                }
+                else
+                {
+                    SetProperties(script->m_Properties, buffer, actual);
+                }
+            }
+        }
+        return result;
     }
 
     void DeleteScript(HScript script)
@@ -510,6 +622,19 @@ bail:
         {
             if (script->m_FunctionReferences[i])
                 luaL_unref(L, LUA_REGISTRYINDEX, script->m_FunctionReferences[i]);
+        }
+        DeleteProperties(script->m_Properties);
+        dmArray<PropertyDef>& property_defs = script->m_PropertyDefs;
+        uint32_t count = property_defs.Size();
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            free((void*)property_defs[i].m_Name);
+        }
+        dmArray<PropertyDef>& old_property_defs = script->m_OldPropertyDefs;
+        count = old_property_defs.Size();
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            free((void*)old_property_defs[i].m_Name);
         }
         delete script;
     }
@@ -534,6 +659,7 @@ bail:
 
         i->m_Instance = instance;
         i->m_ComponentIndex = component_index;
+        i->m_Properties = NewProperties();
         luaL_getmetatable(L, SCRIPTINSTANCE);
         lua_setmetatable(L, -2);
 
@@ -554,6 +680,8 @@ bail:
 
         luaL_unref(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
         luaL_unref(L, LUA_REGISTRYINDEX, script_instance->m_ScriptDataReference);
+
+        DeleteProperties(script_instance->m_Properties);
 
         assert(top == lua_gettop(L));
     }

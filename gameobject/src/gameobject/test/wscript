@@ -65,5 +65,6 @@ def build(bld):
     new_test('id')
     new_test('input', exts = ['.go_pb', '.script', '.cpp', '.proto', '.it_pb'])
     new_test('message', exts = ['.go_pb', '.script', '.cpp', '.proto', '.mt_pb'])
+    new_test('props')
     new_test('reload', exts = ['.go_pb', '.script', '.cpp', '.proto', '.rt_pb'])
     new_test('script')

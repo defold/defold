@@ -29,8 +29,6 @@ namespace dmMessage
      */
     struct URL
     {
-        URL();
-
         HSocket     m_Socket;       //! Socket
         dmhash_t    m_Path;         //! Path of the receiver
         dmhash_t    m_Fragment;     //! Fragment of the receiver
@@ -94,6 +92,12 @@ namespace dmMessage
      * @return if the socket is valid or not
      */
     bool IsSocketValid(HSocket socket);
+
+    /**
+     * Resets the given URL to default values.
+     * @param url URL to reset
+     */
+    void ResetURL(const URL& url);
 
     /**
      * Post an message to a socket

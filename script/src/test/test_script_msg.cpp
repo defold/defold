@@ -101,9 +101,9 @@ TEST_F(ScriptMsgTest, TestURLNewAndIndex)
     // empty
     ASSERT_TRUE(RunString(L,
         "local url = msg.url()\n"
-        "assert(url.socket == __default_url.socket, \"invalid socket\")\n"
-        "assert(url.path == __default_url.path, \"invalid path\")\n"
-        "assert(url.fragment == __default_url.fragment, \"invalid fragment\")\n"
+        "assert(url.socket == nil, \"invalid socket\")\n"
+        "assert(url.path == nil, \"invalid path\")\n"
+        "assert(url.fragment == nil, \"invalid fragment\")\n"
        ));
 
     // empty string
@@ -389,6 +389,8 @@ void DispatchCallbackDDF(dmMessage::Message *message, void* user_ptr)
 
 struct TableUserData
 {
+    TableUserData() { dmMessage::ResetURL(m_URL); }
+
     lua_State* L;
     uint32_t m_TestValue;
     dmMessage::URL m_URL;

@@ -26,6 +26,8 @@ namespace dmGameObject
     InputResult CompScriptOnInput(const ComponentOnInputParams& params);
 
     void CompScriptOnReload(const ComponentOnReloadParams& params);
+
+    void CompScriptSetProperties(const ComponentSetPropertiesParams& params);
 }
 
 #endif // DM_GAMEOBJECT_COMP_SCRIPT_H

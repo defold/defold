@@ -66,6 +66,7 @@ namespace dmGameSystem
         dmGameSystemDDF::SetLight* set_light = (dmGameSystemDDF::SetLight*)buf;
 
         dmMessage::URL receiver;
+        dmMessage::ResetURL(receiver);
         if (dmMessage::RESULT_OK != dmMessage::GetSocket(dmRender::RENDER_SOCKET_NAME, &receiver.m_Socket))
         {
             dmLogError("Could not find the socket '%s'.", dmRender::RENDER_SOCKET_NAME);

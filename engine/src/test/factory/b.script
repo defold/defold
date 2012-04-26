@@ -1,3 +1,5 @@
+go.property("factory", msg.url())
+
 function init(self, params)
     self.factory = params.factory
 end

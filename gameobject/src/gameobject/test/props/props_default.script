@@ -1,0 +1,9 @@
+go.property("number", 100)
+
+function init(self)
+    assert(self.number == 100)
+end
+
+function on_reload(self)
+    assert(self.number == 100)
+end

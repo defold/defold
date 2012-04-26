@@ -1,0 +1,12 @@
+go.property("number1", 100)
+go.property("number2", 300)
+
+function init(self)
+    assert(self.number1 == 200)
+    assert(self.number2 == 300)
+end
+
+function on_reload(self)
+    assert(self.number1 == 200)
+    assert(self.number2 == 300)
+end

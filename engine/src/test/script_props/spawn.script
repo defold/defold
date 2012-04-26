@@ -1,0 +1,6 @@
+go.property("number1", 0)
+
+function init(self, config)
+    assert(self.number1 == 100)
+    msg.post("main:/main#script", "done")
+end

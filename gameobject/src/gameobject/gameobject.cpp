@@ -25,6 +25,7 @@ namespace dmGameObject
 {
     const uint32_t UNNAMED_IDENTIFIER = dmHashBuffer64("__unnamed__", strlen("__unnamed__"));
     const char* ID_SEPARATOR = "/";
+    const uint32_t MAX_DISPATCH_ITERATION_COUNT = 5;
 
     InputAction::InputAction()
     {
@@ -252,9 +253,12 @@ namespace dmGameObject
             return RESULT_RESOURCE_TYPE_NOT_FOUND;
         }
 
-        std::sort(regist->m_ComponentTypesOrder, regist->m_ComponentTypesOrder + regist->m_ComponentTypeCount, ComponentTypeSortPred(regist));
-
         return RESULT_OK;
+    }
+
+    void SortComponentTypes(HRegister regist)
+    {
+        std::sort(regist->m_ComponentTypesOrder, regist->m_ComponentTypesOrder + regist->m_ComponentTypeCount, ComponentTypeSortPred(regist));
     }
 
     dmResource::Result RegisterResourceTypes(dmResource::HFactory factory, HRegister regist)
@@ -437,7 +441,7 @@ namespace dmGameObject
         return instance;
     }
 
-    bool Init(HCollection collection, HInstance instance, uint8_t* init_params);
+    bool Init(HCollection collection, HInstance instance);
 
     dmhash_t GenerateUniqueInstanceId(HCollection collection)
     {
@@ -465,7 +469,7 @@ namespace dmGameObject
         return RESULT_OK;
     }
 
-    HInstance Spawn(HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* init_params, const Point3& position, const Quat& rotation)
+    HInstance Spawn(HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation)
     {
         if (collection->m_InUpdate)
         {
@@ -498,7 +502,29 @@ namespace dmGameObject
             }
             else
             {
-                Init(collection, instance, init_params);
+                uint32_t next_component_instance_data = 0;
+                dmArray<Prototype::Component>& components = instance->m_Prototype->m_Components;
+                uint32_t count = components.Size();
+                for (uint32_t i = 0; i < count; ++i)
+                {
+                    Prototype::Component& component = components[i];
+                    ComponentType* component_type = component.m_Type;
+                    uintptr_t* component_instance_data = 0;
+                    if (component_type->m_InstanceHasUserData)
+                    {
+                        component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data++];
+                    }
+                    if (strcmp(component.m_Type->m_Name, "scriptc") == 0 && component.m_Type->m_SetPropertiesFunction != 0x0)
+                    {
+                        ComponentSetPropertiesParams params;
+                        params.m_Instance = instance;
+                        params.m_PropertyBuffer = property_buffer;
+                        params.m_PropertyBufferSize = property_buffer_size;
+                        params.m_UserData = component_instance_data;
+                        component.m_Type->m_SetPropertiesFunction(params);
+                    }
+                }
+                Init(collection, instance);
             }
         }
         if (instance == 0)
@@ -602,7 +628,7 @@ namespace dmGameObject
 
     void UpdateTransforms(HCollection collection);
 
-    bool Init(HCollection collection, HInstance instance, uint8_t* init_params)
+    bool Init(HCollection collection, HInstance instance)
     {
         if (instance)
         {
@@ -654,7 +680,7 @@ namespace dmGameObject
                     params.m_World = collection->m_ComponentWorlds[component->m_TypeIndex];
                     params.m_Context = component_type->m_Context;
                     params.m_UserData = component_instance_data;
-                    params.m_InitParams = init_params;
+                    params.m_Properties = component->m_Properties;
                     CreateResult result = component_type->m_InitFunction(params);
                     if (result != CREATE_RESULT_OK)
                     {
@@ -666,6 +692,8 @@ namespace dmGameObject
 
         return true;
     }
+
+    bool DispatchMessages(HCollection collection, dmMessage::HSocket* sockets, uint32_t socket_count);
 
     bool Init(HCollection collection)
     {
@@ -682,11 +710,14 @@ namespace dmGameObject
         for (uint32_t i = 0; i < n_objects; ++i)
         {
             Instance* instance = collection->m_Instances[i];
-            if ( ! Init(collection, instance, 0x0) )
+            if ( ! Init(collection, instance) )
             {
                 result = false;
             }
         }
+        dmMessage::HSocket sockets[] = {collection->m_ComponentSocket, collection->m_FrameSocket};
+        if (!DispatchMessages(collection, sockets, 2))
+            result = false;
 
         return result;
     }
@@ -1170,14 +1201,26 @@ namespace dmGameObject
         }
     }
 
-    bool DispatchMessages(HCollection collection, dmMessage::HSocket socket)
+    bool DispatchMessages(HCollection collection, dmMessage::HSocket* sockets, uint32_t socket_count)
     {
         DM_PROFILE(GameObject, "DispatchMessages");
 
         DispatchMessagesContext ctx;
         ctx.m_Collection = collection;
         ctx.m_Success = true;
-        (void) dmMessage::Dispatch(socket, &DispatchMessagesFunction, (void*) &ctx);
+        bool iterate = true;
+        uint32_t iteration_count = 0;
+        while (iterate && iteration_count < MAX_DISPATCH_ITERATION_COUNT)
+        {
+            iterate = false;
+            for (uint32_t i = 0; i < socket_count; ++i)
+            {
+                uint32_t message_count = dmMessage::Dispatch(sockets[i], &DispatchMessagesFunction, (void*) &ctx);
+                if (message_count > 0)
+                    iterate = true;
+            }
+            ++iteration_count;
+        }
 
         return ctx.m_Success;
     }
@@ -1279,7 +1322,7 @@ namespace dmGameObject
             // into UpdateTrasform, then Update or similar
             UpdateTransforms(collection);
 
-            if (!DispatchMessages(collection, collection->m_ComponentSocket))
+            if (!DispatchMessages(collection, &collection->m_ComponentSocket, 1))
                 ret = false;
         }
 
@@ -1333,12 +1376,14 @@ namespace dmGameObject
             }
         }
 
-        // Some components might have sent messages in their final()
-        if (!DispatchMessages(collection, collection->m_ComponentSocket))
-            result = false;
-
-        // Frame dispatch, handle e.g. spawning
-        if (!DispatchMessages(collection, collection->m_FrameSocket))
+        dmMessage::HSocket sockets[] =
+        {
+                // Some components might have sent messages in their final()
+                collection->m_ComponentSocket,
+                // Frame dispatch, handle e.g. spawning
+                collection->m_FrameSocket
+        };
+        if (!DispatchMessages(collection, sockets, 2))
             result = false;
 
         if (collection->m_InstancesToDelete.Size() > 0)

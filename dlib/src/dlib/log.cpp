@@ -253,6 +253,8 @@ void dmLogFinalize()
     msg.m_Type = dmLogMessage::SHUTDOWN;
     dmMessage::URL receiver;
     receiver.m_Socket = self->m_MessgeSocket;
+    receiver.m_Path = 0;
+    receiver.m_Fragment = 0;
     dmMessage::Post(0, &receiver, 0, 0, 0, &msg, sizeof(msg));
     dmThread::Join(self->m_Thread);
 
@@ -350,6 +352,8 @@ void dmLogInternal(dmLogSeverity severity, const char* domain, const char* forma
         msg->m_Type = dmLogMessage::MESSAGE;
         dmMessage::URL receiver;
         receiver.m_Socket = self->m_MessgeSocket;
+        receiver.m_Path = 0;
+        receiver.m_Fragment = 0;
         dmMessage::Post(0, &receiver, 0, 0, 0, msg, sizeof(dmLogMessage) + n + 1);
     }
 }

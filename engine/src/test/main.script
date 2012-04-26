@@ -3,9 +3,10 @@ local test_duration = 3
 function init(self)
     self.timer = test_duration
     self.loading_proxy = "#loading_proxy"
-    self.test_proxies = {"#factory_proxy", "#physics_proxy", "#gui_proxy", "#attacker_target_proxy", "#identifiers_proxy"}
+    self.test_proxies = {"#script_props_proxy", "#factory_proxy", "#physics_proxy", "#gui_proxy", "#attacker_target_proxy", "#identifiers_proxy"}
     self.test_index = 1
     msg.post(self.loading_proxy, "load")
+    self.proxies_unloaded = 0
 end
 
 function update(self, dt)
@@ -28,8 +29,10 @@ local function activate_proxy(self, index)
 end
 
 local function deactivate_proxy(self, index)
-    msg.post(self.test_proxies[index], "disable")
-    msg.post(self.test_proxies[index], "final")
+    local proxy = self.test_proxies[index]
+    msg.post(proxy, "disable")
+    msg.post(proxy, "final")
+    msg.post(proxy, "unload")
 end
 
 function on_message(self, message_id, message)
@@ -37,15 +40,18 @@ function on_message(self, message_id, message)
         msg.post(self.loading_proxy, "init")
         msg.post(self.loading_proxy, "enable")
         msg.post("test_loading:/loading#gui", "start", {proxies = self.test_proxies})
+    elseif message_id == hash("proxy_unloaded") then
+        self.proxies_unloaded = self.proxies_unloaded + 1
+        if self.proxies_unloaded == #self.test_proxies then
+            msg.post("@system:", "exit", { code = 0 })
+        end
     elseif message_id == hash("start") then
         self.started = true
         activate_proxy(self, self.test_index)
     elseif message_id == hash("done") then
         deactivate_proxy(self, self.test_index)
         self.test_index = self.test_index + 1
-        if self.test_index > #self.test_proxies then
-            msg.post("@system:", "exit", { code = 0 })
-        else
+        if self.test_index <= #self.test_proxies then
             activate_proxy(self, self.test_index)
         end
     end

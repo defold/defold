@@ -189,6 +189,8 @@ TEST_F(ReloadTest, TestComponentReload)
     ReloadTargetWorld* world = m_World;
     ReloadTargetComponent* component = m_World->m_Component;
 
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
     bool r = dmGameObject::Update(m_Collection, &m_UpdateContext);
 
     ASSERT_FALSE(r);

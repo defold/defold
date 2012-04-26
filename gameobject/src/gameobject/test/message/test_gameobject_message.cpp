@@ -306,6 +306,7 @@ TEST_F(MessageTest, TestBroadcastNamedMessage)
     dmMessage::URL receiver;
     receiver.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
     receiver.m_Path = dmGameObject::GetIdentifier(go);
+    receiver.m_Fragment = 0;
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, 0, 0, 0x0, 0));
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_EQ(2U, m_MessageTargetCounter);
@@ -323,6 +324,7 @@ TEST_F(MessageTest, TestInputFocus)
     dmMessage::URL receiver;
     receiver.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
     receiver.m_Path = dmGameObject::GetIdentifier(go);
+    receiver.m_Fragment = 0;
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, (uintptr_t)go, (uintptr_t)dmGameObjectDDF::AcquireInputFocus::m_DDFDescriptor, 0x0, 0));
 
     ASSERT_EQ(0u, m_Collection->m_InputFocusStack.Size());
@@ -386,9 +388,12 @@ TEST_F(MessageTest, TestGameObjectTransform)
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("test_socket", &socket));
     dmMessage::URL sender;
     sender.m_Socket = socket;
+    sender.m_Path = 0;
+    sender.m_Fragment = 0;
     dmMessage::URL receiver;
     receiver.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
     receiver.m_Path = dmGameObject::GetIdentifier(go);
+    receiver.m_Fragment = 0;
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(&sender, &receiver, message_id, (uintptr_t)go, (uintptr_t)dmGameObjectDDF::RequestTransform::m_DDFDescriptor, 0x0, 0));
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -438,6 +443,7 @@ TEST_F(MessageTest, TestSetParent)
     dmMessage::URL receiver;
     receiver.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
     receiver.m_Path = dmGameObject::GetIdentifier(go);
+    receiver.m_Fragment = 0;
     dmGameObjectDDF::SetParent ddf;
     dmhash_t parent_id = dmHashString64("parent_test_instance");
     ddf.m_ParentId = parent_id;
@@ -516,6 +522,28 @@ TEST_F(MessageTest, TestSetParent)
 
     dmGameObject::Delete(m_Collection, go);
     dmGameObject::Delete(m_Collection, parent);
+}
+
+TEST_F(MessageTest, TestPingPong)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/test_ping_pong.goc");
+    ASSERT_NE((void*) 0, (void*) go);
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::UpdateContext update_context;
+    update_context.m_DT = 1.0f / 60.0f;
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &update_context));
+    dmGameObject::Delete(m_Collection, go);
+}
+
+TEST_F(MessageTest, TestInfPingPong)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/test_inf_ping_pong.goc");
+    ASSERT_NE((void*) 0, (void*) go);
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::UpdateContext update_context;
+    update_context.m_DT = 1.0f / 60.0f;
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &update_context));
+    dmGameObject::Delete(m_Collection, go);
 }
 
 int main(int argc, char **argv)

@@ -1,0 +1,3 @@
+function init(self, config)
+    factory.create("#factory", vmath.vector3(), vmath.quat(), {number1 = 100})
+end

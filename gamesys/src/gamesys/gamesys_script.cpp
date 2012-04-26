@@ -99,6 +99,7 @@ namespace dmGameSystem
                 }
             }
             dmMessage::URL receiver;
+            dmMessage::ResetURL(receiver);
             receiver.m_Socket = context->m_Socket;
             dmMessage::Post(&sender, &receiver, dmHashString64(dmPhysicsDDF::RequestRayCast::m_DDFDescriptor->m_Name), user_data, (uintptr_t)dmPhysicsDDF::RequestRayCast::m_DDFDescriptor, &request, sizeof(dmPhysicsDDF::RequestRayCast));
             assert(top == lua_gettop(L));
@@ -157,7 +158,7 @@ namespace dmGameSystem
             dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
 
             const uint32_t buffer_size = 256;
-            char buffer[buffer_size];
+            uint8_t buffer[buffer_size];
             dmGameSystemDDF::Create* request = (dmGameSystemDDF::Create*)buffer;
 
             uint32_t msg_size = sizeof(dmGameSystemDDF::Create);
@@ -177,11 +178,11 @@ namespace dmGameSystem
             {
                 request->m_Rotation = dmGameObject::GetWorldRotation(sender_instance);
             }
-            uint32_t table_size = 0;
+            uint32_t prop_buffer_size = 0;
             if (top >= 4)
             {
-                char* table_buffer = &buffer[msg_size];
-                table_size = dmScript::CheckTable(L, table_buffer, buffer_size - msg_size, 4);
+                uint8_t* prop_buffer = &buffer[msg_size];
+                prop_buffer_size = dmGameObject::LuaTableToProperties(L, 4, prop_buffer, buffer_size - msg_size);
             }
             request->m_Id = dmGameObject::GenerateUniqueInstanceId(collection);
 
@@ -189,7 +190,7 @@ namespace dmGameSystem
 
             dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-            dmMessage::Post(&sender, &receiver, dmHashString64(dmGameSystemDDF::Create::m_DDFDescriptor->m_Name), user_data, (uintptr_t)dmGameSystemDDF::Create::m_DDFDescriptor, buffer, msg_size + table_size);
+            dmMessage::Post(&sender, &receiver, dmHashString64(dmGameSystemDDF::Create::m_DDFDescriptor->m_Name), user_data, (uintptr_t)dmGameSystemDDF::Create::m_DDFDescriptor, buffer, msg_size + prop_buffer_size);
             assert(top == lua_gettop(L));
             dmScript::PushHash(L, request->m_Id);
             return 1;

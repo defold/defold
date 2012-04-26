@@ -1,0 +1,8 @@
+components {
+  id: "script_a"
+  component: "/test_ping_pong_a.scriptc"
+}
+components {
+  id: "script_b"
+  component: "/test_ping_pong_b.scriptc"
+}

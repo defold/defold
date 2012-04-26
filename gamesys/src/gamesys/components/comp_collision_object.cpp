@@ -330,7 +330,9 @@ namespace dmGameSystem
             uint32_t data_size = sizeof(dmPhysicsDDF::CollisionResponse);
             dmPhysicsDDF::CollisionResponse ddf;
             dmMessage::URL sender;
+            dmMessage::ResetURL(sender);
             dmMessage::URL receiver;
+            dmMessage::ResetURL(receiver);
 
             // Broadcast to A components
             ddf.m_Group = GetLSBGroupHash(cud->m_World, group_b);
@@ -398,7 +400,9 @@ namespace dmGameSystem
             uintptr_t descriptor = (uintptr_t)dmPhysicsDDF::ContactPointResponse::m_DDFDescriptor;
             uint32_t data_size = sizeof(dmPhysicsDDF::ContactPointResponse);
             dmMessage::URL sender;
+            dmMessage::ResetURL(sender);
             dmMessage::URL receiver;
+            dmMessage::ResetURL(receiver);
 
             // Broadcast to A components
             ddf.m_Position = contact_point.m_PositionA;

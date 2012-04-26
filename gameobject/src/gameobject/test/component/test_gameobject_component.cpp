@@ -88,6 +88,8 @@ protected:
         dmGameObject::SetUpdateOrderPrio(m_Register, resource_type, 0);
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
 
+        dmGameObject::SortComponentTypes(m_Register);
+
         m_MaxComponentCreateCountMap[TestGameObjectDDF::AResource::m_DDFHash] = 1000000;
     }
 

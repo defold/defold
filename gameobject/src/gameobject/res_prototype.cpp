@@ -3,6 +3,7 @@
 #include <dlib/log.h>
 
 #include "gameobject_private.h"
+#include "gameobject_props.h"
 
 #include "../proto/gameobject_ddf.h"
 
@@ -53,9 +54,11 @@ namespace dmGameObject
                 // Error, release created
                 if (id_used)
                     dmResource::Release(factory, component);
-                for (uint32_t j = 0; j < proto->m_Components.Size(); ++j)
+                uint32_t component_count = proto->m_Components.Size();
+                for (uint32_t j = 0; j < component_count; ++j)
                 {
                     dmResource::Release(factory, proto->m_Components[j].m_Resource);
+                    DeleteProperties(proto->m_Components[j].m_Properties);
                 }
                 delete proto;
                 dmDDF::FreeMessage(proto_desc);
@@ -76,14 +79,32 @@ namespace dmGameObject
                 fact_e = dmResource::GetDescriptor(factory, component_resource, &descriptor);
                 assert(fact_e == dmResource::RESULT_OK);
 
-                proto->m_Components.Push(Prototype::Component(component,
-                                                              resource_type,
-                                                              id,
-                                                              descriptor.m_NameHash,
-                                                              type,
-                                                              type_index,
-                                                              component_desc.m_Position,
-                                                              component_desc.m_Rotation));
+                Prototype::Component c(component,
+                                                                              resource_type,
+                                                                              id,
+                                                                              descriptor.m_NameHash,
+                                                                              type,
+                                                                              type_index,
+                                                                              component_desc.m_Position,
+                                                                              component_desc.m_Rotation);
+                c.m_Properties = NewProperties();
+                uint32_t prop_count = component_desc.m_Properties.m_Count;
+                if (prop_count > 0)
+                {
+                    const uint32_t buffer_size = 1024;
+                    uint8_t buffer[buffer_size];
+                    uint32_t actual = SerializeProperties(component_desc.m_Properties.m_Data, prop_count, buffer, buffer_size);
+                    if (buffer_size < actual)
+                    {
+                        dmLogError("Properties could not be stored when loading %s: too many properties.", filename);
+                    }
+                    else
+                    {
+                        SetProperties(c.m_Properties, buffer, actual);
+                    }
+                }
+                proto->m_Components.Push(c);
+
             }
         }
 
@@ -101,6 +122,7 @@ namespace dmGameObject
         for (uint32_t i = 0; i < proto->m_Components.Size(); ++i)
         {
             dmResource::Release(factory, proto->m_Components[i].m_Resource);
+            DeleteProperties(proto->m_Components[i].m_Properties);
         }
 
         delete proto;

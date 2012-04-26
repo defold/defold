@@ -1,13 +1,12 @@
 function init(self)
     self.id_a = factory.create("#factory_a", nil, nil, {test_value = 1})
-    self.id_b = factory.create("#factory_b", nil, nil, {factory = go.get_id()})
+    self.id_b = factory.create("#factory_b", nil, nil, {factory = msg.url("#script")})
 end
 
 function update(self, dt)
-    if self.id_a then
-        msg.post(self.id_a, "hello", {next = self.id_b})
-        self.id_a = nil
-    end
+    msg.post(self.id_a, "hello", {id_b = self.id_b})
+    assert(not self.updated)
+    self.updated = true
 end
 
 function on_message(self, message_id, message, sender)

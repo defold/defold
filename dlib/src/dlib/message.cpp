@@ -37,11 +37,6 @@ namespace dmMessage
         MemoryPage* m_FullPages;
     };
 
-    URL::URL()
-    {
-        memset(this, 0, sizeof(URL));
-    }
-
     static void AllocateNewPage(MemoryAllocator* allocator)
     {
         if (allocator->m_CurrentPage)
@@ -261,6 +256,11 @@ namespace dmMessage
         return false;
     }
 
+    void ResetURL(const URL& url)
+    {
+        memset((void*)&url, 0, sizeof(URL));
+    }
+
     uint32_t g_MessagesHash = dmHashString32("Messages");
 
     Result Post(const URL* sender, const URL* receiver, dmhash_t message_id, uintptr_t user_data, uintptr_t descriptor, const void* message_data, uint32_t message_data_size)
@@ -289,7 +289,7 @@ namespace dmMessage
         }
         else
         {
-            new_message->m_Sender = URL();
+            ResetURL(new_message->m_Sender);
         }
         new_message->m_Receiver = *receiver;
         new_message->m_Id = message_id;

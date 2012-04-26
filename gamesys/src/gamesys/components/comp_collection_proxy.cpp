@@ -20,11 +20,14 @@ namespace dmGameSystem
 
     struct CollectionProxyComponent
     {
+        dmMessage::URL                  m_Unloader;
         CollectionProxyResource*        m_Resource;
         dmGameObject::HCollection       m_Collection;
+        dmGameObject::HInstance         m_Instance;
         dmGameSystemDDF::TimeStepMode   m_TimeStepMode;
         float                           m_TimeStepFactor;
         float                           m_AccumulatedTime;
+        uint32_t                        m_ComponentIndex : 8;
         uint32_t                        m_Initialized : 1;
         uint32_t                        m_Enabled : 1;
         uint32_t                        m_Unload : 1;
@@ -76,6 +79,8 @@ namespace dmGameSystem
             memset(proxy, 0, sizeof(CollectionProxyComponent));
             proxy->m_TimeStepFactor = 1.0f;
             proxy->m_Resource = (CollectionProxyResource*) params.m_Resource;
+            proxy->m_Instance = params.m_Instance;
+            proxy->m_ComponentIndex = params.m_ComponentIndex;
             *params.m_UserData = (uintptr_t) proxy;
             return dmGameObject::CREATE_RESULT_OK;
         }
@@ -175,6 +180,18 @@ namespace dmGameSystem
                     proxy->m_Collection = 0;
                     proxy->m_Enabled = 0;
                     proxy->m_Unload = 0;
+                    if (dmMessage::IsSocketValid(proxy->m_Unloader.m_Socket))
+                    {
+                        dmMessage::URL sender;
+                        sender.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(proxy->m_Instance));
+                        sender.m_Path = dmGameObject::GetIdentifier(proxy->m_Instance);
+                        dmGameObject::GetComponentId(proxy->m_Instance, proxy->m_ComponentIndex, &sender.m_Fragment);
+                        dmMessage::Result msg_result = dmMessage::Post(&sender, &proxy->m_Unloader, dmHashString64("proxy_unloaded"), 0, 0, 0, 0);
+                        if (msg_result != dmMessage::RESULT_OK)
+                        {
+                            dmLogWarning("proxy_unloaded could not be posted: %d", msg_result);
+                        }
+                    }
                 }
             }
         }
@@ -215,14 +232,7 @@ namespace dmGameSystem
             if (proxy->m_Collection != 0)
             {
                 proxy->m_Unload = 1;
-                if (dmMessage::IsSocketValid(params.m_Message->m_Sender.m_Socket))
-                {
-                    dmMessage::Result msg_result = dmMessage::Post(&params.m_Message->m_Receiver, &params.m_Message->m_Sender, dmHashString64("proxy_unloaded"), 0, 0, 0, 0);
-                    if (msg_result != dmMessage::RESULT_OK)
-                    {
-                        dmLogWarning("proxy_unloaded could not be posted: %d", msg_result);
-                    }
-                }
+                proxy->m_Unloader = params.m_Message->m_Sender;
             }
             else
             {

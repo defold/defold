@@ -7,6 +7,7 @@
 
 #include <resource/resource.h>
 #include "gameobject.h"
+#include "gameobject_props.h"
 
 /**
  * Private header for GameObject
@@ -40,8 +41,13 @@ namespace dmGameObject
 
     struct Script
     {
+        dmArray<PropertyDef> m_PropertyDefs;
+        // Used for reloading scripts
+        dmArray<PropertyDef> m_OldPropertyDefs;
         int m_FunctionReferences[MAX_SCRIPT_FUNCTION_COUNT];
+        HProperties m_Properties;
     };
+
     typedef Script* HScript;
 
     struct ScriptInstance
@@ -51,6 +57,7 @@ namespace dmGameObject
         int         m_InstanceReference;
         int         m_ScriptDataReference;
         uint8_t     m_ComponentIndex;
+        HProperties  m_Properties;
     };
 
     struct ScriptWorld
