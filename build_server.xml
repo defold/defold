@@ -1,7 +1,12 @@
 <project name="de.vogella.build" default="build">
     <!--sets the path of the properties file-->
     <property file="build.properties" />
-    <property name="pdeBuildPluginVersion" value="3.7.0.v20111116-2009" />
+
+    <!-- For eclipse 3.7.2 -->
+    <!-- property name="pdeBuildPluginVersion" value="3.7.0.v20111116-2009" />-->
+    <!-- For eclipse 3.7.1 -->
+    <property name="pdeBuildPluginVersion" value="3.7.0.v20110512-1320" />
+
     <property name="equinoxLauncherPluginVersion" value="1.2.0.v20110502" />
     <property name="eclipseLocation" value="${baseLocation}" />
     <property environment="env"/>
