@@ -5,6 +5,8 @@ import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IFolder;
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.IResource;
+import org.eclipse.core.resources.ResourcesPlugin;
+import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.Path;
 
 public class EditorUtil {
@@ -48,6 +50,26 @@ public class EditorUtil {
     public static IFolder getContentRoot(IProject project) {
         // NOTE: In the "future" we might change "content". Thats why we have this method.
         return project.getFolder("content");
+    }
+
+    /**
+     * Get current cr project or actually the first project with nature
+     * "com.dynamo.cr.editor.core.crnature" set. We assume a single project.
+     * @return project. null if project can be found.
+     */
+    public static IProject getProject() {
+        try {
+            IProject[] projects = ResourcesPlugin.getWorkspace().getRoot().getProjects();
+            for (IProject project : projects) {
+                if (project.isOpen() && project.hasNature("com.dynamo.cr.editor.core.crnature")) {
+                    return project;
+                }
+            }
+        } catch (CoreException e) {
+            EditorCorePlugin.logException(e);
+            return null;
+        }
+        return null;
     }
 
     /**

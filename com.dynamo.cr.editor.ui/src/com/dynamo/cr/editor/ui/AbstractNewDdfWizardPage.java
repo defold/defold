@@ -1,9 +1,12 @@
 package com.dynamo.cr.editor.ui;
 
 import org.eclipse.core.resources.IContainer;
+import org.eclipse.core.resources.IFolder;
+import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.IResource;
 import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.Path;
+import org.eclipse.jface.dialogs.IDialogPage;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.wizard.WizardPage;
@@ -18,7 +21,14 @@ import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Text;
+import org.eclipse.ui.IEditorInput;
+import org.eclipse.ui.IEditorPart;
+import org.eclipse.ui.IFileEditorInput;
+import org.eclipse.ui.IWorkbenchPage;
+import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.dialogs.ContainerSelectionDialog;
+
+import com.dynamo.cr.editor.core.EditorUtil;
 
 /**
  * The "New" wizard page allows setting the container for the new file as well
@@ -92,6 +102,14 @@ public class AbstractNewDdfWizardPage extends WizardPage {
 		setControl(container);
 	}
 
+	@Override
+	public void setVisible(boolean visible) {
+	    super.setVisible(visible);
+	    if (visible) {
+	        fileText.setFocus();
+	    }
+	}
+
 	/**
 	 * Tests if the current workbench selection is a suitable container to use.
 	 */
@@ -112,7 +130,33 @@ public class AbstractNewDdfWizardPage extends WizardPage {
 				containerText.setText(container.getFullPath().toString());
 			}
 		}
-		fileText.setText("new_file." + this.wizard.getExtension());
+
+		IWorkbenchPage page = PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage();
+		if (containerText.getText().equals("") && page != null) {
+            // We couldn't find parent based on selection
+            // Try to find container based on active editor
+		    IEditorPart editor = page.getActiveEditor();
+		    if (editor != null) {
+		        IEditorInput input = editor.getEditorInput();
+		        if (input instanceof IFileEditorInput) {
+                    IFileEditorInput fileEditorInput = (IFileEditorInput) input;
+                    containerText.setText(fileEditorInput.getFile().getParent().getFullPath().toString());
+                }
+		    }
+		}
+
+		if (containerText.getText().equals("")) {
+		    // We couldn't find parent based on selection
+		    // Try to find the project and content root
+		    IProject project = EditorUtil.getProject();
+		    if (project != null) {
+		        IFolder contentRoot = EditorUtil.getContentRoot(project);
+                containerText.setText(contentRoot.getFullPath().toString());
+		    }
+		}
+		String prefix = "new_file";
+		fileText.setText(prefix + "." + this.wizard.getExtension());
+		fileText.setSelection(0, prefix.length());
 	}
 
 	/**

@@ -6,15 +6,17 @@ import java.util.List;
 import java.util.Map;
 
 import org.eclipse.core.runtime.IConfigurationElement;
+import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Platform;
+import org.eclipse.core.runtime.Plugin;
+import org.eclipse.core.runtime.Status;
 import org.osgi.framework.Bundle;
-import org.osgi.framework.BundleActivator;
 import org.osgi.framework.BundleContext;
 
 import com.dynamo.cr.editor.core.internal.ResourceType;
 import com.google.protobuf.GeneratedMessage;
 
-public class EditorCorePlugin implements BundleActivator, IResourceTypeRegistry {
+public class EditorCorePlugin extends Plugin implements IResourceTypeRegistry {
 
 	public static final String PLUGIN_ID = "com.dynamo.cr.editor.core";
     private static BundleContext context;
@@ -134,6 +136,11 @@ public class EditorCorePlugin implements BundleActivator, IResourceTypeRegistry 
             idToResourceType.put(id, resourceType);
         }
 	}
+
+    public static void logException(Throwable e) {
+        Status status = new Status(IStatus.ERROR, PLUGIN_ID, e.getMessage(), e);
+        getDefault().getLog().log(status);
+    }
 
 	/*
 	 * (non-Javadoc)

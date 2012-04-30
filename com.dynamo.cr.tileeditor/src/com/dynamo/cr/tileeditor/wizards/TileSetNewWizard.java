@@ -1,7 +1,9 @@
 package com.dynamo.cr.tileeditor.wizards;
 
+import com.dynamo.cr.editor.ui.AbstractNewDdfWizard;
 
-public class TileSetNewWizard extends AbstractNewWizard {
+
+public class TileSetNewWizard extends AbstractNewDdfWizard {
 
     @Override
     public String getTitle() {
