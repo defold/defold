@@ -25,6 +25,7 @@ import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Range;
 import com.dynamo.cr.properties.Resource;
 import com.dynamo.cr.properties.ValidatorUtil;
+import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.ui.util.TextureHandle;
@@ -38,7 +39,7 @@ public class TileSetNode extends Node {
     // TODO: Should be configurable
     private static final int PLANE_COUNT = 16;
 
-    @Property(isResource = true, extensions={"jpg", "png"})
+    @Property(editorType=EditorType.RESOURCE, extensions={"jpg", "png"})
     @Resource
     private String image = "";
 
@@ -58,7 +59,7 @@ public class TileSetNode extends Node {
     @Range(min=0)
     private int tileSpacing;
 
-    @Property(isResource = true, extensions={"jpg", "png"})
+    @Property(editorType=EditorType.RESOURCE, extensions={"jpg", "png"})
     @Resource
     private String collision = "";
 

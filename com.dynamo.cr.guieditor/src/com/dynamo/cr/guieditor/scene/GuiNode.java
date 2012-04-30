@@ -1,7 +1,9 @@
 package com.dynamo.cr.guieditor.scene;
 
 import java.awt.geom.Rectangle2D;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import javax.vecmath.Matrix4d;
@@ -19,6 +21,7 @@ import com.dynamo.cr.guieditor.DrawContext;
 import com.dynamo.cr.properties.Entity;
 import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.properties.Property;
+import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.cr.properties.PropertyIntrospector;
 import com.dynamo.cr.properties.PropertyIntrospectorModel;
 import com.dynamo.gui.proto.Gui.NodeDesc;
@@ -52,7 +55,7 @@ public abstract class GuiNode implements IAdaptable {
     @Property
     private double alpha;
 
-    @Property()
+    @Property(editorType = EditorType.DROP_DOWN)
     private String texture;
 
     @Property()
@@ -132,6 +135,14 @@ public abstract class GuiNode implements IAdaptable {
 
     public void setTexture(String texture) {
         this.texture = texture;
+    }
+
+    public Object[] getTextureOptions() {
+        List<String> textures = new ArrayList<String>(16);
+        for (EditorTextureDesc t : this.scene.getTextures()) {
+            textures.add(t.getName());
+        }
+        return textures.toArray();
     }
 
     public BlendMode getBlendMode() {

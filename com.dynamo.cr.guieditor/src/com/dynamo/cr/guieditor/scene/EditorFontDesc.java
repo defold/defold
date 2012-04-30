@@ -9,6 +9,7 @@ import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.PropertyIntrospector;
 import com.dynamo.cr.properties.PropertyIntrospectorModel;
+import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.gui.proto.Gui.SceneDesc.FontDesc;
 
 @Entity(commandFactory = UndoableCommandFactory.class)
@@ -16,7 +17,7 @@ public class EditorFontDesc implements IAdaptable {
     @Property
     private String name;
 
-    @Property(isResource = true, extensions={"font"})
+    @Property(editorType=EditorType.RESOURCE, extensions={"font"})
     private String font;
 
     private GuiScene scene;

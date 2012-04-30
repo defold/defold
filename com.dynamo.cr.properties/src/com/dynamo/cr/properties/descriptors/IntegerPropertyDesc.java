@@ -1,11 +1,12 @@
 package com.dynamo.cr.properties.descriptors;
 
 import com.dynamo.cr.properties.IPropertyObjectWorld;
+import com.dynamo.cr.properties.Property.EditorType;
 
 public class IntegerPropertyDesc<T, U extends IPropertyObjectWorld> extends ScalarPropertyDesc<Integer, T, U> {
 
-    public IntegerPropertyDesc(String id, String name) {
-        super(id, name);
+    public IntegerPropertyDesc(String id, String name, EditorType editorType) {
+        super(id, name, editorType);
     }
 
     @Override

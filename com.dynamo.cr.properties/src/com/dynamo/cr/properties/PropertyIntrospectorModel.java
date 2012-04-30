@@ -60,4 +60,9 @@ public class PropertyIntrospectorModel<T, U extends IPropertyObjectWorld> implem
         return introspector.getPropertyStatus(object, world, id);
     }
 
+    @Override
+    public Object[] getPropertyOptions(String id) {
+        return introspector.getPropertyOptions(object, world, id);
+    }
+
 }

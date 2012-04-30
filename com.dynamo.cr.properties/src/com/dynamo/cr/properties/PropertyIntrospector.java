@@ -21,6 +21,7 @@ import org.eclipse.core.runtime.MultiStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.swt.graphics.RGB;
 
+import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.cr.properties.descriptors.BooleanPropertyDesc;
 import com.dynamo.cr.properties.descriptors.DoublePropertyDesc;
 import com.dynamo.cr.properties.descriptors.FloatPropertyDesc;
@@ -89,10 +90,10 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
 
                         IPropertyDesc<T, U> descriptor;
                         if (field.getType() == String.class) {
-                            if (property.isResource())
+                            if (property.editorType() == EditorType.RESOURCE)
                                 descriptor = new ResourcePropertyDesc<T, U>(propertyId, propertyDisplayName, property.extensions());
                             else
-                                descriptor = new TextPropertyDesc<T, U>(propertyId, propertyDisplayName);
+                                descriptor = new TextPropertyDesc<T, U>(propertyId, propertyDisplayName, property.editorType());
                         } else if (field.getType() == Vector4d.class) {
                             descriptor = new Vector4PropertyDesc<T, U>(propertyId, propertyDisplayName);
                         } else if (field.getType() == Quat4d.class) {
@@ -104,11 +105,11 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
                         } else if (field.getType() == RGB.class) {
                             descriptor = new RGBPropertyDesc<T, U>(propertyId, propertyDisplayName);
                         } else if (field.getType() == Double.TYPE) {
-                            descriptor = new DoublePropertyDesc<T, U>(propertyId, propertyDisplayName);
+                            descriptor = new DoublePropertyDesc<T, U>(propertyId, propertyDisplayName, property.editorType());
                         } else if (field.getType() == Float.TYPE) {
-                            descriptor = new FloatPropertyDesc<T, U>(propertyId, propertyDisplayName);
+                            descriptor = new FloatPropertyDesc<T, U>(propertyId, propertyDisplayName, property.editorType());
                         } else if (field.getType() == Integer.TYPE) {
-                            descriptor = new IntegerPropertyDesc<T, U>(propertyId, propertyDisplayName);
+                            descriptor = new IntegerPropertyDesc<T, U>(propertyId, propertyDisplayName, property.editorType());
                         } else if (field.getType() == Boolean.TYPE) {
                             descriptor = new BooleanPropertyDesc<T, U>(propertyId, propertyDisplayName);
                         } else if (ProtocolMessageEnum.class.isAssignableFrom(field.getType())) {
@@ -183,6 +184,17 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
         }
         boolean editable = accessor.isVisible(object, (String) id, world);
         return editable;
+    }
+
+    public Object[] getPropertyOptions(T object, U world, Object id) {
+        IPropertyAccessor<T, U> accessor;
+        try {
+            accessor = accessorClass.newInstance();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        Object[] options = accessor.getPropertyOptions(object, (String) id, world);
+        return options;
     }
 
     private IStatus validate(T obj, IPropertyAccessor<T, U> accessor, String property, U world) throws IllegalArgumentException, IllegalAccessException, InvocationTargetException, InstantiationException {

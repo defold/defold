@@ -2,6 +2,8 @@ package com.dynamo.cr.guieditor.scene;
 
 import java.awt.FontMetrics;
 import java.awt.geom.Rectangle2D;
+import java.util.ArrayList;
+import java.util.List;
 
 import javax.vecmath.Matrix4d;
 import javax.vecmath.Vector4d;
@@ -14,6 +16,7 @@ import com.dynamo.cr.guieditor.Activator;
 import com.dynamo.cr.guieditor.DrawContext;
 import com.dynamo.cr.guieditor.render.IGuiRenderer;
 import com.dynamo.cr.properties.Property;
+import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.gui.proto.Gui.NodeDesc;
 import com.dynamo.gui.proto.Gui.NodeDesc.BlendMode;
 import com.dynamo.gui.proto.Gui.NodeDesc.Builder;
@@ -26,7 +29,7 @@ public class TextGuiNode extends GuiNode {
 
     @Property
     private String text;
-    @Property
+    @Property(editorType = EditorType.DROP_DOWN)
     private String font;
 
     @Property()
@@ -84,6 +87,14 @@ public class TextGuiNode extends GuiNode {
 
     public void setFont(String font) {
         this.font = font;
+    }
+
+    public Object[] getFontOptions() {
+        List<String> fonts = new ArrayList<String>();
+        for (EditorFontDesc f : this.scene.getFonts()) {
+            fonts.add(f.getName());
+        }
+        return fonts.toArray();
     }
 
     public RGB getOutline() {

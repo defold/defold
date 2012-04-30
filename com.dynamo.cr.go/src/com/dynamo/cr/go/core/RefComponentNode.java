@@ -10,12 +10,13 @@ import com.dynamo.cr.go.Constants;
 import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Resource;
+import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 
 @SuppressWarnings("serial")
 public class RefComponentNode extends ComponentNode {
 
-    @Property(isResource=true, extensions = {
+    @Property(editorType=EditorType.RESOURCE, extensions = {
             "camera", "collectionproxy", "collisionobject", "emitter", "factory", "gui", "light", "model", "script", "sprite", "tilegrid", "tilemap", "wav"
     })
     @Resource

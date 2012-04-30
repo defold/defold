@@ -16,6 +16,7 @@ import com.dynamo.cr.go.core.ComponentTypeNode;
 import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Resource;
+import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Node;
@@ -26,7 +27,7 @@ import com.dynamo.tile.TileSetUtil;
 @SuppressWarnings("serial")
 public class TileGridNode extends ComponentTypeNode {
 
-    @Property(isResource=true, extensions={"tileset", "tilesource"})
+    @Property(editorType=EditorType.RESOURCE, extensions={"tileset", "tilesource"})
     @Resource
     @NotEmpty
     private String tileSource = "";

@@ -9,6 +9,7 @@ import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.PropertyIntrospector;
 import com.dynamo.cr.properties.PropertyIntrospectorModel;
+import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.gui.proto.Gui.SceneDesc.TextureDesc;
 
 @Entity(commandFactory = UndoableCommandFactory.class)
@@ -16,7 +17,7 @@ public class EditorTextureDesc implements IAdaptable {
     @Property
     private String name;
 
-    @Property(isResource = true, extensions={"jpg", "png"})
+    @Property(editorType=EditorType.RESOURCE, extensions={"jpg", "png"})
     private String texture;
 
     private GuiScene scene;

@@ -9,12 +9,13 @@ import com.dynamo.cr.go.Constants;
 import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Resource;
+import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 
 @SuppressWarnings("serial")
 public class CollectionInstanceNode extends InstanceNode {
 
-    @Property(isResource=true, extensions={"collection"})
+    @Property(editorType=EditorType.RESOURCE, extensions={"collection"})
     @Resource
     @NotEmpty
     private String collection = "";

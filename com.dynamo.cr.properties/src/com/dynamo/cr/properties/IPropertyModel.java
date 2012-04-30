@@ -23,4 +23,6 @@ public interface IPropertyModel<T, U extends IPropertyObjectWorld> {
 
     public IStatus getPropertyStatus(Object id);
 
+    public Object[] getPropertyOptions(String id);
+
 }

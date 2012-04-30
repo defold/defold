@@ -41,6 +41,7 @@ import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.PropertyIntrospector;
 import com.dynamo.cr.properties.PropertyIntrospectorModel;
 import com.dynamo.cr.properties.Resource;
+import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.cr.tileeditor.Activator;
 import com.dynamo.cr.tileeditor.core.Layer.Cell;
 import com.dynamo.tile.proto.Tile;
@@ -54,7 +55,7 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
 
     public static PropertyIntrospector<Layer, GridModel> layerIntrospector = new PropertyIntrospector<Layer, GridModel>(Layer.class);
 
-    @Property(isResource = true, extensions={"tileset", "tilesource"})
+    @Property(editorType=EditorType.RESOURCE, extensions={"tileset", "tilesource"})
     @Resource
     @NotEmpty
     private String tileSource;

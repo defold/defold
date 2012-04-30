@@ -41,6 +41,7 @@ import com.dynamo.cr.properties.PropertyIntrospector;
 import com.dynamo.cr.properties.PropertyIntrospectorModel;
 import com.dynamo.cr.properties.Range;
 import com.dynamo.cr.properties.Resource;
+import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.tile.ConvexHull;
 import com.dynamo.tile.TileSetUtil;
 import com.dynamo.tile.TileSetUtil.ConvexHulls;
@@ -54,7 +55,7 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
     // TODO: Should be configurable
     private static final int PLANE_COUNT = 16;
 
-    @Property(isResource = true, extensions={"jpg", "png"})
+    @Property(editorType=EditorType.RESOURCE, extensions={"jpg", "png"})
     @Resource
     @NotEmpty
     String image;
@@ -70,7 +71,7 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
     @Property
     @Range(min=0)
     int tileSpacing;
-    @Property(isResource = true, extensions={"jpg", "png"})
+    @Property(editorType=EditorType.RESOURCE, extensions={"jpg", "png"})
     @Resource
     @NotEmpty
     String collision;

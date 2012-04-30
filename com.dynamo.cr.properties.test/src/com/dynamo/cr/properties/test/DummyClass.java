@@ -15,6 +15,7 @@ import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Range;
 import com.dynamo.cr.properties.Resource;
+import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.cr.properties.proto.PropertiesTestProto;
 
 @Entity(commandFactory = DummyCommandFactory.class, accessor = BeanPropertyAccessor.class)
@@ -58,6 +59,9 @@ public class DummyClass {
     @Property
     @Resource
     String resource = "";
+
+    @Property(editorType = EditorType.DROP_DOWN)
+    String optionsValue = "";
 
     public boolean isNotEditableEditable() {
         return false;
@@ -155,6 +159,18 @@ public class DummyClass {
 
     public void setResource(String resource) {
         this.resource = resource;
+    }
+
+    public String getOptionsValue() {
+        return optionsValue;
+    }
+
+    public void setOptionsValue(String optionsValue) {
+        this.optionsValue = optionsValue;
+    }
+
+    public Object[] getOptionsValueOptions() {
+        return new String[] { "foo", "bar" };
     }
 
 }

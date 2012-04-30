@@ -4,11 +4,12 @@ import com.dynamo.cr.go.core.ComponentTypeNode;
 import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Resource;
+import com.dynamo.cr.properties.Property.EditorType;
 
 @SuppressWarnings("serial")
 public class FactoryNode extends ComponentTypeNode {
 
-    @Property(isResource=true, extensions={"go"})
+    @Property(editorType=EditorType.RESOURCE, extensions={"go"})
     @Resource
     @NotEmpty
     private String prototype = "";

@@ -9,12 +9,13 @@ import com.dynamo.cr.go.Constants;
 import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Resource;
+import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 
 @SuppressWarnings("serial")
 public class GameObjectInstanceNode extends InstanceNode {
 
-    @Property(isResource=true, extensions={"go"})
+    @Property(editorType=EditorType.RESOURCE, extensions={"go"})
     @Resource
     @NotEmpty
     private String gameObject = "";

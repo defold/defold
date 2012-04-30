@@ -1,6 +1,7 @@
 package com.dynamo.cr.properties.test;
 
 import static org.hamcrest.CoreMatchers.is;
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
@@ -104,6 +105,12 @@ public class PropertiesTest {
         assertTrue(source.isPropertyVisible("enumValue")); //$NON-NLS-1$
         assertTrue(source.isPropertyVisible("notEditable")); //$NON-NLS-1$
         assertFalse(source.isPropertyVisible("hidden")); //$NON-NLS-1$
+    }
+
+    @Test
+    public void testOptions() throws Exception {
+        assertArrayEquals(new String[] {"foo", "bar"}, source.getPropertyOptions("optionsValue")); //$NON-NLS-1$
+        assertArrayEquals(new String[] {}, source.getPropertyOptions("doesNotExits")); //$NON-NLS-1$
     }
 
     // Currently RuntimeException is thrown. This behavior might change in the future

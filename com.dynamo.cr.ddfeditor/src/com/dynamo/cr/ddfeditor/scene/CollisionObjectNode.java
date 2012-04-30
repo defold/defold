@@ -6,6 +6,7 @@ import org.eclipse.core.runtime.Status;
 
 import com.dynamo.cr.go.core.ComponentTypeNode;
 import com.dynamo.cr.properties.Property;
+import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.cr.properties.Resource;
 import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.ISceneModel;
@@ -15,7 +16,7 @@ import com.dynamo.physics.proto.Physics.CollisionObjectType;
 @SuppressWarnings("serial")
 public class CollisionObjectNode extends ComponentTypeNode {
 
-    @Property(isResource=true, extensions={"convexshape", "tilegrid", "tilemap"})
+    @Property(editorType=EditorType.RESOURCE, extensions={"convexshape", "tilegrid", "tilemap"})
     @Resource
     private String collisionShape = "";
     @Property private CollisionObjectType type = CollisionObjectType.COLLISION_OBJECT_TYPE_DYNAMIC;

@@ -46,6 +46,7 @@ import com.dynamo.cr.properties.IPropertyObjectWorld;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.PropertyIntrospector;
 import com.dynamo.cr.properties.PropertyIntrospectorModel;
+import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.gui.proto.Gui.NodeDesc;
 import com.dynamo.gui.proto.Gui.NodeDesc.BlendMode;
 import com.dynamo.gui.proto.Gui.NodeDesc.Type;
@@ -58,7 +59,7 @@ import com.google.protobuf.TextFormat;
 @Entity(commandFactory = UndoableCommandFactory.class)
 public class GuiScene implements IPropertyObjectWorld, IAdaptable, IResourceChangeListener, IDisposable {
 
-    @Property(isResource = true, extensions={"gui_script"})
+    @Property(editorType=EditorType.RESOURCE, extensions={"gui_script"})
     private String script;
 
     private SceneDesc sceneDesc;
