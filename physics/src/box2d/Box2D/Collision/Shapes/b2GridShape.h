@@ -44,6 +44,11 @@ private:
     b2HullSet& operator=(const b2HullSet&);
 };
 
+/*
+ * NOTE AND BEWARE: comp_tilegrid has this value implicitly hard-coded
+ * by subtracting by 1. If you change here a corrsponding change
+ * is required in comp_tilegrid
+ */
 const uint32 B2GRIDSHAPE_EMPTY_CELL = 0xffffffff;
 
 class b2GridShape : public b2Shape
