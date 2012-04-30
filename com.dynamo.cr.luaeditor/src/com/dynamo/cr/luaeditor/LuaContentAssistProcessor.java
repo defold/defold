@@ -57,7 +57,13 @@ public class LuaContentAssistProcessor implements IContentAssistProcessor {
             result = new LuaParseResult("", matcher1.group(1), inFunction, start, end);
         }
 
-        return result;
+        if (result == null) {
+            // If no replacement if found return "empty" result
+            return new LuaParseResult("", "", false, 0, 0);
+        }
+        else {
+            return result;
+        }
     }
 
     @Override
@@ -114,7 +120,7 @@ public class LuaContentAssistProcessor implements IContentAssistProcessor {
                         additionalInfo.append(element.getReturn());
                     }
                 } else if (element.getType() == Type.NAMESPACE) {
-                    s += ".";
+                    // We do nothing currently
                 }
 
                 int completeLength = parseResult.getNamespace().length() + parseResult.getFunction().length() + 1;
@@ -144,12 +150,30 @@ public class LuaContentAssistProcessor implements IContentAssistProcessor {
                     proposals.add(new CompletionProposal("", offset, 0, 0, image, s, null, additionalInfo.toString()));
                 } else {
                     // Default case, do actual completion
-                    int matchLen = parseResult.getMatchEnd() - parseResult.getMatchStart();
-                    int replacementOffset = offset - matchLen + parseResult.getNamespace().length() + 1;
-                    int replacementLength = matchLen - parseResult.getNamespace().length() - 1;
-                    String replacementString = s.substring(parseResult.getNamespace().length() + 1);
-                    int newCursorPosition = cursorPosition + parseResult.getFunction().length();
-                    proposals.add(new CompletionProposal(replacementString, replacementOffset, replacementLength, newCursorPosition, image, s, null, additionalInfo.toString()));
+                    if (parseResult.getNamespace().equals("")) {
+                        /*
+                         * Special case for replacing stuff in the global namespace ("")
+                         * This was required due to that the replacement code didn't work for completation with ""
+                         * Some off-by-one error. We should really have unit-test for replacements..
+                         */
+                        int matchLen = parseResult.getMatchEnd() - parseResult.getMatchStart();
+                        int replacementOffset = offset;
+                        int replacementLength = 0;
+                        String replacementString = s.substring(matchLen);
+                        int newCursorPosition = cursorPosition + 1;
+                        proposals.add(new CompletionProposal(replacementString, replacementOffset, replacementLength, newCursorPosition, image, s, null, additionalInfo.toString()));
+
+                    } else {
+                        /*
+                         * General case
+                         */
+                        int matchLen = parseResult.getMatchEnd() - parseResult.getMatchStart();
+                        int replacementOffset = offset - matchLen + parseResult.getNamespace().length() + 1;
+                        int replacementLength = matchLen - parseResult.getNamespace().length() - 1;
+                        String replacementString = s.substring(parseResult.getNamespace().length() + 1);
+                        int newCursorPosition = cursorPosition + parseResult.getFunction().length();
+                        proposals.add(new CompletionProposal(replacementString, replacementOffset, replacementLength, newCursorPosition, image, s, null, additionalInfo.toString()));
+                    }
                 }
 
             }

@@ -88,7 +88,10 @@ public class LuaEditorPlugin extends AbstractUIPlugin {
                     .setDescription("")
                     .setReturn("")
                     .build();
-            nameSpaceToElementList.get("").add(e);
+            if (!e.getName().equals("")) {
+                // NOTE: Do not add namespace "" to "", i.e. to itself
+                nameSpaceToElementList.get("").add(e);
+            }
         }
 
     }
@@ -113,7 +116,6 @@ public class LuaEditorPlugin extends AbstractUIPlugin {
                     list.add(element);
                 }
             }
-
         }
 
         ScriptDoc.Element[] ret = list.toArray(new ScriptDoc.Element[list.size()]);
