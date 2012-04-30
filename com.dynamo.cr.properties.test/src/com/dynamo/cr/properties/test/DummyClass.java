@@ -1,5 +1,6 @@
 package com.dynamo.cr.properties.test;
 
+import java.lang.annotation.Annotation;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -10,12 +11,19 @@ import org.eclipse.core.runtime.Status;
 import org.eclipse.swt.graphics.RGB;
 
 import com.dynamo.cr.properties.BeanPropertyAccessor;
+import com.dynamo.cr.properties.DynamicProperties;
+import com.dynamo.cr.properties.DynamicPropertyAccessor;
+import com.dynamo.cr.properties.DynamicPropertyValidator;
 import com.dynamo.cr.properties.Entity;
+import com.dynamo.cr.properties.IPropertyAccessor;
+import com.dynamo.cr.properties.IPropertyDesc;
+import com.dynamo.cr.properties.IValidator;
 import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
+import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.cr.properties.Range;
 import com.dynamo.cr.properties.Resource;
-import com.dynamo.cr.properties.Property.EditorType;
+import com.dynamo.cr.properties.descriptors.TextPropertyDesc;
 import com.dynamo.cr.properties.proto.PropertiesTestProto;
 
 @Entity(commandFactory = DummyCommandFactory.class, accessor = BeanPropertyAccessor.class)
@@ -62,6 +70,9 @@ public class DummyClass {
 
     @Property(editorType = EditorType.DROP_DOWN)
     String optionsValue = "";
+
+    String dynamicStringProp = "prop1 value";
+    int dynamicIntProp = 123;
 
     public boolean isNotEditableEditable() {
         return false;
@@ -171,6 +182,88 @@ public class DummyClass {
 
     public Object[] getOptionsValueOptions() {
         return new String[] { "foo", "bar" };
+    }
+
+    @SuppressWarnings("unchecked")
+    @DynamicProperties
+    public IPropertyDesc<DummyClass, DummyWorld>[] getDynamicProperties() {
+        IPropertyDesc<DummyClass, DummyWorld> p1 = new TextPropertyDesc<DummyClass, DummyWorld>("prop1", "Prop1", EditorType.DEFAULT);
+        return new IPropertyDesc[] { p1 };
+    }
+
+    class Accessor implements IPropertyAccessor<DummyClass, DummyWorld> {
+
+        @Override
+        public void setValue(DummyClass obj, String property, Object value,
+                DummyWorld world) {
+            if (property.equals("dynamicStringProp")) {
+                dynamicStringProp = (String) value;
+            }
+            else if (property.equals("dynamicIntProp")) {
+                dynamicIntProp = (Integer) value;
+            } else {
+                throw new RuntimeException(String.format("No such property %s", property));
+            }
+
+        }
+
+        @Override
+        public Object getValue(DummyClass obj, String property, DummyWorld world) {
+            if (property.equals("dynamicStringProp")) {
+                return dynamicStringProp;
+            }
+            else if (property.equals("dynamicIntProp")) {
+                    return dynamicIntProp;
+            } else {
+                throw new RuntimeException(String.format("No such property %s", property));
+            }
+        }
+
+        @Override
+        public boolean isEditable(DummyClass obj, String property,
+                DummyWorld world) {
+            return true;
+        }
+
+        @Override
+        public boolean isVisible(DummyClass obj, String property,
+                DummyWorld world) {
+            return true;
+        }
+
+        @Override
+        public Object[] getPropertyOptions(DummyClass obj, String property,
+                DummyWorld world) {
+            return new Object[0];
+        }
+
+    }
+
+    @DynamicPropertyAccessor
+    public IPropertyAccessor<DummyClass, DummyWorld> getDynamicAccessor(DummyWorld world) {
+        return new Accessor();
+    }
+
+    class Validator implements IValidator<Object, Annotation, DummyWorld> {
+
+        @Override
+        public IStatus validate(Annotation validationParameters, Object object,
+                String property, Object value, DummyWorld world) {
+            if (property.equals("dynamicIntProp")) {
+                Number numberValue = (Number) value;
+
+                if (numberValue.doubleValue() < 0) {
+                    return new Status(IStatus.ERROR, "test", "Property out of range");
+                }
+            }
+            return Status.OK_STATUS;
+        }
+
+    }
+
+    @DynamicPropertyValidator
+    public IValidator<Object, Annotation, DummyWorld> getDynamicValidator(DummyWorld world) {
+        return new Validator();
     }
 
 }

@@ -1,5 +1,7 @@
 package com.dynamo.cr.properties;
 
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -26,7 +28,7 @@ public class FormPropertySheetViewer extends Viewer {
     private final StackLayout stackLayout = new StackLayout();
     private final Composite propertiesComposite;
     private final Composite noSelectionComposite;
-    private final Map<IPropertyDesc[], Composite> modelComposities = new HashMap<IPropertyDesc[], Composite>();
+    private final Map<String, Composite> modelComposities = new HashMap<String, Composite>();
     private final FormToolkit toolkit;
     private Composite currentComposite;
     private IPropertyModel[] models;
@@ -161,10 +163,31 @@ public class FormPropertySheetViewer extends Viewer {
     }
 
     private Composite getPropertiesComposite(IPropertyModel model) {
-        if (!modelComposities.containsKey(model.getPropertyDescs())) {
-            Composite c = toolkit.createComposite(this.propertiesComposite);
+        MessageDigest digest;
+        try {
+            digest = MessageDigest.getInstance("MD5");
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
 
-            IPropertyDesc[] descs = model.getPropertyDescs();
+        /*
+         * NOTE: We cache properties composite for performce reasons
+         * We previously used the array of property descriptors as key but when dynamic
+         * properties where introduced the assumption about the key isn't true anymore.
+         * We used to assume that model.getPropertyDescs() returned the same reference
+         * for every invocation
+         * The new scheme is to hash to property id and property-descriptor-class.
+         * This is hopefully unique enough.
+         */
+        IPropertyDesc[] descs = model.getPropertyDescs();
+        for (IPropertyDesc pd : descs) {
+            digest.update(pd.getId().getBytes());
+            digest.update(pd.getClass().toString().getBytes());
+        }
+        String hashString = new String(digest.digest());
+
+        if (!modelComposities.containsKey(hashString)) {
+            Composite c = toolkit.createComposite(this.propertiesComposite);
 
             GridLayout layout = new GridLayout();
             layout.marginWidth = 0;
@@ -205,10 +228,10 @@ public class FormPropertySheetViewer extends Viewer {
                 c.setData(desc.getId(), entry);
             }
 
-            modelComposities.put(model.getPropertyDescs(), c);
+            modelComposities.put(hashString, c);
         }
 
-        return modelComposities.get(model.getPropertyDescs());
+        return modelComposities.get(hashString);
     }
 
     IPropertyModel getModel(Object object) {

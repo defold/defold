@@ -113,6 +113,30 @@ public class PropertiesTest {
         assertArrayEquals(new String[] {}, source.getPropertyOptions("doesNotExits")); //$NON-NLS-1$
     }
 
+    @Test
+    public void testDynamicProperties() throws Exception {
+        assertEquals("prop1 value", source.getPropertyValue("dynamicStringProp"));
+        assertThat(source.getPropertyStatus("dynamicStringProp").getSeverity(), is(IStatus.OK));
+        source.setPropertyValue("dynamicStringProp", "new value");
+        assertThat(source.getPropertyStatus("dynamicStringProp").getSeverity(), is(IStatus.OK));
+        assertEquals("new value", source.getPropertyValue("dynamicStringProp"));
+
+        assertEquals(123, source.getPropertyValue("dynamicIntProp"));
+        assertThat(source.getPropertyStatus("dynamicIntProp").getSeverity(), is(IStatus.OK));
+
+        source.setPropertyValue("dynamicIntProp", 456);
+        assertThat(source.getPropertyStatus("dynamicIntProp").getSeverity(), is(IStatus.OK));
+        assertEquals(456, source.getPropertyValue("dynamicIntProp"));
+
+        source.setPropertyValue("dynamicIntProp", -100);
+        assertEquals(-100, source.getPropertyValue("dynamicIntProp"));
+        assertThat(source.getPropertyStatus("dynamicIntProp").getSeverity(), is(IStatus.ERROR));
+
+        source.setPropertyValue("dynamicIntProp", 1000);
+        assertEquals(1000, source.getPropertyValue("dynamicIntProp"));
+        assertThat(source.getPropertyStatus("dynamicIntProp").getSeverity(), is(IStatus.OK));
+    }
+
     // Currently RuntimeException is thrown. This behavior might change in the future
     @Test(expected = RuntimeException.class)
     public void testMissingGetter() throws Exception {

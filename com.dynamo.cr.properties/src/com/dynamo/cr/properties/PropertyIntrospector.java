@@ -6,6 +6,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -46,7 +47,7 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
     private Class<? extends IPropertyAccessor<T, U>> accessorClass;
     private final Multimap<String, Annotation> validators = ArrayListMultimap.create();
     private final Multimap<String, Method> methodValidators = ArrayListMultimap.create();
-    private final Set<String> properties = new HashSet<String>();
+    private Set<String> properties = new HashSet<String>();
 
     public PropertyIntrospector(Class<?> klass) {
         this.klass = klass;
@@ -59,6 +60,10 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
 
     public IPropertyDesc<T, U>[] getDescriptors() {
         return descriptors;
+    }
+
+    public Set<String> getProperties() {
+        return properties;
     }
 
     @SuppressWarnings("unchecked")
@@ -138,6 +143,8 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
         }
 
         this.descriptors = descriptors.toArray(new IPropertyDesc[descriptors.size()]);
+        // Make sure the set is unmodifiable
+        this.properties = Collections.unmodifiableSet(this.properties);
     }
 
     public Object getPropertyValue(T object, U world, Object id) {
@@ -158,7 +165,6 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-        //accessor = new PropertyAccessorValidator(accessor);
         Object oldValue = accessor.getValue(object, (String) id, world);
         IUndoableOperation operation = commandFactory.create(object, (String) id, accessor, oldValue, value, world);
         return operation;
@@ -237,7 +243,10 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
         MultiStatus status = new MultiStatus("com.dynamo.cr.properties", IStatus.OK, null, null);
         for (String property : this.properties) {
             // Use merge to keep a flat structure
-            status.merge(getPropertyStatus(object, world, property));
+            IStatus ps = getPropertyStatus(object, world, property);
+            if (!ps.isOK()) {
+                status.merge(ps);
+            }
         }
         if (status.isOK()) {
             return Status.OK_STATUS;
@@ -273,6 +282,20 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
 
     public ICommandFactory<T, U> getCommandFactory() {
         return commandFactory;
+    }
+
+    public boolean hasProperty(Object id) {
+        return this.properties.contains(id);
+    }
+
+    public IPropertyAccessor<T, U> getAccessor() {
+        IPropertyAccessor<T, U> accessor;
+        try {
+            accessor = accessorClass.newInstance();
+            return accessor;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
 }
