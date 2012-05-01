@@ -17,7 +17,12 @@ public class LuaContentAssistProcessorTest {
         LuaParseResult result;
 
         result = LuaContentAssistProcessor.parseLine("");
-        assertEquals(null, result);
+        assertNotNull(result);
+        assertEquals("", result.getNamespace());
+        assertEquals("", result.getFunction());
+        assertTrue(!result.inFunction());
+        assertEquals(0, result.getMatchStart());
+        assertEquals(0, result.getMatchEnd());
 
         result = LuaContentAssistProcessor.parseLine("ha");
         assertNotNull(result);
