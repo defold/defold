@@ -16,7 +16,6 @@ import javax.vecmath.Quat4d;
 import javax.vecmath.Vector3d;
 import javax.vecmath.Vector4d;
 
-import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.MultiStatus;
 import org.eclipse.core.runtime.Status;
@@ -44,10 +43,10 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
     private Class<?> klass;
     private IPropertyDesc<T, U>[] descriptors;
     private ICommandFactory<T, U> commandFactory;
-    private Class<? extends IPropertyAccessor<T, U>> accessorClass;
     private final Multimap<String, Annotation> validators = ArrayListMultimap.create();
     private final Multimap<String, Method> methodValidators = ArrayListMultimap.create();
     private Set<String> properties = new HashSet<String>();
+    private IPropertyAccessor<T, U> accessor;
 
     public PropertyIntrospector(Class<?> klass) {
         this.klass = klass;
@@ -69,13 +68,14 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
     @SuppressWarnings("unchecked")
     private void introspect() throws InstantiationException, IllegalAccessException, IllegalArgumentException, SecurityException, InvocationTargetException, NoSuchMethodException {
         List<IPropertyDesc<T, U>> descriptors = new ArrayList<IPropertyDesc<T, U>>();
+        Class<? extends IPropertyAccessor<T, U>> accessorClass = null;
 
         while (klass != null) {
 
             Entity entityAnnotation = klass.getAnnotation(Entity.class);
             if (entityAnnotation != null) {
                 this.commandFactory = (ICommandFactory<T, U>) entityAnnotation.commandFactory().newInstance();
-                this.accessorClass = (Class<? extends IPropertyAccessor<T, U>>) entityAnnotation.accessor();
+                accessorClass = (Class<? extends IPropertyAccessor<T, U>>) entityAnnotation.accessor();
             }
 
             Field[] fields = klass.getDeclaredFields();
@@ -142,63 +142,19 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
             klass = klass.getSuperclass();
         }
 
+        accessor = accessorClass.newInstance();
+
         this.descriptors = descriptors.toArray(new IPropertyDesc[descriptors.size()]);
         // Make sure the set is unmodifiable
         this.properties = Collections.unmodifiableSet(this.properties);
     }
 
-    public Object getPropertyValue(T object, U world, Object id) {
-        IPropertyAccessor<T, U> accessor;
-        try {
-            accessor = accessorClass.newInstance();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-        Object value = accessor.getValue(object, (String) id, world);
-        return value;
-    }
-
-    public IUndoableOperation setPropertyValue(T object, U world, Object id, Object value) {
-        IPropertyAccessor<T, U> accessor;
-        try {
-            accessor = accessorClass.newInstance();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-        Object oldValue = accessor.getValue(object, (String) id, world);
-        IUndoableOperation operation = commandFactory.create(object, (String) id, accessor, oldValue, value, world);
-        return operation;
-    }
-
-    public boolean isPropertyEditable(T object, U world, Object id) {
-        IPropertyAccessor<T, U> accessor;
-        try {
-            accessor = accessorClass.newInstance();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-        boolean editable = accessor.isEditable(object, (String) id, world);
-        return editable;
-    }
-
     public boolean isPropertyVisible(T object, U world, Object id) {
-        IPropertyAccessor<T, U> accessor;
-        try {
-            accessor = accessorClass.newInstance();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
         boolean editable = accessor.isVisible(object, (String) id, world);
         return editable;
     }
 
     public Object[] getPropertyOptions(T object, U world, Object id) {
-        IPropertyAccessor<T, U> accessor;
-        try {
-            accessor = accessorClass.newInstance();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
         Object[] options = accessor.getPropertyOptions(object, (String) id, world);
         return options;
     }
@@ -257,23 +213,13 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
 
     public IStatus getPropertyStatus(T object, U world, Object id) {
         try {
-            IPropertyAccessor<T, U> accessor = accessorClass.newInstance();
             IStatus status = Status.OK_STATUS;
             if (isPropertyVisible(object, world, id)) {
                 return validate(object, accessor, (String) id, world);
             }
             return status;
 
-        } catch (IllegalArgumentException e) {
-            // Can't use any UI here in a core plugin such as StatusManager
-            e.printStackTrace();
-        } catch (IllegalAccessException e) {
-            // Can't use any UI here in a core plugin such as StatusManager
-            e.printStackTrace();
-        } catch (InvocationTargetException e) {
-            // Can't use any UI here in a core plugin such as StatusManager
-            e.printStackTrace();
-        } catch (InstantiationException e) {
+        } catch (Exception e) {
             // Can't use any UI here in a core plugin such as StatusManager
             e.printStackTrace();
         }
@@ -289,13 +235,7 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
     }
 
     public IPropertyAccessor<T, U> getAccessor() {
-        IPropertyAccessor<T, U> accessor;
-        try {
-            accessor = accessorClass.newInstance();
-            return accessor;
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        return accessor;
     }
 
 }

@@ -6,6 +6,8 @@ import java.beans.Introspector;
 import java.beans.PropertyDescriptor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.HashMap;
+import java.util.Map;
 
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
@@ -16,22 +18,41 @@ import org.eclipse.swt.graphics.RGB;
 
 public class BeanPropertyAccessor implements IPropertyAccessor<Object, IPropertyObjectWorld> {
 
-    private PropertyDescriptor propertyDescriptor;
-    private Method isEditable;
-    private Method isVisible;
-    private Method getOptions;
+    private static class Methods {
+        PropertyDescriptor propertyDescriptor;
+        Method isEditable;
+        Method isVisible;
+        Method getOptions;
+    }
 
-    private void init(Object obj, String property) {
+    private Map<String, Methods> methodsMap = new HashMap<String, Methods>();
+    private Class<?> cachedForClass = null;
 
-        if (propertyDescriptor != null && propertyDescriptor.getName().equals(property))
-            return;
+    private Methods init(Object obj, String property) {
+
+        if (cachedForClass != null && cachedForClass != obj.getClass()) {
+            System.err.println("WARNING: Flushing BeanPropertyAccessor class. Accessor used with two different classes");
+            // Flush cache
+            methodsMap = new HashMap<String, BeanPropertyAccessor.Methods>();
+        }
+
+        Methods methods = methodsMap.get(property);
+        if (methods != null) {
+            // Return already cached
+            return methods;
+        }
+
+        methods = new Methods();
+        methodsMap.put(property, methods);
+        // Store the class we cache for
+        cachedForClass = obj.getClass();
 
         try {
             BeanInfo beanInfo = Introspector.getBeanInfo(obj.getClass());
             PropertyDescriptor[] propertyDescriptors = beanInfo.getPropertyDescriptors();
             for (PropertyDescriptor propertyDescriptor : propertyDescriptors) {
                 if (propertyDescriptor.getName().equals(property)) {
-                    this.propertyDescriptor = propertyDescriptor;
+                    methods.propertyDescriptor = propertyDescriptor;
                 }
             }
         } catch (IntrospectionException e) {
@@ -40,61 +61,62 @@ public class BeanPropertyAccessor implements IPropertyAccessor<Object, IProperty
 
         try {
             String capProperty = Character.toUpperCase(property.charAt(0)) + property.substring(1);
-            isEditable = obj.getClass().getMethod(String.format("is%sEditable", capProperty));
+            methods.isEditable = obj.getClass().getMethod(String.format("is%sEditable", capProperty));
         } catch (NoSuchMethodException e) {
             // pass
         }
 
         try {
             String capProperty = Character.toUpperCase(property.charAt(0)) + property.substring(1);
-            isVisible = obj.getClass().getMethod(String.format("is%sVisible", capProperty));
+            methods.isVisible = obj.getClass().getMethod(String.format("is%sVisible", capProperty));
         } catch (NoSuchMethodException e) {
             // pass
         }
 
         try {
             String capProperty = Character.toUpperCase(property.charAt(0)) + property.substring(1);
-            getOptions = obj.getClass().getMethod(String.format("get%sOptions", capProperty));
+            methods.getOptions = obj.getClass().getMethod(String.format("get%sOptions", capProperty));
         } catch (NoSuchMethodException e) {
             // pass
         }
 
+        return methods;
     }
 
     @Override
     public void setValue(Object obj, String property, Object newValue,
             IPropertyObjectWorld world) {
-        init(obj, property);
-        if (propertyDescriptor == null) {
+        Methods methods = init(obj, property);
+        if (methods.propertyDescriptor == null) {
             throw new RuntimeException(String.format("Missing setter for %s#%s", obj.getClass().getName(), property));
         }
 
         Object oldValue;
         try {
-            oldValue = propertyDescriptor.getReadMethod().invoke(obj);
+            oldValue = methods.propertyDescriptor.getReadMethod().invoke(obj);
             // TODO: This merging is rather static. We should perhaps
             // make it more dynamic in the future.
             if (oldValue instanceof Vector4d && newValue instanceof Double[]) {
-                mergeVector4dValue(obj, (Vector4d) oldValue, (Double[]) newValue);
+                mergeVector4dValue(methods, obj, (Vector4d) oldValue, (Double[]) newValue);
             } else if (oldValue instanceof Vector3d && newValue instanceof Double[]) {
-                mergeVector3dValue(obj, (Vector3d) oldValue, (Double[]) newValue);
+                mergeVector3dValue(methods, obj, (Vector3d) oldValue, (Double[]) newValue);
             } else if (oldValue instanceof Point3d && newValue instanceof Double[]) {
-                mergePoint3dValue(obj, (Point3d) oldValue, (Double[]) newValue);
+                mergePoint3dValue(methods, obj, (Point3d) oldValue, (Double[]) newValue);
             } else if (oldValue instanceof Quat4d && newValue instanceof Double[]) {
-                mergeQuat4dValue(obj, (Quat4d) oldValue, (Double[]) newValue);
+                mergeQuat4dValue(methods, obj, (Quat4d) oldValue, (Double[]) newValue);
             } else if (oldValue instanceof RGB && newValue instanceof Double[]) {
-                mergeRGBValue(obj, (RGB) oldValue, (Double[]) newValue);
+                mergeRGBValue(methods, obj, (RGB) oldValue, (Double[]) newValue);
             }
             else {
                 // Generic set
-                propertyDescriptor.getWriteMethod().invoke(obj, newValue);
+                methods.propertyDescriptor.getWriteMethod().invoke(obj, newValue);
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
-    private void mergeVector4dValue(Object obj, Vector4d oldValue, Double[] delta) throws IllegalArgumentException, IllegalAccessException, InvocationTargetException {
+    private void mergeVector4dValue(Methods methods, Object obj, Vector4d oldValue, Double[] delta) throws IllegalArgumentException, IllegalAccessException, InvocationTargetException {
         Vector4d toSet = new Vector4d();
 
         toSet.x = delta[0] != null ? delta[0] : oldValue.x;
@@ -102,30 +124,30 @@ public class BeanPropertyAccessor implements IPropertyAccessor<Object, IProperty
         toSet.z = delta[2] != null ? delta[2] : oldValue.z;
         toSet.w = delta[3] != null ? delta[3] : oldValue.w;
 
-        propertyDescriptor.getWriteMethod().invoke(obj, toSet);
+        methods.propertyDescriptor.getWriteMethod().invoke(obj, toSet);
     }
 
-    private void mergeVector3dValue(Object obj, Vector3d oldValue, Double[] delta) throws IllegalArgumentException, IllegalAccessException, InvocationTargetException {
+    private void mergeVector3dValue(Methods methods, Object obj, Vector3d oldValue, Double[] delta) throws IllegalArgumentException, IllegalAccessException, InvocationTargetException {
         Vector3d toSet = new Vector3d();
 
         toSet.x = delta[0] != null ? delta[0] : oldValue.x;
         toSet.y = delta[1] != null ? delta[1] : oldValue.y;
         toSet.z = delta[2] != null ? delta[2] : oldValue.z;
 
-        propertyDescriptor.getWriteMethod().invoke(obj, toSet);
+        methods.propertyDescriptor.getWriteMethod().invoke(obj, toSet);
     }
 
-    private void mergePoint3dValue(Object obj, Point3d oldValue, Double[] delta) throws IllegalArgumentException, IllegalAccessException, InvocationTargetException {
+    private void mergePoint3dValue(Methods methods, Object obj, Point3d oldValue, Double[] delta) throws IllegalArgumentException, IllegalAccessException, InvocationTargetException {
         Point3d toSet = new Point3d();
 
         toSet.x = delta[0] != null ? delta[0] : oldValue.x;
         toSet.y = delta[1] != null ? delta[1] : oldValue.y;
         toSet.z = delta[2] != null ? delta[2] : oldValue.z;
 
-        propertyDescriptor.getWriteMethod().invoke(obj, toSet);
+        methods.propertyDescriptor.getWriteMethod().invoke(obj, toSet);
     }
 
-    private void mergeQuat4dValue(Object obj, Quat4d oldValue, Double[] delta) throws IllegalArgumentException, IllegalAccessException, InvocationTargetException {
+    private void mergeQuat4dValue(Methods methods, Object obj, Quat4d oldValue, Double[] delta) throws IllegalArgumentException, IllegalAccessException, InvocationTargetException {
         Quat4d toSet = new Quat4d();
 
         toSet.x = delta[0] != null ? delta[0] : oldValue.x;
@@ -133,29 +155,29 @@ public class BeanPropertyAccessor implements IPropertyAccessor<Object, IProperty
         toSet.z = delta[2] != null ? delta[2] : oldValue.z;
         toSet.w = delta[3] != null ? delta[3] : oldValue.w;
 
-        propertyDescriptor.getWriteMethod().invoke(obj, toSet);
+        methods.propertyDescriptor.getWriteMethod().invoke(obj, toSet);
     }
 
-    private void mergeRGBValue(Object obj, RGB oldValue, Double[] delta) throws IllegalArgumentException, IllegalAccessException, InvocationTargetException {
+    private void mergeRGBValue(Methods methods, Object obj, RGB oldValue, Double[] delta) throws IllegalArgumentException, IllegalAccessException, InvocationTargetException {
         RGB toSet = new RGB(0, 0, 0);
 
         toSet.red = (int) (delta[0] != null ? delta[0] : oldValue.red);
         toSet.green = (int) (delta[1] != null ? delta[1] : oldValue.green);
         toSet.blue = (int) (delta[2] != null ? delta[2] : oldValue.blue);
 
-        propertyDescriptor.getWriteMethod().invoke(obj, toSet);
+        methods.propertyDescriptor.getWriteMethod().invoke(obj, toSet);
     }
 
 
     @Override
     public Object getValue(Object obj, String property,
             IPropertyObjectWorld world) {
-        init(obj, property);
-        if (propertyDescriptor == null) {
+        Methods methods = init(obj, property);
+        if (methods.propertyDescriptor == null) {
             throw new RuntimeException(String.format("Missing getter for %s#%s", obj.getClass().getName(), property));
         }
         try {
-            return propertyDescriptor.getReadMethod().invoke(obj);
+            return methods.propertyDescriptor.getReadMethod().invoke(obj);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -164,28 +186,13 @@ public class BeanPropertyAccessor implements IPropertyAccessor<Object, IProperty
     @Override
     public boolean isEditable(Object obj, String property,
             IPropertyObjectWorld world) {
-        // First check if the object is editable at all
+
+        Methods methods = init(obj, property);
         boolean editable = true;
         try {
-            Method method = obj.getClass().getMethod("isEditable");
-            try {
-                editable = (Boolean) method.invoke(obj);
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        } catch (NoSuchMethodException e1) {
-            editable = true;
-        }
-        // If the object is editable, check the property in question
-        if (editable) {
-            init(obj, property);
-            if (isEditable != null) {
-                try {
-                    return (Boolean) isEditable.invoke(obj);
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
-            }
+            editable = methods.isEditable == null || (Boolean) methods.isEditable.invoke(obj);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
         return editable;
     }
@@ -193,25 +200,24 @@ public class BeanPropertyAccessor implements IPropertyAccessor<Object, IProperty
     @Override
     public boolean isVisible(Object obj, String property,
             IPropertyObjectWorld world) {
-        init(obj, property);
-        if (isVisible != null) {
-            try {
-                return (Boolean) isVisible.invoke(obj);
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        } else {
-            return true;
+        Methods methods = init(obj, property);
+        boolean visible = true;
+        try {
+            visible = methods.isVisible == null || (Boolean) methods.isVisible.invoke(obj);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
+
+        return visible;
     }
 
     @Override
     public Object[] getPropertyOptions(Object obj, String property,
             IPropertyObjectWorld world) {
-        init(obj, property);
-        if (getOptions != null) {
+        Methods methods = init(obj, property);
+        if (methods.getOptions != null) {
             try {
-                return (Object[]) getOptions.invoke(obj);
+                return (Object[]) methods.getOptions.invoke(obj);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
