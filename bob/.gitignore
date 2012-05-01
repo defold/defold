@@ -1,9 +1,0 @@
-.DS_Store
-.lock-wscript
-build
-bin
-tmp
-tmp_build
-*.pyc
-*.class
-
