@@ -257,15 +257,16 @@ def create_app_bundle(self):
 
     self.app_bundle_task = app_bundle_task
 
-    signed_exe = self.path.exclusive_build_node("%s.app/%s" % (exe_name, exe_name))
+    if not Options.options.skip_codesign:
+        signed_exe = self.path.exclusive_build_node("%s.app/%s" % (exe_name, exe_name))
 
-    codesign = self.create_task('codesign', self.env)
-    codesign.resource_rules_plist = resource_rules_plist
-    codesign.set_inputs(self.link_task.outputs)
-    codesign.set_outputs(signed_exe)
+        codesign = self.create_task('codesign', self.env)
+        codesign.resource_rules_plist = resource_rules_plist
+        codesign.set_inputs(self.link_task.outputs)
+        codesign.set_outputs(signed_exe)
 
-    codesign.exe = self.link_task.outputs[0]
-    codesign.signed_exe = signed_exe
+        codesign.exe = self.link_task.outputs[0]
+        codesign.signed_exe = signed_exe
 
 
 def embed_build(task):
@@ -436,3 +437,4 @@ def set_options(opt):
     opt.add_option('--eclipse', action='store_true', default=False, dest='eclipse', help='print eclipse friendly command-line')
     opt.add_option('--platform', default='', dest='platform', help='target platform, eg armv6-darwin')
     opt.add_option('--skip-tests', action='store_true', default=False, dest='skip_tests', help='skip unit tests')
+    opt.add_option('--skip-codesign', action="store_true", default=False, dest='skip_codesign', help='skip code signing')
