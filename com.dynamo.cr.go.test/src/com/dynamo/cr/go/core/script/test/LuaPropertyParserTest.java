@@ -26,24 +26,44 @@ public class LuaPropertyParserTest {
     public void testPropertyParser() throws Exception {
         String str = getFile("test_property_parser1.lua");
         Property[] properties = LuaPropertyParser.parse(str);
-        assertThat(properties.length, is(5));
+        assertThat(properties.length, is(7));
+        int i = 0;
 
-        assertThat(properties[0].getStatus(), is(Property.Status.OK));
-        assertThat(properties[0].getName(), is("prop1"));
-        assertThat(properties[0].getType(), is(Property.Type.NUMBER));
-        assertThat(properties[0].getValue(), is("123.456"));
+        assertThat(properties[i].getStatus(), is(Property.Status.OK));
+        assertThat(properties[i].getName(), is("prop1"));
+        assertThat(properties[i].getType(), is(Property.Type.NUMBER));
+        assertThat(properties[i].getValue(), is("123.456"));
+        ++i;
 
-        assertThat(properties[1].getStatus(), is(Property.Status.OK));
-        assertThat(properties[1].getName(), is("prop2"));
-        assertThat(properties[1].getType(), is(Property.Type.URL));
-        assertThat(properties[1].getValue(), is("go.url ()"));
+        assertThat(properties[i].getStatus(), is(Property.Status.OK));
+        assertThat(properties[i].getName(), is("prop2"));
+        assertThat(properties[i].getType(), is(Property.Type.URL));
+        assertThat(properties[i].getValue(), is(""));
+        ++i;
 
-        assertThat(properties[2].getStatus(), is(Property.Status.OK));
-        assertThat(properties[2].getName(), is("prop3"));
-        assertThat(properties[2].getType(), is(Property.Type.URL));
-        assertThat(properties[2].getValue(), is("go.url( )"));
+        assertThat(properties[i].getStatus(), is(Property.Status.OK));
+        assertThat(properties[i].getName(), is("prop3"));
+        assertThat(properties[i].getType(), is(Property.Type.URL));
+        assertThat(properties[i].getValue(), is(""));
+        ++i;
 
-        assertThat(properties[3].getStatus(), is(Property.Status.PARSE_ERROR));
-        assertThat(properties[4].getStatus(), is(Property.Status.PARSE_ERROR));
+        assertThat(properties[i].getStatus(), is(Property.Status.OK));
+        assertThat(properties[i].getName(), is("prop4"));
+        assertThat(properties[i].getType(), is(Property.Type.HASH));
+        assertThat(properties[i].getValue(), is("h1"));
+        ++i;
+
+        assertThat(properties[i].getStatus(), is(Property.Status.OK));
+        assertThat(properties[i].getName(), is("prop5"));
+        assertThat(properties[i].getType(), is(Property.Type.HASH));
+        assertThat(properties[i].getValue(), is("h2"));
+        ++i;
+
+        assertThat(properties[i].getStatus(), is(Property.Status.PARSE_ERROR));
+        ++i;
+
+        assertThat(properties[i].getStatus(), is(Property.Status.PARSE_ERROR));
+        ++i;
     }
 }
+

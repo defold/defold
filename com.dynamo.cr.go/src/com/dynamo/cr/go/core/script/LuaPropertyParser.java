@@ -26,6 +26,8 @@ public class LuaPropertyParser {
 
     private static Pattern urlPattern = Pattern.compile("go\\.url\\s*?\\(\\s*?\\)$");
 
+    private static Pattern hashPattern = Pattern.compile("hash\\s*?\\(\\s*?[\\\"'](.*?)[\\\"']\\s*?\\)$");
+
     /**
      * Script property representation
      * @author chmu
@@ -49,6 +51,7 @@ public class LuaPropertyParser {
         public static enum Type {
             NUMBER,
             URL,
+            HASH,
             INVALID,
         }
 
@@ -74,18 +77,24 @@ public class LuaPropertyParser {
             }
 
             String name = st.nextToken().trim();
-            String value = st.nextToken().trim();
+            String valueRaw = st.nextToken().trim();
+            String value = "";
 
             Matcher identMatcher = identPattern.matcher(name);
             if (!identMatcher.matches()) {
                 return property.setError("Invalid property name");
             }
 
+            Matcher m;
             Type type = Type.INVALID;
-            if (numberPattern.matcher(value).matches()) {
+            if (numberPattern.matcher(valueRaw).matches()) {
                 type = Type.NUMBER;
-            } else if (urlPattern.matcher(value).matches()) {
+                value = valueRaw;
+            } else if (urlPattern.matcher(valueRaw).matches()) {
                 type = Type.URL;
+            } else if ((m = hashPattern.matcher(valueRaw)).matches()) {
+                type = Type.HASH;
+                value = m.group(1);
             } else {
                 return property.setError("Unable to interpret value");
             }
@@ -97,7 +106,7 @@ public class LuaPropertyParser {
             return property;
         }
 
-        public void setType(Type type) {
+        private void setType(Type type) {
             this.type = type;
         }
 
@@ -109,6 +118,12 @@ public class LuaPropertyParser {
             this.value = value;
         }
 
+        /**
+         * Get the argument value. For number the number value as string is returned,
+         * for hash() for string to hash is returned. For functions with empty argument, eg go.url(),
+         * the empty string is returned
+         * @return the value as string
+         */
         public String getValue() {
             return value;
         }
@@ -129,11 +144,6 @@ public class LuaPropertyParser {
 
         public String getError() {
             return error;
-        }
-
-        public Property setStatus(Status status) {
-            this.status  = status;
-            return this;
         }
 
         public Status getStatus() {
