@@ -6,7 +6,7 @@ from Logs import error
 import cc, cxx
 
 ARM_DARWIN_ROOT='/Developer/Platforms/iPhoneOS.platform/Developer'
-IOS_SDK_VERSION="4.3"
+IOS_SDK_VERSION="5.0"
 MIN_IOS_SDK_VERSION=IOS_SDK_VERSION
 
 @feature('cc', 'cxx')
