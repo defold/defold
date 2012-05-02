@@ -720,8 +720,7 @@ TYPED_TEST(PhysicsTest, GridShapeMultiLayered)
 void RayCastCallback(const dmPhysics::RayCastResponse& response, const dmPhysics::RayCastRequest& request, void* user_data)
 {
    std::vector<dmPhysics::RayCastResponse>* responses = (std::vector<dmPhysics::RayCastResponse>*) user_data;
-   // NOTE: fraction 1.0f seems to be non-hit.. strange?
-   if (response.m_Fraction != 1.0f)
+   if (response.m_Hit)
    {
        (*responses).push_back(response);
    }
