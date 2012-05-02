@@ -1,7 +1,7 @@
 #include <dlib/socket.h>
 #include "engine.h"
 
-#ifdef __MACH__
+#if defined(__MACH__) and !defined(__arm__)
 // Potential name clash with ddf. If included before ddf/ddf.h (TYPE_BOOL)
 #include <Carbon/Carbon.h>
 #endif
@@ -19,7 +19,7 @@ int main(int argc, char *argv[])
     int32_t exit_code = 1;
     if (dmEngine::Init(engine, argc, argv))
     {
-#ifdef __MACH__
+#if defined(__MACH__) and !defined(__arm__)
         ProcessSerialNumber psn;
         OSErr err;
 

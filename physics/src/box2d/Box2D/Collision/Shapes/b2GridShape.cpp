@@ -55,6 +55,12 @@ bool b2GridShape::TestPoint(const b2Transform& transform, const b2Vec2& p) const
 bool b2GridShape::RayCast(b2RayCastOutput* output, const b2RayCastInput& input,
                             const b2Transform& transform, int32 childIndex) const
 {
+    const b2GridShape::Cell& cell = m_cells[childIndex];
+    if (cell.m_Index == B2GRIDSHAPE_EMPTY_CELL)
+    {
+        return false;
+    }
+
     b2PolygonShape polyShape;
     GetPolygonShapeForCell(childIndex, polyShape);
     return polyShape.RayCast(output, input, transform, childIndex);

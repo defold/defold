@@ -1,5 +1,0 @@
-message TestBob
-{
-    required string resource = 1;
-    required string id = 2;
-}

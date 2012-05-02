@@ -85,6 +85,7 @@ namespace dmRender
         dmRender::HRenderContext        m_RenderContext;
         dmGraphics::HVertexBuffer       m_VertexBuffer;
         dmGraphics::HVertexDeclaration  m_VertexDeclaration;
+        uint32_t                        m_MaxVertexCount;
     };
 
     struct TextContext

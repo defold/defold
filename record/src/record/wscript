@@ -7,8 +7,12 @@ def configure(conf):
 def build(bld):
     record = bld.new_task_gen(features = 'cxx cstaticlib',
                               includes = '.',
+                              source = 'record.cpp record_common.cpp',
                               target = 'record')
 
+    record_null = bld.new_task_gen(features = 'cxx cstaticlib',
+                                   includes = '.',
+                                   source = 'record_null.cpp record_common.cpp',
+                                   target = 'record_null')
 
-    record.find_sources_in_dirs('.')
     bld.install_files('${PREFIX}/include/record', 'record.h')

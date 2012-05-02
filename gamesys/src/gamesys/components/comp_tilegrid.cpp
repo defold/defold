@@ -350,6 +350,11 @@ namespace dmGameSystem
             int32_t cell_x = (int32_t)floor(cell.getX()) + st->m_Dx - resource->m_MinCellX;
             int32_t cell_y = (int32_t)floor(cell.getY()) + st->m_Dy - resource->m_MinCellY;
             uint32_t cell_index = CalculateCellIndex(layer_index, cell_x, cell_y, resource->m_ColumnCount, resource->m_RowCount);
+            /*
+             * NOTE AND BEWARE: Empty tile is encoded as 0xffffffff
+             * That's why tile-index is subtracted by 1
+             * See B2GRIDSHAPE_EMPTY_CELL in b2GridShape.h
+             */
             uint32_t tile = st->m_Tile - 1;
             tile_grid->m_Cells[cell_index] = (uint16_t)tile;
             // Broadcast to any collision object components

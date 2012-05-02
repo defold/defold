@@ -5,6 +5,7 @@
 
 #include "test_physics.h"
 
+#include <vector>
 #include <dlib/math.h>
 
 using namespace Vectormath::Aos;
@@ -712,6 +713,94 @@ TYPED_TEST(PhysicsTest, GridShapeMultiLayered)
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, grid_co);
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(grid_shapes[0]);
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(grid_shapes[1]);
+    dmPhysics::DeleteHullSet2D(hull_set);
+}
+
+
+void RayCastCallback(const dmPhysics::RayCastResponse& response, const dmPhysics::RayCastRequest& request, void* user_data)
+{
+   std::vector<dmPhysics::RayCastResponse>* responses = (std::vector<dmPhysics::RayCastResponse>*) user_data;
+   // NOTE: fraction 1.0f seems to be non-hit.. strange?
+   if (response.m_Fraction != 1.0f)
+   {
+       (*responses).push_back(response);
+   }
+}
+
+TYPED_TEST(PhysicsTest, GridShapeRayCast)
+{
+    /*
+     * Simplified version of GridShapePolygon
+     */
+    int32_t rows = 2;
+    int32_t columns = 2;
+    int32_t cell_width = 16;
+    int32_t cell_height = 16;
+
+    VisualObject vo_a;
+    vo_a.m_Position = Point3(1, 0, 0);
+    dmPhysics::CollisionObjectData data;
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
+    data.m_Mass = 0.0f;
+    data.m_UserData = &vo_a;
+    data.m_Group = 0xffff;
+    data.m_Mask = 0xffff;
+
+    const float hull_vertices[] = {  // 1x1 around origo
+                                    -0.5f, -0.5f,
+                                     0.5f, -0.5f,
+                                     0.5f,  0.5f,
+                                    -0.5f,  0.5f };
+
+    const dmPhysics::HullDesc hulls[] = { {0, 4}, {4, 4} };
+    dmPhysics::HHullSet2D hull_set = dmPhysics::NewHullSet2D(TestFixture::m_Context, hull_vertices, 4, hulls, 1);
+    dmPhysics::HCollisionShape2D grid_shape = dmPhysics::NewGridShape2D(TestFixture::m_Context, hull_set, Point3(0,0,0), cell_width, cell_height, rows, columns);
+    typename TypeParam::CollisionObjectType grid_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &grid_shape, 1u);
+
+    for (int32_t row = 0; row < rows; ++row)
+    {
+        for (int32_t col = 0; col < columns; ++col)
+        {
+            dmPhysics::SetGridShapeHull(grid_co, grid_shape, row, col, 0);
+        }
+    }
+
+    std::vector<dmPhysics::RayCastResponse> responses;
+    dmPhysics::RayCastRequest ray_request;
+    ray_request.m_From = Point3(-100, 4, 0);
+    ray_request.m_To = Point3(100, 4, 0);
+    ray_request.m_IgnoredUserData = 0;
+    ray_request.m_UserData = 0;
+    ray_request.m_Mask = 0xffff;
+    ray_request.m_UserId = 0;
+    TestFixture::m_Test.m_RequestRayCastFunc(TestFixture::m_World, ray_request);
+
+    TestFixture::m_StepWorldContext.m_RayCastCallback = RayCastCallback;
+    TestFixture::m_StepWorldContext.m_RayCastUserData = (void*) &responses;
+
+    responses.clear();
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+
+    ASSERT_EQ(1U, responses.size());
+    ASSERT_NEAR(-15.0f, responses[0].m_Position.getX(), 0.0001f);
+
+    // Clear all hulls
+    for (int32_t row = 0; row < rows; ++row)
+    {
+        for (int32_t col = 0; col < columns; ++col)
+        {
+            dmPhysics::SetGridShapeHull(grid_co, grid_shape, row, col, dmPhysics::GRIDSHAPE_EMPTY_CELL);
+        }
+    }
+
+    // Do ray-cast. Should not hit anything
+    responses.clear();
+    TestFixture::m_Test.m_RequestRayCastFunc(TestFixture::m_World, ray_request);
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+    ASSERT_EQ(0U, responses.size());
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, grid_co);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(grid_shape);
     dmPhysics::DeleteHullSet2D(hull_set);
 }
 

@@ -61,7 +61,6 @@ def configure(conf):
         conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib'])
 
     conf.env['LIB_GTEST'] = 'gtest'
-    conf.env['LIB_VPX'] = 'vpx'
 
     conf.env['STATICLIB_DDF'] = 'ddf'
     conf.env['STATICLIB_DLIB'] = 'dlib'
@@ -82,7 +81,13 @@ def configure(conf):
     conf.env['STATICLIB_HID'] = 'hid'
     conf.env['STATICLIB_HID_NULL'] = 'hid_null'
     conf.env['STATICLIB_INPUT'] = 'input'
-    conf.env['STATICLIB_RECORD'] = 'record'
+
+    if conf.env.PLATFORM.find('arm') == -1:
+        conf.env['STATICLIB_RECORD'] = 'record'
+        conf.env['LIB_VPX'] = 'vpx'
+    else:
+        conf.env['STATICLIB_RECORD'] = 'record_null'
+        conf.env['LIB_VPX'] = ''
 
     if sys.platform == "linux2":
         conf.env['LIB_OPENAL'] = 'openal'

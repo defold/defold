@@ -56,14 +56,15 @@ Here is a list of settings for advanced users:
 * *graphics*
 ** _default_texture_min_filter_ - which filtering to use for min filtering, +linear+ (default) or +nearest+
 ** _default_texture_min_filter_ - which filtering to use for mag filtering, +linear+ (default) or +nearest+
+** _max_debug_vertices_ - maximum number of debug vertices. Used for physics shape rendering among other things, 10000 by default
 * *sound*
 ** _max_sound_data_ - max number of different sounds, 128 by default
 ** _max_sound_buffers_ - max number of concurrent sound buffers, 32 by default
 ** _max_sound_sources_ - max number of concurrently playing sounds, 16 by default
 ** _max_sound_instances_ - max number of concurrent sound instances, 256 by default
 * *particle_system*
-** _max_emitter_count - max number of concurrent emitters, 0 by default
-** _max_particle_count - max number of concurrent particles, 0 by default
+** _max_emitter_count_ - max number of concurrent emitters, 0 by default
+** _max_particle_count_ - max number of concurrent particles, 0 by default
 * *resource*
 ** _http_cache_ - if the http cache should be enabled for faster loads over network, 1 for yes (default) and 0 for no
 ** _uri_ - where to find game.project, in URI format

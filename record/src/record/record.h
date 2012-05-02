@@ -33,6 +33,7 @@ namespace dmRecord
         RESULT_OK = 0,
         RESULT_IO_ERROR = -1,
         RESULT_INVAL_ERROR = -2,
+        RESULT_RECORD_NOT_SUPPORTED = -3,
         RESULT_UNKNOWN_ERROR = -1000,
     };
 

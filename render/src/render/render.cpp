@@ -43,6 +43,7 @@ namespace dmRender
     , m_FragmentProgramDataSize(0)
     , m_MaxCharacters(0)
     , m_CommandBufferSize(1024)
+    , m_MaxDebugVertexCount(0)
     {
 
     }
@@ -75,7 +76,7 @@ namespace dmRender
 
         InitializeRenderScriptContext(context->m_RenderScriptContext, params.m_ScriptContext, params.m_CommandBufferSize);
 
-        InitializeDebugRenderer(context, params.m_VertexProgramData, params.m_VertexProgramDataSize, params.m_FragmentProgramData, params.m_FragmentProgramDataSize);
+        InitializeDebugRenderer(context, params.m_MaxDebugVertexCount, params.m_VertexProgramData, params.m_VertexProgramDataSize, params.m_FragmentProgramData, params.m_FragmentProgramDataSize);
 
         memset(context->m_Textures, 0, sizeof(dmGraphics::HTexture) * RenderObject::MAX_TEXTURE_COUNT);
 
