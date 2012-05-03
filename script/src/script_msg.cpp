@@ -290,6 +290,7 @@ namespace dmScript
             return 1;
         }
         dmMessage::URL default_url;
+        dmMessage::ResetURL(default_url);
         GetURL(L, &default_url);
         if (top == 1 && !lua_isnil(L, 1))
         {

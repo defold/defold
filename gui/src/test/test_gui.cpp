@@ -1047,8 +1047,8 @@ TEST_F(dmGuiTest, PostMessage3)
                      "        self.a = message.a\n"
                      "    end\n"
                      "    local test_url = msg.url(\"\")\n"
-                     "    assert(sender.socket == test_url.socket, \"invalid fragment\")\n"
-                     "    assert(sender.path == test_url.path, \"invalid fragment\")\n"
+                     "    assert(sender.socket == test_url.socket, \"invalid socket\")\n"
+                     "    assert(sender.path == test_url.path, \"invalid path\")\n"
                      "    assert(sender.fragment == test_url.fragment, \"invalid fragment\")\n"
                      "end\n";
 
