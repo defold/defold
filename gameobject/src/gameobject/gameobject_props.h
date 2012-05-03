@@ -41,6 +41,8 @@ namespace dmGameObject
         Properties* m_Next;
     };
 
+    void DeletePropertyDefs(const dmArray<PropertyDef>& property_defs);
+
     HProperties NewProperties();
     void DeleteProperties(HProperties properties);
 
@@ -54,7 +56,7 @@ namespace dmGameObject
 
     void AppendProperties(HProperties properties, HProperties next);
 
-    void PropertiesToLuaTable(const dmArray<PropertyDef>& property_defs, const Properties* properties, lua_State* L, int index);
+    void PropertiesToLuaTable(HInstance instance, const dmArray<PropertyDef>& property_defs, const Properties* properties, lua_State* L, int index);
     void ClearPropertiesFromLuaTable(const dmArray<PropertyDef>& property_defs, const Properties* properties, lua_State* L, int index);
 }
 

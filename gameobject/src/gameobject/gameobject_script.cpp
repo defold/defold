@@ -372,6 +372,10 @@ namespace dmGameObject
         ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, -1);
         lua_pop(L, 1);
 
+        if (i == 0)
+        {
+            luaL_error(L, "You can only create empty URLs outside functions with a self-reference, use msg.url() instead.");
+        }
         url->m_Socket = i->m_Instance->m_Collection->m_ComponentSocket;
         url->m_Path = i->m_Instance->m_Identifier;
         url->m_Fragment = i->m_Instance->m_Prototype->m_Components[i->m_ComponentIndex].m_Id;
@@ -552,6 +556,24 @@ bail:
         return result;
     }
 
+    bool LoadProperties(const dmArray<PropertyDef>& property_defs, Properties* out_properties, const char* filename)
+    {
+        if (property_defs.Size() == 0)
+            return true;
+
+        const uint32_t buffer_size = 1024;
+        uint8_t buffer[buffer_size];
+        uint32_t actual = SerializeProperties(property_defs, buffer, buffer_size);
+        if (buffer_size < actual)
+        {
+            dmLogError("Properties could not be stored when loading %s: too many properties.", filename);
+            return false;
+        }
+
+        SetProperties(out_properties, buffer, actual);
+        return true;
+    }
+
     HScript NewScript(const void* buffer, uint32_t buffer_size, const char* filename)
     {
         lua_State* L = g_LuaState;
@@ -559,30 +581,20 @@ bail:
         HScript script = new Script();
         script->m_PropertyDefs.SetCapacity(0);
         script->m_OldPropertyDefs.SetCapacity(0);
-        if (LoadScript(L, buffer, buffer_size, filename, script))
-        {
-            script->m_Properties = NewProperties();
-            if (script->m_PropertyDefs.Size() > 0)
-            {
-                const uint32_t buffer_size = 1024;
-                uint8_t buffer[buffer_size];
-                uint32_t actual = SerializeProperties(script->m_PropertyDefs, buffer, buffer_size);
-                if (buffer_size < actual)
-                {
-                    dmLogError("Properties could not be stored when loading %s: too many properties.", filename);
-                }
-                else
-                {
-                    SetProperties(script->m_Properties, buffer, actual);
-                }
-            }
-            return script;
-        }
-        else
+        if (!LoadScript(L, buffer, buffer_size, filename, script))
         {
             delete script;
             return 0;
         }
+        script->m_Properties = NewProperties();
+        if (!LoadProperties(script->m_PropertyDefs, script->m_Properties, filename))
+        {
+            DeleteProperties(script->m_Properties);
+            DeletePropertyDefs(script->m_PropertyDefs);
+            delete script;
+            return 0;
+        }
+        return script;
     }
 
     bool ReloadScript(HScript script, const void* buffer, uint32_t buffer_size, const char* filename)
@@ -592,27 +604,24 @@ bail:
         {
             free((void*)script->m_OldPropertyDefs[i].m_Name);
         }
-        script->m_OldPropertyDefs.SetSize(0);
-        script->m_OldPropertyDefs.Swap(script->m_PropertyDefs);
-        bool result = LoadScript(g_LuaState, buffer, buffer_size, filename, script);
-        if (result)
+        dmArray<PropertyDef> tmp_old_property_defs;
+        tmp_old_property_defs.SetCapacity(0);
+        tmp_old_property_defs.Swap(script->m_PropertyDefs);
+        bool result = true;
+        if (!LoadScript(g_LuaState, buffer, buffer_size, filename, script))
+            result = false;
+        if (result && !LoadProperties(script->m_PropertyDefs, script->m_Properties, filename))
+            result = false;
+
+        if (!result)
         {
-            if (script->m_PropertyDefs.Size() > 0)
-            {
-                const uint32_t buffer_size = 1024;
-                uint8_t buffer[buffer_size];
-                uint32_t actual = SerializeProperties(script->m_PropertyDefs, buffer, buffer_size);
-                if (buffer_size < actual)
-                {
-                    dmLogError("Properties could not be stored when loading %s: too many properties.", filename);
-                }
-                else
-                {
-                    SetProperties(script->m_Properties, buffer, actual);
-                }
-            }
+            tmp_old_property_defs.Swap(script->m_PropertyDefs);
+            DeletePropertyDefs(tmp_old_property_defs);
+            return false;
         }
-        return result;
+        tmp_old_property_defs.Swap(script->m_OldPropertyDefs);
+        DeletePropertyDefs(tmp_old_property_defs);
+        return true;
     }
 
     void DeleteScript(HScript script)
@@ -624,18 +633,8 @@ bail:
                 luaL_unref(L, LUA_REGISTRYINDEX, script->m_FunctionReferences[i]);
         }
         DeleteProperties(script->m_Properties);
-        dmArray<PropertyDef>& property_defs = script->m_PropertyDefs;
-        uint32_t count = property_defs.Size();
-        for (uint32_t i = 0; i < count; ++i)
-        {
-            free((void*)property_defs[i].m_Name);
-        }
-        dmArray<PropertyDef>& old_property_defs = script->m_OldPropertyDefs;
-        count = old_property_defs.Size();
-        for (uint32_t i = 0; i < count; ++i)
-        {
-            free((void*)old_property_defs[i].m_Name);
-        }
+        DeletePropertyDefs(script->m_PropertyDefs);
+        DeletePropertyDefs(script->m_OldPropertyDefs);
         delete script;
     }
 

@@ -1,6 +1,4 @@
-go.property("number", 100)
-go.property("url", msg.url())
-go.property("hash", hash(""))
+go.property("url", msg.url("/fail"))
 
 function init(self)
     assert(self.number == 100)

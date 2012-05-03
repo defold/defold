@@ -77,6 +77,47 @@ TEST_F(ScriptTest, PropsCollection)
     dmResource::Release(m_Factory, collection);
 }
 
+TEST_F(ScriptTest, PropsSubCollection)
+{
+    dmGameObject::HCollection collection;
+    dmResource::Result res = dmResource::Get(m_Factory, "/props_sub.collectionc", (void**)&collection);
+    ASSERT_EQ(dmResource::RESULT_OK, res);
+    bool result = dmGameObject::Init(collection);
+    ASSERT_TRUE(result);
+    dmResource::Release(m_Factory, collection);
+}
+
+TEST_F(ScriptTest, PropsFailDefaultURL)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/props_fail_default_url.goc");
+    ASSERT_EQ((void*) 0, (void*) go);
+}
+
+TEST_F(ScriptTest, PropsFailRelURL)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/props_fail_rel_url.goc");
+    ASSERT_EQ((void*) 0, (void*) go);
+}
+
+TEST_F(ScriptTest, PropsFailOverflowDefs)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/props_fail_overflow_defs.goc");
+    ASSERT_EQ((void*) 0, (void*) go);
+}
+
+TEST_F(ScriptTest, PropsFailOverflowGo)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/props_fail_overflow_go.goc");
+    ASSERT_EQ((void*) 0, (void*) go);
+}
+
+TEST_F(ScriptTest, PropsFailOverflowColl)
+{
+    dmGameObject::HCollection collection;
+    dmResource::Result res = dmResource::Get(m_Factory, "/props_fail_overflow_coll.collectionc", (void**)&collection);
+    ASSERT_NE(dmResource::RESULT_OK, res);
+}
+
 int main(int argc, char **argv)
 {
     dmDDF::RegisterAllTypes();

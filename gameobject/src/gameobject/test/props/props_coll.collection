@@ -4,10 +4,8 @@ instances {
   prototype: "/props_coll.goc"
   component_properties {
     id: "script"
-    properties {
-      id: "number1"
-      value: "200"
-      type: PROPERTY_TYPE_NUMBER
-    }
+    properties {id: "number" value: "200" type: PROPERTY_TYPE_NUMBER}
+    properties {id: "url" value: "#comp" type: PROPERTY_TYPE_URL}
+    properties {id: "hash" value: "hash" type: PROPERTY_TYPE_HASH}
   }
 }

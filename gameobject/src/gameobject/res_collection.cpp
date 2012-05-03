@@ -118,9 +118,17 @@ namespace dmGameObject
                         const uint32_t buffer_size = 1024;
                         uint8_t buffer[buffer_size];
                         uint32_t actual = SerializeProperties(comp_prop.m_Properties.m_Data, comp_prop.m_Properties.m_Count, buffer, buffer_size);
-                        if (buffer_size < actual)
+                        if (actual == 0)
+                        {
+                            dmLogError("Could not instantiate game object '%s' in collection %s.", instance_desc.m_Id, filename);
+                            res = dmResource::RESULT_FORMAT_ERROR;
+                            goto bail;
+                        }
+                        else if (buffer_size < actual)
                         {
                             dmLogError("Properties could not be stored when loading %s: too many properties.", filename);
+                            res = dmResource::RESULT_FORMAT_ERROR;
+                            goto bail;
                         }
                         else
                         {

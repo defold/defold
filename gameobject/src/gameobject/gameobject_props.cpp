@@ -3,8 +3,12 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include <dlib/dstrings.h>
 #include <dlib/log.h>
+#include <dlib/math.h>
 #include <script/script.h>
+
+#include "gameobject_private.h"
 
 namespace dmGameObject
 {
@@ -18,6 +22,15 @@ namespace dmGameObject
     Properties::Properties()
     {
         memset(this, 0, sizeof(*this));
+    }
+
+    void DeletePropertyDefs(const dmArray<PropertyDef>& property_defs)
+    {
+        uint32_t count = property_defs.Size();
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            free((void*)property_defs[i].m_Name);
+        }
     }
 
     HProperties NewProperties()
@@ -226,6 +239,54 @@ namespace dmGameObject
         }
     }
 
+    static bool StringToURL(const char* s, dmMessage::URL* out_url)
+    {
+        const char* socket;
+        uint32_t socket_size;
+        const char* path;
+        uint32_t path_size;
+        const char* fragment;
+        uint32_t fragment_size;
+        dmMessage::Result result = dmMessage::ParseURL(s, &socket, &socket_size, &path, &path_size, &fragment, &fragment_size);
+        if (result != dmMessage::RESULT_OK)
+        {
+            switch (result)
+            {
+            case dmMessage::RESULT_MALFORMED_URL:
+                dmLogError("Error when parsing '%s', must be of the format 'socket:path#fragment'.", s);
+                return false;
+            case dmMessage::RESULT_INVALID_SOCKET_NAME:
+                dmLogError("The socket name in '%s' is invalid.", s);
+                return false;
+            case dmMessage::RESULT_SOCKET_NOT_FOUND:
+                dmLogError("The socket in '%s' could not be found.", s);
+                return false;
+            default:
+                dmLogError("Error when parsing '%s': %d.", s, result);
+                return false;
+            }
+        }
+        if (socket_size > 0)
+        {
+            dmLogError("'%s' contains a socket which is not allowed when specifying properties", s);
+            return false;
+        }
+        if (path_size > 0)
+        {
+            if (*path != '/')
+            {
+                dmLogError("'%s' contains a relative path, only global paths are allowed when specifying properties", s);
+                return false;
+            }
+            out_url->m_Path = dmHashBuffer64(path, path_size);
+        }
+        if (fragment_size > 0)
+        {
+            out_url->m_Fragment = dmHashBuffer64(fragment, fragment_size);
+        }
+        return true;
+    }
+
     uint32_t SerializeProperties(const dmGameObjectDDF::PropertyDesc* properties, uint32_t count, uint8_t* out_buffer, uint32_t out_buffer_size)
     {
         uint32_t size = 1 + count * (sizeof(dmhash_t) + 1);
@@ -242,7 +303,26 @@ namespace dmGameObject
             const dmGameObjectDDF::PropertyDesc& p = properties[i];
             PropertyDef prop;
             prop.m_Id = dmHashString64(p.m_Id);
-            prop.m_Number = atof(p.m_Value);
+            switch (p.m_Type)
+            {
+            case dmGameObjectDDF::PROPERTY_TYPE_NUMBER:
+                prop.m_Number = atof(p.m_Value);
+                break;
+            case dmGameObjectDDF::PROPERTY_TYPE_HASH:
+                prop.m_Hash = dmHashString64(p.m_Value);
+                break;
+            case dmGameObjectDDF::PROPERTY_TYPE_URL:
+                {
+                    dmMessage::ResetURL(prop.m_URL);
+                    bool result = StringToURL(p.m_Value, &prop.m_URL);
+                    if (!result)
+                        return 0;
+                }
+                break;
+            default:
+                dmLogError("Invalid property type (%d) for '%s'.", p.m_Type, p.m_Id);
+                return 0;
+            }
             prop.m_Type = p.m_Type;
             SetProperty(prop, &cursor);
         }
@@ -326,7 +406,7 @@ namespace dmGameObject
         return cursor - buffer;
     }
 
-    void PropertiesToLuaTable(const dmArray<PropertyDef>& property_defs, const Properties* properties, lua_State* L, int index)
+    void PropertiesToLuaTable(HInstance instance, const dmArray<PropertyDef>& property_defs, const Properties* properties, lua_State* L, int index)
     {
         uint32_t count = property_defs.Size();
         for (uint32_t i = 0; i < count; ++i)
@@ -361,6 +441,14 @@ namespace dmGameObject
                     dmMessage::URL v;
                     if (GetProperty(properties, def.m_Id, v))
                     {
+                        if (v.m_Socket == 0 && (v.m_Path != 0 || v.m_Fragment != 0))
+                        {
+                            v.m_Socket = GetMessageSocket(instance->m_Collection);
+                        }
+                        if (v.m_Path == 0 && v.m_Fragment != 0)
+                        {
+                            v.m_Path = GetIdentifier(instance);
+                        }
                         dmScript::PushURL(L, v);
                         found_value = true;
                     }

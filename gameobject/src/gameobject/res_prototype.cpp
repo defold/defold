@@ -94,13 +94,29 @@ namespace dmGameObject
                     const uint32_t buffer_size = 1024;
                     uint8_t buffer[buffer_size];
                     uint32_t actual = SerializeProperties(component_desc.m_Properties.m_Data, prop_count, buffer, buffer_size);
-                    if (buffer_size < actual)
+                    bool result = true;
+                    if (actual == 0)
+                    {
+                        dmLogError("Prototype '%s' could not be created.", filename);
+                        result = false;
+                    }
+                    else if (buffer_size < actual)
                     {
                         dmLogError("Properties could not be stored when loading %s: too many properties.", filename);
+                        result = false;
                     }
                     else
                     {
                         SetProperties(c.m_Properties, buffer, actual);
+                    }
+                    if (!result)
+                    {
+                        DeleteProperties(c.m_Properties);
+                        dmResource::Release(factory, component);
+                        dmDDF::FreeMessage(proto_desc);
+                        resource->m_Resource = (void*) proto;
+                        ResPrototypeDestroy(factory, context, resource);
+                        return dmResource::RESULT_FORMAT_ERROR;
                     }
                 }
                 proto->m_Components.Push(c);

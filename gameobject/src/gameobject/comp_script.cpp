@@ -154,7 +154,7 @@ namespace dmGameObject
         lua_State* L = g_LuaState;
         lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_ScriptDataReference);
         const dmArray<PropertyDef>& property_defs = script_instance->m_Script->m_PropertyDefs;
-        PropertiesToLuaTable(property_defs, script_instance->m_Properties, L, -1);
+        PropertiesToLuaTable(script_instance->m_Instance, property_defs, script_instance->m_Properties, L, -1);
         lua_pop(L, 1);
 
         RunScriptParams run_params;
@@ -395,7 +395,7 @@ namespace dmGameObject
         lua_State* L = g_LuaState;
         lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_ScriptDataReference);
         ClearPropertiesFromLuaTable(script_instance->m_Script->m_OldPropertyDefs, script_instance->m_Properties, L, -1);
-        PropertiesToLuaTable(script_instance->m_Script->m_PropertyDefs, script_instance->m_Properties, L, -1);
+        PropertiesToLuaTable(script_instance->m_Instance, script_instance->m_Script->m_PropertyDefs, script_instance->m_Properties, L, -1);
         lua_pop(L, 1);
 
         RunScriptParams run_params;

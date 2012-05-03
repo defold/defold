@@ -120,8 +120,8 @@ TEST_F(ScriptMsgTest, TestURLNewAndIndex)
     ASSERT_TRUE(RunString(L,
         "local url = msg.url(\"test:\")\n"
         "assert(url.socket ~= __default_url.socket, \"invalid socket\")\n"
-        "assert(url.path == __default_url.path, \"invalid path\")\n"
-        "assert(url.fragment == __default_url.fragment, \"invalid fragment\")\n"
+        "assert(url.path == nil, \"invalid path\")\n"
+        "assert(url.fragment == nil, \"invalid fragment\")\n"
         ));
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(socket));
 
@@ -130,7 +130,7 @@ TEST_F(ScriptMsgTest, TestURLNewAndIndex)
         "local url = msg.url(\"test\")\n"
         "assert(url.socket == __default_url.socket, \"invalid socket\")\n"
         "assert(url.path == hash(\"test\"), \"invalid path\")\n"
-        "assert(url.fragment == __default_url.fragment, \"invalid fragment\")\n"
+        "assert(url.fragment == nil, \"invalid fragment\")\n"
         ));
 
     // path string
