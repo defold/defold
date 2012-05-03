@@ -1,3 +1,10 @@
 function init(self, config)
-    factory.create("#factory", vmath.vector3(), vmath.quat(), {number1 = 100})
+    factory.create("#factory", vmath.vector3(), vmath.quat(), {
+        number = 100,
+        hash = hash("hash"),
+        url = msg.url("/path"),
+        vec3 = vmath.vector3(1, 2, 3),
+        vec4 = vmath.vector4(4, 5, 6, 7),
+        quat = vmath.quat(8, 9, 10, 11)
+        })
 end

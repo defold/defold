@@ -29,6 +29,7 @@ namespace dmGameObject
             double m_Number;
             dmhash_t m_Hash;
             dmMessage::URL m_URL;
+            float m_V4[4];
         };
     };
 
@@ -49,6 +50,9 @@ namespace dmGameObject
     bool GetProperty(HProperties properties, dmhash_t id, double& value);
     bool GetProperty(HProperties properties, dmhash_t id, dmhash_t& value);
     bool GetProperty(HProperties properties, dmhash_t id, dmMessage::URL& value);
+    bool GetProperty(HProperties properties, dmhash_t id, Vectormath::Aos::Vector3& value);
+    bool GetProperty(HProperties properties, dmhash_t id, Vectormath::Aos::Vector4& value);
+    bool GetProperty(HProperties properties, dmhash_t id, Vectormath::Aos::Quat& value);
 
     void SetProperties(HProperties properties, uint8_t* buffer, uint32_t buffer_size);
     uint32_t SerializeProperties(const dmGameObjectDDF::PropertyDesc* properties, uint32_t count, uint8_t* out_buffer, uint32_t out_buffer_size);

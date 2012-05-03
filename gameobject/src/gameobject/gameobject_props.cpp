@@ -16,7 +16,10 @@ namespace dmGameObject
     {
             "number",
             "hash",
-            "URL"
+            "URL",
+            "vector3",
+            "vector4",
+            "quat"
     };
 
     Properties::Properties()
@@ -60,54 +63,6 @@ namespace dmGameObject
         memcpy(properties->m_Buffer, buffer, buffer_size);
     }
 
-    bool GetProperty(const Properties* properties, dmhash_t id, dmGameObjectDDF::PropertyType* out_type, uint8_t** out_cursor)
-    {
-        bool found = false;
-        uint8_t* cursor = properties->m_Buffer;
-        if (cursor != 0x0)
-        {
-            uint8_t count = *(cursor++);
-            for (uint8_t i = 0; i < count; ++i)
-            {
-                dmhash_t tmp_id = *(dmhash_t*)cursor;
-                cursor += sizeof(dmhash_t);
-                dmGameObjectDDF::PropertyType type = (dmGameObjectDDF::PropertyType)*(uint8_t*)cursor;
-                ++cursor;
-                if (id == tmp_id)
-                {
-                    *out_type = type;
-                    *out_cursor = cursor;
-                    return true;
-                }
-                else
-                {
-                    switch (type)
-                    {
-                    case dmGameObjectDDF::PROPERTY_TYPE_NUMBER:
-                        cursor += sizeof(double);
-                        break;
-                    case dmGameObjectDDF::PROPERTY_TYPE_HASH:
-                        cursor += sizeof(dmhash_t);
-                        break;
-                    case dmGameObjectDDF::PROPERTY_TYPE_URL:
-                        cursor += sizeof(dmMessage::URL);
-                        break;
-                    default:
-                        break;
-                    }
-                }
-            }
-        }
-        if (!found && properties->m_Next != 0x0)
-        {
-            return GetProperty(properties->m_Next, id, out_type, out_cursor);
-        }
-        else
-        {
-            return found;
-        }
-    }
-
     void LogNotFound(dmhash_t id)
     {
         const char* name = (const char*)dmHashReverse64(id, 0x0);
@@ -134,67 +89,119 @@ namespace dmGameObject
         }
     }
 
-    bool GetProperty(const Properties* properties, dmhash_t id, double& out_value)
+    bool GetProperty(const Properties* properties, dmhash_t id, dmGameObjectDDF::PropertyType expected_type, uint8_t** out_cursor)
     {
-        dmGameObjectDDF::PropertyType type;
-        uint8_t* cursor;
-        if (!GetProperty(properties, id, &type, &cursor))
+        uint8_t* cursor = properties->m_Buffer;
+        if (cursor != 0x0)
+        {
+            uint8_t count = *(cursor++);
+            for (uint8_t i = 0; i < count; ++i)
+            {
+                dmhash_t tmp_id = *(dmhash_t*)cursor;
+                cursor += sizeof(dmhash_t);
+                dmGameObjectDDF::PropertyType type = (dmGameObjectDDF::PropertyType)*(uint8_t*)cursor;
+                ++cursor;
+                if (id == tmp_id)
+                {
+                    if (expected_type != type)
+                    {
+                        LogInvalidType(id, expected_type, type);
+                        return false;
+                    }
+                    *out_cursor = cursor;
+                    return true;
+                }
+                else
+                {
+                    switch (type)
+                    {
+                    case dmGameObjectDDF::PROPERTY_TYPE_NUMBER:
+                        cursor += sizeof(double);
+                        break;
+                    case dmGameObjectDDF::PROPERTY_TYPE_HASH:
+                        cursor += sizeof(dmhash_t);
+                        break;
+                    case dmGameObjectDDF::PROPERTY_TYPE_URL:
+                        cursor += sizeof(dmMessage::URL);
+                        break;
+                    case dmGameObjectDDF::PROPERTY_TYPE_VECTOR3:
+                        cursor += sizeof(Vectormath::Aos::Vector3);
+                        break;
+                    case dmGameObjectDDF::PROPERTY_TYPE_VECTOR4:
+                        cursor += sizeof(Vectormath::Aos::Vector4);
+                        break;
+                    case dmGameObjectDDF::PROPERTY_TYPE_QUAT:
+                        cursor += sizeof(Vectormath::Aos::Quat);
+                        break;
+                    default:
+                        break;
+                    }
+                }
+            }
+        }
+        if (properties->m_Next != 0x0)
+        {
+            return GetProperty(properties->m_Next, id, expected_type, out_cursor);
+        }
+        else
         {
             LogNotFound(id);
             return false;
         }
-        else if (type != dmGameObjectDDF::PROPERTY_TYPE_NUMBER)
-        {
-            LogInvalidType(id, dmGameObjectDDF::PROPERTY_TYPE_NUMBER, type);
+    }
+
+    bool GetProperty(const Properties* properties, dmhash_t id, double& out_value)
+    {
+        uint8_t* cursor;
+        if (!GetProperty(properties, id, dmGameObjectDDF::PROPERTY_TYPE_NUMBER, &cursor))
             return false;
-        }
-        else
-        {
-            out_value = *(double*)cursor;
-            return true;
-        }
+        out_value = *(double*)cursor;
+        return true;
     }
 
     bool GetProperty(const Properties* properties, dmhash_t id, dmhash_t& out_value)
     {
-        dmGameObjectDDF::PropertyType type;
         uint8_t* cursor;
-        if (!GetProperty(properties, id, &type, &cursor))
-        {
-            LogNotFound(id);
+        if (!GetProperty(properties, id, dmGameObjectDDF::PROPERTY_TYPE_HASH, &cursor))
             return false;
-        }
-        else if (type != dmGameObjectDDF::PROPERTY_TYPE_HASH)
-        {
-            LogInvalidType(id, dmGameObjectDDF::PROPERTY_TYPE_HASH, type);
-            return false;
-        }
-        else
-        {
-            out_value = *(dmhash_t*)cursor;
-            return true;
-        }
+        out_value = *(dmhash_t*)cursor;
+        return true;
     }
 
     bool GetProperty(const Properties* properties, dmhash_t id, dmMessage::URL& out_value)
     {
-        dmGameObjectDDF::PropertyType type;
         uint8_t* cursor;
-        if (!GetProperty(properties, id, &type, &cursor))
-        {
-            LogNotFound(id);
+        if (!GetProperty(properties, id, dmGameObjectDDF::PROPERTY_TYPE_URL, &cursor))
             return false;
-        }
-        else if (type != dmGameObjectDDF::PROPERTY_TYPE_URL)
-        {
-            LogInvalidType(id, dmGameObjectDDF::PROPERTY_TYPE_URL, type);
+        out_value = *(dmMessage::URL*)cursor;
+        return true;
+    }
+
+    bool GetProperty(const Properties* properties, dmhash_t id, Vectormath::Aos::Vector3& out_value)
+    {
+        uint8_t* cursor;
+        if (!GetProperty(properties, id, dmGameObjectDDF::PROPERTY_TYPE_VECTOR3, &cursor))
             return false;
-        }
-        else
-        {
-            out_value = *(dmMessage::URL*)cursor;
-            return true;
-        }
+        out_value = *(Vectormath::Aos::Vector3*)cursor;
+        return true;
+    }
+
+    bool GetProperty(const Properties* properties, dmhash_t id, Vectormath::Aos::Vector4& out_value)
+    {
+        uint8_t* cursor;
+        if (!GetProperty(properties, id, dmGameObjectDDF::PROPERTY_TYPE_VECTOR4, &cursor))
+            return false;
+        out_value = *(Vectormath::Aos::Vector4*)cursor;
+        return true;
+    }
+
+    bool GetProperty(const Properties* properties, dmhash_t id, Vectormath::Aos::Quat& out_value)
+    {
+        uint8_t* cursor;
+        if (!GetProperty(properties, id, dmGameObjectDDF::PROPERTY_TYPE_QUAT, &cursor))
+            return false;
+        out_value = *(Vectormath::Aos::Quat*)cursor;
+        return true;
     }
 
     static void SetProperty(const PropertyDef& property, uint8_t** out_cursor)
@@ -218,6 +225,18 @@ namespace dmGameObject
             *(dmMessage::URL*)cursor = property.m_URL;
             cursor += sizeof(dmMessage::URL);
             break;
+        case dmGameObjectDDF::PROPERTY_TYPE_VECTOR3:
+            *(Vectormath::Aos::Vector3*)cursor = Vectormath::Aos::Vector3(property.m_V4[0], property.m_V4[1], property.m_V4[2]);
+            cursor += sizeof(Vectormath::Aos::Vector3);
+            break;
+        case dmGameObjectDDF::PROPERTY_TYPE_VECTOR4:
+            *(Vectormath::Aos::Vector4*)cursor = Vectormath::Aos::Vector4(property.m_V4[0], property.m_V4[1], property.m_V4[2], property.m_V4[3]);
+            cursor += sizeof(Vectormath::Aos::Vector4);
+            break;
+        case dmGameObjectDDF::PROPERTY_TYPE_QUAT:
+            *(Vectormath::Aos::Quat*)cursor = Vectormath::Aos::Quat(property.m_V4[0], property.m_V4[1], property.m_V4[2], property.m_V4[3]);
+            cursor += sizeof(Vectormath::Aos::Quat);
+            break;
         default:
             break;
         }
@@ -234,6 +253,12 @@ namespace dmGameObject
             return sizeof(dmhash_t);
         case dmGameObjectDDF::PROPERTY_TYPE_URL:
             return sizeof(dmMessage::URL);
+        case dmGameObjectDDF::PROPERTY_TYPE_VECTOR3:
+            return sizeof(Vectormath::Aos::Vector3);
+        case dmGameObjectDDF::PROPERTY_TYPE_VECTOR4:
+            return sizeof(Vectormath::Aos::Vector4);
+        case dmGameObjectDDF::PROPERTY_TYPE_QUAT:
+            return sizeof(Vectormath::Aos::Quat);
         default:
             return 0;
         }
@@ -319,6 +344,11 @@ namespace dmGameObject
                         return 0;
                 }
                 break;
+            case dmGameObjectDDF::PROPERTY_TYPE_VECTOR3:
+            case dmGameObjectDDF::PROPERTY_TYPE_VECTOR4:
+            case dmGameObjectDDF::PROPERTY_TYPE_QUAT:
+                dmLogError("The property type %s is not yet supported in collections and game objects.", TYPE_NAMES[p.m_Type]);
+                return 0;
             default:
                 dmLogError("Invalid property type (%d) for '%s'.", p.m_Type, p.m_Id);
                 return 0;
@@ -390,6 +420,32 @@ namespace dmGameObject
                 p.m_Type = dmGameObjectDDF::PROPERTY_TYPE_URL;
                 p.m_URL = v;
             }
+            else if (dmScript::IsVector3(L, -1))
+            {
+                Vectormath::Aos::Vector3 v = *dmScript::CheckVector3(L, -1);
+                p.m_Type = dmGameObjectDDF::PROPERTY_TYPE_VECTOR3;
+                p.m_V4[0] = v[0];
+                p.m_V4[1] = v[1];
+                p.m_V4[2] = v[2];
+            }
+            else if (dmScript::IsVector4(L, -1))
+            {
+                Vectormath::Aos::Vector4 v = *dmScript::CheckVector4(L, -1);
+                p.m_Type = dmGameObjectDDF::PROPERTY_TYPE_VECTOR4;
+                p.m_V4[0] = v[0];
+                p.m_V4[1] = v[1];
+                p.m_V4[2] = v[2];
+                p.m_V4[3] = v[3];
+            }
+            else if (dmScript::IsQuat(L, -1))
+            {
+                Vectormath::Aos::Quat v = *dmScript::CheckQuat(L, -1);
+                p.m_Type = dmGameObjectDDF::PROPERTY_TYPE_QUAT;
+                p.m_V4[0] = v[0];
+                p.m_V4[1] = v[1];
+                p.m_V4[2] = v[2];
+                p.m_V4[3] = v[3];
+            }
             else
             {
                 valid_type = false;
@@ -450,6 +506,36 @@ namespace dmGameObject
                             v.m_Path = GetIdentifier(instance);
                         }
                         dmScript::PushURL(L, v);
+                        found_value = true;
+                    }
+                }
+                break;
+            case dmGameObjectDDF::PROPERTY_TYPE_VECTOR3:
+                {
+                    Vectormath::Aos::Vector3 v;
+                    if (GetProperty(properties, def.m_Id, v))
+                    {
+                        dmScript::PushVector3(L, v);
+                        found_value = true;
+                    }
+                }
+                break;
+            case dmGameObjectDDF::PROPERTY_TYPE_VECTOR4:
+                {
+                    Vectormath::Aos::Vector4 v;
+                    if (GetProperty(properties, def.m_Id, v))
+                    {
+                        dmScript::PushVector4(L, v);
+                        found_value = true;
+                    }
+                }
+                break;
+            case dmGameObjectDDF::PROPERTY_TYPE_QUAT:
+                {
+                    Vectormath::Aos::Quat v;
+                    if (GetProperty(properties, def.m_Id, v))
+                    {
+                        dmScript::PushQuat(L, v);
                         found_value = true;
                     }
                 }

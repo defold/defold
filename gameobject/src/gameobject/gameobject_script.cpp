@@ -351,6 +351,35 @@ namespace dmGameObject
             p.m_Hash = hash;
             valid_type = true;
         }
+        else if (dmScript::IsVector3(L, 2))
+        {
+            Vectormath::Aos::Vector3 v = *dmScript::CheckVector3(L, 2);
+            p.m_Type = dmGameObjectDDF::PROPERTY_TYPE_VECTOR3;
+            p.m_V4[0] = v[0];
+            p.m_V4[1] = v[1];
+            p.m_V4[2] = v[2];
+            valid_type = true;
+        }
+        else if (dmScript::IsVector4(L, 2))
+        {
+            Vectormath::Aos::Vector4 v = *dmScript::CheckVector4(L, 2);
+            p.m_Type = dmGameObjectDDF::PROPERTY_TYPE_VECTOR4;
+            p.m_V4[0] = v[0];
+            p.m_V4[1] = v[1];
+            p.m_V4[2] = v[2];
+            p.m_V4[3] = v[3];
+            valid_type = true;
+        }
+        else if (dmScript::IsQuat(L, 2))
+        {
+            Vectormath::Aos::Quat v = *dmScript::CheckQuat(L, 2);
+            p.m_Type = dmGameObjectDDF::PROPERTY_TYPE_QUAT;
+            p.m_V4[0] = v[0];
+            p.m_V4[1] = v[1];
+            p.m_V4[2] = v[2];
+            p.m_V4[3] = v[3];
+            valid_type = true;
+        }
         if (valid_type)
         {
             p.m_Name = strdup(id);

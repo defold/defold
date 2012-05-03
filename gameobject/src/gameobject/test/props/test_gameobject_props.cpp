@@ -118,6 +118,19 @@ TEST_F(ScriptTest, PropsFailOverflowColl)
     ASSERT_NE(dmResource::RESULT_OK, res);
 }
 
+TEST_F(ScriptTest, PropsFailUnsuppGo)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/props_fail_unsupp_go.goc");
+    ASSERT_EQ((void*) 0, (void*) go);
+}
+
+TEST_F(ScriptTest, PropsFailUnsuppColl)
+{
+    dmGameObject::HCollection collection;
+    dmResource::Result res = dmResource::Get(m_Factory, "/props_fail_unsupp_coll.collectionc", (void**)&collection);
+    ASSERT_NE(dmResource::RESULT_OK, res);
+}
+
 int main(int argc, char **argv)
 {
     dmDDF::RegisterAllTypes();
