@@ -91,63 +91,61 @@ namespace dmGameObject
 
     bool GetProperty(const Properties* properties, dmhash_t id, dmGameObjectDDF::PropertyType expected_type, uint8_t** out_cursor)
     {
-        uint8_t* cursor = properties->m_Buffer;
-        if (cursor != 0x0)
+        const Properties* props = properties;
+        while (props != 0x0)
         {
-            uint8_t count = *(cursor++);
-            for (uint8_t i = 0; i < count; ++i)
+            uint8_t* cursor = props->m_Buffer;
+            if (cursor != 0x0)
             {
-                dmhash_t tmp_id = *(dmhash_t*)cursor;
-                cursor += sizeof(dmhash_t);
-                dmGameObjectDDF::PropertyType type = (dmGameObjectDDF::PropertyType)*(uint8_t*)cursor;
-                ++cursor;
-                if (id == tmp_id)
+                uint8_t count = *(cursor++);
+                for (uint8_t i = 0; i < count; ++i)
                 {
-                    if (expected_type != type)
+                    dmhash_t tmp_id = *(dmhash_t*)cursor;
+                    cursor += sizeof(dmhash_t);
+                    dmGameObjectDDF::PropertyType type = (dmGameObjectDDF::PropertyType)*(uint8_t*)cursor;
+                    ++cursor;
+                    if (id == tmp_id)
                     {
-                        LogInvalidType(id, expected_type, type);
-                        return false;
+                        if (expected_type != type)
+                        {
+                            LogInvalidType(id, expected_type, type);
+                            return false;
+                        }
+                        *out_cursor = cursor;
+                        return true;
                     }
-                    *out_cursor = cursor;
-                    return true;
-                }
-                else
-                {
-                    switch (type)
+                    else
                     {
-                    case dmGameObjectDDF::PROPERTY_TYPE_NUMBER:
-                        cursor += sizeof(double);
-                        break;
-                    case dmGameObjectDDF::PROPERTY_TYPE_HASH:
-                        cursor += sizeof(dmhash_t);
-                        break;
-                    case dmGameObjectDDF::PROPERTY_TYPE_URL:
-                        cursor += sizeof(dmMessage::URL);
-                        break;
-                    case dmGameObjectDDF::PROPERTY_TYPE_VECTOR3:
-                        cursor += sizeof(Vectormath::Aos::Vector3);
-                        break;
-                    case dmGameObjectDDF::PROPERTY_TYPE_VECTOR4:
-                        cursor += sizeof(Vectormath::Aos::Vector4);
-                        break;
-                    case dmGameObjectDDF::PROPERTY_TYPE_QUAT:
-                        cursor += sizeof(Vectormath::Aos::Quat);
-                        break;
-                    default:
-                        break;
+                        switch (type)
+                        {
+                        case dmGameObjectDDF::PROPERTY_TYPE_NUMBER:
+                            cursor += sizeof(double);
+                            break;
+                        case dmGameObjectDDF::PROPERTY_TYPE_HASH:
+                            cursor += sizeof(dmhash_t);
+                            break;
+                        case dmGameObjectDDF::PROPERTY_TYPE_URL:
+                            cursor += sizeof(dmMessage::URL);
+                            break;
+                        case dmGameObjectDDF::PROPERTY_TYPE_VECTOR3:
+                            cursor += sizeof(Vectormath::Aos::Vector3);
+                            break;
+                        case dmGameObjectDDF::PROPERTY_TYPE_VECTOR4:
+                            cursor += sizeof(Vectormath::Aos::Vector4);
+                            break;
+                        case dmGameObjectDDF::PROPERTY_TYPE_QUAT:
+                            cursor += sizeof(Vectormath::Aos::Quat);
+                            break;
+                        default:
+                            break;
+                        }
                     }
                 }
             }
+            props = props->m_Next;
         }
-        if (properties->m_Next != 0x0)
-        {
-            return GetProperty(properties->m_Next, id, expected_type, out_cursor);
-        }
-        else
-        {
-            LogNotFound(id);
-            return false;
-        }
+        LogNotFound(id);
+        return false;
     }
 
     bool GetProperty(const Properties* properties, dmhash_t id, double& out_value)
