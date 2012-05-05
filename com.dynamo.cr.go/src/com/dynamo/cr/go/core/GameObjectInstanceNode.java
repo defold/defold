@@ -176,8 +176,12 @@ public class GameObjectInstanceNode extends InstanceNode {
             }
         }
         for (Map.Entry<String, RefComponentNode> entry : refIds.entrySet()) {
-            setComponentProperties(entry.getKey(), new HashMap<String, String>());
-            ComponentPropertyNode node = new ComponentPropertyNode(entry.getValue(), getComponentProperties(entry.getKey()));
+            Map<String, String> properties = getComponentProperties(entry.getKey());
+            if (properties == null) {
+                properties = new HashMap<String, String>();
+                setComponentProperties(entry.getKey(), properties);
+            }
+            ComponentPropertyNode node = new ComponentPropertyNode(entry.getValue(), properties);
             addChild(node);
         }
     }
