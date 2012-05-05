@@ -1,5 +1,7 @@
+go.property("factory", msg.url())
+
 function init(self, config)
-    factory.create("#factory", vmath.vector3(), vmath.quat(), {
+    factory.create(self.factory, vmath.vector3(), vmath.quat(), {
         number = 100,
         hash = hash("hash"),
         url = msg.url("/path"),

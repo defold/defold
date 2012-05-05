@@ -110,6 +110,10 @@ namespace dmGameObject
                         {
                             component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data++];
                         }
+                        if (component_type == type)
+                        {
+                            break;
+                        }
                     }
                     if (type->m_SetPropertiesFunction != 0x0)
                     {

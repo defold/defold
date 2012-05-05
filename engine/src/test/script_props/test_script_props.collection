@@ -2,4 +2,12 @@ name: "test_script_props"
 instances {
   id: "factory"
   prototype: "/script_props/factory.go"
+  component_properties {
+    id: "script"
+    properties {
+      id: "factory"
+      type: PROPERTY_TYPE_URL
+      value: "/factory#factory"
+    }
+  }
 }
