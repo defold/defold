@@ -141,15 +141,17 @@ public class GameObjectInstanceNode extends InstanceNode {
         // It should preferably be done in Node immediately, but seemed like a too complex change at the moment
         if (getModel() != null) {
             IStructuredSelection selection = getModel().getSelection();
-            Object[] objects = selection.toArray();
-            List<Object> list = new ArrayList<Object>(objects.length);
-            for (Object o : objects) {
-                if (o != child) {
-                    list.add(o);
+            if (selection != null) {
+                Object[] objects = selection.toArray();
+                List<Object> list = new ArrayList<Object>(objects.length);
+                for (Object o : objects) {
+                    if (o != child) {
+                        list.add(o);
+                    }
                 }
-            }
-            if (objects.length != list.size()) {
-                getModel().setSelection(new StructuredSelection(list));
+                if (objects.length != list.size()) {
+                    getModel().setSelection(new StructuredSelection(list));
+                }
             }
         }
     }
