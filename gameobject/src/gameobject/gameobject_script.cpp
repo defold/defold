@@ -117,16 +117,6 @@ namespace dmGameObject
         {0, 0}
     };
 
-    static Script* Script_Check(lua_State *L)
-    {
-        lua_pushliteral(L, SCRIPT_NAME);
-        lua_rawget(L, LUA_GLOBALSINDEX);
-        Script* i = (Script*)lua_touserdata(L, -1);
-        lua_pop(L, 1);
-        if (i == NULL) luaL_error(L, "Lua state did not contain any '%s'.", SCRIPT_NAME);
-        return i;
-    }
-
     static ScriptInstance* ScriptInstance_Check(lua_State *L)
     {
         lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
@@ -321,7 +311,16 @@ namespace dmGameObject
         int top = lua_gettop(L);
         (void)top;
 
-        Script* script = Script_Check(L);
+        lua_pushliteral(L, SCRIPT_NAME);
+        lua_rawget(L, LUA_GLOBALSINDEX);
+        Script* script = (Script*)lua_touserdata(L, -1);
+        lua_pop(L, 1);
+
+        if (script == 0x0)
+        {
+            return luaL_error(L, "go.property can only be called outside the functions.");
+        }
+
         const char* id = luaL_checkstring(L, 1);
 
         if (script->m_PropertyDefs.Full())

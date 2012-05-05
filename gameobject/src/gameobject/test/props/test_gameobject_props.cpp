@@ -131,6 +131,15 @@ TEST_F(ScriptTest, PropsFailUnsuppColl)
     ASSERT_NE(dmResource::RESULT_OK, res);
 }
 
+TEST_F(ScriptTest, PropsFailDefInInit)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/props_fail_def_in_init.goc");
+    ASSERT_NE((void*) 0, (void*) go);
+    bool result = dmGameObject::Init(m_Collection);
+    ASSERT_FALSE(result);
+    dmGameObject::Delete(m_Collection, go);
+}
+
 int main(int argc, char **argv)
 {
     dmDDF::RegisterAllTypes();
