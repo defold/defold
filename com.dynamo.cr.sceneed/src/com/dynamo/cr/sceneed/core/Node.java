@@ -317,7 +317,11 @@ public abstract class Node implements IAdaptable, Serializable {
     }
 
     protected final void clearChildren() {
+        List<Node> oldChildren = new ArrayList<Node>(this.children);
         this.children.clear();
+        for (Node child : oldChildren) {
+            childRemoved(child);
+        }
     }
 
     protected final void sortChildren(Comparator<? super Node> comparator) {

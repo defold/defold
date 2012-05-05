@@ -1,5 +1,11 @@
 package com.dynamo.cr.go.core;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.lang.annotation.Annotation;
+import java.util.HashMap;
+import java.util.Map;
+
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
@@ -7,10 +13,18 @@ import org.eclipse.osgi.util.NLS;
 import org.eclipse.swt.graphics.Image;
 
 import com.dynamo.cr.go.Constants;
+import com.dynamo.cr.go.core.script.LuaPropertyParser;
+import com.dynamo.cr.properties.DynamicProperties;
+import com.dynamo.cr.properties.DynamicPropertyAccessor;
+import com.dynamo.cr.properties.DynamicPropertyValidator;
+import com.dynamo.cr.properties.IPropertyAccessor;
+import com.dynamo.cr.properties.IPropertyDesc;
+import com.dynamo.cr.properties.IValidator;
 import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
-import com.dynamo.cr.properties.Resource;
 import com.dynamo.cr.properties.Property.EditorType;
+import com.dynamo.cr.properties.Resource;
+import com.dynamo.cr.properties.descriptors.TextPropertyDesc;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 
 @SuppressWarnings("serial")
@@ -24,6 +38,9 @@ public class RefComponentNode extends ComponentNode {
     private String component;
     private transient ComponentTypeNode type;
 
+    private Map<String, String> prototypeProperties;
+    private Map<String, LuaPropertyParser.Property> propertyDefaults;
+
     public RefComponentNode(ComponentTypeNode type) {
         super();
         this.type = type;
@@ -32,6 +49,8 @@ public class RefComponentNode extends ComponentNode {
             this.type.setFlagsRecursively(Flags.LOCKED);
             addChild(type);
         }
+        this.prototypeProperties = new HashMap<String, String>();
+        this.propertyDefaults = new HashMap<String, LuaPropertyParser.Property>();
     }
 
     public String getComponent() {
@@ -50,9 +69,21 @@ public class RefComponentNode extends ComponentNode {
     @Override
     public void setModel(ISceneModel model) {
         super.setModel(model);
-        if (model != null && this.type == null) {
-            reloadType();
+        if (model != null) {
+            if (this.type == null) {
+                reloadType();
+            } else {
+                reloadComponentProperties();
+            }
         }
+    }
+
+    public Map<String, LuaPropertyParser.Property> getPropertyDefaults() {
+        return this.propertyDefaults;
+    }
+
+    public void setPrototypeProperties(Map<String, String> prototypeProperties) {
+        this.prototypeProperties = prototypeProperties;
     }
 
     public IStatus validateComponent() {
@@ -99,9 +130,11 @@ public class RefComponentNode extends ComponentNode {
             try {
                 clearChildren();
                 this.type = (ComponentTypeNode)model.loadNode(this.component);
+                this.propertyDefaults.clear();
                 if (this.type != null) {
                     this.type.setFlagsRecursively(Flags.LOCKED);
                     addChild(this.type);
+                    reloadComponentProperties();
                 }
             } catch (Throwable e) {
                 // no reason to handle exception since having a null type is invalid state, will be caught in validateComponent below
@@ -120,4 +153,143 @@ public class RefComponentNode extends ComponentNode {
         }
     }
 
+    public String getComponentProperty(String id) {
+        if (this.propertyDefaults.containsKey(id)) {
+            String value = this.prototypeProperties.get(id);
+            if (value == null) {
+                value = this.propertyDefaults.get(id).getValue();
+            }
+            return value;
+        }
+        return null;
+    }
+
+    private void reloadComponentProperties() {
+        if (this.component.substring(this.component.lastIndexOf('.')+1).equals("script")) {
+            IFile file = getModel().getFile(this.component);
+            try {
+                InputStreamReader isr = new InputStreamReader(file.getContents());
+                BufferedReader reader = new BufferedReader(isr);
+                StringBuffer buffer = new StringBuffer();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    buffer.append(line).append('\n');
+                }
+                isr.close();
+                LuaPropertyParser.Property[] properties = LuaPropertyParser.parse(buffer.toString());
+                for (LuaPropertyParser.Property property : properties) {
+                    if (property.getStatus() == LuaPropertyParser.Property.Status.OK) {
+                        this.propertyDefaults.put(property.getName(), property);
+                    }
+                }
+            } catch (Exception e) {
+
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    @DynamicProperties
+    public IPropertyDesc<RefComponentNode, ISceneModel>[] getDynamicProperties() {
+        IPropertyDesc<RefComponentNode, ISceneModel>[] descs = new IPropertyDesc[this.propertyDefaults.size()];
+        int i = 0;
+        for (Map.Entry<String, LuaPropertyParser.Property> entry : this.propertyDefaults.entrySet()) {
+            if (entry.getValue().getStatus() == LuaPropertyParser.Property.Status.OK) {
+                String name = entry.getKey();
+                String[] tokens = name.split("_");
+                name = tokens[0];
+                int tokenCount = tokens.length;
+                for (int j = 1; j < tokenCount; ++j) {
+                    name += tokens[j].substring(0, 1).toUpperCase() + tokens[j].substring(1);
+                }
+                descs[i] = new TextPropertyDesc<RefComponentNode, ISceneModel>(entry.getKey(), name, EditorType.DEFAULT);
+            }
+            ++i;
+        }
+        return descs;
+    }
+
+    class Accessor implements IPropertyAccessor<RefComponentNode, ISceneModel> {
+
+        @Override
+        public void setValue(RefComponentNode obj, String property, Object value,
+                ISceneModel world) {
+            if (propertyDefaults.containsKey(property)) {
+                if (value.equals("")) {
+                    prototypeProperties.remove(property);
+                } else {
+                    prototypeProperties.put(property, (String)value);
+                }
+            } else {
+                throw new RuntimeException(String.format("No such property %s", property));
+            }
+
+        }
+
+        @Override
+        public Object getValue(RefComponentNode obj, String property, ISceneModel world) {
+            String value = getComponentProperty(property);
+            if (value != null) {
+                return value;
+            } else {
+                throw new RuntimeException(String.format("No such property %s", property));
+            }
+        }
+
+        @Override
+        public boolean isEditable(RefComponentNode obj, String property,
+                ISceneModel world) {
+            return true;
+        }
+
+        @Override
+        public boolean isVisible(RefComponentNode obj, String property,
+                ISceneModel world) {
+            return true;
+        }
+
+        @Override
+        public Object[] getPropertyOptions(RefComponentNode obj, String property,
+                ISceneModel world) {
+            return new Object[0];
+        }
+
+    }
+
+    @DynamicPropertyAccessor
+    public IPropertyAccessor<RefComponentNode, ISceneModel> getDynamicAccessor(ISceneModel world) {
+        return new Accessor();
+    }
+
+    class Validator implements IValidator<Object, Annotation, ISceneModel> {
+
+        @Override
+        public IStatus validate(Annotation validationParameters, Object object,
+                String property, Object value, ISceneModel world) {
+            LuaPropertyParser.Property p = propertyDefaults.get(property);
+            switch (p.getType()) {
+            case NUMBER:
+                try {
+                    @SuppressWarnings("unused")
+                    Double v = Double.valueOf((String)value);
+                } catch (NumberFormatException e) {
+                    return new Status(IStatus.ERROR, Constants.PLUGIN_ID, NLS.bind(Messages.RefComponentNode_component_INVALID_NUMBER, value));
+                }
+                break;
+            case HASH:
+                break;
+            case URL:
+                if (!value.equals("") && ((String)value).charAt(0) != '/') {
+                    return new Status(IStatus.ERROR, Constants.PLUGIN_ID, NLS.bind(Messages.RefComponentNode_component_NON_GLOBAL_URL, value));
+                }
+            }
+            return Status.OK_STATUS;
+        }
+
+    }
+
+    @DynamicPropertyValidator
+    public IValidator<Object, Annotation, ISceneModel> getDynamicValidator(ISceneModel world) {
+        return new Validator();
+    }
 }

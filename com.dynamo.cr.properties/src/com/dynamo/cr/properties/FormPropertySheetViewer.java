@@ -3,6 +3,8 @@ package com.dynamo.cr.properties;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -193,6 +195,14 @@ public class FormPropertySheetViewer extends Viewer {
             layout.marginWidth = 0;
             c.setLayout(layout);
             layout.numColumns = 2;
+
+            // Sort properties lexicographically for display
+            Arrays.sort(descs, new Comparator<IPropertyDesc>() {
+                @Override
+                public int compare(IPropertyDesc arg0, IPropertyDesc arg1) {
+                    return arg0.getId().compareTo(arg1.getId());
+                }
+            });
 
             for (IPropertyDesc desc : descs) {
 

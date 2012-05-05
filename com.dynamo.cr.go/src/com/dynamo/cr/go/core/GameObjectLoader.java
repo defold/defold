@@ -5,11 +5,14 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.SubMonitor;
 
+import com.dynamo.cr.go.core.script.LuaPropertyParser;
 import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.INodeLoader;
 import com.dynamo.cr.sceneed.core.INodeType;
@@ -17,8 +20,10 @@ import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.SceneUtil;
 import com.dynamo.cr.sceneed.core.util.LoaderUtil;
+import com.dynamo.gameobject.proto.GameObject;
 import com.dynamo.gameobject.proto.GameObject.ComponentDesc;
 import com.dynamo.gameobject.proto.GameObject.EmbeddedComponentDesc;
+import com.dynamo.gameobject.proto.GameObject.PropertyDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc.Builder;
 import com.google.protobuf.Message;
@@ -43,6 +48,13 @@ public class GameObjectLoader implements INodeLoader<GameObjectNode> {
             componentNode.setRotation(LoaderUtil.toQuat4(componentDesc.getRotation()));
             componentNode.setId(componentDesc.getId());
             componentNode.setComponent(path);
+            Map<String, String> properties = new HashMap<String, String>();
+            int propertyCount = componentDesc.getPropertiesCount();
+            for (int j = 0; j < propertyCount; ++j) {
+                PropertyDesc propDesc = componentDesc.getProperties(j);
+                properties.put(propDesc.getId(), propDesc.getValue());
+            }
+            componentNode.setPrototypeProperties(properties);
             gameObject.addChild(componentNode);
         }
         n = desc.getEmbeddedComponentsCount();
@@ -79,6 +91,31 @@ public class GameObjectLoader implements INodeLoader<GameObjectNode> {
                 componentBuilder.setRotation(LoaderUtil.toQuat(component.getRotation()));
                 componentBuilder.setId(component.getId());
                 componentBuilder.setComponent(component.getComponent());
+                // Store properties
+                Map<String, LuaPropertyParser.Property> propertyDefaults = component.getPropertyDefaults();
+                for (Map.Entry<String, LuaPropertyParser.Property> entry : propertyDefaults.entrySet()) {
+                    if (entry.getValue().getStatus() == LuaPropertyParser.Property.Status.OK) {
+                        String value = component.getComponentProperty(entry.getKey());
+                        LuaPropertyParser.Property property = entry.getValue();
+                        if (value != null && !value.equals(property.getValue())) {
+                            PropertyDesc.Builder propertyBuilder = PropertyDesc.newBuilder();
+                            propertyBuilder.setId(entry.getKey());
+                            switch(property.getType()) {
+                            case NUMBER:
+                                propertyBuilder.setType(GameObject.PropertyType.PROPERTY_TYPE_NUMBER);
+                                break;
+                            case HASH:
+                                propertyBuilder.setType(GameObject.PropertyType.PROPERTY_TYPE_HASH);
+                                break;
+                            case URL:
+                                propertyBuilder.setType(GameObject.PropertyType.PROPERTY_TYPE_URL);
+                                break;
+                            }
+                            propertyBuilder.setValue(value);
+                            componentBuilder.addProperties(propertyBuilder);
+                        }
+                    }
+                }
                 builder.addComponents(componentBuilder);
                 progress.worked(1);
             } else if (child instanceof ComponentTypeNode) {

@@ -24,7 +24,7 @@ public class LuaPropertyParser {
 
     private static Pattern numberPattern = Pattern.compile("[-+]?[0-9]*\\.?[0-9]+");
 
-    private static Pattern urlPattern = Pattern.compile("go\\.url\\s*?\\(\\s*?\\)$");
+    private static Pattern urlPattern = Pattern.compile("msg\\.url\\s*?\\(\\s*?\\)$");
 
     private static Pattern hashPattern = Pattern.compile("hash\\s*?\\(\\s*?[\\\"'](.*?)[\\\"']\\s*?\\)$");
 

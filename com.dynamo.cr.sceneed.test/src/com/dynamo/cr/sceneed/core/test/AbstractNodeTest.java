@@ -214,6 +214,12 @@ public abstract class AbstractNodeTest {
         verify(this.presenterContext, times(this.executionCount)).executeOperation(any(IUndoableOperation.class));
     }
 
+    protected Object getNodeProperty(Node node, Object id) throws ExecutionException {
+        @SuppressWarnings("unchecked")
+        IPropertyModel<? extends Node, ISceneModel> propertyModel = (IPropertyModel<? extends Node, ISceneModel>)node.getAdapter(IPropertyModel.class);
+        return propertyModel.getPropertyValue(id);
+    }
+
     protected void setNodeProperty(Node node, Object id, Object value) throws ExecutionException {
         @SuppressWarnings("unchecked")
         IPropertyModel<? extends Node, ISceneModel> propertyModel = (IPropertyModel<? extends Node, ISceneModel>)node.getAdapter(IPropertyModel.class);

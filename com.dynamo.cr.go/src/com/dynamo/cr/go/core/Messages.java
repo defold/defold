@@ -20,6 +20,8 @@ public class Messages extends NLS {
     public static String RefComponentNode_component_INVALID_REFERENCE;
     public static String RefComponentNode_component_INVALID_TYPE;
     public static String RefComponentNode_component_UNKNOWN_TYPE;
+    public static String RefComponentNode_component_INVALID_NUMBER;
+    public static String RefComponentNode_component_NON_GLOBAL_URL;
 
     public static String InstanceNode_id_EMPTY;
     public static String InstanceNode_id_DUPLICATE;

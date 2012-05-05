@@ -10,8 +10,8 @@ go.property("should_be_removed3", 0)
  ---[[
 go.property("prop1", 123.456)
   --]]
-go.property("prop2", go.url ())
-go.property('prop3', go.url( ))
+go.property("prop2", msg.url ())
+go.property('prop3', msg.url( ))
 go.property("prop4", hash('h1'))
 go.property("prop5", hash ( "h2" ))
 

@@ -1,16 +1,24 @@
 package com.dynamo.cr.go.core;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
+import org.eclipse.jface.viewers.IStructuredSelection;
+import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.osgi.util.NLS;
 
 import com.dynamo.cr.go.Constants;
 import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
-import com.dynamo.cr.properties.Resource;
 import com.dynamo.cr.properties.Property.EditorType;
+import com.dynamo.cr.properties.Resource;
 import com.dynamo.cr.sceneed.core.ISceneModel;
+import com.dynamo.cr.sceneed.core.Node;
 
 @SuppressWarnings("serial")
 public class GameObjectInstanceNode extends InstanceNode {
@@ -19,6 +27,8 @@ public class GameObjectInstanceNode extends InstanceNode {
     @Resource
     @NotEmpty
     private String gameObject = "";
+
+    private Map<String, Map<String, String>> componentProperties;
 
     private transient GameObjectNode gameObjectNode;
 
@@ -29,6 +39,7 @@ public class GameObjectInstanceNode extends InstanceNode {
     public GameObjectInstanceNode(GameObjectNode gameObject) {
         super();
         this.gameObjectNode = gameObject;
+        this.componentProperties = new HashMap<String, Map<String, String>>();
         if (this.gameObjectNode != null) {
             this.gameObjectNode.setFlagsRecursively(Flags.LOCKED);
             addChild(this.gameObjectNode);
@@ -47,9 +58,21 @@ public class GameObjectInstanceNode extends InstanceNode {
     @Override
     public void setModel(ISceneModel model) {
         super.setModel(model);
-        if (model != null && this.gameObjectNode == null) {
-            reloadGameObject();
+        if (model != null) {
+            if (this.gameObjectNode == null) {
+                reloadGameObject();
+            } else {
+                reloadComponentPropertyNodes();
+            }
         }
+    }
+
+    public Map<String, String> getComponentProperties(String id) {
+        return this.componentProperties.get(id);
+    }
+
+    public void setComponentProperties(String id, Map<String, String> properties) {
+        this.componentProperties.put(id, properties);
     }
 
     public IStatus validateGameObject() {
@@ -87,6 +110,9 @@ public class GameObjectInstanceNode extends InstanceNode {
                 return true;
             }
         }
+        if (this.gameObjectNode != null) {
+            return this.gameObjectNode.handleReload(file);
+        }
         return false;
     }
 
@@ -99,6 +125,7 @@ public class GameObjectInstanceNode extends InstanceNode {
                 if (this.gameObjectNode != null) {
                     this.gameObjectNode.setFlagsRecursively(Flags.LOCKED);
                     addChild(this.gameObjectNode);
+                    reloadComponentPropertyNodes();
                 }
             } catch (Throwable e) {
                 // no reason to handle exception since having a null type is invalid state, will be caught in validateComponent below
@@ -108,4 +135,50 @@ public class GameObjectInstanceNode extends InstanceNode {
         return false;
     }
 
+    @Override
+    protected void childRemoved(Node child) {
+        // TODO this is a poor way to remove children from the selection
+        // It should preferably be done in Node immediately, but seemed like a too complex change at the moment
+        if (getModel() != null) {
+            IStructuredSelection selection = getModel().getSelection();
+            Object[] objects = selection.toArray();
+            List<Object> list = new ArrayList<Object>(objects.length);
+            for (Object o : objects) {
+                if (o != child) {
+                    list.add(o);
+                }
+            }
+            if (objects.length != list.size()) {
+                getModel().setSelection(new StructuredSelection(list));
+            }
+        }
+    }
+
+    private void reloadComponentPropertyNodes() {
+        Map<String, RefComponentNode> refIds = new HashMap<String, RefComponentNode>();
+        for (Node child : this.gameObjectNode.getChildren()) {
+            if (child instanceof RefComponentNode) {
+                RefComponentNode ref = (RefComponentNode)child;
+                refIds.put(ref.getId(), ref);
+            }
+        }
+        List<Node> children = new ArrayList<Node>(getChildren());
+        for (Node node : children) {
+            if (node instanceof ComponentPropertyNode) {
+                ComponentPropertyNode compProp = (ComponentPropertyNode)node;
+                RefComponentNode ref = refIds.get(compProp.getId());
+                if (ref != null) {
+                    compProp.setRefComponentNode(ref);
+                    refIds.remove(compProp.getId());
+                } else {
+                    removeChild(node);
+                }
+            }
+        }
+        for (Map.Entry<String, RefComponentNode> entry : refIds.entrySet()) {
+            setComponentProperties(entry.getKey(), new HashMap<String, String>());
+            ComponentPropertyNode node = new ComponentPropertyNode(entry.getValue(), getComponentProperties(entry.getKey()));
+            addChild(node);
+        }
+    }
 }

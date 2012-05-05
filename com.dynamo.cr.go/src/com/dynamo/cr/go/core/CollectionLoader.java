@@ -13,6 +13,7 @@ import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.SubMonitor;
 
+import com.dynamo.cr.go.core.script.LuaPropertyParser;
 import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.INodeLoader;
 import com.dynamo.cr.sceneed.core.Node;
@@ -20,7 +21,10 @@ import com.dynamo.cr.sceneed.core.util.LoaderUtil;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc.Builder;
 import com.dynamo.gameobject.proto.GameObject.CollectionInstanceDesc;
+import com.dynamo.gameobject.proto.GameObject.ComponentPropertyDesc;
 import com.dynamo.gameobject.proto.GameObject.InstanceDesc;
+import com.dynamo.gameobject.proto.GameObject.PropertyDesc;
+import com.dynamo.gameobject.proto.GameObject.PropertyType;
 import com.google.protobuf.Message;
 import com.google.protobuf.TextFormat;
 
@@ -48,6 +52,17 @@ public class CollectionLoader implements INodeLoader<CollectionNode> {
             instanceNode.setGameObject(path);
             idToInstance.put(instanceDesc.getId(), instanceNode);
             remainingInstances.add(instanceNode);
+            int compPropCount = instanceDesc.getComponentPropertiesCount();
+            for (int j = 0; j < compPropCount; ++j) {
+                ComponentPropertyDesc compPropDesc = instanceDesc.getComponentProperties(j);
+                Map<String, String> componentProperties = new HashMap<String, String>();
+                int propCount = compPropDesc.getPropertiesCount();
+                for (int k = 0; k < propCount; ++k) {
+                    PropertyDesc propDesc = compPropDesc.getProperties(k);
+                    componentProperties.put(propDesc.getId(), propDesc.getValue());
+                }
+                instanceNode.setComponentProperties(compPropDesc.getId(), componentProperties);
+            }
         }
         for (int i = 0; i < n; ++i) {
             InstanceDesc instanceDesc = desc.getInstances(i);
@@ -101,6 +116,7 @@ public class CollectionLoader implements INodeLoader<CollectionNode> {
                         instanceBuilder.addChildren(((GameObjectInstanceNode)grandChild).getId());
                     }
                 }
+                buildProperties(instance, instanceBuilder);
                 builder.addInstances(instanceBuilder);
                 buildInstances(child, builder, monitor);
             } else if (child instanceof CollectionInstanceNode) {
@@ -113,6 +129,43 @@ public class CollectionLoader implements INodeLoader<CollectionNode> {
                 builder.addCollectionInstances(instanceBuilder);
             }
             progress.worked(1);
+        }
+    }
+
+    private void buildProperties(GameObjectInstanceNode instance, InstanceDesc.Builder instanceBuilder) {
+        for (Node instanceChild : instance.getChildren()) {
+            if (instanceChild instanceof ComponentPropertyNode) {
+                ComponentPropertyNode compNode = (ComponentPropertyNode)instanceChild;
+                Map<String, LuaPropertyParser.Property> defaults = compNode.getPropertyDefaults();
+                ComponentPropertyDesc.Builder compPropBuilder = ComponentPropertyDesc.newBuilder();
+                compPropBuilder.setId(compNode.getId());
+                for (Map.Entry<String, LuaPropertyParser.Property> entry : defaults.entrySet()) {
+                    LuaPropertyParser.Property property = entry.getValue();
+                    if (property.getStatus() == LuaPropertyParser.Property.Status.OK) {
+                        String value = compNode.getComponentProperty(entry.getKey());
+                        if (value != null && !value.equals(compNode.getDefaultComponentProperty(entry.getKey()))) {
+                            PropertyDesc.Builder propBuilder = PropertyDesc.newBuilder();
+                            propBuilder.setId(entry.getKey());
+                            switch (property.getType()) {
+                            case NUMBER:
+                                propBuilder.setType(PropertyType.PROPERTY_TYPE_NUMBER);
+                                break;
+                            case HASH:
+                                propBuilder.setType(PropertyType.PROPERTY_TYPE_HASH);
+                                break;
+                            case URL:
+                                propBuilder.setType(PropertyType.PROPERTY_TYPE_URL);
+                                break;
+                            }
+                            propBuilder.setValue(value);
+                            compPropBuilder.addProperties(propBuilder);
+                        }
+                    }
+                }
+                if (compPropBuilder.getPropertiesCount() > 0) {
+                    instanceBuilder.addComponentProperties(compPropBuilder);
+                }
+            }
         }
     }
 }
