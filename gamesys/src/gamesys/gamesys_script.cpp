@@ -183,6 +183,8 @@ namespace dmGameSystem
             {
                 uint8_t* prop_buffer = &buffer[msg_size];
                 prop_buffer_size = dmGameObject::LuaTableToProperties(L, 4, prop_buffer, buffer_size - msg_size);
+                if (prop_buffer_size == 0)
+                    return luaL_error(L, "the properties supplied to factory.create are too many.");
             }
             request->m_Id = dmGameObject::GenerateUniqueInstanceId(collection);
 

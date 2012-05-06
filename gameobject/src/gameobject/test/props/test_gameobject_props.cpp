@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/message.h>
 #include <resource/resource.h>
@@ -138,6 +139,26 @@ TEST_F(ScriptTest, PropsFailDefInInit)
     bool result = dmGameObject::Init(m_Collection);
     ASSERT_FALSE(result);
     dmGameObject::Delete(m_Collection, go);
+}
+
+TEST_F(ScriptTest, PropsFailLuaTableOverflow)
+{
+    lua_State* L = luaL_newstate();
+    const uint32_t original_count = 16;
+    lua_newtable(L);
+    for (uint32_t i = 0; i < original_count; ++i)
+    {
+        char key[3];
+        DM_SNPRINTF(key, 3, "%d", i);
+        lua_pushstring(L, key);
+        lua_pushnumber(L, i);
+        lua_settable(L, 1);
+    }
+    const uint32_t buffer_size = original_count*2;
+    uint8_t buffer[buffer_size];
+    uint32_t actual_size = dmGameObject::LuaTableToProperties(L, 1, buffer, buffer_size);
+    ASSERT_EQ(0u, actual_size);
+    lua_close(L);
 }
 
 int main(int argc, char **argv)

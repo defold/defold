@@ -202,45 +202,6 @@ namespace dmGameObject
         return true;
     }
 
-    static void SetProperty(const PropertyDef& property, uint8_t** out_cursor)
-    {
-        uint8_t* cursor = *out_cursor;
-        *(dmhash_t*)cursor = property.m_Id;
-        cursor += sizeof(dmhash_t);
-        *cursor = (uint8_t)property.m_Type;
-        ++cursor;
-        switch (property.m_Type)
-        {
-        case dmGameObjectDDF::PROPERTY_TYPE_NUMBER:
-            *(double*)cursor = property.m_Number;
-            cursor += sizeof(double);
-            break;
-        case dmGameObjectDDF::PROPERTY_TYPE_HASH:
-            *(dmhash_t*)cursor = property.m_Hash;
-            cursor += sizeof(dmhash_t);
-            break;
-        case dmGameObjectDDF::PROPERTY_TYPE_URL:
-            *(dmMessage::URL*)cursor = property.m_URL;
-            cursor += sizeof(dmMessage::URL);
-            break;
-        case dmGameObjectDDF::PROPERTY_TYPE_VECTOR3:
-            *(Vectormath::Aos::Vector3*)cursor = Vectormath::Aos::Vector3(property.m_V4[0], property.m_V4[1], property.m_V4[2]);
-            cursor += sizeof(Vectormath::Aos::Vector3);
-            break;
-        case dmGameObjectDDF::PROPERTY_TYPE_VECTOR4:
-            *(Vectormath::Aos::Vector4*)cursor = Vectormath::Aos::Vector4(property.m_V4[0], property.m_V4[1], property.m_V4[2], property.m_V4[3]);
-            cursor += sizeof(Vectormath::Aos::Vector4);
-            break;
-        case dmGameObjectDDF::PROPERTY_TYPE_QUAT:
-            *(Vectormath::Aos::Quat*)cursor = Vectormath::Aos::Quat(property.m_V4[0], property.m_V4[1], property.m_V4[2], property.m_V4[3]);
-            cursor += sizeof(Vectormath::Aos::Quat);
-            break;
-        default:
-            break;
-        }
-        *out_cursor = cursor;
-    }
-
     uint32_t GetValueSize(dmGameObjectDDF::PropertyType type)
     {
         switch (type)
@@ -260,6 +221,40 @@ namespace dmGameObject
         default:
             return 0;
         }
+    }
+
+    static void SetProperty(const PropertyDef& property, uint8_t** out_cursor)
+    {
+        uint8_t* cursor = *out_cursor;
+        *(dmhash_t*)cursor = property.m_Id;
+        cursor += sizeof(dmhash_t);
+        *cursor = (uint8_t)property.m_Type;
+        ++cursor;
+        switch (property.m_Type)
+        {
+        case dmGameObjectDDF::PROPERTY_TYPE_NUMBER:
+            *(double*)cursor = property.m_Number;
+            break;
+        case dmGameObjectDDF::PROPERTY_TYPE_HASH:
+            *(dmhash_t*)cursor = property.m_Hash;
+            break;
+        case dmGameObjectDDF::PROPERTY_TYPE_URL:
+            *(dmMessage::URL*)cursor = property.m_URL;
+            break;
+        case dmGameObjectDDF::PROPERTY_TYPE_VECTOR3:
+            *(Vectormath::Aos::Vector3*)cursor = Vectormath::Aos::Vector3(property.m_V4[0], property.m_V4[1], property.m_V4[2]);
+            break;
+        case dmGameObjectDDF::PROPERTY_TYPE_VECTOR4:
+            *(Vectormath::Aos::Vector4*)cursor = Vectormath::Aos::Vector4(property.m_V4[0], property.m_V4[1], property.m_V4[2], property.m_V4[3]);
+            break;
+        case dmGameObjectDDF::PROPERTY_TYPE_QUAT:
+            *(Vectormath::Aos::Quat*)cursor = Vectormath::Aos::Quat(property.m_V4[0], property.m_V4[1], property.m_V4[2], property.m_V4[3]);
+            break;
+        default:
+            break;
+        }
+        cursor += GetValueSize(property.m_Type);
+        *out_cursor = cursor;
     }
 
     static bool StringToURL(const char* s, dmMessage::URL* out_url)
@@ -389,6 +384,9 @@ namespace dmGameObject
 
     uint32_t LuaTableToProperties(lua_State* L, int index, uint8_t* buffer, uint32_t buffer_size)
     {
+        if (buffer_size <= 1)
+            return 0;
+
         uint8_t* cursor = buffer;
         // skip count, write later
         ++cursor;
@@ -450,7 +448,12 @@ namespace dmGameObject
             }
             if (valid_type)
             {
-                // TODO: Check overflow
+                uint32_t property_size = GetValueSize(p.m_Type);
+                uint32_t needed_size = (cursor - buffer) + sizeof(dmhash_t) + 1 + property_size;
+                if (needed_size > buffer_size)
+                {
+                    return 0;
+                }
                 SetProperty(p, &cursor);
                 ++count;
             }
