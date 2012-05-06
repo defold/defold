@@ -1,10 +1,14 @@
 #! /bin/bash
 
 download() {
-    [ -f $DYNAMO_EXT/cache/$1 ] && return
-    echo $1
-    scp "$REMOTE_PATH/$1" localhost:$DYNAMO_EXT/cache
-    [ ! 0 -eq $? ] && echo "Failed to download $1" && rm -f "$DYNAMO_EXT/cache/$1" && exit 1
+    pushd $DYNAMO_EXT/cache >/dev/null
+    if [ -f $1 ]; then
+        popd >/dev/null
+        return
+    fi
+    scp "$REMOTE_PATH/$1" .
+    [ ! 0 -eq $? ] && echo "Failed to download $1" && rm -f "$1" && exit 1
+    popd >/dev/null
 }
 
 # Set $USER_OVERRATED to $USER or $USERNAME if *not* set
