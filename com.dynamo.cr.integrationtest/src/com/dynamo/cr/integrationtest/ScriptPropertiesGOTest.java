@@ -37,35 +37,6 @@ public class ScriptPropertiesGOTest extends AbstractSceneTest {
 
     // Tests
 
-//    @Test
-//    public void testReloadComponentFromFile() throws Exception {
-//        String path = "/sprite/reload.sprite";
-//        String tileSet = "/tileset/test.tileset";
-//        String defaultAnimation = "test";
-//
-//        when(getPresenterContext().selectFile(anyString(), any(String[].class))).thenReturn(path);
-//        SpriteNode componentType = new SpriteNode();
-//        componentType.setTileSource(tileSet);
-//        componentType.setDefaultAnimation(defaultAnimation);
-//
-//        saveSpriteComponent(path, "", "");
-//
-//        GameObjectNode go = (GameObjectNode)getModel().getRoot();
-//        RefComponentNode component = new RefComponentNode(new SpriteNode());
-//        component.setComponent(path);
-//        AddComponentOperation op = new AddComponentOperation(go, component, getPresenterContext());
-//        getModel().executeOperation(op);
-//        assertThat(go.getChildren().size(), is(1));
-//        assertNodePropertyStatus(component, "component", IStatus.ERROR, null);
-//        ComponentTypeNode type = component.getType();
-//
-//        saveSpriteComponent(path, tileSet, defaultAnimation);
-//
-//        assertNodePropertyStatus(component, "component", IStatus.OK, null);
-//        assertThat((RefComponentNode)go.getChildren().get(0), is(component));
-//        assertThat(type, is(not(component.getType())));
-//    }
-
     @Test
     public void testAccess() throws Exception {
 
