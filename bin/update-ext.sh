@@ -3,7 +3,7 @@
 download() {
     [ -f $DYNAMO_EXT/cache/$1 ] && return
     echo $1
-    scp "$REMOTE_PATH/$1" $DYNAMO_EXT/cache
+    scp "$REMOTE_PATH/$1" localhost:$DYNAMO_EXT/cache
     [ ! 0 -eq $? ] && echo "Failed to download $1" && rm -f "$DYNAMO_EXT/cache/$1" && exit 1
 }
 
