@@ -1,6 +1,7 @@
 package com.dynamo.cr.go.core;
 
 import java.lang.annotation.Annotation;
+import java.util.List;
 import java.util.Map;
 
 import org.eclipse.swt.graphics.Image;
@@ -31,8 +32,8 @@ public class ComponentPropertyNode extends Node {
     }
 
     public String getComponentProperty(String id) {
-        Map<String, LuaPropertyParser.Property> defaults = this.ref.getPropertyDefaults();
-        if (defaults.containsKey(id)) {
+        LuaPropertyParser.Property defProp = ref.getPropertyDefault(id);
+        if (defProp != null) {
             String value = this.properties.get(id);
             if (value == null) {
                 value = this.ref.getComponentProperty(id);
@@ -46,7 +47,7 @@ public class ComponentPropertyNode extends Node {
         return this.ref.getComponentProperty(id);
     }
 
-    public Map<String, LuaPropertyParser.Property> getPropertyDefaults() {
+    public List<LuaPropertyParser.Property> getPropertyDefaults() {
         return this.ref.getPropertyDefaults();
     }
 
@@ -60,8 +61,8 @@ public class ComponentPropertyNode extends Node {
         @Override
         public void setValue(ComponentPropertyNode obj, String property, Object value,
                 ISceneModel world) {
-            Map<String, LuaPropertyParser.Property> defaults = ref.getPropertyDefaults();
-            if (defaults.containsKey(property)) {
+            LuaPropertyParser.Property defProp = ref.getPropertyDefault(property);
+            if (defProp != null) {
                 if (value.equals("")) {
                     properties.remove(property);
                 } else {

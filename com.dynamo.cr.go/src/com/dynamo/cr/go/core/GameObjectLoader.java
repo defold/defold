@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.eclipse.core.runtime.CoreException;
@@ -92,14 +93,13 @@ public class GameObjectLoader implements INodeLoader<GameObjectNode> {
                 componentBuilder.setId(component.getId());
                 componentBuilder.setComponent(component.getComponent());
                 // Store properties
-                Map<String, LuaPropertyParser.Property> propertyDefaults = component.getPropertyDefaults();
-                for (Map.Entry<String, LuaPropertyParser.Property> entry : propertyDefaults.entrySet()) {
-                    if (entry.getValue().getStatus() == LuaPropertyParser.Property.Status.OK) {
-                        String value = component.getComponentProperty(entry.getKey());
-                        LuaPropertyParser.Property property = entry.getValue();
+                List<LuaPropertyParser.Property> propertyDefaults = component.getPropertyDefaults();
+                for (LuaPropertyParser.Property property : propertyDefaults) {
+                    if (property.getStatus() == LuaPropertyParser.Property.Status.OK) {
+                        String value = component.getComponentProperty(property.getName());
                         if (value != null && !value.equals(property.getValue())) {
                             PropertyDesc.Builder propertyBuilder = PropertyDesc.newBuilder();
-                            propertyBuilder.setId(entry.getKey());
+                            propertyBuilder.setId(property.getName());
                             switch(property.getType()) {
                             case NUMBER:
                                 propertyBuilder.setType(GameObject.PropertyType.PROPERTY_TYPE_NUMBER);

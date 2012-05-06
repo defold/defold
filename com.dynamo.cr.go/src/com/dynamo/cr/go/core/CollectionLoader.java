@@ -136,16 +136,15 @@ public class CollectionLoader implements INodeLoader<CollectionNode> {
         for (Node instanceChild : instance.getChildren()) {
             if (instanceChild instanceof ComponentPropertyNode) {
                 ComponentPropertyNode compNode = (ComponentPropertyNode)instanceChild;
-                Map<String, LuaPropertyParser.Property> defaults = compNode.getPropertyDefaults();
+                List<LuaPropertyParser.Property> defaults = compNode.getPropertyDefaults();
                 ComponentPropertyDesc.Builder compPropBuilder = ComponentPropertyDesc.newBuilder();
                 compPropBuilder.setId(compNode.getId());
-                for (Map.Entry<String, LuaPropertyParser.Property> entry : defaults.entrySet()) {
-                    LuaPropertyParser.Property property = entry.getValue();
+                for (LuaPropertyParser.Property property : defaults) {
                     if (property.getStatus() == LuaPropertyParser.Property.Status.OK) {
-                        String value = compNode.getComponentProperty(entry.getKey());
-                        if (value != null && !value.equals(compNode.getDefaultComponentProperty(entry.getKey()))) {
+                        String value = compNode.getComponentProperty(property.getName());
+                        if (value != null && !value.equals(compNode.getDefaultComponentProperty(property.getName()))) {
                             PropertyDesc.Builder propBuilder = PropertyDesc.newBuilder();
-                            propBuilder.setId(entry.getKey());
+                            propBuilder.setId(property.getName());
                             switch (property.getType()) {
                             case NUMBER:
                                 propBuilder.setType(PropertyType.PROPERTY_TYPE_NUMBER);

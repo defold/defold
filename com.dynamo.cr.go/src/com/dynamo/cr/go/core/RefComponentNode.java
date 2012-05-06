@@ -3,7 +3,9 @@ package com.dynamo.cr.go.core;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.lang.annotation.Annotation;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.eclipse.core.resources.IFile;
@@ -39,7 +41,7 @@ public class RefComponentNode extends ComponentNode {
     private transient ComponentTypeNode type;
 
     private Map<String, String> prototypeProperties;
-    private Map<String, LuaPropertyParser.Property> propertyDefaults;
+    private List<LuaPropertyParser.Property> propertyDefaults;
 
     public RefComponentNode(ComponentTypeNode type) {
         super();
@@ -50,7 +52,7 @@ public class RefComponentNode extends ComponentNode {
             addChild(type);
         }
         this.prototypeProperties = new HashMap<String, String>();
-        this.propertyDefaults = new HashMap<String, LuaPropertyParser.Property>();
+        this.propertyDefaults = new ArrayList<LuaPropertyParser.Property>();
     }
 
     public String getComponent() {
@@ -78,7 +80,7 @@ public class RefComponentNode extends ComponentNode {
         }
     }
 
-    public Map<String, LuaPropertyParser.Property> getPropertyDefaults() {
+    public List<LuaPropertyParser.Property> getPropertyDefaults() {
         return this.propertyDefaults;
     }
 
@@ -154,12 +156,22 @@ public class RefComponentNode extends ComponentNode {
     }
 
     public String getComponentProperty(String id) {
-        if (this.propertyDefaults.containsKey(id)) {
+        LuaPropertyParser.Property defProp = getPropertyDefault(id);
+        if (defProp != null) {
             String value = this.prototypeProperties.get(id);
             if (value == null) {
-                value = this.propertyDefaults.get(id).getValue();
+                value = defProp.getValue();
             }
             return value;
+        }
+        return null;
+    }
+
+    public LuaPropertyParser.Property getPropertyDefault(String id) {
+        for (LuaPropertyParser.Property property : this.propertyDefaults) {
+            if (property.getName().equals(id)) {
+                return property;
+            }
         }
         return null;
     }
@@ -179,7 +191,7 @@ public class RefComponentNode extends ComponentNode {
                 LuaPropertyParser.Property[] properties = LuaPropertyParser.parse(buffer.toString());
                 for (LuaPropertyParser.Property property : properties) {
                     if (property.getStatus() == LuaPropertyParser.Property.Status.OK) {
-                        this.propertyDefaults.put(property.getName(), property);
+                        this.propertyDefaults.add(property);
                     }
                 }
             } catch (Exception e) {
@@ -193,16 +205,16 @@ public class RefComponentNode extends ComponentNode {
     public IPropertyDesc<RefComponentNode, ISceneModel>[] getDynamicProperties() {
         IPropertyDesc<RefComponentNode, ISceneModel>[] descs = new IPropertyDesc[this.propertyDefaults.size()];
         int i = 0;
-        for (Map.Entry<String, LuaPropertyParser.Property> entry : this.propertyDefaults.entrySet()) {
-            if (entry.getValue().getStatus() == LuaPropertyParser.Property.Status.OK) {
-                String name = entry.getKey();
+        for (LuaPropertyParser.Property defProp : this.propertyDefaults) {
+            if (defProp.getStatus() == LuaPropertyParser.Property.Status.OK) {
+                String name = defProp.getName();
                 String[] tokens = name.split("_");
                 name = tokens[0];
                 int tokenCount = tokens.length;
                 for (int j = 1; j < tokenCount; ++j) {
                     name += tokens[j].substring(0, 1).toUpperCase() + tokens[j].substring(1);
                 }
-                descs[i] = new TextPropertyDesc<RefComponentNode, ISceneModel>(entry.getKey(), name, EditorType.DEFAULT);
+                descs[i] = new TextPropertyDesc<RefComponentNode, ISceneModel>(defProp.getName(), name, EditorType.DEFAULT);
             }
             ++i;
         }
@@ -214,7 +226,8 @@ public class RefComponentNode extends ComponentNode {
         @Override
         public void setValue(RefComponentNode obj, String property, Object value,
                 ISceneModel world) {
-            if (propertyDefaults.containsKey(property)) {
+            LuaPropertyParser.Property defProp = getPropertyDefault(property);
+            if (defProp != null) {
                 if (value.equals("")) {
                     prototypeProperties.remove(property);
                 } else {
@@ -266,7 +279,7 @@ public class RefComponentNode extends ComponentNode {
         @Override
         public IStatus validate(Annotation validationParameters, Object object,
                 String property, Object value, ISceneModel world) {
-            LuaPropertyParser.Property p = propertyDefaults.get(property);
+            LuaPropertyParser.Property p = getPropertyDefault(property);
             switch (p.getType()) {
             case NUMBER:
                 try {
