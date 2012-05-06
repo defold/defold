@@ -10,7 +10,7 @@
       <programArgsLin>-vm
 ./jre/bin</programArgsLin>
       <programArgsWin>-vm
-jre\bin\javaw.exe</programArgsWin>
+jre_win32\bin\javaw.exe</programArgsWin>
       <vmArgs>-Declipse.p2.unsignedPolicy=allow</vmArgs>
       <vmArgsMac>-XstartOnFirstThread -Dorg.eclipse.swt.internal.carbon.smallFonts</vmArgsMac>
    </launcherArgs>
