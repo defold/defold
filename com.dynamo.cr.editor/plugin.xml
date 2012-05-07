@@ -371,10 +371,10 @@
             activityId="com.dynamo.cr.editor.activities.disableEclipseUI"
             pattern="org\.eclipse\.equinox\.p2\.ui\.sdk/org\.eclipse\.equinox\.p2\.ui\.sdk\.update">
       </activityPatternBinding>
-      <activityPatternBinding
+      <!--activityPatternBinding
             activityId="com.dynamo.cr.editor.activities.disableEclipseUI"
             pattern="org\.eclipse\.equinox\.p2\.ui\.sdk/org\.eclipse\.equinox\.p2\.ui\.sdk\.install">
-      </activityPatternBinding>
+      </activityPatternBinding-->
       <activityPatternBinding
             activityId="com.dynamo.cr.editor.activities.disableEclipseUI"
             pattern="org\.eclipse\.team\.ui/org\.eclipse\.team\.ui\.applyPatch">
