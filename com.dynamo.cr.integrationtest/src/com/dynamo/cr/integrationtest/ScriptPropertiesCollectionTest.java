@@ -91,8 +91,8 @@ public class ScriptPropertiesCollectionTest extends AbstractSceneTest {
 
     @Test
     public void testSave() throws Exception {
-        IFile goFile = (IFile)getContentRoot().findMember("/collection/props.collection");
-        getPresenter().onLoad("collection", goFile.getContents());
+        IFile collectionFile = (IFile)getContentRoot().findMember("/collection/props.collection");
+        getPresenter().onLoad("collection", collectionFile.getContents());
 
         CollectionNode collection = (CollectionNode)getModel().getRoot();
         GameObjectInstanceNode gameObject = (GameObjectInstanceNode)collection.getChildren().get(0);
@@ -104,9 +104,9 @@ public class ScriptPropertiesCollectionTest extends AbstractSceneTest {
 
         ByteArrayOutputStream stream = new ByteArrayOutputStream();
         getPresenter().onSave(stream, null);
-        goFile.setContents(new ByteArrayInputStream(stream.toByteArray()), false, true, null);
+        collectionFile.setContents(new ByteArrayInputStream(stream.toByteArray()), false, true, null);
 
-        getPresenter().onLoad("collection", goFile.getContents());
+        getPresenter().onLoad("collection", collectionFile.getContents());
         collection = (CollectionNode)getModel().getRoot();
         gameObject = (GameObjectInstanceNode)collection.getChildren().get(0);
         component = (ComponentPropertyNode)gameObject.getChildren().get(1);
@@ -128,5 +128,38 @@ public class ScriptPropertiesCollectionTest extends AbstractSceneTest {
         saveScript("/script/props.script", "go.property(\"number2\", 0)");
 
         getNodeProperty(component, "number");
+    }
+
+    @Test
+    public void testSavePropEqualToDefault() throws Exception {
+        getPresenter().onLoad("collection", ((IFile)getContentRoot().findMember("/collection/empty_props_go.collection")).getContents());
+
+        CollectionNode collection = (CollectionNode)getModel().getRoot();
+        GameObjectInstanceNode gameObject = (GameObjectInstanceNode)collection.getChildren().get(0);
+        ComponentPropertyNode component = (ComponentPropertyNode)gameObject.getChildren().get(1);
+
+        assertEquals("3", getNodeProperty(component, "number"));
+
+        // Set to default
+        setNodeProperty(component, "number", "1");
+
+        // Save file
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        getPresenter().onSave(stream, null);
+        IFile collectionFile = (IFile)getContentRoot().findMember("/collection/empty_props_go.collection");
+        collectionFile.setContents(new ByteArrayInputStream(stream.toByteArray()), false, true, null);
+
+        // Change script to new value
+        saveScript("/script/props.script", "go.property(\"number\", 3)");
+
+        // Load file again
+        getPresenter().onLoad("collection", ((IFile)getContentRoot().findMember("/collection/empty_props_go.collection")).getContents());
+
+        collection = (CollectionNode)getModel().getRoot();
+        gameObject = (GameObjectInstanceNode)collection.getChildren().get(0);
+        component = (ComponentPropertyNode)gameObject.getChildren().get(1);
+
+        // Verify new value
+        assertEquals("1", getNodeProperty(component, "number"));
     }
 }

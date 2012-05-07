@@ -43,6 +43,10 @@ public class ComponentPropertyNode extends Node {
         return null;
     }
 
+    public Map<String, String> getComponentProperties() {
+        return this.properties;
+    }
+
     public String getDefaultComponentProperty(String id) {
         return this.ref.getComponentProperty(id);
     }

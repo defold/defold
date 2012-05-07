@@ -167,6 +167,10 @@ public class RefComponentNode extends ComponentNode {
         return null;
     }
 
+    public Map<String, String> getPrototypeProperties() {
+        return this.prototypeProperties;
+    }
+
     public LuaPropertyParser.Property getPropertyDefault(String id) {
         for (LuaPropertyParser.Property property : this.propertyDefaults) {
             if (property.getName().equals(id)) {

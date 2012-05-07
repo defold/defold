@@ -94,10 +94,11 @@ public class GameObjectLoader implements INodeLoader<GameObjectNode> {
                 componentBuilder.setComponent(component.getComponent());
                 // Store properties
                 List<LuaPropertyParser.Property> propertyDefaults = component.getPropertyDefaults();
+                Map<String, String> properties = component.getPrototypeProperties();
                 for (LuaPropertyParser.Property property : propertyDefaults) {
                     if (property.getStatus() == LuaPropertyParser.Property.Status.OK) {
-                        String value = component.getComponentProperty(property.getName());
-                        if (value != null && !value.equals(property.getValue())) {
+                        String value = properties.get(property.getName());
+                        if (value != null) {
                             PropertyDesc.Builder propertyBuilder = PropertyDesc.newBuilder();
                             propertyBuilder.setId(property.getName());
                             switch(property.getType()) {

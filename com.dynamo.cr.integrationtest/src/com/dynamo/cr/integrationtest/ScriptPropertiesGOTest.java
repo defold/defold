@@ -123,4 +123,35 @@ public class ScriptPropertiesGOTest extends AbstractSceneTest {
 
         getNodeProperty(component, "number");
     }
+
+    @Test
+    public void testSavePropEqualToDefault() throws Exception {
+        getPresenter().onLoad("go", ((IFile)getContentRoot().findMember("/game_object/props.go")).getContents());
+
+        GameObjectNode gameObject = (GameObjectNode)getModel().getRoot();
+        RefComponentNode component = (RefComponentNode)gameObject.getChildren().get(0);
+
+        assertEquals("2", getNodeProperty(component, "number"));
+
+        // Set to default
+        setNodeProperty(component, "number", "1");
+
+        // Save file
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        getPresenter().onSave(stream, null);
+        IFile goFile = (IFile)getContentRoot().findMember("/game_object/props.go");
+        goFile.setContents(new ByteArrayInputStream(stream.toByteArray()), false, true, null);
+
+        // Change script to new value
+        saveScript("/script/props.script", "go.property(\"number\", 2)");
+
+        // Load file again
+        getPresenter().onLoad("go", ((IFile)getContentRoot().findMember("/game_object/props.go")).getContents());
+
+        gameObject = (GameObjectNode)getModel().getRoot();
+        component = (RefComponentNode)gameObject.getChildren().get(0);
+
+        // Verify new value
+        assertEquals("1", getNodeProperty(component, "number"));
+    }
 }

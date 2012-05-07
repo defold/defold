@@ -137,12 +137,13 @@ public class CollectionLoader implements INodeLoader<CollectionNode> {
             if (instanceChild instanceof ComponentPropertyNode) {
                 ComponentPropertyNode compNode = (ComponentPropertyNode)instanceChild;
                 List<LuaPropertyParser.Property> defaults = compNode.getPropertyDefaults();
+                Map<String, String> properties = compNode.getComponentProperties();
                 ComponentPropertyDesc.Builder compPropBuilder = ComponentPropertyDesc.newBuilder();
                 compPropBuilder.setId(compNode.getId());
                 for (LuaPropertyParser.Property property : defaults) {
                     if (property.getStatus() == LuaPropertyParser.Property.Status.OK) {
-                        String value = compNode.getComponentProperty(property.getName());
-                        if (value != null && !value.equals(compNode.getDefaultComponentProperty(property.getName()))) {
+                        String value = properties.get(property.getName());
+                        if (value != null) {
                             PropertyDesc.Builder propBuilder = PropertyDesc.newBuilder();
                             propBuilder.setId(property.getName());
                             switch (property.getType()) {
