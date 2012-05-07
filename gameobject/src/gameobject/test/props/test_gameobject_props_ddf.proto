@@ -1,0 +1,6 @@
+package TestGameObjectDDF;
+
+message NoUserDataResource
+{
+    required uint32 dummy = 1;
+}

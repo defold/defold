@@ -1,0 +1,4 @@
+components {
+  id: "no_user_data"
+  component: "/dummy.no_user_datac"
+}

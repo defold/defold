@@ -1,0 +1,10 @@
+components {
+  id: "script1"
+  component: "/props_multi_script.scriptc"
+  properties {id: "number1" value: "1" type: PROPERTY_TYPE_NUMBER}
+}
+components {
+  id: "script2"
+  component: "/props_multi_script.scriptc"
+  properties {id: "number1" value: "2" type: PROPERTY_TYPE_NUMBER}
+}

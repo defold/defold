@@ -1,0 +1,13 @@
+name: "main"
+instances {
+  id: "props_multi_script"
+  prototype: "/props_multi_script.goc"
+  component_properties {
+    id: "script1"
+    properties {id: "number2" value: "3" type: PROPERTY_TYPE_NUMBER}
+  }
+  component_properties {
+    id: "script2"
+    properties {id: "number2" value: "2" type: PROPERTY_TYPE_NUMBER}
+  }
+}

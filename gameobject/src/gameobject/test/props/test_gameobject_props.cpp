@@ -10,7 +10,37 @@
 
 using namespace Vectormath::Aos;
 
-class ScriptTest : public ::testing::Test
+dmResource::Result ResCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, dmResource::SResourceDescriptor* resource, const char* filename)
+{
+    // The resource is not relevant for this test
+    resource->m_Resource = (void*)new uint8_t[4];
+    return dmResource::RESULT_OK;
+}
+dmResource::Result ResDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource)
+{
+    // The resource is not relevant for this test
+    delete [] (uint8_t*)resource->m_Resource;
+    return dmResource::RESULT_OK;
+}
+
+dmGameObject::CreateResult CompNoUserDataCreate(const dmGameObject::ComponentCreateParams& params)
+{
+    return dmGameObject::CREATE_RESULT_OK;
+}
+
+dmGameObject::CreateResult CompNoUserDataDestroy(const dmGameObject::ComponentDestroyParams& params)
+{
+    return dmGameObject::CREATE_RESULT_OK;
+}
+
+void CompNoUserDataSetProperties(const dmGameObject::ComponentSetPropertiesParams& params)
+{
+    // The test is that this function should never be reached
+    dmGameObject::HProperties properties = (dmGameObject::HProperties)*params.m_UserData;
+    dmGameObject::SetProperties(properties, params.m_PropertyBuffer, params.m_PropertyBufferSize);
+}
+
+class PropsTest : public ::testing::Test
 {
 protected:
     virtual void SetUp()
@@ -27,6 +57,25 @@ protected:
         dmGameObject::RegisterResourceTypes(m_Factory, m_Register);
         dmGameObject::RegisterComponentTypes(m_Factory, m_Register);
         m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
+
+        // Register dummy physical resource type
+        dmResource::Result e = dmResource::RegisterType(m_Factory, "no_user_datac", this, ResCreate, ResDestroy, 0);
+        ASSERT_EQ(dmResource::RESULT_OK, e);
+
+        uint32_t resource_type;
+        dmGameObject::Result result;
+
+        e = dmResource::GetTypeFromExtension(m_Factory, "no_user_datac", &resource_type);
+        ASSERT_EQ(dmResource::RESULT_OK, e);
+        dmGameObject::ComponentType no_user_data_type;
+        no_user_data_type.m_Name = "no_user_datac";
+        no_user_data_type.m_ResourceType = resource_type;
+        no_user_data_type.m_CreateFunction = CompNoUserDataCreate;
+        no_user_data_type.m_DestroyFunction = CompNoUserDataDestroy;
+        no_user_data_type.m_SetPropertiesFunction = CompNoUserDataSetProperties;
+        no_user_data_type.m_InstanceHasUserData = false;
+        result = dmGameObject::RegisterComponentType(m_Register, no_user_data_type);
+        ASSERT_EQ(dmGameObject::RESULT_OK, result);
     }
 
     virtual void TearDown()
@@ -47,7 +96,7 @@ public:
     const char* m_Path;
 };
 
-TEST_F(ScriptTest, PropsDefault)
+TEST_F(PropsTest, PropsDefault)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/props_default.goc");
     ASSERT_NE((void*) 0, (void*) go);
@@ -57,7 +106,7 @@ TEST_F(ScriptTest, PropsDefault)
     dmGameObject::Delete(m_Collection, go);
 }
 
-TEST_F(ScriptTest, PropsGO)
+TEST_F(PropsTest, PropsGO)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/props_go.goc");
     ASSERT_NE((void*) 0, (void*) go);
@@ -67,7 +116,7 @@ TEST_F(ScriptTest, PropsGO)
     dmGameObject::Delete(m_Collection, go);
 }
 
-TEST_F(ScriptTest, PropsCollection)
+TEST_F(PropsTest, PropsCollection)
 {
     dmGameObject::HCollection collection;
     dmResource::Result res = dmResource::Get(m_Factory, "/props_coll.collectionc", (void**)&collection);
@@ -78,7 +127,7 @@ TEST_F(ScriptTest, PropsCollection)
     dmResource::Release(m_Factory, collection);
 }
 
-TEST_F(ScriptTest, PropsSubCollection)
+TEST_F(PropsTest, PropsSubCollection)
 {
     dmGameObject::HCollection collection;
     dmResource::Result res = dmResource::Get(m_Factory, "/props_sub.collectionc", (void**)&collection);
@@ -88,51 +137,61 @@ TEST_F(ScriptTest, PropsSubCollection)
     dmResource::Release(m_Factory, collection);
 }
 
-TEST_F(ScriptTest, PropsFailDefaultURL)
+TEST_F(PropsTest, PropsMultiScript)
+{
+    dmGameObject::HCollection collection;
+    dmResource::Result res = dmResource::Get(m_Factory, "/props_multi_script.collectionc", (void**)&collection);
+    ASSERT_EQ(dmResource::RESULT_OK, res);
+    bool result = dmGameObject::Init(collection);
+    ASSERT_TRUE(result);
+    dmResource::Release(m_Factory, collection);
+}
+
+TEST_F(PropsTest, PropsFailDefaultURL)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/props_fail_default_url.goc");
     ASSERT_EQ((void*) 0, (void*) go);
 }
 
-TEST_F(ScriptTest, PropsFailRelURL)
+TEST_F(PropsTest, PropsFailRelURL)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/props_fail_rel_url.goc");
     ASSERT_EQ((void*) 0, (void*) go);
 }
 
-TEST_F(ScriptTest, PropsFailOverflowDefs)
+TEST_F(PropsTest, PropsFailOverflowDefs)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/props_fail_overflow_defs.goc");
     ASSERT_EQ((void*) 0, (void*) go);
 }
 
-TEST_F(ScriptTest, PropsFailOverflowGo)
+TEST_F(PropsTest, PropsFailOverflowGo)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/props_fail_overflow_go.goc");
     ASSERT_EQ((void*) 0, (void*) go);
 }
 
-TEST_F(ScriptTest, PropsFailOverflowColl)
+TEST_F(PropsTest, PropsFailOverflowColl)
 {
     dmGameObject::HCollection collection;
     dmResource::Result res = dmResource::Get(m_Factory, "/props_fail_overflow_coll.collectionc", (void**)&collection);
     ASSERT_NE(dmResource::RESULT_OK, res);
 }
 
-TEST_F(ScriptTest, PropsFailUnsuppGo)
+TEST_F(PropsTest, PropsFailUnsuppGo)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/props_fail_unsupp_go.goc");
     ASSERT_EQ((void*) 0, (void*) go);
 }
 
-TEST_F(ScriptTest, PropsFailUnsuppColl)
+TEST_F(PropsTest, PropsFailUnsuppColl)
 {
     dmGameObject::HCollection collection;
     dmResource::Result res = dmResource::Get(m_Factory, "/props_fail_unsupp_coll.collectionc", (void**)&collection);
     ASSERT_NE(dmResource::RESULT_OK, res);
 }
 
-TEST_F(ScriptTest, PropsFailDefInInit)
+TEST_F(PropsTest, PropsFailDefInInit)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/props_fail_def_in_init.goc");
     ASSERT_NE((void*) 0, (void*) go);
@@ -141,7 +200,7 @@ TEST_F(ScriptTest, PropsFailDefInInit)
     dmGameObject::Delete(m_Collection, go);
 }
 
-TEST_F(ScriptTest, PropsFailLuaTableOverflow)
+TEST_F(PropsTest, PropsFailLuaTableOverflow)
 {
     lua_State* L = luaL_newstate();
     const uint32_t original_count = 16;
@@ -159,6 +218,13 @@ TEST_F(ScriptTest, PropsFailLuaTableOverflow)
     uint32_t actual_size = dmGameObject::LuaTableToProperties(L, 1, buffer, buffer_size);
     ASSERT_EQ(0u, actual_size);
     lua_close(L);
+}
+
+TEST_F(PropsTest, PropsFailNoUserData)
+{
+    dmGameObject::HCollection collection;
+    dmResource::Result res = dmResource::Get(m_Factory, "/props_fail_no_user_data.collectionc", (void**)&collection);
+    ASSERT_NE(dmResource::RESULT_OK, res);
 }
 
 int main(int argc, char **argv)

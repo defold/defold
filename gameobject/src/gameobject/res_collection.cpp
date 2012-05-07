@@ -98,49 +98,43 @@ namespace dmGameObject
                     }
                     dmArray<Prototype::Component>& components = instance->m_Prototype->m_Components;
                     ComponentType* type = components[index].m_Type;
-                    // TODO: fix this better
-                    uint32_t next_component_instance_data = 0;
-                    uint32_t comp_count = components.Size();
-                    uintptr_t* component_instance_data = 0;
-                    for (uint32_t j = 0; j < comp_count; ++j)
+                    if (!type->m_InstanceHasUserData || type->m_SetPropertiesFunction == 0x0)
                     {
-                        Prototype::Component& component = components[i];
-                        ComponentType* component_type = component.m_Type;
-                        if (component_type->m_InstanceHasUserData)
-                        {
-                            component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data++];
-                        }
-                        if (component_type == type)
-                        {
-                            break;
-                        }
+                        dmLogError("Unable to set properties for the component '%s' in game object '%s' since it has no ability to store them.", comp_prop.m_Id, instance_desc.m_Id);
+                        res = dmResource::RESULT_FORMAT_ERROR;
+                        goto bail;
                     }
-                    if (type->m_SetPropertiesFunction != 0x0)
+
+                    ComponentSetPropertiesParams params;
+                    params.m_Instance = instance;
+                    const uint32_t buffer_size = 1024;
+                    uint8_t buffer[buffer_size];
+                    uint32_t actual = SerializeProperties(comp_prop.m_Properties.m_Data, comp_prop.m_Properties.m_Count, buffer, buffer_size);
+                    if (actual == 0)
                     {
-                        ComponentSetPropertiesParams params;
-                        params.m_Instance = instance;
-                        const uint32_t buffer_size = 1024;
-                        uint8_t buffer[buffer_size];
-                        uint32_t actual = SerializeProperties(comp_prop.m_Properties.m_Data, comp_prop.m_Properties.m_Count, buffer, buffer_size);
-                        if (actual == 0)
+                        dmLogError("Could not instantiate game object '%s' in collection %s.", instance_desc.m_Id, filename);
+                        res = dmResource::RESULT_FORMAT_ERROR;
+                        goto bail;
+                    }
+                    else if (buffer_size < actual)
+                    {
+                        dmLogError("Properties could not be stored when loading %s: too many properties.", filename);
+                        res = dmResource::RESULT_FORMAT_ERROR;
+                        goto bail;
+                    }
+                    else
+                    {
+                        uint32_t component_instance_data_index = 0;
+                        for (uint32_t j = 0; j < index; ++j)
                         {
-                            dmLogError("Could not instantiate game object '%s' in collection %s.", instance_desc.m_Id, filename);
-                            res = dmResource::RESULT_FORMAT_ERROR;
-                            goto bail;
+                            if (components[i].m_Type->m_InstanceHasUserData)
+                                ++component_instance_data_index;
                         }
-                        else if (buffer_size < actual)
-                        {
-                            dmLogError("Properties could not be stored when loading %s: too many properties.", filename);
-                            res = dmResource::RESULT_FORMAT_ERROR;
-                            goto bail;
-                        }
-                        else
-                        {
-                            params.m_PropertyBuffer = buffer;
-                            params.m_PropertyBufferSize = actual;
-                            params.m_UserData = component_instance_data;
-                            type->m_SetPropertiesFunction(params);
-                        }
+                        uintptr_t* component_instance_data = &instance->m_ComponentInstanceUserData[component_instance_data_index];
+                        params.m_PropertyBuffer = buffer;
+                        params.m_PropertyBufferSize = actual;
+                        params.m_UserData = component_instance_data;
+                        type->m_SetPropertiesFunction(params);
                     }
                 }
             }

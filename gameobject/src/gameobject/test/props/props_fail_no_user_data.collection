@@ -1,0 +1,9 @@
+name: "main"
+instances {
+  id: "dummy_id"
+  prototype: "/props_fail_no_user_data.goc"
+  component_properties {
+    id: "no_user_data"
+    properties {id: "dummy" value: "0" type: PROPERTY_TYPE_NUMBER}
+  }
+}
