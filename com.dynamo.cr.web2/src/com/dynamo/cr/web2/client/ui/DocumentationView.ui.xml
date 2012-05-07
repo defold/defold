@@ -22,6 +22,7 @@
                                 <li><g:Hyperlink targetHistoryToken="!guide:introduction">Introduction</g:Hyperlink></li>
                                 <li><g:Hyperlink targetHistoryToken="!guide:scripting_debugging">Scripting &amp; Debugging</g:Hyperlink></li>
                                 <li><g:Hyperlink targetHistoryToken="!guide:message_passing">Message Passing</g:Hyperlink></li>
+                                <li><g:Hyperlink targetHistoryToken="!guide:script_properties">Script Properties</g:Hyperlink></li>
                                 <li><g:Hyperlink targetHistoryToken="!guide:reload">Hot Reloading</g:Hyperlink></li>
                                 <li><g:Hyperlink targetHistoryToken="!guide:physics">Physics</g:Hyperlink></li>
                                 <li><g:Hyperlink targetHistoryToken="!guide:tiles">Tiles</g:Hyperlink></li>
