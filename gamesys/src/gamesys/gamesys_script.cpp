@@ -122,11 +122,14 @@ namespace dmGameSystem
      * Which factory to create the game object is identified by the URL.
      * The game object will be created between this frame and the next.
      *
+     * Properties defined in scripts in the created game object can be overridden through the properties-parameter below.
+     * See go.property for more information on script properties.
+     *
      * @name factory.create
      * @param url the factory that should create a game object (url)
      * @param [position] the position of the new game object, the position of the game object containing the factory is used by default (vector3)
      * @param [rotation] the rotation of the new game object, the rotation of the game object containing the factory is used by default (quat)
-     * @param [init-params] the parameters that will be the sent to the init-functions of any scripts attached to the new game object (table)
+     * @param [properties] the properties defined in a script attached to the new game object (table)
      * @return the id of the spawned game object (hash)
      * @examples
      * How to create a new game object:
@@ -142,8 +145,10 @@ namespace dmGameSystem
      * </pre>
      * And then let the new game object have a script attached:
      * <pre>
+     * go.property("my_value", 0)
+     *
      * function init(self, params)
-     *     -- do something with params.my_value
+     *     -- do something with params.my_value which is now one
      * end
      */
     int FactoryComp_Create(lua_State* L)

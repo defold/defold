@@ -306,6 +306,34 @@ namespace dmGameObject
         return 2;
     }
 
+    /*# define a property to be used throughout the script
+     * This function defines a property which can then be used in the script through the self-reference.
+     * The properties defined this way are automatically exposed in the editor in game objects and collections which use the script.
+     * Note that you can only use this function outside any callback-functions like init and update.
+     *
+     * @name go.property
+     * @param x x-coordinate of the screen space position (number)
+     * @param y y-coordinate of the screen space position (number)
+     * @return position and direction of the ray in world space (vmath.vector3, vmath.vector3)
+     * @examples
+     * This example demonstrates how to define a property called "health" in a script.
+     * The health is decreased whenever someone sends a message called "take_damage" to the script.
+     * <pre>
+     * go.property("health", 100)
+     *
+     * function init(self)
+     *     -- prints 100 to the output
+     *     print(self.health)
+     * end
+     *
+     * function on_message(self, message_id, message, sender)
+     *     if message_id == hash("take_damage") then
+     *         self.health = self.health - message.damage
+     *         print("Ouch! My health is now: " .. self.health)
+     *     end
+     * end
+     * </pre>
+     */
     int Script_Property(lua_State* L)
     {
         int top = lua_gettop(L);
