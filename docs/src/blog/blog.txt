@@ -1,5 +1,118 @@
 :max-width: 45em
 
+Release: 1.1.6
+--------------
+_May 8, 2012_
+
+This release features Script Properties, improved auto-completion when scripting, fixed auto-update on Windows and login through Yahoo.
+We apologize that this release took longer than expected.
+Remember to voice your opinions in the link:http://defold.userecho.com[Forums], all feedback is more than welcome.
+
+Script Properties
+~~~~~~~~~~~~~~~~~
+
+We have now implemented a first version of the Script Properties.
+You can now declare properties inside your scripts and have them automatically appear in the Properties View when they are used in game objects and collections.
+More info on how to use them is available in the new link:#!guide:script_properties[Script Properties] user guide.
+
+Improved Auto-Completion
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Auto-completion for scripts brings up a list inside the script of the available functions and messages.
+You trigger it with Ctrl+Space (Cmd+Space for Mac users).
+This is a really handy way to see what's available, as it also contains documentation and examples.
+The standard Lua functions are not yet included.
+
+Auto-Update on Windows
+~~~~~~~~~~~~~~~~~~~~~~
+
+This is only relevant for Windows users who currently have the Defold Editor installed.
+
+We have finally managed to get the automatic updating of the Defold Editor to work on Windows.
+This means that the version you currently have installed still contains the error and needs to be removed.
+Follow these steps:
+
+. Open the editor
+. Select "No" when asked about updating to 1.1.6
+. Open each of your projects and make sure they are synced (File > Synchronize), the Changed Files View should be empty for each opened project
+. Remove the editor from your computer
+. Download a new one from the link:#!dashboard:[Dashboard]
+
+Yahoo
+~~~~~
+
+We have added the ability to login with Yahoo-accounts.
+If you want us to add more providers, let us know in the link:http://defold.userecho.com[Forums].
+
+Other Fixes
+~~~~~~~~~~~
+
+. The function msg.url() with no arguments now creates an empty URL which can't be used for message passing
+. Fonts were not properly rebuilt when TTF-files were updated
+. Drop-down lists for fonts and textures in the Gui Editor
+. Wizards for creating new files are easier to use
+. Optimizations for editing in the Properties View
+. The rendering supports camera components
+. Ray-casting against tile maps could cause the engine to crash
+
+Known Bugs
+~~~~~~~~~~
+
+. The editor is slow when editing collections with much content
+
+More Info
+~~~~~~~~~
+
+Script Properties
+^^^^^^^^^^^^^^^^^
+
+The Script Properties feature proved to be much harder to implement the way we wanted it to work.
+The current implementation is crude and limited in functionality, but we still hope it will simplify your work.
+This feature was the biggest reason for the delayed release.
+Even though we had planned it thoroughly, there were many unknowns that popped up in the implementation stage.
+We have been discussing different approaches to counter these things in the future.
+
+Prototyping
++++++++++++
+
+Start by implementing a prototype for the sole purpose of understanding the problem better.
+This would be followed by design, planning and implementation.
+
+Branching
++++++++++
+
+We currently only use one branch for each repository in our code base.
+By branching features like these, we can still provide a frequent update cycle when a feature takes more time than expected.
+
+Windows Auto-Update Problem
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The Defold Editor is based on the Eclipse RCP framework.
+The provisioning platform, which handles updating of the application, is called p2.
+To simplify the installation process we also bundle Java inside the editor, specifically the JRE.
+These files are used when running the editor, which are then locked on Windows.
+The problem was that p2 tried to uninstall these files while they were locked, failed and left the editor in a very confused state.
+This is a link:https://bugs.eclipse.org/bugs/show_bug.cgi?id=300812[known bug] in p2.
+To solve it we have instead manually attached the JRE to the zip, so p2 leaves it alone when updating.
+The drawback is that we then lose the ability to update the JRE automatically.
+As that's something we plan to do very rarely, it's a drawback we can accept.
+
+Slow Editor
+^^^^^^^^^^^
+
+We currently haven't implemented a resource management system for the editor yet.
+Such a system makes sure that resources, like textures, are reused instead of being loaded over and over and duplicated in the memory.
+This is one of the reasons why the editor is so slow when using many resources (like in a big collection).
+
+It can also become slower and consume more memory when you have many visual files opened.
+We haven't investigated this yet, but we suspect there are memory leaks involved in the current resource handling.
+
+Editing files can also be slow when many files are opened.
+One of the reasons for this is that we do a lot of state checking to keep the status up to date for the different files, like tracking errors etc.
+
+We'd just like you to know for now that this is of great concern to us and we long to start improving these things.
+If this is of great concern to you too, please let us know in the link:http://defold.userecho.com[forums] so we can adjust the priorities.
+
 Release: 1.1.5
 --------------
 _April 16, 2012_
