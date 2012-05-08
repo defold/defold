@@ -60,7 +60,7 @@ public abstract class AbstractResource<F extends IFileSystem> implements IResour
     @Override
     public IResource getResource(String name) {
         String basePath = FilenameUtils.getPath(this.path);
-        String fullPath = FilenameUtils.concat(basePath, name);
+        String fullPath = FilenameUtils.normalize(FilenameUtils.concat(basePath, name), true);
         return this.fileSystem.get(fullPath);
     }
 
