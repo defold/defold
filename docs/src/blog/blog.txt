@@ -15,6 +15,10 @@ We have now implemented a first version of the Script Properties.
 You can now declare properties inside your scripts and have them automatically appear in the Properties View when they are used in game objects and collections.
 More info on how to use them is available in the new link:#!guide:script_properties[Script Properties] user guide.
 
+[IMPORTANT]
+If you currently create game objects through a factory and pass custom properties to the created game object, you have to declare those properties in the script for it to work.
+See the link:#!guide:script_properties[user guide] for more info on this.
+
 Improved Auto-Completion
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -47,18 +51,18 @@ If you want us to add more providers, let us know in the link:http://defold.user
 Other Fixes
 ~~~~~~~~~~~
 
-. The function msg.url() with no arguments now creates an empty URL which can't be used for message passing
-. Fonts were not properly rebuilt when TTF-files were updated
-. Drop-down lists for fonts and textures in the Gui Editor
-. Wizards for creating new files are easier to use
-. Optimizations for editing in the Properties View
-. The rendering supports camera components
-. Ray-casting against tile maps could cause the engine to crash
+* The function msg.url() with no arguments now creates an empty URL which can't be used for message passing
+* Fonts were not properly rebuilt when TTF-files were updated
+* Drop-down lists for fonts and textures in the Gui Editor
+* Wizards for creating new files are easier to use
+* Optimizations for editing in the Properties View
+* The rendering supports camera components
+* Ray-casting against tile maps could cause the engine to crash
 
 Known Bugs
 ~~~~~~~~~~
 
-. The editor is slow when editing collections with much content
+* The editor is slow when editing collections with much content
 
 More Info
 ~~~~~~~~~
