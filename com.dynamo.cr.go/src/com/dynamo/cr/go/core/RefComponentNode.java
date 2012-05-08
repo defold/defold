@@ -40,8 +40,8 @@ public class RefComponentNode extends ComponentNode {
     private String component;
     private transient ComponentTypeNode type;
 
-    private Map<String, String> prototypeProperties;
-    private List<LuaPropertyParser.Property> propertyDefaults;
+    private Map<String, String> prototypeProperties = new HashMap<String, String>();
+    private transient List<LuaPropertyParser.Property> propertyDefaults = new ArrayList<LuaPropertyParser.Property>();
 
     public RefComponentNode(ComponentTypeNode type) {
         super();
@@ -51,8 +51,6 @@ public class RefComponentNode extends ComponentNode {
             this.type.setFlagsRecursively(Flags.LOCKED);
             addChild(type);
         }
-        this.prototypeProperties = new HashMap<String, String>();
-        this.propertyDefaults = new ArrayList<LuaPropertyParser.Property>();
     }
 
     public String getComponent() {
@@ -132,7 +130,11 @@ public class RefComponentNode extends ComponentNode {
             try {
                 clearChildren();
                 this.type = (ComponentTypeNode)model.loadNode(this.component);
-                this.propertyDefaults.clear();
+                if (this.propertyDefaults != null) {
+                    this.propertyDefaults.clear();
+                } else {
+                    this.propertyDefaults = new ArrayList<LuaPropertyParser.Property>();
+                }
                 if (this.type != null) {
                     this.type.setFlagsRecursively(Flags.LOCKED);
                     addChild(this.type);

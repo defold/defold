@@ -15,6 +15,8 @@ import org.junit.Test;
 
 import com.dynamo.cr.go.core.GameObjectNode;
 import com.dynamo.cr.go.core.RefComponentNode;
+import com.dynamo.cr.sceneed.core.ISceneView;
+import com.dynamo.cr.sceneed.core.Node;
 
 public class ScriptPropertiesGOTest extends AbstractSceneTest {
 
@@ -153,5 +155,36 @@ public class ScriptPropertiesGOTest extends AbstractSceneTest {
 
         // Verify new value
         assertEquals("1", getNodeProperty(component, "number"));
+    }
+
+    @Test
+    public void testCopyPaste() throws Exception {
+
+        GameObjectNode gameObject = (GameObjectNode)getModel().getRoot();
+        RefComponentNode component = (RefComponentNode)gameObject.getChildren().get(0);
+
+        // Default value
+        assertEquals("1", getNodeProperty(component, "number"));
+        assertEquals("hash", getNodeProperty(component, "hash"));
+        assertEquals("", getNodeProperty(component, "url"));
+
+        // Set value
+        setNodeProperty(component, "number", "2");
+        assertEquals("2", getNodeProperty(component, "number"));
+
+        testCopyPaste(gameObject, component);
+    }
+
+    private void testCopyPaste(Node parent, Node child) throws Exception {
+        parent.addChild(child);
+
+        select(child);
+
+        ISceneView.IPresenter presenter = getPresenter();
+        presenter.onCopySelection(getPresenterContext(), getLoaderContext(), null);
+
+        presenter.onPasteIntoSelection(getPresenterContext());
+
+        verifyExcecution();
     }
 }
