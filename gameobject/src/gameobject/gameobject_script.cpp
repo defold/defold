@@ -312,9 +312,8 @@ namespace dmGameObject
      * Note that you can only use this function outside any callback-functions like init and update.
      *
      * @name go.property
-     * @param x x-coordinate of the screen space position (number)
-     * @param y y-coordinate of the screen space position (number)
-     * @return position and direction of the ray in world space (vmath.vector3, vmath.vector3)
+     * @param name the name of the property (string)
+     * @param value default value of the property. In the case of a url, only the empty constructor msg.url() is allowed. (number, hash, url, vector3, vector4, quat)
      * @examples
      * This example demonstrates how to define a property called "health" in a script.
      * The health is decreased whenever someone sends a message called "take_damage" to the script.

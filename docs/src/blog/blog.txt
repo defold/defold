@@ -1,10 +1,12 @@
 :max-width: 45em
 
-Release: 1.1.6
---------------
+Release: 1.1.6 & 1.1.7
+----------------------
 _May 8, 2012_
 
-This release features Script Properties, improved auto-completion when scripting, fixed auto-update on Windows and login through Yahoo.
+Release 1.1.7 contains a small documentation fix that didn't make it to 1.1.6.
+
+Release 1.1.6 features Script Properties, improved auto-completion when scripting, fixed auto-update on Windows and login through Yahoo.
 We apologize that this release took longer than expected.
 Remember to voice your opinions in the link:http://defold.userecho.com[Forums], all feedback is more than welcome.
 
