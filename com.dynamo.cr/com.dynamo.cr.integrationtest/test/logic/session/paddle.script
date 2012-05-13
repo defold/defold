@@ -1,0 +1,53 @@
+function init(self)
+	self.speed = 500
+	self.movement = nil
+	self.ball_attached = true
+    msg.post(nil, "acquire_input_focus")
+    self.initial_position = go.get_world_position()
+end
+
+function update(self, dt)
+	if self.movement and (not self.contact_normal or self.movement * self.contact_normal > 0) then
+		local p = go.get_world_position()
+		local movement = self.movement
+		p.x = p.x + self.movement * self.speed * dt
+		go.set_position(p)
+		self.movement = nil
+	end
+	self.contact_normal = nil
+end
+
+function on_input(self, action_id, action)
+    if action_id == hash("move_right") then
+    	self.movement = action.value
+        return true
+    elseif action_id == hash("move_left") then
+    	self.movement = -action.value
+        return true
+    elseif action_id == hash("ok") and action.pressed then
+    	if self.ball_attached then
+    		msg.post("ball#script", "detach")
+    	end
+    end
+end
+
+function on_message(self, message_id, message)
+	if message_id == hash("reset") then
+		go.set_position(self.initial_position)
+		msg.post("ball#script", "attach")
+	elseif message_id == hash("collision_message") then
+		if message.group == 16 then
+			msg.post("#wav", "play_sound")
+			msg.post("ball#script", "set_mode", {mode = 1})
+			msg.post(msg.url(nil, message.other_game_object_id, "script"), "destroy")
+		end
+	elseif message_id == hash("contact_point_message") then
+		if message.group == 1 then
+			local p = go.get_world_position()
+			p = p - message.normal * message.distance
+			p.z = 0
+			go.set_position(p)
+			self.contact_normal = message.normal.x
+		end
+	end
+end

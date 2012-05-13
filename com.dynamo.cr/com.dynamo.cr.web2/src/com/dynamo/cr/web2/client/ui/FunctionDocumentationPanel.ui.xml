@@ -1,0 +1,45 @@
+<ui:UiBinder xmlns:ui="urn:ui:com.google.gwt.uibinder"
+    xmlns:g='urn:import:com.google.gwt.user.client.ui' xmlns:p1="urn:import:com.google.gwt.user.cellview.client"
+    xmlns:p2="urn:import:com.dynamo.cr.web2.client.ui">
+    <ui:style>
+    </ui:style>
+
+    <g:HTMLPanel>
+        <h3>
+            <g:InlineLabel ui:field="functionName">render.clear</g:InlineLabel>
+        </h3>
+        <g:HTMLPanel ui:field="content" styleName="script_doc">
+            <div class="script_block">
+                <g:HTMLPanel ui:field="description"></g:HTMLPanel>
+            </div>
+            <div class="script_block">
+                <h4>Parameters</h4>
+
+                <g:VerticalPanel ui:field="parameterList">
+                    <g:cell>
+                        <g:HTMLPanel>
+                            <div class="script_param_block">
+                                <span class="script_param">parameters</span>
+                                <div class="script_param_desc">
+                                    clear parameters. Available keys are: BUFFER_TYPE_COLOR_BIT,
+                                    BUFFER_TYPE_DEPTH_BIT and
+                                    BUFFER_TYPE_STENCIL_BIT.</div>
+                            </div>
+                        </g:HTMLPanel>
+                    </g:cell>
+                </g:VerticalPanel>
+
+            </div>
+            <div class="script_block">
+                <h4>Returns</h4>
+                <g:HTMLPanel ui:field="return_"></g:HTMLPanel>
+            </div>
+            <div class="script_block">
+                <h4>Examples</h4>
+                <g:HTMLPanel ui:field="examples"></g:HTMLPanel>
+            </div>
+            <hr class="script_separator"/>
+        </g:HTMLPanel>
+    </g:HTMLPanel>
+
+</ui:UiBinder>

@@ -1,0 +1,135 @@
+# %W% %E%
+#
+# Copyright (c) 2003, Oracle and/or its affiliates. All rights reserved.
+#
+
+# Version
+
+version=1
+
+# Component Font Mappings
+
+allfonts.chinese-cn-iso10646=-misc-zysong18030-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+allfonts.chinese-tw-iso10646=-misc-ar pl shanheisun uni-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+allfonts.lucida=-b&h-lucidasans-medium-r-normal-sans-*-%d-*-*-p-*-iso8859-1
+
+serif.plain.japanese-iso10646=-misc-sazanami mincho-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+serif.plain.korean-iso10646=-misc-baekmuk batang-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+serif.plain.latin-1=-b&h-lucidabright-medium-r-normal--*-%d-*-*-p-*-iso8859-1
+
+serif.bold.japanese-iso10646=-misc-sazanami mincho-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+serif.bold.korean-iso10646=-misc-baekmuk batang-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+serif.bold.latin-1=-b&h-lucidabright-demibold-r-normal--*-%d-*-*-p-*-iso8859-1
+
+serif.italic.japanese-iso10646=-misc-sazanami mincho-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+serif.italic.korean-iso10646=-misc-baekmuk batang-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+serif.italic.latin-1=-b&h-lucidabright-medium-i-normal--*-%d-*-*-p-*-iso8859-1
+
+serif.bolditalic.japanese-iso10646=-misc-sazanami mincho-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+serif.bolditalic.korean-iso10646=-misc-baekmuk batang-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+serif.bolditalic.latin-1=-b&h-lucidabright-demibold-i-normal--*-%d-*-*-p-*-iso8859-1
+
+sansserif.plain.japanese-iso10646=-misc-sazanami gothic-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+sansserif.plain.korean-iso10646=-misc-baekmuk gulim-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+sansserif.plain.latin-1=-b&h-lucidasans-medium-r-normal-sans-*-%d-*-*-p-*-iso8859-1
+
+sansserif.bold.japanese-iso10646=-misc-sazanami gothic-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+sansserif.bold.korean-iso10646=-misc-baekmuk gulim-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+sansserif.bold.latin-1=-b&h-lucidasans-bold-r-normal-sans-*-%d-*-*-p-*-iso8859-1
+
+sansserif.italic.japanese-iso10646=-misc-sazanami gothic-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+sansserif.italic.korean-iso10646=-misc-baekmuk gulim-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+sansserif.italic.latin-1=-b&h-lucidasans-medium-i-normal-sans-*-%d-*-*-p-*-iso8859-1
+
+sansserif.bolditalic.japanese-iso10646=-misc-sazanami gothic-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+sansserif.bolditalic.korean-iso10646=-misc-baekmuk gulim-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+sansserif.bolditalic.latin-1=-b&h-lucidasans-bold-i-normal-sans-*-%d-*-*-p-*-iso8859-1
+
+monospaced.plain.japanese-iso10646=-misc-sazanami mincho-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+monospaced.plain.korean-iso10646=-misc-baekmuk batang-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+monospaced.plain.latin-1=-b&h-lucidatypewriter-medium-r-normal-sans-*-%d-*-*-m-*-iso8859-1
+
+monospaced.bold.japanese-iso10646=-misc-sazanami mincho-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+monospaced.bold.korean-iso10646=-misc-baekmuk batang-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+monospaced.bold.latin-1=-b&h-lucidatypewriter-bold-r-normal-sans-*-%d-*-*-m-*-iso8859-1
+
+monospaced.italic.japanese-iso10646=-misc-sazanami mincho-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+monospaced.italic.korean-iso10646=-misc-baekmuk batang-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+monospaced.italic.latin-1=-b&h-lucidatypewriter-medium-i-normal-sans-*-%d-*-*-m-*-iso8859-1
+
+monospaced.bolditalic.japanese-iso10646=-misc-sazanami mincho-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+monospaced.bolditalic.korean-iso10646=-misc-baekmuk batang-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+monospaced.bolditalic.latin-1=-b&h-lucidatypewriter-bold-i-normal-sans-*-%d-*-*-m-*-iso8859-1
+
+dialog.plain.japanese-iso10646=-misc-sazanami gothic-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+dialog.plain.korean-iso10646=-misc-baekmuk gulim-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+dialog.plain.latin-1=-b&h-lucidasans-medium-r-normal-sans-*-%d-*-*-p-*-iso8859-1
+
+dialog.bold.japanese-iso10646=-misc-sazanami gothic-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+dialog.bold.korean-iso10646=-misc-baekmuk gulim-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+dialog.bold.latin-1=-b&h-lucidasans-bold-r-normal-sans-*-%d-*-*-p-*-iso8859-1
+
+dialog.italic.japanese-iso10646=-misc-sazanami gothic-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+dialog.italic.korean-iso10646=-misc-baekmuk gulim-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+dialog.italic.latin-1=-b&h-lucidasans-medium-i-normal-sans-*-%d-*-*-p-*-iso8859-1
+
+dialog.bolditalic.japanese-iso10646=-misc-sazanami gothic-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+dialog.bolditalic.korean-iso10646=-misc-baekmuk gulim-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+dialog.bolditalic.latin-1=-b&h-lucidasans-bold-i-normal-sans-*-%d-*-*-p-*-iso8859-1
+
+dialoginput.plain.japanese-iso10646=-misc-sazanami mincho-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+dialoginput.plain.korean-iso10646=-misc-baekmuk batang-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+dialoginput.plain.latin-1=-b&h-lucidatypewriter-medium-r-normal-sans-*-%d-*-*-m-*-iso8859-1
+
+dialoginput.bold.japanese-iso10646=-misc-sazanami mincho-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+dialoginput.bold.korean-iso10646=-misc-baekmuk batang-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+dialoginput.bold.latin-1=-b&h-lucidatypewriter-bold-r-normal-sans-*-%d-*-*-m-*-iso8859-1
+
+dialoginput.italic.japanese-iso10646=-misc-sazanami mincho-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+dialoginput.italic.korean-iso10646=-misc-baekmuk batang-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+dialoginput.italic.latin-1=-b&h-lucidatypewriter-medium-i-normal-sans-*-%d-*-*-m-*-iso8859-1
+
+dialoginput.bolditalic.japanese-iso10646=-misc-sazanami mincho-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+dialoginput.bolditalic.korean-iso10646=-misc-baekmuk batang-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+dialoginput.bolditalic.latin-1=-b&h-lucidatypewriter-bold-i-normal-sans-*-%d-*-*-m-*-iso8859-1
+
+# Search Sequences
+
+sequence.allfonts=latin-1
+sequence.allfonts.UTF-8.ko.KR=latin-1,korean-iso10646
+sequence.allfonts.UTF-8.ja.JP=latin-1,japanese-iso10646
+sequence.allfonts.UTF-8.zh.CN=latin-1,chinese-cn-iso10646
+sequence.allfonts.UTF-8.zh.TW=latin-1,chinese-tw-iso10646
+sequence.allfonts.UTF-8.zh.HK=latin-1,chinese-tw-iso10646
+sequence.fallback=lucida,chinese-tw-iso10646,chinese-cn-iso10646,japanese-iso10646,korean-iso10646
+
+# Exclusion Ranges
+
+exclusion.japanese-iso10646=2200-22ef,2701-27be,20a0-20aa,2153-215f,2166-2168,216a-216f,2173-2182
+
+# Font File Names
+
+filename.-misc-ar_pl_shanheisun_uni-medium-r-normal--*-%d-*-*-c-*-iso10646-1=/usr/share/fonts/chinese/TrueType/uming.ttf
+filename.-misc-baekmuk_batang-medium-r-normal--*-%d-*-*-c-*-iso10646-1=/usr/share/fonts/korean/TrueType/batang.ttf
+filename.-misc-baekmuk_gulim-medium-r-normal--*-%d-*-*-c-*-iso10646-1=/usr/share/fonts/korean/TrueType/gulim.ttf
+filename.-misc-sazanami_gothic-medium-r-normal--*-%d-*-*-c-*-iso10646-1=/usr/share/fonts/japanese/TrueType/sazanami-gothic.ttf
+filename.-misc-sazanami_mincho-medium-r-normal--*-%d-*-*-c-*-iso10646-1=/usr/share/fonts/japanese/TrueType/sazanami-mincho.ttf
+filename.-misc-zysong18030-medium-r-normal--*-%d-*-*-c-*-iso10646-1=/usr/share/fonts/chinese/TrueType/zysong.ttf
+filename.-b&h-lucidasans-medium-r-normal-sans-*-%d-*-*-p-*-iso8859-1=$JRE_LIB_FONTS/LucidaSansRegular.ttf
+filename.-b&h-lucidabright-medium-r-normal--*-%d-*-*-p-*-iso8859-1=$JRE_LIB_FONTS/LucidaBrightRegular.ttf
+filename.-b&h-lucidabright-demibold-r-normal--*-%d-*-*-p-*-iso8859-1=$JRE_LIB_FONTS/LucidaBrightDemiBold.ttf
+filename.-b&h-lucidabright-medium-i-normal--*-%d-*-*-p-*-iso8859-1=$JRE_LIB_FONTS/LucidaBrightItalic.ttf
+filename.-b&h-lucidabright-demibold-i-normal--*-%d-*-*-p-*-iso8859-1=$JRE_LIB_FONTS/LucidaBrightDemiItalic.ttf
+filename.-b&h-lucidasans-bold-r-normal-sans-*-%d-*-*-p-*-iso8859-1=$JRE_LIB_FONTS/LucidaSansDemiBold.ttf
+filename.-b&h-lucidasans-medium-i-normal-sans-*-%d-*-*-p-*-iso8859-1=$JRE_LIB_FONTS/LucidaSansRegular.ttf
+filename.-b&h-lucidasans-bold-i-normal-sans-*-%d-*-*-p-*-iso8859-1=$JRE_LIB_FONTS/LucidaSansDemiBold.ttf
+filename.-b&h-lucidatypewriter-medium-r-normal-sans-*-%d-*-*-m-*-iso8859-1=$JRE_LIB_FONTS/LucidaTypewriterRegular.ttf
+filename.-b&h-lucidatypewriter-bold-r-normal-sans-*-%d-*-*-m-*-iso8859-1=$JRE_LIB_FONTS/LucidaTypewriterBold.ttf
+filename.-b&h-lucidatypewriter-medium-i-normal-sans-*-%d-*-*-m-*-iso8859-1=$JRE_LIB_FONTS/LucidaTypewriterRegular.ttf
+filename.-b&h-lucidatypewriter-bold-i-normal-sans-*-%d-*-*-m-*-iso8859-1=$JRE_LIB_FONTS/LucidaTypewriterBold.ttf
+
+# AWT X11 font paths
+awtfontpath.chinese-tw-iso10646=/usr/share/fonts/chinese/TrueType
+awtfontpath.chinese-cn-iso10646=/usr/share/fonts/chinese/TrueType
+awtfontpath.japanese-iso10646=/usr/share/fonts/japanese/TrueType
+awtfontpath.korean-iso10646=/usr/share/fonts/korean/TrueType

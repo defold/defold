@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE ui:UiBinder SYSTEM "http://dl.google.com/gwt/DTD/xhtml.ent">
+<ui:UiBinder xmlns:ui='urn:ui:com.google.gwt.uibinder'
+    xmlns:g='urn:import:com.google.gwt.user.client.ui'>
+
+    <g:HTMLPanel>
+        <h1>New Project</h1>
+        <div class="form">
+            <div class="formRow">
+                <div class="formLabel">Name</div>
+                <div>
+                    <g:TextBox ui:field="nameTextBox" />
+                </div>
+                    <g:Label styleName="formError" ui:field="nameError">Name is required.</g:Label>
+            </div>
+            <div class="formRow">
+                <div class="formLabel">Description</div>
+                <div>
+                    <g:TextBox ui:field="descriptionTextBox" />
+                </div>
+            </div>
+            <div class="formRow">
+                <div class="formLabel">Project Template</div>
+                <div>
+                    <g:ListBox ui:field="templatesCombo" />
+                </div>
+            </div>
+
+            <g:Button ui:field='createButton'>Create Project</g:Button>
+        </div>
+
+        <div style="height: 100px;"></div>
+    </g:HTMLPanel>
+
+</ui:UiBinder>

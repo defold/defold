@@ -1,0 +1,22 @@
+#
+# Copyright (c) 2006, Oracle and/or its affiliates. All rights reserved.
+# Use is subject to license terms.
+#
+# %W% %E%
+#
+# Desktop entry for the Java Control Panel (jcontrol).  The name is poor,
+# but maintained for compatibility reasons.
+#
+# Note: This file may be installed under both "control-center-2.0" and
+# "applications".  Depending upon the version of GNOME, the copy in
+# "applications" may take precedence.
+#
+[Desktop Entry]
+Encoding=UTF-8
+Name=Java
+Comment=Java Control Panel
+Exec=jcontrol
+Icon=sun-jcontrol.png
+Terminal=false
+Type=Application
+Categories=Application;Settings;Java;X-Red-Hat-Base;X-Ximian-Settings;

@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   width="744.09448819"
+   height="1052.3622047"
+   id="svg2"
+   version="1.1"
+   inkscape:version="0.48.1 r9760"
+   sodipodi:docname="check.svg">
+  <defs
+     id="defs4">
+    <linearGradient
+       id="linearGradient3133">
+      <stop
+         style="stop-color:#73cc1d;stop-opacity:1;"
+         offset="0"
+         id="stop3135" />
+      <stop
+         style="stop-color:#7bda1f;stop-opacity:0;"
+         offset="1"
+         id="stop3137" />
+    </linearGradient>
+    <linearGradient
+       inkscape:collect="always"
+       xlink:href="#linearGradient3133"
+       id="linearGradient3139"
+       x1="240"
+       y1="555.2193"
+       x2="651.42859"
+       y2="188.07646"
+       gradientUnits="userSpaceOnUse" />
+  </defs>
+  <sodipodi:namedview
+     id="base"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageopacity="0.0"
+     inkscape:pageshadow="2"
+     inkscape:zoom="0.7"
+     inkscape:cx="339.6436"
+     inkscape:cy="518.79911"
+     inkscape:document-units="px"
+     inkscape:current-layer="layer1"
+     showgrid="false"
+     inkscape:window-width="1116"
+     inkscape:window-height="749"
+     inkscape:window-x="90"
+     inkscape:window-y="21"
+     inkscape:window-maximized="0" />
+  <metadata
+     id="metadata7">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:title></dc:title>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <image
+       y="210.43359"
+       x="-742.92859"
+       id="image3128"
+       xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABcAAAAVCAYAAACt4nWrAAAABHNCSVQICAgIfAhkiAAAAI5JREFU
+OI210kESgCAMQ9Ffx/tfOW7UYbAgLcAaXkPAJLFjmZmOXTDAuQMFkGTLktcwwBLcg5fgJVyvKbyG
+y9RT+B+cxntVTOEe7KWG+5+3XnsGBjDAvWJ5qFVDD4ZOLQ842q9rSEoBf6nhTj6yMQq/eGZACB8d
+EAkR+ufR233wFpCpzU2+qv9mLeWA7LALWxBZGc0NlR0AAAAASUVORK5CYII=
+"
+       height="469.57144"
+       width="514.29254" />
+    <path
+       style="fill:url(#linearGradient3139);fill-opacity:1"
+       d="m 203.7614,543.46168 c -63.98849,-78.08951 -77.60789,-108.44218 -57.625,-128.42506 19.98289,-19.98289 40.76508,3.01363 87.00345,36.92159 l 66.55031,48.8033 166.5088,-168.46709 c 83.50027,-84.4823 162.09845,-152.87746 167.18425,-147.79171 11.9963,11.99632 -308.17814,459.78803 -330.19135,461.2166 -22.83858,1.48213 -53.34462,-46.01592 -99.43046,-102.25763 z"
+       id="path3131"
+       inkscape:connector-curvature="0"
+       sodipodi:nodetypes="ssscssss"
+       inkscape:export-filename="/tmp/check.png"
+       inkscape:export-xdpi="3.99"
+       inkscape:export-ydpi="3.99" />
+  </g>
+</svg>

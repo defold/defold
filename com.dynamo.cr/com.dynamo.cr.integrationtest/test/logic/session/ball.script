@@ -1,0 +1,100 @@
+function init(self)
+	self.speed = 500
+	self.direction = vmath.vector3(0, 0, 0)
+	self.attached = true
+	self.paddle_width = 100
+	self.pow_counter = 0
+	self.mode_normal = 0
+	self.mode_penetration = 1
+	self.mode = self.mode_normal
+	self.mode_timer = 0
+end
+
+local function set_mode(self, mode)
+	self.mode = mode
+	local frame = 1
+	if self.mode == self.mode_penetration then
+		frame = 2
+		self.mode_timer = 10
+	end
+	msg.post("#sprite", "play_animation", {start_frame = frame, end_frame = frame, playback = 0})
+end
+
+function update(self, dt)
+	if not self.attached then
+		if self.mode ~= self.mode_normal then
+			if self.mode_timer > 0 then
+				self.mode_timer = self.mode_timer - dt
+			end
+			if self.mode_timer <= 0 then
+				set_mode(self, self.mode_normal)
+			end
+		end
+		local p = go.get_world_position()
+		p = p + self.direction * self.speed * dt
+		go.set_position(p)
+		if p.y < 0 then
+			msg.post("session:/session#script", "ball_lost")
+		end
+	end
+end
+
+function on_message(self, message_id, message)
+	if message_id == hash("attach") then
+		if not self.attached then
+			go.set_position(vmath.vector3(0, 22.5, 0))
+			msg.post(nil, "set_parent", { parent_id = go.get_id("paddle") })
+			self.attached = true
+			set_mode(self, self.mode_normal)
+		end
+	elseif message_id == hash("detach") then
+		if self.attached then
+			local p = go.get_world_position()
+			local r = go.get_world_rotation()
+			go.set_position(p)
+			go.set_rotation(r)
+			msg.post(nil, "set_parent")
+			self.direction = vmath.vector3(0, 1, 0)
+			self.attached = false
+		end
+	elseif message_id == hash("contact_point_message") then
+		if not self.attached then
+			msg.post("#wav", "play_sound")
+            if message.group == 8 and self.mode == self.mode_normal then
+                self.pow_counter = self.pow_counter + 1
+                if self.pow_counter >= 8 then
+                    msg.post("#factory", "create", { position = go.get_position(), rotation = vmath.quat(0,0,0,1) })
+                    self.pow_counter = 0
+                end
+            end
+
+			local norm = message.normal
+			if message.group == 2 then
+				local paddle_p = go.get_world_position(message.other_game_object_id)
+				local fraction = (message.position.x - paddle_p.x) * 0.5 / self.paddle_width
+				norm = vmath.normalize(vmath.vector3(fraction, 1, 0))
+			elseif message.group == 8 then
+				-- remove blocks
+				msg.post(msg.url(nil, message.other_game_object_id, nil), "destroy")
+				if self.mode == self.mode_penetration then
+					return
+				end
+				if math.abs(norm.x) > math.abs(norm.y) then
+					norm = vmath.vector3(norm.x/math.abs(norm.x), 0, 0)
+				else
+					norm = vmath.vector3(0, norm.y/math.abs(norm.y), 0)
+				end
+			end
+			norm.z = 0
+			local proj = vmath.project(self.direction, message.normal)
+			if proj < 0 then
+				self.direction = vmath.normalize(self.direction - norm * proj * 2)
+			end
+			local p = go.get_world_position()
+			p = p - message.normal * message.distance
+			go.set_position(p)
+		end
+	elseif message_id == hash("set_mode") then
+		set_mode(self, message.mode)
+	end
+end

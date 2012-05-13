@@ -1,0 +1,4 @@
+server*.log
+access*.log
+access*.xml
+

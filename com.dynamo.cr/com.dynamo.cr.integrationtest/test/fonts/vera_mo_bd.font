@@ -1,0 +1,5 @@
+font: "/fonts/vera_mo_bd.ttf"
+material: "/materials/font.material"
+size: 24
+antialias: 1
+alpha: 1.0

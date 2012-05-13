@@ -1,0 +1,53 @@
+<!DOCTYPE ui:UiBinder SYSTEM "http://dl.google.com/gwt/DTD/xhtml.ent">
+<ui:UiBinder xmlns:ui="urn:ui:com.google.gwt.uibinder"
+    xmlns:g='urn:import:com.google.gwt.user.client.ui' xmlns:p1="urn:import:com.google.gwt.user.cellview.client"
+    xmlns:p2="urn:import:com.dynamo.cr.web2.client.ui" xmlns:c='urn:import:com.google.gwt.user.cellview.client'>
+    <ui:style>
+        .loader {
+            margin: 8px;
+        }
+    </ui:style>
+
+    <g:FlowPanel>
+        <g:HTMLPanel>
+            <h1>Reference</h1>
+
+            <table>
+            <tr>
+                <td>
+	            <ul class="vnav">
+	                <li id="engine"><g:Anchor ui:field="engine">Engine</g:Anchor></li>
+	                <li id="go"><g:Anchor ui:field="gameObject">GameObject</g:Anchor></li>
+	                <li id="gamesys"><g:Anchor ui:field="gameSys">GameSys</g:Anchor></li>
+	                <li id="gui"><g:Anchor ui:field="gui">Gui</g:Anchor></li>
+	                <li id="render"><g:Anchor ui:field="render">Render</g:Anchor></li>
+	                <li id="script"><g:Anchor ui:field="script">Script</g:Anchor></li>
+	            </ul>
+	            </td>
+	            <td>
+                    <g:Image url="images/ajax-loader.gif" styleName="{style.loader}" ui:field="loader"></g:Image>
+                    <div style="min-height: 400px;">
+                        <g:HTMLPanel ui:field="rootDocPanel">
+	                       <g:HTMLPanel styleName="articleBox article">
+	                            <h2 ui:field="functionSummaryHeading">Functions</h2>
+                                <g:HTMLPanel ui:field="functionSummaryPanel"></g:HTMLPanel>
+
+	                            <h2 ui:field="messageSummaryHeading">Messages</h2>
+	                            <g:HTMLPanel ui:field="messageSummaryPanel"></g:HTMLPanel>
+
+	                            <h2 ui:field="constantSummaryHeading">Constants</h2>
+	                            <g:HTMLPanel ui:field="constantSummaryPanel"></g:HTMLPanel>
+	                       </g:HTMLPanel>
+
+		                   <div style="margin-top: 32px; padding-left: 5px;">
+	                            <g:HTMLPanel ui:field="documentationPanel"></g:HTMLPanel>
+	                       </div>
+                        </g:HTMLPanel>
+                    </div>
+	            </td>
+            </tr>
+            </table>
+        </g:HTMLPanel>
+    </g:FlowPanel>
+
+</ui:UiBinder>

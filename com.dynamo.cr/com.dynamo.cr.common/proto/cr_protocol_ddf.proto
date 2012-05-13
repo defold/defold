@@ -1,0 +1,271 @@
+package dmContentRepoProtocol;
+
+//import "ddf_extensions.proto";
+
+option java_package = "com.dynamo.cr.protocol.proto";
+option java_outer_classname = "Protocol";
+
+/*
+  URI REST schemes:
+
+  Projects:
+    GET: http://host/projects/id
+    GET: http://host/projects/
+
+  Branches:
+    GET, PUT, DELETE: http://host/branch/project/user/branch_name
+
+  Merge/Update/Publish/Commit/Resolve:
+    POST: http://host/branch/project/user/branch_name/commits/update
+    POST: http://host/branch/project/user/branch_name/commits/commit
+    POST: http://host/branch/project/user/branch_name/commits/commit_merge
+    POST: http://host/branch/project/user/branch_name/commits/publish
+    PUT: http://host/branch/project/user/branch_name/resolve/stage/path
+
+  Resources:
+    GET, PUT, DELETE: http://host/branch/project/user/branch_name/resources/path
+
+  Builds:
+    POST: http://host/branch/project/user/branch_name/builds
+    GET: http://host/branch/project/user/branch_name/builds/build_nr
+*/
+
+// Some messages below are currently not used. See TODO
+
+message RegisterUser
+{
+    required string email = 1;
+    required string first_name = 2;
+    optional string last_name = 3 [default = ""];
+    required string password = 4;
+}
+
+enum CommandType
+{
+    LOGIN = 1;
+}
+
+enum Status
+{
+    NOT_LOGGED_IN = 1;
+    OK = 0;
+    FAILURE = -1;
+}
+
+message TokenExchangeInfo {
+    enum Type {
+        LOGIN = 1;
+        SIGNUP = 2;
+    }
+    required string first_name = 1;
+    required string last_name = 2;
+    required string email = 3;
+    required string login_token = 4;
+    required Type type = 5;
+    // Only set if type == LOGIN
+    optional string auth_cookie = 6;
+    optional int64 user_id = 7;
+}
+
+message LoginInfo {
+    required string email = 1;
+    required int64 user_id = 2;
+    required string auth_cookie = 3;
+    optional string first_name = 4;
+    optional string last_name = 5;
+}
+
+message UserInfo {
+    required int64 id = 1;
+    required string email = 2;
+    required string first_name = 3;
+    required string last_name = 4;
+}
+
+message UserInfoList {
+    repeated UserInfo users = 1;
+}
+
+message NewProject {
+    required string name = 1;
+    optional string description = 2 [default = ""];
+    optional string templateId = 3;
+}
+
+message ProjectTemplateInfo {
+    required string id = 1;
+    required string description = 2;
+}
+
+message ProjectTemplateInfoList {
+    repeated ProjectTemplateInfo templates = 1;
+}
+
+message ProjectInfo {
+    required int64 id = 1;
+    required string name = 2;
+    required string description = 4;
+    required UserInfo owner = 5;
+    repeated UserInfo members = 6;
+    required int64 created = 7;
+    required int64 lastUpdated = 8;
+    required string repositoryUrl = 9;
+}
+
+message ProjectInfoList {
+    repeated ProjectInfo projects = 1;
+}
+
+message ApplicationInfo {
+    required string name = 1;
+    required string version = 2;
+    required int32 size = 3;
+}
+
+message LaunchInfo {
+    repeated string args = 1;
+}
+
+message ProjectList {
+    repeated ProjectInfo projects = 1;
+}
+
+message BranchStatus
+{
+    enum State
+    {
+        CLEAN = 0;
+        DIRTY = 1;
+        MERGE = 2;
+    }
+
+    message Status
+    {
+        // Path relative to branch root
+        required string name = 1;
+
+        // "M" => for modified
+        // "U" => for unmerged
+        // "A" => for added
+        // "D" => for deleteted
+        // "R" => for renamed
+        // "C" => for copied
+        required string index_status = 2;
+        required string working_tree_status = 3;
+
+        // Original name, only set if file is renamed
+        optional string original = 4;
+    }
+
+    // TODO: Change to Path?
+    required string name = 1;
+    required State branch_state = 2;
+    repeated Status file_status = 3;
+    optional uint32 commits_ahead = 4 [default = 0];
+    optional uint32 commits_behind = 5 [default = 0];
+}
+
+message BranchList
+{
+    repeated string branches = 1;
+}
+
+message BuildDesc
+{
+    enum Activity
+    {
+        IDLE = 0;
+        BUILDING = 1;
+    }
+
+    enum Result
+    {
+        OK = 0;
+        ERROR = 1;
+    }
+
+    required int32 id = 1;
+    required Activity build_activity = 2;
+    required Result build_result = 3;
+    required int32 progress = 4;
+    required int32 work_amount = 5;
+}
+
+message BuildLog
+{
+    required string std_out = 1;
+    required string std_err = 2;
+}
+
+enum ResolveStage
+{
+    BASE = 1;
+    YOURS = 2;
+    THEIRS = 3;
+}
+
+enum ResourceType
+{
+    FILE = 1;
+    DIRECTORY = 2;
+}
+
+message ResourceInfo
+{
+    required string path = 1;
+    required string name = 2;
+    required ResourceType type = 3;
+    required int64 last_modified = 4;
+    optional int32 size = 5;
+
+    // Only valid if Type == ResourceType.DIRECTORY
+    repeated string sub_resource_names = 6;
+}
+
+message CommitDesc
+{
+    required string id = 1;
+    required string message = 2;
+    optional string name = 3 [default=""];
+    optional string email = 4 [default=""];
+    optional string date = 5 [default=""];
+}
+
+message ResourceDesc
+{
+    required string path = 1;
+}
+
+message Response
+{
+    required Status status = 1;
+    required string message = 2;
+}
+
+message CommandPayload
+{
+    required CommandType type = 1;
+    required string login_token = 2;
+    required bytes payload = 3;
+}
+
+message LoginCommand
+{
+    required string user_name = 1;
+}
+
+message NewBuild
+{
+    optional int32 dummy = 99;
+}
+
+message Log
+{
+    repeated CommitDesc commits = 1;
+}
+
+message InvitationAccountInfo
+{
+    required int32 original_count = 1;
+    required int32 current_count = 2;
+}

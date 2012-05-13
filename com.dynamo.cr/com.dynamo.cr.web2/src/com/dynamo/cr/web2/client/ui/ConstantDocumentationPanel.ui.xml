@@ -1,0 +1,18 @@
+<ui:UiBinder xmlns:ui="urn:ui:com.google.gwt.uibinder"
+    xmlns:g='urn:import:com.google.gwt.user.client.ui' xmlns:p1="urn:import:com.google.gwt.user.cellview.client"
+    xmlns:p2="urn:import:com.dynamo.cr.web2.client.ui">
+    <ui:style>
+    </ui:style>
+
+    <g:HTMLPanel>
+        <h3>
+            <g:InlineLabel ui:field="constantName">MY_CONSTANT</g:InlineLabel>
+        </h3>
+        <g:HTMLPanel ui:field="content" styleName="script_doc">
+            <p>
+                <g:InlineLabel ui:field="description">DESCRIPTION</g:InlineLabel>
+            </p>
+        </g:HTMLPanel>
+    </g:HTMLPanel>
+
+</ui:UiBinder>

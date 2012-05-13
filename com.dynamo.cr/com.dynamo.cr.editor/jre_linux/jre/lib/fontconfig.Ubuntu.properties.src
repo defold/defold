@@ -1,0 +1,163 @@
+# %W% %E%
+#
+# Copyright (c) 2009, Oracle and/or its affiliates. All rights reserved.
+#
+
+# Version
+
+version=1
+
+# Component Font Mappings
+
+allfonts.chinese-cn-iso10646=-arphic-ar pl uming cn-light-r-normal--*-%d-*-*-c-*-iso10646-1
+allfonts.chinese-tw-iso10646=-arphic-ar pl uming tw-light-r-normal--*-%d-*-*-c-*-iso10646-1
+allfonts.chinese-hk-iso10646=-arphic-ar pl uming hk-light-r-normal--*-%d-*-*-c-*-iso10646-1
+allfonts.lucida=-b&h-lucidasans-medium-r-normal-sans-*-%d-*-*-p-*-iso8859-1
+allfonts.freesans=-unknown-freesans-medium-r-normal--*-%d-*-*-p-*-iso10646-1
+
+serif.plain.japanese-iso10646=-kochi-mincho-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+serif.plain.korean-iso10646=-un-batang-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+serif.plain.latin-1=-dejavu-dejavu serif-medium-r-normal--*-%d-*-*-p-*-iso10646-1
+serif.plain.latin-1-cjk=-dejavu-dejavu serif-medium-r-normal--*-%d-*-*-p-*-iso10646-1
+
+serif.bold.japanese-iso10646=-kochi-mincho-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+serif.bold.korean-iso10646=-un-batang-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+serif.bold.latin-1=-dejavu-dejavu serif-bold-r-normal--*-%d-*-*-p-*-iso10646-1
+serif.bold.latin-1-cjk=-dejavu-dejavu serif-bold-r-normal--*-%d-*-*-p-*-iso10646-1
+
+serif.italic.japanese-iso10646=-kochi-mincho-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+serif.italic.korean-iso10646=-un-batang-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+serif.italic.latin-1=-dejavu-dejavu serif-medium-i-normal--*-%d-*-*-p-*-iso10646-1
+serif.italic.latin-1-cjk=-dejavu-dejavu serif-medium-i-normal--*-%d-*-*-p-*-iso10646-1
+
+serif.bolditalic.japanese-iso10646=-kochi-mincho-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+serif.bolditalic.korean-iso10646=-un-batang-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+serif.bolditalic.latin-1=-dejavu-dejavu serif-bold-i-normal--*-%d-*-*-p-*-iso10646-1
+serif.bolditalic.latin-1-cjk=-dejavu-dejavu serif-bold-i-normal--*-%d-*-*-p-*-iso10646-1
+
+sansserif.plain.japanese-iso10646=-vlgothic-gothic-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+sansserif.plain.korean-iso10646=-un-dotum-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+sansserif.plain.latin-1=-dejavu-dejavu sans-medium-r-normal--*-%d-*-*-p-*-iso10646-1
+sansserif.plain.latin-1-cjk=-dejavu-dejavu sans-medium-r-normal--*-%d-*-*-p-*-iso10646-1
+
+sansserif.bold.japanese-iso10646=-vlgothic-gothic-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+sansserif.bold.korean-iso10646=-un-dotum-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+sansserif.bold.latin-1=-dejavu-dejavu sans-bold-r-normal--*-%d-*-*-p-*-iso10646-1
+sansserif.bold.latin-1-cjk=-dejavu-dejavu sans-bold-r-normal--*-%d-*-*-p-*-iso10646-1
+
+sansserif.italic.japanese-iso10646=-vlgothic-gothic-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+sansserif.italic.korean-iso10646=-un-dotum-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+sansserif.italic.latin-1=-dejavu-dejavu sans-medium-o-normal--*-%d-*-*-p-*-iso10646-1
+sansserif.italic.latin-1-cjk=-dejavu-dejavu sans-medium-o-normal--*-%d-*-*-p-*-iso10646-1
+
+sansserif.bolditalic.japanese-iso10646=-vlgothic-gothic-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+sansserif.bolditalic.korean-iso10646=-un-dotum-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+sansserif.bolditalic.latin-1=-dejavu-dejavu sans-bold-o-normal--*-%d-*-*-p-*-iso10646-1
+sansserif.bolditalic.latin-1-cjk=-dejavu-dejavu sans-bold-o-normal--*-%d-*-*-p-*-iso10646-1
+
+monospaced.plain.japanese-iso10646=-kochi-mincho-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+monospaced.plain.korean-iso10646=-un-batang-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+monospaced.plain.latin-1=-dejavu-dejavu sans mono-medium-r-normal--*-%d-*-*-m-*-iso10646-1
+monospaced.plain.latin-1-cjk=-dejavu-dejavu sans mono-medium-r-normal--*-%d-*-*-m-*-iso10646-1
+
+monospaced.bold.japanese-iso10646=-kochi-mincho-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+monospaced.bold.korean-iso10646=-un-batang-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+monospaced.bold.latin-1=-dejavu-dejavu sans mono-bold-r-normal--*-%d-*-*-m-*-iso10646-1
+monospaced.bold.latin-1-cjk=-dejavu-dejavu sans mono-bold-r-normal--*-%d-*-*-m-*-iso10646-1
+
+monospaced.italic.japanese-iso10646=-kochi-mincho-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+monospaced.italic.korean-iso10646=-un-batang-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+monospaced.italic.latin-1=-dejavu-dejavu sans mono-medium-o-normal--*-%d-*-*-m-*-iso10646-1
+monospaced.italic.latin-1-cjk=-dejavu-dejavu sans mono-medium-o-normal--*-%d-*-*-m-*-iso10646-1
+
+monospaced.bolditalic.japanese-iso10646=-kochi-mincho-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+monospaced.bolditalic.korean-iso10646=-un-batang-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+monospaced.bolditalic.latin-1=-dejavu-dejavu sans mono-bold-o-normal--*-%d-*-*-m-*-iso10646-1
+monospaced.bolditalic.latin-1-cjk=-dejavu-dejavu sans mono-bold-o-normal--*-%d-*-*-m-*-iso10646-1
+
+dialog.plain.japanese-iso10646=-vlgothic-gothic-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+dialog.plain.korean-iso10646=-un-dotum-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+dialog.plain.latin-1=-dejavu-dejavu sans-medium-r-normal--*-%d-*-*-p-*-iso10646-1
+dialog.plain.latin-1-cjk=-dejavu-dejavu sans-medium-r-normal--*-%d-*-*-p-*-iso10646-1
+
+dialog.bold.japanese-iso10646=-vlgothic-gothic-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+dialog.bold.korean-iso10646=-un-dotum-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+dialog.bold.latin-1=-dejavu-dejavu sans-bold-r-normal--*-%d-*-*-p-*-iso10646-1
+dialog.bold.latin-1-cjk=-dejavu-dejavu sans-bold-r-normal--*-%d-*-*-p-*-iso10646-1
+
+dialog.italic.japanese-iso10646=-vlgothic-gothic-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+dialog.italic.korean-iso10646=-un-dotum-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+dialog.italic.latin-1=-dejavu-dejavu sans-medium-o-normal--*-%d-*-*-p-*-iso10646-1
+dialog.italic.latin-1-cjk=-dejavu-dejavu sans-medium-o-normal--*-%d-*-*-p-*-iso10646-1
+
+dialog.bolditalic.japanese-iso10646=-vlgothic-gothic-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+dialog.bolditalic.korean-iso10646=-un-dotum-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+dialog.bolditalic.latin-1=-dejavu-dejavu sans-bold-o-normal--*-%d-*-*-p-*-iso10646-1
+dialog.bolditalic.latin-1-cjk=-dejavu-dejavu sans-bold-o-normal--*-%d-*-*-p-*-iso10646-1
+
+dialoginput.plain.japanese-iso10646=-vlgothic-gothic-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+dialoginput.plain.korean-iso10646=-un-batang-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+dialoginput.plain.latin-1=-dejavu-dejavu sans mono-medium-r-normal--*-%d-*-*-m-*-iso10646-1
+dialoginput.plain.latin-1-cjk=-dejavu-dejavu sans mono-medium-r-normal--*-%d-*-*-m-*-iso10646-1
+
+dialoginput.bold.japanese-iso10646=-vlgothic-gothic-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+dialoginput.bold.korean-iso10646=-un-batang-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+dialoginput.bold.latin-1=-dejavu-dejavu sans mono-bold-r-normal--*-%d-*-*-m-*-iso10646-1
+dialoginput.bold.latin-1-cjk=-dejavu-dejavu sans mono-bold-r-normal--*-%d-*-*-m-*-iso10646-1
+
+dialoginput.italic.japanese-iso10646=-vlgothic-gothic-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+dialoginput.italic.korean-iso10646=-un-batang-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+dialoginput.italic.latin-1=-dejavu-dejavu sans mono-medium-o-normal--*-%d-*-*-m-*-iso10646-1
+dialoginput.italic.latin-1-cjk=-dejavu-dejavu sans mono-medium-o-normal--*-%d-*-*-m-*-iso10646-1
+
+dialoginput.bolditalic.japanese-iso10646=-vlgothic-gothic-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+dialoginput.bolditalic.korean-iso10646=-un-batang-medium-r-normal--*-%d-*-*-c-*-iso10646-1
+dialoginput.bolditalic.latin-1=-dejavu-dejavu sans mono-bold-o-normal--*-%d-*-*-m-*-iso10646-1
+dialoginput.bolditalic.latin-1-cjk=-dejavu-dejavu sans mono-bold-o-normal--*-%d-*-*-m-*-iso10646-1
+
+# Search Sequences
+
+sequence.allfonts=latin-1
+sequence.allfonts.UTF-8.zh.CN=latin-1-cjk,chinese-cn-iso10646
+sequence.allfonts.UTF-8.zh.TW=latin-1-cjk,chinese-tw-iso10646
+sequence.allfonts.UTF-8.zh.HK=latin-1-cjk,chinese-hk-iso10646
+sequence.allfonts.UTF-8.ja=latin-1-cjk,japanese-iso10646
+sequence.allfonts.UTF-8.ko=latin-1-cjk,korean-iso10646
+
+sequence.fallback=lucida,chinese-tw-iso10646,chinese-cn-iso10646,japanese-iso10646,korean-iso10646,freesans
+
+# Exclusion Ranges
+
+exclusion.japanese-iso10646=2200-22ef,2701-27be,20a0-20aa,2153-215f,2166-2168,216a-216f,2173-2182
+exclusion.latin-1-cjk=2460-2469
+
+# Font File Names
+
+filename.-b&h-lucidasans-medium-r-normal-sans-*-%d-*-*-p-*-iso8859-1=$JRE_LIB_FONTS/LucidaSansRegular.ttf
+filename.-dejavu-dejavu_sans-medium-r-normal--*-%d-*-*-p-*-iso10646-1=/usr/share/fonts/truetype/ttf-dejavu/DejaVuSans.ttf
+filename.-dejavu-dejavu_sans-bold-r-normal--*-%d-*-*-p-*-iso10646-1=/usr/share/fonts/truetype/ttf-dejavu/DejaVuSans-Bold.ttf
+filename.-dejavu-dejavu_sans-medium-o-normal--*-%d-*-*-p-*-iso10646-1=/usr/share/fonts/truetype/ttf-dejavu/DejaVuSans-Oblique.ttf
+filename.-dejavu-dejavu_sans-bold-o-normal--*-%d-*-*-p-*-iso10646-1=/usr/share/fonts/truetype/ttf-dejavu/DejaVuSans-BoldOblique.ttf
+filename.-dejavu-dejavu_sans_mono-medium-r-normal--*-%d-*-*-m-*-iso10646-1=/usr/share/fonts/truetype/ttf-dejavu/DejaVuSansMono.ttf
+filename.-dejavu-dejavu_sans_mono-bold-o-normal--*-%d-*-*-m-*-iso10646-1=/usr/share/fonts/truetype/ttf-dejavu/DejaVuSansMono.ttf
+filename.-dejavu-dejavu_sans_mono-medium-o-normal--*-%d-*-*-m-*-iso10646-1=/usr/share/fonts/truetype/ttf-dejavu/DejaVuSansMono-Oblique.ttf
+filename.-dejavu-dejavu_sans_mono-bold-r-normal--*-%d-*-*-m-*-iso10646-1=/usr/share/fonts/truetype/ttf-dejavu/DejaVuSansMono-Bold.ttf
+filename.-dejavu-dejavu_sans_mono-bold-o-normal--*-%d-*-*-m-*-iso10646-1=/usr/share/fonts/truetype/ttf-dejavu/DejaVuSansMono-BoldOblique.ttf
+filename.-dejavu-dejavu_serif-medium-r-normal--*-%d-*-*-p-*-iso10646-1=/usr/share/fonts/truetype/ttf-dejavu/DejaVuSerif.ttf
+filename.-dejavu-dejavu_serif-bold-r-normal--*-%d-*-*-p-*-iso10646-1=/usr/share/fonts/truetype/ttf-dejavu/DejaVuSerif-Bold.ttf
+filename.-dejavu-dejavu_serif-medium-i-normal--*-%d-*-*-p-*-iso10646-1=/usr/share/fonts/truetype/ttf-dejavu/DejaVuSerif-Oblique.ttf
+filename.-dejavu-dejavu_serif-bold-i-normal--*-%d-*-*-p-*-iso10646-1=/usr/share/fonts/truetype/ttf-dejavu/DejaVuSerif-BoldOblique.ttf
+filename.-unknown-freesans-medium-r-normal--*-%d-*-*-p-*-iso10646-1=/usr/share/fonts/truetype/freefont/FreeSans.ttf
+filename.-arphic-ar_pl_uming_cn-light-r-normal--*-%d-*-*-c-*-iso10646-1=/usr/share/fonts/truetype/arphic/uming.ttc
+filename.-arphic-ar_pl_uming_tw-light-r-normal--*-%d-*-*-c-*-iso10646-1=/usr/share/fonts/truetype/arphic/uming.ttc
+filename.-arphic-ar_pl_uming_hk-light-r-normal--*-%d-*-*-c-*-iso10646-1=/usr/share/fonts/truetype/arphic/uming.ttc
+filename.-vlgothic-gothic-medium-r-normal--*-%d-*-*-c-*-iso10646-1=/usr/share/fonts/truetype/vlgothic/VL-Gothic-Regular.ttf
+filename.-kochi-mincho-medium-r-normal--*-%d-*-*-c-*-iso10646-1=/usr/share/fonts/truetype/kochi/kochi-mincho-subst.ttf
+filename.-un-batang-medium-r-normal--*-%d-*-*-c-*-iso10646-1=/usr/share/fonts/truetype/unfonts/UnBatang.ttf
+filename.-un-dotum-medium-r-normal--*-%d-*-*-c-*-iso10646-1=/usr/share/fonts/truetype/unfonts/UnDotum.ttf
+
+# AWT X11 font paths
+awtfontpath.chinese-tw-iso10646=/var/lib/defoma/x-ttcidfont-conf.d/dirs/TrueType
+awtfontpath.chinese-cn-iso10646=/var/lib/defoma/x-ttcidfont-conf.d/dirs/TrueType
+awtfontpath.japanese-iso10646=/var/lib/defoma/x-ttcidfont-conf.d/dirs/TrueType
+awtfontpath.korean-iso10646=/var/lib/defoma/x-ttcidfont-conf.d/dirs/TrueType

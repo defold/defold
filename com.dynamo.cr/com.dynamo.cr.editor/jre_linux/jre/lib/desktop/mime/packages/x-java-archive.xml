@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-java-archive">
+    <comment>Java Archive</comment>
+    <comment xml:lang="bg">Архив, формат Java</comment>
+    <comment xml:lang="cs">Archiv Java</comment>
+    <comment xml:lang="de">Java-Archiv</comment>
+    <comment xml:lang="el">αρχείο Java</comment>
+    <comment xml:lang="eo">Java-arkivo</comment>
+    <comment xml:lang="es">Archivo Java</comment>
+    <comment xml:lang="eu">Java artxiboa</comment>
+    <comment xml:lang="fi">Java-arkisto</comment>
+    <comment xml:lang="fr">archive Java</comment>
+    <comment xml:lang="hu">Java-archívum</comment>
+    <comment xml:lang="it">Archivio Java</comment>
+    <comment xml:lang="ja">Java アーカイブ</comment>
+    <comment xml:lang="ko">자바 아카이브</comment>
+    <comment xml:lang="ms">Arkib Java</comment>
+    <comment xml:lang="nb">Java-arkiv</comment>
+    <comment xml:lang="nl">Java-archief</comment>
+    <comment xml:lang="nn">Java-arkiv</comment>
+    <comment xml:lang="no">Java-arkiv</comment>
+    <comment xml:lang="pl">Archiwum Java</comment>
+    <comment xml:lang="pt">arquivo Java</comment>
+    <comment xml:lang="pt_BR">Pacote Java</comment>
+    <comment xml:lang="ru">архив Java</comment>
+    <comment xml:lang="sq">Arkiv Java</comment>
+    <comment xml:lang="sr">Јава архива</comment>
+    <comment xml:lang="sv">Java-arkiv</comment>
+    <comment xml:lang="uk">Архів Java</comment>
+    <comment xml:lang="zh_CN">Java 压缩包</comment>
+    <glob pattern="*.jar"/>
+    <magic priority="85">
+      <match type="string" value="PK\003\004" offset="0">
+        <match type="host16" value="0xcafe" offset="39"/>
+      </match>
+    </magic>
+  </mime-type>
+</mime-info>

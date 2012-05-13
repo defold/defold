@@ -1,0 +1,3 @@
+go.property("number", 1)
+go.property("hash", hash("hash"))
+go.property("url", msg.url())

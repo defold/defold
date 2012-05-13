@@ -1,0 +1,78 @@
+." Copyright (c) 1997, 2010, Oracle and/or its affiliates. All rights reserved. 
+."
+.TH rmiregistry 1 "06 Apr 2010"
+." Generated from HTML by html2man (author: Eric Armstrong)
+
+.LP
+.SH "名前"
+rmiregistry \- Java リモートオブジェクトレジストリ
+.LP
+.RS 3
+
+.LP
+.LP
+\f3rmiregistry\fP コマンドは、現在のホストの指定したポート上にリモートオブジェクトレジストリを開始します。
+.LP
+.RE
+.SH "形式"
+.LP
+
+.LP
+.nf
+\f3
+.fl
+rmiregistry [\fP\f4port\fP\f3]
+.fl
+\fP
+.fi
+
+.LP
+.SH "説明"
+.LP
+
+.LP
+.LP
+\f3rmiregistry\fP コマンドは、現在のホストの指定 \f2port\fP 上にリモートオブジェクトレジストリを作成し、開始します。\f2port\fP の指定を省略した場合、レジストリはポート 1099 で開始します。\f3rmiregistry\fP コマンドに、出力機能はありません。通常、これはバックグラウンドで実行されます。例を示します。
+.LP
+.LP
+\f2rmiregistry&\fP
+.LP
+.LP
+リモートオブジェクトレジストリは、ブートストラップのネームサービスです。 同一ホストの RMI サーバーが、リモートオブジェクトを名前にバインドするために使用されます。次に、ローカルおよびリモートホストのクライアントはリモートオブジェクトを検索し、リモートメソッドの呼び出しを行います。
+.LP
+.LP
+レジストリは、一般的に、最初のリモートオブジェクトの位置を指定します。 そこで、アプリケーションはメソッドを呼び出す必要があります。代わって、そのオブジェクトはアプリケーション指定のサポートを提供し、他のオブジェクトを探します。
+.LP
+.LP
+\f2java.rmi.registry.LocateRegistry\fP クラスのメソッドは、ローカルホスト、またはローカルホストとポートで動作するレジストリを取得するために使用されます。
+.LP
+.LP
+\f2java.rmi.Naming\fP クラスの URL ベースのメソッドは、レジストリで動作し、任意のホストおよびローカルホスト上のリモートオブジェクトの検索に使用されます。リモートオブジェクトに単純な (文字列) 名前をバインドしたり、新しい名前をリバインド (古いバインドにオーバーライド) します。 またリモートオブジェクトをアンバインドしたり、レジストリにバインドされた URL を出力します。
+.LP
+.SH "オプション"
+.LP
+
+.LP
+.RS 3
+.TP 3
+\-J 
+\f2\-J\fP の後ろに続くオプションを \f2java\fP インタプリタに引き渡します。 \f2java\fP オプションと組み合わせて使います (\f2\-J\fP と \f2java\fP オプションの間にスペースは入れない)。 
+.RE
+
+.LP
+.SH "関連項目"
+.LP
+
+.LP
+.LP
+java(1)、
+.na
+\f2java.rmi.registry.LocateRegistry\fP @
+.fi
+http://java.sun.com/javase/6/docs/api/java/rmi/registry/LocateRegistry.html、および 
+.na
+\f2java.rmi.Naming\fP @
+.fi
+http://java.sun.com/javase/6/docs/api/java/rmi/Naming.html
+.LP
+ 

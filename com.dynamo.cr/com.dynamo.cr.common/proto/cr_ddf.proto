@@ -1,0 +1,72 @@
+package dmResourceServer;
+
+//import "ddf_extensions.proto";
+
+option java_package = "com.dynamo.cr.proto";
+option java_outer_classname = "Config";
+
+message Command
+{
+    repeated string args = 1;
+}
+
+message Application
+{
+    required string platform = 1;
+    required string name = 2;
+    required string path = 3;
+}
+
+message ProjectTemplate {
+    required string id = 1;
+    required string path = 2;
+    required string description = 3;
+}
+
+message Configuration
+{
+    required string branch_root = 2;
+    repeated string filters = 3;
+    required int32 service_port = 4;
+    required int32 build_data_port = 5;
+    required string persistence_unit_name = 6;
+    required string repository_root = 7;
+    required string progress_re = 8;
+    required Command configure_command = 9;
+    required Command build_command = 10;
+    required Command rebuild_command = 11;
+    required Command exe_command = 12;
+    repeated Application applications = 13;
+    repeated ProjectTemplate project_templates = 14;
+    optional string repository_group = 15;
+    optional string builtins_directory = 16;
+    required string hostname = 17;
+    optional int32 data_server_enabled = 18 [default=1];
+    optional int32 max_project_count = 19 [default=5];
+
+    // smtp
+    required string smtp_host = 20;
+    required string smtp_username = 21;
+    required string smtp_password = 22;
+
+    // email
+    required EMailTemplate invitation_template = 24;
+
+    // invitations
+    repeated InvitationCountEntry invitation_count_map = 25;
+    optional string test_registration_key = 26 [default=""];
+    optional int32 test_invitation_count = 27 [default=0];
+}
+
+message EMailTemplate
+{
+    required string from = 1;
+    required string subject = 2;
+    required string message = 3;
+}
+
+message InvitationCountEntry
+{
+    required int32 key = 1;
+    required int32 value = 2;
+}

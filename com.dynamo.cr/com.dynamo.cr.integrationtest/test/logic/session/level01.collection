@@ -1,0 +1,856 @@
+name: "level1"
+instances {
+  id: "block.go1"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 728.90955
+    y: 620.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go2"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 728.90955
+    y: 530.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go3"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 728.90955
+    y: 590.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go5"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 728.90955
+    y: 560.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go6"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 728.90955
+    y: 440.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go7"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 728.90955
+    y: 500.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go8"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 728.90955
+    y: 470.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go9"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 658.4173
+    y: 620.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go10"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 658.4173
+    y: 530.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go11"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 658.4173
+    y: 590.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go13"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 658.4173
+    y: 560.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go14"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 658.4173
+    y: 440.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go15"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 658.4173
+    y: 500.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go16"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 658.4173
+    y: 470.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go4"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 588.2584
+    y: 620.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go12"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 588.2584
+    y: 530.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go17"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 588.2584
+    y: 590.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go18"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 588.2584
+    y: 560.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go19"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 588.2584
+    y: 440.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go20"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 588.2584
+    y: 500.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go21"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 588.2584
+    y: 470.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go22"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 518.7507
+    y: 620.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go23"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 518.7507
+    y: 530.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go24"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 518.7507
+    y: 590.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go25"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 518.7507
+    y: 560.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go26"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 518.7507
+    y: 440.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go27"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 518.7507
+    y: 500.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go28"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 518.7507
+    y: 470.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go29"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 448.6748
+    y: 620.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go30"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 448.6748
+    y: 530.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go31"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 448.6748
+    y: 590.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go32"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 448.6748
+    y: 560.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go33"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 448.6748
+    y: 440.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go34"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 448.6748
+    y: 500.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go35"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 448.6748
+    y: 470.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go36"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 378.18256
+    y: 620.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go37"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 378.18256
+    y: 530.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go38"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 378.18256
+    y: 590.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go39"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 378.18256
+    y: 560.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go40"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 378.18256
+    y: 440.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go41"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 378.18256
+    y: 500.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go42"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 378.18256
+    y: 470.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go43"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 308.51593
+    y: 620.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go44"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 308.51593
+    y: 530.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go45"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 308.51593
+    y: 590.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go46"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 308.51593
+    y: 560.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go47"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 308.51593
+    y: 440.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go48"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 308.51593
+    y: 500.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go49"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 308.51593
+    y: 470.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go50"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 238.51591
+    y: 620.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go51"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 238.51591
+    y: 530.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go52"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 238.51591
+    y: 590.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go53"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 238.51591
+    y: 560.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go54"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 238.51591
+    y: 440.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go55"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 238.51591
+    y: 500.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "block.go56"
+  prototype: "/logic/session/block.go"
+  position {
+    x: 238.51591
+    y: 470.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+collection_instances {
+  id: "base_level.collection"
+  collection: "/logic/session/base_level.collection"
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
