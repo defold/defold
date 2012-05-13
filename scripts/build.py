@@ -21,33 +21,18 @@ class Configuration(object):
                  target = None,
                  eclipse_home = None,
                  skip_tests = False,
-                 no_colors = False):
-        if dynamo_home:
-            self.dynamo_home = dynamo_home
-        else:
-            self.dynamo_home = join(os.getcwd(), 'tmp', 'dynamo_home')
+                 no_colors = False,
+                 archive_path = None):
 
+        self.dynamo_home = dynamo_home if dynamo_home else join(os.getcwd(), 'tmp', 'dynamo_home')
         self.target = target
-
-        if not eclipse_home:
-            self.eclipse_home = join(os.environ['HOME'], 'eclipse')
-        else:
-            self.eclipse_home = eclipse_home
-
+        self.eclipse_home = eclipse_home if eclipse_home else join(os.environ['HOME'], 'eclipse')
         self.defold_root = os.getcwd()
-
-        if sys.platform == 'linux2':
-            self.host = 'linux'
-        else:
-            self.host = sys.platform
-
-        if target:
-            self.target = target
-        else:
-            self.target = self.host
-
+        self.host = 'linux' if sys.platform == 'linux2' else sys.platform
+        self.target = target if target else self.host
         self.skip_tests = skip_tests
         self.no_colors = no_colors
+        self.archive_path = archive_path
 
         for p in ['ext/lib/python', 'lib/python', 'share']:
             self._mkdirs(join(self.dynamo_home, p))
@@ -93,6 +78,26 @@ class Configuration(object):
         for n in 'valgrind-libasound.supp valgrind-libdlib.supp valgrind-python.supp engine_profile.mobileprovision'.split():
             self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'share'))
 
+    def _git_sha1(self, dir = '.'):
+        process = subprocess.Popen('git log --oneline'.split(), stdout = subprocess.PIPE)
+        out, err = process.communicate()
+        if process.returncode != 0:
+            sys.exit(process.returncode)
+
+        line = out.split('\n')[0].strip()
+        sha1 = line.split()[0]
+        return sha1
+
+    def _archive_engine(self):
+        exe_ext = '.exe' if self.target == 'win32' else ''
+        host, path = self.archive_path.split(':', 1)
+        sha1 = self._git_sha1()
+        self.exec_command(['ssh', host, 'mkdir -p %s' % path])
+        self.exec_command(['scp', join(self.dynamo_home, 'bin', 'dmengine'),
+                           '%s/dmengine%s.%s' % (self.archive_path, exe_ext, sha1)])
+        self.exec_command(['ssh', host,
+                           'ln -sfn %s/dmengine%s.%s %s/dmengine%s' % (path, exe_ext, sha1, path, exe_ext)])
+
     def build_engine(self):
         skip_tests = '--skip-tests' if self.skip_tests or self.target != self.host else ''
         libs="dlib ddf particle glfw graphics hid input physics resource lua script render gameobject gui sound gamesys tools record engine".split()
@@ -108,6 +113,9 @@ class Configuration(object):
             cwd = join(self.defold_root, 'engine/%s' % lib)
             cmd = 'waf configure --prefix=%s --platform=%s %s distclean configure build install' % (self.dynamo_home, self.target, skip_tests)
             self.exec_command(cmd.split(), cwd = cwd)
+
+        if self.archive_path:
+            self._archive_engine()
 
     def test_cr(self):
         for plugin in ['common', 'luaeditor', 'builtins']:
@@ -130,6 +138,10 @@ class Configuration(object):
 root.linux.gtk.x86.permissions.755=jre/'''
         self._build_cr('editor', build_dir, root_properties = root_properties)
 
+        # NOTE:
+        # Due to bug https://bugs.eclipse.org/bugs/show_bug.cgi?id=300812
+        # we cannot add jre to p2 on win32
+        # The jre is explicitly bundled instead
         prefix = 'Defold'
         zip = join(build_dir, 'I.Defold/Defold-win32.win32.x86.zip')
         jre_root = join(build_dir, 'plugins/com.dynamo.cr.editor/jre_win32')
@@ -144,6 +156,14 @@ root.linux.gtk.x86.permissions.755=jre/'''
                     path = join(prefix, rel)
                     zip.writestr(path, data)
         zip.close()
+
+    def _archive_cr(self, product, build_dir):
+        host, path = self.archive_path.split(':', 1)
+        self.exec_command(['ssh', host, 'mkdir -p %s' % path])
+        for p in glob(join(build_dir, 'I.*/*.zip')):
+            self.exec_command(['scp', p, self.archive_path])
+        self.exec_command(['tar', '-C', build_dir, '-cz', '-f', join(build_dir, '%s_repository.tgz' % product), 'repository'])
+        self.exec_command(['scp', join(build_dir, '%s_repository.tgz' % product), self.archive_path])
 
     def _build_cr(self, product, build_dir, root_properties = None):
         equinox_version = '1.2.0.v20110502'
@@ -179,8 +199,10 @@ root.linux.gtk.x86.permissions.755=jre/'''
                 '-DbuildProperties=%s' % join(os.getcwd(), 'ci/cr/%s.properties' % product),
                 '-data', workspace]
 
-        print args
         self.exec_command(args)
+
+        if self.archive_path:
+            self._archive_cr(product, build_dir)
 
     def exec_command(self, arg_list, **kwargs):
         env = dict(os.environ)
@@ -245,6 +267,10 @@ Multiple commands can be specified'''
                       default = False,
                       help = 'No color output. Default is color output')
 
+    parser.add_option('--archive-path', dest='archive_path',
+                      default = None,
+                      help = 'Archive build. Set ssh-path, host:path, to archive build to')
+
     options, args = parser.parse_args()
 
     if len(args) == 0:
@@ -254,7 +280,8 @@ Multiple commands can be specified'''
                       target = options.target,
                       eclipse_home = options.eclipse_home,
                       skip_tests = options.skip_tests,
-                      no_colors = options.no_colors)
+                      no_colors = options.no_colors,
+                      archive_path = options.archive_path)
 
     for cmd in args:
         f = getattr(c, cmd, None)
