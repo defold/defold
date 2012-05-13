@@ -174,7 +174,7 @@ root.linux.gtk.x86.permissions.755=jre/'''
         os.makedirs(join(build_dir, 'features'))
 
         if root_properties:
-            with open(join(build_dir, 'root_properties')) as f:
+            with open(join(build_dir, 'root.properties'), 'wb') as f:
                 f.write(root_properties)
 
         workspace = '/tmp/workspace_%s' % product
