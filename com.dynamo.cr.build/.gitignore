@@ -1,0 +1,8 @@
+bin
+tmp
+.DS_Store
+.lock-wscript
+build
+slask
+*.pyc
+
