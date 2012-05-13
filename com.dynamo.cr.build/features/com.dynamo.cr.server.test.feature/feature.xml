@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<feature id="com.dynamo.cr.server.test.feature" version="1.0.0">
-	<plugin id="com.dynamo.cr.common" version="0.0.0" unpack="true"/>
-	<plugin id="com.dynamo.cr.server" version="0.0.0" unpack="true"/>
-</feature>

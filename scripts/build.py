@@ -1,0 +1,263 @@
+#!/usr/bin/env python
+
+import os, sys, shutil, zipfile
+import optparse, subprocess
+from tarfile import TarFile
+from os.path import join, basename, relpath
+from glob import glob
+
+"""
+Build utility for installing external packages, building engine, editor and cr
+Run build.py --help for help
+"""
+
+PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.2.1 vectormathlibrary-r1649 nvidia-texture-tools-2.0.6 PIL-1.1.6 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 vecmath vpx-v0.9.7-p1".split()
+PACKAGES_HOST="protobuf-2.3.0 gtest-1.2.1 glut-3.7.6 cg-2.1 nvidia-texture-tools-2.0.6 PIL-1.1.6 openal-1.1 PVRTexToolCL-2.08.28.0634 vpx-v0.9.7-p1".split()
+PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg".split()
+PACKAGES_IOS="protobuf-2.3.0 gtest-1.2.1".split()
+
+class Configuration(object):
+    def __init__(self, dynamo_home = None,
+                 target = None,
+                 eclipse_home = None,
+                 skip_tests = False,
+                 no_colors = False):
+        if dynamo_home:
+            self.dynamo_home = dynamo_home
+        else:
+            self.dynamo_home = join(os.getcwd(), 'tmp', 'dynamo_home')
+
+        self.target = target
+
+        if not eclipse_home:
+            self.eclipse_home = join(os.environ['HOME'], 'eclipse')
+        else:
+            self.eclipse_home = eclipse_home
+
+        self.defold_root = os.getcwd()
+
+        if sys.platform == 'linux2':
+            self.host = 'linux'
+        else:
+            self.host = sys.platform
+
+        if target:
+            self.target = target
+        else:
+            self.target = self.host
+
+        self.skip_tests = skip_tests
+        self.no_colors = no_colors
+
+        for p in ['ext/lib/python', 'lib/python', 'share']:
+            self._mkdirs(join(self.dynamo_home, p))
+
+    def _mkdirs(self, path):
+        if not os.path.exists(path):
+            os.makedirs(path)
+
+    def distclean(self):
+        shutil.rmtree(self.dynamo_home)
+
+    def _extract_tgz(self, file, path):
+        print 'Extracting %s' % basename(file)
+        tf = TarFile.open(file, 'r:gz')
+        tf.extractall(path)
+        tf.close()
+
+    def _copy(self, src, dst):
+        print 'Copying %s -> %s' % (src, dst)
+        shutil.copy(src, dst)
+
+    def install_ext(self):
+        ext = join(self.dynamo_home, 'ext')
+        def make_path(platform):
+            return join(self.defold_root, 'packages', p) + '-%s.tar.gz' % platform
+
+        for p in PACKAGES_ALL:
+            self._extract_tgz(make_path('common'), ext)
+
+        for p in PACKAGES_HOST:
+            self._extract_tgz(make_path(self.host), ext)
+
+        for p in PACKAGES_IOS:
+            self._extract_tgz(make_path('armv6-darwin'), ext)
+
+        for egg in glob(join(self.defold_root, 'packages', '*.egg')):
+            print 'Installing %s' % basename(egg)
+            self.exec_command(['easy_install', '-q', '-d', join(ext, 'lib', 'python'), '-N', egg])
+
+        for n in 'waf_dynamo.py waf_content.py'.split():
+            self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'lib/python'))
+
+        for n in 'valgrind-libasound.supp valgrind-libdlib.supp valgrind-python.supp engine_profile.mobileprovision'.split():
+            self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'share'))
+
+    def build_engine(self):
+        skip_tests = '--skip-tests' if self.skip_tests or self.target != self.host else ''
+        libs="dlib ddf particle glfw graphics hid input physics resource lua script render gameobject gui sound gamesys tools record engine".split()
+
+        if self.target != self.host:
+            print 'Building dlib for host platform'
+            cwd = join(self.defold_root, 'engine/dlib')
+            cmd = 'waf configure --prefix=%s %s distclean configure build install' % (self.dynamo_home, skip_tests)
+            self.exec_command(cmd.split(), cwd = cwd)
+
+        for lib in libs:
+            print 'Building %s' % lib
+            cwd = join(self.defold_root, 'engine/%s' % lib)
+            cmd = 'waf configure --prefix=%s --platform=%s %s distclean configure build install' % (self.dynamo_home, self.target, skip_tests)
+            self.exec_command(cmd.split(), cwd = cwd)
+
+    def test_cr(self):
+        for plugin in ['common', 'luaeditor', 'builtins']:
+            self.exec_command(['ln', '-sfn',
+                               self.dynamo_home,
+                               join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.%s/DYNAMO_HOME' % plugin)])
+
+        cwd = join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.parent')
+        self.exec_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'verify'],
+                          cwd = cwd)
+
+    def build_server(self):
+        build_dir = join(os.getcwd(), 'tmp', 'server')
+        self._build_cr('server', build_dir)
+
+    def build_editor(self):
+        build_dir = join(os.getcwd(), 'tmp', 'editor')
+
+        root_properties = '''root.linux.gtk.x86=absolute:${buildDirectory}/plugins/com.dynamo.cr.editor/jre_linux/
+root.linux.gtk.x86.permissions.755=jre/'''
+        self._build_cr('editor', build_dir, root_properties = root_properties)
+
+        prefix = 'Defold'
+        zip = join(build_dir, 'I.Defold/Defold-win32.win32.x86.zip')
+        jre_root = join(build_dir, 'plugins/com.dynamo.cr.editor/jre_win32')
+        zip = zipfile.ZipFile(zip, 'a')
+
+        for root, dirs, files in os.walk(jre_root):
+            for f in files:
+                full = join(root, f)
+                rel = relpath(full, jre_root)
+                with open(full, 'rb') as file:
+                    data = file.read()
+                    path = join(prefix, rel)
+                    zip.writestr(path, data)
+        zip.close()
+
+    def _build_cr(self, product, build_dir, root_properties = None):
+        equinox_version = '1.2.0.v20110502'
+
+        if os.path.exists(build_dir):
+            shutil.rmtree(build_dir)
+        os.makedirs(join(build_dir, 'plugins'))
+        os.makedirs(join(build_dir, 'features'))
+
+        if root_properties:
+            with open(join(build_dir, 'root_properties')) as f:
+                f.write(root_properties)
+
+        workspace = '/tmp/workspace_%s' % product
+        if os.path.exists(workspace):
+            shutil.rmtree(workspace)
+        os.makedirs(workspace)
+
+        for p in glob(join(self.defold_root, 'com.dynamo.cr', '*')):
+            dst = join(build_dir, 'plugins', basename(p))
+            print 'Copying .../%s -> %s' % (basename(p), dst)
+            shutil.copytree(p, dst)
+
+        args = ['java',
+                '-Xms256m',
+                '-Xmx1500m',
+                '-jar',
+                '%s/plugins/org.eclipse.equinox.launcher_%s.jar' % (self.eclipse_home, equinox_version),
+                '-application', 'org.eclipse.ant.core.antRunner',
+                '-buildfile', 'ci/cr/build_%s.xml' % product,
+                '-DbaseLocation=%s' % self.eclipse_home,
+                '-DbuildDirectory=%s' % build_dir,
+                '-DbuildProperties=%s' % join(os.getcwd(), 'ci/cr/%s.properties' % product),
+                '-data', workspace]
+
+        print args
+        self.exec_command(args)
+
+    def exec_command(self, arg_list, **kwargs):
+        env = dict(os.environ)
+
+        ld_library_path = 'DYLD_LIBRARY_PATH' if self.host == 'darwin' else 'LD_LIBRARY_PATH'
+        env[ld_library_path] = os.path.pathsep.join(['%s/lib' % self.dynamo_home,
+                                                     '%s/ext/lib/%s' % (self.dynamo_home, self.host)])
+
+        env['PYTHONPATH'] = os.path.pathsep.join(['%s/lib/python' % self.dynamo_home,
+                                                  '%s/ext/lib/python' % self.dynamo_home])
+
+        env['DYNAMO_HOME'] = self.dynamo_home
+
+        paths = os.path.pathsep.join(['%s/bin' % self.dynamo_home,
+                                      '%s/ext/bin' % self.dynamo_home,
+                                      '%s/ext/bin/%s' % (self.dynamo_home, self.host)])
+
+        env['PATH'] = paths + os.path.pathsep + env['PATH']
+
+        env['MAVEN_OPTS'] = '-Xms256m -Xmx700m -XX:MaxPermSize=1024m'
+
+        if self.no_colors:
+            env['NOCOLOR'] = '1'
+            env['GTEST_COLOR'] = 'no'
+
+        process = subprocess.Popen(arg_list, env = env, **kwargs)
+        process.wait()
+        if process.returncode != 0:
+            sys.exit(process.returncode)
+
+if __name__ == '__main__':
+    usage = '''usage: %prog [options] command(s)
+
+Commands:
+distclean     - Removes the DYNAMO_HOME folder
+install_ext   - Install external packages
+build_engine  - Build engine
+test_cr       - Test editor and server
+build_server  - Build server
+build_editor  - Build editor
+
+Multiple commands can be specified'''
+
+    parser = optparse.OptionParser(usage)
+
+    parser.add_option('--eclipse-home', dest='eclipse_home',
+                      default = None,
+                      help = 'Eclipse directory')
+
+    parser.add_option('--target', dest='target',
+                      default = None,
+                      choices = ['linux', 'darwin', 'win32', 'armv6-darwin'],
+                      help = 'Target platform')
+
+    parser.add_option('--skip-tests', dest='skip_tests',
+                      action = 'store_true',
+                      default = False,
+                      help = 'Skip unit-tests. Default is false')
+
+    parser.add_option('--no-colors', dest='no_colors',
+                      action = 'store_true',
+                      default = False,
+                      help = 'No color output. Default is color output')
+
+    options, args = parser.parse_args()
+
+    if len(args) == 0:
+        parser.error('No command specified')
+
+    c = Configuration(dynamo_home = os.environ.get('DYNAMO_HOME', None),
+                      target = options.target,
+                      eclipse_home = options.eclipse_home,
+                      skip_tests = options.skip_tests,
+                      no_colors = options.no_colors)
+
+    for cmd in args:
+        f = getattr(c, cmd, None)
+        if not f:
+            parser.error('Unknown command %s' % cmd)
+        f()
