@@ -1,0 +1,3 @@
+#!/bin/sh
+SCRIPT_DOC=`dirname $0`/../lib/python/script_doc.py
+python $SCRIPT_DOC $@

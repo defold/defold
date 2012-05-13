@@ -1,0 +1,74 @@
+##########################################################################
+# Makefile for GLFW test programs on Windows using Open Watcom 1.0.
+#-------------------------------------------------------------------------
+# To compile the test files using this makefile, run:
+# "wmake -ms -f Makefile.win32.ow" or "nmake -f Makefile.win32.ow"
+##########################################################################
+
+# Compiler settings
+CC     = wcl386
+CFLAGS = /Ox /I..\\include
+#CFLAGS = /Ox /I..\\include /DGLFW_DLL
+
+# Linker settings
+LFLAGS = ..\\lib\\win32\\glfw.lib opengl32.lib glu32.lib user32.lib
+#LFLAGS = ..\\lib\\win32\\glfwdll.lib opengl32.lib glu32.lib
+
+# Subsystem settings
+WINDOWS = -"RUNTIME windows=4.0 REFERENCE 'mainCRTStartup' OPTION { start='mainCRTStartup' quiet stack=1M }"
+CONSOLE = -"RUNTIME console REFERENCE _cstart_ OPTION { START=_cstart_ quiet stack=1M }"
+
+
+# Default: Build all tests
+all: triangle.exe listmodes.exe mthello.exe pong3d.exe mtbench.exe \
+	particles.exe splitview.exe mipmaps.exe gears.exe boing.exe \
+	wave.exe heightmap.exe
+
+
+# Rule for triangle
+triangle.exe: triangle.c
+	$(CC) $(CFLAGS) /Fe$@ triangle.c $(LFLAGS) $(WINDOWS)
+
+# Rule for listmodes
+listmodes.exe: listmodes.c
+	$(CC) $(CFLAGS) /Fe$@ listmodes.c $(LFLAGS) $(CONSOLE)
+
+# Rule for mthello
+mthello.exe: mthello.c
+	$(CC) $(CFLAGS) /Fe$@ mthello.c $(LFLAGS) $(CONSOLE)
+
+# Rule for pong3d
+pong3d.exe: pong3d.c
+	$(CC) $(CFLAGS) /Fe$@ pong3d.c $(LFLAGS) $(WINDOWS)
+
+# Rule for mtbench
+mtbench.exe: mtbench.c
+	$(CC) $(CFLAGS) /Fe$@ mtbench.c $(LFLAGS) $(CONSOLE)
+
+# Rule for particles
+particles.exe: particles.c
+	$(CC) $(CFLAGS) /Fe$@ particles.c $(LFLAGS) $(CONSOLE)
+
+# Rule for splitview
+splitview.exe: splitview.c
+	$(CC) $(CFLAGS) /Fe$@ splitview.c $(LFLAGS) $(WINDOWS)
+
+# Rule for mipmaps
+mipmaps.exe: mipmaps.c
+	$(CC) $(CFLAGS) /Fe$@ mipmaps.c $(LFLAGS) $(WINDOWS)
+
+# Rule for gears
+gears.exe: gears.c
+	$(CC) $(CFLAGS) /Fe$@ gears.c $(LFLAGS) $(WINDOWS)
+
+# Rule for boing
+boing.exe: boing.c
+	$(CC) $(CFLAGS) /Fe$@ boing.c $(LFLAGS) $(WINDOWS)
+
+# Rule for wave
+wave.exe: wave.c
+	$(CC) $(CFLAGS) /Fe$@ wave.c $(LFLAGS) $(WINDOWS)
+
+# Rule for heightmap
+heightmap.exe: heightmap.c getopt.c
+	$(CC) $(CFLAGS) /Fe$@ heightmap.c getopt.c $(LFLAGS) $(WINDOWS)

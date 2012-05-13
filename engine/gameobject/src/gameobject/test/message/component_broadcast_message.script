@@ -1,0 +1,3 @@
+function init(self)
+    msg.post(go.get_id(), "test_message", {test_uint32 = 2})
+end

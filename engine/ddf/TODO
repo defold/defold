@@ -1,0 +1,7 @@
+
+* Options for ddf_java_package. Currently a "comment" in the .proto file 
+* includes and java (refer to external types)
+* Empty arrays
+* Messages in messages
+* Optional fields
+

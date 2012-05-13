@@ -1,0 +1,34 @@
+function init(self)
+    -- properties
+    self.target_group = hash("target")
+    self.speed = 18
+    self.impact_damage = 0.2
+    self.hit_response = nil
+    msg.post("attacker", "dummy_msg")
+end
+
+function update(self, dt)
+    local rot = go.get_world_rotation()
+    if self.hit_response then
+        go.delete()
+        factory.create("#factory")
+        msg.post(receiver, "hit", { damage = self.impact_damage })
+    else
+        local pos = go.get_world_position()
+        -- prediction for CD
+        local prev_pos = vmath.vector3(pos)
+        local velocity = vmath.vector3(self.speed, 0, 0)
+        local dp = vmath.rotate(rot, velocity) * dt
+        pos = pos + dp
+        local next_pos = pos + dp
+        go.set_position(pos)
+        -- request ray cast
+        physics.ray_cast(prev_pos, next_pos, {self.target_group}, 1)
+    end
+end
+
+function on_message(self, message_id, message)
+    if message_id == hash("ray_cast_response") and message.group == self.target_group and message.request_id == 1 then
+        self.hit_response = message
+    end
+end

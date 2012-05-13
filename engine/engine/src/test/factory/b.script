@@ -1,0 +1,11 @@
+go.property("factory", msg.url())
+
+function init(self, params)
+    self.factory = params.factory
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("hello") then
+        msg.post(self.factory, "done")
+    end
+end

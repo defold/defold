@@ -1,0 +1,71 @@
+package dmMath;
+
+import "ddf/ddf_extensions.proto";
+
+option java_package = "com.dynamo.proto";
+option java_outer_classname = "DdfMath";
+
+option (ddf_includes) = "vectormath/cpp/vectormath_aos.h";
+
+message Point3
+{
+    option (alias) = "Vectormath::Aos::Point3";
+
+    optional float x = 1 [default = 0.0];
+    optional float y = 2 [default = 0.0];
+    optional float z = 3 [default = 0.0];
+    optional float d = 4 [default = 0.0];
+}
+
+message Vector3
+{
+    option (alias) = "Vectormath::Aos::Vector3";
+
+    optional float x = 1 [default = 0.0];
+    optional float y = 2 [default = 0.0];
+    optional float z = 3 [default = 0.0];
+    optional float d = 4 [default = 0.0];
+}
+
+
+message Vector4
+{
+    option (alias) = "Vectormath::Aos::Vector4";
+
+    optional float x = 1 [default = 0.0];
+    optional float y = 2 [default = 0.0];
+    optional float z = 3 [default = 0.0];
+    optional float w = 4 [default = 0.0];
+}
+
+message Quat
+{
+    option (alias) = "Vectormath::Aos::Quat";
+
+    optional float x = 1 [default = 0.0];
+    optional float y = 2 [default = 0.0];
+    optional float z = 3 [default = 0.0];
+    optional float w = 4 [default = 1.0];
+}
+
+message Matrix4
+{
+    option (alias) = "Vectormath::Aos::Matrix4";
+
+    optional float m00 = 1 [default = 1.0];
+    optional float m01 = 2 [default = 0.0];
+    optional float m02 = 3 [default = 0.0];
+    optional float m03 = 4 [default = 0.0];
+    optional float m10 = 5 [default = 0.0];
+    optional float m11 = 6 [default = 1.0];
+    optional float m12 = 7 [default = 0.0];
+    optional float m13 = 8 [default = 0.0];
+    optional float m20 = 9 [default = 0.0];
+    optional float m21 = 10 [default = 0.0];
+    optional float m22 = 11 [default = 1.0];
+    optional float m23 = 12 [default = 0.0];
+    optional float m30 = 13 [default = 0.0];
+    optional float m31 = 14 [default = 0.0];
+    optional float m32 = 15 [default = 0.0];
+    optional float m33 = 16 [default = 1.0];
+}

@@ -1,0 +1,265 @@
+
+##########################################################################
+# Installation prefix (default to /usr/local)
+##########################################################################
+PREFIX ?= /usr/local
+
+
+##########################################################################
+# Default: Build GLFW static library
+##########################################################################
+all: libglfw.a libglfw.so
+
+
+##########################################################################
+# Library builder settings
+##########################################################################
+AR       = ar
+LD       = ld
+SED      = sed
+INSTALL  = install
+ARFLAGS  = -rcs
+HEADERS     = ../../include/GL/glfw.h ../internal.h platform.h
+
+
+##########################################################################
+# Install GLFW static library
+##########################################################################
+install: libglfw.a libglfw.pc
+	$(INSTALL) -d $(PREFIX)/lib
+	$(INSTALL) -c -m 644 libglfw.a $(PREFIX)/lib/libglfw.a
+	$(INSTALL) -d $(PREFIX)/include/GL
+	$(INSTALL) -c -m 644 ../../include/GL/glfw.h $(PREFIX)/include/GL/glfw.h
+	$(INSTALL) -d $(PREFIX)/lib/pkgconfig
+	$(INSTALL) -c -m 644 libglfw.pc $(PREFIX)/lib/pkgconfig/libglfw.pc
+
+
+##########################################################################
+# Install GLFW static and shared libraries
+##########################################################################
+dist-install: libglfw.a libglfw.so libglfw.pc
+	$(INSTALL) -d $(PREFIX)/lib
+	$(INSTALL) -c -m 644 libglfw.a $(PREFIX)/lib/libglfw.a
+	$(INSTALL) -c -m 644 libglfw.so $(PREFIX)/lib/libglfw.so
+	$(INSTALL) -d $(PREFIX)/include/GL
+	$(INSTALL) -c -m 644 ../../include/GL/glfw.h $(PREFIX)/include/GL/glfw.h
+	$(INSTALL) -d $(PREFIX)/lib/pkgconfig
+	$(INSTALL) -c -m 644 libglfw.pc $(PREFIX)/lib/pkgconfig/libglfw.pc
+
+
+##########################################################################
+# Object files which are part of the GLFW library
+##########################################################################
+STATIC_OBJS = \
+       enable.o \
+       fullscreen.o \
+       glext.o \
+       image.o \
+       init.o \
+       input.o \
+       joystick.o \
+       stream.o \
+       tga.o \
+       thread.o \
+       time.o \
+       window.o \
+       x11_enable.o \
+       x11_fullscreen.o \
+       x11_glext.o \
+       x11_init.o \
+       x11_joystick.o \
+       x11_keysym2unicode.o \
+       x11_thread.o \
+       x11_time.o \
+       x11_window.o
+
+
+##########################################################################
+# Object files which are part of the GLFW library
+##########################################################################
+SHARED_OBJS = \
+       so_enable.o \
+       so_fullscreen.o \
+       so_glext.o \
+       so_image.o \
+       so_init.o \
+       so_input.o \
+       so_joystick.o \
+       so_stream.o \
+       so_tga.o \
+       so_thread.o \
+       so_time.o \
+       so_window.o \
+       so_x11_enable.o \
+       so_x11_fullscreen.o \
+       so_x11_glext.o \
+       so_x11_init.o \
+       so_x11_joystick.o \
+       so_x11_keysym2unicode.o \
+       so_x11_thread.o \
+       so_x11_time.o \
+       so_x11_window.o
+
+
+##########################################################################
+# Rule for building libglfw.pc
+##########################################################################
+libglfw.pc: libglfw.pc.in
+	$(SED) -e 's,\@PREFIX\@,$(PREFIX),' libglfw.pc.in > libglfw.pc
+
+
+##########################################################################
+# Rule for building static library
+##########################################################################
+libglfw.a: $(STATIC_OBJS)
+	$(AR) $(ARFLAGS) $@ $(STATIC_OBJS)
+
+
+##########################################################################
+# Rule for building shared library
+##########################################################################
+libglfw.so: $(SHARED_OBJS)
+	$(CC) $(SOFLAGS) -o $@ $(SHARED_OBJS) $(LFLAGS) $(LIBS)
+
+
+##########################################################################
+# Rules for building static library object files
+##########################################################################
+enable.o: ../enable.c $(HEADERS)
+	$(CC) $(CFLAGS) -o $@ ../enable.c
+
+fullscreen.o: ../fullscreen.c $(HEADERS)
+	$(CC) $(CFLAGS) -o $@ ../fullscreen.c
+
+glext.o: ../glext.c $(HEADERS)
+	$(CC) $(CFLAGS) -o $@ ../glext.c
+
+image.o: ../image.c $(HEADERS)
+	$(CC) $(CFLAGS) -o $@ ../image.c
+
+init.o: ../init.c $(HEADERS)
+	$(CC) $(CFLAGS) -o $@ ../init.c
+
+input.o: ../input.c $(HEADERS)
+	$(CC) $(CFLAGS) -o $@ ../input.c
+
+joystick.o: ../joystick.c $(HEADERS)
+	$(CC) $(CFLAGS) -o $@ ../joystick.c
+
+stream.o: ../stream.c $(HEADERS)
+	$(CC) $(CFLAGS) -o $@ ../stream.c
+
+tga.o: ../tga.c $(HEADERS)
+	$(CC) $(CFLAGS) -o $@ ../tga.c
+
+thread.o: ../thread.c $(HEADERS)
+	$(CC) $(CFLAGS) -o $@ ../thread.c
+
+time.o: ../time.c $(HEADERS)
+	$(CC) $(CFLAGS) -o $@ ../time.c
+
+window.o: ../window.c $(HEADERS)
+	$(CC) $(CFLAGS) -o $@ ../window.c
+
+x11_enable.o: x11_enable.c $(HEADERS)
+	$(CC) $(CFLAGS) -o $@ x11_enable.c
+
+x11_fullscreen.o: x11_fullscreen.c $(HEADERS)
+	$(CC) $(CFLAGS) -o $@ x11_fullscreen.c
+
+x11_glext.o: x11_glext.c $(HEADERS)
+	$(CC) $(CFLAGS) -o $@ x11_glext.c
+
+x11_init.o: x11_init.c $(HEADERS)
+	$(CC) $(CFLAGS) -o $@ x11_init.c
+
+x11_joystick.o: x11_joystick.c $(HEADERS)
+	$(CC) $(CFLAGS) -o $@ x11_joystick.c
+
+x11_thread.o: x11_thread.c $(HEADERS)
+	$(CC) $(CFLAGS) -o $@ x11_thread.c
+
+x11_time.o: x11_time.c $(HEADERS)
+	$(CC) $(CFLAGS) -o $@ x11_time.c
+
+x11_window.o: x11_window.c $(HEADERS)
+	$(CC) $(CFLAGS) -o $@ x11_window.c
+
+x11_keysym2unicode.o: x11_keysym2unicode.c $(HEADERS)
+	$(CC) $(CFLAGS) -o $@ x11_keysym2unicode.c
+
+
+##########################################################################
+# Rules for building shared library object files
+##########################################################################
+so_enable.o: ../enable.c $(HEADERS)
+	$(CC) -fPIC $(CFLAGS) -o $@ ../enable.c
+
+so_fullscreen.o: ../fullscreen.c $(HEADERS)
+	$(CC) -fPIC $(CFLAGS) -o $@ ../fullscreen.c
+
+so_glext.o: ../glext.c $(HEADERS)
+	$(CC) -fPIC $(CFLAGS) -o $@ ../glext.c
+
+so_image.o: ../image.c $(HEADERS)
+	$(CC) -fPIC $(CFLAGS) -o $@ ../image.c
+
+so_init.o: ../init.c $(HEADERS)
+	$(CC) -fPIC $(CFLAGS) -o $@ ../init.c
+
+so_input.o: ../input.c $(HEADERS)
+	$(CC) -fPIC $(CFLAGS) -o $@ ../input.c
+
+so_joystick.o: ../joystick.c $(HEADERS)
+	$(CC) -fPIC $(CFLAGS) -o $@ ../joystick.c
+
+so_stream.o: ../stream.c $(HEADERS)
+	$(CC) -fPIC $(CFLAGS) -o $@ ../stream.c
+
+so_tga.o: ../tga.c $(HEADERS)
+	$(CC) -fPIC $(CFLAGS) -o $@ ../tga.c
+
+so_thread.o: ../thread.c $(HEADERS)
+	$(CC) -fPIC $(CFLAGS) -o $@ ../thread.c
+
+so_time.o: ../time.c $(HEADERS)
+	$(CC) -fPIC $(CFLAGS) -o $@ ../time.c
+
+so_window.o: ../window.c $(HEADERS)
+	$(CC) -fPIC $(CFLAGS) -o $@ ../window.c
+
+so_x11_enable.o: x11_enable.c $(HEADERS)
+	$(CC) -fPIC $(CFLAGS) -o $@ x11_enable.c
+
+so_x11_fullscreen.o: x11_fullscreen.c $(HEADERS)
+	$(CC) -fPIC $(CFLAGS) -o $@ x11_fullscreen.c
+
+so_x11_glext.o: x11_glext.c $(HEADERS)
+	$(CC) -fPIC $(CFLAGS) -o $@ x11_glext.c
+
+so_x11_init.o: x11_init.c $(HEADERS)
+	$(CC) -fPIC $(CFLAGS) -o $@ x11_init.c
+
+so_x11_joystick.o: x11_joystick.c $(HEADERS)
+	$(CC) -fPIC $(CFLAGS) -o $@ x11_joystick.c
+
+so_x11_thread.o: x11_thread.c $(HEADERS)
+	$(CC) -fPIC $(CFLAGS) -o $@ x11_thread.c
+
+so_x11_time.o: x11_time.c $(HEADERS)
+	$(CC) -fPIC $(CFLAGS) -o $@ x11_time.c
+
+so_x11_window.o: x11_window.c $(HEADERS)
+	$(CC) -fPIC $(CFLAGS) -o $@ x11_window.c
+
+so_x11_keysym2unicode.o: x11_keysym2unicode.c $(HEADERS)
+	$(CC) -fPIC $(CFLAGS) -o $@ x11_keysym2unicode.c
+
+
+##########################################################################
+# Clean
+##########################################################################
+
+clean:
+	rm -f $(STATIC_OBJS) $(SHARED_OBJS) libglfw.a libglfw.so libglfw.pc
+

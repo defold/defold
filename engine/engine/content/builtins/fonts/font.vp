@@ -1,0 +1,13 @@
+uniform mat4 view_proj;
+uniform mat4 world;
+
+varying vec2 var_texcoord0;
+
+attribute vec4 position;
+
+void main()
+{
+    mat4 mvp = view_proj * world;
+    gl_Position = mvp * vec4(position.x, position.y, 0, 1);
+    var_texcoord0 = position.zw;
+}

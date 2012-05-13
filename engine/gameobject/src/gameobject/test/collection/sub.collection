@@ -1,0 +1,32 @@
+name: "sub"
+instances {
+  id: "child"
+  prototype: "/child.goc"
+  position {
+    x: 0.0
+    y: 10.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 0.0
+  }
+}
+instances {
+  id: "parent"
+  prototype: "/parent.goc"
+  children: "child"
+  position {
+    x: 0.0
+    y: 20.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.7071
+    z: 0.0
+    w: 0.7071
+  }
+}

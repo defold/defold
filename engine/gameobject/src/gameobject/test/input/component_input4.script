@@ -1,0 +1,20 @@
+function on_input(self, action_id, action)
+    -- mouse less input
+    if action_id == hash("test_action") then
+        assert(action.x == nil)
+        assert(action.y == nil)
+        assert(action.dx == nil)
+        assert(action.dy == nil)
+    elseif action_id == nil then -- mouse movement
+        assert(action.value == nil)
+        assert(action.pressed == nil)
+        assert(action.released == nil)
+        assert(action.repeated == nil)
+        assert(action.x == 1.0)
+        assert(action.y == 2.0)
+        assert(action.dx == 3.0)
+        assert(action.dy == 4.0)
+    else
+        assert(false, "unkown action")
+    end
+end

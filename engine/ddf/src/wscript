@@ -1,0 +1,30 @@
+#! /usr/bin/env python
+import os, Task
+from TaskGen import feature, before
+
+def set_options(opt):
+    pass
+
+def build(bld):
+    bld.add_subdirs('ddf')
+    bld.add_subdirs('test')
+
+    bld.add_group()
+
+    # Add additional generated class-files to ddf.jar
+    bld.new_task_gen(features='jar',
+                     basedir='ddf/generated',
+                     destfile='ddf.jar')
+
+    bld.install_files('${PREFIX}/share/java', 'ddf.jar')
+
+    bld.install_files('${PREFIX}/lib/python', 'waf_ddf.py')
+    bld.install_files('${PREFIX}/bin', 'ddfc.py', chmod=493)
+    bld.install_files('${PREFIX}/bin', 'ddfc_cxx', chmod=493)
+    bld.install_files('${PREFIX}/bin', 'ddfc_cxx.bat')
+    bld.install_files('${PREFIX}/share/proto/ddf', 'ddf/ddf_extensions.proto')
+    bld.install_files('${PREFIX}/share/proto/ddf', 'ddf/ddf_math.proto')
+
+def configure(conf):
+    pass
+

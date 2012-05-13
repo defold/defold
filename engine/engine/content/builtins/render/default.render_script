@@ -1,0 +1,48 @@
+function init(self)
+    self.tile_pred = render.predicate({"tile"})
+    self.gui_pred = render.predicate({"gui"})
+    self.text_pred = render.predicate({"text"})
+
+    self.clear_color = vmath.vector4(0, 0, 0, 0)
+    self.clear_color.x = sys.get_config("render.clear_color_red", 0)
+    self.clear_color.y = sys.get_config("render.clear_color_green", 0)
+    self.clear_color.z = sys.get_config("render.clear_color_blue", 0)
+    self.clear_color.w = sys.get_config("render.clear_color_alpha", 0)
+
+    self.view = vmath.matrix4()
+end
+
+function update(self)
+    render.clear({[render.BUFFER_COLOR_BIT] = self.clear_color, [render.BUFFER_DEPTH_BIT] = 1})
+
+    render.set_viewport(0, 0, render.get_window_width(), render.get_window_height())
+    render.set_view(self.view)
+
+    render.set_depth_mask(false)
+    render.disable_state(render.STATE_DEPTH_TEST)
+    render.enable_state(render.STATE_BLEND)
+    render.set_blend_func(render.BLEND_SRC_ALPHA, render.BLEND_ONE_MINUS_SRC_ALPHA)
+    render.disable_state(render.STATE_CULL_FACE)
+
+    render.set_projection(vmath.matrix4_orthographic(0, render.get_width(), 0, render.get_height(), -1, 1))
+
+    render.draw(self.tile_pred)
+    render.draw_debug3d()
+
+    render.set_view(vmath.matrix4())
+    render.set_projection(vmath.matrix4_orthographic(0, render.get_window_width(), 0, render.get_window_height(), -1, 1))
+
+    render.draw(self.gui_pred)
+    render.draw(self.text_pred)
+
+    render.set_depth_mask(false)
+    render.draw_debug2d()
+end
+
+function on_message(self, message_id, message)
+    if message_id == hash("clear_color") then
+        self.clear_color = message.color
+    elseif message_id == hash("set_view_projection") then
+        self.view = message.view
+    end
+end

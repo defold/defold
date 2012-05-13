@@ -1,0 +1,3 @@
+function init(self)
+    go.property("number", 0)
+end

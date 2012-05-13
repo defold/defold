@@ -1,0 +1,13 @@
+import sys, os
+import Task, TaskGen
+from TaskGen import extension
+
+def build(bld):
+    sys.path.insert(0, "default/proto")
+    font_viewer = bld.new_task_gen(features = 'cc cxx cprogram',
+                                    source = 'fontview.cpp deja_vu_sans.font vera_mo_bd.font font.vp font.fp font.material',
+                                    uselib = 'RENDER GRAPHICS RESOURCE HID DDF DMGLFW PLATFORM_SOCKET LUA SCRIPT DLIB',
+                                    uselib_local = 'gamesys',
+                                    includes = ['../../../src', '../../../build'],
+                                    target = 'fontview')
+    font_viewer.install_path = None

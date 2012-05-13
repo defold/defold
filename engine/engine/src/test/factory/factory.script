@@ -1,0 +1,16 @@
+function init(self)
+    self.id_a = factory.create("#factory_a", nil, nil, {test_value = 1})
+    self.id_b = factory.create("#factory_b", nil, nil, {factory = msg.url("#script")})
+end
+
+function update(self, dt)
+    msg.post(self.id_a, "hello", {id_b = self.id_b})
+    assert(not self.updated)
+    self.updated = true
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("done") then
+        msg.post("main:/main#script", "done")
+    end
+end

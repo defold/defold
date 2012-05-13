@@ -1,0 +1,56 @@
+Message Passing
+===============
+
+All communication between systems and game objects in Defold is based on link:http://en.wikipedia.org/wiki/Message_passing[message passing].
+It provides separation and less dependencies between systems, while still allowing anything to communicate with anything.
+
+When posting a message, three things are needed:
+
+* The address of the recipient
+* The message id
+* The data to be passed along with the message (some messages don't have additional data attached)
+
+The address of the recipient is expressed in a URL-like format, where any part is optional:
+
+----
+[socket:][path][#fragment]
+----
+
+_Socket_ is the name of the socket (or "port") in the system.
+When communicating with game objects, this would be the named of the root collection they belonged to.
+When posting to the engine, this would be the name of the specific system, e.g. +@render+ or +@physics+.
+
+_Path_ is only used when communicating with game objects.
+In this case, it's a slash segmented path of the collection ids leading up to the game object id.
+The path itself is relative to the sender.
+Let's show by example.
+Suppose you have the following structure inside your main collection:
+
+* main collection
+** sub collection "my_sub1"
+*** game object "my_go1"
+*** sub collection "my_sub2"
+**** game object "my_go2"
+
+The path of _my_go2_ relative _my_go1_ would then be +my_sub2/my_go2+.
+Anyone in the main collection could address _my_go2_ by its absolute path: +/my_sub1/my_sub2/my_go2+.
+Anyone in another collection could address _my_go2_ by also adding the socket of the main collection: +main:/my_sub1/my_sub2/my_go2+.
+
+_Fragment_ is also only used when passing messages to game objects, in which case it names the specific component to receive the message.
+If fragment is omitted, the message will be sent to every component in the specified game object.
+This is called broad-casting.
+
+There are two types of messages, predefined messages in Defold (which you can find in the link:#!reference:engine[reference]) and user defined messages.
+Predefined messages must contain specific data and can only be sent to specific components or systems (this is detailed in the reference documentation).
+User defined messages can only be sent to other scripts.
+In this case you pick whatever data you want to pass along.
+
+Posting a message from a script is very simple:
+
+[source, lua]
+----
+-- post to another game object
+msg.post("my_go", "my_message", {my_parameter = "my_value"})
+-- post to the system socket to exit the game
+msg.post("@system:", "exit", {code = 0})
+----

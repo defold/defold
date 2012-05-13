@@ -1,0 +1,16 @@
+package TestGameObjectDDF;
+
+message AResource
+{
+    required uint32 a = 1;
+}
+
+message BResource
+{
+    required uint32 b = 1;
+}
+
+message CResource
+{
+    required uint32 c = 1;
+}

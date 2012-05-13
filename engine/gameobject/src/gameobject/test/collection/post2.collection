@@ -1,0 +1,16 @@
+name: "post2"
+instances {
+  id: "go2"
+  prototype: "/post2.goc"
+  position {
+    x: 123.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 1.0
+    z: 0.0
+    w: 0.0
+  }
+}

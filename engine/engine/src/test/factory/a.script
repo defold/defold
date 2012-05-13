@@ -1,0 +1,11 @@
+go.property("test_value", 0)
+
+function init(self, params)
+    assert(params.test_value == 1)
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("hello") then
+        msg.post(message.id_b, "hello")
+    end
+end

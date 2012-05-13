@@ -1,0 +1,14 @@
+id: "light"
+type: SPOT
+intensity: 20.0
+color {
+  x: 1.0
+  y: 1.0
+  z: 1.0
+  d: 0.0
+}
+range: 50.0
+decay: 0.9
+cone_angle: 50.0
+penumbra_angle: 15.0
+drop_off: 0.5

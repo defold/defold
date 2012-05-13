@@ -1,0 +1,78 @@
+Script Properties
+=================
+
+Script properties let you use one script in many places and tweak it differently for each place.
+
+When you write a script, its behavior is usually controlled by a number of values.
+These can be anything from numbers for calculations to URLs for messages passing.
+Whenever you use a script in many places, it is often desirable to change the values depending on where the script is used.
+
+[IMPORTANT]
+When using URLs as properties, you can only set them to be global (starting with '/').
+This will be fixed at a later time.
+See link:#!guide:message_passing[Message Passing] for more information about global URLs.
+
+Say that you have a script which controls health and can respond to damage through a message called +take_damage+:
+
+[source, lua]
+----
+function init(self)
+    self.health = 100
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("take_damage") then
+        self.health = self.health - message.damage
+        if self.health <= 0 then
+            go.delete()
+        end
+    end
+end
+----
+
+If the health reaches 0, it destroys the game object.
+Now you want to use the script in two different game objects, but you want them to have different amounts of health.
+There is a specific function for this purpose called link:#!reference:go/go.property[go.property]:
+
+[source, lua]
+----
+-- self.health will be automatically set to 100 by default
+go.property("health", 100)
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("take_damage") then
+        self.health = self.health - message.damage
+        if self.health <= 0 then
+            go.delete()
+        end
+    end
+end
+----
+
+By using this function to declare your property, it will be automatically exposed everywhere you use the script.
+If you add the script to a game object and select the script node in the outline, the properties view will now display your new health-property.
+By specifying a value here, that value will be used specifically for that game object instead of the default value set in the script.
+To go back to the default value, remove the current value and hit enter.
+
+If you then add the game object to a collection, you can expand the game object node and select the script.
+Like before, the health is available here too.
+By setting a value here, that value will override the values in the game object and script.
+
+If you use a factory to create the game object from another script while the game is running, you can also set the property from there:
+
+[source, lua]
+----
+function on_message(self, message_id, message, sender)
+    if message_id == hash("create_my_object") then
+        factory.create("#factory", go.get_position(), go.get_rotation(), {health = 50})
+    end
+end
+----
+
+This will also override both the value set in the game object and the default value in the script.
+
+[IMPORTANT]
+You can only use math types (vector3, vector4 and quat) when creating game objects through a factory.
+Such properties won't appear in the Properties View inside game objects or collections.
+This will be fixed at a later time.
+ 

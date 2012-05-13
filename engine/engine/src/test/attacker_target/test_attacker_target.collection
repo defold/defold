@@ -1,0 +1,30 @@
+name: "test_attacker_target"
+instances {
+  id: "attacker"
+  prototype: "/attacker_target/attacker.go"
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 1.0
+  }
+}
+instances {
+  id: "target"
+  prototype: "/attacker_target/target.go"
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}

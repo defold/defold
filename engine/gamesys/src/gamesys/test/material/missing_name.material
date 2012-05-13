@@ -1,0 +1,3 @@
+name: ""
+vertex_program: "/vertex_program/valid.vp"
+fragment_program: "/fragment_program/valid.fp"

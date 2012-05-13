@@ -1,0 +1,5 @@
+function update(self, dt)
+    if (not self.started) then
+        self.started = true
+    end
+end

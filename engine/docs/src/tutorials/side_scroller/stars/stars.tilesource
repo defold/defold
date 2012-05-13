@@ -1,0 +1,26 @@
+image: "/stars/stars.png"
+tile_width: 64
+tile_height: 64
+tile_margin: 0
+tile_spacing: 0
+collision: ""
+material_tag: "tile"
+collision_groups: "default"
+animations {
+  id: "bonus_star"
+  start_tile: 2
+  end_tile: 2
+  playback: PLAYBACK_ONCE_FORWARD
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+animations {
+  id: "star"
+  start_tile: 1
+  end_tile: 1
+  playback: PLAYBACK_ONCE_FORWARD
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 0
+}

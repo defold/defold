@@ -1,0 +1,119 @@
+package dmGameSystemDDF;
+
+import "ddf/ddf_extensions.proto";
+import "ddf/ddf_math.proto";
+
+option java_package = "com.dynamo.tile.proto";
+option java_outer_classname = "Tile";
+
+message ConvexHull
+{
+    // index into an array of points (x0, y0, x1, y1, ...)
+    // in “points” unit, ie effectively divided by 2
+    required uint32 index           = 1 [default = 0];
+    required uint32 count           = 2 [default = 0];
+    required string collision_group = 3 [default = "tile"];
+}
+
+message Cue
+{
+    required string id = 1;
+    required uint32 frame = 2;
+    optional float value = 3 [default = 0.0];
+}
+
+enum Playback
+{
+    PLAYBACK_NONE = 0 [(displayName) = "None"];
+    PLAYBACK_ONCE_FORWARD = 1 [(displayName) = "Once Forward"];
+    PLAYBACK_ONCE_BACKWARD = 2 [(displayName) = "Once Backward"];
+    PLAYBACK_LOOP_FORWARD = 3 [(displayName) = "Loop Forward"];
+    PLAYBACK_LOOP_BACKWARD = 4 [(displayName) = "Loop Backward"];
+    PLAYBACK_LOOP_PINGPONG = 5 [(displayName) = "Ping Pong"];
+}
+
+message Animation
+{
+    required string id              = 1;
+    required uint32 start_tile      = 2;
+    required uint32 end_tile        = 3;
+    optional Playback playback      = 4 [default = PLAYBACK_ONCE_FORWARD];
+    optional uint32 fps             = 5 [default = 30];
+    optional uint32 flip_horizontal = 6 [default = 0];
+    optional uint32 flip_vertical   = 7 [default = 0];
+    repeated Cue cues               = 8;
+}
+
+message TileSet
+{
+    required string image               = 1 [(resource)=true];
+    required uint32 tile_width          = 2 [default = 0];
+    required uint32 tile_height         = 3 [default = 0];
+    required uint32 tile_margin         = 4 [default = 0];
+    required uint32 tile_spacing        = 5 [default = 0];
+    optional string collision           = 6 [(resource)=true];
+    required string material_tag        = 7 [default = "tile"];
+    repeated ConvexHull convex_hulls    = 8;
+    repeated float convex_hull_points   = 9;
+    repeated string collision_groups    = 10;
+    repeated Animation animations       = 11;
+}
+
+message TileCell
+{
+    required int32 x            = 1 [default = 0];
+    required int32 y            = 2 [default = 0];
+    required uint32 tile        = 3 [default = 0];
+    optional uint32 h_flip      = 4 [default = 0];
+    optional uint32 v_flip      = 5 [default = 0];
+}
+
+message TileLayer
+{
+    required string id          = 1 [default = "layer1"];
+    required float z            = 2 [default = 0.0];
+    required uint32 is_visible  = 3 [default = 1];
+    repeated TileCell cell      = 6;
+}
+
+message TileGrid
+{
+    required string tile_set    = 1 [(resource)=true];
+    repeated TileLayer layers   = 2;
+}
+
+/*# changes a tile in a tile grid
+ * Send this message to a tile grid component to change the tile in one of its cells.
+ *
+ * @examples
+ * This example demonstrates how to clear the tile above the instance when it collides with that tile from underneath,
+ * i.e. the same thing that would happen in Super Mario Bros.
+ *
+ * Assuming the instance we collide with has a tile-grid-component with id "tilegrid", which has a layer with id "layer1":
+ * <pre>
+ * function on_message(self, message_id, message, sender)
+ *     if message_id == hash("contact_point_response") then
+ *         -- check if the normal points down-wards
+ *         if message.normal.y < -0.5 then
+ *             msg.post(msg.url(nil, message.other_id, "tilegrid"), "set_tile", {layer_id = hash("layer1"), position = go.get_position(), dy = 1})
+ *         end
+ *     end
+ * end
+ * </pre>
+ *
+ * @message
+ * @name set_tile
+ * @param layer_id id of the layer for which to change a tile
+ * @param position the position of the cell for which to change the tile (world space)
+ * @param tile index of the tile to change to in the tile set, 1 for the first tile and 0 to clear the tile (0 by default)
+ * @param dx horizontal offset from the supplied position to the requested cell (grid space, 0 by default)
+ * @param dy vertical offset from the supplied position to the requested cell (grid space, 0 by default)
+ */
+message SetTile
+{
+    required uint64 layer_id        = 1;
+    required dmMath.Point3 position = 2;
+    optional uint32 tile            = 3 [default = 0];
+    optional uint32 dx              = 4 [default = 0];
+    optional uint32 dy              = 5 [default = 0];
+}

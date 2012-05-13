@@ -1,0 +1,58 @@
+local test_duration = 3
+
+function init(self)
+    self.timer = test_duration
+    self.loading_proxy = "#loading_proxy"
+    self.test_proxies = {"#script_props_proxy", "#factory_proxy", "#physics_proxy", "#gui_proxy", "#attacker_target_proxy", "#identifiers_proxy"}
+    self.test_index = 1
+    msg.post(self.loading_proxy, "load")
+    self.proxies_unloaded = 0
+end
+
+function update(self, dt)
+    self.timer = self.timer - dt
+    if self.timer < 0 then
+        local error_code = -1
+        if self.started then
+            print("Test timed out while waiting for 'done' message from '" .. self.test_proxies[self.test_index] .. "'.")
+        else
+            print("Test timed out while waiting for 'start' message from '" .. self.loading_proxy .. "'.")
+        end
+        msg.post("@system:", "exit", { code = error_code })
+    end
+end
+
+local function activate_proxy(self, index)
+    msg.post(self.test_proxies[index], "init")
+    msg.post(self.test_proxies[index], "enable")
+    self.timer = test_duration
+end
+
+local function deactivate_proxy(self, index)
+    local proxy = self.test_proxies[index]
+    msg.post(proxy, "disable")
+    msg.post(proxy, "final")
+    msg.post(proxy, "unload")
+end
+
+function on_message(self, message_id, message)
+    if message_id == hash("proxy_loaded") then
+        msg.post(self.loading_proxy, "init")
+        msg.post(self.loading_proxy, "enable")
+        msg.post("test_loading:/loading#gui", "start", {proxies = self.test_proxies})
+    elseif message_id == hash("proxy_unloaded") then
+        self.proxies_unloaded = self.proxies_unloaded + 1
+        if self.proxies_unloaded == #self.test_proxies then
+            msg.post("@system:", "exit", { code = 0 })
+        end
+    elseif message_id == hash("start") then
+        self.started = true
+        activate_proxy(self, self.test_index)
+    elseif message_id == hash("done") then
+        deactivate_proxy(self, self.test_index)
+        self.test_index = self.test_index + 1
+        if self.test_index <= #self.test_proxies then
+            activate_proxy(self, self.test_index)
+        end
+    end
+end

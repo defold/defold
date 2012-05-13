@@ -1,0 +1,34 @@
+#! /usr/bin/env python
+import os
+
+def configure(conf):
+    pass
+
+def build(bld):
+    gameobject = bld.new_task_gen(features = 'cxx cstaticlib ddf',
+                                  includes = '.',
+                                  proto_gen_py = True,
+                                  proto_gen_java = True,
+                                  protoc_includes = '../../proto',
+                                  # NOTE: default/... is hardcoded. How to solve?
+                                  classpath=bld.env['DYNAMO_HOME'] + '/ext/share/java/protobuf-java-2.3.0.jar' + os.pathsep + bld.env['DYNAMO_HOME'] + '/share/java/ddf.jar',
+                                  target = 'gameobject',
+                                  ddf_jar = 'gameobject.jar')
+
+    gameobject.find_sources_in_dirs(['.', '../../proto'])
+
+    bld.add_subdirs('test')
+
+    bld.new_task_gen(source = 'gameobject_script.cpp ../../proto/gameobject_ddf.proto',
+                     target = 'go_doc.sdoc',
+                     rule = '${SCRIPT_DOC} ${SRC} ${TGT}')
+
+    bld.new_task_gen(source = 'gameobject_script.cpp ../../proto/gameobject_ddf.proto',
+                     target = 'go_doc.json',
+                     rule = '${SCRIPT_DOC} -t json ${SRC} ${TGT}')
+
+    bld.install_files('${PREFIX}/share/doc', 'go_doc.sdoc')
+    bld.install_files('${PREFIX}/share/doc', 'go_doc.json')
+
+    bld.install_files('${PREFIX}/include/gameobject', 'gameobject.h')
+    bld.install_files('${PREFIX}/share/proto', '../../proto/gameobject_ddf.proto')

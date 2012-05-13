@@ -1,0 +1,7 @@
+function init(self)
+	assert(false)
+end
+
+function final(self)
+    assert(false)
+end

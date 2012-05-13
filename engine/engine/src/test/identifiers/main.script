@@ -1,0 +1,8 @@
+function init(self)
+    msg.post("#a_proxy", "load")
+    msg.post("#b_proxy", "load")
+    msg.post("#a_proxy", "init")
+    msg.post("#b_proxy", "init")
+    msg.post("#a_proxy", "enable")
+    msg.post("#b_proxy", "enable")
+end

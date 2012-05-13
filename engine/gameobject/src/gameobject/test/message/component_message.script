@@ -1,0 +1,7 @@
+function on_message(self, message_id, message, sender)
+    assert(message_id == hash("test_message"), "Unknown message")
+    local test_url = msg.url("#mt")
+    assert(sender.socket == test_url.socket, "incorrect socket")
+    assert(sender.path == test_url.path, "incorrect socket")
+    assert(sender.fragment == test_url.fragment, "incorrect socket")
+end

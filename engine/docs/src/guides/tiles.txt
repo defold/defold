@@ -1,0 +1,88 @@
+Tiles
+=====
+
+Tile Maps
+---------
+
+A tile map is a component which is used for placing tiles over an area in a grid-based fashion, typically a level.
+The tiles are fetched from a tile source and can also have physics attached for collision detection.
+
+Painting Tiles
+~~~~~~~~~~~~~~
+
+. Open the tile map you want to paint in.
+. Make sure there are no flagged issues in the Property or Outline views.
+. Select a layer to paint into in the Outline.
+. Select a tile to use (*Space* to show the palette).
+
+Attaching Physics
+~~~~~~~~~~~~~~~~~
+
+. Open the tile source you connected to the tile map.
+.. Make sure the tile source you connected to the tile map has an image set for collisions.
+   They should be rendered as lines on top of the texture in the Editor view.
+.. Make sure you have painted collision groups in the tile source for the tiles to support collision.
+. Open the game object to which you have added the tile map.
+.. Add a collision object component.
+... Set its type to static.
+... Add the collision group of the game objects you want it to collide with in its mask.
+... Add the tile map as its shape.
+. Open the other game objects you want to collide with the tile map.
+.. Make sure they have collision objects. Check that the collision groups of the tiles are added to their masks.
+
+Sprites
+-------
+
+A sprite is a component which is typically used for flip-book animated objects, like creatures and props.
+The tiles to display and animate through are fetched from a tile source.
+
+Attaching Physics
+~~~~~~~~~~~~~~~~~
+
+Unlike a tile map, sprites do not yet support physics fetched from the tile source.
+This feature will however come at a later time.
+For the time being, you add physics like you would for any game object.
+See the link:#!guide:physics[physics guide] for more info.
+
+Texture Filtering and Sampling
+------------------------------
+
+There are two ways to sample a texture in Defold, "nearest" and "linear".
+They differ in appearance whenever a texel (the pixel of a texture) is not perfectly aligned with a screen pixel.
+This can happen if you have a moving camera, a moving sprite or you zoom in or out with the camera.
+
+Nearest filtering means that the nearest texel will be picked to color the screen pixel.
+This should be used whenever you want a perfect 1-1 pixel mapping from your textures to the screen.
+If you use this you can't really have any slow motions in your game as they would snap from pixel to pixel and look twitchy.
+This is why nothing moves really slow in old school games like Super Mario Bros.
+
+Linear filtering means that the texel will be averaged with its neighbors before coloring the screen pixel.
+This produces a smoother appearance for slow continuous motions, as a sprite will bleed into the pixels before coloring them fully.
+This should be used if you have dynamic collision objects, where slow speeds are common.
+Another example is if you have smooth stops for objects or the camera.
+
+The settings for which filtering to use are stored in the game.project file.
+There are two settings: min filtering and mag filtering.
+Min (minify) filtering applies whenever the texel is smaller than the screen pixel.
+The reverse holds for mag (magnify) filtering.
+They both accept the values "linear" or "nearest".
+Below is an example of how to specify nearest for both.
+
+----
+[graphics]
+default_texture_min_filter = nearest
+default_texture_mag_filter = nearest
+----
+
+If you don't specify anything, both are linear by default.
+
+Linear Filtering and Tile Bleeding
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If you use linear filtering and a tile source where each tile lies immediately next to the others (no borders or margins), there is a risk you will experience tile bleeding.
+If a neighboring tile has colored pixels on its edges, they might appear from time to time in the tile you are trying to use, distorting the graphics.
+The best solution to this is to make a transparent border between the tiles in the texture.
+You then make sure that no tiles will bleed over to the other ones when doing this kind of sub-pixel sampling.
+
+We are currently looking at different ways to solve these problems in the engine, so you don't have to.
+Until we find solutions we are happy with, you will have to manually fix your textures for this problem to go away.

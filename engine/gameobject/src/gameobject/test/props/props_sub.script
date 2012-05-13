@@ -1,0 +1,8 @@
+go.property("url", msg.url())
+
+function init(self)
+    local url = msg.url("sub_coll/props_coll")
+    assert(self.url.socket == url.socket)
+    assert(self.url.path == url.path)
+    assert(self.url.fragment == url.fragment)
+end

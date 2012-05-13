@@ -1,0 +1,24 @@
+#ifndef DM_GAMESYS_COMP_SPRITE_H
+#define DM_GAMESYS_COMP_SPRITE_H
+
+#include <stdint.h>
+#include <gameobject/gameobject.h>
+
+namespace dmGameSystem
+{
+    dmGameObject::CreateResult CompSpriteNewWorld(const dmGameObject::ComponentNewWorldParams& params);
+
+    dmGameObject::CreateResult CompSpriteDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params);
+
+    dmGameObject::CreateResult CompSpriteCreate(const dmGameObject::ComponentCreateParams& params);
+
+    dmGameObject::CreateResult CompSpriteDestroy(const dmGameObject::ComponentDestroyParams& params);
+
+    dmGameObject::UpdateResult CompSpriteUpdate(const dmGameObject::ComponentsUpdateParams& params);
+
+    dmGameObject::UpdateResult CompSpriteOnMessage(const dmGameObject::ComponentOnMessageParams& params);
+
+    void CompSpriteOnReload(const dmGameObject::ComponentOnReloadParams& params);
+}
+
+#endif // DM_GAMESYS_COMP_SPRITE_H

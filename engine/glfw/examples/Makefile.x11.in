@@ -1,0 +1,44 @@
+BINARIES = triangle listmodes mthello pong3d mtbench particles splitview \
+		   mipmaps gears boing wave heightmap
+
+all: $(BINARIES)
+
+triangle: triangle.c ../lib/x11/libglfw.a
+	$(CC) $(CFLAGS) triangle.c $(LFLAGS) -o $@
+
+listmodes: listmodes.c ../lib/x11/libglfw.a
+	$(CC) $(CFLAGS) listmodes.c $(LFLAGS) -o $@
+
+mthello: mthello.c ../lib/x11/libglfw.a
+	$(CC) $(CFLAGS) mthello.c $(LFLAGS) -o $@
+
+pong3d: pong3d.c ../lib/x11/libglfw.a
+	$(CC) $(CFLAGS) pong3d.c $(LFLAGS) -o $@
+
+mtbench: mtbench.c ../lib/x11/libglfw.a
+	$(CC) $(CFLAGS) mtbench.c $(LFLAGS) -o $@
+
+particles: particles.c ../lib/x11/libglfw.a
+	$(CC) $(CFLAGS) particles.c $(LFLAGS) -o $@
+
+splitview: splitview.c ../lib/x11/libglfw.a
+	$(CC) $(CFLAGS) splitview.c $(LFLAGS) -o $@
+
+mipmaps: mipmaps.c ../lib/x11/libglfw.a
+	$(CC) $(CFLAGS) mipmaps.c $(LFLAGS) -o $@
+
+gears: gears.c ../lib/x11/libglfw.a
+	$(CC) $(CFLAGS) gears.c $(LFLAGS) -o $@
+
+boing: boing.c ../lib/x11/libglfw.a
+	$(CC) $(CFLAGS) boing.c $(LFLAGS) -o $@
+
+wave: wave.c ../lib/x11/libglfw.a
+	$(CC) $(CFLAGS) wave.c $(LFLAGS) -o $@
+
+heightmap: heightmap.c ../lib/x11/libglfw.a
+	$(CC) $(CFLAGS) heightmap.c $(LFLAGS) -o $@
+
+clean:
+	rm -f $(BINARIES)
+

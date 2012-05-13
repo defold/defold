@@ -1,0 +1,46 @@
+BINARIES = accuracy defaults dynamic events fsaa fsinput \
+           iconify joysticks peter reopen tearing version
+
+HEADER = ../include/GL/glfw.h
+
+all: $(BINARIES)
+
+accuracy: accuracy.c $(LIB) $(HEADER)
+	$(CC) $(CFLAGS) accuracy.c $(LFLAGS) -o $@
+
+defaults: defaults.c $(LIB) $(HEADER)
+	$(CC) $(CFLAGS) defaults.c $(LFLAGS) -o $@
+
+dynamic: dynamic.c $(SOLIB) $(HEADER)
+	$(CC) $(CFLAGS) dynamic.c $(SO_LFLAGS) -o $@
+
+events: events.c $(LIB) $(HEADER)
+	$(CC) $(CFLAGS) events.c $(LFLAGS) -o $@
+
+fsaa: fsaa.c $(LIB) $(HEADER)
+	$(CC) $(CFLAGS) fsaa.c $(LFLAGS) -o $@
+
+fsinput: fsinput.c $(LIB) $(HEADER)
+	$(CC) $(CFLAGS) fsinput.c $(LFLAGS) -o $@
+
+iconify: iconify.c $(LIB) $(HEADER)
+	$(CC) $(CFLAGS) iconify.c $(LFLAGS) -o $@
+
+joysticks: joysticks.c $(LIB) $(HEADER)
+	$(CC) $(CFLAGS) joysticks.c $(LFLAGS) -o $@
+
+peter: peter.c $(LIB) $(HEADER)
+	$(CC) $(CFLAGS) peter.c $(LFLAGS) -o $@
+
+reopen: reopen.c $(LIB) $(HEADER)
+	$(CC) $(CFLAGS) reopen.c $(LFLAGS) -o $@
+
+tearing: tearing.c $(LIB) $(HEADER)
+	$(CC) $(CFLAGS) tearing.c $(LFLAGS) -o $@
+
+version: version.c $(LIB) $(HEADER)
+	$(CC) $(CFLAGS) version.c $(LFLAGS) -o $@
+
+clean:
+	rm -f $(BINARIES)
+

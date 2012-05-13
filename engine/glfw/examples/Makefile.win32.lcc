@@ -1,0 +1,74 @@
+##########################################################################
+# Makefile for GLFW test programs on Windows using LCC-Win32.
+#-------------------------------------------------------------------------
+# To compile the test files using this makefile, run:
+#  make -f Makefile.win32.lcc
+##########################################################################
+
+# Compiler settings
+CC     = lc
+CFLAGS = -I..\\include -O -A
+#CFLAGS = -I..\\include -O -A -DGLFW_DLL
+
+# Linker settings
+LFLAGS = ..\\lib\\win32\\glfw.lib glu32.lib opengl32.lib
+#LFLAGS = ..\\lib\\win32\\glfwdll.lib glu32.lib opengl32.lib
+
+# Subsystem settings
+WINDOWS = -subsystem windows
+CONSOLE = -subsystem console
+
+
+# Default: Build all tests
+all: triangle.exe listmodes.exe mthello.exe pong3d.exe mtbench.exe \
+     particles.exe splitview.exe mipmaps.exe gears.exe boing.exe \
+	 wave.exe heightmap.exe
+
+
+# Rule for triangle
+triangle.exe: triangle.c
+	$(CC) $(CFLAGS) triangle.c $(LFLAGS)  -o $@ -s $(WINDOWS)
+
+# Rule for listmodes
+listmodes.exe: listmodes.c
+	$(CC) $(CFLAGS) listmodes.c $(LFLAGS) -o $@ -s $(CONSOLE)
+
+# Rule for mthello
+mthello.exe: mthello.c
+	$(CC) $(CFLAGS) mthello.c $(LFLAGS) -o $@ -s $(CONSOLE)
+
+# Rule for pong3d
+pong3d.exe: pong3d.c
+	$(CC) $(CFLAGS) pong3d.c $(LFLAGS)  -o $@ -s $(WINDOWS)
+
+# Rule for mtbench
+mtbench.exe: mtbench.c
+	$(CC) $(CFLAGS) mtbench.c $(LFLAGS) -o $@ -s $(CONSOLE)
+
+# Rule for particles
+particles.exe: particles.c
+	$(CC) $(CFLAGS) particles.c $(LFLAGS)  -o $@ -s $(CONSOLE)
+
+# Rule for splitview
+splitview.exe: splitview.c
+	$(CC) $(CFLAGS) splitview.c $(LFLAGS)  -o $@ -s $(WINDOWS)
+
+# Rule for mipmaps
+mipmaps.exe: mipmaps.c
+	$(CC) $(CFLAGS) mipmaps.c $(LFLAGS)  -o $@ -s $(WINDOWS)
+
+# Rule for gears
+gears.exe: gears.c
+	$(CC) $(CFLAGS) gears.c $(LFLAGS)  -o $@ -s $(WINDOWS)
+
+# Rule for boing
+boing.exe: boing.c
+	$(CC) $(CFLAGS) boing.c $(LFLAGS)  -o $@ -s $(WINDOWS)
+
+# Rule for wave
+wave.exe: wave.c
+	$(CC) $(CFLAGS) wave.c $(LFLAGS)  -o $@ -s $(WINDOWS)
+
+# Rule for heightmap
+heightmap.exe: heightmap.c getopt.c
+	$(CC) $(CFLAGS) heightmap.c getopt.c $(LFLAGS)  -o $@ -s $(WINDOWS)

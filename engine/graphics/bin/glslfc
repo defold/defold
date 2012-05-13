@@ -1,0 +1,6 @@
+set -e
+cgc -q -ogles -profile arbfp1 $1 >/dev/null
+echo '#ifdef GL_ES' > $2
+echo 'precision mediump float;' >> $2
+echo '#endif' >> $2
+cat $1 >> $2

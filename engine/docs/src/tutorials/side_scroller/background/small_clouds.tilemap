@@ -1,0 +1,48 @@
+tile_set: "/background/small_cloud.tilesource"
+layers {
+  id: "layer1"
+  z: 0.0
+  is_visible: 1
+  cell {
+    x: 7
+    y: 6
+    tile: 0
+    h_flip: 0
+    v_flip: 0
+  }
+  cell {
+    x: 0
+    y: 1
+    tile: 0
+    h_flip: 0
+    v_flip: 0
+  }
+  cell {
+    x: 6
+    y: 3
+    tile: 0
+    h_flip: 0
+    v_flip: 0
+  }
+  cell {
+    x: 1
+    y: 7
+    tile: 0
+    h_flip: 0
+    v_flip: 0
+  }
+  cell {
+    x: 3
+    y: 4
+    tile: 0
+    h_flip: 0
+    v_flip: 0
+  }
+  cell {
+    x: 8
+    y: 0
+    tile: 0
+    h_flip: 0
+    v_flip: 0
+  }
+}

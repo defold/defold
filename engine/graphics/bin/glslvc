@@ -1,0 +1,3 @@
+set -e
+cgc -q -ogles -profile arbvp1 $1 >/dev/null
+cp $1 $2

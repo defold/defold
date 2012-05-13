@@ -1,0 +1,12 @@
+components {
+  id: "script"
+  component: "/null.scriptc"
+}
+components {
+  id: "a1"
+  component: "/a.a"
+}
+components {
+  id: "a2"
+  component: "/aDOESNOTEXISTS.a"
+}

@@ -1,0 +1,52 @@
+import Task, TaskGen
+from TaskGen import extension, declare_extension
+
+def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = True, color = 'PINK'):
+    def create(self, node):
+        task = self.create_task(name)
+        task.set_inputs(node)
+        out = node.change_ext(compiled_ext)
+        task.set_outputs(out)
+
+    cmd = 'protoc --encode=%s -I ../src/test -I ${DYNAMO_HOME}/share/proto ../src/test/test_resource_ddf.proto < ${SRC} > ${TGT}' % type
+    Task.simple_task_type(name, cmd, before=before, shell=shell, color=color)
+    declare_extension([ext], create)
+
+create_simple_protoc_task('testresourcecont', '.cont_pb', '.cont', 'TestResource.ResourceContainerDesc', before='cc cxx')
+create_simple_protoc_task('resourcefoo', '.foo_pb', '.foo', 'TestResource.ResourceFoo', before='cc cxx')
+
+# Test archive data. Only copy the source data.
+TaskGen.declare_chain(name='ad',rule='cat < ${SRC} > ${TGT}',ext_in='.ad', ext_out='.adc', reentrant = False)
+
+def build(bld):
+    resources = bld.new_task_gen(source = 'test.cont_pb')
+
+    archive = bld.new_task_gen(features = 'archive',
+                               archive_target='test.arc',
+                               source = 'archive_data/file4.ad archive_data/file1.ad archive_data/file3.ad archive_data/file2.ad')
+    bld.add_group()
+
+    test_resource = bld.new_task_gen(features = 'cxx cprogram embed',
+                                     includes = '../../../src',
+                                     uselib = 'GTEST DDF DLIB PLATFORM_SOCKET THREAD LUA',
+                                     uselib_local = 'resource',
+                                     proto_gen_py = True,
+                                     target = 'test_resource',
+                                     source = 'test_resource.cpp test_resource_ddf.proto test.cont_pb test01.foo_pb test02.foo_pb self_referring.cont_pb root_loop.cont_pb child_loop.cont_pb',
+                                     embed_source = 'test.arc')
+
+    test_resource.install_path = None
+
+    test_resource_archive = bld.new_task_gen(features = 'cxx cprogram embed',
+                                             includes = '../../../src',
+                                             uselib = 'GTEST DDF DLIB PLATFORM_SOCKET THREAD LUA',
+                                             uselib_local = 'resource',
+                                             proto_gen_py = True,
+                                             target = 'test_resource_archive',
+                                             source = 'test_resource_archive.cpp',
+                                             embed_source = 'test.arc')
+
+    test_resource_archive.install_path = None
+
+
+

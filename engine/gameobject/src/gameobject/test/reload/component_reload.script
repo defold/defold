@@ -1,0 +1,9 @@
+go.property("tmp_prop", 1)
+
+function update(self)
+    assert(self.reloaded, "not yet reloaded")
+end
+
+function on_reload(self)
+    self.reloaded = true
+end

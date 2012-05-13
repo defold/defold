@@ -1,0 +1,12 @@
+uniform mat4 view_proj;
+
+varying vec4 var_color;
+
+attribute vec4 position;
+attribute vec4 color;
+
+void main()
+{
+    gl_Position = view_proj * vec4(position.x, position.y, position.z, 1.0);
+    var_color = color;
+}

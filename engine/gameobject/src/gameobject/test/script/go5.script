@@ -1,0 +1,3 @@
+function init(self)
+    msg.post("#missing_component_id", "test_message")
+end

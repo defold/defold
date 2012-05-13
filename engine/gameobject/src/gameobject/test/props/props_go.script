@@ -1,0 +1,12 @@
+go.property("number", 100)
+go.property("url", msg.url())
+go.property("hash", hash(""))
+
+function init(self)
+    assert(self.number == 200)
+    local url = msg.url("/path")
+    assert(self.url.socket == url.socket)
+    assert(self.url.path == url.path)
+    assert(self.url.fragment == url.fragment)
+    assert(self.hash == hash("hash"))
+end

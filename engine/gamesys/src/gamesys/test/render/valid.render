@@ -1,0 +1,5 @@
+script: "/render_script/valid.render_script"
+materials {
+  name: "test_material"
+  material: "/material/valid.material"
+}

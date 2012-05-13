@@ -1,0 +1,7 @@
+go.property("number1", 0)
+go.property("number2", 0)
+
+function init(self)
+    local v = self.number1 + self.number2
+    assert(v == 4)
+end

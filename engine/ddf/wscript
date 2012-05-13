@@ -1,0 +1,71 @@
+#! /usr/bin/env python
+
+DDF_MAJOR_VERSION=1
+DDF_MINOR_VERSION=0
+
+VERSION='%d.%d' % (DDF_MAJOR_VERSION, DDF_MINOR_VERSION)
+APPNAME='ddf'
+
+srcdir = '.'
+blddir = 'build'
+
+import os, sys, re
+sys.path = ["src"] + sys.path
+import waf_ddf, waf_dynamo
+
+def init():
+    pass
+
+def set_options(opt):
+    opt.sub_options('src')
+    opt.tool_options('compiler_cxx')
+    opt.tool_options('waf_dynamo')
+
+def configure(conf):
+    # Replace version number in python file.
+    ddfc_py_str = ddfc_py_str_orig = open('src/ddfc.py', 'rb').read()
+    ddfc_py_str = re.sub('DDF_MAJOR_VERSION=(\d*)', 'DDF_MAJOR_VERSION=%d' % DDF_MAJOR_VERSION, ddfc_py_str)
+    ddfc_py_str = re.sub('DDF_MINOR_VERSION=(\d*)', 'DDF_MINOR_VERSION=%d' % DDF_MINOR_VERSION, ddfc_py_str)
+    if ddfc_py_str != ddfc_py_str_orig:
+        open('src/ddfc.py', 'wb').write(ddfc_py_str)
+
+    # Create config.h with version numbers
+    conf.define('DDF_MAJOR_VERSION', DDF_MAJOR_VERSION)
+    conf.define('DDF_MINOR_VERSION', DDF_MINOR_VERSION)
+    conf.write_config_header('config.h')
+
+    conf.check_tool('waf_dynamo')
+    conf.check_tool('compiler_cxx')
+    conf.check_tool('java')
+
+    conf.sub_config('src')
+
+    conf.find_program('ddfc_cxx', var='DDFC_CXX', path_list = [os.path.abspath('src')], mandatory = True)
+
+    conf.env['PROTOBUF_JAR'] = conf.env.DYNAMO_HOME + '/ext/share/java/protobuf-java-2.3.0.jar'
+
+    platform=conf.env['PLATFORM']
+
+    if platform == 'win32':
+        conf.env.append_value('CPPPATH', "../src/win32")
+
+    conf.env['STATICLIB_DLIB'] = 'dlib'
+    conf.env['STATICLIB_PROTOBUF'] = 'protobuf'
+    conf.env['LIB_GTEST'] = 'gtest'
+    if sys.platform == 'linux2':
+        conf.env['LIB_PTHREAD'] = 'pthread'
+
+    conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="DDF"')
+    conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="DDF"')
+
+def build(bld):
+    # We need to add default/src/ddf to PYTHONPATH here. (ddf_extensions_pb2.py and plugin_pb2.py)
+    # Only required 'in' ddf-lib.
+    python_path = os.environ.get('PYTHONPATH', '')
+    os.environ['PYTHONPATH'] = 'default/src' + os.pathsep + 'default/src/ddf' + os.pathsep + python_path
+    bld.add_subdirs('src')
+
+def shutdown():
+    import Options, Build
+
+    waf_dynamo.run_gtests(valgrind = True)

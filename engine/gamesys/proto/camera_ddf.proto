@@ -1,0 +1,82 @@
+package dmGamesysDDF;
+
+import "ddf/ddf_extensions.proto";
+import "ddf/ddf_math.proto";
+
+option java_package = "com.dynamo.camera.proto";
+option java_outer_classname = "Camera";
+
+message CameraDesc
+{
+    required float  aspect_ratio        = 1;
+    required float  fov                 = 2;
+    required float  near_z              = 3;
+    required float  far_z               = 4;
+    optional uint32 auto_aspect_ratio   = 5 [default = 0];
+}
+
+/*# sets camera properties
+ * <p>
+ * Post this message to a camera-component to set its properties at run-time.
+ * </p>
+ *
+ * @message
+ * @name set_camera
+ * @param aspect_ratio Aspect ratio of the screen (width divided by height)
+ * @param fov Field of view of the lens, measured as the angle between the right and left edge (radians)
+ * @param near_z Position of the near clipping plane (distance from camera along relative z)
+ * @param far_z Position of the far clipping plane (distance from camera along relative z)
+ * @examples
+ * <p>
+ * In the examples, it is assumed that the instance of the script has a camera-component with id "camera".
+ * <pre>
+ * msg.post("#camera", "set_camera", {aspect_ratio = 16/9, fov = math.pi * 0.5, near_z = 0.1, far_z = 500})
+ * </pre>
+ */
+message SetCamera
+{
+    required float          aspect_ratio    = 1;
+    required float          fov             = 2;
+    required float          near_z          = 3;
+    required float          far_z           = 4;
+}
+
+/*# makes the receiving camera become the active camera
+ * <p>
+ * Post this message to a camera-component to activate it.
+ * </p>
+ * <p>
+ * Several cameras can be active at the same time, but only the camera that was last activated will be used for rendering.
+ * When the camera is deactivated (see <code>release_camera_focus</code>), the previously activated camera will again be used for rendering automatically.
+ * </p>
+ * <p>
+ * The reason it is called "camera focus" is the similarity to how acquiring input focus works (see <code>acquire_input_focus</code>).
+ * </p>
+ *
+ * @message
+ * @name acquire_camera_focus
+ * @examples
+ * <p>
+ * In the examples, it is assumed that the instance of the script has a camera-component with id "camera".
+ * <pre>
+ * msg.post("#camera", "acquire_camera_focus")
+ * </pre>
+ */
+message AcquireCameraFocus {}
+
+/*# deactivates the receiving camera
+ * <p>
+ * Post this message to a camera-component to deactivate it. The camera is then removed from the active cameras.
+ * See <code>acquire_camera_focus</code> for more information how the active cameras are used in rendering.
+ * </p>
+ *
+ * @message
+ * @name release_camera_focus
+ * @examples
+ * <p>
+ * In the examples, it is assumed that the instance of the script has a camera-component with id "camera".
+ * <pre>
+ * msg.post("#camera", "release_camera_focus")
+ * </pre>
+ */
+message ReleaseCameraFocus {}

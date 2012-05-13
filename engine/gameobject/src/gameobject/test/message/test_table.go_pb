@@ -1,0 +1,8 @@
+components {
+  id: "receiver_script"
+  component: "/test_tablereceiver.scriptc"
+}
+components {
+  id: "sender_script"
+  component: "/test_tablesender.scriptc"
+}

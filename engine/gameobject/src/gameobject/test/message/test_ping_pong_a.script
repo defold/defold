@@ -1,0 +1,17 @@
+function init(self)
+    msg.post("#script_b", "ping")
+    self.pongs = 0
+end
+
+function update(self, dt)
+    assert(self.pongs == 2)
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("pong") then
+        self.pongs = self.pongs + 1
+        if self.pongs < 2 then
+            msg.post(sender, "ping")
+        end
+    end
+end

@@ -1,0 +1,34 @@
+package dmScriptDoc;
+
+option java_package = "com.dynamo.scriptdoc.proto";
+option java_outer_classname = "ScriptDoc";
+
+message Parameter
+{
+    required string name = 1;
+    required string doc = 2;
+}
+
+enum Type
+{
+    FUNCTION = 0;
+    VARIABLE = 1;
+    MESSAGE = 2;
+    NAMESPACE = 3;
+}
+
+message Element
+{
+    required Type type = 1;
+    required string name = 2;
+    required string brief = 3;
+    required string description = 4;
+    required string return_ = 5;
+    repeated Parameter parameters = 6;
+    optional string examples = 7 [default=""];
+}
+
+message Document
+{
+    repeated Element elements = 1;
+}

@@ -1,0 +1,45 @@
+script: "/gui/valid.gui_script"
+fonts {
+  name: "test_font"
+  font: "/font/valid_font.font"
+}
+textures {
+  name: "test_texture"
+  texture: "/texture/valid_png.png"
+}
+nodes {
+  position {
+    x: 1.0
+    y: 0.0
+    z: 0.0
+    w: 0.0
+  }
+  rotation {
+    x: 1.0
+    y: 0.0
+    z: 0.0
+    w: 0.0
+  }
+  scale {
+    x: 1.0
+    y: 0.0
+    z: 0.0
+    w: 0.0
+  }
+  size {
+    x: 1.0
+    y: 0.0
+    z: 0.0
+    w: 0.0
+  }
+  color {
+    x: 1.0
+    y: 0.0
+    z: 0.0
+    w: 0.0
+  }
+  type: TYPE_BOX
+  blend_mode: BLEND_MODE_ALPHA
+  texture: "test_texture"
+  font: "test_font"
+}

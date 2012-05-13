@@ -1,0 +1,6 @@
+package TestGameObjectDDF;
+
+message InputTarget
+{
+    required float value = 1;
+}

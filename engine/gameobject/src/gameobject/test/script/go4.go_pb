@@ -1,0 +1,4 @@
+components {
+  id: "script"
+  component: "/go4.scriptc"
+}

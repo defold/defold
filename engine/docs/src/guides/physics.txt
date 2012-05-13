@@ -1,0 +1,43 @@
+Physics
+=======
+
+Collision Objects & Shapes
+--------------------------
+
+A _collision object_ is a component which extends a game object with physical behaviour.
+Examples are colliding with other game objects (with collision objects) or being affected by gravity.
+The collision object has different physical properties and its spatial extents are defined by one or more _shapes_.
+You can either link a shape from a file in the _Collision Shape_-field or add different shapes from the context menu.
+
+Types
+-----
+
+The three different _types_ defines how the position is controlled.
+
+* *Static* - the collision object will never move, which is beneficial for performance
+* *Dynamic* - the collision object is affected by gravity and other collision objects, also moves the game object
+* *Kinematic* - the collision object is moved by the game object (e.g. a script component), but can still affects other collision objects
+* *Trigger* - the collision object is moved by the game object (e.g. a script component), but does not affect other collision objects (gives collision response but no contact points)
+
+Collision Filtering
+-------------------
+
+For two collision objects to collide, they must have matching _groups_ and _masks_.
+A group is a name that groups all objects that share the same set of objects to collide with.
+Examples could be "player", "enemy", "hazard", "ladder" or whatever fits your application.
+You can have a maximum of 16 different groups in the application.
+
+For a collision object to collide with another object, it must have the group of the other object in its mask.
+Remember that the same holds for the other object you want to collide with.
+That object must also have the group of the first object in its mask.
+If you want an object to collide with many different groups, you should put a comma between each one in the mask.
+A collision object with an empty mask won't collide with anything.
+
+Here's an example of how to make a player object collide with an enemy object:
+
+* *Player*
+** _Group_: +player+
+** _Mask_: +enemy+
+* *Enemy*
+** _Group_: +enemy+
+** _Mask_: +player+

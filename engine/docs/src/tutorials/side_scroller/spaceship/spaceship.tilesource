@@ -1,0 +1,14 @@
+image: "/spaceship/spaceship.png"
+tile_width: 64
+tile_height: 50
+tile_margin: 0
+tile_spacing: 0
+material_tag: "tile"
+collision_groups: "default"
+animations {
+  id: "anim"
+  start_tile: 1
+  end_tile: 2
+  playback: PLAYBACK_LOOP_FORWARD
+  fps: 3
+}

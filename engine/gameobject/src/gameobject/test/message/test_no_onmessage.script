@@ -1,0 +1,3 @@
+function on_message(self, message_id, message)
+    assert(false, "should not receive messages")
+end

@@ -1,0 +1,80 @@
+package dmRenderDDF;
+
+import "ddf/ddf_extensions.proto";
+import "ddf/ddf_math.proto";
+
+option java_package = "com.dynamo.render.proto";
+option java_outer_classname = "Render";
+
+message RenderPrototypeDesc
+{
+    message MaterialDesc
+    {
+        required string name = 1;
+        required string material = 2 [(resource) = true];
+    }
+
+    required string script = 1 [(resource) = true];
+    repeated MaterialDesc materials = 2;
+}
+
+/*# draw a text on the screen
+ * Draw a text on the screen. This should mostly be used for debugging purposes.
+ *
+ * @message
+ * @name draw_text
+ * @param position Position of the text
+ * @param text The text to draw
+ * @examples
+ * <pre>
+ * msg.post("@render:", "draw_text", { text = "Hello world!", position = vmath.vector3(200, 200, 0) } )
+ * </pre>
+ */
+message DrawText
+{
+    required dmMath.Point3 position = 1;
+    required string text = 2;
+}
+
+/*# draw a line on the screen
+ * Draw a line on the screen. This should mostly be used for debugging purposes.
+ *
+ * @message
+ * @name draw_line
+ * @param start_point Start point of the line
+ * @param end_point End point of the line
+ * @param color Color of the line
+ * @examples
+ * <pre>
+ * -- draw a white line from (200, 200) to (200, 300)
+ * msg.post("@render:", "draw_line", { start_point = vmath.vector3(200, 200, 0), end_point = vmath.vector3(200, 300, 0), color = vmath.vector4(1, 1, 1, 1) } )
+ * </pre>
+ */
+message DrawLine
+{
+    required dmMath.Point3 start_point = 1;
+    required dmMath.Point3 end_point = 2;
+    required dmMath.Vector4 color = 3;
+}
+
+message WindowResized
+{
+    required uint32 width = 1;
+    required uint32 height = 2;
+}
+
+/*# set clear color
+ * Set render clear color. This is the color that appears on the screen where nothing is rendered, i.e. background.
+ *
+ * @message
+ * @name clear_color
+ * @param color color to use as clear color
+ * @examples
+ * <pre>
+ * msg.post("@render:", "clear_color", { color = vmath.vector4(1, 0, 0, 0) } )
+ * </pre>
+ */
+message ClearColor
+{
+    required dmMath.Vector4 color = 1;
+}

@@ -1,0 +1,11 @@
+function update(self, dt)
+    if self.activated then
+        msg.post("main:/main#script", "done")
+    end
+end
+
+function on_message(self, message_id, message)
+    if message_id == hash("enable") then
+        self.activated = true
+    end
+end

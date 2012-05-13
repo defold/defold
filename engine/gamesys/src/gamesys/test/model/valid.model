@@ -1,0 +1,4 @@
+name: "valid"
+mesh: "/mesh/valid.dae"
+material: "/material/valid.material"
+textures: "/texture/valid_png.png"

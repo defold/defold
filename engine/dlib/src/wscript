@@ -1,0 +1,91 @@
+#! /usr/bin/env python
+
+import os
+
+def set_options(opt):
+    pass
+
+def build(bld):
+    bld.add_subdirs('test')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/array.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/atomic.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/configfile.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/endian.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/dstrings.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/message.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/hashtable.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/hash.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/http_cache.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/http_cache_verify.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/http_client.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/http_server.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/index_pool.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/log.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/math.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/platform.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/poolallocator.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/profile.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/memprofile.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/safe_windows.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/shared_library.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/socket.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/spinlock.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/stringpool.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/sys.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/mutex.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/thread.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/time.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/uri.h')
+    bld.install_files('${PREFIX}/lib/python/dlib', 'python/dlib/__init__.py')
+    bld.install_files('${PREFIX}/lib/python', 'dlib/memprofile.py')
+    bld.install_files('${PREFIX}/bin', '../bin/memprofile.sh', chmod=0755)
+
+    dlib = bld.new_task_gen(features = 'cxx cstaticlib embed',
+                            includes = '.',
+                            target = 'dlib',
+                            defines= 'VALGRIND',
+                            embed_source = '../data/profiler.html')
+    dlib.find_sources_in_dirs('dlib')
+
+    dlib = bld.new_task_gen(features = 'cxx cshlib embed',
+                            includes = '.',
+                            target = 'dlib_shared',
+                            defines= 'VALGRIND',
+                            embed_source = '../data/profiler.html',
+                            uselib = 'PLATFORM_SOCKET')
+    dlib.find_sources_in_dirs('dlib')
+
+    if bld.env['PLATFORM'] != 'win32':
+        dlib = bld.new_task_gen(features = 'cxx cshlib',
+                                source='dlib/memprofile.cpp',
+                                includes = '.',
+                                target = 'dlib_memprofile',
+                                defines= 'DM_LIBMEMPROFILE')
+
+        if 'linux' in bld.env['PLATFORM']:
+            dlib.env.append_value('LINKFLAGS', [ '-ldl' ])
+
+    classpath = ['%s/ext/share/java/junit-4.6.jar' % bld.env.DYNAMO_HOME]
+    classpath = os.pathsep.join(classpath)
+
+    bld.new_task_gen(features='javac seq',
+                     classpath=classpath,
+                     source_root='java')
+
+    bld.env["JAVACFLAGS"] = '-g'
+    bld.add_group()
+
+    bld.new_task_gen(features='jar seq',
+                     basedir='java',
+                     destfile='upnp.jar')
+    bld.add_group()
+
+    bld.new_task_gen(features='javac seq',
+                     classpath=classpath  + os.pathsep + 'default/src/java',
+                     source_root='java_test')
+    bld.add_group()
+
+
+def configure(conf):
+    pass
+

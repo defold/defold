@@ -1,0 +1,3 @@
+function init(self)
+    msg.post("#receiver_script", "test_table", { test_value = 1.0 })
+end

@@ -1,0 +1,76 @@
+import Task, TaskGen
+from TaskGen import extension, declare_extension
+
+Task.simple_task_type('luascript', 'cat < ${SRC} > ${TGT}',
+                      color='PINK',
+                      before='cc cxx',
+                      shell=True)
+
+@extension('.lua')
+def testresourcecont_file(self, node):
+    obj_ext = '.luac'
+    task = self.create_task('luascript')
+    task.set_inputs(node)
+    out = node.change_ext(obj_ext)
+    task.set_outputs(out)
+
+def build(bld):
+    test_script_ddf = bld.new_task_gen(features = 'cxx cprogram',
+                                        includes = '..',
+                                        uselib = 'GTEST PLATFORM_SOCKET THREAD DDF DLIB LUA',
+                                        uselib_local = 'script',
+                                        proto_gen_py = True,
+                                        target = 'test_script_ddf',
+                                        source = 'test_script_ddf.cpp test_ddf.proto')
+
+    test_script_ddf.install_path = None
+
+    test_script_msg = bld.new_task_gen(features = 'cxx cprogram',
+                                        includes = '..',
+                                        uselib = 'GTEST PLATFORM_SOCKET THREAD DDF DLIB LUA',
+                                        uselib_local = 'script',
+                                        proto_gen_py = True,
+                                        target = 'test_script_msg',
+                                        source = 'test_script_msg.cpp test_ddf.proto')
+
+    test_script_msg.install_path = None
+
+    test_script_hash = bld.new_task_gen(features = 'cxx cprogram',
+                                        includes = '..',
+                                        uselib = 'GTEST PLATFORM_SOCKET THREAD DDF DLIB LUA',
+                                        uselib_local = 'script',
+                                        proto_gen_py = True,
+                                        target = 'test_script_hash',
+                                        source = 'test_script_hash.cpp test_hash.lua')
+
+    test_script_hash.install_path = None
+
+    test_script_vmath = bld.new_task_gen(features = 'cxx cprogram',
+                                     includes = '.. .',
+                                     uselib = 'GTEST PLATFORM_SOCKET THREAD DDF DLIB LUA',
+                                     uselib_local = 'script',
+                                     proto_gen_py = True,
+                                     target = 'test_script_vmath',
+                                     source = 'test_script_vmath.cpp test_number.lua test_vector3.lua test_vector4.lua test_quat.lua test_matrix4.lua')
+
+    test_script_vmath.install_path = None
+
+    test_script_table = bld.new_task_gen(features = 'cxx cprogram',
+                                     includes = '.. .',
+                                     uselib = 'GTEST PLATFORM_SOCKET THREAD DDF DLIB LUA',
+                                     uselib_local = 'script',
+                                     proto_gen_py = True,
+                                     target = 'test_script_table',
+                                     source = 'test_script_table.cpp')
+
+    test_script_table.install_path = None
+
+    test_script_sys = bld.new_task_gen(features = 'cxx cprogram',
+                                       includes = '..',
+                                       uselib = 'GTEST PLATFORM_SOCKET THREAD DDF DLIB LUA',
+                                       uselib_local = 'script',
+                                       proto_gen_py = True,
+                                       target = 'test_script_sys',
+                                       source = 'test_script_sys.cpp test_sys.lua')
+
+    test_script_sys.install_path = None

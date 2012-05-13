@@ -1,0 +1,8 @@
+components {
+  id: "script"
+  component: "/component_reload.scriptc"
+}
+components {
+  id: "rt"
+  component: "/reload_target.rt"
+}

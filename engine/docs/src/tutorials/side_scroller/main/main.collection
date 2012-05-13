@@ -1,0 +1,106 @@
+name: "parallax"
+instances {
+  id: "main"
+  prototype: "/main/main.go"
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "large_clouds1"
+  prototype: "/background/large_clouds.go"
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "small_clouds1"
+  prototype: "/background/small_clouds.go"
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "spaceship"
+  prototype: "/spaceship/spaceship.go"
+  position {
+    x: 60.0
+    y: 400.0
+    z: 0.5
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "large_clouds2"
+  prototype: "/background/large_clouds.go"
+  position {
+    x: 2560.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "small_clouds2"
+  prototype: "/background/small_clouds.go"
+  position {
+    x: 1280.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "factory"
+  prototype: "/stars/factory.go"
+  position {
+    x: 1312.0
+    y: 360.0
+    z: 0.5
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}

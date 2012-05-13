@@ -1,0 +1,278 @@
+package dmPhysicsDDF;
+
+import "ddf/ddf_extensions.proto";
+import "ddf/ddf_math.proto";
+
+option java_package = "com.dynamo.physics.proto";
+option java_outer_classname = "Physics";
+
+message ConvexShape
+{
+    /* NOTE: These values must match CollisionShape.Type below */
+    enum Type
+    {
+        TYPE_SPHERE = 0 [(displayName) = "Sphere"];
+        TYPE_BOX = 1 [(displayName) = "Box"];
+        TYPE_CAPSULE = 2 [(displayName) = "Capsule"];
+        TYPE_HULL = 3 [(displayName) = "Hull"];
+    }
+
+    required Type shape_type = 1;
+
+    /*
+     ShapeType == SPHERE
+     Data = [radius]
+
+     ShapeType == BOX
+     Data = [ext_x, ext_y, ext_z]
+
+     ShapeType == CAPSULE
+     Data = [radius, height]
+
+     ShapeType == HULL
+     Data = [x0, y0, z0, x1, ...]
+    */
+    repeated float data = 2;
+}
+
+message CollisionShape
+{
+    /* NOTE: These values must match ConvexShape.Type above */
+    enum Type
+    {
+        TYPE_SPHERE = 0;
+        TYPE_BOX = 1;
+        TYPE_CAPSULE = 2;
+        TYPE_HULL = 3;
+    }
+
+    /*
+        ShapeType == SPHERE
+        Data = [radius]
+
+        ShapeType == BOX
+        Data = [ext_x, ext_y, ext_z]
+
+        ShapeType == CAPSULE
+        Data = [radius, height]
+
+        ShapeType == HULL
+        Data = [x0, y0, z0, x1, ...]
+    */
+
+    message Shape
+    {
+        required Type shape_type        = 1;
+        required dmMath.Point3 position = 2;
+        required dmMath.Quat rotation   = 3;
+        required uint32 index           = 4;
+        required uint32 count           = 5;
+    }
+
+    repeated Shape shapes = 1;
+    repeated float data   = 2;
+}
+
+/* This should coincide with CollisionObjectType in physics-lib */
+enum CollisionObjectType
+{
+    COLLISION_OBJECT_TYPE_DYNAMIC = 0 [(displayName) = "Dynamic"];
+    COLLISION_OBJECT_TYPE_KINEMATIC = 1 [(displayName) = "Kinematic"];
+    COLLISION_OBJECT_TYPE_STATIC = 2 [(displayName) = "Static"];
+    COLLISION_OBJECT_TYPE_TRIGGER = 3 [(displayName) = "Trigger"];
+}
+
+message CollisionObjectDesc
+{
+    optional string                 collision_shape = 1 [(resource)=true];
+    required CollisionObjectType    type            = 2;
+    required float                  mass            = 3;
+    required float                  friction        = 4;
+    required float                  restitution     = 5;
+    required string                 group           = 6;
+    repeated string                 mask            = 7;
+    optional CollisionShape         embedded_collision_shape = 8;
+}
+
+/*# applies a force on a collision object
+ * Post this message to a collision-object-component to apply the specified force on the collision object.
+ * The collision object must be dynamic.
+ *
+ * @message
+ * @name apply_force
+ * @param force the force to be applied on the collision object, measured in Newton (vector3)
+ * @param position the position where the force should be applied (vector3)
+ * @examples
+ * Assuming the instance of the script has a collision-object-component with id "co":
+ * <pre>
+ * -- apply a force of 1 Newton towards world-x at the center of the game object instance
+ * msg.post("#co", "apply_force", {force = vmath.vector3(1, 0, 0), position = go.get_world_position()})
+ * </pre>
+ */
+message ApplyForce
+{
+    required dmMath.Vector3 force       = 1;
+    required dmMath.Point3  position    = 2;
+}
+
+/*# reports a collision between two collision objects
+ * <p>
+ * This message is broadcasted to every component of an instance that has a collision object, when the collision
+ * object collides with another collision object. For a script to take action when such a collision happens, it
+ * should check for this message in its <code>on_message</code> callback function.
+ * </p>
+ * <p>
+ * This message only reports that a collision actually happened and will only be sent once per colliding pair and frame.
+ * To retrieve more detailed information, check for the <code>contact_point_response</code> instead.
+ * </p>
+ *
+ * @message
+ * @name collision_response
+ * @param other_id the id of the instance the collision object collided with (hash)
+ * @param group the collision group of the other collision object (hash)
+ * @examples
+ * How to take action when a collision occurs:
+ * <pre>
+ * function on_message(self, message_id, message, sender)
+ *     -- check for the message
+ *     if message_id == hash("collision_response") then
+ *         -- take action
+ *     end
+ * end
+ * </pre>
+ */
+message CollisionResponse
+{
+    required uint64 other_id    = 1;
+    required uint64 group       = 2;
+}
+
+/*# reports a contact point between two collision objects
+ * <p>
+ * This message is broadcasted to every component of an instance that has a collision object, when the collision
+ * object has contact points with respect to another collision object. For a script to take action when
+ * such contact points occur, it should check for this message in its <code>on_message</code> callback function.
+ * </p>
+ * <p>
+ * Since multiple contact points can occur for two colliding objects, this message can be sent multiple times in
+ * the same frame for the same two colliding objects. To only be notified once when the collision occurs, check
+ * for the <code>collision_response</code> message instead.
+ * </p>
+ *
+ * @message
+ * @name contact_point_response
+ * @param position world position of the contact point (vector3)
+ * @param normal normal in world space of the contact point, which points from the other object towards the current object (vector3)
+ * @param relative_velocity the relative velocity of the collision object as observed from the other object (vector3)
+ * @param distance the penetration distance between the objects, which is always positive (number)
+ * @param applied_impulse the impulse the contact resulted in (number)
+ * @param life_time life time of the contact, <b>not currently used</b> (number)
+ * @param mass the mass of the current collision object in kg (number)
+ * @param other_mass the mass of the other collision object in kg (number)
+ * @param other_id the id of the instance the collision object is in contact with (hash)
+ * @param other_position the world position of the other collision object (vector3)
+ * @param group the collision group of the other collision object (hash)
+ * @examples
+ * How to take action when a contact point occurs:
+ * <pre>
+ * function on_message(self, message_id, message, sender)
+ *     -- check for the message
+ *     if message_id == hash("contact_point_response") then
+ *         -- take action
+ *     end
+ * end
+ * </pre>
+ */
+message ContactPointResponse
+{
+    required dmMath.Point3  position                = 1;
+    required dmMath.Vector3 normal                  = 2;
+    required dmMath.Vector3 relative_velocity       = 3;
+    required float          distance                = 4;
+    required float          applied_impulse         = 5;
+    required float          life_time               = 6;
+    required float          mass                    = 7;
+    required float          other_mass              = 8;
+    required uint64         other_id                = 9;
+    required dmMath.Point3  other_position          = 10;
+    required uint64         group                   = 11;
+}
+
+message RequestRayCast
+{
+    required dmMath.Point3  from = 1;
+    required dmMath.Point3  to = 2;
+    required uint32         mask = 3;
+    required uint32         request_id = 4;
+}
+
+/*# reports a ray cast hit
+ * This message is sent back to the sender of a <code>ray_cast_request</code>, if the ray hit a collision object.
+ * See <code>request_ray_cast</code> for examples of how to use it.
+ *
+ * @message
+ * @name ray_cast_response
+ * @param fraction the fraction of the hit measured along the ray, where 0 is the start of the ray and 1 is the end (number)
+ * @param position the world position of the hit
+ * @param normal the normal of the surface of the collision object where it was hit
+ * @param id the instance id of the hit collision object
+ * @param group the collision group of the hit collision object as a hashed name
+ * @param request_id id supplied when the ray cast was requested
+ */
+message RayCastResponse
+{
+    required float          fraction        = 1;
+    required dmMath.Point3  position        = 2;
+    required dmMath.Vector3 normal          = 3;
+    required uint64         id              = 4;
+    required uint64         group           = 5;
+    required uint32         request_id      = 6;
+}
+
+/*# requests the velocity of a collision object
+ * Post this message to a collision-object-component to retrieve its velocity.
+ *
+ * @message
+ * @name request_velocity
+ * @examples
+ * How to retrieve the velocity of a collision object, assuming the collision-object-component has id "co" and belongs to the same instance as the script:
+ * <pre>
+ * function update(self, dt)
+ *     -- request velocity
+ *     msg.post("#co", "request_velocity")
+ * end
+ *
+ * function on_message(self, message_id, message, sender)
+ *     -- check for the response
+ *     if message_id == hash("velocity_response") then
+ *         -- do something with the velocity, e.g:
+ *         self.velocity = message.linear_velocity
+ *     end
+ * end
+ * </pre>
+ */
+message RequestVelocity {}
+
+/*# reports the velocity of a collision object
+ * This message is sent back to the sender of a <code>request_velocity</code> message.
+ * See <code>request_velocity</code> for examples on how to use it.
+ *
+ * @message
+ * @name velocity_response
+ * @param linear_velocity the linear velocity, i.e. translation, of the collision object in m/s (vector3)
+ * @param angular_velocity the angular velocity, i.e. rotation, of the collision object, measured as a rotation along the vector with a speed equivalent to the vector length (vector3)
+ */
+message VelocityResponse
+{
+    required dmMath.Vector3 linear_velocity     = 1;
+    required dmMath.Vector3 angular_velocity    = 2;
+}
+
+// System message (TileGrid=>CollisionObject)
+message SetGridShapeHull
+{
+    required uint32 shape = 1;
+    required uint32 row = 2;
+    required uint32 column = 3;
+    required uint32 hull = 4;
+}

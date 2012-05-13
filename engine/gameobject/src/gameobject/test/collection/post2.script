@@ -1,0 +1,7 @@
+function on_message(self, message_id, message)
+    assert(message_id == hash("message2"), "Expected message2")
+end
+
+function update(self)
+    msg.post("post1:go1#script", "message1")
+end

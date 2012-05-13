@@ -1,0 +1,53 @@
+#! /usr/bin/env python
+import os
+
+def configure(conf):
+    pass
+
+def build(bld):
+    script = bld.new_task_gen(features = 'cxx cstaticlib',
+                          includes = '.',
+                          target = 'script')
+    script.find_sources_in_dirs(['.'])
+
+    script_proto = bld.new_task_gen(features = 'cxx cstaticlib ddf',
+                      includes = '../proto .',
+                      proto_gen_cc = False,
+                      proto_gen_py = True,
+                      proto_gen_java = True,
+                      ddf_jar = 'script_doc.jar',
+                      protoc_includes = '../proto',
+                      # Create a dummy lib in order to avoid internal waf problem
+                      # File "...\waf-1.5.9-d1e0349fc8937631a656fb8ea7e99063\wafadmin\Tools\msvc.py", line 460, in apply_flags_msvc
+                      # pdbnode=self.link_task.outputs[0].change_ext('.pdb')
+                      # AttributeError: 'NoneType' object has no attribute 'outputs'
+                      target = 'dummylib',
+                      classpath=bld.env['DYNAMO_HOME'] + '/ext/share/java/protobuf-java-2.3.0.jar' + os.pathsep + bld.env['DYNAMO_HOME'] + '/share/java/ddf.jar',
+                      install_path=None)
+
+    # We must manually install script_doc_ddf_pb2.py as intall_path is None above
+    # in order to avoid installation of dummylib
+    bld.install_files('${PREFIX}/lib/python', '../proto/script_doc_ddf_pb2.py')
+    bld.install_files('${PREFIX}/share/java', 'script_doc.jar')
+
+    script_proto.find_sources_in_dirs(['../proto'])
+
+    bld.add_group()
+
+    bld.new_task_gen(source = 'script_hash.cpp script_sys.cpp script_msg.cpp script_vmath.cpp',
+                     target = 'script_doc.sdoc',
+                     rule = '${SCRIPT_DOC} ${SRC} ${TGT}')
+
+    bld.new_task_gen(source = 'script_hash.cpp script_sys.cpp script_msg.cpp script_vmath.cpp',
+                     target = 'script_doc.json',
+                     rule = '${SCRIPT_DOC} -t json ${SRC} ${TGT}')
+
+    bld.install_files('${PREFIX}/share/doc', 'script_doc.sdoc')
+    bld.install_files('${PREFIX}/share/doc', 'script_doc.json')
+
+    bld.install_files('${PREFIX}/bin', 'script_doc', chmod=493)
+    bld.install_files('${PREFIX}/bin', 'script_doc.bat')
+    bld.install_files('${PREFIX}/lib/python', 'script_doc.py')
+    bld.install_files('${PREFIX}/include/script', 'script.h')
+
+    bld.add_subdirs('test')

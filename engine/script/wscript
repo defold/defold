@@ -1,0 +1,57 @@
+#! /usr/bin/env python
+
+VERSION='0.1'
+APPNAME='script'
+
+srcdir = '.'
+blddir = 'build'
+
+import sys, os
+import waf_dynamo, waf_ddf
+import Options
+
+def init():
+    pass
+
+def set_options(opt):
+    opt.tool_options('waf_dynamo')
+    opt.tool_options('compiler_cc')
+    opt.tool_options('compiler_cxx')
+
+def configure(conf):
+    conf.check_tool('waf_dynamo')
+    conf.check_tool('compiler_cc')
+    conf.check_tool('compiler_cxx')
+    conf.check_tool('java')
+
+    waf_ddf.configure(conf)
+
+    conf.sub_config('src')
+
+    conf.env.append_value('CPPPATH', "default/src")
+    conf.env['LIB_GTEST'] = 'gtest'
+    conf.env['STATICLIB_DLIB'] = 'dlib'
+    conf.env['STATICLIB_DDF'] = 'ddf'
+    conf.env['STATICLIB_LUA'] = 'lua'
+
+    conf.env['SCRIPT_DOC'] = os.path.abspath('src/script_doc.py')
+
+    conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="SCRIPT"')
+    conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="SCRIPT"')
+
+def build(bld):
+    python_path = os.environ.get('PYTHONPATH', '')
+    os.environ['PYTHONPATH'] = os.path.abspath('build/default/proto') + os.pathsep + python_path
+    bld.add_subdirs('src')
+
+def shutdown():
+    if not Options.commands['build']:
+        return
+
+    os.environ['DM_SAVEGAME_HOME'] = 'build'
+    waf_dynamo.run_gtests(valgrind = True)
+
+    if not getattr(Options.options, 'skip_tests', False):
+        python_path = os.environ.get('PYTHONPATH', '')
+        os.environ['PYTHONPATH'] = 'src' + os.pathsep + 'build/default/proto' + os.pathsep + python_path
+        os.system('python %s' % 'src/test/test_script_doc.py')

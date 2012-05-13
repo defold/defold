@@ -1,0 +1,9 @@
+name: "defaults"
+instances {
+  id: "id"
+  prototype: "/child.goc"
+}
+collection_instances {
+  id: "id"
+  collection: "/defaults_sub.collectionc"
+}

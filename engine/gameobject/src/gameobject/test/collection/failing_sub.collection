@@ -1,0 +1,9 @@
+name: "sub"
+instances {
+  id: "go1"
+  prototype: "/go1.goc"
+}
+instances {
+  id: "go2"
+  prototype: "/does_not_exists.goc"
+}

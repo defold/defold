@@ -1,0 +1,2 @@
+tile_set: "/attacker_target/bullet.tileset"
+default_animation: "default"

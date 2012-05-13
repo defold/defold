@@ -1,0 +1,23 @@
+function init(self)
+    self.frame_count = 0
+
+    local s = vmath.vector3(64, 64, 0)
+    for i=0,19 do
+        for j=0,10 do
+            local p = vmath.vector3(i*64, j*64, 0)
+            local n = gui.new_box_node(p, s)
+            local c = math.random()
+            gui.set_pivot(n, gui.PIVOT_SW)
+            gui.set_color(n, vmath.vector4(c, c, c, 1))
+        end
+    end
+end
+
+function update(self)
+    if self.frame_count == 5 then
+        msg.post("@system:", "exit", {code = 0})
+    end
+
+    self.frame_count = self.frame_count + 1
+end
+

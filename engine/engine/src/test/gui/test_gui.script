@@ -1,0 +1,3 @@
+function init(self)
+    msg.post("#gui", "enable")
+end

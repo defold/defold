@@ -1,0 +1,238 @@
+package TestDDF;
+
+import "ddf/ddf_extensions.proto";
+
+
+option java_package = "com.dynamo.ddf.proto";
+option (ddf_namespace) = "DUMMY";
+option java_outer_classname = "TestDDF";
+
+option (ddf_includes) = "test_ddf.h test_ddf_import.h";
+
+import "test_ddf_import.proto";
+
+message Simple
+{
+    required int32 a = 1;
+}
+
+message ScalarTypes
+{
+    required float  float_val = 1;
+    required double double_val = 2;
+    required int32  int32_val = 3;
+    required uint32 uint32_val = 4;
+    required int64  int64_val = 5;
+    required uint64 uint64_val = 6;
+    required string string_val = 7;
+}
+
+enum TestEnum
+{
+    TEST_ENUM_VAL1 = 10;
+    TEST_ENUM_VAL2 = 20;
+}
+
+// Test for bug with duplicate enums. Introduced in previous commit
+enum TestEnumB
+{
+    test_enum_val_b1 = 10;
+    test_enum_val_b2 = 20;
+}
+
+// http://localhost:8080/redmine/issues/22
+message TestGlobalEnumBug
+{
+    required TestEnum t = 1;
+}
+
+message NestedType
+{
+    message TheNestedType
+    {
+        required int32 x = 1;
+    }
+    required int32 x = 1;
+}
+
+message Simple01
+{
+    required uint32 x = 1;
+    required uint32 y = 2;
+}
+
+message Simple01Repeated
+{
+    repeated Simple01 array = 1;
+}
+
+message Simple02Repeated
+{
+    repeated uint32 array = 1;
+}
+
+message StringRepeated
+{
+    repeated string array = 1;
+}
+
+message NestedMessage
+{
+    message Nested
+    {
+        required int32 x = 1;
+    }
+
+    required Nested n1 = 1;
+    required Nested n2 = 2;
+}
+
+message Mesh
+{
+    enum Primitive
+    {
+        TRIANGLES = 1;
+        QUADS = 2;
+    }
+
+    required string    name = 1;
+    repeated float     vertices = 2;
+    repeated uint32    indices = 3;
+    required uint32    primitive_count = 4;
+    required Primitive primitive_type = 5;
+}
+
+message NestedArraySub2
+{
+    required uint32 a = 1;
+}
+
+message NestedArraySub1
+{
+    required uint32 b = 1;
+    repeated NestedArraySub2 array2 = 2;
+    required uint32 c = 3;
+}
+
+message NestedArray
+{
+    required uint32 d = 1;
+    repeated NestedArraySub1 array1 = 2;
+    required uint32 e = 3;
+}
+
+
+message Bytes
+{
+    required bytes data = 1;
+}
+
+message MaterialDesc
+{
+    enum ParameterType
+    {
+        VECTOR1 = 1;
+        VECTOR2 = 2;
+        VECTOR3 = 3;
+        VECTOR4 = 4;
+    }
+
+    enum ParameterSemantic
+    {
+        GENERIC = 1;
+        COLOR = 2;
+    }
+
+    message Vector4
+    {
+        required float x = 1;
+        required float y = 2;
+        required float z = 3;
+        required float w = 4;
+    }
+
+    message Parameter
+    {
+        required string name = 1;
+        required ParameterType type = 2;
+        required ParameterSemantic semantic = 3;
+        required uint32 register = 4;
+        required Vector4 value = 5;
+    }
+
+    required string name = 1;
+    required string vertex_program = 2;
+    required string fragment_program = 3;
+    repeated Parameter vertex_parameters = 4;
+    repeated Parameter fragment_parameters = 5;
+}
+
+message MissingRequiredTemplate
+{
+	required int32 a = 1000;
+}
+
+message MissingRequired
+{
+	required int32 a = 1000;
+	required int32 b = 2000;
+}
+
+message Vector2Message
+{
+    option (alias) = "MyVector2";
+
+    required float X = 1;
+    required float Y = 2;
+}
+
+message TestStructAlias
+{
+    required Vector2Message vec2 = 1;
+}
+
+message TestImportMessage
+{
+    required TestDDFImport.ImportMessage msg = 1;
+}
+
+message QuatWithDefault
+{
+    optional float x = 1 [ default = 0.0 ];
+    optional float y = 2 [ default = 0.0 ];
+    optional float z = 3 [ default = 0.0 ];
+    optional float w = 4 [ default = 1.0 ];
+}
+
+message SubMessageWithOptionalQuat
+{
+    optional QuatWithDefault quat = 1;
+}
+
+message TestDefault
+{
+    optional float  float_val = 1 [ default = 10.0 ];
+    optional double double_val = 2 [ default = 20.0 ];
+    optional int32  int32_val = 3 [ default = -1122 ];
+    optional uint32 uint32_val = 4 [ default = 1234 ];
+    optional int64  int64_val = 5 [ default = -5678 ];
+    optional uint64 uint64_val = 6 [ default = 5566 ];
+    optional string string_val = 7 [ default = "a default value" ];
+
+    optional uint64 non_default_uint64 = 8;
+    optional string non_default_string = 9;
+
+    optional QuatWithDefault quat = 10;
+    optional SubMessageWithOptionalQuat sub_message = 11;
+
+    optional TestEnum enum = 12 [ default = TEST_ENUM_VAL2 ];
+}
+
+message EmptyMsg {}
+
+message StringOffset
+{
+    required string str = 1;
+    repeated string str_arr = 2;
+}
+
