@@ -136,3 +136,6 @@ def install(bld):
         install_sample(bld, 'src/demos/%s' % sample)
     for tutorial in ['side_scroller']:
         install_tutorial(bld, 'src/tutorials/%s' % tutorial)
+
+def set_options(opt):
+    opt.add_option('--skip-tests', action='store_true', default=False, dest='skip_tests', help='skip unit tests')
