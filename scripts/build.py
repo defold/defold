@@ -24,9 +24,14 @@ class Configuration(object):
                  no_colors = False,
                  archive_path = None):
 
+        if sys.platform == 'win32':
+            home = os.environ['USERPROFILE']
+        else:
+            home = os.environ['HOME']
+
         self.dynamo_home = dynamo_home if dynamo_home else join(os.getcwd(), 'tmp', 'dynamo_home')
         self.target = target
-        self.eclipse_home = eclipse_home if eclipse_home else join(os.environ['HOME'], 'eclipse')
+        self.eclipse_home = eclipse_home if eclipse_home else join(home, 'eclipse')
         self.defold_root = os.getcwd()
         self.host = 'linux' if sys.platform == 'linux2' else sys.platform
         self.target = target if target else self.host
@@ -102,16 +107,17 @@ class Configuration(object):
         skip_tests = '--skip-tests' if self.skip_tests or self.target != self.host else ''
         libs="dlib ddf particle glfw graphics hid input physics resource lua script render gameobject gui sound gamesys tools record engine".split()
 
+        # NOTE: We run waf using python <PATH_TO_WAF>/waf as windows don't understand that waf is an executable
         if self.target != self.host:
             print 'Building dlib for host platform'
             cwd = join(self.defold_root, 'engine/dlib')
-            cmd = 'waf configure --prefix=%s %s distclean configure build install' % (self.dynamo_home, skip_tests)
+            cmd = 'python %s/ext/bin/waf configure --prefix=%s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, skip_tests)
             self.exec_command(cmd.split(), cwd = cwd)
 
         for lib in libs:
             print 'Building %s' % lib
             cwd = join(self.defold_root, 'engine/%s' % lib)
-            cmd = 'waf configure --prefix=%s --platform=%s %s distclean configure build install' % (self.dynamo_home, self.target, skip_tests)
+            cmd = 'python %s/ext/bin/waf configure --prefix=%s --platform=%s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, self.target, skip_tests)
             self.exec_command(cmd.split(), cwd = cwd)
 
     def test_cr(self):
