@@ -117,6 +117,7 @@
         <module>../com.dynamo.cr.engine</module>
         <module>../com.dynamo.cr.bob</module>
         <module>../com.dynamo.cr.bob.test</module>
+        <module>../com.dynamo.cr.templates</module>
         <module>../javax.media.opengl</module>
     </modules>
 

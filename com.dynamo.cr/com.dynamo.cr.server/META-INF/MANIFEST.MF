@@ -16,7 +16,8 @@ Require-Bundle: com.dynamo.cr.common;bundle-version="1.0.0",
  javax.mail;bundle-version="1.4.0",
  javax.activation;bundle-version="1.1.0",
  com.google.inject;bundle-version="3.0.0",
- javax.servlet;bundle-version="2.5.0"
+ javax.servlet;bundle-version="2.5.0",
+ com.dynamo.cr.templates;bundle-version="1.0.0"
 Bundle-ActivationPolicy: lazy
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
 Bundle-ClassPath: ext/asm-3.1.jar,

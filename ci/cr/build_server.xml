@@ -30,6 +30,12 @@
               <arg value="${env.DYNAMO_HOME}"/>
               <arg value="DYNAMO_HOME"/>
         </exec>
+
+        <exec dir="${buildDirectory}/plugins/com.dynamo.cr.templates"
+              executable="sh">
+              <arg value="scripts/copy_templates.sh"/>
+        </exec>
+
     </target>
 
     <!--

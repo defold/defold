@@ -23,6 +23,7 @@ import com.dynamo.cr.server.ServerException;
 import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
+import com.dynamo.cr.templates.Templates;
 import com.dynamo.inject.persist.Transactional;
 import com.dynamo.server.dgit.GitFactory;
 import com.dynamo.server.dgit.GitFactory.Type;
@@ -71,11 +72,18 @@ public class ProjectsResource extends BaseResource {
             if (newProject.hasTemplateId()) {
                 ProjectTemplate projectTemplate = findProjectTemplate(newProject.getTemplateId());
 
-                File templatePath = new File(projectTemplate.getPath());
+                // NOTE: A bit strange that we substitute variables here. We should perhaps not
+                // expose the actual configuration file represented on disk and instead have some more
+                // abstract run-time structure in the server?
+                String templateRoot = Templates.getDefault().getTemplateRoot();
+                String path = projectTemplate.getPath();
+                path = path.replace("{templates_root}", templateRoot);
+
+                File templatePath = new File(path);
                 if (!templatePath.exists()) {
                     throw new ServerException(String.format("Invalid project template path: %s", projectTemplate.getPath()));
                 }
-                git.cloneRepoBare(projectTemplate.getPath(), projectPath.getAbsolutePath(), group);
+                git.cloneRepoBare(path, projectPath.getAbsolutePath(), group);
             }
             else {
                 git.initBare(projectPath.getAbsolutePath(), group);
