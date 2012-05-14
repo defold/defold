@@ -120,6 +120,13 @@ class Configuration(object):
             cmd = 'python %s/ext/bin/waf configure --prefix=%s --platform=%s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, self.target, skip_tests)
             self.exec_command(cmd.split(), cwd = cwd)
 
+    def build_docs(self):
+        skip_tests = '--skip-tests' if self.skip_tests or self.target != self.host else ''
+        print 'Building docs'
+        cwd = join(self.defold_root, 'engine/docs')
+        cmd = 'python %s/ext/bin/waf configure --prefix=%s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, skip_tests)
+        self.exec_command(cmd.split(), cwd = cwd)
+
     def test_cr(self):
         for plugin in ['common', 'luaeditor', 'builtins']:
             self.exec_command(['ln', '-sfn',
@@ -257,6 +264,7 @@ build_server    - Build server
 build_editor    - Build editor
 archive_editor  - Archive editor to path specified with --archive-path
 archive_server  - Archive server to path specified with --archive-path
+build_docs      - Build documentation
 
 Multiple commands can be specified'''
 
