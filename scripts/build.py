@@ -88,7 +88,7 @@ class Configuration(object):
         sha1 = line.split()[0]
         return sha1
 
-    def _archive_engine(self):
+    def archive_engine(self):
         exe_ext = '.exe' if self.target == 'win32' else ''
         host, path = self.archive_path.split(':', 1)
         sha1 = self._git_sha1()
@@ -114,9 +114,6 @@ class Configuration(object):
             cmd = 'waf configure --prefix=%s --platform=%s %s distclean configure build install' % (self.dynamo_home, self.target, skip_tests)
             self.exec_command(cmd.split(), cwd = cwd)
 
-        if self.archive_path:
-            self._archive_engine()
-
     def test_cr(self):
         for plugin in ['common', 'luaeditor', 'builtins']:
             self.exec_command(['ln', '-sfn',
@@ -127,12 +124,15 @@ class Configuration(object):
         self.exec_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'verify'],
                           cwd = cwd)
 
+    def _get_cr_builddir(self, product):
+        return join(os.getcwd(), 'tmp', product)
+
     def build_server(self):
-        build_dir = join(os.getcwd(), 'tmp', 'server')
+        build_dir = self._get_cr_builddir('server')
         self._build_cr('server', build_dir)
 
     def build_editor(self):
-        build_dir = join(os.getcwd(), 'tmp', 'editor')
+        build_dir = self._get_cr_builddir('editor')
 
         root_properties = '''root.linux.gtk.x86=absolute:${buildDirectory}/plugins/com.dynamo.cr.editor/jre_linux/
 root.linux.gtk.x86.permissions.755=jre/'''
@@ -164,6 +164,14 @@ root.linux.gtk.x86.permissions.755=jre/'''
             self.exec_command(['scp', p, self.archive_path])
         self.exec_command(['tar', '-C', build_dir, '-cz', '-f', join(build_dir, '%s_repository.tgz' % product), 'repository'])
         self.exec_command(['scp', join(build_dir, '%s_repository.tgz' % product), self.archive_path])
+
+    def archive_editor(self):
+        build_dir = self._get_cr_builddir('editor')
+        self._archive_cr('editor', build_dir)
+
+    def archive_server(self):
+        build_dir = self._get_cr_builddir('server')
+        self._archive_cr('server', build_dir)
 
     def _build_cr(self, product, build_dir, root_properties = None):
         equinox_version = '1.2.0.v20110502'
@@ -201,9 +209,6 @@ root.linux.gtk.x86.permissions.755=jre/'''
 
         self.exec_command(args)
 
-        if self.archive_path:
-            self._archive_cr(product, build_dir)
-
     def exec_command(self, arg_list, **kwargs):
         env = dict(os.environ)
 
@@ -237,12 +242,15 @@ if __name__ == '__main__':
     usage = '''usage: %prog [options] command(s)
 
 Commands:
-distclean     - Removes the DYNAMO_HOME folder
-install_ext   - Install external packages
-build_engine  - Build engine
-test_cr       - Test editor and server
-build_server  - Build server
-build_editor  - Build editor
+distclean       - Removes the DYNAMO_HOME folder
+install_ext     - Install external packages
+build_engine    - Build engine
+archive_engine  - Archive engine to path specified with --archive-path
+test_cr         - Test editor and server
+build_server    - Build server
+build_editor    - Build editor
+archive_editor  - Archive editor to path specified with --archive-path
+archive_server  - Archive server to path specified with --archive-path
 
 Multiple commands can be specified'''
 
