@@ -17,3 +17,4 @@ Folder Structure
 **scripts** - Build and utility scripts
 
 **share** - Misc shared stuff used by other tools. Waf build-scripts, valgrind suppression files, etc. 
+
