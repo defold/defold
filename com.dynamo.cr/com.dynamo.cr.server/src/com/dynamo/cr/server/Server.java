@@ -292,8 +292,15 @@ public class Server implements ServerMBean {
           configurator.setContext(lc);
           // the context was probably already configured by default configuration rules
           lc.reset();
-          URL url = this.getClass().getClassLoader().getResource("/logback.xml");
-          configurator.doConfigure(url);
+          File logback = new File("logback.xml");
+          if (logback.exists()) {
+              // Use logback.xml in current dir
+              configurator.doConfigure(logback);
+          } else {
+              // Fallback to default bundled logback.xml
+              URL url = this.getClass().getClassLoader().getResource("/logback.xml");
+              configurator.doConfigure(url);
+          }
         } catch (JoranException je) {
            je.printStackTrace();
         }
