@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <?pde version="3.5"?>
 
-<product name="Content Repository Server" uid="com.dynamo.cr.editor.product" id="com.dynamo.cr.server.product" application="com.dynamo.cr.server.application" version="1.0.0" useFeatures="false" includeLaunchers="true">
+<product name="Content Repository Server" uid="com.dynamo.cr.server.product" id="com.dynamo.cr.server.product" application="com.dynamo.cr.server.application" version="1.0.0" useFeatures="false" includeLaunchers="true">
 
    <configIni use="default">
    </configIni>
