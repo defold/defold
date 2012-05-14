@@ -177,7 +177,7 @@ root.linux.gtk.x86.permissions.755=jre/'''
             with open(join(build_dir, 'root.properties'), 'wb') as f:
                 f.write(root_properties)
 
-        workspace = '/tmp/workspace_%s' % product
+        workspace = join(os.getcwd(), 'tmp', 'workspace_%s' % product)
         if os.path.exists(workspace):
             shutil.rmtree(workspace)
         os.makedirs(workspace)
