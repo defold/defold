@@ -242,6 +242,10 @@ root.linux.gtk.x86.permissions.755=jre/'''
 
         env['MAVEN_OPTS'] = '-Xms256m -Xmx700m -XX:MaxPermSize=1024m'
 
+        # Force 32-bit python 2.6 on darwin. We should perhaps switch to 2.7 soon?
+        env['VERSIONER_PYTHON_PREFER_32_BIT'] = 'yes'
+        env['VERSIONER_PYTHON_VERSION'] = '2.6'
+
         if self.no_colors:
             env['NOCOLOR'] = '1'
             env['GTEST_COLOR'] = 'no'
