@@ -801,8 +801,9 @@ bail:
         int argc = 0;
         engine->m_RunResult.m_Argv[argc++] = strdup("dmengine");
 
-        const int MAX_ARGS = 6;
-        char* args[MAX_ARGS] =
+        // This value should match the count in dmEngineDDF::Reboot
+        const int ARG_COUNT = 6;
+        char* args[ARG_COUNT] =
         {
             strdup(RELOCATE_STRING(m_Arg1)),
             strdup(RELOCATE_STRING(m_Arg2)),
@@ -812,12 +813,18 @@ bail:
             strdup(RELOCATE_STRING(m_Arg6)),
         };
 
-        for (int i = 0; i < MAX_ARGS; ++i)
+        bool empty_found = false;
+        for (int i = 0; i < ARG_COUNT; ++i)
         {
-            if (args[i][0] != '\0')
+            // NOTE: +1 here, see above
+            engine->m_RunResult.m_Argv[i + 1] = args[i];
+            if (args[i][0] == '\0')
             {
-                engine->m_RunResult.m_Argv[argc++] = args[i];
+                empty_found = true;
             }
+
+            if (!empty_found)
+                argc++;
         }
 
         engine->m_RunResult.m_Argc = argc;
@@ -859,9 +866,11 @@ bail:
         dmEngine::RunResult run_result = InitRun(argc, argv, pre_run, post_run, context);
         while (run_result.m_Action == dmEngine::RunResult::REBOOT)
         {
-            run_result = InitRun(run_result.m_Argc, run_result.m_Argv, pre_run, post_run, context);
+            dmEngine::RunResult tmp = InitRun(run_result.m_Argc, run_result.m_Argv, pre_run, post_run, context);
             run_result.Free();
+            run_result = tmp;
         }
+        run_result.Free();
         return run_result.m_ExitCode;
     }
 
