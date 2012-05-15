@@ -49,19 +49,24 @@ class Configuration(object):
         if not os.path.exists(path):
             os.makedirs(path)
 
+    def _log(self, msg):
+        print msg
+        sys.stdout.flush()
+        sys.stderr.flush()
+
     def distclean(self):
         shutil.rmtree(self.dynamo_home)
         # Recreate dirs
         self._create_common_dirs()
 
     def _extract_tgz(self, file, path):
-        print 'Extracting %s' % basename(file)
+        self._log('Extracting %s' % basename(file))
         tf = TarFile.open(file, 'r:gz')
         tf.extractall(path)
         tf.close()
 
     def _copy(self, src, dst):
-        print 'Copying %s -> %s' % (src, dst)
+        self._log('Copying %s -> %s' % (src, dst))
         shutil.copy(src, dst)
 
     def install_ext(self):
@@ -79,7 +84,7 @@ class Configuration(object):
             self._extract_tgz(make_path('armv6-darwin'), ext)
 
         for egg in glob(join(self.defold_root, 'packages', '*.egg')):
-            print 'Installing %s' % basename(egg)
+            self._log('Installing %s' % basename(egg))
             self.exec_command(['easy_install', '-q', '-d', join(ext, 'lib', 'python'), '-N', egg])
 
         for n in 'waf_dynamo.py waf_content.py'.split():
@@ -114,20 +119,20 @@ class Configuration(object):
 
         # NOTE: We run waf using python <PATH_TO_WAF>/waf as windows don't understand that waf is an executable
         if self.target != self.host:
-            print 'Building dlib for host platform'
+            self._log('Building dlib for host platform')
             cwd = join(self.defold_root, 'engine/dlib')
             cmd = 'python %s/ext/bin/waf configure --prefix=%s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, skip_tests)
             self.exec_command(cmd.split(), cwd = cwd)
 
         for lib in libs:
-            print 'Building %s' % lib
+            self._log('Building %s' % lib)
             cwd = join(self.defold_root, 'engine/%s' % lib)
             cmd = 'python %s/ext/bin/waf configure --prefix=%s --platform=%s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, self.target, skip_tests)
             self.exec_command(cmd.split(), cwd = cwd)
 
     def build_docs(self):
         skip_tests = '--skip-tests' if self.skip_tests or self.target != self.host else ''
-        print 'Building docs'
+        self._log('Building docs')
         cwd = join(self.defold_root, 'engine/docs')
         cmd = 'python %s/ext/bin/waf configure --prefix=%s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, skip_tests)
         self.exec_command(cmd.split(), cwd = cwd)
@@ -210,7 +215,7 @@ root.linux.gtk.x86.permissions.755=jre/'''
 
         for p in glob(join(self.defold_root, 'com.dynamo.cr', '*')):
             dst = join(build_dir, 'plugins', basename(p))
-            print 'Copying .../%s -> %s' % (basename(p), dst)
+            self._log('Copying .../%s -> %s' % (basename(p), dst))
             shutil.copytree(p, dst)
 
         args = ['java',
