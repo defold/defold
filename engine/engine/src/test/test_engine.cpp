@@ -13,16 +13,13 @@ protected:
     virtual void SetUp()
     {
         m_DT = 1.0f / 60.0f;
-        m_Engine = dmEngine::New();
     }
 
     virtual void TearDown()
     {
-        dmEngine::Delete(m_Engine);
     }
 
     float m_DT;
-    dmEngine::HEngine m_Engine;
 };
 
 /*
@@ -30,41 +27,35 @@ protected:
  * We should add watchdog support that exists the application after N frames or similar.
  */
 
-TEST_F(EngineTest, EmptyNewDelete)
-{
-}
-
 TEST_F(EngineTest, ProjectFail)
 {
     const char* argv[] = {"test_engine", "game.projectc"};
-    ASSERT_FALSE(dmEngine::Init(m_Engine, 2, (char**)argv));
+    ASSERT_NE(0, dmEngine::Launch(2, (char**)argv, 0, 0, 0));
+}
+
+static void PostRunFrameCount(dmEngine::HEngine engine, void* ctx)
+{
+    *((uint32_t*) ctx) = dmEngine::GetFrameCount(engine);
 }
 
 TEST_F(EngineTest, Project)
 {
+    uint32_t frame_count = 0;
     const char* argv[] = {"test_engine", "build/default/src/test/game.projectc"};
-
-    ASSERT_TRUE(dmEngine::Init(m_Engine, 2, (char**)argv));
-
-    ASSERT_EQ(0, dmEngine::Run(m_Engine));
-
-    ASSERT_GT(dmEngine::GetFrameCount(m_Engine), 5u);
+    ASSERT_EQ(0, dmEngine::Launch(2, (char**)argv, 0, PostRunFrameCount, &frame_count));
+    ASSERT_GT(frame_count, 5u);
 }
 
 TEST_F(EngineTest, GuiRenderCrash)
 {
+    uint32_t frame_count = 0;
     const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/gui_render_crash/gui_render_crash.collectionc", "build/default/src/test/game.projectc"};
-
-    ASSERT_TRUE(dmEngine::Init(m_Engine, 3, (char**)argv));
-
-    ASSERT_EQ(0, dmEngine::Run(m_Engine));
-
-    ASSERT_GT(dmEngine::GetFrameCount(m_Engine), 5u);
+    ASSERT_EQ(0, dmEngine::Launch(3, (char**)argv, 0, PostRunFrameCount, &frame_count));
+    ASSERT_GT(frame_count, 5u);
 }
 
-
 int g_PostExitResult = -1;
-void HtttPostThread(void* params)
+void HttpPostThread(void* params)
 {
     uint32_t* port = (uint32_t*) params;
     char cmd[256];
@@ -72,16 +63,33 @@ void HtttPostThread(void* params)
     g_PostExitResult = system(cmd);
 }
 
+struct HttpTestContext
+{
+    uint32_t m_Port;
+    dmThread::Thread m_Thread;
+};
+
+static void PreRunHttpPort(dmEngine::HEngine engine, void* ctx)
+{
+    HttpTestContext* http_ctx = (HttpTestContext*) ctx;
+    http_ctx->m_Port = dmEngine::GetHttpPort(engine);
+    http_ctx->m_Thread = dmThread::New(HttpPostThread, 0x8000, &http_ctx->m_Port);
+}
+
 TEST_F(EngineTest, HttpPost)
 {
     const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/http_post/http_post.collectionc", "build/default/src/test/game.projectc"};
+    HttpTestContext ctx;
 
-    ASSERT_TRUE(dmEngine::Init(m_Engine, 3, (char**)argv));
-    uint32_t port = dmEngine::GetHttpPort(m_Engine);
-    dmThread::Thread thread = dmThread::New(HtttPostThread, 0x8000, &port);
-    ASSERT_EQ(6, dmEngine::Run(m_Engine));
-    dmThread::Join(thread);
+    ASSERT_EQ(6, dmEngine::Launch(3, (char**)argv, PreRunHttpPort, 0, &ctx));
+    dmThread::Join(ctx.m_Thread);
     ASSERT_EQ(0, g_PostExitResult);
+}
+
+TEST_F(EngineTest, Reboot)
+{
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/reboot/start.collectionc", "build/default/src/test/game.projectc"};
+    ASSERT_EQ(7, dmEngine::Launch(3, (char**)argv, 0, 0, 0));
 }
 
 int main(int argc, char **argv)

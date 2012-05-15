@@ -1,0 +1,3 @@
+function init(self)
+    msg.post("@system:", "exit", {code = 7})
+end

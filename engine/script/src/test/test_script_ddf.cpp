@@ -266,6 +266,38 @@ TEST(LuaTableToDDF, DefaultValue)
     lua_close(L);
 }
 
+TEST(LuaTableToDDF, OptionalNoDefaultValue)
+{
+    lua_State *L = lua_open();
+
+    dmScript::Initialize(L, dmScript::ScriptParams());
+
+    int top = lua_gettop(L);
+
+    lua_newtable(L);
+
+    char* buf = new char[1024];
+
+    uint32_t size = dmScript::CheckDDF(L, TestScript::OptionalNoDefaultValue::m_DDFDescriptor, buf, 1024, -1);
+    (void) size;
+
+    TestScript::OptionalNoDefaultValue* msg = (TestScript::OptionalNoDefaultValue*) buf;
+
+    msg->m_StringValue = (const char*) ((uintptr_t) msg->m_StringValue + (uintptr_t) msg);
+
+    ASSERT_EQ(0U, msg->m_UintValue);
+    ASSERT_STREQ("", msg->m_StringValue);
+    ASSERT_EQ(0, msg->m_EnumValue);
+
+    delete[] buf;
+
+    lua_pop(L, 1);
+
+    ASSERT_EQ(top, lua_gettop(L));
+
+    lua_close(L);
+}
+
 struct LuaDDFBufferOverflowParam
 {
     char*    m_Buf;

@@ -79,6 +79,65 @@ namespace dmScript
         }
     }
 
+    static void UnityValueToDDF(lua_State* L, const dmDDF::FieldDescriptor* f, char* buffer, char** data_start, char** data_end)
+    {
+        switch (f->m_Type)
+        {
+            case dmDDF::TYPE_INT32:
+            {
+                *((int32_t *) &buffer[f->m_Offset]) = 0;
+            }
+            break;
+
+            case dmDDF::TYPE_UINT32:
+            {
+                *((uint32_t *) &buffer[f->m_Offset]) = 0;
+            }
+            break;
+
+            case dmDDF::TYPE_UINT64:
+            {
+                *((dmhash_t *) &buffer[f->m_Offset]) = 0;
+            }
+            break;
+
+            case dmDDF::TYPE_FLOAT:
+            {
+                *((float *) &buffer[f->m_Offset]) = 0;
+            }
+            break;
+
+            case dmDDF::TYPE_STRING:
+            {
+                const char* s = "";
+                int size = strlen(s) + 1;
+                if (*data_start + size > *data_end)
+                {
+                    luaL_error(L, "Message data doesn't fit");
+                }
+                else
+                {
+                    memcpy(*data_start, s, size);
+                    // NOTE: We store offset here an relocate later...
+                    *((const char**) &buffer[f->m_Offset]) = (const char*) (*data_start - buffer);
+                }
+                *data_start += size;
+            }
+            break;
+
+            case dmDDF::TYPE_ENUM:
+            {
+                *((int32_t *) &buffer[f->m_Offset]) = 0;
+            }
+            break;
+
+            default:
+            {
+                luaL_error(L, "Unsupported type %d for unity value in field %s", f->m_Type, f->m_Name);
+            }
+            break;
+        }
+    }
 
     static void LuaValueToDDF(lua_State* L, const dmDDF::FieldDescriptor* f,
                               char* buffer, char** data_start, char** data_end)
@@ -233,6 +292,12 @@ namespace dmScript
                     else if (f->m_Type == dmDDF::TYPE_MESSAGE)
                     {
                         DoDefaultLuaTableToDDF(L, f->m_MessageDescriptor, &buffer[f->m_Offset], data_start, data_last);
+                    }
+                    else
+                    {
+                        // No default value specified and the type != MESSAGE
+                        // Set appropriate unit value, e.g. 0 and empty string ""
+                        UnityValueToDDF(L, f, buffer, data_start, data_last);
                     }
                 }
                 else

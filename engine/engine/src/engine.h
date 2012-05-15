@@ -19,14 +19,14 @@ namespace dmEngine
 {
     typedef struct Engine* HEngine;
 
+    typedef void (*PreRun)(HEngine engine, void* context);
+    typedef void (*PostRun)(HEngine engine, void* context);
+
     HEngine New();
     void Delete(HEngine);
+    int Launch(int argc, char *argv[], PreRun pre_run, PostRun post_run, void* context);
 
-    bool Init(HEngine engine, int argc, char *argv[]);
     uint16_t GetHttpPort(HEngine engine);
-    int32_t Run(HEngine engine);
-    void Exit(HEngine engine, int32_t code);
-
     uint32_t GetFrameCount(HEngine engine);
 };
 

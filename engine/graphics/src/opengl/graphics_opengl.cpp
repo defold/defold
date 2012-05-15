@@ -9,6 +9,10 @@
 #include "../graphics.h"
 #include "graphics_opengl.h"
 
+#if defined(__MACH__) and !defined(__arm__)
+// Potential name clash with ddf. If included before ddf/ddf.h (TYPE_BOOL)
+#include <Carbon/Carbon.h>
+#endif
 
 #include <graphics/glfw/glfw.h>
 
@@ -358,6 +362,16 @@ static void LogFrameBufferError(GLenum status)
             dmLogInfo("Vendor: %s\n", (char *) glGetString(GL_VENDOR));
             dmLogInfo("Extensions: %s\n", (char *) glGetString(GL_EXTENSIONS));
         }
+
+#if defined(__MACH__) and !defined(__arm__)
+        ProcessSerialNumber psn;
+        OSErr err;
+
+        // Move window to front. Required if running without application bundle.
+        err = GetCurrentProcess( &psn );
+        if (err == noErr)
+            (void) SetFrontProcess( &psn );
+#endif
 
         return WINDOW_RESULT_OK;
     }
