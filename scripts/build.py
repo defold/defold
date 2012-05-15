@@ -39,6 +39,9 @@ class Configuration(object):
         self.no_colors = no_colors
         self.archive_path = archive_path
 
+        self._create_common_dirs()
+
+    def _create_common_dirs(self):
         for p in ['ext/lib/python', 'lib/python', 'share']:
             self._mkdirs(join(self.dynamo_home, p))
 
@@ -48,6 +51,8 @@ class Configuration(object):
 
     def distclean(self):
         shutil.rmtree(self.dynamo_home)
+        # Recreate dirs
+        self._create_common_dirs()
 
     def _extract_tgz(self, file, path):
         print 'Extracting %s' % basename(file)
