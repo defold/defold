@@ -27,10 +27,10 @@ Bundle-ClassPath: .,
  ext/jersey-client-1.11.jar,
  ext/jersey-core-1.11.jar,
  ext/slf4j/janino.jar,
- ext/slf4j/logback-classic-0.9.29.jar,
- ext/slf4j/logback-core-0.9.29.jar,
- ext/slf4j/slf4j-api-1.6.1.jar,
- DYNAMO_HOME/share/java/graphics.jar
+ DYNAMO_HOME/share/java/graphics.jar,
+ ext/slf4j/logback-classic-1.0.3.jar,
+ ext/slf4j/logback-core-1.0.3.jar,
+ ext/slf4j/slf4j-api-1.6.4.jar
 Export-Package: ch.qos.logback.classic,
  ch.qos.logback.classic.boolex,
  ch.qos.logback.classic.db,
@@ -129,3 +129,5 @@ Export-Package: ch.qos.logback.classic,
  org.slf4j.helpers,
  org.slf4j.spi
 Import-Package: org.osgi.framework;version="1.5.0"
+Require-Bundle: javax.activation;bundle-version="1.1.0",
+ javax.mail;bundle-version="1.4.0"
