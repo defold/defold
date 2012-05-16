@@ -330,6 +330,14 @@
             description="Disable unwanted eclipse UI"
             id="com.dynamo.cr.editor.activities.disableEclipseUI"
             name="Disable">
+         <enabledWhen>
+            <with
+                  variable="true">
+               <equals
+                     value="false">
+               </equals>
+            </with>
+         </enabledWhen>
       </activity>
       <activityPatternBinding
             activityId="com.dynamo.cr.editor.activities.disableEclipseUI"
