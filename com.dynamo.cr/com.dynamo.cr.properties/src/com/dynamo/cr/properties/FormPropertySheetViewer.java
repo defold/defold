@@ -305,9 +305,20 @@ public class FormPropertySheetViewer extends Viewer {
             if (m != null) {
                 if (modelList.size() == 0) {
                     modelList.add(m);
-                } else if (m.getPropertyDescs().equals(modelList.get(0).getPropertyDescs())) {
-                    // Only keep selected with same property-descs as the first found
-                    modelList.add(m);
+                } else {
+                    IPropertyDesc[] lhs = m.getPropertyDescs();
+                    IPropertyDesc[] rhs = modelList.get(0).getPropertyDescs();
+                    boolean equal = true;
+                    for (int i = 0; i < lhs.length; ++i) {
+                        if (!lhs[i].getClass().equals(rhs[i].getClass())) {
+                            equal = false;
+                            break;
+                        }
+                    }
+                    if (equal) {
+                        // Only keep selected with same property-descs as the first found
+                        modelList.add(m);
+                    }
                 }
             }
         }
