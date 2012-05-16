@@ -79,3 +79,35 @@ message StartRecord
 message StopRecord
 {
 }
+
+
+/*# reboot engine with arguments
+ * Arguments will be translated into command line arguments. Sending the reboot
+ * command is equivalent to starting the engine with the same arguments.
+
+ * @message
+ * @name reboot
+ * @param arg1 argument 1
+ * @param arg2 argument 2
+ * @param arg3 argument 3
+ * @param arg4 argument 4
+ * @param arg5 argument 5
+ * @param arg6 argument 6
+ * @examples
+ * <pre>
+ * -- Reboot engine with a specific bootstrap collection.
+ * local arg1 = '--config=bootstrap.main_collection=/my.collectionc'
+ * local arg2 = 'build/default/game.projectc'
+ * msg.post("@system:", "reboot", {arg1 = arg1, arg2 = arg2})
+ * </pre>
+ */
+message Reboot
+{
+    // We don't support repeated value in script_ddf. Probably for a good reason.
+    optional string arg1 = 1;
+    optional string arg2 = 2;
+    optional string arg3 = 3;
+    optional string arg4 = 4;
+    optional string arg5 = 5;
+    optional string arg6 = 6;
+}

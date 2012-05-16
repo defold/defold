@@ -676,13 +676,13 @@ bail:
         return engine->m_HttpPort;
     }
 
-    int32_t Run(HEngine engine)
+    RunResult Run(HEngine engine)
     {
         const float fps = 60.0f;
         float fixed_dt = 1.0f / fps;
 
         engine->m_Alive = true;
-        engine->m_ExitCode = 0;
+        engine->m_RunResult.m_ExitCode = 0;
 
         while (engine->m_Alive)
         {
@@ -785,13 +785,93 @@ bail:
 
             ++engine->m_Stats.m_FrameCount;
         }
-        return engine->m_ExitCode;
+        return engine->m_RunResult;
     }
 
-    void Exit(HEngine engine, int32_t code)
+    static void Exit(HEngine engine, int32_t code)
     {
         engine->m_Alive = false;
-        engine->m_ExitCode = code;
+        engine->m_RunResult.m_ExitCode = code;
+    }
+
+    static void Reboot(HEngine engine, dmEngineDDF::Reboot* reboot)
+    {
+#define RELOCATE_STRING(field) (const char*) ((uintptr_t) reboot + (uintptr_t) reboot->field)
+
+        int argc = 0;
+        engine->m_RunResult.m_Argv[argc++] = strdup("dmengine");
+
+        // This value should match the count in dmEngineDDF::Reboot
+        const int ARG_COUNT = 6;
+        char* args[ARG_COUNT] =
+        {
+            strdup(RELOCATE_STRING(m_Arg1)),
+            strdup(RELOCATE_STRING(m_Arg2)),
+            strdup(RELOCATE_STRING(m_Arg3)),
+            strdup(RELOCATE_STRING(m_Arg4)),
+            strdup(RELOCATE_STRING(m_Arg5)),
+            strdup(RELOCATE_STRING(m_Arg6)),
+        };
+
+        bool empty_found = false;
+        for (int i = 0; i < ARG_COUNT; ++i)
+        {
+            // NOTE: +1 here, see above
+            engine->m_RunResult.m_Argv[i + 1] = args[i];
+            if (args[i][0] == '\0')
+            {
+                empty_found = true;
+            }
+
+            if (!empty_found)
+                argc++;
+        }
+
+        engine->m_RunResult.m_Argc = argc;
+
+#undef RELOCATE_STRING
+        engine->m_Alive = false;
+        engine->m_RunResult.m_Action = dmEngine::RunResult::REBOOT;
+    }
+
+    static RunResult InitRun(int argc, char *argv[], PreRun pre_run, PostRun post_run, void* context)
+    {
+        dmEngine::HEngine engine = dmEngine::New();
+        dmEngine::RunResult run_result;
+        if (dmEngine::Init(engine, argc, argv))
+        {
+            if (pre_run)
+            {
+                pre_run(engine, context);
+            }
+            run_result = dmEngine::Run(engine);
+
+            if (post_run)
+            {
+                post_run(engine, context);
+            }
+        }
+        else
+        {
+            run_result.m_ExitCode = 1;
+            run_result.m_Action = dmEngine::RunResult::EXIT;
+        }
+        dmEngine::Delete(engine);
+
+        return run_result;
+    }
+
+    int Launch(int argc, char *argv[], PreRun pre_run, PostRun post_run, void* context)
+    {
+        dmEngine::RunResult run_result = InitRun(argc, argv, pre_run, post_run, context);
+        while (run_result.m_Action == dmEngine::RunResult::REBOOT)
+        {
+            dmEngine::RunResult tmp = InitRun(run_result.m_Argc, run_result.m_Argv, pre_run, post_run, context);
+            run_result.Free();
+            run_result = tmp;
+        }
+        run_result.Free();
+        return run_result.m_ExitCode;
     }
 
     void Dispatch(dmMessage::Message* message, void* user_ptr)
@@ -806,6 +886,11 @@ bail:
             {
                 dmEngineDDF::Exit* ddf = (dmEngineDDF::Exit*) message->m_Data;
                 dmEngine::Exit(self, ddf->m_Code);
+            }
+            else if (descriptor == dmEngineDDF::Reboot::m_DDFDescriptor)
+            {
+                dmEngineDDF::Reboot* reboot = (dmEngineDDF::Reboot*) message->m_Data;
+                dmEngine::Reboot(self, reboot);
             }
             else if (descriptor == dmEngineDDF::ToggleProfile::m_DDFDescriptor)
             {

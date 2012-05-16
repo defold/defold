@@ -28,6 +28,38 @@
 
 namespace dmEngine
 {
+    const uint32_t MAX_RUN_RESULT_ARGS = 32;
+    struct RunResult
+    {
+        RunResult()
+        {
+            memset(this, 0, sizeof(*this));
+            m_Action = EXIT;
+        }
+
+        enum Action
+        {
+            EXIT,
+            REBOOT,
+        };
+
+        void Free()
+        {
+            for (uint32_t i = 0; i < MAX_RUN_RESULT_ARGS; ++i)
+            {
+                if (m_Argv[i])
+                {
+                    free(m_Argv[i]);
+                }
+            }
+        }
+
+        int     m_Argc;
+        char*   m_Argv[MAX_RUN_RESULT_ARGS];
+        int32_t m_ExitCode;
+        Action  m_Action;
+    };
+
     struct Stats
     {
         Stats();
@@ -54,8 +86,8 @@ namespace dmEngine
         Engine();
         dmConfigFile::HConfig                       m_Config;
 
+        RunResult                                   m_RunResult;;
         bool                                        m_Alive;
-        int32_t                                     m_ExitCode;
 
         dmGameObject::HRegister                     m_Register;
         dmGameObject::HCollection                   m_MainCollection;
