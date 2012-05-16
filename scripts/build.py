@@ -63,7 +63,7 @@ class Configuration(object):
         self._log('Extracting %s to %s' % (file, path))
         version = sys.version_info
         # Avoid a bug in python 2.7 (fixed in 2.7.2) related to not being able to remove symlinks: http://bugs.python.org/issue10761
-        if self.host == 'linux' and version.major == 2 and version.minor == 7 and version.micro < 2:
+        if self.host == 'linux' and version[0] == 2 and version[1] == 7 and version[2] < 2:
             self.exec_command(['tar', 'xfz', file], cwd = path)
         else:
             tf = TarFile.open(file, 'r:gz')
