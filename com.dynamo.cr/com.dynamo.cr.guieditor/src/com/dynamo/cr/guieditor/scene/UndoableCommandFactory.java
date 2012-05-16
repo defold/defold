@@ -11,7 +11,7 @@ public class UndoableCommandFactory implements
     @Override
     public IUndoableOperation create(Object node, String property,
             IPropertyAccessor<Object, GuiScene> accessor, Object oldValue,
-            Object newValue, GuiScene scene) {
+            Object newValue, boolean overridden, GuiScene scene) {
 
         if (!newValue.equals(oldValue)) {
             SetPropertiesOperation<Object> operation = new SetPropertiesOperation<Object>(node,
@@ -23,7 +23,13 @@ public class UndoableCommandFactory implements
     }
 
     @Override
+    public IUndoableOperation createReset(Object obj, String property, IPropertyAccessor<Object, GuiScene> accessor, Object oldValue, GuiScene world) {
+        return null;
+    }
+
+    @Override
     public void execute(IUndoableOperation operation, GuiScene scene) {
         scene.getEditor().executeOperation(operation);
     }
+
 }

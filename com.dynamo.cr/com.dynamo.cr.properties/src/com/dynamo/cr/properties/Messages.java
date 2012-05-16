@@ -5,6 +5,8 @@ import org.eclipse.osgi.util.NLS;
 public class Messages extends NLS {
     private static final String BUNDLE_NAME = "com.dynamo.cr.properties.messages"; //$NON-NLS-1$
 
+    public static String FormPropertySheetViewer_RESET_VALUE;
+
     public static String NotEmptyValidator_EMPTY;
     public static String RangeValidator_OUTSIDE_RANGE;
     public static String ResourceValidator_NOT_FOUND;

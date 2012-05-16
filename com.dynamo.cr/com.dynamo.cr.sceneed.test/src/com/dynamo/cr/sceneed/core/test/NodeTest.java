@@ -1,5 +1,8 @@
 package com.dynamo.cr.sceneed.core.test;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -40,7 +43,23 @@ public class NodeTest extends AbstractNodeTest {
     }
 
     @Test
-    public void propertyTest() throws ExecutionException {
+    public void testSetProperty() throws ExecutionException {
+        assertEquals(0, getNodeProperty(this.node, "dummyProperty"));
         setNodeProperty(this.node, "dummyProperty", 1);
+        assertEquals(1, getNodeProperty(this.node, "dummyProperty"));
+        undo();
+        assertEquals(0, getNodeProperty(this.node, "dummyProperty"));
+    }
+
+    @Test
+    public void testSetDynamicProperty() throws ExecutionException {
+        assertEquals(0, getNodeProperty(this.node, DummyNode.DYNAMIC_PROPERTY));
+        assertFalse(isNodePropertyOverridden(this.node, DummyNode.DYNAMIC_PROPERTY));
+        setNodeProperty(this.node, DummyNode.DYNAMIC_PROPERTY, 1);
+        assertEquals(1, getNodeProperty(this.node, DummyNode.DYNAMIC_PROPERTY));
+        assertTrue(isNodePropertyOverridden(this.node, DummyNode.DYNAMIC_PROPERTY));
+        undo();
+        assertEquals(0, getNodeProperty(this.node, DummyNode.DYNAMIC_PROPERTY));
+        assertFalse(isNodePropertyOverridden(this.node, DummyNode.DYNAMIC_PROPERTY));
     }
 }

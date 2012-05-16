@@ -7,7 +7,15 @@ public class DummyCommandFactory implements ICommandFactory<Object, IPropertyObj
     @Override
     public IUndoableOperation create(Object obj, String property,
             IPropertyAccessor<Object, IPropertyObjectWorld> accesor,
-            Object oldValue, Object newValue, IPropertyObjectWorld world) {
+            Object oldValue, Object newValue, boolean overridden, IPropertyObjectWorld world) {
+
+        return null;
+    }
+
+    @Override
+    public IUndoableOperation createReset(Object obj, String property,
+            IPropertyAccessor<Object, IPropertyObjectWorld> accesor,
+            Object oldValue, IPropertyObjectWorld world) {
 
         return null;
     }

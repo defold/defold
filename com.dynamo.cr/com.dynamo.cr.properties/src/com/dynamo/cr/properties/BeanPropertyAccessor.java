@@ -212,6 +212,13 @@ public class BeanPropertyAccessor implements IPropertyAccessor<Object, IProperty
     }
 
     @Override
+    public boolean isOverridden(Object obj, String property,
+            IPropertyObjectWorld world) {
+        // Not currently supported in this accessor
+        return false;
+    }
+
+    @Override
     public Object[] getPropertyOptions(Object obj, String property,
             IPropertyObjectWorld world) {
         Methods methods = init(obj, property);
@@ -224,6 +231,11 @@ public class BeanPropertyAccessor implements IPropertyAccessor<Object, IProperty
         } else {
             return new Object[] {};
         }
+    }
+
+    @Override
+    public void resetValue(Object obj, String property, IPropertyObjectWorld world) {
+        throw new RuntimeException(String.format("The property %s is not possible to reset.", property));
     }
 
 }

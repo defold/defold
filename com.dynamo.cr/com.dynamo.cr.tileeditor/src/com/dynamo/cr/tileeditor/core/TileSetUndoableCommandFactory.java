@@ -11,7 +11,7 @@ ICommandFactory<Object, TileSetModel> {
     @Override
     public IUndoableOperation create(Object node, String property,
             IPropertyAccessor<Object, TileSetModel> accessor, Object oldValue,
-            Object newValue, TileSetModel model) {
+            Object newValue, boolean overridden, TileSetModel model) {
 
         if (!newValue.equals(oldValue)) {
             SetPropertiesOperation<Object, TileSetModel> operation = new SetPropertiesOperation<Object, TileSetModel>(node,
@@ -19,6 +19,13 @@ ICommandFactory<Object, TileSetModel> {
                     newValue, model);
             return operation;
         }
+        return null;
+    }
+
+    @Override
+    public IUndoableOperation createReset(Object node, String property,
+            IPropertyAccessor<Object, TileSetModel> accessor, Object oldValue,
+            TileSetModel model) {
         return null;
     }
 

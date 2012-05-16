@@ -13,27 +13,21 @@ import org.eclipse.core.runtime.Status;
 import com.dynamo.cr.properties.IPropertyAccessor;
 import com.dynamo.cr.properties.IPropertyObjectWorld;
 
-public class SetPropertiesOperation<T, U extends IPropertyObjectWorld> extends AbstractOperation {
+public class ResetPropertiesOperation<T, U extends IPropertyObjectWorld> extends AbstractOperation {
 
     private IPropertyAccessor<Object, U> accessor;
     private U model;
     private String property;
     private List<T> oldValues;
-    private List<T> newValues;
     private List<Object> nodes;
-    private List<Boolean> overrides;
-    private boolean[] resets;
 
-    public SetPropertiesOperation(List<Object> nodes, String property, IPropertyAccessor<Object, U> accessor, List<T> oldValues, List<T> newValues, List<Boolean> overrides, U model) {
-        super("Set " + property);
+    public ResetPropertiesOperation(List<Object> nodes, String property, IPropertyAccessor<Object, U> accessor, List<T> oldValues, U model) {
+        super("Reset " + property);
         this.property = property;
         this.nodes = nodes;
         this.accessor = accessor;
         this.oldValues = oldValues;
-        this.newValues = newValues;
         this.model = model;
-        this.overrides = overrides;
-        this.resets = new boolean[overrides.size()];
     }
 
     public List<Object> getNodes() {
@@ -48,37 +42,21 @@ public class SetPropertiesOperation<T, U extends IPropertyObjectWorld> extends A
         return this.oldValues;
     }
 
-    public List<T> getNewValues() {
-        return this.newValues;
-    }
-
     @SuppressWarnings("unchecked")
-    public SetPropertiesOperation(Object node, String property, IPropertyAccessor<Object, U> accessor, T oldValue, T newValue, boolean overridden, U scene) {
-        this(Arrays.asList(node), property, accessor, Arrays.asList(oldValue), Arrays.asList(newValue), Arrays.asList(overridden), scene);
-    }
-
-    private void set() throws ExecutionException {
-        try {
-            int i = 0;
-            for (Object node : nodes) {
-                accessor.setValue(node, property, newValues.get(i), model);
-                ++i;
-            }
-        } catch (Throwable e) {
-            throw new ExecutionException("Failed to set property " + property, e);
-        }
+    public ResetPropertiesOperation(Object node, String property, IPropertyAccessor<Object, U> accessor, T oldValue, U scene) {
+        this(Arrays.asList(node), property, accessor, Arrays.asList(oldValue), scene);
     }
 
     @Override
     public IStatus execute(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
-        set();
-        int i = 0;
-        for (Object node : nodes) {
-            if (!this.overrides.get(i) && accessor.isOverridden(node, property, model)) {
-                this.resets[i] = true;
+
+        try {
+            for (Object node : nodes) {
+                accessor.resetValue(node, property, model);
             }
-            ++i;
+        } catch (Throwable e) {
+            throw new ExecutionException("Failed to reset property " + property, e);
         }
         return Status.OK_STATUS;
     }
@@ -86,7 +64,13 @@ public class SetPropertiesOperation<T, U extends IPropertyObjectWorld> extends A
     @Override
     public IStatus redo(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
-        set();
+        try {
+            for (Object node : nodes) {
+                accessor.resetValue(node, property, model);
+            }
+        } catch (Throwable e) {
+            throw new ExecutionException("Failed to reset property " + property, e);
+        }
         return Status.OK_STATUS;
     }
 
@@ -96,11 +80,7 @@ public class SetPropertiesOperation<T, U extends IPropertyObjectWorld> extends A
         try {
             int i = 0;
             for (Object node : nodes) {
-                if (this.resets[i]) {
-                    accessor.resetValue(node, property, model);
-                } else {
-                    accessor.setValue(node, property, oldValues.get(i), model);
-                }
+                accessor.setValue(node, property, oldValues.get(i), model);
                 ++i;
             }
         } catch (Throwable e) {

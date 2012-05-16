@@ -50,6 +50,15 @@ public class PropertiesTest {
         assertEquals(dummy.getEnumValue(), source.getPropertyValue("enumValue")); //$NON-NLS-1$
     }
 
+    @Test
+    public void testIsOverridden() throws Exception {
+        assertFalse(source.isPropertyOverridden("integerValue")); //$NON-NLS-1$
+        assertFalse(source.isPropertyOverridden("stringValue")); //$NON-NLS-1$
+        assertFalse(source.isPropertyOverridden("rgbValue")); //$NON-NLS-1$
+        assertFalse(source.isPropertyOverridden("vector4Value")); //$NON-NLS-1$
+        assertFalse(source.isPropertyOverridden("enumValue")); //$NON-NLS-1$
+    }
+
     @Test(expected=RuntimeException.class)
     public void testGetMissingGetter() throws Exception {
         source.getPropertyValue("noSuchProperty"); //$NON-NLS-1$
@@ -135,6 +144,18 @@ public class PropertiesTest {
         source.setPropertyValue("dynamicIntProp", 1000);
         assertEquals(1000, source.getPropertyValue("dynamicIntProp"));
         assertThat(source.getPropertyStatus("dynamicIntProp").getSeverity(), is(IStatus.OK));
+    }
+
+    @Test
+    public void testDynamicOverride() {
+        assertEquals(-1, source.getPropertyValue("dynamicOverrideProp"));
+        assertFalse(source.isPropertyOverridden("dynamicOverrideProp"));
+        source.setPropertyValue("dynamicOverrideProp", 1);
+        assertEquals(1, source.getPropertyValue("dynamicOverrideProp"));
+        assertTrue(source.isPropertyOverridden("dynamicOverrideProp"));
+        source.resetPropertyValue("dynamicOverrideProp");
+        assertEquals(-1, source.getPropertyValue("dynamicOverrideProp"));
+        assertFalse(source.isPropertyOverridden("dynamicOverrideProp"));
     }
 
     // Currently RuntimeException is thrown. This behavior might change in the future

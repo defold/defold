@@ -73,6 +73,7 @@ public class DummyClass {
 
     String dynamicStringProp = "prop1 value";
     int dynamicIntProp = 123;
+    Integer dynamicOverrideProp;
 
     public boolean isNotEditableEditable() {
         return false;
@@ -198,9 +199,10 @@ public class DummyClass {
                 DummyWorld world) {
             if (property.equals("dynamicStringProp")) {
                 dynamicStringProp = (String) value;
-            }
-            else if (property.equals("dynamicIntProp")) {
+            } else if (property.equals("dynamicIntProp")) {
                 dynamicIntProp = (Integer) value;
+            } else if (property.equals("dynamicOverrideProp")) {
+                dynamicOverrideProp = (Integer) value;
             } else {
                 throw new RuntimeException(String.format("No such property %s", property));
             }
@@ -211,9 +213,14 @@ public class DummyClass {
         public Object getValue(DummyClass obj, String property, DummyWorld world) {
             if (property.equals("dynamicStringProp")) {
                 return dynamicStringProp;
-            }
-            else if (property.equals("dynamicIntProp")) {
-                    return dynamicIntProp;
+            } else if (property.equals("dynamicIntProp")) {
+                return dynamicIntProp;
+            } else if (property.equals("dynamicOverrideProp")) {
+                if (dynamicOverrideProp != null) {
+                    return dynamicOverrideProp;
+                } else {
+                    return -1;
+                }
             } else {
                 throw new RuntimeException(String.format("No such property %s", property));
             }
@@ -235,6 +242,22 @@ public class DummyClass {
         public Object[] getPropertyOptions(DummyClass obj, String property,
                 DummyWorld world) {
             return new Object[0];
+        }
+
+        @Override
+        public boolean isOverridden(DummyClass obj, String property, DummyWorld world) {
+            if (property.equals("dynamicOverrideProp")) {
+                return dynamicOverrideProp != null;
+            } else {
+                return false;
+            }
+        }
+
+        @Override
+        public void resetValue(DummyClass obj, String property, DummyWorld world) {
+            if (property.equals("dynamicOverrideProp")) {
+                dynamicOverrideProp = null;
+            }
         }
 
     }

@@ -10,7 +10,7 @@ public class DummyCommandFactory implements ICommandFactory<Object, DummyWorld> 
     @Override
     public IUndoableOperation create(Object obj, String property,
             IPropertyAccessor<Object, DummyWorld> accessor,
-            Object oldValue, Object newValue, DummyWorld world) {
+            Object oldValue, Object newValue, boolean overridden, DummyWorld world) {
 
         // Increase total number of commands created
         ++world.totalCommands;
@@ -25,6 +25,31 @@ public class DummyCommandFactory implements ICommandFactory<Object, DummyWorld> 
         // Set actual value
         try {
             accessor.setValue(obj, property, newValue, world);
+        } catch (Throwable e) {
+            throw new RuntimeException(e);
+        }
+
+        return null;
+    }
+
+    @Override
+    public IUndoableOperation createReset(final Object obj, final String property,
+            final IPropertyAccessor<Object, DummyWorld> accessor,
+            final Object oldValue, final DummyWorld world) {
+
+        // Increase total number of commands created
+        ++world.totalCommands;
+
+        // Increase command count for this property
+        Integer count = world.commandsCreated.get(property);
+        if (count == null)
+            count = 0;
+        count++;
+        world.commandsCreated.put(property, count);
+
+        // Reset actual value
+        try {
+            accessor.resetValue(obj, property, world);
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }

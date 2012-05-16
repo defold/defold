@@ -8,6 +8,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.runtime.IAdaptable;
 import org.eclipse.core.runtime.IStatus;
@@ -15,12 +16,16 @@ import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.Viewer;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.custom.StackLayout;
+import org.eclipse.swt.graphics.Color;
+import org.eclipse.swt.graphics.RGB;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
+import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.Label;
 import org.eclipse.ui.forms.widgets.FormToolkit;
+import org.eclipse.ui.forms.widgets.Hyperlink;
 import org.eclipse.ui.forms.widgets.ScrolledForm;
 
 @SuppressWarnings({"rawtypes", "unchecked"})
@@ -39,13 +44,17 @@ public class FormPropertySheetViewer extends Viewer {
 
     static private class Entry {
 
-        public Entry(IPropertyEditor editor, StatusLabel statusLabel,
+        public Entry(Label label, Hyperlink link, IPropertyEditor editor, StatusLabel statusLabel,
                 Label dummyLabel) {
+            this.label = label;
+            this.link = link;
             this.editor = editor;
             this.statusLabel = statusLabel;
             this.dummyLabel = dummyLabel;
         }
 
+        Label label;
+        Hyperlink link;
         IPropertyEditor editor;
         StatusLabel statusLabel;
         Label dummyLabel;
@@ -55,7 +64,7 @@ public class FormPropertySheetViewer extends Viewer {
         this.contentRoot = contentRoot;
         toolkit = new FormToolkit(parent.getDisplay());
         this.form = toolkit.createScrolledForm(parent);
-        this.form.setText("Properties");
+        this.form.setText("Properties"); //$NON-NLS-1$
         form.getBody().setLayout(new GridLayout());
         propertiesComposite = toolkit.createComposite(this.form.getBody());
         propertiesComposite.setLayoutData(new GridData(GridData.FILL_BOTH));
@@ -127,6 +136,21 @@ public class FormPropertySheetViewer extends Viewer {
                     }
                     gdStatusLabel.exclude = exclude;
                     gdDummyLabel.exclude = exclude;
+
+                    boolean overridden = false;
+                    for (int i = 0; i < models.length; ++i) {
+                        if (models[i].isPropertyOverridden(desc.getId())) {
+                            overridden = true;
+                            break;
+                        }
+                    }
+                    StackLayout stack = (StackLayout)entry.label.getParent().getLayout();
+                    if (overridden) {
+                        stack.topControl = entry.link;
+                    } else {
+                        stack.topControl = entry.label;
+                    }
+                    entry.label.getParent().layout();
                 }
             }
         }
@@ -164,10 +188,10 @@ public class FormPropertySheetViewer extends Viewer {
         return ret.toString();
     }
 
-    private Composite getPropertiesComposite(IPropertyModel model) {
+    private Composite getPropertiesComposite(final IPropertyModel model) {
         MessageDigest digest;
         try {
-            digest = MessageDigest.getInstance("MD5");
+            digest = MessageDigest.getInstance("MD5"); //$NON-NLS-1$
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException(e);
         }
@@ -204,13 +228,32 @@ public class FormPropertySheetViewer extends Viewer {
                 }
             });
 
-            for (IPropertyDesc desc : descs) {
+            for (final IPropertyDesc desc : descs) {
 
                 if (!model.isPropertyVisible(desc.getId()))
                     continue;
 
-                Label label = new Label(c, SWT.NONE);
-                label.setText(niceifyLabel(desc.getName()));
+                String labelText = niceifyLabel(desc.getName());
+                final Composite labelComposite = new Composite(c, SWT.NONE);
+                //labelComposite.setLayoutData(new GridData(GridData.FILL_BOTH));
+                final StackLayout labelLayout = new StackLayout();
+                labelComposite.setLayout(labelLayout);
+                final Label label = new Label(labelComposite, SWT.NONE);
+                label.setText(labelText);
+                Hyperlink link = new Hyperlink(labelComposite, SWT.NONE) {
+                    @Override
+                    protected void handleActivate(Event e) {
+                        super.handleActivate(e);
+                        for (IPropertyModel m : models) {
+                            IUndoableOperation operation = m.resetPropertyValue(desc.getId());
+                            m.getCommandFactory().execute(operation, m.getWorld());
+                        }
+                    }
+                };
+                link.setText(labelText);
+                link.setForeground(new Color(c.getDisplay(), new RGB(0, 0, 255)));
+                link.setUnderlined(true);
+                link.setToolTipText(Messages.FormPropertySheetViewer_RESET_VALUE);
 
                 IPropertyEditor editor = desc.createEditor(c, contentRoot);
                 Control control;
@@ -234,7 +277,7 @@ public class FormPropertySheetViewer extends Viewer {
                 gd.exclude = true;
                 gd.horizontalSpan = 1;
                 statusLabel.setLayoutData(gd);
-                Entry entry = new Entry(editor, statusLabel, dummyLabel);
+                Entry entry = new Entry(label, link, editor, statusLabel, dummyLabel);
                 c.setData(desc.getId(), entry);
             }
 

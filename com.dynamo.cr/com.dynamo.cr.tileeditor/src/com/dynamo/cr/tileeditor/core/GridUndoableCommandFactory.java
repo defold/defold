@@ -11,7 +11,7 @@ ICommandFactory<Object, GridModel> {
     @Override
     public IUndoableOperation create(Object node, String property,
             IPropertyAccessor<Object, GridModel> accessor, Object oldValue,
-            Object newValue, GridModel model) {
+            Object newValue, boolean overridden, GridModel model) {
 
         if (!newValue.equals(oldValue)) {
             SetPropertiesOperation<Object, GridModel> operation = new SetPropertiesOperation<Object, GridModel>(node,
@@ -19,6 +19,12 @@ ICommandFactory<Object, GridModel> {
                     newValue, model);
             return operation;
         }
+        return null;
+    }
+
+    @Override
+    public IUndoableOperation createReset(Object node, String property,
+            IPropertyAccessor<Object, GridModel> accessor, Object oldValue, GridModel model) {
         return null;
     }
 

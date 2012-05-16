@@ -6,6 +6,7 @@ import java.util.List;
 import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.swt.SWT;
+import org.eclipse.swt.graphics.Color;
 import org.eclipse.swt.widgets.Combo;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
@@ -123,15 +124,25 @@ public abstract class ScalarPropertyDesc<S, T, U extends IPropertyObjectWorld> e
             boolean editable = models[0].isPropertyEditable(getId());
             getControl().setEnabled(editable);
             S firstValue = (S) models[0].getPropertyValue(getId());
+            boolean overridden = models[0].isPropertyOverridden(getId());
             for (int i = 1; i < models.length; ++i) {
+                if (models[i].isPropertyOverridden(getId())) {
+                    overridden = true;
+                }
                 S value = (S) models[i].getPropertyValue(getId());
                 if (!firstValue.equals(value)) {
                     widget.setText("");
+                    widget.getControl().setBackground(new Color(getControl().getDisplay(), 255, 255, 255));
                     oldValue = "";
                     return;
                 }
             }
             widget.setText(firstValue.toString());
+            if (overridden) {
+                widget.getControl().setBackground(new Color(getControl().getDisplay(), 214, 230, 255));
+            } else {
+                widget.getControl().setBackground(new Color(getControl().getDisplay(), 255, 255, 255));
+            }
             oldValue = firstValue.toString();
         }
 

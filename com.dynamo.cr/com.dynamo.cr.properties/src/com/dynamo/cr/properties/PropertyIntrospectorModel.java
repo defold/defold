@@ -67,7 +67,16 @@ public class PropertyIntrospectorModel<T, U extends IPropertyObjectWorld> implem
     public IUndoableOperation setPropertyValue(Object id, Object value) {
         IPropertyAccessor<T, U> accessor = getPropertyAccessor(id);
         Object oldValue = getPropertyValue(id);
-        IUndoableOperation operation = staticIntrospector.getCommandFactory().create(object, (String) id, accessor, oldValue, value, world);
+        boolean overridden = isPropertyOverridden(id);
+        IUndoableOperation operation = staticIntrospector.getCommandFactory().create(object, (String) id, accessor, oldValue, value, overridden, world);
+        return operation;
+    }
+
+    @Override
+    public IUndoableOperation resetPropertyValue(Object id) {
+        IPropertyAccessor<T, U> accessor = getPropertyAccessor(id);
+        Object oldValue = getPropertyValue(id);
+        IUndoableOperation operation = staticIntrospector.getCommandFactory().createReset(object, (String) id, accessor, oldValue, world);
         return operation;
     }
 
@@ -81,6 +90,12 @@ public class PropertyIntrospectorModel<T, U extends IPropertyObjectWorld> implem
     public boolean isPropertyVisible(Object id) {
         IPropertyAccessor<T, U> accessor = getPropertyAccessor(id);
         return accessor.isVisible(object, (String) id, world);
+    }
+
+    @Override
+    public boolean isPropertyOverridden(Object id) {
+        IPropertyAccessor<T, U> accessor = getPropertyAccessor(id);
+        return accessor.isOverridden(object, (String) id, world);
     }
 
     @Override

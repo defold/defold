@@ -15,9 +15,13 @@ public interface IPropertyModel<T, U extends IPropertyObjectWorld> {
 
     public IUndoableOperation setPropertyValue(Object id, Object value);
 
+    public IUndoableOperation resetPropertyValue(Object id);
+
     public boolean isPropertyEditable(Object id);
 
     boolean isPropertyVisible(Object id);
+
+    boolean isPropertyOverridden(Object id);
 
     public IStatus getStatus();
 

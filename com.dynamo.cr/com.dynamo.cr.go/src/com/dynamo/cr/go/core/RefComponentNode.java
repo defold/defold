@@ -234,11 +234,7 @@ public class RefComponentNode extends ComponentNode {
                 ISceneModel world) {
             LuaPropertyParser.Property defProp = getPropertyDefault(property);
             if (defProp != null) {
-                if (value.equals("")) {
-                    prototypeProperties.remove(property);
-                } else {
-                    prototypeProperties.put(property, (String)value);
-                }
+                prototypeProperties.put(property, (String)value);
             } else {
                 throw new RuntimeException(String.format("No such property %s", property));
             }
@@ -271,6 +267,26 @@ public class RefComponentNode extends ComponentNode {
         public Object[] getPropertyOptions(RefComponentNode obj, String property,
                 ISceneModel world) {
             return new Object[0];
+        }
+
+        @Override
+        public void resetValue(RefComponentNode obj, String property, ISceneModel world) {
+            LuaPropertyParser.Property defProp = getPropertyDefault(property);
+            if (defProp != null) {
+                prototypeProperties.remove(property);
+            } else {
+                throw new RuntimeException(String.format("No such property %s", property));
+            }
+        }
+
+        @Override
+        public boolean isOverridden(RefComponentNode obj, String property, ISceneModel world) {
+            LuaPropertyParser.Property defProp = getPropertyDefault(property);
+            if (defProp != null) {
+                return prototypeProperties.containsKey(property);
+            } else {
+                throw new RuntimeException(String.format("No such property %s", property));
+            }
         }
 
     }
