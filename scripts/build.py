@@ -60,10 +60,15 @@ class Configuration(object):
         self._create_common_dirs()
 
     def _extract_tgz(self, file, path):
-        self._log('Extracting %s' % basename(file))
-        tf = TarFile.open(file, 'r:gz')
-        tf.extractall(path)
-        tf.close()
+        self._log('Extracting %s to %s' % (file, path))
+        version = sys.version_info
+        # Avoid a bug in python 2.7 (fixed in 2.7.2) related to not being able to remove symlinks: http://bugs.python.org/issue10761
+        if self.host == 'linux' and version.major == 2 and version.minor == 7 and version.micro < 2:
+            self.exec_command(['tar', 'xfz', file], cwd = path)
+        else:
+            tf = TarFile.open(file, 'r:gz')
+            tf.extractall(path)
+            tf.close()
 
     def _copy(self, src, dst):
         self._log('Copying %s -> %s' % (src, dst))
