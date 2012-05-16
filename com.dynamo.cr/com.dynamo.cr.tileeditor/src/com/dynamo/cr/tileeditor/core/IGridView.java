@@ -21,6 +21,7 @@ public interface IGridView {
     public interface Presenter {
 
         void onSelectTile(int tileIndex, boolean hFlip, boolean vFlip);
+        void onSelectCell(Layer layer, int cellX, int cellY);
 
         void onAddLayer();
         void onSelectLayer(Layer layer);

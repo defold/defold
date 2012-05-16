@@ -458,9 +458,14 @@ Listener {
                 this.activeCell = activeCell;
                 requestPaint();
             }
-        } else if (e.button == 1) {
-            if (this.activeCell != null) {
+        } else if (this.activeCell != null) {
+            switch (e.button) {
+            case 1:
                 this.presenter.onPaintEnd();
+                break;
+            case 3:
+                this.presenter.onSelectCell(this.selectedLayer, this.activeCell.x, this.activeCell.y);
+                break;
             }
         }
     }

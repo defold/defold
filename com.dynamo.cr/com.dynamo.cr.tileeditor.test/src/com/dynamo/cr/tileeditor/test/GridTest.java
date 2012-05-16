@@ -244,7 +244,7 @@ public class GridTest implements IResourceChangeListener {
     }
 
     private int cellTile(Layer layer, int x, int y) {
-        Cell cell = layer.getCell(0, 1);
+        Cell cell = layer.getCell(x, y);
         if (cell != null) {
             return cell.getTile();
         } else {
@@ -381,6 +381,50 @@ public class GridTest implements IResourceChangeListener {
         redo();
         assertThat(cellTile(layer, 0, 1), is(-1));
         verify(this.view, times(4)).setCells(eq(0), anyMap());
+    }
+
+    /**
+     * Pick cells and paint them into other cells
+     * @throws Exception
+     *
+     */
+    @Test
+    public void testCellPicking() throws Exception {
+        testUseCase211();
+
+        List<Layer> layers = this.model.getLayers();
+        Layer layer = layers.get(0);
+
+        // Paint
+
+        this.presenter.onSelectLayer(layer);
+
+        this.presenter.onSelectTile(1, false, false);
+        verify(this.view, times(1)).setSelectedTile(1, false, false);
+
+        // Paint in a cell to be picked
+        this.presenter.onPaintBegin();
+        this.presenter.onPaint(0, 1);
+        this.presenter.onPaintEnd();
+
+        this.presenter.onSelectTile(-1, false, false);
+        verify(this.view, times(1)).setSelectedTile(-1, false, false);
+
+        this.presenter.onPaintBegin();
+        this.presenter.onPaint(1, 1);
+        this.presenter.onPaintEnd();
+        assertThat(cellTile(layer, 1, 1), is(-1));
+
+        this.presenter.onSelectCell(layer, 0, 1);
+        verify(this.view, times(2)).setSelectedTile(1, false, false);
+
+        this.presenter.onPaintBegin();
+        this.presenter.onPaint(1, 1);
+        this.presenter.onPaintEnd();
+
+        assertThat(cellTile(layer, 0, 1), is(1));
+        long cellIndex = Layer.toCellIndex(0, 1);
+        verify(this.view, times(1)).setCell(eq(0), eq(cellIndex), any(Cell.class));
     }
 
     /**

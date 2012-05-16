@@ -332,4 +332,19 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
         }
     }
 
+    @Override
+    public void onSelectCell(Layer layer, int cellX, int cellY) {
+        Cell cell = layer.getCell(cellX, cellY);
+        int tile = -1;
+        boolean hFlip = false;
+        boolean vFlip = false;
+        if (cell != null) {
+            tile = cell.getTile();
+            hFlip = cell.isHFlip();
+            vFlip = cell.isVFlip();
+        }
+        this.selectedTile = new SelectedTile(tile, hFlip, vFlip);
+        this.view.setSelectedTile(tile, hFlip, vFlip);
+    }
+
 }
