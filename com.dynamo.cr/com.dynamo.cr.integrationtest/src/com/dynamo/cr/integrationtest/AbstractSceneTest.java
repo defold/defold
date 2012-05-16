@@ -241,6 +241,12 @@ public abstract class AbstractSceneTest {
     }
 
     @SuppressWarnings("unchecked")
+    protected void resetNodeProperty(Node node, Object id) {
+        IPropertyModel<? extends Node, ISceneModel> propertyModel = (IPropertyModel<? extends Node, ISceneModel>)node.getAdapter(IPropertyModel.class);
+        this.model.executeOperation(propertyModel.resetPropertyValue(id));
+    }
+
+    @SuppressWarnings("unchecked")
     protected IStatus getNodePropertyStatus(Node node, Object id) {
         IPropertyModel<? extends Node, ISceneModel> propertyModel = (IPropertyModel<? extends Node, ISceneModel>)node.getAdapter(IPropertyModel.class);
         return propertyModel.getPropertyStatus(id);

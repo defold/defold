@@ -59,11 +59,11 @@ public class ScriptPropertiesGOTest extends AbstractSceneTest {
         assertEquals("/url", getNodeProperty(component, "url"));
 
         // Reset to default
-        setNodeProperty(component, "number", "");
+        resetNodeProperty(component, "number");
         assertEquals("1", getNodeProperty(component, "number"));
-        setNodeProperty(component, "hash", "");
+        resetNodeProperty(component, "hash");
         assertEquals("hash", getNodeProperty(component, "hash"));
-        setNodeProperty(component, "url", "");
+        resetNodeProperty(component, "url");
         assertEquals("", getNodeProperty(component, "url"));
 
         // Validation
