@@ -537,4 +537,21 @@
          </visibility>
       </objectContribution>
    </extension>
+   <extension
+         point="org.eclipse.ui.navigator.navigatorContent">
+      <actionProvider
+            class="com.dynamo.cr.editor.NewNavigatorActionProvider"
+            id="org.eclipse.ui.navigator.resources.NewActions2"
+            overrides="org.eclipse.ui.navigator.resources.NewActions"
+            priority="highest">
+         <enablement>
+            <or>
+                <adapt type="org.eclipse.core.resources.IResource" />
+                <adapt type="java.util.Collection">
+                    <count value="0" />
+                </adapt>
+            </or>
+         </enablement>
+      </actionProvider>
+   </extension>
 </plugin>
