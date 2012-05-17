@@ -96,12 +96,30 @@
                label="Synchronize"
                style="push">
          </command>
-         <command
-               commandId="com.dynamo.crepo.commands.switchOpenID"
+         <menu
                icon="icons/openid-16x16.png"
-               label="Switch OpenID Account"
-               style="push">
-         </command>
+               label="Sign Out">
+            <command
+                  commandId="com.dynamo.crepo.commands.signOut"
+                  icon="icons/google_icon.png"
+                  label="Sign out from Google"
+                  style="push">
+               <parameter
+                     name="com.dynamo.crepo.commands.signOut.url"
+                     value="https://www.google.com/accounts/Logout">
+               </parameter>
+            </command>
+            <command
+                  commandId="com.dynamo.crepo.commands.signOut"
+                  icon="icons/yahoo_icon.png"
+                  label="Sign out from Yahoo"
+                  style="push">
+               <parameter
+                     name="com.dynamo.crepo.commands.signOut.url"
+                     value="https://login.yahoo.com/config/login?logout=1">
+               </parameter>
+            </command>
+         </menu>
       </menuContribution>
       <menuContribution
             allPopups="false"
@@ -220,13 +238,6 @@
       </command>
       <command
             categoryId="com.dynamo.crepo.category"
-            defaultHandler="com.dynamo.cr.editor.handlers.SwitchOpenIDHandler"
-            description="Switch OpenID Account"
-            id="com.dynamo.crepo.commands.switchOpenID"
-            name="Switch OpenID Account">
-      </command>
-      <command
-            categoryId="com.dynamo.crepo.category"
             defaultHandler="com.dynamo.cr.editor.handlers.OpenWebLinkHandler"
             description="Open Web Link"
             id="com.dynamo.crepo.commands.openWebLink"
@@ -235,6 +246,18 @@
                id="com.dynamo.crepo.commands.openWebLink.url"
                name="link"
                optional="false">
+         </commandParameter>
+      </command>
+      <command
+            categoryId="com.dynamo.crepo.category"
+            defaultHandler="com.dynamo.cr.editor.handlers.SignoutHandler"
+            description="Signout from OpenID Account"
+            id="com.dynamo.crepo.commands.signOut"
+            name="Signout from OpenID Account">
+         <commandParameter
+               id="com.dynamo.crepo.commands.signOut.url"
+               name="url"
+               optional="true">
          </commandParameter>
       </command>
    </extension>

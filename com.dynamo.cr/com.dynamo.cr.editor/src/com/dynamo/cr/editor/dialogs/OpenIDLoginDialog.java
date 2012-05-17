@@ -1,6 +1,8 @@
 package com.dynamo.cr.editor.dialogs;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
 import java.net.URI;
@@ -13,13 +15,13 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.ws.rs.core.UriBuilder;
 
+import org.apache.commons.io.IOUtils;
 import org.eclipse.jetty.server.Request;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.bio.SocketConnector;
 import org.eclipse.jetty.server.handler.AbstractHandler;
 import org.eclipse.jface.dialogs.Dialog;
 import org.eclipse.jface.dialogs.IDialogConstants;
-import org.eclipse.jface.dialogs.TitleAreaDialog;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.browser.Browser;
 import org.eclipse.swt.graphics.Point;
@@ -41,7 +43,7 @@ import com.sun.jersey.api.client.WebResource;
 import com.sun.jersey.api.client.config.ClientConfig;
 import com.sun.jersey.api.client.config.DefaultClientConfig;
 
-public class OpenIDLoginDialog extends TitleAreaDialog {
+public class OpenIDLoginDialog extends Dialog {
 
     private Server server;
     private SocketConnector connector;
@@ -120,7 +122,7 @@ public class OpenIDLoginDialog extends TitleAreaDialog {
                 }
 
                 if (exchangeInfo.getType() == Type.SIGNUP) {
-                    writeResponse(writer, "This account is not associated with defold.se yet. Please go to defold.se to signup");
+                    writeResponse(writer, "This account is not associated with defold.com yet. Please go to defold.com to signup");
                     return;
                 }
 
@@ -171,14 +173,12 @@ public class OpenIDLoginDialog extends TitleAreaDialog {
     @Override
     protected void configureShell(Shell newShell) {
         super.configureShell(newShell);
-        newShell.setText("Sign in to defold.se");
+        newShell.setText("Sign in to defold.com");
     }
 
     @Override
     protected Control createContents(Composite parent) {
         Control ret = super.createContents(parent);
-        setTitle("Sign in");
-        setMessage("Sign in defold.se using your Google account");
         return ret;
     }
 
@@ -198,16 +198,27 @@ public class OpenIDLoginDialog extends TitleAreaDialog {
     @Override
     protected Control createDialogArea(Composite parent) {
         Browser browser = new Browser(parent, SWT.NONE);
-        UriBuilder uri = UriBuilder.fromUri(crServerUri).path("/login/openid/google").queryParam("redirect_to", String.format("http://localhost:%d/{token}/{action}", connector.getLocalPort()));
+        UriBuilder googleUrl = UriBuilder.fromUri(crServerUri).path("/login/openid/google").queryParam("redirect_to", String.format("http://localhost:%d/{token}/{action}", connector.getLocalPort()));
+        UriBuilder yahooUrl = UriBuilder.fromUri(crServerUri).path("/login/openid/yahoo").queryParam("redirect_to", String.format("http://localhost:%d/{token}/{action}", connector.getLocalPort()));
 
-        browser.setUrl(uri.build().toString());
+        InputStream input = getClass().getClassLoader().getResourceAsStream("/data/login.html");
+        ByteArrayOutputStream output = new ByteArrayOutputStream(128 * 1024);
+        try {
+            IOUtils.copy(input, output);
+            String text = new String(output.toByteArray(), "UTF8");
+            text = text.replace("GOOGLE_URL", googleUrl.build().toString());
+            text = text.replace("YAHOO_URL", yahooUrl.build().toString());
+            browser.setText(text);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
         browser.setLayoutData(new GridData(GridData.FILL_BOTH));
         return parent;
     }
 
     @Override
     protected Point getInitialSize() {
-        return new Point(700, 800);
+        return new Point(900, 800);
     }
 
     public static void main(String[] args) {

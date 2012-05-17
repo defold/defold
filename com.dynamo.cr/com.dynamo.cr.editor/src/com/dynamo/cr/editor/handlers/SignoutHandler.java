@@ -20,14 +20,17 @@ import com.dynamo.cr.editor.preferences.PreferenceConstants;
 
 class LoginDialog extends TitleAreaDialog {
 
-    public LoginDialog(Shell parentShell) {
+    private String url;
+
+    public LoginDialog(Shell parentShell, String url) {
         super(parentShell);
+        this.url = url;
     }
 
     @Override
     protected void configureShell(Shell newShell) {
         super.configureShell(newShell);
-        newShell.setText("Sign in to your Google account");
+        newShell.setText("Sign out");
     }
 
     @Override
@@ -40,7 +43,7 @@ class LoginDialog extends TitleAreaDialog {
     protected Control createContents(Composite parent) {
         Control ret = super.createContents(parent);
         setTitle("Sign in");
-        setMessage("Sign in to your Google account. Press Ok when signed in.");
+        setMessage("Optionally sign in to your account. Press Ok when signed in.");
         return ret;
     }
 
@@ -52,22 +55,23 @@ class LoginDialog extends TitleAreaDialog {
     @Override
     protected Control createDialogArea(Composite parent) {
         Browser browser = new Browser(parent, SWT.NONE);
-        browser.setUrl("https://www.google.com/accounts/Logout");
+        browser.setUrl(url);
         browser.setLayoutData(new GridData(GridData.FILL_BOTH));
         return parent;
     }
 
     @Override
     protected Point getInitialSize() {
-        return new Point(700, 800);
+        return new Point(900, 800);
     }
 }
 
-public class SwitchOpenIDHandler extends AbstractHandler {
+public class SignoutHandler extends AbstractHandler {
 
     @Override
     public Object execute(ExecutionEvent event) throws ExecutionException {
-        LoginDialog loginDialog = new LoginDialog(HandlerUtil.getActiveShell(event));
+        String url = event.getParameter("com.dynamo.crepo.commands.signOut.url");
+        LoginDialog loginDialog = new LoginDialog(HandlerUtil.getActiveShell(event), url);
         loginDialog.open();
         IPreferenceStore store = Activator.getDefault().getPreferenceStore();
         store.setValue(PreferenceConstants.P_AUTH_COOKIE, "");
