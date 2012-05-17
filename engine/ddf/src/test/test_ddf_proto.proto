@@ -218,14 +218,15 @@ message TestDefault
     optional int64  int64_val = 5 [ default = -5678 ];
     optional uint64 uint64_val = 6 [ default = 5566 ];
     optional string string_val = 7 [ default = "a default value" ];
+    optional string empty_string_val = 8 [ default = "" ];
 
-    optional uint64 non_default_uint64 = 8;
-    optional string non_default_string = 9;
+    optional uint64 non_default_uint64 = 9;
+    optional string non_default_string = 10;
 
-    optional QuatWithDefault quat = 10;
-    optional SubMessageWithOptionalQuat sub_message = 11;
+    optional QuatWithDefault quat = 11;
+    optional SubMessageWithOptionalQuat sub_message = 12;
 
-    optional TestEnum enum = 12 [ default = TEST_ENUM_VAL2 ];
+    optional TestEnum enum = 13 [ default = TEST_ENUM_VAL2 ];
 }
 
 message EmptyMsg {}

@@ -18,9 +18,9 @@
 /*
  * TODO:
  * Tester
- * - F�lt
- *   - Extra f�lt
- *   - F�lt som fattar
+ * - Fält
+ *   - Extra fält
+ *   - Fält som fattas
  */
 
 #ifndef DDF_EXPOSE_DESCRIPTORS
@@ -643,12 +643,8 @@ TEST(TestDefault, LoadSave)
     ASSERT_EQ(defaulto.int64_val(), message->m_Int64Val);
     ASSERT_EQ(defaulto.uint64_val(), message->m_Uint64Val);
     ASSERT_STREQ(defaulto.string_val().c_str(), message->m_StringVal);
-
-    //NOTE: We store non-defined strings as NULL and not ""
-    //We might change this in the future
-    ASSERT_EQ(0U, message->m_NonDefaultString);
-    //See comment just above why this isn't active
-    //ASSERT_STREQ(defaulto.nondefaultstring().c_str(), message->m_NonDefaultString);
+    ASSERT_STREQ(defaulto.empty_string_val().c_str(), message->m_EmptyStringVal);
+    ASSERT_STREQ(defaulto.non_default_string().c_str(), message->m_NonDefaultString);
 
     ASSERT_EQ(defaulto.non_default_uint64(), message->m_NonDefaultUint64);
 
@@ -681,8 +677,6 @@ TEST(Descriptor, GetDescriptor)
 
 TEST(StringOffset, Load)
 {
-    const int count = 2;
-
     TestDDF::StringOffset repated;
     repated.set_str("a string");
     repated.add_str_arr("foo");
