@@ -10,7 +10,7 @@ def build(bld):
                           target = 'engine',
                           proto_gen_py = True,
                           protoc_includes = '../proto',
-                          embed_source='../content/materials/debug.vpc ../content/materials/debug.fpc ../content/builtins.arc',
+                          embed_source='../content/materials/debug.vpc ../content/materials/debug.fpc ../content/builtins.arc ../content/builtins/connect/connect.project',
                           source='engine.cpp physics_debug_render.cpp profile_render.cpp ../proto/engine_ddf.proto')
     bld.install_files('${PREFIX}/include/engine', 'engine.h')
     bld.install_files('${PREFIX}/share/proto', '../proto/engine_ddf.proto')
@@ -29,7 +29,7 @@ def build(bld):
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram',
-        uselib = 'RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET LUA SCRIPT HID_NULL INPUT PARTICLE GUI SOUND_NULL DLIB',
+        uselib = 'RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET LUA SCRIPT HID_NULL INPUT PARTICLE GUI SOUND_NULL DLIB DMGLFW',
         uselib_local = 'engine',
         includes = '../build ../proto .',
         proto_gen_py = True,
