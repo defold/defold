@@ -82,16 +82,18 @@ TEST_P(Empty, Empty)
     ASSERT_NE((void*) 0, config);
 }
 
+#ifndef _WIN32
 INSTANTIATE_TEST_CASE_P(Empty,
                         Empty,
                         ::testing::Values(TestParam("src/test/data/empty.config"),
-                                          TestParam("src/test/data/empty.config", true)
-#ifndef _WIN32
-                                          ,TestParam("http://localhost:7000/src/test/data/test.config")
+                                          TestParam("src/test/data/empty.config", true),
+                                          TestParam("http://localhost:7000/src/test/data/test.config")));
+#else
+INSTANTIATE_TEST_CASE_P(Empty,
+                        Empty,
+                        ::testing::Values(TestParam("src/test/data/empty.config"),
+                                          TestParam("src/test/data/empty.config", true)));
 #endif
-                                          ));
-
-
 
 class MissingFile : public ConfigTest {};
 
@@ -100,15 +102,17 @@ TEST_P(MissingFile, MissingFile)
     ASSERT_EQ(dmConfigFile::RESULT_FILE_NOT_FOUND, r);
 }
 
+
+#ifndef _WIN32
 INSTANTIATE_TEST_CASE_P(MissingFile,
                         MissingFile,
-                        ::testing::Values(TestParam("does_not_exists")
-#ifndef _WIN32
-
-                                          ,TestParam("http://localhost:7000/does_not_exists")
+                        ::testing::Values(TestParam("does_not_exists"),
+                                          TestParam("http://localhost:7000/does_not_exists")));
+#else
+INSTANTIATE_TEST_CASE_P(MissingFile,
+                        MissingFile,
+                        ::testing::Values(TestParam("does_not_exists")));
 #endif
-                                          ));
-
 
 class NoSection : public ConfigTest {};
 
@@ -119,16 +123,18 @@ TEST_P(NoSection, NoSection)
     ASSERT_STREQ("456", dmConfigFile::GetString(config, ".bar", 0));
 }
 
+#ifndef _WIN32
 INSTANTIATE_TEST_CASE_P(NoSection,
                         NoSection,
                         ::testing::Values(TestParam("src/test/data/nosection.config"),
-                                          TestParam("src/test/data/nosection.config", true)
-#ifndef _WIN32
-                                          ,TestParam("http://localhost:7000/src/test/data/nosection.config")
+                                          TestParam("src/test/data/nosection.config", true),
+                                          TestParam("http://localhost:7000/src/test/data/nosection.config")));
+#else
+INSTANTIATE_TEST_CASE_P(NoSection,
+                        NoSection,
+                        ::testing::Values(TestParam("src/test/data/nosection.config"),
+                                          TestParam("src/test/data/nosection.config", true)));
 #endif
-                                          ));
-
-
 
 class SectionError : public ConfigTest {};
 
@@ -137,16 +143,18 @@ TEST_P(SectionError, SectionError)
     ASSERT_NE(dmConfigFile::RESULT_OK, r);
 }
 
+#ifndef _WIN32
 INSTANTIATE_TEST_CASE_P(SectionError,
                         SectionError,
                         ::testing::Values(TestParam("src/test/data/section_error.config"),
-                                          TestParam("src/test/data/section_error.config", true)
-#ifndef _WIN32
-
-                                          ,TestParam("http://localhost:7000/src/test/data/section_error.config")
+                                          TestParam("src/test/data/section_error.config", true),
+                                          TestParam("http://localhost:7000/src/test/data/section_error.config")));
+#else
+INSTANTIATE_TEST_CASE_P(SectionError,
+                        SectionError,
+                        ::testing::Values(TestParam("src/test/data/section_error.config"),
+                                          TestParam("src/test/data/section_error.config", true)));
 #endif
-                                          ));
-
 
 class Test01 : public ConfigTest {};
 
@@ -168,15 +176,18 @@ TEST_P(Test01, Test01)
     ASSERT_EQ(1122, dmConfigFile::GetInt(config, "missing_int_key", 1122));
 }
 
+#ifndef _WIN32
 INSTANTIATE_TEST_CASE_P(Test01,
                         Test01,
                         ::testing::Values(TestParam("src/test/data/test.config"),
-                                          TestParam("src/test/data/test.config", true)
-#ifndef _WIN32
-                                          ,TestParam("http://localhost:7000/src/test/data/test.config")
+                                          TestParam("src/test/data/test.config", true),
+                                          TestParam("http://localhost:7000/src/test/data/test.config")));
+#else
+INSTANTIATE_TEST_CASE_P(Test01,
+                        Test01,
+                        ::testing::Values(TestParam("src/test/data/test.config"),
+                                          TestParam("src/test/data/test.config", true)));
 #endif
-                                          ));
-
 
 class MissingTrailingNewline : public ConfigTest {};
 
@@ -186,15 +197,18 @@ TEST_P(MissingTrailingNewline, MissingTrailingNewline)
     ASSERT_STREQ("456", dmConfigFile::GetString(config, "main.foo", 0));
 }
 
+#ifndef _WIN32
 INSTANTIATE_TEST_CASE_P(MissingTrailingNewline,
                         MissingTrailingNewline,
                         ::testing::Values(TestParam("src/test/data/missing_trailing_nl.config"),
-                                          TestParam("src/test/data/missing_trailing_nl.config", true)
-#ifndef _WIN32
-                                          ,TestParam("http://localhost:7000/src/test/data/missing_trailing_nl.config")
+                                          TestParam("src/test/data/missing_trailing_nl.config", true),
+                                          TestParam("http://localhost:7000/src/test/data/missing_trailing_nl.config")));
+#else
+INSTANTIATE_TEST_CASE_P(MissingTrailingNewline,
+                        MissingTrailingNewline,
+                        ::testing::Values(TestParam("src/test/data/missing_trailing_nl.config"),
+                                          TestParam("src/test/data/missing_trailing_nl.config", true)));
 #endif
-                                          ));
-
 
 class CommandLine : public ConfigTest {};
 
@@ -223,14 +237,18 @@ TEST_P(CommandLine, CommandLine)
 const char* COMMNAD_LINE_ARGV[] = { "an arg1", "--config=main.foo=1122", "an arg2", "--config=sub.newvalue=987", "an arg3", "--config=main.missing_value", "an arg4", "--config=main.empty_value=", "an arg5"  };
 int COMMNAD_LINE_ARGC = sizeof(COMMNAD_LINE_ARGV) / sizeof(COMMNAD_LINE_ARGV[0]);
 
+#ifndef _WIN32
 INSTANTIATE_TEST_CASE_P(CommandLine,
                         CommandLine,
                         ::testing::Values(TestParam("src/test/data/test.config", COMMNAD_LINE_ARGC, COMMNAD_LINE_ARGV),
-                                          TestParam("src/test/data/test.config", COMMNAD_LINE_ARGC, COMMNAD_LINE_ARGV, true)
-#ifndef _WIN32
-                                          ,TestParam("http://localhost:7000/src/test/data/test.config", COMMNAD_LINE_ARGC, COMMNAD_LINE_ARGV)
+                                          TestParam("src/test/data/test.config", COMMNAD_LINE_ARGC, COMMNAD_LINE_ARGV, true),
+                                          TestParam("http://localhost:7000/src/test/data/test.config", COMMNAD_LINE_ARGC, COMMNAD_LINE_ARGV)));
+#else
+INSTANTIATE_TEST_CASE_P(CommandLine,
+                        CommandLine,
+                        ::testing::Values(TestParam("src/test/data/test.config", COMMNAD_LINE_ARGC, COMMNAD_LINE_ARGV),
+                                          TestParam("src/test/data/test.config", COMMNAD_LINE_ARGC, COMMNAD_LINE_ARGV, true)));
 #endif
-                                          ));
 
 int main(int argc, char **argv)
 {
