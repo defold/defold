@@ -22,7 +22,7 @@
 
 using namespace Vectormath::Aos;
 
-extern char CONNECT_PROJECT[];
+extern unsigned char CONNECT_PROJECT[];
 extern uint32_t CONNECT_PROJECT_SIZE;
 
 namespace dmEngine
@@ -407,7 +407,7 @@ bail:
         {
             // Load "connect" project if no project is found in default location
             // *and* argc == 1
-            config_result = dmConfigFile::LoadFromBuffer(CONNECT_PROJECT, CONNECT_PROJECT_SIZE, argc, (const char**) argv, &engine->m_Config);
+            config_result = dmConfigFile::LoadFromBuffer((const char*) CONNECT_PROJECT, CONNECT_PROJECT_SIZE, argc, (const char**) argv, &engine->m_Config);
             if (config_result != dmConfigFile::RESULT_OK)
             {
                 dmLogFatal("Unable to load builtin connect project");
