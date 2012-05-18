@@ -24,6 +24,7 @@ import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.Label;
+import org.eclipse.swt.widgets.Listener;
 import org.eclipse.ui.forms.widgets.FormToolkit;
 import org.eclipse.ui.forms.widgets.Hyperlink;
 import org.eclipse.ui.forms.widgets.ScrolledForm;
@@ -234,23 +235,21 @@ public class FormPropertySheetViewer extends Viewer {
                     continue;
 
                 String labelText = niceifyLabel(desc.getName());
-                final Composite labelComposite = new Composite(c, SWT.NONE);
-                //labelComposite.setLayoutData(new GridData(GridData.FILL_BOTH));
+                final Composite labelComposite = toolkit.createComposite(c, SWT.NONE);
                 final StackLayout labelLayout = new StackLayout();
                 labelComposite.setLayout(labelLayout);
-                final Label label = new Label(labelComposite, SWT.NONE);
-                label.setText(labelText);
-                Hyperlink link = new Hyperlink(labelComposite, SWT.NONE) {
+                final Label label = toolkit.createLabel(labelComposite, labelText, SWT.NONE);
+
+                Hyperlink link = toolkit.createHyperlink(labelComposite, labelText, SWT.NONE);
+                link.addListener(SWT.Activate, new Listener() {
                     @Override
-                    protected void handleActivate(Event e) {
-                        super.handleActivate(e);
+                    public void handleEvent(Event event) {
                         for (IPropertyModel m : models) {
                             IUndoableOperation operation = m.resetPropertyValue(desc.getId());
                             m.getCommandFactory().execute(operation, m.getWorld());
                         }
                     }
-                };
-                link.setText(labelText);
+                });
                 link.setForeground(new Color(c.getDisplay(), new RGB(0, 0, 255)));
                 link.setUnderlined(true);
                 link.setToolTipText(Messages.FormPropertySheetViewer_RESET_VALUE);
