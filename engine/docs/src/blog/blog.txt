@@ -1,5 +1,65 @@
 :max-width: 45em
 
+Release: 1.1.8
+--------------
+_May 18, 2012_
+
+Release 1.1.8 features a better reset functionality for Script Properties and picking in tile maps.
+
+Script Properties Reset
+~~~~~~~~~~~~~~~~~~~~~~~
+
+When you have defined a property in a script, that property can be overridden when the script is used in game objects and collections.
+To reset a property back to a default value in either a game object or collection, you would previously have to clear the field and hit enter.
+Now we have instead visualized an overridden property by coloring the background of the field light blue and turned the property label into a hyperlink.
+By clicking the hyperlink, the value is reset to the default.
+We realize this is not a very intuitive solution, but it was simple to implement so we hope it will be good enough for now.
+Script Properties are further explained in the link:#!guide:script_properties[user guide].
+
+Picking Tiles
+~~~~~~~~~~~~~
+
+When painting tiles in a tile map, you very often have to bring up the tile source to select new tile to paint with.
+We have now added the ability to select tiles directly from the tile map to use when painting.
+This is done by right-clicking (shift-clicking if you are using the one-button mouse setup).
+You can hold and drag while right-clicking to select an entire area from the tile map to paint with.
+
+New Project
+~~~~~~~~~~~
+
+There has been some confusion about how to create a new project in Defold.
+Note that this is still only available from the dashboard in the web site.
+To make matters worse, we had a remaining menu option in the editor at *New > Project...* that did not work.
+We have now removed that option entirely, which we hope will cause less confusion.
+It will of course be possible to create a new project straight from the editor in the future.
+
+More Info
+~~~~~~~~~
+
+Build/Deploy Changes
+^^^^^^^^^^^^^^^^^^^^
+
+We have talked before about improving our build and deploy setup.
+There are two main reasons for this.
+The first one is to be able to properly test a deployed release before letting it go live and become accessible for you.
+This is standard procedure in most web services, we just haven't gotten that far yet.
+The second reason is to be able to branch our code base whenever we have big features coming in.
+Big features always risk being delayed for different reason.
+That's why it's important to not let them halt the regular release cycle, so we still can provide support and bug fixes.
+
+iOS
+^^^
+
+We have also completed more parts of what's left to make the iOS work-flow a reality.
+It will definitely be a very cool thing indeed to work immediately on an iPhone or iPad.
+But more about that later.
+
+Visual Redesign
+^^^^^^^^^^^^^^^
+
+We have been working with a graphics designer to update our visuals for the Beta-launch.
+So far we have got a new logo that we are happy with and a new layout for the web site.
+
 Release: 1.1.6 & 1.1.7
 ----------------------
 _May 8, 2012_

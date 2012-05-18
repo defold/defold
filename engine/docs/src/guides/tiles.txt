@@ -15,6 +15,12 @@ Painting Tiles
 . Select a layer to paint into in the Outline.
 . Select a tile to use (*Space* to show the palette).
 
+Picking Tiles
+~~~~~~~~~~~~~
+
+. Right-click (shift-click if you use the one-button mouse setup) and drag over the tiles you want to use.
+. The block you selected can now be used as a brush.
+
 Attaching Physics
 ~~~~~~~~~~~~~~~~~
 
