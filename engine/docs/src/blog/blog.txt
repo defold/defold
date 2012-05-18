@@ -12,8 +12,22 @@ Script Properties Reset
 When you have defined a property in a script, that property can be overridden when the script is used in game objects and collections.
 To reset a property back to a default value in either a game object or collection, you would previously have to clear the field and hit enter.
 Now we have instead visualized an overridden property by coloring the background of the field light blue and turned the property label into a hyperlink.
-By clicking the hyperlink, the value is reset to the default.
-We realize this is not a very intuitive solution, but it was simple to implement so we hope it will be good enough for now.
+By clicking the hyper-link, the value is reset to the default.
+
+The following Lua script declares a property called +health+.
+
+[source, lua]
+----
+go.property("health", 100)
+----
+
+In a game object, the property is exposed:
+
+((((
+image::images/blog/20120518/properties.png["Script Properties", align="center"]
+((((
+
+We realize using a hyper-link is not a very intuitive solution, but it was simple to implement so we hope it will be good enough for now.
 Script Properties are further explained in the link:#!guide:script_properties[user guide].
 
 Picking Tiles
@@ -23,6 +37,10 @@ When painting tiles in a tile map, you very often have to bring up the tile sour
 We have now added the ability to select tiles directly from the tile map to use when painting.
 This is done by right-clicking (shift-clicking if you are using the one-button mouse setup).
 You can hold and drag while right-clicking to select an entire area from the tile map to paint with.
+
+((((
+image::images/blog/20120518/brush_select.png["Tile Picking", align="center"]
+((((
 
 New Project
 ~~~~~~~~~~~
