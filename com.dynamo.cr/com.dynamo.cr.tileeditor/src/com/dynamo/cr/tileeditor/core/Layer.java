@@ -25,6 +25,18 @@ public class Layer implements IAdaptable, Comparable<Layer> {
         private final boolean hFlip;
         private final boolean vFlip;
 
+        public Cell(Cell cell) {
+            if (cell != null) {
+                this.tile = cell.tile;
+                this.hFlip = cell.hFlip;
+                this.vFlip = cell.vFlip;
+            } else {
+                this.tile = -1;
+                this.hFlip = false;
+                this.vFlip = false;
+            }
+        }
+
         public Cell(int tile, boolean hFlip, boolean vFlip) {
             this.tile = tile;
             this.hFlip = hFlip;
@@ -45,6 +57,9 @@ public class Layer implements IAdaptable, Comparable<Layer> {
 
         @Override
         public boolean equals(Object obj) {
+            if (obj == null) {
+                return this.tile == -1;
+            }
             if (obj instanceof Cell) {
                 Cell cell = (Cell)obj;
                 return this.tile == cell.tile
@@ -158,7 +173,7 @@ public class Layer implements IAdaptable, Comparable<Layer> {
     }
 
     public void setCell(long cellIndex, Cell cell) {
-        if (cell != null) {
+        if (cell != null && cell.getTile() >= 0) {
             this.cells.put(cellIndex, cell);
         } else {
             this.cells.remove(cellIndex);

@@ -21,7 +21,8 @@ public interface IGridView {
     public interface Presenter {
 
         void onSelectTile(int tileIndex, boolean hFlip, boolean vFlip);
-        void onSelectCell(Layer layer, int cellX, int cellY);
+
+        void onSelectCells(Layer layer, int x0, int y0, int x1, int y1);
 
         void onAddLayer();
         void onSelectLayer(Layer layer);
@@ -66,6 +67,6 @@ public interface IGridView {
 
     void setPreview(Point2f position, float zoom);
 
-    void setSelectedTile(int tileIndex, boolean hFlip, boolean vFlip);
+    void setBrush(MapBrush brush);
 
 }

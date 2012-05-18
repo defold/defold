@@ -34,25 +34,6 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
 
     public static final float ZOOM_FACTOR = 0.005f;
 
-    private static class SelectedTile {
-        public final int tileIndex;
-        public final boolean hFlip;
-        public final boolean vFlip;
-
-        public SelectedTile() {
-            this.tileIndex = -1;
-            this.hFlip = false;
-            this.vFlip = false;
-        }
-
-        public SelectedTile(int tileIndex, boolean hFlip, boolean vFlip) {
-            this.tileIndex = tileIndex;
-            this.hFlip = hFlip;
-            this.vFlip = vFlip;
-        }
-
-    }
-
     @Inject private IOperationHistory undoHistory;
     @Inject private IUndoContext undoContext;
 
@@ -61,7 +42,7 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
 
     private boolean loading = false;
     private int undoRedoCounter = 0;
-    private SelectedTile selectedTile;
+    private MapBrush brush;
     private Map<Long, Layer.Cell> oldCells;
     private final Point2f previewPosition;
     private float previewZoom;
@@ -72,7 +53,7 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
         this.view = view;
 
         this.model.addTaggedPropertyListener(this);
-        this.selectedTile = new SelectedTile();
+        this.brush = new MapBrush();
 
         this.previewPosition = new Point2f(0.0f, 0.0f);
         this.previewZoom = 1.0f;
@@ -164,11 +145,11 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
     @Override
     public void onSelectTile(int tileIndex, boolean hFlip, boolean vFlip) {
         int selectedTile = tileIndex;
-        if (this.selectedTile != null && this.selectedTile.tileIndex == tileIndex) {
+        if (this.brush.getWidth() == 1 && this.brush.getHeight() == 1 && this.brush.getCell(0, 0).getTile() == tileIndex) {
             selectedTile = -1;
         }
-        this.selectedTile = new SelectedTile(selectedTile, hFlip, vFlip);
-        this.view.setSelectedTile(selectedTile, hFlip, vFlip);
+        this.brush = new MapBrush(selectedTile, hFlip, vFlip);
+        this.view.setBrush(this.brush);
     }
 
     @Override
@@ -188,23 +169,22 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
 
     @Override
     public void onPaintBegin() {
-        this.oldCells = new HashMap<Long, Layer.Cell>();
+        this.oldCells = new HashMap<Long, Layer.Cell>(this.model.getCells());
     }
 
     @Override
     public void onPaint(int x, int y) {
         if (this.oldCells != null) {
-            long cellIndex = Layer.toCellIndex(x, y);
-            Cell cell = null;
-            if (this.selectedTile.tileIndex >= 0) {
-                cell = new Cell(this.selectedTile.tileIndex, this.selectedTile.hFlip, this.selectedTile.vFlip);
-            }
-            Cell oldCell = this.model.getCell(cellIndex);
-            if ((cell == null && oldCell != null) || (cell != null && !cell.equals(oldCell))) {
-                this.model.setCell(cellIndex, cell);
-                cell = this.model.getCell(cellIndex);
-                this.view.setCell(this.model.getLayers().indexOf(this.model.getSelectedLayer()), cellIndex, cell);
-                this.oldCells.put(cellIndex, oldCell);
+            int layerIndex = this.model.getLayers().indexOf(this.model.getSelectedLayer());
+            int width = this.brush.getWidth();
+            int height = this.brush.getHeight();
+            for (int dY = 0; dY < height; ++dY) {
+                for (int dX = 0; dX < width; ++dX) {
+                    long cellIndex = Layer.toCellIndex(dX + x, dY + y);
+                    Cell cell = this.brush.getCell(dX, dY);
+                    this.model.setCell(cellIndex, cell);
+                    this.view.setCell(layerIndex, cellIndex, cell);
+                }
             }
         }
     }
@@ -333,18 +313,21 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
     }
 
     @Override
-    public void onSelectCell(Layer layer, int cellX, int cellY) {
-        Cell cell = layer.getCell(cellX, cellY);
-        int tile = -1;
-        boolean hFlip = false;
-        boolean vFlip = false;
-        if (cell != null) {
-            tile = cell.getTile();
-            hFlip = cell.isHFlip();
-            vFlip = cell.isVFlip();
+    public void onSelectCells(Layer layer, int x0, int y0, int x1, int y1) {
+        int minX = Math.min(x0, x1);
+        int maxX = Math.max(x0, x1);
+        int minY = Math.min(y0, y1);
+        int maxY = Math.max(y0, y1);
+        int width = (maxX - minX) + 1;
+        int height = (maxY - minY) + 1;
+        Cell[][] cells = new Cell[width][height];
+        for (int y = minY; y <= maxY; ++y) {
+            for (int x = minX; x <= maxX; ++x) {
+                cells[x-minX][y-minY] = new Cell(layer.getCell(x, y));
+            }
         }
-        this.selectedTile = new SelectedTile(tile, hFlip, vFlip);
-        this.view.setSelectedTile(tile, hFlip, vFlip);
+        this.brush = new MapBrush(cells);
+        this.view.setBrush(this.brush);
     }
 
 }

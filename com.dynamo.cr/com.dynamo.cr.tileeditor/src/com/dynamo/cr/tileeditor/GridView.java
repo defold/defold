@@ -12,6 +12,7 @@ import org.eclipse.swt.graphics.Rectangle;
 import com.dynamo.cr.tileeditor.core.IGridView;
 import com.dynamo.cr.tileeditor.core.Layer;
 import com.dynamo.cr.tileeditor.core.Layer.Cell;
+import com.dynamo.cr.tileeditor.core.MapBrush;
 
 public class GridView implements IGridView {
 
@@ -74,8 +75,8 @@ public class GridView implements IGridView {
     }
 
     @Override
-    public void setSelectedTile(int tileIndex, boolean hFlip, boolean vFlip) {
-        this.renderer.setBrush(tileIndex, hFlip, vFlip);
+    public void setBrush(MapBrush brush) {
+        this.renderer.setBrush(brush);
     }
 
 }

@@ -71,6 +71,7 @@ import com.dynamo.cr.tileeditor.core.GridPresenter;
 import com.dynamo.cr.tileeditor.core.IGridView;
 import com.dynamo.cr.tileeditor.core.Layer;
 import com.dynamo.cr.tileeditor.core.Layer.Cell;
+import com.dynamo.cr.tileeditor.core.MapBrush;
 import com.dynamo.cr.tileeditor.core.Messages;
 import com.dynamo.cr.tileeditor.core.TileSetModel;
 import com.dynamo.tile.proto.Tile.TileCell;
@@ -321,7 +322,7 @@ public class GridTest implements IResourceChangeListener {
         this.presenter.onSelectLayer(layer);
 
         this.presenter.onSelectTile(1, false, false);
-        verify(this.view, times(1)).setSelectedTile(1, false, false);
+        verify(this.view, times(1)).setBrush(any(MapBrush.class));
 
         this.presenter.onPaintBegin();
 
@@ -360,7 +361,7 @@ public class GridTest implements IResourceChangeListener {
         // Erase
 
         this.presenter.onSelectTile(-1, false, false);
-        verify(this.view, times(1)).setSelectedTile(-1, false, false);
+        verify(this.view, times(2)).setBrush(any(MapBrush.class));
 
         this.presenter.onPaintBegin();
 
@@ -400,31 +401,33 @@ public class GridTest implements IResourceChangeListener {
         this.presenter.onSelectLayer(layer);
 
         this.presenter.onSelectTile(1, false, false);
-        verify(this.view, times(1)).setSelectedTile(1, false, false);
+        verify(this.view, times(1)).setBrush(any(MapBrush.class));
 
-        // Paint in a cell to be picked
+        // Paint in cells to be picked
         this.presenter.onPaintBegin();
+        this.presenter.onPaint(1, 0);
         this.presenter.onPaint(0, 1);
         this.presenter.onPaintEnd();
 
         this.presenter.onSelectTile(-1, false, false);
-        verify(this.view, times(1)).setSelectedTile(-1, false, false);
+        verify(this.view, times(2)).setBrush(any(MapBrush.class));
 
         this.presenter.onPaintBegin();
-        this.presenter.onPaint(1, 1);
-        this.presenter.onPaintEnd();
-        assertThat(cellTile(layer, 1, 1), is(-1));
-
-        this.presenter.onSelectCell(layer, 0, 1);
-        verify(this.view, times(2)).setSelectedTile(1, false, false);
-
-        this.presenter.onPaintBegin();
+        this.presenter.onPaint(0, 0);
         this.presenter.onPaint(1, 1);
         this.presenter.onPaintEnd();
 
-        assertThat(cellTile(layer, 0, 1), is(1));
-        long cellIndex = Layer.toCellIndex(0, 1);
-        verify(this.view, times(1)).setCell(eq(0), eq(cellIndex), any(Cell.class));
+        this.presenter.onSelectCells(layer, 0, 0, 1, 1);
+        verify(this.view, times(3)).setBrush(any(MapBrush.class));
+
+        this.presenter.onPaintBegin();
+        this.presenter.onPaint(0, 2);
+        this.presenter.onPaintEnd();
+
+        assertThat(cellTile(layer, 0, 2), is(-1));
+        assertThat(cellTile(layer, 1, 2), is(1));
+        assertThat(cellTile(layer, 0, 3), is(1));
+        assertThat(cellTile(layer, 1, 3), is(-1));
     }
 
     /**

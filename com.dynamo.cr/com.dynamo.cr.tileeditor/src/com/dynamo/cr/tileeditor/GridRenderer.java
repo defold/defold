@@ -44,6 +44,7 @@ import com.dynamo.cr.sceneed.core.SceneUtil.MouseType;
 import com.dynamo.cr.tileeditor.core.IGridView;
 import com.dynamo.cr.tileeditor.core.Layer;
 import com.dynamo.cr.tileeditor.core.Layer.Cell;
+import com.dynamo.cr.tileeditor.core.MapBrush;
 import com.dynamo.tile.TileSetUtil;
 import com.sun.opengl.util.BufferUtil;
 import com.sun.opengl.util.texture.Texture;
@@ -70,6 +71,7 @@ Listener {
     private boolean paintRequested = false;
     private boolean enabled = true;
     private Point2i activeCell = null;
+    private Point2i startActiveCell = null;
     private int activeTile = -1;
     private boolean showPalette;
     private Cursor defaultCursor;
@@ -82,9 +84,7 @@ Listener {
     private int tileHeight;
     private int tileMargin;
     private int tileSpacing;
-    private int brushTile = -1; // -1 is clear tile
-    private boolean hFlip = false;
-    private boolean vFlip = false;
+    private MapBrush brush = new MapBrush();
 
     // Camera data
     private int cameraMode = CAMERA_MODE_NONE;
@@ -260,25 +260,9 @@ Listener {
         }
     }
 
-    public int getBrushTile() {
-        return this.brushTile;
-    }
-
-    public void setBrush(int brushTile, boolean hFlip, boolean vFlip) {
-        boolean repaint = false;
-        if (this.brushTile != brushTile) {
-            this.brushTile = brushTile;
-            repaint = true;
-        }
-        if (this.hFlip != hFlip) {
-            this.hFlip = hFlip;
-            repaint = true;
-        }
-        if (this.vFlip != vFlip) {
-            this.vFlip = vFlip;
-            repaint = true;
-        }
-        if (repaint) {
+    public void setBrush(MapBrush brush) {
+        if (!this.brush.equals(brush)) {
+            this.brush = brush;
             requestPaint();
             updateCursor();
         }
@@ -349,7 +333,7 @@ Listener {
                 break;
             case CAMERA_MODE_NONE:
                 if ((e.stateMask & SWT.BUTTON1) == SWT.BUTTON1) {
-                    if (activeCell != null) {
+                    if (activeCell != null && this.startActiveCell == null) {
                         this.presenter.onPaint(activeCell.getX(), activeCell.getY());
                     }
                 }
@@ -442,9 +426,18 @@ Listener {
                 }
                 break;
             }
-            if (this.cameraMode == CAMERA_MODE_NONE && event.button == 1 && this.activeCell != null) {
-                this.presenter.onPaintBegin();
-                this.presenter.onPaint(this.activeCell.getX(), this.activeCell.getY());
+            if (this.cameraMode == CAMERA_MODE_NONE && this.activeCell != null) {
+                if (event.button == 1) {
+                    this.presenter.onPaintBegin();
+                    this.presenter.onPaint(this.activeCell.getX(), this.activeCell.getY());
+                }
+                // Block brush selection
+                if ((mouseType == MouseType.ONE_BUTTON && event.button == 1 && event.stateMask == SWT.SHIFT)
+                        || (mouseType == MouseType.THREE_BUTTON && event.button == 3))
+                {
+                    this.startActiveCell = new Point2i(this.activeCell);
+                    requestPaint();
+                }
             }
         }
     }
@@ -459,13 +452,11 @@ Listener {
                 requestPaint();
             }
         } else if (this.activeCell != null) {
-            switch (e.button) {
-            case 1:
+            if (this.startActiveCell != null) {
+                this.presenter.onSelectCells(this.selectedLayer, this.startActiveCell.x, this.startActiveCell.y, this.activeCell.x, this.activeCell.y);
+                this.startActiveCell = null;
+            } else {
                 this.presenter.onPaintEnd();
-                break;
-            case 3:
-                this.presenter.onSelectCell(this.selectedLayer, this.activeCell.x, this.activeCell.y);
-                break;
             }
         }
     }
@@ -550,11 +541,11 @@ Listener {
         gl.glLoadIdentity();
         gl.glTranslatef(-this.position.getX(), -this.position.getY(), 0.0f);
 
-        // tiles
-        renderCells(gl);
-
         // grid (cell-dividing lines)
         renderGrid(gl);
+
+        // tiles
+        renderCells(gl);
 
         // tile set palette
         renderTileSet(gl, glu);
@@ -620,6 +611,14 @@ Listener {
 
         float z = 0.0f;
 
+        Point2i brushMin = new Point2i();
+        Point2i brushMax = new Point2i();
+        if (this.brush != null && this.activeCell != null) {
+            brushMin.set(this.activeCell);
+            brushMax.set(this.brush.getWidth(), this.brush.getHeight());
+            brushMax.add(this.activeCell);
+        }
+
         Map<Long, Cell> cells = new HashMap<Long, Cell>();
         for (Layer layer : this.layers) {
             cells.clear();
@@ -629,7 +628,11 @@ Listener {
                     int y = Layer.toCellY(entry.getKey());
                     if ((x + 1) >= cellMin.getX() && x <= cellMax.getX() && (y + 1) >= cellMin.getY() && y <= cellMax.getY()) {
                         // Do not draw over active cell
-                        boolean currentCell = layer.equals(this.selectedLayer) && activeCell != null && activeCell.x == x && activeCell.y == y;
+                        boolean currentCell = false;
+                        if (this.startActiveCell == null && layer.equals(this.selectedLayer) && this.activeCell != null) {
+                            currentCell = brushMin.x <= x && x < brushMax.x
+                                    && brushMin.y <= y && y < brushMax.y;
+                        }
                         if (!currentCell) {
                             cells.put(entry.getKey(), entry.getValue());
                         }
@@ -678,41 +681,75 @@ Listener {
                 gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
                 gl.glDisableClientState(GL.GL_TEXTURE_COORD_ARRAY);
                 gl.glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+            }
 
-                if (this.selectedLayer != null && layer.equals(this.selectedLayer)) {
-                    if (this.activeCell != null && this.brushTile != -1) {
-                        int x = this.activeCell.x;
-                        int y = this.activeCell.y;
-                        float x0 = x * this.tileWidth;
-                        float x1 = x0 + this.tileWidth;
-                        float y0 = y * this.tileHeight;
-                        float y1 = y0 + this.tileHeight;
-                        x = this.brushTile % metrics.tilesPerRow;
-                        y = this.brushTile / metrics.tilesPerRow;
-                        float u0 = (x * (tileSpacing + 2*tileMargin + tileWidth) + tileMargin) * recipImageWidth;
-                        float u1 = u0 + tileWidth * recipImageWidth;
-                        float v0 = (y * (tileSpacing + 2*tileMargin + tileHeight) + tileMargin) * recipImageHeight;
-                        float v1 = v0 + tileHeight * recipImageHeight;
-
+            if (this.selectedLayer != null && layer.equals(this.selectedLayer)) {
+                if (this.activeCell != null && this.startActiveCell == null) {
+                    if (this.brush != null) {
+                        int width = this.brush.getWidth();
+                        int height = this.brush.getHeight();
                         gl.glBegin(GL.GL_QUADS);
-                        gl.glTexCoord2f(u0, v1);
-                        gl.glVertex2f(x0, y0);
-                        gl.glTexCoord2f(u0, v0);
-                        gl.glVertex2f(x0, y1);
-                        gl.glTexCoord2f(u1, v0);
-                        gl.glVertex2f(x1, y1);
-                        gl.glTexCoord2f(u1, v1);
-                        gl.glVertex2f(x1, y0);
+                        for (int dx = 0; dx < width; ++dx) {
+                            for (int dy = 0; dy < height; ++dy) {
+                                int brushTile = this.brush.getCell(dx, dy).getTile();
+                                if (brushTile > -1) {
+                                    int x = this.activeCell.x + dx;
+                                    int y = this.activeCell.y + dy;
+                                    float x0 = x * this.tileWidth;
+                                    float x1 = x0 + this.tileWidth;
+                                    float y0 = y * this.tileHeight;
+                                    float y1 = y0 + this.tileHeight;
+                                    x = brushTile % metrics.tilesPerRow;
+                                    y = brushTile / metrics.tilesPerRow;
+                                    float u0 = (x * (tileSpacing + 2*tileMargin + tileWidth) + tileMargin) * recipImageWidth;
+                                    float u1 = u0 + tileWidth * recipImageWidth;
+                                    float v0 = (y * (tileSpacing + 2*tileMargin + tileHeight) + tileMargin) * recipImageHeight;
+                                    float v1 = v0 + tileHeight * recipImageHeight;
+
+                                    gl.glTexCoord2f(u0, v1);
+                                    gl.glVertex2f(x0, y0);
+                                    gl.glTexCoord2f(u0, v0);
+                                    gl.glVertex2f(x0, y1);
+                                    gl.glTexCoord2f(u1, v0);
+                                    gl.glVertex2f(x1, y1);
+                                    gl.glTexCoord2f(u1, v1);
+                                    gl.glVertex2f(x1, y0);
+                                }
+                            }
+                        }
                         gl.glEnd();
                     }
+                }
+            }
+
+            gl.glDisable(GL.GL_BLEND);
+
+            this.tileSetTexture.disable();
+
+            if (this.selectedLayer != null && layer.equals(this.selectedLayer)) {
+                if (this.activeCell != null) {
+                    if (this.startActiveCell != null) {
+                        float minX = this.tileWidth * Math.min(this.startActiveCell.x, this.activeCell.x);
+                        float maxX = this.tileWidth * (Math.max(this.startActiveCell.x, this.activeCell.x) + 1);
+                        float minY = this.tileHeight * Math.min(this.startActiveCell.y, this.activeCell.y);
+                        float maxY = this.tileHeight * (Math.max(this.startActiveCell.y, this.activeCell.y) + 1);
+                        gl.glDepthMask(false);
+                        gl.glDisable(GL.GL_DEPTH_TEST);
+                        gl.glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+                        gl.glBegin(GL.GL_LINE_LOOP);
+                        gl.glVertex2f(minX, minY);
+                        gl.glVertex2f(maxX, minY);
+                        gl.glVertex2f(maxX, maxY);
+                        gl.glVertex2f(minX, maxY);
+                        gl.glEnd();
+                        gl.glDepthMask(true);
+                        gl.glEnable(GL.GL_DEPTH_TEST);
                     }
+                }
             }
 
         }
 
-        gl.glDisable(GL.GL_BLEND);
-
-        this.tileSetTexture.disable();
     }
 
     private void renderGrid(GL gl) {
@@ -833,6 +870,10 @@ Listener {
         overlayColors[1] = 0.7f;
         overlayColors[2] = 1.0f;
 
+        int brushTile = -1;
+        if (this.brush.getWidth() == 1 && this.brush.getHeight() == 1) {
+            brushTile = this.brush.getCell(0, 0).getTile();
+        }
         for (int y = 0; y < metrics.tilesPerColumn; ++y) {
             for (int x = 0; x < metrics.tilesPerRow; ++x) {
                 float x0 = x * (tileWidth + BORDER_SIZE) + BORDER_SIZE;
@@ -851,7 +892,7 @@ Listener {
                 if (this.activeTile == tileIndex) {
                     overlays[1] = new Vector4f(x0 - BORDER_SIZE, y0 - BORDER_SIZE, x1 + BORDER_SIZE, y1 + BORDER_SIZE);
                 }
-                if (this.brushTile == tileIndex) {
+                if (brushTile == tileIndex) {
                     overlays[2] = new Vector4f(x0 - BORDER_SIZE, y0 - BORDER_SIZE, x1 + BORDER_SIZE, y1 + BORDER_SIZE);
                 }
             }
@@ -943,10 +984,20 @@ Listener {
             int cursorType = -1;
             if (!this.showPalette) {
                 if (this.selectedLayer != null) {
-                    if (this.brushTile >= 0) {
-                        cursorType = GridEditor.CURSOR_TYPE_PENCIL;
-                    } else {
+                    boolean eraser = true;
+                    int width = this.brush.getWidth();
+                    int height = this.brush.getHeight();
+                    for (int x = 0; x < width && eraser; ++x) {
+                        for (int y = 0; y < height && eraser; ++y) {
+                            if (this.brush.getCell(x, y).getTile() > -1) {
+                                eraser = false;
+                            }
+                        }
+                    }
+                    if (eraser) {
                         cursorType = GridEditor.CURSOR_TYPE_ERASER;
+                    } else {
+                        cursorType = GridEditor.CURSOR_TYPE_PENCIL;
                     }
                 } else {
                     cursorType = GridEditor.CURSOR_TYPE_UNAVAILABLE;

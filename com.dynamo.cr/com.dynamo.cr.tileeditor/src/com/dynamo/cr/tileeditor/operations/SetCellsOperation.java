@@ -23,8 +23,7 @@ public class SetCellsOperation extends AbstractOperation {
         super("Paint Cells");
         this.model = model;
         this.cells = new HashMap<Long, Cell>(this.model.getCells());
-        this.oldCells = new HashMap<Long, Cell>(this.cells);
-        this.oldCells.putAll(oldCells);
+        this.oldCells = new HashMap<Long, Cell>(oldCells);
     }
 
     @Override
