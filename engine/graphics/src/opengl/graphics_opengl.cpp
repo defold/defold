@@ -250,7 +250,6 @@ static void LogFrameBufferError(GLenum status)
         {
             delete context;
             g_Context = 0x0;
-            glfwTerminate();
         }
     }
 

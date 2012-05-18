@@ -22,6 +22,9 @@
 
 using namespace Vectormath::Aos;
 
+extern unsigned char CONNECT_PROJECT[];
+extern uint32_t CONNECT_PROJECT_SIZE;
+
 namespace dmEngine
 {
 #define SYSTEM_SOCKET_NAME "@system"
@@ -374,7 +377,7 @@ bail:
         const char* default_project_files[] =
         {
             "build/default/game.projectc",
-            "build/default/content/game.projectc"
+            "build/default/content/game.projectc",
         };
         const char* default_content_roots[] =
         {
@@ -394,11 +397,24 @@ bail:
         uint32_t current_project_file = 0;
         while (config_result != dmConfigFile::RESULT_OK && current_project_file < project_file_count)
         {
+            // Try to load game.project from "default" locations
             config_results[current_project_file] = dmConfigFile::Load(project_files[current_project_file], argc, (const char**) argv, &engine->m_Config);
             config_result = config_results[current_project_file];
             ++current_project_file;
         }
-        if (config_result != dmConfigFile::RESULT_OK)
+
+        if (config_result != dmConfigFile::RESULT_OK && argc == 1)
+        {
+            // Load "connect" project if no project is found in default location
+            // *and* argc == 1
+            config_result = dmConfigFile::LoadFromBuffer((const char*) CONNECT_PROJECT, CONNECT_PROJECT_SIZE, argc, (const char**) argv, &engine->m_Config);
+            if (config_result != dmConfigFile::RESULT_OK)
+            {
+                dmLogFatal("Unable to load builtin connect project");
+                return false;
+            }
+        }
+        else if (config_result != dmConfigFile::RESULT_OK)
         {
             dmLogFatal("Unable to load project file from any of the locations:");
             for (uint32_t i = 0; i < project_file_count; ++i)

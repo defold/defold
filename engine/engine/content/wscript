@@ -10,7 +10,7 @@ def build(bld):
 
     builtins = bld.new_task_gen(features='archive',
                                 archive_target='builtins.arc')
-    builtins.find_sources_in_dirs('builtins/input builtins/render builtins/fonts')
+    builtins.find_sources_in_dirs('builtins/input builtins/render builtins/fonts builtins/connect')
 
     for d in ['fonts', 'input', 'render']:
         bld.install_files('${PREFIX}/content/builtins/%s' % d, 'builtins/%s/*' % d)

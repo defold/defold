@@ -12,6 +12,7 @@
 #include "configfile.h"
 #include "array.h"
 #include "dstrings.h"
+#include "math.h"
 
 namespace dmConfigFile
 {
@@ -310,22 +311,31 @@ namespace dmConfigFile
         }
     }
 
+    struct HttpContext
+    {
+        HttpContext()
+        {
+            memset(this, 0, sizeof(*this));
+        }
+        char*           m_Buffer;
+        int             m_BufferPos;
+        int             m_BufferSize;
+    };
+
     void HttpHeader(dmHttpClient::HClient client, void* user_data, int status_code, const char* key, const char* value)
     {
-        Context* context = (Context*) user_data;
+        HttpContext* context = (HttpContext*) user_data;
         if (strcmp("Content-Length", key) == 0)
         {
-            // NOTE: We allocate n + 1 bytes in order to ensure that
-            // the file has a terminating newline
-            context->m_BufferSize = (int) strtol(value, 0, 10) + 1;
+            context->m_BufferSize = (int) strtol(value, 0, 10);
             context->m_Buffer = new char[context->m_BufferSize];
         }
     }
 
     void HttpContent(dmHttpClient::HClient client, void* user_data, int status_code, const void* content_data, uint32_t content_data_size)
     {
-        Context* context = (Context*) user_data;
-        if (status_code != 200 || context->m_BufferSize == -1)
+        HttpContext* context = (HttpContext*) user_data;
+        if (status_code != 200 || context->m_BufferSize == 0)
             return;
 
         assert(context->m_BufferPos + (int) content_data_size <= context->m_BufferSize);
@@ -333,75 +343,21 @@ namespace dmConfigFile
         context->m_BufferPos += (int) content_data_size;
     }
 
-    Result Load(const char* file_name, int argc, const char** argv, HConfig* config)
+    static Result LoadFromBufferInternal(const char* url, const char* buffer, uint32_t buffer_size, int argc, const char** argv, HConfig* config)
     {
-        assert(file_name);
-        assert(config);
-
-        *config = 0;
-
-        dmURI::Parts uri_parts;
-        dmURI::Result r = dmURI::Parse(file_name, &uri_parts);
-        if (r != dmURI::RESULT_OK)
-            return RESULT_INVALID_URI;
-
         Context context;
-
-        if (strcmp(uri_parts.m_Scheme, "http") == 0)
-        {
-            dmHttpClient::NewParams params;
-            params.m_Userdata = &context;
-            params.m_HttpContent = &HttpContent;
-            params.m_HttpHeader = &HttpHeader;
-            dmHttpClient::HClient client = dmHttpClient::New(&params, uri_parts.m_Hostname, uri_parts.m_Port);
-            if (client == 0x0)
-            {
-                return RESULT_FILE_NOT_FOUND;
-            }
-
-            context.m_BufferSize = -1;
-            dmHttpClient::Result http_result = dmHttpClient::Get(client, uri_parts.m_Path);
-            if (http_result != dmHttpClient::RESULT_OK || context.m_BufferSize == -1)
-            {
-                dmHttpClient::Delete(client);
-                delete[] context.m_Buffer;
-                return RESULT_FILE_NOT_FOUND;
-            }
-            dmHttpClient::Delete(client);
-            context.m_BufferSize = context.m_BufferPos;
-            context.m_BufferPos = 0;
-        }
-        else if (strcmp(uri_parts.m_Scheme, "file") == 0)
-        {
-            FILE* f = fopen(file_name, "rb");
-            if (!f)
-            {
-                return RESULT_FILE_NOT_FOUND;
-            }
-            fseek(f, 0, SEEK_END);
-            long file_size = ftell(f);
-            fseek(f, 0, SEEK_SET);
-
-            // NOTE: We allocate n + 1 bytes in order to ensure that
-            // the file has a terminating newline
-            int buffer_size = (int) file_size + 1;
-            context.m_Buffer = new char[buffer_size];
-            if (fread(context.m_Buffer, 1, file_size, f) != (size_t) file_size)
-            {
-                fclose(f);
-                delete[] context.m_Buffer;
-                return RESULT_UNEXPECTED_EOF;
-            }
-            fclose(f);
-            context.m_BufferSize = (int) buffer_size;
-        }
-
-        // Ensure terminating newline. The buffer-size is file-size + 1
-        context.m_Buffer[context.m_BufferSize-1] = '\n';
+        // NOTE: We allocate n + 1 bytes in order to ensure that
+        // the file has a terminating newline
+        context.m_Buffer = new char[buffer_size + 1];
+        memcpy(context.m_Buffer, buffer, buffer_size);
+        // Ensure terminating newline.
+        context.m_Buffer[buffer_size] = '\n';
+        context.m_BufferSize = buffer_size + 1;
+        context.m_BufferPos = 0;
 
         context.m_Argc = argc;
         context.m_Argv = argv;
-        context.m_URI = file_name;
+        context.m_URI = url;
         context.m_Entries.SetCapacity(128);
         context.m_StringBuffer.SetCapacity(0400);
         context.m_Line = 1;
@@ -460,6 +416,95 @@ namespace dmConfigFile
 
         delete[] context.m_Buffer;
         return RESULT_OK;
+
+    }
+
+    static Result LoadFromFileInternal(const char* url, const dmURI::Parts& uri_parts, int argc, const char** argv, HConfig* config)
+    {
+        FILE* f = fopen(url, "rb");
+        if (!f)
+        {
+            return RESULT_FILE_NOT_FOUND;
+        }
+        fseek(f, 0, SEEK_END);
+        long file_size = ftell(f);
+        fseek(f, 0, SEEK_SET);
+
+        char* buffer = new char[file_size];
+        if (fread(buffer, 1, file_size, f) != (size_t) file_size)
+        {
+            fclose(f);
+            delete[] buffer;
+            return RESULT_UNEXPECTED_EOF;
+        }
+        fclose(f);
+
+        Result r = LoadFromBufferInternal(url, buffer, file_size, argc, argv, config);
+        delete[] buffer;
+
+        return r;
+    }
+
+    static Result LoadFromHttpInternal(const char* url, const dmURI::Parts& uri_parts, int argc, const char** argv, HConfig* config)
+    {
+        HttpContext context;
+
+        dmHttpClient::NewParams params;
+        params.m_Userdata = &context;
+        params.m_HttpContent = &HttpContent;
+        params.m_HttpHeader = &HttpHeader;
+        dmHttpClient::HClient client = dmHttpClient::New(&params, uri_parts.m_Hostname, uri_parts.m_Port);
+        if (client == 0x0)
+        {
+            return RESULT_FILE_NOT_FOUND;
+        }
+
+        context.m_BufferSize = 0;
+        dmHttpClient::Result http_result = dmHttpClient::Get(client, uri_parts.m_Path);
+        if (http_result != dmHttpClient::RESULT_OK)
+        {
+            dmHttpClient::Delete(client);
+            delete[] context.m_Buffer;
+            return RESULT_FILE_NOT_FOUND;
+        }
+        dmHttpClient::Delete(client);
+
+        Result r = LoadFromBufferInternal(url, context.m_Buffer, context.m_BufferSize, argc, argv, config);
+        delete[] context.m_Buffer;
+
+        return r;
+    }
+
+    Result LoadFromBuffer(const char* buffer, uint32_t buffer_size, int argc, const char** argv, HConfig* config)
+    {
+        Result r = LoadFromBufferInternal("<buffer>", buffer, buffer_size, argc, argv, config);
+        return r;
+    }
+
+    Result Load(const char* url, int argc, const char** argv, HConfig* config)
+    {
+        assert(url);
+        assert(config);
+
+        *config = 0;
+
+        dmURI::Parts uri_parts;
+        dmURI::Result r = dmURI::Parse(url, &uri_parts);
+        if (r != dmURI::RESULT_OK)
+            return RESULT_INVALID_URI;
+
+        if (strcmp(uri_parts.m_Scheme, "http") == 0)
+        {
+            return LoadFromHttpInternal(url, uri_parts, argc, argv, config);
+        }
+        else if (strcmp(uri_parts.m_Scheme, "file") == 0)
+        {
+            return LoadFromFileInternal(url, uri_parts, argc, argv, config);
+        }
+        else
+        {
+            return RESULT_INVALID_URI;
+        }
     }
 
     void Delete(HConfig config)

@@ -12,6 +12,7 @@ import org.eclipse.ui.IWorkbenchActionConstants;
 import org.eclipse.ui.IWorkbenchWindow;
 import org.eclipse.ui.actions.ActionFactory;
 import org.eclipse.ui.actions.ActionFactory.IWorkbenchAction;
+import org.eclipse.ui.actions.BaseNewWizardMenu;
 import org.eclipse.ui.actions.NewWizardMenu;
 import org.eclipse.ui.application.ActionBarAdvisor;
 import org.eclipse.ui.application.IActionBarConfigurer;
@@ -40,7 +41,7 @@ public class ApplicationActionBarAdvisor extends ActionBarAdvisor {
     private IWorkbenchAction pasteAction;
     private IWorkbenchAction newWizardAction;
     private IWorkbenchAction newWizardDropDownAction;
-    private NewWizardMenu newWizardMenu;
+    private BaseNewWizardMenu newWizardMenu;
 
     public ApplicationActionBarAdvisor(IActionBarConfigurer configurer) {
         super(configurer);
@@ -113,7 +114,7 @@ public class ApplicationActionBarAdvisor extends ActionBarAdvisor {
             MenuManager newMenu = new MenuManager(newText, newId);
             newMenu.setActionDefinitionId("org.eclipse.ui.file.newQuickMenu"); //$NON-NLS-1$
             newMenu.add(new Separator(newId));
-            this.newWizardMenu = new NewWizardMenu(getWindow());
+            this.newWizardMenu = new BaseNewWizardMenu(getWindow(), null);
             newMenu.add(this.newWizardMenu);
             newMenu.add(new Separator(IWorkbenchActionConstants.MB_ADDITIONS));
             menu.add(newMenu);

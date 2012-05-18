@@ -1,7 +1,8 @@
 #include <dlib/socket.h>
-#include "engine.h"
-
 #include <dlib/memprofile.h>
+#include <dlib/log.h>
+#include <graphics/glfw/glfw.h>
+#include "engine.h"
 
 int main(int argc, char *argv[])
 {
@@ -9,7 +10,16 @@ int main(int argc, char *argv[])
     dmMemProfile::Initialize();
     dmSocket::Initialize();
 
+    // NOTE: We do glfwInit as glfw doesn't cleanup menus properly on OSX.
+    if (glfwInit() == GL_FALSE)
+    {
+        dmLogError("Could not initialize glfw.");
+        return 0x0;
+    }
+
     int exit_code = dmEngine::Launch(argc, argv, 0, 0, 0);
+
+    glfwTerminate();
 
     dmSocket::Finalize();
     dmMemProfile::Finalize();

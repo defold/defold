@@ -247,7 +247,8 @@ def to_cxx_enum(context, pp, message_type):
     pp.end()
 
 def to_cxx_default_value_string(context, f):
-    if len(f.default_value) == 0:
+    # Skip all empty values. Type string is an exception as we always set these to ""
+    if len(f.default_value) == 0 and f.type != FieldDescriptor.TYPE_STRING:
         return '0x0'
     else:
         if f.type == FieldDescriptor.TYPE_STRING:

@@ -59,7 +59,6 @@ namespace dmHID
 
     void Final(HContext context)
     {
-        glfwTerminate();
     }
 
     void Update(HContext context)
