@@ -427,16 +427,15 @@ Listener {
                 break;
             }
             if (this.cameraMode == CAMERA_MODE_NONE && this.activeCell != null) {
-                if (event.button == 1) {
-                    this.presenter.onPaintBegin();
-                    this.presenter.onPaint(this.activeCell.getX(), this.activeCell.getY());
-                }
                 // Block brush selection
                 if ((mouseType == MouseType.ONE_BUTTON && event.button == 1 && event.stateMask == SWT.SHIFT)
                         || (mouseType == MouseType.THREE_BUTTON && event.button == 3))
                 {
                     this.startActiveCell = new Point2i(this.activeCell);
                     requestPaint();
+                } else if (event.button == 1) {
+                    this.presenter.onPaintBegin();
+                    this.presenter.onPaint(this.activeCell.getX(), this.activeCell.getY());
                 }
             }
         }

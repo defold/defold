@@ -52,8 +52,10 @@ end
 By using this function to declare your property, it will be automatically exposed everywhere you use the script.
 If you add the script to a game object and select the script node in the outline, the properties view will now display your new health-property.
 By specifying a value here, that value will be used specifically for that game object instead of the default value set in the script.
-As this is an important aspect, this is visualized by making the background of the field light blue and turning the label into a hyper link.
-To go back to the default value, click the label.
+
+((((
+image::images/editor/properties.png["Script Properties", align="center"]
+((((
 
 If you then add the game object to a collection, you can expand the game object node and select the script.
 Like before, the health is available here too.
