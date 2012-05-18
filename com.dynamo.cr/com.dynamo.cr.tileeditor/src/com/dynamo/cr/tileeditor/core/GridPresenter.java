@@ -191,7 +191,7 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
 
     @Override
     public void onPaintEnd() {
-        if (this.oldCells != null && !this.oldCells.isEmpty()) {
+        if (this.oldCells != null) {
             this.model.executeOperation(new SetCellsOperation(this.model, this.oldCells));
             this.oldCells = null;
         }

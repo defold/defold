@@ -330,13 +330,13 @@ public class GridTest implements IResourceChangeListener {
         this.presenter.onPaint(0,1);
         assertThat(cellTile(layer, 0, 1), is(1));
         long cellIndex = Layer.toCellIndex(0, 1);
-        verify(this.view, times(1)).setCell(eq(0), eq(cellIndex), any(Cell.class));
+        verify(this.view, times(2)).setCell(eq(0), eq(cellIndex), any(Cell.class));
 
         this.presenter.onPaint(1,1);
         this.presenter.onPaint(1,1);
         assertThat(cellTile(layer, 1, 1), is(1));
         cellIndex = Layer.toCellIndex(1, 1);
-        verify(this.view, times(1)).setCell(eq(0), eq(cellIndex), any(Cell.class));
+        verify(this.view, times(2)).setCell(eq(0), eq(cellIndex), any(Cell.class));
 
         this.presenter.onPaintEnd();
 
@@ -369,7 +369,7 @@ public class GridTest implements IResourceChangeListener {
         this.presenter.onPaint(0,1);
         assertThat(cellTile(layer, 0, 1), is(-1));
         cellIndex = Layer.toCellIndex(0, 1);
-        verify(this.view, times(2)).setCell(eq(0), eq(cellIndex), any(Cell.class));
+        verify(this.view, times(4)).setCell(eq(0), eq(cellIndex), any(Cell.class));
 
         this.presenter.onPaintEnd();
 
