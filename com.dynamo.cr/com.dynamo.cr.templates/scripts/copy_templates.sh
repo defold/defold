@@ -1,9 +1,9 @@
 set -e
 
 [ ! -e templates ] && echo "Directory templates not found. Running script from other directory than root of template plug-in?" && exit 5
-for d in `ls templates`; do
-    [ -d "templates/$d" ] && rm -rf "templates/$d"
-done
+rm -f templates/templates.zip
 
-cp -r $DYNAMO_HOME/content/samples templates
-cp -r $DYNAMO_HOME/content/tutorials templates
+TEMPLATES_DIR=`pwd`/templates
+pushd $DYNAMO_HOME/content >/dev/null
+zip -r $TEMPLATES_DIR/templates samples tutorials
+popd >/dev/null
