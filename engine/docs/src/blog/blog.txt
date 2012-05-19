@@ -58,12 +58,13 @@ Build/Deploy Changes
 ^^^^^^^^^^^^^^^^^^^^
 
 We have talked before about improving our build and deploy setup.
-There are two main reasons for this.
-The first one is to be able to properly test a deployed release before letting it go live and become accessible for you.
-This is standard procedure in most web services, we just haven't gotten that far yet.
-The second reason is to be able to branch our code base whenever we have big features coming in.
-Big features always risk being delayed for different reason.
-That's why it's important to not let them halt the regular release cycle, so we still can provide support and bug fixes.
+Now we have merged parts of our code base into a single repository, which simplifies branching a lot.
+Branching lets us develop new bigger features without disrupting our short release cycle.
+Big features sometimes cause unexpected delays, when they turn out to be harder to get right than we initially thought.
+By implementing such a feature on a separate branch, we can still support the service and update it frequently.
+
+We have also improved our deploy scripts to make it easier to deploy to different servers in the future.
+The new setup also shortens the release cycle which is important since time is a very important factor for us at the moment.
 
 iOS
 ^^^
