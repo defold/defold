@@ -6,6 +6,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.URL;
 import java.util.Enumeration;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
@@ -27,6 +29,11 @@ public class Templates extends Plugin {
     static private void extractFolder(String zipFile, String newPath) throws ZipException, IOException
     {
         File file = new File(zipFile);
+        if (!file.exists()) {
+            Logger logger = Logger.getLogger(Templates.class.getPackage().getName());
+            logger.log(Level.WARNING, String.format("Did not extract %s since the file is missing.", zipFile));
+            return;
+        }
 
         ZipFile zip = new ZipFile(file);
         new File(newPath).mkdir();
