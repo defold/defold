@@ -1,0 +1,7 @@
+image: "/tile/white.png"
+tile_width: 1
+tile_height: 1
+tile_margin: 0
+tile_spacing: 0
+collision: "/tile/white.png"
+material_tag: "tile"

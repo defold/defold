@@ -1,0 +1,11 @@
+tile_set: "/tile/coll.tilesource"
+layers {
+    id: "layer"
+    z: 0.0
+    is_visible: 1
+    cell {
+        x: 0
+        y: 0
+        tile: 0
+    }
+}

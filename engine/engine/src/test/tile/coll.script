@@ -1,0 +1,4 @@
+function init(self)
+    msg.post("#tilemap", "set_tile", {layer_id = hash("layer"), position = go.get_position(), dx = 1})
+    msg.post("main:/main#script", "done")
+end

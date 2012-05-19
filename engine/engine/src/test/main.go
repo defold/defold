@@ -41,3 +41,9 @@ embedded_components {
   type: "collectionproxy"
   data: "collection: \"/script_props/test_script_props.collection\"\n"
 }
+embedded_components {
+  id: "tile_proxy"
+  type: "collectionproxy"
+  data: "collection: \"/tile/test_tile.collection\"\n"
+}
+

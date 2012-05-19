@@ -1,0 +1,5 @@
+name: "test_tile"
+instances {
+  id: "coll"
+  prototype: "/tile/coll.go"
+}

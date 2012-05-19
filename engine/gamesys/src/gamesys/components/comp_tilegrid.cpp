@@ -349,6 +349,11 @@ namespace dmGameSystem
             cell = mulPerElem(cell, Vector3(1.0f / tile_set->m_TileWidth, 1.0f / tile_set->m_TileHeight, 0.0f));
             int32_t cell_x = (int32_t)floor(cell.getX()) + st->m_Dx - resource->m_MinCellX;
             int32_t cell_y = (int32_t)floor(cell.getY()) + st->m_Dy - resource->m_MinCellY;
+            if (cell_x < 0 || cell_x >= (int32_t)resource->m_ColumnCount || cell_y < 0 || cell_y >= (int32_t)resource->m_RowCount)
+            {
+                dmLogError("Could not set the tile since the supplied tile was out of range.");
+                return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+            }
             uint32_t cell_index = CalculateCellIndex(layer_index, cell_x, cell_y, resource->m_ColumnCount, resource->m_RowCount);
             /*
              * NOTE AND BEWARE: Empty tile is encoded as 0xffffffff
