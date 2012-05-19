@@ -89,13 +89,13 @@ message TileGrid
  * This example demonstrates how to clear the tile above the instance when it collides with that tile from underneath,
  * i.e. the same thing that would happen in Super Mario Bros.
  *
- * Assuming the instance we collide with has a tile-grid-component with id "tilegrid", which has a layer with id "layer1":
+ * Assuming the instance we collide with has a tile-grid-component with id "tilemap", which has a layer with id "layer1":
  * <pre>
  * function on_message(self, message_id, message, sender)
  *     if message_id == hash("contact_point_response") then
  *         -- check if the normal points down-wards
  *         if message.normal.y < -0.5 then
- *             msg.post(msg.url(nil, message.other_id, "tilegrid"), "set_tile", {layer_id = hash("layer1"), position = go.get_position(), dy = 1})
+ *             msg.post(msg.url(nil, message.other_id, "tilemap"), "set_tile", {layer_id = hash("layer1"), position = go.get_position(), dy = 1})
  *         end
  *     end
  * end
