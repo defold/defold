@@ -8,7 +8,7 @@ xmlns:g="urn:import:com.google.gwt.user.client.ui">
 	</ui:style>
 	<g:HTMLPanel>
 		<div style="margin-left:auto; margin-right:auto; margin-bottom: 24px;">
-		  The browser <span ui:field="browser"></span> <span ui:field="version"></span> is unfortionately not supported yet. We are in alpha
+		  The browser <span ui:field="browser"></span> <span ui:field="version"></span> is unfortunately not supported yet. We are in alpha
 		  and can't support too many browsers at the moment. Supported browsers
 		  are Firefox 5 or later, Safari 5 or later and Chrome 17 or later.
 		</div>
