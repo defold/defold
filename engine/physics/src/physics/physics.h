@@ -109,10 +109,10 @@ namespace dmPhysics
         float m_Distance;
         /// The impulse that resulted from the contact
         float m_AppliedImpulse;
-        /// Inverse mass of the first object
-        float m_InvMassA;
-        /// Inverse mass of the second object
-        float m_InvMassB;
+        /// Mass of the first object
+        float m_MassA;
+        /// Mass of the second object
+        float m_MassB;
         /// Collision group of the first object
         uint16_t m_GroupA;
         /// Collision group of the second object

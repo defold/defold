@@ -393,8 +393,8 @@ namespace dmGameSystem
             dmhash_t instance_b_id = dmGameObject::GetIdentifier(instance_b);
 
             dmPhysicsDDF::ContactPointResponse ddf;
-            float mass_a = dmMath::Select(-contact_point.m_InvMassA, 0.0f, 1.0f / contact_point.m_InvMassA);
-            float mass_b = dmMath::Select(-contact_point.m_InvMassB, 0.0f, 1.0f / contact_point.m_InvMassB);
+            float mass_a = dmMath::Select(-contact_point.m_MassA, 0.0f, contact_point.m_MassA);
+            float mass_b = dmMath::Select(-contact_point.m_MassB, 0.0f, contact_point.m_MassB);
 
             dmhash_t message_id = dmHashString64(dmPhysicsDDF::ContactPointResponse::m_DDFDescriptor->m_Name);
             uintptr_t descriptor = (uintptr_t)dmPhysicsDDF::ContactPointResponse::m_DDFDescriptor;
