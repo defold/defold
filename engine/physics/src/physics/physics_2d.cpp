@@ -114,8 +114,8 @@ namespace dmPhysics
                         FromB2(rv, cp.m_RelativeVelocity, inv_scale);
                         cp.m_Distance = contact->GetManifold()->points[i].distance * inv_scale;
                         cp.m_AppliedImpulse = impulse->normalImpulses[0] * inv_scale;
-                        cp.m_InvMassA = 1.0f / fixture_a->GetBody()->GetMass();
-                        cp.m_InvMassB = 1.0f / fixture_b->GetBody()->GetMass();
+                        cp.m_MassA = fixture_a->GetBody()->GetMass();
+                        cp.m_MassB = fixture_b->GetBody()->GetMass();
                         cp.m_GroupA = fixture_a->GetFilterData(index_a).categoryBits;
                         cp.m_GroupB = fixture_b->GetFilterData(index_b).categoryBits;
                         contact_point_callback(cp, m_TempStepWorldContext->m_ContactPointUserData);

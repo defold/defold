@@ -22,9 +22,9 @@ import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
-import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.Label;
-import org.eclipse.swt.widgets.Listener;
+import org.eclipse.ui.forms.events.HyperlinkAdapter;
+import org.eclipse.ui.forms.events.HyperlinkEvent;
 import org.eclipse.ui.forms.widgets.FormToolkit;
 import org.eclipse.ui.forms.widgets.Hyperlink;
 import org.eclipse.ui.forms.widgets.ScrolledForm;
@@ -241,9 +241,9 @@ public class FormPropertySheetViewer extends Viewer {
                 final Label label = toolkit.createLabel(labelComposite, labelText, SWT.NONE);
 
                 Hyperlink link = toolkit.createHyperlink(labelComposite, labelText, SWT.NONE);
-                link.addListener(SWT.Activate, new Listener() {
+                link.addHyperlinkListener(new HyperlinkAdapter() {
                     @Override
-                    public void handleEvent(Event event) {
+                    public void linkActivated(HyperlinkEvent e) {
                         for (IPropertyModel m : models) {
                             IUndoableOperation operation = m.resetPropertyValue(desc.getId());
                             m.getCommandFactory().execute(operation, m.getWorld());

@@ -13,11 +13,10 @@ import javax.media.opengl.GL;
 import javax.media.opengl.GLContext;
 import javax.media.opengl.GLDrawableFactory;
 import javax.media.opengl.glu.GLU;
+import javax.vecmath.Matrix4d;
 import javax.vecmath.Point2f;
 import javax.vecmath.Point2i;
 import javax.vecmath.Vector2f;
-import javax.vecmath.Vector3f;
-import javax.vecmath.Vector4f;
 
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.MouseEvent;
@@ -41,6 +40,7 @@ import org.eclipse.ui.services.IDisposable;
 import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.sceneed.core.SceneUtil;
 import com.dynamo.cr.sceneed.core.SceneUtil.MouseType;
+import com.dynamo.cr.sceneed.ui.RenderUtil;
 import com.dynamo.cr.tileeditor.core.IGridView;
 import com.dynamo.cr.tileeditor.core.Layer;
 import com.dynamo.cr.tileeditor.core.Layer.Cell;
@@ -347,14 +347,26 @@ Listener {
         }
     }
 
+    private float calculateTileSourceZoom(TileSetUtil.Metrics metrics, int viewPortWidth, int viewPortHeight) {
+        float ratio = Math.max(metrics.visualWidth / viewPortWidth, metrics.visualHeight / viewPortHeight);
+        float zoom = 0.2f + ratio;
+        if (zoom < 1.0f) {
+            zoom = 1.0f;
+        }
+        return zoom;
+    }
+
     private int pickTile(int x, int y) {
         if (isEnabled()) {
             TileSetUtil.Metrics metrics = calculateMetrics();
             if (metrics != null) {
                 int viewPortWidth = this.viewPort.get(2);
                 int viewPortHeight = this.viewPort.get(3);
-                int tileX = (int)Math.floor((x - 0.5f * (viewPortWidth - metrics.visualWidth) - BORDER_SIZE)/(this.tileWidth + BORDER_SIZE));
-                int tileY = (int)Math.floor((y - 0.5f * (viewPortHeight - metrics.visualHeight) - BORDER_SIZE)/(this.tileHeight + BORDER_SIZE));
+                float zoom = calculateTileSourceZoom(metrics, viewPortWidth, viewPortHeight);
+                float xp = (x - 0.5f * viewPortWidth) * zoom + 0.5f * metrics.visualWidth;
+                float yp = (y - 0.5f * viewPortHeight) * zoom + 0.5f * metrics.visualHeight;
+                int tileX = (int)Math.floor((xp - BORDER_SIZE) / (this.tileWidth + BORDER_SIZE));
+                int tileY = (int)Math.floor((yp - BORDER_SIZE) / (this.tileHeight + BORDER_SIZE));
                 if (tileX >= 0
                         && tileX < metrics.tilesPerRow
                         && tileY >= 0
@@ -540,11 +552,11 @@ Listener {
         gl.glLoadIdentity();
         gl.glTranslatef(-this.position.getX(), -this.position.getY(), 0.0f);
 
-        // grid (cell-dividing lines)
-        renderGrid(gl);
-
         // tiles
         renderCells(gl);
+
+        // grid (cell-dividing lines)
+        renderGrid(gl);
 
         // tile set palette
         renderTileSet(gl, glu);
@@ -813,8 +825,8 @@ Listener {
             return;
         }
 
-        float viewPortWidth = this.viewPort.get(2);
-        float viewPortHeight = this.viewPort.get(3);
+        int viewPortWidth = this.viewPort.get(2);
+        int viewPortHeight = this.viewPort.get(3);
 
         gl.glMatrixMode(GL.GL_PROJECTION);
         gl.glLoadIdentity();
@@ -822,6 +834,7 @@ Listener {
 
         gl.glMatrixMode(GL.GL_MODELVIEW);
         gl.glLoadIdentity();
+        gl.glPushMatrix();
 
         // Render dim
 
@@ -837,37 +850,26 @@ Listener {
         gl.glVertex2f(0.0f, viewPortHeight);
         gl.glEnd();
 
+        // Adjust zoom if tile source is too large
+        float zoom = calculateTileSourceZoom(metrics, viewPortWidth, viewPortHeight);
+
+        gl.glTranslatef(viewPortWidth * 0.5f, viewPortHeight * 0.5f, 0.0f);
+        Matrix4d m = new Matrix4d();
+        m.setIdentity();
+        m.setScale(1.0f / zoom);
+        RenderUtil.multMatrix(gl, m);
+        gl.glTranslatef(-metrics.visualWidth * 0.5f, -metrics.visualHeight * 0.5f, 0.0f);
+
         // Build tile set data
 
-        Vector3f offset = new Vector3f((float)Math.floor(0.5f * (viewPortWidth - metrics.visualWidth)), (float)Math.floor(0.5f * (viewPortHeight - metrics.visualHeight)), 0.0f);
-        gl.glTranslatef(offset.x, offset.y, offset.z);
-
-        // Render palette background
-
-        gl.glColor4f(1.0f, 1.0f, 1.0f, 0.3f);
-
-        gl.glBegin(GL.GL_QUADS);
-        gl.glVertex2f(0.0f, 0.0f);
-        gl.glVertex2f(metrics.visualWidth, 0.0f);
-        gl.glVertex2f(metrics.visualWidth, metrics.visualHeight);
-        gl.glVertex2f(0.0f, metrics.visualHeight);
-        gl.glEnd();
-
-        final int vertexCount = metrics.tilesPerRow * metrics.tilesPerColumn * 4;
-        final int componentCount = 5;
+        int vertexCount = metrics.tilesPerRow * metrics.tilesPerColumn * 4;
+        int componentCount = 5;
         FloatBuffer v = BufferUtil.newFloatBuffer(vertexCount * componentCount);
 
         float z = 0.9f;
 
         float recipImageWidth = 1.0f / metrics.tileSetWidth;
         float recipImageHeight = 1.0f / metrics.tileSetHeight;
-
-        Vector4f[] overlays = new Vector4f[3];
-        float[] overlayColors = new float[3];
-        overlays[0] = new Vector4f(0.0f, 0.0f, metrics.visualWidth, metrics.visualHeight);
-        overlayColors[0] = 0.2f;
-        overlayColors[1] = 0.7f;
-        overlayColors[2] = 1.0f;
 
         int brushTile = -1;
         if (this.brush.getWidth() == 1 && this.brush.getHeight() == 1) {
@@ -887,13 +889,6 @@ Listener {
                 v.put(u0); v.put(v1); v.put(x0); v.put(y1); v.put(z);
                 v.put(u1); v.put(v1); v.put(x1); v.put(y1); v.put(z);
                 v.put(u1); v.put(v0); v.put(x1); v.put(y0); v.put(z);
-                int tileIndex = x + y * metrics.tilesPerRow;
-                if (this.activeTile == tileIndex) {
-                    overlays[1] = new Vector4f(x0 - BORDER_SIZE, y0 - BORDER_SIZE, x1 + BORDER_SIZE, y1 + BORDER_SIZE);
-                }
-                if (brushTile == tileIndex) {
-                    overlays[2] = new Vector4f(x0 - BORDER_SIZE, y0 - BORDER_SIZE, x1 + BORDER_SIZE, y1 + BORDER_SIZE);
-                }
             }
         }
         v.flip();
@@ -922,32 +917,69 @@ Listener {
 
         this.tileSetTexture.disable();
 
-        // tile set overlays
+        // Grid
+        vertexCount = ((metrics.tilesPerColumn + 1) * 2 + (metrics.tilesPerRow + 1) * 2);
+        componentCount = 2;
+        FloatBuffer vg = BufferUtil.newFloatBuffer(vertexCount * componentCount);
+        for (int y = 0; y <= metrics.tilesPerColumn; ++y) {
+            float y0 = y * (tileHeight + BORDER_SIZE);
+            vg.put(0.0f); vg.put(y0);
+            vg.put(metrics.visualWidth); vg.put(y0);
+        }
+        for (int x = 0; x <= metrics.tilesPerRow; ++x) {
+            float x0 = x * (tileWidth + BORDER_SIZE);
+            vg.put(x0); vg.put(0.0f);
+            vg.put(x0); vg.put(metrics.visualHeight);
+        }
+        vg.flip();
 
-        gl.glDepthMask(false);
+        gl.glDisable(GL.GL_DEPTH_TEST);
+        gl.glEnableClientState(GL.GL_VERTEX_ARRAY);
+        gl.glColor3f(0.3f, 0.3f, 0.3f);
+        gl.glInterleavedArrays(GL.GL_V2F, 0, vg);
+        gl.glDrawArrays(GL.GL_LINES, 0, vertexCount);
+        gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
 
-        z = 0.0f;
+        // Grid highlights
+        if (this.activeTile >= 0 || brushTile >= 0) {
+            gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE);
 
-        gl.glBegin(GL.GL_QUADS);
-
-        for (int i = 0; i < overlays.length; ++i) {
-            Vector4f o = overlays[i];
-            if (o != null) {
-                gl.glColor3f(overlayColors[i], overlayColors[i], overlayColors[i]);
-                float x0 = o.getX();
-                float y0 = o.getY();
-                float x1 = o.getZ();
-                float y1 = o.getW();
-                gl.glVertex3f(x0, y0, z);
-                gl.glVertex3f(x1, y0, z);
-                gl.glVertex3f(x1, y1, z);
-                gl.glVertex3f(x0, y1, z);
+            if (brushTile >= 0) {
+                float w = tileWidth + BORDER_SIZE;
+                float x0 = (brushTile % metrics.tilesPerRow) * w;
+                float x1 = x0 + w;
+                float h = tileHeight + BORDER_SIZE;
+                float y0 = (brushTile / metrics.tilesPerRow) * h;
+                float y1 = y0 + h;
+                gl.glBegin(GL.GL_QUADS);
+                gl.glColor3f(0.8f, 0.8f, 0.8f);
+                gl.glVertex2f(x0, y0);
+                gl.glVertex2f(x1, y0);
+                gl.glVertex2f(x1, y1);
+                gl.glVertex2f(x0, y1);
+                gl.glEnd();
             }
+            if (this.activeTile >= 0) {
+                float w = tileWidth + BORDER_SIZE;
+                float x0 = (this.activeTile % metrics.tilesPerRow) * w;
+                float x1 = x0 + w;
+                float h = tileHeight + BORDER_SIZE;
+                float y0 = (this.activeTile / metrics.tilesPerRow) * h;
+                float y1 = y0 + h;
+                gl.glBegin(GL.GL_QUADS);
+                gl.glColor3f(1.0f, 1.0f, 1.0f);
+                gl.glVertex2f(x0, y0);
+                gl.glVertex2f(x1, y0);
+                gl.glVertex2f(x1, y1);
+                gl.glVertex2f(x0, y1);
+                gl.glEnd();
+            }
+
+            gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL);
         }
 
-        gl.glEnd();
+        gl.glPopMatrix();
 
-        gl.glColor3f(1.0f, 1.0f, 1.0f);
         gl.glDisable(GL.GL_BLEND);
         gl.glDisable(GL.GL_DEPTH_TEST);
 

@@ -323,13 +323,13 @@ namespace dmPhysics
                         point.m_UserDataA = object_a->getUserPointer();
                         point.m_GroupA = object_a->getBroadphaseHandle()->m_collisionFilterGroup;
                         if (body_a)
-                            point.m_InvMassA = body_a->getInvMass();
+                            point.m_MassA = 1.0f / body_a->getInvMass();
                         const btVector3& pt_b = pt.getPositionWorldOnB();
                         FromBt(pt_b, point.m_PositionB, inv_scale);
                         point.m_UserDataB = object_b->getUserPointer();
                         point.m_GroupB = object_b->getBroadphaseHandle()->m_collisionFilterGroup;
                         if (body_b)
-                            point.m_InvMassB = body_b->getInvMass();
+                            point.m_MassB = 1.0f / body_b->getInvMass();
                         const btVector3& normal = pt.m_normalWorldOnB;
                         FromBt(-normal, point.m_Normal, 1.0f); // Don't scale normals
                         point.m_Distance = -pt.getDistance() * inv_scale;
