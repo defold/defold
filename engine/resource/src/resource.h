@@ -16,14 +16,6 @@ namespace dmResource
     #define RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT (1 << 0)
 
     /**
-     * Enable internal http server support. Added this flag implicitly implies #RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT
-     * URI:s supported
-     *   Reload resource:  http://host:8001/reload/PATH
-     *   Resources loaded: http://host:8001/
-     */
-    #define RESOURCE_FACTORY_FLAGS_HTTP_SERVER    (1 << 1)
-
-    /**
      * Enable HTTP cache
      */
     #define RESOURCE_FACTORY_FLAGS_HTTP_CACHE     (1 << 2)

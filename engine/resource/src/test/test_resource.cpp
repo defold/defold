@@ -5,7 +5,10 @@
 #include <dlib/hash.h>
 #include <dlib/dstrings.h>
 #include <dlib/time.h>
+#include <dlib/message.h>
 #include <dlib/thread.h>
+#include <ddf/ddf.h>
+#include "resource_ddf.h"
 #include "../resource.h"
 #include "test/test_resource_ddf.h"
 
@@ -570,10 +573,17 @@ TEST(RecreateTest, RecreateTest)
 volatile bool SendReloadDone = false;
 void SendReloadThread(void*)
 {
-    dmHttpClient::NewParams params;
-    dmHttpClient::HClient client = dmHttpClient::New(&params, "localhost", 8001);
-    dmHttpClient::Get(client, "/reload/__testrecreate__.foo");
-    dmHttpClient::Delete(client);
+    char buf[256];
+    dmResourceDDF::Reload* reload_resource = (dmResourceDDF::Reload*) buf;
+    reload_resource->m_Resource = (const char*) sizeof(dmResourceDDF::Reload);
+    memcpy(buf + sizeof(reload_resource), "__testrecreate__.foo", strlen("__testrecreate__.foo") + 1);
+
+    dmMessage::URL url;
+    url.m_Fragment = 0;
+    url.m_Path = 0;
+    dmMessage::GetSocket("@resource", &url.m_Socket);
+    dmMessage::Post(0, &url, dmResourceDDF::Reload::m_DDFHash, 0, (uintptr_t) dmResourceDDF::Reload::m_DDFDescriptor, buf, sizeof(buf));
+
     SendReloadDone = true;
 }
 
@@ -588,7 +598,7 @@ TEST(RecreateTest, RecreateTestHttp)
 
     dmResource::NewFactoryParams params;
     params.m_MaxResources = 16;
-    params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT | RESOURCE_FACTORY_FLAGS_HTTP_SERVER;
+    params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
     dmResource::HFactory factory = dmResource::NewFactory(&params, tmp_dir);
     ASSERT_NE((void*) 0, factory);
 
@@ -621,6 +631,7 @@ TEST(RecreateTest, RecreateTestHttp)
     fprintf(f, "456");
     fclose(f);
 
+    SendReloadDone = false;
     dmThread::Thread send_thread = dmThread::New(&SendReloadThread, 0x8000, 0);
 
     while (!SendReloadDone)
@@ -634,6 +645,7 @@ TEST(RecreateTest, RecreateTestHttp)
 
     unlink(file_name);
 
+    SendReloadDone = false;
     send_thread = dmThread::New(&SendReloadThread, 0x8000, 0);
     SendReloadDone = false;
     while (!SendReloadDone)

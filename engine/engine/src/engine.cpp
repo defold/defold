@@ -17,6 +17,7 @@
 #include <render/render_ddf.h>
 #include <particle/particle.h>
 
+#include "engine_service.h"
 #include "physics_debug_render.h"
 #include "profile_render.h"
 
@@ -96,7 +97,7 @@ namespace dmEngine
 
     }
 
-    Engine::Engine()
+    Engine::Engine(dmEngineService::HEngineService engine_service)
     : m_Config(0)
     , m_Alive(true)
     , m_MainCollection(0)
@@ -118,8 +119,8 @@ namespace dmEngine
     , m_Height(640)
     , m_InvPhysicalWidth(1.0f/960)
     , m_InvPhysicalHeight(1.0f/640)
-    , m_HttpServer(0)
     {
+        m_EngineService = engine_service;
         m_Register = dmGameObject::NewRegister();
         m_InputBuffer.SetCapacity(64);
 
@@ -133,18 +134,13 @@ namespace dmEngine
         m_SpriteContext.m_MaxSpriteCount = 0;
     }
 
-    HEngine New()
+    HEngine New(dmEngineService::HEngineService engine_service)
     {
-        return new Engine();
+        return new Engine(engine_service);
     }
 
     void Delete(HEngine engine)
     {
-        if (engine->m_HttpServer)
-        {
-            dmHttpServer::Delete(engine->m_HttpServer);
-        }
-
         if (engine->m_MainCollection)
             dmResource::Release(engine->m_Factory, engine->m_MainCollection);
 
@@ -221,154 +217,6 @@ namespace dmEngine
         else
         {
             return dmGraphics::TEXTURE_FILTER_NEAREST;
-        }
-    }
-
-    static void HttpServerHeader(void* user_data, const char* key, const char* value)
-    {
-        (void) user_data;
-        (void) key;
-        (void) value;
-    }
-
-    static bool ParsePostUrl(const char* resource, dmMessage::HSocket* socket, const dmDDF::Descriptor** desc, dmhash_t* message_id)
-    {
-        // Syntax: http://host:port/post/socket/message_type
-
-        char buf[256];
-        dmStrlCpy(buf, resource, sizeof(buf));
-
-        char* last;
-        int i = 0;
-        char* s = dmStrTok(buf, "/", &last);
-        bool error = false;
-
-        while (s && !error)
-        {
-            switch (i)
-            {
-                case 0:
-                {
-                    if (strcmp(s, "post") != 0)
-                    {
-                        error = true;
-                    }
-                }
-                break;
-
-                case 1:
-                {
-                    dmMessage::Result mr = dmMessage::GetSocket(s, socket);
-                    if (mr != dmMessage::RESULT_OK)
-                    {
-                        error = true;
-                    }
-                }
-                break;
-
-                case 2:
-                {
-                    *message_id = dmHashString64(s);
-                    *desc = dmDDF::GetDescriptorFromHash(*message_id);
-                    if (*desc == 0)
-                    {
-                        error = true;
-                    }
-                }
-                break;
-            }
-
-            s = dmStrTok(0, "/", &last);
-            ++i;
-        }
-
-        return !error;
-    }
-
-    static void SlurpHttpContent(const dmHttpServer::Request* request)
-    {
-        char buf[256];
-        uint32_t total_recv = 0;
-
-        while (total_recv < request->m_ContentLength)
-        {
-            uint32_t recv_bytes = 0;
-            uint32_t to_read = dmMath::Min((uint32_t) sizeof(buf), request->m_ContentLength - total_recv);
-            dmHttpServer::Result r = dmHttpServer::Receive(request, buf, to_read, &recv_bytes);
-            if (r != dmHttpServer::RESULT_OK)
-                return;
-            total_recv += recv_bytes;
-        }
-    }
-
-    static void HandlePost(void* user_data, const dmHttpServer::Request* request)
-    {
-        char msg_buf[1024];
-        const char* error_msg = "";
-        dmHttpServer::Result r;
-        uint32_t recv_bytes = 0;
-        dmMessage::HSocket socket = 0;
-        const dmDDF::Descriptor* desc = 0;
-        dmhash_t message_id;
-
-        if (request->m_ContentLength > sizeof(msg_buf))
-        {
-            error_msg = "Too large message";
-            goto bail;
-        }
-
-        if (!ParsePostUrl(request->m_Resource, &socket, &desc, &message_id))
-        {
-            error_msg = "Invalid request";
-            goto bail;
-        }
-
-        r = dmHttpServer::Receive(request, msg_buf, request->m_ContentLength, &recv_bytes);
-        if (r == dmHttpServer::RESULT_OK)
-        {
-            void* msg;
-            uint32_t msg_size;
-            dmDDF::Result ddf_r = dmDDF::LoadMessage(msg_buf, recv_bytes, desc, &msg, dmDDF::OPTION_OFFSET_STRINGS, &msg_size);
-            if (ddf_r == dmDDF::RESULT_OK)
-            {
-                dmMessage::URL url;
-                url.m_Socket = socket;
-                url.m_Path = 0;
-                url.m_Fragment = 0;
-                dmMessage::Post(0, &url, message_id, 0, (uintptr_t) desc, msg, msg_size);
-                dmDDF::FreeMessage(msg);
-            }
-        }
-        else
-        {
-            dmLogError("Error while reading message post data (%d)", r);
-            error_msg = "Internal error";
-            goto bail;
-        }
-
-        dmHttpServer::SetStatusCode(request, 200);
-        dmHttpServer::Send(request, "OK", strlen("OK"));
-        return;
-
-bail:
-        SlurpHttpContent(request);
-        dmLogError("%s", error_msg);
-        dmHttpServer::SetStatusCode(request, 400);
-        dmHttpServer::Send(request, error_msg, strlen(error_msg));
-    }
-
-    static void HttpServerResponse(void* user_data, const dmHttpServer::Request* request)
-    {
-        if (strcmp(request->m_Method, "POST") == 0)
-        {
-            HandlePost(user_data, request);
-        }
-        else
-        {
-            SlurpHttpContent(request);
-            dmHttpServer::SetStatusCode(request, 400);
-            const char* s = "Invalid request";
-            dmHttpServer::Send(request, s, strlen(s));
         }
     }
 
@@ -497,7 +345,7 @@ bail:
         dmResource::NewFactoryParams params;
         int32_t http_cache = dmConfigFile::GetInt(engine->m_Config, "resource.http_cache", 1);
         params.m_MaxResources = max_resources;
-        params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT | RESOURCE_FACTORY_FLAGS_HTTP_SERVER;
+        params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
         if (http_cache)
             params.m_Flags |= RESOURCE_FACTORY_FLAGS_HTTP_CACHE;
         params.m_StreamBufferSize = 8 * 1024 * 1024; // We have some *large* textures...!
@@ -647,20 +495,6 @@ bail:
         }
         dmGameObject::SortComponentTypes(engine->m_Register);
 
-
-        {
-            dmHttpServer::NewParams http_server_params;
-            http_server_params.m_HttpHeader = HttpServerHeader;
-            http_server_params.m_HttpResponse = HttpServerResponse;
-
-            dmHttpServer::Result hsr = dmHttpServer::New(&http_server_params, 0, &engine->m_HttpServer);
-            if (hsr != dmHttpServer::RESULT_OK)
-                return false;
-
-            dmSocket::Address address;
-            dmHttpServer::GetName(engine->m_HttpServer, &address, &engine->m_HttpPort);
-        }
-
         return true;
 
 bail:
@@ -689,7 +523,7 @@ bail:
 
     uint16_t GetHttpPort(HEngine engine)
     {
-        return engine->m_HttpPort;
+        return dmEngineService::GetPort(engine->m_EngineService);
     }
 
     RunResult Run(HEngine engine)
@@ -711,7 +545,7 @@ bail:
                 fflush(stdout);
                 fflush(stderr);
 
-                dmHttpServer::Update(engine->m_HttpServer);
+                dmEngineService::Update(engine->m_EngineService);
 
                 {
                     DM_PROFILE(Engine, "Sim");
@@ -850,9 +684,9 @@ bail:
         engine->m_RunResult.m_Action = dmEngine::RunResult::REBOOT;
     }
 
-    static RunResult InitRun(int argc, char *argv[], PreRun pre_run, PostRun post_run, void* context)
+    static RunResult InitRun(dmEngineService::HEngineService engine_service, int argc, char *argv[], PreRun pre_run, PostRun post_run, void* context)
     {
-        dmEngine::HEngine engine = dmEngine::New();
+        dmEngine::HEngine engine = dmEngine::New(engine_service);
         dmEngine::RunResult run_result;
         if (dmEngine::Init(engine, argc, argv))
         {
@@ -879,14 +713,21 @@ bail:
 
     int Launch(int argc, char *argv[], PreRun pre_run, PostRun post_run, void* context)
     {
-        dmEngine::RunResult run_result = InitRun(argc, argv, pre_run, post_run, context);
+        dmEngineService::HEngineService engine_service = dmEngineService::New(8001);
+        if (engine_service == 0)
+        {
+            return 5;
+        }
+
+        dmEngine::RunResult run_result = InitRun(engine_service, argc, argv, pre_run, post_run, context);
         while (run_result.m_Action == dmEngine::RunResult::REBOOT)
         {
-            dmEngine::RunResult tmp = InitRun(run_result.m_Argc, run_result.m_Argv, pre_run, post_run, context);
+            dmEngine::RunResult tmp = InitRun(engine_service, run_result.m_Argc, run_result.m_Argv, pre_run, post_run, context);
             run_result.Free();
             run_result = tmp;
         }
         run_result.Free();
+        dmEngineService::Delete(engine_service);
         return run_result.m_ExitCode;
     }
 

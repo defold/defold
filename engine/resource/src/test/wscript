@@ -27,7 +27,7 @@ def build(bld):
     bld.add_group()
 
     test_resource = bld.new_task_gen(features = 'cxx cprogram embed',
-                                     includes = '../../../src',
+                                     includes = '../../../src ../../proto',
                                      uselib = 'GTEST DDF DLIB PLATFORM_SOCKET THREAD LUA',
                                      uselib_local = 'resource',
                                      proto_gen_py = True,

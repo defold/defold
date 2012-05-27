@@ -18,14 +18,15 @@
 #include <dlib/log.h>
 #include <dlib/http_client.h>
 #include <dlib/http_cache.h>
-#include <dlib/http_server.h>
 #include <dlib/http_cache_verify.h>
 #include <dlib/uri.h>
 #include <dlib/profile.h>
+#include <dlib/message.h>
 #include <dlib/sys.h>
 
 #include "resource.h"
 #include "resource_archive.h"
+#include "resource_ddf.h"
 
 /*
  * TODO:
@@ -41,6 +42,7 @@
 
 namespace dmResource
 {
+#define RESOURCE_SOCKET_NAME "@resource"
 
 struct SResourceType
 {
@@ -86,6 +88,8 @@ struct SResourceFactory
     // List of resources currently in dmResource::Get call-stack
     dmArray<const char*>                         m_GetResourceStack;
 
+    dmMessage::HSocket                           m_Socket;
+
     dmURI::Parts                                 m_UriParts;
     dmHttpClient::HClient                        m_HttpClient;
     dmHttpCache::HCache                          m_HttpCache;
@@ -99,9 +103,6 @@ struct SResourceFactory
     uint32_t                                     m_HttpTotalBytesStreamed;
     int                                          m_HttpStatus;
     Result                                       m_HttpFactoryResult;
-
-    // HTTP server
-    dmHttpServer::HServer                        m_HttpServer;
 
     // Resource archive
     dmResourceArchive::HArchive                  m_BuiltinsArchive;
@@ -179,98 +180,17 @@ static void HttpContent(dmHttpClient::HClient, void* user_data, int status_code,
     factory->m_HttpTotalBytesStreamed += content_data_size;
 }
 
-struct HtmlStatusContext
-{
-    HFactory                     m_Factory;
-    const dmHttpServer::Request* m_Request;
-};
-
-void SentHtmlStatus(HtmlStatusContext* context, const uint64_t* resource_hash, const char** file_name)
-{
-    SResourceDescriptor* rd = context->m_Factory->m_Resources->Get(*resource_hash);
-    assert(rd);
-
-    char tmp[32];
-    DM_SNPRINTF(tmp, sizeof(tmp), "%d", rd->m_ReferenceCount);
-
-    dmHttpServer::Send(context->m_Request, "<td>", strlen("<td>"));
-    dmHttpServer::Send(context->m_Request, *file_name, strlen(*file_name));
-
-    dmHttpServer::Send(context->m_Request, "<td>", strlen("<td>"));
-    dmHttpServer::Send(context->m_Request, tmp, strlen(tmp));
-
-    dmHttpServer::Send(context->m_Request, "<tr/>", strlen("<tr/>"));
-}
-
-void HttpServerHeader(void* user_data, const char* key, const char* value)
-{
-    (void) user_data;
-    (void) key;
-    (void) value;
-}
-
-void HttpServerResponse(void* user_data, const dmHttpServer::Request* request)
-{
-    SResourceFactory* factory = (SResourceFactory*) user_data;
-
-    if (strncmp(request->m_Resource, "/reload/", strlen("/reload/")) == 0)
-    {
-        const char* name = request->m_Resource + strlen("/reload/");
-
-        SResourceDescriptor* descriptor;
-
-        // Always verify cache for reloaded resources
-        if (factory->m_HttpCache)
-            dmHttpCache::SetConsistencyPolicy(factory->m_HttpCache, dmHttpCache::CONSISTENCY_POLICY_VERIFY);
-
-        Result result = ReloadResource(factory, name, &descriptor);
-
-        if (factory->m_HttpCache)
-            dmHttpCache::SetConsistencyPolicy(factory->m_HttpCache, dmHttpCache::CONSISTENCY_POLICY_TRUST_CACHE);
-
-        switch (result)
-        {
-            case RESULT_OK:
-                dmLogInfo("%s was successfully reloaded.", name);
-                break;
-            case RESULT_OUT_OF_MEMORY:
-                dmLogError("Not enough memory to reload %s.", name);
-                break;
-            case RESULT_FORMAT_ERROR:
-            case RESULT_CONSTANT_ERROR:
-                dmLogError("%s has invalid format and could not be reloaded.", name);
-                break;
-            case RESULT_RESOURCE_NOT_FOUND:
-                dmLogError("%s could not be reloaded since it was never loaded before.", name);
-                break;
-            case RESULT_NOT_SUPPORTED:
-                dmLogWarning("Reloading of resource type %s not supported.", ((SResourceType*)descriptor->m_ResourceType)->m_Extension);
-                break;
-            default:
-                dmLogWarning("%s could not be reloaded, unknown error: %d.", name, result);
-                break;
-        }
-    }
-    else if(strcmp("/", request->m_Resource) == 0)
-    {
-        HtmlStatusContext context;
-        context.m_Factory = factory;
-        context.m_Request = request;
-        if (factory->m_ResourceHashToFilename)
-        {
-            dmHttpServer::Send(request, "<table>", strlen("<table>"));
-
-            const char* th = "<td><b>Filename</b></td><td><b>Reference count</b></td><tr/>";
-            dmHttpServer::Send(request, th, strlen(th));
-
-            factory->m_ResourceHashToFilename->Iterate(&SentHtmlStatus, &context);
-            dmHttpServer::Send(request, "</table>", strlen("</table>"));
-        }
-    }
-}
-
 HFactory NewFactory(NewFactoryParams* params, const char* uri)
 {
+    dmMessage::HSocket socket = 0;
+
+    dmMessage::Result mr = dmMessage::NewSocket(RESOURCE_SOCKET_NAME, &socket);
+    if (mr != dmMessage::RESULT_OK)
+    {
+        dmLogFatal("Unable to create resource socket: %s (%d)", RESOURCE_SOCKET_NAME, mr);
+        return 0;
+    }
+
     // NOTE: We need an extra byte for null-termination.
     // Legacy reason (load python scripts from "const char*")
     // The gui-system still relies on this behaviour (luaL_loadstring)
@@ -281,11 +201,13 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
 
     SResourceFactory* factory = new SResourceFactory;
     memset(factory, 0, sizeof(*factory));
+    factory->m_Socket = socket;
 
     dmURI::Result uri_result = dmURI::Parse(uri, &factory->m_UriParts);
     if (uri_result != dmURI::RESULT_OK)
     {
         dmLogError("Unable to parse uri: %s", uri);
+        dmMessage::DeleteSocket(socket);
         free(buffer);
         delete factory;
         return 0;
@@ -336,6 +258,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         if (!factory->m_HttpClient)
         {
             dmLogError("Invalid URI: %s", uri);
+            dmMessage::DeleteSocket(socket);
             free(buffer);
             delete factory;
             return 0;
@@ -348,6 +271,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     else
     {
         dmLogError("Invalid URI: %s", uri);
+        dmMessage::DeleteSocket(socket);
         free(buffer);
         delete factory;
         return 0;
@@ -363,26 +287,6 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
 
     factory->m_ResourceToHash = new dmHashTable<uintptr_t, uint64_t>();
     factory->m_ResourceToHash->SetCapacity(table_size, params->m_MaxResources);
-
-
-    factory->m_HttpServer = 0;
-    if (params->m_Flags & RESOURCE_FACTORY_FLAGS_HTTP_SERVER)
-    {
-        // http support implies this flag implicitly
-        params->m_Flags |= RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
-
-        uint16_t port = 8001;
-        dmHttpServer::NewParams http_server_params;
-        http_server_params.m_Userdata = factory;
-        http_server_params.m_HttpHeader = HttpServerHeader;
-        http_server_params.m_HttpResponse = HttpServerResponse;
-
-        dmHttpServer::Result r = dmHttpServer::New(&http_server_params, port, &factory->m_HttpServer);
-        if (r != dmHttpServer::RESULT_OK)
-        {
-            dmLogWarning("Unable to start http server on port: %d", port);
-        }
-    }
 
     if (params->m_Flags & RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT)
     {
@@ -413,6 +317,10 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
 void DeleteFactory(HFactory factory)
 {
     free(factory->m_StreamBuffer);
+    if (factory->m_Socket)
+    {
+        dmMessage::DeleteSocket(factory->m_Socket);
+    }
     if (factory->m_HttpClient)
     {
         dmHttpClient::Delete(factory->m_HttpClient);
@@ -422,10 +330,6 @@ void DeleteFactory(HFactory factory)
         dmHttpCache::Close(factory->m_HttpCache);
     }
 
-    if (factory->m_HttpServer)
-    {
-        dmHttpServer::Delete(factory->m_HttpServer);
-    }
     delete factory->m_Resources;
     delete factory->m_ResourceToHash;
     if (factory->m_ResourceHashToFilename)
@@ -435,10 +339,36 @@ void DeleteFactory(HFactory factory)
     delete factory;
 }
 
+static void Dispatch(dmMessage::Message* message, void* user_ptr)
+{
+    HFactory factory = (HFactory) user_ptr;
+
+    if (message->m_Descriptor)
+    {
+        dmDDF::Descriptor* descriptor = (dmDDF::Descriptor*)message->m_Descriptor;
+        if (descriptor == dmResourceDDF::Reload::m_DDFDescriptor)
+        {
+            dmResourceDDF::Reload* reload_resource = (dmResourceDDF::Reload*) message->m_Data;
+            const char* resource = (const char*) ((uintptr_t) reload_resource + (uintptr_t) reload_resource->m_Resource);
+
+            SResourceDescriptor* resource_descriptor;
+            ReloadResource(factory, resource, &resource_descriptor);
+
+        }
+        else
+        {
+            dmLogError("Unknown message '%s' sent to socket '%s'.\n", descriptor->m_Name, RESOURCE_SOCKET_NAME);
+        }
+    }
+    else
+    {
+        dmLogError("Only system messages can be sent to the '%s' socket.\n", RESOURCE_SOCKET_NAME);
+    }
+}
+
 void UpdateFactory(HFactory factory)
 {
-    if (factory->m_HttpServer)
-        dmHttpServer::Update(factory->m_HttpServer);
+    dmMessage::Dispatch(factory->m_Socket, &Dispatch, factory);
 }
 
 Result RegisterType(HFactory factory,
@@ -722,8 +652,7 @@ Result Get(HFactory factory, const char* name, void** resource)
     return r;
 }
 
-
-Result ReloadResource(HFactory factory, const char* name, SResourceDescriptor** out_descriptor)
+static Result DoReloadResource(HFactory factory, const char* name, SResourceDescriptor** out_descriptor)
 {
     char canonical_path[RESOURCE_PATH_MAX];
     GetCanonicalPath(factory->m_UriParts.m_Path, name, canonical_path);
@@ -764,6 +693,43 @@ Result ReloadResource(HFactory factory, const char* name, SResourceDescriptor** 
     {
         return create_result;
     }
+}
+
+Result ReloadResource(HFactory factory, const char* name, SResourceDescriptor** out_descriptor)
+{
+    // Always verify cache for reloaded resources
+    if (factory->m_HttpCache)
+        dmHttpCache::SetConsistencyPolicy(factory->m_HttpCache, dmHttpCache::CONSISTENCY_POLICY_VERIFY);
+
+    Result result = DoReloadResource(factory, name, out_descriptor);
+
+    switch (result)
+    {
+        case RESULT_OK:
+            dmLogInfo("%s was successfully reloaded.", name);
+            break;
+        case RESULT_OUT_OF_MEMORY:
+            dmLogError("Not enough memory to reload %s.", name);
+            break;
+        case RESULT_FORMAT_ERROR:
+        case RESULT_CONSTANT_ERROR:
+            dmLogError("%s has invalid format and could not be reloaded.", name);
+            break;
+        case RESULT_RESOURCE_NOT_FOUND:
+            dmLogError("%s could not be reloaded since it was never loaded before.", name);
+            break;
+        case RESULT_NOT_SUPPORTED:
+            dmLogWarning("Reloading of resource type %s not supported.", ((SResourceType*)(*out_descriptor)->m_ResourceType)->m_Extension);
+            break;
+        default:
+            dmLogWarning("%s could not be reloaded, unknown error: %d.", name, result);
+            break;
+    }
+
+    if (factory->m_HttpCache)
+        dmHttpCache::SetConsistencyPolicy(factory->m_HttpCache, dmHttpCache::CONSISTENCY_POLICY_TRUST_CACHE);
+
+    return result;
 }
 
 Result GetType(HFactory factory, void* resource, uint32_t* type)

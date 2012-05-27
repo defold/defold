@@ -1,0 +1,12 @@
+package dmResourceDDF;
+
+import "ddf/ddf_extensions.proto";
+import "ddf/ddf_math.proto";
+
+option java_package = "com.dynamo.resource.proto";
+option java_outer_classname = "Resource";
+
+message Reload
+{
+    required string resource = 1;
+}

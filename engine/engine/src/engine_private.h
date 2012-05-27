@@ -6,7 +6,6 @@
 #include <dlib/configfile.h>
 #include <dlib/hashtable.h>
 #include <dlib/message.h>
-#include <dlib/http_server.h>
 
 #include <resource/resource.h>
 
@@ -24,6 +23,7 @@
 
 #include <record/record.h>
 
+#include "engine_service.h"
 #include "engine_ddf.h"
 
 namespace dmEngine
@@ -83,7 +83,8 @@ namespace dmEngine
 
     struct Engine
     {
-        Engine();
+        Engine(dmEngineService::HEngineService engine_service);
+        dmEngineService::HEngineService             m_EngineService;
         dmConfigFile::HConfig                       m_Config;
 
         RunResult                                   m_RunResult;;
@@ -123,9 +124,6 @@ namespace dmEngine
         float                                       m_InvPhysicalHeight;
 
         RecordData                                  m_RecordData;
-
-        dmHttpServer::HServer                       m_HttpServer;
-        uint16_t                                    m_HttpPort;
     };
 
     void ReloadResources(HEngine engine, const char* extension);

@@ -22,8 +22,6 @@ namespace dmEngine
     typedef void (*PreRun)(HEngine engine, void* context);
     typedef void (*PostRun)(HEngine engine, void* context);
 
-    HEngine New();
-    void Delete(HEngine);
     int Launch(int argc, char *argv[], PreRun pre_run, PostRun post_run, void* context);
 
     uint16_t GetHttpPort(HEngine engine);

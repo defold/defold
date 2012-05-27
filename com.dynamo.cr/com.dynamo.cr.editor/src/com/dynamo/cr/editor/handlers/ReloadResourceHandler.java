@@ -2,6 +2,8 @@ package com.dynamo.cr.editor.handlers;
 
 import java.io.BufferedInputStream;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLConnection;
 import java.util.HashMap;
@@ -27,6 +29,8 @@ import org.eclipse.ui.handlers.HandlerUtil;
 import com.dynamo.cr.editor.Activator;
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.preferences.PreferenceConstants;
+import com.dynamo.resource.proto.Resource;
+import com.dynamo.resource.proto.Resource.Reload;
 
 public class ReloadResourceHandler extends AbstractHandler {
 
@@ -61,8 +65,20 @@ public class ReloadResourceHandler extends AbstractHandler {
                                 args.put("location", "remote");
 
                             project.build(IncrementalProjectBuilder.INCREMENTAL_BUILD,  "com.dynamo.cr.editor.builders.contentbuilder", args, monitor);
-                            URL url = new URL("http://localhost:8001/reload/" + stringPath);
-                            URLConnection c = url.openConnection();
+
+                            Reload reload = Resource.Reload
+                                    .newBuilder()
+                                    .setResource(stringPath)
+                                    .build();
+
+                            URL url = new URL("http://localhost:8001/post/@resource/reload");
+                            HttpURLConnection c = (HttpURLConnection) url.openConnection();
+                            c.setDoOutput(true);
+                            c.setRequestMethod("POST");
+                            OutputStream os = c.getOutputStream();
+                            os.write(reload.toByteArray());
+                            os.close();
+
                             InputStream is = new BufferedInputStream(c.getInputStream());
                             int n = is.read();
                             while (n != -1)
