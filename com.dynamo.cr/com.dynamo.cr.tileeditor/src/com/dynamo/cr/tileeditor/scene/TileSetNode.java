@@ -67,10 +67,6 @@ public class TileSetNode extends Node {
     @NotEmpty(severity = IStatus.ERROR)
     private String materialTag = "";
 
-    @Property
-    @Range(min=0)
-    private float minEdgeLength;
-
     private List<CollisionGroupNode> tileCollisionGroups;
     // Used to simulate a shorter list of convex hulls.
     // convexHulls need to be retained in some cases to keep collision groups and keep undo functionality
@@ -214,17 +210,6 @@ public class TileSetNode extends Node {
 
     public void setMaterialTag(String materialTag) {
         this.materialTag = materialTag;
-    }
-
-    public float getMinEdgeLength() {
-        return this.minEdgeLength;
-    }
-
-    public void setMinEdgeLength(float minEdgeLength) {
-        if (this.minEdgeLength != minEdgeLength) {
-            this.minEdgeLength = minEdgeLength;
-            updateConvexHulls();
-        }
     }
 
     @Override
@@ -391,7 +376,7 @@ public class TileSetNode extends Node {
             if (this.loadedCollision != null && this.tileWidth > 0 && this.tileHeight > 0 && this.tileMargin >= 0 && this.tileSpacing >= 0) {
                 result = TileSetUtil.calculateConvexHulls(loadedCollision.getAlphaRaster(), PLANE_COUNT,
                     loadedCollision.getWidth(), loadedCollision.getHeight(),
-                    tileWidth, tileHeight, tileMargin, tileSpacing, minEdgeLength);
+                    tileWidth, tileHeight, tileMargin, tileSpacing);
             }
             if (result != null) {
                 int tileCount = result.hulls.length;

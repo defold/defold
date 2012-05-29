@@ -62,7 +62,6 @@ public class TileSetc {
             outBuilder.clearConvexHullPoints();
 
             String collisionPath = tileSet.getCollision();
-            float minEdgeLength = tileSet.getMinEdgeLength();
             BufferedImage collisionImage = null;
             if (!collisionPath.equals("")) {
                 collisionImage = loadImageFile(collisionPath);
@@ -76,7 +75,7 @@ public class TileSetc {
                 ConvexHulls convexHulls = TileSetUtil.calculateConvexHulls(
                         collisionImage.getAlphaRaster(), 16, width, height,
                         tileSet.getTileWidth(), tileSet.getTileHeight(),
-                        tileSet.getTileMargin(), tileSet.getTileSpacing(), minEdgeLength);
+                        tileSet.getTileMargin(), tileSet.getTileSpacing());
 
                 for (int i = 0; i < convexHulls.hulls.length; ++i) {
                     ConvexHull convexHull = convexHulls.hulls[i];

@@ -69,7 +69,7 @@ public class TileSetUtil {
     public static ConvexHulls calculateConvexHulls(
             Raster alphaRaster, int planeCount,
             int width, int height, int tileWidth, int tileHeight,
-            int tileMargin, int tileSpacing, float minEdgeLength) {
+            int tileMargin, int tileSpacing) {
 
         int tilesPerRow = TileSetUtil.calculateTileCount(tileWidth, width, tileMargin, tileSpacing);
         int tilesPerColumn = TileSetUtil.calculateTileCount(tileHeight, height, tileMargin, tileSpacing);
@@ -85,7 +85,7 @@ public class TileSetUtil {
                 int y = tileMargin + row * (2 * tileMargin + tileSpacing + tileHeight);
                 mask = alphaRaster.getPixels(x, y, tileWidth, tileHeight, mask);
                 int index = col + row * tilesPerRow;
-                points[index] = ConvexHull2D.imageConvexHull(mask, tileWidth, tileHeight, planeCount, minEdgeLength);
+                points[index] = ConvexHull2D.imageConvexHull(mask, tileWidth, tileHeight, planeCount);
                 ConvexHull convexHull = new ConvexHull(null, pointCount, points[index].length);
                 convexHulls[index] = convexHull;
                 pointCount += points[index].length;

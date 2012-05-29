@@ -25,18 +25,14 @@ public class ConvexHull2DTest {
         System.setProperty("java.awt.headless", "true");
     }
 
-    static HashSet<Point> calc(String fileName, int planeCount, float minEdgeLength) throws IOException {
+    static HashSet<Point> calc(String fileName, int planeCount) throws IOException {
         BufferedImage image = ImageIO.read(new FileInputStream(fileName));
         int width = image.getWidth();
         int height = image.getHeight();
         int[] mask = image.getAlphaRaster().getPixels(0, 0, width, height, new int[width * height]);
 
-        Point[] points = ConvexHull2D.imageConvexHull(mask, width, height, planeCount, minEdgeLength);
+        Point[] points = ConvexHull2D.imageConvexHull(mask, width, height, planeCount);
         return new HashSet<Point>(Arrays.asList(points));
-    }
-
-    static HashSet<Point> calc(String fileName, int planeCount) throws IOException {
-        return calc(fileName, planeCount, 0.0f);
     }
 
     @Test
@@ -122,22 +118,6 @@ public class ConvexHull2DTest {
             assertThat(points, hasItem(new Point(3, 6)));
             assertThat(points, hasItem(new Point(7, 0)));
         }
-    }
-
-    @Test
-    public void testMinEdgeLength() throws Exception {
-        int[] counts = new int[] {8, 4};
-        float[] minEdgeLengths = new float[] { 0.0f, 3.0f };
-        for (int i = 0; i < 2; ++i) {
-            HashSet<Point> points = calc("test/test_round_rect.png", 8, minEdgeLengths[i]);
-            assertEquals(counts[i], points.size());
-        }
-
-        HashSet<Point> points = calc("test/test_line.png", 8, 0.5f);
-        assertEquals(4, points.size());
-
-        points = calc("test/test_slope.png", 16, 1.1f);
-        assertEquals(3, points.size());
     }
 
 }

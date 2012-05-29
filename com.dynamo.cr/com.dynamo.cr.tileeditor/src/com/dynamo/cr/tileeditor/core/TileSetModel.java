@@ -78,9 +78,6 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
     @Property
     @NotEmpty(severity = IStatus.ERROR)
     String materialTag;
-    @Property
-    @Range(min=0)
-    float minEdgeLength;
 
     private static PropertyIntrospector<TileSetModel, TileSetModel> introspector = new PropertyIntrospector<TileSetModel, TileSetModel>(TileSetModel.class);
 
@@ -245,19 +242,6 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
             String oldMaterialTag = this.materialTag;
             this.materialTag = materialTag;
             firePropertyChangeEvent(new PropertyChangeEvent(this, "materialTag", oldMaterialTag, materialTag));
-        }
-    }
-
-    public float getMinEdgeLength() {
-        return this.minEdgeLength;
-    }
-
-    public void setMinEdgeLength(float minEdgeLength) {
-        if (this.minEdgeLength != minEdgeLength) {
-            float oldMinEdgeLength = this.minEdgeLength;
-            this.minEdgeLength = minEdgeLength;
-            updateConvexHulls();
-            firePropertyChangeEvent(new PropertyChangeEvent(this, "minEdgeLength", oldMinEdgeLength, minEdgeLength));
         }
     }
 
@@ -454,7 +438,6 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
         setTileSpacing(tileSet.getTileSpacing());
         setCollision(tileSet.getCollision());
         setMaterialTag(tileSet.getMaterialTag());
-        setMinEdgeLength(tileSet.getMinEdgeLength());
         // Set groups
         setCollisionGroups(new ArrayList<String>(tileSet.getCollisionGroupsList()));
         // Set convex hulls
@@ -475,8 +458,7 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
                 .setTileMargin(this.tileMargin)
                 .setTileSpacing(this.tileSpacing)
                 .setCollision(this.collision)
-                .setMaterialTag(this.materialTag)
-                .setMinEdgeLength(this.minEdgeLength);
+                .setMaterialTag(this.materialTag);
         for (String collisionGroup : this.collisionGroups) {
             tileSetBuilder.addCollisionGroups(collisionGroup);
         }
@@ -583,7 +565,7 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
 
         ConvexHulls result = TileSetUtil.calculateConvexHulls(loadedCollision.getAlphaRaster(), PLANE_COUNT,
                 loadedCollision.getWidth(), loadedCollision.getHeight(),
-                tileWidth, tileHeight, tileMargin, tileSpacing, minEdgeLength);
+                tileWidth, tileHeight, tileMargin, tileSpacing);
 
         int tileCount = result.hulls.length;
         int prevTileCount = this.convexHulls.size();
