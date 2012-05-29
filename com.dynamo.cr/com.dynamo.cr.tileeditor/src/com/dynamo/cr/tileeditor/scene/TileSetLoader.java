@@ -38,6 +38,7 @@ public class TileSetLoader implements INodeLoader<TileSetNode> {
         node.setTileSpacing(ddf.getTileSpacing());
         node.setCollision(ddf.getCollision());
         node.setMaterialTag(ddf.getMaterialTag());
+        node.setMinEdgeLength(ddf.getMinEdgeLength());
         // Load collision groups
         Map<String, CollisionGroupNode> collisionGroups = new HashMap<String, CollisionGroupNode>();
         for (int i = 0; i < ddf.getCollisionGroupsCount(); ++i) {
@@ -82,7 +83,8 @@ public class TileSetLoader implements INodeLoader<TileSetNode> {
                 .setTileMargin(node.getTileMargin())
                 .setTileSpacing(node.getTileSpacing())
                 .setCollision(node.getCollision())
-                .setMaterialTag(node.getMaterialTag());
+                .setMaterialTag(node.getMaterialTag())
+                .setMinEdgeLength(node.getMinEdgeLength());
         // Save tile collision groups
         List<com.dynamo.tile.ConvexHull> hulls = node.getConvexHulls();
         List<CollisionGroupNode> tileCollisionGroups = node.getTileCollisionGroups();

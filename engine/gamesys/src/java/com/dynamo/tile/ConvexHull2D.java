@@ -1,6 +1,9 @@
 package com.dynamo.tile;
 
 import java.util.Arrays;
+import java.util.List;
+import java.util.ArrayList;
+import javax.vecmath.Point2d;
 import javax.vecmath.Vector2d;
 
 /*
@@ -152,6 +155,14 @@ public class ConvexHull2D {
     }
 
     /**
+     * Calculate intersection of two lines p0 + d0 * s and p1 + d1 * t
+     * @return factor s0 at which p0 + d0 * s0 lies on p1 + d1 * t
+     */
+    static double lineIntersection(Point2d p0, Vector2d d0, Point2d p1, Vector2d d1) {
+        return ((p0.y - p1.y) * d1.x - (p0.x - p1.x) * d1.y) / (d0.x * d1.y - d1.x * d0.y);
+    }
+
+    /**
      * Get convex shape for a single image
      * @param mask image mask. 0 is interpreted as background. != 0 is interpreted as foreground
      * @param width image width
@@ -159,8 +170,8 @@ public class ConvexHull2D {
      * @param nplanes number of planes to use when fitting
      * @return convex hull
      */
-    public static Point[] imageConvexHull(int[] mask, int width, int height, int nplanes) {
-        Vector2d[] points = new Vector2d[nplanes];
+    public static Point[] imageConvexHull(int[] mask, int width, int height, int nplanes, float minEdgeLength) {
+        Point2d[] points = new Point2d[nplanes];
         Vector2d[] tangents = new Vector2d[nplanes];
 
         Vector2d dir = new Vector2d();
@@ -176,19 +187,20 @@ public class ConvexHull2D {
             dir.scale(max);
             dir.x += (width - 1.0) / 2.0;
             dir.y += (height - 1.0) / 2.0;
-            points[i] = new Vector2d(dir.x, dir.y);
+            points[i] = new Point2d(dir);
         }
 
         Point[] result = new Point[nplanes];
         int npoints = 0;
         for (int i = 0; i < nplanes; ++i) {
-            Vector2d p0 = points[i];
-            Vector2d p1 = points[(i + 1) % nplanes];
+            Point2d p0 = points[i];
+            Point2d p1 = points[(i + 1) % nplanes];
 
             Vector2d d0 = tangents[i];
             Vector2d d1 = tangents[(i + 1) % nplanes];
 
-            double t = ((p0.y - p1.y) * d1.x - (p0.x - p1.x) * d1.y) / (d0.x * d1.y - d1.x * d0.y);
+            double t = lineIntersection(p0, d0, p1, d1);
+
             Vector2d inter = new Vector2d(d0);
             inter.scaleAdd(t, p0);
 
@@ -208,7 +220,44 @@ public class ConvexHull2D {
         }
 
         Point[] distinct = Arrays.copyOf(result, npoints);
-        return refine(distinct, mask, width, height);
+        distinct = refine(distinct, mask, width, height);
+
+        List<Point> res = new ArrayList<Point>(distinct.length);
+        for (Point p : distinct) {
+            res.add(p);
+        }
+        int nres = distinct.length;
+        int i = 0;
+        while (nres > 3 && i < nres) {
+            Point p = res.get(i);
+            Point2d p1 = new Point2d(p.x, p.y);
+            p = res.get((i + 1) % nres);
+            Point2d p2 = new Point2d(p.x, p.y);
+            Vector2d d1 = new Vector2d(p2);
+            d1.sub(p1);
+            double length = d1.length();
+            if (length < minEdgeLength) {
+                p = res.get((i - 1 + nres) % nres);
+                Point2d p0 = new Point2d(p.x, p.y);
+                Vector2d d0 = new Vector2d(p1);
+                d0.sub(p0);
+                p = res.get((i + 2) % nres);
+                Point2d p3 = new Point2d(p.x, p.y);
+                Vector2d d2 = new Vector2d(p3);
+                d2.sub(p2);
+                d0.normalize();
+                d2.normalize();
+                double t = lineIntersection(p1, d0, p2, d2);
+                Point2d newp = new Point2d(d0);
+                newp.scaleAdd(t, p1);
+                res.remove(i);
+                --nres;
+                res.set(i % nres, new Point(Math.min(width - 1, Math.max(0, (int)Math.round(newp.x))), Math.min(height - 1, Math.max(0, (int)Math.round(newp.y)))));
+            } else {
+                ++i;
+            }
+        }
+        return res.toArray(new Point[nres]);
     }
 
 }
