@@ -20,7 +20,7 @@ public class AboutDialog extends Shell {
 
     // NOTE: Currently hard-coded
     // Non-trivial to find the product number :-(
-    private static final String VERSION = "1.1.8";
+    private static final String VERSION = "1.1.9";
     private static final String NEW_LINE = System.getProperty("line.separator");
 
     public AboutDialog(Shell shell) {

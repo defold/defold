@@ -1,5 +1,24 @@
 :max-width: 45em
 
+Release: 1.1.9
+--------------
+_May 30, 2012_
+
+Release 1.1.9 features a few important bug fixes.
+Regarding the Beta launch, we expect to reach it in a few more weeks.
+
+Fixes
+~~~~~
+
+* Engine crashed on Windows when starting up due to missing gl-functions (e.g. glGenRenderbuffers).
+  We have made the graphics code more flexible to account for more variations of OpenGL-support in the GFX-drivers.
+  This should hopefully fix the problem, but we have not been able to verify it completely since we lack the hardware to do so.
+  Please let us know in the link:http://defold.userecho.com[forums] if it still happens.
+* The overlaid tile source palette when editing tile maps did not fit if the image was too large.
+  It is now scaled down to match the editor.
+* Script properties was sometimes reset when the edit field lost focus.
+* Collision responses involving non-dynamic collision objects carried incorrect mass.
+
 Release: 1.1.8
 --------------
 _May 18, 2012_
