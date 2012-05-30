@@ -10,7 +10,7 @@ Regarding the Beta launch, we expect to reach it in a few more weeks.
 Fixes
 ~~~~~
 
-* Engine crashed on Windows when starting up due to missing gl-functions (e.g. glGenRenderbuffers).
+* Engine crashed on Windows when starting up due to missing gl-functions (e.g. glGenRenderbuffers) on some GFX-drivers.
   We have made the graphics code more flexible to account for more variations of OpenGL-support in the GFX-drivers.
   This should hopefully fix the problem, but we have not been able to verify it completely since we lack the hardware to do so.
   Please let us know in the link:http://defold.userecho.com[forums] if it still happens.
