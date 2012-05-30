@@ -466,6 +466,7 @@ Listener {
             if (this.startActiveCell != null) {
                 this.presenter.onSelectCells(this.selectedLayer, this.startActiveCell.x, this.startActiveCell.y, this.activeCell.x, this.activeCell.y);
                 this.startActiveCell = null;
+                requestPaint();
             } else {
                 this.presenter.onPaintEnd();
             }
@@ -557,6 +558,9 @@ Listener {
 
         // grid (cell-dividing lines)
         renderGrid(gl);
+
+        // box for right-click selection
+        renderSelectionBox(gl);
 
         // tile set palette
         renderTileSet(gl, glu);
@@ -737,28 +741,6 @@ Listener {
 
             this.tileSetTexture.disable();
 
-            if (this.selectedLayer != null && layer.equals(this.selectedLayer)) {
-                if (this.activeCell != null) {
-                    if (this.startActiveCell != null) {
-                        float minX = this.tileWidth * Math.min(this.startActiveCell.x, this.activeCell.x);
-                        float maxX = this.tileWidth * (Math.max(this.startActiveCell.x, this.activeCell.x) + 1);
-                        float minY = this.tileHeight * Math.min(this.startActiveCell.y, this.activeCell.y);
-                        float maxY = this.tileHeight * (Math.max(this.startActiveCell.y, this.activeCell.y) + 1);
-                        gl.glDepthMask(false);
-                        gl.glDisable(GL.GL_DEPTH_TEST);
-                        gl.glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
-                        gl.glBegin(GL.GL_LINE_LOOP);
-                        gl.glVertex2f(minX, minY);
-                        gl.glVertex2f(maxX, minY);
-                        gl.glVertex2f(maxX, maxY);
-                        gl.glVertex2f(minX, maxY);
-                        gl.glEnd();
-                        gl.glDepthMask(true);
-                        gl.glEnable(GL.GL_DEPTH_TEST);
-                    }
-                }
-            }
-
         }
 
     }
@@ -812,6 +794,26 @@ Listener {
 
         gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
         gl.glDisableClientState(GL.GL_COLOR_ARRAY);
+    }
+
+    private void renderSelectionBox(GL gl) {
+        if (this.selectedLayer != null && this.activeCell != null && this.startActiveCell != null) {
+            float minX = this.tileWidth * Math.min(this.startActiveCell.x, this.activeCell.x);
+            float maxX = this.tileWidth * (Math.max(this.startActiveCell.x, this.activeCell.x) + 1);
+            float minY = this.tileHeight * Math.min(this.startActiveCell.y, this.activeCell.y);
+            float maxY = this.tileHeight * (Math.max(this.startActiveCell.y, this.activeCell.y) + 1);
+            gl.glDepthMask(false);
+            gl.glDisable(GL.GL_DEPTH_TEST);
+            gl.glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+            gl.glBegin(GL.GL_LINE_LOOP);
+            gl.glVertex2f(minX, minY);
+            gl.glVertex2f(maxX, minY);
+            gl.glVertex2f(maxX, maxY);
+            gl.glVertex2f(minX, maxY);
+            gl.glEnd();
+            gl.glDepthMask(true);
+            gl.glEnable(GL.GL_DEPTH_TEST);
+        }
     }
 
     private void renderTileSet(GL gl, GLU glu) {
