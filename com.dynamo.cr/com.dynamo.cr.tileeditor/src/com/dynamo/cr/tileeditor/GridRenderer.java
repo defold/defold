@@ -1024,11 +1024,13 @@ Listener {
         outMin.set(offset);
         outMin.sub(extent);
         Point2f minNorm = new Point2f(outMin);
-        minNorm.scale(1.0f / this.tileWidth);
+        minNorm.x /= this.tileWidth;
+        minNorm.y /= this.tileHeight;
         outMax.set(offset);
         outMax.add(extent);
         Point2f maxNorm = new Point2f(outMax);
-        maxNorm.scale(1.0f / this.tileHeight);
+        maxNorm.x /= this.tileWidth;
+        maxNorm.y /= this.tileHeight;
 
         outCellMin.set((int)Math.ceil(minNorm.getX()), (int)Math.ceil(minNorm.getY()));
         outCellMax.set((int)Math.ceil(maxNorm.getX()), (int)Math.ceil(maxNorm.getY()));
