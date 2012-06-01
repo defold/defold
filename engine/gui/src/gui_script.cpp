@@ -989,6 +989,10 @@ namespace dmGui
     {
         lua_getglobal(L, "__scene__");
         Scene* scene = (Scene*) lua_touserdata(L, -1);
+        if (scene == 0x0)
+        {
+            luaL_error(L, "You can only create URLs inside inside the callback functions (init, update, etc).");
+        }
         lua_pop(L, 1);
         scene->m_Context->m_GetURLCallback(scene, url);
     }
