@@ -224,7 +224,7 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
     public void onPreviewZoom(int delta) {
         float dz = -delta * ZOOM_FACTOR;
         this.previewZoom += (this.previewZoom > 1.0f) ? dz * this.previewZoom : dz;
-        this.previewZoom = Math.max(0.1f, this.previewZoom);
+        this.previewZoom = Math.max(0.01f, this.previewZoom);
         this.view.setPreview(this.previewPosition, this.previewZoom);
     }
 
