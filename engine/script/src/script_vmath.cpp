@@ -944,14 +944,14 @@ namespace dmScript
         return 1;
     }
 
-    /*# creates a lookat view matrix
+    /*# creates a look-at view matrix
      * This is useful to construct a view matrix for a camera or rendering in general.
      *
-     * @name vmath.matrix4_lookat
+     * @name vmath.matrix4_look_at
      * @param eye eye position (vector3)
-     * @param lookat look-at position (vector3)
+     * @param look_at look-at position (vector3)
      * @param up up vector (vector3)
-     * @return lookat matrix (matrix4)
+     * @return look-at matrix (matrix4)
      */
     static int Matrix4_LookAt(lua_State* L)
     {
