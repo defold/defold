@@ -70,6 +70,7 @@ import com.dynamo.cr.sceneed.core.ManipulatorController;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.SceneModel;
 import com.dynamo.cr.sceneed.core.ScenePresenter;
+import com.dynamo.cr.sceneed.handlers.ShowGroupHandler;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
@@ -189,6 +190,10 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
 
         IPreferenceStore store = Activator.getDefault().getPreferenceStore();
         store.addPropertyChangeListener(this);
+        for (INodeType nodeType : this.nodeTypeRegistry.getNodeTypes()) {
+            boolean hidden = store.getBoolean(ShowGroupHandler.PREFERENCE_PREFIX + nodeType.getDisplayGroup());
+            this.renderView.setNodeTypeVisible(nodeType, !hidden);
+        }
 
         IProgressService service = PlatformUI.getWorkbench().getProgressService();
 
@@ -401,6 +406,14 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
     @Override
     public void propertyChange(PropertyChangeEvent event) {
         if (event.getSource().equals(Activator.getDefault().getPreferenceStore())) {
+            if (event.getProperty().startsWith(ShowGroupHandler.PREFERENCE_PREFIX)) {
+                String displayGroup = event.getProperty().substring(ShowGroupHandler.PREFERENCE_PREFIX.length());
+                for (INodeType nodeType : this.nodeTypeRegistry.getNodeTypes()) {
+                    if (displayGroup.equals(nodeType.getDisplayGroup())) {
+                        this.renderView.setNodeTypeVisible(nodeType, !(Boolean)event.getNewValue());
+                    }
+                }
+            }
             this.renderView.refresh();
         }
     }

@@ -34,4 +34,6 @@ public interface IRenderView  {
     // See SceneEditor#dispose for more info
     void activateGLContext();
     void releaseGLContext();
+
+    void setNodeTypeVisible(INodeType nodeType, boolean visible);
 }

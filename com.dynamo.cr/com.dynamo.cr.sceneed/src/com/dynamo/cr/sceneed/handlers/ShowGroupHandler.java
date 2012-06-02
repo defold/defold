@@ -13,7 +13,7 @@ import com.dynamo.cr.sceneed.Activator;
 
 public class ShowGroupHandler extends AbstractHandler implements IElementUpdater {
 
-    public static final String PREFERENCE_PATTERN = "groupHidden_%s";
+    public static final String PREFERENCE_PREFIX = "groupHidden_";
     public static final String COMMAND_ID = "com.dynamo.cr.sceneed.commands.showGroup";
     public static final String GROUP_PARAMETER_ID = "com.dynamo.cr.sceneed.commandParameters.group";
 
@@ -21,9 +21,9 @@ public class ShowGroupHandler extends AbstractHandler implements IElementUpdater
     public Object execute(ExecutionEvent event) throws ExecutionException {
         String group = event.getParameter(GROUP_PARAMETER_ID);
         IPreferenceStore store = Activator.getDefault().getPreferenceStore();
-        String prefs_name = String.format(PREFERENCE_PATTERN, group);
-        boolean enabled = store.getBoolean(prefs_name);
-        store.setValue(prefs_name, !enabled);
+        String prefsName = PREFERENCE_PREFIX + group;
+        boolean enabled = store.getBoolean(prefsName);
+        store.setValue(prefsName, !enabled);
         return null;
     }
 
@@ -31,7 +31,7 @@ public class ShowGroupHandler extends AbstractHandler implements IElementUpdater
     public void updateElement(UIElement element, @SuppressWarnings("rawtypes") Map parameters) {
         IPreferenceStore store = Activator.getDefault().getPreferenceStore();
         String group = (String)parameters.get(GROUP_PARAMETER_ID);
-        boolean enabled = store.getBoolean(String.format(PREFERENCE_PATTERN, group));
+        boolean enabled = store.getBoolean(PREFERENCE_PREFIX + group);
         element.setChecked(!enabled);
     }
 

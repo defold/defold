@@ -6,7 +6,9 @@ import java.nio.IntBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import javax.inject.Inject;
 import javax.media.opengl.GL;
@@ -79,6 +81,8 @@ IRenderView {
     private SelectionBoxNode selectionBoxNode;
 
     private boolean paintRequested = false;
+
+    private Set<INodeType> hiddenNodeTypes = new HashSet<INodeType>();
 
     @Inject
     public RenderView(INodeTypeRegistry manager, ILogger logger, ISelectionService selectionService) {
@@ -679,10 +683,11 @@ IRenderView {
 
     @Override
     public void setupNode(RenderContext renderContext, Node node) {
-        INodeType nodeType = this.nodeTypeRegistry.getNodeTypeClass(node.getClass());
+        Class<? extends Node> nodeClass = node.getClass();
+        INodeType nodeType = this.nodeTypeRegistry.getNodeTypeClass(nodeClass);
         boolean abort = false;
         if (nodeType != null) {
-            if (RenderUtil.isGroupVisible(nodeType.getDisplayGroup())) {
+            if (!this.hiddenNodeTypes.contains(nodeType)) {
                 INodeRenderer<Node> renderer = nodeType.getRenderer();
                 if (renderer != null)
                     renderer.setup(renderContext, node);
@@ -742,5 +747,14 @@ IRenderView {
     @Override
     public void releaseGLContext() {
         this.context.release();
+    }
+
+    @Override
+    public void setNodeTypeVisible(INodeType nodeType, boolean visible) {
+        if (visible) {
+            this.hiddenNodeTypes.remove(nodeType);
+        } else {
+            this.hiddenNodeTypes.add(nodeType);
+        }
     }
 }

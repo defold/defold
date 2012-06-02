@@ -237,10 +237,4 @@ public class RenderUtil {
 
         gl.glMultMatrixd(a, 0);
     }
-
-    public static boolean isGroupVisible(String group) {
-        IPreferenceStore store = Activator.getDefault().getPreferenceStore();
-        boolean hidden = store.getBoolean(String.format(ShowGroupHandler.PREFERENCE_PATTERN, group));
-        return !hidden;
-    }
 }
