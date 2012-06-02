@@ -49,15 +49,53 @@ public class RenderUtil {
         return v;
     }
 
+    public static FloatBuffer createUnitBoxQuads() {
+        final int quadCount = 6;
+        final int vertexCount = quadCount * 4;
+        FloatBuffer v = BufferUtil.newFloatBuffer(vertexCount * 3);
+
+        // pos x-y
+        v.put(-1.0f); v.put(-1.0f); v.put( 1.0f);
+        v.put( 1.0f); v.put(-1.0f); v.put( 1.0f);
+        v.put( 1.0f); v.put( 1.0f); v.put( 1.0f);
+        v.put(-1.0f); v.put( 1.0f); v.put( 1.0f);
+        // neg x-y
+        v.put(-1.0f); v.put(-1.0f); v.put(-1.0f);
+        v.put( 1.0f); v.put(-1.0f); v.put(-1.0f);
+        v.put( 1.0f); v.put( 1.0f); v.put(-1.0f);
+        v.put(-1.0f); v.put( 1.0f); v.put(-1.0f);
+        // pos x-z
+        v.put(-1.0f); v.put( 1.0f); v.put(-1.0f);
+        v.put( 1.0f); v.put( 1.0f); v.put(-1.0f);
+        v.put( 1.0f); v.put( 1.0f); v.put( 1.0f);
+        v.put(-1.0f); v.put( 1.0f); v.put( 1.0f);
+        // neg x-z
+        v.put(-1.0f); v.put(-1.0f); v.put(-1.0f);
+        v.put( 1.0f); v.put(-1.0f); v.put(-1.0f);
+        v.put( 1.0f); v.put(-1.0f); v.put( 1.0f);
+        v.put(-1.0f); v.put(-1.0f); v.put( 1.0f);
+        // pos y-z
+        v.put( 1.0f); v.put(-1.0f); v.put(-1.0f);
+        v.put( 1.0f); v.put( 1.0f); v.put(-1.0f);
+        v.put( 1.0f); v.put( 1.0f); v.put( 1.0f);
+        v.put( 1.0f); v.put(-1.0f); v.put( 1.0f);
+        // neg y-z
+        v.put(-1.0f); v.put(-1.0f); v.put(-1.0f);
+        v.put(-1.0f); v.put( 1.0f); v.put(-1.0f);
+        v.put(-1.0f); v.put( 1.0f); v.put( 1.0f);
+        v.put(-1.0f); v.put(-1.0f); v.put( 1.0f);
+        v.flip();
+        return v;
+    }
+
     public static void drawQuads(GL gl, FloatBuffer v) {
         gl.glEnableClientState(GL.GL_VERTEX_ARRAY);
-        gl.glEnableClientState(GL.GL_TEXTURE_COORD_ARRAY);
 
+        v.rewind();
         gl.glVertexPointer(3, GL.GL_FLOAT, 0, v);
 
         gl.glDrawArrays(GL.GL_QUADS, 0, v.limit() / 3);
 
-        gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
         gl.glDisableClientState(GL.GL_TEXTURE_COORD_ARRAY);
     }
 
