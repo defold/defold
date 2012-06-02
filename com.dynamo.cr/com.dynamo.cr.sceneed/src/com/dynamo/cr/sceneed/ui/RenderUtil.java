@@ -1,5 +1,7 @@
 package com.dynamo.cr.sceneed.ui;
 
+import java.nio.FloatBuffer;
+
 import javax.media.opengl.GL;
 import javax.media.opengl.glu.GLU;
 import javax.media.opengl.glu.GLUquadric;
@@ -8,14 +10,55 @@ import javax.vecmath.Matrix4d;
 import org.eclipse.jface.preference.IPreferenceStore;
 
 import com.dynamo.cr.sceneed.Activator;
-import com.dynamo.cr.sceneed.handlers.ShowGroupHandler;
+import com.sun.opengl.util.BufferUtil;
 
 public class RenderUtil {
 
-    public static void drawSphere(GL gl, GLU glu, float radius, int slices, int stacks) {
-        GLUquadric quadric = glu.gluNewQuadric();
-        glu.gluSphere(quadric, radius, slices, stacks);
-        glu.gluDeleteQuadric(quadric);
+    public static FloatBuffer createUnitSphereQuads(int slices, int stacks) {
+        if (slices < 3 || stacks < 2) {
+            return null;
+        }
+        final int quadCount = stacks * slices;
+        final int vertexCount = quadCount * 4;
+        FloatBuffer v = BufferUtil.newFloatBuffer(vertexCount * 3);
+        float x0 = 0.0f;
+        float z0 = 0.0f;
+        for (int slice = 1; slice <= slices; ++slice) {
+            final double sliceAngle = slice * 2.0 * Math.PI / slices;
+            float x1 = (float)Math.cos(sliceAngle);
+            float z1 = (float)Math.sin(sliceAngle);
+            float y0 = 1.0f;
+            float s0 = 0.0f;
+            for (int stack = 1; stack <= stacks; ++stack) {
+                final double stackAngle = stack * Math.PI / stacks;
+                float y1 = (float)Math.cos(stackAngle);
+                float s1 = (float)Math.sin(stackAngle);
+
+                v.put(x0 * s1); v.put(y1); v.put(z0 * s1);
+                v.put(x1 * s1); v.put(y1); v.put(z1 * s1);
+                v.put(x1 * s0); v.put(y0); v.put(z1 * s0);
+                v.put(x0 * s0); v.put(y0); v.put(z0 * s0);
+
+                y0 = y1;
+                s0 = s1;
+            }
+            x0 = x1;
+            z0 = z1;
+        }
+        v.flip();
+        return v;
+    }
+
+    public static void drawQuads(GL gl, FloatBuffer v) {
+        gl.glEnableClientState(GL.GL_VERTEX_ARRAY);
+        gl.glEnableClientState(GL.GL_TEXTURE_COORD_ARRAY);
+
+        gl.glVertexPointer(3, GL.GL_FLOAT, 0, v);
+
+        gl.glDrawArrays(GL.GL_QUADS, 0, v.limit() / 3);
+
+        gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
+        gl.glDisableClientState(GL.GL_TEXTURE_COORD_ARRAY);
     }
 
     static int[] cubeIndices = new int[] { 4, 5, 6, 7, 2, 3, 7, 6, 0, 4, 7, 3, 0, 1, 5, 4, 1, 5, 6, 2, 0, 3, 2, 1 };

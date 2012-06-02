@@ -1,5 +1,6 @@
 package com.dynamo.cr.ddfeditor.scene;
 
+import java.nio.FloatBuffer;
 import java.util.EnumSet;
 import java.util.List;
 
@@ -15,8 +16,10 @@ import com.dynamo.cr.sceneed.ui.RenderUtil;
 import com.dynamo.physics.proto.Physics.ConvexShape;
 
 public class CollisionObjectRenderer implements INodeRenderer<CollisionObjectNode> {
+    private FloatBuffer unitSphere;
 
     public CollisionObjectRenderer() {
+        unitSphere = RenderUtil.createUnitSphereQuads(16, 8);
     }
 
     private final static float COLOR[] = new float[] { 255.0f / 255.0f, 247.0f / 255.0f, 73.0f/255.0f, 0.4f };
@@ -29,7 +32,7 @@ public class CollisionObjectRenderer implements INodeRenderer<CollisionObjectNod
         // Time will tell if the opaque pass will be used etc
         // TODO physical tile grids are currently not rendered, as the last term in the if below takes care of
         if (passes.contains(renderContext.getPass()) && node.getCollisionShapeNode() != null && node.getCollisionShapeNode() instanceof ConvexShapeNode) {
-            renderContext.add(this, node, new Point3d(), null);
+            renderContext.add(this, node, new Point3d(), unitSphere);
         }
     }
 
@@ -70,7 +73,10 @@ public class CollisionObjectRenderer implements INodeRenderer<CollisionObjectNod
             break;
         case TYPE_SPHERE:
             float sr = shape.getData(0);
-            RenderUtil.drawSphere(gl, glu, sr, slices, stacks);
+            gl.glPushMatrix();
+            gl.glScalef(sr, sr, sr);
+            RenderUtil.drawQuads(gl, (FloatBuffer)renderData.getUserData());
+            gl.glPopMatrix();
             break;
         }
     }
