@@ -45,7 +45,7 @@ public class SphereCollisionShapeRenderer extends CollisionShapeRenderer impleme
 
         gl.glDrawArrays(GL.GL_QUADS, 0, v.limit() / 3);
 
-        gl.glDisableClientState(GL.GL_TEXTURE_COORD_ARRAY);
+        gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
 
         gl.glPopMatrix();
     }
