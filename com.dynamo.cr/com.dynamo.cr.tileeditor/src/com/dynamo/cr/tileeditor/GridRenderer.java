@@ -749,11 +749,11 @@ Listener {
                 }
             }
 
-            gl.glDisable(GL.GL_BLEND);
-
-            this.tileSetTexture.disable();
-
         }
+
+        gl.glDisable(GL.GL_BLEND);
+
+        this.tileSetTexture.disable();
 
     }
 
