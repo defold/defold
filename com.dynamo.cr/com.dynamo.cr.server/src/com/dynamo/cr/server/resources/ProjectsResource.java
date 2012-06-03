@@ -50,7 +50,13 @@ public class ProjectsResource extends BaseResource {
         User user = server.getUser(em, userId);
 
         ProjectInfoList list = getProjects(userId);
-        int n = list.getProjectsCount();
+        int n = 0;
+        for (ProjectInfo projectInfo : list.getProjectsList()) {
+            if (projectInfo.getOwner().getId() == user.getId()) {
+                // Count only projects the user own
+                ++n;
+            }
+        }
         int maxProjectCount = server.getConfiguration().getMaxProjectCount();
         if (maxProjectCount <= n) {
             throw new ServerException(String.format("Max number of projects (%d) has already been reached.", maxProjectCount));
