@@ -41,6 +41,13 @@ namespace dmGameSystem
             dmPhysics::HCollisionObject2D m_Object2D;
         };
         uint8_t m_ComponentIndex;
+        // True if the physics is 3D
+        // This is used to determine physics engine kind and to preserve
+        // z for the 2d-case
+        // A bit awkward to have a flag for this but we don't have access to
+        // to PhysicsContext in the SetWorldTransform callback. This
+        // could perhaps be improved.
+        uint8_t m_3D : 1;
     };
 
     void GetWorldTransform(void* user_data, Vectormath::Aos::Point3& position, Vectormath::Aos::Quat& rotation)
@@ -59,7 +66,18 @@ namespace dmGameSystem
             return;
         Component* component = (Component*)user_data;
         dmGameObject::HInstance instance = component->m_Instance;
-        dmGameObject::SetPosition(instance, position);
+        if (component->m_3D)
+        {
+            dmGameObject::SetPosition(instance, position);
+        }
+        else
+        {
+            // Preserve z for 2D physics
+            Vectormath::Aos::Point3 p = dmGameObject::GetPosition(instance);
+            p.setX(position.getX());
+            p.setY(position.getY());
+            dmGameObject::SetPosition(instance, p);
+        }
         dmGameObject::SetRotation(instance, rotation);
     }
 
@@ -102,7 +120,9 @@ namespace dmGameSystem
             dmLogError("Invalid mass %f for shape type %d", co_res->m_DDF->m_Mass, co_res->m_DDF->m_Type);
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
+        PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
         Component* component = new Component();
+        component->m_3D = (uint8_t) physics_context->m_3D;
         component->m_Resource = (CollisionObjectResource*)params.m_Resource;
         component->m_Instance = params.m_Instance;
         component->m_Object2D = 0;
