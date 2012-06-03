@@ -1,13 +1,9 @@
 package com.dynamo.cr.sceneed.core;
 
-import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
-
-import javax.imageio.ImageIO;
 
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.IOperationHistory;
@@ -58,8 +54,8 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
     // Images and textures took the most time to load and create.
     // It should probably be fixed by a general resource management.
     // Issue for this: https://defold.fogbugz.com/default.asp?1052
-    private Map<String, BufferedImage> imageCache = new HashMap<String, BufferedImage>();
-    private Map<String, TextureHandle> textureCache = new HashMap<String, TextureHandle>();
+    private final Map<String, BufferedImage> imageCache = new HashMap<String, BufferedImage>();
+    private final Map<String, TextureHandle> textureCache = new HashMap<String, TextureHandle>();
 
     private static PropertyIntrospector<SceneModel, SceneModel> introspector = new PropertyIntrospector<SceneModel, SceneModel>(SceneModel.class);
 
@@ -344,26 +340,17 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
         BufferedImage image = this.imageCache.get(path);
         if (image == null) {
             IFile file = getFile(path);
-            if (file.exists()) {
-                try {
-                    InputStream is = file.getContents();
-                    try {
-                        BufferedImage origImage = ImageIO.read(is);
-                        image = new BufferedImage(origImage.getWidth(), origImage.getHeight(), BufferedImage.TYPE_4BYTE_ABGR);
-                        Graphics2D g2d= image.createGraphics();
-                        g2d.drawImage(origImage, 0, 0, null);
-                        g2d.dispose();
-                        this.imageCache.put(path, image);
-                        TextureHandle texture = this.textureCache.get(path);
-                        if (texture != null) {
-                            texture.setImage(image);
-                        }
-                    } finally {
-                        is.close();
+            try {
+                image = SceneUtil.loadImage(file);
+                if (image != null) {
+                    this.imageCache.put(path, image);
+                    TextureHandle texture = this.textureCache.get(path);
+                    if (texture != null) {
+                        texture.setImage(image);
                     }
-                } catch (Exception e) {
-                    logException(e);
                 }
+            } catch (Exception e) {
+                logException(e);
             }
         }
         return image;

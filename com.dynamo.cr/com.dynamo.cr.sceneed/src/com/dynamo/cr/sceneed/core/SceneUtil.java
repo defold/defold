@@ -1,9 +1,15 @@
 package com.dynamo.cr.sceneed.core;
 
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 
+import javax.imageio.ImageIO;
+
+import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.jface.preference.IPreferenceStore;
@@ -41,5 +47,23 @@ public class SceneUtil {
         IPreferenceStore store = Activator.getDefault().getPreferenceStore();
         String typeValue = store.getString(PreferenceConstants.P_MOUSE_TYPE);
         return MouseType.valueOf(typeValue);
+    }
+
+    public static BufferedImage loadImage(IFile file) throws Exception {
+        BufferedImage image = null;
+        if (file != null && file.exists()) {
+            InputStream is = file.getContents();
+            try {
+                BufferedImage origImage = ImageIO.read(is);
+                image = new BufferedImage(origImage.getWidth(),
+                        origImage.getHeight(), BufferedImage.TYPE_4BYTE_ABGR);
+                Graphics2D g2d = image.createGraphics();
+                g2d.drawImage(origImage, 0, 0, null);
+                g2d.dispose();
+            } finally {
+                is.close();
+            }
+        }
+        return image;
     }
 }
