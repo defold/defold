@@ -1,6 +1,13 @@
 package com.dynamo.cr.sceneed.core;
 
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
+import java.io.InputStream;
+import java.util.HashMap;
+import java.util.Map;
+
+import javax.imageio.ImageIO;
 
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.IOperationHistory;
@@ -23,6 +30,7 @@ import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.swt.graphics.Image;
 
+import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.properties.Entity;
 import com.dynamo.cr.properties.IPropertyModel;
@@ -44,6 +52,13 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
     private Node root;
     private IStructuredSelection selection;
     private int undoRedoCounter;
+
+    // TODO These caches are partial optimizations for loading collections.
+    // Images and textures took the most time to load and create.
+    // It should probably be fixed by a general resource management.
+    // Issue for this: https://defold.fogbugz.com/default.asp?1052
+    private Map<String, BufferedImage> imageCache = new HashMap<String, BufferedImage>();
+    private Map<String, TextureHandle> textureCache = new HashMap<String, TextureHandle>();
 
     private static PropertyIntrospector<SceneModel, SceneModel> introspector = new PropertyIntrospector<SceneModel, SceneModel>(SceneModel.class);
 
@@ -71,6 +86,9 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
             this.root.dispose();
         }
         this.history.removeOperationHistoryListener(this);
+        for (TextureHandle texture : this.textureCache.values()) {
+            texture.clear();
+        }
     }
 
     /* (non-Javadoc)
@@ -194,12 +212,10 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
         }
     }
 
-    private static class ResourceDeltaVisitor implements IResourceDeltaVisitor {
-        private final Node root;
+    private class ResourceDeltaVisitor implements IResourceDeltaVisitor {
         private boolean reloaded;
 
-        public ResourceDeltaVisitor(Node root) {
-            this.root = root;
+        public ResourceDeltaVisitor() {
             this.reloaded = false;
         }
 
@@ -211,7 +227,18 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
         public boolean visit(IResourceDelta delta) throws CoreException {
             IResource resource = delta.getResource();
             if (resource instanceof IFile) {
-                if (handleReload(this.root, (IFile)resource)) {
+                String path = EditorUtil.makeResourcePath(resource);
+                // Remove from cache so we guarantee reload
+                if (imageCache.containsKey(path)) {
+                    imageCache.remove(path);
+                    // We can't remove texture here as it needs active GLU to dispose the texture
+                    TextureHandle texture = textureCache.get(path);
+                    if (texture != null) {
+                        // Clearing image means texture will be disposed at next access
+                        texture.setImage(null);
+                    }
+                }
+                if (handleReload(root, (IFile)resource)) {
                     this.reloaded = true;
                 }
                 return false;
@@ -239,7 +266,7 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
     @Override
     public void handleResourceChanged(IResourceChangeEvent event) throws CoreException {
         if (this.root != null) {
-            ResourceDeltaVisitor visitor = new ResourceDeltaVisitor(this.root);
+            ResourceDeltaVisitor visitor = new ResourceDeltaVisitor();
             event.getDelta().accept(visitor);
             if (visitor.isReloaded()) {
                 notifyChange();
@@ -309,5 +336,47 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
     @Override
     public void logException(Throwable e) {
         this.logger.logException(e);
+    }
+
+    @Override
+    public BufferedImage getImage(String path) {
+        BufferedImage image = this.imageCache.get(path);
+        if (image == null) {
+            IFile file = getFile(path);
+            if (file.exists()) {
+                try {
+                    InputStream is = file.getContents();
+                    try {
+                        BufferedImage origImage = ImageIO.read(is);
+                        image = new BufferedImage(origImage.getWidth(), origImage.getHeight(), BufferedImage.TYPE_4BYTE_ABGR);
+                        Graphics2D g2d= image.createGraphics();
+                        g2d.drawImage(origImage, 0, 0, null);
+                        g2d.dispose();
+                        this.imageCache.put(path, image);
+                        TextureHandle texture = this.textureCache.get(path);
+                        if (texture != null) {
+                            texture.setImage(image);
+                        }
+                    } finally {
+                        is.close();
+                    }
+                } catch (Exception e) {
+                    logException(e);
+                }
+            }
+        }
+        return image;
+    }
+
+    @Override
+    public TextureHandle getTexture(String path) {
+        TextureHandle texture = this.textureCache.get(path);
+        if (texture == null) {
+            texture = new TextureHandle();
+            BufferedImage image = getImage(path);
+            texture.setImage(image);
+            this.textureCache.put(path, texture);
+        }
+        return texture;
     }
 }

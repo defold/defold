@@ -30,8 +30,8 @@ import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.Listener;
 import org.eclipse.ui.services.IDisposable;
 
+import com.dynamo.cr.sceneed.core.TextureHandle;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
-import com.dynamo.cr.sceneed.ui.util.TextureHandle;
 import com.dynamo.cr.tileeditor.scene.AnimationNode;
 import com.dynamo.cr.tileeditor.scene.CollisionGroupNode;
 import com.dynamo.cr.tileeditor.scene.TileSetNode;
