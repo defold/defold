@@ -35,7 +35,18 @@ public class SphereCollisionShapeRenderer extends CollisionShapeRenderer impleme
         float sr = (float) node.getRadius();
         gl.glPushMatrix();
         gl.glScalef(sr, sr, sr);
-        RenderUtil.drawQuads(gl, (FloatBuffer)renderData.getUserData());
+
+        FloatBuffer v = (FloatBuffer) renderData.getUserData();
+        v.rewind();
+
+        gl.glEnableClientState(GL.GL_VERTEX_ARRAY);
+
+        gl.glVertexPointer(3, GL.GL_FLOAT, 0, v);
+
+        gl.glDrawArrays(GL.GL_QUADS, 0, v.limit() / 3);
+
+        gl.glDisableClientState(GL.GL_TEXTURE_COORD_ARRAY);
+
         gl.glPopMatrix();
     }
 

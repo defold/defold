@@ -37,7 +37,18 @@ public class BoxCollisionShapeRenderer extends CollisionShapeRenderer implements
         float d_e = (float) node.getDepth() * 0.5f;
         gl.glPushMatrix();
         gl.glScalef(w_e, h_e, d_e);
-        RenderUtil.drawQuads(gl, (FloatBuffer)renderData.getUserData());
+
+        FloatBuffer v = (FloatBuffer) renderData.getUserData();
+        v.rewind();
+
+        gl.glEnableClientState(GL.GL_VERTEX_ARRAY);
+
+        gl.glVertexPointer(3, GL.GL_FLOAT, 0, v);
+
+        gl.glDrawArrays(GL.GL_QUADS, 0, v.limit() / 3);
+
+        gl.glDisableClientState(GL.GL_TEXTURE_COORD_ARRAY);
+
         gl.glPopMatrix();
     }
 }

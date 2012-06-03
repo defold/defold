@@ -88,17 +88,6 @@ public class RenderUtil {
         return v;
     }
 
-    public static void drawQuads(GL gl, FloatBuffer v) {
-        gl.glEnableClientState(GL.GL_VERTEX_ARRAY);
-
-        v.rewind();
-        gl.glVertexPointer(3, GL.GL_FLOAT, 0, v);
-
-        gl.glDrawArrays(GL.GL_QUADS, 0, v.limit() / 3);
-
-        gl.glDisableClientState(GL.GL_TEXTURE_COORD_ARRAY);
-    }
-
     static int[] cubeIndices = new int[] { 4, 5, 6, 7, 2, 3, 7, 6, 0, 4, 7, 3, 0, 1, 5, 4, 1, 5, 6, 2, 0, 3, 2, 1 };
 
     public static void drawCube(GL gl, double x0, double y0, double z0, double x1, double y1, double z1)

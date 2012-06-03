@@ -16,7 +16,7 @@ import com.dynamo.cr.sceneed.ui.RenderUtil;
 import com.dynamo.physics.proto.Physics.ConvexShape;
 
 public class CollisionObjectRenderer implements INodeRenderer<CollisionObjectNode> {
-    private FloatBuffer unitSphere;
+    private final FloatBuffer unitSphere;
 
     public CollisionObjectRenderer() {
         unitSphere = RenderUtil.createUnitSphereQuads(16, 8);
@@ -75,7 +75,18 @@ public class CollisionObjectRenderer implements INodeRenderer<CollisionObjectNod
             float sr = shape.getData(0);
             gl.glPushMatrix();
             gl.glScalef(sr, sr, sr);
-            RenderUtil.drawQuads(gl, (FloatBuffer)renderData.getUserData());
+
+            FloatBuffer v = (FloatBuffer) renderData.getUserData();
+            v.rewind();
+
+            gl.glEnableClientState(GL.GL_VERTEX_ARRAY);
+
+            gl.glVertexPointer(3, GL.GL_FLOAT, 0, v);
+
+            gl.glDrawArrays(GL.GL_QUADS, 0, v.limit() / 3);
+
+            gl.glDisableClientState(GL.GL_TEXTURE_COORD_ARRAY);
+
             gl.glPopMatrix();
             break;
         }
