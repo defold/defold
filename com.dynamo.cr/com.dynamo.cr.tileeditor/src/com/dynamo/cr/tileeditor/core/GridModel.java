@@ -38,10 +38,10 @@ import com.dynamo.cr.properties.Entity;
 import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
+import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.cr.properties.PropertyIntrospector;
 import com.dynamo.cr.properties.PropertyIntrospectorModel;
 import com.dynamo.cr.properties.Resource;
-import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.cr.tileeditor.Activator;
 import com.dynamo.cr.tileeditor.core.Layer.Cell;
 import com.dynamo.tile.proto.Tile;
@@ -221,11 +221,12 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
         return this.selectedLayer.getCells();
     }
 
-    public void setCells(Map<Long, Cell> cells) {
-        Map<Long, Cell> oldCells = this.selectedLayer.getCells();
+    public void setCells(Layer layer, Map<Long, Cell> cells) {
+        Map<Long, Cell> oldCells = layer.getCells();
         if (!oldCells.equals(cells)) {
-            this.selectedLayer.setCells(cells);
-            firePropertyChangeEvent(new PropertyChangeEvent(this.selectedLayer, "cells", oldCells, cells));
+            layer.setCells(cells);
+            firePropertyChangeEvent(new PropertyChangeEvent(layer, "cells",
+                    oldCells, cells));
         }
     }
 
