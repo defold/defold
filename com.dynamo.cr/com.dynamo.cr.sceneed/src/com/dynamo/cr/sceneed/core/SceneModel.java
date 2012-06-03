@@ -41,6 +41,7 @@ import com.google.inject.Inject;
 @Entity(commandFactory = SceneUndoableCommandFactory.class)
 public class SceneModel implements IAdaptable, IOperationHistoryListener, ISceneModel {
 
+
     private final IModelListener listener;
     private final IOperationHistory history;
     private final IUndoContext undoContext;

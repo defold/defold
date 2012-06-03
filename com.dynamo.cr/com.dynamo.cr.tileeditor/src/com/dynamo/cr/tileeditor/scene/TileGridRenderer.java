@@ -22,7 +22,11 @@ public class TileGridRenderer implements INodeRenderer<TileGridNode> {
     public void setup(RenderContext renderContext, TileGridNode node) {
         if (passes.contains(renderContext.getPass())) {
             TileSetNode tileSet = node.getTileSetNode();
-            if (tileSet != null && tileSet.getTextureHandle().getTexture() != null && node.getVertexData() != null && node.getVertexData().limit() > 0) {
+            if (tileSet != null
+                    && tileSet.getTextureHandle() != null
+                    && tileSet.getTextureHandle().getTexture() != null
+                    && node.getVertexData() != null
+                    && node.getVertexData().limit() > 0) {
                 // Calculate AABB centroid
                 AABB aabb = new AABB();
                 node.getAABB(aabb);
