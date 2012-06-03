@@ -79,6 +79,8 @@ Here is a list of settings for advanced users:
 ** _gravity_z_ - world gravity along z-axis, 0 by default
 ** _scale_ - how to scale the physics worlds in relation to the game world for numerical precision, 0.01 - 1 (default)
 ** _debug_scale_ - how big to draw unit objects in physics, like triads and normals, 0 - inf (30 by default)
+** _max_collisions_ - how many collisions that will be reported back to the scripts
+** _max_contacts_ - how many contact points that will be reported back to the scripts
 * *sprite*
 ** _max_count_ - max number of sprites, 128 by default
 ** _subpixels_ - whether to allow sprites to appear unaligned with respect to pixels, 1 for yes (default) and 0 for no

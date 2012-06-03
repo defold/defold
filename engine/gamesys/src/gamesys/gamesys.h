@@ -17,6 +17,11 @@
 
 namespace dmGameSystem
 {
+    /// Config key to use for tweaking maximum number of collisions reported
+    extern const char* PHYSICS_MAX_COLLISIONS_KEY;
+    /// Config key to use for tweaking maximum number of contacts reported
+    extern const char* PHYSICS_MAX_CONTACTS_KEY;
+
     struct PhysicsContext
     {
         union
@@ -24,6 +29,8 @@ namespace dmGameSystem
             dmPhysics::HContext3D m_Context3D;
             dmPhysics::HContext2D m_Context2D;
         };
+        uint32_t m_MaxCollisionCount;
+        uint32_t m_MaxContactPointCount;
         bool m_Debug;
         bool m_3D;
     };

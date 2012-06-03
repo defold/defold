@@ -18,8 +18,10 @@ namespace dmGameSystem
 {
     using namespace Vectormath::Aos;
 
-    static const uint32_t MAX_COLLISION_COUNT = 64;
-    static const uint32_t MAX_CONTACT_COUNT = 128;
+    /// Config key to use for tweaking maximum number of collisions reported
+    const char* PHYSICS_MAX_COLLISIONS_KEY  = "physics.max_collisions";
+    /// Config key to use for tweaking maximum number of contacts reported
+    const char* PHYSICS_MAX_CONTACTS_KEY    = "physics.max_contacts";
 
     struct World
     {
@@ -329,13 +331,14 @@ namespace dmGameSystem
     struct CollisionUserData
     {
         World* m_World;
+        PhysicsContext* m_Context;
         uint32_t m_Count;
     };
 
     bool CollisionCallback(void* user_data_a, uint16_t group_a, void* user_data_b, uint16_t group_b, void* user_data)
     {
         CollisionUserData* cud = (CollisionUserData*)user_data;
-        if (cud->m_Count < MAX_COLLISION_COUNT)
+        if (cud->m_Count < cud->m_Context->m_MaxCollisionCount)
         {
             cud->m_Count += 1;
 
@@ -401,7 +404,7 @@ namespace dmGameSystem
     bool ContactPointCallback(const dmPhysics::ContactPoint& contact_point, void* user_data)
     {
         CollisionUserData* cud = (CollisionUserData*)user_data;
-        if (cud->m_Count < MAX_CONTACT_COUNT)
+        if (cud->m_Count < cud->m_Context->m_MaxContactPointCount)
         {
             cud->m_Count += 1;
 
@@ -616,9 +619,11 @@ namespace dmGameSystem
 
         CollisionUserData collision_user_data;
         collision_user_data.m_World = world;
+        collision_user_data.m_Context = physics_context;
         collision_user_data.m_Count = 0;
         CollisionUserData contact_user_data;
         contact_user_data.m_World = world;
+        contact_user_data.m_Context = physics_context;
         contact_user_data.m_Count = 0;
 
         dmPhysics::StepWorldContext step_world_context;
@@ -638,11 +643,11 @@ namespace dmGameSystem
         {
             dmPhysics::StepWorld2D(world->m_World2D, step_world_context);
         }
-        if (collision_user_data.m_Count >= MAX_COLLISION_COUNT)
+        if (collision_user_data.m_Count >= physics_context->m_MaxCollisionCount)
         {
             if (!g_CollisionOverflowWarning)
             {
-                dmLogWarning("Maximum number of collisions (%d) reached, messages have been lost.", MAX_COLLISION_COUNT);
+                dmLogWarning("Maximum number of collisions (%d) reached, messages have been lost. Tweak \"%s\" in the config file.", physics_context->m_MaxCollisionCount, PHYSICS_MAX_COLLISIONS_KEY);
                 g_CollisionOverflowWarning = true;
             }
         }
@@ -650,11 +655,11 @@ namespace dmGameSystem
         {
             g_CollisionOverflowWarning = false;
         }
-        if (contact_user_data.m_Count >= MAX_CONTACT_COUNT)
+        if (contact_user_data.m_Count >= physics_context->m_MaxContactPointCount)
         {
             if (!g_ContactOverflowWarning)
             {
-                dmLogWarning("Maximum number of contacts (%d) reached, messages have been lost.", MAX_CONTACT_COUNT);
+                dmLogWarning("Maximum number of contacts (%d) reached, messages have been lost. Tweak \"%s\" in the config file.", physics_context->m_MaxContactPointCount, PHYSICS_MAX_CONTACTS_KEY);
                 g_ContactOverflowWarning = true;
             }
         }
