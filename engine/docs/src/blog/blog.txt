@@ -1,5 +1,51 @@
 :max-width: 45em
 
+Release: 1.1.10
+---------------
+_June 4, 2012_
+
+Release 1.1.10 features tile flipping for animations, improved performance in the editor and various other fixes.
+We would like to thank everyone reporting issues in the link:http://defold.userecho.com[forums], we really appreciate it!
+Nearly all of the fixes in this release come from your posts. :)
+
+Tile Flipping for Animations
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For animations in tile sources, we have added two check-boxes called _Flip Horizontally_ and _Flip Vertically_.
+This solves the problem of re-using tiles for different animations.
+E.g. if you have a walk cycle where the character faces left, you can now instantly create one where the character faces right by using _Flip Horizontally_.
+
+Improved Editor Performance
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+We noticed severe performance issues when loading and rendering larger collections.
+The biggest reason for this is that we do not yet have a resource management system in place, which re-use the loaded resources from disk.
+We have partially fixed this now for images and textures, which were the biggest culprits.
+We are very concerned about the performance, so please report in the link:http://defold.userecho.com[forums] whenever something feels unresponsive or taking too long.
+
+Fixes
+~~~~~
+
+* The tile brush now has a visual border, which makes it easier to see how big the tile brush is
+* The zoom range in the Tile Map Editor has been increased to make it easier to work with larger maps
+* We have added more settings in game.project (see link:#!guide:game_project[Project Settings] for details):
+** [physics] max_collisions/max_contacts, which control how many collisions/contacts will be reported to scripts
+** [resource] max_resources, which controls how many resources can be loaded in the engine at the same time
+** [collection_proxy] max_count, which controls how many collection proxies can be loaded at the same time
+
+Fixed Bugs
+^^^^^^^^^^
+
+* Engine crashed when loading more resources than the max limit (it's now explained in the log)
+* Engine crashed when creating URLs outside the callback-functions in gui-scripts
+* The check for how many projects each person can own (5) incorrectly included the projects the person was just a member of
+* When having a dynamic collision object, it would set the Z-coordinate of the game object to 0 (now it remains as specified)
+* Game objects in collections sometimes got component icons (like script icons)
+* All layers except the first in a tile map was rendered white instead of textured
+* Rendering problems for rectangular tiles in the editor, not all tiles were visible
+* +vmath.matrix4_look_at+ was called +vmath.matrix4_lookat+ in the reference
+* Undo/redo did not work properly when painting tiles and selecting different layers
+
 Release: 1.1.9
 --------------
 _May 30, 2012_
