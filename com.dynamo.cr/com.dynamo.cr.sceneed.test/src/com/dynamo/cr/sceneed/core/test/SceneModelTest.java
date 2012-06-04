@@ -22,6 +22,7 @@ import org.eclipse.core.resources.IResourceDelta;
 import org.eclipse.core.resources.IResourceDeltaVisitor;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Path;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.junit.Before;
 import org.junit.Test;
@@ -80,6 +81,7 @@ public class SceneModelTest {
         this.listener = mock(IModelListener.class);
         this.logger = mock(ILogger.class);
         this.contentRoot = mock(IContainer.class);
+        when(this.contentRoot.getFullPath()).thenReturn(new Path("/"));
         this.loaderContext = mock(ILoaderContext.class);
         this.imageProvider = mock(IImageProvider.class);
 
@@ -152,8 +154,10 @@ public class SceneModelTest {
     public void testReload() throws CoreException {
         IFile missing = mock(IFile.class);
         when(missing.exists()).thenReturn(false);
+        when(missing.getFullPath()).thenReturn(new Path("/missing"));
         IFile existing = mock(IFile.class);
         when(existing.exists()).thenReturn(true);
+        when(existing.getFullPath()).thenReturn(new Path("/existing"));
 
         // TODO: Complicated mocking, refactor to make easier, but how?
         final IResourceDelta delta = mock(IResourceDelta.class);

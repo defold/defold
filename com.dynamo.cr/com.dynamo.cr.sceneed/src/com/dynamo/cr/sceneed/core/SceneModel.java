@@ -224,7 +224,7 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
         public boolean visit(IResourceDelta delta) throws CoreException {
             IResource resource = delta.getResource();
             if (resource instanceof IFile) {
-                String path = EditorUtil.makeResourcePath(resource);
+                String path = EditorUtil.makeResourcePath(contentRoot, resource);
                 // Remove from cache so we guarantee reload
                 if (imageCache.containsKey(path)) {
                     imageCache.remove(path);
