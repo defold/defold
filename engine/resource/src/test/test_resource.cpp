@@ -810,6 +810,31 @@ TEST(RecreateTest, ReloadCallbackTest)
     dmResource::DeleteFactory(factory);
 }
 
+TEST(OverflowTest, OverflowTest)
+{
+    const char* test_dir = "build/default/src/test";
+
+    dmResource::NewFactoryParams params;
+    params.m_MaxResources = 1;
+    dmResource::HFactory factory = dmResource::NewFactory(&params, test_dir);
+    ASSERT_NE((void*) 0, factory);
+
+    dmResource::Result e;
+    e = dmResource::RegisterType(factory, "foo", this, &RecreateResourceCreate, &RecreateResourceDestroy, &RecreateResourceRecreate);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+
+    int* resource;
+    dmResource::Result fr = dmResource::Get(factory, "/test01.foo", (void**) &resource);
+    ASSERT_EQ(dmResource::RESULT_OK, fr);
+
+    int* resource2;
+    fr = dmResource::Get(factory, "/test02.foo", (void**) &resource2);
+    ASSERT_NE(dmResource::RESULT_OK, fr);
+
+    dmResource::Release(factory, resource);
+    dmResource::DeleteFactory(factory);
+}
+
 int main(int argc, char **argv)
 {
     dmSocket::Initialize();
