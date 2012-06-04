@@ -12,11 +12,15 @@
 #include <gameobject/gameobject.h>
 #include <gameobject/gameobject_ddf.h>
 
+#include "../gamesys.h"
+
 #include "gamesys_ddf.h"
 
 namespace dmGameSystem
 {
     using namespace Vectormath::Aos;
+
+    const char* COLLECTION_PROXY_MAX_COUNT_KEY = "collection_proxy.max_count";
 
     struct CollectionProxyComponent
     {
@@ -42,8 +46,8 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompCollectionProxyNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
         CollectionProxyWorld* proxy_world = new CollectionProxyWorld();
-        // TODO: tweak count from project-file
-        const uint32_t component_count = 8;
+        CollectionProxyContext* context = (CollectionProxyContext*)params.m_Context;
+        const uint32_t component_count = context->m_MaxCollectionProxyCount;
         proxy_world->m_Components.SetCapacity(component_count);
         proxy_world->m_Components.SetSize(component_count);
         memset(&proxy_world->m_Components[0], 0, sizeof(CollectionProxyComponent) * component_count);
@@ -55,6 +59,8 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompCollectionProxyDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
     {
         CollectionProxyWorld* proxy_world = (CollectionProxyWorld*)params.m_World;
+        CollectionProxyContext* context = (CollectionProxyContext*)params.m_Context;
+        dmResource::HFactory factory = context->m_Factory;
         for (uint32_t i = 0; i < proxy_world->m_Components.Size(); ++i)
         {
             dmGameObject::HCollection collection = proxy_world->m_Components[i].m_Collection;
@@ -62,7 +68,7 @@ namespace dmGameSystem
             {
                 if (proxy_world->m_Components[i].m_Initialized)
                     dmGameObject::Final(collection);
-                dmResource::Release((dmResource::HFactory)params.m_Context, collection);
+                dmResource::Release(factory, collection);
             }
         }
         delete proxy_world;
@@ -86,7 +92,7 @@ namespace dmGameSystem
         }
         else
         {
-            dmLogError("Collection proxy could not be created since the buffer is full (%ud).", proxy_world->m_Components.Size());
+            dmLogError("Collection proxy could not be created since the buffer is full (%d), tweak \"%s\" in the config file.", proxy_world->m_Components.Size(), COLLECTION_PROXY_MAX_COUNT_KEY);
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
     }
@@ -94,11 +100,12 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompCollectionProxyDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
         CollectionProxyComponent* proxy = (CollectionProxyComponent*)*params.m_UserData;
+        CollectionProxyContext* context = (CollectionProxyContext*)params.m_Context;
         if (proxy->m_Collection != 0)
         {
             if (proxy->m_Initialized)
                 dmGameObject::Final(proxy->m_Collection);
-            dmResource::Release((dmResource::HFactory)params.m_Context, proxy->m_Collection);
+            dmResource::Release(context->m_Factory, proxy->m_Collection);
         }
         CollectionProxyWorld* proxy_world = (CollectionProxyWorld*)params.m_World;
         uint32_t index = proxy - &proxy_world->m_Components[0];
@@ -159,6 +166,8 @@ namespace dmGameSystem
     {
         CollectionProxyWorld* proxy_world = (CollectionProxyWorld*)params.m_World;
         dmGameObject::UpdateResult result = dmGameObject::UPDATE_RESULT_OK;
+        CollectionProxyContext* context = (CollectionProxyContext*)params.m_Context;
+        dmResource::HFactory factory = context->m_Factory;
         for (uint32_t i = 0; i < proxy_world->m_Components.Size(); ++i)
         {
             CollectionProxyComponent* proxy = &proxy_world->m_Components[i];
@@ -176,7 +185,7 @@ namespace dmGameSystem
                         dmGameObject::Final(proxy->m_Collection);
                         proxy->m_Initialized = 0;
                     }
-                    dmResource::Release((dmResource::HFactory)params.m_Context, proxy->m_Collection);
+                    dmResource::Release(factory, proxy->m_Collection);
                     proxy->m_Collection = 0;
                     proxy->m_Enabled = 0;
                     proxy->m_Unload = 0;
@@ -201,13 +210,14 @@ namespace dmGameSystem
     dmGameObject::UpdateResult CompCollectionProxyOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
         CollectionProxyComponent* proxy = (CollectionProxyComponent*) *params.m_UserData;
+        CollectionProxyContext* context = (CollectionProxyContext*)params.m_Context;
         if (params.m_Message->m_Id == dmHashString64("load"))
         {
             if (proxy->m_Collection == 0)
             {
                 proxy->m_Unload = 0;
                 // TODO: asynchronous loading
-                dmResource::Result result = dmResource::Get((dmResource::HFactory)params.m_Context, proxy->m_Resource->m_DDF->m_Collection, (void**)&proxy->m_Collection);
+                dmResource::Result result = dmResource::Get(context->m_Factory, proxy->m_Resource->m_DDF->m_Collection, (void**)&proxy->m_Collection);
                 if (result != dmResource::RESULT_OK)
                 {
                     dmLogError("The collection %s could not be loaded.", proxy->m_Resource->m_DDF->m_Collection);

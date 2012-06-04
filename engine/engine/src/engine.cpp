@@ -577,6 +577,9 @@ bail:
         engine->m_SpriteContext.m_MaxSpriteCount = dmConfigFile::GetInt(engine->m_Config, "sprite.max_count", 128);
         engine->m_SpriteContext.m_Subpixels = dmConfigFile::GetInt(engine->m_Config, "sprite.subpixels", 1);
 
+        engine->m_CollectionProxyContext.m_Factory = engine->m_Factory;
+        engine->m_CollectionProxyContext.m_MaxCollectionProxyCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::COLLECTION_PROXY_MAX_COUNT_KEY, 8);
+
         dmResource::Result fact_result;
         dmGameObject::Result res;
         dmGameSystem::ScriptLibContext script_lib_context;
@@ -591,7 +594,7 @@ bail:
         if (dmGameObject::RegisterComponentTypes(engine->m_Factory, engine->m_Register) != dmGameObject::RESULT_OK)
             goto bail;
 
-        res = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, &engine->m_PhysicsContext, &engine->m_EmitterContext, &engine->m_GuiContext, &engine->m_SpriteContext);
+        res = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, &engine->m_PhysicsContext, &engine->m_EmitterContext, &engine->m_GuiContext, &engine->m_SpriteContext, &engine->m_CollectionProxyContext);
         if (res != dmGameObject::RESULT_OK)
             goto bail;
 

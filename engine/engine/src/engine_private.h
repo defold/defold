@@ -107,6 +107,7 @@ namespace dmEngine
         dmGameSystem::GuiContext                    m_GuiContext;
         dmMessage::HSocket                          m_SystemSocket;
         dmGameSystem::SpriteContext                 m_SpriteContext;
+        dmGameSystem::CollectionProxyContext        m_CollectionProxyContext;
 
         dmRender::HFontMap                          m_SystemFontMap;
         dmHID::HContext                             m_HidContext;
