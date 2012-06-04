@@ -2,6 +2,7 @@ package com.dynamo.cr.properties;
 
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.swt.widgets.Composite;
+import org.eclipse.ui.forms.widgets.FormToolkit;
 
 public class PropertyDesc<T, U extends IPropertyObjectWorld> implements IPropertyDesc<T, U> {
 
@@ -14,7 +15,7 @@ public class PropertyDesc<T, U extends IPropertyObjectWorld> implements IPropert
     }
 
     @Override
-    public IPropertyEditor<T, U> createEditor(Composite parent, IContainer contentRoot) {
+    public IPropertyEditor<T, U> createEditor(FormToolkit toolkit, Composite parent, IContainer contentRoot) {
         return null;
     }
 

@@ -37,8 +37,11 @@ public class AnimationNode extends Node {
     @GreaterThanZero
     private int fps = 30;
 
-    private boolean flipHorizontal;
-    private boolean flipVertical;
+    @Property
+    private boolean flipHorizontally;
+
+    @Property
+    private boolean flipVertically;
 
     private int currentTile = 1;
     private float cursor = 0.0f;
@@ -124,20 +127,20 @@ public class AnimationNode extends Node {
         this.fps = fps;
     }
 
-    public boolean isFlipHorizontal() {
-        return this.flipHorizontal;
+    public boolean isFlipHorizontally() {
+        return this.flipHorizontally;
     }
 
-    public void setFlipHorizontal(boolean flipHorizontal) {
-        this.flipHorizontal = flipHorizontal;
+    public void setFlipHorizontally(boolean flipHorizontally) {
+        this.flipHorizontally = flipHorizontally;
     }
 
-    public boolean isFlipVertical() {
-        return this.flipVertical;
+    public boolean isFlipVertically() {
+        return this.flipVertically;
     }
 
-    public void setFlipVertical(boolean flipVertical) {
-        this.flipVertical = flipVertical;
+    public void setFlipVertically(boolean flipVertically) {
+        this.flipVertically = flipVertically;
     }
 
     public int getCurrentTile() {

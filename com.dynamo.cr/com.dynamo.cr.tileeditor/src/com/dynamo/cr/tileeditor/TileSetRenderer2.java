@@ -572,17 +572,29 @@ KeyListener {
                 int spriteColumn = column;
                 int index = row * tilesPerRow + column;
                 float z = tileZ;
+                boolean flipHorizontal = false;
+                boolean flipVertical = false;
                 if (this.selectedAnimation != null && (index + 1) == this.selectedAnimation.getStartTile()) {
                     int spriteIndex = this.selectedAnimation.getCurrentTile()-1;
                     spriteRow = spriteIndex / tilesPerRow;
                     spriteColumn = spriteIndex % tilesPerRow;
                     z = animZ;
+                    flipHorizontal = this.selectedAnimation.isFlipHorizontally();
+                    flipVertical = this.selectedAnimation.isFlipVertically();
                 }
                 calculateUVs(spriteRow, spriteColumn, recipImageWidth, recipImageHeight, this.tileSet, uvMin, uvMax);
                 float u0 = uvMin.getX();
                 float u1 = uvMax.getX();
+                if (flipHorizontal) {
+                    u0 = uvMax.getX();
+                    u1 = uvMin.getX();
+                }
                 float v1 = uvMax.getY();
                 float v0 = uvMin.getY();
+                if (flipVertical) {
+                    v0 = uvMax.getY();
+                    v1 = uvMin.getY();
+                }
                 v.put(u0); v.put(v0); v.put(x0); v.put(y0); v.put(z);
                 v.put(u0); v.put(v1); v.put(x0); v.put(y1); v.put(z);
                 v.put(u1); v.put(v1); v.put(x1); v.put(y1); v.put(z);

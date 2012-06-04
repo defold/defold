@@ -4,7 +4,6 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -230,7 +229,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
         ddf.append("image: \"").append(img).append("\" tile_width: 16 tile_height: 16 tile_margin: 0 tile_spacing: 1 ")
             .append("collision: \"").append(img).append("\" material_tag: \"tile\" collision_groups: \"default\" ")
             .append("animations: {id: \"anim\" start_tile: 1 end_tile: 4 playback: PLAYBACK_ONCE_FORWARD ")
-            .append("fps: 30 flip_horizontal: 0 flip_vertical: 0}");
+                .append("fps: 30 flip_horizontal: 1 flip_vertical: 1}");
 
         registerFile(path, ddf.toString());
 
@@ -250,8 +249,8 @@ public class TileSetNodeTest extends AbstractNodeTest {
         assertThat(animation.getEndTile(), is(4));
         assertThat(animation.getPlayback(), is(Tile.Playback.PLAYBACK_ONCE_FORWARD));
         assertThat(animation.getFps(), is(30));
-        assertFalse(animation.isFlipHorizontal());
-        assertFalse(animation.isFlipVertical());
+        assertTrue(animation.isFlipHorizontally());
+        assertTrue(animation.isFlipVertically());
 
         saveLoadCompare(this.loader, TileSet.newBuilder(), path);
     }
