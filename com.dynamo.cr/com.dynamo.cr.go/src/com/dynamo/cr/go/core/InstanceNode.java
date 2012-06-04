@@ -1,7 +1,6 @@
 package com.dynamo.cr.go.core;
 
 import org.eclipse.core.runtime.IStatus;
-import org.eclipse.swt.graphics.Image;
 
 import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
@@ -27,14 +26,6 @@ public class InstanceNode extends Node {
 
     public void setId(String id) {
         this.id = id;
-    }
-
-    @Override
-    public Image getIcon() {
-        if (hasChildren()) {
-            return this.getChildren().get(0).getIcon();
-        }
-        return super.getIcon();
     }
 
 }

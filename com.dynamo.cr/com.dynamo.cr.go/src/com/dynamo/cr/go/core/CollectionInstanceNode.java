@@ -4,12 +4,13 @@ import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.osgi.util.NLS;
+import org.eclipse.swt.graphics.Image;
 
 import com.dynamo.cr.go.Constants;
 import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
-import com.dynamo.cr.properties.Resource;
 import com.dynamo.cr.properties.Property.EditorType;
+import com.dynamo.cr.properties.Resource;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 
 @SuppressWarnings("serial")
@@ -98,6 +99,14 @@ public class CollectionInstanceNode extends InstanceNode {
             this.collectionNode.setPath(this.collection);
         }
         return false;
+    }
+
+    @Override
+    public Image getIcon() {
+        if (this.collectionNode != null) {
+            return this.collectionNode.getIcon();
+        }
+        return super.getIcon();
     }
 
 }
