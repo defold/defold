@@ -121,7 +121,7 @@ class Configuration(object):
         self.exec_command(['scp', join(dynamo_home, 'bin', 'dmengine' + exe_ext),
                            '%s/dmengine%s.%s' % (self.archive_path, exe_ext, sha1)])
         self.exec_command(['ssh', host,
-                           'ln -sfn dmengine%s.%s %s/dmengine%s' % (path, exe_ext, sha1, path, exe_ext)])
+                           'ln -sfn dmengine%s.%s %s/dmengine%s' % (exe_ext, sha1, path, exe_ext)])
 
     def build_engine(self):
         skip_tests = '--skip-tests' if self.skip_tests or self.target != self.host else ''
