@@ -68,6 +68,7 @@ Here is a list of settings for advanced users:
 * *resource*
 ** _http_cache_ - if the http cache should be enabled for faster loads over network, 1 for yes (default) and 0 for no
 ** _uri_ - where to find game.project, in URI format
+** _max_resources_ - the max number of resources that can be loaded at the same time, 1024 by default
 * *input*
 ** _repeat_delay_ - seconds to wait before treating a held down keyboard-key to start repeating itself
 ** _repeat_interval_ - seconds to wait between each repetition of a held down keyboard-key

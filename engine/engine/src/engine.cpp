@@ -492,7 +492,7 @@ bail:
         engine->m_EmitterContext.m_MaxParticleCount = dmConfigFile::GetInt(engine->m_Config, dmParticle::MAX_PARTICLE_COUNT_KEY, 0);
         engine->m_EmitterContext.m_Debug = false;
 
-        const uint32_t max_resources = 256;
+        const uint32_t max_resources = dmConfigFile::GetInt(engine->m_Config, dmResource::MAX_RESOURCES_KEY, 1024);
 
         dmResource::NewFactoryParams params;
         int32_t http_cache = dmConfigFile::GetInt(engine->m_Config, "resource.http_cache", 1);
