@@ -113,7 +113,12 @@ class Configuration(object):
         host, path = self.archive_path.split(':', 1)
         sha1 = self._git_sha1()
         self.exec_command(['ssh', host, 'mkdir -p %s' % path])
-        self.exec_command(['scp', join(self.dynamo_home, 'bin', 'dmengine'),
+        dynamo_home = self.dynamo_home
+        # TODO: Ugly win fix, make better (https://defold.fogbugz.com/default.asp?1066)
+        if self.target == 'win32':
+            dynamo_home = dynamo_home.replace("\\", "/")
+            dynamo_home = "/" + dynamo_home[:1] + dynamo_home[2:]
+        self.exec_command(['scp', join(dynamo_home, 'bin', 'dmengine' + exe_ext),
                            '%s/dmengine%s.%s' % (self.archive_path, exe_ext, sha1)])
         self.exec_command(['ssh', host,
                            'ln -sfn %s/dmengine%s.%s %s/dmengine%s' % (path, exe_ext, sha1, path, exe_ext)])
