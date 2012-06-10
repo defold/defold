@@ -369,7 +369,9 @@ if (sock_res != dmSocket::RESULT_OK)\
         HTTP_CLIENT_SENDALL_AND_BAIL(" ")
         HTTP_CLIENT_SENDALL_AND_BAIL(path)
         HTTP_CLIENT_SENDALL_AND_BAIL(" HTTP/1.1\r\n")
-        HTTP_CLIENT_SENDALL_AND_BAIL("Host: foo.com\r\n")
+        HTTP_CLIENT_SENDALL_AND_BAIL("Host: ");
+        HTTP_CLIENT_SENDALL_AND_BAIL(client->m_Hostname);
+        HTTP_CLIENT_SENDALL_AND_BAIL("\r\n");
         if (client->m_HttpCache)
         {
             char etag[64];
@@ -672,7 +674,7 @@ bail:
         else
         {
             // Non-cached response
-            if (client->m_HttpCache && response.m_Status == 200 /* OK */)
+            if (client->m_HttpCache && response.m_Status == 200 /* OK */ && response.m_ETag[0] != '\0')
             {
                 dmHttpCache::Begin(client->m_HttpCache, client->m_URI, response.m_ETag, &response.m_CacheCreator);
             }
