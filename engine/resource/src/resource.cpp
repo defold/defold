@@ -102,7 +102,7 @@ struct SResourceFactory
 
     // HTTP related state
     // Total number bytes loaded in current GET-request
-    uint32_t                                     m_HttpContentLength;
+    int32_t                                      m_HttpContentLength;
     uint32_t                                     m_HttpTotalBytesStreamed;
     int                                          m_HttpStatus;
     Result                                       m_HttpFactoryResult;
@@ -435,7 +435,7 @@ static Result LoadResource(HFactory factory, const char* path, const char* origi
     {
         // Load over HTTP
         *resource_size = 0;
-        factory->m_HttpContentLength = 0;
+        factory->m_HttpContentLength = -1;
         factory->m_HttpTotalBytesStreamed = 0;
         factory->m_HttpFactoryResult = RESULT_OK;
         factory->m_HttpStatus = -1;
@@ -463,7 +463,7 @@ static Result LoadResource(HFactory factory, const char* path, const char* origi
             return factory->m_HttpFactoryResult;
 
         // Only check content-length if status != 304 (NOT MODIFIED)
-        if (factory->m_HttpStatus != 304 && factory->m_HttpContentLength != factory->m_HttpTotalBytesStreamed)
+        if (factory->m_HttpStatus != 304 && factory->m_HttpContentLength != -1 && factory->m_HttpContentLength != factory->m_HttpTotalBytesStreamed)
         {
             dmLogError("Expected content length differs from actually streamed for resource %s (%d != %d)", path, factory->m_HttpContentLength, factory->m_HttpTotalBytesStreamed);
         }
