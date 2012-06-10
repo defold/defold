@@ -21,6 +21,7 @@ class Configuration(object):
                  target_platform = None,
                  eclipse_home = None,
                  skip_tests = False,
+                 skip_codesign = False,
                  no_colors = False,
                  archive_path = None):
 
@@ -35,6 +36,7 @@ class Configuration(object):
         self.host = 'linux' if sys.platform == 'linux2' else sys.platform
         self.target_platform = target_platform if target_platform else self.host
         self.skip_tests = skip_tests
+        self.skip_codesign = skip_codesign
         self.no_colors = no_colors
         self.archive_path = archive_path
 
@@ -124,19 +126,20 @@ class Configuration(object):
 
     def build_engine(self):
         skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
+        skip_codesign = '--skip-codesign' if self.skip_codesign else ''
         libs="dlib ddf particle glfw graphics hid input physics resource lua script render gameobject gui sound gamesys tools record engine".split()
 
         # NOTE: We run waf using python <PATH_TO_WAF>/waf as windows don't understand that waf is an executable
         if self.target_platform != self.host:
             self._log('Building dlib for host platform')
             cwd = join(self.defold_root, 'engine/dlib')
-            cmd = 'python %s/ext/bin/waf configure --prefix=%s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, skip_tests)
+            cmd = 'python %s/ext/bin/waf configure --prefix=%s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, skip_tests, skip_codesign)
             self.exec_command(cmd.split(), cwd = cwd)
 
         for lib in libs:
             self._log('Building %s' % lib)
             cwd = join(self.defold_root, 'engine/%s' % lib)
-            cmd = 'python %s/ext/bin/waf configure --prefix=%s --platform=%s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, self.target_platform, skip_tests)
+            cmd = 'python %s/ext/bin/waf configure --prefix=%s --platform=%s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, self.target_platform, skip_tests, skip_codesign)
             self.exec_command(cmd.split(), cwd = cwd)
 
     def build_docs(self):
@@ -307,6 +310,11 @@ Multiple commands can be specified'''
                       default = False,
                       help = 'Skip unit-tests. Default is false')
 
+    parser.add_option('--skip-codesign', dest='skip_codesign',
+                      action = 'store_true',
+                      default = False,
+                      help = 'skip code signing. Default is false')
+
     parser.add_option('--no-colors', dest='no_colors',
                       action = 'store_true',
                       default = False,
@@ -325,6 +333,7 @@ Multiple commands can be specified'''
                       target_platform = options.target_platform,
                       eclipse_home = options.eclipse_home,
                       skip_tests = options.skip_tests,
+                      skip_codesign = options.skip_codesign,
                       no_colors = options.no_colors,
                       archive_path = options.archive_path)
 
