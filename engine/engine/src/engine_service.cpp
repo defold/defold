@@ -226,7 +226,7 @@ namespace dmEngineService
             }
             dmSocket::Address address;
             dmWebServer::GetName(web_server, &address, &m_Port);
-            snprintf(m_PortText, sizeof(m_PortText), "%d", (int) m_Port);
+            DM_SNPRINTF(m_PortText, sizeof(m_PortText), "%d", (int) m_Port);
 
             dmStrlCpy(m_DeviceDesc.m_UDN, "defold-", sizeof(m_DeviceDesc.m_UDN));
             char hostname[128];
