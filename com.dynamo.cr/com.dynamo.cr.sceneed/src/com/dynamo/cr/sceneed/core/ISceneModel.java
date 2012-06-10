@@ -1,5 +1,6 @@
 package com.dynamo.cr.sceneed.core;
 
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 
 import org.eclipse.core.commands.operations.IUndoableOperation;
@@ -41,4 +42,7 @@ public interface ISceneModel extends IPropertyObjectWorld {
     INodeType getNodeType(Class<? extends Node> nodeClass);
 
     void logException(Throwable e);
+
+    BufferedImage getImage(String path);
+    TextureHandle getTexture(String path);
 }

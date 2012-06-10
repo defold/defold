@@ -340,7 +340,7 @@ namespace dmEngine
         engine->m_EmitterContext.m_MaxParticleCount = dmConfigFile::GetInt(engine->m_Config, dmParticle::MAX_PARTICLE_COUNT_KEY, 0);
         engine->m_EmitterContext.m_Debug = false;
 
-        const uint32_t max_resources = 256;
+        const uint32_t max_resources = dmConfigFile::GetInt(engine->m_Config, dmResource::MAX_RESOURCES_KEY, 1024);
 
         dmResource::NewFactoryParams params;
         int32_t http_cache = dmConfigFile::GetInt(engine->m_Config, "resource.http_cache", 1);
@@ -404,6 +404,8 @@ namespace dmEngine
             engine->m_PhysicsContext.m_3D = false;
             engine->m_PhysicsContext.m_Context2D = dmPhysics::NewContext2D(physics_params);
         }
+        engine->m_PhysicsContext.m_MaxCollisionCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::PHYSICS_MAX_COLLISIONS_KEY, 64);
+        engine->m_PhysicsContext.m_MaxContactPointCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::PHYSICS_MAX_CONTACTS_KEY, 128);
         engine->m_PhysicsContext.m_Debug = dmConfigFile::GetInt(engine->m_Config, "physics.debug", 0);
 
         dmPhysics::DebugCallbacks debug_callbacks;
@@ -423,6 +425,9 @@ namespace dmEngine
         engine->m_SpriteContext.m_MaxSpriteCount = dmConfigFile::GetInt(engine->m_Config, "sprite.max_count", 128);
         engine->m_SpriteContext.m_Subpixels = dmConfigFile::GetInt(engine->m_Config, "sprite.subpixels", 1);
 
+        engine->m_CollectionProxyContext.m_Factory = engine->m_Factory;
+        engine->m_CollectionProxyContext.m_MaxCollectionProxyCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::COLLECTION_PROXY_MAX_COUNT_KEY, 8);
+
         dmResource::Result fact_result;
         dmGameObject::Result res;
         dmGameSystem::ScriptLibContext script_lib_context;
@@ -437,7 +442,7 @@ namespace dmEngine
         if (dmGameObject::RegisterComponentTypes(engine->m_Factory, engine->m_Register) != dmGameObject::RESULT_OK)
             goto bail;
 
-        res = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, &engine->m_PhysicsContext, &engine->m_EmitterContext, &engine->m_GuiContext, &engine->m_SpriteContext);
+        res = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, &engine->m_PhysicsContext, &engine->m_EmitterContext, &engine->m_GuiContext, &engine->m_SpriteContext, &engine->m_CollectionProxyContext);
         if (res != dmGameObject::RESULT_OK)
             goto bail;
 

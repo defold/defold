@@ -489,6 +489,42 @@ public class GridTest implements IResourceChangeListener {
     }
 
     /**
+     * Testing bug: paint cells into two layers, select previous, layer, undo
+     * Expected: cells from last layer should be cleared, not first
+     * @throws Exception
+     */
+    @Test
+    public void testPaintMultiple() throws Exception {
+        testUseCase211();
+
+        Layer firstLayer = this.model.getLayers().get(0);
+
+        // Paint
+
+        this.presenter.onSelectLayer(firstLayer);
+
+        this.presenter.onSelectTile(1, false, false);
+
+        this.presenter.onPaintBegin();
+        this.presenter.onPaint(0,0);
+        this.presenter.onPaintEnd();
+
+        this.presenter.onAddLayer();
+        Layer secondLayer = this.model.getLayers().get(1);
+
+        this.presenter.onPaintBegin();
+        this.presenter.onPaint(0,0);
+        this.presenter.onPaintEnd();
+
+        this.presenter.onSelectLayer(firstLayer);
+
+        undo();
+
+        assertThat(cellTile(firstLayer, 0, 0), is(1));
+        assertThat(cellTile(secondLayer, 0, 0), is(-1));
+    }
+
+    /**
      * Use Case 2.4.1 - Reload Tile Set Image
      * @throws Exception
      */

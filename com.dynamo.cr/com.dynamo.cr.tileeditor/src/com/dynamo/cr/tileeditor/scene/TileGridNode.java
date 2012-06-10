@@ -112,6 +112,8 @@ public class TileGridNode extends ComponentTypeNode {
         }
         if (this.tileSetNode != null) {
             if (this.tileSetNode.handleReload(file)) {
+                updateStatus();
+                updateVertexData();
                 reloaded = true;
             }
         }
@@ -133,6 +135,7 @@ public class TileGridNode extends ComponentTypeNode {
                     // no reason to handle exception since having a null type is invalid state, will be caught in validateComponent below
                 }
             }
+            updateStatus();
             updateVertexData();
             // attempted to reload
             return true;

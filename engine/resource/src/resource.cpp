@@ -19,6 +19,7 @@
 #include <dlib/http_client.h>
 #include <dlib/http_cache.h>
 #include <dlib/http_cache_verify.h>
+#include <dlib/math.h>
 #include <dlib/uri.h>
 #include <dlib/profile.h>
 #include <dlib/message.h>
@@ -43,6 +44,8 @@
 namespace dmResource
 {
 #define RESOURCE_SOCKET_NAME "@resource"
+
+const char* MAX_RESOURCES_KEY = "resource.max_resources";
 
 struct SResourceType
 {
@@ -281,7 +284,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     factory->m_StreamBufferSize = params->m_StreamBufferSize;
     factory->m_StreamBuffer = (char*) buffer;
 
-    const uint32_t table_size = (3 * params->m_MaxResources) / 4;
+    const uint32_t table_size = dmMath::Max(1u, (3 * params->m_MaxResources) / 4);
     factory->m_Resources = new dmHashTable<uint64_t, SResourceDescriptor>();
     factory->m_Resources->SetCapacity(table_size, params->m_MaxResources);
 
@@ -561,6 +564,12 @@ Result DoGet(HFactory factory, const char* name, void** resource)
         rd->m_ReferenceCount++;
         *resource = rd->m_Resource;
         return RESULT_OK;
+    }
+
+    if (factory->m_Resources->Full())
+    {
+        dmLogError("The max number of resources (%d) has been passed, tweak \"%s\" in the config file.", factory->m_Resources->Capacity(), MAX_RESOURCES_KEY);
+        return RESULT_OUT_OF_RESOURCES;
     }
 
     const char* ext = strrchr(name, '.');

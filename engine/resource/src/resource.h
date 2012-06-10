@@ -6,6 +6,11 @@
 namespace dmResource
 {
     /**
+     * Config key used to tweak the max number of resources allowed.
+     */
+    extern const char* MAX_RESOURCES_KEY;
+
+    /**
      * Empty flags
      */
     #define RESOURCE_FACTORY_FLAGS_EMPTY            (0)
@@ -41,7 +46,7 @@ namespace dmResource
         RESULT_FORMAT_ERROR              = -13,  //!< RESULT_FORMAT_ERROR
         RESULT_CONSTANT_ERROR            = -14,  //!< RESULT_CONSTANT_ERROR
         RESULT_NOT_SUPPORTED             = -15,  //!< RESULT_NOT_SUPPORTED
-        RESULT_RESOURCE_LOOP_ERROR           = -16,  //!< RESULT_RESOURCE_LOOP_ERROR
+        RESULT_RESOURCE_LOOP_ERROR       = -16,  //!< RESULT_RESOURCE_LOOP_ERROR
     };
 
     /**

@@ -106,7 +106,8 @@ namespace dmGameSystem
                                                 PhysicsContext* physics_context,
                                                 EmitterContext* emitter_context,
                                                 GuiContext* gui_context,
-                                                SpriteContext* sprite_context)
+                                                SpriteContext* sprite_context,
+                                                CollectionProxyContext* collection_proxy_context)
     {
         uint32_t type;
         dmGameObject::ComponentType component_type;
@@ -146,7 +147,7 @@ namespace dmGameSystem
          *
          */
 
-        REGISTER_COMPONENT_TYPE("collectionproxyc", 100, factory,
+        REGISTER_COMPONENT_TYPE("collectionproxyc", 100, collection_proxy_context,
                 &CompCollectionProxyNewWorld, &CompCollectionProxyDeleteWorld,
                 &CompCollectionProxyCreate, &CompCollectionProxyDestroy, 0, 0,
                 &CompCollectionProxyUpdate, &CompCollectionProxyPostUpdate, &CompCollectionProxyOnMessage, &CompCollectionProxyOnInput, 0);

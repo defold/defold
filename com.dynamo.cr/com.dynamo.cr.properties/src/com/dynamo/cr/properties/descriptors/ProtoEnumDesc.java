@@ -15,6 +15,7 @@ import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
+import org.eclipse.ui.forms.widgets.FormToolkit;
 
 import com.dynamo.cr.properties.IPropertyEditor;
 import com.dynamo.cr.properties.IPropertyModel;
@@ -108,7 +109,7 @@ public class ProtoEnumDesc<T, U extends IPropertyObjectWorld> extends PropertyDe
     }
 
     @Override
-    public IPropertyEditor<T, U> createEditor(Composite parent, IContainer contentRoot) {
+    public IPropertyEditor<T, U> createEditor(FormToolkit toolkit, Composite parent, IContainer contentRoot) {
         return new Editor(parent);
     }
 

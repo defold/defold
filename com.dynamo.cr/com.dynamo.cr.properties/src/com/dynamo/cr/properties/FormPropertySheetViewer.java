@@ -254,7 +254,7 @@ public class FormPropertySheetViewer extends Viewer {
                 link.setUnderlined(true);
                 link.setToolTipText(Messages.FormPropertySheetViewer_RESET_VALUE);
 
-                IPropertyEditor editor = desc.createEditor(c, contentRoot);
+                IPropertyEditor editor = desc.createEditor(toolkit, c, contentRoot);
                 Control control;
                 if (editor == null) {
                     control = new Label(c, SWT.NONE);

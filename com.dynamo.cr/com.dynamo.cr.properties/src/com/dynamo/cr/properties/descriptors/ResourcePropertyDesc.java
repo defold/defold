@@ -14,6 +14,7 @@ import org.eclipse.swt.widgets.Listener;
 import org.eclipse.swt.widgets.Text;
 import org.eclipse.ui.dialogs.ListDialog;
 import org.eclipse.ui.dialogs.ResourceListSelectionDialog;
+import org.eclipse.ui.forms.widgets.FormToolkit;
 
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.ui.FilteredResourceListSelectionDialog;
@@ -129,7 +130,7 @@ public class ResourcePropertyDesc<T, U extends IPropertyObjectWorld> extends Pro
     }
 
     @Override
-    public IPropertyEditor<T, U> createEditor(Composite parent, IContainer contentRoot) {
+    public IPropertyEditor<T, U> createEditor(FormToolkit toolkit, Composite parent, IContainer contentRoot) {
         this.contentRoot = contentRoot;
         return new Editor(parent);
     }

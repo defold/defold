@@ -1,9 +1,7 @@
 package com.dynamo.cr.tileeditor.scene;
 
-import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.util.ArrayList;
@@ -11,8 +9,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-
-import javax.imageio.ImageIO;
 
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.IStatus;
@@ -22,13 +18,13 @@ import org.eclipse.osgi.util.NLS;
 import com.dynamo.cr.editor.ui.Activator;
 import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
+import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.cr.properties.Range;
 import com.dynamo.cr.properties.Resource;
 import com.dynamo.cr.properties.ValidatorUtil;
-import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Node;
-import com.dynamo.cr.sceneed.ui.util.TextureHandle;
+import com.dynamo.cr.sceneed.core.TextureHandle;
 import com.dynamo.tile.ConvexHull;
 import com.dynamo.tile.TileSetUtil;
 import com.dynamo.tile.TileSetUtil.ConvexHulls;
@@ -84,13 +80,7 @@ public class TileSetNode extends Node {
         this.tileCollisionGroupCount = 0;
         this.convexHulls = new ArrayList<ConvexHull>();
 
-        this.textureHandle = new TextureHandle();
-    }
-
-    @Override
-    public void dispose() {
-        super.dispose();
-        this.textureHandle.clear();
+        this.textureHandle = null;
     }
 
     public String getImage() {
@@ -286,41 +276,15 @@ public class TileSetNode extends Node {
     }
 
     private void updateImage() {
-        try {
-            this.loadedImage = loadImageFile(this.image);
-            this.textureHandle.setImage(this.loadedImage);
-        } catch (Exception e) {
-            this.loadedImage = null;
+        if (!this.image.isEmpty() && getModel() != null) {
+            this.loadedImage = getModel().getImage(this.image);
+            this.textureHandle = getModel().getTexture(this.image);
         }
     }
 
     private void updateCollision() {
-        try {
-            this.loadedCollision = loadImageFile(this.collision);
-        } catch (Exception e) {
-            this.loadedCollision = null;
-        }
-    }
-
-    private BufferedImage loadImageFile(String fileName) throws Exception {
-        if (getModel() == null) {
-            return null;
-        }
-        try {
-            IFile file = getModel().getFile(fileName);
-            InputStream is = file.getContents();
-            try {
-                BufferedImage origImage = ImageIO.read(is);
-                BufferedImage image = new BufferedImage(origImage.getWidth(), origImage.getHeight(), BufferedImage.TYPE_4BYTE_ABGR);
-                Graphics2D g2d= image.createGraphics();
-                g2d.drawImage(origImage, 0, 0, null);
-                g2d.dispose();
-                return image;
-            } finally {
-                is.close();
-            }
-        } catch (IOException e) {
-            throw e;
+        if (!this.collision.isEmpty() && getModel() != null) {
+            this.loadedCollision = getModel().getImage(this.collision);
         }
     }
 
@@ -493,7 +457,6 @@ public class TileSetNode extends Node {
         this.collision = (String)in.readObject();
         this.materialTag = (String)in.readObject();
         this.tileCollisionGroups = (List<CollisionGroupNode>)in.readObject();
-        this.textureHandle = new TextureHandle();
         this.convexHulls = new ArrayList<ConvexHull>();
     }
 }

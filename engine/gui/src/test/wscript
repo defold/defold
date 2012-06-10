@@ -12,6 +12,15 @@ def build(bld):
 
     test_gui.install_path = None
 
+    test_gui_script = bld.new_task_gen(features = 'cxx cprogram embed',
+                                includes = '../../../src .',
+                                uselib = 'GTEST SCRIPT DDF DLIB PLATFORM_SOCKET LUA',
+                                uselib_local = 'gui',
+                                target = 'test_gui_script',
+                                source = 'test_gui_script.cpp')
+
+    test_gui_script.install_path = None
+
     if bld.env.PLATFORM != "armv6-darwin":
         guidemo = bld.new_task_gen(features = 'cxx cprogram',
                                    includes = '../../../src',

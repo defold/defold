@@ -11,8 +11,8 @@ import org.eclipse.osgi.util.NLS;
 import com.dynamo.cr.go.core.ComponentTypeNode;
 import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
-import com.dynamo.cr.properties.Resource;
 import com.dynamo.cr.properties.Property.EditorType;
+import com.dynamo.cr.properties.Resource;
 import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Node;
@@ -176,10 +176,14 @@ public class SpriteNode extends ComponentTypeNode {
         }
 
         int tile = 0;
+        boolean flipHorizontal = false;
+        boolean flipVertical = false;
         List<AnimationNode> animations = this.tileSetNode.getAnimations();
         for (AnimationNode animation : animations) {
             if (animation.getId().equals(this.defaultAnimation)) {
                 tile = animation.getStartTile() - 1;
+                flipHorizontal = animation.isFlipHorizontally();
+                flipVertical = animation.isFlipVertically();
                 break;
             }
         }
@@ -204,6 +208,16 @@ public class SpriteNode extends ComponentTypeNode {
         float u1 = u0 + tileWidth * recipImageWidth;
         float v0 = (y * (tileSpacing + 2*tileMargin + tileHeight) + tileMargin) * recipImageHeight;
         float v1 = v0 + tileHeight * recipImageHeight;
+        if (flipHorizontal) {
+            float u = u0;
+            u0 = u1;
+            u1 = u;
+        }
+        if (flipVertical) {
+            float v = v0;
+            v0 = v1;
+            v1 = v;
+        }
 
         final int vertexCount = 4;
         final int componentCount = 5;

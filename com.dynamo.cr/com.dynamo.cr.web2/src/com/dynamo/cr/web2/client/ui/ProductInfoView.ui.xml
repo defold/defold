@@ -80,6 +80,7 @@
 								<li>Make tiled graphics and animated sprites with physics that
 									just work</li>
 								<li>Everything is scriptable - even the rendering pipeline!</li>
+                                <li>Runs on Windows, Mac and Linux</li>
 							</ul>
 						</div>
 					</td>

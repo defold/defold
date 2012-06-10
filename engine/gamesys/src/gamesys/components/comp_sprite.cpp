@@ -262,29 +262,46 @@ namespace dmGameSystem
                 float tile_width = tile_set_ddf->m_TileWidth;
                 float tile_height = tile_set_ddf->m_TileHeight;
 
+                float u0 = (tile_x * tile_width) * texture_width_recip;
+                float u1 = ((tile_x + 1) * tile_width) * texture_width_recip;
+                if (animation_ddf->m_FlipHorizontal != 0)
+                {
+                    float u = u0;
+                    u0 = u1;
+                    u1 = u;
+                }
+                float v0 = (tile_y * tile_height) * texture_height_recip;
+                float v1 = ((tile_y + 1) * tile_height) * texture_height_recip;
+                if (animation_ddf->m_FlipVertical != 0)
+                {
+                    float v = v0;
+                    v0 = v1;
+                    v1 = v;
+                }
+
                 v[0].x = -0.5f;
                 v[0].y = -0.5f;
                 v[0].z = 0.0f;
-                v[0].u = (tile_x * tile_width) * texture_width_recip;
-                v[0].v = ((tile_y + 1) * tile_height) * texture_height_recip;
+                v[0].u = u0;
+                v[0].v = v1;
 
                 v[1].x = -0.5f;
                 v[1].y = 0.5f;
                 v[1].z = 0.0f;
-                v[1].u = (tile_x * tile_width) * texture_width_recip;
-                v[1].v = (tile_y * tile_height) * texture_height_recip;
+                v[1].u = u0;
+                v[1].v = v0;
 
                 v[2].x = 0.5f;
                 v[2].y = -0.5f;
                 v[2].z = 0.0f;
-                v[2].u = ((tile_x + 1) * tile_width) * texture_width_recip;
-                v[2].v = ((tile_y + 1) * tile_height) * texture_height_recip;
+                v[2].u = u1;
+                v[2].v = v1;
 
                 v[3].x = 0.5f;
                 v[3].y = 0.5f;
                 v[3].z = 0.0f;
-                v[3].u = ((tile_x + 1) * tile_width) * texture_width_recip;
-                v[3].v = (tile_y * tile_height) * texture_height_recip;
+                v[3].u = u1;
+                v[3].v = v0;
 
                 vertex_index += 4;
 

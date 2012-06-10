@@ -11,6 +11,7 @@ import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.osgi.util.NLS;
+import org.eclipse.swt.graphics.Image;
 
 import com.dynamo.cr.go.Constants;
 import com.dynamo.cr.properties.NotEmpty;
@@ -187,4 +188,13 @@ public class GameObjectInstanceNode extends InstanceNode {
             addChild(node);
         }
     }
+
+    @Override
+    public Image getIcon() {
+        if (this.gameObjectNode != null) {
+            return this.gameObjectNode.getIcon();
+        }
+        return super.getIcon();
+    }
+
 }

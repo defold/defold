@@ -1,7 +1,8 @@
 package com.dynamo.cr.ddfeditor.scene;
 
+import java.nio.FloatBuffer;
+
 import javax.media.opengl.GL;
-import javax.media.opengl.glu.GLU;
 import javax.vecmath.Point3d;
 
 import com.dynamo.cr.sceneed.core.INodeRenderer;
@@ -11,14 +12,16 @@ import com.dynamo.cr.sceneed.ui.RenderUtil;
 
 
 public class SphereCollisionShapeRenderer extends CollisionShapeRenderer implements INodeRenderer<SphereCollisionShapeNode> {
+    FloatBuffer unitSphere;
 
     public SphereCollisionShapeRenderer() {
+        this.unitSphere = RenderUtil.createUnitSphereQuads(16, 8);
     }
 
     @Override
     public void setup(RenderContext renderContext, SphereCollisionShapeNode node) {
         if (passes.contains(renderContext.getPass())) {
-            renderContext.add(this, node, new Point3d(), null);
+            renderContext.add(this, node, new Point3d(), this.unitSphere);
         }
     }
 
@@ -28,12 +31,23 @@ public class SphereCollisionShapeRenderer extends CollisionShapeRenderer impleme
             RenderData<SphereCollisionShapeNode> renderData) {
 
         GL gl = renderContext.getGL();
-        GLU glu = renderContext.getGLU();
         gl.glColor4fv(renderContext.selectColor(node, COLOR), 0);
-        final int slices = 16;
-        final int stacks = 6;
         float sr = (float) node.getRadius();
-        RenderUtil.drawSphere(gl, glu, sr, slices, stacks);
+        gl.glPushMatrix();
+        gl.glScalef(sr, sr, sr);
+
+        FloatBuffer v = (FloatBuffer) renderData.getUserData();
+        v.rewind();
+
+        gl.glEnableClientState(GL.GL_VERTEX_ARRAY);
+
+        gl.glVertexPointer(3, GL.GL_FLOAT, 0, v);
+
+        gl.glDrawArrays(GL.GL_QUADS, 0, v.limit() / 3);
+
+        gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
+
+        gl.glPopMatrix();
     }
 
 }

@@ -1,5 +1,7 @@
 package com.dynamo.cr.ddfeditor.scene;
 
+import java.nio.FloatBuffer;
+
 import javax.media.opengl.GL;
 import javax.vecmath.Point3d;
 
@@ -10,14 +12,16 @@ import com.dynamo.cr.sceneed.ui.RenderUtil;
 
 
 public class BoxCollisionShapeRenderer extends CollisionShapeRenderer implements INodeRenderer<BoxCollisionShapeNode> {
+    FloatBuffer unitBox;
 
     public BoxCollisionShapeRenderer() {
+        unitBox = RenderUtil.createUnitBoxQuads();
     }
 
     @Override
     public void setup(RenderContext renderContext, BoxCollisionShapeNode node) {
         if (passes.contains(renderContext.getPass())) {
-            renderContext.add(this, node, new Point3d(), null);
+            renderContext.add(this, node, new Point3d(), unitBox);
         }
     }
 
@@ -31,6 +35,20 @@ public class BoxCollisionShapeRenderer extends CollisionShapeRenderer implements
         float w_e = (float) node.getWidth() * 0.5f;
         float h_e = (float) node.getHeight() * 0.5f;
         float d_e = (float) node.getDepth() * 0.5f;
-        RenderUtil.drawCube(gl, -w_e, -h_e, -d_e, w_e, h_e, d_e);
+        gl.glPushMatrix();
+        gl.glScalef(w_e, h_e, d_e);
+
+        FloatBuffer v = (FloatBuffer) renderData.getUserData();
+        v.rewind();
+
+        gl.glEnableClientState(GL.GL_VERTEX_ARRAY);
+
+        gl.glVertexPointer(3, GL.GL_FLOAT, 0, v);
+
+        gl.glDrawArrays(GL.GL_QUADS, 0, v.limit() / 3);
+
+        gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
+
+        gl.glPopMatrix();
     }
 }

@@ -10,6 +10,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -54,6 +55,7 @@ import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.sceneed.core.SceneUtil;
 import com.google.protobuf.Message;
 import com.google.protobuf.TextFormat;
 
@@ -89,6 +91,14 @@ public abstract class AbstractNodeTest {
                 return null;
             }
         }).when(this.model).setRoot(any(Node.class));
+        doAnswer(new Answer<BufferedImage>() {
+            @Override
+            public BufferedImage answer(InvocationOnMock invocation)
+                    throws Throwable {
+                return SceneUtil.loadImage(getFile((String) invocation
+                        .getArguments()[0]));
+            }
+        }).when(this.model).getImage(any(String.class));
 
         this.nodeTypeRegistry = mock(INodeTypeRegistry.class);
 

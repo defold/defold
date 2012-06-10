@@ -1,6 +1,5 @@
 package com.dynamo.cr.editor.ui;
 
-import org.eclipse.core.commands.operations.IOperationApprover;
 import org.eclipse.core.commands.operations.IOperationHistory;
 import org.eclipse.core.commands.operations.UndoContext;
 import org.eclipse.core.resources.IFile;
@@ -40,6 +39,7 @@ public abstract class AbstractDefoldEditor extends EditorPart {
     private ActivationListener activationListener;
     protected UndoContext undoContext;
     protected IOperationHistory history;
+    protected LinearUndoViolationUserApprover approver;
     protected UndoActionHandler undoHandler;
     protected RedoActionHandler redoHandler;
     protected boolean inSave = false;
@@ -50,6 +50,18 @@ public abstract class AbstractDefoldEditor extends EditorPart {
     @Override
     public void dispose() {
         super.dispose();
+
+        if (this.history != null)
+        {
+            this.history.dispose(this.undoContext, true, true, true);
+            // Better be safe than sorry. We set the limit to zero as well :-)
+            this.history.setLimit(this.undoContext, 0);
+
+            if (this.approver != null)
+            {
+                this.history.removeOperationApprover(this.approver);
+            }
+        }
 
         if (this.activationListener != null)
             this.activationListener.dispose();
@@ -79,8 +91,7 @@ public abstract class AbstractDefoldEditor extends EditorPart {
                 .getOperationHistory();
         this.history.setLimit(this.undoContext, UNDO_LIMIT);
 
-        IOperationApprover approver = new LinearUndoViolationUserApprover(
-                this.undoContext, this);
+        approver = new LinearUndoViolationUserApprover(this.undoContext, this);
         this.history.addOperationApprover(approver);
 
         undoHandler = new UndoActionHandler(this.getEditorSite(), undoContext);

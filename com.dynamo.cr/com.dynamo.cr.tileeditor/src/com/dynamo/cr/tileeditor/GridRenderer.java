@@ -22,6 +22,7 @@ import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.MouseEvent;
 import org.eclipse.swt.events.MouseListener;
 import org.eclipse.swt.events.MouseMoveListener;
+import org.eclipse.swt.events.MouseTrackAdapter;
 import org.eclipse.swt.graphics.Cursor;
 import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.graphics.Rectangle;
@@ -142,6 +143,14 @@ Listener {
         this.canvas.addListener(SWT.MouseExit, this);
         this.canvas.addMouseListener(this);
         this.canvas.addMouseMoveListener(this);
+        this.canvas.addMouseTrackListener(new MouseTrackAdapter() {
+            @Override
+            public void mouseEnter(MouseEvent e) {
+                activeCell = pickCell(e.x, e.y);
+                lastX = e.x;
+                lastY = e.y;
+            }
+        });
 
         this.defaultCursor = this.canvas.getCursor();
         updateCursor();
@@ -283,6 +292,9 @@ Listener {
             repaint = true;
         }
         if (repaint) {
+            if (this.activeCell != null) {
+                activeCell = pickCell(this.lastX, this.lastY);
+            }
             requestPaint();
         }
     }
@@ -466,6 +478,7 @@ Listener {
             if (this.startActiveCell != null) {
                 this.presenter.onSelectCells(this.selectedLayer, this.startActiveCell.x, this.startActiveCell.y, this.activeCell.x, this.activeCell.y);
                 this.startActiveCell = null;
+                requestPaint();
             } else {
                 this.presenter.onPaintEnd();
             }
@@ -557,6 +570,9 @@ Listener {
 
         // grid (cell-dividing lines)
         renderGrid(gl);
+
+        // box for right-click selection
+        renderSelectionBox(gl);
 
         // tile set palette
         renderTileSet(gl, glu);
@@ -733,33 +749,11 @@ Listener {
                 }
             }
 
-            gl.glDisable(GL.GL_BLEND);
-
-            this.tileSetTexture.disable();
-
-            if (this.selectedLayer != null && layer.equals(this.selectedLayer)) {
-                if (this.activeCell != null) {
-                    if (this.startActiveCell != null) {
-                        float minX = this.tileWidth * Math.min(this.startActiveCell.x, this.activeCell.x);
-                        float maxX = this.tileWidth * (Math.max(this.startActiveCell.x, this.activeCell.x) + 1);
-                        float minY = this.tileHeight * Math.min(this.startActiveCell.y, this.activeCell.y);
-                        float maxY = this.tileHeight * (Math.max(this.startActiveCell.y, this.activeCell.y) + 1);
-                        gl.glDepthMask(false);
-                        gl.glDisable(GL.GL_DEPTH_TEST);
-                        gl.glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
-                        gl.glBegin(GL.GL_LINE_LOOP);
-                        gl.glVertex2f(minX, minY);
-                        gl.glVertex2f(maxX, minY);
-                        gl.glVertex2f(maxX, maxY);
-                        gl.glVertex2f(minX, maxY);
-                        gl.glEnd();
-                        gl.glDepthMask(true);
-                        gl.glEnable(GL.GL_DEPTH_TEST);
-                    }
-                }
-            }
-
         }
+
+        gl.glDisable(GL.GL_BLEND);
+
+        this.tileSetTexture.disable();
 
     }
 
@@ -812,6 +806,37 @@ Listener {
 
         gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
         gl.glDisableClientState(GL.GL_COLOR_ARRAY);
+    }
+
+    private void renderSelectionBox(GL gl) {
+        if (this.selectedLayer != null && this.activeCell != null) {
+            float minX = 0.0f;
+            float maxX = 0.0f;
+            float minY = 0.0f;
+            float maxY = 0.0f;
+            if (this.startActiveCell != null) {
+                minX = this.tileWidth * Math.min(this.startActiveCell.x, this.activeCell.x);
+                maxX = this.tileWidth * (Math.max(this.startActiveCell.x, this.activeCell.x) + 1);
+                minY = this.tileHeight * Math.min(this.startActiveCell.y, this.activeCell.y);
+                maxY = this.tileHeight * (Math.max(this.startActiveCell.y, this.activeCell.y) + 1);
+            } else {
+                minX = this.tileWidth * this.activeCell.x;
+                minY = this.tileHeight * this.activeCell.y;
+                maxX = minX + this.tileWidth * this.brush.getWidth();
+                maxY = minY + this.tileHeight * this.brush.getHeight();
+            }
+            gl.glDepthMask(false);
+            gl.glDisable(GL.GL_DEPTH_TEST);
+            gl.glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+            gl.glBegin(GL.GL_LINE_LOOP);
+            gl.glVertex2f(minX, minY);
+            gl.glVertex2f(maxX, minY);
+            gl.glVertex2f(maxX, maxY);
+            gl.glVertex2f(minX, maxY);
+            gl.glEnd();
+            gl.glDepthMask(true);
+            gl.glEnable(GL.GL_DEPTH_TEST);
+        }
     }
 
     private void renderTileSet(GL gl, GLU glu) {
@@ -999,11 +1024,13 @@ Listener {
         outMin.set(offset);
         outMin.sub(extent);
         Point2f minNorm = new Point2f(outMin);
-        minNorm.scale(1.0f / this.tileWidth);
+        minNorm.x /= this.tileWidth;
+        minNorm.y /= this.tileHeight;
         outMax.set(offset);
         outMax.add(extent);
         Point2f maxNorm = new Point2f(outMax);
-        maxNorm.scale(1.0f / this.tileHeight);
+        maxNorm.x /= this.tileWidth;
+        maxNorm.y /= this.tileHeight;
 
         outCellMin.set((int)Math.ceil(minNorm.getX()), (int)Math.ceil(minNorm.getY()));
         outCellMax.set((int)Math.ceil(maxNorm.getX()), (int)Math.ceil(maxNorm.getY()));

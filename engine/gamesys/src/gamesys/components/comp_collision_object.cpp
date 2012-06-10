@@ -18,8 +18,10 @@ namespace dmGameSystem
 {
     using namespace Vectormath::Aos;
 
-    static const uint32_t MAX_COLLISION_COUNT = 64;
-    static const uint32_t MAX_CONTACT_COUNT = 128;
+    /// Config key to use for tweaking maximum number of collisions reported
+    const char* PHYSICS_MAX_COLLISIONS_KEY  = "physics.max_collisions";
+    /// Config key to use for tweaking maximum number of contacts reported
+    const char* PHYSICS_MAX_CONTACTS_KEY    = "physics.max_contacts";
 
     struct World
     {
@@ -41,6 +43,13 @@ namespace dmGameSystem
             dmPhysics::HCollisionObject2D m_Object2D;
         };
         uint8_t m_ComponentIndex;
+        // True if the physics is 3D
+        // This is used to determine physics engine kind and to preserve
+        // z for the 2d-case
+        // A bit awkward to have a flag for this but we don't have access to
+        // to PhysicsContext in the SetWorldTransform callback. This
+        // could perhaps be improved.
+        uint8_t m_3D : 1;
     };
 
     void GetWorldTransform(void* user_data, Vectormath::Aos::Point3& position, Vectormath::Aos::Quat& rotation)
@@ -59,7 +68,18 @@ namespace dmGameSystem
             return;
         Component* component = (Component*)user_data;
         dmGameObject::HInstance instance = component->m_Instance;
-        dmGameObject::SetPosition(instance, position);
+        if (component->m_3D)
+        {
+            dmGameObject::SetPosition(instance, position);
+        }
+        else
+        {
+            // Preserve z for 2D physics
+            Vectormath::Aos::Point3 p = dmGameObject::GetPosition(instance);
+            p.setX(position.getX());
+            p.setY(position.getY());
+            dmGameObject::SetPosition(instance, p);
+        }
         dmGameObject::SetRotation(instance, rotation);
     }
 
@@ -102,7 +122,9 @@ namespace dmGameSystem
             dmLogError("Invalid mass %f for shape type %d", co_res->m_DDF->m_Mass, co_res->m_DDF->m_Type);
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
+        PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
         Component* component = new Component();
+        component->m_3D = (uint8_t) physics_context->m_3D;
         component->m_Resource = (CollisionObjectResource*)params.m_Resource;
         component->m_Instance = params.m_Instance;
         component->m_Object2D = 0;
@@ -309,13 +331,14 @@ namespace dmGameSystem
     struct CollisionUserData
     {
         World* m_World;
+        PhysicsContext* m_Context;
         uint32_t m_Count;
     };
 
     bool CollisionCallback(void* user_data_a, uint16_t group_a, void* user_data_b, uint16_t group_b, void* user_data)
     {
         CollisionUserData* cud = (CollisionUserData*)user_data;
-        if (cud->m_Count < MAX_COLLISION_COUNT)
+        if (cud->m_Count < cud->m_Context->m_MaxCollisionCount)
         {
             cud->m_Count += 1;
 
@@ -381,7 +404,7 @@ namespace dmGameSystem
     bool ContactPointCallback(const dmPhysics::ContactPoint& contact_point, void* user_data)
     {
         CollisionUserData* cud = (CollisionUserData*)user_data;
-        if (cud->m_Count < MAX_CONTACT_COUNT)
+        if (cud->m_Count < cud->m_Context->m_MaxContactPointCount)
         {
             cud->m_Count += 1;
 
@@ -596,9 +619,11 @@ namespace dmGameSystem
 
         CollisionUserData collision_user_data;
         collision_user_data.m_World = world;
+        collision_user_data.m_Context = physics_context;
         collision_user_data.m_Count = 0;
         CollisionUserData contact_user_data;
         contact_user_data.m_World = world;
+        contact_user_data.m_Context = physics_context;
         contact_user_data.m_Count = 0;
 
         dmPhysics::StepWorldContext step_world_context;
@@ -618,11 +643,11 @@ namespace dmGameSystem
         {
             dmPhysics::StepWorld2D(world->m_World2D, step_world_context);
         }
-        if (collision_user_data.m_Count >= MAX_COLLISION_COUNT)
+        if (collision_user_data.m_Count >= physics_context->m_MaxCollisionCount)
         {
             if (!g_CollisionOverflowWarning)
             {
-                dmLogWarning("Maximum number of collisions (%d) reached, messages have been lost.", MAX_COLLISION_COUNT);
+                dmLogWarning("Maximum number of collisions (%d) reached, messages have been lost. Tweak \"%s\" in the config file.", physics_context->m_MaxCollisionCount, PHYSICS_MAX_COLLISIONS_KEY);
                 g_CollisionOverflowWarning = true;
             }
         }
@@ -630,11 +655,11 @@ namespace dmGameSystem
         {
             g_CollisionOverflowWarning = false;
         }
-        if (contact_user_data.m_Count >= MAX_CONTACT_COUNT)
+        if (contact_user_data.m_Count >= physics_context->m_MaxContactPointCount)
         {
             if (!g_ContactOverflowWarning)
             {
-                dmLogWarning("Maximum number of contacts (%d) reached, messages have been lost.", MAX_CONTACT_COUNT);
+                dmLogWarning("Maximum number of contacts (%d) reached, messages have been lost. Tweak \"%s\" in the config file.", physics_context->m_MaxContactPointCount, PHYSICS_MAX_CONTACTS_KEY);
                 g_ContactOverflowWarning = true;
             }
         }

@@ -13,6 +13,7 @@ import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.Listener;
 import org.eclipse.swt.widgets.Text;
+import org.eclipse.ui.forms.widgets.FormToolkit;
 
 import com.dynamo.cr.properties.IPropertyEditor;
 import com.dynamo.cr.properties.IPropertyModel;
@@ -176,7 +177,7 @@ public abstract class ScalarPropertyDesc<S, T, U extends IPropertyObjectWorld> e
     }
 
     @Override
-    public IPropertyEditor<T, U> createEditor(Composite parent, IContainer contentRoot) {
+    public IPropertyEditor<T, U> createEditor(FormToolkit toolkit, Composite parent, IContainer contentRoot) {
         return new Editor(parent);
     }
 

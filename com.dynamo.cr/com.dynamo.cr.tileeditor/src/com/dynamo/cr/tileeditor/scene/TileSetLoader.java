@@ -64,8 +64,8 @@ public class TileSetLoader implements INodeLoader<TileSetNode> {
             animNode.setEndTile(animDdf.getEndTile());
             animNode.setPlayback(animDdf.getPlayback());
             animNode.setFps(animDdf.getFps());
-            animNode.setFlipHorizontal(animDdf.getFlipHorizontal() != 0);
-            animNode.setFlipVertical(animDdf.getFlipVertical() != 0);
+            animNode.setFlipHorizontally(animDdf.getFlipHorizontal() != 0);
+            animNode.setFlipVertically(animDdf.getFlipVertical() != 0);
             node.addChild(animNode);
         }
 
@@ -112,8 +112,8 @@ public class TileSetLoader implements INodeLoader<TileSetNode> {
                 .setEndTile(animNode.getEndTile())
                 .setPlayback(animNode.getPlayback())
                 .setFps(animNode.getFps())
-                .setFlipHorizontal(animNode.isFlipHorizontal()?1:0)
-                .setFlipVertical(animNode.isFlipVertical()?1:0);
+                    .setFlipHorizontal(animNode.isFlipHorizontally() ? 1 : 0)
+                    .setFlipVertical(animNode.isFlipVertically() ? 1 : 0);
             tileSetBuilder.addAnimations(animBuilder);
         }
         return tileSetBuilder.build();

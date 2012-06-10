@@ -279,60 +279,68 @@ static void LogFrameBufferError(GLenum status)
         }
 
 #if defined (_WIN32)
-#define GET_PROC_ADDRESS(name, type)\
-        name = (type)wglGetProcAddress(#name);\
-        if (name == 0x0)\
+#define GET_PROC_ADDRESS(function, name, type)\
+        function = (type)wglGetProcAddress(name);\
+        if (function == 0x0)\
         {\
-            dmLogError("Could not find gl function '%s'.", #name);\
+            function = (type)wglGetProcAddress(name "ARB");\
+        }\
+        if (function == 0x0)\
+        {\
+            function = (type)wglGetProcAddress(name "EXT");\
+        }\
+        if (function == 0x0)\
+        {\
+            dmLogError("Could not find gl function '%s'.", name);\
             return WINDOW_RESULT_WINDOW_OPEN_ERROR;\
         }
 
-        GET_PROC_ADDRESS(glGenProgramsARB, PFNGLGENPROGRAMARBPROC);
-        GET_PROC_ADDRESS(glBindProgramARB, PFNGLBINDPROGRAMARBPROC);
-        GET_PROC_ADDRESS(glDeleteProgramsARB, PFNGLDELETEPROGRAMSARBPROC);
-        GET_PROC_ADDRESS(glProgramStringARB, PFNGLPROGRAMSTRINGARBPROC);
-        GET_PROC_ADDRESS(glProgramLocalParameter4fARB, PFNGLVERTEXPARAMFLOAT4ARBPROC);
-        GET_PROC_ADDRESS(glEnableVertexAttribArray, PFNGLVERTEXATTRIBSETPROC);
-        GET_PROC_ADDRESS(glDisableVertexAttribArray, PFNGLVERTEXATTRIBSETPROC);
-        GET_PROC_ADDRESS(glVertexAttribPointer, PFNGLVERTEXATTRIBPTRPROC);
-        GET_PROC_ADDRESS(glCompressedTexImage2D, PFNGLTEXPARAM2DPROC);
-        GET_PROC_ADDRESS(glGenBuffersARB, PFNGLGENBUFFERSPROC);
-        GET_PROC_ADDRESS(glDeleteBuffersARB, PFNGLDELETEBUFFERSPROC);
-        GET_PROC_ADDRESS(glBindBufferARB, PFNGLBINDBUFFERPROC);
-        GET_PROC_ADDRESS(glBufferDataARB, PFNGLBUFFERDATAPROC);
-        GET_PROC_ADDRESS(glGenRenderbuffers, PFNGLGENRENDERBUFFERSPROC);
-        GET_PROC_ADDRESS(glBindRenderbuffer, PFNGLBINDRENDERBUFFERPROC);
-        GET_PROC_ADDRESS(glRenderbufferStorage, PFNGLRENDERBUFFERSTORAGEPROC);
-        GET_PROC_ADDRESS(glFramebufferTexture2D, PFNGLRENDERBUFFERTEXTURE2DPROC);
-        GET_PROC_ADDRESS(glFramebufferRenderbuffer, PFNGLFRAMEBUFFERRENDERBUFFERPROC);
-        GET_PROC_ADDRESS(glGenFramebuffers, PFNGLGENFRAMEBUFFERSPROC);
-        GET_PROC_ADDRESS(glBindFramebuffer, PFNGLBINDFRAMEBUFFERPROC);
-        GET_PROC_ADDRESS(glDeleteFramebuffers, PFNGLDELETEFRAMEBUFFERSPROC);
-        GET_PROC_ADDRESS(glDeleteRenderbuffers, PFNGLDELETERENDERBUFFERSPROC);
-        GET_PROC_ADDRESS(glBufferSubDataARB, PFNGLBUFFERSUBDATAPROC);
-        GET_PROC_ADDRESS(glMapBufferARB, PFNGLMAPBUFFERPROC);
-        GET_PROC_ADDRESS(glUnmapBufferARB, PFNGLUNMAPBUFFERPROC);
-        GET_PROC_ADDRESS(glActiveTexture, PFNGLACTIVETEXTUREPROC);
-        GET_PROC_ADDRESS(glCheckFramebufferStatus, PFNGLCHECKFRAMEBUFFERSTATUSPROC);
-        GET_PROC_ADDRESS(glGetAttribLocation, PFNGLGETATTRIBLOCATIONPROC);
-        GET_PROC_ADDRESS(glCreateShader, PFNGLCREATESHADERPROC);
-        GET_PROC_ADDRESS(glShaderSource, PFNGLSHADERSOURCEPROC);
-        GET_PROC_ADDRESS(glCompileShader, PFNGLCOMPILESHADERPROC);
-        GET_PROC_ADDRESS(glGetShaderiv, PFNGLGETSHADERIVPROC);
-        GET_PROC_ADDRESS(glGetShaderInfoLog, PFNGLGETSHADERINFOLOGPROC);
-        GET_PROC_ADDRESS(glGetProgramInfoLog, PFNGLGETPROGRAMINFOLOGPROC);
-        GET_PROC_ADDRESS(glDeleteShader, PFNGLDELETESHADERPROC);
-        GET_PROC_ADDRESS(glCreateProgram, PFNGLCREATEPROGRAMPROC);
-        GET_PROC_ADDRESS(glAttachShader, PFNGLATTACHSHADERPROC);
-        GET_PROC_ADDRESS(glLinkProgram, PFNGLLINKPROGRAMPROC);
-        GET_PROC_ADDRESS(glDeleteProgram, PFNGLDELETEPROGRAMPROC);
-        GET_PROC_ADDRESS(glUseProgram, PFNGLUSEPROGRAMPROC);
-        GET_PROC_ADDRESS(glGetProgramiv, PFNGLGETPROGRAMIVPROC);
-        GET_PROC_ADDRESS(glGetActiveUniform, PFNGLGETACTIVEUNIFORMPROC);
-        GET_PROC_ADDRESS(glGetUniformLocation, PFNGLGETUNIFORMLOCATIONPROC);
-        GET_PROC_ADDRESS(glUniform4fv, PFNGLUNIFORM4FVPROC);
-        GET_PROC_ADDRESS(glUniformMatrix4fv, PFNGLUNIFORMMATRIX4FVPROC);
-        GET_PROC_ADDRESS(glUniform1i, PFNGLUNIFORM1IPROC);
+        GET_PROC_ADDRESS(glGenProgramsARB, "glGenPrograms", PFNGLGENPROGRAMARBPROC);
+        GET_PROC_ADDRESS(glBindProgramARB, "glBindProgram", PFNGLBINDPROGRAMARBPROC);
+        GET_PROC_ADDRESS(glDeleteProgramsARB, "glDeletePrograms", PFNGLDELETEPROGRAMSARBPROC);
+        GET_PROC_ADDRESS(glProgramStringARB, "glProgramString", PFNGLPROGRAMSTRINGARBPROC);
+        GET_PROC_ADDRESS(glProgramLocalParameter4fARB, "glProgramLocalParameter4f", PFNGLVERTEXPARAMFLOAT4ARBPROC);
+        GET_PROC_ADDRESS(glEnableVertexAttribArray, "glEnableVertexAttribArray", PFNGLVERTEXATTRIBSETPROC);
+        GET_PROC_ADDRESS(glDisableVertexAttribArray, "glDisableVertexAttribArray", PFNGLVERTEXATTRIBSETPROC);
+        GET_PROC_ADDRESS(glVertexAttribPointer, "glVertexAttribPointer", PFNGLVERTEXATTRIBPTRPROC);
+        GET_PROC_ADDRESS(glCompressedTexImage2D, "glCompressedTexImage2D", PFNGLTEXPARAM2DPROC);
+        GET_PROC_ADDRESS(glGenBuffersARB, "glGenBuffers", PFNGLGENBUFFERSPROC);
+        GET_PROC_ADDRESS(glDeleteBuffersARB, "glDeleteBuffers", PFNGLDELETEBUFFERSPROC);
+        GET_PROC_ADDRESS(glBindBufferARB, "glBindBuffer", PFNGLBINDBUFFERPROC);
+        GET_PROC_ADDRESS(glBufferDataARB, "glBufferData", PFNGLBUFFERDATAPROC);
+        GET_PROC_ADDRESS(glGenRenderbuffers, "glGenRenderbuffers", PFNGLGENRENDERBUFFERSPROC);
+        GET_PROC_ADDRESS(glBindRenderbuffer, "glBindRenderbuffer", PFNGLBINDRENDERBUFFERPROC);
+        GET_PROC_ADDRESS(glRenderbufferStorage, "glRenderbufferStorage", PFNGLRENDERBUFFERSTORAGEPROC);
+        GET_PROC_ADDRESS(glFramebufferTexture2D, "glFramebufferTexture2D", PFNGLRENDERBUFFERTEXTURE2DPROC);
+        GET_PROC_ADDRESS(glFramebufferRenderbuffer, "glFramebufferRenderbuffer", PFNGLFRAMEBUFFERRENDERBUFFERPROC);
+        GET_PROC_ADDRESS(glGenFramebuffers, "glGenFramebuffers", PFNGLGENFRAMEBUFFERSPROC);
+        GET_PROC_ADDRESS(glBindFramebuffer, "glBindFramebuffer", PFNGLBINDFRAMEBUFFERPROC);
+        GET_PROC_ADDRESS(glDeleteFramebuffers, "glDeleteFramebuffers", PFNGLDELETEFRAMEBUFFERSPROC);
+        GET_PROC_ADDRESS(glDeleteRenderbuffers, "glDeleteRenderbuffers", PFNGLDELETERENDERBUFFERSPROC);
+        GET_PROC_ADDRESS(glBufferSubDataARB, "glBufferSubData", PFNGLBUFFERSUBDATAPROC);
+        GET_PROC_ADDRESS(glMapBufferARB, "glMapBuffer", PFNGLMAPBUFFERPROC);
+        GET_PROC_ADDRESS(glUnmapBufferARB, "glUnmapBuffer", PFNGLUNMAPBUFFERPROC);
+        GET_PROC_ADDRESS(glActiveTexture, "glActiveTexture", PFNGLACTIVETEXTUREPROC);
+        GET_PROC_ADDRESS(glCheckFramebufferStatus, "glCheckFramebufferStatus", PFNGLCHECKFRAMEBUFFERSTATUSPROC);
+        GET_PROC_ADDRESS(glGetAttribLocation, "glGetAttribLocation", PFNGLGETATTRIBLOCATIONPROC);
+        GET_PROC_ADDRESS(glCreateShader, "glCreateShader", PFNGLCREATESHADERPROC);
+        GET_PROC_ADDRESS(glShaderSource, "glShaderSource", PFNGLSHADERSOURCEPROC);
+        GET_PROC_ADDRESS(glCompileShader, "glCompileShader", PFNGLCOMPILESHADERPROC);
+        GET_PROC_ADDRESS(glGetShaderiv, "glGetShaderiv", PFNGLGETSHADERIVPROC);
+        GET_PROC_ADDRESS(glGetShaderInfoLog, "glGetShaderInfoLog", PFNGLGETSHADERINFOLOGPROC);
+        GET_PROC_ADDRESS(glGetProgramInfoLog, "glGetProgramInfoLog", PFNGLGETPROGRAMINFOLOGPROC);
+        GET_PROC_ADDRESS(glDeleteShader, "glDeleteShader", PFNGLDELETESHADERPROC);
+        GET_PROC_ADDRESS(glCreateProgram, "glCreateProgram", PFNGLCREATEPROGRAMPROC);
+        GET_PROC_ADDRESS(glAttachShader, "glAttachShader", PFNGLATTACHSHADERPROC);
+        GET_PROC_ADDRESS(glLinkProgram, "glLinkProgram", PFNGLLINKPROGRAMPROC);
+        GET_PROC_ADDRESS(glDeleteProgram, "glDeleteProgram", PFNGLDELETEPROGRAMPROC);
+        GET_PROC_ADDRESS(glUseProgram, "glUseProgram", PFNGLUSEPROGRAMPROC);
+        GET_PROC_ADDRESS(glGetProgramiv, "glGetProgramiv", PFNGLGETPROGRAMIVPROC);
+        GET_PROC_ADDRESS(glGetActiveUniform, "glGetActiveUniform", PFNGLGETACTIVEUNIFORMPROC);
+        GET_PROC_ADDRESS(glGetUniformLocation, "glGetUniformLocation", PFNGLGETUNIFORMLOCATIONPROC);
+        GET_PROC_ADDRESS(glUniform4fv, "glUniform4fv", PFNGLUNIFORM4FVPROC);
+        GET_PROC_ADDRESS(glUniformMatrix4fv, "glUniformMatrix4fv", PFNGLUNIFORMMATRIX4FVPROC);
+        GET_PROC_ADDRESS(glUniform1i, "glUniform1i", PFNGLUNIFORM1IPROC);
 
 #undef GET_PROC_ADDRESS
 #endif

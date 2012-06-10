@@ -8,6 +8,7 @@ import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.Listener;
+import org.eclipse.ui.forms.widgets.FormToolkit;
 
 import com.dynamo.cr.properties.IPropertyEditor;
 import com.dynamo.cr.properties.IPropertyModel;
@@ -23,10 +24,11 @@ public class BooleanPropertyDesc<T, U extends IPropertyObjectWorld> extends Prop
 
     private class Editor implements IPropertyEditor<T, U>, Listener {
 
-        private Button check;
+        private final Button check;
         private IPropertyModel<T, U>[] models;
-        Editor(Composite parent) {
-            check = new Button(parent, SWT.CHECK);
+
+        Editor(FormToolkit toolkit, Composite parent) {
+            check = toolkit.createButton(parent, null, SWT.CHECK);
             check.addListener(SWT.Selection, this);
         }
 
@@ -71,8 +73,8 @@ public class BooleanPropertyDesc<T, U extends IPropertyObjectWorld> extends Prop
     }
 
     @Override
-    public IPropertyEditor<T, U> createEditor(Composite parent, IContainer contentRoot) {
-        return new Editor(parent);
+    public IPropertyEditor<T, U> createEditor(FormToolkit toolkit, Composite parent, IContainer contentRoot) {
+        return new Editor(toolkit, parent);
     }
 
 }
