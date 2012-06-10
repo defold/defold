@@ -7,7 +7,7 @@ slask
 *.pyc
 java_bin
 DYNAMO_HOME
-target
+/*/target/
 log
 generated
 derby.log
