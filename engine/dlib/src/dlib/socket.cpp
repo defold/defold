@@ -2,6 +2,7 @@
 #include "math.h"
 
 #include <fcntl.h>
+#include <string.h>
 
 #if defined(__linux__) || defined(__MACH__)
 #include <unistd.h>
@@ -460,6 +461,25 @@ namespace dmSocket
             return RESULT_OK;
         }
     }
+
+#if !(defined(__MACH__) && defined(__arm__))
+    Result GetLocalAddress(Address* address)
+    {
+        /*
+         * Get local address from reverse lookup of hostname
+         * The method is potentially fragile. On iOS we iterate
+         * over network adapter to the find actual address for en0
+         * See socket_cocoa.mm
+         */
+        char hostname[256];
+        Result r = dmSocket::GetHostname(hostname, sizeof(hostname));
+        if (r != dmSocket::RESULT_OK)
+            return r;
+
+        r = dmSocket::GetHostByName(hostname, address);
+        return r;
+    }
+#endif
 
     Result SetBlocking(Socket socket, bool blocking)
     {

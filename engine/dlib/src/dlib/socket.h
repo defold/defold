@@ -160,7 +160,7 @@ namespace dmSocket
      * @param socket Pointer to created socket
      * @return RESULT_OK on succcess
      */
-    Result New(Type type, Protocol protocol, Socket* socket);
+    Result New(Type type, enum Protocol protocol, Socket* socket);
 
     /**
      * Delete a socket. Corresponds to BSD socket function close()
@@ -356,6 +356,15 @@ namespace dmSocket
      * @return RESULT_OK on success
      */
     Result GetHostname(char* hostname, int hostname_length);
+
+    /**
+     * Get first local IP address
+     * The function tries to determine the local IP address. If several
+     * IP addresses are available only a single is returned
+     * @param address address result
+     * @return RESULT_OK on success
+     */
+    Result GetLocalAddress(Address* address);
 
     /**
      * Get address from ip string
