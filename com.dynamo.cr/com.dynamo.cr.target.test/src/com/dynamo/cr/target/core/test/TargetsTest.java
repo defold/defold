@@ -11,6 +11,8 @@ import static org.mockito.Mockito.when;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 
 import javax.inject.Singleton;
@@ -153,10 +155,17 @@ public class TargetsTest implements ITargetListener {
             assertThat(events.size(), is(1));
             ITarget[] targets = targetService.getTargets();
             assertThat(targets.length, is(2));
-            assertThat(targets[0].getId(), is(UDN));
-            assertThat(targets[0].getUrl(), is(URL));
-            assertThat(targets[1].getId(), is(ITargetService.LOCAL_TARGET_ID));
-            assertThat(targets[1].getUrl(), is((String) null));
+            Arrays.sort(targets, new Comparator<ITarget>() {
+
+                @Override
+                public int compare(ITarget t0, ITarget t1) {
+                    return t0.getId().compareTo(t1.getId());
+                }
+            });
+            assertThat(targets[0].getId(), is(ITargetService.LOCAL_TARGET_ID));
+            assertThat(targets[0].getUrl(), is((String) null));
+            assertThat(targets[1].getId(), is(UDN));
+            assertThat(targets[1].getUrl(), is(URL));
         }
     }
 
