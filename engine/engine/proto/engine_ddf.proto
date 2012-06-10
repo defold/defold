@@ -1,6 +1,10 @@
 package dmEngineDDF;
 
+import "ddf/ddf_extensions.proto";
 import "ddf/ddf_math.proto";
+
+option java_package = "com.dynamo.engine.proto";
+option java_outer_classname = "Engine";
 
 /*# exits application
  * Terminates the game application and reports the specified <code>code</code> to the OS.

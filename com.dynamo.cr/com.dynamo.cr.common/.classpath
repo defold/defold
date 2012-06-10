@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
+	<classpathentry exported="true" kind="lib" path="DYNAMO_HOME/share/java/upnp.jar"/>
+	<classpathentry exported="true" kind="lib" path="DYNAMO_HOME/share/java/engine.jar"/>
 	<classpathentry exported="true" kind="lib" path="DYNAMO_HOME/share/java/resource.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/slf4j/logback-classic-1.0.3.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/slf4j/logback-core-1.0.3.jar"/>

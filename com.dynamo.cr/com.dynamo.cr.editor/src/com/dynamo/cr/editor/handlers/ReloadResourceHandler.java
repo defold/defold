@@ -5,9 +5,10 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.net.URLConnection;
 import java.util.HashMap;
 import java.util.Map;
+
+import javax.ws.rs.core.UriBuilder;
 
 import org.eclipse.core.commands.AbstractHandler;
 import org.eclipse.core.commands.ExecutionEvent;
@@ -29,6 +30,9 @@ import org.eclipse.ui.handlers.HandlerUtil;
 import com.dynamo.cr.editor.Activator;
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.preferences.PreferenceConstants;
+import com.dynamo.cr.targets.core.ITarget;
+import com.dynamo.cr.targets.core.ITargetsService;
+import com.dynamo.cr.targets.core.TargetsPlugin;
 import com.dynamo.resource.proto.Resource;
 import com.dynamo.resource.proto.Resource.Reload;
 
@@ -58,6 +62,7 @@ public class ReloadResourceHandler extends AbstractHandler {
                             IProject project = fileInput.getFile().getProject();
                             Map<String, String> args = new HashMap<String, String>();
                             final IPreferenceStore store = Activator.getDefault().getPreferenceStore();
+                            ITargetsService targetService = TargetsPlugin.getDefault().getTargetsService();
                             final boolean localBranch = store.getBoolean(PreferenceConstants.P_USE_LOCAL_BRANCHES);
                             if (localBranch)
                                 args.put("location", "local");
@@ -71,8 +76,14 @@ public class ReloadResourceHandler extends AbstractHandler {
                                     .setResource(stringPath)
                                     .build();
 
-                            URL url = new URL("http://localhost:8001/post/@resource/reload");
-                            HttpURLConnection c = (HttpURLConnection) url.openConnection();
+                            ITarget target = targetService.getSelectedTarget();
+                            URL reloadUrl;
+                            URL baseUrl = new URL("http://localhost:8001");
+                            if (target.getUrl() != null) {
+                                baseUrl = new URL(target.getUrl());
+                            }
+                            reloadUrl = UriBuilder.fromUri(baseUrl.toURI()).path("/post/@resource/reload").build().toURL();
+                            HttpURLConnection c = (HttpURLConnection) reloadUrl.openConnection();
                             c.setDoOutput(true);
                             c.setRequestMethod("POST");
                             OutputStream os = c.getOutputStream();

@@ -9,20 +9,12 @@ import java.net.SocketTimeoutException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
-import java.util.StringTokenizer;
 import java.util.Map.Entry;
-import java.util.logging.Level;
+import java.util.Set;
 import java.util.logging.Logger;
 
-import javax.xml.parsers.ParserConfigurationException;
-import javax.xml.xpath.XPathExpressionException;
 
-import org.xml.sax.SAXException;
-
-import com.dynamo.upnp.DeviceInfo;
-
-public class SSDP {
+public class SSDP implements ISSDP {
 
     private Logger logger = Logger.getLogger(SSDP.class.getCanonicalName());
 
@@ -35,6 +27,7 @@ public class SSDP {
     private DatagramSocket socket;
     private byte[] buffer;
     private Map<String, DeviceInfo> discoveredDevices = new HashMap<String, DeviceInfo>();
+    private int changeCount = 0;
 
     private static final String M_SEARCH_PAYLOAD =
               "M-SEARCH * HTTP/1.1\r\n"
@@ -73,11 +66,14 @@ public class SSDP {
             }
         }
         for (String id : toExpire) {
+            ++changeCount;
             discoveredDevices.remove(id);
         }
     }
 
-    public void update(boolean search) throws IOException {
+    @Override
+    public boolean update(boolean search) throws IOException {
+        int oldChangeCount = changeCount;
         if (search) {
             sendSearch();
         }
@@ -90,7 +86,7 @@ public class SSDP {
                 DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
                 mcastSocket.receive(packet);
                 String data = new String(buffer, 0, packet.getLength());
-                handleRequest(data);
+                handleRequest(data, packet.getAddress().getHostAddress());
             } catch (SocketTimeoutException e) {
                 // Ignore
                 cont = false;
@@ -100,16 +96,17 @@ public class SSDP {
                 DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
                 socket.receive(packet);
                 String data = new String(buffer, 0, packet.getLength());
-                handleResponse(data);
+                handleResponse(data, packet.getAddress().getHostAddress());
             } catch (SocketTimeoutException e) {
                 // Ignore
                 cont = false;
             }
         } while (cont);
 
+        return changeCount != oldChangeCount;
     }
 
-    private void handleRequest(String data) {
+    private void handleRequest(String data, String address) {
         Request request = Request.parse(data);
         if (request == null) {
             logger.warning("Invalid request: " + data);
@@ -119,9 +116,25 @@ public class SSDP {
         if (request.method.equals("NOTIFY")) {
             String usn = request.headers.get("USN");
             if (usn != null) {
-                DeviceInfo device = DeviceInfo.create(request.headers);
+                DeviceInfo device = DeviceInfo.create(request.headers, address);
                 if (device != null) {
-                    discoveredDevices.put(usn, device);
+                    // alive vs byebye in NTS field?
+                    String nts = request.headers.get("NTS");
+                    if (nts != null && nts.equals("ssdp:alive")) {
+                        DeviceInfo discDevice = discoveredDevices.get(usn);
+                        if (discDevice == null) {
+                            discoveredDevices.put(usn, device);
+                            ++changeCount;
+                        } else {
+                            if (!discDevice.equals(device)) {
+                                discoveredDevices.put(usn, device);
+                                ++changeCount;
+                            }
+                        }
+                    } else {
+                        ++changeCount;
+                        discoveredDevices.remove(usn);
+                    }
                 } else {
                     logger.warning("Malformed NOTIFY response " + data);
                 }
@@ -130,7 +143,7 @@ public class SSDP {
         // We ignore M-SEARCH requests
     }
 
-    private void handleResponse(String data) {
+    private void handleResponse(String data, String address) {
         Response response = Response.parse(data);
         if (response == null) {
             logger.warning("Invalid response: " + data);
@@ -140,9 +153,12 @@ public class SSDP {
         if (response.statusCode == 200) {
             String usn = response.headers.get("USN");
             if (usn != null) {
-                DeviceInfo device = DeviceInfo.create(response.headers);
+                DeviceInfo device = DeviceInfo.create(response.headers, address);
                 if (device != null) {
-                    discoveredDevices.put(usn, device);
+                    if (!discoveredDevices.containsKey(usn)) {
+                        ++changeCount;
+                        discoveredDevices.put(usn, device);
+                    }
                 } else {
                     logger.warning("Malformed response " + data);
                 }
@@ -150,15 +166,23 @@ public class SSDP {
         }
     }
 
+    @Override
     public DeviceInfo getDeviceInfo(String usn) {
         return discoveredDevices.get(usn);
     }
 
+    @Override
+    public DeviceInfo[] getDevices() {
+        return discoveredDevices.values().toArray(new DeviceInfo[discoveredDevices.size()]);
+    }
+
+    @Override
     public void dispose() {
         this.socket.close();
         this.mcastSocket.close();
     }
 
+    @Override
     public void clearDiscovered() {
         discoveredDevices.clear();
     }
