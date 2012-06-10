@@ -18,7 +18,7 @@ PACKAGES_IOS="protobuf-2.3.0 gtest-1.2.1".split()
 
 class Configuration(object):
     def __init__(self, dynamo_home = None,
-                 target = None,
+                 target_platform = None,
                  eclipse_home = None,
                  skip_tests = False,
                  no_colors = False,
@@ -30,11 +30,10 @@ class Configuration(object):
             home = os.environ['HOME']
 
         self.dynamo_home = dynamo_home if dynamo_home else join(os.getcwd(), 'tmp', 'dynamo_home')
-        self.target = target
         self.eclipse_home = eclipse_home if eclipse_home else join(home, 'eclipse')
         self.defold_root = os.getcwd()
         self.host = 'linux' if sys.platform == 'linux2' else sys.platform
-        self.target = target if target else self.host
+        self.target_platform = target_platform if target_platform else self.host
         self.skip_tests = skip_tests
         self.no_colors = no_colors
         self.archive_path = archive_path
@@ -109,13 +108,13 @@ class Configuration(object):
         return sha1
 
     def archive_engine(self):
-        exe_ext = '.exe' if self.target == 'win32' else ''
+        exe_ext = '.exe' if self.target_platform == 'win32' else ''
         host, path = self.archive_path.split(':', 1)
         sha1 = self._git_sha1()
         self.exec_command(['ssh', host, 'mkdir -p %s' % path])
         dynamo_home = self.dynamo_home
         # TODO: Ugly win fix, make better (https://defold.fogbugz.com/default.asp?1066)
-        if self.target == 'win32':
+        if self.target_platform == 'win32':
             dynamo_home = dynamo_home.replace("\\", "/")
             dynamo_home = "/" + dynamo_home[:1] + dynamo_home[2:]
         self.exec_command(['scp', join(dynamo_home, 'bin', 'dmengine' + exe_ext),
@@ -124,11 +123,11 @@ class Configuration(object):
                            'ln -sfn dmengine%s.%s %s/dmengine%s' % (exe_ext, sha1, path, exe_ext)])
 
     def build_engine(self):
-        skip_tests = '--skip-tests' if self.skip_tests or self.target != self.host else ''
+        skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
         libs="dlib ddf particle glfw graphics hid input physics resource lua script render gameobject gui sound gamesys tools record engine".split()
 
         # NOTE: We run waf using python <PATH_TO_WAF>/waf as windows don't understand that waf is an executable
-        if self.target != self.host:
+        if self.target_platform != self.host:
             self._log('Building dlib for host platform')
             cwd = join(self.defold_root, 'engine/dlib')
             cmd = 'python %s/ext/bin/waf configure --prefix=%s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, skip_tests)
@@ -137,11 +136,11 @@ class Configuration(object):
         for lib in libs:
             self._log('Building %s' % lib)
             cwd = join(self.defold_root, 'engine/%s' % lib)
-            cmd = 'python %s/ext/bin/waf configure --prefix=%s --platform=%s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, self.target, skip_tests)
+            cmd = 'python %s/ext/bin/waf configure --prefix=%s --platform=%s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, self.target_platform, skip_tests)
             self.exec_command(cmd.split(), cwd = cwd)
 
     def build_docs(self):
-        skip_tests = '--skip-tests' if self.skip_tests or self.target != self.host else ''
+        skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
         self._log('Building docs')
         cwd = join(self.defold_root, 'engine/docs')
         cmd = 'python %s/ext/bin/waf configure --prefix=%s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, skip_tests)
@@ -298,7 +297,7 @@ Multiple commands can be specified'''
                       default = None,
                       help = 'Eclipse directory')
 
-    parser.add_option('--target', dest='target',
+    parser.add_option('--platform', dest='target_platform',
                       default = None,
                       choices = ['linux', 'darwin', 'win32', 'armv6-darwin'],
                       help = 'Target platform')
@@ -323,7 +322,7 @@ Multiple commands can be specified'''
         parser.error('No command specified')
 
     c = Configuration(dynamo_home = os.environ.get('DYNAMO_HOME', None),
-                      target = options.target,
+                      target_platform = options.target_platform,
                       eclipse_home = options.eclipse_home,
                       skip_tests = options.skip_tests,
                       no_colors = options.no_colors,
