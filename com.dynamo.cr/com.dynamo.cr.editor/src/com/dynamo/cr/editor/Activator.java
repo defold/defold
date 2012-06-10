@@ -4,7 +4,10 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.net.Authenticator;
+import java.net.InetAddress;
 import java.net.URI;
+import java.net.URL;
+import java.net.UnknownHostException;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.logging.Logger;
@@ -50,6 +53,9 @@ import org.eclipse.ui.navigator.resources.ProjectExplorer;
 import org.eclipse.ui.plugin.AbstractUIPlugin;
 import org.eclipse.ui.progress.IProgressService;
 import org.eclipse.ui.statushandlers.StatusManager;
+import org.glassfish.grizzly.http.server.HttpHandler;
+import org.glassfish.grizzly.http.server.HttpServer;
+import org.glassfish.grizzly.http.server.NetworkListener;
 import org.osgi.framework.BundleContext;
 import org.osgi.util.tracker.ServiceTracker;
 
@@ -147,6 +153,8 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
     public IProjectsClient projectsClient;
 
     private IProject project;
+
+    private HttpServer httpServer;
 
     public IProxyService getProxyService() {
         return (IProxyService) proxyTracker.getService();
@@ -389,6 +397,11 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
     }
 
     public void disconnectFromBranch() throws RepositoryException {
+        if (httpServer != null) {
+            httpServer.stop();
+            httpServer = null;
+        }
+
         if (projectClient != null) {
             ProjectInfo projectInfo = projectClient.getProjectInfo();
             IProject cr_project = ResourcesPlugin.getWorkspace().getRoot().getProject(projectInfo.getName());
@@ -474,6 +487,23 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
             }
             String builtinsDirectory = Builtins.getDefault().getBuiltins();
 
+            // Start local http server
+            httpServer = HttpServer.createSimpleServer(branchLocation);
+            try {
+                /*
+                 * NOTE: Disable caching due to this http://java.net/jira/browse/GRIZZLY-1216
+                 * It's probably a bug in grizzly
+                 */
+                for (NetworkListener listener : httpServer.getListeners()) {
+                    listener.getFileCache().setEnabled(false);
+                }
+                httpServer.start();
+                HttpHandler handler = httpServer.getHttpHandler();
+                System.out.println(handler);
+            } catch (IOException e) {
+                showError("Unable to start http server", e);
+            }
+
             // Copy builtins directory.
             // The reason we don't use symlinks is that mklink on windows is broken (privileges).
             try {
@@ -531,6 +561,22 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
 
     public IBranchClient getBranchClient() {
         return branchClient;
+    }
+
+    public URL getHttpServerURL() {
+        String localAddress = "127.0.0.1";
+        try {
+            localAddress = InetAddress.getLocalHost().getHostAddress();
+        } catch (UnknownHostException e) {
+            logException(e);
+        }
+
+        int port = httpServer.getListeners().iterator().next().getPort();
+        try {
+            return UriBuilder.fromPath("/").scheme("http").host(localAddress).port(port).build().toURL();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
