@@ -79,6 +79,7 @@
 
     <modules>
         <module>../org.mockito</module>
+        <module>../org.glassfish.grizzly</module>
         <module>../com.google.common</module>
         <module>../com.google.inject</module>
         <module>../com.dynamo.cr.common</module>
