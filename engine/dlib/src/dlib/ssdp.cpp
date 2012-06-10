@@ -95,7 +95,7 @@ namespace dmSSDP
             m_RegistredEntries.SetCapacity(17, 32);
         }
 
-        // Max age for registred devices
+        // Max age for registered devices
         uint32_t                m_MaxAge;
         char                    m_MaxAgeText[16];
 
@@ -108,7 +108,7 @@ namespace dmSSDP
         // All discovered devices
         dmHashTable64<Device>   m_DiscoveredDevices;
 
-        // All registred devices
+        // All registered devices
         dmHashTable64<Device*>  m_RegistredEntries;
 
         // Socket for unicast send/receive and for multicast send
@@ -345,10 +345,7 @@ bail:
         dmHttpServer::NewParams http_params;
         dmHttpServer::Result hsr;
 
-        char hostname[256];
-        sr = dmSocket::GetHostname(hostname, sizeof(hostname));
-        if (sr != dmSocket::RESULT_OK) goto bail;
-        sr = dmSocket::GetHostByName(hostname, &address);
+        sr = dmSocket::GetLocalAddress(&address);
         if (sr != dmSocket::RESULT_OK) goto bail;
 
         sock = NewSocket();
@@ -700,7 +697,7 @@ bail:
 
         if (from_addr == ssdp->m_Address && from_port == ssdp->m_Port)
         {
-            dmLogDebug("Ignoring packge from self (%u.%u.%u.%u:%d)", comps[0],comps[1],comps[2],comps[3], from_port);
+            dmLogDebug("Ignoring package from self (%u.%u.%u.%u:%d)", comps[0],comps[1],comps[2],comps[3], from_port);
             return;
         }
 

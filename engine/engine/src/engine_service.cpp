@@ -5,8 +5,28 @@
 #include <dlib/dstrings.h>
 #include <dlib/math.h>
 #include <dlib/log.h>
+#include <dlib/ssdp.h>
+#include <dlib/socket.h>
+#include <dlib/template.h>
 #include <ddf/ddf.h>
 #include "engine_service.h"
+
+static const char DEVICE_DESC_TEMPLATE[] =
+"<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+"<root xmlns=\"urn:schemas-upnp-org:device-1-0\" xmlns:defold=\"urn:schemas-defold-com:DEFOLD-1-0\">\n"
+"    <specVersion>\n"
+"        <major>1</major>\n"
+"        <minor>0</minor>\n"
+"    </specVersion>\n"
+"    <device>\n"
+"        <deviceType>upnp:rootdevice</deviceType>\n"
+"        <friendlyName>${NAME}</friendlyName>\n"
+"        <manufacturer>Defold</manufacturer>\n"
+"        <modelName>Defold Engine 1.0</modelName>\n"
+"        <UDN>${UDN}</UDN>\n"
+"        <defold:url>http://${HOSTNAME}:${DEFOLD_PORT}</defold:url>\n"
+"    </device>\n"
+"</root>\n";
 
 namespace dmEngineService
 {
@@ -145,37 +165,131 @@ namespace dmEngineService
             dmWebServer::Send(request, error_msg, strlen(error_msg));
         }
 
-        bool Init(uint16_t port)
+        static void PingHandler(void* user_data, dmWebServer::Request* request)
         {
-            dmWebServer::NewParams params;
-            params.m_Port = port;
-            dmWebServer::Result r = dmWebServer::New(&params, &m_WebServer);
-            if (r == dmWebServer::RESULT_OK)
-            {
-                dmSocket::Address address;
-                dmWebServer::GetName(m_WebServer, &address, &m_Port);
+            dmWebServer::SetStatusCode(request, 200);
+            dmWebServer::Send(request, "PONG\n", strlen("PONG\n"));
+            return;
+        }
 
-                dmWebServer::HandlerParams post_params;
-                post_params.m_Handler = PostHandler;
-                post_params.m_Userdata = this;
-                dmWebServer::AddHandler(m_WebServer, "/post", &post_params);
-                return true;
+        static const char* ReplaceCallback(void* user_data, const char* key)
+        {
+            EngineService* self = (EngineService*) user_data;
+            if (strcmp(key, "UDN") == 0)
+            {
+                return self->m_DeviceDesc.m_UDN;
+            }
+            else if (strcmp(key, "DEFOLD_PORT") == 0)
+            {
+                return self->m_PortText;
+            }
+            else if (strcmp(key, "NAME") == 0)
+            {
+                return self->m_Hostname;
+            }
+            else if (strcmp(key, "HOSTNAME") == 0)
+            {
+                return self->m_LocalAddress;
             }
             else
+            {
+                return 0;
+            }
+        }
+
+        bool Init(uint16_t port)
+        {
+            dmSocket::Result sockr = dmSocket::GetHostname(m_Hostname, sizeof(m_Hostname));
+            if (sockr != dmSocket::RESULT_OK)
+            {
+                return false;
+            }
+
+            dmSocket::Address local_address;
+            sockr = dmSocket::GetLocalAddress(&local_address);
+            if (sockr != dmSocket::RESULT_OK)
+            {
+                return false;
+            }
+            char* local_address_str =  dmSocket::AddressToIPString(local_address);
+            dmStrlCpy(m_LocalAddress, local_address_str, sizeof(m_LocalAddress));
+            free(local_address_str);
+
+            dmWebServer::NewParams params;
+            params.m_Port = port;
+            dmWebServer::HServer web_server;
+            dmWebServer::Result r = dmWebServer::New(&params, &web_server);
+            if (r != dmWebServer::RESULT_OK)
             {
                 dmLogError("Unable to create engine web-server (%d)", r);
                 return false;
             }
+            dmSocket::Address address;
+            dmWebServer::GetName(web_server, &address, &m_Port);
+            snprintf(m_PortText, sizeof(m_PortText), "%d", (int) m_Port);
+
+            dmStrlCpy(m_DeviceDesc.m_UDN, "defold-", sizeof(m_DeviceDesc.m_UDN));
+            char hostname[128];
+            dmSocket::GetHostname(hostname, sizeof(hostname));
+            dmStrlCat(m_DeviceDesc.m_UDN, hostname, sizeof(m_DeviceDesc.m_UDN));
+
+            dmTemplate::Format(this, m_DeviceDescXml, sizeof(m_DeviceDescXml), DEVICE_DESC_TEMPLATE, ReplaceCallback);
+
+            m_DeviceDesc.m_Id = "defold";
+            m_DeviceDesc.m_DeviceType = "upnp:rootdevice";
+            m_DeviceDesc.m_DeviceDescription = m_DeviceDescXml;
+
+            dmSSDP::NewParams ssdp_params;
+            dmSSDP::HSSDP ssdp;
+            dmSSDP::Result sr = dmSSDP::New(&ssdp_params, &ssdp);
+            if (sr != dmSSDP::RESULT_OK)
+            {
+                dmLogError("Unable to create ssdp service (%d)", sr);
+                dmWebServer::Delete(web_server);
+                return false;
+            }
+
+            sr = dmSSDP::RegisterDevice(ssdp, &m_DeviceDesc);
+            if (sr != dmSSDP::RESULT_OK)
+            {
+                dmWebServer::Delete(web_server);
+                dmSSDP::Delete(ssdp);
+                dmLogError("Unable to register ssdp device (%d)", sr);
+                return false;
+            }
+
+            dmWebServer::HandlerParams post_params;
+            post_params.m_Handler = PostHandler;
+            post_params.m_Userdata = this;
+            dmWebServer::AddHandler(web_server, "/post", &post_params);
+
+            dmWebServer::HandlerParams ping_params;
+            ping_params.m_Handler = PingHandler;
+            ping_params.m_Userdata = this;
+            dmWebServer::AddHandler(web_server, "/ping", &ping_params);
+
+            m_WebServer = web_server;
+            m_SSDP = ssdp;
+            return true;
         }
 
         void Final()
         {
             dmWebServer::Delete(m_WebServer);
+            dmSSDP::DeregisterDevice(m_SSDP, "defold");
+            dmSSDP::Delete(m_SSDP);
         }
 
 
         dmWebServer::HServer m_WebServer;
         uint16_t             m_Port;
+        char                 m_PortText[16];
+        char                 m_Hostname[128];
+        char                 m_LocalAddress[128];
+
+        dmSSDP::DeviceDesc   m_DeviceDesc;
+        char                 m_DeviceDescXml[sizeof(DEVICE_DESC_TEMPLATE) + 512]; // 512 is rather arbitrary :-)
+        dmSSDP::HSSDP        m_SSDP;
     };
 
     HEngineService New(uint16_t port)
@@ -201,6 +315,7 @@ namespace dmEngineService
     void Update(HEngineService engine_service)
     {
         dmWebServer::Update(engine_service->m_WebServer);
+        dmSSDP::Update(engine_service->m_SSDP, false);
     }
 
     uint16_t GetPort(HEngineService engine_service)
