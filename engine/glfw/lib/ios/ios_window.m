@@ -230,6 +230,8 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     EAGLView *glView;
 }
 
+- (void)reinit:(UIApplication *)application;
+
 @property (nonatomic, retain) IBOutlet UIWindow *window;
 @property (nonatomic, retain) IBOutlet EAGLView *glView;
 
@@ -240,6 +242,12 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 @synthesize window;
 @synthesize glView;
+
+- (void)reinit:(UIApplication *)application
+{
+    // glfw runs a memset(0) on this struct when "closing" the window
+    _glfwWin.view = glView;
+}
 
 - (void)applicationDidFinishLaunching:(UIApplication *)application
 {
@@ -302,6 +310,19 @@ int  _glfwPlatformOpenWindow( int width, int height,
                               const _GLFWwndconfig *wndconfig,
                               const _GLFWfbconfig *fbconfig )
 {
+    /*
+     * This is somewhat of a hack. We can't recreate the application here.
+     * Instead we reinit the app and return and keep application and windows as is
+     * We should either move application creation to glfwInit or skip glfw altogether.
+     */
+    UIApplication* app = [UIApplication sharedApplication];
+    if (app)
+    {
+        AppDelegate* delegate = app.delegate;
+        [delegate reinit: app];
+        return GL_TRUE;
+    }
+
     _glfwWin.pixelFormat = nil;
     _glfwWin.window = nil;
     _glfwWin.context = nil;
