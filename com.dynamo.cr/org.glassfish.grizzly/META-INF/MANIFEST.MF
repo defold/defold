@@ -47,3 +47,4 @@ Export-Package: org.glassfish.grizzly,
  org.glassfish.grizzly.threadpool.jmx,
  org.glassfish.grizzly.utils,
  org.glassfish.grizzly.utils.conditions
+Require-Bundle: javax.servlet;bundle-version="2.5.0"
