@@ -521,6 +521,13 @@ namespace dmSocket
         return ntohl(inet_addr(address));
     }
 
+    char* AddressToIPString(Address address)
+    {
+        struct in_addr a;
+        a.s_addr = ntohl(address);
+        return strdup(inet_ntoa(a));
+    }
+
     Result GetHostByName(const char* name, Address* address)
     {
         struct hostent* host = gethostbyname(name);

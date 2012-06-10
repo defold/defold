@@ -365,6 +365,13 @@ namespace dmSocket
     Address AddressFromIPString(const char* address);
 
     /**
+     * Convert address to ip string
+     * @param address address to convert
+     * @return IP string. The caller is responsible to free the string using free()
+     */
+    char* AddressToIPString(Address address);
+
+    /**
      * Get host by name.
      * @param name  Hostname to resolve
      * @param address Host address result
