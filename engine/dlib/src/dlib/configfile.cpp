@@ -315,32 +315,33 @@ namespace dmConfigFile
     {
         HttpContext()
         {
-            memset(this, 0, sizeof(*this));
         }
-        char*           m_Buffer;
-        int             m_BufferPos;
-        int             m_BufferSize;
+        dmArray<char> m_Buffer;
     };
 
     void HttpHeader(dmHttpClient::HClient client, void* user_data, int status_code, const char* key, const char* value)
     {
-        HttpContext* context = (HttpContext*) user_data;
-        if (strcmp("Content-Length", key) == 0)
-        {
-            context->m_BufferSize = (int) strtol(value, 0, 10);
-            context->m_Buffer = new char[context->m_BufferSize];
-        }
+        (void) client;
+        (void) user_data;
+        (void) status_code;
+        (void) key;
+        (void) value;
     }
 
     void HttpContent(dmHttpClient::HClient client, void* user_data, int status_code, const void* content_data, uint32_t content_data_size)
     {
         HttpContext* context = (HttpContext*) user_data;
-        if (status_code != 200 || context->m_BufferSize == 0)
+        if (status_code != 200)
             return;
 
-        assert(context->m_BufferPos + (int) content_data_size <= context->m_BufferSize);
-        memcpy(context->m_Buffer + context->m_BufferPos, content_data, content_data_size);
-        context->m_BufferPos += (int) content_data_size;
+        dmArray<char>& buffer = context->m_Buffer;
+        if (buffer.Remaining() < content_data_size)
+        {
+            uint32_t new_capacity = buffer.Capacity() + dmMath::Max(4U * 1024U, content_data_size);
+            context->m_Buffer.SetCapacity(new_capacity);
+        }
+
+        buffer.PushArray((const char*) content_data, content_data_size);
     }
 
     static Result LoadFromBufferInternal(const char* url, const char* buffer, uint32_t buffer_size, int argc, const char** argv, HConfig* config)
@@ -459,19 +460,15 @@ namespace dmConfigFile
             return RESULT_FILE_NOT_FOUND;
         }
 
-        context.m_BufferSize = 0;
         dmHttpClient::Result http_result = dmHttpClient::Get(client, uri_parts.m_Path);
         if (http_result != dmHttpClient::RESULT_OK)
         {
             dmHttpClient::Delete(client);
-            delete[] context.m_Buffer;
             return RESULT_FILE_NOT_FOUND;
         }
         dmHttpClient::Delete(client);
 
-        Result r = LoadFromBufferInternal(url, context.m_Buffer, context.m_BufferSize, argc, argv, config);
-        delete[] context.m_Buffer;
-
+        Result r = LoadFromBufferInternal(url, (const char*) &context.m_Buffer.Front(), context.m_Buffer.Size(), argc, argv, config);
         return r;
     }
 
