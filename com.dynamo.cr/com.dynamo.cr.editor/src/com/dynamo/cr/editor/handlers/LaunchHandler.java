@@ -30,8 +30,8 @@ import com.dynamo.cr.editor.Activator;
 import com.dynamo.cr.editor.core.EditorCorePlugin;
 import com.dynamo.cr.editor.preferences.PreferenceConstants;
 import com.dynamo.cr.engine.Engine;
-import com.dynamo.cr.targets.core.ITargetsService;
-import com.dynamo.cr.targets.core.TargetsPlugin;
+import com.dynamo.cr.target.core.ITargetService;
+import com.dynamo.cr.target.core.TargetPlugin;
 
 // this suppression is for the usage of BuildUtilities in the bottom of this class
 @SuppressWarnings("restriction")
@@ -105,7 +105,7 @@ public class LaunchHandler extends AbstractHandler {
                     project.build(rebuild ? IncrementalProjectBuilder.FULL_BUILD : IncrementalProjectBuilder.INCREMENTAL_BUILD,  "com.dynamo.cr.editor.builders.contentbuilder", args, monitor);
                     int severity = project.findMaxProblemSeverity(IMarker.PROBLEM, true, IResource.DEPTH_INFINITE);
                     if (severity < IMarker.SEVERITY_ERROR) {
-                        ITargetsService targetService = TargetsPlugin.getDefault().getTargetsService();
+                        ITargetService targetService = TargetPlugin.getDefault().getTargetsService();
                         IBranchClient branchClient = Activator.getDefault().getBranchClient();
                         String location = branchClient.getNativeLocation();
                         String socksProxy = store.getString(PreferenceConstants.P_SOCKS_PROXY);

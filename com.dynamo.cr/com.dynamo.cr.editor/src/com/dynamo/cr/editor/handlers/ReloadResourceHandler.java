@@ -30,9 +30,9 @@ import org.eclipse.ui.handlers.HandlerUtil;
 import com.dynamo.cr.editor.Activator;
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.preferences.PreferenceConstants;
-import com.dynamo.cr.targets.core.ITarget;
-import com.dynamo.cr.targets.core.ITargetsService;
-import com.dynamo.cr.targets.core.TargetsPlugin;
+import com.dynamo.cr.target.core.ITarget;
+import com.dynamo.cr.target.core.ITargetService;
+import com.dynamo.cr.target.core.TargetPlugin;
 import com.dynamo.resource.proto.Resource;
 import com.dynamo.resource.proto.Resource.Reload;
 
@@ -62,7 +62,7 @@ public class ReloadResourceHandler extends AbstractHandler {
                             IProject project = fileInput.getFile().getProject();
                             Map<String, String> args = new HashMap<String, String>();
                             final IPreferenceStore store = Activator.getDefault().getPreferenceStore();
-                            ITargetsService targetService = TargetsPlugin.getDefault().getTargetsService();
+                            ITargetService targetService = TargetPlugin.getDefault().getTargetsService();
                             final boolean localBranch = store.getBoolean(PreferenceConstants.P_USE_LOCAL_BRANCHES);
                             if (localBranch)
                                 args.put("location", "local");

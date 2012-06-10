@@ -13,15 +13,15 @@
       </menuContribution>
       <menuContribution
             allPopups="false"
-            class="com.dynamo.cr.targets.TargetsContributionFactory"
+            class="com.dynamo.cr.target.TargetContributionFactory"
             locationURI="menu:com.dynamo.cr.editor.menus.tools.target">
       </menuContribution>
    </extension>
    <extension
          point="org.eclipse.ui.commands">
       <command
-            defaultHandler="com.dynamo.cr.targets.handlers.SelectTargetHandler"
-            id="com.dynamo.cr.targets.commands.selectTarget"
+            defaultHandler="com.dynamo.cr.target.handlers.SelectTargetHandler"
+            id="com.dynamo.cr.target.commands.selectTarget"
             name="Select Target">
          <state
                class="org.eclipse.ui.handlers.RadioState:initial"

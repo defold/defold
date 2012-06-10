@@ -3,7 +3,7 @@ Bundle-ManifestVersion: 2
 Bundle-Name: Core
 Bundle-SymbolicName: com.dynamo.cr.target;singleton:=true
 Bundle-Version: 1.0.0.qualifier
-Bundle-Activator: com.dynamo.cr.targets.core.TargetsPlugin
+Bundle-Activator: com.dynamo.cr.target.core.TargetPlugin
 Bundle-Vendor: DYNAMO
 Require-Bundle: org.eclipse.core.runtime,
  com.google.inject;bundle-version="3.0.0",
@@ -18,5 +18,5 @@ Require-Bundle: org.eclipse.core.runtime,
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
 Bundle-ClassPath: lib/jdom-2.0.1.jar,
  .
-Export-Package: com.dynamo.cr.targets.core
+Export-Package: com.dynamo.cr.target.core
 Bundle-ActivationPolicy: lazy
