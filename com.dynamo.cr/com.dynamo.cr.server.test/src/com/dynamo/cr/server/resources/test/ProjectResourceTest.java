@@ -1,21 +1,30 @@
 package com.dynamo.cr.server.resources.test;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.io.StringReader;
 import java.net.URI;
+import java.net.URL;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Random;
 import java.util.Set;
 
 import javax.persistence.EntityManager;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriBuilder;
 
+import org.apache.commons.configuration.plist.XMLPropertyListConfiguration;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -313,6 +322,39 @@ public class ProjectResourceTest extends AbstractResourceTest {
         assertEquals(204, response.getStatus());
 
         assertEquals(0, ownerProjectsClient.getProjects().getProjectsCount());
+    }
+
+    @Test
+    public void uploadEngine() throws Exception {
+        File f = File.createTempFile("test", ".suff");
+        f.deleteOnExit();
+        FileOutputStream out = new FileOutputStream(f);
+
+        byte[] buf = new byte[12242];
+        new Random().nextBytes(buf);
+        out.write(buf);
+        out.close();
+        ownerProjectClient.uploadEngine("ios", new FileInputStream(f));
+
+        byte[] uploaded = FileUtils.readFileToByteArray(new File(String.format("tmp/engine_root/%d/ios/Defold.ipa", proj1.getId())));
+        assertArrayEquals(buf, uploaded);
+
+        ProjectInfo projectInfo = ownerProjectClient.getProjectInfo();
+        String key = projectInfo.getIOSExecutableKey();
+
+        byte[] downloaded = ownerProjectClient.downloadEngine("ios", key);
+        assertArrayEquals(buf, downloaded);
+
+        String manifestString = ownerProjectClient.downloadEngineManifest("ios", key);
+
+        XMLPropertyListConfiguration manifest = new XMLPropertyListConfiguration();
+        manifest.load(new StringReader(manifestString));
+
+        XMLPropertyListConfiguration item = (XMLPropertyListConfiguration) manifest.getList("items").get(0);
+        XMLPropertyListConfiguration asset = (XMLPropertyListConfiguration) item.getList("assets").get(0);
+        URL url = new URL(asset.getString("url"));
+        byte[] downloadedFromManifest = IOUtils.toByteArray(url.openStream());
+        assertArrayEquals(buf, downloadedFromManifest);
     }
 
     @Test

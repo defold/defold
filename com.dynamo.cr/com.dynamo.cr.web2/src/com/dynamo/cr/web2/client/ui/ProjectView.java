@@ -23,9 +23,11 @@ import com.google.gwt.uibinder.client.UiBinder;
 import com.google.gwt.uibinder.client.UiField;
 import com.google.gwt.uibinder.client.UiHandler;
 import com.google.gwt.user.client.Window;
+import com.google.gwt.user.client.ui.Anchor;
 import com.google.gwt.user.client.ui.Button;
 import com.google.gwt.user.client.ui.Composite;
 import com.google.gwt.user.client.ui.HTMLPanel;
+import com.google.gwt.user.client.ui.Label;
 import com.google.gwt.user.client.ui.MultiWordSuggestOracle;
 import com.google.gwt.user.client.ui.SuggestBox;
 import com.google.gwt.user.client.ui.VerticalPanel;
@@ -50,6 +52,8 @@ public class ProjectView extends Composite implements KeyPressHandler {
     @UiField VerticalPanel members;
     @UiField VerticalPanel commits;
     @UiField HTMLPanel addMemberPanel;
+    @UiField Anchor iOSDownload;
+    @UiField Label signedExeInfo;
 
     private final MultiWordSuggestOracle suggestions = new MultiWordSuggestOracle();
     private Presenter listener;
@@ -92,9 +96,11 @@ public class ProjectView extends Composite implements KeyPressHandler {
         this.commits.clear();
         this.addMemberPanel.setVisible(false);
         this.suggestBox.setText(SUGGEST_BOX_BLUR);
+        this.iOSDownload.setVisible(false);
+        this.signedExeInfo.setText("");
     }
 
-    public void setProjectInfo(int userId, ProjectInfo projectInfo) {
+    public void setProjectInfo(int userId, ProjectInfo projectInfo, String iOSUrl) {
         this.projectInfo = projectInfo;
         this.projectName.setInnerText(projectInfo.getName());
         String description = projectInfo.getDescription();
@@ -114,6 +120,15 @@ public class ProjectView extends Composite implements KeyPressHandler {
             MemberBox memberBox = new MemberBox(this.listener, memberInfo, isOwner, memberInfo.getId() == userId, projectInfo.getOwner().getId() == memberInfo.getId());
             this.members.add(memberBox);
         }
+
+        iOSDownload.setVisible(iOSUrl != null);
+        if (iOSUrl != null) {
+            signedExeInfo.setText("Download the executable on your iOS device for direct installation.");
+        } else {
+            signedExeInfo.setText("No signed executable found. Use Defold Editor to sign and upload for all project members.");
+        }
+
+        iOSDownload.setTarget("itms-services://?action=download-manifest&url=" + iOSUrl);
     }
 
     public void setLog(int userId, Log log) {

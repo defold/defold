@@ -10,6 +10,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLDecoder;
+import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.HashMap;
@@ -33,6 +34,8 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.ws.rs.core.Response.Status;
 
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
 import org.eclipse.jetty.http.HttpHeaders;
 import org.eclipse.jetty.http.HttpStatus;
 import org.eclipse.jetty.server.Request;
@@ -60,6 +63,7 @@ import com.dynamo.cr.protocol.proto.Protocol.BuildDesc.Activity;
 import com.dynamo.cr.protocol.proto.Protocol.BuildLog;
 import com.dynamo.cr.protocol.proto.Protocol.LaunchInfo;
 import com.dynamo.cr.protocol.proto.Protocol.Log;
+import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 import com.dynamo.cr.server.auth.GitSecurityFilter;
 import com.dynamo.cr.server.auth.OpenIDAuthenticator;
 import com.dynamo.cr.server.auth.SecurityFilter;
@@ -929,5 +933,53 @@ public class Server implements ServerMBean {
         return branchRepository.getBranchRoot();
     }
 
+    public static File getEngineFile(Configuration configuration, String projectId, String platform) {
+        File dir = new File(configuration.getSignedEngineRoot(), projectId + "/" + platform);
+        return new File(dir, "Defold.ipa");
+    }
+
+    public void uploadEngine(String projectId, String platform, InputStream stream) throws IOException {
+        try {
+            File outFile = getEngineFile(configuration, projectId, platform);
+            outFile.getParentFile().mkdirs();
+            FileUtils.copyInputStreamToFile(stream, outFile);
+        } finally {
+            IOUtils.closeQuietly(stream);
+        }
+    }
+
+    /**
+     * Calculate semi secure hash for signed executable
+     * This is used for downloading without the requirement to be signed in
+     * @param projectInfo
+     * @return hash
+     */
+    public static String getEngineDownloadKey(Project project) {
+        MessageDigest sha1;
+        try {
+            sha1 = MessageDigest.getInstance("SHA1");
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
+
+        String secret = "idfoiIIDIJFodfmd(/%(/jdd3232iifjg4545454";
+        sha1.update(secret.getBytes());
+        sha1.update(project.getDescription().getBytes());
+        sha1.update(project.getCreated().toString().getBytes());
+        sha1.update(Long.toString(project.getId()).getBytes());
+
+        byte[] digest = sha1.digest();
+        StringBuilder sb = new StringBuilder();
+        for (byte b : digest) {
+            sb.append(Integer.toHexString(0xff & b));
+        }
+
+        return sb.toString();
+    }
+
+    public byte[] downloadEngine(String projectId, String platform) throws IOException {
+        File file = getEngineFile(configuration, projectId, platform);
+        return FileUtils.readFileToByteArray(file);
+    }
 
 }

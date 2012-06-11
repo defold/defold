@@ -23,9 +23,8 @@ public class Engine extends Plugin {
         return plugin;
     }
 
-    public String getEnginePath() {
+    public String getEnginePath(String platform) {
         String ext = "";
-        String platform = EditorCorePlugin.getPlatform();
         if (platform.equals("win32")) {
             ext = ".exe";
         }
@@ -38,6 +37,10 @@ public class Engine extends Plugin {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public String getEnginePath() {
+        return getEnginePath(EditorCorePlugin.getPlatform());
     }
 
     @Override

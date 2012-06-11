@@ -10,6 +10,7 @@ import org.eclipse.jgit.util.StringUtils;
 import com.dynamo.cr.proto.Config.Configuration;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
+import com.dynamo.cr.server.Server;
 import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
 
@@ -69,6 +70,10 @@ public class ResourceUtil {
                     configuration.getServicePort(),
                     getGitBaseUri(configuration),
                     project.getId()));
+
+            if (Server.getEngineFile(configuration, Long.toString(project.getId()), "ios").exists()) {
+                b.setIOSExecutableKey(Server.getEngineDownloadKey(project));
+            }
 
         for (User user : project.getMembers()) {
             b.addMembers(createUserInfo(user));

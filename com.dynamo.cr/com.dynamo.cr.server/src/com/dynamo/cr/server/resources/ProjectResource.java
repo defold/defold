@@ -3,12 +3,15 @@ package com.dynamo.cr.server.resources;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.URI;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.Set;
 
 import javax.annotation.security.RolesAllowed;
+import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.DefaultValue;
 import javax.ws.rs.GET;
@@ -16,9 +19,16 @@ import javax.ws.rs.POST;
 import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
+import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.WebApplicationException;
+import javax.ws.rs.core.Context;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
+import javax.ws.rs.core.UriInfo;
+
+import org.apache.commons.io.IOUtils;
 
 import com.dynamo.cr.branchrepo.BranchRepositoryException;
 import com.dynamo.cr.proto.Config.Application;
@@ -34,6 +44,7 @@ import com.dynamo.cr.protocol.proto.Protocol.Log;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ResolveStage;
 import com.dynamo.cr.protocol.proto.Protocol.ResourceInfo;
+import com.dynamo.cr.server.Server;
 import com.dynamo.cr.server.ServerException;
 import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.Project;
@@ -292,6 +303,83 @@ public class ProjectResource extends BaseResource {
         } catch (IOException e) {
             throw new ServerException(String.format("Could not delete git repo for project %s", project.getName()), Status.INTERNAL_SERVER_ERROR);
         }
+    }
+
+    /*
+     * Defold Engine
+     */
+    @POST
+    @Consumes(MediaType.APPLICATION_OCTET_STREAM)
+    @RolesAllowed(value = { "member" })
+    @Path("/engine/{platform}")
+    public Response uploadEngine(@PathParam("user") String user,
+                                 @PathParam("project") String projectId,
+                                 @PathParam("platform") String platform,
+                                 InputStream stream) throws IOException {
+
+        if (!platform.equals("ios")) {
+            // Only iOS for now
+            throwWebApplicationException(Status.NOT_FOUND, "Unsupported platform");
+        }
+        // Ensure user is valid
+        server.getUser(em, user);
+        server.uploadEngine(projectId, platform, stream);
+        return Response.ok().build();
+    }
+
+    @GET
+    @RolesAllowed(value = { "anonymous" })
+    @Produces(MediaType.APPLICATION_OCTET_STREAM)
+    @Path("/engine/{platform}/{key}")
+    public byte[] downloadEngine(@PathParam("user") String user,
+                                 @PathParam("project") String projectId,
+                                 @PathParam("key") String key,
+                                 @PathParam("platform") String platform) throws IOException {
+
+        if (!platform.equals("ios")) {
+            // Only iOS for now
+            throwWebApplicationException(Status.NOT_FOUND, "Unsupported platform");
+        }
+
+        Project project = server.getProject(em, projectId);
+        String actualKey = Server.getEngineDownloadKey(project);
+
+        if (!key.equals(actualKey)) {
+            throwWebApplicationException(Status.FORBIDDEN, "Forbidden");
+        }
+
+        return server.downloadEngine(projectId, platform);
+    }
+
+    @GET
+    @RolesAllowed(value = { "anonymous" })
+    @Produces({"text/xml"})
+    @Path("/engine_manifest/{platform}/{key}")
+    public String downloadEngineManifest(@PathParam("user") String user,
+                                         @PathParam("project") String projectId,
+                                         @PathParam("key") String key,
+                                         @PathParam("platform") String platform,
+                                         @Context UriInfo uriInfo) throws IOException {
+
+        if (!platform.equals("ios")) {
+            // Only iOS for now
+            throwWebApplicationException(Status.NOT_FOUND, "Unsupported platform");
+        }
+
+        Project project = server.getProject(em, projectId);
+        String actualKey = Server.getEngineDownloadKey(project);
+
+        if (!key.equals(actualKey)) {
+            throwWebApplicationException(Status.FORBIDDEN, "Forbidden");
+        }
+
+        InputStream stream = this.getClass().getResourceAsStream("ota_manifest.plist");
+        String manifest = IOUtils.toString(stream);
+        stream.close();
+
+        URI engineUri = uriInfo.getBaseUriBuilder().path("projects").path(user).path(projectId).path("engine").path(platform).path(key).build();
+        String manifestPrim = manifest.replace("${URL}", engineUri.toString());
+        return manifestPrim;
     }
 
     /*

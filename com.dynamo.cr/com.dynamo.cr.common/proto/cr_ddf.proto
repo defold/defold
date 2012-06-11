@@ -56,6 +56,9 @@ message Configuration
     repeated InvitationCountEntry invitation_count_map = 25;
     optional string test_registration_key = 26 [default=""];
     optional int32 test_invitation_count = 27 [default=0];
+
+    // signed engines
+    required string signed_engine_root = 28;
 }
 
 message EMailTemplate

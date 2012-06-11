@@ -4,8 +4,10 @@ import java.io.InputStream;
 import java.net.URI;
 import java.util.regex.Pattern;
 
+import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.UriBuilder;
 
+import org.apache.commons.io.IOUtils;
 import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.Path;
 
@@ -102,10 +104,14 @@ public class LocalProjectClient implements IProjectClient {
     }
 
     protected <T> T wrapGet(String path, Class<T> klass) throws RepositoryException {
+        return wrapGet(path, klass, ProtobufProviders.APPLICATION_XPROTOBUF);
+    }
+
+    protected <T> T wrapGet(String path, Class<T> klass, String... accepts) throws RepositoryException {
         try {
             WebResource resource = client.resource(uri);
 
-            ClientResponse resp = resource.path(path).accept(ProtobufProviders.APPLICATION_XPROTOBUF).get(ClientResponse.class);
+            ClientResponse resp = resource.path(path).accept(accepts).get(ClientResponse.class);
             if (resp.getStatus() != 200) {
                 ClientUtils.throwRespositoryException(resp);
             }
@@ -120,6 +126,36 @@ public class LocalProjectClient implements IProjectClient {
     @Override
     public ProjectInfo getProjectInfo() throws RepositoryException {
         return wrapGet("/project_info", ProjectInfo.class);
+    }
+
+    public void uploadEngine(String platform, InputStream stream) throws RepositoryException {
+        try {
+            WebResource resource = client.resource(uri);
+            ClientResponse resp = resource
+                    .path("/engine").path(platform)
+                    .type(MediaType.APPLICATION_OCTET_STREAM_TYPE)
+                    .post(ClientResponse.class, stream);
+
+            if (resp.getStatus() != 200) {
+                ClientUtils.throwRespositoryException(resp);
+            }
+        } catch (ClientHandlerException e) {
+            ClientUtils.throwRespositoryException(e);
+        } finally {
+            if (stream != null) {
+                IOUtils.closeQuietly(stream);
+            }
+        }
+    }
+
+    @Override
+    public byte[] downloadEngine(String platform, String key) throws RepositoryException {
+        return wrapGet("/engine/" + platform + "/" + key, byte[].class, MediaType.APPLICATION_OCTET_STREAM);
+    }
+
+    @Override
+    public String downloadEngineManifest(String platform, String key) throws RepositoryException {
+        return wrapGet("/engine_manifest/" + platform + "/" + key, String.class, "text/xml");
     }
 
     @Override

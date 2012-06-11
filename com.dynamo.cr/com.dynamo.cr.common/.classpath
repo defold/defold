@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
+	<classpathentry exported="true" kind="lib" path="ext/commons-logging-1.1.1.jar"/>
+	<classpathentry exported="true" kind="lib" path="ext/commons-configuration-1.8.jar"/>
+	<classpathentry exported="true" kind="lib" path="ext/commons-lang-2.6.jar"/>
 	<classpathentry exported="true" kind="lib" path="DYNAMO_HOME/share/java/upnp.jar"/>
 	<classpathentry exported="true" kind="lib" path="DYNAMO_HOME/share/java/engine.jar"/>
 	<classpathentry exported="true" kind="lib" path="DYNAMO_HOME/share/java/resource.jar"/>

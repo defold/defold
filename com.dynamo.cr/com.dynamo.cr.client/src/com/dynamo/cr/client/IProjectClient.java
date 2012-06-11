@@ -26,10 +26,16 @@ public interface IProjectClient extends IClient {
 
     public ProjectInfo getProjectInfo() throws RepositoryException;
 
+    public void uploadEngine(String platform, InputStream stream) throws RepositoryException;
+
     public LaunchInfo getLaunchInfo() throws RepositoryException;
 
     public ApplicationInfo getApplicationInfo(String platform) throws RepositoryException;
 
     public InputStream getApplicationData(String platform) throws RepositoryException;
+
+    public byte[] downloadEngine(String platform, String key) throws RepositoryException;
+
+    public String downloadEngineManifest(String platform, String key) throws RepositoryException;
 
 }

@@ -177,6 +177,19 @@
                style="push">
          </command>
       </menuContribution>
+      <menuContribution
+            allPopups="false"
+            locationURI="menu:com.dynamo.cr.editor.menus.tools">
+         <separator
+               name="com.dynamo.cr.target.separator1"
+               visible="true">
+         </separator>
+         <command
+               commandId="com.dynamo.cr.target.commands.sign"
+               label="Sign Executable..."
+               style="push">
+         </command>
+      </menuContribution>
    </extension>
    <extension
          point="org.eclipse.ui.commands">
@@ -259,6 +272,11 @@
                name="url"
                optional="true">
          </commandParameter>
+      </command>
+      <command
+            defaultHandler="com.dynamo.cr.editor.handlers.SignHandler"
+            id="com.dynamo.cr.target.commands.sign"
+            name="Sign Executable">
       </command>
    </extension>
 

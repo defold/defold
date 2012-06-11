@@ -45,7 +45,23 @@ public class ProjectActivity extends AbstractActivity implements
                     @Override
                     public void onSuccess(ProjectInfo projectInfo,
                             Request request, Response response) {
-                        projectView.setProjectInfo(defold.getUserId(), projectInfo);
+
+                        String iOSKey = projectInfo.getiOSExecutableKey();
+                        String iOSUrl = null;
+
+                        if (iOSKey != null && iOSKey.length() > 0) {
+                            StringBuilder iOSUrlBuilder = new StringBuilder();
+                            iOSUrlBuilder.append(defold.getUrl());
+                            iOSUrlBuilder.append("/projects/");
+                            iOSUrlBuilder.append(defold.getUserId());
+                            iOSUrlBuilder.append("/");
+                            iOSUrlBuilder.append(projectId);
+                            iOSUrlBuilder.append("/engine_manifest/ios/");
+                            iOSUrlBuilder.append(projectInfo.getiOSExecutableKey());
+                            iOSUrl = iOSUrlBuilder.toString();
+                        }
+
+                        projectView.setProjectInfo(defold.getUserId(), projectInfo, iOSUrl);
                     }
 
                     @Override

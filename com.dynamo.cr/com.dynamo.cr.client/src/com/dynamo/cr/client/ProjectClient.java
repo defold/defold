@@ -96,4 +96,20 @@ public class ProjectClient extends BaseClient implements IProjectClient {
     public ProjectInfo getProjectInfo() throws RepositoryException {
         return wrapGet("/project_info", ProjectInfo.class);
     }
+
+    @Override
+    public void uploadEngine(String platform, InputStream stream) throws RepositoryException {
+        throw new RuntimeException("Not supported");
+    }
+
+    @Override
+    public byte[] downloadEngine(String platform, String key) throws RepositoryException {
+        throw new RuntimeException("Not supported");
+    }
+
+    @Override
+    public String downloadEngineManifest(String platform, String key)
+            throws RepositoryException {
+        throw new RuntimeException("Not supported");
+    }
 }

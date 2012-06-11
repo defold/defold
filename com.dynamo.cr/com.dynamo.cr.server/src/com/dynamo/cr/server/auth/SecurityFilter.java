@@ -54,7 +54,7 @@ public class SecurityFilter implements ContainerRequestFilter {
             // Only authenticate users for paths != /login or != /login/openid or != /prospects
             User user = authenticate(request);
             request.setSecurityContext(new Authorizer(user));
-            if (user != null) {
+            if (user != null && user.getId() != null /* id is null for anonymous */) {
                 MDC.put("userId", Long.toString(user.getId()));
             }
         }
@@ -94,38 +94,52 @@ public class SecurityFilter implements ContainerRequestFilter {
         // Extract authentication credentials
         String authentication = request
                 .getHeaderValue(ContainerRequest.AUTHORIZATION);
-        if (authentication == null) {
-            throw new MappableContainerException(new AuthenticationException(
-                    "Authentication credentials are required", REALM));
-        }
-        if (!authentication.startsWith("Basic ")) {
-            return null;
-            // additional checks should be done here
-            // "Only HTTP Basic authentication is supported"
-        }
-        authentication = authentication.substring("Basic ".length());
-        String[] values = new String(Base64.base64Decode(authentication))
-                .split(":");
-        if (values.length < 2) {
-            throw new WebApplicationException(400);
-            // "Invalid syntax for username and password"
-        }
-        String username = values[0];
-        String password = values[1];
-        if ((username == null) || (password == null)) {
-            throw new WebApplicationException(400);
-            // "Missing username or password"
-        }
 
-        // Validate the extracted credentials
-        User user = ModelUtil.findUserByEmail(em, username);
-        if (user != null && user.authenticate(password)) {
-            return user;
-        }
-        else {
-            logger.warn("User authentication failed");
-            throw new MappableContainerException(new AuthenticationException(
-                    "Invalid username or password", REALM));
+        if (authentication != null && authentication.startsWith("Basic ")) {
+            /*
+             * Http Authentication is only used for the tests so we keep it for now
+             * NOTE: HTTP Basic only works if provied. No authorization request is returned to the
+             * user. See below about anonymous access
+             * We used to "throw new MappableContainerException(new AuthenticationException(
+             *                                                  "Authentication credentials are required", REALM));
+             */
+
+            authentication = authentication.substring("Basic ".length());
+            String[] values = new String(Base64.base64Decode(authentication))
+                    .split(":");
+            if (values.length < 2) {
+                throw new WebApplicationException(400);
+                // "Invalid syntax for username and password"
+            }
+            String username = values[0];
+            String password = values[1];
+            if ((username == null) || (password == null)) {
+                throw new WebApplicationException(400);
+                // "Missing username or password"
+            }
+
+            // Validate the extracted credentials
+            User user = ModelUtil.findUserByEmail(em, username);
+            if (user != null && user.authenticate(password)) {
+                return user;
+            }
+            else {
+                logger.warn("User authentication failed");
+                throw new MappableContainerException(new AuthenticationException(
+                        "Invalid username or password", REALM));
+            }
+        } else {
+            /*
+             * This experimental. Return an anonymous user if not
+             * authCookie/email header is set. We could perhaps get rid of
+             * !path.startsWith("..") above?
+             * The first test is to allow anonymous download of the engine using
+             * a provided secret key in the url
+             */
+            User anonymous = new User();
+            anonymous.setEmail("anonymous");
+            anonymous.setRole(Role.ANONYMOUS);
+            return anonymous;
         }
     }
 
@@ -187,6 +201,9 @@ public class SecurityFilter implements ContainerRequestFilter {
                 if (!affectsOtherUser()) {
                     return user.getRole() == Role.USER || user.getRole() == Role.ADMIN;
                 }
+            }
+            else if (role.equals("anonymous")) {
+                return true;
             }
             return false;
         }

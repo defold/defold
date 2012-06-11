@@ -23,6 +23,7 @@ public class User {
     public enum Role {
         USER,
         ADMIN,
+        ANONYMOUS,
     }
 
     @Id
@@ -121,7 +122,11 @@ public class User {
 
     @Override
     public String toString() {
-        return String.format("%s (%d)", email, getId());
+        if (getId() == null) {
+            return "anonymous";
+        } else {
+            return String.format("%s (%d)", email, getId());
+        }
     }
 
 }

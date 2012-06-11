@@ -33,9 +33,17 @@
 	            <td style="width: 50%;">
 	                <h2>Members</h2>
 	                <g:VerticalPanel ui:field="members"/>
-	                <g:HTMLPanel ui:field="addMemberPanel">
-		               <g:SuggestBox ui:field="suggestBox" addStyleNames="{style.suggest}"/>
-		           </g:HTMLPanel>
+
+                    <g:HTMLPanel ui:field="addMemberPanel">
+                       <g:SuggestBox ui:field="suggestBox" addStyleNames="{style.suggest}"/>
+                    </g:HTMLPanel>
+
+	                <h2>Defold Engine</h2>
+                    <div class="box boxHighlight">
+                       <g:Label ui:field="signedExeInfo"></g:Label>
+                       <g:Anchor ui:field="iOSDownload">Install Defold Engine for iOS</g:Anchor>
+                    </div>
+
 		        </td>
 
 	            <td style="width: 50%;">

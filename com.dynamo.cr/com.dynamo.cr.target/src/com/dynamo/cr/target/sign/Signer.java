@@ -1,0 +1,101 @@
+package com.dynamo.cr.target.sign;
+
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Collection;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
+
+import org.apache.commons.configuration.ConfigurationException;
+import org.apache.commons.configuration.plist.XMLPropertyListConfiguration;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.io.IOUtils;
+import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Status;
+
+import com.dynamo.cr.target.core.TargetPlugin;
+import com.google.common.io.Files;
+
+public class Signer {
+    public String sign(String identity, String provisioningProfile, String exe, Map<String, String> properties) throws IOException, ConfigurationException {
+        File packageDir = Files.createTempDir();
+        File appDir = new File(packageDir, "Defold.app");
+        appDir.mkdirs();
+
+        ClassLoader classLoader = getClass().getClassLoader();
+
+        // Create Info.plist
+        InputStream infoIn = classLoader.getResourceAsStream("com/dynamo/cr/target/sign/Info.plist");
+        XMLPropertyListConfiguration info = new XMLPropertyListConfiguration();
+        info.load(infoIn);
+        infoIn.close();
+        for (Entry<String, String> e : properties.entrySet()) {
+            info.setProperty(e.getKey(), e.getValue());
+        }
+
+        info.save(new File(appDir, "Info.plist"));
+
+        // Copy ResourceRules.plist
+        InputStream resourceRulesIn = classLoader.getResourceAsStream("com/dynamo/cr/target/sign/ResourceRules.plist");
+        File resourceRulesOutFile = new File(appDir, "ResourceRules.plist");
+        FileUtils.copyInputStreamToFile(resourceRulesIn, resourceRulesOutFile);
+        resourceRulesIn.close();
+
+        // Copy Provisioning Profile
+        FileUtils.copyFile(new File(provisioningProfile), new File(appDir, "embedded.mobileprovision"));
+
+        // Copy Executable
+        FileUtils.copyFile(new File(exe), new File(appDir, FilenameUtils.getBaseName(exe)));
+
+        // Sign
+        ProcessBuilder processBuilder = new ProcessBuilder("codesign", "-f", "-s", identity,
+                                             "--resource-rules=" + resourceRulesOutFile.getAbsolutePath(),
+                                             appDir.getAbsolutePath());
+        processBuilder.environment().put("EMBEDDED_PROFILE_NAME", "embedded.mobileprovision");
+
+        Process process = processBuilder.start();
+
+        try {
+            InputStream errorIn = process.getErrorStream();
+            ByteArrayOutputStream errorOut = new ByteArrayOutputStream();
+            IOUtils.copy(errorIn, errorOut);
+            errorIn.close();
+            String errorMessage = new String(errorOut.toByteArray());
+
+            int ret = process.waitFor();
+            if (ret != 0) {
+                TargetPlugin.getDefault().getLog().log(new Status(IStatus.ERROR, "com.dynamo.cr.target", errorMessage));
+                throw new IOException("Unable to sign application");
+            }
+        } catch (InterruptedException e1) {
+            throw new RuntimeException(e1);
+        }
+
+        File zipFile = new File(packageDir, "Defold.ipa");
+        ZipOutputStream zipStream = new ZipOutputStream(new FileOutputStream(zipFile));
+
+        Collection<File> files = FileUtils.listFiles(appDir, null, true);
+        String root = FilenameUtils.normalize(packageDir.getPath(), true);
+        for (File f : files) {
+            String p = FilenameUtils.normalize(f.getPath(), true);
+            String rel = p.substring(root.length());
+
+            zipStream.putNextEntry(new ZipEntry("/Payload" + rel));
+
+            FileInputStream input = new FileInputStream(f);
+            IOUtils.copy(input, zipStream);
+            input.close();
+            zipStream.closeEntry();
+        }
+
+        zipStream.close();
+        return zipFile.getAbsolutePath();
+    }
+}

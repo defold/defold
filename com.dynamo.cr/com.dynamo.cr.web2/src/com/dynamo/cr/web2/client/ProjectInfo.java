@@ -36,4 +36,11 @@ public class ProjectInfo extends BaseResponse {
     public final native int getLastUpdated() /*-{
         return this.lastUpdated;
     }-*/;
+
+
+    public final native String getiOSExecutableKey() /*-{
+        return this.iOSExecutableKey;
+    }-*/;
+
+
 }
