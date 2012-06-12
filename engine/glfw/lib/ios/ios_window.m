@@ -45,6 +45,18 @@
 // OpenGL view
 
 /*
+ * Launching your Application in Landscape
+ * https://developer.apple.com/library/ios/#technotes/tn2244/_index.html
+ *
+ * This is something we might want to add support for soon. The following is required:
+ *   - Flip width/height when creating the window (in applicationDidFinishLaunching)
+ *   - return (interfaceOrientation == UIInterfaceOrientationLandscapeRight);
+ *     from shouldAutorotateToInterfaceOrientation
+ *
+ *   See TN2244 for more information
+ */
+
+/*
 This class wraps the CAEAGLLayer from CoreAnimation into a convenient UIView subclass.
 The view content is basically an EAGL surface you render your OpenGL scene into.
 Note that setting the view non-opaque will only work if the EAGL surface has an alpha channel.
@@ -84,6 +96,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 - (id)initWithFrame:(CGRect)frame
 {
+    self.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     _glfwWin.view = self;
     if ((self = [super initWithFrame:frame]))
     {
@@ -224,16 +237,81 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 //========================================================================
 
 
+// View controller
+
+@interface ViewController : UIViewController
+{
+    EAGLView *glView;
+}
+
+- (void)reinit;
+
+@property (nonatomic, retain) IBOutlet EAGLView *glView;
+
+@end
+
+@implementation ViewController
+
+@synthesize glView;
+
+- (void)dealloc
+{
+    [glView release];
+    [super dealloc];
+}
+
+- (void)viewDidLoad
+{
+    [super viewDidLoad];
+    self.view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    self.view.autoresizesSubviews = YES;
+    CGRect bounds = self.view.bounds;
+
+    glView = [[EAGLView alloc] initWithFrame: bounds];
+    [ [self view] addSubview: glView ];
+}
+
+- (void)viewDidUnload
+{
+    [super viewDidUnload];
+}
+
+- (BOOL)shouldAutorotateToInterfaceOrientation:(UIInterfaceOrientation)interfaceOrientation
+{
+    /*
+     * We accept all orientation changes for now
+     */
+    return YES;
+}
+
+- (void)didRotateFromInterfaceOrientation:(UIInterfaceOrientation)fromInterfaceOrientation
+{
+    CGRect bounds = [self.view bounds];
+
+    if( _glfwWin.windowSizeCallback )
+    {
+        _glfwWin.windowSizeCallback( bounds.size.width, bounds.size.height );
+    }
+}
+
+- (void)reinit
+{
+    // glfw runs a memset(0) on this struct when "closing" the window
+    _glfwWin.view = glView;
+}
+@end
+
+// Application delegate
+
 @interface AppDelegate : NSObject <UIApplicationDelegate>
 {
     UIWindow *window;
-    EAGLView *glView;
 }
 
 - (void)reinit:(UIApplication *)application;
 
+@property (nonatomic, retain) ViewController *viewController;
 @property (nonatomic, retain) IBOutlet UIWindow *window;
-@property (nonatomic, retain) IBOutlet EAGLView *glView;
 
 @end
 
@@ -241,12 +319,11 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 @implementation AppDelegate
 
 @synthesize window;
-@synthesize glView;
+@synthesize viewController;
 
 - (void)reinit:(UIApplication *)application
 {
-    // glfw runs a memset(0) on this struct when "closing" the window
-    _glfwWin.view = glView;
+    [ self.viewController reinit ];
 }
 
 - (void)applicationDidFinishLaunching:(UIApplication *)application
@@ -257,8 +334,8 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     CGRect bounds = [UIScreen mainScreen].bounds;
 
     window = [[UIWindow alloc] initWithFrame:bounds];
-    glView = [[EAGLView alloc] initWithFrame:window.bounds];
-    [window addSubview:glView];
+    viewController = [[ViewController alloc] init];
+    [ window addSubview: viewController.view ];
     [window makeKeyAndVisible];
 
     _glfwWin.width = bounds.size.width;
@@ -299,7 +376,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 - (void)dealloc
 {
     [window release];
-    [glView release];
+    [viewController release];
     [super dealloc];
 }
 
