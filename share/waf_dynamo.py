@@ -171,6 +171,7 @@ INFO_PLIST = """<?xml version="1.0" encoding="UTF-8"?>
         <key>UIDeviceFamily</key>
         <array>
                 <integer>1</integer>
+                <integer>2</integer>
         </array>
         <key>UIStatusBarHidden</key>
         <true/>
