@@ -280,7 +280,7 @@ public class UsersResourceTest extends AbstractResourceTest {
             .type(MediaType.APPLICATION_JSON_TYPE)
             .get(ClientResponse.class);
 
-        assertEquals(Status.UNAUTHORIZED, response.getClientResponseStatus());
+        assertEquals(Status.FORBIDDEN, response.getClientResponseStatus());
     }
 
     @Test
