@@ -1,18 +1,9 @@
 package com.dynamo.cr.target.sign;
 
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.util.Iterator;
 
 import javax.inject.Inject;
-
-import org.apache.commons.configuration.ConfigurationException;
-import org.apache.commons.configuration.plist.XMLPropertyListConfiguration;
-import org.apache.commons.io.IOUtils;
-
-import com.google.common.io.Files;
 
 public class SignPresenter implements SignDialog.IPresenter {
 

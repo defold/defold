@@ -128,7 +128,7 @@ public class ProjectView extends Composite implements KeyPressHandler {
             signedExeInfo.setText("No signed executable found. Use Defold Editor to sign and upload for all project members.");
         }
 
-        iOSDownload.setTarget("itms-services://?action=download-manifest&url=" + iOSUrl);
+        iOSDownload.setHref("itms-services://?action=download-manifest&url=" + iOSUrl);
     }
 
     public void setLog(int userId, Log log) {

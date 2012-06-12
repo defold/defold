@@ -253,12 +253,11 @@ public class ProjectResource extends BaseResource {
 
     @GET
     @Path("/project_info")
-    public ProjectInfo getProjectInfo(@PathParam("user") String user,
-                              @PathParam("project") String projectId) {
-        // Ensure user is valid
-        server.getUser(em, user);
+    public ProjectInfo getProjectInfo(@PathParam("user") String userId,
+                                      @PathParam("project") String projectId) {
+        User user = server.getUser(em, userId);
         Project project = server.getProject(em, projectId);
-        return ResourceUtil.createProjectInfo(server.getConfiguration(), project);
+        return ResourceUtil.createProjectInfo(server.getConfiguration(), user, project);
     }
 
     @GET

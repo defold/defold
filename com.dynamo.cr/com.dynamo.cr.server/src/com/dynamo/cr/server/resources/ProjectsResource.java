@@ -102,7 +102,7 @@ public class ProjectsResource extends BaseResource {
             throw new ServerException("Unable to create project. Internal error.", Status.INTERNAL_SERVER_ERROR);
         }
 
-        return ResourceUtil.createProjectInfo(server.getConfiguration(), project);
+        return ResourceUtil.createProjectInfo(server.getConfiguration(), user, project);
     }
 
     @GET
@@ -113,7 +113,7 @@ public class ProjectsResource extends BaseResource {
 
         Builder listBuilder = ProjectInfoList.newBuilder();
         for (Project project : list) {
-            ProjectInfo pi = ResourceUtil.createProjectInfo(server.getConfiguration(), project);
+            ProjectInfo pi = ResourceUtil.createProjectInfo(server.getConfiguration(), user, project);
             listBuilder.addProjects(pi);
         }
 

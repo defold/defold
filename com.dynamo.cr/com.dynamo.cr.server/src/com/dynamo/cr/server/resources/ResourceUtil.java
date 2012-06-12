@@ -58,7 +58,7 @@ public class ResourceUtil {
         return baseUri;
     }
 
-    public static ProjectInfo createProjectInfo(Configuration configuration, Project project) {
+    public static ProjectInfo createProjectInfo(Configuration configuration, User user, Project project) {
         ProjectInfo.Builder b = ProjectInfo.newBuilder()
             .setId(project.getId())
             .setName(project.getName())
@@ -72,11 +72,19 @@ public class ResourceUtil {
                     project.getId()));
 
             if (Server.getEngineFile(configuration, Long.toString(project.getId()), "ios").exists()) {
-                b.setIOSExecutableKey(Server.getEngineDownloadKey(project));
+                String key = Server.getEngineDownloadKey(project);
+                String url = String.format("http://%s:%d/projects/%d/%d/engine_manifest/ios/%s",
+                                           configuration.getHostname(),
+                                           configuration.getServicePort(),
+                                           user.getId(),
+                                           project.getId(),
+                                           key);
+
+                b.setIOSExecutableUrl(url);
             }
 
-        for (User user : project.getMembers()) {
-            b.addMembers(createUserInfo(user));
+        for (User u : project.getMembers()) {
+            b.addMembers(createUserInfo(u));
         }
 
         return b.build();

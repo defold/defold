@@ -340,7 +340,9 @@ public class ProjectResourceTest extends AbstractResourceTest {
         assertArrayEquals(buf, uploaded);
 
         ProjectInfo projectInfo = ownerProjectClient.getProjectInfo();
-        String key = projectInfo.getIOSExecutableKey();
+        String iOSUrl = projectInfo.getIOSExecutableUrl();
+        String[] tmp = iOSUrl.split("/");
+        String key = tmp[tmp.length-1];
 
         byte[] downloaded = ownerProjectClient.downloadEngine("ios", key);
         assertArrayEquals(buf, downloaded);

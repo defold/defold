@@ -38,8 +38,8 @@ public class ProjectInfo extends BaseResponse {
     }-*/;
 
 
-    public final native String getiOSExecutableKey() /*-{
-        return this.iOSExecutableKey;
+    public final native String getiOSExecutableUrl() /*-{
+        return this.iOSExecutableUrl;
     }-*/;
 
 
