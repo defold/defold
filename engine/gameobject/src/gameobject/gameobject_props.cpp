@@ -97,13 +97,14 @@ namespace dmGameObject
             uint8_t* cursor = props->m_Buffer;
             if (cursor != 0x0)
             {
-                uint8_t count = *(cursor++);
-                for (uint8_t i = 0; i < count; ++i)
+                uint32_t count = *cursor;
+                cursor += 4;
+                for (uint32_t i = 0; i < count; ++i)
                 {
                     dmhash_t tmp_id = *(dmhash_t*)cursor;
                     cursor += sizeof(dmhash_t);
-                    dmGameObjectDDF::PropertyType type = (dmGameObjectDDF::PropertyType)*(uint8_t*)cursor;
-                    ++cursor;
+                    dmGameObjectDDF::PropertyType type = (dmGameObjectDDF::PropertyType)*(uint32_t*)cursor;
+                    cursor += 4;
                     if (id == tmp_id)
                     {
                         if (expected_type != type)
@@ -228,8 +229,8 @@ namespace dmGameObject
         uint8_t* cursor = *out_cursor;
         *(dmhash_t*)cursor = property.m_Id;
         cursor += sizeof(dmhash_t);
-        *cursor = (uint8_t)property.m_Type;
-        ++cursor;
+        *(uint32_t*)cursor = (uint32_t)property.m_Type;
+        cursor += 4;
         switch (property.m_Type)
         {
         case dmGameObjectDDF::PROPERTY_TYPE_NUMBER:
@@ -307,7 +308,7 @@ namespace dmGameObject
 
     uint32_t SerializeProperties(const dmGameObjectDDF::PropertyDesc* properties, uint32_t count, uint8_t* out_buffer, uint32_t out_buffer_size)
     {
-        uint32_t size = 1 + count * (sizeof(dmhash_t) + 1);
+        uint32_t size = 4 + count * (sizeof(dmhash_t) + 4);
         for (uint32_t i = 0; i < count; ++i)
         {
             size += GetValueSize(properties[i].m_Type);
@@ -315,7 +316,8 @@ namespace dmGameObject
         if (out_buffer_size < size)
             return size;
         uint8_t* cursor = out_buffer;
-        *(cursor++) = (uint8_t)count;
+        *(uint32_t*)cursor = count;
+        cursor += 4;
         for (uint32_t i = 0; i < count; ++i)
         {
             const dmGameObjectDDF::PropertyDesc& p = properties[i];
@@ -355,7 +357,7 @@ namespace dmGameObject
     uint32_t SerializeProperties(const dmArray<PropertyDef>& properties, uint8_t* out_buffer, uint32_t out_buffer_size)
     {
         uint32_t count = properties.Size();
-        uint32_t size = 1 + count * (sizeof(dmhash_t) + 1);
+        uint32_t size = 4 + count * (sizeof(dmhash_t) + 4);
         for (uint32_t i = 0; i < count; ++i)
         {
             size += GetValueSize(properties[i].m_Type);
@@ -363,7 +365,8 @@ namespace dmGameObject
         if (out_buffer_size < size)
             return size;
         uint8_t* cursor = out_buffer;
-        *(cursor++) = (uint8_t)count;
+        *(uint32_t*)cursor = count;
+        cursor += 4;
         for (uint32_t i = 0; i < count; ++i)
         {
             SetProperty(properties[i], &cursor);
@@ -384,13 +387,13 @@ namespace dmGameObject
 
     uint32_t LuaTableToProperties(lua_State* L, int index, uint8_t* buffer, uint32_t buffer_size)
     {
-        if (buffer_size <= 1)
+        if (buffer_size <= 4)
             return 0;
 
         uint8_t* cursor = buffer;
         // skip count, write later
-        ++cursor;
-        uint8_t count = 0;
+        cursor += 4;
+        uint32_t count = 0;
         lua_pushnil(L);
         while (lua_next(L, index) != 0)
         {
@@ -449,7 +452,7 @@ namespace dmGameObject
             if (valid_type)
             {
                 uint32_t property_size = GetValueSize(p.m_Type);
-                uint32_t needed_size = (cursor - buffer) + sizeof(dmhash_t) + 1 + property_size;
+                uint32_t needed_size = (cursor - buffer) + sizeof(dmhash_t) + 4 + property_size;
                 if (needed_size > buffer_size)
                 {
                     return 0;
@@ -459,7 +462,7 @@ namespace dmGameObject
             }
             lua_pop(L, 1);
         }
-        *buffer = count;
+        *(uint32_t*)buffer = count;
         return cursor - buffer;
     }
 
