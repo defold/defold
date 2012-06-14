@@ -10,6 +10,15 @@ def build(bld):
     bld.env["JAVACFLAGS"] = '-g'
     bld.add_group()
 
+    test_align = bld.new_task_gen(features = 'cxx cprogram',
+                                 source = 'test_align.cpp',
+                                 uselib = 'GTEST THREAD',
+                                 uselib_local = "dlib",
+                                 includes = ['../../src'],
+                                 target = 'test_align')
+
+    test_align.install_path = None
+
     test_math = bld.new_task_gen(features = 'cxx cprogram',
                                  source = 'test_math.cpp',
                                  uselib = 'GTEST THREAD',
