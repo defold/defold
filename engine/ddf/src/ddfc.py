@@ -279,6 +279,11 @@ def to_cxx_descriptor(context, pp_cpp, pp_h, message_type, namespace_lst):
     for nt in message_type.nested_type:
         to_cxx_descriptor(context, pp_cpp, pp_h, nt, namespace_lst + [message_type.name] )
 
+    for f in message_type.field:
+        default = to_cxx_default_value_string(context, f)
+        if '"' in default:
+            pp_cpp.p('char DM_ALIGNED(4) %s_%s_%s_DEFAULT_VALUE[] = %s;', namespace, message_type.name, f.name, default)
+
     lst = []
     for f in message_type.field:
         tpl = (f.name, f.number, f.type, f.label)
@@ -292,7 +297,11 @@ def to_cxx_descriptor(context, pp_cpp, pp_h, message_type, namespace_lst):
 
         tpl += ("DDF_OFFSET_OF(%s::%s, m_%s)" % (namespace.replace("_", "::"), message_type.name, to_camel_case(f.name)), )
 
-        tpl += (to_cxx_default_value_string(context, f),)
+        default = to_cxx_default_value_string(context, f)
+        if '"' in default:
+            tpl += ('%s_%s_%s_DEFAULT_VALUE' % (namespace, message_type.name, f.name), )
+        else:
+            tpl += ('0x0',)
 
         lst.append(tpl)
 
@@ -582,6 +591,7 @@ def compile_cxx(context, proto_file, file_to_generate, namespace, includes):
     f_cpp = StringIO()
 
     pp_cpp = PrettyPrinter(f_cpp, 0)
+    pp_cpp.p('#include <dlib/align.h>')
     pp_cpp.p('#include <ddf/ddf.h>')
     for d in file_desc.dependency:
         if not 'ddf_extensions' in d:

@@ -1,4 +1,5 @@
 #include <string.h>
+#include <dlib/align.h>
 #include "ddf_loadcontext.h"
 #include "ddf_util.h"
 
@@ -19,7 +20,7 @@ namespace dmDDF
 
     Message LoadContext::AllocMessage(const Descriptor* desc)
     {
-        // TODO: Align here!
+        m_Current = (char*) DM_ALIGN(m_Current, 4);
         char* b = m_Current;
         m_Current += desc->m_Size;
         assert(m_DryRun || m_Current <= m_End);
@@ -29,9 +30,9 @@ namespace dmDDF
 
     void* LoadContext::AllocRepeated(const FieldDescriptor* field_desc, int count)
     {
-        // TODO: Align here!
         Type type = (Type) field_desc->m_Type;
 
+        m_Current = (char*) DM_ALIGN(m_Current, 4);
         int element_size = 0;
         if ( field_desc->m_Type == TYPE_MESSAGE )
         {
