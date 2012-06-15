@@ -14,6 +14,7 @@ import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
 import javax.persistence.OneToMany;
+import javax.persistence.OneToOne;
 import javax.persistence.Table;
 
 @Entity
@@ -51,6 +52,9 @@ public class User {
 
     @OneToMany
     private Set<User> connections = new HashSet<User>();
+
+    @OneToOne
+    private UserSubscription subscription;
 
     private static String digest(String password) {
         MessageDigest md;
@@ -118,6 +122,14 @@ public class User {
 
     public Set<User> getConnections() {
         return connections;
+    }
+
+    public UserSubscription getSubscription() {
+        return subscription;
+    }
+
+    public void setSubscription(UserSubscription subscription) {
+        this.subscription = subscription;
     }
 
     @Override

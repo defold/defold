@@ -12,6 +12,8 @@
         <class>com.dynamo.cr.server.model.Invitation</class>
         <class>com.dynamo.cr.server.model.InvitationAccount</class>
         <class>com.dynamo.cr.server.model.Prospect</class>
+        <class>com.dynamo.cr.server.model.Product</class>
+        <class>com.dynamo.cr.server.model.UserSubscription</class>
         <properties>
             <property name="javax.persistence.jdbc.driver" value="org.apache.derby.jdbc.EmbeddedDriver" />
             <property name="javax.persistence.jdbc.url" value="jdbc:derby:tmp/testdb;create=true" />
