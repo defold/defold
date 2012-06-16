@@ -326,6 +326,11 @@ public class ProjectResourceTest extends AbstractResourceTest {
 
     @Test
     public void uploadEngine() throws Exception {
+        if (branchLocation == BranchLocation.REMOTE) {
+            // Upload is not supported in remote branches
+            return;
+        }
+
         File f = File.createTempFile("test", ".suff");
         f.deleteOnExit();
         FileOutputStream out = new FileOutputStream(f);
