@@ -141,7 +141,6 @@ public class ModelUtil {
         subscription.setProduct(product);
         subscription.setExternalId(1l);
         entityManager.persist(subscription);
-        user.setSubscription(subscription);
         entityManager.persist(user);
         return subscription;
     }

@@ -444,8 +444,6 @@ public class ModelTest {
         assertThat(us.getProduct().getId(), is(small.getId()));
         assertThat(us.getExternalId(), is(1l));
         assertThat(us.getState(), is(UserSubscription.State.PENDING));
-        carl = ModelUtil.findUserByEmail(em, CARL_CONTENT_EMAIL);
-        assertThat(carl.getSubscription().getId(), is(us.getId()));
     }
 
     @Test

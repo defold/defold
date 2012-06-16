@@ -12,7 +12,7 @@ import javax.persistence.OneToOne;
 import javax.persistence.Table;
 
 @Entity
-@Table(name = "products")
+@Table(name = "user_subscriptions")
 public class UserSubscription {
 
     public enum State {

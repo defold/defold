@@ -63,7 +63,6 @@ import com.dynamo.cr.protocol.proto.Protocol.BuildDesc.Activity;
 import com.dynamo.cr.protocol.proto.Protocol.BuildLog;
 import com.dynamo.cr.protocol.proto.Protocol.LaunchInfo;
 import com.dynamo.cr.protocol.proto.Protocol.Log;
-import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 import com.dynamo.cr.server.auth.GitSecurityFilter;
 import com.dynamo.cr.server.auth.OpenIDAuthenticator;
 import com.dynamo.cr.server.auth.SecurityFilter;
