@@ -280,3 +280,14 @@ message ProductInfo {
 message ProductInfoList {
     repeated ProductInfo products = 1;
 }
+
+enum UserSubscriptionState {
+    CANCELED = 1;
+    PENDING = 2;
+    ACTIVE = 3;
+}
+
+message UserSubscriptionInfo {
+    required ProductInfo product = 1;
+    required UserSubscriptionState state = 2;
+}

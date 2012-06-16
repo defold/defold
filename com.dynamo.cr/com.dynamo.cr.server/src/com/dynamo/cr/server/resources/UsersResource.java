@@ -8,11 +8,13 @@ import java.util.UUID;
 
 import javax.annotation.security.RolesAllowed;
 import javax.persistence.TypedQuery;
+import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
+import javax.ws.rs.QueryParam;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
@@ -22,13 +24,18 @@ import com.dynamo.cr.protocol.proto.Protocol.InvitationAccountInfo;
 import com.dynamo.cr.protocol.proto.Protocol.RegisterUser;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfoList;
+import com.dynamo.cr.protocol.proto.Protocol.UserSubscriptionInfo;
+import com.dynamo.cr.protocol.proto.Protocol.UserSubscriptionState;
 import com.dynamo.cr.server.ServerException;
 import com.dynamo.cr.server.mail.EMail;
 import com.dynamo.cr.server.model.Invitation;
 import com.dynamo.cr.server.model.InvitationAccount;
 import com.dynamo.cr.server.model.ModelUtil;
+import com.dynamo.cr.server.model.Product;
 import com.dynamo.cr.server.model.Prospect;
 import com.dynamo.cr.server.model.User;
+import com.dynamo.cr.server.model.UserSubscription;
+import com.dynamo.cr.server.model.UserSubscription.State;
 import com.dynamo.inject.persist.Transactional;
 
 @Path("/users")
@@ -47,7 +54,25 @@ public class UsersResource extends BaseResource {
     static InvitationAccountInfo createInvitationAccountInfo(InvitationAccount a) {
         InvitationAccountInfo.Builder b = InvitationAccountInfo.newBuilder();
         b.setOriginalCount(a.getOriginalCount())
-         .setCurrentCount(a.getCurrentCount());
+.setCurrentCount(a.getCurrentCount());
+        return b.build();
+    }
+
+    static UserSubscriptionInfo createUserSubscriptionInfo(UserSubscription us) {
+        UserSubscriptionInfo.Builder b = UserSubscriptionInfo.newBuilder();
+        UserSubscriptionState state = UserSubscriptionState.ACTIVE;
+        switch (us.getState()) {
+        case CANCELED:
+            state = UserSubscriptionState.CANCELED;
+            break;
+        case PENDING:
+            state = UserSubscriptionState.PENDING;
+            break;
+        case ACTIVE:
+            state = UserSubscriptionState.ACTIVE;
+            break;
+        }
+        b.setProduct(ResourceUtil.createProductInfo(us.getProduct())).setState(state);
         return b.build();
     }
 
@@ -177,6 +202,78 @@ public class UsersResource extends BaseResource {
     public InvitationAccountInfo getInvitationAccount(@PathParam("user") String user) {
         InvitationAccount a = server.getInvitationAccount(em, user);
         return createInvitationAccountInfo(a);
+    }
+
+    @POST
+    @Path("/{user}/subscription")
+    @Transactional
+    public void subscribe(@PathParam("user") String user,
+            @QueryParam("product") String product, @QueryParam("external_id") String externalId) {
+        User u = server.getUser(em, user);
+        List<UserSubscription> subscriptions = em
+                .createQuery("select us from UserSubscription us where us.user = :user", UserSubscription.class)
+                .setParameter("user", u).getResultList();
+        if (subscriptions.isEmpty()) {
+            Product p = server.getProduct(em, product);
+            UserSubscription subscription = new UserSubscription();
+            subscription.setUser(u);
+            subscription.setProduct(p);
+            subscription.setExternalId(Long.parseLong(externalId));
+            em.persist(subscription);
+        } else {
+            throwWebApplicationException(Status.CONFLICT, "User already has subscription");
+        }
+    }
+
+    @GET
+    @Path("/{user}/subscription")
+    @Transactional
+    public UserSubscriptionInfo getSubscription(@PathParam("user") String user) {
+        User u = server.getUser(em, user);
+        List<UserSubscription> subscriptions = em
+                .createQuery("select us from UserSubscription us where us.user = :user", UserSubscription.class)
+                .setParameter("user", u).getResultList();
+        if (subscriptions.size() > 0) {
+            return createUserSubscriptionInfo(subscriptions.get(0));
+        } else {
+            throwWebApplicationException(Status.NOT_FOUND, "User has no subscription");
+        }
+        return null;
+    }
+
+    @PUT
+    @Path("/{user}/subscription")
+    @Transactional
+    public void setSubscription(@PathParam("user") String user, @QueryParam("product") String product,
+            @QueryParam("state") String state) {
+        User u = server.getUser(em, user);
+        List<UserSubscription> subscriptions = em
+                .createQuery("select us from UserSubscription us where us.user = :user", UserSubscription.class)
+                .setParameter("user", u).getResultList();
+        if (subscriptions.size() > 0) {
+            UserSubscription subscription = subscriptions.get(0);
+            subscription.setUser(u);
+            subscription.setProduct(server.getProduct(em, product));
+            subscription.setState(State.valueOf(state));
+            em.persist(subscription);
+        } else {
+            throwWebApplicationException(Status.NOT_FOUND, "User has no subscription");
+        }
+    }
+
+    @DELETE
+    @Path("/{user}/subscription")
+    @Transactional
+    public void deleteSubscription(@PathParam("user") String user) {
+        User u = server.getUser(em, user);
+        List<UserSubscription> subscriptions = em
+                .createQuery("select us from UserSubscription us where us.user = :user", UserSubscription.class)
+                .setParameter("user", u).getResultList();
+        if (subscriptions.size() > 0) {
+            em.remove(subscriptions.get(0));
+        } else {
+            throwWebApplicationException(Status.NOT_FOUND, "User has no subscription");
+        }
     }
 
 }

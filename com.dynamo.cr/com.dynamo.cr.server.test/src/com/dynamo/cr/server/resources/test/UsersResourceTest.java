@@ -24,12 +24,16 @@ import com.dynamo.cr.client.filter.DefoldAuthFilter;
 import com.dynamo.cr.common.providers.JsonProviders;
 import com.dynamo.cr.common.providers.ProtobufProviders;
 import com.dynamo.cr.protocol.proto.Protocol.LoginInfo;
+import com.dynamo.cr.protocol.proto.Protocol.ProductInfoList;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfoList;
+import com.dynamo.cr.protocol.proto.Protocol.UserSubscriptionInfo;
+import com.dynamo.cr.protocol.proto.Protocol.UserSubscriptionState;
 import com.dynamo.cr.server.model.Invitation;
 import com.dynamo.cr.server.model.InvitationAccount;
 import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.NewUser;
+import com.dynamo.cr.server.model.Product;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.model.User.Role;
 import com.sun.jersey.api.client.Client;
@@ -51,6 +55,8 @@ public class UsersResourceTest extends AbstractResourceTest {
     User joeUser;
     User adminUser;
     User bobUser;
+    Product freeProduct;
+    Product smallProduct;
     WebResource adminUsersWebResource;
     WebResource joeUsersWebResource;
     WebResource bobUsersWebResource;
@@ -92,6 +98,20 @@ public class UsersResourceTest extends AbstractResourceTest {
         bobUser.setPassword(bobPasswd);
         bobUser.setRole(Role.USER);
         em.persist(bobUser);
+
+        freeProduct = new Product();
+        freeProduct.setName("Free");
+        freeProduct.setHandle("free");
+        freeProduct.setMaxMemberCount(1);
+        freeProduct.setDefault(true);
+        em.persist(freeProduct);
+
+        smallProduct = new Product();
+        smallProduct.setName("Small");
+        smallProduct.setHandle("small");
+        smallProduct.setMaxMemberCount(-1);
+        smallProduct.setDefault(false);
+        em.persist(smallProduct);
 
         em.getTransaction().commit();
 
@@ -579,5 +599,96 @@ public class UsersResourceTest extends AbstractResourceTest {
         assertThat(1, is(invitations(em).size()));
     }
 
+    @Test
+    public void testSubscription() throws Exception {
+        Client client = Client.create(clientConfig);
+        client.addFilter(new HTTPBasicAuthFilter(joeEmail, joePasswd));
+        URI uri = UriBuilder.fromUri(String.format("http://localhost/products")).port(port).build();
+        WebResource productsResource = client.resource(uri);
+        ProductInfoList productInfoList = productsResource.type(MediaType.APPLICATION_JSON_TYPE)
+                .type(MediaType.APPLICATION_JSON_TYPE).get(ProductInfoList.class);
+
+        // Create subscription
+        ClientResponse response = joeUsersWebResource
+.path(String.format("/%d/subscription", joeUser.getId()))
+                .queryParam("product", Long.toString(productInfoList.getProducts(0).getId()))
+                .queryParam("external_id", "2").post(ClientResponse.class);
+        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+
+        // Retrieve it
+        UserSubscriptionInfo subscription = joeUsersWebResource
+                .path(String.format("/%d/subscription", joeUser.getId()))
+                .accept(MediaType.APPLICATION_JSON_TYPE)
+.type(MediaType.APPLICATION_JSON_TYPE)
+                .get(UserSubscriptionInfo.class);
+        assertEquals(subscription.getProduct().getId(), productInfoList.getProducts(0).getId());
+
+        // Update it
+        response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
+                .queryParam("product", Long.toString(productInfoList.getProducts(1).getId()))
+                .queryParam("state", "ACTIVE").put(ClientResponse.class);
+        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+
+        // Retrieve it
+        subscription = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
+                .accept(MediaType.APPLICATION_JSON_TYPE)
+                .type(MediaType.APPLICATION_JSON_TYPE).get(UserSubscriptionInfo.class);
+        assertEquals(subscription.getProduct().getId(), productInfoList.getProducts(1).getId());
+        assertEquals(subscription.getState(), UserSubscriptionState.ACTIVE);
+
+        // Delete it
+        response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
+                .queryParam("product", Long.toString(productInfoList.getProducts(1).getId()))
+                .delete(ClientResponse.class);
+        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+
+        // Retrieve it to make sure it's gone
+        response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId())).get(
+                ClientResponse.class);
+        assertEquals(Response.Status.NOT_FOUND.getStatusCode(), response.getStatus());
+    }
+
+    @Test
+    public void testCreateSecondSubscription() throws Exception {
+        Client client = Client.create(clientConfig);
+        client.addFilter(new HTTPBasicAuthFilter(joeEmail, joePasswd));
+        URI uri = UriBuilder.fromUri(String.format("http://localhost/products")).port(port).build();
+        WebResource productsResource = client.resource(uri);
+        ProductInfoList productInfoList = productsResource.type(MediaType.APPLICATION_JSON_TYPE)
+                .type(MediaType.APPLICATION_JSON_TYPE).get(ProductInfoList.class);
+
+        // Create subscription
+        ClientResponse response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
+                .queryParam("product", Long.toString(productInfoList.getProducts(0).getId()))
+                .queryParam("external_id", "2").post(ClientResponse.class);
+        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+        // And again
+        response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
+                .queryParam("product", Long.toString(productInfoList.getProducts(0).getId()))
+                .queryParam("external_id", "2").post(ClientResponse.class);
+        assertEquals(Response.Status.CONFLICT.getStatusCode(), response.getStatus());
+    }
+
+    @Test
+    public void testSetMissingSubscription() throws Exception {
+        Client client = Client.create(clientConfig);
+        client.addFilter(new HTTPBasicAuthFilter(joeEmail, joePasswd));
+        URI uri = UriBuilder.fromUri(String.format("http://localhost/products")).port(port).build();
+        WebResource productsResource = client.resource(uri);
+        ProductInfoList productInfoList = productsResource.type(MediaType.APPLICATION_JSON_TYPE)
+                .type(MediaType.APPLICATION_JSON_TYPE).get(ProductInfoList.class);
+
+        ClientResponse response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
+                .queryParam("product", Long.toString(productInfoList.getProducts(1).getId()))
+                .queryParam("state", "ACTIVE").put(ClientResponse.class);
+        assertEquals(Response.Status.NOT_FOUND.getStatusCode(), response.getStatus());
+    }
+
+    @Test
+    public void testDeleteMissingSubscription() throws Exception {
+        ClientResponse response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId())).delete(
+                ClientResponse.class);
+        assertEquals(Response.Status.NOT_FOUND.getStatusCode(), response.getStatus());
+    }
 }
 

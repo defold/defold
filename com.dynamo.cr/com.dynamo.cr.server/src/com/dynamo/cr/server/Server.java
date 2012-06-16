@@ -69,6 +69,7 @@ import com.dynamo.cr.server.auth.SecurityFilter;
 import com.dynamo.cr.server.mail.IMailProcessor;
 import com.dynamo.cr.server.model.InvitationAccount;
 import com.dynamo.cr.server.model.ModelUtil;
+import com.dynamo.cr.server.model.Product;
 import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.model.User.Role;
@@ -621,6 +622,15 @@ public class Server implements ServerMBean {
             }
         }
         return 0;
+    }
+
+    public Product getProduct(EntityManager em, String productId) {
+        Product product = em.find(Product.class, Long.parseLong(productId));
+        if (product == null)
+            throw new ServerException(String.format("No such product %s", productId),
+                    javax.ws.rs.core.Response.Status.NOT_FOUND);
+
+        return product;
     }
 
     public String getBaseURI() {
