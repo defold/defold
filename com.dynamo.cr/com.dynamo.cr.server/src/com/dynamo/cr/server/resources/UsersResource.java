@@ -178,5 +178,6 @@ public class UsersResource extends BaseResource {
         InvitationAccount a = server.getInvitationAccount(em, user);
         return createInvitationAccountInfo(a);
     }
+
 }
 

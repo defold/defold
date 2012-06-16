@@ -8,9 +8,11 @@ import org.apache.commons.io.FilenameUtils;
 import org.eclipse.jgit.util.StringUtils;
 
 import com.dynamo.cr.proto.Config.Configuration;
+import com.dynamo.cr.protocol.proto.Protocol.ProductInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
 import com.dynamo.cr.server.Server;
+import com.dynamo.cr.server.model.Product;
 import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
 
@@ -90,4 +92,9 @@ public class ResourceUtil {
         return b.build();
     }
 
+    public static ProductInfo createProductInfo(Product product) {
+        ProductInfo.Builder b = ProductInfo.newBuilder().setId(product.getId()).setName(product.getName())
+                .setMaxMemberCount(product.getMaxMemberCount());
+        return b.build();
+    }
 }

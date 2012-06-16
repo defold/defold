@@ -270,3 +270,13 @@ message InvitationAccountInfo
     required int32 original_count = 1;
     required int32 current_count = 2;
 }
+
+message ProductInfo {
+    required int64 id = 1;
+    required string name = 2;
+    required int32 max_member_count = 3;
+}
+
+message ProductInfoList {
+    repeated ProductInfo products = 1;
+}
