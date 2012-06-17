@@ -66,6 +66,7 @@ import com.dynamo.cr.protocol.proto.Protocol.Log;
 import com.dynamo.cr.server.auth.GitSecurityFilter;
 import com.dynamo.cr.server.auth.OpenIDAuthenticator;
 import com.dynamo.cr.server.auth.SecurityFilter;
+import com.dynamo.cr.server.billing.IBillingProvider;
 import com.dynamo.cr.server.mail.IMailProcessor;
 import com.dynamo.cr.server.model.InvitationAccount;
 import com.dynamo.cr.server.model.ModelUtil;
@@ -114,6 +115,7 @@ public class Server implements ServerMBean {
     private BranchRepository branchRepository;
 
     private IMailProcessor mailProcessor;
+    private IBillingProvider billingProvider;
 
     private int cleanupBuildsInterval = 10 * 1000; // 10 seconds
     private int keepBuildDescFor = 100 * 1000; // 100 seconds
@@ -282,11 +284,13 @@ public class Server implements ServerMBean {
     @Inject
     public Server(EntityManagerFactory emf,
                   Configuration configuration,
-                  IMailProcessor mailProcessor) throws IOException {
+                  IMailProcessor mailProcessor,
+            IBillingProvider billingProvider) throws IOException {
 
         this.emf = emf;
         this.configuration = configuration;
         this.mailProcessor = mailProcessor;
+        this.billingProvider = billingProvider;
 
         LoggerContext lc = (LoggerContext) LoggerFactory.getILoggerFactory();
 
@@ -508,6 +512,10 @@ public class Server implements ServerMBean {
 
     public IMailProcessor getMailProcessor() {
         return mailProcessor;
+    }
+
+    public IBillingProvider getBillingProvider() {
+        return billingProvider;
     }
 
     public SecureRandom getSecureRandom() {

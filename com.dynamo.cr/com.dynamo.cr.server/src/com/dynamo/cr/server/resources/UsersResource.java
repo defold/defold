@@ -27,6 +27,7 @@ import com.dynamo.cr.protocol.proto.Protocol.UserInfoList;
 import com.dynamo.cr.protocol.proto.Protocol.UserSubscriptionInfo;
 import com.dynamo.cr.protocol.proto.Protocol.UserSubscriptionState;
 import com.dynamo.cr.server.ServerException;
+import com.dynamo.cr.server.billing.IBillingProvider;
 import com.dynamo.cr.server.mail.EMail;
 import com.dynamo.cr.server.model.Invitation;
 import com.dynamo.cr.server.model.InvitationAccount;
@@ -253,8 +254,35 @@ public class UsersResource extends BaseResource {
         if (subscriptions.size() > 0) {
             UserSubscription subscription = subscriptions.get(0);
             subscription.setUser(u);
-            subscription.setProduct(server.getProduct(em, product));
-            subscription.setState(State.valueOf(state));
+            IBillingProvider billingProvider = server.getBillingProvider();
+            // Migrate subscription
+            Product newProduct = server.getProduct(em, product);
+            if (newProduct.getId() != subscription.getProduct().getId()) {
+                if (subscription.getState() != State.ACTIVE) {
+                    throwWebApplicationException(Status.CONFLICT, "Only active subscriptions can be updated");
+                }
+                if (billingProvider.migrateSubscription(subscription, newProduct)) {
+                    subscription.setProduct(newProduct);
+                } else {
+                    throwWebApplicationException(Status.INTERNAL_SERVER_ERROR,
+                            "Billing provider could not migrate the subscription");
+                }
+            }
+            // Update state
+            State newState = State.valueOf(state);
+            State oldState = subscription.getState();
+            if (oldState != newState) {
+                if (newState != State.ACTIVE) {
+                    throwWebApplicationException(Status.CONFLICT, "Subscriptions can only be manually activated");
+                }
+                if (oldState == State.CANCELED) {
+                    if (!billingProvider.reactivateSubscription(subscription)) {
+                        throwWebApplicationException(Status.INTERNAL_SERVER_ERROR,
+                                "Billing provider could not reactivate the subscription");
+                    }
+                }
+                subscription.setState(newState);
+            }
             em.persist(subscription);
         } else {
             throwWebApplicationException(Status.NOT_FOUND, "User has no subscription");
@@ -270,7 +298,13 @@ public class UsersResource extends BaseResource {
                 .createQuery("select us from UserSubscription us where us.user = :user", UserSubscription.class)
                 .setParameter("user", u).getResultList();
         if (subscriptions.size() > 0) {
-            em.remove(subscriptions.get(0));
+            UserSubscription subscription = subscriptions.get(0);
+            if (server.getBillingProvider().cancelSubscription(subscription)) {
+                em.remove(subscriptions.get(0));
+            } else {
+                throwWebApplicationException(Status.INTERNAL_SERVER_ERROR,
+                        "Billing provider could not cancel the subscription");
+            }
         } else {
             throwWebApplicationException(Status.NOT_FOUND, "User has no subscription");
         }

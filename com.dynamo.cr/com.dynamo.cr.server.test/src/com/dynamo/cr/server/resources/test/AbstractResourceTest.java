@@ -15,14 +15,18 @@ import org.eclipse.persistence.config.PersistenceUnitProperties;
 import org.eclipse.persistence.jpa.osgi.PersistenceProvider;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.mockito.Mockito;
 
 import com.dynamo.cr.proto.Config.Configuration;
 import com.dynamo.cr.server.ConfigurationProvider;
 import com.dynamo.cr.server.Server;
+import com.dynamo.cr.server.billing.IBillingProvider;
 import com.dynamo.cr.server.mail.EMail;
 import com.dynamo.cr.server.mail.IMailProcessor;
 import com.dynamo.cr.server.mail.IMailer;
 import com.dynamo.cr.server.mail.MailProcessor;
+import com.dynamo.cr.server.model.Product;
+import com.dynamo.cr.server.model.UserSubscription;
 import com.dynamo.cr.server.test.Util;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
@@ -35,6 +39,7 @@ public class AbstractResourceTest {
     static Module module;
     static TestMailer mailer;
     static EntityManagerFactory emf;
+    static IBillingProvider billingProvider;
 
     static class TestMailer implements IMailer {
         List<EMail> emails = new ArrayList<EMail>();
@@ -57,6 +62,14 @@ public class AbstractResourceTest {
         }
 
         mailer = new TestMailer();
+
+        billingProvider = mock(IBillingProvider.class);
+        Mockito.when(billingProvider.migrateSubscription(Mockito.any(UserSubscription.class),
+ Mockito.any(Product.class)))
+                .thenReturn(true);
+        Mockito.when(billingProvider.reactivateSubscription(Mockito.any(UserSubscription.class))).thenReturn(true);
+        Mockito.when(billingProvider.cancelSubscription(Mockito.any(UserSubscription.class))).thenReturn(true);
+
         module = new Module(mailer);
         Injector injector = Guice.createInjector(module);
         server = injector.getInstance(Server.class);
@@ -91,6 +104,7 @@ public class AbstractResourceTest {
             bind(Configuration.class).toProvider(ConfigurationProvider.class).in(Singleton.class);
             bind(IMailProcessor.class).to(MailProcessor.class).in(Singleton.class);
             bind(IMailer.class).toInstance(mailer);
+            bind(IBillingProvider.class).toInstance(billingProvider);
 
             Properties props = new Properties();
             props.put(PersistenceUnitProperties.CLASSLOADER, this.getClass().getClassLoader());
