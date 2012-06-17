@@ -23,6 +23,8 @@ namespace dmGameSystem
     extern const char* PHYSICS_MAX_CONTACTS_KEY;
     /// Config key to use for tweaking maximum number of collection proxies
     extern const char* COLLECTION_PROXY_MAX_COUNT_KEY;
+    /// Config key to use for tweaking maximum number of factories
+    extern const char* FACTORY_MAX_COUNT_KEY;
 
     struct PhysicsContext
     {
@@ -92,6 +94,15 @@ namespace dmGameSystem
         uint32_t m_MaxCollectionProxyCount;
     };
 
+    struct FactoryContext
+    {
+        FactoryContext()
+        {
+            memset(this, 0, sizeof(*this));
+        }
+        uint32_t m_MaxFactoryCount;
+    };
+
     bool InitializeScriptLibs(const ScriptLibContext& context);
     void FinalizeScriptLibs(const ScriptLibContext& context);
 
@@ -108,7 +119,8 @@ namespace dmGameSystem
                                                   EmitterContext* emitter_context,
                                                   GuiContext* gui_context,
                                                   SpriteContext* sprite_context,
-                                                  CollectionProxyContext* collection_proxy_context);
+                                                  CollectionProxyContext* collection_proxy_context,
+                                                  FactoryContext* factory_context);
 
     void GuiGetURLCallback(dmGui::HScene scene, dmMessage::URL* url);
     uintptr_t GuiGetUserDataCallback(dmGui::HScene scene);
