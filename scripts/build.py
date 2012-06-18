@@ -109,6 +109,9 @@ class Configuration(object):
         sha1 = line.split()[0]
         return sha1
 
+    def is_cross_platform(self):
+        return self.target_platform in ['armv6-darwin']
+
     def archive_engine(self):
         exe_ext = '.exe' if self.target_platform == 'win32' else ''
         host, path = self.archive_path.split(':', 1)
@@ -119,7 +122,15 @@ class Configuration(object):
         if self.target_platform == 'win32':
             dynamo_home = dynamo_home.replace("\\", "/")
             dynamo_home = "/" + dynamo_home[:1] + dynamo_home[2:]
-        self.exec_command(['scp', join(dynamo_home, 'bin', 'dmengine' + exe_ext),
+
+        if self.is_cross_platform():
+            # When cross compiling the engine is located
+            # under PREFIX/bin/platform/...
+            bin_dir = self.target_platform
+        else:
+            bin_dir = ''
+
+        self.exec_command(['scp', join(dynamo_home, 'bin', bin_dir, 'dmengine' + exe_ext),
                            '%s/dmengine%s.%s' % (self.archive_path, exe_ext, sha1)])
         self.exec_command(['ssh', host,
                            'ln -sfn dmengine%s.%s %s/dmengine%s' % (exe_ext, sha1, path, exe_ext)])
