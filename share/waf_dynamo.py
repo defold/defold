@@ -5,8 +5,8 @@ from TaskGen import extension, taskgen, feature, after, before
 from Logs import error
 import cc, cxx
 
-ARM_DARWIN_ROOT='/Developer/Platforms/iPhoneOS.platform/Developer'
-IOS_SDK_VERSION="5.0"
+ARM_DARWIN_ROOT='/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer'
+IOS_SDK_VERSION="5.1"
 MIN_IOS_SDK_VERSION=IOS_SDK_VERSION
 
 @feature('cc', 'cxx')
@@ -205,7 +205,7 @@ def codesign(task):
     entitlements = '/Users/chmu/Library/Developer/Xcode/DerivedData/test_iphone2-dsbdefmnlgdwdlchxwoxthhbgnwc/Build/Intermediates/test_iphone2.build/Debug-iphoneos/test_iphone2.build/test_iphone2.xcent'
     resource_rules_plist_file = task.resource_rules_plist.bldpath(task.env)
 
-    ret = bld.exec_command('CODESIGN_ALLOCATE=/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/codesign_allocate codesign -f -s "%s" --resource-rules=%s --entitlements %s %s' % (identity, resource_rules_plist_file, entitlements, signed_exe_dir))
+    ret = bld.exec_command('CODESIGN_ALLOCATE=/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/codesign_allocate codesign -f -s "%s" --resource-rules=%s --entitlements %s %s' % (identity, resource_rules_plist_file, entitlements, signed_exe_dir))
     if ret != 0:
         error('Error running codesign')
         return 1
