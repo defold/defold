@@ -59,6 +59,9 @@ message Configuration
 
     // signed engines
     required string signed_engine_root = 28;
+
+    // billing
+    required string billing_shared_key = 29;
 }
 
 message EMailTemplate
