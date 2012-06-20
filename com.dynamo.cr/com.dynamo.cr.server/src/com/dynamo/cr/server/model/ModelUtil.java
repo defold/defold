@@ -144,4 +144,16 @@ public class ModelUtil {
         entityManager.persist(user);
         return subscription;
     }
+
+    public static UserSubscription findUserSubscriptionByExternalId(EntityManager entityManager, String externalId) {
+        List<UserSubscription> list = entityManager
+                .createQuery("select us from UserSubscription us where us.externalId = :externalId",
+                        UserSubscription.class).setParameter("externalId", Long.parseLong(externalId)).getResultList();
+        if (list.size() == 0) {
+            return null;
+        } else {
+            assert list.size() == 1;
+            return list.get(0);
+        }
+    }
 }

@@ -7,6 +7,10 @@ public class ChargifyUtil {
 
     public static final String SIGNATURE_HEADER_NAME = "X-Chargify-Webhook-Signature";
 
+    public static final String SIGNUP_SUCCESS_WH = "signup_success";
+    public static final String SIGNUP_FAILURE_WH = "signup_failure";
+    public static final String RENEWAL_FAILURE_WH = "renewal_failure";
+
     private static MessageDigest digest = null;
 
     /**
