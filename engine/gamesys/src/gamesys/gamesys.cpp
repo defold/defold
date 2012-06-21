@@ -107,7 +107,8 @@ namespace dmGameSystem
                                                 EmitterContext* emitter_context,
                                                 GuiContext* gui_context,
                                                 SpriteContext* sprite_context,
-                                                CollectionProxyContext* collection_proxy_context)
+                                                CollectionProxyContext* collection_proxy_context,
+                                                FactoryContext* factory_context)
     {
         uint32_t type;
         dmGameObject::ComponentType component_type;
@@ -184,7 +185,7 @@ namespace dmGameSystem
                 &CompEmitterCreate, &CompEmitterDestroy, 0, 0,
                 &CompEmitterUpdate, 0, &CompEmitterOnMessage, 0, &CompEmitterOnReload);
 
-        REGISTER_COMPONENT_TYPE("factoryc", 900, render_context,
+        REGISTER_COMPONENT_TYPE("factoryc", 900, factory_context,
                 CompFactoryNewWorld, CompFactoryDeleteWorld,
                 CompFactoryCreate, CompFactoryDestroy, 0, 0,
                 0, 0, CompFactoryOnMessage, 0, 0);

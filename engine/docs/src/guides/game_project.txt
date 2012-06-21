@@ -87,3 +87,5 @@ Here is a list of settings for advanced users:
 ** _subpixels_ - whether to allow sprites to appear unaligned with respect to pixels, 1 for yes (default) and 0 for no
 * *collection_proxy*
 ** _max_count_ - max number of collection proxies, 8 by default
+* *factory*
+** _max_count_ - max number of factories, 128 by default

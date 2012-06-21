@@ -11,9 +11,13 @@
 #include <gameobject/gameobject.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
+#include "../gamesys.h"
+
 namespace dmGameSystem
 {
     using namespace Vectormath::Aos;
+
+    const char* FACTORY_MAX_COUNT_KEY = "factory.max_count";
 
     struct FactoryComponent
     {
@@ -29,9 +33,10 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompFactoryNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
+        FactoryContext* context = (FactoryContext*)params.m_Context;
         FactoryWorld* fw = new FactoryWorld();
-        const uint32_t max_component_count = 64;
-        fw->m_Components.SetCapacity(max_component_count); // TODO: Tweakable!
+        const uint32_t max_component_count = context->m_MaxFactoryCount;
+        fw->m_Components.SetCapacity(max_component_count);
         fw->m_Components.SetSize(max_component_count);
         fw->m_IndexPool.SetCapacity(max_component_count);
         memset(&fw->m_Components[0], 0, sizeof(FactoryComponent) * max_component_count);
