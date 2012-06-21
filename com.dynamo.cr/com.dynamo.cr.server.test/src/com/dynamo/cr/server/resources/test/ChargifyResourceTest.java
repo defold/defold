@@ -147,7 +147,7 @@ public class ChargifyResourceTest extends AbstractResourceTest {
         client.addFilter(new HTTPBasicAuthFilter(joeEmail, joePasswd));
         URI uri = UriBuilder.fromUri(String.format("http://localhost/products")).port(port).build();
         WebResource productsResource = client.resource(uri);
-        ProductInfoList productInfoList = productsResource.type(MediaType.APPLICATION_JSON_TYPE)
+        ProductInfoList productInfoList = productsResource.accept(MediaType.APPLICATION_JSON_TYPE)
                 .type(MediaType.APPLICATION_JSON_TYPE).get(ProductInfoList.class);
 
         Long externalId = 2l;

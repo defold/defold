@@ -62,6 +62,8 @@ message Configuration
 
     // billing
     required string billing_shared_key = 29;
+    required string billing_api_url = 30;
+    required string billing_api_key = 31;
 }
 
 message EMailTemplate
