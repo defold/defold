@@ -39,6 +39,7 @@ protected:
     dmInputDDF::GamepadMaps* m_GamepadMapsDDF;
     dmGameSystem::SpriteContext m_SpriteContext;
     dmGameSystem::CollectionProxyContext m_CollectionProxyContext;
+    dmGameSystem::FactoryContext m_FactoryContext;
 };
 
 class ResourceTest : public GamesysTest<const char*>
@@ -126,13 +127,15 @@ void GamesysTest<T>::SetUp()
     m_CollectionProxyContext.m_Factory = m_Factory;
     m_CollectionProxyContext.m_MaxCollectionProxyCount = 8;
 
+    m_FactoryContext.m_MaxFactoryCount = 128;
+
     assert(dmResource::RESULT_OK == dmGameSystem::RegisterResourceTypes(m_Factory, m_RenderContext, &m_GuiContext, m_InputContext, &m_PhysicsContext));
 
     dmResource::Get(m_Factory, "/input/valid.gamepadsc", (void**)&m_GamepadMapsDDF);
     assert(m_GamepadMapsDDF);
     dmInput::RegisterGamepads(m_InputContext, m_GamepadMapsDDF);
 
-    assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, &m_PhysicsContext, &m_EmitterContext, &m_GuiContext, &m_SpriteContext, &m_CollectionProxyContext));
+    assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, &m_PhysicsContext, &m_EmitterContext, &m_GuiContext, &m_SpriteContext, &m_CollectionProxyContext, &m_FactoryContext));
 
     m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
 }

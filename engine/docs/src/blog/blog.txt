@@ -1,5 +1,13 @@
 :max-width: 45em
 
+Release 1.1.11
+--------------
+_June 19, 2012_
+
+Release 1.1.11 is microscopic, since it solely contains a small fix that was critical for one of the projects.
+In link:/#!guide:game_project[game.project], there is now a new setting under the category +[factory]+ called +max_count+ which determines how many factories can be created at once.
+The default count was set to 64, this is now raised to 128.
+
 Release: 1.1.10
 ---------------
 _June 4, 2012_
