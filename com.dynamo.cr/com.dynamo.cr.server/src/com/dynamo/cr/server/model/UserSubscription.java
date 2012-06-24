@@ -29,7 +29,7 @@ public class UserSubscription {
     @ManyToOne(optional = false)
     private Product product;
 
-    @Column(nullable = false)
+    @Column(nullable = false, unique = true)
     private Long externalId;
 
     @Column(nullable = false)

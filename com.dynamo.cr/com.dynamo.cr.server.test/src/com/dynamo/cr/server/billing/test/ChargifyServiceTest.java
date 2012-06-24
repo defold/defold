@@ -1,5 +1,6 @@
-package com.dynamo.cr.server.resources.test;
+package com.dynamo.cr.server.billing.test;
 
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
 import java.io.File;
@@ -14,12 +15,14 @@ import javax.persistence.EntityManagerFactory;
 import org.eclipse.persistence.config.PersistenceUnitProperties;
 import org.eclipse.persistence.jpa.osgi.PersistenceProvider;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
-import org.mockito.Mockito;
+import org.junit.Test;
 
 import com.dynamo.cr.proto.Config.Configuration;
 import com.dynamo.cr.server.ConfigurationProvider;
 import com.dynamo.cr.server.Server;
+import com.dynamo.cr.server.billing.ChargifyService;
 import com.dynamo.cr.server.billing.IBillingProvider;
 import com.dynamo.cr.server.mail.EMail;
 import com.dynamo.cr.server.mail.IMailProcessor;
@@ -33,7 +36,7 @@ import com.google.inject.Guice;
 import com.google.inject.Injector;
 import com.google.inject.name.Names;
 
-public class AbstractResourceTest {
+public class ChargifyServiceTest {
 
     static Server server;
     static Module module;
@@ -63,17 +66,11 @@ public class AbstractResourceTest {
 
         mailer = new TestMailer();
 
-        billingProvider = mock(IBillingProvider.class);
-        Mockito.when(billingProvider.migrateSubscription(Mockito.any(UserSubscription.class),
- Mockito.any(Product.class)))
-                .thenReturn(true);
-        Mockito.when(billingProvider.reactivateSubscription(Mockito.any(UserSubscription.class))).thenReturn(true);
-        Mockito.when(billingProvider.cancelSubscription(Mockito.any(UserSubscription.class))).thenReturn(true);
-
         module = new Module(mailer);
         Injector injector = Guice.createInjector(module);
         server = injector.getInstance(Server.class);
         emf = server.getEntityManagerFactory();
+        billingProvider = injector.getInstance(IBillingProvider.class);
     }
 
     @AfterClass
@@ -81,7 +78,8 @@ public class AbstractResourceTest {
         server.stop();
     }
 
-    void setupUpTest() throws Exception {
+    @Before
+    public void setUp() throws Exception {
         // Clear all tables as we keep the database over tests
         Util.clearAllTables();
         mailer.emails.clear();
@@ -104,13 +102,37 @@ public class AbstractResourceTest {
             bind(Configuration.class).toProvider(ConfigurationProvider.class).in(Singleton.class);
             bind(IMailProcessor.class).to(MailProcessor.class).in(Singleton.class);
             bind(IMailer.class).toInstance(mailer);
-            bind(IBillingProvider.class).toInstance(billingProvider);
+            bind(IBillingProvider.class).to(ChargifyService.class).in(Singleton.class);
 
             Properties props = new Properties();
             props.put(PersistenceUnitProperties.CLASSLOADER, this.getClass().getClassLoader());
             EntityManagerFactory emf = new PersistenceProvider().createEntityManagerFactory("unit-test", props);
             bind(EntityManagerFactory.class).toInstance(emf);
         }
+    }
+
+    private static final Long EXTERNAL_ID = 1961297l;
+
+    @Test
+    public void testMigrate() {
+        UserSubscription subscription = new UserSubscription();
+        subscription.setExternalId(EXTERNAL_ID);
+        Product free = new Product();
+        free.setHandle("free");
+        Product small = new Product();
+        small.setHandle("small");
+
+        assertTrue(billingProvider.migrateSubscription(subscription, small));
+        assertTrue(billingProvider.migrateSubscription(subscription, free));
+    }
+
+    @Test
+    public void testCancelReactivate() {
+        UserSubscription subscription = new UserSubscription();
+        subscription.setExternalId(EXTERNAL_ID);
+
+        assertTrue(billingProvider.cancelSubscription(subscription));
+        assertTrue(billingProvider.reactivateSubscription(subscription));
     }
 }
 
