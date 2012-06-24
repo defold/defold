@@ -122,4 +122,38 @@ public class ModelUtil {
             return list.get(0);
         }
     }
+
+    public static Product findProductByHandle(EntityManager entityManager, String handle) {
+        List<Product> list = entityManager
+                .createQuery("select p from Product p where p.handle = :handle", Product.class)
+                .setParameter("handle", handle).getResultList();
+        if (list.size() == 0) {
+            return null;
+        } else {
+            assert list.size() == 1;
+            return list.get(0);
+        }
+    }
+
+    public static UserSubscription newUserSubscription(EntityManager entityManager, User user, Product product) {
+        UserSubscription subscription = new UserSubscription();
+        subscription.setUser(user);
+        subscription.setProduct(product);
+        subscription.setExternalId(1l);
+        entityManager.persist(subscription);
+        entityManager.persist(user);
+        return subscription;
+    }
+
+    public static UserSubscription findUserSubscriptionByExternalId(EntityManager entityManager, String externalId) {
+        List<UserSubscription> list = entityManager
+                .createQuery("select us from UserSubscription us where us.externalId = :externalId",
+                        UserSubscription.class).setParameter("externalId", Long.parseLong(externalId)).getResultList();
+        if (list.size() == 0) {
+            return null;
+        } else {
+            assert list.size() == 1;
+            return list.get(0);
+        }
+    }
 }

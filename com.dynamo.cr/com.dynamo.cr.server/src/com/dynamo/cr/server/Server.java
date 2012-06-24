@@ -63,18 +63,20 @@ import com.dynamo.cr.protocol.proto.Protocol.BuildDesc.Activity;
 import com.dynamo.cr.protocol.proto.Protocol.BuildLog;
 import com.dynamo.cr.protocol.proto.Protocol.LaunchInfo;
 import com.dynamo.cr.protocol.proto.Protocol.Log;
-import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 import com.dynamo.cr.server.auth.GitSecurityFilter;
 import com.dynamo.cr.server.auth.OpenIDAuthenticator;
 import com.dynamo.cr.server.auth.SecurityFilter;
+import com.dynamo.cr.server.billing.IBillingProvider;
 import com.dynamo.cr.server.mail.IMailProcessor;
 import com.dynamo.cr.server.model.InvitationAccount;
 import com.dynamo.cr.server.model.ModelUtil;
+import com.dynamo.cr.server.model.Product;
 import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.model.User.Role;
 import com.dynamo.cr.server.openid.OpenID;
 import com.dynamo.cr.server.resources.LoginResource;
+import com.dynamo.cr.server.resources.ProductsResource;
 import com.dynamo.cr.server.resources.ProjectResource;
 import com.dynamo.cr.server.resources.ProjectsResource;
 import com.dynamo.cr.server.resources.ProspectsResource;
@@ -113,6 +115,7 @@ public class Server implements ServerMBean {
     private BranchRepository branchRepository;
 
     private IMailProcessor mailProcessor;
+    private IBillingProvider billingProvider;
 
     private int cleanupBuildsInterval = 10 * 1000; // 10 seconds
     private int keepBuildDescFor = 100 * 1000; // 100 seconds
@@ -203,6 +206,7 @@ public class Server implements ServerMBean {
                     bind(UsersResource.class);
                     bind(LoginResource.class);
                     bind(ProspectsResource.class);
+                    bind(ProductsResource.class);
 
                     Map<String, String> params = new HashMap<String, String>();
                     params.put("com.sun.jersey.config.property.resourceConfigClass",
@@ -280,11 +284,13 @@ public class Server implements ServerMBean {
     @Inject
     public Server(EntityManagerFactory emf,
                   Configuration configuration,
-                  IMailProcessor mailProcessor) throws IOException {
+                  IMailProcessor mailProcessor,
+            IBillingProvider billingProvider) throws IOException {
 
         this.emf = emf;
         this.configuration = configuration;
         this.mailProcessor = mailProcessor;
+        this.billingProvider = billingProvider;
 
         LoggerContext lc = (LoggerContext) LoggerFactory.getILoggerFactory();
 
@@ -508,6 +514,10 @@ public class Server implements ServerMBean {
         return mailProcessor;
     }
 
+    public IBillingProvider getBillingProvider() {
+        return billingProvider;
+    }
+
     public SecureRandom getSecureRandom() {
         return secureRandom;
     }
@@ -620,6 +630,15 @@ public class Server implements ServerMBean {
             }
         }
         return 0;
+    }
+
+    public Product getProduct(EntityManager em, String productId) {
+        Product product = em.find(Product.class, Long.parseLong(productId));
+        if (product == null)
+            throw new ServerException(String.format("No such product %s", productId),
+                    javax.ws.rs.core.Response.Status.NOT_FOUND);
+
+        return product;
     }
 
     public String getBaseURI() {

@@ -34,6 +34,7 @@ public class Util {
             finally {
                 stmnt.close();
             }
+            ++iter;
             if (iter > 100) {
                 throw new RuntimeException(String.format("Unable to drop all tables after %d iterations. Something went very wrong", iter));
             }

@@ -270,3 +270,24 @@ message InvitationAccountInfo
     required int32 original_count = 1;
     required int32 current_count = 2;
 }
+
+message ProductInfo {
+    required int64 id = 1;
+    required string name = 2;
+    required int32 max_member_count = 3;
+}
+
+message ProductInfoList {
+    repeated ProductInfo products = 1;
+}
+
+enum UserSubscriptionState {
+    CANCELED = 1;
+    PENDING = 2;
+    ACTIVE = 3;
+}
+
+message UserSubscriptionInfo {
+    required ProductInfo product = 1;
+    required UserSubscriptionState state = 2;
+}
