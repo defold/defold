@@ -701,7 +701,7 @@ public class UsersResourceTest extends AbstractResourceTest {
     }
 
     @Test
-    public void testUpdateInactiveSubscription() throws Exception {
+    public void testUpdatePendingSubscription() throws Exception {
         Client client = Client.create(clientConfig);
         client.addFilter(new HTTPBasicAuthFilter(joeEmail, joePasswd));
         URI uri = UriBuilder.fromUri(String.format("http://localhost/products")).port(port).build();

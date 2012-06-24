@@ -276,7 +276,9 @@ public class UsersResource extends BaseResource {
                     throwWebApplicationException(Status.CONFLICT, "Subscriptions can only be manually activated");
                 }
                 if (oldState == State.CANCELED) {
-                    if (!billingProvider.reactivateSubscription(subscription)) {
+                    if (billingProvider.reactivateSubscription(subscription)) {
+                        newState = State.PENDING;
+                    } else {
                         throwWebApplicationException(Status.INTERNAL_SERVER_ERROR,
                                 "Billing provider could not reactivate the subscription");
                     }

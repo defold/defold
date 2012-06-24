@@ -42,6 +42,10 @@ public class ChargifyService implements IBillingProvider {
         mapper = new ObjectMapper();
     }
 
+    public WebResource getChargifyResource() {
+        return this.chargifyResource;
+    }
+
     private boolean verifyAndLogResponse(ClientResponse response, UserSubscription subscription,
             String operation) {
         int status = response.getStatus();
