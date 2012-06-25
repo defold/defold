@@ -4,6 +4,8 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
 import java.io.File;
+import java.io.IOException;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
@@ -11,7 +13,13 @@ import java.util.Properties;
 import javax.inject.Singleton;
 import javax.mail.MessagingException;
 import javax.persistence.EntityManagerFactory;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.UriBuilder;
 
+import org.codehaus.jackson.JsonNode;
+import org.codehaus.jackson.JsonProcessingException;
+import org.codehaus.jackson.map.ObjectMapper;
+import org.codehaus.jackson.node.ObjectNode;
 import org.eclipse.persistence.config.PersistenceUnitProperties;
 import org.eclipse.persistence.jpa.osgi.PersistenceProvider;
 import org.junit.AfterClass;
@@ -35,14 +43,22 @@ import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
 import com.google.inject.name.Names;
+import com.sun.jersey.api.client.Client;
+import com.sun.jersey.api.client.ClientResponse;
+import com.sun.jersey.api.client.WebResource;
+import com.sun.jersey.api.client.config.DefaultClientConfig;
+import com.sun.jersey.api.client.filter.HTTPBasicAuthFilter;
 
 public class ChargifyServiceTest {
+
+    private static final String CUSTOMER_REFERENCE = "test_user";
 
     static Server server;
     static Module module;
     static TestMailer mailer;
     static EntityManagerFactory emf;
     static IBillingProvider billingProvider;
+    static Long subscriptionId;
 
     static class TestMailer implements IMailer {
         List<EMail> emails = new ArrayList<EMail>();
@@ -71,6 +87,8 @@ public class ChargifyServiceTest {
         server = injector.getInstance(Server.class);
         emf = server.getEntityManagerFactory();
         billingProvider = injector.getInstance(IBillingProvider.class);
+
+        verifyBootstrapData();
     }
 
     @AfterClass
@@ -111,25 +129,71 @@ public class ChargifyServiceTest {
         }
     }
 
-    private static final Long EXTERNAL_ID = 1961297l;
+    private static void verifyBootstrapData() throws JsonProcessingException, IOException {
+        Configuration configuration = server.getConfiguration();
+        Client client = Client.create(new DefaultClientConfig());
+        client.addFilter(new HTTPBasicAuthFilter(configuration.getBillingApiKey(), "x"));
+        URI uri = UriBuilder.fromUri(configuration.getBillingApiUrl()).build();
+        WebResource resource = client.resource(uri);
+
+        ObjectMapper mapper = new ObjectMapper();
+        ClientResponse response = resource.path("/customers/lookup.json").queryParam("reference", CUSTOMER_REFERENCE)
+                .accept(MediaType.APPLICATION_JSON_TYPE).type(MediaType.APPLICATION_JSON_TYPE)
+                .get(ClientResponse.class);
+        if (response.getStatus() == ClientResponse.Status.NOT_FOUND.getStatusCode()) {
+            ObjectNode root = mapper.createObjectNode();
+            ObjectNode customer = mapper.createObjectNode();
+            customer.put("first_name", "Testing");
+            customer.put("last_name", "User");
+            customer.put("email", "chargify-test-user@defold.se");
+            customer.put("reference", CUSTOMER_REFERENCE);
+            root.put("customer", customer);
+            response = resource.path("/customers.json").accept(MediaType.APPLICATION_JSON_TYPE)
+                    .type(MediaType.APPLICATION_JSON_TYPE).post(ClientResponse.class, root.toString());
+            JsonNode c = mapper.readTree(response.getEntityInputStream());
+            int customerId = c.get("customer").get("id").getIntValue();
+            root = mapper.createObjectNode();
+            ObjectNode subscription = mapper.createObjectNode();
+            subscription.put("product_handle", "small");
+            subscription.put("customer_id", Integer.toString(customerId));
+            ObjectNode cc = mapper.createObjectNode();
+            cc.put("full_number", "1");
+            cc.put("expiration_month", "12");
+            cc.put("expiration_year", "2020");
+            subscription.put("credit_card_attributes", cc);
+            root.put("subscription", subscription);
+            response = resource.path("/subscriptions.json").accept(MediaType.APPLICATION_JSON_TYPE)
+                    .type(MediaType.APPLICATION_JSON_TYPE).post(ClientResponse.class, root.toString());
+            JsonNode s = mapper.readTree(response.getEntityInputStream());
+            subscriptionId = new Long(s.get("subscription").get("id").getIntValue());
+        } else if (response.getStatus() == ClientResponse.Status.OK.getStatusCode()) {
+            JsonNode root = mapper.readTree(response.getEntityInputStream());
+            int customerId = root.get("customer").get("id").getIntValue();
+            response = resource.path(String.format("/customers/%d/subscriptions.json", customerId))
+                    .accept(MediaType.APPLICATION_JSON_TYPE).type(MediaType.APPLICATION_JSON_TYPE)
+                    .get(ClientResponse.class);
+            root = mapper.readTree(response.getEntityInputStream());
+            subscriptionId = new Long(root.get(0).get("subscription").get("id").getIntValue());
+        }
+    }
 
     @Test
     public void testMigrate() {
         UserSubscription subscription = new UserSubscription();
-        subscription.setExternalId(EXTERNAL_ID);
+        subscription.setExternalId(subscriptionId);
         Product free = new Product();
         free.setHandle("free");
         Product small = new Product();
         small.setHandle("small");
 
-        assertTrue(billingProvider.migrateSubscription(subscription, small));
         assertTrue(billingProvider.migrateSubscription(subscription, free));
+        assertTrue(billingProvider.migrateSubscription(subscription, small));
     }
 
     @Test
     public void testCancelReactivate() {
         UserSubscription subscription = new UserSubscription();
-        subscription.setExternalId(EXTERNAL_ID);
+        subscription.setExternalId(subscriptionId);
 
         assertTrue(billingProvider.cancelSubscription(subscription));
         assertTrue(billingProvider.reactivateSubscription(subscription));
