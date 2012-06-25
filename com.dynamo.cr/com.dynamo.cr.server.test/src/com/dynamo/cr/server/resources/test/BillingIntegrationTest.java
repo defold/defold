@@ -119,19 +119,25 @@ public class BillingIntegrationTest extends AbstractResourceTest {
         }
     }
 
-    @Test
-    public void testSignUp() throws Exception {
-        // Simulate hosted sign-up page
-        JsonNode subscription = this.chargifySimulator.signUpUser(smallProduct, joeUser, "1", false);
-        assertTrue(subscription != null);
-
-        // Create subscription
-        int subscriptionId = subscription.get("subscription").get("id").getIntValue();
+    private void createUserSubscription(JsonNode root) {
+        JsonNode subscription = root.get("subscription");
+        int subscriptionId = subscription.get("id").getIntValue();
+        int customerId = subscription.get("customer").get("id").getIntValue();
         ClientResponse response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
                 .queryParam("product", Long.toString(smallProduct.getId()))
                 .queryParam("external_id", Integer.toString(subscriptionId))
+                .queryParam("external_customer_id", Integer.toString(customerId))
                 .post(ClientResponse.class);
         assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+    }
+
+    @Test
+    public void testSignUp() throws Exception {
+        // Simulate hosted sign-up page
+        JsonNode root = this.chargifySimulator.signUpUser(smallProduct, joeUser, "1", false);
+        assertTrue(root != null);
+
+        createUserSubscription(root);
 
         // Verify pending
         UserSubscriptionInfo s = getSubscription();
@@ -155,16 +161,10 @@ public class BillingIntegrationTest extends AbstractResourceTest {
     @Test
     public void testSignUpLaterFailure() throws Exception {
         // Simulate hosted sign-up page, failure by credit card
-        JsonNode subscription = this.chargifySimulator.signUpUser(smallProduct, joeUser, "1", true);
-        assertTrue(subscription != null);
+        JsonNode root = this.chargifySimulator.signUpUser(smallProduct, joeUser, "1", true);
+        assertTrue(root != null);
 
-        // Create subscription
-        int subscriptionId = subscription.get("subscription").get("id").getIntValue();
-        ClientResponse response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
-                .queryParam("product", Long.toString(smallProduct.getId()))
-                .queryParam("external_id", Integer.toString(subscriptionId))
-                .post(ClientResponse.class);
-        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+        createUserSubscription(root);
 
         // Verify pending
         UserSubscriptionInfo s = getSubscription();
@@ -181,16 +181,10 @@ public class BillingIntegrationTest extends AbstractResourceTest {
     @Test
     public void testRenewalFailureReactivate() throws Exception {
         // Simulate hosted sign-up page
-        JsonNode subscription = this.chargifySimulator.signUpUser(smallProduct, joeUser, "1", false);
-        assertTrue(subscription != null);
+        JsonNode root = this.chargifySimulator.signUpUser(smallProduct, joeUser, "1", false);
+        assertTrue(root != null);
 
-        // Create subscription
-        int subscriptionId = subscription.get("subscription").get("id").getIntValue();
-        ClientResponse response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
-                .queryParam("product", Long.toString(smallProduct.getId()))
-                .queryParam("external_id", Integer.toString(subscriptionId))
-                .post(ClientResponse.class);
-        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+        createUserSubscription(root);
 
         // Verify pending
         UserSubscriptionInfo s = getSubscription();
@@ -203,9 +197,11 @@ public class BillingIntegrationTest extends AbstractResourceTest {
         s = getSubscription();
         assertEquals(UserSubscriptionState.ACTIVE, s.getState());
 
+        int subscriptionId = root.get("subscription").get("id").getIntValue();
         Form f = new Form();
         f.add("payload[subscription][id]", Integer.toString(subscriptionId));
-        response = ChargifyUtil.fakeWebhook(this.webhookResource, "renewal_failure", f, true, server.getConfiguration()
+        ClientResponse response = ChargifyUtil.fakeWebhook(this.webhookResource, "renewal_failure", f, true, server
+                .getConfiguration()
                 .getBillingSharedKey());
         assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
 
@@ -240,16 +236,10 @@ public class BillingIntegrationTest extends AbstractResourceTest {
     @Test
     public void testRenewalFailureTerminate() throws Exception {
         // Simulate hosted sign-up page
-        JsonNode subscription = this.chargifySimulator.signUpUser(smallProduct, joeUser, "1", false);
-        assertTrue(subscription != null);
+        JsonNode root = this.chargifySimulator.signUpUser(smallProduct, joeUser, "1", false);
+        assertTrue(root != null);
 
-        // Create subscription
-        int subscriptionId = subscription.get("subscription").get("id").getIntValue();
-        ClientResponse response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
-                .queryParam("product", Long.toString(smallProduct.getId()))
-                .queryParam("external_id", Integer.toString(subscriptionId))
-                .post(ClientResponse.class);
-        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+        createUserSubscription(root);
 
         // Verify pending
         UserSubscriptionInfo s = getSubscription();
@@ -263,8 +253,9 @@ public class BillingIntegrationTest extends AbstractResourceTest {
         assertEquals(UserSubscriptionState.ACTIVE, s.getState());
 
         Form f = new Form();
-        f.add("payload[subscription][id]", Integer.toString(subscriptionId));
-        response = ChargifyUtil.fakeWebhook(this.webhookResource, "renewal_failure", f, true, server.getConfiguration()
+        f.add("payload[subscription][id]", Integer.toString(root.get("subscription").get("id").getIntValue()));
+        ClientResponse response = ChargifyUtil.fakeWebhook(this.webhookResource, "renewal_failure", f, true, server
+                .getConfiguration()
                 .getBillingSharedKey());
         assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
 
@@ -277,24 +268,18 @@ public class BillingIntegrationTest extends AbstractResourceTest {
                 .delete(ClientResponse.class);
         assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
 
-        // Verify none
+        // Verify free product subscription
         s = getSubscription();
-        assertEquals(null, s);
+        assertEquals(this.freeProduct.getId().longValue(), s.getProduct().getId());
     }
 
     @Test
     public void testMigrate() throws Exception {
         // Simulate hosted sign-up page
-        JsonNode subscription = this.chargifySimulator.signUpUser(smallProduct, joeUser, "1", false);
-        assertTrue(subscription != null);
+        JsonNode root = this.chargifySimulator.signUpUser(smallProduct, joeUser, "1", false);
+        assertTrue(root != null);
 
-        // Create subscription
-        int subscriptionId = subscription.get("subscription").get("id").getIntValue();
-        ClientResponse response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
-                .queryParam("product", Long.toString(smallProduct.getId()))
-                .queryParam("external_id", Integer.toString(subscriptionId))
-                .post(ClientResponse.class);
-        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+        createUserSubscription(root);
 
         // Verify pending
         UserSubscriptionInfo s = getSubscription();
@@ -308,7 +293,7 @@ public class BillingIntegrationTest extends AbstractResourceTest {
         assertEquals(UserSubscriptionState.ACTIVE, s.getState());
 
         // Migrate
-        response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
+        ClientResponse response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
                 .queryParam("product", Long.toString(freeProduct.getId()))
                 .queryParam("state", s.getState().toString())
                 .put(ClientResponse.class);

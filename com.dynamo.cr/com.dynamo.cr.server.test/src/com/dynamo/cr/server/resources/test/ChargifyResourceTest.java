@@ -107,6 +107,14 @@ public class ChargifyResourceTest extends AbstractResourceTest {
                 .getStatusCode());
     }
 
+    private void createUserSubscription(Long productId, Long externalId, Long externalCustomerId) {
+        ClientResponse response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
+                .queryParam("product", productId.toString())
+                .queryParam("external_id", externalId.toString())
+                .queryParam("external_customer_id", externalCustomerId.toString()).post(ClientResponse.class);
+        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+    }
+
     @Test
     public void testSubscriptionSuccess() throws Exception {
         Client client = Client.create(clientConfig);
@@ -117,12 +125,9 @@ public class ChargifyResourceTest extends AbstractResourceTest {
                 .type(MediaType.APPLICATION_JSON_TYPE).get(ProductInfoList.class);
 
         Long externalId = 2l;
+        Long externalCustomerId = 3l;
 
-        // Create subscription
-        ClientResponse response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
-                .queryParam("product", Long.toString(productInfoList.getProducts(0).getId()))
-                .queryParam("external_id", externalId.toString()).post(ClientResponse.class);
-        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+        createUserSubscription(productInfoList.getProducts(0).getId(), externalId, externalCustomerId);
 
         // Retrieve it
         UserSubscriptionInfo subscriptionInfo = joeUsersWebResource
@@ -133,7 +138,7 @@ public class ChargifyResourceTest extends AbstractResourceTest {
         // Activate through webhook
         Form f = new Form();
         f.add("payload[subscription][id]", externalId.toString());
-        response = post("signup_success", f, true);
+        ClientResponse response = post("signup_success", f, true);
         assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
 
         // Retrieve it
@@ -153,12 +158,9 @@ public class ChargifyResourceTest extends AbstractResourceTest {
                 .type(MediaType.APPLICATION_JSON_TYPE).get(ProductInfoList.class);
 
         Long externalId = 2l;
+        Long externalCustomerId = 3l;
 
-        // Create subscription
-        ClientResponse response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
-                .queryParam("product", Long.toString(productInfoList.getProducts(0).getId()))
-                .queryParam("external_id", externalId.toString()).post(ClientResponse.class);
-        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+        createUserSubscription(productInfoList.getProducts(0).getId(), externalId, externalCustomerId);
 
         // Retrieve it
         UserSubscriptionInfo subscriptionInfo = joeUsersWebResource
@@ -169,7 +171,7 @@ public class ChargifyResourceTest extends AbstractResourceTest {
         // Activate through webhook
         Form f = new Form();
         f.add("payload[subscription][id]", externalId.toString());
-        response = post("signup_failure", f, true);
+        ClientResponse response = post("signup_failure", f, true);
         assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
 
         // Retrieve it
@@ -189,12 +191,9 @@ public class ChargifyResourceTest extends AbstractResourceTest {
                 .type(MediaType.APPLICATION_JSON_TYPE).get(ProductInfoList.class);
 
         Long externalId = 2l;
+        Long externalCustomerId = 3l;
 
-        // Create subscription
-        ClientResponse response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
-                .queryParam("product", Long.toString(productInfoList.getProducts(0).getId()))
-                .queryParam("external_id", externalId.toString()).post(ClientResponse.class);
-        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+        createUserSubscription(productInfoList.getProducts(0).getId(), externalId, externalCustomerId);
 
         // Retrieve it
         UserSubscriptionInfo subscriptionInfo = joeUsersWebResource
@@ -205,7 +204,7 @@ public class ChargifyResourceTest extends AbstractResourceTest {
         // Activate through webhook
         Form f = new Form();
         f.add("payload[subscription][id]", externalId.toString());
-        response = post("renewal_failure", f, true);
+        ClientResponse response = post("renewal_failure", f, true);
         assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
 
         // Retrieve it

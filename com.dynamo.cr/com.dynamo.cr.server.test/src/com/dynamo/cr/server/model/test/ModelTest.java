@@ -433,7 +433,7 @@ public class ModelTest {
         User carl = ModelUtil.findUserByEmail(em, CARL_CONTENT_EMAIL);
         Product small = ModelUtil.findProductByHandle(em, SMALL_PRODUCT_HANDLE);
         em.getTransaction().begin();
-        ModelUtil.newUserSubscription(em, carl, small);
+        ModelUtil.newUserSubscription(em, carl, small, 2l, 3l);
         em.getTransaction().commit();
 
         List<UserSubscription> lst = em.createQuery("select us from UserSubscription us", UserSubscription.class)
@@ -442,7 +442,8 @@ public class ModelTest {
         UserSubscription us = lst.get(0);
         assertThat(us.getUser().getId(), is(carl.getId()));
         assertThat(us.getProduct().getId(), is(small.getId()));
-        assertThat(us.getExternalId(), is(1l));
+        assertThat(us.getExternalId(), is(2l));
+        assertThat(us.getExternalCustomerId(), is(3l));
         assertThat(us.getState(), is(UserSubscription.State.PENDING));
     }
 
@@ -452,7 +453,7 @@ public class ModelTest {
         Product free = ModelUtil.findProductByHandle(em, FREE_PRODUCT_HANDLE);
         Product small = ModelUtil.findProductByHandle(em, SMALL_PRODUCT_HANDLE);
         em.getTransaction().begin();
-        UserSubscription subscription = ModelUtil.newUserSubscription(em, carl, small);
+        UserSubscription subscription = ModelUtil.newUserSubscription(em, carl, small, 2l, 3l);
         em.getTransaction().commit();
 
         em.getTransaction().begin();

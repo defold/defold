@@ -5,6 +5,7 @@ import java.util.List;
 import javax.annotation.security.RolesAllowed;
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
+import javax.ws.rs.QueryParam;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,9 +22,14 @@ public class ProductsResource extends BaseResource {
     protected static Logger logger = LoggerFactory.getLogger(ProductsResource.class);
 
     @GET
-    public ProductInfoList getProducts() {
-        List<Product> list = em.createQuery("select p from Product p", Product.class)
-                .getResultList();
+    public ProductInfoList getProducts(@QueryParam("handle") String handle) {
+        List<Product> list = null;
+        if (handle != null) {
+            list = em.createQuery("select p from Product p where p.handle = :handle", Product.class)
+                    .setParameter("handle", handle).getResultList();
+        } else {
+            list = em.createQuery("select p from Product p", Product.class).getResultList();
+        }
 
         Builder listBuilder = ProductInfoList.newBuilder();
         for (Product product : list) {

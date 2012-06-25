@@ -135,11 +135,13 @@ public class ModelUtil {
         }
     }
 
-    public static UserSubscription newUserSubscription(EntityManager entityManager, User user, Product product) {
+    public static UserSubscription newUserSubscription(EntityManager entityManager, User user, Product product,
+            long externalId, long externalCustomerId) {
         UserSubscription subscription = new UserSubscription();
         subscription.setUser(user);
         subscription.setProduct(product);
-        subscription.setExternalId(1l);
+        subscription.setExternalId(externalId);
+        subscription.setExternalCustomerId(externalCustomerId);
         entityManager.persist(subscription);
         entityManager.persist(user);
         return subscription;

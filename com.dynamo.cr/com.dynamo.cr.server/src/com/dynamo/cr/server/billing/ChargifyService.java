@@ -1,10 +1,12 @@
 package com.dynamo.cr.server.billing;
 
+import java.io.IOException;
 import java.net.URI;
 
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.UriBuilder;
 
+import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.node.ObjectNode;
 import org.slf4j.Logger;
@@ -92,4 +94,32 @@ public class ChargifyService implements IBillingProvider {
         return verifyAndLogResponse(response, subscription, "canceled");
     }
 
+    @Override
+    public Long createSubscription(long customerId, String productHandle) {
+        ObjectNode root = this.mapper.createObjectNode();
+        ObjectNode subscription = this.mapper.createObjectNode();
+        subscription.put("product_handle", productHandle);
+        subscription.put("customer_id", Long.toString(customerId));
+        root.put("subscription", subscription);
+        ClientResponse response = chargifyResource.path("/subscriptions.json").type(MediaType.APPLICATION_JSON_TYPE)
+                .accept(MediaType.APPLICATION_JSON_TYPE).post(ClientResponse.class, root.toString());
+
+        int status = response.getStatus();
+        if (status >= 200 && status < 300) {
+            JsonNode s;
+            try {
+                s = this.mapper.readTree(response.getEntityInputStream());
+                int id = s.get("subscription").get("id").asInt();
+                logger.info(String.format("Subscription (external: %d) was created.", id));
+                return new Long(id);
+            } catch (IOException e) {
+                logger.error(String.format("Subscription could not be parsed: %s", e.getMessage()));
+            }
+        } else {
+            logger.error(String.format("Subscription to product %s by customer %d could not be created: %d.",
+                    productHandle,
+                    customerId, status));
+        }
+        return null;
+    }
 }

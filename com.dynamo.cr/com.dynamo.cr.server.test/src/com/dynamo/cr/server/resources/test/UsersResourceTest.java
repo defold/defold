@@ -602,21 +602,32 @@ public class UsersResourceTest extends AbstractResourceTest {
         assertThat(1, is(invitations(em).size()));
     }
 
+    private void createUserSubscription(Long userId, Long productId, Long externalId, Long externalCustomerId) {
+        ClientResponse response = joeUsersWebResource
+                .path(String.format("/%d/subscription", userId))
+                .queryParam("product", productId.toString())
+                .queryParam("external_id", externalId.toString())
+                .queryParam("external_customer_id", externalCustomerId.toString())
+                .post(ClientResponse.class);
+        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+    }
+
+    private ProductInfo findProduct(WebResource productsResource, String handle) {
+        return productsResource.queryParam("handle", handle).accept(MediaType.APPLICATION_JSON_TYPE)
+                .type(MediaType.APPLICATION_JSON_TYPE).get(ProductInfoList.class).getProducts(0);
+    }
+
     @Test
     public void testSubscription() throws Exception {
         Client client = Client.create(clientConfig);
         client.addFilter(new HTTPBasicAuthFilter(joeEmail, joePasswd));
         URI uri = UriBuilder.fromUri(String.format("http://localhost/products")).port(port).build();
         WebResource productsResource = client.resource(uri);
-        ProductInfoList productInfoList = productsResource.type(MediaType.APPLICATION_JSON_TYPE)
-                .type(MediaType.APPLICATION_JSON_TYPE).get(ProductInfoList.class);
 
-        // Create subscription
-        ClientResponse response = joeUsersWebResource
-.path(String.format("/%d/subscription", joeUser.getId()))
-                .queryParam("product", Long.toString(productInfoList.getProducts(0).getId()))
-                .queryParam("external_id", "2").post(ClientResponse.class);
-        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+        ProductInfo freeProduct = findProduct(productsResource, "free");
+        ProductInfo smallProduct = findProduct(productsResource, "small");
+
+        createUserSubscription(joeUser.getId(), freeProduct.getId(), 2l, 3l);
 
         // Retrieve it
         UserSubscriptionInfo subscription = joeUsersWebResource
@@ -624,17 +635,17 @@ public class UsersResourceTest extends AbstractResourceTest {
                 .accept(MediaType.APPLICATION_JSON_TYPE)
 .type(MediaType.APPLICATION_JSON_TYPE)
                 .get(UserSubscriptionInfo.class);
-        assertEquals(subscription.getProduct().getId(), productInfoList.getProducts(0).getId());
+        assertEquals(subscription.getProduct().getId(), freeProduct.getId());
 
         // Activate it
-        response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
+        ClientResponse response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
                 .queryParam("product", Long.toString(subscription.getProduct().getId()))
                 .queryParam("state", "ACTIVE").put(ClientResponse.class);
         assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
 
         // Migrate it
         response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
-                .queryParam("product", Long.toString(productInfoList.getProducts(1).getId()))
+                .queryParam("product", Long.toString(smallProduct.getId()))
                 .queryParam("state", "ACTIVE").put(ClientResponse.class);
         assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
 
@@ -642,19 +653,19 @@ public class UsersResourceTest extends AbstractResourceTest {
         subscription = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
                 .accept(MediaType.APPLICATION_JSON_TYPE)
                 .type(MediaType.APPLICATION_JSON_TYPE).get(UserSubscriptionInfo.class);
-        assertEquals(subscription.getProduct().getId(), productInfoList.getProducts(1).getId());
-        assertEquals(subscription.getState(), UserSubscriptionState.ACTIVE);
+        assertEquals(smallProduct.getId(), subscription.getProduct().getId());
+        assertEquals(UserSubscriptionState.ACTIVE, subscription.getState());
 
         // Delete it
         response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
-                .queryParam("product", Long.toString(productInfoList.getProducts(1).getId()))
                 .delete(ClientResponse.class);
         assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
 
-        // Retrieve it to make sure it's gone
-        response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId())).get(
-                ClientResponse.class);
-        assertEquals(Response.Status.NOT_FOUND.getStatusCode(), response.getStatus());
+        // Retrieve default subscription
+        subscription = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
+                .accept(MediaType.APPLICATION_JSON_TYPE)
+                .type(MediaType.APPLICATION_JSON_TYPE).get(UserSubscriptionInfo.class);
+        assertEquals(freeProduct.getId(), subscription.getProduct().getId());
     }
 
     @Test
@@ -666,15 +677,12 @@ public class UsersResourceTest extends AbstractResourceTest {
         ProductInfoList productInfoList = productsResource.type(MediaType.APPLICATION_JSON_TYPE)
                 .type(MediaType.APPLICATION_JSON_TYPE).get(ProductInfoList.class);
 
-        // Create subscription
+        createUserSubscription(joeUser.getId(), productInfoList.getProducts(0).getId(), 2l, 3l);
+
+        // And again
         ClientResponse response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
                 .queryParam("product", Long.toString(productInfoList.getProducts(0).getId()))
-                .queryParam("external_id", "2").post(ClientResponse.class);
-        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
-        // And again
-        response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
-                .queryParam("product", Long.toString(productInfoList.getProducts(0).getId()))
-                .queryParam("external_id", "2").post(ClientResponse.class);
+                .queryParam("external_id", "2").queryParam("external_customer_id", "3").post(ClientResponse.class);
         assertEquals(Response.Status.CONFLICT.getStatusCode(), response.getStatus());
     }
 
@@ -709,14 +717,10 @@ public class UsersResourceTest extends AbstractResourceTest {
         ProductInfoList productInfoList = productsResource.type(MediaType.APPLICATION_JSON_TYPE)
                 .type(MediaType.APPLICATION_JSON_TYPE).get(ProductInfoList.class);
 
-        // Create subscription
-        ClientResponse response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
-                .queryParam("product", Long.toString(productInfoList.getProducts(0).getId()))
-                .queryParam("external_id", "2").post(ClientResponse.class);
-        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+        createUserSubscription(joeUser.getId(), productInfoList.getProducts(0).getId(), 2l, 3l);
 
         // Migrate it
-        response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
+        ClientResponse response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
                 .queryParam("product", Long.toString(productInfoList.getProducts(1).getId()))
                 .queryParam("state", "ACTIVE").put(ClientResponse.class);
         assertEquals(Response.Status.CONFLICT.getStatusCode(), response.getStatus());
@@ -737,14 +741,10 @@ public class UsersResourceTest extends AbstractResourceTest {
 
         ProductInfo product = productInfoList.getProducts(0);
 
-        // Create subscription
-        ClientResponse response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
-                .queryParam("product", Long.toString(product.getId()))
-                .queryParam("external_id", "2").post(ClientResponse.class);
-        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+        createUserSubscription(joeUser.getId(), productInfoList.getProducts(0).getId(), 2l, 3l);
 
         // Activate it
-        response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
+        ClientResponse response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
                 .queryParam("product", Long.toString(product.getId())).queryParam("state", "ACTIVE")
                 .put(ClientResponse.class);
         assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
@@ -765,11 +765,7 @@ public class UsersResourceTest extends AbstractResourceTest {
         ProductInfoList productInfoList = productsResource.type(MediaType.APPLICATION_JSON_TYPE)
                 .type(MediaType.APPLICATION_JSON_TYPE).get(ProductInfoList.class);
 
-        // Create subscription
-        ClientResponse response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
-                .queryParam("product", Long.toString(productInfoList.getProducts(0).getId()))
-                .queryParam("external_id", "2").post(ClientResponse.class);
-        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+        createUserSubscription(joeUser.getId(), productInfoList.getProducts(0).getId(), 2l, 3l);
 
         // Retrieve it
         UserSubscriptionInfo subscription = joeUsersWebResource
@@ -778,7 +774,7 @@ public class UsersResourceTest extends AbstractResourceTest {
         assertEquals(subscription.getProduct().getId(), productInfoList.getProducts(0).getId());
 
         // Activate it
-        response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
+        ClientResponse response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
                 .queryParam("product", Long.toString(subscription.getProduct().getId()))
                 .queryParam("state", "CANCELED")
                 .put(ClientResponse.class);
@@ -788,8 +784,8 @@ public class UsersResourceTest extends AbstractResourceTest {
     @Test
     public void testDeleteProviderFail() throws Exception {
         Mockito.when(
-server.getBillingProvider().cancelSubscription(Mockito.any(UserSubscription.class))).thenReturn(
-                false);
+                server.getBillingProvider().cancelSubscription(Mockito.any(UserSubscription.class)))
+                .thenReturn(false);
 
         Client client = Client.create(clientConfig);
         client.addFilter(new HTTPBasicAuthFilter(joeEmail, joePasswd));
@@ -798,15 +794,10 @@ server.getBillingProvider().cancelSubscription(Mockito.any(UserSubscription.clas
         ProductInfoList productInfoList = productsResource.type(MediaType.APPLICATION_JSON_TYPE)
                 .type(MediaType.APPLICATION_JSON_TYPE).get(ProductInfoList.class);
 
-        // Create subscription
-        ClientResponse response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
-                .queryParam("product", Long.toString(productInfoList.getProducts(0).getId()))
-                .queryParam("external_id", "2").post(ClientResponse.class);
-        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+        createUserSubscription(joeUser.getId(), productInfoList.getProducts(0).getId(), 2l, 3l);
 
         // Delete it
-        response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
-                .queryParam("product", Long.toString(productInfoList.getProducts(1).getId()))
+        ClientResponse response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
                 .delete(ClientResponse.class);
         assertEquals(Response.Status.INTERNAL_SERVER_ERROR.getStatusCode(), response.getStatus());
     }

@@ -83,6 +83,8 @@ public class ChargifySimulator {
     public JsonNode signUpUser(Product product, User user, String creditCard, boolean failLater) throws Exception {
         ObjectNode root = this.mapper.createObjectNode();
         ObjectNode customer = this.mapper.createObjectNode();
+        // We can't populate with custom reference here (Defold-id), since
+        // chargify customers can't be deleted and reference must be unique.
         customer.put("first_name", user.getFirstName());
         customer.put("last_name", user.getLastName());
         customer.put("email", user.getEmail());

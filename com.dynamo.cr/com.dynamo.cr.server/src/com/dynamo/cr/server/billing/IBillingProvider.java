@@ -9,4 +9,6 @@ public interface IBillingProvider {
     public boolean migrateSubscription(UserSubscription subscription, Product newProduct);
 
     public boolean cancelSubscription(UserSubscription subscription);
+
+    public Long createSubscription(long customerId, String productHandle);
 }
