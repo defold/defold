@@ -9,6 +9,8 @@ import java.util.Map;
 
 import javax.ws.rs.core.MediaType;
 
+import org.apache.commons.codec.binary.Hex;
+
 import com.sun.jersey.api.client.ClientResponse;
 import com.sun.jersey.api.client.WebResource;
 import com.sun.jersey.api.client.WebResource.Builder;
@@ -34,7 +36,7 @@ public class ChargifyUtil {
      *            Request body
      * @return signature for authentication
      */
-    public static byte[] generateSignature(byte[] key, byte[] body) {
+    public static String generateSignature(String key, String body) {
         if (digest == null) {
             try {
                 digest = MessageDigest.getInstance("MD5");
@@ -43,9 +45,9 @@ public class ChargifyUtil {
             }
         }
         digest.reset();
-        digest.update(key);
-        digest.update(body);
-        return digest.digest();
+        digest.update(key.getBytes());
+        digest.update(body.getBytes());
+        return new String(Hex.encodeHex(digest.digest()));
     }
 
     private static String generateSignature(Form f, String sharedKey) throws UnsupportedEncodingException {
@@ -65,8 +67,7 @@ public class ChargifyUtil {
             }
         }
         String body = buffer.toString();
-        return new String(ChargifyUtil.generateSignature(sharedKey.getBytes(),
-                body.getBytes()));
+        return ChargifyUtil.generateSignature(sharedKey, body);
     }
 
     public static ClientResponse fakeWebhook(WebResource targetResource, String event, Form f, boolean sign,

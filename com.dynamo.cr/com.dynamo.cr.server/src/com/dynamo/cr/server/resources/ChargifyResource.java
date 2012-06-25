@@ -22,7 +22,7 @@ public class ChargifyResource extends BaseResource {
             @FormParam("event") String event, @FormParam("payload[subscription][id]") String subscriptionId,
             @FormParam("payload[subscription][state]") String state, String body) {
         String key = server.getConfiguration().getBillingSharedKey();
-        String expectedSignature = new String(ChargifyUtil.generateSignature(key.getBytes(), body.getBytes()));
+        String expectedSignature = ChargifyUtil.generateSignature(key, body);
         if (!expectedSignature.equals(signature)) {
             throwWebApplicationException(Status.FORBIDDEN, "Not authorized");
         }
