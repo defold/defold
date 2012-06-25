@@ -22,6 +22,7 @@ public class ClientUtil {
                 return "Internet Explorer";
             }
         },
+        DefoldCrawler,
         Unknown,
     };
 
@@ -41,6 +42,8 @@ public class ClientUtil {
             return Browser.Safari;
         } else if (b.equals("Firefox")) {
             return Browser.Firefox;
+        } else if (b.equals("DefoldCrawler")) {
+            return Browser.DefoldCrawler;
         } else if (b.equals("Explorer")) {
             return Browser.Explorer;
         } else {
