@@ -278,7 +278,7 @@ public class Defold implements EntryPoint {
         boolean supported = false;
         switch (browser) {
             case Chrome:
-                supported = version >= 17;
+                supported = version >= 12;
                 break;
 
             case Safari:
@@ -287,6 +287,10 @@ public class Defold implements EntryPoint {
 
             case Firefox:
                 supported = version >= 5;
+                break;
+
+            case DefoldCrawler:
+                supported = version >= 1;
                 break;
         }
 

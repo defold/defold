@@ -158,12 +158,17 @@
     	            subString: "Firefox",
     	            identity: "Firefox"
     	        },
+                {
+                    string: navigator.userAgent,
+                    subString: "DefoldCrawler",
+                    identity: "DefoldCrawler"
+                },
     	        {
     	            string: navigator.vendor,
     	            subString: "Camino",
     	            identity: "Camino"
     	        },
-    	        {       // for newer Netscapes (6+)
+    	        {   // for newer Netscapes (6+)
     	            string: navigator.userAgent,
     	            subString: "Netscape",
     	            identity: "Netscape"
@@ -180,7 +185,7 @@
     	            identity: "Mozilla",
     	            versionSearch: "rv"
     	        },
-    	        {       // for older Netscapes (4-)
+    	        {   // for older Netscapes (4-)
     	            string: navigator.userAgent,
     	            subString: "Mozilla",
     	            identity: "Netscape",
@@ -199,9 +204,9 @@
     	            identity: "Mac"
     	        },
     	        {
-    	               string: navigator.userAgent,
-    	               subString: "iPhone",
-    	               identity: "iPhone/iPod"
+    	        	string: navigator.userAgent,
+    	            subString: "iPhone",
+    	            identity: "iPhone/iPod"
     	        },
     	        {
     	            string: navigator.platform,

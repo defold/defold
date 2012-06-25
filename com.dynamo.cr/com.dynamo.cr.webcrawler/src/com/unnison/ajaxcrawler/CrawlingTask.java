@@ -32,6 +32,7 @@ import javax.servlet.http.HttpServletResponse;
 import org.slim3.datastore.Datastore;
 
 import com.gargoylesoftware.htmlunit.BrowserVersion;
+import com.gargoylesoftware.htmlunit.BrowserVersionFeatures;
 import com.gargoylesoftware.htmlunit.WebClient;
 import com.gargoylesoftware.htmlunit.html.HtmlAnchor;
 import com.gargoylesoftware.htmlunit.html.HtmlPage;
@@ -48,6 +49,64 @@ public class CrawlingTask extends HttpServlet {
      *
      */
     private static final long serialVersionUID = 3467414411679278488L;
+
+    BrowserVersionFeatures[] browserFeatures = new BrowserVersionFeatures[] {
+            // Copy-paste from FF3.6.properties in htmlunit
+            BrowserVersionFeatures.CAN_INHERIT_CSS_PROPERTY_VALUES,
+            BrowserVersionFeatures.CSS_DISPLAY_DEFAULT,
+            BrowserVersionFeatures.DIALOGWINDOW_REFERER,
+            BrowserVersionFeatures.DISPLAYED_COLLAPSE,
+            BrowserVersionFeatures.EVENT_DOM_CONTENT_LOADED,
+            BrowserVersionFeatures.EVENT_INPUT,
+            BrowserVersionFeatures.EVENT_ONERROR_EXTERNAL_JAVASCRIPT,
+            BrowserVersionFeatures.EVENT_ONLOAD_EXTERNAL_JAVASCRIPT,
+            BrowserVersionFeatures.FORMFIELD_REACHABLE_BY_NEW_NAMES,
+            BrowserVersionFeatures.GENERATED_151,
+            BrowserVersionFeatures.GENERATED_152,
+            BrowserVersionFeatures.GENERATED_153,
+            BrowserVersionFeatures.GENERATED_154,
+            BrowserVersionFeatures.GENERATED_155,
+            BrowserVersionFeatures.GENERATED_156,
+            BrowserVersionFeatures.GENERATED_157,
+            BrowserVersionFeatures.GENERATED_158,
+            BrowserVersionFeatures.GENERATED_160,
+            BrowserVersionFeatures.GENERATED_161,
+            BrowserVersionFeatures.GENERATED_162,
+            BrowserVersionFeatures.GENERATED_163,
+            BrowserVersionFeatures.GENERATED_164,
+            BrowserVersionFeatures.GENERATED_165,
+            BrowserVersionFeatures.GENERATED_166,
+            BrowserVersionFeatures.GENERATED_167,
+            BrowserVersionFeatures.GENERATED_168,
+            BrowserVersionFeatures.GENERATED_169,
+            BrowserVersionFeatures.GENERATED_170,
+            BrowserVersionFeatures.GENERATED_172,
+            BrowserVersionFeatures.GENERATED_173,
+            BrowserVersionFeatures.GENERATED_174,
+            BrowserVersionFeatures.GENERATED_175,
+            BrowserVersionFeatures.GENERATED_176,
+            BrowserVersionFeatures.GENERATED_177,
+            BrowserVersionFeatures.HTMLCOLLECTION_IDENTICAL_IDS,
+            BrowserVersionFeatures.HTMLELEMENT_ALIGN_INVALID,
+            BrowserVersionFeatures.HTMLELEMENT_CLASS_ATTRIBUTE,
+            BrowserVersionFeatures.HTMLIMAGE_NAME_VALUE_PARAMS,
+            BrowserVersionFeatures.HTMLINPUT_DEFAULT_IS_CHECKED,
+            BrowserVersionFeatures.HTMLSCRIPT_APPLICATION_JAVASCRIPT,
+            BrowserVersionFeatures.HTMLSCRIPT_SRC_JAVASCRIPT,
+            BrowserVersionFeatures.HTML_BODY_COLOR,
+            BrowserVersionFeatures.HTTP_HEADER_HOST_FIRST,
+            BrowserVersionFeatures.JAVASCRIPT_GET_ELEMENT_BY_ID_CASE_SENSITIVE,
+            BrowserVersionFeatures.JAVASCRIPT_OBJECT_PREFIX,
+            BrowserVersionFeatures.JS_FRAME_RESOLVE_URL_WITH_PARENT_WINDOW,
+            BrowserVersionFeatures.NOSCRIPT_BODY_AS_TEXT,
+            BrowserVersionFeatures.PROTOCOL_DATA,
+            BrowserVersionFeatures.STORAGE_OBSOLETE,
+            BrowserVersionFeatures.STRING_TRIM,
+            BrowserVersionFeatures.STYLESHEET_HREF_EXPANDURL,
+            BrowserVersionFeatures.STYLESHEET_HREF_STYLE_NULL,
+            BrowserVersionFeatures.URL_MISSING_SLASHES,
+    };
+
 
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
@@ -71,7 +130,13 @@ public class CrawlingTask extends HttpServlet {
         Datastore.put(hostPlace);
 
         // Fetch the contents
-        WebClient client = new WebClient(BrowserVersion.FIREFOX_3_6);
+        // Create custom user-agent for crawling (DefoldCrawler/1.0)
+        BrowserVersion browserVersion = new BrowserVersion(
+                "Netscape", "5.0 (Windows; en-US)",
+                "Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.2.8) Gecko/20100722 DefoldCrawler/1.0",
+                (float) 1.0,  browserFeatures);
+
+        WebClient client = new WebClient(browserVersion);
         client.setCssEnabled(false);
         client.setThrowExceptionOnScriptError(false);
         client.setThrowExceptionOnFailingStatusCode(false);
