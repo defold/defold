@@ -27,6 +27,8 @@ public class Product {
     @Column(nullable = false)
     private Boolean isDefault;
 
+    @Column(nullable = false) private Integer fee = 0;
+
     public Long getId() {
         return id;
     }
@@ -61,6 +63,14 @@ public class Product {
 
     public void setDefault(Boolean isDefault) {
         this.isDefault = isDefault;
+    }
+
+    public Integer getFee() {
+        return this.fee;
+    }
+
+    public void setFee(int fee) {
+        this.fee = fee;
     }
 
     @Override

@@ -275,19 +275,27 @@ message ProductInfo {
     required int64 id = 1;
     required string name = 2;
     required int32 max_member_count = 3;
+    required int32 fee = 4;
 }
 
 message ProductInfoList {
     repeated ProductInfo products = 1;
 }
 
+message CreditCardInfo {
+    required string masked_number = 1;
+    required int32 expiration_month = 2;
+    required int32 expiration_year = 3;
+}
+
 enum UserSubscriptionState {
-    CANCELED = 1;
-    PENDING = 2;
-    ACTIVE = 3;
+    CANCELED = -1;
+    PENDING = 0;
+    ACTIVE = 1;
 }
 
 message UserSubscriptionInfo {
     required ProductInfo product = 1;
     required UserSubscriptionState state = 2;
+    optional CreditCardInfo credit_card = 3;
 }

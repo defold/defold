@@ -8,13 +8,18 @@ import org.apache.commons.io.FilenameUtils;
 import org.eclipse.jgit.util.StringUtils;
 
 import com.dynamo.cr.proto.Config.Configuration;
+import com.dynamo.cr.protocol.proto.Protocol.CreditCardInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ProductInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
+import com.dynamo.cr.protocol.proto.Protocol.UserSubscriptionInfo;
+import com.dynamo.cr.protocol.proto.Protocol.UserSubscriptionState;
 import com.dynamo.cr.server.Server;
 import com.dynamo.cr.server.model.Product;
 import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
+import com.dynamo.cr.server.model.UserSubscription;
+import com.dynamo.cr.server.model.UserSubscription.CreditCard;
 
 public class ResourceUtil {
     public static UserInfo createUserInfo(User user) {
@@ -94,7 +99,32 @@ public class ResourceUtil {
 
     public static ProductInfo createProductInfo(Product product) {
         ProductInfo.Builder b = ProductInfo.newBuilder().setId(product.getId()).setName(product.getName())
-                .setMaxMemberCount(product.getMaxMemberCount());
+                .setMaxMemberCount(product.getMaxMemberCount()).setFee(product.getFee());
+        return b.build();
+    }
+
+    public static CreditCardInfo createCreditCardInfo(CreditCard creditCard) {
+        CreditCardInfo.Builder b = CreditCardInfo.newBuilder();
+        b.setMaskedNumber(creditCard.getMaskedNumber()).setExpirationMonth(creditCard.getExpirationMonth())
+                .setExpirationYear(creditCard.getExpirationYear());
+        return b.build();
+    }
+
+    public static UserSubscriptionInfo createUserSubscriptionInfo(UserSubscription subscription) {
+        UserSubscriptionInfo.Builder b = UserSubscriptionInfo.newBuilder();
+        switch (subscription.getState()) {
+        case CANCELED:
+            b.setState(UserSubscriptionState.CANCELED);
+            break;
+        case PENDING:
+            b.setState(UserSubscriptionState.PENDING);
+            break;
+        case ACTIVE:
+            b.setState(UserSubscriptionState.ACTIVE);
+            break;
+        }
+        b.setProduct(createProductInfo(subscription.getProduct()));
+        b.setCreditCard(createCreditCardInfo(subscription.getCreditCard()));
         return b.build();
     }
 }

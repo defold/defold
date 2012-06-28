@@ -21,6 +21,7 @@ import javax.ws.rs.core.Response.Status;
 
 import com.dynamo.cr.proto.Config.EMailTemplate;
 import com.dynamo.cr.protocol.proto.Protocol.InvitationAccountInfo;
+import com.dynamo.cr.protocol.proto.Protocol.ProductInfo;
 import com.dynamo.cr.protocol.proto.Protocol.RegisterUser;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfoList;
@@ -36,6 +37,7 @@ import com.dynamo.cr.server.model.Product;
 import com.dynamo.cr.server.model.Prospect;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.model.UserSubscription;
+import com.dynamo.cr.server.model.UserSubscription.CreditCard;
 import com.dynamo.cr.server.model.UserSubscription.State;
 import com.dynamo.inject.persist.Transactional;
 
@@ -56,24 +58,6 @@ public class UsersResource extends BaseResource {
         InvitationAccountInfo.Builder b = InvitationAccountInfo.newBuilder();
         b.setOriginalCount(a.getOriginalCount())
 .setCurrentCount(a.getCurrentCount());
-        return b.build();
-    }
-
-    static UserSubscriptionInfo createUserSubscriptionInfo(UserSubscription us) {
-        UserSubscriptionInfo.Builder b = UserSubscriptionInfo.newBuilder();
-        UserSubscriptionState state = UserSubscriptionState.ACTIVE;
-        switch (us.getState()) {
-        case CANCELED:
-            state = UserSubscriptionState.CANCELED;
-            break;
-        case PENDING:
-            state = UserSubscriptionState.PENDING;
-            break;
-        case ACTIVE:
-            state = UserSubscriptionState.ACTIVE;
-            break;
-        }
-        b.setProduct(ResourceUtil.createProductInfo(us.getProduct())).setState(state);
         return b.build();
     }
 
@@ -210,14 +194,21 @@ public class UsersResource extends BaseResource {
     @Transactional
     public void subscribe(@PathParam("user") String user,
             @QueryParam("product") String product, @QueryParam("external_id") String externalId,
-            @QueryParam("external_customer_id") String externalCustomerId) {
+            @QueryParam("external_customer_id") String externalCustomerId,
+            @QueryParam("cc_masked_number") String maskedNumber,
+            @QueryParam("cc_expiration_month") String expirationMonth,
+            @QueryParam("cc_expiration_year") String expirationYear) {
         User u = server.getUser(em, user);
         List<UserSubscription> subscriptions = em
                 .createQuery("select us from UserSubscription us where us.user = :user", UserSubscription.class)
                 .setParameter("user", u).getResultList();
         if (subscriptions.isEmpty()) {
             Product p = server.getProduct(em, product);
-            ModelUtil.newUserSubscription(em, u, p, Long.parseLong(externalId), Long.parseLong(externalCustomerId));
+            CreditCard cc = null;
+            if (maskedNumber != null && expirationMonth != null && expirationYear != null) {
+                cc = new CreditCard(maskedNumber, Integer.parseInt(expirationMonth), Integer.parseInt(expirationYear));
+            }
+            ModelUtil.newUserSubscription(em, u, p, Long.parseLong(externalId), Long.parseLong(externalCustomerId), cc);
         } else {
             throwWebApplicationException(Status.CONFLICT, "User already has subscription");
         }
@@ -232,55 +223,79 @@ public class UsersResource extends BaseResource {
                 .createQuery("select us from UserSubscription us where us.user = :user", UserSubscription.class)
                 .setParameter("user", u).getResultList();
         if (subscriptions.size() > 0) {
-            return createUserSubscriptionInfo(subscriptions.get(0));
+            return ResourceUtil.createUserSubscriptionInfo(subscriptions.get(0));
         } else {
-            throwWebApplicationException(Status.NOT_FOUND, "User has no subscription");
+            UserSubscriptionInfo.Builder builder = UserSubscriptionInfo.newBuilder();
+            List<Product> products = ModelUtil.findDefaultProducts(em);
+            if (products.isEmpty()) {
+                throwWebApplicationException(Status.INTERNAL_SERVER_ERROR,
+                        "Could not find a default product");
+            }
+            Product freeProduct = products.get(0);
+            builder.setState(UserSubscriptionState.ACTIVE);
+            ProductInfo.Builder productBuilder = ProductInfo.newBuilder();
+            productBuilder.setId(freeProduct.getId());
+            productBuilder.setName(freeProduct.getName());
+            productBuilder.setMaxMemberCount(freeProduct.getMaxMemberCount());
+            productBuilder.setFee(freeProduct.getFee());
+            builder.setProduct(productBuilder);
+            return builder.build();
         }
-        return null;
     }
 
     @PUT
     @Path("/{user}/subscription")
     @Transactional
-    public void setSubscription(@PathParam("user") String user, @QueryParam("product") String product,
-            @QueryParam("state") String state) {
+    public void setSubscription(
+            @PathParam("user") String user, @QueryParam("product") String product, @QueryParam("state") String state,
+            @QueryParam("cc_masked_number") String maskedNumber,
+            @QueryParam("cc_expiration_month") String expirationMonth,
+            @QueryParam("cc_expiration_year") String expirationYear) {
         User u = server.getUser(em, user);
         List<UserSubscription> subscriptions = em
                 .createQuery("select us from UserSubscription us where us.user = :user", UserSubscription.class)
                 .setParameter("user", u).getResultList();
         if (subscriptions.size() > 0) {
             UserSubscription subscription = subscriptions.get(0);
-            subscription.setUser(u);
             IBillingProvider billingProvider = server.getBillingProvider();
             // Migrate subscription
-            Product newProduct = server.getProduct(em, product);
-            if (newProduct.getId() != subscription.getProduct().getId()) {
-                if (subscription.getState() != State.ACTIVE) {
-                    throwWebApplicationException(Status.CONFLICT, "Only active subscriptions can be updated");
-                }
-                if (billingProvider.migrateSubscription(subscription, newProduct)) {
-                    subscription.setProduct(newProduct);
-                } else {
-                    throwWebApplicationException(Status.INTERNAL_SERVER_ERROR,
-                            "Billing provider could not migrate the subscription");
+            if (product != null) {
+                Product newProduct = server.getProduct(em, product);
+                if (newProduct.getId() != subscription.getProduct().getId()) {
+                    if (subscription.getState() != State.ACTIVE) {
+                        throwWebApplicationException(Status.CONFLICT, "Only active subscriptions can be updated");
+                    }
+                    if (billingProvider.migrateSubscription(subscription, newProduct)) {
+                        subscription.setProduct(newProduct);
+                    } else {
+                        throwWebApplicationException(Status.INTERNAL_SERVER_ERROR,
+                                "Billing provider could not migrate the subscription");
+                    }
                 }
             }
             // Update state
-            State newState = State.valueOf(state);
-            State oldState = subscription.getState();
-            if (oldState != newState) {
-                if (newState != State.ACTIVE) {
-                    throwWebApplicationException(Status.CONFLICT, "Subscriptions can only be manually activated");
-                }
-                if (oldState == State.CANCELED) {
-                    if (billingProvider.reactivateSubscription(subscription)) {
-                        newState = State.PENDING;
-                    } else {
-                        throwWebApplicationException(Status.INTERNAL_SERVER_ERROR,
-                                "Billing provider could not reactivate the subscription");
+            if (state != null) {
+                State newState = State.valueOf(state);
+                State oldState = subscription.getState();
+                if (oldState != newState) {
+                    if (newState != State.ACTIVE) {
+                        throwWebApplicationException(Status.CONFLICT, "Subscriptions can only be manually activated");
                     }
+                    if (oldState == State.CANCELED) {
+                        if (billingProvider.reactivateSubscription(subscription)) {
+                            newState = State.PENDING;
+                        } else {
+                            throwWebApplicationException(Status.INTERNAL_SERVER_ERROR,
+                                    "Billing provider could not reactivate the subscription");
+                        }
+                    }
+                    subscription.setState(newState);
                 }
-                subscription.setState(newState);
+            }
+            // Update credit card
+            if (maskedNumber != null && expirationMonth != null && expirationYear != null) {
+                CreditCard cc = new CreditCard(maskedNumber, Integer.parseInt(expirationMonth), Integer.parseInt(expirationYear));
+                subscription.setCreditCard(cc);
             }
             em.persist(subscription);
         } else {
@@ -297,9 +312,7 @@ public class UsersResource extends BaseResource {
                 .createQuery("select us from UserSubscription us where us.user = :user", UserSubscription.class)
                 .setParameter("user", u).getResultList();
         if (subscriptions.size() > 0) {
-            List<Product> products = em
-                    .createQuery("select p from Product p where p.isDefault = :isDefault", Product.class)
-                    .setParameter("isDefault", true).getResultList();
+            List<Product> products = ModelUtil.findDefaultProducts(em);
             if (products.isEmpty()) {
                 throwWebApplicationException(Status.INTERNAL_SERVER_ERROR,
                         "Could not find a default product");

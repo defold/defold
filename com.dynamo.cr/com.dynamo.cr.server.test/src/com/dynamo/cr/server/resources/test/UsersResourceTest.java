@@ -24,6 +24,7 @@ import org.mockito.Mockito;
 import com.dynamo.cr.client.filter.DefoldAuthFilter;
 import com.dynamo.cr.common.providers.JsonProviders;
 import com.dynamo.cr.common.providers.ProtobufProviders;
+import com.dynamo.cr.protocol.proto.Protocol.CreditCardInfo;
 import com.dynamo.cr.protocol.proto.Protocol.LoginInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ProductInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ProductInfoList;
@@ -39,6 +40,8 @@ import com.dynamo.cr.server.model.Product;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.model.User.Role;
 import com.dynamo.cr.server.model.UserSubscription;
+import com.dynamo.cr.server.model.UserSubscription.CreditCard;
+import com.dynamo.cr.server.model.UserSubscription.State;
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientResponse;
 import com.sun.jersey.api.client.ClientResponse.Status;
@@ -602,19 +605,62 @@ public class UsersResourceTest extends AbstractResourceTest {
         assertThat(1, is(invitations(em).size()));
     }
 
-    private void createUserSubscription(Long userId, Long productId, Long externalId, Long externalCustomerId) {
-        ClientResponse response = joeUsersWebResource
+    private ClientResponse postUserSubscription(Long userId, Long productId, Long externalId, Long externalCustomerId) {
+        return postUserSubscription(userId, productId, externalId, externalCustomerId, null);
+    }
+
+    private ClientResponse postUserSubscription(Long userId, Long productId, Long externalId, Long externalCustomerId,
+            CreditCard creditCard) {
+        WebResource resource = joeUsersWebResource
                 .path(String.format("/%d/subscription", userId))
                 .queryParam("product", productId.toString())
                 .queryParam("external_id", externalId.toString())
-                .queryParam("external_customer_id", externalCustomerId.toString())
-                .post(ClientResponse.class);
-        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+                .queryParam("external_customer_id", externalCustomerId.toString());
+        if (creditCard != null) {
+            resource = resource.queryParam("cc_masked_number", creditCard.getMaskedNumber())
+                    .queryParam("cc_expiration_month", Integer.toString(creditCard.getExpirationMonth()))
+                    .queryParam("cc_expiration_year", Integer.toString(creditCard.getExpirationYear()));
+        }
+        return resource.post(ClientResponse.class);
     }
 
-    private ProductInfo findProduct(WebResource productsResource, String handle) {
+    private UserSubscriptionInfo getUserSubscription(Long userId) {
+        return joeUsersWebResource
+                .path(String.format("/%d/subscription", userId))
+                .accept(MediaType.APPLICATION_JSON_TYPE)
+                .type(MediaType.APPLICATION_JSON_TYPE)
+                .get(UserSubscriptionInfo.class);
+    }
+
+    private ClientResponse putUserSubscription(Long userId, Long productId, State state, CreditCard creditCard) {
+        WebResource resource = joeUsersWebResource.path(String.format("/%d/subscription", userId));
+        if (productId != null) {
+            resource = resource.queryParam("product", productId.toString());
+        }
+        if (state != null) {
+            resource = resource.queryParam("state", state.toString());
+        }
+        if (creditCard != null) {
+            resource = resource.queryParam("cc_masked_number", creditCard.getMaskedNumber())
+                    .queryParam("cc_expiration_month", Integer.toString(creditCard.getExpirationMonth()))
+                    .queryParam("cc_expiration_year", Integer.toString(creditCard.getExpirationYear()));
+        }
+        return resource.type(MediaType.APPLICATION_JSON_TYPE).put(ClientResponse.class);
+    }
+
+    private ClientResponse deleteUserSubscription(Long userId) {
+        return joeUsersWebResource.path(String.format("/%d/subscription", userId))
+                .delete(ClientResponse.class);
+    }
+
+    private ProductInfo getProduct(WebResource productsResource, String handle) {
         return productsResource.queryParam("handle", handle).accept(MediaType.APPLICATION_JSON_TYPE)
                 .type(MediaType.APPLICATION_JSON_TYPE).get(ProductInfoList.class).getProducts(0);
+    }
+
+    private ProductInfoList getProducts(WebResource productsResource) {
+        return productsResource.accept(MediaType.APPLICATION_JSON_TYPE)
+                .type(MediaType.APPLICATION_JSON_TYPE).get(ProductInfoList.class);
     }
 
     @Test
@@ -624,47 +670,48 @@ public class UsersResourceTest extends AbstractResourceTest {
         URI uri = UriBuilder.fromUri(String.format("http://localhost/products")).port(port).build();
         WebResource productsResource = client.resource(uri);
 
-        ProductInfo freeProduct = findProduct(productsResource, "free");
-        ProductInfo smallProduct = findProduct(productsResource, "small");
+        ProductInfo freeProduct = getProduct(productsResource, "free");
+        ProductInfo smallProduct = getProduct(productsResource, "small");
 
-        createUserSubscription(joeUser.getId(), freeProduct.getId(), 2l, 3l);
+        ClientResponse response = postUserSubscription(joeUser.getId(), freeProduct.getId(), 2l, 3l,
+                new CreditCard("XXXX-XXXX-XXXX-1234", 1, 2));
+        assertThat(response.getClientResponseStatus(), is(Status.NO_CONTENT));
 
         // Retrieve it
-        UserSubscriptionInfo subscription = joeUsersWebResource
-                .path(String.format("/%d/subscription", joeUser.getId()))
-                .accept(MediaType.APPLICATION_JSON_TYPE)
-.type(MediaType.APPLICATION_JSON_TYPE)
-                .get(UserSubscriptionInfo.class);
+        UserSubscriptionInfo subscription = getUserSubscription(joeUser.getId());
         assertEquals(subscription.getProduct().getId(), freeProduct.getId());
+        CreditCardInfo cc = subscription.getCreditCard();
+        assertThat(cc.getMaskedNumber(), is("XXXX-XXXX-XXXX-1234"));
+        assertThat(cc.getExpirationMonth(), is(1));
+        assertThat(cc.getExpirationYear(), is(2));
 
         // Activate it
-        ClientResponse response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
-                .queryParam("product", Long.toString(subscription.getProduct().getId()))
-                .queryParam("state", "ACTIVE").put(ClientResponse.class);
+        response = putUserSubscription(joeUser.getId(), null, State.ACTIVE, null);
         assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
 
         // Migrate it
-        response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
-                .queryParam("product", Long.toString(smallProduct.getId()))
-                .queryParam("state", "ACTIVE").put(ClientResponse.class);
+        response = putUserSubscription(joeUser.getId(), smallProduct.getId(), null, null);
+        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+
+        // Update credit card
+        response = putUserSubscription(joeUser.getId(), null, null, new CreditCard("XXXX-XXXX-XXXX-1235", 2, 3));
         assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
 
         // Retrieve it
-        subscription = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
-                .accept(MediaType.APPLICATION_JSON_TYPE)
-                .type(MediaType.APPLICATION_JSON_TYPE).get(UserSubscriptionInfo.class);
+        subscription = getUserSubscription(joeUser.getId());
         assertEquals(smallProduct.getId(), subscription.getProduct().getId());
         assertEquals(UserSubscriptionState.ACTIVE, subscription.getState());
+        cc = subscription.getCreditCard();
+        assertThat(cc.getMaskedNumber(), is("XXXX-XXXX-XXXX-1235"));
+        assertThat(cc.getExpirationMonth(), is(2));
+        assertThat(cc.getExpirationYear(), is(3));
 
         // Delete it
-        response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
-                .delete(ClientResponse.class);
+        response = deleteUserSubscription(joeUser.getId());
         assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
 
         // Retrieve default subscription
-        subscription = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
-                .accept(MediaType.APPLICATION_JSON_TYPE)
-                .type(MediaType.APPLICATION_JSON_TYPE).get(UserSubscriptionInfo.class);
+        subscription = getUserSubscription(joeUser.getId());
         assertEquals(freeProduct.getId(), subscription.getProduct().getId());
     }
 
@@ -674,15 +721,13 @@ public class UsersResourceTest extends AbstractResourceTest {
         client.addFilter(new HTTPBasicAuthFilter(joeEmail, joePasswd));
         URI uri = UriBuilder.fromUri(String.format("http://localhost/products")).port(port).build();
         WebResource productsResource = client.resource(uri);
-        ProductInfoList productInfoList = productsResource.type(MediaType.APPLICATION_JSON_TYPE)
-                .type(MediaType.APPLICATION_JSON_TYPE).get(ProductInfoList.class);
+        ProductInfo productInfo = getProduct(productsResource, "free");
 
-        createUserSubscription(joeUser.getId(), productInfoList.getProducts(0).getId(), 2l, 3l);
+        ClientResponse response = postUserSubscription(joeUser.getId(), productInfo.getId(), 2l, 3l);
+        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
 
         // And again
-        ClientResponse response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
-                .queryParam("product", Long.toString(productInfoList.getProducts(0).getId()))
-                .queryParam("external_id", "2").queryParam("external_customer_id", "3").post(ClientResponse.class);
+        response = postUserSubscription(joeUser.getId(), productInfo.getId(), 2l, 3l);
         assertEquals(Response.Status.CONFLICT.getStatusCode(), response.getStatus());
     }
 
@@ -692,19 +737,15 @@ public class UsersResourceTest extends AbstractResourceTest {
         client.addFilter(new HTTPBasicAuthFilter(joeEmail, joePasswd));
         URI uri = UriBuilder.fromUri(String.format("http://localhost/products")).port(port).build();
         WebResource productsResource = client.resource(uri);
-        ProductInfoList productInfoList = productsResource.type(MediaType.APPLICATION_JSON_TYPE)
-                .type(MediaType.APPLICATION_JSON_TYPE).get(ProductInfoList.class);
+        ProductInfo productInfo = getProduct(productsResource, "free");
 
-        ClientResponse response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
-                .queryParam("product", Long.toString(productInfoList.getProducts(1).getId()))
-                .queryParam("state", "ACTIVE").put(ClientResponse.class);
+        ClientResponse response = putUserSubscription(joeUser.getId(), productInfo.getId(), State.ACTIVE, null);
         assertEquals(Response.Status.NOT_FOUND.getStatusCode(), response.getStatus());
     }
 
     @Test
     public void testDeleteMissingSubscription() throws Exception {
-        ClientResponse response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId())).delete(
-                ClientResponse.class);
+        ClientResponse response = deleteUserSubscription(joeUser.getId());
         assertEquals(Response.Status.NOT_FOUND.getStatusCode(), response.getStatus());
     }
 
@@ -714,15 +755,12 @@ public class UsersResourceTest extends AbstractResourceTest {
         client.addFilter(new HTTPBasicAuthFilter(joeEmail, joePasswd));
         URI uri = UriBuilder.fromUri(String.format("http://localhost/products")).port(port).build();
         WebResource productsResource = client.resource(uri);
-        ProductInfoList productInfoList = productsResource.type(MediaType.APPLICATION_JSON_TYPE)
-                .type(MediaType.APPLICATION_JSON_TYPE).get(ProductInfoList.class);
+        ProductInfo productInfo = getProduct(productsResource, "free");
 
-        createUserSubscription(joeUser.getId(), productInfoList.getProducts(0).getId(), 2l, 3l);
+        postUserSubscription(joeUser.getId(), productInfo.getId(), 2l, 3l);
 
         // Migrate it
-        ClientResponse response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
-                .queryParam("product", Long.toString(productInfoList.getProducts(1).getId()))
-                .queryParam("state", "ACTIVE").put(ClientResponse.class);
+        ClientResponse response = putUserSubscription(joeUser.getId(), smallProduct.getId(), null, null);
         assertEquals(Response.Status.CONFLICT.getStatusCode(), response.getStatus());
     }
 
@@ -736,23 +774,16 @@ public class UsersResourceTest extends AbstractResourceTest {
         client.addFilter(new HTTPBasicAuthFilter(joeEmail, joePasswd));
         URI uri = UriBuilder.fromUri(String.format("http://localhost/products")).port(port).build();
         WebResource productsResource = client.resource(uri);
-        ProductInfoList productInfoList = productsResource.type(MediaType.APPLICATION_JSON_TYPE)
-                .type(MediaType.APPLICATION_JSON_TYPE).get(ProductInfoList.class);
+        ProductInfoList productInfoList = getProducts(productsResource);
 
-        ProductInfo product = productInfoList.getProducts(0);
-
-        createUserSubscription(joeUser.getId(), productInfoList.getProducts(0).getId(), 2l, 3l);
+        postUserSubscription(joeUser.getId(), productInfoList.getProducts(0).getId(), 2l, 3l);
 
         // Activate it
-        ClientResponse response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
-                .queryParam("product", Long.toString(product.getId())).queryParam("state", "ACTIVE")
-                .put(ClientResponse.class);
+        ClientResponse response = putUserSubscription(joeUser.getId(), null, State.ACTIVE, null);
         assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
 
         // Migrate it
-        response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
-                .queryParam("product", Long.toString(productInfoList.getProducts(1).getId()))
-                .queryParam("state", "ACTIVE").put(ClientResponse.class);
+        response = putUserSubscription(joeUser.getId(), productInfoList.getProducts(1).getId(), null, null);
         assertEquals(Response.Status.INTERNAL_SERVER_ERROR.getStatusCode(), response.getStatus());
     }
 
@@ -762,22 +793,16 @@ public class UsersResourceTest extends AbstractResourceTest {
         client.addFilter(new HTTPBasicAuthFilter(joeEmail, joePasswd));
         URI uri = UriBuilder.fromUri(String.format("http://localhost/products")).port(port).build();
         WebResource productsResource = client.resource(uri);
-        ProductInfoList productInfoList = productsResource.type(MediaType.APPLICATION_JSON_TYPE)
-                .type(MediaType.APPLICATION_JSON_TYPE).get(ProductInfoList.class);
+        ProductInfoList productInfoList = getProducts(productsResource);
 
-        createUserSubscription(joeUser.getId(), productInfoList.getProducts(0).getId(), 2l, 3l);
+        postUserSubscription(joeUser.getId(), productInfoList.getProducts(0).getId(), 2l, 3l);
 
         // Retrieve it
-        UserSubscriptionInfo subscription = joeUsersWebResource
-                .path(String.format("/%d/subscription", joeUser.getId())).accept(MediaType.APPLICATION_JSON_TYPE)
-                .type(MediaType.APPLICATION_JSON_TYPE).get(UserSubscriptionInfo.class);
+        UserSubscriptionInfo subscription = getUserSubscription(joeUser.getId());
         assertEquals(subscription.getProduct().getId(), productInfoList.getProducts(0).getId());
 
-        // Activate it
-        ClientResponse response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
-                .queryParam("product", Long.toString(subscription.getProduct().getId()))
-                .queryParam("state", "CANCELED")
-                .put(ClientResponse.class);
+        // Terminate it
+        ClientResponse response = putUserSubscription(joeUser.getId(), null, State.CANCELED, null);
         assertEquals(Response.Status.CONFLICT.getStatusCode(), response.getStatus());
     }
 
@@ -791,14 +816,12 @@ public class UsersResourceTest extends AbstractResourceTest {
         client.addFilter(new HTTPBasicAuthFilter(joeEmail, joePasswd));
         URI uri = UriBuilder.fromUri(String.format("http://localhost/products")).port(port).build();
         WebResource productsResource = client.resource(uri);
-        ProductInfoList productInfoList = productsResource.type(MediaType.APPLICATION_JSON_TYPE)
-                .type(MediaType.APPLICATION_JSON_TYPE).get(ProductInfoList.class);
+        ProductInfoList productInfoList = getProducts(productsResource);
 
-        createUserSubscription(joeUser.getId(), productInfoList.getProducts(0).getId(), 2l, 3l);
+        postUserSubscription(joeUser.getId(), productInfoList.getProducts(0).getId(), 2l, 3l);
 
         // Delete it
-        ClientResponse response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
-                .delete(ClientResponse.class);
+        ClientResponse response = deleteUserSubscription(joeUser.getId());
         assertEquals(Response.Status.INTERNAL_SERVER_ERROR.getStatusCode(), response.getStatus());
     }
 

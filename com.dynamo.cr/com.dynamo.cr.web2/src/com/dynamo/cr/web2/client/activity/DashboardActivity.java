@@ -7,6 +7,7 @@ import com.dynamo.cr.web2.client.MD5;
 import com.dynamo.cr.web2.client.ProjectInfo;
 import com.dynamo.cr.web2.client.ProjectInfoList;
 import com.dynamo.cr.web2.client.ResourceCallback;
+import com.dynamo.cr.web2.client.UserSubscriptionInfo;
 import com.dynamo.cr.web2.client.place.DashboardPlace;
 import com.dynamo.cr.web2.client.place.NewProjectPlace;
 import com.dynamo.cr.web2.client.place.ProjectPlace;
@@ -42,6 +43,23 @@ public class DashboardActivity extends AbstractActivity implements DashboardView
         });
     }
 
+    private void loadSubscription() {
+        final DashboardView dashboardView = clientFactory.getDashboardView();
+        final Defold defold = clientFactory.getDefold();
+        defold.getResource("/users/" + defold.getUserId() + "/subscription",
+                new ResourceCallback<UserSubscriptionInfo>() {
+
+                    @Override public void onSuccess(UserSubscriptionInfo subscription,
+                            Request request, Response response) {
+                        dashboardView.setUserSubscription(subscription);
+                    }
+
+                    @Override public void onFailure(Request request, Response response) {
+                        defold.showErrorMessage("Subscription data could not be loaded.");
+                    }
+                });
+    }
+
     private void loadInvitationCount() {
         final DashboardView dashboardView = clientFactory.getDashboardView();
         final Defold defold = clientFactory.getDefold();
@@ -69,6 +87,7 @@ public class DashboardActivity extends AbstractActivity implements DashboardView
         loadProjects();
         loadGravatar();
         loadInvitationCount();
+        loadSubscription();
     }
 
     private void loadGravatar() {
@@ -142,5 +161,15 @@ public class DashboardActivity extends AbstractActivity implements DashboardView
                     defold.showErrorMessage("Invitation failed: " + response.getText());
                 }
             });
+    }
+
+    @Override public void onEditSubscription() {
+        // TODO Auto-generated method stub
+
+    }
+
+    @Override public void onEditCreditCard() {
+        // TODO Auto-generated method stub
+
     }
 }

@@ -3,6 +3,7 @@ package com.dynamo.cr.web2.client.ui;
 import com.dynamo.cr.web2.client.InvitationAccountInfo;
 import com.dynamo.cr.web2.client.ProjectInfo;
 import com.dynamo.cr.web2.client.ProjectInfoList;
+import com.dynamo.cr.web2.client.UserSubscriptionInfo;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.core.client.JsArray;
 import com.google.gwt.dom.client.SpanElement;
@@ -30,6 +31,9 @@ public class DashboardView extends Composite {
 
         void invite(String recipient);
 
+        void onEditSubscription();
+
+        void onEditCreditCard();
     }
 
     private static DashboardUiBinder uiBinder = GWT
@@ -39,6 +43,7 @@ public class DashboardView extends Composite {
     @UiField Image gravatar;
     @UiField SpanElement firstName;
     @UiField SpanElement lastName;
+    @UiField SubscriptionBox subscriptionBox;
     @UiField InvitationBox invitationBox;
 
     interface DashboardUiBinder extends UiBinder<Widget, DashboardView> {
@@ -73,6 +78,10 @@ public class DashboardView extends Composite {
         } else {
             invitationBox.setVisible(false);
         }
+    }
+
+    public void setUserSubscription(UserSubscriptionInfo subscription) {
+        subscriptionBox.setSubscription(subscription);
     }
 
     public void setPresenter(DashboardView.Presenter listener) {
