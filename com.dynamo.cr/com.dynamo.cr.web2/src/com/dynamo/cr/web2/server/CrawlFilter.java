@@ -45,7 +45,7 @@ public final class CrawlFilter implements Filter {
             // Fetch the snapshot
             URL fetchUrl = new URL(snapshootService + "/ajaxcrawler?url=" + URLEncoder.encode(reqUrl, "UTF-8"));
             response.setContentType("text/html");
-            response.setCharacterEncoding("ISO-8859-1");
+            response.setCharacterEncoding("UTF-8");
             ServletOutputStream out = response.getOutputStream();
 
             InputStream in = fetchUrl(fetchUrl);
