@@ -2,11 +2,7 @@ package com.dynamo.cr.server.resources.test;
 
 import static org.junit.Assert.assertEquals;
 
-import java.io.UnsupportedEncodingException;
 import java.net.URI;
-import java.net.URLEncoder;
-import java.util.List;
-import java.util.Map;
 
 import javax.persistence.EntityManager;
 import javax.ws.rs.core.MediaType;
@@ -28,7 +24,6 @@ import com.dynamo.cr.server.util.ChargifyUtil;
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientResponse;
 import com.sun.jersey.api.client.WebResource;
-import com.sun.jersey.api.client.WebResource.Builder;
 import com.sun.jersey.api.client.config.DefaultClientConfig;
 import com.sun.jersey.api.client.filter.HTTPBasicAuthFilter;
 import com.sun.jersey.api.representation.Form;
@@ -93,38 +88,9 @@ public class ChargifyResourceTest extends AbstractResourceTest {
         chargifyResource = client.resource(uri);
     }
 
-    private String generateSignature(Form f) throws UnsupportedEncodingException {
-        // Format the form into the corresponding HTTP request body
-        // Could not find a nice way to do this in jersey
-        StringBuffer buffer = new StringBuffer();
-        boolean empty = true;
-        for (Map.Entry<String, List<String>> entry : f.entrySet()) {
-            for (String value : entry.getValue()) {
-                if (!empty) {
-                    buffer.append("&");
-                }
-                String key = URLEncoder.encode(entry.getKey(), "UTF-8");
-                value = URLEncoder.encode(value, "UTF-8");
-                buffer.append(key).append("=").append(value);
-                empty = false;
-            }
-        }
-        String body = buffer.toString();
-        return new String(ChargifyUtil.generateSignature(server.getConfiguration().getBillingSharedKey().getBytes(),
-                body.getBytes()));
-    }
-
-    private ClientResponse post(String event, Form f, boolean sign)
-            throws UnsupportedEncodingException {
-        f.add("event", event);
-
-        Builder builder = chargifyResource.type(MediaType.APPLICATION_FORM_URLENCODED_TYPE)
-                .accept(MediaType.APPLICATION_JSON_TYPE).entity(f);
-        if (sign) {
-            String signature = generateSignature(f);
-            builder.header(ChargifyUtil.SIGNATURE_HEADER_NAME, signature);
-        }
-        return builder.post(ClientResponse.class);
+    private ClientResponse post(String event, Form f, boolean sign) throws Exception {
+        return ChargifyUtil.fakeWebhook(this.chargifyResource, event, f, sign, server.getConfiguration()
+                .getBillingSharedKey());
     }
 
     @Test
@@ -141,6 +107,14 @@ public class ChargifyResourceTest extends AbstractResourceTest {
                 .getStatusCode());
     }
 
+    private void createUserSubscription(Long productId, Long externalId, Long externalCustomerId) {
+        ClientResponse response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
+                .queryParam("product", productId.toString())
+                .queryParam("external_id", externalId.toString())
+                .queryParam("external_customer_id", externalCustomerId.toString()).post(ClientResponse.class);
+        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+    }
+
     @Test
     public void testSubscriptionSuccess() throws Exception {
         Client client = Client.create(clientConfig);
@@ -151,12 +125,9 @@ public class ChargifyResourceTest extends AbstractResourceTest {
                 .type(MediaType.APPLICATION_JSON_TYPE).get(ProductInfoList.class);
 
         Long externalId = 2l;
+        Long externalCustomerId = 3l;
 
-        // Create subscription
-        ClientResponse response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
-                .queryParam("product", Long.toString(productInfoList.getProducts(0).getId()))
-                .queryParam("external_id", externalId.toString()).post(ClientResponse.class);
-        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+        createUserSubscription(productInfoList.getProducts(0).getId(), externalId, externalCustomerId);
 
         // Retrieve it
         UserSubscriptionInfo subscriptionInfo = joeUsersWebResource
@@ -167,7 +138,7 @@ public class ChargifyResourceTest extends AbstractResourceTest {
         // Activate through webhook
         Form f = new Form();
         f.add("payload[subscription][id]", externalId.toString());
-        response = post("signup_success", f, true);
+        ClientResponse response = post("signup_success", f, true);
         assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
 
         // Retrieve it
@@ -187,12 +158,9 @@ public class ChargifyResourceTest extends AbstractResourceTest {
                 .type(MediaType.APPLICATION_JSON_TYPE).get(ProductInfoList.class);
 
         Long externalId = 2l;
+        Long externalCustomerId = 3l;
 
-        // Create subscription
-        ClientResponse response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
-                .queryParam("product", Long.toString(productInfoList.getProducts(0).getId()))
-                .queryParam("external_id", externalId.toString()).post(ClientResponse.class);
-        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+        createUserSubscription(productInfoList.getProducts(0).getId(), externalId, externalCustomerId);
 
         // Retrieve it
         UserSubscriptionInfo subscriptionInfo = joeUsersWebResource
@@ -203,7 +171,7 @@ public class ChargifyResourceTest extends AbstractResourceTest {
         // Activate through webhook
         Form f = new Form();
         f.add("payload[subscription][id]", externalId.toString());
-        response = post("signup_failure", f, true);
+        ClientResponse response = post("signup_failure", f, true);
         assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
 
         // Retrieve it
@@ -223,12 +191,9 @@ public class ChargifyResourceTest extends AbstractResourceTest {
                 .type(MediaType.APPLICATION_JSON_TYPE).get(ProductInfoList.class);
 
         Long externalId = 2l;
+        Long externalCustomerId = 3l;
 
-        // Create subscription
-        ClientResponse response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
-                .queryParam("product", Long.toString(productInfoList.getProducts(0).getId()))
-                .queryParam("external_id", externalId.toString()).post(ClientResponse.class);
-        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+        createUserSubscription(productInfoList.getProducts(0).getId(), externalId, externalCustomerId);
 
         // Retrieve it
         UserSubscriptionInfo subscriptionInfo = joeUsersWebResource
@@ -239,7 +204,7 @@ public class ChargifyResourceTest extends AbstractResourceTest {
         // Activate through webhook
         Form f = new Form();
         f.add("payload[subscription][id]", externalId.toString());
-        response = post("renewal_failure", f, true);
+        ClientResponse response = post("renewal_failure", f, true);
         assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
 
         // Retrieve it

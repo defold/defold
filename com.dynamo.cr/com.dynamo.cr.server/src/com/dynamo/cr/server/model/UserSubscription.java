@@ -32,6 +32,9 @@ public class UserSubscription {
     @Column(nullable = false, unique = true)
     private Long externalId;
 
+    @Column(nullable = false, unique = true)
+    private Long externalCustomerId;
+
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)
     private State state = State.PENDING;
@@ -62,6 +65,14 @@ public class UserSubscription {
 
     public void setExternalId(Long externalId) {
         this.externalId = externalId;
+    }
+
+    public Long getExternalCustomerId() {
+        return externalCustomerId;
+    }
+
+    public void setExternalCustomerId(Long externalCustomerId) {
+        this.externalCustomerId = externalCustomerId;
     }
 
     public State getState() {

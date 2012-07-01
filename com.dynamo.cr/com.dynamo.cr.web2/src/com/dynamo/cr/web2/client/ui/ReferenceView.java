@@ -7,6 +7,8 @@ import java.util.Map;
 
 import com.dynamo.cr.web2.client.DocumentationDocument;
 import com.dynamo.cr.web2.client.DocumentationElement;
+import com.dynamo.cr.web2.shared.ClientUtil;
+import com.dynamo.cr.web2.shared.ClientUtil.Browser;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.core.client.JsArray;
 import com.google.gwt.dom.client.Element;
@@ -114,9 +116,24 @@ public class ReferenceView extends Composite {
         messageSummaryHeading.getStyle().setDisplay(messages.size() > 0 ? Display.BLOCK : Display.NONE);
         constantSummaryHeading.getStyle().setDisplay(constants.size() > 0 ? Display.BLOCK : Display.NONE);
 
-        createElementLinks(functions, functionSummaryPanel);
-        createElementLinks(messages, messageSummaryPanel);
-        createElementLinks(constants, constantSummaryPanel);
+        System.out.println(ClientUtil.getBrowser());
+        if (ClientUtil.getBrowser() != Browser.DefoldCrawler) {
+            /*
+             * NOTE: We don't create internal page links when the user-agent is DefoldCrawler.
+             * The reason for this is that we use slashes in the fragment part of the URL
+             * and Java URI doesn't like that. It might be possible that slashes aren't a valid
+             * character in a URL to begin with. java.net.URI accepts slashes though.
+             * WebClient from htmlunit use URL internally and we can't crawl such URL:s now.
+             *
+             * A better solution would be to convert internal page links to proper anchors and id:s. Plain
+             * older #-links that is. We don't use such links due to problem with GWT and history.
+             *
+             * Long story short. Avoid internal links when crawling.
+             */
+            createElementLinks(functions, functionSummaryPanel);
+            createElementLinks(messages, messageSummaryPanel);
+            createElementLinks(constants, constantSummaryPanel);
+        }
 
         if (functions.size() > 0) {
             documentationPanel.add(new HTML("<h2>Functions</h2>"));

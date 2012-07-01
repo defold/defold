@@ -19,9 +19,10 @@ public class ChargifyResource extends BaseResource {
     @POST
     @Path("")
     public void handleWebHook(@HeaderParam(ChargifyUtil.SIGNATURE_HEADER_NAME) String signature,
-            @FormParam("event") String event, @FormParam("payload[subscription][id]") String subscriptionId, String body) {
+            @FormParam("event") String event, @FormParam("payload[subscription][id]") String subscriptionId,
+            @FormParam("payload[subscription][state]") String state, String body) {
         String key = server.getConfiguration().getBillingSharedKey();
-        String expectedSignature = new String(ChargifyUtil.generateSignature(key.getBytes(), body.getBytes()));
+        String expectedSignature = ChargifyUtil.generateSignature(key, body);
         if (!expectedSignature.equals(signature)) {
             throwWebApplicationException(Status.FORBIDDEN, "Not authorized");
         }
@@ -32,6 +33,8 @@ public class ChargifyResource extends BaseResource {
                 handleSignupFailure(subscriptionId);
             } else if (event.equals(ChargifyUtil.RENEWAL_FAILURE_WH)) {
                 handleRenewalFailure(subscriptionId);
+            } else if (event.equals(ChargifyUtil.SUBSCRIPTION_STATE_CHANGE_WH)) {
+                handleSubscriptionStateChange(subscriptionId, state);
             } else {
                 throwWebApplicationException(Status.BAD_REQUEST, "Unknown webhook");
             }
@@ -60,6 +63,22 @@ public class ChargifyResource extends BaseResource {
 
     private void handleRenewalFailure(String subscriptionId) {
         cancelSubscription(subscriptionId);
+    }
+
+    private void handleSubscriptionStateChange(String subscriptionId, String state) {
+        State s = null;
+        if (state.equals("active")) {
+            s = State.ACTIVE;
+        } else if (state.equals("canceled")) {
+            s = State.CANCELED;
+        }
+        if (s != null) {
+            UserSubscription us = ModelUtil.findUserSubscriptionByExternalId(em, subscriptionId);
+            us.setState(s);
+            em.getTransaction().begin();
+            em.persist(us);
+            em.getTransaction().commit();
+        }
     }
 }
 

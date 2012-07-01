@@ -209,18 +209,15 @@ public class UsersResource extends BaseResource {
     @Path("/{user}/subscription")
     @Transactional
     public void subscribe(@PathParam("user") String user,
-            @QueryParam("product") String product, @QueryParam("external_id") String externalId) {
+            @QueryParam("product") String product, @QueryParam("external_id") String externalId,
+            @QueryParam("external_customer_id") String externalCustomerId) {
         User u = server.getUser(em, user);
         List<UserSubscription> subscriptions = em
                 .createQuery("select us from UserSubscription us where us.user = :user", UserSubscription.class)
                 .setParameter("user", u).getResultList();
         if (subscriptions.isEmpty()) {
             Product p = server.getProduct(em, product);
-            UserSubscription subscription = new UserSubscription();
-            subscription.setUser(u);
-            subscription.setProduct(p);
-            subscription.setExternalId(Long.parseLong(externalId));
-            em.persist(subscription);
+            ModelUtil.newUserSubscription(em, u, p, Long.parseLong(externalId), Long.parseLong(externalCustomerId));
         } else {
             throwWebApplicationException(Status.CONFLICT, "User already has subscription");
         }
@@ -276,7 +273,9 @@ public class UsersResource extends BaseResource {
                     throwWebApplicationException(Status.CONFLICT, "Subscriptions can only be manually activated");
                 }
                 if (oldState == State.CANCELED) {
-                    if (!billingProvider.reactivateSubscription(subscription)) {
+                    if (billingProvider.reactivateSubscription(subscription)) {
+                        newState = State.PENDING;
+                    } else {
                         throwWebApplicationException(Status.INTERNAL_SERVER_ERROR,
                                 "Billing provider could not reactivate the subscription");
                     }
@@ -298,13 +297,30 @@ public class UsersResource extends BaseResource {
                 .createQuery("select us from UserSubscription us where us.user = :user", UserSubscription.class)
                 .setParameter("user", u).getResultList();
         if (subscriptions.size() > 0) {
+            List<Product> products = em
+                    .createQuery("select p from Product p where p.isDefault = :isDefault", Product.class)
+                    .setParameter("isDefault", true).getResultList();
+            if (products.isEmpty()) {
+                throwWebApplicationException(Status.INTERNAL_SERVER_ERROR,
+                        "Could not find a default product");
+            }
+            Product freeProduct = products.get(0);
             UserSubscription subscription = subscriptions.get(0);
-            if (server.getBillingProvider().cancelSubscription(subscription)) {
-                em.remove(subscriptions.get(0));
-            } else {
+            boolean canceled = server.getBillingProvider().cancelSubscription(subscription);
+            if (!canceled) {
                 throwWebApplicationException(Status.INTERNAL_SERVER_ERROR,
                         "Billing provider could not cancel the subscription");
             }
+            Long externalId = server.getBillingProvider().createSubscription(subscription.getExternalCustomerId(),
+                    freeProduct.getHandle());
+            if (externalId == null) {
+                throwWebApplicationException(Status.INTERNAL_SERVER_ERROR,
+                        "Billing provider could not create the default subscription");
+            }
+            subscription.setProduct(freeProduct);
+            subscription.setExternalId(externalId);
+            subscription.setState(State.ACTIVE);
+            em.persist(subscription);
         } else {
             throwWebApplicationException(Status.NOT_FOUND, "User has no subscription");
         }

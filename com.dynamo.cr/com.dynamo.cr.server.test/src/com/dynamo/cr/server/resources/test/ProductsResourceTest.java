@@ -90,6 +90,15 @@ public class ProductsResourceTest extends AbstractResourceTest {
         assertEquals(2, productInfoList.getProductsCount());
     }
 
+    @Test
+    public void testGetProductsByHandle() throws Exception {
+        ProductInfoList productInfoList = joeUsersWebResource.queryParam("handle", "free")
+                .accept(MediaType.APPLICATION_JSON_TYPE)
+                .type(MediaType.APPLICATION_JSON_TYPE).get(ProductInfoList.class);
+
+        assertEquals(1, productInfoList.getProductsCount());
+    }
+
     @Test(expected = UniformInterfaceException.class)
     public void testGetProductsAsAnonymous() throws Exception {
         ProductInfoList productInfoList = anonymousResource.accept(MediaType.APPLICATION_JSON_TYPE)
