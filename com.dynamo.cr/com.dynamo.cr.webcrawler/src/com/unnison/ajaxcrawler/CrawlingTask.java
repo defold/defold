@@ -142,7 +142,17 @@ public class CrawlingTask extends HttpServlet {
         client.setThrowExceptionOnFailingStatusCode(false);
         HtmlPage page = client.getPage(url);
         client.getJavaScriptEngine().pumpEventLoop(10000);
-        hostPlace.setHtml(page.asXml());
+        StringBuffer html = new StringBuffer("<!doctype html>\n");
+        int i = 0;
+        for (String line : page.asXml().split("\n")) {
+            if (i > 0) {
+                // Skip first line (<?xml...>)
+                html.append(line);
+                html.append("\n");
+            }
+            ++i;
+        }
+        hostPlace.setHtml(html.toString());
         Datastore.put(hostPlace);
 
         // Remove the href from the url
