@@ -9,6 +9,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.proto.Config.Configuration;
+import com.dynamo.cr.server.billing.ChargifyService;
+import com.dynamo.cr.server.billing.IBillingProvider;
 import com.dynamo.cr.server.mail.IMailProcessor;
 import com.dynamo.cr.server.mail.IMailer;
 import com.dynamo.cr.server.mail.MailProcessor;
@@ -36,6 +38,7 @@ public class Activator implements BundleActivator {
             bind(String.class).annotatedWith(Names.named("configurationFile")).toInstance(configurationFile);
             bind(Configuration.class).toProvider(ConfigurationProvider.class).in(Singleton.class);
             bind(IMailProcessor.class).to(MailProcessor.class).in(Singleton.class);
+            bind(IBillingProvider.class).to(ChargifyService.class).in(Singleton.class);
             bind(IMailer.class).to(SmtpMailer.class).in(Singleton.class);
             bind(EntityManagerFactory.class).toProvider(EntityManagerFactoryProvider.class).in(Singleton.class);
             bind(Server.class).in(Singleton.class);
