@@ -56,6 +56,7 @@ import ch.qos.logback.core.joran.spi.JoranException;
 import ch.qos.logback.core.util.StatusPrinter;
 
 import com.dynamo.cr.branchrepo.BranchRepository;
+import com.dynamo.cr.proto.Config.BillingProduct;
 import com.dynamo.cr.proto.Config.Configuration;
 import com.dynamo.cr.proto.Config.InvitationCountEntry;
 import com.dynamo.cr.protocol.proto.Protocol.BuildDesc;
@@ -70,7 +71,6 @@ import com.dynamo.cr.server.billing.IBillingProvider;
 import com.dynamo.cr.server.mail.IMailProcessor;
 import com.dynamo.cr.server.model.InvitationAccount;
 import com.dynamo.cr.server.model.ModelUtil;
-import com.dynamo.cr.server.model.Product;
 import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.model.User.Role;
@@ -632,13 +632,25 @@ public class Server implements ServerMBean {
         return 0;
     }
 
-    public Product getProduct(EntityManager em, String productId) {
-        Product product = em.find(Product.class, Long.parseLong(productId));
-        if (product == null)
-            throw new ServerException(String.format("No such product %s", productId),
-                    javax.ws.rs.core.Response.Status.NOT_FOUND);
+    public BillingProduct getProduct(String productId) {
+        int id = Integer.parseInt(productId);
+        for (BillingProduct product : configuration.getProductsList()) {
+            if (product.getId() == id) {
+                return product;
+            }
+        }
+        throw new ServerException(String.format("No such product %s", productId),
+                javax.ws.rs.core.Response.Status.NOT_FOUND);
+    }
 
-        return product;
+    public BillingProduct getProductByHandle(String productHandle) {
+        for (BillingProduct product : configuration.getProductsList()) {
+            if (product.getHandle().equals(productHandle)) {
+                return product;
+            }
+        }
+        throw new ServerException(String.format("No such product %s", productHandle),
+                javax.ws.rs.core.Response.Status.NOT_FOUND);
     }
 
     public String getBaseURI() {

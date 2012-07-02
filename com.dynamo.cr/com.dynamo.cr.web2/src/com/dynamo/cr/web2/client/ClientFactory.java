@@ -12,6 +12,7 @@ import com.dynamo.cr.web2.client.ui.ProductInfoView;
 import com.dynamo.cr.web2.client.ui.ProjectView;
 import com.dynamo.cr.web2.client.ui.ReferenceView;
 import com.dynamo.cr.web2.client.ui.ScriptSampleView;
+import com.dynamo.cr.web2.client.ui.SubscriptionView;
 import com.dynamo.cr.web2.client.ui.TutorialsView;
 import com.google.gwt.place.shared.PlaceController;
 import com.google.web.bindery.event.shared.EventBus;
@@ -35,4 +36,5 @@ public interface ClientFactory
     ReferenceView getReferenceView();
     GuideView getGuideView();
     ContentView getContentView();
+    SubscriptionView getSubscriptionView();
 }

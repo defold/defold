@@ -11,11 +11,13 @@ import com.dynamo.cr.web2.client.UserSubscriptionInfo;
 import com.dynamo.cr.web2.client.place.DashboardPlace;
 import com.dynamo.cr.web2.client.place.NewProjectPlace;
 import com.dynamo.cr.web2.client.place.ProjectPlace;
+import com.dynamo.cr.web2.client.place.SubscriptionPlace;
 import com.dynamo.cr.web2.client.ui.DashboardView;
 import com.google.gwt.activity.shared.AbstractActivity;
 import com.google.gwt.event.shared.EventBus;
 import com.google.gwt.http.client.Request;
 import com.google.gwt.http.client.Response;
+import com.google.gwt.user.client.Window;
 import com.google.gwt.user.client.ui.AcceptsOneWidget;
 
 public class DashboardActivity extends AbstractActivity implements DashboardView.Presenter {
@@ -60,6 +62,26 @@ public class DashboardActivity extends AbstractActivity implements DashboardView
                 });
     }
 
+    private void createSubscription(String newSubscriptionId) {
+        final DashboardView dashboardView = clientFactory.getDashboardView();
+        final Defold defold = clientFactory.getDefold();
+        defold.postResourceRetrieve("/users/" + defold.getUserId() + "/subscription?external_id=" + newSubscriptionId,
+                "",
+                new ResourceCallback<UserSubscriptionInfo>() {
+
+                    @Override
+                    public void onSuccess(UserSubscriptionInfo subscription,
+                            Request request, Response response) {
+                        dashboardView.setUserSubscription(subscription);
+                    }
+
+                    @Override
+                    public void onFailure(Request request, Response response) {
+                        defold.showErrorMessage("Subscription data could not be created.");
+                    }
+                });
+    }
+
     private void loadInvitationCount() {
         final DashboardView dashboardView = clientFactory.getDashboardView();
         final Defold defold = clientFactory.getDefold();
@@ -87,7 +109,12 @@ public class DashboardActivity extends AbstractActivity implements DashboardView
         loadProjects();
         loadGravatar();
         loadInvitationCount();
-        loadSubscription();
+        String newRequestId = Window.Location.getParameter("subscription_id");
+        if (newRequestId != null) {
+            createSubscription(newRequestId);
+        } else {
+            loadSubscription();
+        }
     }
 
     private void loadGravatar() {
@@ -164,12 +191,11 @@ public class DashboardActivity extends AbstractActivity implements DashboardView
     }
 
     @Override public void onEditSubscription() {
-        // TODO Auto-generated method stub
-
+        this.clientFactory.getPlaceController().goTo(new SubscriptionPlace());
     }
 
-    @Override public void onEditCreditCard() {
-        // TODO Auto-generated method stub
-
+    @Override
+    public void onEditCreditCard(UserSubscriptionInfo subscription) {
+        Window.open(subscription.getUpdateURL(), "_self", "");
     }
 }

@@ -14,7 +14,6 @@ import org.junit.Test;
 import com.dynamo.cr.common.providers.JsonProviders;
 import com.dynamo.cr.common.providers.ProtobufProviders;
 import com.dynamo.cr.protocol.proto.Protocol.ProductInfoList;
-import com.dynamo.cr.server.model.Product;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.model.User.Role;
 import com.sun.jersey.api.client.Client;
@@ -29,8 +28,6 @@ public class ProductsResourceTest extends AbstractResourceTest {
     String joeEmail = "joe@foo.com";
     String joePasswd = "secret2";
     User joeUser;
-    Product freeProduct;
-    Product smallProduct;
     WebResource joeUsersWebResource;
     DefaultClientConfig clientConfig;
     WebResource anonymousResource;
@@ -49,20 +46,6 @@ public class ProductsResourceTest extends AbstractResourceTest {
         joeUser.setPassword(joePasswd);
         joeUser.setRole(Role.USER);
         em.persist(joeUser);
-
-        freeProduct = new Product();
-        freeProduct.setName("Free");
-        freeProduct.setHandle("free");
-        freeProduct.setMaxMemberCount(1);
-        freeProduct.setDefault(true);
-        em.persist(freeProduct);
-
-        smallProduct = new Product();
-        smallProduct.setName("Small");
-        smallProduct.setHandle("small");
-        smallProduct.setMaxMemberCount(-1);
-        smallProduct.setDefault(false);
-        em.persist(smallProduct);
 
         em.getTransaction().commit();
 

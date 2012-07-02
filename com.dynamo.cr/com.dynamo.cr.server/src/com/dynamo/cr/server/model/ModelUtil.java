@@ -1,6 +1,5 @@
 package com.dynamo.cr.server.model;
 
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -126,53 +125,11 @@ public class ModelUtil {
         }
     }
 
-    public static Product newProduct(String name, String handle, Integer maxMemberCount, boolean isDefault, Integer fee) {
-        Product product = new Product();
-        product.setName(name);
-        product.setHandle(handle);
-        product.setMaxMemberCount(maxMemberCount);
-        product.setDefault(isDefault);
-        product.setFee(fee);
-        return product;
-    }
-
-    public static Product findProductByHandle(EntityManager entityManager, String handle) {
-        List<Product> list = entityManager
-                .createQuery("select p from Product p where p.handle = :handle", Product.class)
-                .setParameter("handle", handle).getResultList();
-        if (list.size() == 0) {
-            return null;
-        } else {
-            assert list.size() == 1;
-            return list.get(0);
-        }
-    }
-
-    public static List<Product> findDefaultProducts(EntityManager entityManager) {
-        List<Product> products = entityManager
-                .createQuery("select p from Product p where p.isDefault = :isDefault", Product.class)
-                .setParameter("isDefault", true).getResultList();
-        // For testing
-        if (products.isEmpty()) {
-            Product p = new Product();
-            p.setHandle("free");
-            p.setName("Free");
-            p.setDefault(true);
-            p.setMaxMemberCount(-1);
-            p.setFee(20);
-            entityManager.persist(p);
-            entityManager.getTransaction().commit();
-            entityManager.getTransaction().begin();
-            products = Collections.singletonList(p);
-        }
-        return products;
-    }
-
-    public static UserSubscription newUserSubscription(EntityManager entityManager, User user, Product product,
+    public static UserSubscription newUserSubscription(EntityManager entityManager, User user, long productId,
             long externalId, long externalCustomerId, CreditCard creditCard) {
         UserSubscription subscription = new UserSubscription();
         subscription.setUser(user);
-        subscription.setProduct(product);
+        subscription.setProductId(productId);
         subscription.setExternalId(externalId);
         subscription.setExternalCustomerId(externalCustomerId);
         subscription.setCreditCard(creditCard);

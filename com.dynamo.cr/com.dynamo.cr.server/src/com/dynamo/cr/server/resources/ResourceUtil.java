@@ -7,6 +7,7 @@ import java.util.List;
 import org.apache.commons.io.FilenameUtils;
 import org.eclipse.jgit.util.StringUtils;
 
+import com.dynamo.cr.proto.Config.BillingProduct;
 import com.dynamo.cr.proto.Config.Configuration;
 import com.dynamo.cr.protocol.proto.Protocol.CreditCardInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ProductInfo;
@@ -15,11 +16,11 @@ import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
 import com.dynamo.cr.protocol.proto.Protocol.UserSubscriptionInfo;
 import com.dynamo.cr.protocol.proto.Protocol.UserSubscriptionState;
 import com.dynamo.cr.server.Server;
-import com.dynamo.cr.server.model.Product;
 import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.model.UserSubscription;
 import com.dynamo.cr.server.model.UserSubscription.CreditCard;
+import com.dynamo.cr.server.util.ChargifyUtil;
 
 public class ResourceUtil {
     public static UserInfo createUserInfo(User user) {
@@ -97,9 +98,10 @@ public class ResourceUtil {
         return b.build();
     }
 
-    public static ProductInfo createProductInfo(Product product) {
+    public static ProductInfo createProductInfo(BillingProduct product, String billingApiUrl) {
         ProductInfo.Builder b = ProductInfo.newBuilder().setId(product.getId()).setName(product.getName())
                 .setMaxMemberCount(product.getMaxMemberCount()).setFee(product.getFee());
+        b.setSignupUrl(ChargifyUtil.generateSignupUrl((long) product.getId(), billingApiUrl));
         return b.build();
     }
 
@@ -110,7 +112,7 @@ public class ResourceUtil {
         return b.build();
     }
 
-    public static UserSubscriptionInfo createUserSubscriptionInfo(UserSubscription subscription) {
+    public static UserSubscriptionInfo createUserSubscriptionInfo(UserSubscription subscription, Configuration configuration) {
         UserSubscriptionInfo.Builder b = UserSubscriptionInfo.newBuilder();
         switch (subscription.getState()) {
         case CANCELED:
@@ -123,8 +125,17 @@ public class ResourceUtil {
             b.setState(UserSubscriptionState.ACTIVE);
             break;
         }
-        b.setProduct(createProductInfo(subscription.getProduct()));
-        b.setCreditCard(createCreditCardInfo(subscription.getCreditCard()));
+        for (BillingProduct product : configuration.getProductsList()) {
+            if (product.getId() == subscription.getProductId()) {
+                b.setProduct(createProductInfo(product, configuration.getBillingApiUrl()));
+                break;
+            }
+        }
+        if (subscription.getCreditCard() != null) {
+            b.setCreditCard(createCreditCardInfo(subscription.getCreditCard()));
+        }
+        b.setUpdateUrl(ChargifyUtil.generateUpdateUrl(subscription.getExternalId(), configuration.getBillingApiUrl(),
+                configuration.getBillingSharedKey()));
         return b.build();
     }
 }

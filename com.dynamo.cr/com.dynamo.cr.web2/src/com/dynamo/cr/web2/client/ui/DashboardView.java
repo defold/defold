@@ -33,7 +33,7 @@ public class DashboardView extends Composite {
 
         void onEditSubscription();
 
-        void onEditCreditCard();
+        void onEditCreditCard(UserSubscriptionInfo subscription);
     }
 
     private static DashboardUiBinder uiBinder = GWT
@@ -88,6 +88,7 @@ public class DashboardView extends Composite {
         this.listener = listener;
         this.invitationBox.setPresenter(listener);
         this.invitationBox.setVisible(false);
+        this.subscriptionBox.setPresenter(listener);
     }
 
     @UiHandler("newProjectButton")

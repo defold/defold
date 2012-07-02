@@ -276,6 +276,7 @@ message ProductInfo {
     required string name = 2;
     required int32 max_member_count = 3;
     required int32 fee = 4;
+    required string signup_url = 5;
 }
 
 message ProductInfoList {
@@ -289,13 +290,14 @@ message CreditCardInfo {
 }
 
 enum UserSubscriptionState {
-    CANCELED = -1;
-    PENDING = 0;
-    ACTIVE = 1;
+    CANCELED = 0;
+    PENDING = 1;
+    ACTIVE = 2;
 }
 
 message UserSubscriptionInfo {
     required ProductInfo product = 1;
     required UserSubscriptionState state = 2;
     optional CreditCardInfo credit_card = 3;
+    optional string update_url = 4;
 }

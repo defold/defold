@@ -34,6 +34,8 @@ public class SubscriptionBox extends Composite {
     @UiField TableCellElement expiration;
     @UiField Button editCCButton;
 
+    private UserSubscriptionInfo subscription;
+
     public SubscriptionBox() {
         initWidget(uiBinder.createAndBindUi(this));
     }
@@ -45,6 +47,7 @@ public class SubscriptionBox extends Composite {
     }
 
     public void setSubscription(UserSubscriptionInfo subscription) {
+        this.subscription = subscription;
         ProductInfo product = subscription.getProductInfo();
         this.productName.setInnerText(product.getName());
         this.fee.setInnerText("$" + Integer.toString(product.getFee()));
@@ -72,6 +75,6 @@ public class SubscriptionBox extends Composite {
     }
 
     @UiHandler("editCCButton") void onEditCreditCardButtonClick(ClickEvent event) {
-        this.listener.onEditCreditCard();
+        this.listener.onEditCreditCard(subscription);
     }
 }

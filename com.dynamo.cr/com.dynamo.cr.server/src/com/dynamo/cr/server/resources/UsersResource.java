@@ -19,9 +19,9 @@ import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 
+import com.dynamo.cr.proto.Config.BillingProduct;
 import com.dynamo.cr.proto.Config.EMailTemplate;
 import com.dynamo.cr.protocol.proto.Protocol.InvitationAccountInfo;
-import com.dynamo.cr.protocol.proto.Protocol.ProductInfo;
 import com.dynamo.cr.protocol.proto.Protocol.RegisterUser;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfoList;
@@ -33,7 +33,6 @@ import com.dynamo.cr.server.mail.EMail;
 import com.dynamo.cr.server.model.Invitation;
 import com.dynamo.cr.server.model.InvitationAccount;
 import com.dynamo.cr.server.model.ModelUtil;
-import com.dynamo.cr.server.model.Product;
 import com.dynamo.cr.server.model.Prospect;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.model.UserSubscription;
@@ -192,26 +191,24 @@ public class UsersResource extends BaseResource {
     @POST
     @Path("/{user}/subscription")
     @Transactional
-    public void subscribe(@PathParam("user") String user,
-            @QueryParam("product") String product, @QueryParam("external_id") String externalId,
-            @QueryParam("external_customer_id") String externalCustomerId,
-            @QueryParam("cc_masked_number") String maskedNumber,
-            @QueryParam("cc_expiration_month") String expirationMonth,
-            @QueryParam("cc_expiration_year") String expirationYear) {
+    public UserSubscriptionInfo subscribe(@PathParam("user") String user,
+            @QueryParam("external_id") String externalId) {
         User u = server.getUser(em, user);
         List<UserSubscription> subscriptions = em
                 .createQuery("select us from UserSubscription us where us.user = :user", UserSubscription.class)
                 .setParameter("user", u).getResultList();
         if (subscriptions.isEmpty()) {
-            Product p = server.getProduct(em, product);
-            CreditCard cc = null;
-            if (maskedNumber != null && expirationMonth != null && expirationYear != null) {
-                cc = new CreditCard(maskedNumber, Integer.parseInt(expirationMonth), Integer.parseInt(expirationYear));
-            }
-            ModelUtil.newUserSubscription(em, u, p, Long.parseLong(externalId), Long.parseLong(externalCustomerId), cc);
+            UserSubscription subscription = server.getBillingProvider().getSubscription(Long.parseLong(externalId));
+            subscription.setUser(u);
+            em.persist(subscription);
+            em.getTransaction().commit();
+            em.getTransaction().begin();
+            em.refresh(subscription);
+            return ResourceUtil.createUserSubscriptionInfo(subscription, server.getConfiguration());
         } else {
             throwWebApplicationException(Status.CONFLICT, "User already has subscription");
         }
+        return null;
     }
 
     @GET
@@ -223,22 +220,23 @@ public class UsersResource extends BaseResource {
                 .createQuery("select us from UserSubscription us where us.user = :user", UserSubscription.class)
                 .setParameter("user", u).getResultList();
         if (subscriptions.size() > 0) {
-            return ResourceUtil.createUserSubscriptionInfo(subscriptions.get(0));
+            return ResourceUtil.createUserSubscriptionInfo(subscriptions.get(0), server.getConfiguration());
         } else {
             UserSubscriptionInfo.Builder builder = UserSubscriptionInfo.newBuilder();
-            List<Product> products = ModelUtil.findDefaultProducts(em);
-            if (products.isEmpty()) {
+            BillingProduct defaultProduct = null;
+            for (BillingProduct product : server.getConfiguration().getProductsList()) {
+                if (product.getDefault() != 0) {
+                    defaultProduct = product;
+                    break;
+                }
+            }
+            if (defaultProduct == null) {
                 throwWebApplicationException(Status.INTERNAL_SERVER_ERROR,
                         "Could not find a default product");
             }
-            Product freeProduct = products.get(0);
             builder.setState(UserSubscriptionState.ACTIVE);
-            ProductInfo.Builder productBuilder = ProductInfo.newBuilder();
-            productBuilder.setId(freeProduct.getId());
-            productBuilder.setName(freeProduct.getName());
-            productBuilder.setMaxMemberCount(freeProduct.getMaxMemberCount());
-            productBuilder.setFee(freeProduct.getFee());
-            builder.setProduct(productBuilder);
+            builder.setProduct(ResourceUtil.createProductInfo(defaultProduct, server.getConfiguration()
+                    .getBillingApiUrl()));
             return builder.build();
         }
     }
@@ -260,13 +258,13 @@ public class UsersResource extends BaseResource {
             IBillingProvider billingProvider = server.getBillingProvider();
             // Migrate subscription
             if (product != null) {
-                Product newProduct = server.getProduct(em, product);
-                if (newProduct.getId() != subscription.getProduct().getId()) {
+                BillingProduct newProduct = server.getProduct(product);
+                if (newProduct.getId() != subscription.getProductId()) {
                     if (subscription.getState() != State.ACTIVE) {
                         throwWebApplicationException(Status.CONFLICT, "Only active subscriptions can be updated");
                     }
-                    if (billingProvider.migrateSubscription(subscription, newProduct)) {
-                        subscription.setProduct(newProduct);
+                    if (billingProvider.migrateSubscription(subscription, newProduct.getId())) {
+                        subscription.setProductId((long) newProduct.getId());
                     } else {
                         throwWebApplicationException(Status.INTERNAL_SERVER_ERROR,
                                 "Billing provider could not migrate the subscription");
@@ -312,28 +310,13 @@ public class UsersResource extends BaseResource {
                 .createQuery("select us from UserSubscription us where us.user = :user", UserSubscription.class)
                 .setParameter("user", u).getResultList();
         if (subscriptions.size() > 0) {
-            List<Product> products = ModelUtil.findDefaultProducts(em);
-            if (products.isEmpty()) {
-                throwWebApplicationException(Status.INTERNAL_SERVER_ERROR,
-                        "Could not find a default product");
-            }
-            Product freeProduct = products.get(0);
             UserSubscription subscription = subscriptions.get(0);
             boolean canceled = server.getBillingProvider().cancelSubscription(subscription);
             if (!canceled) {
                 throwWebApplicationException(Status.INTERNAL_SERVER_ERROR,
                         "Billing provider could not cancel the subscription");
             }
-            Long externalId = server.getBillingProvider().createSubscription(subscription.getExternalCustomerId(),
-                    freeProduct.getHandle());
-            if (externalId == null) {
-                throwWebApplicationException(Status.INTERNAL_SERVER_ERROR,
-                        "Billing provider could not create the default subscription");
-            }
-            subscription.setProduct(freeProduct);
-            subscription.setExternalId(externalId);
-            subscription.setState(State.ACTIVE);
-            em.persist(subscription);
+            em.remove(subscription);
         } else {
             throwWebApplicationException(Status.NOT_FOUND, "User has no subscription");
         }

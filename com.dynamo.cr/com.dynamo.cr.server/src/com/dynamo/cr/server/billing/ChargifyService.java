@@ -13,8 +13,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.proto.Config.Configuration;
-import com.dynamo.cr.server.model.Product;
 import com.dynamo.cr.server.model.UserSubscription;
+import com.dynamo.cr.server.model.UserSubscription.CreditCard;
+import com.dynamo.cr.server.model.UserSubscription.State;
 import com.google.inject.Inject;
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientResponse;
@@ -73,10 +74,10 @@ public class ChargifyService implements IBillingProvider {
     }
 
     @Override
-    public boolean migrateSubscription(UserSubscription subscription, Product newProduct) {
+    public boolean migrateSubscription(UserSubscription subscription, int newProductId) {
         ObjectNode root = mapper.createObjectNode();
         ObjectNode migration = mapper.createObjectNode();
-        migration.put("product_handle", newProduct.getHandle());
+        migration.put("product_id", newProductId);
         root.put("migration", migration);
         ClientResponse response = chargifyResource
                 .path(String.format("/%d/migrations.json", subscription.getExternalId()))
@@ -95,30 +96,42 @@ public class ChargifyService implements IBillingProvider {
     }
 
     @Override
-    public Long createSubscription(long customerId, String productHandle) {
-        ObjectNode root = this.mapper.createObjectNode();
-        ObjectNode subscription = this.mapper.createObjectNode();
-        subscription.put("product_handle", productHandle);
-        subscription.put("customer_id", Long.toString(customerId));
-        root.put("subscription", subscription);
-        ClientResponse response = chargifyResource.path("/subscriptions.json").type(MediaType.APPLICATION_JSON_TYPE)
-                .accept(MediaType.APPLICATION_JSON_TYPE).post(ClientResponse.class, root.toString());
-
+    public UserSubscription getSubscription(Long subscriptionId) {
+        ClientResponse response = chargifyResource
+                .path(String.format("/%d.json", subscriptionId))
+                .type(MediaType.APPLICATION_JSON_TYPE).accept(MediaType.APPLICATION_JSON_TYPE)
+                .get(ClientResponse.class);
         int status = response.getStatus();
         if (status >= 200 && status < 300) {
-            JsonNode s;
             try {
-                s = this.mapper.readTree(response.getEntityInputStream());
-                int id = s.get("subscription").get("id").asInt();
+                JsonNode root = this.mapper.readTree(response.getEntityInputStream());
+                JsonNode subJson = root.get("subscription");
+                int id = subJson.get("id").asInt();
                 logger.info(String.format("Subscription (external: %d) was created.", id));
-                return new Long(id);
+                UserSubscription subscription = new UserSubscription();
+                CreditCard cc = new CreditCard();
+                JsonNode ccJson = subJson.get("credit_card");
+                cc.setMaskedNumber(ccJson.get("masked_card_number").getTextValue());
+                cc.setExpirationMonth(ccJson.get("expiration_month").getIntValue());
+                cc.setExpirationYear(ccJson.get("expiration_year").getIntValue());
+                subscription.setCreditCard(cc);
+                subscription.setExternalId(subscriptionId);
+                subscription.setExternalCustomerId((long) ccJson.get("customer_id").getIntValue());
+                subscription.setProductId((long) subJson.get("product").get("id").getIntValue());
+                String state = subJson.get("state").getTextValue();
+                if (state.equals("active")) {
+                    subscription.setState(State.ACTIVE);
+                } else if (state.equals("canceled")) {
+                    subscription.setState(State.CANCELED);
+                } else {
+                    subscription.setState(State.PENDING);
+                }
+                return subscription;
             } catch (IOException e) {
                 logger.error(String.format("Subscription could not be parsed: %s", e.getMessage()));
             }
         } else {
-            logger.error(String.format("Subscription to product %s by customer %d could not be created: %d.",
-                    productHandle,
-                    customerId, status));
+            logger.error(String.format("Subscription %d could not be found: %d", subscriptionId, status));
         }
         return null;
     }

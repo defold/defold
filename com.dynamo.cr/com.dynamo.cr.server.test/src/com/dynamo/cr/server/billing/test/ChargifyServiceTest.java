@@ -1,5 +1,6 @@
 package com.dynamo.cr.server.billing.test;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
@@ -27,6 +28,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import com.dynamo.cr.proto.Config.BillingProduct;
 import com.dynamo.cr.proto.Config.Configuration;
 import com.dynamo.cr.server.ConfigurationProvider;
 import com.dynamo.cr.server.Server;
@@ -36,8 +38,9 @@ import com.dynamo.cr.server.mail.EMail;
 import com.dynamo.cr.server.mail.IMailProcessor;
 import com.dynamo.cr.server.mail.IMailer;
 import com.dynamo.cr.server.mail.MailProcessor;
-import com.dynamo.cr.server.model.Product;
 import com.dynamo.cr.server.model.UserSubscription;
+import com.dynamo.cr.server.model.UserSubscription.CreditCard;
+import com.dynamo.cr.server.model.UserSubscription.State;
 import com.dynamo.cr.server.test.Util;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
@@ -59,6 +62,8 @@ public class ChargifyServiceTest {
     static EntityManagerFactory emf;
     static IBillingProvider billingProvider;
     static Long subscriptionId;
+    static Long customerId;
+    static Long productId;
 
     static class TestMailer implements IMailer {
         List<EMail> emails = new ArrayList<EMail>();
@@ -151,11 +156,11 @@ public class ChargifyServiceTest {
             response = resource.path("/customers.json").accept(MediaType.APPLICATION_JSON_TYPE)
                     .type(MediaType.APPLICATION_JSON_TYPE).post(ClientResponse.class, root.toString());
             JsonNode c = mapper.readTree(response.getEntityInputStream());
-            int customerId = c.get("customer").get("id").getIntValue();
+            customerId = (long) c.get("customer").get("id").getIntValue();
             root = mapper.createObjectNode();
             ObjectNode subscription = mapper.createObjectNode();
             subscription.put("product_handle", "small");
-            subscription.put("customer_id", Integer.toString(customerId));
+            subscription.put("customer_id", Long.toString(customerId));
             ObjectNode cc = mapper.createObjectNode();
             cc.put("full_number", "1");
             cc.put("expiration_month", "12");
@@ -166,14 +171,17 @@ public class ChargifyServiceTest {
                     .type(MediaType.APPLICATION_JSON_TYPE).post(ClientResponse.class, root.toString());
             JsonNode s = mapper.readTree(response.getEntityInputStream());
             subscriptionId = new Long(s.get("subscription").get("id").getIntValue());
+            productId = (long) s.get("subscription").get("product").get("id").getIntValue();
         } else if (response.getStatus() == ClientResponse.Status.OK.getStatusCode()) {
             JsonNode root = mapper.readTree(response.getEntityInputStream());
-            int customerId = root.get("customer").get("id").getIntValue();
+            customerId = (long) root.get("customer").get("id").getIntValue();
             response = resource.path(String.format("/customers/%d/subscriptions.json", customerId))
                     .accept(MediaType.APPLICATION_JSON_TYPE).type(MediaType.APPLICATION_JSON_TYPE)
                     .get(ClientResponse.class);
             root = mapper.readTree(response.getEntityInputStream());
-            subscriptionId = new Long(root.get(0).get("subscription").get("id").getIntValue());
+            JsonNode s = root.get(0).get("subscription");
+            subscriptionId = new Long(s.get("id").getIntValue());
+            productId = (long) s.get("product").get("id").getIntValue();
         }
     }
 
@@ -181,13 +189,11 @@ public class ChargifyServiceTest {
     public void testMigrate() {
         UserSubscription subscription = new UserSubscription();
         subscription.setExternalId(subscriptionId);
-        Product free = new Product();
-        free.setHandle("free");
-        Product small = new Product();
-        small.setHandle("small");
+        BillingProduct free = server.getProductByHandle("free");
+        BillingProduct small = server.getProductByHandle("small");
 
-        assertTrue(billingProvider.migrateSubscription(subscription, free));
-        assertTrue(billingProvider.migrateSubscription(subscription, small));
+        assertTrue(billingProvider.migrateSubscription(subscription, free.getId()));
+        assertTrue(billingProvider.migrateSubscription(subscription, small.getId()));
     }
 
     @Test
@@ -198,5 +204,19 @@ public class ChargifyServiceTest {
         assertTrue(billingProvider.cancelSubscription(subscription));
         assertTrue(billingProvider.reactivateSubscription(subscription));
     }
+
+    @Test
+    public void testRetrieve() {
+        UserSubscription subscription = billingProvider.getSubscription(subscriptionId);
+        CreditCard cc = subscription.getCreditCard();
+        assertEquals("XXXX-XXXX-XXXX-1", cc.getMaskedNumber());
+        assertEquals(12, cc.getExpirationMonth());
+        assertEquals(2020, cc.getExpirationYear());
+        assertEquals(subscriptionId, subscription.getExternalId());
+        assertEquals(customerId, subscription.getExternalCustomerId());
+        assertEquals(productId, subscription.getProductId());
+        assertEquals(State.ACTIVE, subscription.getState());
+    }
+
 }
 

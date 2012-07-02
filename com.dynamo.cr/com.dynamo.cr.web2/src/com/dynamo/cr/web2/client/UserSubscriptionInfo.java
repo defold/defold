@@ -21,6 +21,11 @@ public class UserSubscriptionInfo extends BaseResponse {
     public final native CreditCardInfo getCreditCardInfo() /*-{
 		return this.credit_card;
     }-*/;
+
+    public final native String getUpdateURL() /*-{
+		return this.update_url;
+    }-*/;
+
 }
 
 

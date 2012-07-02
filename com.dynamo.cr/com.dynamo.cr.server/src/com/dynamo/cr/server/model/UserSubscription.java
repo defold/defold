@@ -9,7 +9,6 @@ import javax.persistence.Enumerated;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
-import javax.persistence.ManyToOne;
 import javax.persistence.OneToOne;
 import javax.persistence.Table;
 
@@ -24,9 +23,9 @@ public class UserSubscription {
         private Integer expirationYear;
 
         public CreditCard() {
-            
+
         }
-        
+
         public CreditCard(String maskedNumber, Integer expirationMonth, Integer expirationYear) {
             this.maskedNumber = maskedNumber;
             this.expirationMonth = expirationMonth;
@@ -69,8 +68,8 @@ public class UserSubscription {
     @OneToOne(optional = false)
     private User user;
 
-    @ManyToOne(optional = false)
-    private Product product;
+    @Column(nullable = false, unique = true)
+    private Long productId;
 
     @Column(nullable = false, unique = true)
     private Long externalId;
@@ -97,12 +96,12 @@ public class UserSubscription {
         this.user = user;
     }
 
-    public Product getProduct() {
-        return product;
+    public Long getProductId() {
+        return productId;
     }
 
-    public void setProduct(Product product) {
-        this.product = product;
+    public void setProductId(Long productId) {
+        this.productId = productId;
     }
 
     public Long getExternalId() {
@@ -139,7 +138,7 @@ public class UserSubscription {
 
     @Override
     public String toString() {
-        return "" + this.user + " - " + this.product;
+        return "" + this.user + " - " + this.productId;
     }
 
 }

@@ -22,4 +22,8 @@ public class ProductInfo extends BaseResponse {
 		return this.fee;
     }-*/;
 
+    public final native String getSignupURL() /*-{
+		return this.signup_url;
+    }-*/;
+
 }
