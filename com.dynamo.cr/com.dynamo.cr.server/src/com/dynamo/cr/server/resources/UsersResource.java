@@ -36,7 +36,6 @@ import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.Prospect;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.model.UserSubscription;
-import com.dynamo.cr.server.model.UserSubscription.CreditCard;
 import com.dynamo.cr.server.model.UserSubscription.State;
 import com.dynamo.inject.persist.Transactional;
 
@@ -244,16 +243,22 @@ public class UsersResource extends BaseResource {
     @PUT
     @Path("/{user}/subscription")
     @Transactional
-    public void setSubscription(
+    public UserSubscriptionInfo setSubscription(
             @PathParam("user") String user, @QueryParam("product") String product, @QueryParam("state") String state,
-            @QueryParam("cc_masked_number") String maskedNumber,
-            @QueryParam("cc_expiration_month") String expirationMonth,
-            @QueryParam("cc_expiration_year") String expirationYear) {
+            @QueryParam("external_id") String externalId) {
         User u = server.getUser(em, user);
         List<UserSubscription> subscriptions = em
                 .createQuery("select us from UserSubscription us where us.user = :user", UserSubscription.class)
                 .setParameter("user", u).getResultList();
         if (subscriptions.size() > 0) {
+            int nonNull = 0;
+            nonNull += product != null ? 1 : 0;
+            nonNull += state != null ? 1 : 0;
+            nonNull += externalId != null ? 1 : 0;
+            if (nonNull > 1) {
+                throwWebApplicationException(Status.CONFLICT,
+                        "Only one of the parameters product, state and external_id is accepted at a time.");
+            }
             UserSubscription subscription = subscriptions.get(0);
             IBillingProvider billingProvider = server.getBillingProvider();
             // Migrate subscription
@@ -290,15 +295,24 @@ public class UsersResource extends BaseResource {
                     subscription.setState(newState);
                 }
             }
-            // Update credit card
-            if (maskedNumber != null && expirationMonth != null && expirationYear != null) {
-                CreditCard cc = new CreditCard(maskedNumber, Integer.parseInt(expirationMonth), Integer.parseInt(expirationYear));
-                subscription.setCreditCard(cc);
+            // Update from provider
+            if (externalId != null) {
+                UserSubscription s = server.getBillingProvider().getSubscription(Long.parseLong(externalId));
+                subscription.setCreditCard(s.getCreditCard());
+                subscription.setExternalId(s.getExternalId());
+                subscription.setExternalCustomerId(s.getExternalCustomerId());
+                subscription.setProductId(s.getProductId());
+                subscription.setState(s.getState());
             }
             em.persist(subscription);
+            em.getTransaction().commit();
+            em.getTransaction().begin();
+            em.refresh(subscription);
+            return ResourceUtil.createUserSubscriptionInfo(subscription, server.getConfiguration());
         } else {
             throwWebApplicationException(Status.NOT_FOUND, "User has no subscription");
         }
+        return null;
     }
 
     @DELETE

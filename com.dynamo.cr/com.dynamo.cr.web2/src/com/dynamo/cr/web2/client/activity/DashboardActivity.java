@@ -54,6 +54,14 @@ public class DashboardActivity extends AbstractActivity implements DashboardView
                     @Override public void onSuccess(UserSubscriptionInfo subscription,
                             Request request, Response response) {
                         dashboardView.setUserSubscription(subscription);
+                        String newRequestId = Window.Location.getParameter("subscription_id");
+                        if (newRequestId != null) {
+                            if (subscription.getCreditCardInfo().getMaskedNumber().isEmpty()) {
+                                createSubscription(newRequestId);
+                            } else {
+                                updateSubscription(newRequestId);
+                            }
+                        }
                     }
 
                     @Override public void onFailure(Request request, Response response) {
@@ -66,6 +74,26 @@ public class DashboardActivity extends AbstractActivity implements DashboardView
         final DashboardView dashboardView = clientFactory.getDashboardView();
         final Defold defold = clientFactory.getDefold();
         defold.postResourceRetrieve("/users/" + defold.getUserId() + "/subscription?external_id=" + newSubscriptionId,
+                "",
+                new ResourceCallback<UserSubscriptionInfo>() {
+
+                    @Override
+                    public void onSuccess(UserSubscriptionInfo subscription,
+                            Request request, Response response) {
+                        dashboardView.setUserSubscription(subscription);
+                    }
+
+                    @Override
+                    public void onFailure(Request request, Response response) {
+                        defold.showErrorMessage("Subscription data could not be created.");
+                    }
+                });
+    }
+
+    private void updateSubscription(String newSubscriptionId) {
+        final DashboardView dashboardView = clientFactory.getDashboardView();
+        final Defold defold = clientFactory.getDefold();
+        defold.putResourceRetrieve("/users/" + defold.getUserId() + "/subscription?external_id=" + newSubscriptionId,
                 "",
                 new ResourceCallback<UserSubscriptionInfo>() {
 
@@ -109,12 +137,7 @@ public class DashboardActivity extends AbstractActivity implements DashboardView
         loadProjects();
         loadGravatar();
         loadInvitationCount();
-        String newRequestId = Window.Location.getParameter("subscription_id");
-        if (newRequestId != null) {
-            createSubscription(newRequestId);
-        } else {
-            loadSubscription();
-        }
+        loadSubscription();
     }
 
     private void loadGravatar() {

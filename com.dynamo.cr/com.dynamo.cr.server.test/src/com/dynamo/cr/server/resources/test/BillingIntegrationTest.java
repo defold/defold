@@ -275,9 +275,8 @@ public class BillingIntegrationTest {
 
         // Reactivate
         response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
-                .queryParam("product", Long.toString(smallProduct.getId()))
                 .queryParam("state", "ACTIVE").put(ClientResponse.class);
-        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+        assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
 
         // Verify pending
         s = getSubscription();
@@ -359,9 +358,8 @@ public class BillingIntegrationTest {
         // Migrate
         ClientResponse response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
                 .queryParam("product", Long.toString(freeProduct.getId()))
-                .queryParam("state", s.getState().toString())
                 .put(ClientResponse.class);
-        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+        assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
 
         // Verify migration
         s = getSubscription();

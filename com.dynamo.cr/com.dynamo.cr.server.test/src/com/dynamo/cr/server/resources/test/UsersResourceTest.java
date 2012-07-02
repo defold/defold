@@ -5,6 +5,7 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
+import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayInputStream;
 import java.net.URI;
@@ -608,17 +609,22 @@ public class UsersResourceTest extends AbstractResourceTest {
 
     private ClientResponse putUserSubscription(Long userId, Long productId, State state, CreditCard creditCard) {
         WebResource resource = joeUsersWebResource.path(String.format("/%d/subscription", userId));
+        // For mocking, we pretend that the external id is identical to the user
+        // id
+        UserSubscription subscription = billingProvider.getSubscription(userId);
         if (productId != null) {
             resource = resource.queryParam("product", productId.toString());
+            subscription.setProductId(productId);
         }
         if (state != null) {
             resource = resource.queryParam("state", state.toString());
+            subscription.setState(state);
         }
         if (creditCard != null) {
-            resource = resource.queryParam("cc_masked_number", creditCard.getMaskedNumber())
-                    .queryParam("cc_expiration_month", Integer.toString(creditCard.getExpirationMonth()))
-                    .queryParam("cc_expiration_year", Integer.toString(creditCard.getExpirationYear()));
+            resource = resource.queryParam("external_id", userId.toString());
+            subscription.setCreditCard(creditCard);
         }
+        when(billingProvider.getSubscription(userId)).thenReturn(subscription);
         return resource.type(MediaType.APPLICATION_JSON_TYPE).put(ClientResponse.class);
     }
 
@@ -669,15 +675,15 @@ public class UsersResourceTest extends AbstractResourceTest {
 
         // Activate it
         ClientResponse response = putUserSubscription(joeUser.getId(), null, State.ACTIVE, null);
-        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+        assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
 
         // Migrate it
         response = putUserSubscription(joeUser.getId(), smallProduct.getId(), null, null);
-        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+        assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
 
         // Update credit card
         response = putUserSubscription(joeUser.getId(), null, null, new CreditCard("2", 2, 3));
-        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+        assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
 
         // Retrieve it
         subscription = getUserSubscription(joeUser.getId());
@@ -751,7 +757,7 @@ public class UsersResourceTest extends AbstractResourceTest {
 
         // Activate it
         ClientResponse response = putUserSubscription(joeUser.getId(), null, State.ACTIVE, null);
-        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+        assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
 
         // Migrate it
         response = putUserSubscription(joeUser.getId(), productInfoList.getProducts(1).getId(), null, null);

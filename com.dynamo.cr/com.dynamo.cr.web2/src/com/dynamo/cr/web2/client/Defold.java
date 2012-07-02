@@ -170,6 +170,11 @@ public class Defold implements EntryPoint {
         sendRequest(resource, RequestBuilder.PUT, data, callback, "application/json");
     }
 
+    public <T extends BaseResponse> void putResourceRetrieve(String resource, String data,
+            final ResourceCallback<T> callback) {
+        sendRequestRetrieve(resource, RequestBuilder.PUT, data, callback, "application/json");
+    }
+
     /**
      * Handles activation of top-level navigation menu elements
      * @author chmu
