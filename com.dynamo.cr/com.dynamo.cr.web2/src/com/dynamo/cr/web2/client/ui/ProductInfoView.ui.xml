@@ -32,7 +32,7 @@
                 style="color: black; font-size: 50px; width: 100%; margin-bottom: 30px;">Interested?</h1>
             <p style="font-size: 16px;">
                 We are currently in <b>closed alpha</b>. If you know anyone already using Defold, ask them to invite you!<br/>
-                Everybody can register for the <b>open beta</b>, which will start in June.
+                Everybody can register for the <b>open beta</b>, which will start in July.
             </p>
             <g:DeckPanel ui:field="registerDeck">
                 <g:HTMLPanel>
