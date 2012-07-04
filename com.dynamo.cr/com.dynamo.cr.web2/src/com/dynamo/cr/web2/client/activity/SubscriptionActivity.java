@@ -16,9 +16,11 @@ import com.google.gwt.user.client.Window;
 import com.google.gwt.user.client.ui.AcceptsOneWidget;
 
 public class SubscriptionActivity extends AbstractActivity implements SubscriptionView.Presenter {
+    private SubscriptionPlace place;
     private ClientFactory clientFactory;
 
     public SubscriptionActivity(SubscriptionPlace place, ClientFactory clientFactory) {
+        this.place = place;
         this.clientFactory = clientFactory;
     }
 
@@ -51,12 +53,12 @@ public class SubscriptionActivity extends AbstractActivity implements Subscripti
                     @Override public void onSuccess(UserSubscriptionInfo subscription,
                             Request request, Response response) {
                         subscriptionView.setUserSubscription(subscription);
-                        String newRequestId = Window.Location.getParameter("subscription_id");
-                        if (newRequestId != null) {
+                        String newSubscriptionId = place.getSubscriptionId();
+                        if (newSubscriptionId != null) {
                             if (subscription.getCreditCardInfo().getMaskedNumber().isEmpty()) {
-                                createSubscription(newRequestId);
+                                createSubscription(newSubscriptionId);
                             } else {
-                                updateSubscription(newRequestId);
+                                updateSubscription(newSubscriptionId);
                             }
                         }
                     }
@@ -111,6 +113,14 @@ public class SubscriptionActivity extends AbstractActivity implements Subscripti
 
     @Override
     public void start(AcceptsOneWidget containerWidget, EventBus eventBus) {
+        // Check if we received a subscription id, bail out and convert it to
+        // place-token
+        String subscriptionId = Window.Location.getParameter("subscription_id");
+        if (subscriptionId != null) {
+            Window.Location.replace(Window.Location.createUrlBuilder().removeParameter("subscription_id").buildString()
+                    + subscriptionId);
+            return;
+        }
         final SubscriptionView subscriptionView = clientFactory.getSubscriptionView();
         containerWidget.setWidget(subscriptionView.asWidget());
         subscriptionView.setPresenter(this);
