@@ -22,6 +22,7 @@ import com.google.gwt.user.client.ui.Button;
 import com.google.gwt.user.client.ui.Composite;
 import com.google.gwt.user.client.ui.Grid;
 import com.google.gwt.user.client.ui.HTMLPanel;
+import com.google.gwt.user.client.ui.Image;
 import com.google.gwt.user.client.ui.Widget;
 
 public class SubscriptionView extends Composite implements ClickHandler {
@@ -50,6 +51,11 @@ public class SubscriptionView extends Composite implements ClickHandler {
     @UiField
     Button editCCButton;
 
+    @UiField
+    Image loader;
+    @UiField
+    HTMLPanel content;
+
     private Presenter listener;
     private ProductInfoList products;
     private UserSubscriptionInfo subscription;
@@ -62,6 +68,7 @@ public class SubscriptionView extends Composite implements ClickHandler {
 
     public SubscriptionView() {
         initWidget(uiBinder.createAndBindUi(this));
+        setLoading(false);
 
         Element thead = DOM.createElement("thead");
         Element tr = DOM.createTR();
@@ -111,6 +118,7 @@ public class SubscriptionView extends Composite implements ClickHandler {
 
     private void loadProducts() {
         if (this.products != null && this.subscription != null) {
+            setLoading(false);
             JsArray<ProductInfo> products = this.products.getProducts();
             this.productTable.resize(products.length(), 5);
             for (int i = 0; i < products.length(); ++i) {
@@ -162,6 +170,11 @@ public class SubscriptionView extends Composite implements ClickHandler {
         // Remove all rows except header
         this.productTable.resizeRows(1);
         this.buttonToProduct.clear();
+    }
+
+    public void setLoading(boolean loading) {
+        loader.setVisible(loading);
+        content.setVisible(!loading);
     }
 
     @Override

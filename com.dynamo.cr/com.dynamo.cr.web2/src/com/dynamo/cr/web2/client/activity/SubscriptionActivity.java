@@ -24,6 +24,7 @@ public class SubscriptionActivity extends AbstractActivity implements Subscripti
 
     public void loadProducts() {
         final SubscriptionView subscriptionView = clientFactory.getSubscriptionView();
+        subscriptionView.setLoading(true);
         final Defold defold = clientFactory.getDefold();
         defold.getResource("/products", new ResourceCallback<ProductInfoList>() {
 
@@ -42,6 +43,7 @@ public class SubscriptionActivity extends AbstractActivity implements Subscripti
 
     private void loadSubscription() {
         final SubscriptionView subscriptionView = clientFactory.getSubscriptionView();
+        subscriptionView.setLoading(true);
         final Defold defold = clientFactory.getDefold();
         defold.getResource("/users/" + defold.getUserId() + "/subscription",
                 new ResourceCallback<UserSubscriptionInfo>() {
@@ -67,6 +69,7 @@ public class SubscriptionActivity extends AbstractActivity implements Subscripti
 
     private void createSubscription(String newSubscriptionId) {
         final SubscriptionView subscriptionView = clientFactory.getSubscriptionView();
+        subscriptionView.setLoading(true);
         final Defold defold = clientFactory.getDefold();
         defold.postResourceRetrieve("/users/" + defold.getUserId() + "/subscription?external_id=" + newSubscriptionId,
                 "",
@@ -87,6 +90,7 @@ public class SubscriptionActivity extends AbstractActivity implements Subscripti
 
     private void updateSubscription(String newSubscriptionId) {
         final SubscriptionView subscriptionView = clientFactory.getSubscriptionView();
+        subscriptionView.setLoading(true);
         final Defold defold = clientFactory.getDefold();
         defold.putResourceRetrieve("/users/" + defold.getUserId() + "/subscription?external_id=" + newSubscriptionId,
                 "",
@@ -125,6 +129,8 @@ public class SubscriptionActivity extends AbstractActivity implements Subscripti
                     .append(defold.getLastName()).append("&email=").append(defold.getEmail());
             Window.open(builder.toString(), "_self", "");
         } else {
+            final SubscriptionView subscriptionView = clientFactory.getSubscriptionView();
+            subscriptionView.setLoading(true);
             final Defold defold = clientFactory.getDefold();
             defold.putResourceRetrieve("/users/" + defold.getUserId() + "/subscription?product=" + product.getId(), "",
                     new ResourceCallback<UserSubscriptionInfo>() {
@@ -145,6 +151,8 @@ public class SubscriptionActivity extends AbstractActivity implements Subscripti
     }
 
     public void onReactivate(UserSubscriptionInfo subscription) {
+        final SubscriptionView subscriptionView = clientFactory.getSubscriptionView();
+        subscriptionView.setLoading(true);
         final Defold defold = clientFactory.getDefold();
         defold.putResourceRetrieve("/users/" + defold.getUserId() + "/subscription?state=ACTIVE", "",
                 new ResourceCallback<UserSubscriptionInfo>() {
@@ -164,6 +172,8 @@ public class SubscriptionActivity extends AbstractActivity implements Subscripti
     }
 
     public void onTerminate(UserSubscriptionInfo subscription) {
+        final SubscriptionView subscriptionView = clientFactory.getSubscriptionView();
+        subscriptionView.setLoading(true);
         final Defold defold = clientFactory.getDefold();
         defold.deleteResource("/users/" + defold.getUserId() + "/subscription",
                 new ResourceCallback<String>() {
