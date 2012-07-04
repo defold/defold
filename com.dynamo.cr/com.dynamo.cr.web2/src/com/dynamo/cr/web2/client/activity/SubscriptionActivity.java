@@ -96,4 +96,39 @@ public class SubscriptionActivity extends AbstractActivity implements Subscripti
         }
     }
 
+    public void onReactivate(UserSubscriptionInfo subscription) {
+        final Defold defold = clientFactory.getDefold();
+        defold.putResource("/users/" + defold.getUserId() + "/subscription?state=ACTIVE", "",
+                new ResourceCallback<String>() {
+
+                    @Override
+                    public void onSuccess(String data,
+                            Request request, Response response) {
+                        clientFactory.getPlaceController().goTo(new DashboardPlace());
+                    }
+
+                    @Override
+                    public void onFailure(Request request, Response response) {
+                        defold.showErrorMessage("Subscription could not be reactivated.");
+                    }
+                });
+    }
+
+    public void onTerminate(UserSubscriptionInfo subscription) {
+        final Defold defold = clientFactory.getDefold();
+        defold.deleteResource("/users/" + defold.getUserId() + "/subscription",
+                new ResourceCallback<String>() {
+
+                    @Override
+                    public void onSuccess(String data,
+                            Request request, Response response) {
+                        clientFactory.getPlaceController().goTo(new DashboardPlace());
+                    }
+
+                    @Override
+                    public void onFailure(Request request, Response response) {
+                        defold.showErrorMessage("Subscription could not be terminated.");
+                    }
+                });
+    }
 }

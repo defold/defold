@@ -23,6 +23,10 @@ public class SubscriptionView extends Composite implements ClickHandler {
 
     public interface Presenter {
         void onMigrate(UserSubscriptionInfo subscription, ProductInfo product);
+
+        void onReactivate(UserSubscriptionInfo subscription);
+
+        void onTerminate(UserSubscriptionInfo subscription);
     }
 
     private static SubscriptionUiBinder uiBinder = GWT
@@ -34,6 +38,8 @@ public class SubscriptionView extends Composite implements ClickHandler {
     private ProductInfoList products;
     private UserSubscriptionInfo subscription;
     private Map<Object, ProductInfo> buttonToProduct = new HashMap<Object, ProductInfo>();
+    private Button reactivateButton;
+    private Button terminateButton;
 
     interface SubscriptionUiBinder extends UiBinder<Widget, SubscriptionView> {
     }
@@ -46,7 +52,7 @@ public class SubscriptionView extends Composite implements ClickHandler {
 
         // add columns
         DOM.appendChild(thead,tr);
-        String[] headers = new String[] {"Plan", "Team Size", ""};
+        String[] headers = new String[] { "Plan", "Team Size", "Status", "" };
         for (int i = 0; i < headers.length; ++i) {
                 Element th = DOM.createTH();
                 DOM.appendChild(tr, th);
@@ -78,7 +84,7 @@ public class SubscriptionView extends Composite implements ClickHandler {
     private void loadProducts() {
         if (this.products != null && this.subscription != null) {
             JsArray<ProductInfo> products = this.products.getProducts();
-            this.productTable.resize(products.length(), 3);
+            this.productTable.resize(products.length(), 5);
             for (int i = 0; i < products.length(); ++i) {
                 final ProductInfo productInfo = products.get(i);
                 StringBuilder builder = new StringBuilder();
@@ -91,18 +97,32 @@ public class SubscriptionView extends Composite implements ClickHandler {
                 }
                 this.productTable.setText(i, 0, name);
                 this.productTable.setText(i, 1, memberCount);
+                String state = this.subscription.getState();
+                boolean canceled = state.equals("CANCELED");
+                boolean active = state.equals("ACTIVE");
                 if (this.subscription.getProductInfo().getId() == productInfo.getId()) {
-                    this.productTable.setText(i, 2, "Your plan");
-                } else {
-                    Button button = new Button();
-                    if (this.subscription.getProductInfo().getFee() > productInfo.getFee()) {
-                        button.setText("Downgrade");
+                    this.productTable.setText(i, 2, state);
+                    if (canceled) {
+                        this.reactivateButton = new Button("Reactivate", this);
+                        this.productTable.setWidget(i, 3, this.reactivateButton);
+                        this.terminateButton = new Button("Terminate", this);
+                        this.productTable.setWidget(i, 4, this.terminateButton);
                     } else {
-                        button.setText("Upgrade");
+                        this.productTable.setText(i, 3, "Your plan");
                     }
-                    button.addClickHandler(this);
-                    this.buttonToProduct.put(button, productInfo);
-                    this.productTable.setWidget(i, 2, button);
+                } else {
+                    this.productTable.setText(i, 2, "-");
+                    if (active) {
+                        Button button = new Button();
+                        if (this.subscription.getProductInfo().getFee() > productInfo.getFee()) {
+                            button.setText("Downgrade");
+                        } else {
+                            button.setText("Upgrade");
+                        }
+                        button.addClickHandler(this);
+                        this.buttonToProduct.put(button, productInfo);
+                        this.productTable.setWidget(i, 3, button);
+                    }
                 }
             }
         }
@@ -110,11 +130,8 @@ public class SubscriptionView extends Composite implements ClickHandler {
 
     public void clear() {
         // Remove all rows except header
-        int rows = this.productTable.getRowCount();
-        for (int i = 0; i < rows; ++i) {
-            this.productTable.removeRow(0);
-        }
-        buttonToProduct.clear();
+        this.productTable.resizeRows(1);
+        this.buttonToProduct.clear();
     }
 
     @Override
@@ -122,6 +139,10 @@ public class SubscriptionView extends Composite implements ClickHandler {
         ProductInfo product = this.buttonToProduct.get(event.getSource());
         if (product != null) {
             this.listener.onMigrate(this.subscription, product);
+        } else if (event.getSource() == this.reactivateButton) {
+            this.listener.onReactivate(this.subscription);
+        } else if (event.getSource() == this.terminateButton) {
+            this.listener.onTerminate(this.subscription);
         }
     }
 

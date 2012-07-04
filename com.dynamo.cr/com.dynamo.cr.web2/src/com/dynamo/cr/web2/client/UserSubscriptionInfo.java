@@ -10,7 +10,7 @@ public class UserSubscriptionInfo extends BaseResponse {
 
     }
 
-    public final native int getState() /*-{
+    public final native String getState() /*-{
 		return this.state;
     }-*/;
 
