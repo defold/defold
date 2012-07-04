@@ -1,15 +1,8 @@
-bin
-tmp
-.DS_Store
-.lock-wscript
-build
-slask
-*.pyc
-java_bin
-DYNAMO_HOME
+/*/bin
+/*/tmp
+/*/DYNAMO_HOME
 /*/target/
-log
-generated
-derby.log
-log.lck
+/*/generated
+/*/derby.log
+
 
