@@ -1,19 +1,16 @@
 package com.dynamo.cr.web2.client.ui;
 
-import com.dynamo.cr.web2.client.CreditCardInfo;
 import com.dynamo.cr.web2.client.ProductInfo;
 import com.dynamo.cr.web2.client.UserSubscriptionInfo;
 import com.dynamo.cr.web2.client.ui.DashboardView.Presenter;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.dom.client.TableCellElement;
 import com.google.gwt.event.dom.client.ClickEvent;
-import com.google.gwt.i18n.client.NumberFormat;
 import com.google.gwt.uibinder.client.UiBinder;
 import com.google.gwt.uibinder.client.UiField;
 import com.google.gwt.uibinder.client.UiHandler;
 import com.google.gwt.user.client.ui.Button;
 import com.google.gwt.user.client.ui.Composite;
-import com.google.gwt.user.client.ui.HTMLPanel;
 import com.google.gwt.user.client.ui.Widget;
 
 public class SubscriptionBox extends Composite {
@@ -28,11 +25,6 @@ public class SubscriptionBox extends Composite {
     @UiField TableCellElement fee;
     @UiField TableCellElement maxMemberCount;
     @UiField Button editSubscriptionButton;
-    @UiField
-    HTMLPanel creditCard;
-    @UiField TableCellElement maskedNumber;
-    @UiField TableCellElement expiration;
-    @UiField Button editCCButton;
 
     private UserSubscriptionInfo subscription;
 
@@ -56,25 +48,10 @@ public class SubscriptionBox extends Composite {
             count = Integer.toString(product.getMaxMemberCount());
         }
         this.maxMemberCount.setInnerText(count);
-        CreditCardInfo cc = subscription.getCreditCardInfo();
-        if (cc != null && cc.getMaskedNumber() != null &&
-                !cc.getMaskedNumber().isEmpty()) {
-            this.creditCard.setVisible(true);
-            NumberFormat format = NumberFormat.getFormat("00");
-            this.maskedNumber.setInnerText(cc.getMaskedNumber());
-            String expiration = format.format(cc.getExpirationMonth()) + "/" +
-                    format.format(cc.getExpirationYear());
-            this.expiration.setInnerText(expiration);
-        } else {
-            this.creditCard.setVisible(false);
-        }
     }
 
     @UiHandler("editSubscriptionButton") void onEditSubscriptionButtonClick(ClickEvent event) {
         this.listener.onEditSubscription();
     }
 
-    @UiHandler("editCCButton") void onEditCreditCardButtonClick(ClickEvent event) {
-        this.listener.onEditCreditCard(subscription);
-    }
 }

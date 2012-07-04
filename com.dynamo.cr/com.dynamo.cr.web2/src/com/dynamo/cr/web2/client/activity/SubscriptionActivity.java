@@ -6,7 +6,6 @@ import com.dynamo.cr.web2.client.ProductInfo;
 import com.dynamo.cr.web2.client.ProductInfoList;
 import com.dynamo.cr.web2.client.ResourceCallback;
 import com.dynamo.cr.web2.client.UserSubscriptionInfo;
-import com.dynamo.cr.web2.client.place.DashboardPlace;
 import com.dynamo.cr.web2.client.place.SubscriptionPlace;
 import com.dynamo.cr.web2.client.ui.SubscriptionView;
 import com.google.gwt.activity.shared.AbstractActivity;
@@ -50,10 +49,58 @@ public class SubscriptionActivity extends AbstractActivity implements Subscripti
                     @Override public void onSuccess(UserSubscriptionInfo subscription,
                             Request request, Response response) {
                         subscriptionView.setUserSubscription(subscription);
+                        String newRequestId = Window.Location.getParameter("subscription_id");
+                        if (newRequestId != null) {
+                            if (subscription.getCreditCardInfo().getMaskedNumber().isEmpty()) {
+                                createSubscription(newRequestId);
+                            } else {
+                                updateSubscription(newRequestId);
+                            }
+                        }
                     }
 
                     @Override public void onFailure(Request request, Response response) {
                         defold.showErrorMessage("Subscription data could not be loaded.");
+                    }
+                });
+    }
+
+    private void createSubscription(String newSubscriptionId) {
+        final SubscriptionView subscriptionView = clientFactory.getSubscriptionView();
+        final Defold defold = clientFactory.getDefold();
+        defold.postResourceRetrieve("/users/" + defold.getUserId() + "/subscription?external_id=" + newSubscriptionId,
+                "",
+                new ResourceCallback<UserSubscriptionInfo>() {
+
+                    @Override
+                    public void onSuccess(UserSubscriptionInfo subscription,
+                            Request request, Response response) {
+                        subscriptionView.setUserSubscription(subscription);
+                    }
+
+                    @Override
+                    public void onFailure(Request request, Response response) {
+                        defold.showErrorMessage("Subscription data could not be created.");
+                    }
+                });
+    }
+
+    private void updateSubscription(String newSubscriptionId) {
+        final SubscriptionView subscriptionView = clientFactory.getSubscriptionView();
+        final Defold defold = clientFactory.getDefold();
+        defold.putResourceRetrieve("/users/" + defold.getUserId() + "/subscription?external_id=" + newSubscriptionId,
+                "",
+                new ResourceCallback<UserSubscriptionInfo>() {
+
+                    @Override
+                    public void onSuccess(UserSubscriptionInfo subscription,
+                            Request request, Response response) {
+                        subscriptionView.setUserSubscription(subscription);
+                    }
+
+                    @Override
+                    public void onFailure(Request request, Response response) {
+                        defold.showErrorMessage("Subscription data could not be created.");
                     }
                 });
     }
@@ -79,13 +126,14 @@ public class SubscriptionActivity extends AbstractActivity implements Subscripti
             Window.open(builder.toString(), "_self", "");
         } else {
             final Defold defold = clientFactory.getDefold();
-            defold.putResource("/users/" + defold.getUserId() + "/subscription?product=" + product.getId(), "",
-                    new ResourceCallback<String>() {
+            defold.putResourceRetrieve("/users/" + defold.getUserId() + "/subscription?product=" + product.getId(), "",
+                    new ResourceCallback<UserSubscriptionInfo>() {
 
                         @Override
-                        public void onSuccess(String data,
+                        public void onSuccess(UserSubscriptionInfo subscription,
                                 Request request, Response response) {
-                            clientFactory.getPlaceController().goTo(new DashboardPlace());
+                            final SubscriptionView subscriptionView = clientFactory.getSubscriptionView();
+                            subscriptionView.setUserSubscription(subscription);
                         }
 
                         @Override
@@ -98,13 +146,14 @@ public class SubscriptionActivity extends AbstractActivity implements Subscripti
 
     public void onReactivate(UserSubscriptionInfo subscription) {
         final Defold defold = clientFactory.getDefold();
-        defold.putResource("/users/" + defold.getUserId() + "/subscription?state=ACTIVE", "",
-                new ResourceCallback<String>() {
+        defold.putResourceRetrieve("/users/" + defold.getUserId() + "/subscription?state=ACTIVE", "",
+                new ResourceCallback<UserSubscriptionInfo>() {
 
                     @Override
-                    public void onSuccess(String data,
+                    public void onSuccess(UserSubscriptionInfo subscription,
                             Request request, Response response) {
-                        clientFactory.getPlaceController().goTo(new DashboardPlace());
+                        final SubscriptionView subscriptionView = clientFactory.getSubscriptionView();
+                        subscriptionView.setUserSubscription(subscription);
                     }
 
                     @Override
@@ -122,7 +171,7 @@ public class SubscriptionActivity extends AbstractActivity implements Subscripti
                     @Override
                     public void onSuccess(String data,
                             Request request, Response response) {
-                        clientFactory.getPlaceController().goTo(new DashboardPlace());
+                        loadSubscription();
                     }
 
                     @Override
@@ -130,5 +179,10 @@ public class SubscriptionActivity extends AbstractActivity implements Subscripti
                         defold.showErrorMessage("Subscription could not be terminated.");
                     }
                 });
+    }
+
+    @Override
+    public void onEditCreditCard(UserSubscriptionInfo subscription) {
+        Window.open(subscription.getUpdateURL(), "_self", "");
     }
 }

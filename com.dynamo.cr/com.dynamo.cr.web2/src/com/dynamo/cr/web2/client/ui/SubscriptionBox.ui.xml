@@ -20,16 +20,6 @@
                     <td style="horizontal-align: right; vertical-align: middle;"><g:Button ui:field="editSubscriptionButton">Edit</g:Button></td>
                 </tr>
             </table>
-            <g:HTMLPanel ui:field="creditCard">
-                <h3>Credit Card</h3>
-	            <table style="width: 100%;">
-	                <tr>
-	                    <td ui:field="maskedNumber" style="font-weight: bold; vertical-align: middle;">xxxx-xxxx-xxxx-xxxx</td>
-	                    <td ui:field="expiration" style="vertical-align: middle;">00/00</td>
-	                    <td style="horizontal-align: right; vertical-align: middle;"><g:Button ui:field="editCCButton">Edit</g:Button></td>
-	                </tr>
-	            </table>
-            </g:HTMLPanel>
         </div>
     </g:HTMLPanel>
 </ui:UiBinder>

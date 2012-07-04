@@ -3,20 +3,25 @@ package com.dynamo.cr.web2.client.ui;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.dynamo.cr.web2.client.CreditCardInfo;
 import com.dynamo.cr.web2.client.ProductInfo;
 import com.dynamo.cr.web2.client.ProductInfoList;
 import com.dynamo.cr.web2.client.UserSubscriptionInfo;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.core.client.JsArray;
+import com.google.gwt.dom.client.TableCellElement;
 import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.event.dom.client.ClickHandler;
+import com.google.gwt.i18n.client.NumberFormat;
 import com.google.gwt.uibinder.client.UiBinder;
 import com.google.gwt.uibinder.client.UiField;
+import com.google.gwt.uibinder.client.UiHandler;
 import com.google.gwt.user.client.DOM;
 import com.google.gwt.user.client.Element;
 import com.google.gwt.user.client.ui.Button;
 import com.google.gwt.user.client.ui.Composite;
 import com.google.gwt.user.client.ui.Grid;
+import com.google.gwt.user.client.ui.HTMLPanel;
 import com.google.gwt.user.client.ui.Widget;
 
 public class SubscriptionView extends Composite implements ClickHandler {
@@ -27,12 +32,23 @@ public class SubscriptionView extends Composite implements ClickHandler {
         void onReactivate(UserSubscriptionInfo subscription);
 
         void onTerminate(UserSubscriptionInfo subscription);
+
+        void onEditCreditCard(UserSubscriptionInfo subscription);
     }
 
     private static SubscriptionUiBinder uiBinder = GWT
             .create(SubscriptionUiBinder.class);
     @UiField
     Grid productTable;
+
+    @UiField
+    HTMLPanel creditCard;
+    @UiField
+    TableCellElement maskedNumber;
+    @UiField
+    TableCellElement expiration;
+    @UiField
+    Button editCCButton;
 
     private Presenter listener;
     private ProductInfoList products;
@@ -78,6 +94,18 @@ public class SubscriptionView extends Composite implements ClickHandler {
 
     public void setUserSubscription(UserSubscriptionInfo subscription) {
         this.subscription = subscription;
+        CreditCardInfo cc = subscription.getCreditCardInfo();
+        if (cc != null && cc.getMaskedNumber() != null &&
+                !cc.getMaskedNumber().isEmpty()) {
+            this.creditCard.setVisible(true);
+            NumberFormat format = NumberFormat.getFormat("00");
+            this.maskedNumber.setInnerText(cc.getMaskedNumber());
+            String expiration = format.format(cc.getExpirationMonth()) + "/" +
+                    format.format(cc.getExpirationYear());
+            this.expiration.setInnerText(expiration);
+        } else {
+            this.creditCard.setVisible(false);
+        }
         loadProducts();
     }
 
@@ -109,9 +137,11 @@ public class SubscriptionView extends Composite implements ClickHandler {
                         this.productTable.setWidget(i, 4, this.terminateButton);
                     } else {
                         this.productTable.setText(i, 3, "Your plan");
+                        this.productTable.clearCell(i, 4);
                     }
                 } else {
                     this.productTable.setText(i, 2, "-");
+                    this.productTable.clearCell(i, 4);
                     if (active) {
                         Button button = new Button();
                         if (this.subscription.getProductInfo().getFee() > productInfo.getFee()) {
@@ -146,4 +176,8 @@ public class SubscriptionView extends Composite implements ClickHandler {
         }
     }
 
+    @UiHandler("editCCButton")
+    void onEditCreditCardButtonClick(ClickEvent event) {
+        this.listener.onEditCreditCard(subscription);
+    }
 }

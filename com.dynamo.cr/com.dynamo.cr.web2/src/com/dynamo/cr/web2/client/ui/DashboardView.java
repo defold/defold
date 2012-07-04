@@ -32,8 +32,6 @@ public class DashboardView extends Composite {
         void invite(String recipient);
 
         void onEditSubscription();
-
-        void onEditCreditCard(UserSubscriptionInfo subscription);
     }
 
     private static DashboardUiBinder uiBinder = GWT

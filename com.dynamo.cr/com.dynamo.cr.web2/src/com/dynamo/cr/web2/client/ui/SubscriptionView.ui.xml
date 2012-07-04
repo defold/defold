@@ -19,5 +19,22 @@
     <g:HTMLPanel styleName="{style.panel}">
         <h1>Plans</h1>
         <g:Grid ui:field="productTable"></g:Grid>
+        <g:HTMLPanel ui:field="creditCard">
+            <h3>Credit Card</h3>
+            <table>
+                <thead>
+                    <th>Number</th>
+                    <th>Expires</th>
+                    <th></th>
+                </thead>
+                <tbody>
+	                <tr>
+	                    <td ui:field="maskedNumber" style="vertical-align: middle;">xxxx-xxxx-xxxx-xxxx</td>
+	                    <td ui:field="expiration" style="vertical-align: middle;">00/00</td>
+	                    <td style="vertical-align: middle;"><g:Button ui:field="editCCButton">Edit</g:Button></td>
+	                </tr>
+	            </tbody>
+            </table>
+        </g:HTMLPanel>
     </g:HTMLPanel>
 </ui:UiBinder>
