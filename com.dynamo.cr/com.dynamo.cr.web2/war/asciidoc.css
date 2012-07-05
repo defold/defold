@@ -1,3 +1,7 @@
+/*
+ TODO: Remove and rename asciidoc-new.css to asciidoc.css
+ */
+
 /* This is the css from ascii-doc 8.6.3 but with class .asciidoc descended selector added in order to avoid name clashes.
    This is quick and dirty fix. Some elements are currently broken such as "NOTE:" (wrong font) in ascii-docs.
   */

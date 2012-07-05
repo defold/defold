@@ -18,6 +18,11 @@
     }
 }
 
+/* Tweaks */
+.hero-unit p {
+    margin-top: 0.5em;
+}
+
 /*
  Override default bootstrap fonts
  */
