@@ -31,7 +31,7 @@ docs = ['script_properties.html',
 for d in docs:
     asciidoc('doc/%s' % d, active_page = 'documentation')
 
-render('doc_index.html', 'doc/index.html')
+render('doc_index.html', 'doc/index.html', active_page = 'documentation')
 
 about = ['eula.html',
          'story.html']
