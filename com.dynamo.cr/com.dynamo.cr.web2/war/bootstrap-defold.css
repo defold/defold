@@ -65,6 +65,7 @@ footer {
     padding-bottom: 16px;
     padding-left: 16px;
     padding-right: 16px;
+    margin-top: 32px;
     border-top: 1px solid #555;
     min-height: 250px;
 }

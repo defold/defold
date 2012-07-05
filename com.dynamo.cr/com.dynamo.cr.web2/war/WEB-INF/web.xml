@@ -40,6 +40,11 @@
         <url-pattern>/blog/*</url-pattern>
     </servlet-mapping>
 
+    <servlet-mapping>
+        <servlet-name>static</servlet-name>
+        <url-pattern>/ref/*</url-pattern>
+    </servlet-mapping>
+
     <error-page>
        <error-code>404</error-code>
        <location>/error/404.html</location>

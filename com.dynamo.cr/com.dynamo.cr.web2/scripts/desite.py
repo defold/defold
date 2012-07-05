@@ -4,6 +4,8 @@ import optparse
 from cStringIO import StringIO
 import os, re, sys
 from jinja2 import FileSystemLoader, ChoiceLoader, Environment
+import script_doc_ddf_pb2
+from google.protobuf import text_format
 
 class AsciiDocLoader(FileSystemLoader):
     """Custom FileSystemLoader for asciidoc-files that extracts the payload from the generated file"""
@@ -34,6 +36,19 @@ class Desite(object):
     def _progress(self, msg):
         print >>sys.stderr, msg
 
+    def render_reference(self, doc, output):
+        msg = script_doc_ddf_pb2.Document()
+        with open(doc, 'r') as f:
+            msg.MergeFromString(f.read())
+
+        functions = filter(lambda e: e.type == script_doc_ddf_pb2.FUNCTION, msg.elements)
+        messages = filter(lambda e: e.type == script_doc_ddf_pb2.MESSAGE, msg.elements)
+        constants = filter(lambda e: e.type == script_doc_ddf_pb2.VARIABLE, msg.elements)
+        self.render('ref.html', output,
+                    functions = functions,
+                    messages = messages,
+                    constants = constants)
+
     def _split_blog(self, str):
         found_start = False
         acc = None
@@ -61,7 +76,7 @@ class Desite(object):
                 acc.write(line)
         return lst
 
-    def blog(self, blog, output_dir):
+    def render_blog(self, blog, output_dir):
         blog_html = self.env.get_template(blog).render().encode('UTF-8')
         posts = self._split_blog(blog_html)
         for p in posts:
@@ -124,8 +139,10 @@ if __name__ == '__main__':
 
     ds = Desite(options.doc_root, options.templates, options.output)
 
-    globals = { 'asciidoc' : ds.render_asciidoc,
+    globals = { 'dynamo_home' : dynamo_home,
+                'asciidoc' : ds.render_asciidoc,
                 'render' : ds.render,
-                'blog' : ds.blog }
+                'blog' : ds.render_blog,
+                'ref' : ds.render_reference }
     variables = {}
     execfile(args[0], globals, variables)
