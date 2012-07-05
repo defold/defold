@@ -19,6 +19,11 @@ import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Marker;
+import org.slf4j.MarkerFactory;
+
 import com.dynamo.cr.proto.Config.BillingProduct;
 import com.dynamo.cr.proto.Config.EMailTemplate;
 import com.dynamo.cr.protocol.proto.Protocol.InvitationAccountInfo;
@@ -42,6 +47,9 @@ import com.dynamo.inject.persist.Transactional;
 @Path("/users")
 @RolesAllowed(value = { "user" })
 public class UsersResource extends BaseResource {
+
+    private static Logger logger = LoggerFactory.getLogger(UsersResource.class);
+    private static final Marker BILLING_MARKER = MarkerFactory.getMarker("BILLING");
 
     static UserInfo createUserInfo(User u) {
         UserInfo.Builder b = UserInfo.newBuilder();
@@ -203,8 +211,13 @@ public class UsersResource extends BaseResource {
             em.getTransaction().commit();
             em.getTransaction().begin();
             em.refresh(subscription);
+            logger.info(BILLING_MARKER, String.format("Subscription %d (external %d) created for user %s.",
+                    subscription.getId(), subscription.getExternalId(), u.getEmail()));
             return ResourceUtil.createUserSubscriptionInfo(subscription, server.getConfiguration());
         } else {
+            logger.error(BILLING_MARKER,
+                    String.format("Could not create subscription (external %d) for user %s since it already exists.",
+                            externalId, u.getEmail()));
             throwWebApplicationException(Status.CONFLICT, "User already has subscription");
         }
         return null;
@@ -295,6 +308,10 @@ public class UsersResource extends BaseResource {
                 subscription.setExternalCustomerId(s.getExternalCustomerId());
                 subscription.setProductId(s.getProductId());
                 subscription.setState(s.getState());
+                logger.info(
+                        BILLING_MARKER,
+                        String.format("User %s changed payment details for subscription %d (external %d).",
+                                u.getEmail(), subscription.getId(), subscription.getExternalId()));
             }
             em.persist(subscription);
             em.getTransaction().commit();
@@ -317,9 +334,17 @@ public class UsersResource extends BaseResource {
                 .setParameter("user", u).getResultList();
         if (subscriptions.size() > 0) {
             UserSubscription subscription = subscriptions.get(0);
+            Long subscriptionId = subscription.getId();
+            Long externalId = subscription.getExternalId();
             server.getBillingProvider().cancelSubscription(subscription);
             em.remove(subscription);
+            logger.info(BILLING_MARKER,
+                    String.format("Subscription %d (external %d) for user %s was permanently terminated.",
+                            subscriptionId, externalId, u.getEmail()));
         } else {
+            logger.error(BILLING_MARKER,
+                    String.format("Could not permanently terminate subscription for user %s since it's missing.",
+                            u.getEmail()));
             throwWebApplicationException(Status.NOT_FOUND, "User has no subscription");
         }
     }

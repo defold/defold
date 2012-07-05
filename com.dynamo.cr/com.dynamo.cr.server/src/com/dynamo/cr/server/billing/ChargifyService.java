@@ -14,6 +14,8 @@ import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.Marker;
+import org.slf4j.MarkerFactory;
 
 import com.dynamo.cr.proto.Config.Configuration;
 import com.dynamo.cr.server.model.UserSubscription;
@@ -30,6 +32,7 @@ import com.sun.jersey.api.client.filter.HTTPBasicAuthFilter;
 public class ChargifyService implements IBillingProvider {
 
     private static Logger logger = LoggerFactory.getLogger(ChargifyService.class);
+    private static final Marker BILLING_MARKER = MarkerFactory.getMarker("BILLING");
 
     private static final String BASE_PATH = "/subscriptions";
 
@@ -55,10 +58,10 @@ public class ChargifyService implements IBillingProvider {
     private void verifyAndLogResponse(ClientResponse response, UserSubscription subscription,
             String operation) throws WebApplicationException {
         int status = response.getStatus();
+        String prefix = String.format("Subscription %d (external: %d)", subscription.getId(),
+                subscription.getExternalId());
         if (status >= 200 && status < 300) {
-            logger.info(String.format("Subscription %d (external: %d) was %s.", subscription.getId(),
-                    subscription.getExternalId(),
-                    operation));
+            logger.info(BILLING_MARKER, String.format("%s was %s.", prefix, operation));
         } else {
             ObjectMapper mapper = new ObjectMapper();
             String msg = null;
@@ -77,6 +80,8 @@ public class ChargifyService implements IBillingProvider {
             } catch (IOException e) {
                 msg = "Could not read billing provider response: " + e.getMessage();
             }
+            logger.error(BILLING_MARKER, String.format("%s could not be %s.", prefix, operation));
+            logger.error(BILLING_MARKER, msg);
             Response r = Response
                     .status(status)
                     .type(MediaType.TEXT_PLAIN)
@@ -105,7 +110,8 @@ public class ChargifyService implements IBillingProvider {
                 .path(String.format("/%d/migrations.json", subscription.getExternalId()))
                 .type(MediaType.APPLICATION_JSON_TYPE).accept(MediaType.APPLICATION_JSON_TYPE)
                 .post(ClientResponse.class, root.toString());
-        verifyAndLogResponse(response, subscription, "migrated");
+        verifyAndLogResponse(response, subscription,
+                String.format("migrated from %d to %d", subscription.getProductId(), newProductId));
     }
 
     @Override
@@ -150,10 +156,12 @@ public class ChargifyService implements IBillingProvider {
                 }
                 return subscription;
             } catch (IOException e) {
-                logger.error(String.format("Subscription could not be parsed: %s", e.getMessage()));
+                logger.error(BILLING_MARKER,
+                        String.format("Subscription %d could not be parsed: %s", subscriptionId, e.getMessage()));
             }
         } else {
-            logger.error(String.format("Subscription %d could not be found: %d", subscriptionId, status));
+            logger.error(BILLING_MARKER,
+                    String.format("Subscription %d could not be found: %d", subscriptionId, status));
         }
         return null;
     }
