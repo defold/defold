@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import optparse
+from cStringIO import StringIO
 import os, re, sys
 from jinja2 import FileSystemLoader, ChoiceLoader, Environment
 
@@ -14,6 +15,17 @@ class AsciiDocLoader(FileSystemLoader):
         res[0] = match.groups()[0]
         return res
 
+class BlogPost(object):
+    def __init__(self, id, title, summary, content, date):
+        self.id = id
+        self.title = unicode(title, 'utf-8')
+        self.summary = unicode(summary, 'utf-8')
+        self.content = unicode(content, 'utf-8')
+        self.date = unicode(date, 'utf-8')
+
+    def __str__(self):
+        return '%s\n\n%s' % (self.title, self.summary)
+
 class Desite(object):
     def __init__(self, doc_root, templates, output):
         self.env = Environment(loader=ChoiceLoader([AsciiDocLoader([doc_root]), FileSystemLoader([templates])]))
@@ -21,6 +33,42 @@ class Desite(object):
 
     def _progress(self, msg):
         print >>sys.stderr, msg
+
+    def _split_blog(self, str):
+        found_start = False
+        acc = None
+        lst = []
+        for line in str.split('\n'):
+            # NOTE: This parsing code is probably a bit fragile
+            # and might break in future versions of asciidoc.
+            # A better solution would be to output the metadata directly
+            # from asciidoc or perhaps output docbook-format and parse the xml
+            line += '\n'
+            if '<div class="sect1">' in line:
+                if acc:
+                    content = acc.getvalue()
+                    id, title = re.match('.*?<h2 id="(.*?)">(.*?)</h2>', content, re.DOTALL).groups()
+                    id = id[1:]
+                    summary = re.match('.*?</em>.*?<p.*?>(.*?)</p>', content, re.DOTALL).groups()[0]
+                    date = re.match('.*?<em>(.*?)</em>', content, re.DOTALL).groups()[0]
+                    # Some basic transformation
+                    # escaped & to and
+                    id = id.replace('_amp_', '_and_')
+                    lst.append(BlogPost(id, title, summary, content, date))
+                acc = StringIO()
+                acc.write(line)
+            elif acc:
+                acc.write(line)
+        return lst
+
+    def blog(self, blog, output_dir):
+        blog_html = self.env.get_template(blog).render().encode('UTF-8')
+        posts = self._split_blog(blog_html)
+        for p in posts:
+            output = '%s/%s.html' % (output_dir, p.id)
+            self.render('blog_template.html', output, blog = p.content, active_page = 'blog')
+
+        self.render('blog_index.html', '%s/index.html' % output_dir, posts = posts, active_page = 'blog')
 
     def render_asciidoc(self, asciidoc, output = None, **variables):
         """Renders a asciidoc generated html to a static file
@@ -77,6 +125,7 @@ if __name__ == '__main__':
     ds = Desite(options.doc_root, options.templates, options.output)
 
     globals = { 'asciidoc' : ds.render_asciidoc,
-                'render' : ds.render, }
+                'render' : ds.render,
+                'blog' : ds.blog }
     variables = {}
     execfile(args[0], globals, variables)

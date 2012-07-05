@@ -1,6 +1,9 @@
 # Static site description. Run this file with desite.py
 
+blog('doc/blog.html', 'blog')
+
 render('404.html', 'error/404.html', root='/')
+render('500.html', 'error/500.html', root='/')
 
 docs = ['script_properties.html',
         'eula.html',

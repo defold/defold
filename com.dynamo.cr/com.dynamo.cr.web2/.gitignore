@@ -10,5 +10,6 @@
 /war/doc
 /war/about/*.html
 /war/error/*.html
+/war/blog
 /test-classes/*
 /gwt-unitCache/*

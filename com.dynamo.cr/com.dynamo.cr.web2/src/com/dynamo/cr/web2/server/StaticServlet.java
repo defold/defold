@@ -38,10 +38,17 @@ public class StaticServlet extends HttpServlet {
 
         ServletContext context = getServletContext();
         String path = String.format("%s.html", url.getPath());
+        String index_path = String.format("%s/index.html", url.getPath());
 
         byte[] page = (byte[]) syncCache.get(path);
         if (page == null) {
             InputStream stream = context.getResourceAsStream(path);
+
+            if (stream == null) {
+                // Try to load .../index.html instead
+                stream = context.getResourceAsStream(index_path);
+            }
+
             if (stream == null) {
                 resp.sendError(HttpServletResponse.SC_NOT_FOUND);
                 return;
