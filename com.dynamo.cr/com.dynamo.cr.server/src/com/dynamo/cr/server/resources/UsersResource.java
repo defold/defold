@@ -268,12 +268,8 @@ public class UsersResource extends BaseResource {
                     if (subscription.getState() != State.ACTIVE) {
                         throwWebApplicationException(Status.CONFLICT, "Only active subscriptions can be updated");
                     }
-                    if (billingProvider.migrateSubscription(subscription, newProduct.getId())) {
-                        subscription.setProductId((long) newProduct.getId());
-                    } else {
-                        throwWebApplicationException(Status.INTERNAL_SERVER_ERROR,
-                                "Billing provider could not migrate the subscription");
-                    }
+                    billingProvider.migrateSubscription(subscription, newProduct.getId());
+                    subscription.setProductId((long) newProduct.getId());
                 }
             }
             // Update state
@@ -285,12 +281,8 @@ public class UsersResource extends BaseResource {
                         throwWebApplicationException(Status.CONFLICT, "Subscriptions can only be manually activated");
                     }
                     if (oldState == State.CANCELED) {
-                        if (billingProvider.reactivateSubscription(subscription)) {
-                            newState = State.PENDING;
-                        } else {
-                            throwWebApplicationException(Status.INTERNAL_SERVER_ERROR,
-                                    "Billing provider could not reactivate the subscription");
-                        }
+                        billingProvider.reactivateSubscription(subscription);
+                        newState = State.PENDING;
                     }
                     subscription.setState(newState);
                 }
@@ -325,11 +317,7 @@ public class UsersResource extends BaseResource {
                 .setParameter("user", u).getResultList();
         if (subscriptions.size() > 0) {
             UserSubscription subscription = subscriptions.get(0);
-            boolean canceled = server.getBillingProvider().cancelSubscription(subscription);
-            if (!canceled) {
-                throwWebApplicationException(Status.INTERNAL_SERVER_ERROR,
-                        "Billing provider could not cancel the subscription");
-            }
+            server.getBillingProvider().cancelSubscription(subscription);
             em.remove(subscription);
         } else {
             throwWebApplicationException(Status.NOT_FOUND, "User has no subscription");

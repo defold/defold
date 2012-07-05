@@ -24,93 +24,6 @@ public class SubscriptionActivity extends AbstractActivity implements Subscripti
         this.clientFactory = clientFactory;
     }
 
-    public void loadProducts() {
-        final SubscriptionView subscriptionView = clientFactory.getSubscriptionView();
-        subscriptionView.setLoading(true);
-        final Defold defold = clientFactory.getDefold();
-        defold.getResource("/products", new ResourceCallback<ProductInfoList>() {
-
-            @Override
-            public void onSuccess(ProductInfoList productInfoList, Request request,
-                    Response response) {
-                subscriptionView.setProductInfoList(productInfoList);
-            }
-
-            @Override
-            public void onFailure(Request request, Response response) {
-                subscriptionView.clear();
-            }
-        });
-    }
-
-    private void loadSubscription() {
-        final SubscriptionView subscriptionView = clientFactory.getSubscriptionView();
-        subscriptionView.setLoading(true);
-        final Defold defold = clientFactory.getDefold();
-        defold.getResource("/users/" + defold.getUserId() + "/subscription",
-                new ResourceCallback<UserSubscriptionInfo>() {
-
-                    @Override public void onSuccess(UserSubscriptionInfo subscription,
-                            Request request, Response response) {
-                        subscriptionView.setUserSubscription(subscription);
-                        String newSubscriptionId = place.getSubscriptionId();
-                        if (newSubscriptionId != null) {
-                            if (subscription.getCreditCardInfo().getMaskedNumber().isEmpty()) {
-                                createSubscription(newSubscriptionId);
-                            } else {
-                                updateSubscription(newSubscriptionId);
-                            }
-                        }
-                    }
-
-                    @Override public void onFailure(Request request, Response response) {
-                        defold.showErrorMessage("Subscription data could not be loaded.");
-                    }
-                });
-    }
-
-    private void createSubscription(String newSubscriptionId) {
-        final SubscriptionView subscriptionView = clientFactory.getSubscriptionView();
-        subscriptionView.setLoading(true);
-        final Defold defold = clientFactory.getDefold();
-        defold.postResourceRetrieve("/users/" + defold.getUserId() + "/subscription?external_id=" + newSubscriptionId,
-                "",
-                new ResourceCallback<UserSubscriptionInfo>() {
-
-                    @Override
-                    public void onSuccess(UserSubscriptionInfo subscription,
-                            Request request, Response response) {
-                        subscriptionView.setUserSubscription(subscription);
-                    }
-
-                    @Override
-                    public void onFailure(Request request, Response response) {
-                        defold.showErrorMessage("Subscription data could not be created.");
-                    }
-                });
-    }
-
-    private void updateSubscription(String newSubscriptionId) {
-        final SubscriptionView subscriptionView = clientFactory.getSubscriptionView();
-        subscriptionView.setLoading(true);
-        final Defold defold = clientFactory.getDefold();
-        defold.putResourceRetrieve("/users/" + defold.getUserId() + "/subscription?external_id=" + newSubscriptionId,
-                "",
-                new ResourceCallback<UserSubscriptionInfo>() {
-
-                    @Override
-                    public void onSuccess(UserSubscriptionInfo subscription,
-                            Request request, Response response) {
-                        subscriptionView.setUserSubscription(subscription);
-                    }
-
-                    @Override
-                    public void onFailure(Request request, Response response) {
-                        defold.showErrorMessage("Subscription data could not be created.");
-                    }
-                });
-    }
-
     @Override
     public void start(AcceptsOneWidget containerWidget, EventBus eventBus) {
         // Check if we received a subscription id, bail out and convert it to
@@ -127,6 +40,116 @@ public class SubscriptionActivity extends AbstractActivity implements Subscripti
         subscriptionView.clear();
         loadProducts();
         loadSubscription();
+    }
+
+    private void showErrorMessage(String message) {
+        Defold defold = clientFactory.getDefold();
+        defold.showErrorMessage(message);
+        SubscriptionView subscriptionView = clientFactory.getSubscriptionView();
+        subscriptionView.setLoading(false);
+    }
+
+    private void loadProducts() {
+        final SubscriptionView subscriptionView = clientFactory.getSubscriptionView();
+        subscriptionView.setLoading(true);
+        final Defold defold = clientFactory.getDefold();
+        defold.getResource("/products", new ResourceCallback<ProductInfoList>() {
+
+            @Override
+            public void onSuccess(ProductInfoList productInfoList, Request request,
+                    Response response) {
+                if (productInfoList != null) {
+                    subscriptionView.setProductInfoList(productInfoList);
+                } else {
+                    showErrorMessage(response.getText());
+                }
+            }
+
+            @Override
+            public void onFailure(Request request, Response response) {
+                showErrorMessage("Could not load products (network error).");
+            }
+        });
+    }
+
+    private void loadSubscription() {
+        final SubscriptionView subscriptionView = clientFactory.getSubscriptionView();
+        subscriptionView.setLoading(true);
+        final Defold defold = clientFactory.getDefold();
+        defold.getResource("/users/" + defold.getUserId() + "/subscription",
+                new ResourceCallback<UserSubscriptionInfo>() {
+
+                    @Override public void onSuccess(UserSubscriptionInfo subscription,
+                            Request request, Response response) {
+                        if (subscription != null) {
+                            subscriptionView.setUserSubscription(subscription);
+                            String newSubscriptionId = place.getSubscriptionId();
+                            if (newSubscriptionId != null) {
+                                if (subscription.getCreditCardInfo().getMaskedNumber().isEmpty()) {
+                                    createSubscription(newSubscriptionId);
+                                } else {
+                                    updateSubscription(newSubscriptionId);
+                                }
+                            }
+                        } else {
+                            showErrorMessage(response.getText());
+                        }
+                    }
+
+                    @Override public void onFailure(Request request, Response response) {
+                        showErrorMessage("Subscription data could not be loaded (network error).");
+                    }
+                });
+    }
+
+    private void createSubscription(String newSubscriptionId) {
+        final SubscriptionView subscriptionView = clientFactory.getSubscriptionView();
+        subscriptionView.setLoading(true);
+        final Defold defold = clientFactory.getDefold();
+        defold.postResourceRetrieve("/users/" + defold.getUserId() + "/subscription?external_id=" + newSubscriptionId,
+                "",
+                new ResourceCallback<UserSubscriptionInfo>() {
+
+                    @Override
+                    public void onSuccess(UserSubscriptionInfo subscription,
+                            Request request, Response response) {
+                        if (subscription != null) {
+                            subscriptionView.setUserSubscription(subscription);
+                        } else {
+                            showErrorMessage(response.getText());
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Request request, Response response) {
+                        showErrorMessage("Subscription data could not be created (network error).");
+                    }
+                });
+    }
+
+    private void updateSubscription(String newSubscriptionId) {
+        final SubscriptionView subscriptionView = clientFactory.getSubscriptionView();
+        subscriptionView.setLoading(true);
+        final Defold defold = clientFactory.getDefold();
+        defold.putResourceRetrieve("/users/" + defold.getUserId() + "/subscription?external_id=" + newSubscriptionId,
+                "",
+                new ResourceCallback<UserSubscriptionInfo>() {
+
+                    @Override
+                    public void onSuccess(UserSubscriptionInfo subscription,
+                            Request request, Response response) {
+                        if (subscription != null) {
+                            subscriptionView.setUserSubscription(subscription);
+                        } else {
+                            showErrorMessage(response.getText());
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Request request, Response response) {
+                        showErrorMessage("Subscription data could not be updated (network error).");
+                    }
+                });
     }
 
     @Override
@@ -148,13 +171,17 @@ public class SubscriptionActivity extends AbstractActivity implements Subscripti
                         @Override
                         public void onSuccess(UserSubscriptionInfo subscription,
                                 Request request, Response response) {
-                            final SubscriptionView subscriptionView = clientFactory.getSubscriptionView();
-                            subscriptionView.setUserSubscription(subscription);
+                            if (subscription != null) {
+                                final SubscriptionView subscriptionView = clientFactory.getSubscriptionView();
+                                subscriptionView.setUserSubscription(subscription);
+                            } else {
+                                showErrorMessage(response.getText());
+                            }
                         }
 
                         @Override
                         public void onFailure(Request request, Response response) {
-                            defold.showErrorMessage("Subscription could not be migrated to the product " + product.getName() + ".");
+                            showErrorMessage("Subscription could not be updated (network error).");
                         }
                     });
         }
@@ -170,13 +197,17 @@ public class SubscriptionActivity extends AbstractActivity implements Subscripti
                     @Override
                     public void onSuccess(UserSubscriptionInfo subscription,
                             Request request, Response response) {
-                        final SubscriptionView subscriptionView = clientFactory.getSubscriptionView();
-                        subscriptionView.setUserSubscription(subscription);
+                        if (subscription != null) {
+                            final SubscriptionView subscriptionView = clientFactory.getSubscriptionView();
+                            subscriptionView.setUserSubscription(subscription);
+                        } else {
+                            showErrorMessage(response.getText());
+                        }
                     }
 
                     @Override
                     public void onFailure(Request request, Response response) {
-                        defold.showErrorMessage("Subscription could not be reactivated.");
+                        showErrorMessage("Subscription could not be reactivated (network error).");
                     }
                 });
     }
@@ -191,12 +222,16 @@ public class SubscriptionActivity extends AbstractActivity implements Subscripti
                     @Override
                     public void onSuccess(String data,
                             Request request, Response response) {
-                        loadSubscription();
+                        if (response.getStatusCode() >= 200 && response.getStatusCode() < 300) {
+                            loadSubscription();
+                        } else {
+                            showErrorMessage(response.getText());
+                        }
                     }
 
                     @Override
                     public void onFailure(Request request, Response response) {
-                        defold.showErrorMessage("Subscription could not be terminated.");
+                        showErrorMessage("Subscription could not be terminated (network error).");
                     }
                 });
     }

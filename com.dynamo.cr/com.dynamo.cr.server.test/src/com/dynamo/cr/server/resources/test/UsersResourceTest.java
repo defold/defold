@@ -12,6 +12,7 @@ import java.net.URI;
 import java.util.List;
 
 import javax.persistence.EntityManager;
+import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriBuilder;
@@ -743,9 +744,9 @@ public class UsersResourceTest extends AbstractResourceTest {
 
     @Test
     public void testUpdateProviderFail() throws Exception {
-        Mockito.when(
-                server.getBillingProvider().migrateSubscription(Mockito.any(UserSubscription.class),
-                        Mockito.anyInt())).thenReturn(false);
+        Mockito.doThrow(new WebApplicationException()).when(
+                server.getBillingProvider()).migrateSubscription(Mockito.any(UserSubscription.class),
+                Mockito.anyInt());
 
         Client client = Client.create(clientConfig);
         client.addFilter(new HTTPBasicAuthFilter(joeEmail, joePasswd));
@@ -785,9 +786,8 @@ public class UsersResourceTest extends AbstractResourceTest {
 
     @Test
     public void testDeleteProviderFail() throws Exception {
-        Mockito.when(
-                server.getBillingProvider().cancelSubscription(Mockito.any(UserSubscription.class)))
-                .thenReturn(false);
+        Mockito.doThrow(new WebApplicationException()).when(server.getBillingProvider())
+                .cancelSubscription(Mockito.any(UserSubscription.class));
 
         postUserSubscription(joeUser.getId(), 1l);
 

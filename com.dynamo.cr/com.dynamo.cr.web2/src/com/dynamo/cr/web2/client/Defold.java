@@ -96,7 +96,12 @@ public class Defold implements EntryPoint {
             @SuppressWarnings("unchecked")
             @Override
             public void onSuccess(String result, Request request, Response response) {
-                callback.onSuccess((T) BaseResponse.getResponse(response.getText()), request, response);
+                int statusCode = response.getStatusCode();
+                T entity = null;
+                if (statusCode >= 200 && statusCode < 300) {
+                    entity = (T) BaseResponse.getResponse(response.getText());
+                }
+                callback.onSuccess(entity, request, response);
             }
 
             @Override

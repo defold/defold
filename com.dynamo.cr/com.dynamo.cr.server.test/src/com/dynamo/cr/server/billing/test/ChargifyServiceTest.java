@@ -1,7 +1,6 @@
 package com.dynamo.cr.server.billing.test;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
 import java.io.File;
@@ -192,8 +191,8 @@ public class ChargifyServiceTest {
         BillingProduct free = server.getProductByHandle("free");
         BillingProduct small = server.getProductByHandle("small");
 
-        assertTrue(billingProvider.migrateSubscription(subscription, free.getId()));
-        assertTrue(billingProvider.migrateSubscription(subscription, small.getId()));
+        billingProvider.migrateSubscription(subscription, free.getId());
+        billingProvider.migrateSubscription(subscription, small.getId());
     }
 
     @Test
@@ -201,8 +200,8 @@ public class ChargifyServiceTest {
         UserSubscription subscription = new UserSubscription();
         subscription.setExternalId(subscriptionId);
 
-        assertTrue(billingProvider.cancelSubscription(subscription));
-        assertTrue(billingProvider.reactivateSubscription(subscription));
+        billingProvider.cancelSubscription(subscription);
+        billingProvider.reactivateSubscription(subscription);
     }
 
     @Test

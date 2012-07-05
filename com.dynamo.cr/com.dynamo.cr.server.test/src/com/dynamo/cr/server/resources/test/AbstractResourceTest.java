@@ -70,11 +70,6 @@ public class AbstractResourceTest {
         mailer = new TestMailer();
 
         billingProvider = mock(IBillingProvider.class);
-        Mockito.when(billingProvider.migrateSubscription(Mockito.any(UserSubscription.class),
-                Mockito.anyInt()))
-                .thenReturn(true);
-        Mockito.when(billingProvider.reactivateSubscription(Mockito.any(UserSubscription.class))).thenReturn(true);
-        Mockito.when(billingProvider.cancelSubscription(Mockito.any(UserSubscription.class))).thenReturn(true);
 
         module = new Module(mailer);
         Injector injector = Guice.createInjector(module);
