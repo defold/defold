@@ -36,7 +36,7 @@ class Desite(object):
     def _progress(self, msg):
         print >>sys.stderr, msg
 
-    def render_reference(self, doc, output):
+    def render_reference(self, doc, output, **variables):
         msg = script_doc_ddf_pb2.Document()
         with open(doc, 'r') as f:
             msg.MergeFromString(f.read())
@@ -47,7 +47,8 @@ class Desite(object):
         self.render('ref.html', output,
                     functions = functions,
                     messages = messages,
-                    constants = constants)
+                    constants = constants,
+                    **variables)
 
     def _split_blog(self, str):
         found_start = False

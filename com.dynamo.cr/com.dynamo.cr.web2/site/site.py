@@ -2,7 +2,8 @@
 import os
 
 for d in ['engine', 'gamesys', 'go', 'gui', 'render', 'script']:
-    ref(os.path.join(dynamo_home, 'share', 'doc', '%s_doc.sdoc' % d), 'ref/%s.html' % d)
+    ref(os.path.join(dynamo_home, 'share', 'doc', '%s_doc.sdoc' % d), 'ref/%s.html' % d,
+        active_page = 'documentation')
 
 blog('doc/blog.html', 'blog')
 
