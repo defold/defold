@@ -23,6 +23,10 @@
         <g:Image url="images/ajax-loader.gif" styleName="{style.loader}" ui:field="loader"></g:Image>
 	    <g:HTMLPanel styleName="{style.panel}" ui:field="content">
 	        <h1>Plans</h1>
+	        <g:HTMLPanel ui:field="cancellationMessage">
+	           <p>Your plan has been cancelled because of missing payments. The message from the billing provider was:</p>
+	           <g:Label ui:field="providerMessage"></g:Label>
+	        </g:HTMLPanel>
 	        <g:Grid ui:field="productTable"></g:Grid>
 	        <g:HTMLPanel ui:field="creditCard">
 	            <h3>Credit Card</h3>

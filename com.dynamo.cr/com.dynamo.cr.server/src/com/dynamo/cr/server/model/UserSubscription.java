@@ -81,6 +81,9 @@ public class UserSubscription {
     @Enumerated(EnumType.STRING)
     private State state = State.PENDING;
 
+    @Column
+    private String cancellationMessage;
+
     @Embedded
     private CreditCard creditCard;
 
@@ -126,6 +129,14 @@ public class UserSubscription {
 
     public void setState(State state) {
         this.state = state;
+    }
+
+    public String getCancellationMessage() {
+        return this.cancellationMessage;
+    }
+
+    public void setCancellationMessage(String cancellationMessage) {
+        this.cancellationMessage = cancellationMessage;
     }
 
     public CreditCard getCreditCard() {

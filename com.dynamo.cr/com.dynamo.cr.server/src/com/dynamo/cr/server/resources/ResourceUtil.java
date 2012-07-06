@@ -136,6 +136,9 @@ public class ResourceUtil {
         }
         b.setUpdateUrl(ChargifyUtil.generateUpdateUrl(subscription.getExternalId(), configuration.getBillingApiUrl(),
                 configuration.getBillingSharedKey()));
+        if (subscription.getCancellationMessage() != null) {
+            b.setCancellationMessage(subscription.getCancellationMessage());
+        }
         return b.build();
     }
 }

@@ -300,4 +300,5 @@ message UserSubscriptionInfo {
     required UserSubscriptionState state = 2;
     optional CreditCardInfo credit_card = 3;
     optional string update_url = 4;
+    optional string cancellation_message = 5;
 }

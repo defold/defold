@@ -34,7 +34,8 @@ public class ChargifyResource extends BaseResource {
         String key = server.getConfiguration().getBillingSharedKey();
         String expectedSignature = ChargifyUtil.generateSignature(key, body);
         if (!expectedSignature.equals(signature)) {
-            logger.warn(BILLING_MARKER, "Unauthorized attempt to access chargify resource, body: " + body);
+            logger.warn(BILLING_MARKER,
+                    "Unauthorized attempt to access chargify resource, body: " + body);
             throwWebApplicationException(Status.FORBIDDEN, "Not authorized");
         }
         if (event != null) {
@@ -60,9 +61,10 @@ public class ChargifyResource extends BaseResource {
         em.getTransaction().commit();
     }
 
-    private void cancelSubscription(String subscriptionId) {
+    private void cancelSubscription(String subscriptionId, String cancellationMessage) {
         UserSubscription s = ModelUtil.findUserSubscriptionByExternalId(em, subscriptionId);
         s.setState(State.CANCELED);
+        s.setCancellationMessage(cancellationMessage);
         em.getTransaction().begin();
         em.persist(s);
         em.getTransaction().commit();
@@ -71,13 +73,13 @@ public class ChargifyResource extends BaseResource {
     private void handleSignupFailure(String subscriptionId, String cancellationMessage) {
         logger.info(BILLING_MARKER, "Subscription %d failed to start because: %s", subscriptionId,
                 cancellationMessage);
-        cancelSubscription(subscriptionId);
+        cancelSubscription(subscriptionId, cancellationMessage);
     }
 
     private void handleRenewalFailure(String subscriptionId, String cancellationMessage) {
         logger.info(BILLING_MARKER, "Subscription %d failed to renew because: %s", subscriptionId,
                 cancellationMessage);
-        cancelSubscription(subscriptionId);
+        cancelSubscription(subscriptionId, cancellationMessage);
     }
 
     private void handleSubscriptionStateChange(String subscriptionId, String state, String previousState) {

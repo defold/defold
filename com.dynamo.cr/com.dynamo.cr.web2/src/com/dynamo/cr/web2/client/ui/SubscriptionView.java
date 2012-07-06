@@ -23,6 +23,7 @@ import com.google.gwt.user.client.ui.Composite;
 import com.google.gwt.user.client.ui.Grid;
 import com.google.gwt.user.client.ui.HTMLPanel;
 import com.google.gwt.user.client.ui.Image;
+import com.google.gwt.user.client.ui.Label;
 import com.google.gwt.user.client.ui.Widget;
 
 public class SubscriptionView extends Composite implements ClickHandler {
@@ -39,6 +40,10 @@ public class SubscriptionView extends Composite implements ClickHandler {
 
     private static SubscriptionUiBinder uiBinder = GWT
             .create(SubscriptionUiBinder.class);
+    @UiField
+    HTMLPanel cancellationMessage;
+    @UiField
+    Label providerMessage;
     @UiField
     Grid productTable;
 
@@ -69,7 +74,7 @@ public class SubscriptionView extends Composite implements ClickHandler {
     public SubscriptionView() {
         initWidget(uiBinder.createAndBindUi(this));
         setLoading(false);
-
+        this.cancellationMessage.setVisible(false);
         Element thead = DOM.createElement("thead");
         Element tr = DOM.createTR();
 
@@ -112,6 +117,13 @@ public class SubscriptionView extends Composite implements ClickHandler {
             this.expiration.setInnerText(expiration);
         } else {
             this.creditCard.setVisible(false);
+        }
+        if (subscription.getState().equals("CANCELED") && subscription.getCancellationMessage() != null
+                && !subscription.getCancellationMessage().isEmpty()) {
+            this.cancellationMessage.setVisible(true);
+            this.providerMessage.setText(subscription.getCancellationMessage());
+        } else {
+            this.cancellationMessage.setVisible(false);
         }
         loadProducts();
     }

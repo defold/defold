@@ -26,6 +26,10 @@ public class UserSubscriptionInfo extends BaseResponse {
 		return this.update_url;
     }-*/;
 
+    public final native String getCancellationMessage() /*-{
+		return this.cancellation_message;
+    }-*/;
+
 }
 
 
