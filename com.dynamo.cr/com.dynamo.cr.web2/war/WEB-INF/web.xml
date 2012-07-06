@@ -20,6 +20,41 @@
 		<url-pattern>*</url-pattern>
 	</filter-mapping>
 
+    <servlet>
+        <servlet-name>static</servlet-name>
+        <servlet-class>com.dynamo.cr.web2.server.StaticServlet</servlet-class>
+    </servlet>
+
+    <servlet-mapping>
+        <servlet-name>static</servlet-name>
+        <url-pattern>/doc/*</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>static</servlet-name>
+        <url-pattern>/about/*</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>static</servlet-name>
+        <url-pattern>/blog/*</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>static</servlet-name>
+        <url-pattern>/ref/*</url-pattern>
+    </servlet-mapping>
+
+    <error-page>
+       <error-code>404</error-code>
+       <location>/error/404.html</location>
+    </error-page>
+
+    <error-page>
+       <error-code>500</error-code>
+       <location>/error/500.html</location>
+    </error-page>
+
 	<mime-mapping>
 		<extension>mp4</extension>
 		<mime-type>video/mp4</mime-type>

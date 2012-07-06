@@ -1,9 +1,0 @@
-.DS_Store
-.lock-wscript
-build
-*.mesh
-*.material
-*.vpc
-*.fpc
-*.model
-*.pyc

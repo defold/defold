@@ -1,5 +1,4 @@
-server*.log
-access*.log
-access*.xml
-billing*.log
-
+/server*.log
+/access*.log
+/access*.xml
+/billing*.log

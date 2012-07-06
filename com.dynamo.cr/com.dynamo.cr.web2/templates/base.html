@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Defold - {% block title %}{% endblock %}</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="">
+<meta name="author" content="">
+<link href='http://fonts.googleapis.com/css?family=Open+Sans' rel='stylesheet' type='text/css'>
+<link href="{{root}}bootstrap/css/bootstrap.css" rel="stylesheet">
+<link href="{{root}}bootstrap-defold.css" rel="stylesheet">
+<link href="{{root}}asciidoc-new.css" rel="stylesheet">
+<style type="text/css">
+body {
+    padding-top: 60px;
+}
+
+.sidebar-nav {
+    padding: 9px 0;
+}
+</style>
+<link href="{{root}}bootstrap/css/bootstrap-responsive.css" rel="stylesheet">
+<!-- Le HTML5 shim, for IE6-8 support of HTML5 elements -->
+<!--[if lt IE 9]>
+      <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+<link rel="shortcut icon" href="{{root}}favicon.ico">
+</head>
+{% set navigation_bar = [
+    ('/blog', 'blog', 'Blog'),
+    ('/doc', 'documentation', 'Documentation'),
+    ('/dashboard', 'dashboard', 'Dashboard'),
+] -%}
+<body>
+    <div class="navbar navbar-fixed-top">
+        <div class="navbar-inner">
+            <div class="container">
+                <a class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse"> <span class="icon-bar"></span>
+                    <span class="icon-bar"></span> <span class="icon-bar"></span>
+                </a> <a class="brand" href="/">Defold</a>
+                <div class="nav-collapse">
+                    <ul class="nav">
+                        {% for href, id, caption in navigation_bar %}
+                            <li{% if id == active_page %} class="active"{% endif
+                            %}><a href="{{ href|e }}">{{ caption|e }}</a></li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="container" style="min-height: 500px;">{% block content %}{% endblock %}</div>
+    <footer>
+        <div class="container">
+            <div class="row-fluid">
+                <div class="span4">
+                    <h3>
+                        <span class="slash">//</span>About
+                    </h3>
+                    <ul class="unstyled">
+                        <li><a href="/blog">Blog</a></li>
+                        <li><a href="/about/story">Story</a></li>
+                        <li><a href="/about/eula">Terms of Service</a></li>
+                    </ul>
+                </div>
+                <div class="span4">
+                    <h3>
+                        <span class="slash">//</span>Social
+                    </h3>
+                    <ul class="unstyled social">
+                        <li><a href="http://www.facebook.com/pages/Defold/393752703986118" target="_blank" class="social-icon facebook-icon"></a></li>
+                        <li><a href="http://www.twitter.com/defoldengine" target="_blank" class="social-icon twitter-icon"></a></li>
+                    </ul>
+                </div>
+                <div class="span4">
+                    <h3>
+                        <span class="slash">//</span>Support
+                    </h3>
+                    <ul class="unstyled">
+                        <li><a href="/doc">Documentation</a></li>
+                        <li><a href="http://defold.userecho.com/" target="_blank">Forum</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="copyright">
+                <hr>
+                &copy; Defold 2010-2012
+            </div>
+        </div>
+    </footer>
+
+    <!-- Placed at the end of the document so the pages load faster -->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js"></script>
+    <script src="{{root}}bootstrap/js/bootstrap.js"></script>
+    <script>
+	</script>
+</body>
+</html>

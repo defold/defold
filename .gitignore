@@ -1,4 +1,4 @@
-.metadata
-.pydevproject
-tmp
-
+/.metadata
+/tmp
+.DS_Store
+.lock-wscript

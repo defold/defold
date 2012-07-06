@@ -1,9 +1,2 @@
-.DS_Store
-.lock-wscript
-build
-*.pyc
-.project
-.cproject
-.pydevproject
-src/test/builtins
+/src/test/builtins
 
