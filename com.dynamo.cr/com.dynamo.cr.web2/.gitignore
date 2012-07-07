@@ -6,7 +6,6 @@
 /war/defold/
 /war/doc/*.json
 /war/site/
-/war/images/
 /war/doc
 /war/about/*.html
 /war/error/*.html
