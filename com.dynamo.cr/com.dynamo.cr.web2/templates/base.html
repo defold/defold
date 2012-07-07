@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Defold - {% block title %}{% endblock %}</title>
+<title>{% block title %}Defold{% endblock %}</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="description" content="">
 <meta name="author" content="">
@@ -11,10 +11,6 @@
 <link href="{{root}}bootstrap-defold.css" rel="stylesheet">
 <link href="{{root}}asciidoc-new.css" rel="stylesheet">
 <style type="text/css">
-body {
-    padding-top: 60px;
-}
-
 .sidebar-nav {
     padding: 9px 0;
 }
@@ -25,6 +21,10 @@ body {
       <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
     <![endif]-->
 <link rel="shortcut icon" href="{{root}}favicon.ico">
+
+{% block head %}
+{% endblock %}
+
 </head>
 {% set navigation_bar = [
     ('/blog', 'blog', 'Blog'),
@@ -49,7 +49,7 @@ body {
             </div>
         </div>
     </div>
-    <div class="container" style="min-height: 500px;">{% block content %}{% endblock %}</div>
+    {% block content %}{% endblock %}
     <footer>
         <div class="container">
             <div class="row-fluid">
@@ -94,5 +94,8 @@ body {
     <script src="{{root}}bootstrap/js/bootstrap.js"></script>
     <script>
 	</script>
+    {% block end %}
+    {% endblock %}
+
 </body>
 </html>

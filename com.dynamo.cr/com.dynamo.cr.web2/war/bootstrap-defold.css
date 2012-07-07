@@ -1,5 +1,4 @@
 /* Custom Defold modifications for bootstrap */
-
 /*
  "Hack" to get <footer> to fill the screen on iphone etc
  We move the 20 pixel padding from body to the .container class
@@ -35,13 +34,18 @@ body {
     font-family: "Open Sans", Helvetica, Arial, sans-serif;
 }
 
+/* For static top navigation bar */
+body {
+    padding-top: 60px;
+}
+
 /* Avatar/account container */
 .account-container {
     display: table;
     margin-bottom: 1em;
 }
 
-div.account-container > img {
+div.account-container>img {
     padding: 4px;
     line-height: 1;
     border: 1px solid #DDD;
@@ -55,7 +59,7 @@ div.account-container > img {
     margin-right: 1em;
 }
 
-div.account-container > div {
+div.account-container>div {
     padding-top: 0.2em;
     font-weight: 500;
     display: table-cell;

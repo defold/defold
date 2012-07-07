@@ -1,0 +1,157 @@
+/* This file is a bit messy but it's only used for the landing page */
+
+a.video-link:hover img {
+    _border: 1px dotted #000;
+    filter: alpha(opacity = 75);
+    -moz-opacity: 0.75;
+    opacity: 0.75;
+}
+
+a.video-link img {
+    _display: block;
+    padding: 4px;
+    line-height: 1;
+    border: 1px solid #DDD;
+    -webkit-border-radius: 4px;
+    -moz-border-radius: 4px;
+    border-radius: 4px;
+    -webkit-box-shadow: 0 1px 1px rgba(0, 0, 0, 0.075);
+    -moz-box-shadow: 0 1px 1px rgba(0, 0, 0, 0.075);
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.075);
+}
+
+header.landing {
+    padding-top: 36px;
+    margin-bottom: 0px;
+}
+
+.landing h1 {
+    margin-bottom: 18px;
+}
+
+.landing h1,.landing p {
+    text-align: center;
+}
+
+.landing h1 {
+    margin-bottom: 9px;
+    font-size: 81px;
+    font-weight: bold;
+    letter-spacing: -1px;
+    line-height: 1;
+    margin-top: 24px;
+}
+
+.landing p {
+    margin-left: 5%;
+    margin-right: 5%;
+    font-size: 30px;
+    line-height: 36px;
+}
+
+div.stripe {
+    background-color: #eee;
+    padding: 42px 0px;
+    margin-bottom: 48px;
+    border-top: 1px solid #ccc;
+    border-bottom: 1px solid #ccc;
+}
+
+hr.soften {
+    height: 1px;
+    margin: 54px 0;
+    background-image: -webkit-linear-gradient(left, transparent, rgba(0, 0, 0, .1),
+        transparent );
+    background-image: -moz-linear-gradient(left, transparent, rgba(0, 0, 0, .1),
+        transparent );
+    background-image: -ms-linear-gradient(left, transparent, rgba(0, 0, 0, .1),
+        transparent );
+    background-image: -o-linear-gradient(left, transparent, rgba(0, 0, 0, .1),
+        transparent );
+    border: 0;
+}
+
+.well {
+    background-color: #E6E6E6;
+}
+
+div.marketing {
+    border-top: 5px solid #9c9c9c;
+}
+
+.marketing h1 {
+    margin: 36px 0 27px;
+    font-size: 40px;
+    font-weight: 300;
+    text-align: center;
+}
+
+.marketing h2 {
+    font-size: 22px;
+    margin-bottom: 0.5em;
+}
+
+.marketing h2,.marketing h3 {
+    font-weight: 300;
+}
+
+.marketing .bs-icon {
+    float: left;
+    margin: 7px 10px 0 0;
+    opacity: .8;
+}
+
+.marketing li {
+    margin-bottom: 0.75em;
+}
+
+.marketing p {
+    margin-right: 10px;
+}
+
+.marketing-byline {
+    margin: -18px 0 27px;
+    font-size: 18px;
+    font-weight: 300;
+    line-height: 24px;
+    color: #999;
+    text-align: center;
+}
+
+div.splash {
+    border-top: 1px solid #9c9c9c;
+    background-color: #f3f3f3;
+    padding: 3em 3em 6em 3em;
+}
+
+div.landing-text {
+    margin-right: 2em;
+}
+
+.landing-text h1 {
+    margin-bottom: .65em;
+    font-size: 44px;
+    font-weight: 600;
+    line-height: 1.5em;
+    color: #3a3a3a;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, .2);
+}
+
+p.landing-actions {
+    margin-top: 5em;
+}
+
+#landing .splash {
+    _color: white;
+    color: #222;
+    _text-shadow: 1px 1px 2px rgba(50, 50, 50, .2);
+}
+
+.landing-text p {
+    font-size: 15px;
+    line-height: 2em;
+}
+
+body {
+    padding-top: 40px;
+}
