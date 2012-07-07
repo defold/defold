@@ -17,7 +17,6 @@ import com.dynamo.cr.common.providers.ProtobufProviders;
 import com.dynamo.cr.protocol.proto.Protocol.ProductInfoList;
 import com.dynamo.cr.protocol.proto.Protocol.UserSubscriptionInfo;
 import com.dynamo.cr.protocol.proto.Protocol.UserSubscriptionState;
-import com.dynamo.cr.server.model.Product;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.model.User.Role;
 import com.dynamo.cr.server.util.ChargifyUtil;
@@ -34,8 +33,6 @@ public class ChargifyResourceTest extends AbstractResourceTest {
     String joeEmail = "joe@foo.com";
     String joePasswd = "secret2";
     User joeUser;
-    Product freeProduct;
-    Product smallProduct;
     DefaultClientConfig clientConfig;
     WebResource joeUsersWebResource;
     WebResource chargifyResource;
@@ -54,20 +51,6 @@ public class ChargifyResourceTest extends AbstractResourceTest {
         joeUser.setPassword(joePasswd);
         joeUser.setRole(Role.USER);
         em.persist(joeUser);
-
-        freeProduct = new Product();
-        freeProduct.setName("Free");
-        freeProduct.setHandle("free");
-        freeProduct.setMaxMemberCount(1);
-        freeProduct.setDefault(true);
-        em.persist(freeProduct);
-
-        smallProduct = new Product();
-        smallProduct.setName("Small");
-        smallProduct.setHandle("small");
-        smallProduct.setMaxMemberCount(-1);
-        smallProduct.setDefault(false);
-        em.persist(smallProduct);
 
         em.getTransaction().commit();
 
@@ -107,12 +90,12 @@ public class ChargifyResourceTest extends AbstractResourceTest {
                 .getStatusCode());
     }
 
-    private void createUserSubscription(Long productId, Long externalId, Long externalCustomerId) {
+    private void createUserSubscription(Long productId, Long externalId, Long externalCustomerId,
+            String ccMaskedNumber, int ccExpirationMonth, int ccExpirationYear) {
         ClientResponse response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
-                .queryParam("product", productId.toString())
                 .queryParam("external_id", externalId.toString())
-                .queryParam("external_customer_id", externalCustomerId.toString()).post(ClientResponse.class);
-        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+                .post(ClientResponse.class);
+        assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
     }
 
     @Test
@@ -126,8 +109,12 @@ public class ChargifyResourceTest extends AbstractResourceTest {
 
         Long externalId = 2l;
         Long externalCustomerId = 3l;
+        String maskedNumber = "XXXX-XXXX-XXXX-1234";
+        int expirationMonth = 1;
+        int expirationYear = 2;
 
-        createUserSubscription(productInfoList.getProducts(0).getId(), externalId, externalCustomerId);
+        createUserSubscription(productInfoList.getProducts(0).getId(), externalId, externalCustomerId, maskedNumber,
+                expirationMonth, expirationYear);
 
         // Retrieve it
         UserSubscriptionInfo subscriptionInfo = joeUsersWebResource
@@ -159,8 +146,12 @@ public class ChargifyResourceTest extends AbstractResourceTest {
 
         Long externalId = 2l;
         Long externalCustomerId = 3l;
+        String maskedNumber = "XXXX-XXXX-XXXX-1234";
+        int expirationMonth = 1;
+        int expirationYear = 2;
 
-        createUserSubscription(productInfoList.getProducts(0).getId(), externalId, externalCustomerId);
+        createUserSubscription(productInfoList.getProducts(0).getId(), externalId, externalCustomerId, maskedNumber,
+                expirationMonth, expirationYear);
 
         // Retrieve it
         UserSubscriptionInfo subscriptionInfo = joeUsersWebResource
@@ -192,8 +183,12 @@ public class ChargifyResourceTest extends AbstractResourceTest {
 
         Long externalId = 2l;
         Long externalCustomerId = 3l;
+        String maskedNumber = "XXXX-XXXX-XXXX-1234";
+        int expirationMonth = 1;
+        int expirationYear = 2;
 
-        createUserSubscription(productInfoList.getProducts(0).getId(), externalId, externalCustomerId);
+        createUserSubscription(productInfoList.getProducts(0).getId(), externalId, externalCustomerId, maskedNumber,
+                expirationMonth, expirationYear);
 
         // Retrieve it
         UserSubscriptionInfo subscriptionInfo = joeUsersWebResource

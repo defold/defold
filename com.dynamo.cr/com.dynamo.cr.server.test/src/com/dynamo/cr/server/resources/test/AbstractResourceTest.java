@@ -16,7 +16,10 @@ import org.eclipse.persistence.jpa.osgi.PersistenceProvider;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.mockito.Mockito;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
+import com.dynamo.cr.proto.Config.BillingProduct;
 import com.dynamo.cr.proto.Config.Configuration;
 import com.dynamo.cr.server.ConfigurationProvider;
 import com.dynamo.cr.server.Server;
@@ -25,8 +28,9 @@ import com.dynamo.cr.server.mail.EMail;
 import com.dynamo.cr.server.mail.IMailProcessor;
 import com.dynamo.cr.server.mail.IMailer;
 import com.dynamo.cr.server.mail.MailProcessor;
-import com.dynamo.cr.server.model.Product;
 import com.dynamo.cr.server.model.UserSubscription;
+import com.dynamo.cr.server.model.UserSubscription.CreditCard;
+import com.dynamo.cr.server.model.UserSubscription.State;
 import com.dynamo.cr.server.test.Util;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
@@ -40,6 +44,8 @@ public class AbstractResourceTest {
     static TestMailer mailer;
     static EntityManagerFactory emf;
     static IBillingProvider billingProvider;
+    static BillingProduct freeProduct;
+    static BillingProduct smallProduct;
 
     static class TestMailer implements IMailer {
         List<EMail> emails = new ArrayList<EMail>();
@@ -64,16 +70,27 @@ public class AbstractResourceTest {
         mailer = new TestMailer();
 
         billingProvider = mock(IBillingProvider.class);
-        Mockito.when(billingProvider.migrateSubscription(Mockito.any(UserSubscription.class),
- Mockito.any(Product.class)))
-                .thenReturn(true);
-        Mockito.when(billingProvider.reactivateSubscription(Mockito.any(UserSubscription.class))).thenReturn(true);
-        Mockito.when(billingProvider.cancelSubscription(Mockito.any(UserSubscription.class))).thenReturn(true);
 
         module = new Module(mailer);
         Injector injector = Guice.createInjector(module);
         server = injector.getInstance(Server.class);
         emf = server.getEntityManagerFactory();
+
+        freeProduct = server.getProductByHandle("free");
+        smallProduct = server.getProductByHandle("small");
+
+        Mockito.doAnswer(new Answer<UserSubscription>() {
+            @Override
+            public UserSubscription answer(InvocationOnMock invocation) throws Throwable {
+                UserSubscription subscription = new UserSubscription();
+                subscription.setCreditCard(new CreditCard("1", 1, 2020));
+                subscription.setExternalId((Long)invocation.getArguments()[0]);
+                subscription.setExternalCustomerId(1l);
+                subscription.setProductId((long) freeProduct.getId());
+                subscription.setState(State.PENDING);
+                return subscription;
+            }
+        }).when(billingProvider).getSubscription(Mockito.anyLong());
     }
 
     @AfterClass

@@ -3,6 +3,7 @@ package com.dynamo.cr.web2.client.ui;
 import com.dynamo.cr.web2.client.ProjectInfo;
 import com.dynamo.cr.web2.client.ProjectInfoList;
 import com.dynamo.cr.web2.client.UserInfo;
+import com.dynamo.cr.web2.client.UserSubscriptionInfo;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.core.client.JsArray;
 import com.google.gwt.dom.client.Document;
@@ -30,6 +31,7 @@ public class DashboardView extends Composite {
         void onNewProject();
         void removeProject(ProjectInfo projectInfo);
         boolean isOwner(ProjectInfo projectInfo);
+        void onEditSubscription();
     }
 
     private static DashboardUiBinder uiBinder = GWT
@@ -37,6 +39,7 @@ public class DashboardView extends Composite {
     @UiField SideBar sideBar;
     @UiField FlexTable projects;
     @UiField Button newProjectButton;
+    @UiField SubscriptionBox subscriptionBox;
 
     interface DashboardUiBinder extends UiBinder<Widget, DashboardView> {
     }
@@ -95,9 +98,14 @@ public class DashboardView extends Composite {
         }
     }
 
+    public void setUserSubscription(UserSubscriptionInfo subscription) {
+        subscriptionBox.setSubscription(subscription);
+    }
+
     public void setPresenter(DashboardView.Presenter listener) {
         this.listener = listener;
         sideBar.setActivePage("projects");
+        this.subscriptionBox.setPresenter(listener);
     }
 
     @UiHandler("newProjectButton")

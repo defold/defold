@@ -15,7 +15,7 @@ import org.codehaus.jackson.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.dynamo.cr.server.model.Product;
+import com.dynamo.cr.proto.Config.BillingProduct;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.util.ChargifyUtil;
 import com.sun.jersey.api.client.ClientResponse;
@@ -80,7 +80,8 @@ public class ChargifySimulator {
      *
      * @return subscription json at success, null at failure
      */
-    public JsonNode signUpUser(Product product, User user, String creditCard, boolean failLater) throws Exception {
+    public JsonNode signUpUser(BillingProduct product, User user, String creditCard, boolean failLater)
+            throws Exception {
         ObjectNode root = this.mapper.createObjectNode();
         ObjectNode customer = this.mapper.createObjectNode();
         // We can't populate with custom reference here (Defold-id), since

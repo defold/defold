@@ -2,8 +2,11 @@ package com.dynamo.cr.server.billing;
 
 import java.io.IOException;
 import java.net.URI;
+import java.util.Iterator;
 
+import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriBuilder;
 
 import org.codehaus.jackson.JsonNode;
@@ -11,10 +14,13 @@ import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.Marker;
+import org.slf4j.MarkerFactory;
 
 import com.dynamo.cr.proto.Config.Configuration;
-import com.dynamo.cr.server.model.Product;
 import com.dynamo.cr.server.model.UserSubscription;
+import com.dynamo.cr.server.model.UserSubscription.CreditCard;
+import com.dynamo.cr.server.model.UserSubscription.State;
 import com.google.inject.Inject;
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientResponse;
@@ -26,6 +32,7 @@ import com.sun.jersey.api.client.filter.HTTPBasicAuthFilter;
 public class ChargifyService implements IBillingProvider {
 
     private static Logger logger = LoggerFactory.getLogger(ChargifyService.class);
+    private static final Marker BILLING_MARKER = MarkerFactory.getMarker("BILLING");
 
     private static final String BASE_PATH = "/subscriptions";
 
@@ -48,77 +55,113 @@ public class ChargifyService implements IBillingProvider {
         return this.chargifyResource;
     }
 
-    private boolean verifyAndLogResponse(ClientResponse response, UserSubscription subscription,
-            String operation) {
+    private void verifyAndLogResponse(ClientResponse response, UserSubscription subscription,
+            String operation) throws WebApplicationException {
         int status = response.getStatus();
+        String prefix = String.format("Subscription %d (external: %d)", subscription.getId(),
+                subscription.getExternalId());
         if (status >= 200 && status < 300) {
-            logger.info(String.format("Subscription %d (external: %d) was %s.", subscription.getId(),
-                    subscription.getExternalId(),
-                    operation));
-            return true;
+            logger.info(BILLING_MARKER, String.format("%s was %s.", prefix, operation));
         } else {
-            logger.error(String.format("Subscription %d (external: %d) failed to be %s: %d.", subscription.getId(),
-                    subscription.getExternalId(), operation, status));
-            return false;
+            ObjectMapper mapper = new ObjectMapper();
+            String msg = null;
+            try {
+                JsonNode root = mapper.readTree(response.getEntityInputStream());
+                Iterator<JsonNode> errors = root.get("errors").getElements();
+                StringBuilder builder = new StringBuilder();
+                while (errors.hasNext()) {
+                    JsonNode error = errors.next();
+                    builder.append(error.getTextValue()).append(".");
+                    if (errors.hasNext()) {
+                        builder.append(" ");
+                    }
+                }
+                msg = builder.toString();
+            } catch (IOException e) {
+                msg = "Could not read billing provider response: " + e.getMessage();
+            }
+            logger.error(BILLING_MARKER, String.format("%s could not be %s.", prefix, operation));
+            logger.error(BILLING_MARKER, msg);
+            Response r = Response
+                    .status(status)
+                    .type(MediaType.TEXT_PLAIN)
+                    .entity(msg)
+                    .build();
+            throw new WebApplicationException(r);
         }
     }
 
     @Override
-    public boolean reactivateSubscription(UserSubscription subscription) {
+    public void reactivateSubscription(UserSubscription subscription) throws WebApplicationException {
         ClientResponse response = chargifyResource
                 .path(String.format("/%d/reactivate.json", subscription.getExternalId()))
                 .type(MediaType.APPLICATION_JSON_TYPE).accept(MediaType.APPLICATION_JSON_TYPE)
                 .put(ClientResponse.class, "");
-        return verifyAndLogResponse(response, subscription, "reactivated");
+        verifyAndLogResponse(response, subscription, "reactivated");
     }
 
     @Override
-    public boolean migrateSubscription(UserSubscription subscription, Product newProduct) {
+    public void migrateSubscription(UserSubscription subscription, int newProductId) throws WebApplicationException {
         ObjectNode root = mapper.createObjectNode();
         ObjectNode migration = mapper.createObjectNode();
-        migration.put("product_handle", newProduct.getHandle());
+        migration.put("product_id", newProductId);
         root.put("migration", migration);
         ClientResponse response = chargifyResource
                 .path(String.format("/%d/migrations.json", subscription.getExternalId()))
                 .type(MediaType.APPLICATION_JSON_TYPE).accept(MediaType.APPLICATION_JSON_TYPE)
                 .post(ClientResponse.class, root.toString());
-        return verifyAndLogResponse(response, subscription, "migrated");
+        verifyAndLogResponse(response, subscription,
+                String.format("migrated from %d to %d", subscription.getProductId(), newProductId));
     }
 
     @Override
-    public boolean cancelSubscription(UserSubscription subscription) {
+    public void cancelSubscription(UserSubscription subscription) throws WebApplicationException {
         ClientResponse response = chargifyResource
                 .path(String.format("/%d.json", subscription.getExternalId()))
                 .type(MediaType.APPLICATION_JSON_TYPE).accept(MediaType.APPLICATION_JSON_TYPE)
                 .delete(ClientResponse.class);
-        return verifyAndLogResponse(response, subscription, "canceled");
+        verifyAndLogResponse(response, subscription, "canceled");
     }
 
     @Override
-    public Long createSubscription(long customerId, String productHandle) {
-        ObjectNode root = this.mapper.createObjectNode();
-        ObjectNode subscription = this.mapper.createObjectNode();
-        subscription.put("product_handle", productHandle);
-        subscription.put("customer_id", Long.toString(customerId));
-        root.put("subscription", subscription);
-        ClientResponse response = chargifyResource.path("/subscriptions.json").type(MediaType.APPLICATION_JSON_TYPE)
-                .accept(MediaType.APPLICATION_JSON_TYPE).post(ClientResponse.class, root.toString());
-
+    public UserSubscription getSubscription(Long subscriptionId) throws WebApplicationException {
+        ClientResponse response = chargifyResource
+                .path(String.format("/%d.json", subscriptionId))
+                .type(MediaType.APPLICATION_JSON_TYPE).accept(MediaType.APPLICATION_JSON_TYPE)
+                .get(ClientResponse.class);
         int status = response.getStatus();
         if (status >= 200 && status < 300) {
-            JsonNode s;
             try {
-                s = this.mapper.readTree(response.getEntityInputStream());
-                int id = s.get("subscription").get("id").asInt();
+                JsonNode root = this.mapper.readTree(response.getEntityInputStream());
+                JsonNode subJson = root.get("subscription");
+                int id = subJson.get("id").asInt();
                 logger.info(String.format("Subscription (external: %d) was created.", id));
-                return new Long(id);
+                UserSubscription subscription = new UserSubscription();
+                CreditCard cc = new CreditCard();
+                JsonNode ccJson = subJson.get("credit_card");
+                cc.setMaskedNumber(ccJson.get("masked_card_number").getTextValue());
+                cc.setExpirationMonth(ccJson.get("expiration_month").getIntValue());
+                cc.setExpirationYear(ccJson.get("expiration_year").getIntValue());
+                subscription.setCreditCard(cc);
+                subscription.setExternalId(subscriptionId);
+                subscription.setExternalCustomerId((long) ccJson.get("customer_id").getIntValue());
+                subscription.setProductId((long) subJson.get("product").get("id").getIntValue());
+                String state = subJson.get("state").getTextValue();
+                if (state.equals("active")) {
+                    subscription.setState(State.ACTIVE);
+                } else if (state.equals("canceled")) {
+                    subscription.setState(State.CANCELED);
+                } else {
+                    subscription.setState(State.PENDING);
+                }
+                return subscription;
             } catch (IOException e) {
-                logger.error(String.format("Subscription could not be parsed: %s", e.getMessage()));
+                logger.error(BILLING_MARKER,
+                        String.format("Subscription %d could not be parsed: %s", subscriptionId, e.getMessage()));
             }
         } else {
-            logger.error(String.format("Subscription to product %s by customer %d could not be created: %d.",
-                    productHandle,
-                    customerId, status));
+            logger.error(BILLING_MARKER,
+                    String.format("Subscription %d could not be found: %d", subscriptionId, status));
         }
         return null;
     }

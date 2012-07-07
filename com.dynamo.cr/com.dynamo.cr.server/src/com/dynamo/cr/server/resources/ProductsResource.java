@@ -1,7 +1,5 @@
 package com.dynamo.cr.server.resources;
 
-import java.util.List;
-
 import javax.annotation.security.RolesAllowed;
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
@@ -10,10 +8,9 @@ import javax.ws.rs.QueryParam;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.dynamo.cr.protocol.proto.Protocol.ProductInfo;
+import com.dynamo.cr.proto.Config.BillingProduct;
 import com.dynamo.cr.protocol.proto.Protocol.ProductInfoList;
 import com.dynamo.cr.protocol.proto.Protocol.ProductInfoList.Builder;
-import com.dynamo.cr.server.model.Product;
 
 @Path("/products")
 @RolesAllowed(value = { "user" })
@@ -23,20 +20,16 @@ public class ProductsResource extends BaseResource {
 
     @GET
     public ProductInfoList getProducts(@QueryParam("handle") String handle) {
-        List<Product> list = null;
-        if (handle != null) {
-            list = em.createQuery("select p from Product p where p.handle = :handle", Product.class)
-                    .setParameter("handle", handle).getResultList();
-        } else {
-            list = em.createQuery("select p from Product p", Product.class).getResultList();
-        }
-
+        String billingApiUrl = server.getConfiguration().getBillingApiUrl();
         Builder listBuilder = ProductInfoList.newBuilder();
-        for (Product product : list) {
-            ProductInfo pi = ResourceUtil.createProductInfo(product);
-            listBuilder.addProducts(pi);
+        if (handle != null) {
+            listBuilder.addProducts(ResourceUtil.createProductInfo(server.getProductByHandle(handle), billingApiUrl));
+        } else {
+            // Return every
+            for (BillingProduct product : server.getConfiguration().getProductsList()) {
+                listBuilder.addProducts(ResourceUtil.createProductInfo(product, billingApiUrl));
+            }
         }
-
         return listBuilder.build();
     }
 

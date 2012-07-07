@@ -7,6 +7,7 @@ import com.dynamo.cr.web2.client.place.LoginPlace;
 import com.dynamo.cr.web2.client.place.NewProjectPlace;
 import com.dynamo.cr.web2.client.place.OpenIDPlace;
 import com.dynamo.cr.web2.client.place.ProjectPlace;
+import com.dynamo.cr.web2.client.place.SubscriptionPlace;
 import com.google.gwt.place.shared.PlaceHistoryMapper;
 import com.google.gwt.place.shared.WithTokenizers;
 
@@ -18,6 +19,7 @@ import com.google.gwt.place.shared.WithTokenizers;
  */
 @WithTokenizers({ LoginPlace.Tokenizer.class, DashboardPlace.Tokenizer.class,
         ProjectPlace.Tokenizer.class, NewProjectPlace.Tokenizer.class,
-        OpenIDPlace.Tokenizer.class, InvitePlace.Tokenizer.class, DownloadsPlace.Tokenizer.class })
+        OpenIDPlace.Tokenizer.class, InvitePlace.Tokenizer.class, DownloadsPlace.Tokenizer.class,
+        SubscriptionPlace.Tokenizer.class})
 public interface AppPlaceHistoryMapper extends PlaceHistoryMapper {
 }
