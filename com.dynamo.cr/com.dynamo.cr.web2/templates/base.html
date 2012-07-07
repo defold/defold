@@ -22,6 +22,22 @@
     <![endif]-->
 <link rel="shortcut icon" href="{{root}}favicon.ico">
 
+<!--  Google analytics -->
+<!--  NOTE: The account id is duplicated in Defold#GoogleAnalyticsHandler -->
+<script type="text/javascript">
+    if (document.location.hostname != "127.0.0.1") {
+        var _gaq = _gaq || [];
+        _gaq.push(['_setAccount', 'UA-83690-3']);
+        _gaq.push(['_trackPageview']);
+
+        (function() {
+            var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+            ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+            var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+        })();
+    }
+</script>
+
 {% block head %}
 {% endblock %}
 
@@ -32,6 +48,33 @@
     ('/dashboard.html', 'dashboard', 'Dashboard'),
 ] -%}
 <body>
+
+    <script type='text/javascript'>
+        var _ues = {
+            host : 'defold.userecho.com',
+            forum : '11347',
+            lang : 'en',
+            tab_corner_radius : 8,
+            tab_font_size : 20,
+            tab_image_hash : 'RmVlZGJhY2s%3D',
+            tab_alignment : 'left',
+            tab_text_color : '#FFFFFF',
+            tab_bg_color : '#729FCF',
+            tab_hover_color : '#5D81A8'
+        };
+
+        (function() {
+            var _ue = document.createElement('script');
+            _ue.type = 'text/javascript';
+            _ue.async = true;
+            _ue.src = ('https:' == document.location.protocol ? 'https://s3.amazonaws.com/'
+                    : 'http://')
+                    + 'cdn.userecho.com/js/widget-1.4.gz.js';
+            var s = document.getElementsByTagName('script')[0];
+            s.parentNode.insertBefore(_ue, s);
+        })();
+    </script>
+
     <div class="navbar navbar-fixed-top">
         <div class="navbar-inner">
             <div class="container">
@@ -50,6 +93,29 @@
         </div>
     </div>
     {% block content %}{% endblock %}
+
+    {% if disqus %}
+        <div class="container">
+            <div id="disqus_thread"></div>
+            <script type="text/javascript">
+                /*
+                 Uncomment when testing locally
+                 var disqus_developer = 1;
+                 */
+                var disqus_shortname = 'defold'; // required: replace example with your forum shortname
+
+                /* * * DON'T EDIT BELOW THIS LINE * * */
+                (function() {
+                    var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+                    dsq.src = 'http://' + disqus_shortname + '.disqus.com/embed.js';
+                    (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+                })();
+            </script>
+            <noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+            <a href="http://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+        </div>
+    {% endif %}
+
     <footer>
         <div class="container">
             <div class="row-fluid">

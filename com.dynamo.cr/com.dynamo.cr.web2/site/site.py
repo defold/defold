@@ -31,7 +31,7 @@ docs = ['script_properties.html',
         'tiles.html']
 
 for d in docs:
-    asciidoc('doc/%s' % d, active_page = 'documentation')
+    asciidoc('doc/%s' % d, active_page = 'documentation', disqus = True)
 
 render('doc_index.html', 'doc/index.html', active_page = 'documentation')
 

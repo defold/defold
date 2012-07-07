@@ -82,7 +82,7 @@ class Desite(object):
         posts = self._split_blog(blog_html)
         for p in posts:
             output = '%s/%s.html' % (output_dir, p.id)
-            self.render('blog_template.html', output, blog = p.content, active_page = 'blog')
+            self.render('blog_template.html', output, blog = p.content, active_page = 'blog', disqus = True)
 
         self.render('blog_index.html', '%s/index.html' % output_dir, posts = posts, active_page = 'blog')
 
