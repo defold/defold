@@ -66,7 +66,10 @@ public class StaticServlet extends HttpServlet {
             }
 
             page = loadResource(stream);
-            syncCache.put(path, page);
+            if (!url.getHost().equals("127.0.0.1")) {
+                // Cache only on production server, i.e. != 127.0.0.1
+                syncCache.put(path, page);
+            }
         }
         resp.setContentType("text/html");
         resp.getOutputStream().write(page);
