@@ -10,7 +10,7 @@ Whenever you use a script in many places, it is often desirable to change the va
 [IMPORTANT]
 When using URLs as properties, you can only set them to be global (starting with '/').
 This will be fixed at a later time.
-See link:#!guide:message_passing[Message Passing] for more information about global URLs.
+See link:/doc/message_passing[Message Passing] for more information about global URLs.
 
 Say that you have a script which controls health and can respond to damage through a message called +take_damage+:
 
@@ -32,7 +32,7 @@ end
 
 If the health reaches 0, it destroys the game object.
 Now you want to use the script in two different game objects, but you want them to have different amounts of health.
-There is a specific function for this purpose called link:#!reference:go/go.property[go.property]:
+There is a specific function for this purpose called link:/ref/go#go.property[go.property]:
 
 [source, lua]
 ----
@@ -78,4 +78,3 @@ This will also override both the value set in the game object and the default va
 You can only use math types (vector3, vector4 and quat) when creating game objects through a factory.
 Such properties won't appear in the Properties View inside game objects or collections.
 This will be fixed at a later time.
- 

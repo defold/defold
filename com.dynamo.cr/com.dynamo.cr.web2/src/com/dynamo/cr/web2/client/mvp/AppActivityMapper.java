@@ -1,32 +1,20 @@
 package com.dynamo.cr.web2.client.mvp;
 
 import com.dynamo.cr.web2.client.ClientFactory;
-import com.dynamo.cr.web2.client.activity.BlogActivity;
-import com.dynamo.cr.web2.client.activity.ContentActivity;
 import com.dynamo.cr.web2.client.activity.DashboardActivity;
-import com.dynamo.cr.web2.client.activity.DocumentationActivity;
-import com.dynamo.cr.web2.client.activity.GuideActivity;
+import com.dynamo.cr.web2.client.activity.DownloadsActivity;
+import com.dynamo.cr.web2.client.activity.InviteActivity;
 import com.dynamo.cr.web2.client.activity.LoginActivity;
 import com.dynamo.cr.web2.client.activity.NewProjectActivity;
 import com.dynamo.cr.web2.client.activity.OpenIDActivity;
-import com.dynamo.cr.web2.client.activity.ProductInfoActivity;
 import com.dynamo.cr.web2.client.activity.ProjectActivity;
-import com.dynamo.cr.web2.client.activity.ReferenceActivity;
-import com.dynamo.cr.web2.client.activity.ScriptSampleActivity;
-import com.dynamo.cr.web2.client.activity.TutorialsActivity;
-import com.dynamo.cr.web2.client.place.BlogPlace;
-import com.dynamo.cr.web2.client.place.ContentPlace;
 import com.dynamo.cr.web2.client.place.DashboardPlace;
-import com.dynamo.cr.web2.client.place.DocumentationPlace;
-import com.dynamo.cr.web2.client.place.GuidePlace;
+import com.dynamo.cr.web2.client.place.DownloadsPlace;
+import com.dynamo.cr.web2.client.place.InvitePlace;
 import com.dynamo.cr.web2.client.place.LoginPlace;
 import com.dynamo.cr.web2.client.place.NewProjectPlace;
 import com.dynamo.cr.web2.client.place.OpenIDPlace;
-import com.dynamo.cr.web2.client.place.ProductInfoPlace;
 import com.dynamo.cr.web2.client.place.ProjectPlace;
-import com.dynamo.cr.web2.client.place.ReferencePlace;
-import com.dynamo.cr.web2.client.place.ScriptSamplePlace;
-import com.dynamo.cr.web2.client.place.TutorialsPlace;
 import com.google.gwt.activity.shared.Activity;
 import com.google.gwt.activity.shared.ActivityMapper;
 import com.google.gwt.place.shared.Place;
@@ -57,8 +45,6 @@ public class AppActivityMapper implements ActivityMapper {
 
         if (place instanceof LoginPlace)
             return new LoginActivity((LoginPlace) place, clientFactory);
-        else if (place instanceof ProductInfoPlace)
-            return new ProductInfoActivity((ProductInfoPlace) place, clientFactory);
         else if (place instanceof DashboardPlace)
             return new DashboardActivity((DashboardPlace) place, clientFactory);
         else if (place instanceof ProjectPlace)
@@ -67,20 +53,10 @@ public class AppActivityMapper implements ActivityMapper {
             return new NewProjectActivity((NewProjectPlace) place, clientFactory);
         else if (place instanceof OpenIDPlace)
             return new OpenIDActivity((OpenIDPlace) place, clientFactory);
-        else if (place instanceof DocumentationPlace)
-            return new DocumentationActivity((DocumentationPlace) place, clientFactory);
-        else if (place instanceof TutorialsPlace)
-            return new TutorialsActivity((TutorialsPlace) place, clientFactory);
-        else if (place instanceof BlogPlace)
-            return new BlogActivity((BlogPlace) place, clientFactory);
-        else if (place instanceof ScriptSamplePlace)
-            return new ScriptSampleActivity((ScriptSamplePlace) place, clientFactory);
-        else if (place instanceof ReferencePlace)
-            return new ReferenceActivity((ReferencePlace) place, clientFactory);
-        else if (place instanceof GuidePlace)
-            return new GuideActivity((GuidePlace) place, clientFactory);
-        else if (place instanceof ContentPlace)
-            return new ContentActivity((ContentPlace) place, clientFactory);
+        else if (place instanceof InvitePlace)
+            return new InviteActivity((InvitePlace) place, clientFactory);
+        else if (place instanceof DownloadsPlace)
+            return new DownloadsActivity((DownloadsPlace) place, clientFactory);
 
 		return null;
 	}

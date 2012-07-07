@@ -18,39 +18,42 @@
     </ui:style>
 
     <g:HTMLPanel styleName="{style.panel}">
-        <h1>Project <span text="Project Name" ui:field="projectName"/> </h1>
-        <div style="float: right; margin-right: 64px;">
-            <g:Button ui:field="deleteProject">Delete Project</g:Button>
-        </div>
+        <div class="row">
+            <div class="span3">
+                <p2:SideBar ui:field="sideBar"></p2:SideBar>
+            </div>
+            <div class="span9">
+                <div class="row">
+                    <div class="span7">
+                        <h1><span text="Project Name" ui:field="projectName"/> </h1>
+				        <p>
+				            <span ui:field="description" text="Some description" />
+				        </p>
+                        <h2>Members</h2>
+                        <g:FlexTable ui:field="members2"></g:FlexTable>
 
-        <div class="box">
-            <span ui:field="description" text="Some description" />
-        </div>
+                        <g:HTMLPanel ui:field="addMemberPanel">
+                            <div class="form-inline" style="padding-bottom: 1em;">
+                                <g:SuggestBox ui:field="suggestBox" addStyleNames="{style.suggest}"/>
+                                <g:Button ui:field="addMember">Add</g:Button>
+                            </div>
+                        </g:HTMLPanel>
 
-        <p/>
-        <table style="width: 100%;">
-	        <tr>
-	            <td style="width: 50%;">
-	                <h2>Members</h2>
-	                <g:VerticalPanel ui:field="members"/>
+                        <h2>Defold Engine</h2>
+                        <div>
+                           <g:Label ui:field="signedExeInfo"></g:Label>
+                           <g:Anchor ui:field="iOSDownload">Install Defold Engine for iOS</g:Anchor>
+                        </div>
+                        <p></p>
 
-                    <g:HTMLPanel ui:field="addMemberPanel">
-                       <g:SuggestBox ui:field="suggestBox" addStyleNames="{style.suggest}"/>
-                    </g:HTMLPanel>
-
-	                <h2>Defold Engine</h2>
-                    <div class="box boxHighlight">
-                       <g:Label ui:field="signedExeInfo"></g:Label>
-                       <g:Anchor ui:field="iOSDownload">Install Defold Engine for iOS</g:Anchor>
+                        <h2>Activity</h2>
+                        <g:FlexTable ui:field="commits2"></g:FlexTable>
                     </div>
-
-		        </td>
-
-	            <td style="width: 50%;">
-	                <h2>Activity</h2>
-	                <g:VerticalPanel ui:field="commits"/>
-	            </td>
-	        </tr>
-        </table>
+                    <div class="span2">
+                       <g:Button ui:field="deleteProject">Delete Project</g:Button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </g:HTMLPanel>
 </ui:UiBinder>

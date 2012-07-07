@@ -1,0 +1,19 @@
+{% extends "base.html" %} {% block content %}
+<div id="mc_embed_signup" style="text-align: center;">
+    <h1>Sign up for beta</h1>
+    <p>
+    <script type="text/javascript">
+    function signUp() {
+    	var email = $("#email")[0].value;
+        $.ajax({type: "PUT", url: "http://cr.defold.com:9998/prospects/" + email})
+        $("#email").val("");
+    	return false;
+    }
+    </script>
+    <form onsubmit="return signUp();" class="validate form-inline">
+        <input type="email" value="" style="padding: 9px 14px;" class="span4 input-large email"
+            id="email" placeholder="email address" required="">
+        <button type="submit" class="btn btn-success btn-large">Sign up</button>
+    </form>
+</div>
+{% endblock %}

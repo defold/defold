@@ -22,12 +22,9 @@
                 <p2:SideBar ui:field="sideBar"></p2:SideBar>
             </div>
             <div class="span9">
-                <div class="row">
-                    <div class="span9">
-                        <h1>Projects</h1>
-                        <g:FlexTable ui:field="projects"></g:FlexTable>
-                        <g:Button ui:field="newProjectButton">New Project</g:Button>
-                    </div>
+                <p2:InvitationBox ui:field="invitationBox"></p2:InvitationBox>
+                <div ui:field="noInvitationsLeft">
+	                <p>You have no invitations left.</p>
                 </div>
             </div>
         </div>

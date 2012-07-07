@@ -7,18 +7,8 @@
 
 	<!-- Default page to serve -->
 	<welcome-file-list>
-		<welcome-file>Defold.html</welcome-file>
+		<welcome-file>landing.html</welcome-file>
 	</welcome-file-list>
-
-	<filter>
-		<filter-name>crawlFilter</filter-name>
-		<filter-class>com.dynamo.cr.web2.server.CrawlFilter</filter-class>
-	</filter>
-
-	<filter-mapping>
-		<filter-name>crawlFilter</filter-name>
-		<url-pattern>*</url-pattern>
-	</filter-mapping>
 
     <servlet>
         <servlet-name>static</servlet-name>

@@ -1,5 +1,6 @@
 package com.dynamo.cr.web2.shared;
 
+import com.dynamo.cr.web2.client.MD5;
 import com.google.gwt.user.client.Window;
 import com.google.gwt.user.client.Window.Navigator;
 
@@ -67,4 +68,12 @@ public class ClientUtil {
     public static boolean isDev() {
         return Window.Location.getHostName().equals("127.0.0.1");
     }
+
+    public static String createGravatarUrl(String email, int size) {
+        email = email.trim().toLowerCase();
+        String md5 = MD5.md5(email);
+        String url = "http://www.gravatar.com/avatar/" + md5 + "?s=" + size;
+        return url;
+    }
+
 }

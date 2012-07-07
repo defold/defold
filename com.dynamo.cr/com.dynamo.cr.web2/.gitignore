@@ -10,6 +10,7 @@
 /war/doc
 /war/about/*.html
 /war/error/*.html
+/war/*.html
 /war/blog
 /war/ref
 /test-classes/*

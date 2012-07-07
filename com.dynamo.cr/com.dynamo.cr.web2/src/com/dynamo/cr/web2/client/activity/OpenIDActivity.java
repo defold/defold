@@ -6,8 +6,8 @@ import com.dynamo.cr.web2.client.LoginInfo;
 import com.dynamo.cr.web2.client.TokenExchangeInfo;
 import com.dynamo.cr.web2.client.place.DashboardPlace;
 import com.dynamo.cr.web2.client.place.OpenIDPlace;
-import com.dynamo.cr.web2.client.place.ProductInfoPlace;
 import com.dynamo.cr.web2.client.ui.OpenIDView;
+import com.google.gwt.activity.shared.AbstractActivity;
 import com.google.gwt.event.shared.EventBus;
 import com.google.gwt.http.client.Request;
 import com.google.gwt.http.client.RequestBuilder;
@@ -18,14 +18,15 @@ import com.google.gwt.place.shared.Place;
 import com.google.gwt.user.client.Cookies;
 import com.google.gwt.user.client.ui.AcceptsOneWidget;
 
-public class OpenIDActivity extends AsciiDocActivity implements
+public class OpenIDActivity extends AbstractActivity implements
         OpenIDView.Presenter {
     private String loginToken;
     private TokenExchangeInfo tokenExchangeInfo;
+    private ClientFactory clientFactory;
 
     public OpenIDActivity(OpenIDPlace place, ClientFactory clientFactory) {
-        super(clientFactory);
         loginToken = place.getLoginToken();
+        this.clientFactory = clientFactory;
     }
 
     private Place getNewPlace() {
@@ -39,9 +40,41 @@ public class OpenIDActivity extends AsciiDocActivity implements
         }
 
         if (newPlace == null) {
-            newPlace = new ProductInfoPlace();
+            newPlace = new DashboardPlace();
         }
         return newPlace;
+    }
+
+    private void loadAsciiDoc(final OpenIDView view, String name) {
+        view.setLoading(true);
+        view.clear();
+
+        RequestBuilder builder = new RequestBuilder(RequestBuilder.GET, "/site/" + name + ".html");
+        try {
+            builder.sendRequest("", new RequestCallback() {
+                @Override
+                public void onResponseReceived(Request request, Response response) {
+                    int status = response.getStatusCode();
+                    if (status == 200) {
+                        view.setLoading(false);
+                        view.setText(response.getText());
+
+                    } else {
+                        view.setLoading(false);
+                        clientFactory.getDefold().showErrorMessage("Unable to load document");
+                    }
+                }
+
+                @Override
+                public void onError(Request request, Throwable exception) {
+                    view.setLoading(false);
+                    clientFactory.getDefold().showErrorMessage("Unable to load document");
+                }
+            });
+        } catch (RequestException e) {
+            view.setLoading(false);
+            clientFactory.getDefold().showErrorMessage("Unable to load document");
+        }
     }
 
     @Override
@@ -135,5 +168,4 @@ public class OpenIDActivity extends AsciiDocActivity implements
             defold.showErrorMessage("Network error");
         }
     }
-
 }

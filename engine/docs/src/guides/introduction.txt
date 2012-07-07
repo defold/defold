@@ -86,7 +86,7 @@ Scripting
 
 All scripts in Defold are written in the Lua programming language.
 They let you specify the rules of your game, like how game objects should interact and respond to player input.
-We have extended Lua with functions and messages, which are explained in the link:#!reference:engine[reference manual].
+We have extended Lua with functions and messages, which are explained in the link:/ref/engine[reference manual].
 It also contains example code of how to use them from your scripts.
 
 Lua in itself comes with many great features.
@@ -101,7 +101,7 @@ msg.post("#explosion", "play_sound")
 
 where +explosion+ is the identifier of the sound component attached to the game object and +play_sound+ the message the sound component responds to.
 When scripting, remember that no data is shared among the scripts.
-Components (including scripts) only exchange information through message passing (by using the function link:#!reference:script/msg.post[+msg.post+]).
+Components (including scripts) only exchange information through message passing (by using the function link:/ref/script#msg.post[+msg.post+]).
 
 Collaboration
 ~~~~~~~~~~~~~
@@ -342,6 +342,6 @@ Each time we release a new version, we post a thorough description of the change
 Let's get to work!
 ------------------
 
-The editor can be downloaded from the link:#!dashboard[dashboard].
-We recommend you follow the link:#!tutorials:side_scroller[Side-Scroller Tutorial] now to see what our platform is like in practice.
-For more information, please see the link:#!documentation:[documentation page] (the tutorial is available there as well).
+The editor can be downloaded from the link:/dashboard.html[dashboard].
+We recommend you follow the link:/doc/side_scroller[Side-Scroller Tutorial] now to see what our platform is like in practice.
+For more information, please see the link:/doc/[documentation page] (the tutorial is available there as well).

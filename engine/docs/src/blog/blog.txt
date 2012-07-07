@@ -5,7 +5,7 @@ Release 1.1.11
 _June 19, 2012_
 
 Release 1.1.11 is microscopic, since it solely contains a small fix that was critical for one of the projects.
-In link:/#!guide:game_project[game.project], there is now a new setting under the category +[factory]+ called +max_count+ which determines how many factories can be created at once.
+In link:/doc/game_project[game.project], there is now a new setting under the category +[factory]+ called +max_count+ which determines how many factories can be created at once.
 The default count was set to 64, this is now raised to 128.
 
 Release: 1.1.10
@@ -36,7 +36,7 @@ Fixes
 
 * The tile brush now has a visual border, which makes it easier to see how big the tile brush is
 * The zoom range in the Tile Map Editor has been increased to make it easier to work with larger maps
-* We have added more settings in game.project (see link:#!guide:game_project[Project Settings] for details):
+* We have added more settings in game.project (see link:/doc/game_project[Project Settings] for details):
 ** [physics] max_collisions/max_contacts, which control how many collisions/contacts will be reported to scripts
 ** [resource] max_resources, which controls how many resources can be loaded in the engine at the same time
 ** [collection_proxy] max_count, which controls how many collection proxies can be loaded at the same time
@@ -101,7 +101,7 @@ image::images/blog/20120518/properties.png["Script Properties", align="center"]
 ((((
 
 We realize using a hyper-link is not a very intuitive solution, but it was simple to implement so we hope it will be good enough for now.
-Script Properties are further explained in the link:#!guide:script_properties[user guide].
+Script Properties are further explained in the link:/doc/script_properties[user guide].
 
 Picking Tiles
 ~~~~~~~~~~~~~
@@ -167,11 +167,11 @@ Script Properties
 
 We have now implemented a first version of the Script Properties.
 You can now declare properties inside your scripts and have them automatically appear in the Properties View when they are used in game objects and collections.
-More info on how to use them is available in the new link:#!guide:script_properties[Script Properties] user guide.
+More info on how to use them is available in the new link:/doc/script_properties[Script Properties] user guide.
 
 [IMPORTANT]
 If you currently create game objects through a factory and pass custom properties to the created game object, you have to declare those properties in the script for it to work.
-See the link:#!guide:script_properties[user guide] for more info on this.
+See the link:/doc/script_properties[user guide] for more info on this.
 
 Improved Auto-Completion
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -194,7 +194,7 @@ Follow these steps:
 . Select "No" when asked about updating to 1.1.6
 . Open each of your projects and make sure they are synced (File > Synchronize), the Changed Files View should be empty for each opened project
 . Remove the editor from your computer
-. Download a new one from the link:#!dashboard:[Dashboard]
+. Download a new one from the link:/dashboard.html:[Dashboard]
 
 Yahoo
 ~~~~~
@@ -431,7 +431,7 @@ Bugs fixed in this release are:
 
 * Errors when opening a project for the first time
 * Incorrect type (number instead of hash) for collision groups in reference docs
-* Out-dated instructions in the link:#!tutorials:side_scroller[Side-Scroller Tutorial]
+* Out-dated instructions in the link:/doc/side_scroller[Side-Scroller Tutorial]
 * The bonus star was not displayed correctly in the tutorial after setting _Default Animation_
 
 The Windows-firewall problem described in the last post could not be reproduced.
@@ -604,16 +604,16 @@ Other Features
 * Improved error handling in the pipeline
 * Tabs are automatically shown when building/reloading to show progress and errors
 * Physics can be scaled for increased numerical precision
-* More link:#!documentation:[documentation]
-** link:#!guide:scripting_debugging[Scripting & Debugging]
-** link:#!guide:message_passing[Message Passing]
-** link:#!guide:reload[Hot Reloading]
-** link:#!guide:physics[Physics]
-** link:#!guide:tiles[Tiles]
-** link:#!guide:game_project[game.project]
+* More link:/doc[documentation]
+** link:/doc/scripting_debugging[Scripting & Debugging]
+** link:/doc/message_passing[Message Passing]
+** link:/doc/reload[Hot Reloading]
+** link:/doc/physics[Physics]
+** link:/doc/tiles[Tiles]
+** link:/doc/game_project[game.project]
 * Web site footer
-** link:#!content:story[Defold Story]
-** link:#!content:eula[Terms of Service]
+** link:/about/story[Defold Story]
+** link:/about/eula[Terms of Service]
 ** Support links
 ** Social links
 
@@ -842,8 +842,8 @@ The last two weeks we have been busy improving the documentation and implementin
 Introduction
 ~~~~~~~~~~~~
 
-We have worked hard at writing more documentation and are finally ready to show the new link:#!getting_started:[introduction].
-It comes with a new link:#!tutorials:side_scroller[tutorial], which demonstrates tweaking and the construction of game objects.
+We have worked hard at writing more documentation and are finally ready to show the new link:/doc/getting_started[introduction].
+It comes with a new link:/doc/side_scroller[tutorial], which demonstrates tweaking and the construction of game objects.
 We hope that you can gain some more insight into our design from the introduction.
 Hopefully, most of it should be old news by now but helpful for new users.
 
@@ -932,7 +932,7 @@ Please let us know what you think about that, do you like it or does it get too 
 Enable/Disable for Collision Objects
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Collision Object components can now be enabled and disabled through message-passing (see link:#!reference:go/enable[enable] and link:#!reference:go/disable[disable]).
+Collision Object components can now be enabled and disabled through message-passing (see link:/ref/go#enable[enable] and link:/ref/go#disable[disable]).
 Disabled collision objects are temporarily removed from the physics simulation, which means they don't collide with other objects.
 
 Dynamic collision objects also cease to move the game objects they belong to when disabled.
@@ -1023,7 +1023,7 @@ Web Site Face Lift
 As you have probably noticed by now, our web site has had a major face lift.
 We have also restructured the information a bit, but everything should hopefully be easier to find now.
 
-We have also added two new features to the link:#!dashboard:[dashboard].
+We have also added two new features to the link:/dashboard.html:[dashboard].
 
 The first is that we now use link:http://www.gravatar.com[Gravatar] to supply the avatars for us.
 To have your own avatar appear in the dashboard, link:https://en.gravatar.com/site/signup/[register] with Gravatar and setup your avatar there.
@@ -1042,7 +1042,7 @@ image::images/blog/20120108/project_activity.png["Activity with Gravatars", alig
 Script Samples
 ~~~~~~~~~~~~~~
 
-We have added a few script samples on the link:#!documentation:[documentation] page.
+We have added a few script samples on the link:/doc[documentation] page.
 We hope they will both inspire and provide aid in understanding how to make animations and effects using scripting.
 There are both samples that deals with gui animation (*HUD*, *Level Complete* and *Main Menu*) and game object animation (*Parallax*).
 

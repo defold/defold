@@ -2,8 +2,6 @@ package com.dynamo.cr.web2.client.activity;
 
 import com.dynamo.cr.web2.client.ClientFactory;
 import com.dynamo.cr.web2.client.Defold;
-import com.dynamo.cr.web2.client.InvitationAccountInfo;
-import com.dynamo.cr.web2.client.MD5;
 import com.dynamo.cr.web2.client.ProjectInfo;
 import com.dynamo.cr.web2.client.ProjectInfoList;
 import com.dynamo.cr.web2.client.ResourceCallback;
@@ -42,47 +40,23 @@ public class DashboardActivity extends AbstractActivity implements DashboardView
         });
     }
 
-    private void loadInvitationCount() {
-        final DashboardView dashboardView = clientFactory.getDashboardView();
-        final Defold defold = clientFactory.getDefold();
-        defold.getResource("/users/" + defold.getUserId() + "/invitation_account",
-                new ResourceCallback<InvitationAccountInfo>() {
-
-                    @Override
-                    public void onSuccess(InvitationAccountInfo invitationAccount,
-                            Request request, Response response) {
-                        dashboardView.setInvitationAccount(invitationAccount);
-                    }
-
-                    @Override
-                    public void onFailure(Request request, Response response) {
-                        defold.showErrorMessage("Invitation data could not be loaded.");
-                    }
-                });
-    }
-
     @Override
     public void start(AcceptsOneWidget containerWidget, EventBus eventBus) {
         final DashboardView dashboardView = clientFactory.getDashboardView();
-        dashboardView.setPresenter(this);
         containerWidget.setWidget(dashboardView.asWidget());
+        dashboardView.setPresenter(this);
         loadProjects();
         loadGravatar();
-        loadInvitationCount();
     }
 
     private void loadGravatar() {
         final DashboardView dashboardView = clientFactory.getDashboardView();
         Defold defold = clientFactory.getDefold();
         String email = defold.getEmail();
-        email = email.trim().toLowerCase();
-        String md5 = MD5.md5(email);
-        String url = "http://www.gravatar.com/avatar/" + md5 + "?s=80";
-        dashboardView.setGravatarURL(url);
 
         String firstName = defold.getFirstName();
         String lastName = defold.getLastName();
-        dashboardView.setName(firstName, lastName, email);
+        dashboardView.setUserInfo(firstName, lastName, email);
     }
 
     @Override
@@ -124,23 +98,4 @@ public class DashboardActivity extends AbstractActivity implements DashboardView
         return clientFactory.getDefold().getUserId() == projectInfo.getOwner().getId();
     }
 
-    @Override
-    public void invite(String recipient) {
-        final Defold defold = clientFactory.getDefold();
-        // TODO validate email
-        defold.putResource("/users/" + defold.getUserId() + "/invite/" + recipient, "",
-            new ResourceCallback<String>() {
-
-                @Override
-                public void onSuccess(String result,
-                        Request request, Response response) {
-                    loadInvitationCount();
-                }
-
-                @Override
-                public void onFailure(Request request, Response response) {
-                    defold.showErrorMessage("Invitation failed: " + response.getText());
-                }
-            });
-    }
 }

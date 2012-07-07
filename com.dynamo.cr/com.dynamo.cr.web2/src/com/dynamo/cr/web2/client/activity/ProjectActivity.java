@@ -107,9 +107,20 @@ public class ProjectActivity extends AbstractActivity implements
         projectView.clear();
         containerWidget.setWidget(projectView.asWidget());
 
+        loadGravatar();
         loadProject();
         loadConnections();
         loadLog();
+    }
+
+    private void loadGravatar() {
+        Defold defold = clientFactory.getDefold();
+        String email = defold.getEmail();
+
+        String firstName = defold.getFirstName();
+        String lastName = defold.getLastName();
+        final ProjectView projectView = clientFactory.getProjectView();
+        projectView.setUserInfo(firstName, lastName, email);
     }
 
     @Override

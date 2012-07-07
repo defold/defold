@@ -23,6 +23,11 @@
     margin-top: 0.5em;
 }
 
+/* Always show scrollbar */
+html {
+    overflow-y: scroll;
+}
+
 /*
  Override default bootstrap fonts
  */

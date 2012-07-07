@@ -28,6 +28,17 @@ public class StaticServlet extends HttpServlet {
     public StaticServlet() {
         super();
         syncCache = MemcacheServiceFactory.getMemcacheService();
+        /*
+         * NOTE: We cache static resource by the key and the memcache
+         * database is alive over deployments. It's crucial that we flush
+         * the cache when a new version is deployed. This flushing scheme
+         * is suboptimal as we will also flush the cache every time a new instance
+         * is spawned. But it's better to be safe than sorry :-)
+         * A better solution would be to prefix the cache key with something
+         * unique to the current deployment but I couldn't find any value in appengine
+         * appropriate.
+         */
+        syncCache.clearAll();
         syncCache.setErrorHandler(ErrorHandlers.getConsistentLogAndContinue(Level.INFO));
     }
 

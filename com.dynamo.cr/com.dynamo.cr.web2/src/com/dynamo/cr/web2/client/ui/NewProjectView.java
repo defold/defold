@@ -4,13 +4,15 @@ import com.dynamo.cr.web2.client.ProjectTemplateInfo;
 import com.dynamo.cr.web2.client.ProjectTemplateInfoList;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.core.client.JsArray;
+import com.google.gwt.dom.client.DivElement;
+import com.google.gwt.dom.client.SpanElement;
+import com.google.gwt.dom.client.Style.Visibility;
 import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.uibinder.client.UiBinder;
 import com.google.gwt.uibinder.client.UiField;
 import com.google.gwt.uibinder.client.UiHandler;
 import com.google.gwt.user.client.ui.Button;
 import com.google.gwt.user.client.ui.Composite;
-import com.google.gwt.user.client.ui.Label;
 import com.google.gwt.user.client.ui.ListBox;
 import com.google.gwt.user.client.ui.TextBox;
 import com.google.gwt.user.client.ui.Widget;
@@ -26,7 +28,8 @@ public class NewProjectView extends Composite {
     @UiField ListBox templatesCombo;
     @UiField TextBox nameTextBox;
     @UiField TextBox descriptionTextBox;
-    @UiField Label nameError;
+    @UiField SpanElement nameHelp;
+    @UiField DivElement nameGroup;
 
     interface Binder extends UiBinder<Widget, NewProjectView> {
     }
@@ -35,6 +38,7 @@ public class NewProjectView extends Composite {
 
     public NewProjectView() {
         initWidget(binder.createAndBindUi(this));
+        createButton.addStyleName("btn btn-success");
     }
 
     public void setPresenter(Presenter listener) {
@@ -53,7 +57,8 @@ public class NewProjectView extends Composite {
     void onCreateButtonClick(ClickEvent event) {
         String name = nameTextBox.getText();
         if (name.length() == 0) {
-            nameError.setVisible(true);
+            nameGroup.addClassName("error");
+            nameHelp.getStyle().setVisibility(Visibility.VISIBLE);
         } else {
             listener.createProject(name, descriptionTextBox.getText(), templatesCombo.getValue(templatesCombo.getSelectedIndex()));
         }
@@ -61,6 +66,7 @@ public class NewProjectView extends Composite {
 
     public void init() {
         templatesCombo.clear();
-        nameError.setVisible(false);
+        nameGroup.removeClassName("error");
+        nameHelp.getStyle().setVisibility(Visibility.HIDDEN);
     }
 }

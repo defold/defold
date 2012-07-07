@@ -10,6 +10,8 @@ blog('doc/blog.html', 'blog')
 render('404.html', 'error/404.html', root='/')
 render('500.html', 'error/500.html', root='/')
 
+render('landing.html', 'landing.html')
+
 docs = ['script_properties.html',
         'eula.html',
         'game_project.html',

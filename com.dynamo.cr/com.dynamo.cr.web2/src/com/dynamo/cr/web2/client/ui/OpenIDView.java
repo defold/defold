@@ -16,7 +16,7 @@ import com.google.gwt.user.client.ui.InlineLabel;
 import com.google.gwt.user.client.ui.TextBox;
 import com.google.gwt.user.client.ui.Widget;
 
-public class OpenIDView extends Composite implements IAsciiDocView {
+public class OpenIDView extends Composite {
 
     public interface Presenter {
         void register(String registrationKey);
@@ -81,7 +81,6 @@ public class OpenIDView extends Composite implements IAsciiDocView {
         listener.register(registrationKey.getText());
     }
 
-    @Override
     public void setText(String html) {
         /*
          * Extract document payload, ie within <body></body>. We must
@@ -93,12 +92,10 @@ public class OpenIDView extends Composite implements IAsciiDocView {
         eula.add(AsciiDocUtil.extractBody(html));
     }
 
-    @Override
     public void setLoading(boolean loading) {
         loader.setVisible(loading);
     }
 
-    @Override
     public void clear() {
         eula.clear();
     }

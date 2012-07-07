@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <appengine-web-app xmlns="http://appengine.google.com/ns/1.0">
-  <application>defoldengine</application>
+  <application>defoldenginetest</application>
   <version>1</version>
 
   <threadsafe>true</threadsafe>
@@ -14,10 +14,6 @@
     <include path="**.cache.*" expiration="365d" />
     <exclude path="**.gwt.rpc" />
 
-    <!-- NOTE: We exclude Defold.html as we wan't to filter all request to /
-         through CrawlFilter. Without this exclusion /, ie Defold.html, is
-         treated as static data -->
-    <exclude path="Defold.html" />
   </static-files>
 
   <!-- Configure java.util.logging -->

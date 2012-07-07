@@ -7,12 +7,9 @@ import java.util.Date;
 
 import com.dynamo.cr.web2.client.mvp.AppActivityMapper;
 import com.dynamo.cr.web2.client.mvp.AppPlaceHistoryMapper;
-import com.dynamo.cr.web2.client.place.BlogPlace;
 import com.dynamo.cr.web2.client.place.DashboardPlace;
 import com.dynamo.cr.web2.client.place.DefoldPlace;
-import com.dynamo.cr.web2.client.place.DocumentationPlace;
 import com.dynamo.cr.web2.client.place.LoginPlace;
-import com.dynamo.cr.web2.client.place.ProductInfoPlace;
 import com.dynamo.cr.web2.client.ui.BrowserWarningDialog;
 import com.dynamo.cr.web2.client.ui.EditableLabel;
 import com.dynamo.cr.web2.shared.ClientUtil;
@@ -21,7 +18,6 @@ import com.google.gwt.activity.shared.ActivityManager;
 import com.google.gwt.activity.shared.ActivityMapper;
 import com.google.gwt.core.client.EntryPoint;
 import com.google.gwt.core.client.GWT;
-import com.google.gwt.dom.client.AnchorElement;
 import com.google.gwt.dom.client.Document;
 import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.event.logical.shared.ValueChangeEvent;
@@ -41,6 +37,7 @@ import com.google.gwt.uibinder.client.UiHandler;
 import com.google.gwt.user.client.Cookies;
 import com.google.gwt.user.client.DOM;
 import com.google.gwt.user.client.Element;
+import com.google.gwt.user.client.Window;
 import com.google.gwt.user.client.ui.Anchor;
 import com.google.gwt.user.client.ui.HTMLPanel;
 import com.google.gwt.user.client.ui.RootPanel;
@@ -55,13 +52,11 @@ public class Defold implements EntryPoint {
 
     private static DefoldUiBinder uiBinder = GWT.create(DefoldUiBinder.class);
 
-    private Place defaultPlace = new ProductInfoPlace();
+    private Place defaultPlace = new DashboardPlace();
 
     @UiField Anchor logout;
     @UiField SimplePanel panel;
-    @UiField Anchor dashBoard;
     @UiField EditableLabel editableLabel;
-    @UiField AnchorElement email;
     private MessageNotification messageNotification;
 
     private EventBus eventBus;
@@ -255,9 +250,6 @@ public class Defold implements EntryPoint {
             editableLabel.setVisible(false);
         }
 
-        email.setHref("mailto:info@defold.se");
-        email.setInnerText("info@defold.se");
-
         // RootPanel or RootLayoutPanel?
         RootPanel.get().add(outer);
         historyHandler.handleCurrentHistory();
@@ -362,7 +354,7 @@ public class Defold implements EntryPoint {
         Cookies.removeCookie("auth");
         Cookies.removeCookie("registration_key");
         logout.setVisible(false);
-        clientFactory.getPlaceController().goTo(new ProductInfoPlace());
+        Window.open("/", "_self", "");
     }
 
     public void showLogin() {
@@ -377,21 +369,6 @@ public class Defold implements EntryPoint {
         return url;
     }
 
-    @UiHandler("dashBoard")
-    void onDashBoardClick(ClickEvent event) {
-        clientFactory.getPlaceController().goTo(new DashboardPlace());
-    }
-
-    @UiHandler("documentation")
-    void onDocumentationClick(ClickEvent event) {
-        clientFactory.getPlaceController().goTo(new DocumentationPlace());
-    }
-
-    @UiHandler("blog")
-    void onBlogClick(ClickEvent event) {
-        clientFactory.getPlaceController().goTo(new BlogPlace());
-    }
-
     @UiHandler("editableLabel")
     void onEditableLabelValueChange(ValueChangeEvent<String> event) {
         this.url = event.getValue();
@@ -403,3 +380,4 @@ public class Defold implements EntryPoint {
         Cookies.setCookie("url", url, expires);
     }
 }
+

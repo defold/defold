@@ -4,32 +4,43 @@
     xmlns:g='urn:import:com.google.gwt.user.client.ui'>
 
     <g:HTMLPanel>
-        <h1>New Project</h1>
-        <div class="form">
-            <div class="formRow">
-                <div class="formLabel">Name</div>
-                <div>
+        <div class="row">
+        <div class="span8">
+        <div class="page-header">
+            <h1>New Project</h1>
+        </div>
+        <form class="form-horizontal well">
+            <div ui:field="nameGroup" class="control-group">
+                <label class="control-label">Name</label>
+                <div class="controls">
                     <g:TextBox ui:field="nameTextBox" />
+                    <span ui:field="nameHelp" class="help-inline">Project name is required</span>
                 </div>
-                    <g:Label styleName="formError" ui:field="nameError">Name is required.</g:Label>
             </div>
-            <div class="formRow">
-                <div class="formLabel">Description</div>
-                <div>
+
+            <div class="control-group">
+                <label class="control-label">Description</label>
+                <div class="controls">
                     <g:TextBox ui:field="descriptionTextBox" />
                 </div>
             </div>
-            <div class="formRow">
-                <div class="formLabel">Project Template</div>
-                <div>
+
+            <div class="control-group">
+                <label class="control-label">Description</label>
+                <div class="controls">
                     <g:ListBox ui:field="templatesCombo" />
                 </div>
             </div>
 
-            <g:Button ui:field='createButton'>Create Project</g:Button>
-        </div>
-
+            <div class="control-group">
+                <div class="controls">
+                    <g:Button ui:field='createButton'>Create Project</g:Button>
+                </div>
+            </div>
+        </form>
         <div style="height: 100px;"></div>
+        </div>
+        </div>
     </g:HTMLPanel>
 
 </ui:UiBinder>

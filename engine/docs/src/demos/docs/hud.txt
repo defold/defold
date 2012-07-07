@@ -4,7 +4,7 @@ Hud
 In this sample, we demonstrate effects for score counting.
 The scores appear randomly over the screen, simulating a game where the player obtains scores at different positions.
 
-link:#!new_project:[Create a project] and select +Script Sample: HUD+ as 'Project Template' to try it out for yourself.
+link:/dashboard.html#!new_project:[Create a project] and select +Script Sample: HUD+ as 'Project Template' to try it out for yourself.
 
 link:/youtube_embed/hud.ivf[Hud]
 

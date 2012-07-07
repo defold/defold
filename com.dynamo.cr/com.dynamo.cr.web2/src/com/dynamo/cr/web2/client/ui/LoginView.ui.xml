@@ -3,9 +3,9 @@
 <ui:UiBinder xmlns:ui='urn:ui:com.google.gwt.uibinder' xmlns:g='urn:import:com.google.gwt.user.client.ui'>
 	<g:HTMLPanel>
 	    <h2>Login or Register New Account </h2>
-	    <div class="paragraph">
+	    <p>
 	        Select a site where you already have an account registered:
-	    </div>
+	    </p>
 
 	    <g:Button ui:field="loginGoogleButton" text="" styleName="openIDGoogle"></g:Button>
 	    <div style="height: 16px"></div>
