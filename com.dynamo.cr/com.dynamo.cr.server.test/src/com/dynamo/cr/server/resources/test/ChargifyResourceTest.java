@@ -86,7 +86,7 @@ public class ChargifyResourceTest extends AbstractResourceTest {
     @Test
     public void testUnsupportedHook() throws Exception {
         ClientResponse response = post("unsupported", new Form(), true);
-        assertEquals(ClientResponse.Status.BAD_REQUEST.getStatusCode(), response.getClientResponseStatus()
+        assertEquals(ClientResponse.Status.NO_CONTENT.getStatusCode(), response.getClientResponseStatus()
                 .getStatusCode());
     }
 
