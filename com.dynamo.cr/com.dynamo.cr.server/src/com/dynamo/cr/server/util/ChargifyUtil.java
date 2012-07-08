@@ -25,7 +25,8 @@ public class ChargifyUtil {
     public static final String RENEWAL_FAILURE_WH = "renewal_failure";
     public static final String SUBSCRIPTION_STATE_CHANGE_WH = "subscription_state_change";
 
-    private static MessageDigest digest = null;
+    private static MessageDigest digestMD5 = null;
+    private static MessageDigest digestSHA = null;
 
     /**
      * Generates a signature as: md5(key + body)
@@ -37,17 +38,17 @@ public class ChargifyUtil {
      * @return signature for authentication
      */
     public static String generateSignature(String key, String body) {
-        if (digest == null) {
+        if (digestMD5 == null) {
             try {
-                digest = MessageDigest.getInstance("MD5");
+                digestMD5 = MessageDigest.getInstance("MD5");
             } catch (NoSuchAlgorithmException e) {
                 throw new RuntimeException(e);
             }
         }
-        digest.reset();
-        digest.update(key.getBytes());
-        digest.update(body.getBytes());
-        return new String(Hex.encodeHex(digest.digest()));
+        digestMD5.reset();
+        digestMD5.update(key.getBytes());
+        digestMD5.update(body.getBytes());
+        return new String(Hex.encodeHex(digestMD5.digest()));
     }
 
     private static String generateSignature(Form f, String sharedKey) throws UnsupportedEncodingException {
@@ -82,5 +83,28 @@ public class ChargifyUtil {
             builder.header(ChargifyUtil.SIGNATURE_HEADER_NAME, signature);
         }
         return builder.post(ClientResponse.class);
+    }
+
+    private static String generateToken(Long subscriptionId, String sharedKey) {
+        String message = "update_payment--" + subscriptionId + "--" + sharedKey;
+        if (digestSHA == null) {
+            try {
+                digestSHA = MessageDigest.getInstance("SHA");
+            } catch (NoSuchAlgorithmException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        digestSHA.reset();
+        digestSHA.update(message.getBytes());
+        return new String(Hex.encodeHex(digestSHA.digest())).substring(0, 10);
+    }
+
+    public static String generateUpdateUrl(Long subscriptionId, String billingApiUrl, String sharedKey) {
+        return String.format("%s/%s/%d/%s", billingApiUrl, "update_payment", subscriptionId,
+                generateToken(subscriptionId, sharedKey));
+    }
+
+    public static String generateSignupUrl(Long productId, String billingApiUrl) {
+        return String.format("%s/h/%d/subscriptions/new", billingApiUrl, productId);
     }
 }

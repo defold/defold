@@ -6,6 +6,8 @@ import java.util.Set;
 
 import javax.persistence.EntityManager;
 
+import com.dynamo.cr.server.model.UserSubscription.CreditCard;
+
 public class ModelUtil {
 
     /**
@@ -123,28 +125,24 @@ public class ModelUtil {
         }
     }
 
-    public static Product findProductByHandle(EntityManager entityManager, String handle) {
-        List<Product> list = entityManager
-                .createQuery("select p from Product p where p.handle = :handle", Product.class)
-                .setParameter("handle", handle).getResultList();
-        if (list.size() == 0) {
-            return null;
-        } else {
-            assert list.size() == 1;
-            return list.get(0);
-        }
-    }
-
-    public static UserSubscription newUserSubscription(EntityManager entityManager, User user, Product product,
-            long externalId, long externalCustomerId) {
+    public static UserSubscription newUserSubscription(EntityManager entityManager, User user, long productId,
+            long externalId, long externalCustomerId, CreditCard creditCard) {
         UserSubscription subscription = new UserSubscription();
         subscription.setUser(user);
-        subscription.setProduct(product);
+        subscription.setProductId(productId);
         subscription.setExternalId(externalId);
         subscription.setExternalCustomerId(externalCustomerId);
+        subscription.setCreditCard(creditCard);
         entityManager.persist(subscription);
-        entityManager.persist(user);
         return subscription;
+    }
+
+    public static CreditCard newCreditCard(String maskedNumber, Integer expirationMonth, Integer expirationYear) {
+        CreditCard cc = new CreditCard();
+        cc.setMaskedNumber(maskedNumber);
+        cc.setExpirationMonth(expirationMonth);
+        cc.setExpirationYear(expirationYear);
+        return cc;
     }
 
     public static UserSubscription findUserSubscriptionByExternalId(EntityManager entityManager, String externalId) {

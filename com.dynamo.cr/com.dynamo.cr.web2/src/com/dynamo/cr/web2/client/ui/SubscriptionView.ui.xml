@@ -1,0 +1,50 @@
+<!DOCTYPE ui:UiBinder SYSTEM "http://dl.google.com/gwt/DTD/xhtml.ent">
+<ui:UiBinder xmlns:ui="urn:ui:com.google.gwt.uibinder"
+    xmlns:g='urn:import:com.google.gwt.user.client.ui' xmlns:p1="urn:import:com.google.gwt.user.cellview.client"
+    xmlns:p2="urn:import:com.dynamo.cr.web2.client.ui">
+    <ui:style>
+        .important {
+        	font-weight: bold;
+        }
+
+        .image {
+	       vertical-align: middle;
+	    }
+
+        .panel {
+           min-height: 400px;
+        }
+        .loader {
+            margin: 8px;
+        }
+    </ui:style>
+
+    <g:FlowPanel>
+        <g:Image url="images/ajax-loader.gif" styleName="{style.loader}" ui:field="loader"></g:Image>
+	    <g:HTMLPanel styleName="{style.panel}" ui:field="content">
+	        <h1>Plans</h1>
+	        <g:HTMLPanel ui:field="cancellationMessage">
+	           <p>Your plan has been cancelled because of missing payments. The message from the billing provider was:</p>
+	           <g:Label ui:field="providerMessage"></g:Label>
+	        </g:HTMLPanel>
+	        <g:Grid ui:field="productTable"></g:Grid>
+	        <g:HTMLPanel ui:field="creditCard">
+	            <h3>Credit Card</h3>
+	            <table>
+	                <thead>
+	                    <th>Number</th>
+	                    <th>Expires</th>
+	                    <th></th>
+	                </thead>
+	                <tbody>
+		                <tr>
+		                    <td ui:field="maskedNumber" style="vertical-align: middle;">xxxx-xxxx-xxxx-xxxx</td>
+		                    <td ui:field="expiration" style="vertical-align: middle;">00/00</td>
+		                    <td style="vertical-align: middle;"><g:Button ui:field="editCCButton">Edit</g:Button></td>
+		                </tr>
+		            </tbody>
+	            </table>
+	        </g:HTMLPanel>
+	    </g:HTMLPanel>
+	</g:FlowPanel>
+</ui:UiBinder>

@@ -12,6 +12,7 @@ import com.dynamo.cr.web2.client.ui.ProductInfoView;
 import com.dynamo.cr.web2.client.ui.ProjectView;
 import com.dynamo.cr.web2.client.ui.ReferenceView;
 import com.dynamo.cr.web2.client.ui.ScriptSampleView;
+import com.dynamo.cr.web2.client.ui.SubscriptionView;
 import com.dynamo.cr.web2.client.ui.TutorialsView;
 import com.google.gwt.event.shared.SimpleEventBus;
 import com.google.gwt.place.shared.PlaceController;
@@ -34,6 +35,7 @@ public class ClientFactoryImpl implements ClientFactory {
     private static final ReferenceView referenceView = new ReferenceView();
     private static final GuideView guideView = new GuideView();
     private static final ContentView contentView = new ContentView();
+    private static final SubscriptionView subscriptionView = new SubscriptionView();
 
     private Defold defold;
 
@@ -120,6 +122,11 @@ public class ClientFactoryImpl implements ClientFactory {
     @Override
     public ContentView getContentView() {
         return contentView;
+    }
+
+    @Override
+    public SubscriptionView getSubscriptionView() {
+        return subscriptionView;
     }
 
 }

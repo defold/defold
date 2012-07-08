@@ -1,9 +1,4 @@
-src/demos/tmp
-src/demos/builtins
-.DS_Store
-build
-.externalToolBuilders
-.lock-wscript
-*.pyc
+/src/demos/tmp
+/src/demos/builtins
 /manual
 

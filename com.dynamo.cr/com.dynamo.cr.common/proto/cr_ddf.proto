@@ -23,6 +23,15 @@ message ProjectTemplate {
     required string description = 3;
 }
 
+message BillingProduct {
+    required int32 id = 1;
+    required string name = 2;
+    required string handle = 3;
+    required int32 fee = 4;
+    required int32 max_member_count = 5;
+    required int32 default = 6;
+}
+
 message Configuration
 {
     required string branch_root = 2;
@@ -64,6 +73,7 @@ message Configuration
     required string billing_shared_key = 29;
     required string billing_api_url = 30;
     required string billing_api_key = 31;
+    repeated BillingProduct products = 32;
 }
 
 message EMailTemplate

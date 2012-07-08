@@ -1,14 +1,15 @@
 package com.dynamo.cr.server.billing;
 
-import com.dynamo.cr.server.model.Product;
+import javax.ws.rs.WebApplicationException;
+
 import com.dynamo.cr.server.model.UserSubscription;
 
 public interface IBillingProvider {
-    public boolean reactivateSubscription(UserSubscription subscription);
+    public void reactivateSubscription(UserSubscription subscription) throws WebApplicationException;
 
-    public boolean migrateSubscription(UserSubscription subscription, Product newProduct);
+    public void migrateSubscription(UserSubscription subscription, int newProductId) throws WebApplicationException;
 
-    public boolean cancelSubscription(UserSubscription subscription);
+    public void cancelSubscription(UserSubscription subscription) throws WebApplicationException;
 
-    public Long createSubscription(long customerId, String productHandle);
+    public UserSubscription getSubscription(Long subscriptionId) throws WebApplicationException;
 }

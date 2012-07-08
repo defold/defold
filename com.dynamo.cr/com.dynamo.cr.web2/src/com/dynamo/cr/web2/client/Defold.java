@@ -85,13 +85,23 @@ public class Defold implements EntryPoint {
     }
 
     public <T extends BaseResponse> void getResource(String resource, final ResourceCallback<T> callback) {
+        sendRequestRetrieve(resource, RequestBuilder.GET, "", callback, null);
+    }
 
+    private <T extends BaseResponse> void sendRequestRetrieve(String resource, RequestBuilder.Method method,
+            String requestData,
+            final ResourceCallback<T> callback, String contentType) {
         ResourceCallback<String> interceptCallback = new ResourceCallback<String>() {
 
             @SuppressWarnings("unchecked")
             @Override
             public void onSuccess(String result, Request request, Response response) {
-                callback.onSuccess((T) BaseResponse.getResponse(response.getText()), request, response);
+                int statusCode = response.getStatusCode();
+                T entity = null;
+                if (statusCode >= 200 && statusCode < 300) {
+                    entity = (T) BaseResponse.getResponse(response.getText());
+                }
+                callback.onSuccess(entity, request, response);
             }
 
             @Override
@@ -100,7 +110,7 @@ public class Defold implements EntryPoint {
             }
         };
 
-        sendRequest(resource, RequestBuilder.GET, "", interceptCallback, null);
+        sendRequest(resource, method, requestData, interceptCallback, contentType);
     }
 
     private void sendRequest(String resource, RequestBuilder.Method method, String requestData, final ResourceCallback<String> callback, String contentType) {
@@ -156,8 +166,18 @@ public class Defold implements EntryPoint {
         sendRequest(resource, RequestBuilder.POST, data, callback, "application/json");
     }
 
+    public <T extends BaseResponse> void postResourceRetrieve(String resource, String data,
+            final ResourceCallback<T> callback) {
+        sendRequestRetrieve(resource, RequestBuilder.POST, data, callback, "application/json");
+    }
+
     public void putResource(String resource, String data, final ResourceCallback<String> callback) {
         sendRequest(resource, RequestBuilder.PUT, data, callback, "application/json");
+    }
+
+    public <T extends BaseResponse> void putResourceRetrieve(String resource, String data,
+            final ResourceCallback<T> callback) {
+        sendRequestRetrieve(resource, RequestBuilder.PUT, data, callback, "application/json");
     }
 
     /**
@@ -193,11 +213,11 @@ public class Defold implements EntryPoint {
     class GoogleAnalyticsHandler implements PlaceChangeEvent.Handler {
 
         private native void trackHit(String pageName) /*-{
-            try {
-                $wnd._gaq.push(['_setAccount', 'UA-83690-3']);
-                $wnd._gaq.push(['_trackPageview', pageName]);
-            } catch(err) {
-            }
+			try {
+				$wnd._gaq.push([ '_setAccount', 'UA-83690-3' ]);
+				$wnd._gaq.push([ '_trackPageview', pageName ]);
+			} catch (err) {
+			}
         }-*/;
 
         @Override

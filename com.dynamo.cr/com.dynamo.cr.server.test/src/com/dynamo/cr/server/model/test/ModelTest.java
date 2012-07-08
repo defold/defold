@@ -29,11 +29,11 @@ import org.junit.Test;
 import com.dynamo.cr.server.model.Invitation;
 import com.dynamo.cr.server.model.InvitationAccount;
 import com.dynamo.cr.server.model.ModelUtil;
-import com.dynamo.cr.server.model.Product;
 import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.Prospect;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.model.UserSubscription;
+import com.dynamo.cr.server.model.UserSubscription.CreditCard;
 import com.dynamo.cr.server.test.Util;
 
 public class ModelTest {
@@ -42,8 +42,8 @@ public class ModelTest {
     static final String JOE_CODER_EMAIL = "joe.coder@gmail.com";
     static final String LISA_USER_EMAIL = "lisa.user@gmail.com";
 
-    static final String FREE_PRODUCT_HANDLE = "free";
-    static final String SMALL_PRODUCT_HANDLE = "small";
+    static final long FREE_PRODUCT_ID = 1l;
+    static final long SMALL_PRODUCT_ID = 2l;
 
     private static final String PERSISTENCE_UNIT_NAME = "unit-test";
     private static EntityManagerFactory factory;
@@ -98,15 +98,6 @@ public class ModelTest {
         return account;
     }
 
-    Product newProduct(String name, String handle, Integer maxMemberCount, boolean isDefault) {
-        Product product = new Product();
-        product.setName(name);
-        product.setHandle(handle);
-        product.setMaxMemberCount(maxMemberCount);
-        product.setDefault(isDefault);
-        return product;
-    }
-
     void createData() {
         em.getTransaction().begin();
 
@@ -140,12 +131,6 @@ public class ModelTest {
         em.persist(u1);
         em.persist(u2);
         em.persist(u3);
-
-        // Setup products
-        Product free = newProduct("Free", FREE_PRODUCT_HANDLE, 1, true);
-        Product small = newProduct("Small", SMALL_PRODUCT_HANDLE, -1, true);
-        em.persist(free);
-        em.persist(small);
 
         em.getTransaction().commit();
     }
@@ -431,9 +416,12 @@ public class ModelTest {
     @Test
     public void testCreateSubscription() throws Exception {
         User carl = ModelUtil.findUserByEmail(em, CARL_CONTENT_EMAIL);
-        Product small = ModelUtil.findProductByHandle(em, SMALL_PRODUCT_HANDLE);
         em.getTransaction().begin();
-        ModelUtil.newUserSubscription(em, carl, small, 2l, 3l);
+        CreditCard cc = new CreditCard();
+        cc.setMaskedNumber("masked_number");
+        cc.setExpirationMonth(1);
+        cc.setExpirationYear(2);
+        ModelUtil.newUserSubscription(em, carl, FREE_PRODUCT_ID, 2l, 3l, cc);
         em.getTransaction().commit();
 
         List<UserSubscription> lst = em.createQuery("select us from UserSubscription us", UserSubscription.class)
@@ -441,23 +429,29 @@ public class ModelTest {
         assertThat(lst.size(), is(1));
         UserSubscription us = lst.get(0);
         assertThat(us.getUser().getId(), is(carl.getId()));
-        assertThat(us.getProduct().getId(), is(small.getId()));
+        assertThat(us.getProductId(), is(FREE_PRODUCT_ID));
         assertThat(us.getExternalId(), is(2l));
         assertThat(us.getExternalCustomerId(), is(3l));
         assertThat(us.getState(), is(UserSubscription.State.PENDING));
+        assertThat(cc.getMaskedNumber(), is("masked_number"));
+        assertThat(cc.getExpirationMonth(), is(1));
+        assertThat(cc.getExpirationYear(), is(2));
     }
 
     @Test
     public void testUpdateSubscription() throws Exception {
         User carl = ModelUtil.findUserByEmail(em, CARL_CONTENT_EMAIL);
-        Product free = ModelUtil.findProductByHandle(em, FREE_PRODUCT_HANDLE);
-        Product small = ModelUtil.findProductByHandle(em, SMALL_PRODUCT_HANDLE);
         em.getTransaction().begin();
-        UserSubscription subscription = ModelUtil.newUserSubscription(em, carl, small, 2l, 3l);
+        UserSubscription subscription = ModelUtil.newUserSubscription(em, carl, SMALL_PRODUCT_ID, 2l, 3l, null);
         em.getTransaction().commit();
 
         em.getTransaction().begin();
-        subscription.setProduct(free);
+        subscription.setProductId(FREE_PRODUCT_ID);
+        CreditCard cc = new CreditCard();
+        cc.setMaskedNumber("masked_number");
+        cc.setExpirationMonth(1);
+        cc.setExpirationYear(2);
+        subscription.setCreditCard(cc);
         em.persist(subscription);
         em.getTransaction().commit();
 
@@ -465,7 +459,11 @@ public class ModelTest {
                 .getResultList();
         assertThat(lst.size(), is(1));
         UserSubscription us = lst.get(0);
-        assertThat(us.getProduct().getId(), is(free.getId()));
+        assertThat(us.getProductId(), is(FREE_PRODUCT_ID));
+        cc = us.getCreditCard();
+        assertThat(cc.getMaskedNumber(), is("masked_number"));
+        assertThat(cc.getExpirationMonth(), is(1));
+        assertThat(cc.getExpirationYear(), is(2));
     }
 }
 

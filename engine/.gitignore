@@ -1,2 +1,6 @@
-.project
-
+/.project
+/.cproject
+/.pydevproject
+/*/build
+.externalToolBuilders
+*.pyc

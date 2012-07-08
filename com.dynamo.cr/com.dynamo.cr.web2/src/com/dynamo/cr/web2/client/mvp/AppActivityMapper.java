@@ -13,6 +13,7 @@ import com.dynamo.cr.web2.client.activity.ProductInfoActivity;
 import com.dynamo.cr.web2.client.activity.ProjectActivity;
 import com.dynamo.cr.web2.client.activity.ReferenceActivity;
 import com.dynamo.cr.web2.client.activity.ScriptSampleActivity;
+import com.dynamo.cr.web2.client.activity.SubscriptionActivity;
 import com.dynamo.cr.web2.client.activity.TutorialsActivity;
 import com.dynamo.cr.web2.client.place.BlogPlace;
 import com.dynamo.cr.web2.client.place.ContentPlace;
@@ -26,6 +27,7 @@ import com.dynamo.cr.web2.client.place.ProductInfoPlace;
 import com.dynamo.cr.web2.client.place.ProjectPlace;
 import com.dynamo.cr.web2.client.place.ReferencePlace;
 import com.dynamo.cr.web2.client.place.ScriptSamplePlace;
+import com.dynamo.cr.web2.client.place.SubscriptionPlace;
 import com.dynamo.cr.web2.client.place.TutorialsPlace;
 import com.google.gwt.activity.shared.Activity;
 import com.google.gwt.activity.shared.ActivityMapper;
@@ -81,6 +83,8 @@ public class AppActivityMapper implements ActivityMapper {
             return new GuideActivity((GuidePlace) place, clientFactory);
         else if (place instanceof ContentPlace)
             return new ContentActivity((ContentPlace) place, clientFactory);
+        else if (place instanceof SubscriptionPlace)
+            return new SubscriptionActivity((SubscriptionPlace) place, clientFactory);
 
 		return null;
 	}

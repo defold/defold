@@ -2,28 +2,50 @@ package com.dynamo.cr.server.resources.test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
 
+import java.io.File;
 import java.net.URI;
+import java.util.Properties;
 
+import javax.inject.Singleton;
 import javax.persistence.EntityManager;
+import javax.persistence.EntityManagerFactory;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriBuilder;
 
 import org.codehaus.jackson.JsonNode;
+import org.eclipse.persistence.config.PersistenceUnitProperties;
+import org.eclipse.persistence.jpa.osgi.PersistenceProvider;
+import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.dynamo.cr.common.providers.JsonProviders;
 import com.dynamo.cr.common.providers.ProtobufProviders;
+import com.dynamo.cr.proto.Config.BillingProduct;
 import com.dynamo.cr.proto.Config.Configuration;
 import com.dynamo.cr.protocol.proto.Protocol.UserSubscriptionInfo;
 import com.dynamo.cr.protocol.proto.Protocol.UserSubscriptionState;
+import com.dynamo.cr.server.ConfigurationProvider;
+import com.dynamo.cr.server.Server;
+import com.dynamo.cr.server.billing.ChargifyService;
+import com.dynamo.cr.server.billing.IBillingProvider;
 import com.dynamo.cr.server.billing.test.ChargifySimulator;
-import com.dynamo.cr.server.model.Product;
+import com.dynamo.cr.server.mail.IMailProcessor;
+import com.dynamo.cr.server.mail.IMailer;
+import com.dynamo.cr.server.mail.MailProcessor;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.model.User.Role;
+import com.dynamo.cr.server.model.UserSubscription;
+import com.dynamo.cr.server.test.Util;
 import com.dynamo.cr.server.util.ChargifyUtil;
+import com.google.inject.AbstractModule;
+import com.google.inject.Guice;
+import com.google.inject.Injector;
+import com.google.inject.name.Names;
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientResponse;
 import com.sun.jersey.api.client.UniformInterfaceException;
@@ -32,22 +54,76 @@ import com.sun.jersey.api.client.config.DefaultClientConfig;
 import com.sun.jersey.api.client.filter.HTTPBasicAuthFilter;
 import com.sun.jersey.api.representation.Form;
 
-public class BillingIntegrationTest extends AbstractResourceTest {
+public class BillingIntegrationTest {
 
     int port = 6500;
     String joeEmail = "joe@foo.com";
     String joePasswd = "secret2";
     User joeUser;
-    Product freeProduct;
-    Product smallProduct;
     DefaultClientConfig clientConfig;
     WebResource joeUsersWebResource;
     WebResource webhookResource;
     ChargifySimulator chargifySimulator;
 
+    static Server server;
+    static Module module;
+    static IMailer mailer;
+    static EntityManagerFactory emf;
+    static IBillingProvider billingProvider;
+    static BillingProduct freeProduct;
+    static BillingProduct smallProduct;
+
+    static class Module extends AbstractModule {
+        @Override
+        protected void configure() {
+            bind(String.class).annotatedWith(Names.named("configurationFile"))
+                    .toInstance("test_data/crepo_test.config");
+            bind(Configuration.class).toProvider(ConfigurationProvider.class).in(Singleton.class);
+            bind(IMailProcessor.class).to(MailProcessor.class).in(Singleton.class);
+            bind(IMailer.class).toInstance(mailer);
+            bind(IBillingProvider.class).to(ChargifyService.class).in(Singleton.class);
+
+            Properties props = new Properties();
+            props.put(PersistenceUnitProperties.CLASSLOADER, this.getClass().getClassLoader());
+            EntityManagerFactory emf = new PersistenceProvider().createEntityManagerFactory("unit-test", props);
+            bind(EntityManagerFactory.class).toInstance(emf);
+        }
+    }
+
+    @BeforeClass
+    public static void setUpClass() throws Exception {
+        ClassLoader cl = Thread.currentThread().getContextClassLoader();
+        cl.loadClass("org.apache.derby.jdbc.EmbeddedDriver");
+
+        // "drop-and-create-tables" can't handle model changes correctly. We
+        // need to drop all tables first.
+        // Eclipse-link only drops tables currently specified. When the model
+        // change the table set also change.
+        File tmp_testdb = new File("tmp/testdb");
+        if (tmp_testdb.exists()) {
+            Util.dropAllTables();
+        }
+
+        mailer = mock(IMailer.class);
+
+        module = new Module();
+        Injector injector = Guice.createInjector(module);
+        server = injector.getInstance(Server.class);
+        emf = server.getEntityManagerFactory();
+
+        freeProduct = server.getProductByHandle("free");
+        smallProduct = server.getProductByHandle("small");
+    }
+
+    @AfterClass
+    public static void tearDownClass() throws Exception {
+        server.stop();
+    }
+
     @Before
     public void setUp() throws Exception {
-        setupUpTest();
+        // Clear all tables as we keep the database over tests
+        Util.clearAllTables();
 
         EntityManager em = emf.createEntityManager();
         em.getTransaction().begin();
@@ -59,20 +135,6 @@ public class BillingIntegrationTest extends AbstractResourceTest {
         joeUser.setPassword(joePasswd);
         joeUser.setRole(Role.USER);
         em.persist(joeUser);
-
-        freeProduct = new Product();
-        freeProduct.setName("Free");
-        freeProduct.setHandle("free");
-        freeProduct.setMaxMemberCount(1);
-        freeProduct.setDefault(true);
-        em.persist(freeProduct);
-
-        smallProduct = new Product();
-        smallProduct.setName("Small");
-        smallProduct.setHandle("small");
-        smallProduct.setMaxMemberCount(-1);
-        smallProduct.setDefault(false);
-        em.persist(smallProduct);
 
         em.getTransaction().commit();
 
@@ -101,6 +163,7 @@ public class BillingIntegrationTest extends AbstractResourceTest {
 
         chargifySimulator = new ChargifySimulator(chargifyResource, webhookResource,
                 configuration.getBillingSharedKey());
+        billingProvider = new ChargifyService(configuration);
     }
 
     private UserSubscriptionInfo getSubscription() {
@@ -122,13 +185,10 @@ public class BillingIntegrationTest extends AbstractResourceTest {
     private void createUserSubscription(JsonNode root) {
         JsonNode subscription = root.get("subscription");
         int subscriptionId = subscription.get("id").getIntValue();
-        int customerId = subscription.get("customer").get("id").getIntValue();
         ClientResponse response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
-                .queryParam("product", Long.toString(smallProduct.getId()))
                 .queryParam("external_id", Integer.toString(subscriptionId))
-                .queryParam("external_customer_id", Integer.toString(customerId))
                 .post(ClientResponse.class);
-        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+        assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
     }
 
     @Test
@@ -139,9 +199,9 @@ public class BillingIntegrationTest extends AbstractResourceTest {
 
         createUserSubscription(root);
 
-        // Verify pending
+        // Verify active
         UserSubscriptionInfo s = getSubscription();
-        assertEquals(UserSubscriptionState.PENDING, s.getState());
+        assertEquals(UserSubscriptionState.ACTIVE, s.getState());
 
         // Webhooks
         assertTrue(this.chargifySimulator.sendWebhooks());
@@ -166,9 +226,9 @@ public class BillingIntegrationTest extends AbstractResourceTest {
 
         createUserSubscription(root);
 
-        // Verify pending
+        // Verify active
         UserSubscriptionInfo s = getSubscription();
-        assertEquals(UserSubscriptionState.PENDING, s.getState());
+        assertEquals(UserSubscriptionState.ACTIVE, s.getState());
 
         // Webhooks
         assertTrue(this.chargifySimulator.sendWebhooks());
@@ -186,9 +246,9 @@ public class BillingIntegrationTest extends AbstractResourceTest {
 
         createUserSubscription(root);
 
-        // Verify pending
+        // Verify active
         UserSubscriptionInfo s = getSubscription();
-        assertEquals(UserSubscriptionState.PENDING, s.getState());
+        assertEquals(UserSubscriptionState.ACTIVE, s.getState());
 
         // Webhooks
         assertTrue(this.chargifySimulator.sendWebhooks());
@@ -204,6 +264,10 @@ public class BillingIntegrationTest extends AbstractResourceTest {
                 .getConfiguration()
                 .getBillingSharedKey());
         assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+        // Also let chargify update its status
+        UserSubscription subscription = new UserSubscription();
+        subscription.setExternalId((long) subscriptionId);
+        billingProvider.cancelSubscription(subscription);
 
         // Verify canceled
         s = getSubscription();
@@ -211,9 +275,8 @@ public class BillingIntegrationTest extends AbstractResourceTest {
 
         // Reactivate
         response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
-                .queryParam("product", Long.toString(smallProduct.getId()))
                 .queryParam("state", "ACTIVE").put(ClientResponse.class);
-        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+        assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
 
         // Verify pending
         s = getSubscription();
@@ -241,9 +304,9 @@ public class BillingIntegrationTest extends AbstractResourceTest {
 
         createUserSubscription(root);
 
-        // Verify pending
+        // Verify active
         UserSubscriptionInfo s = getSubscription();
-        assertEquals(UserSubscriptionState.PENDING, s.getState());
+        assertEquals(UserSubscriptionState.ACTIVE, s.getState());
 
         // Webhooks
         assertTrue(this.chargifySimulator.sendWebhooks());
@@ -270,7 +333,7 @@ public class BillingIntegrationTest extends AbstractResourceTest {
 
         // Verify free product subscription
         s = getSubscription();
-        assertEquals(this.freeProduct.getId().longValue(), s.getProduct().getId());
+        assertEquals(freeProduct.getId(), s.getProduct().getId());
     }
 
     @Test
@@ -281,9 +344,9 @@ public class BillingIntegrationTest extends AbstractResourceTest {
 
         createUserSubscription(root);
 
-        // Verify pending
+        // Verify active
         UserSubscriptionInfo s = getSubscription();
-        assertEquals(UserSubscriptionState.PENDING, s.getState());
+        assertEquals(UserSubscriptionState.ACTIVE, s.getState());
 
         // Webhooks
         assertTrue(this.chargifySimulator.sendWebhooks());
@@ -295,12 +358,11 @@ public class BillingIntegrationTest extends AbstractResourceTest {
         // Migrate
         ClientResponse response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
                 .queryParam("product", Long.toString(freeProduct.getId()))
-                .queryParam("state", s.getState().toString())
                 .put(ClientResponse.class);
-        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+        assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
 
         // Verify migration
         s = getSubscription();
-        assertEquals(freeProduct.getId().longValue(), s.getProduct().getId());
+        assertEquals(freeProduct.getId(), s.getProduct().getId());
     }
 }

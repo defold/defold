@@ -21,6 +21,7 @@ option java_outer_classname = "Engine";
  *         msg.post("@system:", "exit", {code = 0})
  *     end
  * end
+ * </pre>
  */
 message Exit
 {
