@@ -1,4 +1,32 @@
 {% extends "base.html" %} {% block title %} Defold Game Engine {% endblock %} {% block end %}
+
+<script type="text/javascript">
+    /* Client side redirection for compatibility with old URL:s */
+
+    var href = window.location.href;
+    if (href.match(/.*?#[!]?blog[:]?$/)) {
+    	window.location.href = "/blog";
+    }
+    else if (href.match(/.*?#[!]?documentation[:]?$/)) {
+        window.location.href = "/doc";
+    }
+    else if (href.match(/.*?#[!]?guide:(.*?)$/)) {
+        window.location.href = "/doc/" + RegExp.$1;
+    }
+    else if (href.match(/.*?#[!]?tutorials:(.*?)$/)) {
+        window.location.href = "/doc/" + RegExp.$1;
+    }
+    else if (href.match(/.*?#[!]?script_sample:(.*?)$/)) {
+        window.location.href = "/doc/" + RegExp.$1;
+    }
+    else if (href.match(/.*?#[!]?content:(.*?)$/)) {
+        window.location.href = "/about/" + RegExp.$1;
+    }
+    else if (href.match(/.*?#[!]?reference:(.*?)\/(.*?)$/)) {
+        window.location.href = "/ref/" + RegExp.$1 + "#" + RegExp.$2;
+    }
+</script>
+
 <link rel="stylesheet" type="text/css" href="shadowbox/shadowbox.css">
 <link href="landing.css" rel="stylesheet">
 <script type="text/javascript" src="shadowbox/shadowbox.js"></script>
