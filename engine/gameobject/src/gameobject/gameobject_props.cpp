@@ -387,7 +387,7 @@ namespace dmGameObject
 
     uint32_t LuaTableToProperties(lua_State* L, int index, uint8_t* buffer, uint32_t buffer_size)
     {
-        if (buffer_size <= 4)
+        if (buffer_size <= 4 || !lua_istable(L, index))
             return 0;
 
         uint8_t* cursor = buffer;
@@ -455,7 +455,7 @@ namespace dmGameObject
                 uint32_t needed_size = (cursor - buffer) + sizeof(dmhash_t) + 4 + property_size;
                 if (needed_size > buffer_size)
                 {
-                    return 0;
+                    return needed_size;
                 }
                 SetProperty(p, &cursor);
                 ++count;

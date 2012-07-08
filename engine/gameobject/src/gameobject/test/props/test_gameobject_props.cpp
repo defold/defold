@@ -147,6 +147,15 @@ TEST_F(PropsTest, PropsMultiScript)
     dmResource::Release(m_Factory, collection);
 }
 
+TEST_F(PropsTest, PropsNil)
+{
+    lua_State* L = luaL_newstate();
+    lua_pushnil(L);
+    uint32_t size = dmGameObject::LuaTableToProperties(L, 1, 0x0, 0);
+    ASSERT_EQ(0u, size);
+    lua_close(L);
+}
+
 TEST_F(PropsTest, PropsFailDefaultURL)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/props_fail_default_url.goc");
@@ -216,7 +225,7 @@ TEST_F(PropsTest, PropsFailLuaTableOverflow)
     const uint32_t buffer_size = original_count*2;
     uint8_t buffer[buffer_size];
     uint32_t actual_size = dmGameObject::LuaTableToProperties(L, 1, buffer, buffer_size);
-    ASSERT_EQ(0u, actual_size);
+    ASSERT_GT(actual_size, buffer_size);
     lua_close(L);
 }
 
