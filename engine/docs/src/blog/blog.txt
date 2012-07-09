@@ -1,5 +1,24 @@
 :max-width: 45em
 
+Release 1.1.12
+--------------
+_July 9, 2012_
+
+Release 1.1.12 is also a tiny update feature-wise.
+It contains two crash fixes detailed below.
+It also contains parts of the up-coming Beta-release, which we wanted to deploy to be able to test it better.
+These features are however not yet visible and will be exposed with the rest of the features for the Beta.
+
+We are still working hard on the three big changes for the Beta, which are the iOS-support, the billing system and the web site redesign.
+This is also the reason why the releases are more scarce now.
+Things are looking really good though!
+
+Crashes fixed
+~~~~~~~~~~~~~
+
+* Having a second tile map layer that had a larger extent than the first made the engine crash.
+* Supplying +nil+ as properties to +factory.create+ made the engine crash.
+
 Release 1.1.11
 --------------
 _June 19, 2012_
