@@ -280,7 +280,7 @@ public class BillingIntegrationTest {
 
         // Verify pending
         s = getSubscription();
-        assertEquals(UserSubscriptionState.PENDING, s.getState());
+        assertEquals(UserSubscriptionState.ACTIVE, s.getState());
 
         // Webhook it
         f = new Form();

@@ -120,7 +120,7 @@ public class ChargifyResourceTest extends AbstractResourceTest {
         UserSubscriptionInfo subscriptionInfo = joeUsersWebResource
                 .path(String.format("/%d/subscription", joeUser.getId())).accept(MediaType.APPLICATION_JSON_TYPE)
                 .type(MediaType.APPLICATION_JSON_TYPE).get(UserSubscriptionInfo.class);
-        assertEquals(UserSubscriptionState.PENDING, subscriptionInfo.getState());
+        assertEquals(UserSubscriptionState.ACTIVE, subscriptionInfo.getState());
 
         // Activate through webhook
         Form f = new Form();
@@ -157,7 +157,7 @@ public class ChargifyResourceTest extends AbstractResourceTest {
         UserSubscriptionInfo subscriptionInfo = joeUsersWebResource
                 .path(String.format("/%d/subscription", joeUser.getId())).accept(MediaType.APPLICATION_JSON_TYPE)
                 .type(MediaType.APPLICATION_JSON_TYPE).get(UserSubscriptionInfo.class);
-        assertEquals(UserSubscriptionState.PENDING, subscriptionInfo.getState());
+        assertEquals(UserSubscriptionState.ACTIVE, subscriptionInfo.getState());
 
         // Activate through webhook
         Form f = new Form();
@@ -194,7 +194,7 @@ public class ChargifyResourceTest extends AbstractResourceTest {
         UserSubscriptionInfo subscriptionInfo = joeUsersWebResource
                 .path(String.format("/%d/subscription", joeUser.getId())).accept(MediaType.APPLICATION_JSON_TYPE)
                 .type(MediaType.APPLICATION_JSON_TYPE).get(UserSubscriptionInfo.class);
-        assertEquals(UserSubscriptionState.PENDING, subscriptionInfo.getState());
+        assertEquals(UserSubscriptionState.ACTIVE, subscriptionInfo.getState());
 
         // Activate through webhook
         Form f = new Form();

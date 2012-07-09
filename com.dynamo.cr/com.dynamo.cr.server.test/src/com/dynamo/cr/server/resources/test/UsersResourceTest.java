@@ -23,6 +23,8 @@ import org.codehaus.jackson.node.ObjectNode;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
 import com.dynamo.cr.client.filter.DefoldAuthFilter;
 import com.dynamo.cr.common.providers.JsonProviders;
@@ -735,11 +737,28 @@ public class UsersResourceTest extends AbstractResourceTest {
     @Test
     public void testUpdatePendingSubscription() throws Exception {
 
+        UserSubscription subscription = billingProvider.getSubscription(0l);
+        subscription.setState(State.PENDING);
+        Mockito.when(billingProvider.getSubscription(Mockito.anyLong())).thenReturn(subscription);
+
         postUserSubscription(joeUser.getId(), 1l);
 
         // Migrate it
         ClientResponse response = putUserSubscription(joeUser.getId(), (long) smallProduct.getId(), null, null);
         assertEquals(Response.Status.CONFLICT.getStatusCode(), response.getStatus());
+
+        Mockito.doAnswer(new Answer<UserSubscription>() {
+            @Override
+            public UserSubscription answer(InvocationOnMock invocation) throws Throwable {
+                UserSubscription subscription = new UserSubscription();
+                subscription.setCreditCard(new CreditCard("1", 1, 2020));
+                subscription.setExternalId((Long) invocation.getArguments()[0]);
+                subscription.setExternalCustomerId(1l);
+                subscription.setProductId((long) freeProduct.getId());
+                subscription.setState(State.ACTIVE);
+                return subscription;
+            }
+        }).when(billingProvider).getSubscription(Mockito.anyLong());
     }
 
     @Test
