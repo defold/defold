@@ -4,6 +4,7 @@ import com.dynamo.cr.web2.client.InvitationAccountInfo;
 import com.dynamo.cr.web2.client.ProjectInfo;
 import com.dynamo.cr.web2.client.ProjectInfoList;
 import com.dynamo.cr.web2.client.UserSubscriptionInfo;
+import com.dynamo.cr.web2.shared.ClientUtil;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.core.client.JsArray;
 import com.google.gwt.dom.client.SpanElement;
@@ -51,6 +52,10 @@ public class DashboardView extends Composite {
 
     public DashboardView() {
         initWidget(uiBinder.createAndBindUi(this));
+
+        if (ClientUtil.isDev()) {
+            this.subscriptionBox.setVisible(false);
+        }
     }
 
     public void setProjectInfoList(int userId, ProjectInfoList projectInfoList) {
