@@ -53,7 +53,7 @@ public class DashboardView extends Composite {
     public DashboardView() {
         initWidget(uiBinder.createAndBindUi(this));
 
-        if (ClientUtil.isDev()) {
+        if (!ClientUtil.isDev()) {
             this.subscriptionBox.setVisible(false);
         }
     }
