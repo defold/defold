@@ -11,6 +11,7 @@ render('404.html', 'error/404.html', root='/')
 render('500.html', 'error/500.html', root='/')
 
 render('landing.html', 'landing.html')
+render('plans.html', 'plans/plans.html', active_page = 'plans')
 
 docs = ['script_properties.html',
         'eula.html',

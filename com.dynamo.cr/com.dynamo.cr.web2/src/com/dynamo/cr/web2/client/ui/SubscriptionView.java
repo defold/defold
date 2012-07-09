@@ -73,6 +73,9 @@ public class SubscriptionView extends Composite implements ClickHandler {
 
     public SubscriptionView() {
         initWidget(uiBinder.createAndBindUi(this));
+        productTable.setStyleName("table table-striped table-pricing");
+        editCCButton.addStyleName("btn btn-primary");
+
         setLoading(false);
         this.cancellationMessage.setVisible(false);
         Element thead = DOM.createElement("thead");
@@ -128,6 +131,12 @@ public class SubscriptionView extends Composite implements ClickHandler {
         loadProducts();
     }
 
+    private Button createButton(String title) {
+        Button b = new Button(title, this);
+        b.setStyleName("btn btn-primary");
+        return b;
+    }
+
     private void loadProducts() {
         if (this.products != null && this.subscription != null) {
             setLoading(false);
@@ -145,15 +154,16 @@ public class SubscriptionView extends Composite implements ClickHandler {
                 }
                 this.productTable.setText(i, 0, name);
                 this.productTable.setText(i, 1, memberCount);
+                this.productTable.getCellFormatter().setStyleName(i, 3, "button-col");
                 String state = this.subscription.getState();
                 boolean canceled = state.equals("CANCELED");
                 boolean active = state.equals("ACTIVE");
                 if (this.subscription.getProductInfo().getId() == productInfo.getId()) {
                     this.productTable.setText(i, 2, state);
                     if (canceled) {
-                        this.reactivateButton = new Button("Reactivate", this);
+                        this.reactivateButton = createButton("Reactivate");
                         this.productTable.setWidget(i, 3, this.reactivateButton);
-                        this.terminateButton = new Button("Terminate", this);
+                        this.terminateButton = createButton("Terminate");
                         this.productTable.setWidget(i, 4, this.terminateButton);
                     } else {
                         this.productTable.setText(i, 3, "Your plan");
@@ -163,7 +173,7 @@ public class SubscriptionView extends Composite implements ClickHandler {
                     this.productTable.setText(i, 2, "-");
                     this.productTable.clearCell(i, 4);
                     if (active) {
-                        Button button = new Button();
+                        Button button = createButton("");
                         if (this.subscription.getProductInfo().getFee() > productInfo.getFee()) {
                             button.setText("Downgrade");
                         } else {

@@ -140,3 +140,46 @@ ul.social li {
 .facebook-icon:hover {
     background-position: -177px 0px;
 }
+
+/* Pricing and plans
+   The style .pricing is for the /plans pricing table
+   The table-pricing style is for the table on the dashboard
+ */
+
+div.pricing {
+    text-align: center;
+}
+
+.pricing h1 {
+    font-weight: 600;
+    margin-bottom: 0.2em;
+}
+
+.pricing h2 {
+    font-weight: 300;
+}
+
+.pricing ul {
+    margin-top: 1.2em;
+}
+
+.pricing li {
+    border-top: 1px solid #DDD;
+    padding: 1em 0px;
+}
+
+table.table-pricing td.button-col button {
+    width: 8em;
+}
+
+table.table-pricing td.button-col div {
+    font-weight: bold;
+}
+
+table.table-credit-card {
+    width: auto;
+}
+
+table.table-credit-card td {
+    padding-right: 3em;
+}
