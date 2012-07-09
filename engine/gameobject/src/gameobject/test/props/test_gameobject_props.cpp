@@ -103,6 +103,8 @@ TEST_F(PropsTest, PropsDefault)
     bool result = dmGameObject::Init(m_Collection);
     ASSERT_TRUE(result);
     ASSERT_EQ(dmResource::RESULT_OK, ReloadResource(m_Factory, "/props_default.scriptc", 0x0));
+    // Twice since we had crash here
+    ASSERT_EQ(dmResource::RESULT_OK, ReloadResource(m_Factory, "/props_default.scriptc", 0x0));
     dmGameObject::Delete(m_Collection, go);
 }
 
