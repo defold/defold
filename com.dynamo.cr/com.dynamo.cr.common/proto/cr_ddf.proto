@@ -74,6 +74,9 @@ message Configuration
     required string billing_api_url = 30;
     required string billing_api_key = 31;
     repeated BillingProduct products = 32;
+
+    // downloads
+    optional string downloads_root = 33;
 }
 
 message EMailTemplate
