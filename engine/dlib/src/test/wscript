@@ -119,7 +119,7 @@ def build(bld):
 
     test_dlib = bld.new_task_gen(features = 'cxx cprogram',
                                  source = 'test_memprofile.cpp',
-                                 uselib = 'GTEST PLATFORM_SOCKET THREAD',
+                                 uselib = 'GTEST DL PLATFORM_SOCKET THREAD',
                                  uselib_local = "dlib",
                                  includes = ['../../src'],
                                  target = 'test_memprofile')
@@ -129,9 +129,6 @@ def build(bld):
     # In order to get accurate result from the memory profiler this is necessary
     if 'darwin' in bld.env['PLATFORM']:
         test_dlib.env.append_value('LINKFLAGS', [ '-flat_namespace' ])
-
-    if 'linux' in bld.env['PLATFORM']:
-        test_dlib.env.append_value('LINKFLAGS', [ '-ldl' ])
 
     test_dlib = bld.new_task_gen(features = 'cxx cprogram',
                                  source = 'test_message.cpp',
@@ -267,7 +264,7 @@ def build(bld):
 
     test_uuid = bld.new_task_gen(features = 'cxx cprogram',
                                 source = 'test_uuid.cpp',
-                                uselib = 'GTEST THREAD',
+                                uselib = 'UUID GTEST THREAD',
                                 uselib_local = "dlib",
                                 includes = ['../../src'],
                                 target = 'test_uuid')

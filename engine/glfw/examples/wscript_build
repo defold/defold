@@ -25,4 +25,5 @@ for e in samples.split():
                      target = e,
                      source = '%s.c' % e,
                      uselib_local = local_libs,
+		     uselib = 'X',
                      install_path = None)
