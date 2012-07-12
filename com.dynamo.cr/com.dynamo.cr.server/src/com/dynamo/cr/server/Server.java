@@ -46,6 +46,7 @@ import org.eclipse.jetty.util.resource.Resource;
 import org.eclipse.jgit.http.server.GitServlet;
 import org.eclipse.persistence.config.PersistenceUnitProperties;
 import org.glassfish.grizzly.http.server.HttpServer;
+import org.glassfish.grizzly.http.server.StaticHttpHandler;
 import org.glassfish.grizzly.servlet.ServletHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -378,6 +379,8 @@ public class Server implements ServerMBean {
             initDataServer();
         }
 
+        addDownloadsHandler();
+
         this.mailProcessor.start();
 
         this.executorService = Executors.newSingleThreadExecutor();
@@ -391,6 +394,16 @@ public class Server implements ServerMBean {
             }
         } catch (Throwable e) {
             logger.error(e.getMessage(), e);
+        }
+    }
+
+    private void addDownloadsHandler() {
+        if (getConfiguration().hasDownloadsRoot()) {
+            String root = getConfiguration().getDownloadsRoot();
+            StaticHttpHandler handler = new StaticHttpHandler(root);
+            System.out.println(handler.getDocRoots());
+            httpServer.getServerConfiguration().addHttpHandler(handler, "/downloads");
+            logger.info("adding downloads handler for directory {}", root);
         }
     }
 
