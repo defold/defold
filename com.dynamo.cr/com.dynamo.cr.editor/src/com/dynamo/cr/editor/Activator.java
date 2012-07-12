@@ -496,6 +496,10 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
                  */
                 for (NetworkListener listener : httpServer.getListeners()) {
                     listener.getFileCache().setEnabled(false);
+                    // TODO This is a temp fix for a file-locking bug on windows
+                    // More details here:
+                    // https://defold.fogbugz.com/default.asp?1177
+                    listener.getFileCache().setMaxCacheEntries(0);
                 }
                 httpServer.start();
                 HttpHandler handler = httpServer.getHttpHandler();
