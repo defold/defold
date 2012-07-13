@@ -33,6 +33,7 @@ import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.ws.rs.core.Response.Status;
+import javax.ws.rs.core.UriBuilder;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
@@ -45,8 +46,10 @@ import org.eclipse.jetty.server.handler.ResourceHandler;
 import org.eclipse.jetty.util.resource.Resource;
 import org.eclipse.jgit.http.server.GitServlet;
 import org.eclipse.persistence.config.PersistenceUnitProperties;
+import org.glassfish.grizzly.http.server.HttpHandler;
 import org.glassfish.grizzly.http.server.HttpServer;
-import org.glassfish.grizzly.http.server.StaticHttpHandler;
+import org.glassfish.grizzly.http.server.Response;
+import org.glassfish.grizzly.http.util.Header;
 import org.glassfish.grizzly.servlet.ServletHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -379,7 +382,7 @@ public class Server implements ServerMBean {
             initDataServer();
         }
 
-        addDownloadsHandler();
+        addRedirectHandler();
 
         this.mailProcessor.start();
 
@@ -397,13 +400,37 @@ public class Server implements ServerMBean {
         }
     }
 
-    private void addDownloadsHandler() {
-        if (getConfiguration().hasDownloadsRoot()) {
-            String root = getConfiguration().getDownloadsRoot();
-            StaticHttpHandler handler = new StaticHttpHandler(root);
-            System.out.println(handler.getDocRoots());
+    static class RedirectHandler extends HttpHandler {
+
+        private String redirectHost;
+        private int redirectPort;
+
+        public RedirectHandler(String redirectHost,
+                int redirectPort) {
+            this.redirectHost = redirectHost;
+            this.redirectPort = redirectPort;
+        }
+
+        @Override
+        public void service(org.glassfish.grizzly.http.server.Request request,
+                Response response) throws Exception {
+
+            URI redirectUri = UriBuilder.fromUri(request.getRequestURL().toString())
+                    .host(redirectHost)
+                    .port(redirectPort)
+                    .build();
+            response.setHeader(Header.Location, redirectUri.toString());
+            response.setStatus(org.glassfish.grizzly.http.util.HttpStatus.FOUND_302);
+        }
+
+    }
+
+    private void addRedirectHandler() {
+        Configuration c = getConfiguration();
+        if (c.hasRedirectDownloadsHost()) {
+            RedirectHandler handler = new RedirectHandler(c.getRedirectDownloadsHost(), c.getRedirectDownloadsPort());
             httpServer.getServerConfiguration().addHttpHandler(handler, "/downloads");
-            logger.info("adding downloads handler for directory {}", root);
+            logger.info("adding redirect handler for downloads to {}:{}", c.getRedirectDownloadsHost(), c.getRedirectDownloadsPort());
         }
     }
 
