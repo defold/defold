@@ -29,7 +29,7 @@ public class ChargifyResource extends BaseResource {
     public void handleWebHook(@HeaderParam(ChargifyUtil.SIGNATURE_HEADER_NAME) String signature,
             @FormParam("event") String event, @FormParam("payload[subscription][id]") String subscriptionId,
             @FormParam("payload[subscription][state]") String state,
-            @FormParam("payload[subscription][previous_state") String previousState,
+            @FormParam("payload[subscription][previous_state]") String previousState,
             @FormParam("payload[subscription][cancellation_message]") String cancellationMessage, String body) {
         String key = server.getConfiguration().getBillingSharedKey();
         String expectedSignature = ChargifyUtil.generateSignature(key, body);
@@ -84,7 +84,7 @@ public class ChargifyResource extends BaseResource {
 
     private void handleSubscriptionStateChange(String subscriptionId, String state, String previousState) {
         logger.info(BILLING_MARKER,
-                String.format("Subscription %s changed from %s to %s.", subscriptionId, state, previousState));
+                String.format("Subscription %s changed from %s to %s.", subscriptionId, previousState, state));
         State s = null;
         if (state.equals("active")) {
             s = State.ACTIVE;
