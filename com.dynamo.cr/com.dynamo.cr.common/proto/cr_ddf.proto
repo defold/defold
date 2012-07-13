@@ -76,7 +76,8 @@ message Configuration
     repeated BillingProduct products = 32;
 
     // downloads
-    optional string downloads_root = 33;
+    optional string redirectDownloadsHost = 33;
+    optional int32 redirectDownloadsPort = 34 [default=8080];
 }
 
 message EMailTemplate
