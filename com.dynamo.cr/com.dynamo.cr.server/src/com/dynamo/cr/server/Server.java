@@ -46,6 +46,7 @@ import org.eclipse.jetty.util.resource.Resource;
 import org.eclipse.jgit.http.server.GitServlet;
 import org.eclipse.persistence.config.PersistenceUnitProperties;
 import org.glassfish.grizzly.http.server.HttpServer;
+import org.glassfish.grizzly.http.server.NetworkListener;
 import org.glassfish.grizzly.http.server.StaticHttpHandler;
 import org.glassfish.grizzly.servlet.ServletHandler;
 import org.slf4j.Logger;
@@ -341,6 +342,15 @@ public class Server implements ServerMBean {
         baseUri = String.format("http://0.0.0.0:%d/", this.configuration.getServicePort());
 
         httpServer = createHttpServer();
+        // TODO File caches are temporarily disabled to avoid two bugs:
+        // * Content-type is incorrect for cached files:
+        // http://java.net/jira/browse/GRIZZLY-1014
+        // * Editor downloads consumes a lot of memory (and might leak)
+        // Issue here: https://defold.fogbugz.com/default.asp?1177
+        for (NetworkListener listener : httpServer.getListeners()) {
+            listener.getFileCache().setEnabled(false);
+            listener.getFileCache().setMaxCacheEntries(0);
+        }
         GitServlet gitServlet = new GitServlet();
         ServletHandler gitHandler = new ServletHandler(gitServlet);
         gitHandler.addFilter(new GitSecurityFilter(emf), "gitAuth", null);
