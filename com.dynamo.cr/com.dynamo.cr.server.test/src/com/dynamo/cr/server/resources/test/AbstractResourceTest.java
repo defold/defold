@@ -87,7 +87,7 @@ public class AbstractResourceTest {
                 subscription.setExternalId((Long)invocation.getArguments()[0]);
                 subscription.setExternalCustomerId(1l);
                 subscription.setProductId((long) freeProduct.getId());
-                subscription.setState(State.PENDING);
+                subscription.setState(State.ACTIVE);
                 return subscription;
             }
         }).when(billingProvider).getSubscription(Mockito.anyLong());

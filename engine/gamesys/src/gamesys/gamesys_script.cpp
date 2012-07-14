@@ -183,12 +183,13 @@ namespace dmGameSystem
             {
                 request->m_Rotation = dmGameObject::GetWorldRotation(sender_instance);
             }
-            uint32_t prop_buffer_size = 0;
+            uint32_t actual_prop_buffer_size = 0;
             if (top >= 4)
             {
                 uint8_t* prop_buffer = &buffer[msg_size];
-                prop_buffer_size = dmGameObject::LuaTableToProperties(L, 4, prop_buffer, buffer_size - msg_size);
-                if (prop_buffer_size == 0)
+                uint32_t prop_buffer_size = buffer_size - msg_size;
+                actual_prop_buffer_size = dmGameObject::LuaTableToProperties(L, 4, prop_buffer, prop_buffer_size);
+                if (actual_prop_buffer_size > prop_buffer_size)
                     return luaL_error(L, "the properties supplied to factory.create are too many.");
             }
             request->m_Id = dmGameObject::GenerateUniqueInstanceId(collection);
@@ -197,7 +198,7 @@ namespace dmGameSystem
 
             dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-            dmMessage::Post(&sender, &receiver, dmHashString64(dmGameSystemDDF::Create::m_DDFDescriptor->m_Name), user_data, (uintptr_t)dmGameSystemDDF::Create::m_DDFDescriptor, buffer, msg_size + prop_buffer_size);
+            dmMessage::Post(&sender, &receiver, dmHashString64(dmGameSystemDDF::Create::m_DDFDescriptor->m_Name), user_data, (uintptr_t)dmGameSystemDDF::Create::m_DDFDescriptor, buffer, msg_size + actual_prop_buffer_size);
             assert(top == lua_gettop(L));
             dmScript::PushHash(L, request->m_Id);
             return 1;

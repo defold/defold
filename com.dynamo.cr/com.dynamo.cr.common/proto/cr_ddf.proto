@@ -74,6 +74,10 @@ message Configuration
     required string billing_api_url = 30;
     required string billing_api_key = 31;
     repeated BillingProduct products = 32;
+
+    // downloads
+    optional string redirectDownloadsHost = 33;
+    optional int32 redirectDownloadsPort = 34 [default=8080];
 }
 
 message EMailTemplate

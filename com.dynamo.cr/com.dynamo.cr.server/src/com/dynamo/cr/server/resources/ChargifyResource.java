@@ -53,7 +53,7 @@ public class ChargifyResource extends BaseResource {
     }
 
     private void handleSignupSuccess(String subscriptionId) {
-        logger.info(BILLING_MARKER, "Subscription %d was successfully started.", subscriptionId);
+        logger.info(BILLING_MARKER, "Subscription %s was successfully started.", subscriptionId);
         UserSubscription s = ModelUtil.findUserSubscriptionByExternalId(em, subscriptionId);
         s.setState(State.ACTIVE);
         em.getTransaction().begin();
@@ -71,20 +71,20 @@ public class ChargifyResource extends BaseResource {
     }
 
     private void handleSignupFailure(String subscriptionId, String cancellationMessage) {
-        logger.info(BILLING_MARKER, "Subscription %d failed to start because: %s", subscriptionId,
+        logger.info(BILLING_MARKER, "Subscription %s failed to start because: %s", subscriptionId,
                 cancellationMessage);
         cancelSubscription(subscriptionId, cancellationMessage);
     }
 
     private void handleRenewalFailure(String subscriptionId, String cancellationMessage) {
-        logger.info(BILLING_MARKER, "Subscription %d failed to renew because: %s", subscriptionId,
+        logger.info(BILLING_MARKER, "Subscription %s failed to renew because: %s", subscriptionId,
                 cancellationMessage);
         cancelSubscription(subscriptionId, cancellationMessage);
     }
 
     private void handleSubscriptionStateChange(String subscriptionId, String state, String previousState) {
         logger.info(BILLING_MARKER,
-                String.format("Subscription %d changed from %s to %s.", subscriptionId, state, previousState));
+                String.format("Subscription %s changed from %s to %s.", subscriptionId, state, previousState));
         State s = null;
         if (state.equals("active")) {
             s = State.ACTIVE;

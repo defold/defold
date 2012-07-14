@@ -98,6 +98,7 @@ public class ChargifyService implements IBillingProvider {
                 .type(MediaType.APPLICATION_JSON_TYPE).accept(MediaType.APPLICATION_JSON_TYPE)
                 .put(ClientResponse.class, "");
         verifyAndLogResponse(response, subscription, "reactivated");
+        jsonToUserSubscription(response, subscription);
     }
 
     @Override
@@ -131,38 +132,45 @@ public class ChargifyService implements IBillingProvider {
                 .get(ClientResponse.class);
         int status = response.getStatus();
         if (status >= 200 && status < 300) {
-            try {
-                JsonNode root = this.mapper.readTree(response.getEntityInputStream());
-                JsonNode subJson = root.get("subscription");
-                int id = subJson.get("id").asInt();
-                logger.info(String.format("Subscription (external: %d) was created.", id));
-                UserSubscription subscription = new UserSubscription();
-                CreditCard cc = new CreditCard();
-                JsonNode ccJson = subJson.get("credit_card");
-                cc.setMaskedNumber(ccJson.get("masked_card_number").getTextValue());
-                cc.setExpirationMonth(ccJson.get("expiration_month").getIntValue());
-                cc.setExpirationYear(ccJson.get("expiration_year").getIntValue());
-                subscription.setCreditCard(cc);
-                subscription.setExternalId(subscriptionId);
-                subscription.setExternalCustomerId((long) ccJson.get("customer_id").getIntValue());
-                subscription.setProductId((long) subJson.get("product").get("id").getIntValue());
-                String state = subJson.get("state").getTextValue();
-                if (state.equals("active")) {
-                    subscription.setState(State.ACTIVE);
-                } else if (state.equals("canceled")) {
-                    subscription.setState(State.CANCELED);
-                } else {
-                    subscription.setState(State.PENDING);
-                }
-                return subscription;
-            } catch (IOException e) {
-                logger.error(BILLING_MARKER,
-                        String.format("Subscription %d could not be parsed: %s", subscriptionId, e.getMessage()));
-            }
+            UserSubscription subscription = new UserSubscription();
+            jsonToUserSubscription(response, subscription);
+            logger.info(String.format("Subscription (external: %d) was created.", subscription.getExternalId()));
+            return subscription;
         } else {
             logger.error(BILLING_MARKER,
                     String.format("Subscription %d could not be found: %d", subscriptionId, status));
         }
         return null;
+    }
+
+    private void jsonToUserSubscription(ClientResponse response, UserSubscription subscription) {
+        JsonNode root;
+        try {
+            root = this.mapper.readTree(response.getEntityInputStream());
+        } catch (IOException e) {
+            logger.error(BILLING_MARKER,
+                    String.format("Subscription could not be parsed: %s", e.getMessage()));
+            return;
+        }
+        JsonNode subJson = root.get("subscription");
+        int id = subJson.get("id").asInt();
+        logger.info(String.format("Subscription (external: %d) was created.", id));
+        CreditCard cc = new CreditCard();
+        JsonNode ccJson = subJson.get("credit_card");
+        cc.setMaskedNumber(ccJson.get("masked_card_number").getTextValue());
+        cc.setExpirationMonth(ccJson.get("expiration_month").getIntValue());
+        cc.setExpirationYear(ccJson.get("expiration_year").getIntValue());
+        subscription.setCreditCard(cc);
+        subscription.setExternalId((long) id);
+        subscription.setExternalCustomerId((long) ccJson.get("customer_id").getIntValue());
+        subscription.setProductId((long) subJson.get("product").get("id").getIntValue());
+        String state = subJson.get("state").getTextValue();
+        if (state.equals("active")) {
+            subscription.setState(State.ACTIVE);
+        } else if (state.equals("canceled")) {
+            subscription.setState(State.CANCELED);
+        } else {
+            subscription.setState(State.PENDING);
+        }
     }
 }

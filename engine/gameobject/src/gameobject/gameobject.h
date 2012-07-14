@@ -763,6 +763,15 @@ namespace dmGameObject
 
     lua_State* GetLuaState();
 
+    /**
+     * Convert the table at the given index to a properties buffer.
+     * If the buffer is too small to fit the properties, the returned value will be greater than buffer_size and the content of the buffer should not be used.
+     * @param L lua state
+     * @param index index of the table
+     * @param buffer buffer to store the properties in
+     * @param buffer_size size of buffer
+     * @return the size of the buffer used, 0 if the table could not be found and great than buffer_size at overflow
+     */
     uint32_t LuaTableToProperties(lua_State* L, int index, uint8_t* buffer, uint32_t buffer_size);
 }
 

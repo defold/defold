@@ -1,6 +1,7 @@
 #include "res_tilegrid.h"
 
 #include <dlib/log.h>
+#include <dlib/math.h>
 #include <vectormath/ppu/cpp/vec_aos.h>
 
 #include "gamesys.h"
@@ -38,6 +39,7 @@ namespace dmGameSystem
                 uint32_t layer_count = tile_grid_ddf->m_Layers.m_Count;
                 tile_grid->m_GridShapes.SetCapacity(layer_count);
                 tile_grid->m_GridShapes.SetSize(layer_count);
+                // find boundaries
                 for (uint32_t i = 0; i < layer_count; ++i)
                 {
                     dmGameSystemDDF::TileLayer* layer = &tile_grid_ddf->m_Layers[i];
@@ -45,23 +47,22 @@ namespace dmGameSystem
                     for (uint32_t j = 0; j < cell_count; ++j)
                     {
                         dmGameSystemDDF::TileCell* cell = &layer->m_Cell[j];
-                        if (min_x > cell->m_X)
-                            min_x = cell->m_X;
-                        if (min_y > cell->m_Y)
-                            min_y = cell->m_Y;
-                        if (max_x < cell->m_X + 1)
-                            max_x = cell->m_X + 1;
-                        if (max_y < cell->m_Y + 1)
-                            max_y = cell->m_Y + 1;
+                        min_x = dmMath::Min(min_x, cell->m_X);
+                        min_y = dmMath::Min(min_y, cell->m_Y);
+                        max_x = dmMath::Max(max_x, cell->m_X + 1);
+                        max_y = dmMath::Max(max_y, cell->m_Y + 1);
                     }
-                    uint32_t cell_width = tile_set_ddf->m_TileWidth;
-                    uint32_t cell_height = tile_set_ddf->m_TileHeight;
-                    tile_grid->m_ColumnCount = max_x - min_x;
-                    tile_grid->m_RowCount = max_y - min_y;
-                    tile_grid->m_MinCellX = min_x;
-                    tile_grid->m_MinCellY = min_y;
-                    offset.setX(cell_width * 0.5f * (min_x + max_x));
-                    offset.setY(cell_height * 0.5f * (min_y + max_y));
+                }
+                tile_grid->m_ColumnCount = max_x - min_x;
+                tile_grid->m_RowCount = max_y - min_y;
+                tile_grid->m_MinCellX = min_x;
+                tile_grid->m_MinCellY = min_y;
+                uint32_t cell_width = tile_set_ddf->m_TileWidth;
+                uint32_t cell_height = tile_set_ddf->m_TileHeight;
+                offset.setX(cell_width * 0.5f * (min_x + max_x));
+                offset.setY(cell_height * 0.5f * (min_y + max_y));
+                for (uint32_t i = 0; i < layer_count; ++i)
+                {
                     tile_grid->m_GridShapes[i] = dmPhysics::NewGridShape2D(context, hull_set, offset, cell_width, cell_height, tile_grid->m_RowCount, tile_grid->m_ColumnCount);
                 }
             }

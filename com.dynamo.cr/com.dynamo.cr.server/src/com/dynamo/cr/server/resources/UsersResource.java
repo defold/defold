@@ -295,9 +295,7 @@ public class UsersResource extends BaseResource {
                     }
                     if (oldState == State.CANCELED) {
                         billingProvider.reactivateSubscription(subscription);
-                        newState = State.PENDING;
                     }
-                    subscription.setState(newState);
                 }
             }
             // Update from provider
