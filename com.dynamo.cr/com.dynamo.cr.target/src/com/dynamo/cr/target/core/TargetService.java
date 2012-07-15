@@ -266,8 +266,9 @@ public class TargetService implements ITargetService, Runnable {
                             out = console.createOutputStream();
                             data = new byte[128];
                         }
-                        in.read(data, 0, available);
-                        out.write(data, 0, available);
+                        int count = Math.min(available, data.length);
+                        in.read(data, 0, count);
+                        out.write(data, 0, count);
                         available = in.available();
                     }
                     if (out != null) {
