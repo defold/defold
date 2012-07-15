@@ -370,6 +370,7 @@ namespace dmSound
         uint16_t index = sound_instance->m_Index;
         sound->m_InstancesPool.Push(index);
         sound_instance->m_Index = 0xffff;
+        sound_instance->m_SourceIndex = 0xffff;
         sound_instance->m_SoundDataIndex = 0xffff;
 
         if (sound_instance->m_StbVorbis)
