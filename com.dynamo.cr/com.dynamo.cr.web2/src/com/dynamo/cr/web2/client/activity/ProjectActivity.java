@@ -214,7 +214,6 @@ public class ProjectActivity extends AbstractActivity implements
         projectInfoResource.append("/project_info");
 
         String json = new JSONObject(projectInfo).toString();
-        System.out.println(json);
 
         defold.putResource(projectInfoResource.toString(), json,
                 new ResourceCallback<String>() {
