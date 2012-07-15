@@ -70,6 +70,10 @@ public class ClientUtil {
     }
 
     public static String createGravatarUrl(String email, int size) {
+        if (email == null) {
+            // If you go to the dashboard the when not signed in email is not set and hence null
+            email = "";
+        }
         email = email.trim().toLowerCase();
         String md5 = MD5.md5(email);
         String url = "http://www.gravatar.com/avatar/" + md5 + "?s=" + size;

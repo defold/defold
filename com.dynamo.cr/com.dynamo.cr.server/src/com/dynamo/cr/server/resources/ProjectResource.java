@@ -260,6 +260,25 @@ public class ProjectResource extends BaseResource {
         return ResourceUtil.createProjectInfo(server.getConfiguration(), user, project);
     }
 
+    @PUT
+    @RolesAllowed(value = { "owner" })
+    @Transactional
+    @Path("/project_info")
+    public void updateProjectInfo(@PathParam("user") String userId,
+                                  @PathParam("project") String projectId,
+                                  ProjectInfo projectInfo) {
+        /*
+         * Only name and description is updated
+         */
+
+        // Ensure user is valid
+        // TODO: Is this really necessary? We do this repeatedly in this file.
+        server.getUser(em, userId);
+        Project project = server.getProject(em, projectId);
+        project.setName(projectInfo.getName());
+        project.setDescription(projectInfo.getDescription());
+    }
+
     @GET
     @Path("/log")
     public Log log(@PathParam("project") String project,

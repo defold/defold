@@ -183,3 +183,10 @@ table.table-credit-card {
 table.table-credit-card td {
     padding-right: 3em;
 }
+
+/* Project */
+
+div.project-owner:hover {
+    cursor: pointer;
+    background-color: whiteSmoke;
+}

@@ -15,6 +15,10 @@
         .panel {
 	       min-height: 400px;
 	    }
+
+	    .focusPanel {
+            outline: 0;
+        }
     </ui:style>
 
     <g:HTMLPanel styleName="{style.panel}">
@@ -25,10 +29,42 @@
             <div class="span9">
                 <div class="row">
                     <div class="span7">
-                        <h1><span text="Project Name" ui:field="projectName"/> </h1>
-				        <p>
-				            <span ui:field="description" text="Some description" />
-				        </p>
+                        <g:DeckPanel ui:field="projectNameDeck">
+                            <g:FocusPanel ui:field="projectNameDescription" addStyleNames="{style.focusPanel}">
+    	                        <g:HTMLPanel>
+	                               <div class="page-header">
+		                             <h1 ui:field="projectName" style="width: 100%;" />
+		                            </div>
+				    		        <p>
+					   	               <div style="white-space: pre;" ui:field="description" text="Some description" />
+                                    </p>
+					           </g:HTMLPanel>
+					        </g:FocusPanel>
+					        <g:HTMLPanel>
+						        <div class="form-horizontal">
+						            <div class="control-group">
+						                <label class="control-label">Name</label>
+						                <div class="controls">
+						                    <g:TextBox ui:field="projectNameTextBox" />
+						                </div>
+						            </div>
+
+						            <div class="control-group">
+						                <label class="control-label">Description</label>
+						                <div class="controls">
+						                    <g:TextArea ui:field="descriptionTextArea" visibleLines="10" />
+						                </div>
+						            </div>
+
+						            <div class="control-group">
+						                <div class="controls">
+						                    <g:Button ui:field='updateButton'>Update</g:Button>
+	                                        <g:Button ui:field='cancelButton'>Cancel</g:Button>
+						                </div>
+						            </div>
+						        </div>
+					        </g:HTMLPanel>
+                        </g:DeckPanel>
                         <h2>Members</h2>
                         <g:FlexTable ui:field="members2"></g:FlexTable>
 

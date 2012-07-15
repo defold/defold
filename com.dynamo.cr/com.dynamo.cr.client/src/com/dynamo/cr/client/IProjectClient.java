@@ -26,6 +26,8 @@ public interface IProjectClient extends IClient {
 
     public ProjectInfo getProjectInfo() throws RepositoryException;
 
+    public void setProjectInfo(ProjectInfo projectInfo) throws RepositoryException;
+
     public void uploadEngine(String platform, InputStream stream) throws RepositoryException;
 
     public LaunchInfo getLaunchInfo() throws RepositoryException;

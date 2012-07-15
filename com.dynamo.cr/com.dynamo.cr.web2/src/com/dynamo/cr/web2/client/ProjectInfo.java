@@ -15,8 +15,16 @@ public class ProjectInfo extends BaseResponse {
         return this.name;
     }-*/;
 
+    public final native void setName(String name) /*-{
+        this.name = name;
+    }-*/;
+
     public final native String getDescription() /*-{
         return this.description;
+    }-*/;
+
+    public final native void setDescription(String description) /*-{
+        this.description = description;
     }-*/;
 
     public final native UserInfo getOwner() /*-{

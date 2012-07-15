@@ -12,6 +12,7 @@ import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientHandlerException;
 import com.sun.jersey.api.client.ClientResponse;
+import com.sun.jersey.api.client.ClientResponse.Status;
 
 public class ProjectClient extends BaseClient implements IProjectClient {
 
@@ -95,6 +96,21 @@ public class ProjectClient extends BaseClient implements IProjectClient {
     @Override
     public ProjectInfo getProjectInfo() throws RepositoryException {
         return wrapGet("/project_info", ProjectInfo.class);
+    }
+
+    @Override
+    public void setProjectInfo(ProjectInfo projectInfo)
+            throws RepositoryException {
+        try {
+            ClientResponse resp = resource.path("/project_info").accept(ProtobufProviders.APPLICATION_XPROTOBUF).put(ClientResponse.class, projectInfo);
+
+            if (resp.getClientResponseStatus() != Status.NO_CONTENT) {
+                ClientUtils.throwRespositoryException(resp);
+            }
+        }
+        catch (ClientHandlerException e) {
+            ClientUtils.throwRespositoryException(e);
+        }
     }
 
     @Override

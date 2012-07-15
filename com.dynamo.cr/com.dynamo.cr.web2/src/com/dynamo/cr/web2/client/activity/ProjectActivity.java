@@ -13,6 +13,7 @@ import com.google.gwt.activity.shared.AbstractActivity;
 import com.google.gwt.event.shared.EventBus;
 import com.google.gwt.http.client.Request;
 import com.google.gwt.http.client.Response;
+import com.google.gwt.json.client.JSONObject;
 import com.google.gwt.user.client.ui.AcceptsOneWidget;
 
 public class ProjectActivity extends AbstractActivity implements
@@ -199,5 +200,32 @@ public class ProjectActivity extends AbstractActivity implements
                 defold.showErrorMessage(response.getText());
             }
         });
+    }
+
+    @Override
+    public void setProjectInfo(ProjectInfo projectInfo) {
+        final Defold defold = clientFactory.getDefold();
+
+        StringBuilder projectInfoResource = new StringBuilder();
+        projectInfoResource.append("/projects/");
+        projectInfoResource.append(defold.getUserId());
+        projectInfoResource.append("/");
+        projectInfoResource.append(projectId);
+        projectInfoResource.append("/project_info");
+
+        String json = new JSONObject(projectInfo).toString();
+        System.out.println(json);
+
+        defold.putResource(projectInfoResource.toString(), json,
+                new ResourceCallback<String>() {
+
+                    @Override
+                    public void onSuccess(String result, Request request,
+                            Response response) {
+                    }
+                    @Override
+                    public void onFailure(Request request, Response response) {
+                    }
+                });
     }
 }

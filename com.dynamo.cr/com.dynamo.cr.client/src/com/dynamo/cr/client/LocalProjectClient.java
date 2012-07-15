@@ -23,6 +23,7 @@ import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientHandlerException;
 import com.sun.jersey.api.client.ClientResponse;
 import com.sun.jersey.api.client.WebResource;
+import com.sun.jersey.api.client.ClientResponse.Status;
 
 public class LocalProjectClient implements IProjectClient {
 
@@ -126,6 +127,22 @@ public class LocalProjectClient implements IProjectClient {
     @Override
     public ProjectInfo getProjectInfo() throws RepositoryException {
         return wrapGet("/project_info", ProjectInfo.class);
+    }
+
+    @Override
+    public void setProjectInfo(ProjectInfo projectInfo)
+            throws RepositoryException {
+        try {
+            WebResource resource = client.resource(uri);
+            ClientResponse resp = resource.path("/project_info").accept(ProtobufProviders.APPLICATION_XPROTOBUF).put(ClientResponse.class, projectInfo);
+
+            if (resp.getClientResponseStatus() != Status.NO_CONTENT) {
+                ClientUtils.throwRespositoryException(resp);
+            }
+        }
+        catch (ClientHandlerException e) {
+            ClientUtils.throwRespositoryException(e);
+        }
     }
 
     public void uploadEngine(String platform, InputStream stream) throws RepositoryException {

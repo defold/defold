@@ -301,8 +301,25 @@ public class ProjectResourceTest extends AbstractResourceTest {
         ClientResponse response = memberProjectsWebResource.path("/project_info").get(ClientResponse.class);
         assertEquals(200, response.getStatus());
 
+        response = memberProjectsWebResource.path("/project_info").put(ClientResponse.class, projectInfo);
+        assertEquals(403, response.getStatus());
+
         response = nonMemberProjectsWebResource.path("/project_info").get(ClientResponse.class);
         assertEquals(403, response.getStatus());
+
+        response = nonMemberProjectsWebResource.path("/project_info").put(ClientResponse.class, projectInfo);
+        assertEquals(403, response.getStatus());
+
+        ProjectInfo newProjectInfo = ProjectInfo.newBuilder()
+            .mergeFrom(projectInfo)
+            .setName("new name")
+            .setDescription("new desc")
+            .build();
+        ownerProjectClient.setProjectInfo(newProjectInfo);
+
+        projectInfo = ownerProjectClient.getProjectInfo();
+        assertEquals("new name", projectInfo.getName());
+        assertEquals("new desc", projectInfo.getDescription());
     }
 
     @Test

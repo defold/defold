@@ -10,7 +10,8 @@ import com.dynamo.cr.web2.client.UserInfoList;
 import com.dynamo.cr.web2.shared.ClientUtil;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.core.client.JsArray;
-import com.google.gwt.dom.client.SpanElement;
+import com.google.gwt.dom.client.DivElement;
+import com.google.gwt.dom.client.HeadingElement;
 import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.event.dom.client.ClickHandler;
 import com.google.gwt.i18n.client.DateTimeFormat;
@@ -22,13 +23,17 @@ import com.google.gwt.user.client.Window;
 import com.google.gwt.user.client.ui.Anchor;
 import com.google.gwt.user.client.ui.Button;
 import com.google.gwt.user.client.ui.Composite;
+import com.google.gwt.user.client.ui.DeckPanel;
 import com.google.gwt.user.client.ui.FlexTable;
+import com.google.gwt.user.client.ui.FocusPanel;
 import com.google.gwt.user.client.ui.HTMLPanel;
 import com.google.gwt.user.client.ui.HTMLTable.CellFormatter;
 import com.google.gwt.user.client.ui.Image;
 import com.google.gwt.user.client.ui.Label;
 import com.google.gwt.user.client.ui.MultiWordSuggestOracle;
 import com.google.gwt.user.client.ui.SuggestBox;
+import com.google.gwt.user.client.ui.TextArea;
+import com.google.gwt.user.client.ui.TextBox;
 import com.google.gwt.user.client.ui.Widget;
 import com.google.gwt.user.datepicker.client.CalendarUtil;
 
@@ -37,15 +42,24 @@ public class ProjectView extends Composite {
         void addMember(String email);
         void removeMember(int id);
         void deleteProject(ProjectInfo projectInfo);
+        void setProjectInfo(ProjectInfo projectInfo);
     }
 
     private static ProjectDetailsUiBinder uiBinder = GWT
             .create(ProjectDetailsUiBinder.class);
     @UiField SideBar sideBar;
-    @UiField SpanElement projectName;
+
+    @UiField DeckPanel projectNameDeck;
+    @UiField FocusPanel projectNameDescription;
+    @UiField HeadingElement projectName;
+    @UiField DivElement description;
+    @UiField TextBox projectNameTextBox;
+    @UiField TextArea descriptionTextArea;
+    @UiField Button updateButton;
+    @UiField Button cancelButton;
+
     @UiField Button addMember;
     @UiField Button deleteProject;
-    @UiField SpanElement description;
     /*
      * NOTE: Watch out for this bug:
      * http://code.google.com/p/google-web-toolkit/issues/detail?id=3533 We
@@ -61,6 +75,7 @@ public class ProjectView extends Composite {
     private final MultiWordSuggestOracle suggestions = new MultiWordSuggestOracle();
     private Presenter listener;
     private ProjectInfo projectInfo;
+    private boolean isOwner;
 
     interface ProjectDetailsUiBinder extends UiBinder<Widget, ProjectView> {
     }
@@ -69,6 +84,7 @@ public class ProjectView extends Composite {
         suggestBox = new SuggestBox(suggestions);
         suggestBox.getElement().setPropertyString("placeholder", "enter email to add user");
         initWidget(uiBinder.createAndBindUi(this));
+        projectNameDeck.showWidget(0);
 
         Element element = members2.getElement();
         element.addClassName("table");
@@ -79,11 +95,16 @@ public class ProjectView extends Composite {
         element.addClassName("table-striped");
         element.addClassName("table-commits");
 
+        projectNameTextBox.addStyleName("input-xlarge");
+        descriptionTextArea.addStyleName("input-xlarge");
         addMember.addStyleName("btn btn-success");
         deleteProject.addStyleName("btn btn-danger");
+        updateButton.addStyleName("btn btn-success");
+        cancelButton.addStyleName("btn");
     }
 
     public void clear() {
+        this.projectNameDeck.showWidget(0);
         this.projectName.setInnerText("");
         this.deleteProject.setVisible(false);
         this.description.setInnerText("");
@@ -98,14 +119,17 @@ public class ProjectView extends Composite {
         this.projectInfo = projectInfo;
         this.projectName.setInnerText(projectInfo.getName());
         String description = projectInfo.getDescription();
-        if (description.isEmpty()) {
-            description = "(no description)";
-        }
         this.description.setInnerText(description);
 
-        boolean isOwner = userId == projectInfo.getOwner().getId();
+        isOwner = userId == projectInfo.getOwner().getId();
         this.deleteProject.setVisible(isOwner);
         this.addMemberPanel.setVisible(isOwner);
+        if (isOwner) {
+            this.projectNameDescription.getElement().addClassName("project-owner");
+        }
+        else {
+            this.projectNameDescription.getElement().removeClassName("project-owner");
+        }
 
         this.members2.removeAllRows();
         JsArray<UserInfo> membersList = projectInfo.getMembers();
@@ -202,8 +226,6 @@ public class ProjectView extends Composite {
     @UiHandler("addMember")
     void onAddMemberClick(ClickEvent event) {
         String email = suggestBox.getText();
-        System.out.println("!!");
-        System.out.println(email);
         if (email != null && email.length() > 0) {
             listener.addMember(email);
             suggestBox.setText("");
@@ -213,5 +235,32 @@ public class ProjectView extends Composite {
     public void setUserInfo(String firstName, String lastName, String email) {
         sideBar.setUserInfo(firstName, lastName, email);
     }
+
+    @UiHandler("projectNameDescription")
+    void onProjectNameDescription(ClickEvent event) {
+        if (isOwner) {
+            this.projectNameTextBox.setText(projectInfo.getName());
+            this.descriptionTextArea.setText(projectInfo.getDescription());
+            projectNameDeck.showWidget(1);
+        }
+    }
+
+    @UiHandler("updateButton")
+    void onUpdate(ClickEvent event) {
+        String newName = this.projectNameTextBox.getText();
+        String newDesc = this.descriptionTextArea.getText();
+        this.projectInfo.setName(newName);
+        this.projectInfo.setDescription(newDesc);
+        this.projectName.setInnerText(newName);
+        this.description.setInnerText(newDesc);
+        projectNameDeck.showWidget(0);
+        this.listener.setProjectInfo(projectInfo);
+    }
+
+    @UiHandler("cancelButton")
+    void onCancel(ClickEvent event) {
+        projectNameDeck.showWidget(0);
+    }
+
 
 }
