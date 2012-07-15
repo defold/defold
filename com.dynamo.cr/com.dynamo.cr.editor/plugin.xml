@@ -572,4 +572,15 @@
          </enablement>
       </actionProvider>
    </extension>
+   <extension
+         point="org.eclipse.ui.splashHandlers">
+      <splashHandler
+            class="com.dynamo.cr.editor.splashHandlers.SplashHandler"
+            id="com.dynamo.cr.editor.splashHandlers.extensible">
+      </splashHandler>
+      <splashHandlerProductBinding
+            productId="com.dynamo.cr.editor.product"
+            splashId="com.dynamo.cr.editor.splashHandlers.extensible">
+      </splashHandlerProductBinding>
+   </extension>
 </plugin>

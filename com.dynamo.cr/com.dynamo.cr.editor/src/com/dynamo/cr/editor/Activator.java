@@ -90,6 +90,11 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
     // The plug-in ID
     public static final String PLUGIN_ID = "com.dynamo.cr.editor"; //$NON-NLS-1$
 
+    // Version
+    // NOTE: Currently hard-coded
+    // Non-trivial to find the product number :-(
+    public static final String VERSION = "1.1.12";
+
     // Shared images
     public static final String OVERLAY_ERROR_IMAGE_ID = "OVERLAY_ERROR";
     public static final String OVERLAY_EDIT_IMAGE_ID = "OVERLAY_EDIT";

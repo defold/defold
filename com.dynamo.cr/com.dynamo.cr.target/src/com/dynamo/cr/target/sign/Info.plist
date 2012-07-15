@@ -10,6 +10,21 @@
         <string>Defold</string>
         <key>CFBundleExecutable</key>
         <string>dmengine</string>
+        <key>CFBundleIcons</key>
+        <dict>
+                <key>CFBundlePrimaryIcon</key>
+                <dict>
+                        <key>CFBundleIconFiles</key>
+                        <array>
+                                <string>ios_icon_114.png</string>
+                                <string>ios_icon_72.png</string>
+                                <string>ios_icon_144.png</string>
+                                <string>ios_icon_57.png</string>
+                        </array>
+                        <key>UIPrerenderedIcon</key>
+                        <true/>
+                </dict>
+        </dict>
         <key>CFBundleIdentifier</key>
         <string>dmengine</string>
         <key>CFBundleInfoDictionaryVersion</key>

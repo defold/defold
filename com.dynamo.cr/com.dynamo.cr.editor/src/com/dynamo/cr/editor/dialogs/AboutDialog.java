@@ -18,9 +18,6 @@ import com.dynamo.cr.editor.Activator;
 
 public class AboutDialog extends Shell {
 
-    // NOTE: Currently hard-coded
-    // Non-trivial to find the product number :-(
-    private static final String VERSION = "1.1.11";
     private static final String NEW_LINE = System.getProperty("line.separator");
 
     public AboutDialog(Shell shell) {
@@ -67,7 +64,7 @@ public class AboutDialog extends Shell {
 
         // NOTE: Currently hard-coded
         // Non-trivial to find the product number :-(
-        builder.append(String.format("Version %s", VERSION));
+        builder.append(String.format("Version %s", Activator.VERSION));
         builder.append(NEW_LINE);
 
         buildDetailsText.setText(builder.toString());

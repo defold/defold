@@ -18,10 +18,7 @@ jre\bin\javaw.exe</programArgsWin>
    <windowImages/>
 
    <splash
-      location="com.dynamo.cr.editor"
-      startupProgressRect="5,275,445,15"
-      startupMessageRect="7,252,445,20"
-      startupForegroundColor="000000" />
+      location="com.dynamo.cr.editor" />
    <launcher name="Defold">
       <linux icon="/com.dynamo.cr.editor/icons/launching/speed.xpm"/>
       <macosx icon="/com.dynamo.cr.editor/icons/launching/speed.icns"/>
