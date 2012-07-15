@@ -198,8 +198,6 @@ namespace dmEngine
                 dmPhysics::DeleteContext2D(engine->m_PhysicsContext.m_Context2D);
         }
 
-        dmLogFinalize();
-
         dmProfile::Finalize();
 
         if (engine->m_Config)
@@ -278,8 +276,6 @@ namespace dmEngine
         dmProfile::Initialize(256, 1024 * 16, 128);
         // This scope is mainly here to make sure the "Main" scope is created first.
         DM_PROFILE(Engine, "Init");
-
-        dmLogInitialize();
 
         dmGraphics::ContextParams graphics_context_params;
         graphics_context_params.m_DefaultTextureMinFilter = ConvertTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_min_filter", "linear"));
