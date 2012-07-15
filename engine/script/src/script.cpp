@@ -1,5 +1,6 @@
 #include "script.h"
 
+#include <dlib/dstrings.h>
 #include <dlib/log.h>
 
 #include "script_private.h"
@@ -37,6 +38,8 @@ namespace dmScript
 
     }
 
+    int LuaPrint(lua_State* L);
+
     void Initialize(lua_State* L, const ScriptParams& params)
     {
         InitializeHash(L);
@@ -55,6 +58,30 @@ namespace dmScript
 
         lua_pushlightuserdata(L, (void*)params.m_GetUserDataCallback);
         lua_setglobal(L, SCRIPT_GET_USER_DATA_CALLBACK);
+    }
+
+    int LuaPrint(lua_State* L)
+    {
+        int n = lua_gettop(L);
+        lua_getglobal(L, "tostring");
+        char buffer[256];
+        for (int i = 1; i < n; ++i)
+        {
+            const char *s;
+            lua_pushvalue(L, -1);
+            lua_pushvalue(L, i);
+            lua_call(L, 1, 1);
+            s = lua_tostring(L, -1);
+            if (s == NULL)
+                return luaL_error(L, LUA_QL("tostring") " must return a string to ", LUA_QL("print"));
+            if (i > 1)
+                dmStrlCat(buffer, "\t", 256);
+            dmStrlCat(buffer, s, 256);
+            lua_pop(L, 1);
+        }
+        dmStrlCat(buffer, "\n", 256);
+        dmLogUserDebug("%s", buffer);
+        return 0;
     }
 
 }
