@@ -373,6 +373,34 @@ TEST_F(dmSoundTest, LoopingSine)
     ASSERT_EQ(dmSound::RESULT_OK, r);
 }
 
+// Crash when deleting playing sound and then continue to update sound system
+TEST_F(dmSoundTest, DeletePlayingSound)
+{
+    dmSound::HSoundData sd = 0;
+    dmSound::Result r = dmSound::NewSoundData(m_DrumLoop, m_DrumLoopSize, dmSound::SOUND_DATA_TYPE_WAV, &sd);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    dmSound::HSoundInstance instance = 0;
+    r = dmSound::NewSoundInstance(sd, &instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    ASSERT_NE((dmSound::HSoundInstance) 0, instance);
+
+    r = dmSound::Play(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    r = dmSound::Update();
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::DeleteSoundInstance(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::DeleteSoundData(sd);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    // Update again to make sure it's cleaned (there was a crash here)
+    r = dmSound::Update();
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

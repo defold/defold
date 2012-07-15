@@ -55,7 +55,7 @@ struct dmLogServer
 
 dmLogServer* g_dmLogServer = 0;
 
-dmLogSeverity g_LogLevel = DM_LOG_SEVERITY_WARNING;
+dmLogSeverity g_LogLevel = DM_LOG_SEVERITY_USER_DEBUG;
 
 static dmSocket::Result SendAll(dmSocket::Socket socket, const char* buffer, int length)
 {
@@ -305,6 +305,9 @@ void dmLogInternal(dmLogSeverity severity, const char* domain, const char* forma
     switch (severity)
     {
         case DM_LOG_SEVERITY_DEBUG:
+            severity_str = "DEBUG";
+            break;
+        case DM_LOG_SEVERITY_USER_DEBUG:
             severity_str = "DEBUG";
             break;
         case DM_LOG_SEVERITY_INFO:
