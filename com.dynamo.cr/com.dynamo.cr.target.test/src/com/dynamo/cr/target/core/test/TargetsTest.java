@@ -9,11 +9,17 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.io.ByteArrayOutputStream;
+import java.io.OutputStream;
 import java.net.InetAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Map;
 
 import javax.inject.Singleton;
 
@@ -21,6 +27,8 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.dynamo.cr.editor.core.IConsole;
+import com.dynamo.cr.editor.core.IConsoleFactory;
 import com.dynamo.cr.target.core.ITarget;
 import com.dynamo.cr.target.core.ITargetListener;
 import com.dynamo.cr.target.core.ITargetService;
@@ -31,6 +39,7 @@ import com.dynamo.upnp.DeviceInfo;
 import com.dynamo.upnp.ISSDP;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
+import com.google.inject.Inject;
 import com.google.inject.Injector;
 
 public class TargetsTest implements ITargetListener {
@@ -40,31 +49,50 @@ public class TargetsTest implements ITargetListener {
 
     private final String UDN = "uuid:0509f95d-3d4f-339c-8c4d-f7c6da6771c8";
     private final String URL = "http://localhost:1234";
+    private final int LOG_PORT = 5678;
 
     private final String DEVICE_DESC =
             "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n" +
-            "<root xmlns=\"urn:schemas-upnp-org:device-1-0\" xmlns:defold=\"urn:schemas-defold-com:DEFOLD-1-0\">\n" +
-            "    <specVersion>\n" +
-            "        <major>1</major>\n" +
-            "        <minor>0</minor>\n" +
-            "    </specVersion>\n" +
-            "    <device>\n" +
-            "        <deviceType>upnp:rootdevice</deviceType>\n" +
-            "        <friendlyName>Defold System</friendlyName>\n" +
-            "        <manufacturer>Defold</manufacturer>\n" +
-            "        <modelName>Defold Engine 1.0</modelName>\n" +
-            "        <UDN>" + UDN + "</UDN>\n" +
-            "        <defold:url>" + URL + "</defold:url>\n" +
-            "    </device>\n" +
-            "</root>\n";
+                    "<root xmlns=\"urn:schemas-upnp-org:device-1-0\" xmlns:defold=\"urn:schemas-defold-com:DEFOLD-1-0\">\n" +
+                    "    <specVersion>\n" +
+                    "        <major>1</major>\n" +
+                    "        <minor>0</minor>\n" +
+                    "    </specVersion>\n" +
+                    "    <device>\n" +
+                    "        <deviceType>upnp:rootdevice</deviceType>\n" +
+                    "        <friendlyName>Defold System</friendlyName>\n" +
+                    "        <manufacturer>Defold</manufacturer>\n" +
+                    "        <modelName>Defold Engine 1.0</modelName>\n" +
+                    "        <UDN>" + UDN + "</UDN>\n" +
+                    "        <defold:url>" + URL + "</defold:url>\n" +
+                    "        <defold:logPort>" + LOG_PORT + "</defold:logPort>\n" +
+                    "    </device>\n" +
+                    "</root>\n";
     private IURLFetcher urlFetcher;
+    private IConsoleFactory consoleFactory;
+
+    static class TestTargetService extends TargetService {
+
+        @Inject
+        public TestTargetService(ISSDP ssdp, IURLFetcher urlFetcher, IConsoleFactory consoleFactory) {
+            super(ssdp, urlFetcher, consoleFactory);
+        }
+
+        @Override
+        public synchronized void launch(String customApplication, String location, boolean runInDebugger,
+                boolean autoRunDebugger, String socksProxy, int socksProxyPort, java.net.URL serverUrl) {
+            ITarget[] targets = getTargets();
+            connectToLogService(targets[targets.length - 1]);
+        }
+    }
 
     class Module extends AbstractModule {
         @Override
         protected void configure() {
-            bind(ITargetService.class).to(TargetService.class).in(Singleton.class);
+            bind(ITargetService.class).to(TestTargetService.class).in(Singleton.class);
             bind(ISSDP.class).toInstance(ssdp);
             bind(IURLFetcher.class).toInstance(urlFetcher);
+            bind(IConsoleFactory.class).toInstance(consoleFactory);
         }
     }
 
@@ -79,6 +107,7 @@ public class TargetsTest implements ITargetListener {
     public void setUp() throws Exception {
         urlFetcher = mock(IURLFetcher.class);
         ssdp = mock(ISSDP.class);
+        consoleFactory = mock(IConsoleFactory.class);
         Module module = new Module();
         Injector injector = Guice.createInjector(module);
         targetService = injector.getInstance(ITargetService.class);
@@ -126,6 +155,7 @@ public class TargetsTest implements ITargetListener {
             assertThat(targets.length, is(1));
             assertThat(targets[0].getId(), is(UDN));
             assertThat(targets[0].getUrl(), is(URL));
+            assertThat(targets[0].getLogPort(), is(LOG_PORT));
         }
     }
 
@@ -169,5 +199,68 @@ public class TargetsTest implements ITargetListener {
         }
     }
 
+    private static class GameLogger implements Runnable {
+        private ServerSocket logServer;
+        private boolean done;
+
+        public GameLogger(int log_port) {
+            done = false;
+            try {
+                logServer = new ServerSocket(log_port);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        @Override
+        public void run() {
+            try {
+                Socket socket = logServer.accept();
+                OutputStream logOut = socket.getOutputStream();
+                logOut.write("testing".getBytes());
+                logOut.close();
+                done = true;
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        public boolean isDone() {
+            return done;
+        }
+    }
+
+    @Test
+    public void testRemoteLogging() throws Exception {
+        /*
+         * Search for network target. Expected device count is two. The network
+         * target and the local psuedo-target
+         */
+        GameLogger gameLogger = new GameLogger(LOG_PORT);
+        new Thread(gameLogger).start();
+        targetService.setSearchInternal(1);
+        when(urlFetcher.fetch(anyString())).thenReturn(DEVICE_DESC);
+        IConsole console = mock(IConsole.class);
+        ByteArrayOutputStream consoleOut = new ByteArrayOutputStream();
+        when(console.createOutputStream()).thenReturn(consoleOut);
+        when(consoleFactory.getConsole(anyString())).thenReturn(console);
+        Map<String, String> headers = new HashMap<String, String>();
+        headers.put("LOCATION", "localhost");
+        when(ssdp.getDevices()).thenReturn(
+                new DeviceInfo[] { new DeviceInfo(System.currentTimeMillis() + 1000, headers,
+                        "127.0.0.1") });
+        when(ssdp.update(true)).thenReturn(true);
+        while (targetService.getTargets().length == 1) {
+            Thread.sleep(100);
+        }
+        targetService.launch("", "", false, false, "", 1080, new URL("http://localhost"));
+        while (!gameLogger.isDone()) {
+            Thread.sleep(100);
+        }
+        Thread.sleep(500);
+        synchronized (this) {
+            assertThat(consoleOut.toString("UTF8"), is("testing"));
+        }
+    }
 }
 
