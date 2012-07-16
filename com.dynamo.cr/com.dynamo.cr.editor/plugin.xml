@@ -172,7 +172,6 @@
          </command>
          <command
                commandId="org.eclipse.ui.help.aboutAction"
-               icon="icons/about_24.png"
                label="About Defold"
                style="push">
          </command>
