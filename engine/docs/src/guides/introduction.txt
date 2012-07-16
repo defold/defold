@@ -73,7 +73,7 @@ image::images/engine/factory.png["Factory", align="center"]
 Each factory has a reference to the game objects it can create.
 To make it create more game objects, send it a message:
 
-[source,lua]
+[source-code, lua]
 ----
 msg.post("#factory", "create", {position = some_position, rotation = some_rotation})
 ----
@@ -94,7 +94,7 @@ Please see the documentation on the link:http://www.lua.org[Lua site] and on the
 
 The actual Lua-code to play an explosion sound of a game object can look like this:
 
-[source,lua]
+[source-code, lua]
 ----
 msg.post("#explosion", "play_sound")
 ----

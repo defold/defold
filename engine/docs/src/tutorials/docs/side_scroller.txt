@@ -32,14 +32,14 @@ The speed of the space ship could be faster.
 . Open the file +spaceship.script+ with *Edit > Open Resource...*.
 . In the beginning of the file, change:
 +
-[source,lua]
+[source-code, lua]
 ---------------
 local max_speed = 60
 ---------------
 +
 to:
 +
-[source,lua]
+[source-code, lua]
 ---------------
 local max_speed = 150
 ---------------
@@ -56,14 +56,14 @@ We need to raise the score!
 . Open the file +star.script+.
 . In the beginning of the file, change:
 +
-[source,lua]
+[source-code, lua]
 ---------------
 local score = 1
 ---------------
 +
 to:
 +
-[source,lua]
+[source-code, lua]
 ------------------
 local score = 1000
 ------------------
@@ -118,14 +118,14 @@ Now we will make sure the factory game object starts creating the bonus stars by
 . Open +factory.script+ with *Edit > Open Resource...*.
 . Near the bottom of the file, change:
 +
-[source,lua]
+[source-code, lua]
 -------------------------------
 -- component = "#bonus_factory"
 -------------------------------
 +
 to:
 +
-[source,lua]
+[source-code, lua]
 ----------------------------
 component = "#bonus_factory"
 ----------------------------

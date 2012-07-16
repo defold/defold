@@ -25,14 +25,14 @@ If a game object without a script acts weird, you can just attach a script to it
 By using the Lua +print+ function, you can print to the Console view in the Editor.
 If you rather have the text appear on screen you can post the link:/ref/render#draw_text[+draw_text+] message to the +@render+ socket:
 
-[source,lua]
+[source-code, lua]
 ----
 msg.post("@render:", "draw_text", {text = "My value: " .. my_val, position = vmath.vector3(200, 200, 0)})
 ----
 
 When you have problems with spatial calculations, like movement and physics, you can also draw lines on the screen by posting the link:/ref/render#draw_line[+draw_line+] message to the +@render+ socket:
 
-[source,lua]
+[source-code, lua]
 ----
 msg.post("@render:", "draw_line", {start_point = my_start, end_point = my_end, color = my_color})
 ----

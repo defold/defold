@@ -9,6 +9,7 @@ blddir = 'build'
 import sys, os, re
 import Task, TaskGen
 from TaskGen import extension
+import waf_dynamo
 
 def scan_asciidoc(task):
     deps = []
@@ -30,10 +31,11 @@ def init():
     pass
 
 def configure(conf):
-    conf.find_program('asciidoc', var='ASCIIDOC')
+    conf.check_tool('waf_dynamo')
+    conf.env['ASCIIDOC_PATH'] = os.path.join(conf.env.DYNAMO_HOME, 'ext', 'lib', 'asciidoc')
     conf.env['EMBED_VIDEO'] = os.path.abspath('scripts/embed_video.py')
 
-asciidoc = Task.simple_task_type('asciidoc', '${ASCIIDOC} -f ../defold.conf -o ${TGT} ${SRC}',
+asciidoc = Task.simple_task_type('asciidoc', 'python ${ASCIIDOC_PATH}/asciidoc.py -f ../defold.conf -o ${TGT} ${SRC}',
                                  shell=True)
 asciidoc.scan = scan_asciidoc
 

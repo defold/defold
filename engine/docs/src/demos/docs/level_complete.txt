@@ -39,7 +39,7 @@ This is started at the end of +inc_score+ and performed in +animate_imprint+.
 The +setup+ function makes sure the nodes have the correct initial values.
 By calling +setup+ from +on_reload+, we make sure that everything is setup correctly each time the script is reloaded from the Defold Editor.
 
-[source,lua]
+[source-code, lua]
 -------------------------------------------
 -- file: level_complete.gui_script
 

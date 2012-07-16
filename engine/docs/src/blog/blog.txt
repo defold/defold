@@ -89,7 +89,7 @@ By clicking the hyper-link, the value is reset to the default.
 
 The following Lua script declares a property called +health+.
 
-[source, lua]
+[source-code, lua]
 ----
 go.property("health", 100)
 ----
@@ -856,7 +856,7 @@ It returns the id of the created game object so it can be used for message passi
 In accordance with this we have also extended the +msg.post+ function to take an id instead of a full url.
 When passing an id the following two calls are equivalent:
 
-[source,lua]
+[source-code, lua]
 ----
 msg.post(my_id, "my_messasge")
 msg.post(msg.url(nil, my_id, nil), "my_message")
@@ -866,14 +866,14 @@ We have also implemented the abillity to pass custom parameters to the +factory.
 
 To show by example, you can create a new game object like so:
 
-[source,lua]
+[source-code, lua]
 ----
 factory.create("#factory", go.get_position(), go.get_rotation(), {my_value = some_value})
 ----
 
 And then use the +my_value+ parameter in the script of the created game object:
 
-[source,lua]
+[source-code, lua]
 ----
 function init(self, params)
     self.my_important_value = params.my_value
@@ -895,7 +895,7 @@ We have also extended the +go.delete+ function to take an optional id.
 This means that you can delete other game objects than the one containing your script.
 If you leave out the id, it deletes the game object containing the script, as usual.
 
-[source,lua]
+[source-code, lua]
 ----
 go.delete(some_id)
 ----
@@ -1085,14 +1085,14 @@ Certain members of the Defold-team failed to relax during Christmas and instead 
 It is controlled through message passing and very easy to use.
 Simply do the following in a script when you want to start recording video:
 
-[source,lua]
+[source-code, lua]
 ----
 msg.post("@system:", "start_record", { file_name = "test_rec.ivf" } )
 ----
 
 When you want the recording to end, do:
 
-[source,lua]
+[source-code, lua]
 ----
 msg.post("@system:", "stop_record")
 ----
@@ -1141,7 +1141,7 @@ clear_color_alpha = 0
 Note that the values should all be between 0-1.
 You can also change the background color on the fly in a script by doing:
 
-[source,lua]
+[source-code, lua]
 ----
 msg.post("@render:", "clear_color", { color = vmath.vector4(1, 0, 0, 0) } )
 ----
@@ -1162,7 +1162,7 @@ my_value = 1
 
 Then you can read the value inside your scripts, like so:
 
-[source,lua]
+[source-code, lua]
 ----
 local my_value = tonumber(sys.get_config("my_category.my_value"))
 ----
@@ -1225,14 +1225,14 @@ image::images/blog/20111222_sprite_anim_collision_editing/sprite_editing.png["Sp
 
 Let us show by an example. To trigger an animation the old way, you would have a script that did:
 
-[source,lua]
+[source-code, lua]
 ----
 msg.post("#my_sprite", "play_animation", {start_tile = 1, end_tile = 3, playback = 1})
 ----
 
 With the new system, you add the animation to the tile set (*Tile Set > Add Animation*). Then, in a script, you do:
 
-[source,lua]
+[source-code, lua]
 ----
 msg.post("#my_new_sprite", "play_animation2", {id = hash("my_animation")})
 ----
@@ -1398,7 +1398,7 @@ Lua Editor
 The Lua Editor was not very good at handling comments before.
 This has now been fixed and it colors both multi-line comments and single line comments correctly now.
 
-[source,lua]
+[source-code, lua]
 ----
 local my_var = 1 -- this is a single line comment
 
@@ -1724,7 +1724,7 @@ Now go ahead and make a more original game than we did! ;-)
 image::images/blog/tile_1.0/the_game.png["Tiles in-game", width=880, align="center"]
 ((((
 
-[source,lua]
+[source-code, lua]
 ----
 -- clean termination
 function final(self)

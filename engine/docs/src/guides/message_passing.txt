@@ -47,7 +47,7 @@ In this case you pick whatever data you want to pass along.
 
 Posting a message from a script is very simple:
 
-[source, lua]
+[source-code, lua]
 ----
 -- post to another game object
 msg.post("my_go", "my_message", {my_parameter = "my_value"})

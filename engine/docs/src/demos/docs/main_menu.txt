@@ -19,7 +19,7 @@ This gives the bouncing effect and is done in +anim2+, +anim3+ and +anim4+.
 
 The background has a special slight fade out at the end, which is applied in +anim5+.
 
-[source,lua]
+[source-code, lua]
 -------------------------------------------
 -- file: menu.gui_script
 

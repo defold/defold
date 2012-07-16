@@ -14,7 +14,7 @@ See link:/doc/message_passing[Message Passing] for more information about global
 
 Say that you have a script which controls health and can respond to damage through a message called +take_damage+:
 
-[source, lua]
+[source-code, lua]
 ----
 function init(self)
     self.health = 100
@@ -34,7 +34,7 @@ If the health reaches 0, it destroys the game object.
 Now you want to use the script in two different game objects, but you want them to have different amounts of health.
 There is a specific function for this purpose called link:/ref/go#go.property[go.property]:
 
-[source, lua]
+[source-code, lua]
 ----
 -- self.health will be automatically set to 100 by default
 go.property("health", 100)
@@ -63,7 +63,7 @@ By setting a value here, that value will override the values in the game object 
 
 If you use a factory to create the game object from another script while the game is running, you can also set the property from there:
 
-[source, lua]
+[source-code, lua]
 ----
 function on_message(self, message_id, message, sender)
     if message_id == hash("create_my_object") then

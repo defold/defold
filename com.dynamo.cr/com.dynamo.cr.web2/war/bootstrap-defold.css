@@ -27,6 +27,14 @@ html {
     overflow-y: scroll;
 }
 
+a {
+    color: #00b4ff;
+}
+
+a:hover {
+    color: #4b4b4b;
+}
+
 /*
  Override default bootstrap fonts
  */

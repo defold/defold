@@ -18,21 +18,21 @@ It is moved to the left at a constant speed.
 The up-down-motion is obtained by animating its y-component around a fixed value using the Lua sine function (+math.sin+).
 This is done in +update+ of +spaceship.script+.
 
-[source,lua]
+[source-code, lua]
 -------------------------------------------
 -- file: background1.script
 
 include::../parallax/background1.script[tabsize=4]
 -------------------------------------------
 
-[source,lua]
+[source-code, lua]
 -------------------------------------------
 -- file: background2.script
 
 include::../parallax/background2.script[tabsize=4]
 -------------------------------------------
 
-[source,lua]
+[source-code, lua]
 -------------------------------------------
 -- file: spaceship.script
 

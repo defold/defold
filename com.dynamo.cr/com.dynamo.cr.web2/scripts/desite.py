@@ -43,6 +43,9 @@ class Desite(object):
         with open(doc, 'r') as f:
             msg.MergeFromString(f.read())
 
+        for e in msg.elements:
+            e.examples = e.examples.replace('<pre>', '<pre class="prettyprint linenums lang-lua">')
+
         functions = filter(lambda e: e.type == script_doc_ddf_pb2.FUNCTION, msg.elements)
         messages = filter(lambda e: e.type == script_doc_ddf_pb2.MESSAGE, msg.elements)
         constants = filter(lambda e: e.type == script_doc_ddf_pb2.VARIABLE, msg.elements)

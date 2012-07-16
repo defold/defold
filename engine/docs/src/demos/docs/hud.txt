@@ -27,7 +27,7 @@ This is done in +update+.
 Each time the total is incremented, we spawn an amount of smaller stars and animate them out from the total score.
 The stars are spawned, animated and deleted in +spawn_stars+, +fade_out_star+ and +delete_star+.
 
-[source,lua]
+[source-code, lua]
 -------------------------------------------
 -- file: hud.gui_script
 
