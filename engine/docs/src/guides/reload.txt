@@ -1,5 +1,5 @@
-Hot Reloading
-=============
+Hot Reloading of Assets
+=======================
 
 NOTE: This is not yet implemented for collections, game objects and tile maps.
 

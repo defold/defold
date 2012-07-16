@@ -1,5 +1,5 @@
-Project Settings
-================
+Game Engine Project Settings
+============================
 
 The file game.project contains all project wide settings.
 It must stay in the same place and cannot be renamed.

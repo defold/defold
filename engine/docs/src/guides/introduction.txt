@@ -1,5 +1,5 @@
-Welcome to Defold!
-==================
+Defold Game Engine Introduction and Concepts
+============================================
 
 This introduction describes some basic concepts in our platform, the most important features and how the editor works.
 

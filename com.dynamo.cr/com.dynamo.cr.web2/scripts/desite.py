@@ -31,12 +31,14 @@ class BlogPost(object):
 class Desite(object):
     def __init__(self, doc_root, templates, output):
         self.env = Environment(loader=ChoiceLoader([AsciiDocLoader([doc_root]), FileSystemLoader([templates])]))
+        # Special env for loading file as-is, i.e. without the asciidoc-loader
+        self.fs_env = Environment(loader = FileSystemLoader([doc_root, templates]))
         self.output = output
 
     def _progress(self, msg):
         print >>sys.stderr, msg
 
-    def render_reference(self, doc, output, **variables):
+    def render_reference(self, doc, title, output, **variables):
         msg = script_doc_ddf_pb2.Document()
         with open(doc, 'r') as f:
             msg.MergeFromString(f.read())
@@ -48,6 +50,7 @@ class Desite(object):
                     functions = functions,
                     messages = messages,
                     constants = constants,
+                    title = title,
                     **variables)
 
     def _split_blog(self, str):
@@ -91,7 +94,9 @@ class Desite(object):
         using a jinja2 template file"""
         if not output:
             output = asciidoc
-        return self.render('asciidoc.html', output, asciidoc = asciidoc, **variables)
+        asciidoc_html = self.fs_env.get_template(asciidoc).render().encode('UTF-8')
+        title = re.match('.*?<title>(.*?)</title>.*?', asciidoc_html, re.DOTALL).groups()[0]
+        return self.render('asciidoc.html', output, asciidoc = asciidoc, title = title, **variables)
 
     def render(self, file, output = None, **variables):
         """Renders a jinja2 template"""

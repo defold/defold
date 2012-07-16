@@ -1,5 +1,5 @@
-Script Properties
-=================
+Game Object Script Properties
+=============================
 
 Script properties let you use one script in many places and tweak it differently for each place.
 
