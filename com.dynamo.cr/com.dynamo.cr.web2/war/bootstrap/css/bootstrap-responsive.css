@@ -679,6 +679,9 @@
   }
 }
 
+/*
+// Navbar collapse on small screens disabled
+NOTE: Defold change
 @media (max-width: 979px) {
   body {
     padding-top: 0;
@@ -806,6 +809,7 @@
     padding-left: 10px;
   }
 }
+*/
 
 @media (min-width: 980px) {
   .nav-collapse.collapse {
