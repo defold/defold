@@ -574,6 +574,9 @@
             properties="is_dev"
             type="java.lang.Object">
       </propertyTester>
+   </extension>
+   <extension
+         point="org.eclipse.ui.splashHandlers">
       <splashHandler
             class="com.dynamo.cr.editor.splashHandlers.SplashHandler"
             id="com.dynamo.cr.editor.splashHandlers.defold">
