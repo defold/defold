@@ -10,7 +10,7 @@ public class InvitePlace extends DefoldPlace {
         return "Invite";
     }
 
-    @Prefix("!invite")
+    @Prefix("invite")
     public static class Tokenizer implements PlaceTokenizer<InvitePlace> {
         @Override
         public String getToken(InvitePlace place) {

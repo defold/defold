@@ -10,7 +10,7 @@ public class DownloadsPlace extends DefoldPlace {
         return "Downloads";
     }
 
-    @Prefix("!downloads")
+    @Prefix("downloads")
     public static class Tokenizer implements PlaceTokenizer<DownloadsPlace> {
         @Override
         public String getToken(DownloadsPlace place) {

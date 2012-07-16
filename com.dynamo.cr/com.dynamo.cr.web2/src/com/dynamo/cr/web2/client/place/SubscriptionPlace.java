@@ -22,7 +22,7 @@ public class SubscriptionPlace extends DefoldPlace {
         return this.subscriptionId;
     }
 
-    @Prefix("!plan")
+    @Prefix("plan")
     public static class Tokenizer implements PlaceTokenizer<SubscriptionPlace> {
         @Override
         public String getToken(SubscriptionPlace place) {

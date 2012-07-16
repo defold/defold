@@ -19,7 +19,7 @@ public class ProjectPlace extends DefoldPlace {
         return "Project Info";
     }
 
-    @Prefix("!project")
+    @Prefix("project")
     public static class Tokenizer implements PlaceTokenizer<ProjectPlace> {
         @Override
         public String getToken(ProjectPlace place) {

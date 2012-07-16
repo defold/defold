@@ -10,7 +10,7 @@ public class DashboardPlace extends DefoldPlace {
         return "Dashboard";
     }
 
-    @Prefix("!dashboard")
+    @Prefix("dashboard")
     public static class Tokenizer implements PlaceTokenizer<DashboardPlace> {
         @Override
         public String getToken(DashboardPlace place) {
