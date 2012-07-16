@@ -591,12 +591,12 @@ bail:
             const char** loc = state->m_Headers.Get(location_hash);
             if (loc)
                 location = *loc;
-            dmLogInfo("SSDP new %s (%s) (announce/search-response)", usn, location);
+            dmLogDebug("SSDP new %s (%s) (announce/search-response)", usn, location);
         }
         else
         {
             // Renew
-            dmLogInfo("SSDP renew %s (announce/search-response)", usn);
+            dmLogDebug("SSDP renew %s (announce/search-response)", usn);
             Device* old_device = ssdp->m_DiscoveredDevices.Get(id);
             old_device->m_Expires = dmTime::GetTime() + state->m_MaxAge * uint64_t(1000000);
         }
@@ -615,7 +615,7 @@ bail:
 
         if (ssdp->m_DiscoveredDevices.Get(id) != 0)
         {
-            dmLogInfo("SSDP unannounce (removing) %s", usn);
+            dmLogDebug("SSDP unannounce (removing) %s", usn);
             ssdp->m_DiscoveredDevices.Erase(id);
         }
     }
@@ -788,7 +788,7 @@ bail:
         for(uint32_t i = 0; i < n; ++i)
         {
             uint64_t id = context.m_ToExpire[i];
-            dmLogInfo("SSDP expired %s", (const char*) dmHashReverse64(id, 0));
+            dmLogDebug("SSDP expired %s", (const char*) dmHashReverse64(id, 0));
 
             ssdp->m_DiscoveredDevices.Erase(id);
         }
