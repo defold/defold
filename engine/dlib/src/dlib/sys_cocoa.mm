@@ -28,11 +28,19 @@ namespace dmSys
                 return RESULT_INVAL;
             if (dmStrlCat(path, application_name, path_len) >= path_len)
                 return RESULT_INVAL;
-            Result r =  Mkdir(path, 0755);
-            if (r == RESULT_EXIST)
-                return RESULT_OK;
+
+            NSString* ns_path = [NSString stringWithUTF8String: path];
+            Result r;
+            if ([shared_fm createDirectoryAtPath: ns_path withIntermediateDirectories: TRUE attributes: nil error: nil] == YES)
+            {
+                r = RESULT_OK;
+            }
             else
-                return r;
+            {
+                r = RESULT_UNKNOWN;
+            }
+            [ns_path release];
+            return r;
         }
         else
         {
