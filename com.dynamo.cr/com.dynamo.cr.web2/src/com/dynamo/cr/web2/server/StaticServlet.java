@@ -3,7 +3,9 @@ package com.dynamo.cr.web2.server;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.Serializable;
 import java.net.URL;
+import java.util.Arrays;
 import java.util.logging.Level;
 
 import javax.servlet.ServletContext;
@@ -42,6 +44,20 @@ public class StaticServlet extends HttpServlet {
         syncCache.setErrorHandler(ErrorHandlers.getConsistentLogAndContinue(Level.INFO));
     }
 
+    private static class Page implements Serializable {
+        private static final long serialVersionUID = 1L;
+
+        byte[] content;
+        String etag;
+
+        Page(byte[] content) {
+            this.content = content;
+            int hashCode = Arrays.hashCode(content);
+            etag = Integer.toString(hashCode);
+
+        }
+    }
+
     public void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws IOException {
 
@@ -51,7 +67,7 @@ public class StaticServlet extends HttpServlet {
         String path = String.format("%s.html", url.getPath());
         String index_path = String.format("%s/index.html", url.getPath());
 
-        byte[] page = (byte[]) syncCache.get(path);
+        Page page = (Page) syncCache.get(path);
         if (page == null) {
             InputStream stream = context.getResourceAsStream(path);
 
@@ -65,14 +81,19 @@ public class StaticServlet extends HttpServlet {
                 return;
             }
 
-            page = loadResource(stream);
+            page = new Page(loadResource(stream));
             if (!url.getHost().equals("127.0.0.1")) {
                 // Cache only on production server, i.e. != 127.0.0.1
                 syncCache.put(path, page);
             }
         }
         resp.setContentType("text/html");
-        resp.getOutputStream().write(page);
+        if (!url.getHost().equals("127.0.0.1")) {
+            // Only cache control for production server, i.e. != 127.0.0.1
+            resp.setHeader("Cache-Control", "public, max-age=600");
+            resp.setHeader("ETag", page.etag);
+        }
+        resp.getOutputStream().write(page.content);
     }
 
     private byte[] loadResource(InputStream stream) throws IOException {
