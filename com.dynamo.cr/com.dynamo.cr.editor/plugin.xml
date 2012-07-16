@@ -30,20 +30,8 @@
                value="Defold Editor">
          </property>
          <property
-               name="startupProgressRect"
-               value="5,275,445,15">
-         </property>
-         <property
                name="preferenceCustomization"
                value="plugin_customization.ini">
-         </property>
-         <property
-               name="startupForegroundColor"
-               value="000000">
-         </property>
-         <property
-               name="startupMessageRect"
-               value="7,252,445,20">
          </property>
       </product>
    </extension>
@@ -172,7 +160,6 @@
          </command>
          <command
                commandId="org.eclipse.ui.help.aboutAction"
-               icon="icons/about_24.png"
                label="About Defold"
                style="push">
          </command>
@@ -587,5 +574,13 @@
             properties="is_dev"
             type="java.lang.Object">
       </propertyTester>
+      <splashHandler
+            class="com.dynamo.cr.editor.splashHandlers.SplashHandler"
+            id="com.dynamo.cr.editor.splashHandlers.defold">
+      </splashHandler>
+      <splashHandlerProductBinding
+            productId="com.dynamo.cr.editor.product"
+            splashId="com.dynamo.cr.editor.splashHandlers.defold">
+      </splashHandlerProductBinding>
    </extension>
 </plugin>

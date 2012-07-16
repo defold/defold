@@ -29,10 +29,8 @@ public class Signer {
         File appDir = new File(packageDir, "Defold.app");
         appDir.mkdirs();
 
-        ClassLoader classLoader = getClass().getClassLoader();
-
         // Create Info.plist
-        InputStream infoIn = classLoader.getResourceAsStream("com/dynamo/cr/target/sign/Info.plist");
+        InputStream infoIn = getClass().getResourceAsStream("Info.plist");
         XMLPropertyListConfiguration info = new XMLPropertyListConfiguration();
         info.load(infoIn);
         infoIn.close();
@@ -43,10 +41,18 @@ public class Signer {
         info.save(new File(appDir, "Info.plist"));
 
         // Copy ResourceRules.plist
-        InputStream resourceRulesIn = classLoader.getResourceAsStream("com/dynamo/cr/target/sign/ResourceRules.plist");
+        InputStream resourceRulesIn = getClass().getResourceAsStream("ResourceRules.plist");
         File resourceRulesOutFile = new File(appDir, "ResourceRules.plist");
         FileUtils.copyInputStreamToFile(resourceRulesIn, resourceRulesOutFile);
         resourceRulesIn.close();
+
+        // Copy icons
+        for (String icon : new String[] { "ios_icon_57.png", "ios_icon_114.png", "ios_icon_72.png", "ios_icon_144.png" }) {
+            InputStream iconInput = getClass().getResourceAsStream(icon);
+            File iconOutFile = new File(appDir, icon);
+            FileUtils.copyInputStreamToFile(iconInput, iconOutFile);
+            iconInput.close();
+        }
 
         // Copy Provisioning Profile
         FileUtils.copyFile(new File(provisioningProfile), new File(appDir, "embedded.mobileprovision"));
