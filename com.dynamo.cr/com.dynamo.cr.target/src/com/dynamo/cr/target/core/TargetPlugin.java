@@ -5,6 +5,8 @@ import javax.inject.Singleton;
 import org.eclipse.ui.plugin.AbstractUIPlugin;
 import org.osgi.framework.BundleContext;
 
+import com.dynamo.cr.editor.core.IConsoleFactory;
+import com.dynamo.cr.editor.ui.ConsoleFactory;
 import com.dynamo.upnp.ISSDP;
 import com.dynamo.upnp.SSDP;
 import com.google.inject.AbstractModule;
@@ -28,6 +30,7 @@ public class TargetPlugin extends AbstractUIPlugin implements ITargetListener {
             bind(ISSDP.class).to(SSDP.class).in(Singleton.class);
             bind(IURLFetcher.class).to(DefaultUrlFetcher.class).in(
                     Singleton.class);
+            bind(IConsoleFactory.class).to(ConsoleFactory.class).in(Singleton.class);
         }
     }
 

@@ -654,11 +654,6 @@ bail:
 
     bool ReloadScript(HScript script, const void* buffer, uint32_t buffer_size, const char* filename)
     {
-        uint32_t count = script->m_OldPropertyDefs.Size();
-        for (uint32_t i = 0; i < count; ++i)
-        {
-            free((void*)script->m_OldPropertyDefs[i].m_Name);
-        }
         dmArray<PropertyDef> tmp_old_property_defs;
         tmp_old_property_defs.SetCapacity(0);
         tmp_old_property_defs.Swap(script->m_PropertyDefs);

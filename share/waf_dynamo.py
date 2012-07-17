@@ -35,7 +35,7 @@ def default_flags(self):
             self.env.append_value('LINKFLAGS', ['-framework', 'Carbon'])
         elif platform == "linux":
             # Linux only
-            self.env.append_value('LINKFLAGS', ['-luuid'])
+            pass
     elif platform == "armv6-darwin":
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-g', '-O2', '-gdwarf-2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-arch', 'armv6', '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION)])
@@ -359,6 +359,13 @@ def run_gtests(valgrind = False):
                 print("test failed %s" %(t.target) )
                 sys.exit(ret)
 
+@feature('cprogram', 'cxxprogram', 'cstaticlib', 'cshlib')
+@after('apply_obj_vars')
+def link_flags(self):
+    platform = self.env['PLATFORM']
+    if platform == 'linux':
+        self.link_task.env.append_value('LINKFLAGS', ['-lpthread', '-lm'])
+
 def detect(conf):
     conf.find_program('valgrind', var='VALGRIND', mandatory = False)
 
@@ -413,8 +420,9 @@ def detect(conf):
         conf.env.LIBDIR = Utils.subst_vars('${PREFIX}/lib/%s' % platform, conf.env)
 
     if platform == "linux":
-        conf.env.append_value('LINKFLAGS', '-lpthread')
         conf.env['LIB_PLATFORM_SOCKET'] = ''
+        conf.env['LIB_DL'] = 'dl'
+        conf.env['LIB_UUID'] = 'uuid'
     elif 'darwin' in platform:
         conf.env['LIB_PLATFORM_SOCKET'] = ''
     else:

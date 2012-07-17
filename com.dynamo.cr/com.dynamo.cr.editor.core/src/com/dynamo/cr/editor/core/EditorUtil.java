@@ -98,4 +98,13 @@ public class EditorUtil {
         String path = "/" + resource.getFullPath().makeRelativeTo(contentRoot.getFullPath()).toPortableString();
         return path;
     }
+
+    /**
+     * Return whether the editor is currently running in development mode or
+     * not. Based on if the "osgi.dev" system property is set or not.
+     */
+    public static boolean isDev() {
+        String dev = System.getProperty("osgi.dev");
+        return dev != null;
+    }
 }

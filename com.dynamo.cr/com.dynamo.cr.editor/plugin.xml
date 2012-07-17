@@ -30,20 +30,8 @@
                value="Defold Editor">
          </property>
          <property
-               name="startupProgressRect"
-               value="5,275,445,15">
-         </property>
-         <property
                name="preferenceCustomization"
                value="plugin_customization.ini">
-         </property>
-         <property
-               name="startupForegroundColor"
-               value="000000">
-         </property>
-         <property
-               name="startupMessageRect"
-               value="7,252,445,20">
          </property>
       </product>
    </extension>
@@ -187,6 +175,12 @@
                commandId="com.dynamo.cr.target.commands.sign"
                label="Sign Executable..."
                style="push">
+            <visibleWhen
+                  checkEnabled="false">
+               <test
+                     property="com.dynamo.cr.editor.is_dev">
+               </test>
+            </visibleWhen>
          </command>
       </menuContribution>
    </extension>
@@ -572,14 +566,24 @@
       </actionProvider>
    </extension>
    <extension
+         point="org.eclipse.core.expressions.propertyTesters">
+      <propertyTester
+            class="com.dynamo.cr.editor.core.EditorUtilPropertyTester"
+            id="com.dynamo.cr.editor.EditorUtilPropertyTester"
+            namespace="com.dynamo.cr.editor"
+            properties="is_dev"
+            type="java.lang.Object">
+      </propertyTester>
+   </extension>
+   <extension
          point="org.eclipse.ui.splashHandlers">
       <splashHandler
             class="com.dynamo.cr.editor.splashHandlers.SplashHandler"
-            id="com.dynamo.cr.editor.splashHandlers.extensible">
+            id="com.dynamo.cr.editor.splashHandlers.defold">
       </splashHandler>
       <splashHandlerProductBinding
             productId="com.dynamo.cr.editor.product"
-            splashId="com.dynamo.cr.editor.splashHandlers.extensible">
+            splashId="com.dynamo.cr.editor.splashHandlers.defold">
       </splashHandlerProductBinding>
    </extension>
 </plugin>

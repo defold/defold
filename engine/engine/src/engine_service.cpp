@@ -25,6 +25,7 @@ static const char DEVICE_DESC_TEMPLATE[] =
 "        <modelName>Defold Engine 1.0</modelName>\n"
 "        <UDN>${UDN}</UDN>\n"
 "        <defold:url>http://${HOSTNAME}:${DEFOLD_PORT}</defold:url>\n"
+"        <defold:logPort>${DEFOLD_LOG_PORT}</defold:logPort>\n"
 "    </device>\n"
 "</root>\n";
 
@@ -183,6 +184,10 @@ namespace dmEngineService
             {
                 return self->m_PortText;
             }
+            else if (strcmp(key, "DEFOLD_LOG_PORT") == 0)
+            {
+                return self->m_LogPortText;
+            }
             else if (strcmp(key, "NAME") == 0)
             {
                 return self->m_Hostname;
@@ -227,6 +232,7 @@ namespace dmEngineService
             dmSocket::Address address;
             dmWebServer::GetName(web_server, &address, &m_Port);
             DM_SNPRINTF(m_PortText, sizeof(m_PortText), "%d", (int) m_Port);
+            DM_SNPRINTF(m_LogPortText, sizeof(m_LogPortText), "%d", (int) dmLogGetPort());
 
             dmStrlCpy(m_DeviceDesc.m_UDN, "defold-", sizeof(m_DeviceDesc.m_UDN));
             char hostname[128];
@@ -284,6 +290,7 @@ namespace dmEngineService
         dmWebServer::HServer m_WebServer;
         uint16_t             m_Port;
         char                 m_PortText[16];
+        char                 m_LogPortText[16];
         char                 m_Hostname[128];
         char                 m_LocalAddress[128];
 
@@ -322,7 +329,6 @@ namespace dmEngineService
     {
         return engine_service->m_Port;
     }
-
 
 }
 

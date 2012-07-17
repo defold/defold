@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <?pde version="3.5"?>
 
-<product name="Defold Editor" uid="com.dynamo.cr.editor.product" id="com.dynamo.cr.editor.product" application="com.dynamo.cr.editor.application" version="1.1.11" useFeatures="false" includeLaunchers="true">
+<product name="Defold Editor" uid="com.dynamo.cr.editor.product" id="com.dynamo.cr.editor.product" application="com.dynamo.cr.editor.application" version="1.1.12" useFeatures="false" includeLaunchers="true">
+
 
    <configIni use="default">
    </configIni>
@@ -20,17 +21,19 @@ jre\bin\javaw.exe</programArgsWin>
    <splash
       location="com.dynamo.cr.editor" />
    <launcher name="Defold">
-      <linux icon="/com.dynamo.cr.editor/icons/launching/speed.xpm"/>
-      <macosx icon="/com.dynamo.cr.editor/icons/launching/speed.icns"/>
+      <linux icon="/com.dynamo.cr.editor/icons/launching/defold_128.xpm"/>
+      <macosx icon="/com.dynamo.cr.editor/icons/launching/defold_128.icns"/>
       <solaris/>
       <win useIco="true">
-         <ico path="/com.dynamo.cr.editor/icons/launching/speed.ico"/>
+         <ico path="/com.dynamo.cr.editor/icons/launching/defold_128.ico"/>
          <bmp/>
       </win>
    </launcher>
 
+
    <vm>
    </vm>
+
 
    <plugins>
       <plugin id="com.dynamo.cr.bob"/>

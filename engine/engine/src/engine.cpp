@@ -18,6 +18,7 @@
 #include <particle/particle.h>
 
 #include "engine_service.h"
+#include "engine_version.h"
 #include "physics_debug_render.h"
 #include "profile_render.h"
 
@@ -697,6 +698,7 @@ bail:
         dmEngine::RunResult run_result;
         if (dmEngine::Init(engine, argc, argv))
         {
+            dmLogInfo("Defold Engine %s (%s)", dmEngineVersion::VERSION, dmEngineVersion::VERSION_SHA1);
             if (pre_run)
             {
                 pre_run(engine, context);

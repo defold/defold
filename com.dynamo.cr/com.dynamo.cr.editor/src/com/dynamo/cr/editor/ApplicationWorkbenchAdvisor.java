@@ -17,6 +17,8 @@ import org.eclipse.ui.internal.ide.IDEInternalPreferences;
 import org.eclipse.ui.internal.ide.IDEWorkbenchPlugin;
 import org.eclipse.ui.navigator.resources.ProjectExplorer;
 
+import com.dynamo.cr.editor.core.EditorUtil;
+
 public class ApplicationWorkbenchAdvisor extends WorkbenchAdvisor {
 
     private static final String PERSPECTIVE_ID = "com.dynamo.cr.editor.perspective"; //$NON-NLS-1$
@@ -119,7 +121,7 @@ public class ApplicationWorkbenchAdvisor extends WorkbenchAdvisor {
         pm.remove("org.eclipse.ui.preferencePages.Workbench/org.eclipse.ui.preferencePages.Editors/org.eclipse.ui.preferencePages.GeneralTextEditor/org.eclipse.ui.editors.preferencePages.LinkedModePreferencePage");
         pm.remove("org.eclipse.ui.preferencePages.Workbench/org.eclipse.ui.preferencePages.Editors/org.eclipse.ui.preferencePages.GeneralTextEditor/org.eclipse.ui.editors.preferencePages.HyperlinkDetectorsPreferencePage");
 
-        if (System.getProperty("osgi.dev") == null)
+        if (!EditorUtil.isDev())
         {
             // Remove debug preferences for end-users
             pm.remove("com.dynamo.rclient.preferences.PreferencePage/com.dynamo.rclient.preferences.DebugPreferencePage");

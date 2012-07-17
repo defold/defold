@@ -56,7 +56,7 @@ def build(bld):
                             target = 'dlib_shared',
                             defines= 'VALGRIND',
                             embed_source = '../data/profiler.html',
-                            uselib = 'PLATFORM_SOCKET')
+                            uselib = 'UUID PLATFORM_SOCKET')
     dlib.find_sources_in_dirs('dlib')
 
     if bld.env['PLATFORM'] != 'win32':

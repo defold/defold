@@ -9,6 +9,7 @@ int main(int argc, char *argv[])
     dmDDF::RegisterAllTypes();
     dmMemProfile::Initialize();
     dmSocket::Initialize();
+    dmLogInitialize();
 
     // NOTE: We do glfwInit as glfw doesn't cleanup menus properly on OSX.
     if (glfwInit() == GL_FALSE)
@@ -21,6 +22,7 @@ int main(int argc, char *argv[])
 
     glfwTerminate();
 
+    dmLogFinalize();
     dmSocket::Finalize();
     dmMemProfile::Finalize();
     return exit_code;

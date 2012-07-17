@@ -47,6 +47,7 @@ import org.eclipse.jface.util.PropertyChangeEvent;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.ui.IWorkbenchPage;
+import org.eclipse.ui.IWorkbenchPreferenceConstants;
 import org.eclipse.ui.IWorkbenchWindow;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.navigator.resources.ProjectExplorer;
@@ -94,6 +95,7 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
     // NOTE: Currently hard-coded
     // Non-trivial to find the product number :-(
     public static final String VERSION = "1.1.12";
+    public static final String VERSION_SHA1 = "f2a4133";
 
     // Shared images
     public static final String OVERLAY_ERROR_IMAGE_ID = "OVERLAY_ERROR";
@@ -201,6 +203,16 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
     public void start(BundleContext bundleContext) throws Exception {
         super.start(bundleContext);
         this.logger = Logger.getLogger(Activator.PLUGIN_ID);
+
+        /*
+         * Ensure that SplashHandler#getBundleProgressMonitor is called.
+         * If we set org.eclipse.ui/SHOW_PROGRESS_ON_STARTUP = true in plugin_customization.ini
+         * *and* uncheck "add a progress bar" in the product eclipse will change the SHOW_PROGRESS_ON_STARTUP
+         * to false during export.
+         *
+         * See for a related issue: https://bugs.eclipse.org/bugs/show_bug.cgi?id=189950
+         */
+        PlatformUI.getPreferenceStore().setValue(IWorkbenchPreferenceConstants.SHOW_PROGRESS_ON_STARTUP, true);
 
         // We clear this property in order to avoid the following warning on OSX:
         // "System property http.nonProxyHosts has been set to local|*.local|169.254/16|*.169.254/16 by an external source. This value will be overwritten using the values from the preferences"
@@ -501,6 +513,10 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
                  */
                 for (NetworkListener listener : httpServer.getListeners()) {
                     listener.getFileCache().setEnabled(false);
+                    // TODO This is a temp fix for a file-locking bug on windows
+                    // More details here:
+                    // https://defold.fogbugz.com/default.asp?1177
+                    listener.getFileCache().setMaxCacheEntries(0);
                 }
                 httpServer.start();
                 HttpHandler handler = httpServer.getHttpHandler();

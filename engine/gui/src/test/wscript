@@ -24,7 +24,7 @@ def build(bld):
     if bld.env.PLATFORM != "armv6-darwin":
         guidemo = bld.new_task_gen(features = 'cxx cprogram',
                                    includes = '../../../src',
-                                   uselib = 'SCRIPT DDF DLIB PLATFORM_SOCKET LUA DMGLFW',
+                                   uselib = 'SCRIPT DDF DLIB PLATFORM_SOCKET LUA DMGLFW X',
                                    uselib_local = 'gui',
                                    target = 'guidemo',
                                    source = 'guidemo.cpp')

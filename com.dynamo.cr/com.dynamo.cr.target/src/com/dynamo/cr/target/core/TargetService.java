@@ -1,8 +1,13 @@
 package com.dynamo.cr.target.core;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.StringReader;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.MalformedURLException;
+import java.net.Socket;
 import java.net.URL;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
@@ -21,7 +26,11 @@ import org.jdom2.Element;
 import org.jdom2.Namespace;
 import org.jdom2.input.JDOMParseException;
 import org.jdom2.input.SAXBuilder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import com.dynamo.cr.editor.core.IConsole;
+import com.dynamo.cr.editor.core.IConsoleFactory;
 import com.dynamo.upnp.DeviceInfo;
 import com.dynamo.upnp.ISSDP;
 
@@ -32,9 +41,14 @@ public class TargetService implements ITargetService, Runnable {
     private volatile boolean stopped = false;
     private ISSDP ssdp;
     private IURLFetcher urlFetcher;
+    private IConsoleFactory consoleFactory;
     private int searchInterval = 60;
     private long lastSearch = 0;
     private ITarget[] targets;
+    private Socket logSocket;
+    private InetSocketAddress logSocketAddress;
+
+    private static Logger logger = LoggerFactory.getLogger(TargetService.class);
 
     private static ITarget createLocalTarget() {
         String localAddress = "127.0.0.1";
@@ -46,16 +60,17 @@ public class TargetService implements ITargetService, Runnable {
         }
 
         String name = String.format("Local (%s)", localAddress);
-        return new Target(name, LOCAL_TARGET_ID, null);
+        return new Target(name, LOCAL_TARGET_ID, null, 0);
     }
 
     @Inject
-    public TargetService(ISSDP ssdp, IURLFetcher urlFetcher) {
+    public TargetService(ISSDP ssdp, IURLFetcher urlFetcher, IConsoleFactory consoleFactory) {
         targets = new ITarget[] { createLocalTarget(), };
 
         lastSearch = System.currentTimeMillis();
         this.ssdp = ssdp;
         this.urlFetcher = urlFetcher;
+        this.consoleFactory = consoleFactory;
         thread = new Thread(this, "Targets Service");
         thread.start();
     }
@@ -111,6 +126,7 @@ public class TargetService implements ITargetService, Runnable {
                     updateTargets();
                     postEvent(new TargetChangedEvent(this));
                 }
+                updateLog();
             } catch (IOException e) {
                 // TODO: Logging
                 e.printStackTrace();
@@ -171,10 +187,11 @@ public class TargetService implements ITargetService, Runnable {
 
                 if (manufacturer.equalsIgnoreCase("defold")) {
                     String url = getRequiredDeviceField(device, "url", defoldNS);
+                    String logPort = getRequiredDeviceField(device, "logPort", defoldNS);
                     // TODO: Local should be iPhone or Joe's iPhone or similar
                     // when iPhone supported is completed
                     String name = String.format("%s (%s)", friendlyName, deviceInfo.address);
-                    ITarget target = new Target(name, udn, url);
+                    ITarget target = new Target(name, udn, url, Integer.parseInt(logPort));
                     targets.add(target);
 
                     if (deviceInfo.address.equals(localAddress)) {
@@ -213,6 +230,65 @@ public class TargetService implements ITargetService, Runnable {
         }
     }
 
+    private synchronized void updateLog() {
+        // Check to see if we should make a new connection
+        if (this.logSocketAddress != null) {
+            // Close if already connected
+            if (this.logSocket != null) {
+                try {
+                    this.logSocket.close();
+                } catch (IOException e) {
+                    logger.warn("Log socket could not be closed: {}", e.getMessage());
+                } finally {
+                    this.logSocket = null;
+                }
+            }
+            // Connect
+            try {
+                this.logSocket = new Socket();
+                this.logSocket.connect(this.logSocketAddress);
+            } catch (IOException e) {
+                logger.warn("Log socket could not be opened: {}", e.getMessage());
+            } finally {
+                this.logSocketAddress = null;
+            }
+        }
+        if (this.logSocket != null) {
+            try {
+                if (this.logSocket.isConnected()) {
+                    byte[] data = null;
+                    OutputStream out = null;
+                    InputStream in = this.logSocket.getInputStream();
+                    int available = in.available();
+                    while (available > 0) {
+                        if (out == null) {
+                            IConsole console = this.consoleFactory.getConsole("console");
+                            out = console.createOutputStream();
+                            data = new byte[128];
+                        }
+                        int count = Math.min(available, data.length);
+                        in.read(data, 0, count);
+                        out.write(data, 0, count);
+                        available = in.available();
+                    }
+                    if (out != null) {
+                        out.close();
+                    }
+                }
+            } catch (IOException e) {
+                if (this.logSocket.isConnected()) {
+                    try {
+                        this.logSocket.close();
+                    } catch (IOException e1) {
+                        logger.error(e1.getMessage());
+                    }
+                }
+                this.logSocket = null;
+                logger.error(e.getMessage());
+            }
+        }
+    }
+
     @Override
     public ITarget getSelectedTarget() {
         ICommandService commandService = (ICommandService) PlatformUI.getWorkbench().getService(ICommandService.class);
@@ -245,6 +321,21 @@ public class TargetService implements ITargetService, Runnable {
         ITarget targetToLaunch = getSelectedTarget();
         LaunchThread launchThread = new LaunchThread(targetToLaunch, customApplication, location, runInDebugger, autoRunDebugger, socksProxy, socksProxyPort, serverUrl);
         launchThread.start();
+        connectToLogService(targetToLaunch);
     }
+
+    protected void connectToLogService(ITarget target) {
+        if (target.getUrl() != null) {
+            try {
+                URL url = new URL(target.getUrl());
+                String host = url.getHost();
+                logSocketAddress = new InetSocketAddress(host, target.getLogPort());
+            } catch (MalformedURLException e) {
+                logger.warn("Could not open log socket: {}", e.getMessage());
+                logSocketAddress = null;
+            }
+        }
+    }
+
 }
 
