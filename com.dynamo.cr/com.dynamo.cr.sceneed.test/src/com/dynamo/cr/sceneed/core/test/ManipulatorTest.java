@@ -33,9 +33,9 @@ import org.junit.Test;
 
 import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.editor.core.inject.LifecycleModule;
+import com.dynamo.cr.editor.ui.IImageProvider;
 import com.dynamo.cr.sceneed.Activator;
 import com.dynamo.cr.sceneed.core.IClipboard;
-import com.dynamo.cr.sceneed.core.IImageProvider;
 import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.IManipulatorMode;
 import com.dynamo.cr.sceneed.core.IManipulatorRegistry;

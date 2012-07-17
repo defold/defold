@@ -25,7 +25,6 @@ import org.eclipse.swt.graphics.Color;
 import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Display;
-import org.eclipse.ui.PlatformUI;
 
 import com.dynamo.cr.client.IBranchClient;
 import com.dynamo.cr.editor.Activator;
@@ -72,7 +71,7 @@ public class BranchStatusTableViewer extends TableViewer {
                     ResourceStatus resourceStatus = (ResourceStatus) element;
                     Status status = resourceStatus.getStatus();
                     if (status.getName().lastIndexOf('.') != -1) {
-                        return PlatformUI.getWorkbench().getEditorRegistry().getImageDescriptor(status.getName().substring(status.getName().lastIndexOf('.'))).createImage();
+                        return Activator.getDefault().getImage(status.getName());
                     }
                 }
                 return super.getImage(element);

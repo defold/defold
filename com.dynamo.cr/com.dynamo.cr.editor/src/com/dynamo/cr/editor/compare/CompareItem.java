@@ -10,7 +10,6 @@ import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.swt.graphics.Image;
-import org.eclipse.ui.PlatformUI;
 
 import com.dynamo.cr.client.IBranchClient;
 import com.dynamo.cr.client.RepositoryException;
@@ -42,7 +41,7 @@ public class CompareItem implements IStreamContentAccessor, ITypedElement,
 
     @Override
     public Image getImage() {
-        return PlatformUI.getWorkbench().getEditorRegistry().getImageDescriptor(path.substring(path.lastIndexOf('.'))).createImage();
+        return Activator.getDefault().getImage(path);
     }
 
     @Override

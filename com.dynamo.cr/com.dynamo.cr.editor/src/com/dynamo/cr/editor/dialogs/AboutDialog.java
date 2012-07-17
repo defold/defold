@@ -6,6 +6,7 @@ import org.eclipse.jface.resource.JFaceResources;
 import org.eclipse.jface.util.Geometry;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.custom.StyledText;
+import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.graphics.Rectangle;
 import org.eclipse.swt.layout.GridData;
@@ -22,6 +23,9 @@ public class AboutDialog extends Shell {
     // Non-trivial to find the product number :-(
     private static final String VERSION = "1.1.12";
     private static final String NEW_LINE = System.getProperty("line.separator");
+
+    private static Image aboutImage = Activator.getImageDescriptor("icons/about.png")
+            .createImage();
 
     public AboutDialog(Shell shell) {
         super(shell, SWT.CLOSE | SWT.TITLE);
@@ -46,8 +50,7 @@ public class AboutDialog extends Shell {
         Label graphic = newLabel(SWT.SHADOW_NONE | SWT.CENTER);
         GridDataFactory.fillDefaults().grab(true, true)
                 .align(SWT.FILL, SWT.FILL).hint(316, 416).applyTo(graphic);
-        graphic.setImage(Activator.getImageDescriptor("icons/about.png")
-                .createImage());
+        graphic.setImage(aboutImage);
 
         Label productNameLabel = newLabel(SWT.BOLD);
         productNameLabel.setFont(JFaceResources.getBannerFont());

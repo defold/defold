@@ -30,8 +30,8 @@ import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
 import com.dynamo.cr.editor.core.ILogger;
+import com.dynamo.cr.editor.ui.IImageProvider;
 import com.dynamo.cr.properties.IPropertyModel;
-import com.dynamo.cr.sceneed.core.IImageProvider;
 import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.IModelListener;
 import com.dynamo.cr.sceneed.core.ISceneModel;
