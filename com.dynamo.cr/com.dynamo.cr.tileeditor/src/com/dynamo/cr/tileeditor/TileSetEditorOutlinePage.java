@@ -22,7 +22,6 @@ import org.eclipse.swt.graphics.PaletteData;
 import org.eclipse.swt.graphics.RGB;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Menu;
-import org.eclipse.ui.IEditorRegistry;
 import org.eclipse.ui.ISharedImages;
 import org.eclipse.ui.IWorkbenchActionConstants;
 import org.eclipse.ui.PlatformUI;
@@ -46,8 +45,7 @@ public class TileSetEditorOutlinePage extends ContentOutlinePage {
         this.root = new RootItem();
 
         ImageRegistry imageRegist = Activator.getDefault().getImageRegistry();
-        this.collisionGroupImage = imageRegist.getDescriptor(
-                Activator.COLLISION_GROUP_IMAGE_ID).createImage();
+        this.collisionGroupImage = imageRegist.get(Activator.COLLISION_GROUP_IMAGE_ID);
     }
 
     @Override
@@ -176,12 +174,6 @@ public class TileSetEditorOutlinePage extends ContentOutlinePage {
 
     class OutlineColumnLabelProvider extends ColumnLabelProvider {
 
-        private final IEditorRegistry registry;
-
-        public OutlineColumnLabelProvider() {
-            this.registry = PlatformUI.getWorkbench().getEditorRegistry();
-        }
-
         @Override
         public Image getImage(Object element) {
             ISharedImages sharedImages = PlatformUI.getWorkbench()
@@ -189,8 +181,7 @@ public class TileSetEditorOutlinePage extends ContentOutlinePage {
             Image image = null;
 
             if (element instanceof RootItem) {
-                image = this.registry.getImageDescriptor(".tileset")
-                        .createImage();
+                image = Activator.getDefault().getImage(".tileset");
             } else if (element instanceof CollisionGroupsItem) {
                 image = sharedImages.getImage(ISharedImages.IMG_OBJ_FOLDER);
             } else if (element instanceof CollisionGroupItem) {

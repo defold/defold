@@ -4,14 +4,15 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.resource.ImageDescriptor;
 import org.eclipse.jface.resource.ImageRegistry;
-import org.eclipse.ui.plugin.AbstractUIPlugin;
 import org.eclipse.ui.statushandlers.StatusManager;
 import org.osgi.framework.BundleContext;
+
+import com.dynamo.cr.editor.ui.AbstractDefoldPlugin;
 
 /**
  * The activator class controls the plug-in life cycle
  */
-public class Activator extends AbstractUIPlugin {
+public class Activator extends AbstractDefoldPlugin {
 
 	// The plug-in ID
 	public static final String PLUGIN_ID = "com.dynamo.cr.guieditor"; //$NON-NLS-1$

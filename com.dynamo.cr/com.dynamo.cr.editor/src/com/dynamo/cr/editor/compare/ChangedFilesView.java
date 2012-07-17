@@ -193,7 +193,10 @@ public class ChangedFilesView extends ViewPart implements SelectionListener, IBr
             Display.getDefault().asyncExec(new Runnable() {
                 @Override
                 public void run() {
-                    tableViewer.setInput(resources);
+                    // The underlying widget could be disposed when we get here (e.g. program termination)
+                    if (!tableViewer.getTable().isDisposed()) {
+                        tableViewer.setInput(resources);
+                    }
                 }
             });
         }

@@ -1,8 +1,6 @@
 package com.dynamo.cr.guieditor;
 
 import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
 
 import org.eclipse.jface.resource.ImageRegistry;
 import org.eclipse.jface.viewers.ColumnLabelProvider;
@@ -15,7 +13,6 @@ import org.eclipse.jface.viewers.Viewer;
 import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.ui.IActionBars;
-import org.eclipse.ui.IEditorRegistry;
 import org.eclipse.ui.ISelectionListener;
 import org.eclipse.ui.ISharedImages;
 import org.eclipse.ui.IWorkbenchPart;
@@ -132,33 +129,19 @@ public class GuiEditorOutlinePage extends ContentOutlinePage implements ISelecti
 
     class OutlineColumnLabelProvider extends ColumnLabelProvider {
 
-        private IEditorRegistry registry;
         private Image boxNodeImage;
         private Image textNodeImage;
-        private Map<String, Image> imageCache = new HashMap<String, Image>();
-
 
         public OutlineColumnLabelProvider() {
-            registry = PlatformUI.getWorkbench().getEditorRegistry();
-
             ImageRegistry imageRegist = Activator.getDefault()
                     .getImageRegistry();
-            boxNodeImage = imageRegist
-                    .getDescriptor(Activator.BOXNODE_IMAGE_ID).createImage();
-            textNodeImage = imageRegist.getDescriptor(
-                    Activator.TEXTNODE_IMAGE_ID).createImage();
+            boxNodeImage = imageRegist.get(Activator.BOXNODE_IMAGE_ID);
+            textNodeImage = imageRegist.get(Activator.TEXTNODE_IMAGE_ID);
         }
 
         Image getImageFromFilename(String name) {
             if (name.lastIndexOf('.') != -1) {
-                String ext = name.substring(name.lastIndexOf('.'));
-                Image image = imageCache.get(ext);
-                if (image != null)
-                    return image;
-
-                image = registry.getImageDescriptor(ext).createImage();
-                imageCache.put(ext, image);
-                return image;
+                return Activator.getDefault().getImage(name);
             }
             return null;
         }
@@ -169,7 +152,7 @@ public class GuiEditorOutlinePage extends ContentOutlinePage implements ISelecti
             Image image = null;
 
             if (element instanceof GuiScene) {
-                image = registry.getImageDescriptor(".gui").createImage();
+                image = Activator.getDefault().getImage("gui");
             } else if (element.equals("Fonts")) {
                 image = sharedImages.getImage(ISharedImages.IMG_OBJ_FOLDER);
             } else if (element.equals("Textures")) {

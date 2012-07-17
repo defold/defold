@@ -806,7 +806,7 @@ public class SyncDialog extends TitleAreaDialog {
                         ResourceStatus resourceStatus = (ResourceStatus) element;
                         Status status = resourceStatus.getStatus();
                         if (status.getName().lastIndexOf('.') != -1) {
-                            return PlatformUI.getWorkbench().getEditorRegistry().getImageDescriptor(status.getName().substring(status.getName().lastIndexOf('.'))).createImage();
+                            return Activator.getDefault().getImage(status.getName());
                         }
                     }
                     return super.getImage(element);
