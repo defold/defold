@@ -585,6 +585,15 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
 
     @Override
     public void resourceChanged(IResourceChangeEvent event) {
+        // Resource changed events are not guaranteed to carry a delta
+        // Ignore such events since we are only interested in deltas
+        if (event.getDelta() == null) {
+            return;
+        }
+        // Ignore resource changed while the application is launching
+        if (!PlatformUI.isWorkbenchRunning()) {
+            return;
+        }
         final IBranchService branchService = (IBranchService)PlatformUI.getWorkbench().getService(IBranchService.class);
         if (branchService == null) {
             return;
