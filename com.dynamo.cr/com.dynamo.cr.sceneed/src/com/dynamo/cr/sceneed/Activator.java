@@ -2,12 +2,9 @@ package com.dynamo.cr.sceneed;
 
 import org.eclipse.jface.resource.ImageDescriptor;
 import org.eclipse.jface.resource.ImageRegistry;
-import org.eclipse.swt.graphics.Image;
-import org.eclipse.ui.PlatformUI;
-import org.eclipse.ui.plugin.AbstractUIPlugin;
 import org.osgi.framework.BundleContext;
 
-import com.dynamo.cr.sceneed.core.IImageProvider;
+import com.dynamo.cr.editor.ui.AbstractDefoldPlugin;
 import com.dynamo.cr.sceneed.core.IManipulatorRegistry;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
 import com.dynamo.cr.sceneed.core.internal.ManipulatorRegistry;
@@ -16,7 +13,7 @@ import com.dynamo.cr.sceneed.core.internal.NodeTypeRegistry;
 /**
  * The activator class controls the plug-in life cycle
  */
-public class Activator extends AbstractUIPlugin implements IImageProvider {
+public class Activator extends AbstractDefoldPlugin {
 
     // The plug-in ID
     public static final String PLUGIN_ID = "com.dynamo.cr.sceneed"; //$NON-NLS-1$
@@ -39,7 +36,6 @@ public class Activator extends AbstractUIPlugin implements IImageProvider {
     public static final String IMG_OVERLAY_INFO = "IMG_OVERLAY_INFO";
     public static final String IMG_OVERLAY_WARNING = "IMG_OVERLAY_WARNING";
     public static final String IMG_OVERLAY_ERROR = "IMG_OVERLAY_ERROR";
-    public static final String IMG_UNKNOWN = "UNKNOWN";
     public static final String IMG_FOLDER = "FOLDER";
 
 
@@ -102,31 +98,12 @@ public class Activator extends AbstractUIPlugin implements IImageProvider {
     }
 
     @Override
-    public Image getImage(String extension) {
-        ImageRegistry imageRegistry = getImageRegistry();
-        if (extension != null) {
-            ImageDescriptor descriptor = imageRegistry.getDescriptor(extension);
-            if (descriptor == null) {
-                descriptor = PlatformUI.getWorkbench().getEditorRegistry().getImageDescriptor("." + extension);
-                if (descriptor != null) {
-                    imageRegistry.put(extension, descriptor);
-                }
-            }
-            if (descriptor != null) {
-                return imageRegistry.get(extension);
-            }
-        }
-        return imageRegistry.get(IMG_UNKNOWN);
-    }
-
-    @Override
     protected void initializeImageRegistry(ImageRegistry reg) {
         super.initializeImageRegistry(reg);
 
         reg.put(IMG_OVERLAY_INFO, getImageDescriptor("icons/overlay_info.png"));
         reg.put(IMG_OVERLAY_WARNING, getImageDescriptor("icons/overlay_warning.png"));
         reg.put(IMG_OVERLAY_ERROR, getImageDescriptor("icons/overlay_error.png"));
-        reg.put(IMG_UNKNOWN, getImageDescriptor("icons/unknown.png"));
         reg.put(IMG_FOLDER, getImageDescriptor("icons/folder.png"));
     }
 

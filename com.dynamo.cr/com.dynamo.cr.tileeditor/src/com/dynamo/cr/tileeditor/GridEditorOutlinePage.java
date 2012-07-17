@@ -56,10 +56,8 @@ public class GridEditorOutlinePage extends ContentOutlinePage implements IGridEd
 
         ImageRegistry imageRegist = Activator.getDefault()
                 .getImageRegistry();
-        this.gridImage = imageRegist
-                .getDescriptor(Activator.GRID_IMAGE_ID).createImage();
-        this.layerImage = imageRegist
-                .getDescriptor(Activator.LAYER_IMAGE_ID).createImage();
+        this.gridImage = imageRegist.get(Activator.GRID_IMAGE_ID);
+        this.layerImage = imageRegist.get(Activator.LAYER_IMAGE_ID);
     }
 
     @Override

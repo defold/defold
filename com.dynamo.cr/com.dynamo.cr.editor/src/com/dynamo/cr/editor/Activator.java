@@ -51,7 +51,6 @@ import org.eclipse.ui.IWorkbenchPreferenceConstants;
 import org.eclipse.ui.IWorkbenchWindow;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.navigator.resources.ProjectExplorer;
-import org.eclipse.ui.plugin.AbstractUIPlugin;
 import org.eclipse.ui.progress.IProgressService;
 import org.eclipse.ui.statushandlers.StatusManager;
 import org.glassfish.grizzly.http.server.HttpHandler;
@@ -80,13 +79,15 @@ import com.dynamo.cr.editor.dialogs.OpenIDLoginDialog;
 import com.dynamo.cr.editor.fs.RepositoryFileSystemPlugin;
 import com.dynamo.cr.editor.preferences.PreferenceConstants;
 import com.dynamo.cr.editor.services.IBranchService;
+import com.dynamo.cr.editor.ui.AbstractDefoldPlugin;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.config.ClientConfig;
 import com.sun.jersey.api.client.config.DefaultClientConfig;
 
-public class Activator extends AbstractUIPlugin implements IPropertyChangeListener, IResourceChangeListener, IBranchListener {
+public class Activator extends AbstractDefoldPlugin implements IPropertyChangeListener, IResourceChangeListener,
+        IBranchListener {
 
     // The plug-in ID
     public static final String PLUGIN_ID = "com.dynamo.cr.editor"; //$NON-NLS-1$
@@ -602,6 +603,15 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
 
     @Override
     public void resourceChanged(IResourceChangeEvent event) {
+        // Resource changed events are not guaranteed to carry a delta
+        // Ignore such events since we are only interested in deltas
+        if (event.getDelta() == null) {
+            return;
+        }
+        // Ignore resource changed while the application is launching
+        if (!PlatformUI.isWorkbenchRunning()) {
+            return;
+        }
         final IBranchService branchService = (IBranchService)PlatformUI.getWorkbench().getService(IBranchService.class);
         if (branchService == null) {
             return;
@@ -671,4 +681,5 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
             }
         }
     }
+
 }

@@ -22,8 +22,8 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.dynamo.cr.editor.core.ILogger;
+import com.dynamo.cr.editor.ui.IImageProvider;
 import com.dynamo.cr.sceneed.core.IClipboard;
-import com.dynamo.cr.sceneed.core.IImageProvider;
 import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.IManipulatorRegistry;
 import com.dynamo.cr.sceneed.core.IModelListener;

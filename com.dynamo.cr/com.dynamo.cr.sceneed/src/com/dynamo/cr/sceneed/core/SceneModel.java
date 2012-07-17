@@ -28,6 +28,7 @@ import org.eclipse.swt.graphics.Image;
 
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.core.ILogger;
+import com.dynamo.cr.editor.ui.IImageProvider;
 import com.dynamo.cr.properties.Entity;
 import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.properties.PropertyIntrospector;
