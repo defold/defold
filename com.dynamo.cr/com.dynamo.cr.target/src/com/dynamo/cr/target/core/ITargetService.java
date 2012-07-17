@@ -19,4 +19,6 @@ public interface ITargetService {
             String socksProxy, int socksProxyPort, URL serverUrl);
 
     public ITarget getSelectedTarget();
+
+    public void search();
 }

@@ -55,8 +55,7 @@ public class TargetService implements ITargetService, Runnable {
         try {
             localAddress = InetAddress.getLocalHost().getHostAddress();
         } catch (UnknownHostException e) {
-            // TODO: Logging
-            e.printStackTrace();
+            logger.error("Local host address not found", e);
         }
 
         String name = String.format("Local (%s)", localAddress);
@@ -67,7 +66,7 @@ public class TargetService implements ITargetService, Runnable {
     public TargetService(ISSDP ssdp, IURLFetcher urlFetcher, IConsoleFactory consoleFactory) {
         targets = new ITarget[] { createLocalTarget(), };
 
-        lastSearch = System.currentTimeMillis();
+        lastSearch = System.currentTimeMillis() - searchInterval * 1000;
         this.ssdp = ssdp;
         this.urlFetcher = urlFetcher;
         this.consoleFactory = consoleFactory;
@@ -128,10 +127,15 @@ public class TargetService implements ITargetService, Runnable {
                 }
                 updateLog();
             } catch (IOException e) {
-                // TODO: Logging
-                e.printStackTrace();
+                logger.error(e.getMessage(), e);
             }
         }
+    }
+
+    @Override
+    public void search() {
+        // Force search now
+        lastSearch = System.currentTimeMillis() - searchInterval * 1000;
     }
 
     private String getRequiredDeviceField(Element device, String name,
