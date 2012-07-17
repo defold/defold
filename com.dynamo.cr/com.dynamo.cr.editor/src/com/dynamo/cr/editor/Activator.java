@@ -95,6 +95,7 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
     // NOTE: Currently hard-coded
     // Non-trivial to find the product number :-(
     public static final String VERSION = "1.1.12";
+    public static final String VERSION_SHA1 = "f2a4133";
 
     // Shared images
     public static final String OVERLAY_ERROR_IMAGE_ID = "OVERLAY_ERROR";

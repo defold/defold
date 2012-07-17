@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import os, sys, shutil, zipfile
+import os, sys, shutil, zipfile, re
 import optparse, subprocess
 from tarfile import TarFile
 from os.path import join, basename, relpath
@@ -23,7 +23,8 @@ class Configuration(object):
                  skip_tests = False,
                  skip_codesign = False,
                  no_colors = False,
-                 archive_path = None):
+                 archive_path = None,
+                 set_version = None):
 
         if sys.platform == 'win32':
             home = os.environ['USERPROFILE']
@@ -39,6 +40,7 @@ class Configuration(object):
         self.skip_codesign = skip_codesign
         self.no_colors = no_colors
         self.archive_path = archive_path
+        self.set_version = set_version
 
         self._create_common_dirs()
 
@@ -100,7 +102,7 @@ class Configuration(object):
             self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'share'))
 
     def _git_sha1(self, dir = '.'):
-        process = subprocess.Popen('git log --oneline'.split(), stdout = subprocess.PIPE)
+        process = subprocess.Popen('git log --oneline -n1'.split(), stdout = subprocess.PIPE)
         out, err = process.communicate()
         if process.returncode != 0:
             sys.exit(process.returncode)
@@ -255,6 +257,45 @@ root.linux.gtk.x86.permissions.755=jre/'''
 
         self.exec_command(args)
 
+    def bump(self):
+        sha1 = self._git_sha1()
+
+        with open('VERSION', 'r') as f:
+            current = f.readlines()[0].strip()
+
+        if self.set_version:
+            new_version = self.set_version
+        else:
+            lst = map(int, current.split('.'))
+            lst[-1] += 1
+            new_version = '.'.join(map(str, lst))
+
+        with open('VERSION', 'w') as f:
+            f.write(new_version)
+
+        with open('com.dynamo.cr/com.dynamo.cr.editor/src/com/dynamo/cr/editor/Activator.java', 'a+') as f:
+            f.seek(0)
+            activator = f.read()
+
+            activator = re.sub('public static final String VERSION = "[0-9\.]+";', 'public static final String VERSION = "%s";' % new_version, activator)
+            activator = re.sub('public static final String VERSION_SHA1 = ".*?";', 'public static final String VERSION_SHA1 = "%s";' % sha1, activator)
+            f.truncate(0)
+            f.write(activator)
+
+
+        with open('engine/engine/src/engine_version.h', 'a+') as f:
+            f.seek(0)
+            engine_version = f.read()
+
+            engine_version = re.sub('const char\* VERSION = "[0-9\.]+";', 'const char* VERSION = "%s";' % new_version, engine_version)
+            engine_version = re.sub('const char\* VERSION_SHA1 = ".*?";', 'const char* VERSION_SHA1 = "%s";' % sha1, engine_version)
+            f.truncate(0)
+            f.write(engine_version)
+
+
+        print 'Bumping engine version from %s to %s' % (current, new_version)
+        print 'Review changes and commit'
+
     def exec_command(self, arg_list, **kwargs):
         env = dict(os.environ)
 
@@ -302,6 +343,7 @@ build_editor    - Build editor
 archive_editor  - Archive editor to path specified with --archive-path
 archive_server  - Archive server to path specified with --archive-path
 build_docs      - Build documentation
+bump            - Bump version number
 
 Multiple commands can be specified'''
 
@@ -335,6 +377,10 @@ Multiple commands can be specified'''
                       default = None,
                       help = 'Archive build. Set ssh-path, host:path, to archive build to')
 
+    parser.add_option('--set-version', dest='set_version',
+                      default = None,
+                      help = 'Set version explicitily when bumping version')
+
     options, args = parser.parse_args()
 
     if len(args) == 0:
@@ -346,7 +392,8 @@ Multiple commands can be specified'''
                       skip_tests = options.skip_tests,
                       skip_codesign = options.skip_codesign,
                       no_colors = options.no_colors,
-                      archive_path = options.archive_path)
+                      archive_path = options.archive_path,
+                      set_version = options.set_version)
 
     for cmd in args:
         f = getattr(c, cmd, None)
