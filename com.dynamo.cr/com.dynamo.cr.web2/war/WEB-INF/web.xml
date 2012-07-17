@@ -12,11 +12,17 @@
         -->
 		<welcome-file>landing.html</welcome-file>
         <welcome-file>plans.html</welcome-file>
+        <welcome-file>search.jsp</welcome-file>
 	</welcome-file-list>
 
     <servlet>
         <servlet-name>static</servlet-name>
         <servlet-class>com.dynamo.cr.web2.server.StaticServlet</servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>search-index</servlet-name>
+        <servlet-class>com.dynamo.cr.web2.server.SearchIndexServlet</servlet-class>
     </servlet>
 
     <servlet-mapping>
@@ -39,6 +45,11 @@
         <url-pattern>/ref/*</url-pattern>
     </servlet-mapping>
 
+    <servlet-mapping>
+        <servlet-name>search-index</servlet-name>
+        <url-pattern>/search-index</url-pattern>
+    </servlet-mapping>
+
     <error-page>
        <error-code>404</error-code>
        <location>/error/404.html</location>
@@ -48,6 +59,16 @@
        <error-code>500</error-code>
        <location>/error/500.html</location>
     </error-page>
+
+    <security-constraint>
+        <web-resource-collection>
+            <url-pattern>/search-index/*</url-pattern>
+            <url-pattern>/tasks/*</url-pattern>
+        </web-resource-collection>
+        <auth-constraint>
+            <role-name>admin</role-name>
+        </auth-constraint>
+    </security-constraint>
 
 	<mime-mapping>
 		<extension>mp4</extension>

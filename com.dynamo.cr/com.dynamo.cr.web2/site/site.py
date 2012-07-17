@@ -45,3 +45,5 @@ about = ['eula.html',
          'story.html']
 for d in about:
     asciidoc('doc/%s' % d, 'about/%s' % d)
+
+render('search.jsp', 'search/search.jsp', root='/')

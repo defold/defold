@@ -153,7 +153,6 @@ ul.social li {
    The style .pricing is for the /plans pricing table
    The table-pricing style is for the table on the dashboard
  */
-
 div.pricing {
     text-align: center;
 }
@@ -193,8 +192,19 @@ table.table-credit-card td {
 }
 
 /* Project */
-
 div.project-owner:hover {
     cursor: pointer;
     background-color: whiteSmoke;
+}
+
+/* Search */
+
+div.search-result {
+    margin-bottom: 2em;
+}
+
+.search-result small {
+    display: block;
+    line-height: 18px;
+    color: #999;
 }

@@ -34,6 +34,7 @@ class Desite(object):
         # Special env for loading file as-is, i.e. without the asciidoc-loader
         self.fs_env = Environment(loader = FileSystemLoader([doc_root, templates]))
         self.output = output
+        self.indexMap = []
 
     def _progress(self, msg):
         print >>sys.stderr, msg
@@ -122,6 +123,9 @@ class Desite(object):
             f.write(doc)
         self._progress('Writing %s' % out)
 
+        if out.endswith('.html'):
+            self.indexMap.append('/' + os.path.relpath(out, self.output))
+
 if __name__ == '__main__':
     usage = '''usage: %prog [options] script'''
     parser = optparse.OptionParser(usage)
@@ -155,3 +159,7 @@ if __name__ == '__main__':
                 'ref' : ds.render_reference }
     variables = {}
     execfile(args[0], globals, variables)
+
+    with open(os.path.join(ds.output, 'index_map.txt'), 'w') as f:
+        f.write('\n'.join(ds.indexMap))
+        f.write('\n')
