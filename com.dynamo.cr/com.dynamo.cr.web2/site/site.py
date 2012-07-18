@@ -12,11 +12,11 @@ for d, title in [('engine', 'Game Engine Reference Documentation'),
 
 blog('doc/blog.html', 'blog')
 
-render('404.html', 'error/404.html', root='/')
-render('500.html', 'error/500.html', root='/')
+render('404.html', 'error/404.html', skip_index = True, root='/')
+render('500.html', 'error/500.html', skip_index = True, root='/')
 
-render('landing.html', 'landing.html')
-render('plans.html', 'plans/plans.html', active_page = 'plans')
+render('landing.html', 'index.html')
+render('plans.html', 'plans/index.html', active_page = 'plans')
 
 docs = ['script_properties.html',
         'eula.html',
@@ -39,7 +39,7 @@ docs = ['script_properties.html',
 for d in docs:
     asciidoc('doc/%s' % d, active_page = 'documentation', disqus = True)
 
-render('doc_index.html', 'doc/index.html', active_page = 'documentation')
+render('doc_index.html', 'doc/sindex.html', active_page = 'documentation')
 
 about = ['eula.html',
          'story.html']

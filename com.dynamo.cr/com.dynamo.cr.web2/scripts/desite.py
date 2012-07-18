@@ -91,7 +91,7 @@ class Desite(object):
             output = '%s/%s.html' % (output_dir, p.id)
             self.render('blog_template.html', output, post = p, active_page = 'blog', disqus = True)
 
-        self.render('blog_index.html', '%s/index.html' % output_dir, posts = posts, active_page = 'blog')
+        self.render('blog_index.html', '%s/sindex.html' % output_dir, posts = posts, active_page = 'blog')
 
     def render_asciidoc(self, asciidoc, output = None, **variables):
         """Renders a asciidoc generated html to a static file
@@ -102,7 +102,7 @@ class Desite(object):
         title = re.match('.*?<title>(.*?)</title>.*?', asciidoc_html, re.DOTALL).groups()[0]
         return self.render('asciidoc.html', output, asciidoc = asciidoc, title = title, **variables)
 
-    def render(self, file, output = None, **variables):
+    def render(self, file, output = None, skip_index = False, **variables):
         """Renders a jinja2 template"""
         template = self.env.get_template(file)
         if output:
@@ -123,7 +123,7 @@ class Desite(object):
             f.write(doc)
         self._progress('Writing %s' % out)
 
-        if out.endswith('.html'):
+        if out.endswith('.html') and not skip_index:
             self.indexMap.append('/' + os.path.relpath(out, self.output))
 
 if __name__ == '__main__':

@@ -59,8 +59,20 @@ public class Search {
 
             String title = d.getOnlyField("title").getText();
             Date published = d.getOnlyField("published").getDate();
+
+            // .../sindex.html -> .../
+            // .../index.html -> .../
+            // NOTE: The order is important, sindex before index
+            String url = d.getId().replace("/sindex.html", "");
+            url = url.replace("/index.html", "");
             // NOTE: We assume that we can prettify the url be removing .html
-            String url = d.getId().replace(".html", "");
+            url = url.replace(".html", "");
+
+            // We remove last slash but there's an edge-edge for for root-page
+            if (url.equals("")) {
+                url = "/";
+            }
+
             result.add(new SearchResult(d.getId(), url, title, published, content));
         }
         return result;

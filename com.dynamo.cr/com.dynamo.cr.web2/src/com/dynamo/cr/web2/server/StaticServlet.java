@@ -19,6 +19,8 @@ import com.google.appengine.api.memcache.MemcacheServiceFactory;
 
 /**
  * Servlet for serving static content without the trailing .html
+ * Use sindex.html for index-pages. This is in order to avoid conflicts with default
+ * index-page index.html served by googles CDN.
  * Memcache is used to cache pages. (necessary?)
  * @author chmu
  *
@@ -65,7 +67,7 @@ public class StaticServlet extends HttpServlet {
 
         ServletContext context = getServletContext();
         String path = String.format("%s.html", url.getPath());
-        String index_path = String.format("%s/index.html", url.getPath());
+        String index_path = String.format("%s/sindex.html", url.getPath());
 
         Page page = (Page) syncCache.get(path);
         if (page == null) {

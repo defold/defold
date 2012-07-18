@@ -30,11 +30,9 @@
 /blog/update_scene_editor_2.html
 /blog/update_scene_editor_and_content_pipeline.html
 /blog/update_sprite_design_tile_fixes_and_content_pipeline.html
-/blog/index.html
-/error/404.html
-/error/500.html
-/landing.html
-/plans/plans.html
+/blog/sindex.html
+/index.html
+/plans/index.html
 /doc/script_properties.html
 /doc/eula.html
 /doc/game_project.html
@@ -52,6 +50,6 @@
 /doc/side_scroller.html
 /doc/story.html
 /doc/tiles.html
-/doc/index.html
+/doc/sindex.html
 /about/eula.html
 /about/story.html

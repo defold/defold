@@ -5,13 +5,7 @@
 
 <web-app>
 	<welcome-file-list>
-        <!--  Do not add index.html as it would conflict with
-              the StaticServlet. We add welcome-files here for simplified
-              urls, /plans instead of /plans.html. We could of course modifiy and use the
-              StaticServlet instead
-        -->
-		<welcome-file>landing.html</welcome-file>
-        <welcome-file>plans.html</welcome-file>
+		<welcome-file>index.html</welcome-file>
         <welcome-file>search.jsp</welcome-file>
 	</welcome-file-list>
 
