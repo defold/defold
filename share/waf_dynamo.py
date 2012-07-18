@@ -368,6 +368,7 @@ def link_flags(self):
 
 def detect(conf):
     conf.find_program('valgrind', var='VALGRIND', mandatory = False)
+    conf.find_program('ccache', var='CCACHE', mandatory = False)
 
     dynamo_home = os.getenv('DYNAMO_HOME')
     if not dynamo_home:
@@ -411,6 +412,18 @@ def detect(conf):
         conf.env['RANLIB'] = '%s/usr/bin/ranlib' % (ARM_DARWIN_ROOT)
         conf.env['LD'] = '%s/usr/bin/ld' % (ARM_DARWIN_ROOT)
 
+    conf.check_tool('compiler_cc')
+    conf.check_tool('compiler_cxx')
+
+    if conf.env['CCACHE'] and not 'win32' == platform:
+        # Prepend gcc/g++ with CCACHE
+        for t in ['CC', 'CXX']:
+            c = conf.env[t]
+            if type(c) == list:
+                conf.env[t] = [conf.env.CCACHE] + c
+            else:
+                conf.env[t] = [conf.env.CCACHE, c]
+
     if platform == build_platform:
         # Host libraries are installed to $PREFIX/lib
         conf.env.BINDIR = Utils.subst_vars('${PREFIX}/bin', conf.env)
@@ -443,6 +456,9 @@ def exec_command(self, cmd, **kw):
 Build.BuildContext.exec_command = exec_command
 
 def set_options(opt):
+    opt.tool_options('compiler_cc')
+    opt.tool_options('compiler_cxx')
+
     opt.add_option('--eclipse', action='store_true', default=False, dest='eclipse', help='print eclipse friendly command-line')
     opt.add_option('--platform', default='', dest='platform', help='target platform, eg armv6-darwin')
     opt.add_option('--skip-tests', action='store_true', default=False, dest='skip_tests', help='skip unit tests')

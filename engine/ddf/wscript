@@ -18,7 +18,6 @@ def init():
 
 def set_options(opt):
     opt.sub_options('src')
-    opt.tool_options('compiler_cxx')
     opt.tool_options('waf_dynamo')
 
 def configure(conf):
@@ -35,7 +34,6 @@ def configure(conf):
     conf.write_config_header('config.h')
 
     conf.check_tool('waf_dynamo')
-    conf.check_tool('compiler_cxx')
     conf.check_tool('java')
 
     conf.sub_config('src')
