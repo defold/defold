@@ -31,7 +31,6 @@
                 </div>
             </div>
         </div>
-        <p2:SubscriptionBox ui:field="subscriptionBox"></p2:SubscriptionBox>
 
     </g:HTMLPanel>
 </ui:UiBinder>

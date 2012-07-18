@@ -38,6 +38,7 @@ public class SubscriptionActivity extends AbstractActivity implements Subscripti
         containerWidget.setWidget(subscriptionView.asWidget());
         subscriptionView.setPresenter(this);
         subscriptionView.clear();
+        loadGravatar();
         loadProducts();
         loadSubscription();
     }
@@ -47,6 +48,16 @@ public class SubscriptionActivity extends AbstractActivity implements Subscripti
         defold.showErrorMessage(message);
         SubscriptionView subscriptionView = clientFactory.getSubscriptionView();
         subscriptionView.setLoading(false);
+    }
+
+    private void loadGravatar() {
+        final SubscriptionView subscriptionView = clientFactory.getSubscriptionView();
+        Defold defold = clientFactory.getDefold();
+        String email = defold.getEmail();
+
+        String firstName = defold.getFirstName();
+        String lastName = defold.getLastName();
+        subscriptionView.setUserInfo(firstName, lastName, email);
     }
 
     private void loadProducts() {

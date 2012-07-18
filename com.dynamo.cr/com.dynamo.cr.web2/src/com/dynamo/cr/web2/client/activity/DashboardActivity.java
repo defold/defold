@@ -5,7 +5,6 @@ import com.dynamo.cr.web2.client.Defold;
 import com.dynamo.cr.web2.client.ProjectInfo;
 import com.dynamo.cr.web2.client.ProjectInfoList;
 import com.dynamo.cr.web2.client.ResourceCallback;
-import com.dynamo.cr.web2.client.UserSubscriptionInfo;
 import com.dynamo.cr.web2.client.place.DashboardPlace;
 import com.dynamo.cr.web2.client.place.NewProjectPlace;
 import com.dynamo.cr.web2.client.place.ProjectPlace;
@@ -42,23 +41,6 @@ public class DashboardActivity extends AbstractActivity implements DashboardView
         });
     }
 
-    private void loadSubscription() {
-        final DashboardView dashboardView = clientFactory.getDashboardView();
-        final Defold defold = clientFactory.getDefold();
-        defold.getResource("/users/" + defold.getUserId() + "/subscription",
-                new ResourceCallback<UserSubscriptionInfo>() {
-
-                    @Override public void onSuccess(UserSubscriptionInfo subscription,
-                            Request request, Response response) {
-                        dashboardView.setUserSubscription(subscription);
-                    }
-
-                    @Override public void onFailure(Request request, Response response) {
-                        defold.showErrorMessage("Subscription data could not be loaded.");
-                    }
-                });
-    }
-
     @Override
     public void start(AcceptsOneWidget containerWidget, EventBus eventBus) {
         final DashboardView dashboardView = clientFactory.getDashboardView();
@@ -66,7 +48,6 @@ public class DashboardActivity extends AbstractActivity implements DashboardView
         dashboardView.setPresenter(this);
         loadProjects();
         loadGravatar();
-        loadSubscription();
     }
 
     private void loadGravatar() {

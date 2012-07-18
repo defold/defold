@@ -20,38 +20,73 @@
 		}
 	</ui:style>
 
-	<g:FlowPanel>
-		<g:Image url="images/ajax-loader.gif" styleName="{style.loader}"
-			ui:field="loader"></g:Image>
-		<g:HTMLPanel styleName="{style.panel}" ui:field="content">
-			<div class="row">
-				<div class="span9">
-					<h1>Plans</h1>
-					<g:HTMLPanel ui:field="cancellationMessage">
-						<p>Your plan has been cancelled because of missing payments. The
-							message from the billing provider was:</p>
-						<g:Label ui:field="providerMessage"></g:Label>
-					</g:HTMLPanel>
-					<g:Grid ui:field="productTable"></g:Grid>
-					<g:HTMLPanel ui:field="creditCard">
-						<h3>Credit Card</h3>
-						<table class="table table-credit-card">
-							<thead>
-								<th>Number</th>
-								<th>Expires</th>
-								<th></th>
-							</thead>
-							<tbody>
-								<tr>
-									<td ui:field="maskedNumber">xxxx-xxxx-xxxx-xxxx</td>
-									<td ui:field="expiration">00/00</td>
-								</tr>
-							</tbody>
-						</table>
-						<g:Button ui:field="editCCButton">Edit</g:Button>
-					</g:HTMLPanel>
-				</div>
-			</div>
-		</g:HTMLPanel>
-	</g:FlowPanel>
+    <g:HTMLPanel styleName="{style.panel}">
+        <div class="row">
+            <div class="span3">
+                <p2:SideBar ui:field="sideBar"></p2:SideBar>
+            </div>
+            <div class="span9">
+		        <g:Image url="images/ajax-loader.gif" styleName="{style.loader}"
+		            ui:field="loader"></g:Image>
+		        <g:HTMLPanel styleName="{style.panel}" ui:field="content">
+		            <div class="row">
+		                <div class="span9">
+		                    <h1>Billing</h1>
+		                    <p>
+		                        Choose the plan that best matches your needs in terms of team size.
+		                        Our philosophy is to charge you by your ability to pay.
+		                        We assume that the more people are working in a project, the more ambitious it is.
+		                    </p>
+		                    <g:HTMLPanel ui:field="cancellationMessage">
+		                        <p>Your plan has been cancelled because of missing payments. The
+		                            message from the billing provider was:</p>
+		                        <g:Label ui:field="providerMessage"></g:Label>
+		                    </g:HTMLPanel>
+		                    <g:Grid ui:field="productTable"></g:Grid>
+		                    <p>
+		                        * Since we are in Beta, you currently get full access through the <strong>Small</strong> plan.
+                                This will however change to a team size of 2 once we leave the Beta phase.
+		                    </p>
+		                    <g:HTMLPanel ui:field="creditCard">
+		                        <table class="table table-credit-card">
+		                            <thead>
+		                                <th>Credit Card</th>
+		                                <th>Expires</th>
+		                                <th></th>
+		                            </thead>
+		                            <tbody>
+		                                <tr>
+		                                    <td ui:field="maskedNumber">xxxx-xxxx-xxxx-xxxx</td>
+		                                    <td ui:field="expiration">00/00</td>
+		                                    <td><g:Button ui:field="editCCButton">Edit</g:Button></td>
+		                                </tr>
+		                            </tbody>
+		                        </table>
+		                    </g:HTMLPanel>
+		                    <table>
+		                        <tr>
+		                            <td class="icon">
+		                                <div class="title">Important</div>
+		                            </td>
+		                            <td class="content">
+		                                <ul>
+		                                    <li>You can always go back to the Free plan whenever you want.</li>
+		                                    <li>
+		                                        We will never refund you for a started month.
+		                                        Your balance will however be retained, should you wish to continue the subscription at a later time.
+		                                    </li>
+		                                    <li>
+		                                        If your payments fail, you will get two reminders via email during the two following days.
+		                                        If you don't act on the reminders, your plan will be canceled.
+		                                    </li>
+		                                </ul>
+		                            </td>
+		                        </tr>
+		                    </table>
+		                </div>
+		            </div>
+                </g:HTMLPanel>
+            </div>
+        </div>
+    </g:HTMLPanel>
 </ui:UiBinder>
