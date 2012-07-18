@@ -11,6 +11,7 @@ import org.eclipse.ui.menus.CommandContributionItemParameter;
 import org.eclipse.ui.services.IServiceLocator;
 
 import com.dynamo.cr.target.core.ITarget;
+import com.dynamo.cr.target.core.ITargetService;
 import com.dynamo.cr.target.core.TargetPlugin;
 
 public class TargetContributionItem extends CompoundContributionItem {
@@ -28,7 +29,11 @@ public class TargetContributionItem extends CompoundContributionItem {
 
     @Override
     protected IContributionItem[] getContributionItems() {
-        ITarget[] targets = TargetPlugin.getDefault().getTargets();
+        TargetPlugin targetPlugin = TargetPlugin.getDefault();
+        ITargetService service = targetPlugin.getTargetsService();
+        service.search();
+
+        ITarget[] targets = targetPlugin.getTargets();
         IContributionItem[] list = new IContributionItem[targets.length ];
         int i = 0;
         for (ITarget target : targets) {

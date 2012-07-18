@@ -199,8 +199,6 @@ namespace dmEngine
                 dmPhysics::DeleteContext2D(engine->m_PhysicsContext.m_Context2D);
         }
 
-        dmProfile::Finalize();
-
         if (engine->m_Config)
         {
             dmConfigFile::Delete(engine->m_Config);
@@ -274,7 +272,6 @@ namespace dmEngine
         const char* content_root = default_content_roots[current_project_file - 1];
         const char* update_order = dmConfigFile::GetString(engine->m_Config, "gameobject.update_order", 0);
 
-        dmProfile::Initialize(256, 1024 * 16, 128);
         // This scope is mainly here to make sure the "Main" scope is created first.
         DM_PROFILE(Engine, "Init");
 

@@ -303,6 +303,12 @@ bail:
 
     Result Send(const Request* request, const void* data, uint32_t data_length)
     {
+        // Do not send empty chunks as the empty chunk is
+        // interpreted as the last and terminating chunk
+        if (data_length == 0) {
+            return RESULT_OK;
+        }
+
         InternalRequest* internal_req = (InternalRequest*) request->m_Internal;
         if (internal_req->m_Result != RESULT_OK)
             return internal_req->m_Result;
