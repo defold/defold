@@ -61,6 +61,8 @@ namespace dmSSDP
         "MX: 3\r\n"
         "ST: upnp:rootdevice\r\n\r\n";
 
+    const uint32_t SSDP_LOCAL_ADDRESS_EXPIRATION = 4U;
+
     struct Device
     {
         // Only available for registered devices
@@ -123,6 +125,7 @@ namespace dmSSDP
         char                    m_Hostname[32];
         // Local IP Address
         dmSocket::Address       m_Address;
+        uint64_t                m_AddressExpires;
 
         // Http server for device descriptions
         dmHttpServer::HServer   m_HttpServer;
@@ -376,6 +379,7 @@ bail:
         ssdp->m_Announce = params->m_Announce;
         ssdp->m_Socket = sock;
         ssdp->m_Address = address;
+        ssdp->m_AddressExpires = dmTime::GetTime() + SSDP_LOCAL_ADDRESS_EXPIRATION * uint64_t(1000000U);
         ssdp->m_Port = sock_port;
         ssdp->m_MCastSocket = mcast_sock;
 
@@ -811,6 +815,19 @@ bail:
 
     void Update(HSSDP ssdp, bool search)
     {
+        dmSocket::Address address;
+
+        uint64_t current_time = dmTime::GetTime();
+        if (current_time > ssdp->m_AddressExpires)
+        {
+            // Update address. It might have change. 3G -> wifi etc
+            if (dmSocket::GetLocalAddress(&address) == dmSocket::RESULT_OK)
+            {
+                ssdp->m_Address = address;
+            }
+            ssdp->m_AddressExpires = current_time + SSDP_LOCAL_ADDRESS_EXPIRATION * uint64_t(1000000U);
+        }
+
         ExpireDiscovered(ssdp);
         if (ssdp->m_Announce)
         {

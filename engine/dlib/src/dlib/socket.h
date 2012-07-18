@@ -361,6 +361,8 @@ namespace dmSocket
      * Get first local IP address
      * The function tries to determine the local IP address. If several
      * IP addresses are available only a single is returned
+     * @note This function might fallback to 127.0.0.1 if no adapter is found
+     *       Sometimes it might be appropriate to run this function periodically
      * @param address address result
      * @return RESULT_OK on success
      */
