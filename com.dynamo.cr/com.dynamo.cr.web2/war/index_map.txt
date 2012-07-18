@@ -52,4 +52,5 @@
 /doc/tiles.html
 /doc/sindex.html
 /about/eula.html
+/about/privacy.html
 /about/story.html

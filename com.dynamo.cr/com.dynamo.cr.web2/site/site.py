@@ -41,6 +41,7 @@ for d in docs:
 render('doc_index.html', 'doc/sindex.html', active_page = 'documentation')
 
 about = ['eula.html',
+         'privacy.html',
          'story.html']
 for d in about:
     asciidoc('doc/%s' % d, 'about/%s' % d)
