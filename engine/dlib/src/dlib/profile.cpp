@@ -513,6 +513,12 @@ namespace dmProfile
 
     void Release(HProfile profile)
     {
+        if (!g_IsInitialized)
+        {
+            dmLogError("dmProfile is not initialized");
+            return;
+        }
+
         dmSpinlock::Lock(&g_ProfileLock);
         g_FreeProfiles.Push(profile);
         dmSpinlock::Unlock(&g_ProfileLock);
