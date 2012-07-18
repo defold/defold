@@ -159,8 +159,7 @@ public class TargetService implements ITargetService, Runnable {
         try {
             localAddress = InetAddress.getLocalHost().getHostAddress();
         } catch (UnknownHostException e) {
-            // TODO: Logging
-            e.printStackTrace();
+            logger.error("Failed to get local address", e);
         }
 
         boolean localTargetFound = false;
@@ -204,11 +203,9 @@ public class TargetService implements ITargetService, Runnable {
 
                 }
             } catch (JDOMParseException e) {
-                // TODO: Logging
-                e.printStackTrace();
+                logger.error("Failed to parse UPNP response", e);
             } catch (Throwable e) {
-                // TODO: Logging
-                e.printStackTrace();
+                logger.error("Unexpected error", e);
             }
         }
 
@@ -228,8 +225,7 @@ public class TargetService implements ITargetService, Runnable {
             try {
                 listener.targetsChanged(event);
             } catch (Throwable e) {
-                // TODO: Logging
-                e.printStackTrace();
+                logger.error(e.getMessage(), e);
             }
         }
     }
