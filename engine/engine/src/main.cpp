@@ -1,6 +1,7 @@
 #include <dlib/socket.h>
 #include <dlib/memprofile.h>
 #include <dlib/log.h>
+#include <dlib/profile.h>
 #include <graphics/glfw/glfw.h>
 #include "engine.h"
 
@@ -8,6 +9,7 @@ int main(int argc, char *argv[])
 {
     dmDDF::RegisterAllTypes();
     dmMemProfile::Initialize();
+    dmProfile::Initialize(256, 1024 * 16, 128);
     dmSocket::Initialize();
     dmLogInitialize();
 
@@ -24,6 +26,7 @@ int main(int argc, char *argv[])
 
     dmLogFinalize();
     dmSocket::Finalize();
+    dmProfile::Finalize();
     dmMemProfile::Finalize();
     return exit_code;
 }
