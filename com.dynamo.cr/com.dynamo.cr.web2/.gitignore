@@ -3,13 +3,13 @@
 /war/WEB-INF/classes
 /war/WEB-INF/lib/*.jar
 /war/WEB-INF/appengine-generated
+/war/index.html
 /war/defold/
 /war/doc/*.json
 /war/site/
 /war/doc
 /war/about/*.html
 /war/error/*.html
-/war/*.html
 /war/plans
 /war/blog
 /war/ref
