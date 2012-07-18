@@ -21,7 +21,6 @@ render('plans.html', 'plans/index.html', active_page = 'plans')
 docs = ['script_properties.html',
         'eula.html',
         'game_project.html',
-        'getting_started.html',
         'hud.html',
         'introduction.html',
         'level_complete.html',
@@ -42,6 +41,7 @@ for d in docs:
 render('doc_index.html', 'doc/sindex.html', active_page = 'documentation')
 
 about = ['eula.html',
+         'privacy.html',
          'story.html']
 for d in about:
     asciidoc('doc/%s' % d, 'about/%s' % d)

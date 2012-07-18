@@ -4,6 +4,7 @@
 /ref/gui.html
 /ref/render.html
 /ref/script.html
+/blog/release_1_1_12.html
 /blog/release_1_1_11.html
 /blog/release_1_1_10.html
 /blog/release_1_1_9.html
@@ -36,7 +37,6 @@
 /doc/script_properties.html
 /doc/eula.html
 /doc/game_project.html
-/doc/getting_started.html
 /doc/hud.html
 /doc/introduction.html
 /doc/level_complete.html
@@ -52,4 +52,5 @@
 /doc/tiles.html
 /doc/sindex.html
 /about/eula.html
+/about/privacy.html
 /about/story.html
