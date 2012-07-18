@@ -147,10 +147,11 @@ public class TargetsTest implements ITargetListener {
 
         Thread.sleep(1100);
         verify(ssdp, atLeast(1)).update(false);
-        verify(ssdp, times(1)).update(true);
+        // One initial and one due to timeout
+        verify(ssdp, times(2)).update(true);
 
         synchronized (this) {
-            assertThat(events.size(), is(1));
+            assertThat(events.size(), is(2));
             ITarget[] targets = targetService.getTargets();
             assertThat(targets.length, is(1));
             assertThat(targets[0].getId(), is(UDN));
@@ -179,10 +180,11 @@ public class TargetsTest implements ITargetListener {
 
         Thread.sleep(1100);
         verify(ssdp, atLeast(1)).update(false);
-        verify(ssdp, times(1)).update(true);
+        // One initial and one due to timeout
+        verify(ssdp, times(2)).update(true);
 
         synchronized (this) {
-            assertThat(events.size(), is(1));
+            assertThat(events.size(), is(2));
             ITarget[] targets = targetService.getTargets();
             assertThat(targets.length, is(2));
             Arrays.sort(targets, new Comparator<ITarget>() {
