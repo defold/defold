@@ -94,7 +94,7 @@ body {
     position: relative;
 }
 
-.laptop img.play {
+.laptop span.play {
     position: absolute;
     top: 50%;
     left: 50%;
@@ -102,6 +102,11 @@ body {
     height: 53px;
     margin-left: -41px;
     margin-top: -52px;
+    background: url(images/play.png) no-repeat;
+}
+
+.laptop span.play:hover {
+    background: url(images/play_pressed.png) no-repeat;
 }
 
 .laptop a.play {
