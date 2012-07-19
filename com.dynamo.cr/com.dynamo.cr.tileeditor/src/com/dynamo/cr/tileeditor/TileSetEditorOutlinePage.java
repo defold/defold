@@ -181,7 +181,7 @@ public class TileSetEditorOutlinePage extends ContentOutlinePage {
             Image image = null;
 
             if (element instanceof RootItem) {
-                image = Activator.getDefault().getImage(".tileset");
+                image = Activator.getDefault().getIconByExtension(".tileset");
             } else if (element instanceof CollisionGroupsItem) {
                 image = sharedImages.getImage(ISharedImages.IMG_OBJ_FOLDER);
             } else if (element instanceof CollisionGroupItem) {

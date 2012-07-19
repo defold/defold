@@ -41,7 +41,7 @@ public class CompareItem implements IStreamContentAccessor, ITypedElement,
 
     @Override
     public Image getImage() {
-        return Activator.getDefault().getImage(path);
+        return Activator.getDefault().getIconByExtension(path);
     }
 
     @Override

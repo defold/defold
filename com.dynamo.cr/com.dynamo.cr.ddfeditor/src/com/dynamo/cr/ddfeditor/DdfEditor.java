@@ -204,7 +204,7 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
         this.form = toolkit.createForm(parent);
 
         IFileEditorInput input = (IFileEditorInput) getEditorInput();
-        Image image = Activator.getDefault().getImage(input.getName());
+        Image image = Activator.getDefault().getIconByExtension(input.getName());
         form.setImage(image);
         form.setText(this.resourceType.getName());
         toolkit.decorateFormHeading(form);
