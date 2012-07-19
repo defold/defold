@@ -15,14 +15,14 @@ public class SubscriptionPlace extends DefoldPlace {
 
     @Override
     public String getTitle() {
-        return "Plan";
+        return "Billing";
     }
 
     public String getSubscriptionId() {
         return this.subscriptionId;
     }
 
-    @Prefix("plan")
+    @Prefix("billing")
     public static class Tokenizer implements PlaceTokenizer<SubscriptionPlace> {
         @Override
         public String getToken(SubscriptionPlace place) {

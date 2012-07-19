@@ -40,6 +40,9 @@ public class SubscriptionView extends Composite implements ClickHandler {
 
     private static SubscriptionUiBinder uiBinder = GWT
             .create(SubscriptionUiBinder.class);
+
+    @UiField
+    SideBar sideBar;
     @UiField
     HTMLPanel cancellationMessage;
     @UiField
@@ -83,7 +86,7 @@ public class SubscriptionView extends Composite implements ClickHandler {
 
         // add columns
         DOM.appendChild(thead,tr);
-        String[] headers = new String[] { "Plan", "Team Size", "Status", "" };
+        String[] headers = new String[] { "Plan", "Team Size", "", "" };
         for (int i = 0; i < headers.length; ++i) {
                 Element th = DOM.createTH();
                 DOM.appendChild(tr, th);
@@ -100,6 +103,7 @@ public class SubscriptionView extends Composite implements ClickHandler {
 
     public void setPresenter(Presenter listener) {
         this.listener = listener;
+        sideBar.setActivePage("billing");
     }
 
     public void setProductInfoList(ProductInfoList productInfoList) {
@@ -141,37 +145,40 @@ public class SubscriptionView extends Composite implements ClickHandler {
         if (this.products != null && this.subscription != null) {
             setLoading(false);
             JsArray<ProductInfo> products = this.products.getProducts();
-            this.productTable.resize(products.length(), 5);
+            this.productTable.resize(products.length(), 4);
             for (int i = 0; i < products.length(); ++i) {
                 final ProductInfo productInfo = products.get(i);
                 StringBuilder builder = new StringBuilder();
-                String name = builder.append(productInfo.getName()).append(" ($").append(productInfo.getFee())
+                String name = builder.append("<strong>" + productInfo.getName() + "</strong>").append(" ($")
+                        .append(productInfo.getFee())
                         .append("/month)")
                         .toString();
-                String memberCount = "Unlimited";
+                String memberCount = "Unlimited*";
                 if (productInfo.getMaxMemberCount() > 0) {
                     memberCount = Integer.toString(productInfo.getMaxMemberCount());
                 }
-                this.productTable.setText(i, 0, name);
+                this.productTable.setHTML(i, 0, name);
                 this.productTable.setText(i, 1, memberCount);
+                this.productTable.getCellFormatter().setStyleName(i, 2, "button-col");
                 this.productTable.getCellFormatter().setStyleName(i, 3, "button-col");
                 String state = this.subscription.getState();
                 boolean canceled = state.equals("CANCELED");
                 boolean active = state.equals("ACTIVE");
                 if (this.subscription.getProductInfo().getId() == productInfo.getId()) {
-                    this.productTable.setText(i, 2, state);
-                    if (canceled) {
+                    if (active) {
+                        this.productTable.setText(i, 2, "Your plan");
+                        this.productTable.clearCell(i, 3);
+                    } else if (canceled) {
                         this.reactivateButton = createButton("Reactivate");
-                        this.productTable.setWidget(i, 3, this.reactivateButton);
+                        this.productTable.setWidget(i, 2, this.reactivateButton);
                         this.terminateButton = createButton("Terminate");
-                        this.productTable.setWidget(i, 4, this.terminateButton);
+                        this.productTable.setWidget(i, 3, this.terminateButton);
                     } else {
-                        this.productTable.setText(i, 3, "Your plan");
-                        this.productTable.clearCell(i, 4);
+                        this.productTable.setText(i, 2, state);
+                        this.productTable.clearCell(i, 3);
                     }
                 } else {
-                    this.productTable.setText(i, 2, "-");
-                    this.productTable.clearCell(i, 4);
+                    this.productTable.clearCell(i, 3);
                     if (active) {
                         Button button = createButton("");
                         if (this.subscription.getProductInfo().getFee() > productInfo.getFee()) {
@@ -181,7 +188,9 @@ public class SubscriptionView extends Composite implements ClickHandler {
                         }
                         button.addClickHandler(this);
                         this.buttonToProduct.put(button, productInfo);
-                        this.productTable.setWidget(i, 3, button);
+                        this.productTable.setWidget(i, 2, button);
+                    } else {
+                        this.productTable.clearCell(i, 2);
                     }
                 }
             }
@@ -214,5 +223,9 @@ public class SubscriptionView extends Composite implements ClickHandler {
     @UiHandler("editCCButton")
     void onEditCreditCardButtonClick(ClickEvent event) {
         this.listener.onEditCreditCard(subscription);
+    }
+
+    public void setUserInfo(String firstName, String lastName, String email) {
+        sideBar.setUserInfo(firstName, lastName, email);
     }
 }

@@ -3,8 +3,6 @@ package com.dynamo.cr.web2.client.ui;
 import com.dynamo.cr.web2.client.ProjectInfo;
 import com.dynamo.cr.web2.client.ProjectInfoList;
 import com.dynamo.cr.web2.client.UserInfo;
-import com.dynamo.cr.web2.client.UserSubscriptionInfo;
-import com.dynamo.cr.web2.shared.ClientUtil;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.core.client.JsArray;
 import com.google.gwt.dom.client.Document;
@@ -40,7 +38,6 @@ public class DashboardView extends Composite {
     @UiField SideBar sideBar;
     @UiField FlexTable projects;
     @UiField Button newProjectButton;
-    @UiField SubscriptionBox subscriptionBox;
 
     interface DashboardUiBinder extends UiBinder<Widget, DashboardView> {
     }
@@ -53,10 +50,6 @@ public class DashboardView extends Composite {
         element.addClassName("table");
         element.addClassName("table-striped");
         newProjectButton.addStyleName("btn btn-primary");
-
-        if (!ClientUtil.isDev()) {
-            this.subscriptionBox.setVisible(false);
-        }
     }
 
     public void setProjectInfoList(int userId, ProjectInfoList projectInfoList) {
@@ -103,14 +96,9 @@ public class DashboardView extends Composite {
         }
     }
 
-    public void setUserSubscription(UserSubscriptionInfo subscription) {
-        subscriptionBox.setSubscription(subscription);
-    }
-
     public void setPresenter(DashboardView.Presenter listener) {
         this.listener = listener;
         sideBar.setActivePage("projects");
-        this.subscriptionBox.setPresenter(listener);
     }
 
     @UiHandler("newProjectButton")
