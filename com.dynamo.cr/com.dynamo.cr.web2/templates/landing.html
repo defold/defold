@@ -4,11 +4,15 @@
 	compatRedirect();
 </script>
 <link rel="stylesheet" type="text/css" href="shadowbox/shadowbox.css">
-<link href="landing.css" rel="stylesheet">
 <script type="text/javascript" src="shadowbox/shadowbox.js"></script>
 <script type="text/javascript">
 	Shadowbox.init();
 </script>
+
+{% block head %}
+    <link href="{{root}}landing.css" rel="stylesheet">
+{% endblock %}
+
 {% endblock %} {% block navbar %} {% endblock %} {% block content %}
 <div class="landing">
     <div class="navbar">
