@@ -1,5 +1,4 @@
 /* This file is a bit messy but it's only used for the landing page */
-
 body {
     padding-top: 0px;
 }
@@ -77,18 +76,9 @@ body {
     box-shadow: 0 3px 2px -2px rgba(0, 0, 0, 0.25);
 }
 
-@media ( max-width : 767px) {
-    .landing-heading {
-        height: 150px;
-    }
-}
-
 .laptop {
     margin: -110px auto 0;
-    width: 650px;
-    height: 380px;
-    background: url(images/laptop_video.png) no-repeat;
-    background-position: center center;
+    text-align: center;
 }
 
 @media ( max-width : 767px) {
@@ -100,19 +90,22 @@ body {
     }
 }
 
-.laptop .play {
-    background: url(images/play.png) no-repeat;
-    width: 83px;
-    height: 53px;
+.laptop div.play {
     position: relative;
-    left: 285px;
-    top: 150px;
-    cursor: pointer;
-    display: block;
 }
 
-.laptop .play:hover {
-    background: url(images/play_pressed.png) no-repeat;
+.laptop img.play {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 83px;
+    height: 53px;
+    margin-left: -41px;
+    margin-top: -52px;
+}
+
+.laptop a.play {
+    display: block;
 }
 
 .landing-heading  h1 {
@@ -151,7 +144,6 @@ body {
 }
 
 /* Testimonials */
-
 .testi-red {
     border-left: 5px solid #ff00a0;
 }
@@ -164,7 +156,6 @@ body {
    TODO: Remove this when more general
    styling is implemented, see case 1222
  */
-
 .btn2 {
     background-color: #00b4ff;
     border: 1px solid #00b4ff;;
