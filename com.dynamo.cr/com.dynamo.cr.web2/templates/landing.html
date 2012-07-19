@@ -8,12 +8,9 @@
 <script type="text/javascript">
 	Shadowbox.init();
 </script>
-
 {% block head %}
-    <link href="{{root}}landing.css" rel="stylesheet">
-{% endblock %}
-
-{% endblock %} {% block navbar %} {% endblock %} {% block content %}
+<link href="{{root}}landing.css" rel="stylesheet">
+{% endblock %} {% endblock %} {% block navbar %} {% endblock %} {% block content %}
 <div class="landing">
     <div class="navbar">
         <div class="navbar-inner">
@@ -34,11 +31,12 @@
     </div>
     <div class="laptop">
         <div class="play">
-            <a class="play" rel="shadowbox;width=640;height=360;" alt="Defold Introduction Video"
+            <img src="images/laptop_video.png"> <a class="play" rel="shadowbox;width=640;height=360;"
+                alt="Defold Introduction Video"
                 href="http://player.vimeo.com/video/45352560?byline=0&amp;portrait=0&amp;color=ffffff&amp;autoplay=1">
-                <img  src="images/laptop_video.png">
-            </a> <img name="play" class="play" src="images/play.png" onmouseover="play.src='images/play_pressed.png'"
+                <img name="play" class="play" src="images/play.png" onmouseover="play.src='images/play_pressed.png'"
                 onmouseout="play.src='images/play.png'">
+            </a>
         </div>
     </div>
 </div>
