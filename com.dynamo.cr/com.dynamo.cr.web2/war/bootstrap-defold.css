@@ -22,6 +22,14 @@
     margin-top: 0.5em;
 }
 
+blockquote small {
+    margin-top: 1em;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-weight: 600;
+}
+
 /* Always show scrollbar */
 html {
     overflow-y: scroll;

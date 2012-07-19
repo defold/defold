@@ -1,157 +1,184 @@
 /* This file is a bit messy but it's only used for the landing page */
 
-a.video-link:hover img {
-    _border: 1px dotted #000;
-    filter: alpha(opacity = 75);
-    -moz-opacity: 0.75;
-    opacity: 0.75;
+body {
+    padding-top: 0px;
 }
 
-a.video-link img {
-    _display: block;
-    padding: 4px;
-    line-height: 1;
-    border: 1px solid #DDD;
-    -webkit-border-radius: 4px;
-    -moz-border-radius: 4px;
-    border-radius: 4px;
-    -webkit-box-shadow: 0 1px 1px rgba(0, 0, 0, 0.075);
-    -moz-box-shadow: 0 1px 1px rgba(0, 0, 0, 0.075);
-    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.075);
+.landing {
+    color: white;
+    text-align: center;
 }
 
-header.landing {
-    padding-top: 36px;
+.navbar {
     margin-bottom: 0px;
 }
 
-.landing h1 {
-    margin-bottom: 18px;
+.landing .navbar-inner {
+    background-color: #00b4ff;
+    background-image: none;
+    border-radius: 0px;
+    -webkit-box-shadow: none;
+    -moz-box-shadow: none;
+    box-shadow: none;
 }
 
-.landing h1,.landing p {
-    text-align: center;
+.navbar .nav>li>a:hover {
+    background-color: #008ee3;
 }
 
-.landing h1 {
-    margin-bottom: 9px;
-    font-size: 81px;
-    font-weight: bold;
-    letter-spacing: -1px;
-    line-height: 1;
-    margin-top: 24px;
-}
-
-.landing p {
-    margin-left: 5%;
-    margin-right: 5%;
-    font-size: 30px;
-    line-height: 36px;
-}
-
-div.stripe {
-    background-color: #eee;
-    padding: 42px 0px;
-    margin-bottom: 48px;
-    border-top: 1px solid #ccc;
-    border-bottom: 1px solid #ccc;
-}
-
-hr.soften {
-    height: 1px;
-    margin: 54px 0;
-    background-image: -webkit-linear-gradient(left, transparent, rgba(0, 0, 0, .1),
-        transparent );
-    background-image: -moz-linear-gradient(left, transparent, rgba(0, 0, 0, .1),
-        transparent );
-    background-image: -ms-linear-gradient(left, transparent, rgba(0, 0, 0, .1),
-        transparent );
-    background-image: -o-linear-gradient(left, transparent, rgba(0, 0, 0, .1),
-        transparent );
-    border: 0;
-}
-
-.well {
-    background-color: #E6E6E6;
-}
-
-div.marketing {
-    border-top: 5px solid #9c9c9c;
-}
-
-.marketing h1 {
-    margin: 36px 0 27px;
-    font-size: 40px;
-    font-weight: 300;
-    text-align: center;
-}
-
-.marketing h2 {
-    font-size: 22px;
-    margin-bottom: 0.5em;
-}
-
-.marketing h2,.marketing h3 {
-    font-weight: 300;
-}
-
-.marketing .bs-icon {
-    float: left;
-    margin: 7px 10px 0 0;
-    opacity: .8;
-}
-
-.marketing li {
-    margin-bottom: 0.75em;
-}
-
-.marketing p {
+.navbar .nav>li>a {
+    color: white;
+    text-shadow: none;
+    font-size: 16px;
+    font-weight: 200;
+    border-radius: 10px;
     margin-right: 10px;
+    padding-left: 30px;
+    padding-right: 30px;
 }
 
-.marketing-byline {
-    margin: -18px 0 27px;
-    font-size: 18px;
+.navbar a.brand {
+    margin-left: 34px;
+    background: url(images/white_logo.png) no-repeat;
+    background-position: center center;
+    -o-background-size: 100% auto;
+    -webkit-background-size: 100% auto;
+    -khtml-background-size: 100% auto;
+    -moz-background-size: 100% auto;
+    width: 200px;
+    display: block;
+}
+
+@media ( max-width : 767px) {
+    .white-logo {
+        width: 70%;
+    }
+    .navbar a.brand {
+        margin-left: 0px;
+        width: 100px;
+    }
+}
+
+.landing div.navbar {
+    padding-top: 30px;
+    background-color: #00b4ff;
+}
+
+.landing .navbar-inner {
+    height: 100px;
+}
+
+.landing-heading {
+    background-color: #00b4ff;
+    height: 250px;
+    border-bottom: 2px solid #AAA;
+    -webkit-box-shadow: 0 3px 2px -2px rgba(0, 0, 0, 0.25);
+    -moz-box-shadow: 0 3px 2px -2px rgba(0, 0, 0, 0.25);
+    box-shadow: 0 3px 2px -2px rgba(0, 0, 0, 0.25);
+}
+
+@media ( max-width : 767px) {
+    .landing-heading {
+        height: 150px;
+    }
+}
+
+.laptop {
+    margin: -110px auto 0;
+    width: 650px;
+    height: 380px;
+    background: url(images/laptop_video.png) no-repeat;
+    background-position: center center;
+}
+
+@media ( max-width : 767px) {
+    .laptop {
+        -o-background-size: 384px 228px;
+        -webkit-background-size: 384px 228px;
+        -khtml-background-size: 384px 228px;
+        -moz-background-size: 384px 228px;
+    }
+}
+
+.laptop .play {
+    background: url(images/play.png) no-repeat;
+    width: 83px;
+    height: 53px;
+    position: relative;
+    left: 285px;
+    top: 150px;
+    cursor: pointer;
+    display: block;
+}
+
+.laptop .play:hover {
+    background: url(images/play_pressed.png) no-repeat;
+}
+
+.landing-heading  h1 {
+    padding-top: 20px;
+    _margin-bottom: 90px;
     font-weight: 300;
+    font-size: 48px;
+}
+
+@media ( max-width : 767px) {
+    .landing-heading  h1 {
+        padding-top: 20px;
+        font-size: 32px;
+    }
+}
+
+/* Features boxes */
+.features {
+    border-radius: 16px 16px 16px 16px;
+    padding: 20px;
+    margin-bottom: 32px;
+    font-size: 16px;
     line-height: 24px;
-    color: #999;
+}
+
+.features-red {
+    border: 8px solid #ff00a0;
+}
+
+.features-green {
+    border: 8px solid #94b400;
+}
+
+.feature-image {
     text-align: center;
 }
 
-div.splash {
-    border-top: 1px solid #9c9c9c;
-    background-color: #f3f3f3;
-    padding: 3em 3em 6em 3em;
+/* Testimonials */
+
+.testi-red {
+    border-left: 5px solid #ff00a0;
 }
 
-div.landing-text {
-    margin-right: 2em;
+.testi-blue {
+    border-left: 5px solid #00b4ff;
 }
 
-.landing-text h1 {
-    margin-bottom: .65em;
-    font-size: 44px;
-    font-weight: 600;
-    line-height: 1.5em;
-    color: #3a3a3a;
-    text-shadow: 1px 1px 2px rgba(0, 0, 0, .2);
+/* Button test
+   TODO: Remove this when more general
+   styling is implemented, see case 1222
+ */
+
+.btn2 {
+    background-color: #00b4ff;
+    border: 1px solid #00b4ff;;
+    color: white;
 }
 
-p.landing-actions {
-    margin-top: 5em;
+.btn2:hover {
+    background-color: #00b4ff;
+    border: 1px solid #008EE3;
+    color: white;
 }
 
-#landing .splash {
-    _color: white;
-    color: #222;
-    _text-shadow: 1px 1px 2px rgba(50, 50, 50, .2);
-}
-
-.landing-text p {
-    font-size: 15px;
-    line-height: 2em;
-}
-
-body {
-    padding-top: 40px;
+.btn2:active {
+    background-color: #008EE3;
+    border: 1px solid #008EE3;
+    color: white;
 }
