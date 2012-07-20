@@ -70,11 +70,18 @@ footer {
     background: #222;
     padding-top: 16px;
     padding-bottom: 16px;
-    padding-left: 16px;
-    padding-right: 16px;
+    padding-left: 48px;
+    padding-right: 48px;
     margin-top: 32px;
     border-top: 1px solid #555;
     min-height: 250px;
+}
+
+@media (max-width: 767px) {
+    footer {
+    margin-left: -20px;
+    margin-right: -20px;
+  }
 }
 
 footer * div.copyright {

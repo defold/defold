@@ -4868,14 +4868,6 @@ a.badge:hover {
 
 /* Custom Defold modifications for bootstrap */
 
-/*
- "Hack" to get <footer> to fill the screen on iphone etc
- We move the 20 pixel padding from body to the .container class
- The top-level nav-menu in bootstrap has a -20 pixel padding to reverse this.
- We should perhaps do the same trick?
- See bootstrap-responsive.css
- */
-
 /* Tweaks */
 
 .hero-unit p {
@@ -4956,13 +4948,20 @@ div.account-container > div {
 footer {
   min-height: 250px;
   padding-top: 16px;
-  padding-right: 16px;
+  padding-right: 48px;
   padding-bottom: 16px;
-  padding-left: 16px;
+  padding-left: 48px;
   margin-top: 32px;
   color: white;
   background: #222;
   border-top: 1px solid #555;
+}
+
+@media (max-width: 767px) {
+  footer {
+    margin-right: -20px;
+    margin-left: -20px;
+  }
 }
 
 footer * div.copyright {

@@ -10,6 +10,13 @@ body {
     text-align: center;
 }
 
+@media (max-width: 767px) {
+    div.landing {
+        margin-left: -20px;
+        margin-right: -20px;
+    }
+}
+
 .navbar {
     margin-bottom: 0px;
 }
