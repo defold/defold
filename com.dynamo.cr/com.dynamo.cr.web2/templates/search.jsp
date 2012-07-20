@@ -19,7 +19,7 @@
         <div class="span6">
             <form class="form-search">
                 <input type="text" name="q" class="input-xlarge search-query" value="<%= request.getParameter("q") %>">
-                <button type="submit" class="btn">Search</button>
+                <button type="submit" class="btn btn-primary">Search</button>
             </form>
         </div>
 

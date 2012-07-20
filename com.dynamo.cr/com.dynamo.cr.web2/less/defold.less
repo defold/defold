@@ -1,21 +1,4 @@
 /* Custom Defold modifications for bootstrap */
-/*
- "Hack" to get <footer> to fill the screen on iphone etc
- We move the 20 pixel padding from body to the .container class
- The top-level nav-menu in bootstrap has a -20 pixel padding to reverse this.
- We should perhaps do the same trick?
- See bootstrap-responsive.css
- */
-@media ( max-width : 767px) {
-    body {
-        padding-left: 0px !important;
-        padding-right: 0px !important;
-    }
-    .container {
-        padding-left: 20px !important;
-        padding-right: 20px !important;
-    }
-}
 
 /* Tweaks */
 .hero-unit p {
@@ -33,14 +16,6 @@ h1, h2, h3, h4, h5, h6 {
 /* Always show scrollbar */
 html {
     overflow-y: scroll;
-}
-
-a {
-    color: #00b4ff;
-}
-
-a:hover {
-    color: #4b4b4b;
 }
 
 /*
@@ -82,6 +57,13 @@ div.account-container>div {
     vertical-align: top;
 }
 
+/* Search input element might overflow the navbar
+   Remove margin for navbars
+ */
+.navbar input {
+    margin-bottom: 0px;
+}
+
 /* Footer */
 footer {
     color: white;
@@ -107,8 +89,19 @@ footer * hr {
 }
 
 footer * span.slash {
-    color: #08c;
     padding-right: 0.3em;
+}
+
+footer * span.slash-blue {
+    color: @blue;
+}
+
+footer * span.slash-pink {
+    color: @pink;
+}
+
+footer * span.slash-orange {
+    color: @orange;
 }
 
 footer * h3 {
@@ -128,6 +121,7 @@ footer * li>a:hover {
     color: #777;
 }
 
+
 /* Social icons (for footer) */
 ul.social li {
     display: inline;
@@ -135,7 +129,7 @@ ul.social li {
 }
 
 .social-icon {
-    background: url(social-icons.png);
+    background: url(../../social-icons.png);
     width: 59px;
     height: 60px;
     display: inline-block;
@@ -216,3 +210,35 @@ div.search-result {
     line-height: 18px;
     color: #999;
 }
+
+/* Color wells */
+
+.well {
+    padding-top: 14px;
+    .box-shadow(none);
+}
+
+.well-color(@color) {
+    background-color: white;
+    border-width: 4px;
+    .border-radius(6px);
+    border-color: @color;
+}
+
+.well-blue {
+    .well-color(@blue);
+}
+
+.well-pink {
+    .well-color(@pink);
+}
+
+.well-green {
+    .well-color(@green);
+}
+
+.well-orange {
+    .well-color(@orange);
+}
+
+
