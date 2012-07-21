@@ -194,7 +194,7 @@ public class JsonProviders {
                  generator = (new JsonFactory()).createJsonGenerator(writer);
                  MessageToJSON(m, generator);
                  generator.close();
-                 byte[] bytes = writer.getBuffer().toString().getBytes();
+                 byte[] bytes = writer.getBuffer().toString().getBytes("utf-8");
                  return bytes;
             } catch (IOException e) {
                 throw new RuntimeException(e);

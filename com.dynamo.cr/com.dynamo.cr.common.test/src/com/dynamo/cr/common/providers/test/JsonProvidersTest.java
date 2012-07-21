@@ -18,6 +18,8 @@ import com.dynamo.cr.common.providers.JsonProviders.ProtobufMessageBodyWriter;
 import com.dynamo.cr.protocol.proto.Protocol.ApplicationInfo;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus.State;
+import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
+import com.dynamo.gamesystem.proto.GameSystem.SetLight;
 import com.google.protobuf.Message;
 
 public class JsonProvidersTest {
@@ -81,4 +83,35 @@ public class JsonProvidersTest {
         Message message2 = (Message) reader.readFrom(message.getClass(), null, null, null, null, inStream);
         assertEquals(message, message2);
     }
+
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    @Test
+    public void testJsonUnicode() throws WebApplicationException, IOException {
+
+        UserInfo message = UserInfo
+                .newBuilder()
+                .setFirstName("åäö")
+                .setLastName("ÅÄÖ")
+                .setId(123)
+                .setEmail("foo@bar.com")
+                .build();
+
+        ProtobufMessageBodyWriter writer = new ProtobufMessageBodyWriter();
+        long size = writer.getSize(message, null, null, null, null);
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        writer.writeTo(message, null, null, null, null, null, stream);
+        assertEquals(size, stream.size());
+
+        ObjectMapper m = new ObjectMapper();
+        JsonNode node = m.readValue(stream.toString(), JsonNode.class);
+        System.out.println(node);
+        assertEquals(message.getFirstName(), node.get("first_name").asText());
+        assertEquals(message.getLastName(), node.get("last_name").asText());
+
+        ByteArrayInputStream inStream = new ByteArrayInputStream(node.toString().getBytes());
+        MessageBodyReader reader = new ProtobufMessageBodyReader();
+        Message message2 = (Message) reader.readFrom(message.getClass(), null, null, null, null, inStream);
+        assertEquals(message, message2);
+    }
+
 }
