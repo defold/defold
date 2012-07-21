@@ -51,7 +51,9 @@ namespace dmSocket
         }
         else
         {
-            return RESULT_UNKNOWN;
+            // We fallback to loopback address
+            *address = AddressFromIPString("127.0.0.1");
+            return RESULT_OK;
         }
     }
 #endif

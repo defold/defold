@@ -5,6 +5,7 @@
 #include <dlib/http_client.h>
 #include <dlib/thread.h>
 #include <dlib/dstrings.h>
+#include <dlib/profile.h>
 #include "../engine.h"
 
 class EngineTest : public ::testing::Test
@@ -117,9 +118,11 @@ TEST_F(EngineTest, ConnectionReboot)
 
 int main(int argc, char **argv)
 {
+    dmProfile::Initialize(256, 1024 * 16, 128);
     dmDDF::RegisterAllTypes();
     testing::InitGoogleTest(&argc, argv);
 
     int ret = RUN_ALL_TESTS();
+    dmProfile::Finalize();
     return ret;
 }
