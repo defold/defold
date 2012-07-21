@@ -31,7 +31,7 @@
 
                     <div class="formRow">
                         <g:FlowPanel>
-                            <g:Image url="images/ajax-loader.gif" styleName="{style.loader}" ui:field="loader"></g:Image>
+                            <g:Image url="/images/ajax-loader.gif" styleName="{style.loader}" ui:field="loader"></g:Image>
                             <g:HTMLPanel ui:field="eula" styleName="{style.eula}">
                             </g:HTMLPanel>
                         </g:FlowPanel>

@@ -342,6 +342,6 @@ Each time we release a new version, we post a thorough description of the change
 Let's get to work!
 ------------------
 
-The editor can be downloaded from the link:/dashboard.html[dashboard].
+The editor can be downloaded from the link:/dashboard[dashboard].
 We recommend you follow the link:/doc/side_scroller[Side-Scroller Tutorial] now to see what our platform is like in practice.
 For more information, please see the link:/doc/[documentation page] (the tutorial is available there as well).

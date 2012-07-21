@@ -26,7 +26,7 @@
                 <p2:SideBar ui:field="sideBar"></p2:SideBar>
             </div>
             <div class="span9">
-		        <g:Image url="images/ajax-loader.gif" styleName="{style.loader}"
+		        <g:Image url="/images/ajax-loader.gif" styleName="{style.loader}"
 		            ui:field="loader"></g:Image>
 		        <g:HTMLPanel styleName="{style.panel}" ui:field="content">
 		            <div class="row">

@@ -6,6 +6,7 @@
 <web-app>
 	<welcome-file-list>
 		<welcome-file>index.html</welcome-file>
+        <welcome-file>dashboard.html</welcome-file>
         <welcome-file>search.jsp</welcome-file>
 	</welcome-file-list>
 

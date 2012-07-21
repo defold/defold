@@ -12,9 +12,9 @@ The player controls a space ship and is supposed to collect stars that flies acr
 Setup
 -----
 
-. Start by link:/dashboard.html#new_project:[creating a new project].
+. Start by link:/dashboard#new_project:[creating a new project].
   The tutorial is already pre-selected as the template project.
-. Start the editor and open the project you just created with *File > Open Project* (the editor can be downloaded from the link:/dashboard.html[dashboard]).
+. Start the editor and open the project you just created with *File > Open Project* (the editor can be downloaded from the link:/dashboard[dashboard]).
 . Select your project and click *Next >*.
 . Create a new branch. A branch is like a personal view of the project.
   Other members of your project won't see your changes until you synchronize your branch (which can be done with *File > Synchronize*).

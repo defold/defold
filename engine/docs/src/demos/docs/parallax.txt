@@ -5,7 +5,7 @@ In this sample, we demonstrate how to use a parallax effect to simulate depth in
 There are two layers of clouds, where one of the layers has the appearance of being further back than the other.
 There is also an animated saucer for flavor.
 
-link:/dashboard.html#new_project:[Create a project] and select +Script Sample: Parallax+ as 'Project Template' to try it out for yourself.
+link:/dashboard#new_project:[Create a project] and select +Script Sample: Parallax+ as 'Project Template' to try it out for yourself.
 
 link:/youtube_embed/parallax.ivf[Parallax]
 
