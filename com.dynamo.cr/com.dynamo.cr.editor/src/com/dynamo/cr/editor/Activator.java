@@ -92,12 +92,6 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
     // The plug-in ID
     public static final String PLUGIN_ID = "com.dynamo.cr.editor"; //$NON-NLS-1$
 
-    // Version
-    // NOTE: Currently hard-coded
-    // Non-trivial to find the product number :-(
-    public static final String VERSION = "1.1.12";
-    public static final String VERSION_SHA1 = "f2a4133";
-
     // Shared images
     public static final String OVERLAY_ERROR_IMAGE_ID = "OVERLAY_ERROR";
     public static final String OVERLAY_EDIT_IMAGE_ID = "OVERLAY_EDIT";
@@ -521,7 +515,6 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
                 }
                 httpServer.start();
                 HttpHandler handler = httpServer.getHttpHandler();
-                System.out.println(handler);
             } catch (IOException e) {
                 showError("Unable to start http server", e);
             }

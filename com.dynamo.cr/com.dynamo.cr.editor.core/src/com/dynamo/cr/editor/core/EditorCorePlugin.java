@@ -19,6 +19,14 @@ import com.google.protobuf.GeneratedMessage;
 public class EditorCorePlugin extends Plugin implements IResourceTypeRegistry {
 
 	public static final String PLUGIN_ID = "com.dynamo.cr.editor.core";
+
+    // Version
+    // NOTE: Currently hard-coded. Non-trivial to find the product number :-(
+	// The version-number is updated
+	// with build-script (bump command)
+    public static final String VERSION = "1.1.12";
+    public static final String VERSION_SHA1 = "f2a4133";
+
     private static BundleContext context;
     private static EditorCorePlugin plugin;
     private ArrayList<IResourceType> resourceTypes = new ArrayList<IResourceType>();

@@ -10,27 +10,31 @@
 #include <dlib/template.h>
 #include <ddf/ddf.h>
 #include "engine_service.h"
-
-static const char DEVICE_DESC_TEMPLATE[] =
-"<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
-"<root xmlns=\"urn:schemas-upnp-org:device-1-0\" xmlns:defold=\"urn:schemas-defold-com:DEFOLD-1-0\">\n"
-"    <specVersion>\n"
-"        <major>1</major>\n"
-"        <minor>0</minor>\n"
-"    </specVersion>\n"
-"    <device>\n"
-"        <deviceType>upnp:rootdevice</deviceType>\n"
-"        <friendlyName>${NAME}</friendlyName>\n"
-"        <manufacturer>Defold</manufacturer>\n"
-"        <modelName>Defold Engine 1.0</modelName>\n"
-"        <UDN>${UDN}</UDN>\n"
-"        <defold:url>http://${HOSTNAME}:${DEFOLD_PORT}</defold:url>\n"
-"        <defold:logPort>${DEFOLD_LOG_PORT}</defold:logPort>\n"
-"    </device>\n"
-"</root>\n";
+#include "engine_version.h"
 
 namespace dmEngineService
 {
+    static const char DEVICE_DESC_TEMPLATE[] =
+    "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+    "<root xmlns=\"urn:schemas-upnp-org:device-1-0\" xmlns:defold=\"urn:schemas-defold-com:DEFOLD-1-0\">\n"
+    "    <specVersion>\n"
+    "        <major>1</major>\n"
+    "        <minor>0</minor>\n"
+    "    </specVersion>\n"
+    "    <device>\n"
+    "        <deviceType>upnp:rootdevice</deviceType>\n"
+    "        <friendlyName>${NAME}</friendlyName>\n"
+    "        <manufacturer>Defold</manufacturer>\n"
+    "        <modelName>Defold Engine 1.0</modelName>\n"
+    "        <UDN>${UDN}</UDN>\n"
+    "        <defold:url>http://${HOSTNAME}:${DEFOLD_PORT}</defold:url>\n"
+    "        <defold:logPort>${DEFOLD_LOG_PORT}</defold:logPort>\n"
+    "    </device>\n"
+    "</root>\n";
+
+    static const char INFO_TEMPLATE[] =
+    "{\"version\": \"${ENGINE_VERSION}\"}";
+
     struct EngineService
     {
         static void HttpServerHeader(void* user_data, const char* key, const char* value)
@@ -170,7 +174,13 @@ namespace dmEngineService
         {
             dmWebServer::SetStatusCode(request, 200);
             dmWebServer::Send(request, "PONG\n", strlen("PONG\n"));
-            return;
+        }
+
+        static void InfoHandler(void* user_data, dmWebServer::Request* request)
+        {
+            EngineService* service = (EngineService*) user_data;
+            dmWebServer::SetStatusCode(request, 200);
+            dmWebServer::Send(request, service->m_InfoJson, strlen(service->m_InfoJson));
         }
 
         static const char* ReplaceCallback(void* user_data, const char* key)
@@ -196,6 +206,10 @@ namespace dmEngineService
             {
                 return self->m_LocalAddress;
             }
+            else if (strcmp(key, "ENGINE_VERSION") == 0)
+            {
+                return dmEngineVersion::VERSION;
+            }
             else
             {
                 return 0;
@@ -204,6 +218,8 @@ namespace dmEngineService
 
         bool Init(uint16_t port)
         {
+            dmTemplate::Format(this, m_InfoJson, sizeof(m_InfoJson), INFO_TEMPLATE, ReplaceCallback);
+
             dmSocket::Result sockr = dmSocket::GetHostname(m_Hostname, sizeof(m_Hostname));
             if (sockr != dmSocket::RESULT_OK)
             {
@@ -274,6 +290,11 @@ namespace dmEngineService
             ping_params.m_Userdata = this;
             dmWebServer::AddHandler(web_server, "/ping", &ping_params);
 
+            dmWebServer::HandlerParams info_params;
+            info_params.m_Handler = InfoHandler;
+            info_params.m_Userdata = this;
+            dmWebServer::AddHandler(web_server, "/info", &info_params);
+
             m_WebServer = web_server;
             m_SSDP = ssdp;
             return true;
@@ -297,6 +318,8 @@ namespace dmEngineService
         dmSSDP::DeviceDesc   m_DeviceDesc;
         char                 m_DeviceDescXml[sizeof(DEVICE_DESC_TEMPLATE) + 512]; // 512 is rather arbitrary :-)
         dmSSDP::HSSDP        m_SSDP;
+
+        char                 m_InfoJson[sizeof(INFO_TEMPLATE) + 512]; // 512 is rather arbitrary :-)
     };
 
     HEngineService New(uint16_t port)
