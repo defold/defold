@@ -41,29 +41,43 @@ body {
     font-weight: 200;
     border-radius: 10px;
     margin-right: 10px;
-    padding-left: 30px;
-    padding-right: 30px;
+    padding-left: 24px;
+    padding-right: 24px;
 }
 
-.navbar a.brand {
-    margin-left: 34px;
-    background: url(images/white_logo.png) no-repeat;
-    background-position: center center;
-    -o-background-size: 100% auto;
-    -webkit-background-size: 100% auto;
-    -khtml-background-size: 100% auto;
-    -moz-background-size: 100% auto;
-    width: 200px;
+.landing .logo {
     display: block;
+    float: left;
+    padding-left: 20px;
+    margin-bottom: 24px;
 }
 
-@media ( max-width : 767px) {
-    .white-logo {
-        width: 70%;
+.landing .logo > img {
+    width: 230px;
+    height: auto;
+}
+
+@media (max-width: 767px) {
+    /*
+        For small devices we:
+          - Logo and nav-bar on seperate "lines"
+          - Change float for nav from left to right
+          - Decrease the padding for the links
+     */
+
+    .landing .logo {
+        float: none;
+        text-align: left;
     }
-    .navbar a.brand {
-        margin-left: 0px;
-        width: 100px;
+
+    .navbar .nav.pull-right {
+        /* NOTE: pull-right is now pull-left :-) */
+        float: left;
+    }
+
+    .navbar .nav>li>a {
+        padding-left: 8px;
+        padding-right: 8px;
     }
 }
 
