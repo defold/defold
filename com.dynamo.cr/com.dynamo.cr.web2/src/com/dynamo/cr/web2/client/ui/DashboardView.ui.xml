@@ -24,7 +24,9 @@
             <div class="span9">
                 <div class="row">
                     <div class="span9">
-                        <h1>Projects</h1>
+                        <div class="page-header">
+                            <h1>Projects</h1>
+                        </div>
                         <g:FlexTable ui:field="projects"></g:FlexTable>
                         <g:Button ui:field="newProjectButton">New Project</g:Button>
                     </div>

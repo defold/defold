@@ -9,7 +9,6 @@
     </ui:style>
 
     <g:HTMLPanel>
-        <h2>Invite a friend!</h2>
         <div>You have <span ui:field="invitationCount" style="font-weight: bold;"></span> remaining invitations.</div>
         <p></p>
         <g:TextBox ui:field="recipient" addStyleNames="{style.recipient}"/>

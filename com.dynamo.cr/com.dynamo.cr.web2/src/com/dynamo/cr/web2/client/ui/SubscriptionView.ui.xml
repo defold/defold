@@ -31,7 +31,9 @@
 		        <g:HTMLPanel styleName="{style.panel}" ui:field="content">
 		            <div class="row">
 		                <div class="span9">
-		                    <h1>Billing</h1>
+                            <div class="page-header">
+                                <h1>Billing</h1>
+		                    </div>
 		                    <p>
 		                        Choose the plan that best matches your needs in terms of team size.
 		                        Our philosophy is to charge you by your ability to pay.
@@ -63,26 +65,21 @@
 		                            </tbody>
 		                        </table>
 		                    </g:HTMLPanel>
-		                    <table>
-		                        <tr>
-		                            <td class="icon">
-		                                <div class="title">Important</div>
-		                            </td>
-		                            <td class="content">
-		                                <ul>
-		                                    <li>You can always go back to the Free plan whenever you want.</li>
-		                                    <li>
-		                                        We will never refund you for a started month.
-		                                        Your balance will however be retained, should you wish to continue the subscription at a later time.
-		                                    </li>
-		                                    <li>
-		                                        If your payments fail, you will get two reminders via email during the two following days.
-		                                        If you don't act on the reminders, your plan will be canceled.
-		                                    </li>
-		                                </ul>
-		                            </td>
-		                        </tr>
-		                    </table>
+
+		                    <h2>Important</h2>
+		                    <p>
+                            <ul>
+                                <li>You can always go back to the Free plan whenever you want.</li>
+                                <li>
+                                    We will never refund you for a started month.
+                                    Your balance will however be retained, should you wish to continue the subscription at a later time.
+                                </li>
+                                <li>
+                                    If your payments fail, you will get two reminders via email during the two following days.
+                                    If you don't act on the reminders, your plan will be canceled.
+                                </li>
+                            </ul>
+                            </p>
 		                </div>
 		            </div>
                 </g:HTMLPanel>
