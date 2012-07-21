@@ -2,7 +2,6 @@ package com.dynamo.cr.web2.client;
 
 import com.dynamo.cr.web2.client.place.LoginPlace;
 import com.google.gwt.place.shared.Place;
-import com.google.gwt.user.client.Cookies;
 import com.google.web.bindery.event.shared.EventBus;
 import com.google.web.bindery.event.shared.HandlerRegistration;
 
@@ -28,7 +27,7 @@ public class ShowLoginOnAuthenticationFailure implements
          */
         if (!(currentPlace instanceof LoginPlace)) {
             String token = clientFactory.getDefold().getHistoryMapper().getToken(currentPlace);
-            Cookies.setCookie("afterLoginPlaceToken", token);
+            Defold.setCookie("afterLoginPlaceToken", token);
         }
         clientFactory.getPlaceController().goTo(new LoginPlace(""));
     }

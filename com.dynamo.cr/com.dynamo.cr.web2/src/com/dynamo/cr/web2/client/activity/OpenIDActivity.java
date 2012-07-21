@@ -15,7 +15,6 @@ import com.google.gwt.http.client.RequestCallback;
 import com.google.gwt.http.client.RequestException;
 import com.google.gwt.http.client.Response;
 import com.google.gwt.place.shared.Place;
-import com.google.gwt.user.client.Cookies;
 import com.google.gwt.user.client.ui.AcceptsOneWidget;
 
 public class OpenIDActivity extends AbstractActivity implements
@@ -31,8 +30,8 @@ public class OpenIDActivity extends AbstractActivity implements
 
     private Place getNewPlace() {
         final Defold defold = clientFactory.getDefold();
-        String token = Cookies.getCookie("afterLoginPlaceToken");
-        Cookies.removeCookie("afterLoginPlaceToken");
+        String token = Defold.getCookie("afterLoginPlaceToken");
+        Defold.removeCookie("afterLoginPlaceToken");
 
         Place newPlace = null;
         if (token != null) {

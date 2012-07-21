@@ -3,12 +3,12 @@ package com.dynamo.cr.web2.client.activity;
 import java.util.Date;
 
 import com.dynamo.cr.web2.client.ClientFactory;
+import com.dynamo.cr.web2.client.Defold;
 import com.dynamo.cr.web2.client.place.LoginPlace;
 import com.dynamo.cr.web2.client.ui.LoginView;
 import com.google.gwt.activity.shared.AbstractActivity;
 import com.google.gwt.event.shared.EventBus;
 import com.google.gwt.http.client.URL;
-import com.google.gwt.user.client.Cookies;
 import com.google.gwt.user.client.Window;
 import com.google.gwt.user.client.ui.AcceptsOneWidget;
 
@@ -22,7 +22,7 @@ public class LoginActivity extends AbstractActivity implements LoginView.Present
         long nowLong = expires.getTime();
         nowLong = nowLong + (1000 * 60 * 30);
         expires.setTime(nowLong);
-        Cookies.setCookie("registration_key", place.getRegistrationKey(), expires);
+        Defold.setCookie("registration_key", place.getRegistrationKey(), expires);
     }
 
 	@Override

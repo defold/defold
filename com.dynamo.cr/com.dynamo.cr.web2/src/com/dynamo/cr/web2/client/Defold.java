@@ -108,11 +108,44 @@ public class Defold implements EntryPoint {
         sendRequest(resource, method, requestData, interceptCallback, contentType);
     }
 
+    /**
+     * Set cookie under path "/". Use this in favor for Cookies.setCookie which
+     * sets cookie under "curretn" path
+     * @param name cookie name
+     * @param value cookie value
+     * @param expires expires
+     */
+    public static void setCookie(String name, String value, Date expires) {
+        Cookies.setCookie(name, value, expires, null, "/", false);
+    }
+
+    /**
+     * Set cookie under path "/". Use this in favor for Cookies.setCookie which
+     * sets cookie under "curretn" path
+     * @param name cookie name
+     * @param value cookie value
+     */
+    public static void setCookie(String name, String value) {
+        setCookie(name, value, null);
+    }
+
+    /**
+     * Remove cookie under "/"
+     * @param name cookie nake
+     */
+    public static void removeCookie(String name) {
+        Cookies.removeCookie(name, "/");
+    }
+
+    public static String getCookie(String name) {
+        return Cookies.getCookie(name);
+    }
+
     private void sendRequest(String resource, RequestBuilder.Method method, String requestData, final ResourceCallback<String> callback, String contentType) {
         String url = getUrl() + resource;
         RequestBuilder requestBuilder = new RequestBuilder(method, url);
-        String email = Cookies.getCookie("email");
-        String auth = Cookies.getCookie("auth");
+        String email = getCookie("email");
+        String auth = getCookie("auth");
         if (email == null || auth == null) {
             eventBus.fireEvent(new AuthenticationFailureEvent());
             return;
@@ -261,7 +294,7 @@ public class Defold implements EntryPoint {
         historyHandler.register(placeController, eventBus, defaultPlace);
 
         if (ClientUtil.isDev()) {
-            String url = Cookies.getCookie("url");
+            String url = getCookie("url");
             if (url != null) {
                 this.url = url;
             }
@@ -274,9 +307,9 @@ public class Defold implements EntryPoint {
         RootPanel.get().add(outer);
         historyHandler.handleCurrentHistory();
 
-        if (Cookies.getCookie("auth") != null && Cookies.getCookie("email") != null) {
-            logout.setVisible(Cookies.getCookie("auth") != null);
-            logout.setText("Logout (" + Cookies.getCookie("email") + ")");
+        if (getCookie("auth") != null && getCookie("email") != null) {
+            logout.setVisible(getCookie("auth") != null);
+            logout.setText("Logout (" + getCookie("email") + ")");
         } else {
             logout.setVisible(false);
         }
@@ -319,18 +352,18 @@ public class Defold implements EntryPoint {
         nowLong = nowLong + (1000 * 60 * 60 * 24 * 7);
         expires.setTime(nowLong);
 
-        Cookies.setCookie("first_name", firstName, expires);
-        Cookies.setCookie("last_name", lastName, expires);
-        Cookies.setCookie("user_id", Integer.toString(userId), expires);
-        Cookies.setCookie("email", email, expires);
-        Cookies.setCookie("auth", authCookie, expires);
+        setCookie("first_name", firstName, expires);
+        setCookie("last_name", lastName, expires);
+        setCookie("user_id", Integer.toString(userId), expires);
+        setCookie("email", email, expires);
+        setCookie("auth", authCookie, expires);
 
         logout.setText("Logout (" + email + ")");
         logout.setVisible(true);
     }
 
     public int getUserId() {
-        String userId = Cookies.getCookie("user_id");
+        String userId = getCookie("user_id");
         if (userId == null) {
             clientFactory.getPlaceController().goTo(new LoginPlace(""));
             return -1;
@@ -340,22 +373,22 @@ public class Defold implements EntryPoint {
     }
 
     public String getFirstName() {
-        String firstName = Cookies.getCookie("first_name");
+        String firstName = getCookie("first_name");
         return firstName;
     }
 
     public String getLastName() {
-        String lastName = Cookies.getCookie("last_name");
+        String lastName = getCookie("last_name");
         return lastName;
     }
 
     public String getEmail() {
-        String email = Cookies.getCookie("email");
+        String email = getCookie("email");
         return email;
     }
 
     public String getRegistrationKey() {
-        String registrationKey = Cookies.getCookie("registration_key");
+        String registrationKey = getCookie("registration_key");
         if (registrationKey == null) {
             clientFactory.getPlaceController().goTo(new LoginPlace(""));
             showErrorMessage("Your session expired. Please click the registration link again.");
@@ -367,12 +400,12 @@ public class Defold implements EntryPoint {
 
     @UiHandler("logout")
     void onLogoutClick(ClickEvent event) {
-        Cookies.removeCookie("first_name");
-        Cookies.removeCookie("last_name");
-        Cookies.removeCookie("user_id");
-        Cookies.removeCookie("email");
-        Cookies.removeCookie("auth");
-        Cookies.removeCookie("registration_key");
+        removeCookie("first_name");
+        removeCookie("last_name");
+        removeCookie("user_id");
+        removeCookie("email");
+        removeCookie("auth");
+        removeCookie("registration_key");
         logout.setVisible(false);
         Window.open("/", "_self", "");
     }
@@ -397,7 +430,7 @@ public class Defold implements EntryPoint {
         nowLong = nowLong + (1000 * 60 * 60 * 24 * 100);
         expires.setTime(nowLong);
 
-        Cookies.setCookie("url", url, expires);
+        setCookie("url", url, expires);
     }
 }
 

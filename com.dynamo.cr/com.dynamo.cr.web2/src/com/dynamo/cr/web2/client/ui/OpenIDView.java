@@ -1,12 +1,12 @@
 package com.dynamo.cr.web2.client.ui;
 
 import com.dynamo.cr.web2.client.AsciiDocUtil;
+import com.dynamo.cr.web2.client.Defold;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.uibinder.client.UiBinder;
 import com.google.gwt.uibinder.client.UiField;
 import com.google.gwt.uibinder.client.UiHandler;
-import com.google.gwt.user.client.Cookies;
 import com.google.gwt.user.client.ui.Button;
 import com.google.gwt.user.client.ui.Composite;
 import com.google.gwt.user.client.ui.DeckPanel;
@@ -62,7 +62,7 @@ public class OpenIDView extends Composite {
         firstNameLabel.setText("");
         lastNameLabel.setText("");
         emailLabel.setText("");
-        String registrationKey = Cookies.getCookie("registration_key");
+        String registrationKey = Defold.getCookie("registration_key");
         if (registrationKey != null) {
             this.registrationKey.setText(registrationKey);
         } else {
