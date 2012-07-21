@@ -341,6 +341,8 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     _glfwWin.width = bounds.size.width;
     _glfwWin.height = bounds.size.height;
 
+    [application setIdleTimerDisabled: YES];
+
     // We can't hijack the event loop here. We post-pone it to ensure that the application is
     // completely initialized
     [NSTimer scheduledTimerWithTimeInterval:0.001 target:self selector:@selector(hijackEventLoop) userInfo:nil repeats:NO];
