@@ -362,9 +362,24 @@ public class Defold implements EntryPoint {
         logout.setVisible(true);
     }
 
+    public void setRedirectAfterLoginToken() {
+        Place currentPlace = clientFactory.getPlaceController().getWhere();
+        /*
+         * Certain activities issues several request in parallell.
+         * In such cases we are already at LoginPlace after first failing request.
+         * We want to redirect to the original page. Thats why we check for LoginPlace here.
+         */
+        if (!(currentPlace instanceof LoginPlace)) {
+            String token = clientFactory.getDefold().getHistoryMapper().getToken(currentPlace);
+            Defold.setCookie("afterLoginPlaceToken", token);
+        }
+    }
+
     public int getUserId() {
         String userId = getCookie("user_id");
         if (userId == null) {
+            // Another option would perhaps be to throw AuthenticationFailureEvent
+            setRedirectAfterLoginToken();
             clientFactory.getPlaceController().goTo(new LoginPlace(""));
             return -1;
         } else {
