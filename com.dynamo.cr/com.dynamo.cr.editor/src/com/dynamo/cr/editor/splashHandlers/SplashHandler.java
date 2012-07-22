@@ -21,6 +21,7 @@ import org.eclipse.ui.plugin.AbstractUIPlugin;
 import org.eclipse.ui.splash.AbstractSplashHandler;
 
 import com.dynamo.cr.editor.Activator;
+import com.dynamo.cr.editor.core.EditorCorePlugin;
 
 public class SplashHandler extends AbstractSplashHandler implements PaintListener {
 
@@ -139,7 +140,7 @@ public class SplashHandler extends AbstractSplashHandler implements PaintListene
         gc.drawImage(progressBg, x, progressY);
         gc.drawImage(progressFg, 0, 0, w, progressHeight, x, progressY, w, progressHeight);
 
-        String text = String.format("Version %s", Activator.VERSION);
+        String text = String.format("Version %s", EditorCorePlugin.VERSION);
         int textWidth = gc.stringExtent(text).x;
         gc.setBackground(new Color(getSplash().getDisplay(), 255, 255, 255));
         gc.drawText(text, width / 2 - textWidth / 2, 360 - gc.getFontMetrics().getHeight() / 2);

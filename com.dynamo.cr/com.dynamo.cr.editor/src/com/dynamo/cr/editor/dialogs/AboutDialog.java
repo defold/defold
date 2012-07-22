@@ -16,6 +16,7 @@ import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Shell;
 
 import com.dynamo.cr.editor.Activator;
+import com.dynamo.cr.editor.core.EditorCorePlugin;
 
 public class AboutDialog extends Shell {
 
@@ -67,7 +68,7 @@ public class AboutDialog extends Shell {
 
         // NOTE: Currently hard-coded
         // Non-trivial to find the product number :-(
-        builder.append(String.format("Version %s", Activator.VERSION));
+        builder.append(String.format("Version %s", EditorCorePlugin.VERSION));
         builder.append(NEW_LINE);
 
         buildDetailsText.setText(builder.toString());

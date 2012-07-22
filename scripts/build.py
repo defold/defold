@@ -273,7 +273,7 @@ root.linux.gtk.x86.permissions.755=jre/'''
         with open('VERSION', 'w') as f:
             f.write(new_version)
 
-        with open('com.dynamo.cr/com.dynamo.cr.editor/src/com/dynamo/cr/editor/Activator.java', 'a+') as f:
+        with open('com.dynamo.cr/com.dynamo.cr.editor.core/src/com/dynamo/cr/editor/core/EditorCorePlugin.java', 'a+') as f:
             f.seek(0)
             activator = f.read()
 
