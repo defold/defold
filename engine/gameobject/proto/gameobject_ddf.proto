@@ -99,7 +99,9 @@ message CollectionDesc
  * @message
  * @name acquire_input_focus
  * @examples
+ * <p>
  * This example demonstrates how to acquire and act on user input.
+ * </p>
  * <pre>
  * function init(self)
  *     -- acquire input focus as soon as the instance has been initialized
@@ -139,7 +141,9 @@ message ReleaseInputFocus {}
  * @message
  * @name request_transform
  * @examples
+ * <p>
  * How to obtain the position of another game object instance:
+ * </p>
  * <pre>
  * function init(self)
  *     -- create a url to the interesting instance for later use, assuming the instance has id "my_friend_instance"
@@ -200,15 +204,21 @@ message TransformResponse
  * @param [parent_id] the id of the new parent (hash)
  * @param [keep_world_transform] if the world transform of the instance should be preserved when changing spaces, 0 for false and 1 for true (number)
  * @examples
+ * <p>
  * Attach myself to another instance "my_parent":
+ * </p>
  * <pre>
  * msg.post(nil, "set_parent", {parent_id = go.get_id("my_parent")})
  * </pre>
+ * <p>
  * Attach an instance "my_instance" to another instance "my_parent":
+ * </p>
  * <pre>
  * msg.post("my_instance", "set_parent", {parent_id = go.get_id("my_parent")})
  * </pre>
+ * <p>
  * Detach an instance "my_instance" from its parent (if any):
+ * </p>
  * <pre>
  * msg.post("my_instance", "set_parent")
  * </pre>
@@ -239,7 +249,9 @@ message SetParent
  * @message
  * @name enable
  * @examples
+ * <p>
  * Enable the component "my_component":
+ * </p>
  * <pre>
  * msg.post("#my_component", "enable")
  * </pre>

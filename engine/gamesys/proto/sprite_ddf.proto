@@ -26,7 +26,9 @@ message SpriteDesc
  * <pre>
  * msg.post("#sprite", "play_animation", {id = hash("jump")})
  * </pre>
+ * <p>
  * How to sequence two animations together.
+ * </p>
  * <pre>
  * function init(self)
  *     -- play jump animation at init

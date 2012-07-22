@@ -42,7 +42,9 @@ namespace dmGameSystem
      * @param groups a lua table containing the hashed groups for which to test collisions against
      * @param [request_id] a number between 0-255 that will be sent back in the response for identification, 0 by default
      * @examples
+     * <p>
      * How to perform a ray cast:
+     * </p>
      * <pre>
      * function init(self)
      *     self.my_interesting_groups = {hash("my_group1"), hash("my_group2")}
@@ -132,7 +134,9 @@ namespace dmGameSystem
      * @param [properties] the properties defined in a script attached to the new game object (table)
      * @return the id of the spawned game object (hash)
      * @examples
+     * <p>
      * How to create a new game object:
+     * </p>
      * <pre>
      * function init(self)
      *     self.my_created_object = factory.create("#factory", nil, nil, {my_value = 1})
@@ -143,7 +147,9 @@ namespace dmGameSystem
      *     msg.post(msg.url(nil, self.my_created_object), "hello")
      * end
      * </pre>
+     * <p>
      * And then let the new game object have a script attached:
+     * </p>
      * <pre>
      * go.property("my_value", 0)
      *

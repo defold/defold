@@ -14,7 +14,9 @@ option java_outer_classname = "Engine";
  * @name exit
  * @param code exit code to report to the OS, 0 means clean exit (number)
  * @examples
+ * <p>
  * This examples demonstrates how to exit the application when some kind of quit messages is received (maybe from gui or similar):
+ * </p>
  * <pre>
  * function on_message(self, message_id, message, sender)
  *     if message_id == hash("quit") then

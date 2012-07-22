@@ -86,10 +86,14 @@ message TileGrid
  * Send this message to a tile grid component to change the tile in one of its cells.
  *
  * @examples
+ * <p>
  * This example demonstrates how to clear the tile above the instance when it collides with that tile from underneath,
  * i.e. the same thing that would happen in Super Mario Bros.
+ * </p>
  *
+ * <p>
  * Assuming the instance we collide with has a tile-grid-component with id "tilemap", which has a layer with id "layer1":
+ * </p>
  * <pre>
  * function on_message(self, message_id, message, sender)
  *     if message_id == hash("contact_point_response") then
