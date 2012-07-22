@@ -16,7 +16,7 @@
 
 
 {% block content %}
-<div class="container">
+<div class="container ref-doc">
 
     <div class="row">
 
@@ -104,11 +104,12 @@
     {% for f in functions %}
         <a name="{{ f.name }}"></a>
         <div>
-        <h3>{{ f.name }}</h3>
+        <h3 class="name">{{ f.name }}</h3>
         <p>
         {{ f.description }}
 
-        <h3>Fields</h3>
+        {% if f.parameters %}
+        <h3>Parameters</h3>
         <table class="table table-striped">
         <tbody>
         {% for p in f.parameters %}
@@ -119,6 +120,15 @@
         {% endfor %}
         </tbody>
         </table>
+        {% endif %}
+
+        {% if f.return_ %}
+        <h3>Returns</h3>
+        <p>
+        {{ f.return_ }}
+        </p>
+        {% endif %}
+
 
         {% if f.examples %}
             <h3>Examples</h3>
@@ -133,10 +143,11 @@
     {% for msg in messages %}
         <a name="{{ msg.name }}"></a>
         <div>
-        <h3>{{ msg.name }}</h3>
+        <h3 class="name">{{ msg.name }}</h3>
         <p>
         {{ msg.description }}
 
+        {% if msg.parameters %}
         <h3>Fields</h3>
         <table class="table table-striped">
         <tbody>
@@ -148,9 +159,12 @@
         {% endfor %}
         </tbody>
         </table>
+        {% endif %}
 
-        <h3>Examples</h3>
-        {{ msg.examples }}
+        {% if msg.examples %}
+            <h3>Examples</h3>
+            {{ msg.examples }}
+        {% endif %}
         </div>
     {% endfor %}
     {% endif %}
@@ -160,7 +174,7 @@
     {% for c in constants %}
         <a name="{{ c.name }}"></a>
         <div>
-        <h3>{{ c.name }}</h3>
+        <h3 class="name">{{ c.name }}</h3>
         <p>
         {{ c.brief }}
         </div>

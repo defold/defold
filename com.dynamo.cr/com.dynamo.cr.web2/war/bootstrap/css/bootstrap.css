@@ -5144,3 +5144,20 @@ div.search-result {
      -moz-border-radius: 6px;
           border-radius: 6px;
 }
+
+.ref-doc hr {
+  margin: 24px 0;
+  border: 0;
+  border-top: 1px solid #ffb400;
+}
+
+.ref-doc h3.name {
+  color: #008ee3;
+}
+
+.ref-doc code {
+  padding: 0;
+  color: black;
+  background-color: transparent;
+  border: 0;
+}
