@@ -46,6 +46,7 @@ class Desite(object):
 
         for e in msg.elements:
             e.examples = e.examples.replace('<pre>', '<pre class="prettyprint linenums lang-lua">')
+            e.description = e.description.replace('<table>', '<table class="table table-striped table-bordered">')
 
         functions = filter(lambda e: e.type == script_doc_ddf_pb2.FUNCTION, msg.elements)
         messages = filter(lambda e: e.type == script_doc_ddf_pb2.MESSAGE, msg.elements)

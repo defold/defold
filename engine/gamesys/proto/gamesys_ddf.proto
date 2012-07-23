@@ -51,15 +51,21 @@ enum TimeStepMode
  * @param mode time-step mode: 0 for continuous and 1 for discrete (number)
  * @examples
  * <p>The examples assumes the script belongs to an instance with a collection-proxy-component with id "proxy".</p>
+ * <p>
  * Update the collection twice as fast:
+ * </p>
  * <pre>
  * msg.post("#proxy", "set_time_step", {factor = 2, mode = 0})
  * </pre>
+ * <p>
  * Update the collection twice as slow:
+ * </p>
  * <pre>
  * msg.post("#proxy", "set_time_step", {factor = 0.5, mode = 0})
  * </pre>
+ * <p>
  * Simulate 1 FPS for the collection:
+ * </p>
  * <pre>
  * msg.post("#proxy", "set_time_step", {factor = 1/60, mode = 1})
  * </pre>
@@ -111,7 +117,9 @@ message SetViewProjection
  * @name play_sound
  * @param [delay] delay in seconds before the sound starts playing, default is 0 (number)
  * @examples
+ * <p>
  * Assuming the script belongs to an instance with a sound-component with id "sound", this will make the component play its sound after 1 second:
+ * </p>
  * <pre>
  * msg.post("#sound", "play_sound", {delay = 1})
  * </pre>

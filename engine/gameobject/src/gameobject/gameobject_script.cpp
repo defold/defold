@@ -216,12 +216,16 @@ namespace dmGameObject
      * @param [path] path of the instance for which to return the id (string)
      * @return instance id (hash)
      * @examples
+     * <p>
      * For the instance with path <code>/my_sub_collection/my_instance</code>, the following calls are equivalent:
+     * </p>
      * <pre>
      * local id = go.get_id() -- no path, defaults to the instance of the calling script
      * local id = go.get_id("/my_sub_collection/my_instance") -- absolute path
      * </pre>
+     * <p>
      * From a script in another instance in the same collection, i.e. path <code>/my_sub_collection/my_other_instance</code>, the id of the first instance can be retrieved in two ways:
+     * </p>
      * <pre>
      * local id = go.get_id("my_instance") -- relative path
      * local id = go.get_id("/my_sub_collection/my_instance") -- absolute path
@@ -248,7 +252,9 @@ namespace dmGameObject
      * @name go.delete
      * @param [id] optional id of the instance to delete, the instance of the calling script is deleted by default (hash|string)
      * @examples
+     * <p>
      * This example demonstrates how to delete a game object with the id "my_game_object".
+     * </p>
      * <pre>
      * local id = go.get_id("my_game_object") -- retrieve the id of the game object to be deleted
      * go.detele(id) -- delete the game object
@@ -315,8 +321,10 @@ namespace dmGameObject
      * @param name the name of the property (string)
      * @param value default value of the property. In the case of a url, only the empty constructor msg.url() is allowed. (number, hash, url, vector3, vector4, quat)
      * @examples
+     * <p>
      * This example demonstrates how to define a property called "health" in a script.
      * The health is decreased whenever someone sends a message called "take_damage" to the script.
+     * </p>
      * <pre>
      * go.property("health", 100)
      *
@@ -776,7 +784,9 @@ bail:
      * @param self reference to the script state to be used for storing data (script_ref)
      * @param dt the time-step of the frame update
      * @examples
+     * <p>
      * This example demonstrates how to move a game object instance through the script component:
+     * </p>
      * <pre>
      * function init(self)
      *     -- set initial velocity to be 1 along world x-axis
@@ -810,14 +820,18 @@ bail:
      * This example demonstrates how a game object instance, called "a", can communicate with another instance, called "b". It
      * is assumed that both script components of the instances has id "script".
      * </p>
+     * <p>
      * Script of instance "a":
+     * </p>
      * <pre>
      * function init(self)
      *     -- let b know about some important data
      *     msg.post("b#script", "my_data", {important_value = 1})
      * end
      * </pre>
+     * <p>
      * Script of intance "b":
+     * </p>
      * <pre>
      * function init(self)
      *     -- store the url of instance "a" for later use, by specifying nil as socket we
@@ -853,7 +867,9 @@ bail:
      * Mouse movement is specifically handled and uses <code>nil</code> as its <code>action_id</code>.
      * The <code>action</code> only contains positional parameters in this case, such as x and y of the pointer.
      * </p>
+     * <p>
      * Here is a brief description of the available table fields:
+     * </p>
      * <table>
      *   <th>Field</th>
      *   <th>Description</th>

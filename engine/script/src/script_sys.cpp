@@ -41,7 +41,9 @@ namespace dmScript
      * @param table lua table to save (table)
      * @return a boolean indicating if the table could be saved or not (boolean)
      * @examples
+     * <p>
      * Save data:
+     * </p>
      * <pre>
      * local my_table = {my_key = "my_important_value"}
      * local my_file_path = sys.get_save_file("my_game", "my_file")
@@ -49,7 +51,9 @@ namespace dmScript
      *     -- Alert user that the data could not be saved
      * end
      * </pre>
+     * <p>
      * And load it at a later time, e.g. next game session:
+     * </p>
      * <pre>
      * local my_file_path = sys.get_save_file("my_game", "my_file")
      * local my_table = sys.load(my_file_path)
@@ -151,7 +155,9 @@ namespace dmScript
      * @param key key to get value for. The syntax is SECTION.KEY
      * @return config value as a string. nil if the config key doesn't exists
      * @examples
+     * <p>
      * Get display width
+     * </p>
      * <pre>
      * local width = tonumber(sys.get_config("display.width"))
      * </pre>
@@ -165,7 +171,9 @@ namespace dmScript
      * @param default_value default value to return if the value doens't exists
      * @return config value as a string. default_value if the config key doesn't exists
      * @examples
+     * <p>
      * Get user config value
+     * </p>
      * <pre>
      * local speed = tonumber(sys.get_config("my_game.speed", "10.23"))
      * </pre>

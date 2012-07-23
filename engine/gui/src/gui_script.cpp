@@ -1295,8 +1295,10 @@ namespace dmGui
      * @param self reference to the script state to be used for storing data (script_ref)
      * @param dt the time-step of the frame update
      * @examples
+     * <p>
      * This example demonstrates how to update a text node that displays game score in a counting fashion.
      * It is assumed that the gui component receives messages from the game when a new score is to be shown.
+     * </p>
      * <pre>
      * function init(self)
      *     -- fetch the score text node for later use (assumes it is called "score")
@@ -1367,7 +1369,9 @@ namespace dmGui
      * Mouse movement is specifically handled and uses <code>nil</code> as its <code>action_id</code>.
      * The <code>action</code> only contains positional parameters in this case, such as x and y of the pointer.
      * </p>
+     * <p>
      * Here is a brief description of the available table fields:
+     * </p>
      * <table>
      *   <th>Field</th>
      *   <th>Description</th>

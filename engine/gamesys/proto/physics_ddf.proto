@@ -103,7 +103,9 @@ message CollisionObjectDesc
  * @param force the force to be applied on the collision object, measured in Newton (vector3)
  * @param position the position where the force should be applied (vector3)
  * @examples
+ * <p>
  * Assuming the instance of the script has a collision-object-component with id "co":
+ * </p>
  * <pre>
  * -- apply a force of 1 Newton towards world-x at the center of the game object instance
  * msg.post("#co", "apply_force", {force = vmath.vector3(1, 0, 0), position = go.get_world_position()})
@@ -131,7 +133,9 @@ message ApplyForce
  * @param other_id the id of the instance the collision object collided with (hash)
  * @param group the collision group of the other collision object (hash)
  * @examples
+ * <p>
  * How to take action when a collision occurs:
+ * </p>
  * <pre>
  * function on_message(self, message_id, message, sender)
  *     -- check for the message
@@ -173,7 +177,9 @@ message CollisionResponse
  * @param other_position the world position of the other collision object (vector3)
  * @param group the collision group of the other collision object (hash)
  * @examples
+ * <p>
  * How to take action when a contact point occurs:
+ * </p>
  * <pre>
  * function on_message(self, message_id, message, sender)
  *     -- check for the message
@@ -235,7 +241,9 @@ message RayCastResponse
  * @message
  * @name request_velocity
  * @examples
+ * <p>
  * How to retrieve the velocity of a collision object, assuming the collision-object-component has id "co" and belongs to the same instance as the script:
+ * </p>
  * <pre>
  * function update(self, dt)
  *     -- request velocity
