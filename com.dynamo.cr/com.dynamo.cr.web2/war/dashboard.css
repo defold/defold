@@ -50,6 +50,23 @@ div.message {
     border-radius: 4px;
 }
 
+.gwt-PopupPanelGlass {
+    background-color: black;
+    opacity: 0.3;
+    filter: alpha(opacity=30);
+}
+
+.gwt-DialogBox {
+    border: 1px solid #black;
+    border-radius: 6px;
+    background-color: #eee;
+    padding: 24px;
+}
+
+.gwt-DialogBox {
+    width: 400px;
+}
+
 /* OpenID buttons */
 
 button.openIDGoogle {

@@ -14,7 +14,7 @@ xmlns:g="urn:import:com.google.gwt.user.client.ui">
 		</div>
 
 		<div style="margin-left:auto; margin-right:auto; text-align: center;">
-		  <g:Button ui:field="okButton">Ok</g:Button>
+		  <g:Button ui:field="okButton">&nbsp;&nbsp;Ok&nbsp;&nbsp;</g:Button>
 		</div>
 	</g:HTMLPanel>
 </ui:UiBinder>

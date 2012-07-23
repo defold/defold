@@ -31,6 +31,7 @@ public class BrowserWarningDialog extends DialogBox {
 
     public BrowserWarningDialog() {
         setWidget(uiBinder.createAndBindUi(this));
+        okButton.setStyleName("btn btn-primary");
         setModal(true);
         setGlassEnabled(true);
         browser.setInnerText(ClientUtil.getBrowser().toString());
