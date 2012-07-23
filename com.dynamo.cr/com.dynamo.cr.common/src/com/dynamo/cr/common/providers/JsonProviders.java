@@ -191,11 +191,11 @@ public class JsonProviders {
             StringWriter writer = new StringWriter();
             JsonGenerator generator = null;
             try {
-                 generator = (new JsonFactory()).createJsonGenerator(writer);
-                 MessageToJSON(m, generator);
-                 generator.close();
-                 byte[] bytes = writer.getBuffer().toString().getBytes("utf-8");
-                 return bytes;
+                generator = (new JsonFactory()).createJsonGenerator(writer);
+                MessageToJSON(m, generator);
+                generator.close();
+                byte[] bytes = writer.getBuffer().toString().getBytes("UTF-8");
+                return bytes;
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }

@@ -19,7 +19,6 @@ import com.dynamo.cr.protocol.proto.Protocol.ApplicationInfo;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus.State;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
-import com.dynamo.gamesystem.proto.GameSystem.SetLight;
 import com.google.protobuf.Message;
 
 public class JsonProvidersTest {
@@ -103,7 +102,7 @@ public class JsonProvidersTest {
         assertEquals(size, stream.size());
 
         ObjectMapper m = new ObjectMapper();
-        JsonNode node = m.readValue(stream.toString(), JsonNode.class);
+        JsonNode node = m.readValue(stream.toString("UTF-8"), JsonNode.class);
         System.out.println(node);
         assertEquals(message.getFirstName(), node.get("first_name").asText());
         assertEquals(message.getLastName(), node.get("last_name").asText());
