@@ -54,3 +54,4 @@
 /about/eula.html
 /about/privacy.html
 /about/story.html
+/about/company.html
