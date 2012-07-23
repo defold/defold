@@ -107,7 +107,7 @@ public class JsonProvidersTest {
         assertEquals(message.getFirstName(), node.get("first_name").asText());
         assertEquals(message.getLastName(), node.get("last_name").asText());
 
-        ByteArrayInputStream inStream = new ByteArrayInputStream(node.toString().getBytes());
+        ByteArrayInputStream inStream = new ByteArrayInputStream(node.toString().getBytes("UTF-8"));
         MessageBodyReader reader = new ProtobufMessageBodyReader();
         Message message2 = (Message) reader.readFrom(message.getClass(), null, null, null, null, inStream);
         assertEquals(message, message2);

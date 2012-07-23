@@ -2,6 +2,7 @@ package com.dynamo.cr.common.providers;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.StringWriter;
 import java.lang.annotation.Annotation;
@@ -53,7 +54,7 @@ public class JsonProviders {
                 Message.Builder builder = (Message.Builder) newBuilder.invoke(type);
 
                 ObjectMapper m = new ObjectMapper();
-                JsonNode node = m.readValue(entityStream, JsonNode.class);
+                JsonNode node = m.readValue(new InputStreamReader(entityStream, "UTF-8"), JsonNode.class);
                 return JsonToMessage(node, builder);
 
             } catch (Exception e) {
