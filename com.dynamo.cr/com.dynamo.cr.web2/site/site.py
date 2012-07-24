@@ -18,8 +18,7 @@ render('500.html', 'error/500.html', skip_index = True, root='/')
 render('landing.html', 'index.html')
 render('plans.html', 'plans/index.html', active_page = 'plans')
 
-docs = ['script_properties.html',
-        'eula.html',
+docs = ['eula.html',
         'game_project.html',
         'hud.html',
         'introduction.html',
@@ -29,6 +28,7 @@ docs = ['script_properties.html',
         'parallax.html',
         'physics.html',
         'reload.html',
+        'scene_editing.html',
         'script_properties.html',
         'scripting_debugging.html',
         'side_scroller.html',

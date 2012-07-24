@@ -34,7 +34,6 @@
 /blog/sindex.html
 /index.html
 /plans/index.html
-/doc/script_properties.html
 /doc/eula.html
 /doc/game_project.html
 /doc/hud.html
@@ -45,6 +44,7 @@
 /doc/parallax.html
 /doc/physics.html
 /doc/reload.html
+/doc/scene_editing.html
 /doc/script_properties.html
 /doc/scripting_debugging.html
 /doc/side_scroller.html
