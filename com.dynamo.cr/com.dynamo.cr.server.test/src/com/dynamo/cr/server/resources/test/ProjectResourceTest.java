@@ -1,7 +1,9 @@
 package com.dynamo.cr.server.resources.test;
 
+import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 import java.io.File;
@@ -51,6 +53,7 @@ import com.dynamo.cr.protocol.proto.Protocol.BuildLog;
 import com.dynamo.cr.protocol.proto.Protocol.CommitDesc;
 import com.dynamo.cr.protocol.proto.Protocol.Log;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
+import com.dynamo.cr.protocol.proto.Protocol.ProjectStatus;
 import com.dynamo.cr.protocol.proto.Protocol.ResourceInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ResourceType;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
@@ -297,6 +300,8 @@ public class ProjectResourceTest extends AbstractResourceTest {
     public void projectInfo() throws Exception {
         ProjectInfo projectInfo = ownerProjectClient.getProjectInfo();
         assertEquals("proj1", projectInfo.getName());
+        // Owner has default free plan and the project has 2 members
+        assertThat(projectInfo.getStatus(), is(ProjectStatus.PROJECT_STATUS_UNQUALIFIED));
 
         ClientResponse response = memberProjectsWebResource.path("/project_info").get(ClientResponse.class);
         assertEquals(200, response.getStatus());

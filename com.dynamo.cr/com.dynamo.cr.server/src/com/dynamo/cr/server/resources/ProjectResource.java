@@ -257,7 +257,8 @@ public class ProjectResource extends BaseResource {
                                       @PathParam("project") String projectId) {
         User user = server.getUser(em, userId);
         Project project = server.getProject(em, projectId);
-        return ResourceUtil.createProjectInfo(server.getConfiguration(), user, project);
+        return ResourceUtil.createProjectInfo(server.getConfiguration(), user, project,
+                ModelUtil.isMemberQualified(em, user, project, server.getConfiguration().getProductsList()));
     }
 
     @PUT

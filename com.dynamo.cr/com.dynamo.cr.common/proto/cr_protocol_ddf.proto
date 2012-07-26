@@ -101,6 +101,12 @@ message ProjectTemplateInfoList {
     repeated ProjectTemplateInfo templates = 1;
 }
 
+// Status of the project in relation to the user who fetched the information
+enum ProjectStatus {
+    PROJECT_STATUS_OK = 0;
+    PROJECT_STATUS_UNQUALIFIED = 1;
+}
+
 message ProjectInfo {
     required int64 id = 1;
     required string name = 2;
@@ -111,6 +117,7 @@ message ProjectInfo {
     required int64 lastUpdated = 8;
     required string repositoryUrl = 9;
     optional string iOSExecutableUrl = 10;
+    required ProjectStatus status = 11 [default = PROJECT_STATUS_OK];
 }
 
 message ProjectInfoList {
