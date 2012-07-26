@@ -693,6 +693,16 @@ public class Server implements ServerMBean {
                 javax.ws.rs.core.Response.Status.NOT_FOUND);
     }
 
+    public BillingProduct getDefaultProduct() {
+        for (BillingProduct product : configuration.getProductsList()) {
+            if (product.getDefault() != 0) {
+                return product;
+            }
+        }
+        throw new ServerException(String.format("No default product"),
+                javax.ws.rs.core.Response.Status.NOT_FOUND);
+    }
+
     public BillingProduct getProductByHandle(String productHandle) {
         for (BillingProduct product : configuration.getProductsList()) {
             if (product.getHandle().equals(productHandle)) {

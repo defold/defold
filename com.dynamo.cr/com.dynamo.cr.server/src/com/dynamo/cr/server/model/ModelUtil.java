@@ -6,6 +6,8 @@ import java.util.Set;
 
 import javax.persistence.EntityManager;
 
+import com.dynamo.cr.proto.Config.BillingProduct;
+import com.dynamo.cr.server.model.User.Role;
 import com.dynamo.cr.server.model.UserSubscription.CreditCard;
 
 public class ModelUtil {
@@ -155,5 +157,46 @@ public class ModelUtil {
             assert list.size() == 1;
             return list.get(0);
         }
+    }
+
+    public static UserSubscription findUserSubscriptionByUser(EntityManager entityManager, User user) {
+        List<UserSubscription> list = entityManager
+                .createQuery("select us from UserSubscription us where us.user = :user",
+                        UserSubscription.class).setParameter("user", user).getResultList();
+        if (list.size() == 0) {
+            return null;
+        } else {
+            assert list.size() == 1;
+            return list.get(0);
+        }
+    }
+
+    public static BillingProduct getUserProduct(EntityManager entityManager, User user, List<BillingProduct> products) {
+        UserSubscription subscription = findUserSubscriptionByUser(entityManager, user);
+        BillingProduct result = null;
+        // Return product with identical id, default if not
+        for (BillingProduct product : products) {
+            if (subscription != null && subscription.getProductId() == product.getId()) {
+                result = product;
+                break;
+            } else if (product.getDefault() != 0) {
+                result = product;
+            }
+        }
+        return result;
+    }
+
+    public static boolean isMemberQualified(EntityManager em, User user, Project project, List<BillingProduct> products) {
+        // Check membership
+        if (!project.getMembers().contains(user)) {
+            return false;
+        }
+        // Admins don't need a subscription to have access
+        if (user.getRole() == Role.ADMIN) {
+            return true;
+        }
+        int memberCount = project.getMemberCount();
+        BillingProduct product = ModelUtil.getUserProduct(em, user, products);
+        return memberCount <= product.getMaxMemberCount();
     }
 }
