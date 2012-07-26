@@ -140,4 +140,5 @@ def install(bld):
         install_tutorial(bld, 'src/tutorials/%s' % tutorial)
 
 def set_options(opt):
+    opt.tool_options('waf_dynamo')
     opt.add_option('--skip-tests', action='store_true', default=False, dest='skip_tests', help='skip unit tests')

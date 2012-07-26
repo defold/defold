@@ -24,7 +24,8 @@ class Configuration(object):
                  skip_codesign = False,
                  no_colors = False,
                  archive_path = None,
-                 set_version = None):
+                 set_version = None,
+                 eclipse = False):
 
         if sys.platform == 'win32':
             home = os.environ['USERPROFILE']
@@ -41,6 +42,7 @@ class Configuration(object):
         self.no_colors = no_colors
         self.archive_path = archive_path
         self.set_version = set_version
+        self.eclipse = eclipse
 
         self._create_common_dirs()
 
@@ -140,19 +142,20 @@ class Configuration(object):
     def build_engine(self):
         skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
         skip_codesign = '--skip-codesign' if self.skip_codesign else ''
+        eclipse = '--eclipse' if self.eclipse else ''
         libs="dlib ddf particle glfw graphics hid input physics resource lua script render gameobject gui sound gamesys tools record engine".split()
 
         # NOTE: We run waf using python <PATH_TO_WAF>/waf as windows don't understand that waf is an executable
         if self.target_platform != self.host:
             self._log('Building dlib for host platform')
             cwd = join(self.defold_root, 'engine/dlib')
-            cmd = 'python %s/ext/bin/waf configure --prefix=%s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, skip_tests, skip_codesign)
+            cmd = 'python %s/ext/bin/waf configure --prefix=%s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, skip_tests, skip_codesign, eclipse)
             self.exec_command(cmd.split(), cwd = cwd)
 
         for lib in libs:
             self._log('Building %s' % lib)
             cwd = join(self.defold_root, 'engine/%s' % lib)
-            cmd = 'python %s/ext/bin/waf configure --prefix=%s --platform=%s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, self.target_platform, skip_tests, skip_codesign)
+            cmd = 'python %s/ext/bin/waf configure --prefix=%s --platform=%s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, self.target_platform, skip_tests, skip_codesign, eclipse)
             self.exec_command(cmd.split(), cwd = cwd)
 
     def build_docs(self):
@@ -381,6 +384,11 @@ Multiple commands can be specified'''
                       default = None,
                       help = 'Set version explicitily when bumping version')
 
+    parser.add_option('--eclipse', dest='eclipse',
+                      action = 'store_true',
+                      default = False,
+                      help = 'Output build commands in a format eclipse can parse')
+
     options, args = parser.parse_args()
 
     if len(args) == 0:
@@ -393,7 +401,8 @@ Multiple commands can be specified'''
                       skip_codesign = options.skip_codesign,
                       no_colors = options.no_colors,
                       archive_path = options.archive_path,
-                      set_version = options.set_version)
+                      set_version = options.set_version,
+                      eclipse = options.eclipse)
 
     for cmd in args:
         f = getattr(c, cmd, None)

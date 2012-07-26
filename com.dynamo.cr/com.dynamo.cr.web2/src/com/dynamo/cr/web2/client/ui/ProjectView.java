@@ -159,9 +159,10 @@ public class ProjectView extends Composite {
             cellFormatter.addStyleName(i, 1, "table-members-col1");
         }
 
-        iOSDownload.setVisible(iOSUrl != null);
-        if (iOSUrl != null) {
-            signedExeInfo.setText("Download the executable on your iOS device for direct installation.");
+        boolean hasIOSUrl = iOSUrl != null && !iOSUrl.isEmpty();
+        iOSDownload.setVisible(hasIOSUrl);
+        if (hasIOSUrl) {
+            signedExeInfo.setText("Access this link with your iOS device for direct installation:");
         } else {
             signedExeInfo.setText("No signed executable found. Use Defold Editor to sign and upload for all project members.");
         }

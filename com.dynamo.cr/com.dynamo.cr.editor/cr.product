@@ -3,7 +3,6 @@
 
 <product name="Defold Editor" uid="com.dynamo.cr.editor.product" id="com.dynamo.cr.editor.product" application="com.dynamo.cr.editor.application" version="1.1.12" useFeatures="false" includeLaunchers="true">
 
-
    <configIni use="default">
    </configIni>
 
@@ -12,7 +11,7 @@
 ./jre/bin</programArgsLin>
       <programArgsWin>-vm
 jre\bin\javaw.exe</programArgsWin>
-      <vmArgs>-Declipse.p2.unsignedPolicy=allow</vmArgs>
+      <vmArgs>-Declipse.p2.unsignedPolicy=allow -Dsun.net.client.defaultReadTimeout=30000 -Dorg.eclipse.ecf.provider.filetransfer.retrieve.closeTimeout=3000 -Dorg.eclipse.ecf.provider.filetransfer.retrieve.readTimeout=3000</vmArgs>
       <vmArgsMac>-XstartOnFirstThread -Dorg.eclipse.swt.internal.carbon.smallFonts</vmArgsMac>
    </launcherArgs>
 
@@ -30,10 +29,8 @@ jre\bin\javaw.exe</programArgsWin>
       </win>
    </launcher>
 
-
    <vm>
    </vm>
-
 
    <plugins>
       <plugin id="com.dynamo.cr.bob"/>
