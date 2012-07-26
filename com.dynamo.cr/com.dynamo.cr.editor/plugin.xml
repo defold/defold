@@ -146,7 +146,7 @@
                style="push">
             <parameter
                   name="com.dynamo.crepo.commands.openWebLink.url"
-                  value="http://www.defold.se/#documentation:">
+                  value="http://www.defold.com/doc">
             </parameter>
          </command>
          <command
