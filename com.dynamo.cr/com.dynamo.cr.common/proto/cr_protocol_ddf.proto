@@ -117,7 +117,7 @@ message ProjectInfo {
     required int64 lastUpdated = 8;
     required string repositoryUrl = 9;
     optional string iOSExecutableUrl = 10;
-    required ProjectStatus status = 11 [default = PROJECT_STATUS_OK];
+    optional ProjectStatus status = 11 [default = PROJECT_STATUS_OK];
 }
 
 message ProjectInfoList {
