@@ -65,6 +65,15 @@
         <OnMatch>NEUTRAL</OnMatch>
     </filter>
 
+    <!-- Do not log /status-request. We request status every minute -->
+    <filter class="ch.qos.logback.core.filter.EvaluatorFilter">
+        <evaluator class="ch.qos.logback.classic.boolex.JaninoEventEvaluator">
+            <expression>return mdc.get("uri") != null &amp;&amp; mdc.get("uri").equals("/status");</expression>
+        </evaluator>
+        <OnMismatch>NEUTRAL</OnMismatch>
+        <OnMatch>DENY</OnMatch>
+    </filter>
+
     <encoder>
         <pattern>%date %level [%thread] %X{method} %X{uri} %X{userId}@%X{remoteAddr} %msg%n</pattern>
     </encoder>
@@ -83,6 +92,15 @@
         </evaluator>
         <OnMismatch>DENY</OnMismatch>
         <OnMatch>NEUTRAL</OnMatch>
+    </filter>
+
+    <!-- Do not log /status-request. We request status every minute -->
+    <filter class="ch.qos.logback.core.filter.EvaluatorFilter">
+        <evaluator class="ch.qos.logback.classic.boolex.JaninoEventEvaluator">
+            <expression>return mdc.get("uri") != null &amp;&amp; mdc.get("uri").equals("/status");</expression>
+        </evaluator>
+        <OnMismatch>NEUTRAL</OnMismatch>
+        <OnMatch>DENY</OnMatch>
     </filter>
 
     <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
