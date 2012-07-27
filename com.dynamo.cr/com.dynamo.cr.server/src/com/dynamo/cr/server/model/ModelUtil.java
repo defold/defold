@@ -195,8 +195,13 @@ public class ModelUtil {
         if (user.getRole() == Role.ADMIN) {
             return true;
         }
-        int memberCount = project.getMemberCount();
         BillingProduct product = ModelUtil.getUserProduct(em, user, products);
-        return memberCount <= product.getMaxMemberCount();
+        // Unlimited member count is -1
+        if (product.getMaxMemberCount() < 0) {
+            return true;
+        } else {
+            int memberCount = project.getMemberCount();
+            return memberCount <= product.getMaxMemberCount();
+        }
     }
 }
