@@ -141,6 +141,11 @@
             allPopups="false"
             locationURI="menu:help">
          <command
+               commandId="com.dynamo.cr.editor.commands.openWelcome"
+               label="Welcome"
+               style="push">
+         </command>
+         <command
                commandId="com.dynamo.crepo.commands.openWebLink"
                label="Documentation..."
                style="push">
@@ -270,6 +275,10 @@
             defaultHandler="com.dynamo.cr.editor.handlers.SignHandler"
             id="com.dynamo.cr.target.commands.sign"
             name="Sign Executable">
+      </command>
+      <command
+            id="com.dynamo.cr.editor.commands.openWelcome"
+            name="Welcome">
       </command>
    </extension>
 
@@ -493,6 +502,10 @@
              </with>
           </activeWhen>
        </handler>
+      <handler
+            class="com.dynamo.cr.editor.handlers.OpenWelcomeHandler"
+            commandId="com.dynamo.cr.editor.commands.openWelcome">
+      </handler>
      </extension>
    <extension
          point="org.eclipse.ui.popupMenus">
@@ -585,5 +598,15 @@
             productId="com.dynamo.cr.editor.product"
             splashId="com.dynamo.cr.editor.splashHandlers.defold">
       </splashHandlerProductBinding>
+   </extension>
+   <extension
+         point="org.eclipse.ui.editors">
+      <editor
+            class="com.dynamo.cr.editor.welcome.WelcomeEditor"
+            default="false"
+            icon="icons/welcome.png"
+            id="com.dynamo.cr.editor.welcomeEditor"
+            name="Welcome">
+      </editor>
    </extension>
 </plugin>

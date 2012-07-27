@@ -23,5 +23,6 @@ public class PreferenceInitializer extends AbstractPreferenceInitializer {
 	    store.setDefault(PreferenceConstants.P_SOCKS_PROXY_PORT, 1080);
 	    store.setDefault(PreferenceConstants.P_CUSTOM_APPLICATION, false);
         store.setDefault(PreferenceConstants.P_USE_LOCAL_BRANCHES, true);
+        store.setDefault(PreferenceConstants.P_SHOW_WELCOME_PAGE, true);
 	}
 }
