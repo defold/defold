@@ -79,7 +79,7 @@
                         <h2>Defold Engine</h2>
                         <div>
                            <g:Label ui:field="signedExeInfo"></g:Label>
-                           <g:Anchor ui:field="iOSDownload">Install Defold Engine for iOS</g:Anchor>
+                           <g:Anchor ui:field="iOSDownload">Install the Defold App</g:Anchor>
                         </div>
                         <p></p>
 

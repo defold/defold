@@ -166,7 +166,8 @@ public class ProjectView extends Composite {
         if (hasIOSUrl) {
             signedExeInfo.setText("Access this link with your iOS device for direct installation:");
         } else {
-            signedExeInfo.setText("No signed executable found. Use Defold Editor to sign and upload for all project members.");
+            signedExeInfo
+                    .setText("No Defold App found. Use the Defold Editor to sign and upload it for everyone in your project to access.");
         }
 
         iOSDownload.setHref("itms-services://?action=download-manifest&url=" + iOSUrl);
