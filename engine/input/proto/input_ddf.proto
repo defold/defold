@@ -260,5 +260,6 @@ message InputBinding
     repeated KeyTrigger key_trigger = 1;
     repeated MouseTrigger mouse_trigger = 2;
     repeated GamepadTrigger gamepad_trigger = 3;
-    repeated TouchTrigger touch_trigger = 4;
+    // TODO: reveal this again, https://defold.fogbugz.com/default.asp?1253
+    // repeated TouchTrigger touch_trigger = 4;
 }

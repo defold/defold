@@ -166,7 +166,9 @@ namespace dmInput
             delete binding->m_GamepadBinding;
             binding->m_GamepadBinding = 0x0;
         }
-        if (ddf->m_TouchTrigger.m_Count > 0)
+        // TODO: use touch triggers, https://defold.fogbugz.com/default.asp?1253
+        uint32_t touch_count = 0; //ddf->m_TouchTrigger.m_Count;
+        if (touch_count > 0)
         {
             if (binding->m_TouchDeviceBinding == 0x0)
             {
@@ -177,15 +179,16 @@ namespace dmInput
             {
                 binding->m_TouchDeviceBinding->m_Triggers.SetSize(0);
             }
-            binding->m_TouchDeviceBinding->m_Triggers.SetCapacity(ddf->m_TouchTrigger.m_Count);
-            for (uint32_t i = 0; i < ddf->m_TouchTrigger.m_Count; ++i)
+            binding->m_TouchDeviceBinding->m_Triggers.SetCapacity(touch_count);
+            for (uint32_t i = 0; i < touch_count; ++i)
             {
-                const dmInputDDF::TouchTrigger& ddf_trigger = ddf->m_TouchTrigger[i];
-                dmInput::TouchTrigger trigger;
-                trigger.m_ActionId = dmHashString64(ddf_trigger.m_Action);
-                trigger.m_Input = ddf_trigger.m_Input;
-                binding->m_TouchDeviceBinding->m_Triggers.Push(trigger);
-                binding->m_Actions.Put(trigger.m_ActionId, action);
+                // TODO: reveal this again, https://defold.fogbugz.com/default.asp?1253
+//                const dmInputDDF::TouchTrigger& ddf_trigger = ddf->m_TouchTrigger[i];
+//                dmInput::TouchTrigger trigger;
+//                trigger.m_ActionId = dmHashString64(ddf_trigger.m_Action);
+//                trigger.m_Input = ddf_trigger.m_Input;
+//                binding->m_TouchDeviceBinding->m_Triggers.Push(trigger);
+//                binding->m_Actions.Put(trigger.m_ActionId, action);
             }
             // Mouse move action
             binding->m_Actions.Put(0, action);
