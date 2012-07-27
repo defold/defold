@@ -45,3 +45,4 @@ Export-Package: com.dynamo.cr.server,
  com.dynamo.cr.server.auth,
  com.dynamo.cr.server.resources,
  com.dynamo.cr.server.util
+JPA-PersistenceUnits: unit-test
