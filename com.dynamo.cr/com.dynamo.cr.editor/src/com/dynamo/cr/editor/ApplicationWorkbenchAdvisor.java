@@ -1,11 +1,16 @@
 package com.dynamo.cr.editor;
 
+import org.eclipse.core.commands.ExecutionException;
+import org.eclipse.core.commands.NotEnabledException;
+import org.eclipse.core.commands.NotHandledException;
+import org.eclipse.core.commands.common.NotDefinedException;
 import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.preferences.InstanceScope;
 import org.eclipse.jface.preference.IPreferenceNode;
 import org.eclipse.jface.preference.IPreferenceStore;
 import org.eclipse.jface.preference.PreferenceManager;
+import org.eclipse.swt.widgets.Display;
 import org.eclipse.ui.IWorkbenchPage;
 import org.eclipse.ui.IWorkbenchWindow;
 import org.eclipse.ui.PlatformUI;
@@ -13,11 +18,13 @@ import org.eclipse.ui.application.IWorkbenchConfigurer;
 import org.eclipse.ui.application.IWorkbenchWindowConfigurer;
 import org.eclipse.ui.application.WorkbenchAdvisor;
 import org.eclipse.ui.application.WorkbenchWindowAdvisor;
+import org.eclipse.ui.handlers.IHandlerService;
 import org.eclipse.ui.internal.ide.IDEInternalPreferences;
 import org.eclipse.ui.internal.ide.IDEWorkbenchPlugin;
 import org.eclipse.ui.navigator.resources.ProjectExplorer;
 
 import com.dynamo.cr.editor.core.EditorUtil;
+import com.dynamo.cr.editor.preferences.PreferenceConstants;
 
 public class ApplicationWorkbenchAdvisor extends WorkbenchAdvisor {
 
@@ -94,8 +101,8 @@ public class ApplicationWorkbenchAdvisor extends WorkbenchAdvisor {
         // NOTE: Internal stuff. There is perhaps a better way?
         // We could disable linked resources in project nature but currently we link the file-store and not possible
         // With local pipeline we could set <options allowLinking="false"/> to project nature instead
-        IPreferenceStore store = IDEWorkbenchPlugin.getDefault().getPreferenceStore();
-        store.setValue(IDEInternalPreferences.IMPORT_FILES_AND_FOLDERS_MODE, IDEInternalPreferences.IMPORT_FILES_AND_FOLDERS_MODE_MOVE_COPY);
+        IPreferenceStore ideWorkbenchStore = IDEWorkbenchPlugin.getDefault().getPreferenceStore();
+        ideWorkbenchStore.setValue(IDEInternalPreferences.IMPORT_FILES_AND_FOLDERS_MODE, IDEInternalPreferences.IMPORT_FILES_AND_FOLDERS_MODE_MOVE_COPY);
 
         // "Auto-refresh with native hooks or polling"
         InstanceScope.INSTANCE.getNode("org.eclipse.core.resources").putBoolean(ResourcesPlugin.PREF_AUTO_REFRESH, true);
@@ -121,13 +128,28 @@ public class ApplicationWorkbenchAdvisor extends WorkbenchAdvisor {
         pm.remove("org.eclipse.ui.preferencePages.Workbench/org.eclipse.ui.preferencePages.Editors/org.eclipse.ui.preferencePages.GeneralTextEditor/org.eclipse.ui.editors.preferencePages.LinkedModePreferencePage");
         pm.remove("org.eclipse.ui.preferencePages.Workbench/org.eclipse.ui.preferencePages.Editors/org.eclipse.ui.preferencePages.GeneralTextEditor/org.eclipse.ui.editors.preferencePages.HyperlinkDetectorsPreferencePage");
 
-        if (!EditorUtil.isDev())
-        {
+        if (!EditorUtil.isDev()) {
             // Remove debug preferences for end-users
             pm.remove("com.dynamo.rclient.preferences.PreferencePage/com.dynamo.rclient.preferences.DebugPreferencePage");
         }
 
         // NOTE: Uncomment line below to dump all preference nodes. Use / as separator. See above
         //dumpPreferencesNodes(pm.getRootSubNodes(), 0);
+
+        final IPreferenceStore editorStore = Activator.getDefault().getPreferenceStore();
+        if (editorStore.getBoolean(PreferenceConstants.P_SHOW_WELCOME_PAGE)) {
+            editorStore.setValue(PreferenceConstants.P_SHOW_WELCOME_PAGE, false);
+            Display.getDefault().asyncExec(new Runnable() {
+                @Override
+                public void run() {
+                    IHandlerService handlerService = (IHandlerService) PlatformUI.getWorkbench().getService(IHandlerService.class);
+                    try {
+                        handlerService.executeCommand("com.dynamo.cr.editor.commands.openWelcome", null);
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            });
+        }
     }
 }
