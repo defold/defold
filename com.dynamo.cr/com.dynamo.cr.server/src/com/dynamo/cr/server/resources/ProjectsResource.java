@@ -13,6 +13,7 @@ import javax.ws.rs.core.Response.Status;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.dynamo.cr.proto.Config.BillingProduct;
 import com.dynamo.cr.proto.Config.Configuration;
 import com.dynamo.cr.proto.Config.ProjectTemplate;
 import com.dynamo.cr.protocol.proto.Protocol.NewProject;
@@ -102,7 +103,8 @@ public class ProjectsResource extends BaseResource {
             throw new ServerException("Unable to create project. Internal error.", Status.INTERNAL_SERVER_ERROR);
         }
 
-        return ResourceUtil.createProjectInfo(server.getConfiguration(), user, project);
+        return ResourceUtil.createProjectInfo(server.getConfiguration(), user, project,
+                ModelUtil.isMemberQualified(em, user, project, server.getConfiguration().getProductsList()));
     }
 
     @GET
@@ -111,9 +113,11 @@ public class ProjectsResource extends BaseResource {
 
         List<Project> list = em.createQuery("select p from Project p where :user member of p.members", Project.class).setParameter("user", user).getResultList();
 
+        List<BillingProduct> products = server.getConfiguration().getProductsList();
         Builder listBuilder = ProjectInfoList.newBuilder();
         for (Project project : list) {
-            ProjectInfo pi = ResourceUtil.createProjectInfo(server.getConfiguration(), user, project);
+            boolean isQualified = ModelUtil.isMemberQualified(em, user, project, products);
+            ProjectInfo pi = ResourceUtil.createProjectInfo(server.getConfiguration(), user, project, isQualified);
             listBuilder.addProjects(pi);
         }
 

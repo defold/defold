@@ -6,6 +6,10 @@ public class ProjectInfo extends BaseResponse {
     protected ProjectInfo() {
     }
 
+    // NOTE match with cr_protocol_ddf.proto
+    public static final String PROJECT_STATUS_OK = "PROJECT_STATUS_OK";
+    public static final String PROJECT_STATUS_UNQUALIFIED = "PROJECT_STATUS_UNQUALIFIED";
+
     // TODO: This should be a long but not representable in javascript
     public final native int getId() /*-{
         return this.id;
@@ -50,5 +54,8 @@ public class ProjectInfo extends BaseResponse {
         return this.iOSExecutableUrl;
     }-*/;
 
+    public final native String getStatus() /*-{
+		return this.status;
+    }-*/;
 
 }

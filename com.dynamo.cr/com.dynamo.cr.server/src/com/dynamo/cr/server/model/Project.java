@@ -15,6 +15,8 @@ import javax.persistence.Table;
 import javax.persistence.Temporal;
 import javax.persistence.TemporalType;
 
+import com.dynamo.cr.server.model.User.Role;
+
 @Entity
 @Table(name="projects")
 public class Project {
@@ -83,6 +85,16 @@ public class Project {
 
     public Set<User> getMembers() {
         return members;
+    }
+
+    public int getMemberCount() {
+        int memberCount = 0;
+        for (User u : this.members) {
+            if (u.getRole() != Role.ADMIN) {
+                ++memberCount;
+            }
+        }
+        return memberCount;
     }
 
     @Override

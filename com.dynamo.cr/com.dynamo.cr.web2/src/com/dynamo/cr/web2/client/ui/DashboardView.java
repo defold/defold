@@ -21,6 +21,8 @@ import com.google.gwt.user.client.ui.Anchor;
 import com.google.gwt.user.client.ui.Button;
 import com.google.gwt.user.client.ui.Composite;
 import com.google.gwt.user.client.ui.FlexTable;
+import com.google.gwt.user.client.ui.FlowPanel;
+import com.google.gwt.user.client.ui.HTML;
 import com.google.gwt.user.client.ui.Widget;
 
 public class DashboardView extends Composite {
@@ -60,6 +62,12 @@ public class DashboardView extends Composite {
             final ProjectInfo projectInfo = projects.get(i);
             UserInfo owner = projectInfo.getOwner();
 
+            FlowPanel panel = new FlowPanel();
+            if (projectInfo.getStatus().equals(ProjectInfo.PROJECT_STATUS_UNQUALIFIED)) {
+                HTML html = new HTML("<i class=\"icon-exclamation-sign\"></i>");
+                html.setTitle("You must upgrade your plan to work in this project.");
+                panel.add(html);
+            }
             Anchor anchor = new Anchor(projectInfo.getName());
             anchor.addClickHandler(new ClickHandler() {
                 @Override
@@ -67,7 +75,8 @@ public class DashboardView extends Composite {
                     listener.showProject(projectInfo);
                 }
             });
-            this.projects.setWidget(i, 0, anchor);
+            panel.add(anchor);
+            this.projects.setWidget(i, 0, panel);
             this.projects.setText(i, 1, owner.getFirstName() + " " + owner.getLastName());
         }
 

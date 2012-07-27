@@ -8,16 +8,18 @@ import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.ISelectionChangedListener;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.LabelProvider;
-import org.eclipse.jface.viewers.ListViewer;
 import org.eclipse.jface.viewers.SelectionChangedEvent;
+import org.eclipse.jface.viewers.TableViewer;
 import org.eclipse.jface.wizard.WizardPage;
 import org.eclipse.swt.SWT;
+import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.Composite;
 
 import com.dynamo.cr.editor.Activator;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
+import com.dynamo.cr.protocol.proto.Protocol.ProjectStatus;
 
 /**
  * Wizard page shown when the user has chosen car as means of
@@ -25,7 +27,7 @@ import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
  */
 public class ConnectionWizardProjectsPageView extends WizardPage implements ConnectionWizardProjectsPagePresenter.IDisplay, ISelectionChangedListener
 {
-    private ListViewer projectList;
+    private TableViewer projectList;
     private ConnectionWizardProjectsPagePresenter presenter;
 
     /**
@@ -51,16 +53,25 @@ public class ConnectionWizardProjectsPageView extends WizardPage implements Conn
         int ncol = 1;
         gl.numColumns = ncol;
         composite.setLayout(gl);
-        projectList = new ListViewer(composite, SWT.SINGLE | SWT.V_SCROLL | SWT.BORDER);
-        projectList.getList().setLayoutData(new GridData(GridData.FILL_BOTH));
+        projectList = new TableViewer(composite, SWT.SINGLE | SWT.V_SCROLL | SWT.BORDER);
+        projectList.getTable().setLayoutData(new GridData(GridData.FILL_BOTH));
         projectList.addSelectionChangedListener(this);
         projectList.setContentProvider(new ArrayContentProvider());
         projectList.setLabelProvider(new LabelProvider() {
-           @Override
-           public String getText(Object element) {
-               ProjectInfo p = (ProjectInfo) element;
-               return p.getName();
-           }
+            @Override
+            public String getText(Object element) {
+                ProjectInfo p = (ProjectInfo) element;
+                return p.getName();
+            }
+
+            @Override
+            public Image getImage(Object element) {
+                ProjectInfo p = (ProjectInfo) element;
+                if (p.getStatus() != ProjectStatus.PROJECT_STATUS_OK) {
+                    return Activator.getDefault().getImageRegistry().get(Activator.OVERLAY_ERROR_IMAGE_ID);
+                }
+                return super.getImage(element);
+            }
         });
 
         setControl(composite);

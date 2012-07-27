@@ -26,6 +26,7 @@ import com.dynamo.cr.common.providers.ProtobufProviders;
 import com.dynamo.cr.protocol.proto.Protocol.NewProject;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfoList;
+import com.dynamo.cr.protocol.proto.Protocol.ProjectStatus;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfoList;
 import com.dynamo.cr.server.auth.AuthCookie;
 import com.dynamo.cr.server.model.Project;
@@ -598,6 +599,47 @@ public class ProjectsResourceTest extends AbstractResourceTest {
 
         response = bobProjectsWebResource.path(String.format("/%d", joeUser.getId())).get(ClientResponse.class);
         assertEquals(403, response.getStatus());
+    }
+
+    @Test
+    public void testProjectStatus() throws Exception {
+        // Setup is:
+        // p1: joe, bob
+        // p2: joe
+        NewProject newProject = NewProject.newBuilder()
+                .setName("p1")
+                .setDescription("New test project").build();
+
+        ProjectInfo projectInfo = joeProjectsWebResource
+                .path(joeUser.getId().toString())
+                .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
+                .type(ProtobufProviders.APPLICATION_XPROTOBUF)
+                .post(ProjectInfo.class, newProject);
+
+        // Add bob as member
+        joeProjectsWebResource.path(String.format("/%d/%d/members", joeUser.getId(), projectInfo.getId()))
+                .post(bobEmail);
+
+        newProject = NewProject.newBuilder()
+                .setName("p2")
+                .setDescription("New test project").build();
+
+        projectInfo = joeProjectsWebResource
+                .path(joeUser.getId().toString())
+                .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
+                .type(ProtobufProviders.APPLICATION_XPROTOBUF)
+                .post(ProjectInfo.class, newProject);
+
+        assertThat(projectInfo.getStatus(), is(ProjectStatus.PROJECT_STATUS_OK));
+
+        ProjectInfoList list = joeProjectsWebResource
+                .path(joeUser.getId().toString())
+                .accept(MediaType.APPLICATION_JSON_TYPE)
+                .type(MediaType.APPLICATION_JSON_TYPE)
+                .get(ProjectInfoList.class);
+
+        assertThat(list.getProjects(0).getStatus(), is(ProjectStatus.PROJECT_STATUS_UNQUALIFIED));
+        assertThat(list.getProjects(1).getStatus(), is(ProjectStatus.PROJECT_STATUS_OK));
     }
 
 }

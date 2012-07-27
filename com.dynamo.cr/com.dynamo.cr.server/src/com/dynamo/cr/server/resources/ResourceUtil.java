@@ -12,6 +12,7 @@ import com.dynamo.cr.proto.Config.Configuration;
 import com.dynamo.cr.protocol.proto.Protocol.CreditCardInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ProductInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
+import com.dynamo.cr.protocol.proto.Protocol.ProjectStatus;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
 import com.dynamo.cr.protocol.proto.Protocol.UserSubscriptionInfo;
 import com.dynamo.cr.protocol.proto.Protocol.UserSubscriptionState;
@@ -66,7 +67,8 @@ public class ResourceUtil {
         return baseUri;
     }
 
-    public static ProjectInfo createProjectInfo(Configuration configuration, User user, Project project) {
+    public static ProjectInfo createProjectInfo(Configuration configuration, User user, Project project,
+            boolean isQualified) {
         ProjectInfo.Builder b = ProjectInfo.newBuilder()
             .setId(project.getId())
             .setName(project.getName())
@@ -78,18 +80,23 @@ public class ResourceUtil {
                     configuration.getServicePort(),
                     getGitBaseUri(configuration),
                     project.getId()));
+        if (isQualified) {
+            b.setStatus(ProjectStatus.PROJECT_STATUS_OK);
+        } else {
+            b.setStatus(ProjectStatus.PROJECT_STATUS_UNQUALIFIED);
+        }
 
-            if (Server.getEngineFile(configuration, Long.toString(project.getId()), "ios").exists()) {
-                String key = Server.getEngineDownloadKey(project);
-                String url = String.format("http://%s:%d/projects/%d/%d/engine_manifest/ios/%s",
-                                           configuration.getHostname(),
-                                           configuration.getServicePort(),
-                                           user.getId(),
-                                           project.getId(),
-                                           key);
+        if (Server.getEngineFile(configuration, Long.toString(project.getId()), "ios").exists()) {
+            String key = Server.getEngineDownloadKey(project);
+            String url = String.format("http://%s:%d/projects/%d/%d/engine_manifest/ios/%s",
+                    configuration.getHostname(),
+                    configuration.getServicePort(),
+                    user.getId(),
+                    project.getId(),
+                    key);
 
-                b.setIOSExecutableUrl(url);
-            }
+            b.setIOSExecutableUrl(url);
+        }
 
         for (User u : project.getMembers()) {
             b.addMembers(createUserInfo(u));

@@ -26,12 +26,14 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.dynamo.cr.proto.Config.BillingProduct;
 import com.dynamo.cr.server.model.Invitation;
 import com.dynamo.cr.server.model.InvitationAccount;
 import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.Prospect;
 import com.dynamo.cr.server.model.User;
+import com.dynamo.cr.server.model.User.Role;
 import com.dynamo.cr.server.model.UserSubscription;
 import com.dynamo.cr.server.model.UserSubscription.CreditCard;
 import com.dynamo.cr.server.test.Util;
@@ -48,6 +50,9 @@ public class ModelTest {
     private static final String PERSISTENCE_UNIT_NAME = "unit-test";
     private static EntityManagerFactory factory;
     private EntityManager em;
+
+    Project p1;
+    Project p2;
 
     @Before
     public void setUp() throws Exception {
@@ -115,8 +120,8 @@ public class ModelTest {
         em.persist(a3);
 
         // Create new projects
-        Project p1 = ModelUtil.newProject(em, u1, "Carl Contents Project", "Carl Contents Project Description");
-        Project p2 = ModelUtil.newProject(em, u2, "Joe Coders' Project", "Joe Coders' Project Description");
+        p1 = ModelUtil.newProject(em, u1, "Carl Contents Project", "Carl Contents Project Description");
+        p2 = ModelUtil.newProject(em, u2, "Joe Coders' Project", "Joe Coders' Project Description");
 
         // Add users to project
         ModelUtil.addMember(p1, u2);
@@ -464,6 +469,78 @@ public class ModelTest {
         assertThat(cc.getMaskedNumber(), is("masked_number"));
         assertThat(cc.getExpirationMonth(), is(1));
         assertThat(cc.getExpirationYear(), is(2));
+    }
+
+    private List<BillingProduct> createProducts() {
+        Long[] productIds = new Long[] { FREE_PRODUCT_ID, SMALL_PRODUCT_ID };
+        List<BillingProduct> products = new ArrayList<BillingProduct>(2);
+        for (Long id : productIds) {
+            BillingProduct.Builder b = BillingProduct.newBuilder();
+            b.setId((int) id.longValue());
+            b.setName("" + id);
+            b.setHandle("" + id);
+            b.setFee(0);
+            b.setMaxMemberCount(id == FREE_PRODUCT_ID ? 1 : 2);
+            b.setDefault(id == FREE_PRODUCT_ID ? 1 : 0);
+            products.add(b.build());
+        }
+        return products;
+    }
+
+    @Test
+    public void testDefaultProduct() throws Exception {
+        List<BillingProduct> products = createProducts();
+        em.getTransaction().begin();
+        User u1 = ModelUtil.findUserByEmail(em, CARL_CONTENT_EMAIL);
+        BillingProduct product = ModelUtil.getUserProduct(em, u1, products);
+        assertThat(FREE_PRODUCT_ID, is((long) product.getId()));
+        em.getTransaction().commit();
+    }
+
+    @Test
+    public void testUserProduct() throws Exception {
+        List<BillingProduct> products = createProducts();
+
+        em.getTransaction().begin();
+        User carl = ModelUtil.findUserByEmail(em, CARL_CONTENT_EMAIL);
+        BillingProduct product = ModelUtil.getUserProduct(em, carl, products);
+        assertThat(FREE_PRODUCT_ID, is((long) product.getId()));
+
+        ModelUtil.newUserSubscription(em, carl, SMALL_PRODUCT_ID, 2l, 3l, null);
+        em.getTransaction().commit();
+
+        em.getTransaction().begin();
+        product = ModelUtil.getUserProduct(em, carl, products);
+        assertThat(SMALL_PRODUCT_ID, is((long) product.getId()));
+        em.getTransaction().commit();
+    }
+
+    @Test
+    public void testMemberQualified() throws Exception {
+        List<BillingProduct> products = createProducts();
+
+        em.getTransaction().begin();
+        // p1: u2, u3
+        // p2: u1, u3
+        User u1 = ModelUtil.findUserByEmail(em, CARL_CONTENT_EMAIL);
+        User u2 = ModelUtil.findUserByEmail(em, JOE_CODER_EMAIL);
+
+        // Test membership
+        assertFalse(ModelUtil.isMemberQualified(em, u1, p1, products));
+
+        // Test admin
+        u1.setRole(Role.ADMIN);
+        assertTrue(ModelUtil.isMemberQualified(em, u1, p1, products));
+
+        // Test free plan
+        assertFalse(ModelUtil.isMemberQualified(em, u2, p2, products));
+
+        // Test small plan
+        ModelUtil.newUserSubscription(em, u2, SMALL_PRODUCT_ID, 1l, 2l, null);
+        em.getTransaction().commit();
+        em.getTransaction().begin();
+        assertTrue(ModelUtil.isMemberQualified(em, u2, p2, products));
+        em.getTransaction().commit();
     }
 }
 
