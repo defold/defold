@@ -71,6 +71,8 @@ public class ProjectView extends Composite {
     @UiField HTMLPanel addMemberPanel;
     @UiField Anchor iOSDownload;
     @UiField Label signedExeInfo;
+    @UiField
+    HTMLPanel unqualifiedWarning;
 
     private final MultiWordSuggestOracle suggestions = new MultiWordSuggestOracle();
     private Presenter listener;
@@ -168,6 +170,8 @@ public class ProjectView extends Composite {
         }
 
         iOSDownload.setHref("itms-services://?action=download-manifest&url=" + iOSUrl);
+
+        unqualifiedWarning.setVisible(projectInfo.getStatus().equals(ProjectInfo.PROJECT_STATUS_UNQUALIFIED));
     }
 
     public void setLog(int userId, Log log) {

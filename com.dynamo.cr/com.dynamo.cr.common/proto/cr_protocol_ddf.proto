@@ -104,7 +104,7 @@ message ProjectTemplateInfoList {
 // Status of the project in relation to the user who fetched the information
 enum ProjectStatus {
     PROJECT_STATUS_OK = 0;
-    PROJECT_STATUS_UNQUALIFIED = 1;
+    PROJECT_STATUS_UNQUALIFIED = -1;
 }
 
 message ProjectInfo {
