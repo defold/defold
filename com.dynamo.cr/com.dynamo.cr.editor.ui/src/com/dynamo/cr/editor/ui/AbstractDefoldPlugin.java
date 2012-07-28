@@ -36,6 +36,6 @@ public abstract class AbstractDefoldPlugin extends AbstractUIPlugin implements I
     protected void initializeImageRegistry(ImageRegistry reg) {
         super.initializeImageRegistry(reg);
 
-        reg.put(IMG_UNKNOWN, imageDescriptorFromPlugin(Activator.PLUGIN_ID, "icons/unknown.png"));
+        reg.put(IMG_UNKNOWN, imageDescriptorFromPlugin(EditorUIPlugin.PLUGIN_ID, "icons/unknown.png"));
     }
 }

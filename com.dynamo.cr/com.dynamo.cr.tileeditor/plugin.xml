@@ -1148,5 +1148,14 @@
          <enablement></enablement>
       </commonWizard>
    </extension>
+   <extension
+         point="com.dynamo.cr.editor.ui.tip">
+      <tip
+            editor-id="com.dynamo.cr.tileeditor.tileSetEditor"
+            link="See the &lt;a href=&quot;http://www.defold.com/doc/tiles&quot;&gt;tile guide&lt;/a&gt; for more information"
+            tip="Use space to show the palette or pick existing tiles with right-click (three button) or shift-click (one button)"
+            title="Editing tip">
+      </tip>
+   </extension>
 
 </plugin>

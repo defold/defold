@@ -1,9 +1,9 @@
 Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
 Bundle-Name: Editor UI
-Bundle-SymbolicName: com.dynamo.cr.editor.ui
+Bundle-SymbolicName: com.dynamo.cr.editor.ui;singleton:=true
 Bundle-Version: 1.0.0.qualifier
-Bundle-Activator: com.dynamo.cr.editor.ui.Activator
+Bundle-Activator: com.dynamo.cr.editor.ui.EditorUIPlugin
 Bundle-Vendor: DYNAMO
 Require-Bundle: org.eclipse.core.runtime,
  org.eclipse.core.resources;bundle-version="3.7.100",
