@@ -10,7 +10,7 @@ public class Logger implements ILogger {
 
     @Override
     public void logException(Throwable exception) {
-        Status status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, exception.getMessage(), exception);
+        Status status = new Status(IStatus.ERROR, EditorUIPlugin.PLUGIN_ID, exception.getMessage(), exception);
         StatusManager.getManager().handle(status, StatusManager.LOG);
     }
 

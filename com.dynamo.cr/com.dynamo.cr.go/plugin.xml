@@ -402,4 +402,14 @@
             name="Scene Editor">
       </editor>
    </extension>
+   <extension
+         id="dsf"
+         point="com.dynamo.cr.editor.ui.tip">
+      <tip
+            editor-id="com.dynamo.cr.go.ui.goEditor"
+            link="For more information see the &lt;a href=&quot;http://www.defold.com/doc/scene_editing&quot;&gt;guide&lt;/a&gt;"
+            tip="Tracking: Alt + Right Button (Three Button) or Option + Ctrl + Mouse Button (One Button)\nDollying: Alt + Middle Button (Three Button) or Ctrl + Mouse Button (One Button)"
+            title="Navigation tip">
+      </tip>
+   Navigation tip:\nTracking: Alt + Right Button (Three Button) or Option + Ctrl + Mouse Button (One Button)\nDollying: Alt + Middle Button (Three Button) or Ctrl + Mouse Button (One Button)</extension>
 </plugin>
