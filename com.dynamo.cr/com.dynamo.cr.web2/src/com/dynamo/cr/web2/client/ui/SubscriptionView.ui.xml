@@ -47,7 +47,7 @@
 		                    <g:Grid ui:field="productTable"></g:Grid>
 		                    <p>
 		                        * Since we haven't released our billing system yet, you currently get full access through the <strong>Free</strong> plan.
-                                This will however change to a team size of 1 once we have.
+                                This will however change to a team size of 1 once we have. Please go to the <a href="/plans">plans</a> page for a description of our plans in the future.
 		                    </p>
 		                    <g:HTMLPanel ui:field="creditCard">
 		                        <table class="table table-credit-card">
