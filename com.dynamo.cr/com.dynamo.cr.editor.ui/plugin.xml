@@ -9,7 +9,7 @@
             default="false"
             extensions="project"
             id="com.dynamo.cr.editor.ui.gameProjectEditor"
-            name="Game Project">
+            name="Game Project Editor">
       </editor>
    </extension>
    <extension
