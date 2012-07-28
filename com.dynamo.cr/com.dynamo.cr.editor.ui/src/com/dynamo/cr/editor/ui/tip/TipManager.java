@@ -74,6 +74,9 @@ public class TipManager implements IPartListener {
                     this.tipControl.setTip(tip);
                     this.editorWindow.setMessageAreaVisible(true);
                     currentTipPart = (IEditorPart) part;
+                } else {
+                    this.editorWindow.setMessageAreaVisible(false);
+                    currentTipPart = null;
                 }
             }
         } else {
