@@ -1,4 +1,7 @@
-package com.dynamo.cr.editor.ui;
+package com.dynamo.cr.editor.ui.internal;
+
+import javax.inject.Inject;
+import javax.inject.Provider;
 
 import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.jface.layout.GridDataFactory;
@@ -13,7 +16,9 @@ import org.eclipse.swt.widgets.Menu;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.ui.application.IWorkbenchWindowConfigurer;
 
-import com.dynamo.cr.editor.ui.tip.TipManager;
+import com.dynamo.cr.editor.ui.IEditorWindow;
+import com.dynamo.cr.editor.ui.SimpleProgressProvider;
+import com.dynamo.cr.editor.ui.tip.ITipManager;
 
 /**
  * Main window abstraction. Responsible for creating the top-level window.
@@ -33,26 +38,33 @@ import com.dynamo.cr.editor.ui.tip.TipManager;
  * @author chmu
  *
  */
-public class EditorWindow  {
+public class EditorWindow implements IEditorWindow {
 
-    private IWorkbenchWindowConfigurer windowConfigurer;
+    // It's crucial that we use a provider here for lazy binding
+    // IWorkbenchWindowConfigurer is initially null, see
+    // EditorUIPlugin
+    @Inject
+    private Provider<IWorkbenchWindowConfigurer> windowConfigurer;
     private Shell shell;
     private Control tipControl;
-    private TipManager tipManager;
+    @Inject
+    private ITipManager tipManager;
 
-    public EditorWindow(IWorkbenchWindowConfigurer windowConfigurer) {
-        this.windowConfigurer = windowConfigurer;
+    public EditorWindow() {
     }
+
 
     public IWorkbenchWindowConfigurer getWindowConfigurer() {
-        return windowConfigurer;
+        return windowConfigurer.get();
     }
 
+    @Override
     public void setMessageAreaVisible(boolean visible) {
         ((GridData) tipControl.getLayoutData()).heightHint = visible ? SWT.DEFAULT : 0;
         shell.layout();
     }
 
+    @Override
     public void createContents(final Shell shell) {
         this.shell = shell;
         GridLayout layout = new GridLayout(1, false);
@@ -65,7 +77,6 @@ public class EditorWindow  {
         Menu menuBar = window.getMenuBarManager().createMenuBar((Decorations) shell);
         shell.setMenuBar(menuBar);
 
-        tipManager = new TipManager(this, getWindowConfigurer().getWindow().getPartService());
         tipControl = tipManager.createControl(shell);
         tipControl.setLayoutData(GridDataFactory.fillDefaults().grab(true, false).align(SWT.FILL, SWT.FILL).create());
 

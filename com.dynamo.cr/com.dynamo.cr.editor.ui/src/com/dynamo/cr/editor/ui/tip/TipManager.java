@@ -3,6 +3,8 @@ package com.dynamo.cr.editor.ui.tip;
 import java.util.HashMap;
 import java.util.Map;
 
+import javax.inject.Inject;
+
 import org.eclipse.core.runtime.IConfigurationElement;
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.jface.preference.IPreferenceStore;
@@ -13,22 +15,20 @@ import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.IPartListener;
 import org.eclipse.ui.IPartService;
 import org.eclipse.ui.IWorkbenchPart;
+import org.eclipse.ui.IWorkbenchWindow;
+import org.eclipse.ui.PlatformUI;
 
 import com.dynamo.cr.editor.ui.EditorUIPlugin;
-import com.dynamo.cr.editor.ui.EditorWindow;
+import com.dynamo.cr.editor.ui.IEditorWindow;
 
-public class TipManager implements IPartListener {
+public class TipManager implements IPartListener, ITipManager {
     private TipControl tipControl;
-    private EditorWindow editorWindow;
-    private IPartService partService;
+    @Inject
+    private IEditorWindow editorWindow;
     private Map<String, Tip> tips = new HashMap<String, Tip>();
     private IEditorPart currentTipPart = null;
 
-    public TipManager(EditorWindow editorWindow, IPartService partService) {
-        this.editorWindow = editorWindow;
-        this.partService = partService;
-        partService.addPartListener(this);
-
+    public TipManager() {
         IConfigurationElement[] config = Platform.getExtensionRegistry()
                 .getConfigurationElementsFor("com.dynamo.cr.editor.ui.tip");
         for (IConfigurationElement e : config) {
@@ -41,11 +41,17 @@ public class TipManager implements IPartListener {
         }
     }
 
+    @Override
     public void dispose() {
+        IPartService partService = PlatformUI.getWorkbench().getActiveWorkbenchWindow().getPartService();
         partService.removePartListener(this);
     }
 
+    @Override
     public Control createControl(Shell shell) {
+        IPartService partService = PlatformUI.getWorkbench().getActiveWorkbenchWindow().getPartService();
+        partService.addPartListener(this);
+
         if (tipControl != null) {
             throw new RuntimeException("createControl can only be called once");
         }
@@ -53,7 +59,9 @@ public class TipManager implements IPartListener {
         return tipControl;
     }
 
+    @Override
     public void hideTip(Tip tip) {
+        currentTipPart = null;
         editorWindow.setMessageAreaVisible(false);
         if (tip != null) {
             IPreferenceStore store = EditorUIPlugin.getDefault().getPreferenceStore();
@@ -64,16 +72,21 @@ public class TipManager implements IPartListener {
 
     @Override
     public void partActivated(IWorkbenchPart part) {
-        String id = part.getSite().getId();
-        IEditorPart activeEditor = part.getSite().getPage().getActiveEditor();
+        showTip(false);
+    }
+
+    @Override
+    public void showTip(boolean force) {
+        IEditorPart activeEditor = PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage().getActiveEditor();
         if (activeEditor != null) {
+            String id = activeEditor.getSite().getId();
             if (currentTipPart != activeEditor) {
                 // Potentially a new editor with tip
                 Tip tip = tips.get(id);
-                if (tip != null && shouldShow(tip)) {
+                if (tip != null && (shouldShow(tip) || force)) {
                     this.tipControl.setTip(tip);
                     this.editorWindow.setMessageAreaVisible(true);
-                    currentTipPart = (IEditorPart) part;
+                    currentTipPart = activeEditor;
                 } else {
                     this.editorWindow.setMessageAreaVisible(false);
                     currentTipPart = null;
@@ -95,6 +108,18 @@ public class TipManager implements IPartListener {
         String key = tipKey(tip);
         store.setDefault(key, false);
         return store.getBoolean(key) == false;
+    }
+
+    @Override
+    public boolean tipAvailable() {
+        // Might be called when workbench is starting/stopping
+        // so we are carefull with null-pointers.
+        IWorkbenchWindow window = PlatformUI.getWorkbench().getActiveWorkbenchWindow();
+        if (window != null && window.getActivePage() != null) {
+            IEditorPart activeEditor = window.getActivePage().getActiveEditor();
+            return activeEditor != null && tips.containsKey(activeEditor.getEditorSite().getId());
+        }
+        return false;
     }
 
     @Override

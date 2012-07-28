@@ -13,7 +13,6 @@ import org.eclipse.jface.dialogs.ProgressMonitorDialog;
 import org.eclipse.jface.operation.IRunnableWithProgress;
 import org.eclipse.jface.preference.IPreferenceStore;
 import org.eclipse.swt.graphics.Point;
-import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.ui.PlatformUI;
@@ -23,12 +22,13 @@ import org.eclipse.ui.application.IWorkbenchWindowConfigurer;
 import org.eclipse.ui.application.WorkbenchWindowAdvisor;
 import org.eclipse.ui.internal.ide.EditorAreaDropAdapter;
 
-import com.dynamo.cr.editor.ui.EditorWindow;
+import com.dynamo.cr.editor.ui.EditorUIPlugin;
+import com.dynamo.cr.editor.ui.IEditorWindow;
 
 @SuppressWarnings("restriction")
 public class ApplicationWorkbenchWindowAdvisor extends WorkbenchWindowAdvisor {
 
-    private EditorWindow editorWindow;
+    private IEditorWindow editorWindow;
 
     public ApplicationWorkbenchWindowAdvisor(IWorkbenchWindowConfigurer configurer) {
         super(configurer);
@@ -40,7 +40,7 @@ public class ApplicationWorkbenchWindowAdvisor extends WorkbenchWindowAdvisor {
 
     @Override
     public void createWindowContents(final Shell shell) {
-        editorWindow = new EditorWindow(getWindowConfigurer());
+        editorWindow = EditorUIPlugin.getDefault().createWindow(shell, getWindowConfigurer());
         editorWindow.createContents(shell);
     }
 
