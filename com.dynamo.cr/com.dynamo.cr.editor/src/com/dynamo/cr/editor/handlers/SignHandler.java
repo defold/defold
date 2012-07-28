@@ -25,6 +25,7 @@ import org.eclipse.ui.handlers.HandlerUtil;
 
 import com.dynamo.cr.client.IProjectClient;
 import com.dynamo.cr.editor.Activator;
+import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.engine.Engine;
 import com.dynamo.cr.target.core.TargetPlugin;
 import com.dynamo.cr.target.sign.IIdentityLister;
@@ -156,4 +157,8 @@ public class SignHandler extends AbstractHandler {
         return null;
     }
 
+    @Override
+    public boolean isEnabled() {
+        return EditorUtil.isMac() && Activator.getDefault().projectClient != null;
+    }
 }

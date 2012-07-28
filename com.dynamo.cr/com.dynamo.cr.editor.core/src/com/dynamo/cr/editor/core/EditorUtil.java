@@ -107,4 +107,17 @@ public class EditorUtil {
         String dev = System.getProperty("osgi.dev");
         return dev != null;
     }
+
+    private static Boolean isMac = null;
+
+    /**
+     * Return whether the editor is currently running in OS X or not. Based on
+     * if the "os.name" system property has "mac" in it.
+     */
+    public static boolean isMac() {
+        if (isMac == null) {
+            isMac = System.getProperty("os.name").toLowerCase().indexOf("mac") >= 0;
+        }
+        return isMac;
+    }
 }
