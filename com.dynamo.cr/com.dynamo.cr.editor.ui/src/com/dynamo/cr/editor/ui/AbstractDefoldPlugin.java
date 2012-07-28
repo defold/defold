@@ -12,7 +12,8 @@ public abstract class AbstractDefoldPlugin extends AbstractUIPlugin implements I
     public static final String IMG_UNKNOWN = "UNKNOWN";
 
     @Override
-    public Image getImage(String extension) {
+    public Image getIconByExtension(String extension) {
+        // Extract extension
         if (extension.indexOf('.') != -1) {
             extension = FilenameUtils.getExtension(extension);
         }

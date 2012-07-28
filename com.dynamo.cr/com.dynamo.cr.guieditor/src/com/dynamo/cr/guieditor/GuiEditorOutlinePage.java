@@ -141,7 +141,7 @@ public class GuiEditorOutlinePage extends ContentOutlinePage implements ISelecti
 
         Image getImageFromFilename(String name) {
             if (name.lastIndexOf('.') != -1) {
-                return Activator.getDefault().getImage(name);
+                return Activator.getDefault().getIconByExtension(name);
             }
             return null;
         }
@@ -152,7 +152,7 @@ public class GuiEditorOutlinePage extends ContentOutlinePage implements ISelecti
             Image image = null;
 
             if (element instanceof GuiScene) {
-                image = Activator.getDefault().getImage("gui");
+                image = Activator.getDefault().getIconByExtension("gui");
             } else if (element.equals("Fonts")) {
                 image = sharedImages.getImage(ISharedImages.IMG_OBJ_FOLDER);
             } else if (element.equals("Textures")) {
