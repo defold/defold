@@ -2,5 +2,24 @@
 <?eclipse version="3.4"?>
 <plugin>
    <extension-point id="com.dynamo.cr.editor.ui.tip" name="Tip" schema="schema/com.dynamo.cr.editor.ui.tip.exsd"/>
+   <extension
+         point="org.eclipse.ui.editors">
+      <editor
+            class="org.eclipse.ui.editors.text.TextEditor"
+            default="false"
+            extensions="project"
+            id="com.dynamo.cr.editor.ui.gameProjectEditor"
+            name="Game Project">
+      </editor>
+   </extension>
+   <extension
+         point="com.dynamo.cr.editor.ui.tip">
+      <tip
+            editor-id="com.dynamo.cr.editor.ui.gameProjectEditor"
+            link="See &lt;a href=&quot;http://www.defold.com/doc/game_project&quot;&gt;Game Engine Project Settings&lt;/a&gt; for reference"
+            tip="Edit engine settings in this file"
+            title="Game Engine Settings">
+      </tip>
+   </extension>
 
 </plugin>
