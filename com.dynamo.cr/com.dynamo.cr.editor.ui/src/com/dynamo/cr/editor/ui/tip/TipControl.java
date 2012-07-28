@@ -80,13 +80,13 @@ public class TipControl extends Composite {
         }
     }
 
-    private TipManager tipManager;
+    private ITipManager tipManager;
     private Label tipLabel;
     private Tip tip;
     private Link link;
     private Label title;
 
-    public TipControl(TipManager tipManager, Composite parent, int style) {
+    public TipControl(ITipManager tipManager, Composite parent, int style) {
         super(parent, style);
         this.tipManager = tipManager;
         Color color = new Color(Display.getDefault(), new RGB(252, 248, 227));
