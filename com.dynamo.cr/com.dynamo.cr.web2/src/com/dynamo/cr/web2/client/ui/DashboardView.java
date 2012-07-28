@@ -63,7 +63,8 @@ public class DashboardView extends Composite {
             UserInfo owner = projectInfo.getOwner();
 
             FlowPanel panel = new FlowPanel();
-            if (projectInfo.getStatus().equals(ProjectInfo.PROJECT_STATUS_UNQUALIFIED)) {
+            if (projectInfo.getStatus() != null && projectInfo.getStatus().equals(
+                    ProjectInfo.PROJECT_STATUS_UNQUALIFIED)) {
                 HTML html = new HTML("<i class=\"icon-exclamation-sign\"></i>");
                 html.setTitle("You must upgrade your plan to work in this project.");
                 panel.add(html);

@@ -21,6 +21,7 @@ render('plans.html', 'plans/index.html', active_page = 'plans')
 docs = ['eula.html',
         'game_project.html',
         'hud.html',
+        'ios.html',
         'introduction.html',
         'level_complete.html',
         'main_menu.html',

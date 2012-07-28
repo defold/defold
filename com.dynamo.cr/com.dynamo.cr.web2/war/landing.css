@@ -167,6 +167,10 @@ body {
     border: 8px solid #94b400;
 }
 
+.features-orange {
+    border: 8px solid #ffb400;
+}
+
 .feature-image {
     text-align: center;
 }

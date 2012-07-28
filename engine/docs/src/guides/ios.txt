@@ -1,0 +1,69 @@
+iOS Development
+===============
+
+This guide explains how to develop games on iOS devices in Defold.
+
+Signing the Defold App
+----------------------
+
+Currently, at least one in the project needs to run OS X and be a registered Apple Developer.
+This is needed to sign the Defold App for the other team members, so they can run it on their iOS devices.
+We will call this person the _signer_.
+The signer needs to have a mobile provisioning file, issued by Apple.
+This can be obtained from the link:https://developer.apple.com/devcenter/ios/index.action[iOS Dev Center].
+The signer also needs to collect all the link:http://www.innerfence.com/howto/find-iphone-unique-device-identifier-udid[UDIDs] from the other members and add them to his/hers mobile provisioning file.
+
+Below is a video that shows the steps needed to sing the app.
+
+link:/youtube_embed/T_igYdHubqA["ios signing"]
+
+The steps to take are:
+
+. In the editor, go to *Project > Sign App...*
+. Browse for your mobile provisioning file
+. Select your code signing identity
+. Push *Sign and upload*
+
+((((
+image::images/editor/sign.png["Signing the app", align="center"]
+((((
+
+The Defold app will now be uploaded to the project space on the servers and accessible from the Dashboard.
+Each member can now navigate to the project page with their iOS device and click the link *Install the Defold App*, which can be found below the *Members* section.
+
+Launching the Game
+------------------
+
+To launch the game on your iOS device, the Defold App and editor need to connect.
+For this to happen, they currently need to be connected on the same subnet.
+The most common case is to have a wifi-router which both your computer and device is connected to.
+
+. Make sure the editor is up and running
+. Launch the app on your device. While booting, the app will broadcast a signal about its existence on its subnet.
+. Go to *Project > Target* in the editor and select your device.
+  If the device is not present, try opening the menu again.
+  Each time you open that menu, the editor broadcasts a signal, prompting any running app on your subnet to make a new broadcast.
+. Run the game in the editor: *Project > Build And Launch*.
+  The screen on your iOS device will now turn white while your game is being streamed over the network.
+. While the game is running, you can use link:/doc/reload[hot reloading] as usual on your device.
+
+Troubleshooting
+---------------
+
+The app shuts down on start-up
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Make sure the signer has included your UDID in his/hers mobile provisioning file.
+
+Your device does not appear in the Target-menu
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Make sure that your device is on the same subnet as your computer.
+
+. Open the *Project > Targets* menu in the editor and note the IP of the _Local_ target.
+  The local target is your computer.
+. In your iOS-device, open the *Settings* app and make sure *Wi-Fi* is turned on and connected to your network.
+. Click the blue right-arrow next to your network to see stats about your connection.
+  Note your IP Address.
+. Make sure the IP address of your local target obtained from step 1. and the IP address of your device have the same three first numbers.
+  The last number should be different. If the first three are not the same, your computer and iOS device are connected to different subnets.

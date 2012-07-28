@@ -178,7 +178,7 @@
          </separator>
          <command
                commandId="com.dynamo.cr.target.commands.sign"
-               label="Sign Executable..."
+               label="Sign App..."
                style="push">
             <visibleWhen
                   checkEnabled="false">
