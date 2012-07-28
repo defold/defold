@@ -13,9 +13,9 @@ The signer needs to have a mobile provisioning file, issued by Apple.
 This can be obtained from the link:https://developer.apple.com/devcenter/ios/index.action[iOS Dev Center].
 The signer also needs to collect all the link:http://www.innerfence.com/howto/find-iphone-unique-device-identifier-udid[UDIDs] from the other members and add them to his/hers mobile provisioning file.
 
-Below is a video that shows the steps needed to sing the app for the other project members.
+Below is a video that shows the steps needed to sing the app.
 
-<iframe width="560" height="315" src="http://www.youtube.com/embed/T_igYdHubqA" frameborder="0" allowfullscreen></iframe>
+link:/youtube_embed/T_igYdHubqA["ios signing"]
 
 The steps to take are:
 
