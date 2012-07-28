@@ -691,5 +691,18 @@
          </command>
       </menuContribution>
    </extension>
+   <extension
+         point="com.dynamo.cr.editor.ui.tip">
+      <tip
+            editor-id="com.dynamo.cr.ddfeditor.inputeditor"
+            tip="Bind hardware inputs to actions that means something in your game, e.g. &quot;jump&quot;.\nUse the context menu to add and remove triggers."
+            title="Input Bindings">
+      </tip>
+      <tip
+            editor-id="com.dynamo.cr.ddfeditor.fonteditor"
+            tip="Use a True Type (ttf) file as a font by first dragging it into the Project Explorer.\nThe preview is WIP and only gives a rough estimate of how your font will look."
+            title="Fonts">
+      </tip>
+   </extension>
 
 </plugin>

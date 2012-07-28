@@ -16,9 +16,9 @@
          point="com.dynamo.cr.editor.ui.tip">
       <tip
             editor-id="com.dynamo.cr.editor.ui.gameProjectEditor"
-            link="See &lt;a href=&quot;http://www.defold.com/doc/game_project&quot;&gt;Game Engine Project Settings&lt;/a&gt; for reference"
-            tip="Edit engine settings in this file"
-            title="Game Engine Settings">
+            link="See &lt;a href=&quot;http://www.defold.com/doc/game_project&quot;&gt;Project Settings&lt;/a&gt; for more info."
+            tip="Edit your project settings in this file."
+            title="Project Settings">
       </tip>
    </extension>
 

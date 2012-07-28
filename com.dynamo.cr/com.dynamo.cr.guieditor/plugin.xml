@@ -255,4 +255,12 @@
             sequence="M1+SHIFT+B">
       </key>
    </extension>
+   <extension
+         point="com.dynamo.cr.editor.ui.tip">
+      <tip
+            editor-id="com.dynamo.cr.guieditor.GuiEditor"
+            tip="If you don&apos;t see the entire gui scene, you can use the scroll bars to move around in it."
+            title="Navigating">
+      </tip>
+   </extension>
 </plugin>
