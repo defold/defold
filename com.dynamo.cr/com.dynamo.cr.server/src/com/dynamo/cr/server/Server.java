@@ -45,10 +45,13 @@ import org.eclipse.jetty.server.handler.ResourceHandler;
 import org.eclipse.jetty.util.resource.Resource;
 import org.eclipse.jgit.http.server.GitServlet;
 import org.eclipse.persistence.config.PersistenceUnitProperties;
+import org.glassfish.grizzly.PortRange;
 import org.glassfish.grizzly.http.server.HttpHandler;
 import org.glassfish.grizzly.http.server.HttpServer;
 import org.glassfish.grizzly.http.server.NetworkListener;
 import org.glassfish.grizzly.http.server.Response;
+import org.glassfish.grizzly.http.server.ServerConfiguration;
+import org.glassfish.grizzly.http.server.StaticHttpHandler;
 import org.glassfish.grizzly.http.util.Header;
 import org.glassfish.grizzly.servlet.ServletHandler;
 import org.slf4j.Logger;
@@ -314,15 +317,32 @@ public class Server implements ServerMBean {
 
         baseUri = String.format("http://0.0.0.0:%d/", this.configuration.getServicePort());
 
-        httpServer = createHttpServer();
+        // Set grizzly timeouts before creating the server
+        if (configuration.hasGrizzlyReadTimeout()) {
+            System.setProperty("com.sun.grizzly.readTimeout", Integer.toString(configuration.getGrizzlyReadTimeout()));
+        }
+        if (configuration.hasGrizzlyWriteTimeout()) {
+            System.setProperty("com.sun.grizzly.writeTimeout", Integer.toString(configuration.getGrizzlyWriteTimeout()));
+        }
+
+        // Manually create server to be able to tweak timeouts
+        httpServer = new HttpServer();
+        ServerConfiguration serverConfig = httpServer.getServerConfiguration();
+        serverConfig.addHttpHandler(new StaticHttpHandler("/"), "/");
+        NetworkListener listener = new NetworkListener("grizzly", NetworkListener.DEFAULT_NETWORK_HOST, new PortRange(configuration.getServicePort()));
+        if (configuration.hasGrizzlyIdleTimeout()) {
+            listener.getKeepAlive().setIdleTimeoutInSeconds(configuration.getGrizzlyIdleTimeout());
+        }
+        httpServer.addListener(listener);
+
         // TODO File caches are temporarily disabled to avoid two bugs:
         // * Content-type is incorrect for cached files:
         // http://java.net/jira/browse/GRIZZLY-1014
         // * Editor downloads consumes a lot of memory (and might leak)
         // Issue here: https://defold.fogbugz.com/default.asp?1177
-        for (NetworkListener listener : httpServer.getListeners()) {
-            listener.getFileCache().setEnabled(false);
-            listener.getFileCache().setMaxCacheEntries(0);
+        for (NetworkListener l : httpServer.getListeners()) {
+            l.getFileCache().setEnabled(false);
+            l.getFileCache().setMaxCacheEntries(0);
         }
         GitServlet gitServlet = new GitServlet();
         ServletHandler gitHandler = new ServletHandler(gitServlet);

@@ -78,6 +78,11 @@ message Configuration
     // downloads
     optional string redirectDownloadsHost = 33;
     optional int32 redirectDownloadsPort = 34 [default=8080];
+
+    // Grizzly test
+    optional int32 grizzly_read_timeout = 35;
+    optional int32 grizzly_write_timeout = 36;
+    optional int32 grizzly_idle_timeout = 37;
 }
 
 message EMailTemplate
