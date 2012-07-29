@@ -522,6 +522,32 @@ TEST_F(HierarchyTest, TestHierarchy9)
     dmGameObject::Delete(m_Collection, child2);
 }
 
+TEST_F(HierarchyTest, TestMultiReparent)
+{
+    // Test unparent
+
+    dmGameObject::HInstance parent1 = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HInstance parent2 = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HInstance child1 = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HInstance child2 = dmGameObject::New(m_Collection, "/go.goc");
+
+    dmGameObject::SetParent(child1, parent1);
+    dmGameObject::SetParent(child2, parent1);
+
+    ASSERT_EQ(parent1, dmGameObject::GetParent(child1));
+    ASSERT_EQ(parent1, dmGameObject::GetParent(child2));
+
+    dmGameObject::SetParent(child2, parent2);
+
+    ASSERT_EQ(parent2, dmGameObject::GetParent(child2));
+    ASSERT_EQ(parent1, dmGameObject::GetParent(child1));
+
+    dmGameObject::Delete(m_Collection, parent1);
+    dmGameObject::Delete(m_Collection, parent2);
+    dmGameObject::Delete(m_Collection, child1);
+    dmGameObject::Delete(m_Collection, child2);
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

@@ -559,6 +559,8 @@ namespace dmGameObject
                 prev_child = child;
                 index = collection->m_Instances[index]->m_SiblingIndex;
             }
+            instance->m_SiblingIndex = INVALID_INSTANCE_INDEX;
+            instance->m_Parent = INVALID_INSTANCE_INDEX;
         }
     }
 
