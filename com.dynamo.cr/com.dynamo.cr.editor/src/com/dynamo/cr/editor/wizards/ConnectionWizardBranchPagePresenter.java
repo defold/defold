@@ -83,6 +83,7 @@ public class ConnectionWizardBranchPagePresenter {
             CreateBranchRunnable createBranchRunnable = new CreateBranchRunnable(name);
             display.runWithProgress(createBranchRunnable);
             if (createBranchRunnable.exception != null) {
+                Activator.logException(createBranchRunnable.exception);
                 display.setErrorMessage(createBranchRunnable.exception.getMessage());
             } else {
                 updateBranchList();
@@ -90,6 +91,7 @@ public class ConnectionWizardBranchPagePresenter {
                 display.setPageComplete(canFinish());
             }
         } catch (Throwable e) {
+            Activator.logException(e);
             display.setErrorMessage(e.getMessage());
         }
     }
@@ -105,6 +107,7 @@ public class ConnectionWizardBranchPagePresenter {
             updateBranchList();
 
         } catch (Throwable e) {
+            Activator.logException(e);
             if (e.getMessage() == null)
                 display.setErrorMessage(e.toString());
             else
@@ -156,6 +159,7 @@ public class ConnectionWizardBranchPagePresenter {
             Activator.getDefault().connectToBranch(client, display.getSelectedBranch());
         }
         catch (Throwable e) {
+            Activator.logException(e);
             MessageDialog.openError(display.getShell(), "Connection error", e.getMessage());
             return false;
         }

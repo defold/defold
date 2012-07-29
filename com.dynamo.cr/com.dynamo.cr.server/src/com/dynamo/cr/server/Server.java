@@ -8,7 +8,6 @@ import java.io.InputStreamReader;
 import java.lang.management.ManagementFactory;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.URL;
 import java.net.URLDecoder;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -54,11 +53,6 @@ import org.glassfish.grizzly.http.util.Header;
 import org.glassfish.grizzly.servlet.ServletHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import ch.qos.logback.classic.LoggerContext;
-import ch.qos.logback.classic.joran.JoranConfigurator;
-import ch.qos.logback.core.joran.spi.JoranException;
-import ch.qos.logback.core.util.StatusPrinter;
 
 import com.dynamo.cr.branchrepo.BranchRepository;
 import com.dynamo.cr.proto.Config.BillingProduct;
@@ -296,30 +290,6 @@ public class Server implements ServerMBean {
         this.configuration = configuration;
         this.mailProcessor = mailProcessor;
         this.billingProvider = billingProvider;
-
-        LoggerContext lc = (LoggerContext) LoggerFactory.getILoggerFactory();
-
-        // Configure logback logging
-        // The logback jars are not located in the current bundle. Hence logback.xml
-        // is not found. Configure logback explicitly
-        try {
-          JoranConfigurator configurator = new JoranConfigurator();
-          configurator.setContext(lc);
-          // the context was probably already configured by default configuration rules
-          lc.reset();
-          File logback = new File("logback.xml");
-          if (logback.exists()) {
-              // Use logback.xml in current dir
-              configurator.doConfigure(logback);
-          } else {
-              // Fallback to default bundled logback.xml
-              URL url = this.getClass().getClassLoader().getResource("/logback.xml");
-              configurator.doConfigure(url);
-          }
-        } catch (JoranException je) {
-           je.printStackTrace();
-        }
-        StatusPrinter.printInCaseOfErrorsOrWarnings(lc);
 
         try {
             secureRandom = SecureRandom.getInstance("SHA1PRNG");
