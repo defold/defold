@@ -60,8 +60,12 @@ public class EditorWindow implements IEditorWindow {
 
     @Override
     public void setMessageAreaVisible(boolean visible) {
-        ((GridData) tipControl.getLayoutData()).heightHint = visible ? SWT.DEFAULT : 0;
-        shell.layout();
+        GridData gd = (GridData) tipControl.getLayoutData();
+        int newHeight = visible ? SWT.DEFAULT : 0;
+        if (newHeight != gd.heightHint) {
+            gd.heightHint = newHeight;
+            shell.layout();
+        }
     }
 
     @Override
@@ -78,7 +82,7 @@ public class EditorWindow implements IEditorWindow {
         shell.setMenuBar(menuBar);
 
         tipControl = tipManager.createControl(shell);
-        tipControl.setLayoutData(GridDataFactory.fillDefaults().grab(true, false).align(SWT.FILL, SWT.FILL).create());
+        tipControl.setLayoutData(GridDataFactory.fillDefaults().grab(true, false).align(SWT.FILL, SWT.FILL).hint(SWT.DEFAULT, 0).create());
 
         Control pageComposite = getWindowConfigurer().createPageComposite(shell);
         pageComposite.setLayoutData(GridDataFactory.fillDefaults().grab(true, true).align(SWT.FILL, SWT.FILL).create());
