@@ -249,7 +249,25 @@ public class Server implements ServerMBean {
     }
 
     HttpServer createHttpServer() throws IOException {
-        HttpServer server = HttpServer.createSimpleServer("/", configuration.getServicePort());
+        // Set grizzly timeouts before creating the server
+        if (configuration.hasGrizzlyReadTimeout()) {
+            System.setProperty("com.sun.grizzly.readTimeout", Integer.toString(configuration.getGrizzlyReadTimeout()));
+        }
+        if (configuration.hasGrizzlyWriteTimeout()) {
+            System.setProperty("com.sun.grizzly.writeTimeout", Integer.toString(configuration.getGrizzlyWriteTimeout()));
+        }
+
+        // Manually create server to be able to tweak timeouts
+        HttpServer server = new HttpServer();
+        ServerConfiguration serverConfig = server.getServerConfiguration();
+        serverConfig.addHttpHandler(new StaticHttpHandler("/"), "/");
+        NetworkListener listener = new NetworkListener("grizzly", NetworkListener.DEFAULT_NETWORK_HOST, new PortRange(
+                configuration.getServicePort()));
+        if (configuration.hasGrizzlyIdleTimeout()) {
+            listener.getKeepAlive().setIdleTimeoutInSeconds(configuration.getGrizzlyIdleTimeout());
+        }
+        server.addListener(listener);
+
         Config config = new Config(this);
         ServletHandler handler = new GuiceHandler(config);
         handler.addFilter(new GuiceFilter(), "GuiceFilter", null);
@@ -317,23 +335,7 @@ public class Server implements ServerMBean {
 
         baseUri = String.format("http://0.0.0.0:%d/", this.configuration.getServicePort());
 
-        // Set grizzly timeouts before creating the server
-        if (configuration.hasGrizzlyReadTimeout()) {
-            System.setProperty("com.sun.grizzly.readTimeout", Integer.toString(configuration.getGrizzlyReadTimeout()));
-        }
-        if (configuration.hasGrizzlyWriteTimeout()) {
-            System.setProperty("com.sun.grizzly.writeTimeout", Integer.toString(configuration.getGrizzlyWriteTimeout()));
-        }
-
-        // Manually create server to be able to tweak timeouts
-        httpServer = new HttpServer();
-        ServerConfiguration serverConfig = httpServer.getServerConfiguration();
-        serverConfig.addHttpHandler(new StaticHttpHandler("/"), "/");
-        NetworkListener listener = new NetworkListener("grizzly", NetworkListener.DEFAULT_NETWORK_HOST, new PortRange(configuration.getServicePort()));
-        if (configuration.hasGrizzlyIdleTimeout()) {
-            listener.getKeepAlive().setIdleTimeoutInSeconds(configuration.getGrizzlyIdleTimeout());
-        }
-        httpServer.addListener(listener);
+        httpServer = createHttpServer();
 
         // TODO File caches are temporarily disabled to avoid two bugs:
         // * Content-type is incorrect for cached files:
