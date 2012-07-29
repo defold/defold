@@ -249,14 +249,6 @@ public class Server implements ServerMBean {
     }
 
     HttpServer createHttpServer() throws IOException {
-        // Set grizzly timeouts before creating the server
-        if (configuration.hasGrizzlyReadTimeout()) {
-            System.setProperty("com.sun.grizzly.readTimeout", Integer.toString(configuration.getGrizzlyReadTimeout()));
-        }
-        if (configuration.hasGrizzlyWriteTimeout()) {
-            System.setProperty("com.sun.grizzly.writeTimeout", Integer.toString(configuration.getGrizzlyWriteTimeout()));
-        }
-
         // Manually create server to be able to tweak timeouts
         HttpServer server = new HttpServer();
         ServerConfiguration serverConfig = server.getServerConfiguration();
