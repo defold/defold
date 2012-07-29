@@ -49,20 +49,6 @@ public class ContentBuilder extends IncrementalProjectBuilder {
     public ContentBuilder() {
     }
 
-    private void showProgressView() {
-        Display.getDefault().asyncExec(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    Activator.getDefault().getWorkbench().getActiveWorkbenchWindow().getActivePage().showView(IPageLayout.ID_PROGRESS_VIEW, null, IWorkbenchPage.VIEW_VISIBLE);
-                } catch (PartInitException pe) {
-                    // Unexpected
-                    Activator.logException(pe);
-                }
-            }
-        });
-    }
-
     private void showProblemsView() {
         Display.getDefault().asyncExec(new Runnable() {
             @Override
@@ -84,8 +70,6 @@ public class ContentBuilder extends IncrementalProjectBuilder {
         branchClient = Activator.getDefault().getBranchClient();
         if (branchClient == null)
             return null;
-
-        showProgressView();
 
         getProject().deleteMarkers(IMarker.PROBLEM, true, IResource.DEPTH_INFINITE);
 
