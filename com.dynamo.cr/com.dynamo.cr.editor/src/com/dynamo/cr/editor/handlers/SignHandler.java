@@ -119,9 +119,14 @@ public class SignHandler extends AbstractHandler {
 
                 projectClient.uploadEngine("ios", stream);
             } catch (Exception e) {
-                String msg = e.getMessage();
-                Status status = new Status(IStatus.ERROR, "com.dynamo.cr", msg);
-                ErrorDialog.openError(shell, "Error signing executable", msg, status);
+                final String msg = e.getMessage();
+                final Status status = new Status(IStatus.ERROR, "com.dynamo.cr", msg);
+                shell.getDisplay().asyncExec(new Runnable() {
+                    @Override
+                    public void run() {
+                        ErrorDialog.openError(shell, "Error signing executable", msg, status);
+                    }
+                });
                 TargetPlugin.getDefault().getLog().log(status);
             }
         }
