@@ -7,6 +7,7 @@ import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.jface.layout.GridDataFactory;
 import org.eclipse.jface.window.ApplicationWindow;
 import org.eclipse.swt.SWT;
+import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.Composite;
@@ -62,7 +63,12 @@ public class EditorWindow implements IEditorWindow {
     public void setMessageAreaVisible(boolean visible) {
         GridData gd = (GridData) tipControl.getLayoutData();
         int newHeight = visible ? SWT.DEFAULT : 0;
-        if (newHeight != gd.heightHint) {
+
+        Point preferredSize = tipControl.computeSize(SWT.DEFAULT, SWT.DEFAULT, true);
+        Point actualSize = tipControl.getSize();
+
+        if (newHeight != gd.heightHint || (visible && preferredSize.y != actualSize.y)) {
+            // Re-layout if visibility changed or preferred height changed
             gd.heightHint = newHeight;
             shell.layout();
         }
