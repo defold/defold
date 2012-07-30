@@ -1,5 +1,79 @@
 :max-width: 45em
 
+We have reached Beta! (1.2.0)
+-----------------------------
+_July 30, 2012_
+
+After many days and nights of hard work, we have finally reached our Beta stage.
+If you have been here before, we hope you like our new visual style!
+There's also a new presentation video about our service on the link:/[front page] for those of you who are new here.
+
+iOS Support
+~~~~~~~~~~~
+
+You can now run your games on your iOS devices through the editor.
+Currently, one person in your team must run OS X in order to sign the app for the others.
+The idea is to provide this as a part of the service in the future, so that anyone can do the signing from any OS.
+We put together a new link:/doc/ios[guide] about this, which also contains a video describing how it works.
+
+Documentation
+~~~~~~~~~~~~~
+
+Apart from the new iOS guide, we also wrote a guide about how the link:/doc/scene_editing[scene editing] works.
+There's also a new search field in the upper right of the site, so hopefully you will find what you're looking for much faster.
+
+As a part of this documentation effort, we have introduced tips in the editor.
+
+((((
+image::images/blog/20120730/tips.png["Editor Tips", align="center"]
+((((
+
+They appear as a top bar when you open a file and contains some basic tips how to edit the file.
+We hope they will speed up the learning curve for newcomers.
+If you know what you are doing already, you can manually close a tip to make sure it never appears again.
+
+Comments on the Site
+~~~~~~~~~~~~~~~~~~~~
+
+We have integrated link:http://disqus.com/[Disqus] to enable comments on parts of the site, like these blog entries.
+So please share your thoughts below.
+Other parts you can comment on are the user guides, tutorials and samples.
+
+Still Free Service
+~~~~~~~~~~~~~~~~~~
+
+Accepting credit card payments online turned out to be a bigger hassle here in Sweden than we thought.
+We are still trying to get all involved parties to work nicely together.
+The new link:/plans[plans page] describes how we will charge in the future, after the Beta.
+We hope no one will be disappointed about not having to pay yet. :-)
+
+Other Fixes
+~~~~~~~~~~~
+
+* Crash when sounds are playing while rebooting the engine
+* Crash when re-parenting multiple child game objects and then deleting them
+* The editor leaked resources which eventually made it crash, especially on Windows
+* The automatic update of the editor timed out during the install on unstable internet connections, we increased the timeout limits to make it more robust
+
+Known Issue: Creating new branches of "larger" projects
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+We have seen some failures when creating new branches of some projects.
+We have not yet completely found out why and when these problems occur.
+What happens is that a connection is lost while the repository is being cloned on the server, which makes the operation fail.
+We are still testing different approaches to fix this.
+Please let us know in the link:http://defold.userecho.com[forums] if you experience this.
+
+Known Issue: Windows 8 not supported
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+We learned that our editor does not work well with Windows 8.
+The editor starts but lacks most of the functionality.
+We will provide better information about system requirements as soon as we have solved the more critical issues.
+When we will support Windows 8 is still not decided.
+
+We really hope you like this update!
+
 Release 1.1.12
 --------------
 _July 9, 2012_
