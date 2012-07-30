@@ -23,6 +23,7 @@ import com.google.gwt.user.client.ui.Composite;
 import com.google.gwt.user.client.ui.FlexTable;
 import com.google.gwt.user.client.ui.FlowPanel;
 import com.google.gwt.user.client.ui.HTML;
+import com.google.gwt.user.client.ui.InlineHTML;
 import com.google.gwt.user.client.ui.Widget;
 
 public class DashboardView extends Composite {
@@ -63,12 +64,6 @@ public class DashboardView extends Composite {
             UserInfo owner = projectInfo.getOwner();
 
             FlowPanel panel = new FlowPanel();
-            if (projectInfo.getStatus() != null && projectInfo.getStatus().equals(
-                    ProjectInfo.PROJECT_STATUS_UNQUALIFIED)) {
-                HTML html = new HTML("<i class=\"icon-exclamation-sign\"></i>");
-                html.setTitle("You must upgrade your plan to work in this project.");
-                panel.add(html);
-            }
             Anchor anchor = new Anchor(projectInfo.getName());
             anchor.addClickHandler(new ClickHandler() {
                 @Override
@@ -79,6 +74,13 @@ public class DashboardView extends Composite {
             panel.add(anchor);
             this.projects.setWidget(i, 0, panel);
             this.projects.setText(i, 1, owner.getFirstName() + " " + owner.getLastName());
+            if (projectInfo.getStatus() != null && projectInfo.getStatus().equals(ProjectInfo.PROJECT_STATUS_UNQUALIFIED)) {
+                InlineHTML html = new InlineHTML("<span class=\"label label-important\">Plan upgrade required</span>");
+                this.projects.setWidget(i, 2, html);
+            }
+            else {
+                this.projects.setText(i, 2, "");
+            }
         }
 
         /* Create table header. Not supported by the FlexGrid widget */
