@@ -180,12 +180,6 @@
                commandId="com.dynamo.cr.target.commands.sign"
                label="Sign App..."
                style="push">
-            <visibleWhen
-                  checkEnabled="false">
-               <test
-                     property="com.dynamo.cr.editor.is_dev">
-               </test>
-            </visibleWhen>
          </command>
       </menuContribution>
    </extension>
