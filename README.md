@@ -3,6 +3,20 @@ Defold
 
 Repository for engine, editor and server.
 
+
+Tagging
+-------
+
+New tag
+
+    # git tag -a MAJOR.MINOR [SHA1]
+    SHA1 is optional 
+
+Push tags
+
+    # git push origin --tags
+
+
 Folder Structure
 ----------------
 
