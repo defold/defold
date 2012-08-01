@@ -531,9 +531,11 @@ TEST_F(dmHttpClientTestCache, DirectFromCache)
     dmHttpCache::SetConsistencyPolicy(params.m_HttpCache, dmHttpCache::CONSISTENCY_POLICY_TRUST_CACHE);
     GetFiles(true);
     dmHttpClient::GetStatistics(m_Client, &stats);
-    // NOTE: We don't need to compensate for reconnections as above. Everything in cache should be verified at this point.
-    ASSERT_EQ(100U, stats.m_Responses);
+    // Should be equivalent to above
+    ASSERT_EQ(100U, stats.m_Responses - stats.m_Reconnections);
+    // Should be equivalent to above
     ASSERT_EQ(96U, stats.m_CachedResponses);
+    // All files directly from cache
     ASSERT_EQ(100U, stats.m_DirectFromCache);
 
     cache_r = dmHttpCache::Close(params.m_HttpCache);
