@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
+#include <dlib/align.h>
 #include <gtest/gtest.h>
 #include "../script.h"
 #include "test/test_ddf.h"
@@ -44,6 +45,7 @@ protected:
         g_LuaTableTest = 0;
     }
 
+    char DM_ALIGNED(16) m_Buf[256];
     bool accept_panic;
     jmp_buf env;
     int top;
@@ -135,13 +137,11 @@ TEST_F(LuaTableTest, Table01)
     lua_pushinteger(L, 456);
     lua_setfield(L, -2, "b");
 
-    char buf[256];
-
-    uint32_t buffer_used = dmScript::CheckTable(L, buf, sizeof(buf), -1);
+    uint32_t buffer_used = dmScript::CheckTable(L, m_Buf, sizeof(m_Buf), -1);
     (void) buffer_used;
     lua_pop(L, 1);
 
-    dmScript::PushTable(L, buf);
+    dmScript::PushTable(L, m_Buf);
 
     lua_getfield(L, -1, "a");
     ASSERT_EQ(LUA_TNUMBER, lua_type(L, -1));
@@ -167,7 +167,7 @@ TEST_F(LuaTableTest, Table01)
     {
         // buffer_user - 1, expect error
         accept_panic = true;
-        dmScript::CheckTable(L, buf, buffer_used-1, -1);
+        dmScript::CheckTable(L, m_Buf, buffer_used-1, -1);
         ASSERT_TRUE(0); // Never reached due to error
     }
     else
@@ -186,13 +186,11 @@ TEST_F(LuaTableTest, Table02)
     lua_pushstring(L, "kalle");
     lua_setfield(L, -2, "foo2");
 
-    char buf[256];
-
-    uint32_t buffer_used = dmScript::CheckTable(L, buf, sizeof(buf), -1);
+    uint32_t buffer_used = dmScript::CheckTable(L, m_Buf, sizeof(m_Buf), -1);
     (void) buffer_used;
     lua_pop(L, 1);
 
-    dmScript::PushTable(L, buf);
+    dmScript::PushTable(L, m_Buf);
 
     lua_getfield(L, -1, "foo");
     ASSERT_EQ(LUA_TBOOLEAN, lua_type(L, -1));
@@ -219,7 +217,7 @@ TEST_F(LuaTableTest, Table02)
     {
         // buffer_user - 1, expect error
         accept_panic = true;
-        dmScript::CheckTable(L, buf, buffer_used-1, -1);
+        dmScript::CheckTable(L, m_Buf, buffer_used-1, -1);
         ASSERT_TRUE(0); // Never reached due to error
     }
     else
@@ -228,6 +226,42 @@ TEST_F(LuaTableTest, Table02)
     }
 }
 
+TEST_F(LuaTableTest, case1308)
+{
+    // Create table
+    lua_newtable(L);
+    lua_pushstring(L, "ab");
+    lua_setfield(L, -2, "a");
+
+    lua_newtable(L);
+    lua_pushinteger(L, 123);
+    lua_setfield(L, -2, "x");
+
+    lua_setfield(L, -2, "t");
+
+    uint32_t buffer_used = dmScript::CheckTable(L, m_Buf, sizeof(m_Buf), -1);
+    (void) buffer_used;
+    lua_pop(L, 1);
+
+    dmScript::PushTable(L, m_Buf);
+
+    lua_getfield(L, -1, "a");
+    ASSERT_EQ(LUA_TSTRING, lua_type(L, -1));
+    ASSERT_STREQ("ab", lua_tostring(L, -1));
+    lua_pop(L, 1);
+
+    lua_getfield(L, -1, "t");
+    ASSERT_EQ(LUA_TTABLE, lua_type(L, -1));
+    lua_getfield(L, -1, "x");
+    ASSERT_EQ(LUA_TNUMBER, lua_type(L, -1));
+    ASSERT_EQ(123, lua_tonumber(L, -1));
+    lua_pop(L, 1);
+    lua_pop(L, 1);
+
+    lua_pop(L, 1);
+}
+
+
 TEST_F(LuaTableTest, Vector3)
 {
     // Create table
@@ -235,13 +269,11 @@ TEST_F(LuaTableTest, Vector3)
     dmScript::PushVector3(L, Vectormath::Aos::Vector3(1,2,3));
     lua_setfield(L, -2, "v");
 
-    char buf[256];
-
-    uint32_t buffer_used = dmScript::CheckTable(L, buf, sizeof(buf), -1);
+    uint32_t buffer_used = dmScript::CheckTable(L, m_Buf, sizeof(m_Buf), -1);
     (void) buffer_used;
     lua_pop(L, 1);
 
-    dmScript::PushTable(L, buf);
+    dmScript::PushTable(L, m_Buf);
 
     lua_getfield(L, -1, "v");
     ASSERT_TRUE(dmScript::IsVector3(L, -1));
@@ -261,13 +293,11 @@ TEST_F(LuaTableTest, Vector4)
     dmScript::PushVector4(L, Vectormath::Aos::Vector4(1,2,3,4));
     lua_setfield(L, -2, "v");
 
-    char buf[256];
-
-    uint32_t buffer_used = dmScript::CheckTable(L, buf, sizeof(buf), -1);
+    uint32_t buffer_used = dmScript::CheckTable(L, m_Buf, sizeof(m_Buf), -1);
     (void) buffer_used;
     lua_pop(L, 1);
 
-    dmScript::PushTable(L, buf);
+    dmScript::PushTable(L, m_Buf);
 
     lua_getfield(L, -1, "v");
     ASSERT_TRUE(dmScript::IsVector4(L, -1));
@@ -288,13 +318,11 @@ TEST_F(LuaTableTest, Quat)
     dmScript::PushQuat(L, Vectormath::Aos::Quat(1,2,3,4));
     lua_setfield(L, -2, "v");
 
-    char buf[256];
-
-    uint32_t buffer_used = dmScript::CheckTable(L, buf, sizeof(buf), -1);
+    uint32_t buffer_used = dmScript::CheckTable(L, m_Buf, sizeof(m_Buf), -1);
     (void) buffer_used;
     lua_pop(L, 1);
 
-    dmScript::PushTable(L, buf);
+    dmScript::PushTable(L, m_Buf);
 
     lua_getfield(L, -1, "v");
     ASSERT_TRUE(dmScript::IsQuat(L, -1));
@@ -319,13 +347,11 @@ TEST_F(LuaTableTest, Matrix4)
     dmScript::PushMatrix4(L, m);
     lua_setfield(L, -2, "v");
 
-    char buf[256];
-
-    uint32_t buffer_used = dmScript::CheckTable(L, buf, sizeof(buf), -1);
+    uint32_t buffer_used = dmScript::CheckTable(L, m_Buf, sizeof(m_Buf), -1);
     (void) buffer_used;
     lua_pop(L, 1);
 
-    dmScript::PushTable(L, buf);
+    dmScript::PushTable(L, m_Buf);
 
     lua_getfield(L, -1, "v");
     ASSERT_TRUE(dmScript::IsMatrix4(L, -1));
@@ -348,13 +374,11 @@ TEST_F(LuaTableTest, Hash)
     dmScript::PushHash(L, hash);
     lua_setfield(L, -2, "h");
 
-    char buf[256];
-
-    uint32_t buffer_used = dmScript::CheckTable(L, buf, sizeof(buf), -1);
+    uint32_t buffer_used = dmScript::CheckTable(L, m_Buf, sizeof(m_Buf), -1);
     (void) buffer_used;
     lua_pop(L, 1);
 
-    dmScript::PushTable(L, buf);
+    dmScript::PushTable(L, m_Buf);
 
     lua_getfield(L, -1, "h");
     ASSERT_TRUE(dmScript::IsHash(L, -1));
@@ -388,13 +412,11 @@ TEST_F(LuaTableTest, MixedKeys)
     lua_pushnumber(L, 5);
     lua_settable(L, -3);
 
-    char buf[256];
-
-    uint32_t buffer_used = dmScript::CheckTable(L, buf, sizeof(buf), -1);
+    uint32_t buffer_used = dmScript::CheckTable(L, m_Buf, sizeof(m_Buf), -1);
     (void) buffer_used;
     lua_pop(L, 1);
 
-    dmScript::PushTable(L, buf);
+    dmScript::PushTable(L, m_Buf);
 
     lua_pushnumber(L, 1);
     lua_gettable(L, -2);

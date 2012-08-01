@@ -247,6 +247,8 @@ root.linux.gtk.x86.permissions.755=jre/'''
             shutil.copytree(p, dst)
 
         args = ['java',
+                # Try to avoid zip-bug in ant 1.8.2, see https://bugs.eclipse.org/bugs/show_bug.cgi?id=346730
+                '-XX:+UseParNewGC',
                 '-Xms256m',
                 '-Xmx1500m',
                 '-jar',
@@ -276,6 +278,14 @@ root.linux.gtk.x86.permissions.755=jre/'''
         with open('VERSION', 'w') as f:
             f.write(new_version)
 
+        with open('com.dynamo.cr/com.dynamo.cr.editor/cr.product', 'a+') as f:
+            f.seek(0)
+            product = f.read()
+
+            product = re.sub('(<product name=.*?)version="[0-9\.]+"(.*?>)', '\g<1>version="%s"\g<2>' % new_version, product)
+            f.truncate(0)
+            f.write(product)
+
         with open('com.dynamo.cr/com.dynamo.cr.editor.core/src/com/dynamo/cr/editor/core/EditorCorePlugin.java', 'a+') as f:
             f.seek(0)
             activator = f.read()
@@ -285,7 +295,6 @@ root.linux.gtk.x86.permissions.755=jre/'''
             f.truncate(0)
             f.write(activator)
 
-
         with open('engine/engine/src/engine_version.h', 'a+') as f:
             f.seek(0)
             engine_version = f.read()
@@ -294,7 +303,6 @@ root.linux.gtk.x86.permissions.755=jre/'''
             engine_version = re.sub('const char\* VERSION_SHA1 = ".*?";', 'const char* VERSION_SHA1 = "%s";' % sha1, engine_version)
             f.truncate(0)
             f.write(engine_version)
-
 
         print 'Bumping engine version from %s to %s' % (current, new_version)
         print 'Review changes and commit'
