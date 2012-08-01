@@ -250,7 +250,7 @@ root.linux.gtk.x86.permissions.755=jre/'''
                 # Try to avoid zip-bug in ant 1.8.2, see https://bugs.eclipse.org/bugs/show_bug.cgi?id=346730
                 '-XX:+UseParNewGC',
                 '-Xms256m',
-                '-Xmx2048m',
+                '-Xmx1500m',
                 '-jar',
                 '%s/plugins/org.eclipse.equinox.launcher_%s.jar' % (self.eclipse_home, equinox_version),
                 '-application', 'org.eclipse.ant.core.antRunner',
