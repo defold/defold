@@ -15,7 +15,7 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.osgi.util.NLS;
 
-import com.dynamo.cr.editor.ui.Activator;
+import com.dynamo.cr.editor.ui.EditorUIPlugin;
 import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Property.EditorType;
@@ -331,7 +331,7 @@ public class TileSetNode extends Node {
     }
 
     private IStatus createErrorStatus(String message, Object[] binding) {
-        return new Status(IStatus.ERROR, Activator.PLUGIN_ID, NLS.bind(message, binding));
+        return new Status(IStatus.ERROR, EditorUIPlugin.PLUGIN_ID, NLS.bind(message, binding));
     }
 
     public void updateConvexHulls() {

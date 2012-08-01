@@ -80,4 +80,13 @@
             resource-type="com.dynamo.cr.luaeditor.resourcetypes.Script">
       </node-type>
    </extension>
+   <extension
+         point="com.dynamo.cr.editor.ui.tip">
+      <tip
+            editor-id="com.dynamo.cr.luaeditor.LuaEditor"
+            link="See &lt;a href=&quot;http://www.defold.com/doc/scripting_debugging&quot;&gt;Scripting and Debugging&lt;/a&gt; and &lt;a href=&quot;http://www.defold.com/doc/reload&quot;&gt;Hot Reloading&lt;/a&gt; for more info."
+            tip="While scripting, you can bring up a list of the available functions by pressing Ctrl+Space.\nMake your changes appear instantly in the running game by pressing Ctrl+R or Cmd+R."
+            title="Auto-Completion and Hot Reloading">
+      </tip>
+   </extension>
 </plugin>

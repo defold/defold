@@ -30,14 +30,6 @@ public class SceneUtil {
         }
     }
 
-    private static Boolean isMac = null;
-    public static boolean isMac() {
-        if (isMac == null) {
-            isMac = System.getProperty("os.name").toLowerCase().indexOf("mac") >= 0;
-        }
-        return isMac;
-    }
-
     public enum MouseType {
         ONE_BUTTON,
         THREE_BUTTON

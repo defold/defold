@@ -96,7 +96,7 @@ public class GameObjectPresenter implements ISceneView.INodePresenter<GameObject
         LabelProvider labelProvider = new LabelProvider() {
             @Override
             public Image getImage(Object element) {
-                return Activator.getDefault().getImage(((IResourceType)element).getFileExtension());
+                return Activator.getDefault().getIconByExtension(((IResourceType)element).getFileExtension());
             }
 
             @Override

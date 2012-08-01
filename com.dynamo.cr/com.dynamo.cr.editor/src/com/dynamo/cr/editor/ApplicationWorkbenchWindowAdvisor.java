@@ -14,6 +14,7 @@ import org.eclipse.jface.operation.IRunnableWithProgress;
 import org.eclipse.jface.preference.IPreferenceStore;
 import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.widgets.Display;
+import org.eclipse.swt.widgets.Shell;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.application.ActionBarAdvisor;
 import org.eclipse.ui.application.IActionBarConfigurer;
@@ -21,8 +22,13 @@ import org.eclipse.ui.application.IWorkbenchWindowConfigurer;
 import org.eclipse.ui.application.WorkbenchWindowAdvisor;
 import org.eclipse.ui.internal.ide.EditorAreaDropAdapter;
 
+import com.dynamo.cr.editor.ui.EditorUIPlugin;
+import com.dynamo.cr.editor.ui.IEditorWindow;
+
 @SuppressWarnings("restriction")
 public class ApplicationWorkbenchWindowAdvisor extends WorkbenchWindowAdvisor {
+
+    private IEditorWindow editorWindow;
 
     public ApplicationWorkbenchWindowAdvisor(IWorkbenchWindowConfigurer configurer) {
         super(configurer);
@@ -30,6 +36,12 @@ public class ApplicationWorkbenchWindowAdvisor extends WorkbenchWindowAdvisor {
 
     public ActionBarAdvisor createActionBarAdvisor(IActionBarConfigurer configurer) {
         return new ApplicationActionBarAdvisor(configurer);
+    }
+
+    @Override
+    public void createWindowContents(final Shell shell) {
+        editorWindow = EditorUIPlugin.getDefault().createWindow(shell, getWindowConfigurer());
+        editorWindow.createContents(shell);
     }
 
     public void preWindowOpen() {
@@ -44,6 +56,12 @@ public class ApplicationWorkbenchWindowAdvisor extends WorkbenchWindowAdvisor {
         configurer.configureEditorAreaDropListener(
                 new EditorAreaDropAdapter(
                   configurer.getWindow()));
+    }
+
+    @Override
+    public void dispose() {
+        super.dispose();
+        this.editorWindow.dispose();
     }
 
     private static final String JUSTUPDATED = "justUpdated";

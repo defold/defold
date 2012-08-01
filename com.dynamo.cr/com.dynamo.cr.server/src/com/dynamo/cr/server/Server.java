@@ -8,7 +8,6 @@ import java.io.InputStreamReader;
 import java.lang.management.ManagementFactory;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.URL;
 import java.net.URLDecoder;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -46,19 +45,17 @@ import org.eclipse.jetty.server.handler.ResourceHandler;
 import org.eclipse.jetty.util.resource.Resource;
 import org.eclipse.jgit.http.server.GitServlet;
 import org.eclipse.persistence.config.PersistenceUnitProperties;
+import org.glassfish.grizzly.PortRange;
 import org.glassfish.grizzly.http.server.HttpHandler;
 import org.glassfish.grizzly.http.server.HttpServer;
 import org.glassfish.grizzly.http.server.NetworkListener;
 import org.glassfish.grizzly.http.server.Response;
+import org.glassfish.grizzly.http.server.ServerConfiguration;
+import org.glassfish.grizzly.http.server.StaticHttpHandler;
 import org.glassfish.grizzly.http.util.Header;
 import org.glassfish.grizzly.servlet.ServletHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import ch.qos.logback.classic.LoggerContext;
-import ch.qos.logback.classic.joran.JoranConfigurator;
-import ch.qos.logback.core.joran.spi.JoranException;
-import ch.qos.logback.core.util.StatusPrinter;
 
 import com.dynamo.cr.branchrepo.BranchRepository;
 import com.dynamo.cr.proto.Config.BillingProduct;
@@ -252,7 +249,17 @@ public class Server implements ServerMBean {
     }
 
     HttpServer createHttpServer() throws IOException {
-        HttpServer server = HttpServer.createSimpleServer("/", configuration.getServicePort());
+        // Manually create server to be able to tweak timeouts
+        HttpServer server = new HttpServer();
+        ServerConfiguration serverConfig = server.getServerConfiguration();
+        serverConfig.addHttpHandler(new StaticHttpHandler("/"), "/");
+        NetworkListener listener = new NetworkListener("grizzly", NetworkListener.DEFAULT_NETWORK_HOST, new PortRange(
+                configuration.getServicePort()));
+        if (configuration.hasGrizzlyIdleTimeout()) {
+            listener.getKeepAlive().setIdleTimeoutInSeconds(configuration.getGrizzlyIdleTimeout());
+        }
+        server.addListener(listener);
+
         Config config = new Config(this);
         ServletHandler handler = new GuiceHandler(config);
         handler.addFilter(new GuiceFilter(), "GuiceFilter", null);
@@ -297,30 +304,6 @@ public class Server implements ServerMBean {
         this.mailProcessor = mailProcessor;
         this.billingProvider = billingProvider;
 
-        LoggerContext lc = (LoggerContext) LoggerFactory.getILoggerFactory();
-
-        // Configure logback logging
-        // The logback jars are not located in the current bundle. Hence logback.xml
-        // is not found. Configure logback explicitly
-        try {
-          JoranConfigurator configurator = new JoranConfigurator();
-          configurator.setContext(lc);
-          // the context was probably already configured by default configuration rules
-          lc.reset();
-          File logback = new File("logback.xml");
-          if (logback.exists()) {
-              // Use logback.xml in current dir
-              configurator.doConfigure(logback);
-          } else {
-              // Fallback to default bundled logback.xml
-              URL url = this.getClass().getClassLoader().getResource("/logback.xml");
-              configurator.doConfigure(url);
-          }
-        } catch (JoranException je) {
-           je.printStackTrace();
-        }
-        StatusPrinter.printInCaseOfErrorsOrWarnings(lc);
-
         try {
             secureRandom = SecureRandom.getInstance("SHA1PRNG");
         } catch (NoSuchAlgorithmException e1) {
@@ -345,14 +328,15 @@ public class Server implements ServerMBean {
         baseUri = String.format("http://0.0.0.0:%d/", this.configuration.getServicePort());
 
         httpServer = createHttpServer();
+
         // TODO File caches are temporarily disabled to avoid two bugs:
         // * Content-type is incorrect for cached files:
         // http://java.net/jira/browse/GRIZZLY-1014
         // * Editor downloads consumes a lot of memory (and might leak)
         // Issue here: https://defold.fogbugz.com/default.asp?1177
-        for (NetworkListener listener : httpServer.getListeners()) {
-            listener.getFileCache().setEnabled(false);
-            listener.getFileCache().setMaxCacheEntries(0);
+        for (NetworkListener l : httpServer.getListeners()) {
+            l.getFileCache().setEnabled(false);
+            l.getFileCache().setMaxCacheEntries(0);
         }
         GitServlet gitServlet = new GitServlet();
         ServletHandler gitHandler = new ServletHandler(gitServlet);

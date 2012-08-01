@@ -12,7 +12,8 @@ public abstract class AbstractDefoldPlugin extends AbstractUIPlugin implements I
     public static final String IMG_UNKNOWN = "UNKNOWN";
 
     @Override
-    public Image getImage(String extension) {
+    public Image getIconByExtension(String extension) {
+        // Extract extension
         if (extension.indexOf('.') != -1) {
             extension = FilenameUtils.getExtension(extension);
         }
@@ -36,6 +37,6 @@ public abstract class AbstractDefoldPlugin extends AbstractUIPlugin implements I
     protected void initializeImageRegistry(ImageRegistry reg) {
         super.initializeImageRegistry(reg);
 
-        reg.put(IMG_UNKNOWN, imageDescriptorFromPlugin(Activator.PLUGIN_ID, "icons/unknown.png"));
+        reg.put(IMG_UNKNOWN, imageDescriptorFromPlugin(EditorUIPlugin.PLUGIN_ID, "icons/unknown.png"));
     }
 }

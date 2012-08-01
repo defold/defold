@@ -480,7 +480,7 @@ public class ModelTest {
             b.setName("" + id);
             b.setHandle("" + id);
             b.setFee(0);
-            b.setMaxMemberCount(id == FREE_PRODUCT_ID ? 1 : 2);
+            b.setMaxMemberCount(id == FREE_PRODUCT_ID ? 1 : -1);
             b.setDefault(id == FREE_PRODUCT_ID ? 1 : 0);
             products.add(b.build());
         }

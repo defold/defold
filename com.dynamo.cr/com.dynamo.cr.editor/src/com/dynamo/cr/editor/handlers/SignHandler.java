@@ -25,6 +25,7 @@ import org.eclipse.ui.handlers.HandlerUtil;
 
 import com.dynamo.cr.client.IProjectClient;
 import com.dynamo.cr.editor.Activator;
+import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.engine.Engine;
 import com.dynamo.cr.target.core.TargetPlugin;
 import com.dynamo.cr.target.sign.IIdentityLister;
@@ -118,9 +119,14 @@ public class SignHandler extends AbstractHandler {
 
                 projectClient.uploadEngine("ios", stream);
             } catch (Exception e) {
-                String msg = e.getMessage();
-                Status status = new Status(IStatus.ERROR, "com.dynamo.cr", msg);
-                ErrorDialog.openError(shell, "Error signing executable", msg, status);
+                final String msg = e.getMessage();
+                final Status status = new Status(IStatus.ERROR, "com.dynamo.cr", msg);
+                shell.getDisplay().asyncExec(new Runnable() {
+                    @Override
+                    public void run() {
+                        ErrorDialog.openError(shell, "Error signing executable", msg, status);
+                    }
+                });
                 TargetPlugin.getDefault().getLog().log(status);
             }
         }
@@ -156,4 +162,8 @@ public class SignHandler extends AbstractHandler {
         return null;
     }
 
+    @Override
+    public boolean isEnabled() {
+        return EditorUtil.isMac() && Activator.getDefault().projectClient != null;
+    }
 }

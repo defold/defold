@@ -36,7 +36,7 @@ namespace dmScript
         SUB_TYPE_HASH       = 4,
     };
 
-    uint32_t CheckTable(lua_State* L, char* buffer, uint32_t buffer_size, int index)
+    uint32_t DoCheckTable(lua_State* L, const char* original_buffer, char* buffer, uint32_t buffer_size, int index)
     {
         int top = lua_gettop(L);
         (void)top;
@@ -114,7 +114,7 @@ namespace dmScript
                 case LUA_TNUMBER:
                 {
                     // NOTE: We align lua_Number to sizeof(float) even if lua_Number probably is of double type
-                    intptr_t offset = buffer - buffer_start;
+                    intptr_t offset = buffer - original_buffer;
                     intptr_t aligned_buffer = ((intptr_t) offset + sizeof(float)-1) & ~(sizeof(float)-1);
                     intptr_t align_size = aligned_buffer - (intptr_t) offset;
 
@@ -160,7 +160,7 @@ namespace dmScript
                     char* sub_type = buffer++;
 
                     // NOTE: We align lua_Number to sizeof(float) even if lua_Number probably is of double type
-                    intptr_t offset = buffer - buffer_start;
+                    intptr_t offset = buffer - original_buffer;
                     intptr_t aligned_buffer = ((intptr_t) offset + sizeof(float)-1) & ~(sizeof(float)-1);
                     intptr_t align_size = aligned_buffer - (intptr_t) offset;
 
@@ -253,7 +253,7 @@ namespace dmScript
 
                 case LUA_TTABLE:
                 {
-                    uint32_t n_used = CheckTable(L, buffer, buffer_end - buffer, -1);
+                    uint32_t n_used = DoCheckTable(L, original_buffer, buffer, buffer_end - buffer, -1);
                     buffer += n_used;
                 }
                 break;
@@ -274,7 +274,12 @@ namespace dmScript
         return buffer - buffer_start;
     }
 
-    int DoPushTable(lua_State*L, const char* buffer)
+    uint32_t CheckTable(lua_State* L, char* buffer, uint32_t buffer_size, int index)
+    {
+        return DoCheckTable(L, buffer, buffer, buffer_size, index);
+    }
+
+    int DoPushTable(lua_State*L, const char* original_buffer, const char* buffer)
     {
         int top = lua_gettop(L);
         (void)top;
@@ -310,11 +315,12 @@ namespace dmScript
                 case LUA_TNUMBER:
                 {
                     // NOTE: We align lua_Number to sizeof(float) even if lua_Number probably is of double type
-                    intptr_t offset = buffer - buffer_start;
+                    intptr_t offset = buffer - original_buffer;
                     intptr_t aligned_buffer = ((intptr_t) offset + sizeof(float)-1) & ~(sizeof(float)-1);
                     intptr_t align_size = aligned_buffer - (intptr_t) offset;
-
                     buffer += align_size;
+                    // Sanity-check. At least 4 bytes alignment (de facto)
+                    assert((((intptr_t) buffer) & 3) == 0);
 
                     lua_pushnumber(L, *((lua_Number*) buffer));
                     buffer += sizeof(lua_Number);
@@ -334,10 +340,12 @@ namespace dmScript
                     char sub_type = *buffer++;
 
                     // NOTE: We align lua_Number to sizeof(float) even if lua_Number probably is of double type
-                    intptr_t offset = buffer - buffer_start;
+                    intptr_t offset = buffer - original_buffer;
                     intptr_t aligned_buffer = ((intptr_t) offset + sizeof(float)-1) & ~(sizeof(float)-1);
                     intptr_t align_size = aligned_buffer - (intptr_t) offset;
                     buffer += align_size;
+                    // Sanity-check. At least 4 bytes alignment (de facto)
+                    assert((((intptr_t) buffer) & 3) == 0);
 
                     if (sub_type == (char) SUB_TYPE_VECTOR3)
                     {
@@ -383,7 +391,7 @@ namespace dmScript
                 break;
                 case LUA_TTABLE:
                 {
-                    int n_consumed = DoPushTable(L, buffer);
+                    int n_consumed = DoPushTable(L, original_buffer, buffer);
                     buffer += n_consumed;
                 }
                 break;
@@ -402,7 +410,7 @@ namespace dmScript
 
     void PushTable(lua_State*L, const char* buffer)
     {
-        DoPushTable(L, buffer);
+        DoPushTable(L, buffer, buffer);
     }
 
 }

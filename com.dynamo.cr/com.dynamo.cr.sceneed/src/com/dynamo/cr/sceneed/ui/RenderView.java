@@ -37,6 +37,7 @@ import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.Listener;
 import org.eclipse.ui.ISelectionService;
 
+import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.sceneed.core.Camera;
 import com.dynamo.cr.sceneed.core.CameraController;
@@ -50,7 +51,6 @@ import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.RenderContext;
 import com.dynamo.cr.sceneed.core.RenderContext.Pass;
 import com.dynamo.cr.sceneed.core.RenderData;
-import com.dynamo.cr.sceneed.core.SceneUtil;
 import com.dynamo.cr.sceneed.ui.RenderView.SelectResult.Pair;
 
 public class RenderView implements
@@ -283,7 +283,7 @@ IRenderView {
             } else {
                 boolean macModifiers = (event.stateMask & (SWT.MOD1 | SWT.SHIFT)) != 0;
                 boolean othersModifiers = (event.stateMask & SWT.CTRL) != 0;
-                boolean multiSelect = macModifiers || (!SceneUtil.isMac() && othersModifiers);
+                boolean multiSelect = macModifiers || (!EditorUtil.isMac() && othersModifiers);
                 List<Node> selectedNodes = null;
                 if (multiSelect) {
                     IStructuredSelection selection = (IStructuredSelection)this.selectionService.getSelection();

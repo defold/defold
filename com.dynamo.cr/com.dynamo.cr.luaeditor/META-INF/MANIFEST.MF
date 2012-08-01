@@ -14,7 +14,8 @@ Require-Bundle: org.eclipse.core.runtime,
  com.dynamo.cr.editor.core;bundle-version="1.0.0",
  com.dynamo.cr.common;bundle-version="1.0.0",
  com.dynamo.cr.go;bundle-version="1.0.0",
- com.dynamo.cr.sceneed;bundle-version="1.0.0"
+ com.dynamo.cr.sceneed;bundle-version="1.0.0",
+ com.dynamo.cr.editor.ui
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
 Bundle-ClassPath: DYNAMO_HOME/share/java/script_doc.jar,
  .

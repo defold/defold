@@ -87,7 +87,7 @@ namespace dmEngine
         dmEngineService::HEngineService             m_EngineService;
         dmConfigFile::HConfig                       m_Config;
 
-        RunResult                                   m_RunResult;;
+        RunResult                                   m_RunResult;
         bool                                        m_Alive;
 
         dmGameObject::HRegister                     m_Register;

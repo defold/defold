@@ -262,6 +262,15 @@ static void LogFrameBufferError(GLenum status)
             g_Context->m_WindowResizeCallback(g_Context->m_WindowResizeCallbackUserData, (uint32_t)width, (uint32_t)height);
     }
 
+    int OnWindowClose()
+    {
+        assert(g_Context);
+        if (g_Context->m_WindowCloseCallback != 0x0)
+            return g_Context->m_WindowCloseCallback(g_Context->m_WindowCloseCallbackUserData);
+        // Close by default
+        return 1;
+    }
+
     WindowResult OpenWindow(HContext context, WindowParams *params)
     {
         assert(context);
@@ -347,11 +356,14 @@ static void LogFrameBufferError(GLenum status)
 
         glfwSetWindowTitle(params->m_Title);
         glfwSetWindowSizeCallback(OnWindowResize);
+        glfwSetWindowCloseCallback(OnWindowClose);
         glfwSwapInterval(1);
         CHECK_GL_ERROR
 
         context->m_WindowResizeCallback = params->m_ResizeCallback;
         context->m_WindowResizeCallbackUserData = params->m_ResizeCallbackUserData;
+        context->m_WindowCloseCallback = params->m_CloseCallback;
+        context->m_WindowCloseCallbackUserData = params->m_CloseCallbackUserData;
         context->m_WindowOpened = 1;
         context->m_Width = params->m_Width;
         context->m_Height = params->m_Height;

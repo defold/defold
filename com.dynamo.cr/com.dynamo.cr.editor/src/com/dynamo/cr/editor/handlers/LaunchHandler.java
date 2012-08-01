@@ -16,6 +16,7 @@ import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.QualifiedName;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.jface.preference.IPreferenceStore;
@@ -90,7 +91,7 @@ public class LaunchHandler extends AbstractHandler {
         // save all editors depending on user preferences (this is set to true by default in plugin_customization.ini)
         BuildUtilities.saveEditors(null);
 
-        Job job = new Job("Build") {
+        Job job = new Job("Building") {
             @Override
             protected IStatus run(IProgressMonitor monitor) {
                 Map<String, String> args = new HashMap<String, String>();
@@ -128,6 +129,7 @@ public class LaunchHandler extends AbstractHandler {
                 }
             }
         };
+        job.setProperty(new QualifiedName("com.dynamo.cr.editor", "build"), true);
         job.schedule();
         return null;
     }

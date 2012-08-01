@@ -71,7 +71,7 @@ public class BranchStatusTableViewer extends TableViewer {
                     ResourceStatus resourceStatus = (ResourceStatus) element;
                     Status status = resourceStatus.getStatus();
                     if (status.getName().lastIndexOf('.') != -1) {
-                        return Activator.getDefault().getImage(status.getName());
+                        return Activator.getDefault().getIconByExtension(status.getName());
                     }
                 }
                 return super.getImage(element);

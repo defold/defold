@@ -73,6 +73,8 @@ namespace dmGraphics
             return WINDOW_RESULT_ALREADY_OPENED;
         context->m_WindowResizeCallback = params->m_ResizeCallback;
         context->m_WindowResizeCallbackUserData = params->m_ResizeCallbackUserData;
+        context->m_WindowCloseCallback = params->m_CloseCallback;
+        context->m_WindowCloseCallbackUserData = params->m_CloseCallbackUserData;
         context->m_Width = params->m_Width;
         context->m_Height = params->m_Height;
         context->m_WindowWidth = params->m_Width;
@@ -202,6 +204,14 @@ namespace dmGraphics
 
     void Flip(HContext context)
     {
+        // Mimick glfw
+        if (context->m_RequestWindowClose)
+        {
+            if (context->m_WindowCloseCallback != 0x0 && context->m_WindowCloseCallback(context->m_WindowCloseCallbackUserData))
+            {
+                CloseWindow(context);
+            }
+        }
     }
 
     HVertexBuffer NewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)

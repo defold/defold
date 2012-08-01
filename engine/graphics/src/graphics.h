@@ -20,6 +20,13 @@ namespace dmGraphics
 
     typedef void (*WindowResizeCallback)(void* user_data, uint32_t width, uint32_t height);
 
+    /**
+     * Callback function called when the window is requested to close.
+     * @param user_data user data that was supplied when opening the window
+     * @return whether the window should be closed or not
+     */
+    typedef bool (*WindowCloseCallback)(void* user_data);
+
     static const HVertexProgram INVALID_VERTEX_PROGRAM_HANDLE = ~0u;
     static const HFragmentProgram INVALID_FRAGMENT_PROGRAM_HANDLE = ~0u;
 
@@ -231,6 +238,10 @@ namespace dmGraphics
         WindowResizeCallback    m_ResizeCallback;
         /// User data supplied to the callback function
         void*                   m_ResizeCallbackUserData;
+        /// Window close callback
+        WindowCloseCallback    m_CloseCallback;
+        /// User data supplied to the callback function
+        void*                   m_CloseCallbackUserData;
         /// Window width, 640 by default
         uint32_t                m_Width;
         /// Window height, 480 by default
