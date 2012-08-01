@@ -12,6 +12,8 @@ namespace dmGraphics
 
         WindowResizeCallback    m_WindowResizeCallback;
         void*                   m_WindowResizeCallbackUserData;
+        WindowCloseCallback     m_WindowCloseCallback;
+        void*                   m_WindowCloseCallbackUserData;
         uint32_t                m_Width;
         uint32_t                m_Height;
         uint32_t                m_WindowWidth;

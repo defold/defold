@@ -21,9 +21,15 @@ protected:
         uint32_t m_Height;
     };
 
+    struct CloseData
+    {
+        bool m_ShouldClose;
+    };
+
     dmGraphics::HContext m_Context;
     dmGraphics::WindowResult m_WindowResult;
     ResizeData m_ResizeData;
+    CloseData m_CloseData;
 
     static void OnWindowResize(void* user_data, uint32_t width, uint32_t height)
     {
@@ -32,12 +38,20 @@ protected:
         data->m_Height = height;
     }
 
+    static bool OnWindowClose(void* user_data)
+    {
+        CloseData* data = (CloseData*)user_data;
+        return data->m_ShouldClose;
+    }
+
     virtual void SetUp()
     {
         m_Context = dmGraphics::NewContext(dmGraphics::ContextParams());
         dmGraphics::WindowParams params;
         params.m_ResizeCallback = OnWindowResize;
         params.m_ResizeCallbackUserData = &m_ResizeData;
+        params.m_CloseCallback = OnWindowClose;
+        params.m_CloseCallbackUserData = &m_CloseData;
         params.m_Title = APP_TITLE;
         params.m_Width = WIDTH;
         params.m_Height = HEIGHT;
@@ -396,6 +410,20 @@ TEST_F(dmGraphicsTest, TestMasks)
     ASSERT_EQ(0u, m_Context->m_StencilMask);
     dmGraphics::SetStencilMask(m_Context, ~0u);
     ASSERT_EQ(~0u, m_Context->m_StencilMask);
+}
+
+TEST_F(dmGraphicsTest, TestCloseCallback)
+{
+    // Stay open
+    m_CloseData.m_ShouldClose = 0;
+    // Request close
+    m_Context->m_RequestWindowClose = 1;
+    dmGraphics::Flip(m_Context);
+    ASSERT_TRUE(dmGraphics::GetWindowState(m_Context, dmGraphics::WINDOW_STATE_OPENED));
+    // Accept close
+    m_CloseData.m_ShouldClose = 1;
+    dmGraphics::Flip(m_Context);
+    ASSERT_FALSE(dmGraphics::GetWindowState(m_Context, dmGraphics::WINDOW_STATE_OPENED));
 }
 
 int main(int argc, char **argv)

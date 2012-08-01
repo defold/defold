@@ -71,6 +71,8 @@ namespace dmGraphics
         void*                       m_Program;
         WindowResizeCallback        m_WindowResizeCallback;
         void*                       m_WindowResizeCallbackUserData;
+        WindowCloseCallback         m_WindowCloseCallback;
+        void*                       m_WindowCloseCallbackUserData;
         TextureFilter               m_DefaultTextureMinFilter;
         TextureFilter               m_DefaultTextureMagFilter;
         uint32_t                    m_Width;
@@ -84,6 +86,8 @@ namespace dmGraphics
         uint32_t                    m_BlueMask : 1;
         uint32_t                    m_AlphaMask : 1;
         uint32_t                    m_DepthMask : 1;
+        // Only use for testing
+        uint32_t                    m_RequestWindowClose : 1;
     };
 }
 

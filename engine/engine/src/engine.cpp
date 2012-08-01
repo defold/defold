@@ -90,6 +90,14 @@ namespace dmEngine
         dmGui::SetPhysicalResolution(engine->m_GuiContext.m_GuiContext, width, height);
     }
 
+    bool OnWindowClose(void* user_data)
+    {
+        Engine* engine = (Engine*)user_data;
+        engine->m_Alive = false;
+        // Never allow closing the window here, clean up and then close manually
+        return false;
+    }
+
     void Dispatch(dmMessage::Message *message_object, void* user_ptr);
 
     Stats::Stats()
@@ -291,6 +299,8 @@ namespace dmEngine
         dmGraphics::WindowParams window_params;
         window_params.m_ResizeCallback = OnWindowResize;
         window_params.m_ResizeCallbackUserData = engine;
+        window_params.m_CloseCallback = OnWindowClose;
+        window_params.m_CloseCallbackUserData = engine;
         window_params.m_Width = engine->m_Width;
         window_params.m_Height = engine->m_Height;
         window_params.m_Samples = dmConfigFile::GetInt(engine->m_Config, "display.samples", 0);
