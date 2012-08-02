@@ -1,11 +1,21 @@
 Tile Editing and Physics
 ========================
 
+Tile Source
+-----------
+
+.Tile source
+image:images/tiles/tile_source.png["Tile source"]
+
+
 Tile Maps
 ---------
 
 A tile map is a component which is used for placing tiles over an area in a grid-based fashion, typically a level.
 The tiles are fetched from a tile source and can also have physics attached for collision detection.
+
+.Tile map
+image:images/tiles/tile_map.png["Tile map"]
 
 Painting Tiles
 ~~~~~~~~~~~~~~

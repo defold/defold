@@ -38,6 +38,15 @@ By default the Select Tool is active.
 In the *Scene* menu you can select other tools for moving and rotating the objects.
 Each tool has colored handles, which you can click and drag to manipulate the selected objects.
 
+.Move manipulator. Active with key W
+image:images/scene_editing/move.png["Move manipulator"]
+
+.Rotate manipulator. Active with key E
+image:images/scene_editing/rotate.png["Rotate manipulator"]
+
+.Scale manipulator. Active with key R
+image:images/scene_editing/scale.png["Scale manipulator"]
+
 Gui Editor
 ----------
 

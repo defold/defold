@@ -15,6 +15,9 @@ Auto-Completion
 
 To fill out function names, you can use *Ctrl+Space* to bring up a list of the functions matching what you are typing.
 
+.Code completion
+image:images/scripting_debugging/completion.png["Code completion"]
+
 Debugging
 ---------
 
