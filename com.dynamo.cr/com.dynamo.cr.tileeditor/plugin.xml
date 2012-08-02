@@ -253,6 +253,11 @@
             id="com.dynamo.cr.tileeditor.commands.togglePlayback"
             name="Play/Stop">
       </command>
+      <command
+            description="Select the eraser tool for tile maps"
+            id="com.dynamo.cr.tileeditor.commands.selectEraser"
+            name="Select Eraser">
+      </command>
    </extension>
    <extension
          point="org.eclipse.ui.bindings">
@@ -504,6 +509,12 @@
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
             sequence="SPACE">
       </key>
+      <key
+            commandId="com.dynamo.cr.tileeditor.commands.selectEraser"
+            contextId="com.dynamo.cr.tileeditor.contexts.GridEditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="BS">
+      </key>
    </extension>
    <extension
          point="org.eclipse.ui.menus">
@@ -593,6 +604,11 @@
                   commandId="com.dynamo.cr.tileeditor.commands.ShowPalette"
                   label="Show Palette"
                   style="toggle">
+            </command>
+            <command
+                  commandId="com.dynamo.cr.tileeditor.commands.selectEraser"
+                  label="Select Eraser"
+                  style="push">
             </command>
             <visibleWhen
                   checkEnabled="false">
@@ -977,6 +993,15 @@
                      definitionId="com.dynamo.cr.tileeditor.definitions.animationSelected">
                </reference>
             </and>
+         </activeWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.tileeditor.handlers.SelectEraserHandler"
+            commandId="com.dynamo.cr.tileeditor.commands.selectEraser">
+         <activeWhen>
+            <reference
+                  definitionId="com.dynamo.cr.tileeditor.definitions.gridEditorActive">
+            </reference>
          </activeWhen>
       </handler>
    </extension>
