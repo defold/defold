@@ -1,7 +1,7 @@
 # config
 
-ARM_DARWIN_ROOT=/Developer/Platforms/iPhoneOS.platform/Developer
-IOS_SDK_VERSION=4.3
+ARM_DARWIN_ROOT=/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer
+IOS_SDK_VERSION=5.1
 
 function download() {
     mkdir -p ../download
@@ -78,15 +78,19 @@ function cmi() {
             export CFLAGS="-isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
             export CPPFLAGS="-arch armv6 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
             export CXXFLAGS="-arch armv6 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
-            export CPP=$ARM_DARWIN_ROOT/usr/bin/cpp-4.2
-            export CC=$ARM_DARWIN_ROOT/usr/bin/gcc-4.2
-            export CXX=$ARM_DARWIN_ROOT/usr/bin/g++-4.2
+            # NOTE: We use the gcc-compiler as preprocessor. The preprocessor seems to only work with x86-arch.
+            # Wrong include-directories and defines are selected.
+            export CPP="$ARM_DARWIN_ROOT/usr/bin/llvm-gcc-4.2 -E"
+            export CC=$ARM_DARWIN_ROOT/usr/bin/llvm-gcc-4.2
+            export CXX=$ARM_DARWIN_ROOT/usr/bin/llvm-g++-4.2
             export AR=$ARM_DARWIN_ROOT/usr/bin/ar
             export RANLIN=$ARM_DARWIN_ROOT/usr/bin/ranlib
             cmi_cross $1 arm-darwin
             ;;
 
         darwin)
+            export CPPFLAGS="-m32"
+            export CXXFLAGS="-m32"
             cmi_buildplatform $1
             ;;
 

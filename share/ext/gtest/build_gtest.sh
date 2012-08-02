@@ -1,9 +1,9 @@
 #!/bin/sh
 
 readonly BASE_URL=http://googletest.googlecode.com/files
-readonly FILE_URL=gtest-1.2.1.tar.gz
+readonly FILE_URL=gtest-1.5.0.tar.gz
 readonly PRODUCT=gtest
-readonly VERSION=1.2.1
+readonly VERSION=1.5.0
 
 . ../common.sh
 
