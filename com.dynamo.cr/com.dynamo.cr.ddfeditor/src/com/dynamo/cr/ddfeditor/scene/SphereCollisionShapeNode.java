@@ -19,7 +19,7 @@ public class SphereCollisionShapeNode extends CollisionShapeNode {
         if (data.length - index < 1) {
             createBoundsStatusError();
         } else {
-            setRadius(data[0]);
+            setRadius(data[index]);
         }
     }
 

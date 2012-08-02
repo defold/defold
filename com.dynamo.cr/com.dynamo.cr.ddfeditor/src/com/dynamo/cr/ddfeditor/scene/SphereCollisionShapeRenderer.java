@@ -33,6 +33,7 @@ public class SphereCollisionShapeRenderer extends CollisionShapeRenderer impleme
         GL gl = renderContext.getGL();
         gl.glColor4fv(renderContext.selectColor(node, COLOR), 0);
         float sr = (float) node.getRadius();
+
         gl.glPushMatrix();
         gl.glScalef(sr, sr, sr);
 

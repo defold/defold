@@ -254,7 +254,7 @@ public class JobQueueTest {
 
     @Test(timeout = 30000)
     public void testProducerConsumer1() throws Exception {
-        int n = 500;
+        int n = 100;
         int producerDelay = 5;
         int consumerDelay = 10;
         JobQueue jobQueue = new JobQueue("add", new ConstantBackoff(1000), 1);
@@ -274,7 +274,7 @@ public class JobQueueTest {
 
     @Test(timeout = 30000)
     public void testProducerConsumer2() throws Exception {
-        int n = 500;
+        int n = 100;
         int producerDelay = 10;
         int consumerDelay = 5;
         JobQueue jobQueue = new JobQueue("add", new ConstantBackoff(1000), 1);
