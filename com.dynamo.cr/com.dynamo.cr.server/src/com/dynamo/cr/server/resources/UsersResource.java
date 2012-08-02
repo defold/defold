@@ -108,7 +108,6 @@ public class UsersResource extends BaseResource {
     }
 
     @POST
-    @Path("/")
     @RolesAllowed(value = { "admin" })
     @Transactional
     public UserInfo registerUser(RegisterUser registerUser) {

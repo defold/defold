@@ -278,7 +278,6 @@ public class LoginResource extends BaseResource {
     }
 
     @GET
-    @Path("")
     public Response login(@Context HttpHeaders headers) {
 
         String email = headers.getRequestHeaders().getFirst("X-Email");

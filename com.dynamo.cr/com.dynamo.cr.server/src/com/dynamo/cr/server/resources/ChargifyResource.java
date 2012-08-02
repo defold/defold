@@ -25,7 +25,6 @@ public class ChargifyResource extends BaseResource {
     private static final Marker BILLING_MARKER = MarkerFactory.getMarker("BILLING");
 
     @POST
-    @Path("")
     public void handleWebHook(@HeaderParam(ChargifyUtil.SIGNATURE_HEADER_NAME) String signature,
             @FormParam("event") String event, @FormParam("payload[subscription][id]") String subscriptionId,
             @FormParam("payload[subscription][state]") String state,
