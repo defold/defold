@@ -936,7 +936,7 @@ The last two weeks we have been busy improving the documentation and implementin
 Introduction
 ~~~~~~~~~~~~
 
-We have worked hard at writing more documentation and are finally ready to show the new link:/doc/getting_started[introduction].
+We have worked hard at writing more documentation and are finally ready to show the new link:/doc/introduction[introduction].
 It comes with a new link:/doc/side_scroller[tutorial], which demonstrates tweaking and the construction of game objects.
 We hope that you can gain some more insight into our design from the introduction.
 Hopefully, most of it should be old news by now but helpful for new users.
