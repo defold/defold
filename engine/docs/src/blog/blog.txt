@@ -1,5 +1,37 @@
 :max-width: 45em
 
+Release 1.2.1
+-------------
+_August 3, 2012_
+
+This release contains more documentation, crash-fixes and a few other fixes.
+
+Documentation
+~~~~~~~~~~~~~
+
+We know our documentation is lacking.
+We are now trying to improve it by looking at what people ask about in the forums.
+There is now a new link:/doc/input[input guide] that describes how to bind and handle input in Defold.
+The link:/doc/tiles[tiles guide] has also been improved to cover more areas.
+How to install the Defold App on your iOS device has also been clarified a bit in the link:/doc/ios[iOS guide].
+
+There are still missing pieces in the documentation, please help us by link:http://defold.userecho.com[reporting] what you can't find.
+
+Crashes
+~~~~~~~
+
+* The app crashed when sending particular kinds of messages
+* The game would crash on Windows when closing it with the close button
+
+Other Fixes
+~~~~~~~~~~~
+
+* *New Folder* was not accessible in the project root or in the *File > New* menu (same with Gui, Gui Script and Script wizards)
+* Multiple collision spheres in a collision object were not rendered correctly in the Collection Editor
+* The tile eraser in the Tile Map editor can now be activated in the *Tile Map* menu or by pushing *Backspace*
+
+Hope you like the fixes!
+
 We have reached Beta! (1.2.0)
 -----------------------------
 _July 30, 2012_

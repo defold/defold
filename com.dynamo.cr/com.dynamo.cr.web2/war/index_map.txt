@@ -4,6 +4,7 @@
 /ref/gui.html
 /ref/render.html
 /ref/script.html
+/blog/release_1_2_1.html
 /blog/we_have_reached_beta_1_2_0.html
 /blog/release_1_1_12.html
 /blog/release_1_1_11.html
