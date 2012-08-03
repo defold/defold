@@ -78,7 +78,7 @@ public class Signer {
             int ret = process.waitFor();
             if (ret != 0) {
                 TargetPlugin.getDefault().getLog().log(new Status(IStatus.ERROR, "com.dynamo.cr.target", errorMessage));
-                throw new IOException("Unable to sign application");
+                throw new IOException(errorMessage);
             }
         } catch (InterruptedException e1) {
             throw new RuntimeException(e1);

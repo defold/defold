@@ -124,7 +124,7 @@ public class SignHandler extends AbstractHandler {
                 shell.getDisplay().asyncExec(new Runnable() {
                     @Override
                     public void run() {
-                        ErrorDialog.openError(shell, "Error signing executable", msg, status);
+                        ErrorDialog.openError(shell, "Error signing executable", "Unable to sign application", status);
                     }
                 });
                 TargetPlugin.getDefault().getLog().log(status);
