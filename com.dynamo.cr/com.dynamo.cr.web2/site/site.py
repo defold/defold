@@ -18,11 +18,11 @@ render('500.html', 'error/500.html', skip_index = True, root='/')
 render('landing.html', 'index.html')
 render('plans.html', 'plans/index.html', active_page = 'plans')
 
-docs = ['eula.html',
-        'game_project.html',
+docs = ['game_project.html',
         'hud.html',
-        'ios.html',
+        'input.html',
         'introduction.html',
+        'ios.html',
         'level_complete.html',
         'main_menu.html',
         'message_passing.html',
@@ -33,7 +33,6 @@ docs = ['eula.html',
         'script_properties.html',
         'scripting_debugging.html',
         'side_scroller.html',
-        'story.html',
         'tiles.html']
 
 for d in docs:
