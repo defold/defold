@@ -31,13 +31,12 @@ Collision Shapes
 
 Collision shapes for tile sets are generated using the alpha channel from the image specified in the collision field.
 In many cases the same image can be used as both graphics and collision image.
-
-((((
-image::images/editor/tile_set_hull.png["Tile Source", align="center"]
-((((
-
 When you specify a collision image, the preview is updated with an outline over the tiles.
 By using a separate image, you can have collision shapes that differ from the visual graphics.
+
+((((
+image::images/tiles/tile_source.png["Tile Source editor", align="center"]
+((((
 
 Groups
 ^^^^^^
@@ -136,6 +135,10 @@ Painting Tiles
 . Make sure there are no flagged issues in the Property or Outline views.
 . Select a layer to paint into in the Outline.
 . Select a tile to use (*Space* to show the palette).
+
+((((
+image::images/tiles/tile_map.png["Tile Map editor", align="center"]
+((((
 
 Picking Tiles
 ~~~~~~~~~~~~~
