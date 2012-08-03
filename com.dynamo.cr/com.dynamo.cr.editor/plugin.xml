@@ -192,6 +192,16 @@
                style="push">
          </command>
       </menuContribution>
+      <menuContribution
+            allPopups="false"
+            locationURI="menu:new">
+         <command
+               commandId="com.dynamo.cr.editor.commands.newFolder"
+               icon="icons/newfolder_wiz.gif"
+               label="Folder"
+               style="push">
+         </command>
+      </menuContribution>
    </extension>
    <extension
          point="org.eclipse.ui.commands">
