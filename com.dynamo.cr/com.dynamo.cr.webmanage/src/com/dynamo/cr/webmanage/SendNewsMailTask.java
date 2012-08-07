@@ -32,7 +32,7 @@ public class SendNewsMailTask extends HttpServlet {
 
         try {
             String messageText = params.getMessage();
-            messageText += String.format("\nTo unsubscribe to the email click <a href='%s/unsubscribe.html#%s,%s'>here</a>.",
+            messageText += String.format("\nTo unsubscribe follow this link:\n%s/unsubscribe.html#%s,%s",
                                          "http://www.defold.com",
                                          URLEncoder.encode(recipient.getEmail(), "UTF-8"),
                                          recipient.getKey());
