@@ -32,6 +32,7 @@ import org.eclipse.core.runtime.IAdaptable;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.Path;
+import org.eclipse.swt.graphics.RGB;
 import org.eclipse.ui.services.IDisposable;
 
 import com.dynamo.cr.guieditor.Activator;
@@ -53,6 +54,7 @@ import com.dynamo.gui.proto.Gui.NodeDesc.Type;
 import com.dynamo.gui.proto.Gui.SceneDesc;
 import com.dynamo.gui.proto.Gui.SceneDesc.FontDesc;
 import com.dynamo.gui.proto.Gui.SceneDesc.TextureDesc;
+import com.dynamo.proto.DdfMath.Vector4;
 import com.dynamo.render.proto.Font;
 import com.google.protobuf.TextFormat;
 
@@ -61,6 +63,9 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable, IResourceChan
 
     @Property(editorType=EditorType.RESOURCE, extensions={"gui_script"})
     private String script;
+
+    @Property
+    protected RGB backgroundColor;
 
     private SceneDesc sceneDesc;
     private ArrayList<GuiNode> nodes;
@@ -91,6 +96,15 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable, IResourceChan
         this.editor = editor;
         this.sceneDesc = sceneDesc;
         this.script = sceneDesc.getScript();
+
+        if (sceneDesc.hasBackgroundColor()) {
+            Vector4 bg = sceneDesc.getBackgroundColor();
+            this.backgroundColor = new RGB((int) (bg.getX() * 255),
+                                           (int) (bg.getY() * 255),
+                                           (int) (bg.getZ() * 255));
+        } else {
+            this.backgroundColor = new RGB(0, 0, 0);
+        }
 
         nodes = new ArrayList<GuiNode>();
         for (NodeDesc nodeDesc : sceneDesc.getNodesList()) {
@@ -278,6 +292,14 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable, IResourceChan
         this.script = script;
     }
 
+    public RGB getBackgroundColor() {
+        return new RGB(backgroundColor.red, backgroundColor.green, backgroundColor.blue);
+    }
+
+    public void setBackgroundColor(RGB backgroundColor) {
+        this.backgroundColor = new RGB(backgroundColor.red, backgroundColor.green, backgroundColor.blue);
+    }
+
     public void drawSelect(DrawContext drawContext) {
         int nextName = 0;
         IGuiRenderer renderer = drawContext.getRenderer();
@@ -321,6 +343,13 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable, IResourceChan
         }
 
         builder.setScript(script);
+
+        Vector4 bg = Vector4.newBuilder()
+                .setX(backgroundColor.red / 255.0f )
+                .setY(backgroundColor.green / 255.0f )
+                .setZ(backgroundColor.blue / 255.0f)
+                .setW(0).build();
+        builder.setBackgroundColor(bg);
 
         return builder.build();
     }
