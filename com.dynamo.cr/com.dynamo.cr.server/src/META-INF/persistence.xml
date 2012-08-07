@@ -11,6 +11,7 @@
         <class>com.dynamo.cr.server.model.Job</class>
         <class>com.dynamo.cr.server.model.Invitation</class>
         <class>com.dynamo.cr.server.model.InvitationAccount</class>
+        <class>com.dynamo.cr.server.model.NewsSubscriber</class>
         <class>com.dynamo.cr.server.model.Prospect</class>
         <class>com.dynamo.cr.server.model.Product</class>
         <class>com.dynamo.cr.server.model.UserSubscription</class>

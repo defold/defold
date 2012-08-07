@@ -9,6 +9,7 @@ import javax.ws.rs.PathParam;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 
+import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.Prospect;
 import com.dynamo.inject.persist.Transactional;
 
@@ -27,6 +28,7 @@ public class ProspectsResource extends BaseResource {
         Prospect p = new Prospect();
         p.setEmail(email);
         em.persist(p);
+        ModelUtil.subscribeToNewsLetter(em, email, "", "");
         em.flush();
         return okResponse("Email %s registered", email);
     }

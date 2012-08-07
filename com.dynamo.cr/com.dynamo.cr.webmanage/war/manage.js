@@ -1,5 +1,5 @@
 function getCookies() {
-    var d = {}
+    var d = {};
     var lst = document.cookie.split("; ");
     for ( var i in lst) {
         var keyValue = lst[i].split("=");
@@ -44,7 +44,6 @@ function sendRequest(method, path, callback) {
                 callback(req);
             } else {
                 showError(req.response + " (" + req.status + ")");
-                console.log(req);
             }
         }
     }
@@ -60,9 +59,11 @@ function login() {
     var tokenRe = /.*?\?token=(.*?)$/;
     if (tokenRe.exec(document.location.href)) {
         var token = RegExp.$1;
-        $.get(getServerUrl() + '/login/openid/exchange/' + token, function(info) {
+        $.getJSON(getServerUrl() + '/login/openid/exchange/' + token, function(info) {
             setCookie('auth', info.auth_cookie);
             setCookie('email', info.email);
+            setCookie('first_name', info.first_name);
+            setCookie('last_name', info.last_name);
             window.location.replace(window.location.origin);
         });
     } else {
@@ -76,4 +77,32 @@ function login() {
         var uri = getServerUrl() + "/login/openid/google?redirect_to=" + redirectTo + "?token={token}";
         document.location.replace(uri);
     }
+}
+
+function loadRecipients() {
+    sendRequest("GET", "/news_list", function(x) {
+        var subscribers = JSON.parse(x.responseText);
+        var text = "";
+        for (i in subscribers.subscribers) {
+            var s = subscribers.subscribers[i];
+            text = text + s.email + ', ' + s.key + '\n';
+        }
+        $("#recipients").val(text);
+    });
+}
+
+function sendNewsMail() {
+    var subject = $('#subject').val();
+    var recipients = $('#recipients').val();
+    var from = $('#from').val();
+    var name = $('#name').val();
+    var message = $('#message').val();
+    $.post('/send-news-mail', { subject: subject,
+                                recipients: recipients,
+                                from: from,
+                                name: name,
+                                message: message,
+                                serverUrl: getServerUrl() });
+    $('#message-sent-label').show();
+    return false;
 }

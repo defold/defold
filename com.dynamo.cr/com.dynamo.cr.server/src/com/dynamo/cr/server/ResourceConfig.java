@@ -29,6 +29,7 @@ public class ResourceConfig extends DefaultResourceConfig {
             classes.add(cl.loadClass("com.dynamo.cr.server.resources.ProspectsResource"));
             classes.add(cl.loadClass("com.dynamo.cr.server.resources.ProductsResource"));
             classes.add(cl.loadClass("com.dynamo.cr.server.resources.ChargifyResource"));
+            classes.add(cl.loadClass("com.dynamo.cr.server.resources.NewsListResource"));
             classes.add(cl.loadClass("com.dynamo.cr.server.resources.StatusResource"));
             classes.add(cl.loadClass("com.dynamo.cr.server.resources.GitExceptionMapper"));
             classes.add(cl.loadClass("com.dynamo.cr.server.resources.IOExceptionMapper"));

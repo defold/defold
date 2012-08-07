@@ -183,6 +183,8 @@ public class UsersResource extends BaseResource {
             }
         });
 
+        ModelUtil.subscribeToNewsLetter(em, email, "", "");
+
         return okResponse("User %s invited", email);
     }
 

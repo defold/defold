@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Set;
 
 import javax.persistence.EntityManager;
+import javax.persistence.TypedQuery;
 
 import com.dynamo.cr.proto.Config.BillingProduct;
 import com.dynamo.cr.server.model.User.Role;
@@ -204,4 +205,34 @@ public class ModelUtil {
             return memberCount <= product.getMaxMemberCount();
         }
     }
+
+    /**
+     * Subscribe to news-letter. If user is found in subscription status is kept as is
+     * but first and last-name are updated. For user invited via email first and last name are unknown
+     * and by calling this method after registration we can update the record.
+     * This method is safe to call even if the user has unsubscribed.
+     * @param em {@link EntityManager}
+     * @param email email
+     * @param firstName first name
+     * @param lastName last name
+     */
+    public static void subscribeToNewsLetter(EntityManager em, String email, String firstName, String lastName) {
+        TypedQuery<NewsSubscriber> q = em.createQuery("select s from NewsSubscriber s where s.email = :email", NewsSubscriber.class);
+        List<NewsSubscriber> lst = q.setParameter("email", email).getResultList();
+        if (lst.size() == 0) {
+            NewsSubscriber ns = new NewsSubscriber();
+            ns.setEmail(email);
+            ns.setFirstName(firstName);
+            ns.setLastName(lastName);
+            em.persist(ns);
+        } else {
+            // If found we keep subscription status as is
+            // but update first and last name
+            NewsSubscriber ns = lst.get(0);
+            ns.setFirstName(firstName);
+            ns.setLastName(lastName);
+            em.persist(ns);
+        }
+    }
+
 }

@@ -8,6 +8,26 @@ http://java.sun.com/xml/ns/javaee/web-app_2_5.xsd" version="2.5">
 		<welcome-file>index.html</welcome-file>
 	</welcome-file-list>
 
+	<servlet>
+	   <servlet-name>send-news-mail</servlet-name>
+	   <servlet-class>com.dynamo.cr.webmanage.SendNewsMail</servlet-class>
+	</servlet>
+
+    <servlet>
+       <servlet-name>send-news-mail-task</servlet-name>
+       <servlet-class>com.dynamo.cr.webmanage.SendNewsMailTask</servlet-class>
+    </servlet>
+
+	<servlet-mapping>
+	   <servlet-name>send-news-mail</servlet-name>
+	   <url-pattern>/send-news-mail</url-pattern>
+	</servlet-mapping>
+
+    <servlet-mapping>
+       <servlet-name>send-news-mail-task</servlet-name>
+       <url-pattern>/send-news-mail-task</url-pattern>
+    </servlet-mapping>
+
     <security-constraint>
         <web-resource-collection>
             <url-pattern>/*</url-pattern>

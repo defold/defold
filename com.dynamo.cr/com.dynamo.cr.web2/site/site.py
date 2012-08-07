@@ -12,6 +12,8 @@ for d, title in [('engine', 'Game Engine Reference Documentation'),
 
 blog('doc/blog.html', 'blog')
 
+render('unsubscribe.html')
+
 render('404.html', 'error/404.html', skip_index = True, root='/')
 render('500.html', 'error/500.html', skip_index = True, root='/')
 

@@ -309,3 +309,14 @@ message UserSubscriptionInfo {
     optional string update_url = 4;
     optional string cancellation_message = 5;
 }
+
+message NewsSubscriber {
+    required string email = 1;
+    required string first_name = 2;
+    required string last_name = 3;
+    required string key = 4;
+}
+
+message NewsSubscriberList {
+    repeated NewsSubscriber subscribers = 1;
+}

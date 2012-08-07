@@ -270,6 +270,8 @@ public class LoginResource extends BaseResource {
             .setFirstName(user.getFirstName())
             .setLastName(user.getLastName());
 
+        ModelUtil.subscribeToNewsLetter(em, newUser.getEmail(), newUser.getFirstName(), newUser.getLastName());
+
         return Response
             .ok()
             .entity(loginInfoBuilder.build())
