@@ -104,5 +104,6 @@ function sendNewsMail() {
                                 message: message,
                                 serverUrl: getServerUrl() });
     $('#message-sent-label').show();
+    $('#send-button').hide();
     return false;
 }
