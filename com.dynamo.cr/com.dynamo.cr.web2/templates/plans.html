@@ -1,4 +1,6 @@
-{% extends "base.html" %} {% block content %}
+{% extends "base.html" %}
+{% block title %} Defold Plans {% endblock %}
+{% block content %}
 <script type="text/javascript" src="/defold.js"></script>
 <link href="{{root}}plans.css" rel="stylesheet">
 <div class="container" style="min-height: 500px;">
@@ -78,8 +80,8 @@
     </div>
     <div class="container" style="margin-top: 30px; text-align: center;">
         <h2>Sign up for Beta Access</h2>
-        <p class="marketing-byline">We invite from the beta list at regular intervals.</p>
-        <div class="span12" style="text-align: center;">
+        <p class="marketing-byline">We invite from the beta list at regular intervals. Note that we don't send confirmation email.</p>
+        <div id="signUp" class="span12" style="text-align: center;">
             <form onsubmit="return signUp();" class="validate form-inline">
                 <input type="email" value="" style="padding: 9px 14px;" class="span4 input-large email" id="email"
                     placeholder="email address" required="">
