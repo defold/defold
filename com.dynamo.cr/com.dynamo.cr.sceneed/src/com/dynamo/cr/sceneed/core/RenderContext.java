@@ -15,6 +15,8 @@ import javax.vecmath.Point3d;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.IStructuredSelection;
 
+import com.dynamo.cr.sceneed.ui.TextureRegistry;
+
 public class RenderContext {
     private GL gl;
     private GLU glu;
@@ -22,15 +24,90 @@ public class RenderContext {
     private ArrayList<RenderData<? extends Node>> renderDataList;
     private Set<Node> selectedNodes = new HashSet<Node>();
     private IRenderView renderView;
+    private TextureRegistry textureRegistry;
 
     public enum Pass {
-        BACKGROUND,
-        OPAQUE,
-        TRANSPARENT,
-        OUTLINE,
-        MANIPULATOR,
-        OVERLAY,
-        SELECTION,
+        /**
+         * Background overlay pass
+         */
+        BACKGROUND(false, false),
+
+        /**
+         * Opaque pass
+         */
+        OPAQUE(false, true),
+
+        /**
+         * Transparent pass
+         */
+        TRANSPARENT(false, true),
+
+        /**
+         * Icon outline pass
+         */
+        ICON_OUTLINE(false, true),
+
+        /**
+         * Outline pass
+         */
+        OUTLINE(false, true),
+
+        /**
+         * Manipulator pass
+         */
+        MANIPULATOR(false, true),
+
+        /**
+         * Overlay pass for marquee-box and such
+         */
+        OVERLAY(false, false),
+
+        /**
+         * Generic selection pass
+         */
+        SELECTION(true, true),
+
+        /**
+         * Icon overlay pass
+         */
+        ICON(false, false),
+
+        /**
+         * Icon overlay selection pass
+         */
+        ICON_SELECTION(true, false);
+
+        private final boolean isSelectionPass;
+        private final boolean transformModel;
+
+        Pass(boolean isSelectionPass, boolean transformModel) {
+            this.isSelectionPass = isSelectionPass;
+            this.transformModel = transformModel;
+        }
+
+        public static Pass[] getSelectionPasses() {
+            return new Pass[] { Pass.SELECTION, Pass.ICON_SELECTION };
+        }
+
+        /**
+         * Is the pass a selection render pass
+         * @return true if the pass is a selection render pass
+         */
+        public boolean isSelectionPass() {
+            return isSelectionPass;
+        }
+
+        /**
+         * Should the current model-view-matrix be transformed
+         * according to node transform.
+         * This is typically true but false overlay-renderers and such
+         * that do the complete transformation
+         *
+         * @return true if the model-view should be transformed
+         */
+        public boolean transformModel() {
+            return transformModel;
+        }
     }
 
     public enum Status {
@@ -43,15 +120,20 @@ public class RenderContext {
     }
 
     @SuppressWarnings("unchecked")
-    public RenderContext(IRenderView renderView, GL gl, GLU glu, ISelection selection) {
+    public RenderContext(IRenderView renderView, GL gl, GLU glu, TextureRegistry textureRegistry, ISelection selection) {
         this.renderView = renderView;
         this.gl = gl;
         this.glu = glu;
+        this.textureRegistry = textureRegistry;
         this.renderDataList = new ArrayList<RenderData<? extends Node>>(1024);
         if (selection instanceof IStructuredSelection) {
             IStructuredSelection structSel = (IStructuredSelection) selection;
             this.selectedNodes.addAll(structSel.toList());
         }
+    }
+
+    public TextureRegistry getTextureRegistry() {
+        return textureRegistry;
     }
 
     public IRenderView getRenderView() {
@@ -111,6 +193,7 @@ public class RenderContext {
         switch (pass) {
         case OPAQUE:
             return objectColor;
+        case ICON_OUTLINE:
         case OUTLINE:
             Node n = node;
             while (n != null && n.getParent() != null && !selectedNodes.contains(n)) {

@@ -35,7 +35,7 @@
             contributorClass="com.dynamo.cr.editor.ui.DefoldEditorActionBarContributor"
             default="false"
             extensions="factory"
-            icon="icons/lightning.png"
+            icon="icons/factory.png"
             id="com.dynamo.cr.ddfeditor.factoryEditor"
             name="Scene Editor">
       </editor>
@@ -147,7 +147,7 @@
       <wizard
             category="com.dynamo.cr.editor.wizardCategory"
             class="com.dynamo.cr.ddfeditor.wizards.FactoryNewWizard"
-            icon="icons/lightning.png"
+            icon="icons/factory.png"
             id="com.dynamo.cr.ddfeditor.wizards.FactoryNewWizard"
             name="Factory File">
       </wizard>
@@ -509,6 +509,7 @@
             id="com.dynamo.cr.ddfeditor.scene.factoryNode"
             loader="com.dynamo.cr.ddfeditor.scene.FactoryLoader"
             node="com.dynamo.cr.ddfeditor.scene.FactoryNode"
+            renderer="com.dynamo.cr.ddfeditor.scene.FactoryRenderer"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Factory">
       </node-type>
       <node-type
@@ -537,6 +538,7 @@
             id="com.dynamo.cr.ddfeditor.scene.cameraNode"
             loader="com.dynamo.cr.ddfeditor.scene.CameraLoader"
             node="com.dynamo.cr.ddfeditor.scene.CameraNode"
+            renderer="com.dynamo.cr.ddfeditor.scene.CameraRenderer"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Camera">
       </node-type>
       <node-type
@@ -549,12 +551,14 @@
             id="com.dynamo.cr.ddfeditor.scene.lightNode"
             loader="com.dynamo.cr.ddfeditor.scene.LightLoader"
             node="com.dynamo.cr.ddfeditor.scene.LightNode"
+            renderer="com.dynamo.cr.ddfeditor.scene.LightRenderer"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Light">
       </node-type>
       <node-type
             id="com.dynamo.cr.ddfeditor.scene.guiNode"
             loader="com.dynamo.cr.ddfeditor.scene.GuiLoader"
             node="com.dynamo.cr.ddfeditor.scene.GuiNode"
+            renderer="com.dynamo.cr.ddfeditor.scene.GuiRenderer"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Gui">
       </node-type>
       <node-type

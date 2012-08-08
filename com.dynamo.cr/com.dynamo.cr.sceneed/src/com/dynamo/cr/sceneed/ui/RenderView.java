@@ -6,8 +6,10 @@ import java.nio.IntBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import javax.inject.Inject;
@@ -83,6 +85,8 @@ IRenderView {
     private boolean paintRequested = false;
 
     private Set<INodeType> hiddenNodeTypes = new HashSet<INodeType>();
+    private TextureRegistry textureRegistry;
+    private Map<INodeType, INodeRenderer<Node>> renderers = new HashMap<INodeType, INodeRenderer<Node>>();
 
     @Inject
     public RenderView(INodeTypeRegistry manager, ILogger logger, ISelectionService selectionService) {
@@ -91,6 +95,7 @@ IRenderView {
         this.selectionService = selectionService;
         this.selectionBoxNode = new SelectionBoxNode();
         this.selectionBoxRenderViewProvider = new SelectionBoxRenderViewProvider(this, this.selectionBoxNode);
+        this.textureRegistry = new TextureRegistry();
         addRenderProvider(this.selectionBoxRenderViewProvider);
     }
 
@@ -384,22 +389,36 @@ IRenderView {
         public long minZ = Long.MAX_VALUE;
     }
 
-    private void beginSelect(GL gl, int x, int y, int w, int h) {
+    private void beginSelect(GL gl, Pass pass, int x, int y, int w, int h) {
         gl.glSelectBuffer(PICK_BUFFER_SIZE, selectBuffer);
         gl.glRenderMode(GL.GL_SELECT);
 
         GLU glu = new GLU();
         gl.glMatrixMode(GL.GL_PROJECTION);
         gl.glLoadIdentity();
-        glu.gluPickMatrix(x, viewPort[3] - y, w, h, viewPort, 0);
 
-        Matrix4d projection = new Matrix4d();
-        camera.getProjectionMatrix(projection);
-        RenderUtil.multMatrix(gl, projection);
+        if (pass == Pass.SELECTION) {
+            glu.gluPickMatrix(x, viewPort[3] - y, w, h, viewPort, 0);
+        } else {
+            glu.gluOrtho2D(x - w / 2, x + w /2, y + h / 2, y - h / 2);
+        }
+
+        if (pass == Pass.SELECTION) {
+            Matrix4d projection = new Matrix4d();
+            camera.getProjectionMatrix(projection);
+            if (pass.transformModel()) {
+                RenderUtil.multMatrix(gl, projection);
+            }
+        }
+
         gl.glMatrixMode(GL.GL_MODELVIEW);
-        Matrix4d view = new Matrix4d();
-        camera.getViewMatrix(view);
-        RenderUtil.loadMatrix(gl, view);
+        if (pass == Pass.SELECTION) {
+            Matrix4d view = new Matrix4d();
+            camera.getViewMatrix(view);
+            RenderUtil.loadMatrix(gl, view);
+        } else {
+            gl.glLoadIdentity();
+        }
 
         gl.glInitNames();
     }
@@ -465,28 +484,31 @@ IRenderView {
             GL gl = context.getGL();
             GLU glu = new GLU();
 
-            beginSelect(gl, x, y, width, height);
+            for (Pass pass : Pass.getSelectionPasses() ) {
 
-            List<Pass> passes = Arrays.asList(Pass.SELECTION);
-            RenderContext renderContext = renderNodes(gl, glu, passes, true);
+                beginSelect(gl, pass, x, y, width, height);
 
-            SelectResult result = endSelect(gl);
+                List<Pass> passes = Arrays.asList(pass);
+                RenderContext renderContext = renderNodes(gl, glu, passes, true);
 
-            List<RenderData<? extends Node>> renderDataList = renderContext.getRenderData();
+                SelectResult result = endSelect(gl);
 
-            // The selection result is sorted according to z
-            // We want to use the draw-order instead that is a function of
-            // pass, z among other such that eg manipulators get higher priority than regular nodes
-            List<RenderData<? extends Node>> drawOrderSorted = new ArrayList<RenderData<? extends Node>>();
-            for (Pair pair : result.selected) {
-                RenderData<? extends Node> renderData = renderDataList.get(pair.index);
-                drawOrderSorted.add(renderData);
-            }
-            Collections.sort(drawOrderSorted);
-            Collections.reverse(drawOrderSorted);
+                List<RenderData<? extends Node>> renderDataList = renderContext.getRenderData();
 
-            for (RenderData<? extends Node> renderData : drawOrderSorted) {
-                nodes.add(renderData.getNode());
+                // The selection result is sorted according to z
+                // We want to use the draw-order instead that is a function of
+                // pass, z among other such that eg manipulators get higher priority than regular nodes
+                List<RenderData<? extends Node>> drawOrderSorted = new ArrayList<RenderData<? extends Node>>();
+                for (Pair pair : result.selected) {
+                    RenderData<? extends Node> renderData = renderDataList.get(pair.index);
+                    drawOrderSorted.add(renderData);
+                }
+                Collections.sort(drawOrderSorted);
+                Collections.reverse(drawOrderSorted);
+
+                for (RenderData<? extends Node> renderData : drawOrderSorted) {
+                    nodes.add(renderData.getNode());
+                }
             }
         }
 
@@ -541,7 +563,7 @@ IRenderView {
             return;
         }
 
-        List<Pass> passes = Arrays.asList(Pass.BACKGROUND, Pass.OUTLINE, Pass.TRANSPARENT, Pass.MANIPULATOR, Pass.OVERLAY);
+        List<Pass> passes = Arrays.asList(Pass.BACKGROUND, Pass.OUTLINE, Pass.ICON_OUTLINE, Pass.TRANSPARENT, Pass.ICON, Pass.MANIPULATOR, Pass.OVERLAY);
         renderNodes(gl, glu, passes, false);
     }
 
@@ -556,7 +578,7 @@ IRenderView {
     }
 
     private RenderContext renderNodes(GL gl, GLU glu, List<Pass> passes, boolean pick) {
-        RenderContext renderContext = new RenderContext(this, gl, glu, selectionService.getSelection());
+        RenderContext renderContext = new RenderContext(this, gl, glu, textureRegistry, selectionService.getSelection());
 
         for (IRenderViewProvider provider : providers) {
             for (Pass pass : passes) {
@@ -585,7 +607,9 @@ IRenderView {
             Node node = renderData.getNode();
             node.getWorldTransform(transform);
             gl.glPushMatrix();
-            RenderUtil.multMatrix(gl, transform);
+            if (pass.transformModel()) {
+                RenderUtil.multMatrix(gl, transform);
+            }
             doRender(renderContext, renderData);
             gl.glPopMatrix();
             if (pick) {
@@ -601,7 +625,7 @@ IRenderView {
         // Default projection
         // TODO: Temp camera
 
-        if (pass != Pass.SELECTION) {
+        if (!pass.isSelectionPass()) {
             gl.glMatrixMode(GL.GL_PROJECTION);
             Matrix4d projection = new Matrix4d();
             camera.getProjectionMatrix(projection );
@@ -672,6 +696,38 @@ IRenderView {
             gl.glDepthMask(false);
             break;
 
+        case ICON:
+            gl.glMatrixMode(GL.GL_PROJECTION);
+            gl.glLoadIdentity();
+            glu.gluOrtho2D(this.viewPort[0], this.viewPort[2], this.viewPort[3], this.viewPort[1]);
+
+            gl.glMatrixMode(GL.GL_MODELVIEW);
+            gl.glLoadIdentity();
+
+            gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL);
+            gl.glEnable(GL.GL_BLEND);
+            gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
+            gl.glDisable(GL.GL_DEPTH_TEST);
+            gl.glDepthMask(false);
+            break;
+
+        case ICON_OUTLINE:
+            gl.glMatrixMode(GL.GL_PROJECTION);
+            gl.glLoadIdentity();
+            glu.gluOrtho2D(this.viewPort[0], this.viewPort[2], this.viewPort[3], this.viewPort[1]);
+
+            gl.glMatrixMode(GL.GL_MODELVIEW);
+            gl.glLoadIdentity();
+
+            gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE);
+            gl.glDisable(GL.GL_BLEND);
+            gl.glDisable(GL.GL_DEPTH_TEST);
+            gl.glDepthMask(false);
+            break;
+
+        case ICON_SELECTION:
+            break;
+
         case SELECTION:
             break;
 
@@ -688,7 +744,12 @@ IRenderView {
         boolean abort = false;
         if (nodeType != null) {
             if (!this.hiddenNodeTypes.contains(nodeType)) {
-                INodeRenderer<Node> renderer = nodeType.getRenderer();
+
+                if (!renderers.containsKey(nodeType)) {
+                    renderers.put(nodeType, nodeType.createRenderer());
+                }
+
+                INodeRenderer<Node> renderer = renderers.get(nodeType);
                 if (renderer != null)
                     renderer.setup(renderContext, node);
             } else {

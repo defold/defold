@@ -12,11 +12,17 @@ public interface INodeType {
 
     ISceneView.INodePresenter<?> getPresenter();
 
-    INodeRenderer<Node> getRenderer();
+    /**
+     * Create a new {@link INodeRenderer} instance
+     * @note Node-render instances must be unique per OpenGL-context. See {@link INodeRenderer} for more information
+     * @return {@link INodeRenderer} instance. null if no renderer is available
+     */
+    INodeRenderer<Node> createRenderer();
 
     IResourceType getResourceType();
 
     Class<?> getNodeClass();
+
     List<INodeType> getReferenceNodeTypes();
 
     String getDisplayGroup();
