@@ -7,6 +7,24 @@ assert(v.y == 2, "v.y is not 2")
 assert(v.z == 3, "v.z is not 3")
 assert(v.w == 4, "v.w is not 4")
 
+-- splat constructor
+local v = vmath.vector4(10)
+
+-- index
+assert(v.x == 10, "v.x is not 10")
+assert(v.y == 10, "v.y is not 10")
+assert(v.z == 10, "v.z is not 10")
+assert(v.w == 10, "v.w is not 10")
+
+-- empty constructor
+v = vmath.vector4()
+
+-- index
+assert(v.x == 0, "v.x is not 0")
+assert(v.y == 0, "v.y is not 0")
+assert(v.z == 0, "v.z is not 0")
+assert(v.w == 0, "v.w is not 0")
+
 -- copy constructor
 local v1 = vmath.vector4(v)
 -- equals

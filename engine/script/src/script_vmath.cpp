@@ -677,6 +677,14 @@ namespace dmScript
      * @return new zero vector (vector3)
      */
 
+    /*# creates a new vector from scalar value
+     *  The value is set for every component
+     *
+     * @name vmath.vector3
+     * @param v scalar value to splat (number)
+     * @return new vector (vector3)
+     */
+
     /*# creates a new vector from another existing vector
      *
      * @name vmath.vector3
@@ -701,7 +709,17 @@ namespace dmScript
         }
         else if (lua_gettop(L) == 1)
         {
-            v = *CheckVector3(L, -1);
+            int type = lua_type(L, -1);
+            if (type == LUA_TNUMBER)
+            {
+                float x = (float) lua_tonumber(L, -1);
+                v = Vectormath::Aos::Vector3(x, x, x);
+            }
+            else
+            {
+                // If not number assume vector3
+                v = *CheckVector3(L, -1);
+            }
         }
         else
         {
@@ -717,6 +735,14 @@ namespace dmScript
      *
      * @name vmath.vector4
      * @return new zero vector (vector4)
+     */
+
+    /*# creates a new vector from scalar value
+     *  The value is set for every component
+     *
+     * @name vmath.vector4
+     * @param v scalar value to splat (number)
+     * @return new vector (vector4)
      */
 
     /*# creates a new vector from another existing vector
@@ -738,10 +764,27 @@ namespace dmScript
     static int Vector4_new(lua_State* L)
     {
         Vectormath::Aos::Vector4 v;
-        // No empty constructor, since the value of w matters
-        if (lua_gettop(L) == 1)
+        // NOTE: The following comment is obsolete
+        // "No empty constructor, since the value of w matters"
+        // Don't understand why. Every component matters :-)
+        // Empty constructor added.
+        if (lua_gettop(L) == 0)
         {
-            v = *CheckVector4(L, -1);
+            v = Vectormath::Aos::Vector4(0.0f, 0.0f, 0.0f, 0.0f);
+        }
+        else if (lua_gettop(L) == 1)
+        {
+            int type = lua_type(L, -1);
+            if (type == LUA_TNUMBER)
+            {
+                float x = (float) lua_tonumber(L, -1);
+                v = Vectormath::Aos::Vector4(x, x, x, x);
+            }
+            else
+            {
+                // If not number assume vector3
+                v = *CheckVector4(L, -1);
+            }
         }
         else
         {

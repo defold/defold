@@ -6,6 +6,15 @@ assert(v.x == 1, "v.x is not 1")
 assert(v.y == 2, "v.y is not 2")
 assert(v.z == 3, "v.z is not 3")
 
+-- splat constructor
+local v = vmath.vector3(10)
+
+-- index
+assert(v.x == 10, "v.x is not 10")
+assert(v.y == 10, "v.y is not 10")
+assert(v.z == 10, "v.z is not 10")
+
+-- empty constructor
 v = vmath.vector3()
 
 -- index
