@@ -82,6 +82,7 @@ import com.dynamo.cr.editor.services.IBranchService;
 import com.dynamo.cr.editor.ui.AbstractDefoldPlugin;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
+import com.dynamo.cr.rlog.RLogPlugin;
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.config.ClientConfig;
 import com.sun.jersey.api.client.config.DefaultClientConfig;
@@ -197,7 +198,15 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void start(BundleContext bundleContext) throws Exception {
         super.start(bundleContext);
+        plugin = this;
+        Activator.context = bundleContext;
         this.logger = Logger.getLogger(Activator.PLUGIN_ID);
+
+        IPreferenceStore store = getPreferenceStore();
+        System.out.println(store.getDefaultBoolean(PreferenceConstants.P_ANONYMOUS_LOGGING));
+        if (store.getBoolean(PreferenceConstants.P_ANONYMOUS_LOGGING)) {
+            RLogPlugin.getDefault().startLogging();
+        }
 
         /*
          * Ensure that SplashHandler#getBundleProgressMonitor is called.
@@ -217,10 +226,7 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
                 .getName(), null);
         proxyTracker.open();
 
-        plugin = this;
-        Activator.context = bundleContext;
         //connectProjectClient();
-        IPreferenceStore store = getPreferenceStore();
         store.addPropertyChangeListener(this);
         // TODO This is a hack to make sure noone is using remote branches, which is not currently supported
         store.setValue(PreferenceConstants.P_USE_LOCAL_BRANCHES, true);
@@ -571,6 +577,14 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
         } else if (p.equals(PreferenceConstants.P_SOCKS_PROXY) ||
                 p.equals(PreferenceConstants.P_SOCKS_PROXY_PORT)) {
             updateSocksProxy();
+        } else if (p.equals(PreferenceConstants.P_ANONYMOUS_LOGGING)) {
+            IPreferenceStore store = getPreferenceStore();
+            boolean log = store.getBoolean(PreferenceConstants.P_ANONYMOUS_LOGGING);
+            if (log) {
+                RLogPlugin.getDefault().startLogging();
+            } else {
+                RLogPlugin.getDefault().stopLogging();
+            }
         }
     }
 
