@@ -4,6 +4,7 @@
 /ref/gui.html
 /ref/render.html
 /ref/script.html
+/blog/release_1_2_1.html
 /blog/we_have_reached_beta_1_2_0.html
 /blog/release_1_1_12.html
 /blog/release_1_1_11.html
@@ -36,11 +37,11 @@
 /unsubscribe.html
 /index.html
 /plans/index.html
-/doc/eula.html
 /doc/game_project.html
 /doc/hud.html
-/doc/ios.html
+/doc/input.html
 /doc/introduction.html
+/doc/ios.html
 /doc/level_complete.html
 /doc/main_menu.html
 /doc/message_passing.html
@@ -51,7 +52,6 @@
 /doc/script_properties.html
 /doc/scripting_debugging.html
 /doc/side_scroller.html
-/doc/story.html
 /doc/tiles.html
 /doc/sindex.html
 /about/eula.html

@@ -182,6 +182,26 @@
                style="push">
          </command>
       </menuContribution>
+      <menuContribution
+            allPopups="false"
+            locationURI="popup:common.new.menu">
+         <command
+               commandId="com.dynamo.cr.editor.commands.newFolder"
+               icon="icons/newfolder_wiz.gif"
+               label="Folder"
+               style="push">
+         </command>
+      </menuContribution>
+      <menuContribution
+            allPopups="false"
+            locationURI="menu:new">
+         <command
+               commandId="com.dynamo.cr.editor.commands.newFolder"
+               icon="icons/newfolder_wiz.gif"
+               label="Folder"
+               style="push">
+         </command>
+      </menuContribution>
    </extension>
    <extension
          point="org.eclipse.ui.commands">
@@ -273,6 +293,10 @@
       <command
             id="com.dynamo.cr.editor.commands.openWelcome"
             name="Welcome">
+      </command>
+      <command
+            id="com.dynamo.cr.editor.commands.newFolder"
+            name="New Folder">
       </command>
    </extension>
 
@@ -436,6 +460,10 @@
             activityId="com.dynamo.cr.editor.activities.disableEclipseUI"
             pattern="org\.eclipse\.ui\.navigator\.resources/org\.eclipse\.ui\.navigator\.resources\.PortingActions">
       </activityPatternBinding>
+      <activityPatternBinding
+            activityId="com.dynamo.cr.editor.activities.disableEclipseUI"
+            pattern="org\.eclipse\.ui\.ide/org\.eclipse\.ui\.wizards\.new\.folder">
+      </activityPatternBinding>
    </extension>
    <extension
          point="org.eclipse.ui.decorators">
@@ -499,6 +527,10 @@
       <handler
             class="com.dynamo.cr.editor.handlers.OpenWelcomeHandler"
             commandId="com.dynamo.cr.editor.commands.openWelcome">
+      </handler>
+      <handler
+            class="com.dynamo.cr.editor.handlers.NewFolderHandler"
+            commandId="com.dynamo.cr.editor.commands.newFolder">
       </handler>
      </extension>
    <extension

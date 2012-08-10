@@ -89,4 +89,16 @@
             title="Auto-Completion and Hot Reloading">
       </tip>
    </extension>
+   <extension
+         point="org.eclipse.ui.perspectiveExtensions">
+      <perspectiveExtension
+            targetID="*">
+         <newWizardShortcut
+               id="com.dynamo.cr.luaeditor.NewGameObjectScriptWizard">
+         </newWizardShortcut>
+         <newWizardShortcut
+               id="com.dynamo.cr.luaeditor.NewGuiScriptWizard">
+         </newWizardShortcut>
+      </perspectiveExtension>
+   </extension>
 </plugin>

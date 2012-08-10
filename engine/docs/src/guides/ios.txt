@@ -54,7 +54,7 @@ Handling Touch Input
 
 Currently, we only support a single touch.
 This is simulated as the left mouse button, so handle touch input just like mouse input.
-We will write a new guide which describes input handling in general, link:http://defold.userecho.com[let us know] if this is urgent.
+Read more about how input works in the link:/doc/input[input guide].
 
 Troubleshooting
 ---------------

@@ -1,0 +1,131 @@
+Defold Input Guide
+==================
+
+This guide handles binding hardware input devices to your game and reacting to them in scripts.
+
+Binding Inputs
+--------------
+
+In Defold, you bind hardware inputs to game specific logical actions.
+A typical example is to bind the *Space bar* to the logical action +jump+.
+By separating the hardware input from the logical actions, you can script using the actions relevant to your game, without having to take the hardware into consideration.
+If you decide later on that you want to change which hardware inputs trigger what actions, there is only one place to modify.
+
+The bindings are specified in an _Input Binding_ file (.input_binding).
+By default, the engine will look for the file +/input/game.input_binding+ in your project, but you can change this in the link:/doc/game_project[game.project] file by adding:
+
+----
+[input]
+game_binding = /my_dir/my_file.input_bindingc
+----
+
+[IMPORTANT]
+There should be a 'c' at the end of the path to correspond to the compiled version of the file.
+
+The file contains different hardware triggers for keyboard, mouse and gamepads (Sixaxis/XBox 360).
+Touch devices currently works identical to a mouse, but with only a single touch supported (link:http://defold.userecho.com[tell us] if you want multi-touch support).
+You can add and remove triggers via the context menus of the different trigger types.
+
+((((
+image::images/input/add_key_trigger.png["Add a key trigger", align="center"]
+((((
+
+((((
+image::images/input/key_jump.png["Binding the jump action", align="center"]
+((((
+
+Handling Input
+--------------
+
+Input is only sent to game objects that have acquired it.
+To acquire input, you post the message link:/ref/go#acquire_input_focus[+acquire_input_focus+] to the game object itself.
+This is usually done in the link:/ref/go#init[init-callback] of the script:
+
+[source, lua]
+----
+function init(self)
+    msg.post(nil, "acquire_input_focus")
+end
+----
+
+Once you have done that, the script will start receiving input in its link:/ref/go#on_input[on_input-callback].
+You can handle input like this in both link:/doc/scripting_debugging[gui- and logic scripts].
+
+Here is an example of such a function, handling the action +jump+ mentioned above.
+Remember that you can give the action any name which has some meaning in your game.
+
+[source, lua]
+----
+function on_input(self, action_id, action)
+    if action_id == hash("jump") and action.pressed then
+        -- start_jump(self) is defined elsewhere
+        start_jump(self)
+    end
+end
+----
+
+The +action+-parameter contains relevant information, like if the input was +pressed+ or +released+, and where the mouse was at the time (+x+,+y+ when available).
+See the link:/ref/go#on_input[reference] for details.
+
+Prioritizing Input
+------------------
+
+When you acquire input focus for a game object, that game object is placed at the top of a line of game objects who had requested input before.
+In Defold we call this line the _input stack_.
+This means that whoever had input before is remembered.
+If you release input focus from a game object, it's removed from the stack and input will be passed on to the others.
+You do this by posting the message link:/ref/go#release_input_focus[+release_input_focus+] to the game object:
+
+[source, lua]
+----
+msg.post(nil, "release_input_focus")
+----
+
+In the on_input-callback you have a choice of whether to consume the input or pass it on to the others.
+If you return +true+, the input is consumed and not passed on to the others.
+If you return +false+ (or nothing), the input is passed on.
+
+Example
+~~~~~~~
+
+This is an example of a game situation where this would be useful, since it has conflicting inputs.
+In this game, the player can move right and left.
+By pushing up and down, the player can jump and dodge.
+Now we want to add the ability to talk to NPCs by selecting phrases from a list.
+The phrases are also selected by pushing up and down, which normally means jump/dodge.
+
+You could then have a separate game object that controls the dialogue and temporarily acquires input while the player is close enough.
+It would then consume input for selecting phrases, to keep the player from jumping or dodging.
+For other input, it could pass it on to let the player leave the NPC by moving at any time.
+The on_input callback in the dialogue script could look like this:
+
+[source, lua]
+----
+function on_input(self, action_id, action)
+    if action_id == hash("up") then
+        select_prev_phrase()
+        --consume
+        return true
+    elseif action_id == hash("down") then
+        select_next_phrase()
+        --consume
+        return true
+    end
+    -- pass on
+    return false
+end
+----
+
+Passing Input to Collection Proxies
+-----------------------------------
+
+[IMPORTANT]
+This section describes how to pass input to collections which have been dynamically loaded using collection proxies.
+They have unfortunately not been documented yet.
+There is a forum thread describing them a bit more link:http://defold.userecho.com/topic/112648-how-do-i-unload-load-collections/[here].
+
+There is an important detail concerning collections loaded through collection proxies.
+The game object containing the collection proxy needs to acquire input for the input to be passed into the loaded collection.
+Then some game object in that collection needs to acquire it too.
+We are not completely sure about this design, since it makes things a bit cumbersome.
+We are looking into ways to simplify it, like considering the input stack to be global instead of per-collection.

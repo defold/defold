@@ -1,5 +1,37 @@
 :max-width: 45em
 
+Release 1.2.1
+-------------
+_August 3, 2012_
+
+This release contains more documentation, crash-fixes and a few other fixes.
+
+Documentation
+~~~~~~~~~~~~~
+
+We know our documentation is lacking.
+We are now trying to improve it by looking at what people ask about in the forums.
+There is now a new link:/doc/input[input guide] that describes how to bind and handle input in Defold.
+The link:/doc/tiles[tiles guide] has also been improved to cover more areas.
+How to install the Defold App on your iOS device has also been clarified a bit in the link:/doc/ios[iOS guide].
+
+There are still missing pieces in the documentation, please help us by link:http://defold.userecho.com[reporting] what you can't find.
+
+Crashes
+~~~~~~~
+
+* The app crashed when sending particular kinds of messages
+* The game would crash on Windows when closing it with the close button
+
+Other Fixes
+~~~~~~~~~~~
+
+* *New Folder* was not accessible in the project root or in the *File > New* menu (same with Gui, Gui Script and Script wizards)
+* Multiple collision spheres in a collision object were not rendered correctly in the Collection Editor
+* The tile eraser in the Tile Map editor can now be activated in the *Tile Map* menu or by pushing *Backspace*
+
+Hope you like the fixes!
+
 We have reached Beta! (1.2.0)
 -----------------------------
 _July 30, 2012_
@@ -288,7 +320,7 @@ Follow these steps:
 . Select "No" when asked about updating to 1.1.6
 . Open each of your projects and make sure they are synced (File > Synchronize), the Changed Files View should be empty for each opened project
 . Remove the editor from your computer
-. Download a new one from the link:/dashboard:[Dashboard]
+. Download a new one from the link:/dashboard[Dashboard]
 
 Yahoo
 ~~~~~
@@ -936,7 +968,7 @@ The last two weeks we have been busy improving the documentation and implementin
 Introduction
 ~~~~~~~~~~~~
 
-We have worked hard at writing more documentation and are finally ready to show the new link:/doc/getting_started[introduction].
+We have worked hard at writing more documentation and are finally ready to show the new link:/doc/introduction[introduction].
 It comes with a new link:/doc/side_scroller[tutorial], which demonstrates tweaking and the construction of game objects.
 We hope that you can gain some more insight into our design from the introduction.
 Hopefully, most of it should be old news by now but helpful for new users.
@@ -1117,7 +1149,7 @@ Web Site Face Lift
 As you have probably noticed by now, our web site has had a major face lift.
 We have also restructured the information a bit, but everything should hopefully be easier to find now.
 
-We have also added two new features to the link:/dashboard:[dashboard].
+We have also added two new features to the link:/dashboard[dashboard].
 
 The first is that we now use link:http://www.gravatar.com[Gravatar] to supply the avatars for us.
 To have your own avatar appear in the dashboard, link:https://en.gravatar.com/site/signup/[register] with Gravatar and setup your avatar there.

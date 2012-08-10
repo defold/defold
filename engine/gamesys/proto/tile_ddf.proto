@@ -82,8 +82,8 @@ message TileGrid
     repeated TileLayer layers   = 2;
 }
 
-/*# changes a tile in a tile grid
- * Send this message to a tile grid component to change the tile in one of its cells.
+/*# changes a tile in a tile map
+ * Send this message to a tile map component to change the tile in one of its cells.
  *
  * @examples
  * <p>
@@ -92,7 +92,7 @@ message TileGrid
  * </p>
  *
  * <p>
- * Assuming the instance we collide with has a tile-grid-component with id "tilemap", which has a layer with id "layer1":
+ * Assuming the instance we collide with has a tile map component with id "tilemap", which has a layer with id "layer1":
  * </p>
  * <pre>
  * function on_message(self, message_id, message, sender)
