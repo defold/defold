@@ -50,6 +50,9 @@
               <arg value="scripts/copy_dmengine.sh"/>
         </exec>
 
+	<ant dir="${buildDirectory}/plugins/com.dynamo.cr.rlog" antfile="build_proto.xml">
+	</ant>
+
     </target>
 
 

@@ -3,13 +3,16 @@ package com.dynamo.cr.server.resources.test;
 import static org.mockito.Mockito.mock;
 
 import java.io.File;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 
 import javax.inject.Singleton;
 import javax.mail.MessagingException;
+import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
+import javax.ws.rs.core.UriBuilder;
 
 import org.eclipse.persistence.config.PersistenceUnitProperties;
 import org.eclipse.persistence.jpa.osgi.PersistenceProvider;
@@ -19,6 +22,8 @@ import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
+import com.dynamo.cr.common.providers.JsonProviders;
+import com.dynamo.cr.common.providers.ProtobufProviders;
 import com.dynamo.cr.proto.Config.BillingProduct;
 import com.dynamo.cr.proto.Config.Configuration;
 import com.dynamo.cr.server.ConfigurationProvider;
@@ -28,7 +33,9 @@ import com.dynamo.cr.server.mail.EMail;
 import com.dynamo.cr.server.mail.IMailProcessor;
 import com.dynamo.cr.server.mail.IMailer;
 import com.dynamo.cr.server.mail.MailProcessor;
+import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.model.UserSubscription;
+import com.dynamo.cr.server.model.User.Role;
 import com.dynamo.cr.server.model.UserSubscription.CreditCard;
 import com.dynamo.cr.server.model.UserSubscription.State;
 import com.dynamo.cr.server.test.Util;
@@ -36,6 +43,10 @@ import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
 import com.google.inject.name.Names;
+import com.sun.jersey.api.client.Client;
+import com.sun.jersey.api.client.WebResource;
+import com.sun.jersey.api.client.config.DefaultClientConfig;
+import com.sun.jersey.api.client.filter.HTTPBasicAuthFilter;
 
 public class AbstractResourceTest {
 
@@ -46,6 +57,7 @@ public class AbstractResourceTest {
     static IBillingProvider billingProvider;
     static BillingProduct freeProduct;
     static BillingProduct smallProduct;
+    static Injector injector;
 
     static class TestMailer implements IMailer {
         List<EMail> emails = new ArrayList<EMail>();
@@ -72,7 +84,7 @@ public class AbstractResourceTest {
         billingProvider = mock(IBillingProvider.class);
 
         module = new Module(mailer);
-        Injector injector = Guice.createInjector(module);
+        injector = Guice.createInjector(module);
         server = injector.getInstance(Server.class);
         emf = server.getEntityManagerFactory();
 
@@ -129,5 +141,51 @@ public class AbstractResourceTest {
             bind(EntityManagerFactory.class).toInstance(emf);
         }
     }
+
+    User createUser(String email, String password, String firstName, String lastName, Role role) {
+        EntityManager em = emf.createEntityManager();
+        em.getTransaction().begin();
+        User user = new User();
+        user.setEmail(email);
+        user.setFirstName(firstName);
+        user.setLastName(lastName);
+        user.setPassword(password);
+        user.setRole(role);
+        em.persist(user);
+        em.getTransaction().commit();
+        return user;
+    }
+
+    WebResource createResource(String baseURI, User user, String password) {
+        DefaultClientConfig clientConfig = new DefaultClientConfig();
+        clientConfig.getClasses().add(JsonProviders.ProtobufMessageBodyReader.class);
+        clientConfig.getClasses().add(JsonProviders.ProtobufMessageBodyWriter.class);
+        clientConfig.getClasses().add(ProtobufProviders.ProtobufMessageBodyReader.class);
+        clientConfig.getClasses().add(ProtobufProviders.ProtobufMessageBodyWriter.class);
+
+        Client client = Client.create(clientConfig);
+        client.addFilter(new HTTPBasicAuthFilter(user.getEmail(), password));
+
+        int port = injector.getInstance(Configuration.class).getServicePort();
+
+        URI uri = UriBuilder.fromUri(String.format(baseURI)).port(port).build();
+        return client.resource(uri);
+    }
+
+    WebResource createAnonymousResource(String baseURI) {
+        DefaultClientConfig clientConfig = new DefaultClientConfig();
+        clientConfig.getClasses().add(JsonProviders.ProtobufMessageBodyReader.class);
+        clientConfig.getClasses().add(JsonProviders.ProtobufMessageBodyWriter.class);
+        clientConfig.getClasses().add(ProtobufProviders.ProtobufMessageBodyReader.class);
+        clientConfig.getClasses().add(ProtobufProviders.ProtobufMessageBodyWriter.class);
+
+        Client client = Client.create(clientConfig);
+
+        int port = injector.getInstance(Configuration.class).getServicePort();
+
+        URI uri = UriBuilder.fromUri(String.format(baseURI)).port(port).build();
+        return client.resource(uri);
+    }
+
 }
 

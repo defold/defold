@@ -13,7 +13,6 @@ public class StatusResource {
             .getLogger(StatusResource.class);
 
     @GET
-    @Path("")
     public String getServerStatus() {
         // Currently only used to check if the server is running
         // We could extend status-status later with more info

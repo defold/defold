@@ -495,7 +495,6 @@ public class ProjectResourceTest extends AbstractResourceTest {
             assertTrue(false);
         } catch (RepositoryException e) {
             assertEquals(404, e.getStatusCode());
-            e.printStackTrace();
         }
 
         try {
@@ -503,7 +502,6 @@ public class ProjectResourceTest extends AbstractResourceTest {
             assertTrue(false);
         } catch (RepositoryException e) {
             assertEquals(404, e.getStatusCode());
-            e.printStackTrace();
         }
 
         try {
@@ -511,7 +509,6 @@ public class ProjectResourceTest extends AbstractResourceTest {
             assertTrue(false);
         } catch (RepositoryException e) {
             assertEquals(404, e.getStatusCode());
-            e.printStackTrace();
         }
 
         ownerBranchClient.putResourceData("/content/foo.txt", "foo".getBytes());
@@ -522,7 +519,6 @@ public class ProjectResourceTest extends AbstractResourceTest {
             assertTrue(false);
         } catch (RepositoryException e) {
             assertEquals(404, e.getStatusCode());
-            e.printStackTrace();
         } finally {
             ownerBranchClient.deleteResource("/content/foo.txt");
             assertEquals(Protocol.BranchStatus.State.CLEAN, ownerBranchClient.getBranchStatus().getBranchState());
@@ -533,7 +529,6 @@ public class ProjectResourceTest extends AbstractResourceTest {
             assertTrue(false);
         } catch (RepositoryException e) {
             assertEquals(404, e.getStatusCode());
-            e.printStackTrace();
         }
 
         try {
@@ -541,7 +536,6 @@ public class ProjectResourceTest extends AbstractResourceTest {
             assertTrue(false);
         } catch (RepositoryException e) {
             assertEquals(404, e.getStatusCode());
-            e.printStackTrace();
         }
     }
 
@@ -577,7 +571,6 @@ public class ProjectResourceTest extends AbstractResourceTest {
                 ownerBranchClient.getResourceData("/content", "");
             } catch (RepositoryException e) {
                 assertEquals(400, e.getStatusCode());
-                e.printStackTrace();
             }
         }
 

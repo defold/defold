@@ -14,7 +14,6 @@ import com.dynamo.cr.editor.core.EditorCorePlugin;
 import com.dynamo.cr.editor.core.IResourceType;
 import com.dynamo.cr.sceneed.Activator;
 import com.dynamo.cr.sceneed.core.INodeLoader;
-import com.dynamo.cr.sceneed.core.INodeRenderer;
 import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
 import com.dynamo.cr.sceneed.core.ISceneView;
@@ -62,14 +61,8 @@ public class NodeTypeRegistry implements INodeTypeRegistry {
                     nodePresenter = (ISceneView.INodePresenter<Node>)e.createExecutableExtension("presenter");
                 }
 
-                INodeRenderer<Node> nodeRenderer = null;
-                if (e.getAttribute("renderer") != null) {
-                    nodeRenderer = (INodeRenderer<Node>) e.createExecutableExtension("renderer");
-                }
-
                 String displayGroup = e.getAttribute("display-group");
-
-                NodeType type = new NodeType(extension, nodeLoader, nodePresenter, nodeRenderer, resourceType, nodeClass, displayGroup);
+                NodeType type = new NodeType(extension, e, nodeLoader, nodePresenter, resourceType, nodeClass, displayGroup);
                 if (extension != null) {
                     this.extToClass.put(extension, nodeClass);
                 }

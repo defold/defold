@@ -33,6 +33,7 @@
 /blog/update_scene_editor_and_content_pipeline.html
 /blog/update_sprite_design_tile_fixes_and_content_pipeline.html
 /blog/sindex.html
+/unsubscribe.html
 /index.html
 /plans/index.html
 /doc/eula.html

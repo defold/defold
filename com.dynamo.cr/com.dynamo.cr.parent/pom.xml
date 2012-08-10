@@ -109,6 +109,8 @@
         <module>../com.dynamo.cr.tileeditor.test</module>
         <module>../com.dynamo.cr.properties</module>
         <module>../com.dynamo.cr.properties.test</module>
+        <module>../com.dynamo.cr.rlog</module>
+        <module>../com.dynamo.cr.rlog.test</module>
         <module>../com.dynamo.cr.sceneed</module>
         <module>../com.dynamo.cr.sceneed.test</module>
         <module>../com.dynamo.cr.go</module>
@@ -122,6 +124,7 @@
         <module>../com.dynamo.cr.bob.test</module>
         <module>../com.dynamo.cr.templates</module>
         <module>../javax.media.opengl</module>
+        <module>../joda.time</module>
     </modules>
 
 </project>

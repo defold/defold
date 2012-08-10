@@ -108,7 +108,6 @@ public class UsersResource extends BaseResource {
     }
 
     @POST
-    @Path("/")
     @RolesAllowed(value = { "admin" })
     @Transactional
     public UserInfo registerUser(RegisterUser registerUser) {
@@ -183,6 +182,8 @@ public class UsersResource extends BaseResource {
                 server.getMailProcessor().process();
             }
         });
+
+        ModelUtil.subscribeToNewsLetter(em, email, "", "");
 
         return okResponse("User %s invited", email);
     }

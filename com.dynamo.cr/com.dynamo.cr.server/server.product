@@ -35,6 +35,7 @@
       <plugin id="javax.activation"/>
       <plugin id="javax.mail"/>
       <plugin id="javax.servlet"/>
+      <plugin id="joda.time"/>
       <plugin id="org.eclipse.core.contenttype"/>
       <plugin id="org.eclipse.core.jobs"/>
       <plugin id="org.eclipse.core.runtime"/>

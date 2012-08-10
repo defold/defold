@@ -16,6 +16,7 @@ public class PreferencePage
 
 	private BooleanFieldEditor customApplicationField;
     private FileFieldEditor applicationField;
+    private BooleanFieldEditor anonymousLogging;
 
     public PreferencePage() {
 		super(GRID);
@@ -31,6 +32,9 @@ public class PreferencePage
         IPreferenceStore store = Activator.getDefault().getPreferenceStore();
         applicationField.setEnabled(store.getBoolean(PreferenceConstants.P_CUSTOM_APPLICATION), getFieldEditorParent());
         addField(applicationField);
+
+        anonymousLogging = new BooleanFieldEditor(PreferenceConstants.P_ANONYMOUS_LOGGING, "Enable anonymous logging", getFieldEditorParent());
+        addField(anonymousLogging);
 	}
 
 	@Override

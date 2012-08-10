@@ -19,6 +19,8 @@ import javax.vecmath.Point2i;
 import javax.vecmath.Vector2f;
 
 import org.eclipse.swt.SWT;
+import org.eclipse.swt.events.KeyEvent;
+import org.eclipse.swt.events.KeyListener;
 import org.eclipse.swt.events.MouseEvent;
 import org.eclipse.swt.events.MouseListener;
 import org.eclipse.swt.events.MouseMoveListener;
@@ -141,6 +143,8 @@ Listener {
         this.canvas.addListener(SWT.Resize, this);
         this.canvas.addListener(SWT.Paint, this);
         this.canvas.addListener(SWT.MouseExit, this);
+        this.canvas.addListener(SWT.KeyDown, this);
+        this.canvas.addListener(SWT.KeyUp, this);
         this.canvas.addMouseListener(this);
         this.canvas.addMouseMoveListener(this);
         this.canvas.addMouseTrackListener(new MouseTrackAdapter() {
@@ -317,6 +321,11 @@ Listener {
                 this.activeCell = null;
                 requestPaint();
             }
+        } else if (event.type == SWT.KeyDown) {
+            Cursor cursor = this.gridEditor.getCursor(GridEditor.CURSOR_TYPE_CROSS);
+            this.canvas.setCursor(cursor);
+        } else if (event.type == SWT.KeyUp) {
+            updateCursor();
         }
     }
 
@@ -463,6 +472,7 @@ Listener {
                 }
             }
         }
+        updateCursor();
     }
 
     @Override
@@ -483,6 +493,7 @@ Listener {
                 this.presenter.onPaintEnd();
             }
         }
+        updateCursor();
     }
 
     public boolean isEnabled() {

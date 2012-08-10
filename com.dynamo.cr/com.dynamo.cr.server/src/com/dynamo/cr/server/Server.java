@@ -14,6 +14,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
@@ -71,13 +72,16 @@ import com.dynamo.cr.server.auth.OpenIDAuthenticator;
 import com.dynamo.cr.server.auth.SecurityFilter;
 import com.dynamo.cr.server.billing.IBillingProvider;
 import com.dynamo.cr.server.mail.IMailProcessor;
+import com.dynamo.cr.server.model.Invitation;
 import com.dynamo.cr.server.model.InvitationAccount;
 import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.Project;
+import com.dynamo.cr.server.model.Prospect;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.model.User.Role;
 import com.dynamo.cr.server.openid.OpenID;
 import com.dynamo.cr.server.resources.LoginResource;
+import com.dynamo.cr.server.resources.NewsListResource;
 import com.dynamo.cr.server.resources.ProductsResource;
 import com.dynamo.cr.server.resources.ProjectResource;
 import com.dynamo.cr.server.resources.ProjectsResource;
@@ -206,6 +210,7 @@ public class Server implements ServerMBean {
                     bind(ProjectResource.class);
                     bind(ProjectsResource.class);
                     bind(UsersResource.class);
+                    bind(NewsListResource.class);
                     bind(LoginResource.class);
                     bind(ProspectsResource.class);
                     bind(ProductsResource.class);
@@ -319,6 +324,7 @@ public class Server implements ServerMBean {
             filterPatterns[i++] = Pattern.compile(f);
         }
         bootStrapUsers();
+        migrateNewsSubscriptions();
 
         String builtinsDirectory = null;
         if (configuration.hasBuiltinsDirectory())
@@ -605,6 +611,34 @@ public class Server implements ServerMBean {
                 em.persist(u);
             }
         }
+        em.getTransaction().commit();
+        em.close();
+    }
+
+    private void migrateNewsSubscriptions() {
+        /*
+         * Migrate existing users, prospects and invited users to news-letter
+         * This can be removed after first deployment
+         */
+
+        EntityManager em = emf.createEntityManager();
+        em.getTransaction().begin();
+
+        List<Prospect> prospects = em.createQuery("select p from Prospect p", Prospect.class).getResultList();
+        for (Prospect prospect : prospects) {
+            ModelUtil.subscribeToNewsLetter(em, prospect.getEmail(), "", "");
+        }
+
+        List<Invitation> invitations = em.createQuery("select i from Invitation i", Invitation.class).getResultList();
+        for (Invitation invitation : invitations) {
+            ModelUtil.subscribeToNewsLetter(em, invitation.getEmail(), "", "");
+        }
+
+        List<User> users = em.createQuery("select u from User u", User.class).getResultList();
+        for (User user : users) {
+            ModelUtil.subscribeToNewsLetter(em, user.getEmail(), user.getFirstName(), user.getLastName());
+        }
+
         em.getTransaction().commit();
         em.close();
     }

@@ -18,7 +18,8 @@ Require-Bundle: com.dynamo.cr.common;bundle-version="1.0.0",
  com.google.inject;bundle-version="3.0.0",
  javax.servlet;bundle-version="2.5.0",
  com.dynamo.cr.templates;bundle-version="1.0.0",
- org.glassfish.grizzly;bundle-version="2.1.2"
+ org.glassfish.grizzly;bundle-version="2.1.2",
+ joda.time;bundle-version="2.1.0"
 Bundle-ActivationPolicy: lazy
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
 Bundle-ClassPath: ext/asm-3.1.jar,
@@ -35,7 +36,6 @@ Bundle-ClassPath: ext/asm-3.1.jar,
  ext/jersey-server-1.11.jar,
  ext/jersey-grizzly2-servlet-1.11.jar,
  ext/jersey-servlet-1.11.jar,
- ext/joda-time-2.1.jar,
  ext/jersey-guice-1.11.jar,
  ext/guice-servlet-3.0.jar
 Import-Package: javax.management,

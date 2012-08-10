@@ -17,106 +17,20 @@
     </encoder>
   </appender>
 
-  <appender name="FILE-BILLING" class="ch.qos.logback.core.rolling.RollingFileAppender">
-    <filter class="ch.qos.logback.core.filter.EvaluatorFilter">
-        <evaluator class="ch.qos.logback.classic.boolex.JaninoEventEvaluator">
-            <expression>return level >= INFO &amp;&amp; marker != null &amp;&amp; marker.getName().equals("BILLING");</expression>
-        </evaluator>
-        <OnMismatch>DENY</OnMismatch>
-        <OnMatch>NEUTRAL</OnMatch>
-    </filter>
-
-    <file>billing.log</file>
-    <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-      <!-- monthly rollover -->
-      <fileNamePattern>billing.%d{yyyy-MM}.log</fileNamePattern>
-      <!-- keep a year's worth of history -->
-      <maxHistory>12</maxHistory>
-    </rollingPolicy>
-
-    <encoder>
-      <pattern>%date %level [%file:%line] %msg%n</pattern>
-    </encoder>
-  </appender>
-
   <appender name="STDERR" class="ch.qos.logback.core.ConsoleAppender">
     <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
       <level>WARN</level>
     </filter>
 
     <encoder>
-      <pattern>%date %level [%thread] %logger{10} [%file:%line] %msg%n</pattern>
+      <!-- NOTE: %nopex suppress stack-trace output -->
+      <pattern>%date %level [%thread] %logger{10} [%file:%line] %nopex %msg%n</pattern>
     </encoder>
     <target>System.err</target>
   </appender>
 
-  <appender name="ACCESS" class="ch.qos.logback.core.rolling.RollingFileAppender">
-    <file>access.log</file>
-    <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-      <fileNamePattern>access.%d{yyyy-MM-dd}.log</fileNamePattern>
-      <maxHistory>30</maxHistory>
-    </rollingPolicy>
-
-    <filter class="ch.qos.logback.core.filter.EvaluatorFilter">
-        <evaluator class="ch.qos.logback.classic.boolex.JaninoEventEvaluator">
-            <expression>return logger.endsWith("PostLoggingResponseFilter");</expression>
-        </evaluator>
-        <OnMismatch>DENY</OnMismatch>
-        <OnMatch>NEUTRAL</OnMatch>
-    </filter>
-
-    <!-- Do not log /status-request. We request status every minute -->
-    <filter class="ch.qos.logback.core.filter.EvaluatorFilter">
-        <evaluator class="ch.qos.logback.classic.boolex.JaninoEventEvaluator">
-            <expression>return mdc.get("uri") != null &amp;&amp; mdc.get("uri").equals("/status");</expression>
-        </evaluator>
-        <OnMismatch>NEUTRAL</OnMismatch>
-        <OnMatch>DENY</OnMatch>
-    </filter>
-
-    <encoder>
-        <pattern>%date %level [%thread] %X{method} %X{uri} %X{userId}@%X{remoteAddr} %msg%n</pattern>
-    </encoder>
-  </appender>
-
-  <appender name="ACCESS-XML" class="ch.qos.logback.core.rolling.RollingFileAppender">
-    <file>access.xml</file>
-    <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-      <fileNamePattern>access.%d{yyyy-MM-dd}.xml</fileNamePattern>
-      <maxHistory>30</maxHistory>
-    </rollingPolicy>
-
-    <filter class="ch.qos.logback.core.filter.EvaluatorFilter">
-        <evaluator class="ch.qos.logback.classic.boolex.JaninoEventEvaluator">
-            <expression>return logger.endsWith("PostLoggingResponseFilter");</expression>
-        </evaluator>
-        <OnMismatch>DENY</OnMismatch>
-        <OnMatch>NEUTRAL</OnMatch>
-    </filter>
-
-    <!-- Do not log /status-request. We request status every minute -->
-    <filter class="ch.qos.logback.core.filter.EvaluatorFilter">
-        <evaluator class="ch.qos.logback.classic.boolex.JaninoEventEvaluator">
-            <expression>return mdc.get("uri") != null &amp;&amp; mdc.get("uri").equals("/status");</expression>
-        </evaluator>
-        <OnMismatch>NEUTRAL</OnMismatch>
-        <OnMatch>DENY</OnMatch>
-    </filter>
-
-    <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
-        <layout class="ch.qos.logback.classic.log4j.XMLLayout">
-            <locationInfo>true</locationInfo>
-            <properties>true</properties>
-        </layout>
-    </encoder>
-
-  </appender>
-
   <root level="info">
     <appender-ref ref="FILE" />
-    <appender-ref ref="FILE-BILLING" />
     <appender-ref ref="STDERR" />
-    <appender-ref ref="ACCESS" />
-    <appender-ref ref="ACCESS-XML" />
   </root>
 </configuration>
