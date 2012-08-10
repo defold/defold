@@ -1,6 +1,8 @@
 Remote Logging
 ==============
 
+The web interface is accessible from: http://log.defold.com (or http://defoldlog.appspot.com)
+
 Storage
 -------
 
