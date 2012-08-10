@@ -1,11 +1,13 @@
-import re, os
+import re, os, sys
 import binascii
 import string
 import gdata.youtube
 import gdata.youtube.service
+import gdata.service
 from gdata.media import YOUTUBE_NAMESPACE
 from gdata.tlslite.utils.dateFuncs import parseDateClass
 import time
+import threading
 
 CATEGORIES_SCHEME = "http://gdata.youtube.com/schemas/2007/categories.cat"
 
@@ -27,7 +29,14 @@ class YouTube(object):
         self.service.developer_key = YouTube.DEVELOPER_KEY
         self.service.email = YouTube.EMAIL
         self.service.password = YouTube.PASSWORD
-        self.service.ProgrammaticLogin()
+        try:
+            self.service.ProgrammaticLogin()
+        except gdata.service.CaptchaRequired:
+            print "run single thread and uncomment the code below, we need captcha"
+#            print self.service._GetCaptchaURL()
+#            response = raw_input('Captcha:')
+#            print response
+#            self.service.ProgrammaticLogin(self.service._GetCaptchaToken(), response)
 
     @staticmethod
     def print_entry(entry):

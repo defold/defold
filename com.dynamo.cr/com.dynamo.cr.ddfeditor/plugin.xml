@@ -501,6 +501,9 @@
          <newWizardShortcut
                id="com.dynamo.cr.ddfeditor.wizards.ConvexShapeNewWizard">
          </newWizardShortcut>
+         <newWizardShortcut
+               id="com.dynamo.cr.ddfeditor.wizards.GuiNewWizard">
+         </newWizardShortcut>
       </perspectiveExtension>
    </extension>
    <extension
