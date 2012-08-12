@@ -44,13 +44,13 @@ import org.eclipse.ui.progress.IProgressService;
 import org.eclipse.ui.statushandlers.StatusManager;
 import org.eclipse.ui.views.contentoutline.IContentOutlinePage;
 import org.eclipse.ui.views.properties.IPropertySheetPage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.editor.core.EditorUtil;
-import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.editor.core.inject.LifecycleModule;
 import com.dynamo.cr.editor.ui.AbstractDefoldEditor;
 import com.dynamo.cr.editor.ui.IImageProvider;
-import com.dynamo.cr.editor.ui.Logger;
 import com.dynamo.cr.properties.IFormPropertySheetPage;
 import com.dynamo.cr.sceneed.Activator;
 import com.dynamo.cr.sceneed.core.CameraController;
@@ -77,6 +77,8 @@ import com.google.inject.Injector;
 
 public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, IPropertyChangeListener, IPartListener {
 
+
+    private static Logger logger = LoggerFactory.getLogger(SceneEditor.class);
     private ISceneOutlinePage outlinePage;
     private IFormPropertySheetPage propertySheetPage;
     private IRenderView renderView;
@@ -132,8 +134,6 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
             bind(IUndoContext.class).toInstance(undoContext);
             bind(UndoActionHandler.class).toInstance(undoHandler);
             bind(RedoActionHandler.class).toInstance(redoHandler);
-
-            bind(ILogger.class).to(Logger.class);
 
             bind(IContainer.class).toInstance(contentRoot);
 
@@ -255,10 +255,10 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
         try {
             service.runInUI(service, loader, null);
             if (loader.exception != null) {
-                this.logger.logException(loader.exception);
+                logger.error("Error occurred while reloading", loader.exception);
             }
         } catch (Throwable e) {
-            this.logger.logException(e);
+            logger.error("Error occurred while reloading", loader.exception);
         }
     }
 
@@ -271,7 +271,7 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
                 try {
                     presenter.onResourceChanged(event);
                 } catch (Throwable e) {
-                    logger.logException(e);
+                    logger.error("Error occurred while refreshing resource", e);
                 }
             }
         });
@@ -289,7 +289,7 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
                     new ByteArrayInputStream(stream.toByteArray()), false,
                     true, monitor);
         } catch (Throwable e) {
-            logger.logException(e);
+            logger.error("Error occurred while saving", e);
         } finally {
             this.inSave = false;
         }

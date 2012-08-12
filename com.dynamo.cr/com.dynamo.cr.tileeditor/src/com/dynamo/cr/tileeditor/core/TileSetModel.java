@@ -31,17 +31,18 @@ import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Status;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.properties.Entity;
 import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
+import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.cr.properties.PropertyIntrospector;
 import com.dynamo.cr.properties.PropertyIntrospectorModel;
 import com.dynamo.cr.properties.Range;
 import com.dynamo.cr.properties.Resource;
-import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.tile.ConvexHull;
 import com.dynamo.tile.TileSetUtil;
 import com.dynamo.tile.TileSetUtil.ConvexHulls;
@@ -54,6 +55,8 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
 
     // TODO: Should be configurable
     private static final int PLANE_COUNT = 16;
+
+    private static Logger logger = LoggerFactory.getLogger(TileSetModel.class);
 
     @Property(editorType=EditorType.RESOURCE, extensions={"jpg", "png"})
     @Resource
@@ -90,16 +93,13 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
     IOperationHistory undoHistory;
     IUndoContext undoContext;
 
-    private final ILogger logger;
-
     BufferedImage loadedImage;
     BufferedImage loadedCollision;
 
-    public TileSetModel(IContainer contentRoot, IOperationHistory undoHistory, IUndoContext undoContext, ILogger logger) {
+    public TileSetModel(IContainer contentRoot, IOperationHistory undoHistory, IUndoContext undoContext) {
         this.contentRoot = contentRoot;
         this.undoHistory = undoHistory;
         this.undoContext = undoContext;
-        this.logger = logger;
 
         this.convexHulls = new ArrayList<ConvexHull>();
         this.collisionGroups = new ArrayList<String>();
@@ -333,7 +333,7 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
         List<String> oldCollisionGroups = new ArrayList<String>(this.collisionGroups);
         for (String collisionGroup : collisionGroups) {
             if (this.collisionGroups.contains(collisionGroup)) {
-                this.logger.logException(new IllegalArgumentException(collisionGroup));
+                this.logger.error("Invalid argument {}", collisionGroup);
             } else {
                 added = true;
                 this.collisionGroups.add(collisionGroup);
@@ -354,7 +354,7 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
         List<String> oldCollisionGroups = new ArrayList<String>(this.collisionGroups);
         for (String collisionGroup : collisionGroups) {
             if (!this.collisionGroups.contains(collisionGroup)) {
-                this.logger.logException(new IllegalArgumentException(collisionGroup));
+                this.logger.error("Invalid argument {}", collisionGroup);
             } else {
                 removed = true;
                 this.collisionGroups.remove(collisionGroup);
@@ -375,7 +375,7 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
         int n = oldCollisionGroups.length;
         for (int i = 0; i < n; ++i) {
             if (!tmpCollisionGroups.contains(oldCollisionGroups[i])) {
-                this.logger.logException(new IllegalArgumentException(oldCollisionGroups[i]));
+                this.logger.error("Invalid argument {}", oldCollisionGroups[i]);
             } else {
                 renamed = true;
                 this.collisionGroups.remove(oldCollisionGroups[i]);
@@ -489,11 +489,11 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
         try {
             status = this.undoHistory.execute(operation, null, null);
         } catch (final ExecutionException e) {
-            this.logger.logException(e);
+            logger.error("Error occurred while executing operation", e);
         }
 
         if (status != Status.OK_STATUS) {
-            this.logger.logException(status.getException());
+            logger.error("Error occurred while executing operation", status.getException());
         }
     }
 
@@ -622,7 +622,7 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
                 }
             });
         } catch (CoreException e) {
-            this.logger.logException(e);
+            logger.error("Error occurred while reloading", e);
         }
 
         return reload[0];

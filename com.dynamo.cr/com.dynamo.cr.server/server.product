@@ -48,6 +48,7 @@
       <plugin id="org.eclipse.osgi"/>
       <plugin id="org.eclipse.osgi.services"/>
       <plugin id="org.glassfish.grizzly"/>
+      <plugin id="slf4j"/>
    </plugins>
 
    <configurations>

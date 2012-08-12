@@ -6,6 +6,8 @@ import java.util.List;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.LabelProvider;
 import org.eclipse.swt.graphics.Image;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.editor.core.EditorCorePlugin;
 import com.dynamo.cr.editor.core.IResourceType;
@@ -19,6 +21,7 @@ import com.dynamo.cr.sceneed.core.Node;
 
 public class GameObjectPresenter implements ISceneView.INodePresenter<GameObjectNode> {
 
+    private static Logger logger = LoggerFactory.getLogger(GameObjectPresenter.class);
     private GameObjectNode findGameObjectFromSelection(IStructuredSelection selection) {
         Object[] nodes = selection.toArray();
         GameObjectNode parent = null;
@@ -47,7 +50,8 @@ public class GameObjectPresenter implements ISceneView.INodePresenter<GameObject
             try {
                 child = (ComponentTypeNode)loaderContext.loadNodeFromTemplate(componentType);
             } catch (Exception e) {
-                presenterContext.logException(e);
+                // TODO: Dialog here?
+                logger.error("Error occurred while adding component", e);
             }
             if (child != null) {
                 presenterContext.executeOperation(new AddComponentOperation(parent, child, presenterContext));
@@ -70,7 +74,8 @@ public class GameObjectPresenter implements ISceneView.INodePresenter<GameObject
             try {
                 child = (ComponentTypeNode)loaderContext.loadNode(path);
             } catch (Exception e) {
-                presenterContext.logException(e);
+                // TODO: Dialog here?
+                logger.error("Error occurred while adding component from file", e);
                 return;
             }
             if (child != null) {

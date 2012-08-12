@@ -6,10 +6,8 @@ import java.util.List;
 import java.util.Map;
 
 import org.eclipse.core.runtime.IConfigurationElement;
-import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.core.runtime.Plugin;
-import org.eclipse.core.runtime.Status;
 import org.osgi.framework.Bundle;
 import org.osgi.framework.BundleContext;
 
@@ -82,7 +80,6 @@ public class EditorCorePlugin extends Plugin implements IResourceTypeRegistry {
     public void start(BundleContext bundleContext) throws Exception {
 		EditorCorePlugin.context = bundleContext;
         plugin = this;
-
         System.setProperty("com.defold.platform", getPlatform());
 
         IConfigurationElement[] config = Platform.getExtensionRegistry()
@@ -144,11 +141,6 @@ public class EditorCorePlugin extends Plugin implements IResourceTypeRegistry {
             idToResourceType.put(id, resourceType);
         }
 	}
-
-    public static void logException(Throwable e) {
-        Status status = new Status(IStatus.ERROR, PLUGIN_ID, e.getMessage(), e);
-        getDefault().getLog().log(status);
-    }
 
 	/*
 	 * (non-Javadoc)

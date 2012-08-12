@@ -52,7 +52,6 @@ import org.osgi.framework.Bundle;
 
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.properties.IPropertyModel;
-import com.dynamo.cr.tileeditor.Logger;
 import com.dynamo.cr.tileeditor.core.ITileSetView;
 import com.dynamo.cr.tileeditor.core.Messages;
 import com.dynamo.cr.tileeditor.core.TileSetModel;
@@ -118,7 +117,7 @@ public class TileSetTest implements IResourceChangeListener {
         this.view = mock(ITileSetView.class);
         this.history = new DefaultOperationHistory();
         this.undoContext = new UndoContext();
-        this.model = new TileSetModel(this.contentRoot, this.history, this.undoContext, new Logger());
+        this.model = new TileSetModel(this.contentRoot, this.history, this.undoContext);
         this.presenter = new TileSetPresenter(this.model, this.view);
         this.propertyModel = (IPropertyModel<TileSetModel, TileSetModel>) this.model.getAdapter(IPropertyModel.class);
     }
@@ -728,7 +727,7 @@ public class TileSetTest implements IResourceChangeListener {
         } finally {
             os.close();
         }
-        TileSetModel newModel = new TileSetModel(this.contentRoot, this.history, this.undoContext, new Logger());
+        TileSetModel newModel = new TileSetModel(this.contentRoot, this.history, this.undoContext);
         InputStream is = new FileInputStream(newTileSetPath);
         try {
             newModel.load(is);

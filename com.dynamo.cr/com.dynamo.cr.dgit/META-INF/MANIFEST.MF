@@ -43,7 +43,8 @@ Export-Package: com.dynamo.server.dgit;uses:="com.dynamo.cr.protocol.proto,org.s
 Require-Bundle: org.eclipse.core.runtime;bundle-version="3.7.0",
  com.dynamo.cr.common;bundle-version="1.0.0",
  com.google.common;bundle-version="0.0.9",
- javax.servlet;bundle-version="2.5.0"
+ javax.servlet;bundle-version="2.5.0",
+ slf4j;bundle-version="1.6.4"
 Bundle-ClassPath: .,
  lib/jsch-0.1.44-1.jar,
  lib/org.eclipse.jgit-1.2.0.201112221803-r.jar,

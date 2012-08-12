@@ -44,6 +44,8 @@ import org.eclipse.ui.operations.RedoActionHandler;
 import org.eclipse.ui.operations.UndoActionHandler;
 import org.eclipse.ui.part.EditorPart;
 import org.eclipse.ui.statushandlers.StatusManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.editor.core.EditorCorePlugin;
 import com.dynamo.cr.editor.core.EditorUtil;
@@ -56,6 +58,7 @@ import com.google.protobuf.TextFormat;
 
 public abstract class DdfEditor extends EditorPart implements IOperationHistoryListener, IResourceChangeListener {
 
+    private static final Logger logger = LoggerFactory.getLogger(DdfEditor.class);
     private MessageNode message;
     private UndoContext undoContext;
     private UndoActionHandler undoAction;
@@ -98,7 +101,7 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
         try {
             history.execute(operation, null, null);
         } catch (ExecutionException e) {
-            Activator.logException(e);
+            logger.error("Failed execute operation", e);
         }
     }
 
@@ -319,7 +322,7 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
                 }
             });
         } catch (CoreException e) {
-            Activator.logException(e);
+            logger.error("Unexpecged error occurred", e);
         }
     }
 }

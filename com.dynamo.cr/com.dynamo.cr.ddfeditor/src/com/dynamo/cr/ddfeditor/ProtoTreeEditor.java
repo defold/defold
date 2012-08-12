@@ -36,6 +36,8 @@ import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.dialogs.ListDialog;
 import org.eclipse.ui.dialogs.ResourceListSelectionDialog;
 import org.eclipse.ui.forms.widgets.FormToolkit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.ddfeditor.operations.AddRepeatedOperation;
 import com.dynamo.cr.ddfeditor.operations.RemoveRepeatedOperation;
@@ -56,6 +58,7 @@ import com.google.protobuf.Descriptors.FieldDescriptor.Type;
 
 public class ProtoTreeEditor implements Listener {
 
+    private static Logger logger = LoggerFactory.getLogger(FontEditor.class);
     private TreeViewer treeViewer;
     private IContainer contentRoot;
     private UndoContext undoContext;
@@ -333,7 +336,7 @@ public class ProtoTreeEditor implements Listener {
         try {
             history.execute(operation, null, null);
         } catch (ExecutionException e) {
-            Activator.logException(e);
+            logger.error("Failed to execute operation", e);
         }
     }
 

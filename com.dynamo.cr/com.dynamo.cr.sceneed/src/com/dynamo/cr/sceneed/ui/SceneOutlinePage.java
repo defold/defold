@@ -41,8 +41,9 @@ import org.eclipse.ui.operations.RedoActionHandler;
 import org.eclipse.ui.operations.UndoActionHandler;
 import org.eclipse.ui.part.IPageSite;
 import org.eclipse.ui.views.contentoutline.ContentOutlinePage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.editor.ui.DecoratingDefoldLabelProvider;
 import com.dynamo.cr.sceneed.Activator;
 import com.dynamo.cr.sceneed.core.ISceneView;
@@ -53,6 +54,7 @@ import com.dynamo.cr.sceneed.ui.util.NodeListDNDListener;
 
 public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlinePage {
 
+    private static Logger logger = LoggerFactory.getLogger(SceneOutlinePage.class);
     private static final String MENU_ID = "com.dynamo.cr.sceneed.menus.sceneOutlineContext";
 
     private final ISceneView.IPresenter presenter;
@@ -60,17 +62,15 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
     private final UndoActionHandler undoHandler;
     private final RedoActionHandler redoHandler;
     private final RootItem root;
-    private final ILogger logger;
     private final OutlineLabelProvider labelProvider;
 
     @Inject
-    public SceneOutlinePage(ISceneView.IPresenter presenter, ISceneView.IPresenterContext presenterContext, UndoActionHandler undoHandler, RedoActionHandler redoHandler, ILogger logger) {
+    public SceneOutlinePage(ISceneView.IPresenter presenter, ISceneView.IPresenterContext presenterContext, UndoActionHandler undoHandler, RedoActionHandler redoHandler) {
         this.presenter = presenter;
         this.presenterContext = presenterContext;
         this.undoHandler = undoHandler;
         this.redoHandler = redoHandler;
         this.root = new RootItem();
-        this.logger = logger;
         this.labelProvider = new OutlineLabelProvider();
     }
 
@@ -302,7 +302,7 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
                 } catch (NotHandledException e) {
                     // Completely fine
                 } catch (Throwable e) {
-                    logger.logException(e);
+                    logger.error("Unexpected error occurred", e);
                 }
             }
         });

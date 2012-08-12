@@ -1,10 +1,7 @@
 package com.dynamo.cr.ddfeditor;
 
-import org.eclipse.core.runtime.IStatus;
-import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.resource.ImageDescriptor;
 import org.eclipse.jface.resource.ImageRegistry;
-import org.eclipse.ui.statushandlers.StatusManager;
 import org.osgi.framework.BundleContext;
 
 import com.dynamo.cr.editor.ui.AbstractDefoldPlugin;
@@ -34,11 +31,6 @@ public class Activator extends AbstractDefoldPlugin {
     public void stop(BundleContext context) throws Exception {
         super.stop(context);
         plugin = null;
-    }
-
-    public static void logException(Throwable e) {
-        Status status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, e.getMessage(), e);
-        StatusManager.getManager().handle(status, StatusManager.LOG);
     }
 
     @Override

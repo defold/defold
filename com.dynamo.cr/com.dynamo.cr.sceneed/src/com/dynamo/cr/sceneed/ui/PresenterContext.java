@@ -6,7 +6,6 @@ import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.jface.viewers.ILabelProvider;
 import org.eclipse.jface.viewers.IStructuredSelection;
 
-import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.ISceneView;
@@ -18,18 +17,11 @@ com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext {
 
     private final ISceneModel model;
     private final ISceneView view;
-    private final ILogger logger;
 
     @Inject
-    public PresenterContext(ISceneModel model, ISceneView view, ILogger logger) {
+    public PresenterContext(ISceneModel model, ISceneView view) {
         this.model = model;
         this.view = view;
-        this.logger = logger;
-    }
-
-    @Override
-    public void logException(Throwable exception) {
-        this.logger.logException(exception);
     }
 
     @Override

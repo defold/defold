@@ -19,8 +19,6 @@ import javax.vecmath.Point2i;
 import javax.vecmath.Vector2f;
 
 import org.eclipse.swt.SWT;
-import org.eclipse.swt.events.KeyEvent;
-import org.eclipse.swt.events.KeyListener;
 import org.eclipse.swt.events.MouseEvent;
 import org.eclipse.swt.events.MouseListener;
 import org.eclipse.swt.events.MouseMoveListener;
@@ -39,8 +37,9 @@ import org.eclipse.swt.widgets.Listener;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.handlers.IHandlerService;
 import org.eclipse.ui.services.IDisposable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.sceneed.core.SceneUtil;
 import com.dynamo.cr.sceneed.core.SceneUtil.MouseType;
 import com.dynamo.cr.sceneed.ui.RenderUtil;
@@ -64,8 +63,8 @@ Listener {
     private final static int CAMERA_MODE_ZOOM = 2;
     private final static float BORDER_SIZE = 1.0f;
 
+    private static Logger logger = LoggerFactory.getLogger(GridRenderer.class);
     private final IGridView.Presenter presenter;
-    private final ILogger logger;
     private final GridEditor gridEditor;
 
     private GLCanvas canvas;
@@ -101,9 +100,8 @@ Listener {
     private Texture backgroundTexture;
 
     @Inject
-    public GridRenderer(IGridView.Presenter presenter, ILogger logger, GridEditor gridEditor) {
+    public GridRenderer(IGridView.Presenter presenter, GridEditor gridEditor) {
         this.presenter = presenter;
-        this.logger = logger;
         this.gridEditor = gridEditor;
     }
 
@@ -433,7 +431,7 @@ Listener {
                 try {
                     service.executeCommand("com.dynamo.cr.tileeditor.commands.ShowPalette", null);
                 } catch (Exception e) {
-                    logger.logException(e);
+                    logger.error("Error occurred while executing command", e);
                 }
             }
         } else {
@@ -539,7 +537,7 @@ Listener {
                 render(gl, glu);
 
             } catch (Throwable e) {
-                logger.logException(e);
+                logger.error("Error occurred while rendering", e);
             } finally {
                 canvas.swapBuffers();
                 context.release();

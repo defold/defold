@@ -2,7 +2,6 @@ package com.dynamo.cr.integrationtest;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.mock;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -37,7 +36,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.osgi.framework.Bundle;
 
-import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.sceneed.Activator;
 import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
@@ -96,7 +94,7 @@ public class RefactorTest {
             }
         }
         this.nodeTypeRegistry = Activator.getDefault().getNodeTypeRegistry();
-        this.loaderContext = new LoaderContext(project, nodeTypeRegistry, mock(ILogger.class));
+        this.loaderContext = new LoaderContext(project, nodeTypeRegistry);
     }
 
     private Message loadMessageFile(String filename, Builder builder) throws IOException, CoreException {

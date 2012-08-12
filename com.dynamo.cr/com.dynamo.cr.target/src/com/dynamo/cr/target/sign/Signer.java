@@ -17,13 +17,14 @@ import org.apache.commons.configuration.plist.XMLPropertyListConfiguration;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
-import org.eclipse.core.runtime.IStatus;
-import org.eclipse.core.runtime.Status;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import com.dynamo.cr.target.core.TargetPlugin;
 import com.google.common.io.Files;
 
 public class Signer {
+    private static Logger logger = LoggerFactory.getLogger(Signer.class);
+
     public String sign(String identity, String provisioningProfile, String exe, Map<String, String> properties) throws IOException, ConfigurationException {
         File packageDir = Files.createTempDir();
         File appDir = new File(packageDir, "Defold.app");
@@ -77,7 +78,7 @@ public class Signer {
 
             int ret = process.waitFor();
             if (ret != 0) {
-                TargetPlugin.getDefault().getLog().log(new Status(IStatus.ERROR, "com.dynamo.cr.target", errorMessage));
+                logger.error(errorMessage);
                 throw new IOException(errorMessage);
             }
         } catch (InterruptedException e1) {

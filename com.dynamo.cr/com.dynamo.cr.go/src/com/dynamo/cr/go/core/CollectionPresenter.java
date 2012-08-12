@@ -1,6 +1,8 @@
 package com.dynamo.cr.go.core;
 
 import org.eclipse.jface.viewers.IStructuredSelection;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.go.core.operations.AddInstanceOperation;
 import com.dynamo.cr.sceneed.core.ILoaderContext;
@@ -10,6 +12,7 @@ import com.dynamo.cr.sceneed.core.Node;
 
 public class CollectionPresenter implements ISceneView.INodePresenter<CollectionNode> {
 
+    private static Logger logger = LoggerFactory.getLogger(CollectionPresenter.class);
     private CollectionNode findCollectionFromSelection(IStructuredSelection selection) {
         Object[] nodes = selection.toArray();
         CollectionNode parent = null;
@@ -37,7 +40,8 @@ public class CollectionPresenter implements ISceneView.INodePresenter<Collection
             try {
                 gameObject = (GameObjectNode)loaderContext.loadNode(file);
             } catch (Exception e) {
-                presenterContext.logException(e);
+                // TODO: Dialog here?
+                logger.error("Error occurred while adding game-object", e);
                 return;
             }
             GameObjectInstanceNode instance = new GameObjectInstanceNode(gameObject);
@@ -58,7 +62,8 @@ public class CollectionPresenter implements ISceneView.INodePresenter<Collection
             try {
                 collection = (CollectionNode)loaderContext.loadNode(file);
             } catch (Exception e) {
-                presenterContext.logException(e);
+                // TODO: Dialog here?
+                logger.error("Error occurred while adding collection", e);
                 return;
             }
             CollectionInstanceNode instance = new CollectionInstanceNode(collection);

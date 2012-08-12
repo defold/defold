@@ -15,8 +15,6 @@ import org.eclipse.jface.viewers.ILabelProvider;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.ui.ISelectionListener;
 
-import com.dynamo.cr.editor.core.ILogger;
-
 public interface ISceneView extends ISelectionListener {
 
     public interface IPresenter {
@@ -37,7 +35,7 @@ public interface ISceneView extends ISelectionListener {
         void onDNDDuplicateSelection(IPresenterContext presenterContext, List<Node> copies, Node targetParent);
     }
 
-    public interface IPresenterContext extends ILogger {
+    public interface IPresenterContext {
         // Model interface
         IStructuredSelection getSelection();
         void setSelection(IStructuredSelection selection);

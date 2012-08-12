@@ -5,6 +5,8 @@ import java.util.List;
 
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IConfigurationElement;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.editor.core.IResourceType;
 import com.dynamo.cr.sceneed.core.INodeLoader;
@@ -16,6 +18,7 @@ import com.dynamo.cr.sceneed.core.Node;
 
 public class NodeType implements INodeType {
 
+    private static Logger logger = LoggerFactory.getLogger(NodeType.class);
     private final String extension;
     private IConfigurationElement configurationElement;
     private final INodeLoader<Node> loader;
@@ -64,8 +67,7 @@ public class NodeType implements INodeType {
             try {
                 return (INodeRenderer<Node>) configurationElement.createExecutableExtension("renderer");
             } catch (CoreException e) {
-                // TODO: Logging, see case 1331
-                e.printStackTrace();
+                logger.error("Failed to created renderer", e);
                 return null;
             }
         }

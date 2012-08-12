@@ -44,6 +44,8 @@ import org.eclipse.ui.progress.IProgressService;
 import org.eclipse.ui.statushandlers.StatusManager;
 import org.eclipse.ui.views.contentoutline.IContentOutlinePage;
 import org.eclipse.ui.views.properties.IPropertySheetPage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.ui.AbstractDefoldEditor;
@@ -56,6 +58,7 @@ import com.dynamo.cr.tileeditor.core.TileSetPresenter;
 
 public class TileSetEditor extends AbstractDefoldEditor implements ITileSetView {
 
+    private static Logger logger = LoggerFactory.getLogger(TileSetEditor.class);
     private IContainer contentRoot;
     private TileSetPresenter presenter;
     private TileSetEditorOutlinePage outlinePage;
@@ -86,7 +89,7 @@ public class TileSetEditor extends AbstractDefoldEditor implements ITileSetView 
                     "Unable to locate content root for project");
         }
 
-        final TileSetModel model = new TileSetModel(this.contentRoot, this.history, this.undoContext, new Logger());
+        final TileSetModel model = new TileSetModel(this.contentRoot, this.history, this.undoContext);
         this.presenter = new TileSetPresenter(model, this);
 
         final String undoId = ActionFactory.UNDO.getId();
@@ -188,7 +191,7 @@ public class TileSetEditor extends AbstractDefoldEditor implements ITileSetView 
             HandlerUtil.updateRadioState(commandService.getCommand(SetBrushCollisionGroup.COMMAND_ID), new Integer(index).toString());
             commandService.refreshElements(SetBrushCollisionGroup.COMMAND_ID, null);
         } catch (ExecutionException e) {
-            this.logger.logException(e);
+            logger.error("Error occurred while upating actions", e);
         }
     }
 
@@ -402,10 +405,10 @@ public class TileSetEditor extends AbstractDefoldEditor implements ITileSetView 
         try {
             service.runInUI(service, loader, null);
             if (loader.exception != null) {
-                this.logger.logException(loader.exception);
+                logger.error("Error occurred while reloading", loader.exception);
             }
         } catch (Throwable e) {
-            this.logger.logException(e);
+            logger.error("Error occurred while reloading", e);
         }
     }
 

@@ -11,7 +11,6 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Status;
 
-import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.editor.core.IResourceType;
 import com.dynamo.cr.sceneed.Activator;
 import com.dynamo.cr.sceneed.core.INodeLoader;
@@ -25,18 +24,11 @@ com.dynamo.cr.sceneed.core.ILoaderContext {
 
     private final IContainer contentRoot;
     private final INodeTypeRegistry nodeTypeRegistry;
-    private final ILogger logger;
 
     @Inject
-    public LoaderContext(IContainer contentRoot, INodeTypeRegistry nodeTypeRegistry, ILogger logger) {
+    public LoaderContext(IContainer contentRoot, INodeTypeRegistry nodeTypeRegistry) {
         this.contentRoot = contentRoot;
         this.nodeTypeRegistry = nodeTypeRegistry;
-        this.logger = logger;
-    }
-
-    @Override
-    public void logException(Throwable exception) {
-        this.logger.logException(exception);
     }
 
     @Override

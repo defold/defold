@@ -181,6 +181,7 @@ jre\bin\javaw.exe</programArgsWin>
       <plugin id="org.mockito"/>
       <plugin id="org.sat4j.core"/>
       <plugin id="org.sat4j.pb"/>
+      <plugin id="slf4j"/>
    </plugins>
 
 

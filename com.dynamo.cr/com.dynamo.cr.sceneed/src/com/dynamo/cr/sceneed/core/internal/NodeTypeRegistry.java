@@ -4,15 +4,14 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.eclipse.core.runtime.IConfigurationElement;
-import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.core.runtime.Plugin;
-import org.eclipse.core.runtime.Status;
 import org.osgi.framework.Bundle;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.editor.core.EditorCorePlugin;
 import com.dynamo.cr.editor.core.IResourceType;
-import com.dynamo.cr.sceneed.Activator;
 import com.dynamo.cr.sceneed.core.INodeLoader;
 import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
@@ -24,6 +23,7 @@ public class NodeTypeRegistry implements INodeTypeRegistry {
     private final Map<String, Class<?>> extToClass;
     private final Map<Class<?>, INodeType> classToType;
     private final Map<String, INodeType> idToNodeType;
+    private static Logger logger = LoggerFactory.getLogger(NodeTypeRegistry.class);
 
     public NodeTypeRegistry() {
         this.extToClass = new HashMap<String, Class<?>>();
@@ -80,9 +80,7 @@ public class NodeTypeRegistry implements INodeTypeRegistry {
                 }
             }
         } catch (Exception exception) {
-            exception.printStackTrace();
-            Status status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, exception.getMessage(), exception);
-            plugin.getLog().log(status);
+            logger.error("Failed to initialize node types", exception);
         }
     }
 

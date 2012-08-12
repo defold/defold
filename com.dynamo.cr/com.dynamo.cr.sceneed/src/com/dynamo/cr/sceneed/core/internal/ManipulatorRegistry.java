@@ -5,10 +5,10 @@ import java.util.List;
 import java.util.Map;
 
 import org.eclipse.core.runtime.IConfigurationElement;
-import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.core.runtime.Plugin;
-import org.eclipse.core.runtime.Status;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.sceneed.Activator;
 import com.dynamo.cr.sceneed.core.IManipulatorInfo;
@@ -21,6 +21,7 @@ import com.dynamo.cr.sceneed.ui.RootManipulator;
 public class ManipulatorRegistry implements IManipulatorRegistry {
 
     Map<String, ManipulatorMode> modes = new HashMap<String, ManipulatorMode>();
+    private static Logger logger = LoggerFactory.getLogger(ManipulatorRegistry.class);
     private Plugin plugin;
 
     public void init(Plugin plugin) {
@@ -47,8 +48,7 @@ public class ManipulatorRegistry implements IManipulatorRegistry {
                 }
             }
         } catch (Exception exception) {
-            Status status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, exception.getMessage(), exception);
-            plugin.getLog().log(status);
+            logger.error("Failed to initialize manipulators", exception);
         }
 
     }
@@ -72,11 +72,9 @@ public class ManipulatorRegistry implements IManipulatorRegistry {
                     return manipulator;
                 }
             } catch (InstantiationException e) {
-                Status status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, e.getMessage(), e);
-                plugin.getLog().log(status);
+                logger.error("Failed to instantiate manipulator", e);
             } catch (IllegalAccessException e) {
-                Status status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, e.getMessage(), e);
-                plugin.getLog().log(status);
+                logger.error("Failed to instantiate manipulator", e);
             }
         }
         return null;

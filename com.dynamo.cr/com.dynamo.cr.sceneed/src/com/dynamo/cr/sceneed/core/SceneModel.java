@@ -25,9 +25,10 @@ import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.swt.graphics.Image;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.editor.core.EditorUtil;
-import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.editor.ui.IImageProvider;
 import com.dynamo.cr.properties.Entity;
 import com.dynamo.cr.properties.IPropertyModel;
@@ -38,11 +39,10 @@ import com.google.inject.Inject;
 @Entity(commandFactory = SceneUndoableCommandFactory.class)
 public class SceneModel implements IAdaptable, IOperationHistoryListener, ISceneModel {
 
-
+    private static Logger logger = LoggerFactory.getLogger(SceneModel.class);
     private final IModelListener listener;
     private final IOperationHistory history;
     private final IUndoContext undoContext;
-    private final ILogger logger;
     private final IContainer contentRoot;
     private final ILoaderContext loaderContext;
     private final IImageProvider imageProvider;
@@ -61,11 +61,10 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
     private static PropertyIntrospector<SceneModel, SceneModel> introspector = new PropertyIntrospector<SceneModel, SceneModel>(SceneModel.class);
 
     @Inject
-    public SceneModel(IModelListener listener, IOperationHistory history, IUndoContext undoContext, ILogger logger, IContainer contentRoot, ILoaderContext loaderContext, IImageProvider imageProvider) {
+    public SceneModel(IModelListener listener, IOperationHistory history, IUndoContext undoContext, IContainer contentRoot, ILoaderContext loaderContext, IImageProvider imageProvider) {
         this.listener = listener;
         this.history = history;
         this.undoContext = undoContext;
-        this.logger = logger;
         this.contentRoot = contentRoot;
         this.loaderContext = loaderContext;
         this.imageProvider = imageProvider;
@@ -149,10 +148,10 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
         try {
             status = this.history.execute(operation, null, null);
             if (status != Status.OK_STATUS) {
-                this.logger.logException(status.getException());
+                logger.error("Failed to execute operation", status.getException());
             }
         } catch (final ExecutionException e) {
-            this.logger.logException(e);
+            logger.error("Failed to execute operation", e);
         }
 
     }
@@ -332,11 +331,6 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
     }
 
     @Override
-    public void logException(Throwable e) {
-        this.logger.logException(e);
-    }
-
-    @Override
     public BufferedImage getImage(String path) {
         BufferedImage image = this.imageCache.get(path);
         if (image == null) {
@@ -351,7 +345,7 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
                     }
                 }
             } catch (Exception e) {
-                logException(e);
+                logger.error("Failed to create image", e);
             }
         }
         return image;
@@ -368,4 +362,5 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
         }
         return texture;
     }
+
 }
