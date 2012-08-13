@@ -238,7 +238,10 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
                 else
                 {
                     dmHttpCacheVerify::Result verify_r = dmHttpCacheVerify::VerifyCache(factory->m_HttpCache, &factory->m_UriParts, 60 * 60 * 24 * 5); // 5 days
-                    if (verify_r != dmHttpCacheVerify::RESULT_OK)
+                    // Http-cache batch verification might be unsupported
+                    // We currently does not have support for batch validation in the editor http-server
+                    // Batch validation was introduced when we had remote branch and latency problems
+                    if (verify_r != dmHttpCacheVerify::RESULT_OK && verify_r != dmHttpCacheVerify::RESULT_UNSUPPORTED)
                     {
                         dmLogWarning("Cache validation failed (%d)", verify_r);
                     }
