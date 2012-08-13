@@ -10,6 +10,7 @@
 #include <render/render.h>
 
 #include "../resources/res_model.h"
+#include "../gamesys_private.h"
 
 #include "model_ddf.h"
 
@@ -165,10 +166,17 @@ namespace dmGameSystem
                         ro->m_Textures[unit] = dmGraphics::GetRenderTargetTexture(rendertarget, dmGraphics::BUFFER_TYPE_COLOR_BIT);
                     }
                     else {
-                        dmLogWarning("No such render target: %s",
+                        LogMessageError(params.m_Message, "No such render target: %s.",
                                      (const char*) dmHashReverse64(ddf->m_TextureHash, 0));
                     }
                 }
+                else
+                {
+                    const char* id_str = (const char*) dmHashReverse64(params.m_Message->m_Id, 0);
+                    LogMessageError(params.m_Message, "Unsupported model message '%s'.", id_str);
+                    return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+                }
+
                 break;
             }
         }

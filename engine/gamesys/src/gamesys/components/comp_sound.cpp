@@ -9,6 +9,7 @@
 #include <sound/sound.h>
 
 #include "gamesys_ddf.h"
+#include "../gamesys_private.h"
 
 namespace dmGameSystem
 {
@@ -115,14 +116,21 @@ namespace dmGameSystem
                 dmSound::Result result = dmSound::NewSoundInstance(sound_data, &entry.m_Instance);
                 if (result != dmSound::RESULT_OK)
                 {
-                    dmLogWarning("A sound could not be played, error: %d", result);
+                    LogMessageError(params.m_Message, "A sound could not be played, error: %d.", result);
                 }
             }
             else
             {
-                dmLogWarning("A sound could not be played since the sound buffer is full (%d).", world->m_EntryIndices.Capacity());
+                LogMessageError(params.m_Message, "A sound could not be played since the sound buffer is full (%d).", world->m_EntryIndices.Capacity());
             }
         }
+        else
+        {
+            const char* id_str = (const char*) dmHashReverse64(params.m_Message->m_Id, 0);
+            LogMessageError(params.m_Message, "Unsupported sound message '%s'.", id_str);
+            return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+        }
+
         return dmGameObject::UPDATE_RESULT_OK;
     }
 }

@@ -12,6 +12,7 @@
 
 #include "../proto/tile_ddf.h"
 #include "../proto/physics_ddf.h"
+#include "../gamesys_private.h"
 
 extern unsigned char SPRITE_VPC[];
 extern uint32_t SPRITE_VPC_SIZE;
@@ -377,9 +378,15 @@ namespace dmGameSystem
             dmMessage::Result result = dmMessage::Post(&params.m_Message->m_Receiver, &receiver, message_id, 0, descriptor, &set_hull_ddf, data_size);
             if (result != dmMessage::RESULT_OK)
             {
-                dmLogError("Could not send %s to components, result: %d.", dmPhysicsDDF::SetGridShapeHull::m_DDFDescriptor->m_Name, result);
+                LogMessageError(params.m_Message, "Could not send %s to components, result: %d.", dmPhysicsDDF::SetGridShapeHull::m_DDFDescriptor->m_Name, result);
                 return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
             }
+        }
+        else
+        {
+            const char* id_str = (const char*) dmHashReverse64(params.m_Message->m_Id, 0);
+            LogMessageError(params.m_Message, "Unsupported tilegrid message '%s'.", id_str);
+            return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
         }
         return dmGameObject::UPDATE_RESULT_OK;
     }

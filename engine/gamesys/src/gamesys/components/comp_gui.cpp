@@ -15,6 +15,7 @@
 
 #include "../resources/res_gui.h"
 #include "../gamesys.h"
+#include "../gamesys_private.h"
 
 extern unsigned char GUI_VPC[];
 extern uint32_t GUI_VPC_SIZE;
@@ -421,7 +422,7 @@ namespace dmGameSystem
         if (result != dmGui::RESULT_OK)
         {
             // TODO: Proper error message
-            dmLogError("Error when dispatching message to gui scene: %d", result);
+            LogMessageError(params.m_Message, "Error when dispatching message to gui scene: %d.", result);
         }
         return dmGameObject::UPDATE_RESULT_OK;
     }

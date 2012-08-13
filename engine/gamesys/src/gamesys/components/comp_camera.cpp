@@ -9,6 +9,7 @@
 
 #include "../resources/res_camera.h"
 #include "gamesys_ddf.h"
+#include "../gamesys_private.h"
 
 namespace dmGameSystem
 {
@@ -198,7 +199,7 @@ namespace dmGameSystem
             }
             else
             {
-                dmLogWarning("Could not acquire camera focus since the buffer is full (%d).", camera->m_World->m_FocusStack.Size());
+                LogMessageError(params.m_Message, "Could not acquire camera focus since the buffer is full (%d).", camera->m_World->m_FocusStack.Size());
             }
         }
         else if ((dmDDF::Descriptor*)params.m_Message->m_Descriptor == dmGamesysDDF::ReleaseCameraFocus::m_DDFDescriptor)
@@ -220,6 +221,13 @@ namespace dmGameSystem
                 camera->m_World->m_FocusStack.Pop();
             }
         }
+        else
+        {
+            const char* id_str = (const char*) dmHashReverse64(params.m_Message->m_Id, 0);
+            LogMessageError(params.m_Message, "Unsupported camera message '%s'.", id_str);
+            return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+        }
+
         return dmGameObject::UPDATE_RESULT_OK;
     }
 

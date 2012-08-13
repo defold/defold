@@ -13,6 +13,7 @@
 #include <gameobject/gameobject_ddf.h>
 
 #include "../gamesys.h"
+#include "../gamesys_private.h"
 
 #include "gamesys_ddf.h"
 
@@ -228,13 +229,13 @@ namespace dmGameSystem
                     dmMessage::Result msg_result = dmMessage::Post(&params.m_Message->m_Receiver, &params.m_Message->m_Sender, dmHashString64("proxy_loaded"), 0, 0, 0, 0);
                     if (msg_result != dmMessage::RESULT_OK)
                     {
-                        dmLogWarning("proxy_loaded could not be posted: %d", msg_result);
+                        LogMessageError(params.m_Message, "proxy_loaded could not be posted: %d", msg_result);
                     }
                 }
             }
             else
             {
-                dmLogWarning("The collection %s could not be loaded since it was already.", proxy->m_Resource->m_DDF->m_Collection);
+                LogMessageError(params.m_Message, "The collection %s could not be loaded since it was already.", proxy->m_Resource->m_DDF->m_Collection);
             }
         }
         else if (params.m_Message->m_Id == dmHashString64("unload"))
@@ -246,7 +247,7 @@ namespace dmGameSystem
             }
             else
             {
-                dmLogWarning("The collection %s could not be unloaded since it was never loaded.", proxy->m_Resource->m_DDF->m_Collection);
+                LogMessageError(params.m_Message, "The collection %s could not be unloaded since it was never loaded.", proxy->m_Resource->m_DDF->m_Collection);
             }
         }
         else if (params.m_Message->m_Id == dmHashString64("init"))
@@ -260,12 +261,12 @@ namespace dmGameSystem
                 }
                 else
                 {
-                    dmLogWarning("The collection %s could not be initialized since it has been already.", proxy->m_Resource->m_DDF->m_Collection);
+                    LogMessageError(params.m_Message, "The collection %s could not be initialized since it has been already.", proxy->m_Resource->m_DDF->m_Collection);
                 }
             }
             else
             {
-                dmLogWarning("The collection %s could not be initialized since it has not been loaded.", proxy->m_Resource->m_DDF->m_Collection);
+                LogMessageError(params.m_Message, "The collection %s could not be initialized since it has not been loaded.", proxy->m_Resource->m_DDF->m_Collection);
             }
         }
         else if (params.m_Message->m_Id == dmHashString64("final"))
@@ -277,7 +278,7 @@ namespace dmGameSystem
             }
             else
             {
-                dmLogWarning("The collection %s could not be finalized since it was never initialized.", proxy->m_Resource->m_DDF->m_Collection);
+                LogMessageError(params.m_Message, "The collection %s could not be finalized since it was never initialized.", proxy->m_Resource->m_DDF->m_Collection);
             }
         }
         else if (params.m_Message->m_Id == dmHashString64(dmGameObjectDDF::Enable::m_DDFDescriptor->m_Name))
@@ -295,12 +296,12 @@ namespace dmGameSystem
                 }
                 else
                 {
-                    dmLogWarning("The collection %s could not be enabled since it is already.", proxy->m_Resource->m_DDF->m_Collection);
+                    LogMessageError(params.m_Message, "The collection %s could not be enabled since it is already.", proxy->m_Resource->m_DDF->m_Collection);
                 }
             }
             else
             {
-                dmLogWarning("The collection %s could not be initialized since it has not been loaded.", proxy->m_Resource->m_DDF->m_Collection);
+                LogMessageError(params.m_Message, "The collection %s could not be initialized since it has not been loaded.", proxy->m_Resource->m_DDF->m_Collection);
             }
         }
         else if (params.m_Message->m_Id == dmHashString64(dmGameObjectDDF::Disable::m_DDFDescriptor->m_Name))
@@ -311,7 +312,7 @@ namespace dmGameSystem
             }
             else
             {
-                dmLogWarning("The collection %s could not be disabled since it is not enabled.", proxy->m_Resource->m_DDF->m_Collection);
+                LogMessageError(params.m_Message, "The collection %s could not be disabled since it is not enabled.", proxy->m_Resource->m_DDF->m_Collection);
             }
         }
         else if ((dmDDF::Descriptor*)params.m_Message->m_Descriptor == dmGameSystemDDF::SetTimeStep::m_DDFDescriptor)
@@ -325,6 +326,13 @@ namespace dmGameSystem
             proxy->m_TimeStepFactor = 1.0f;
             proxy->m_TimeStepMode = dmGameSystemDDF::TIME_STEP_MODE_CONTINUOUS;
         }
+        else
+        {
+            const char* id_str = (const char*) dmHashReverse64(params.m_Message->m_Id, 0);
+            LogMessageError(params.m_Message, "Unsupported collection proxy message '%s'.", id_str);
+            return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+        }
+
         return dmGameObject::UPDATE_RESULT_OK;
     }
 

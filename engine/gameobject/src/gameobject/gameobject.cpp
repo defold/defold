@@ -1024,9 +1024,15 @@ namespace dmGameObject
         }
         if (instance == 0x0)
         {
-            dmLogError("Instance '%s' could not be found when dispatching message '%s'.",
+            const dmMessage::URL* sender = &message->m_Sender;
+            const char* socket_name = dmMessage::GetSocketName(sender->m_Socket);
+            const char* path_name = (const char*) dmHashReverse64(sender->m_Path, 0);
+            const char* fragment_name = (const char*) dmHashReverse64(sender->m_Fragment, 0);
+
+            dmLogError("Instance '%s' could not be found when dispatching message '%s' sent from %s:%s#%s",
                         (const char*) dmHashReverse64(message->m_Receiver.m_Path, 0),
-                        (const char*) dmHashReverse64(message->m_Id, 0));
+                        (const char*) dmHashReverse64(message->m_Id, 0),
+                        socket_name, path_name, fragment_name);
 
             context->m_Success = false;
             return;
@@ -1112,10 +1118,16 @@ namespace dmGameObject
             Result result = GetComponentIndex(instance, message->m_Receiver.m_Fragment, &component_index);
             if (result != RESULT_OK)
             {
-                dmLogError("Component '%s#%s' could not be found when dispatching message '%s'",
+                const dmMessage::URL* sender = &message->m_Sender;
+                const char* socket_name = dmMessage::GetSocketName(sender->m_Socket);
+                const char* path_name = (const char*) dmHashReverse64(sender->m_Path, 0);
+                const char* fragment_name = (const char*) dmHashReverse64(sender->m_Fragment, 0);
+
+                dmLogError("Component '%s#%s' could not be found when dispatching message '%s' sent from %s:%s#%s",
                             (const char*) dmHashReverse64(message->m_Receiver.m_Path, 0),
                             (const char*) dmHashReverse64(message->m_Receiver.m_Fragment, 0),
-                            (const char*) dmHashReverse64(message->m_Id, 0));
+                            (const char*) dmHashReverse64(message->m_Id, 0),
+                            socket_name, path_name, fragment_name);
                 context->m_Success = false;
                 return;
             }

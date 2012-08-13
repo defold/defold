@@ -815,12 +815,23 @@ bail:
             }
             else
             {
-                dmLogError("Unknown ddf message '%s' sent to socket '%s'.\n", descriptor->m_Name, SYSTEM_SOCKET_NAME);
+                const dmMessage::URL* sender = &message->m_Sender;
+                const char* socket_name = dmMessage::GetSocketName(sender->m_Socket);
+                const char* path_name = (const char*) dmHashReverse64(sender->m_Path, 0);
+                const char* fragment_name = (const char*) dmHashReverse64(sender->m_Fragment, 0);
+                dmLogError("Unknown system message '%s' sent to socket '%s' from %s:%s#%s.",
+                           descriptor->m_Name, SYSTEM_SOCKET_NAME, socket_name, path_name, fragment_name);
             }
         }
         else
         {
-            dmLogError("Only system messages can be sent to the '%s' socket.\n", SYSTEM_SOCKET_NAME);
+            const dmMessage::URL* sender = &message->m_Sender;
+            const char* socket_name = dmMessage::GetSocketName(sender->m_Socket);
+            const char* path_name = (const char*) dmHashReverse64(sender->m_Path, 0);
+            const char* fragment_name = (const char*) dmHashReverse64(sender->m_Fragment, 0);
+
+            dmLogError("Only system messages can be sent to the '%s' socket. Message sent from: %s:%s#%s",
+                       SYSTEM_SOCKET_NAME, socket_name, path_name, fragment_name);
         }
     }
 
