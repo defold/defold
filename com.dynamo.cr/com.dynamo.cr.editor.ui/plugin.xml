@@ -64,5 +64,13 @@
          </enabledWhen>
       </handler>
    </extension>
+   <extension
+         point="org.eclipse.ui.bindings">
+      <scheme
+            id="com.dynamo.cr.editor.ui.defoldScheme"
+            name="Defold Key Bindings"
+            parentId="org.eclipse.ui.defaultAcceleratorConfiguration">
+      </scheme>
+   </extension>
 
 </plugin>
