@@ -655,6 +655,7 @@ namespace dmPhysics
 
     void SetEnabled3D(HWorld3D world, HCollisionObject3D collision_object, bool enabled)
     {
+        DM_PROFILE(Physics, "SetEnabled");
         bool prev_enabled = IsEnabled3D(collision_object);
         // avoid multiple adds/removes
         if (prev_enabled == enabled)

@@ -3,6 +3,7 @@
 #include <dlib/array.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
+#include <dlib/profile.h>
 
 #include "Box2D/Box2D.h"
 
@@ -201,6 +202,7 @@ namespace dmPhysics
         // Update transforms of kinematic bodies
         if (world->m_GetWorldTransformCallback)
         {
+            DM_PROFILE(Physics, "UpdateKinematic");
             for (b2Body* body = world->m_World.GetBodyList(); body; body = body->GetNext())
             {
                 if (body->GetType() == b2_kinematicBody)
@@ -227,20 +229,23 @@ namespace dmPhysics
                 }
             }
         }
-        world->m_ContactListener.SetStepWorldContext(&step_context);
-        world->m_World.Step(dt, 10, 10);
-        float inv_scale = world->m_Context->m_InvScale;
-        // Update transforms of dynamic bodies
-        if (world->m_SetWorldTransformCallback)
         {
-            for (b2Body* body = world->m_World.GetBodyList(); body; body = body->GetNext())
+            DM_PROFILE(Physics, "StepSimulation");
+            world->m_ContactListener.SetStepWorldContext(&step_context);
+            world->m_World.Step(dt, 10, 10);
+            float inv_scale = world->m_Context->m_InvScale;
+            // Update transforms of dynamic bodies
+            if (world->m_SetWorldTransformCallback)
             {
-                if (body->GetType() == b2_dynamicBody && body->IsActive())
+                for (b2Body* body = world->m_World.GetBodyList(); body; body = body->GetNext())
                 {
-                    Vectormath::Aos::Point3 position;
-                    FromB2(body->GetPosition(), position, inv_scale);
-                    Vectormath::Aos::Quat rotation = Vectormath::Aos::Quat::rotationZ(body->GetAngle());
-                    (*world->m_SetWorldTransformCallback)(body->GetUserData(), position, rotation);
+                    if (body->GetType() == b2_dynamicBody && body->IsActive())
+                    {
+                        Vectormath::Aos::Point3 position;
+                        FromB2(body->GetPosition(), position, inv_scale);
+                        Vectormath::Aos::Quat rotation = Vectormath::Aos::Quat::rotationZ(body->GetAngle());
+                        (*world->m_SetWorldTransformCallback)(body->GetUserData(), position, rotation);
+                    }
                 }
             }
         }
@@ -248,6 +253,7 @@ namespace dmPhysics
         uint32_t size = world->m_RayCastRequests.Size();
         if (size > 0)
         {
+            DM_PROFILE(Physics, "RayCasts");
             ProcessRayCastResultCallback2D callback;
             callback.m_Context = world->m_Context;
             for (uint32_t i = 0; i < size; ++i)
@@ -268,6 +274,7 @@ namespace dmPhysics
         // Report sensor collisions
         if (step_context.m_CollisionCallback)
         {
+            DM_PROFILE(Physics, "CollisionCallbacks");
             for (b2Contact* contact = world->m_World.GetContactList(); contact; contact = contact->GetNext())
             {
                 b2Fixture* fixture_a = contact->GetFixtureA();
@@ -704,6 +711,7 @@ namespace dmPhysics
 
     void SetEnabled2D(HWorld2D world, HCollisionObject2D collision_object, bool enabled)
     {
+        DM_PROFILE(Physics, "SetEnabled");
         bool prev_enabled = IsEnabled2D(collision_object);
         // Avoid multiple adds/removes
         if (prev_enabled == enabled)
