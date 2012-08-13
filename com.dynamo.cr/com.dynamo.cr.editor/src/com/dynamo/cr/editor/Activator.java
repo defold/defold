@@ -198,7 +198,6 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
     @Override
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void start(BundleContext bundleContext) throws Exception {
-        logger.warn("Another test");
         super.start(bundleContext);
         plugin = this;
         Activator.context = bundleContext;
