@@ -3,7 +3,7 @@ Eclipse-BuddyPolicy: registered
 Bundle-ManifestVersion: 2
 Bundle-Name: Slf4j
 Bundle-SymbolicName: slf4j
-Bundle-Version: 1.6.4
+Bundle-Version: 1.6.4.qualifier
 Bundle-ClassPath: janino.jar,
  jul-to-slf4j-1.6.4.jar,
  logback-classic-1.0.3.jar,
