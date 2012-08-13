@@ -11,6 +11,7 @@ import org.eclipse.core.resources.IFolder;
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.IResource;
 import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.viewers.IDecoration;
 import org.eclipse.jface.viewers.ILabelProviderListener;
@@ -133,13 +134,9 @@ public class BranchStatusDecorator implements ILightweightLabelDecorator, IBranc
         List<BranchStatus.Status> fileStatusList = branchStatus.getFileStatusList();
         resourceToStatus.clear();
         for (BranchStatus.Status fileStatus : fileStatusList) {
-            IResource resource = contentRoot.findMember(fileStatus.getName());
-            if (resource != null) {
-                resourceToStatus.put(resource, fileStatus);
-            } else {
-                Status status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, "Unable to locate " + fileStatus.getName());
-                StatusManager.getManager().handle(status, StatusManager.LOG);
-            }
+            // Retrieve a resource handle, whether the resource exists or not
+            IResource resource = contentRoot.getFile(new Path(fileStatus.getName()));
+            resourceToStatus.put(resource, fileStatus);
         }
         changedResources.addAll(resourceToStatus.keySet());
 
