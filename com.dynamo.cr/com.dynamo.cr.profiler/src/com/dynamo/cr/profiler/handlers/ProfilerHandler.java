@@ -2,6 +2,11 @@ package com.dynamo.cr.profiler.handlers;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.eclipse.core.commands.AbstractHandler;
 import org.eclipse.core.commands.ExecutionEvent;
@@ -12,8 +17,8 @@ import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.progress.IProgressService;
 
 import com.dynamo.cr.profiler.core.ProfileData;
-import com.dynamo.cr.profiler.core.ProfileData.Counter;
 import com.dynamo.cr.profiler.core.ProfileData.Frame;
+import com.dynamo.cr.profiler.core.ProfileData.Sample;
 import com.dynamo.cr.profiler.core.ProfileData.Scope;
 import com.dynamo.cr.profiler.core.Profiler;
 import com.dynamo.cr.profiler.core.ProfilerException;
@@ -33,6 +38,38 @@ public class ProfilerHandler extends AbstractHandler {
     public ProfilerHandler() {
     }
 
+    static class CaptureRunnable implements IRunnableWithProgress {
+
+        private Profiler profiler;
+        private String url;
+        private int frameCount;
+
+        public CaptureRunnable(Profiler profiler, String url, int frameCount) {
+            this.profiler = profiler;
+            this.url = url;
+            this.frameCount = frameCount;
+        }
+
+        @Override
+        public void run(IProgressMonitor monitor)
+                throws InvocationTargetException, InterruptedException {
+            monitor.beginTask("Capturing profile", IProgressMonitor.UNKNOWN);
+            try {
+                monitor.beginTask("Capturing profile. Press cancel to stop capture.", IProgressMonitor.UNKNOWN);
+                for (int i = 0; i < frameCount; ++i) {
+                    if (monitor.isCanceled()) {
+                        break;
+                    }
+                    profiler.captureFrame(url);
+                }
+                profiler.captureStrings(url);
+                monitor.done();
+            } catch (IOException e) {
+                throw new InvocationTargetException(e);
+            }
+        }
+    }
+
     /**
      * the command has been executed, so extract extract the needed information
      * from the application context.
@@ -49,21 +86,9 @@ public class ProfilerHandler extends AbstractHandler {
 
         IProgressService service = PlatformUI.getWorkbench()
                 .getProgressService();
+        CaptureRunnable runnable = new CaptureRunnable(profiler, url, 5500);
         try {
-            service.run(true, true, new IRunnableWithProgress() {
-
-                @Override
-                public void run(IProgressMonitor monitor)
-                        throws InvocationTargetException, InterruptedException {
-                    monitor.beginTask("Capturing profile", IProgressMonitor.UNKNOWN);
-                    try {
-                        profiler.captureFrame(url);
-                        profiler.captureStrings(url);
-                    } catch (IOException e) {
-                        throw new InvocationTargetException(e);
-                    }
-                }
-            });
+            service.run(true, true, runnable);
         } catch (Exception e) {
             throw new ExecutionException("Failed to capture profile data", e);
         }
@@ -72,27 +97,64 @@ public class ProfilerHandler extends AbstractHandler {
         try {
             profileData = profiler.parse();
             Frame[] frames = profileData.getFrames();
-            for (Frame frame : frames) {
 
-                System.out.println("****** Samples ******");
+            Map<String, Scope> scopesTotal = new HashMap<String, ProfileData.Scope>();
+            Map<String, Sample> sampleTotal = new HashMap<String, ProfileData.Sample>();
+
+            for (Frame frame : frames) {
                 ProfileData.Sample[] samples = frame.getSamples();
                 for (ProfileData.Sample sample : samples) {
-                    System.out.println(sample.scope + "." + sample.name + ": " + sample.elapsed / 1000.0);
+
+                    String key = sample.scope + "." + sample.name;
+                    Sample total = sampleTotal.get(key);
+                    if (total == null) {
+                        total = new Sample(sample.name, sample.scope, 0, 0, -1);
+                    }
+                    total.elapsed += sample.elapsed;
+                    sampleTotal.put(key, total);
                 }
 
-                System.out.println("\n****** Scopes ******");
                 ProfileData.Scope[] scopes = frame.getScopes();
                 for (Scope scope : scopes) {
-                    System.out.println(scope.scope + ": " + scope.elapsed + ", " + scope.count);
-                }
-
-                System.out.println("\n****** Counters ******");
-                ProfileData.Counter[] counters = frame.getCounters();
-                for (Counter scope : counters) {
-                    System.out.println(scope.counter + ": " + scope.value);
+                    Scope total = scopesTotal.get(scope.scope);
+                    if (total == null) {
+                        total = new Scope(scope.scope, 0, 0);
+                    }
+                    total.elapsed += scope.elapsed;
+                    total.count += scope.count;
+                    scopesTotal.put(scope.scope, total);
                 }
 
             }
+
+            ArrayList<Scope> scopesTotalSorted = new ArrayList<Scope>(scopesTotal.values());
+            Collections.sort(scopesTotalSorted, new Comparator<Scope>() {
+                @Override
+                public int compare(Scope o1, Scope o2) {
+                    return (int) (o2.elapsed - o1.elapsed);
+                }
+            });
+
+            ArrayList<Sample> samplesTotalSorted = new ArrayList<Sample>(sampleTotal.values());
+            Collections.sort(samplesTotalSorted, new Comparator<Sample>() {
+                @Override
+                public int compare(Sample o1, Sample o2) {
+                    return (int) (o2.elapsed - o1.elapsed);
+                }
+            });
+
+            System.out.println("\n****** Scopes Total ******");
+            for (Scope scope : scopesTotalSorted) {
+                System.out.println(scope.scope + ": " + scope.elapsed / 1000.0 + ", " + scope.count);
+            }
+
+            System.out.println("****** Samples Total ******");
+            for (Sample sample : samplesTotalSorted) {
+                System.out.println(sample.scope + "." + sample.name + ": " + sample.elapsed / 1000.0);
+            }
+
+            System.out.println(String.format("%d frames captured", frames.length));
+
         } catch (ProfilerException e) {
             throw new ExecutionException("Failed to parse profile data", e);
         }
