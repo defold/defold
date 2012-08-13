@@ -5,6 +5,7 @@ import org.eclipse.jface.preference.ComboFieldEditor;
 import org.eclipse.jface.preference.FieldEditorPreferencePage;
 import org.eclipse.jface.preference.IntegerFieldEditor;
 import org.eclipse.jface.preference.RadioGroupFieldEditor;
+import org.eclipse.jface.util.PropertyChangeEvent;
 import org.eclipse.ui.IWorkbench;
 import org.eclipse.ui.IWorkbenchPreferencePage;
 
@@ -56,7 +57,9 @@ implements IWorkbenchPreferencePage {
                 String.format(labelFormat, Messages.PreferencePage_GridSize),
                 this.gridField.getRadioBoxControl(getFieldEditorParent()));
         this.gridSizeField.setValidRange(1, 1000);
-        this.gridSizeField.setEnabled(false, this.gridField.getRadioBoxControl(getFieldEditorParent()));
+
+        boolean enabled = getPreferenceStore().getString(PreferenceConstants.P_GRID).equals(PreferenceConstants.P_GRID_MANUAL_VALUE);
+        this.gridSizeField.setEnabled(enabled, this.gridField.getRadioBoxControl(getFieldEditorParent()));
         addField(this.gridSizeField);
 
         ColorFieldEditor gridColorField = new ColorFieldEditor(PreferenceConstants.P_GRID_COLOR,
@@ -71,6 +74,16 @@ implements IWorkbenchPreferencePage {
             {Messages.PreferencePage_MouseTypeThreeValue, SceneUtil.MouseType.THREE_BUTTON.name()}
             }, getFieldEditorParent());
         addField(mouseTypeField);
+    }
+
+    @Override
+    public void propertyChange(PropertyChangeEvent event) {
+        super.propertyChange(event);
+        if (event.getSource() == gridField) {
+            String grid = (String) event.getNewValue();
+            boolean enabled = grid.equals(PreferenceConstants.P_GRID_MANUAL_VALUE);
+            this.gridSizeField.setEnabled(enabled, this.gridField.getRadioBoxControl(getFieldEditorParent()));
+        }
     }
 
     @Override
