@@ -17,6 +17,7 @@ import java.util.Map;
 
 import javax.inject.Inject;
 
+import org.apache.commons.io.IOUtils;
 import org.eclipse.core.commands.Command;
 import org.eclipse.core.commands.State;
 import org.eclipse.ui.PlatformUI;
@@ -230,6 +231,34 @@ public class TargetService implements ITargetService, Runnable {
         }
     }
 
+    private static Socket newLogConnection(InetSocketAddress address) throws IOException {
+        Socket socket = new Socket();
+        socket.setSoTimeout(2000);
+        socket.connect(address);
+
+        InputStream is = null;
+        try {
+            StringBuilder sb = new StringBuilder();
+            is = socket.getInputStream();
+            int c = is.read();
+            while (c != '\n' && c != -1) {
+                if (c != '\r') {
+                    sb.append((char) c);
+                }
+                c = is.read();
+            }
+            if (!sb.toString().equals("0 OK")) {
+                throw new IOException(String.format("Unable to connect to log-service (%s)", sb.toString()));
+            }
+            socket.setSoTimeout(0);
+            return socket;
+        } catch (IOException e) {
+            IOUtils.closeQuietly(is);
+            IOUtils.closeQuietly(socket);
+            throw e;
+        }
+    }
+
     private synchronized void updateLog() {
         // Check to see if we should make a new connection
         if (this.logSocketAddress != null) {
@@ -245,8 +274,7 @@ public class TargetService implements ITargetService, Runnable {
             }
             // Connect
             try {
-                this.logSocket = new Socket();
-                this.logSocket.connect(this.logSocketAddress);
+                this.logSocket = newLogConnection(logSocketAddress);
             } catch (IOException e) {
                 logger.warn("Log socket could not be opened: {}", e.getMessage());
             } finally {
