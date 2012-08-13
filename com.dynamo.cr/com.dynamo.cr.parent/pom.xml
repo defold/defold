@@ -125,6 +125,7 @@
         <module>../com.dynamo.cr.templates</module>
         <module>../javax.media.opengl</module>
         <module>../joda.time</module>
+        <module>../slf4j</module>
     </modules>
 
 </project>
