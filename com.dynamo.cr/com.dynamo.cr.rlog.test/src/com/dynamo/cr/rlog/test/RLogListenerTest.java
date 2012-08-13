@@ -1,9 +1,12 @@
 package com.dynamo.cr.rlog.test;
 
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.verify;
+
+import java.io.IOException;
 
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
@@ -37,42 +40,46 @@ public class RLogListenerTest {
     }
 
     @Test
-    public void testRetain() {
-        when(transport.send(any(Record.class))).thenReturn(true);
+    public void testRetain() throws Exception {
         log(RLogListener.RETAIN_COUNT + 1);
         listener.process();
         verify(transport, times(RLogListener.RETAIN_COUNT)).send(any(Record.class));
     }
 
     @Test
-    public void testAlwaysFail() {
+    public void testPermanentAlwaysFail() throws Exception {
         int n = 10;
-        when(transport.send(any(Record.class))).thenReturn(false);
+        doThrow(new NullPointerException()).when(transport).send(any(Record.class));
         log(n);
+        for (int i = 0; i < n; ++i) {
+            listener.process();
+            verify(transport, times(i+1)).send(any(Record.class));
+        }
         listener.process();
-        verify(transport, times(1)).send(any(Record.class));
+        verify(transport, times(n)).send(any(Record.class));
     }
 
     @Test
-    public void testTransientFail() {
+    public void testPermanentOnceFail() throws Exception {
         int n = 10;
-        when(transport.send(any(Record.class))).thenReturn(false).thenReturn(true);
+        doThrow(new NullPointerException()).doNothing().when(transport).send(any(Record.class));
         log(n);
         listener.process();
         verify(transport, times(1)).send(any(Record.class));
         listener.process();
-        verify(transport, times(n+1)).send(any(Record.class));
+        // Only "n" due to permanent error (entry removed)
+        verify(transport, times(n)).send(any(Record.class));
     }
 
     @Test
-    public void testTransientTransportException() {
+    public void testTransientOnceFail() throws Exception {
         int n = 10;
-        when(transport.send(any(Record.class))).thenThrow(new NullPointerException()).thenReturn(true);
+        doThrow(new IOException()).doNothing().when(transport).send(any(Record.class));
         log(n);
-        System.err.println("Expected stack-trace printed after this:");
         listener.process();
         verify(transport, times(1)).send(any(Record.class));
         listener.process();
+        // n + 1 due to retry
         verify(transport, times(n+1)).send(any(Record.class));
     }
 

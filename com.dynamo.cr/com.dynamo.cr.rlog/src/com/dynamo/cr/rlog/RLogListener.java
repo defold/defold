@@ -1,5 +1,6 @@
 package com.dynamo.cr.rlog;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.util.LinkedList;
 
@@ -83,10 +84,11 @@ public class RLogListener implements ILogListener, Runnable {
          * NOTE: buffer must be synchronized on
          */
         Entry entry;
-        boolean ok;
+        boolean ok, removeEntry;
         do {
             entry = null;
             ok = false;
+            removeEntry = false;
             synchronized (buffer) {
                 // Try to fetch an entry
                 if (buffer.size() > 0) {
@@ -95,16 +97,25 @@ public class RLogListener implements ILogListener, Runnable {
             }
             if (entry != null) {
                 try {
-                    ok = transport.send(buildRecord(entry));
+                    transport.send(buildRecord(entry));
+                    ok = true;
+                    removeEntry = true;
+                } catch (IOException e) {
+                    // Transient error (hopefully)
+                    // Keep entry for later retry
+                    ok = false;
+                    removeEntry = false;
                 } catch (Throwable e) {
                     // Should not happen. Exceptions should be handled gracefully in send()
+                    // Treated as a permanent error and the entry is removed
                     e.printStackTrace();
                     ok = false;
+                    removeEntry = true;
                 }
                 synchronized (buffer) {
                     // Remove after send is complete
                     // in order to handle transient errors
-                    if (ok) {
+                    if (removeEntry) {
                         buffer.remove(entry);
                     }
                 }
@@ -161,7 +172,12 @@ public class RLogListener implements ILogListener, Runnable {
                         .setLine(ste.getLineNumber())
                         .setMethod(ste.getMethodName()));
             }
-            stb.setMessage(e.getMessage());
+            String msg = e.getMessage();
+            if (msg != null) {
+                stb.setMessage(msg);
+            } else {
+                stb.setMessage("");
+            }
             recordBuilder.setStackTrace(stb);
         }
 

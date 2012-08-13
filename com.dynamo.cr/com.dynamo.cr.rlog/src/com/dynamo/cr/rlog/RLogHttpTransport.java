@@ -1,5 +1,6 @@
 package com.dynamo.cr.rlog;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.MalformedURLException;
@@ -20,13 +21,8 @@ public class RLogHttpTransport implements IRLogTransport {
         } catch (MalformedURLException e) {}
     }
 
-    /**
-     * Send logging record.
-     * @param entry entry to send
-     * @return true on succes
-     */
     @Override
-    public boolean send(Record record) {
+    public void send(Record record) throws IOException {
         try {
             URLConnection conn = url.openConnection();
             conn.setDoOutput(true);
@@ -47,12 +43,9 @@ public class RLogHttpTransport implements IRLogTransport {
                 IOUtils.closeQuietly(os);
                 IOUtils.closeQuietly(is);
             }
-        } catch (Throwable e) {
-            // NOTE: DO NOT LOG HERE! :-)
-            e.printStackTrace();
-            return false;
+        } catch (IOException e) {
+            throw e;
         }
-        return true;
     }
 
 }
