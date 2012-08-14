@@ -782,7 +782,7 @@ namespace dmScript
             }
             else
             {
-                // If not number assume vector3
+                // If not number assume vector4
                 v = *CheckVector4(L, -1);
             }
         }
