@@ -39,6 +39,7 @@ namespace dmGameObject
     };
 
     lua_State* g_LuaState = 0;
+    dmScript::HContext g_ScriptContext = 0;
 
     ScriptWorld::ScriptWorld()
     : m_Instances()
@@ -485,14 +486,10 @@ namespace dmGameObject
     {
         lua_State *L = lua_open();
         g_LuaState = L;
+        g_ScriptContext = context;
 
         int top = lua_gettop(L);
-
-        luaopen_base(L);
-        luaopen_table(L);
-        luaopen_string(L);
-        luaopen_math(L);
-        luaopen_debug(L);
+        luaL_openlibs(L);
 
         // Pop all stack values generated from luaopen_*
         lua_pop(L, lua_gettop(L));
@@ -527,6 +524,7 @@ namespace dmGameObject
         if (g_LuaState)
             lua_close(g_LuaState);
         g_LuaState = 0;
+        g_ScriptContext = 0;
     }
 
     struct LuaData
@@ -535,7 +533,7 @@ namespace dmGameObject
         uint32_t m_Size;
     };
 
-    const char* ReadScript(lua_State *L, void *data, size_t *size)
+    static const char* ReadScript(lua_State *L, void *data, size_t *size)
     {
         LuaData* lua_data = (LuaData*)data;
         if (lua_data->m_Size == 0)

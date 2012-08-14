@@ -18,6 +18,7 @@
 #include "res_collection.h"
 #include "res_prototype.h"
 #include "res_script.h"
+#include "res_lua.h"
 
 #include "../proto/gameobject_ddf.h"
 
@@ -269,6 +270,10 @@ namespace dmGameObject
             return ret;
 
         ret = dmResource::RegisterType(factory, "scriptc", 0, &ResScriptCreate, &ResScriptDestroy, &ResScriptRecreate);
+        if (ret != dmResource::RESULT_OK)
+            return ret;
+
+        ret = dmResource::RegisterType(factory, "luac", 0, &ResLuaCreate, &ResLuaDestroy, &ResLuaRecreate);
         if (ret != dmResource::RESULT_OK)
             return ret;
 
