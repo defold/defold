@@ -41,7 +41,7 @@ Input is only sent to game objects that have acquired it.
 To acquire input, you post the message link:/ref/go#acquire_input_focus[+acquire_input_focus+] to the game object itself.
 This is usually done in the link:/ref/go#init[init-callback] of the script:
 
-[source, lua]
+[source-code, lua]
 ----
 function init(self)
     msg.post(nil, "acquire_input_focus")
@@ -54,7 +54,7 @@ You can handle input like this in both link:/doc/scripting_debugging[gui- and lo
 Here is an example of such a function, handling the action +jump+ mentioned above.
 Remember that you can give the action any name which has some meaning in your game.
 
-[source, lua]
+[source-code, lua]
 ----
 function on_input(self, action_id, action)
     if action_id == hash("jump") and action.pressed then
@@ -76,7 +76,7 @@ This means that whoever had input before is remembered.
 If you release input focus from a game object, it's removed from the stack and input will be passed on to the others.
 You do this by posting the message link:/ref/go#release_input_focus[+release_input_focus+] to the game object:
 
-[source, lua]
+[source-code, lua]
 ----
 msg.post(nil, "release_input_focus")
 ----
@@ -99,7 +99,7 @@ It would then consume input for selecting phrases, to keep the player from jumpi
 For other input, it could pass it on to let the player leave the NPC by moving at any time.
 The on_input callback in the dialogue script could look like this:
 
-[source, lua]
+[source-code, lua]
 ----
 function on_input(self, action_id, action)
     if action_id == hash("up") then
