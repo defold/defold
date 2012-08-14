@@ -177,9 +177,9 @@ public class LuaPropertyParser {
         String[] lines = str.split("\n");
         for (String line : lines) {
             String lineTrimmed = line.trim();
-            // Strip single line comments but preserve "pure" multiline comments
+            // Strip single line comments but preserve "pure" multi-line comments
             // Note that ---[[ is a single line comment
-            // You can enbable a block in Lua by adding a hypen, eg
+            // You can enable a block in Lua by adding a hyphen, e.g.
             /*
              ---[[
              The block is enabled
@@ -197,7 +197,7 @@ public class LuaPropertyParser {
     /**
      * Parse lua script for properties
      * @param str string to parse
-     * @return array of properites including properties with synax errors
+     * @return array of properties including properties with syntax errors
      */
     public static Property[] parse(String str) {
         str = stripSingleLineComments(str);
@@ -205,7 +205,7 @@ public class LuaPropertyParser {
 
         StringBuffer sb = new StringBuffer();
         while (matcher.find()) {
-            // Replace comment with n lines in order to prevserve line indices
+            // Replace comment with n lines in order to preserve line indices
             int n = matcher.group().split("\n").length;
             StringBuffer lines = new StringBuffer(n);
             for (int i = 0; i < n; ++i) lines.append('\n');

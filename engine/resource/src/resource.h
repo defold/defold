@@ -6,7 +6,7 @@
 namespace dmResource
 {
     /**
-     * Config key used to tweak the max number of resources allowed.
+     * Configuration key used to tweak the max number of resources allowed.
      */
     extern const char* MAX_RESOURCES_KEY;
 
@@ -178,8 +178,8 @@ namespace dmResource
 
     /**
      * Create a new factory
-     * @param params New factory parmeters
-     * @param uri Resource root uri, eg http://locahost:5000 or build/default/content
+     * @param params New factory parameters
+     * @param uri Resource root uri, e.g. http://locahost:5000 or build/default/content
      * @return Factory handle. NULL if out of memory or invalid uri.
      */
     HFactory NewFactory(NewFactoryParams* params, const char* uri);
@@ -203,7 +203,7 @@ namespace dmResource
      * @param context User context
      * @param create_function Create function pointer
      * @param destroy_function Destroy function pointer
-     * @param recreate_function Recreate function pointer. Optional, 0 if recrete is not supported.
+     * @param recreate_function Recreate function pointer. Optional, 0 if recreate is not supported.
      * @return RESULT_OK on success
      */
     Result RegisterType(HFactory factory,
