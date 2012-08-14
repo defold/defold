@@ -8,6 +8,11 @@ import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 
+import javax.vecmath.Matrix4d;
+import javax.vecmath.Quat4d;
+import javax.vecmath.Vector3d;
+import javax.vecmath.Vector4d;
+
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.runtime.CoreException;
 import org.junit.Before;
@@ -62,4 +67,14 @@ public class NodeTest extends AbstractNodeTest {
         assertEquals(0, getNodeProperty(this.node, DummyNode.DYNAMIC_PROPERTY));
         assertFalse(isNodePropertyOverridden(this.node, DummyNode.DYNAMIC_PROPERTY));
     }
+
+    @Test
+    public void testBug1148() throws ExecutionException {
+        Matrix4d transform = new Matrix4d();
+        transform.setColumn(3, new Vector4d(10, 20, 30, 1));
+        transform.set(new Quat4d(0, 1, 0, 0));
+        node.setLocalTransform(transform);
+        assertEquals(new Vector3d(0, 180, 0), node.getEuler());
+    }
+
 }

@@ -471,6 +471,8 @@ public abstract class Node implements IAdaptable, Serializable {
         transform.get(translation);
         this.translation.set(translation);
         rotation.set(transform);
+        quatToEuler(this.rotation, euler);
+        setDirty();
     }
 
     private void writeObject(ObjectOutputStream out) throws IOException {
