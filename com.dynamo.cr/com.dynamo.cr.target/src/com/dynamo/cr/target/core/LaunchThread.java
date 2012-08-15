@@ -200,7 +200,9 @@ import com.dynamo.engine.proto.Engine.Reboot.Builder;
 
                         @Override
                         public void run() {
-                            String msg = String.format("Engine is out of date and must be updated to latest version %s. \nA local instance will be launch instead.", editorVersion);
+                            String msg = String
+                                    .format("Engine is out of date and must be updated to latest version %s. \nA local instance will be launched instead.",
+                                            editorVersion);
                             MessageDialog.openError(display.getActiveShell(),
                                                     "Engine version mismatch",
                                                     msg);
