@@ -27,7 +27,6 @@ Task.simple_task_type('gameobjectdesc', 'protoc --encode=dmGameObjectDDF.Prototy
                       before='cc cxx',
                       shell=True)
 
-import lua_ddf_pb2
 @extension('.go_pb')
 def go_file(self, node):
     obj_ext = '.goc'
