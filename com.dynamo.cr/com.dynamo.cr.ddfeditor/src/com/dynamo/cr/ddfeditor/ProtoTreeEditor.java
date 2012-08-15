@@ -58,7 +58,7 @@ import com.google.protobuf.Descriptors.FieldDescriptor.Type;
 
 public class ProtoTreeEditor implements Listener {
 
-    private static Logger logger = LoggerFactory.getLogger(FontEditor.class);
+    private static Logger logger = LoggerFactory.getLogger(ProtoTreeEditor.class);
     private TreeViewer treeViewer;
     private IContainer contentRoot;
     private UndoContext undoContext;

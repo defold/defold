@@ -322,7 +322,7 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
                 }
             });
         } catch (CoreException e) {
-            logger.error("Unexpecged error occurred", e);
+            logger.error("Unexpected error occurred", e);
         }
     }
 }

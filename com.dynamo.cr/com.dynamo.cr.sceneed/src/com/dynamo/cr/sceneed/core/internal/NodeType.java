@@ -67,7 +67,7 @@ public class NodeType implements INodeType {
             try {
                 return (INodeRenderer<Node>) configurationElement.createExecutableExtension("renderer");
             } catch (CoreException e) {
-                logger.error("Failed to created renderer", e);
+                logger.error("Failed to create renderer", e);
                 return null;
             }
         }
