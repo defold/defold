@@ -177,12 +177,6 @@ namespace dmGameSystem
         {
             dmParticle::StopEmitter(emitter->m_World->m_ParticleContext, emitter->m_Emitter);
         }
-        else
-        {
-            const char* id_str = (const char*) dmHashReverse64(params.m_Message->m_Id, 0);
-            LogMessageError(params.m_Message, "Unsupported emitter message '%s'.", id_str);
-            return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
-        }
         return dmGameObject::UPDATE_RESULT_OK;
     }
 

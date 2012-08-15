@@ -326,12 +326,6 @@ namespace dmGameSystem
             proxy->m_TimeStepFactor = 1.0f;
             proxy->m_TimeStepMode = dmGameSystemDDF::TIME_STEP_MODE_CONTINUOUS;
         }
-        else
-        {
-            const char* id_str = (const char*) dmHashReverse64(params.m_Message->m_Id, 0);
-            LogMessageError(params.m_Message, "Unsupported collection proxy message '%s'.", id_str);
-            return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
-        }
 
         return dmGameObject::UPDATE_RESULT_OK;
     }

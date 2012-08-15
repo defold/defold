@@ -382,12 +382,6 @@ namespace dmGameSystem
                 return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
             }
         }
-        else
-        {
-            const char* id_str = (const char*) dmHashReverse64(params.m_Message->m_Id, 0);
-            LogMessageError(params.m_Message, "Unsupported tilegrid message '%s'.", id_str);
-            return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
-        }
         return dmGameObject::UPDATE_RESULT_OK;
     }
 

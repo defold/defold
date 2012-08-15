@@ -221,12 +221,6 @@ namespace dmGameSystem
                 camera->m_World->m_FocusStack.Pop();
             }
         }
-        else
-        {
-            const char* id_str = (const char*) dmHashReverse64(params.m_Message->m_Id, 0);
-            LogMessageError(params.m_Message, "Unsupported camera message '%s'.", id_str);
-            return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
-        }
 
         return dmGameObject::UPDATE_RESULT_OK;
     }
