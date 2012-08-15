@@ -14,7 +14,7 @@ public abstract class AbstractDefoldPlugin extends AbstractUIPlugin implements I
     @Override
     public Image getIconByExtension(String extension) {
         // Extract extension
-        if (extension.indexOf('.') != -1) {
+        if (extension != null && extension.indexOf('.') != -1) {
             extension = FilenameUtils.getExtension(extension);
         }
         ImageRegistry imageRegistry = getImageRegistry();
