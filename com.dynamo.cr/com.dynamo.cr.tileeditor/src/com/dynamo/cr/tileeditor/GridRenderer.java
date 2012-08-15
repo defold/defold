@@ -319,11 +319,16 @@ Listener {
                 this.activeCell = null;
                 requestPaint();
             }
-        } else if (event.type == SWT.KeyDown) {
-            Cursor cursor = this.gridEditor.getCursor(GridEditor.CURSOR_TYPE_CROSS);
-            this.canvas.setCursor(cursor);
-        } else if (event.type == SWT.KeyUp) {
-            updateCursor();
+        } else {
+            // Update cursor when shift is pressed and mouse type is one-button
+            if (SceneUtil.getMouseType() == MouseType.ONE_BUTTON && event.keyCode == SWT.SHIFT) {
+                if (event.type == SWT.KeyDown) {
+                    Cursor cursor = this.gridEditor.getCursor(GridEditor.CURSOR_TYPE_CROSS);
+                    this.canvas.setCursor(cursor);
+                } else if (event.type == SWT.KeyUp) {
+                    updateCursor();
+                }
+            }
         }
     }
 
@@ -1051,20 +1056,25 @@ Listener {
             int cursorType = -1;
             if (!this.showPalette) {
                 if (this.selectedLayer != null) {
-                    boolean eraser = true;
-                    int width = this.brush.getWidth();
-                    int height = this.brush.getHeight();
-                    for (int x = 0; x < width && eraser; ++x) {
-                        for (int y = 0; y < height && eraser; ++y) {
-                            if (this.brush.getCell(x, y).getTile() > -1) {
-                                eraser = false;
+                    // Cross when box selecting
+                    if (this.startActiveCell != null) {
+                        cursorType = GridEditor.CURSOR_TYPE_CROSS;
+                    } else {
+                        boolean eraser = true;
+                        int width = this.brush.getWidth();
+                        int height = this.brush.getHeight();
+                        for (int x = 0; x < width && eraser; ++x) {
+                            for (int y = 0; y < height && eraser; ++y) {
+                                if (this.brush.getCell(x, y).getTile() > -1) {
+                                    eraser = false;
+                                }
                             }
                         }
-                    }
-                    if (eraser) {
-                        cursorType = GridEditor.CURSOR_TYPE_ERASER;
-                    } else {
-                        cursorType = GridEditor.CURSOR_TYPE_PENCIL;
+                        if (eraser) {
+                            cursorType = GridEditor.CURSOR_TYPE_ERASER;
+                        } else {
+                            cursorType = GridEditor.CURSOR_TYPE_PENCIL;
+                        }
                     }
                 } else {
                     cursorType = GridEditor.CURSOR_TYPE_UNAVAILABLE;
