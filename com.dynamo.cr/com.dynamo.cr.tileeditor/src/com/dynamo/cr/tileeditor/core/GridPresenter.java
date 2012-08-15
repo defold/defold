@@ -22,7 +22,6 @@ import org.eclipse.core.resources.IResourceChangeEvent;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
-import org.eclipse.jface.util.ILogger;
 import org.eclipse.swt.graphics.Rectangle;
 
 import com.dynamo.cr.tileeditor.core.Layer.Cell;
@@ -48,7 +47,7 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
     private float previewZoom;
 
     @Inject
-    public GridPresenter(GridModel model, IGridView view, ILogger logger) {
+    public GridPresenter(GridModel model, IGridView view) {
         this.model = model;
         this.view = view;
 
