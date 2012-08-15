@@ -15,14 +15,13 @@ class CollectionTest : public ::testing::Test
 protected:
     virtual void SetUp()
     {
-        dmGameObject::Initialize(0x0);
-
         m_UpdateContext.m_DT = 1.0f / 60.0f;
 
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
         m_Factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test/collection");
+        dmGameObject::Initialize(0x0, m_Factory);
         m_Register = dmGameObject::NewRegister();
         dmGameObject::RegisterResourceTypes(m_Factory, m_Register);
         dmGameObject::RegisterComponentTypes(m_Factory, m_Register);
@@ -32,9 +31,9 @@ protected:
     virtual void TearDown()
     {
         dmGameObject::DeleteCollection(m_Collection);
+        dmGameObject::Finalize(m_Factory);
         dmResource::DeleteFactory(m_Factory);
         dmGameObject::DeleteRegister(m_Register);
-        dmGameObject::Finalize();
     }
 
 public:

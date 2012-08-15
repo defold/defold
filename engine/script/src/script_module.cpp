@@ -97,7 +97,8 @@ namespace dmScript
 
         Module module;
         module.m_Name = strdup(script_name);
-        module.m_Script = strdup(script);
+        module.m_Script = (char*) malloc(script_size);
+        memcpy(module.m_Script, script, script_size);
         module.m_ScriptSize = script_size;
         module.m_UserData = user_data;
 
@@ -129,7 +130,8 @@ namespace dmScript
 
         free(module->m_Script);
 
-        module->m_Script = strdup(script);
+        module->m_Script = (char*) malloc(script_size);
+        memcpy(module->m_Script, script, script_size);
         module->m_ScriptSize = script_size;
 
         if (LoadScript(L, script, script_size, module->m_Name))
@@ -151,6 +153,28 @@ namespace dmScript
         }
         assert(top == lua_gettop(L));
         return RESULT_OK;
+    }
+
+    struct IterateData
+    {
+        void* m_UserContext;
+        void (*m_Callback)(void* user_context, void* user_data);
+        IterateData(void* user_context, void (*call_back)(void* user_context, void* user_data))
+        {
+            m_UserContext = user_context;
+            m_Callback = call_back;
+        }
+    };
+
+    static void DoIterate(IterateData* id, const uint64_t* key, Module* value)
+    {
+        id->m_Callback(id->m_UserContext, value->m_UserData);
+    }
+
+    void IterateModules(HContext context, void* user_context, void (*call_back)(void* user_context, void* user_data))
+    {
+        IterateData id(user_context, call_back);
+        context->m_Modules.Iterate(DoIterate, &id);
     }
 
     bool ModuleLoaded(HContext context, const char* script_name)

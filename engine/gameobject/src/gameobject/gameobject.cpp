@@ -55,14 +55,14 @@ namespace dmGameObject
         memset(this, 0, sizeof(*this));
     }
 
-    void Initialize(dmScript::HContext context)
+    void Initialize(dmScript::HContext context, dmResource::HFactory factory)
     {
-        InitializeScript(context);
+        InitializeScript(context, factory);
     }
 
-    void Finalize()
+    void Finalize(dmResource::HFactory factory)
     {
-        FinalizeScript();
+        FinalizeScript(factory);
     }
 
     HRegister NewRegister()

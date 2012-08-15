@@ -27,8 +27,6 @@ class ReloadTest : public ::testing::Test
 protected:
     virtual void SetUp()
     {
-        dmGameObject::Initialize(0x0);
-
         m_NewResource = 0x0;
 
         m_UpdateContext.m_DT = 1.0f / 60.0f;
@@ -37,6 +35,7 @@ protected:
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
         m_Factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test/reload");
+        dmGameObject::Initialize(0x0, m_Factory);
         m_Register = dmGameObject::NewRegister();
         dmGameObject::RegisterResourceTypes(m_Factory, m_Register);
         dmGameObject::RegisterComponentTypes(m_Factory, m_Register);
@@ -68,9 +67,9 @@ protected:
     virtual void TearDown()
     {
         dmGameObject::DeleteCollection(m_Collection);
+        dmGameObject::Finalize(m_Factory);
         dmResource::DeleteFactory(m_Factory);
         dmGameObject::DeleteRegister(m_Register);
-        dmGameObject::Finalize();
     }
 
     static dmResource::Result ResReloadTargetCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, dmResource::SResourceDescriptor* resource, const char* filename);

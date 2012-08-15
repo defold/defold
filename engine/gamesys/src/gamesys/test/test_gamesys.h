@@ -79,8 +79,6 @@ template<typename T>
 void GamesysTest<T>::SetUp()
 {
     dmSound::Initialize(0x0, 0x0);
-    m_ScriptContext = dmScript::NewContext(0);
-    dmGameObject::Initialize(m_ScriptContext);
 
     m_UpdateContext.m_DT = 1.0f / 60.0f;
 
@@ -88,6 +86,8 @@ void GamesysTest<T>::SetUp()
     params.m_MaxResources = 16;
     params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
     m_Factory = dmResource::NewFactory(&params, "build/default/src/gamesys/test");
+    m_ScriptContext = dmScript::NewContext(0);
+    dmGameObject::Initialize(m_ScriptContext, m_Factory);
     m_Register = dmGameObject::NewRegister();
     dmGameObject::RegisterResourceTypes(m_Factory, m_Register);
     dmGameObject::RegisterComponentTypes(m_Factory, m_Register);
@@ -148,9 +148,9 @@ void GamesysTest<T>::TearDown()
     dmGui::DeleteContext(m_GuiContext.m_GuiContext);
     dmRender::DeleteRenderContext(m_RenderContext);
     dmGraphics::DeleteContext(m_GraphicsContext);
+    dmGameObject::Finalize(m_Factory);
     dmResource::DeleteFactory(m_Factory);
     dmGameObject::DeleteRegister(m_Register);
-    dmGameObject::Finalize();
     dmSound::Finalize();
     dmInput::DeleteContext(m_InputContext);
     dmHID::Final(m_HidContext);

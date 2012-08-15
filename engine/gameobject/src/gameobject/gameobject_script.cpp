@@ -16,6 +16,11 @@
 #include "gameobject.h"
 #include "gameobject_script.h"
 #include "gameobject_private.h"
+// Not to pretty to include res_lua.h here but lua-modules
+// are released at system shutdown and not on a per parent-resource basis
+// as all other resource are. Due to the nature of lua-code and
+// code in general, side-effects, we can't "shutdown" a module.
+#include "res_lua.h"
 
 extern "C"
 {
@@ -482,7 +487,7 @@ namespace dmGameObject
         {0, 0}
     };
 
-    void InitializeScript(dmScript::HContext context)
+    void InitializeScript(dmScript::HContext context, dmResource::HFactory factory)
     {
         lua_State *L = lua_open();
         g_LuaState = L;
@@ -519,10 +524,23 @@ namespace dmGameObject
         assert(top == lua_gettop(L));
     }
 
-    void FinalizeScript()
+    static void FreeModule(void* user_context, void* user_data)
     {
+        dmResource::HFactory factory = (dmResource::HFactory) user_context;
+        LuaScript* lua_script = (LuaScript*) user_data;
+        dmResource::Release(factory, lua_script);
+    }
+
+    void FinalizeScript(dmResource::HFactory factory)
+    {
+        if (g_ScriptContext)
+        {
+            dmScript::IterateModules(g_ScriptContext, factory, FreeModule);
+        }
         if (g_LuaState)
+        {
             lua_close(g_LuaState);
+        }
         g_LuaState = 0;
         g_ScriptContext = 0;
     }

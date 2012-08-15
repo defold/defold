@@ -180,7 +180,7 @@ namespace dmEngine
             dmHID::DeleteContext(engine->m_HidContext);
         }
 
-        dmGameObject::Finalize();
+        dmGameObject::Finalize(engine->m_Factory);
 
         if (engine->m_Factory)
             dmResource::DeleteFactory(engine->m_Factory);
@@ -321,8 +321,6 @@ namespace dmEngine
         engine->m_InvPhysicalHeight = 1.0f / physical_height;
 
         engine->m_ScriptContext = dmScript::NewContext(engine->m_Config);
-        dmGameObject::Initialize(engine->m_ScriptContext);
-
         engine->m_HidContext = dmHID::NewContext(dmHID::NewContextParams());
         dmHID::Init(engine->m_HidContext);
 
@@ -361,6 +359,7 @@ namespace dmEngine
         params.m_BuiltinsArchiveSize = BUILTINS_ARC_SIZE;
 
         engine->m_Factory = dmResource::NewFactory(&params, dmConfigFile::GetString(engine->m_Config, "resource.uri", content_root));
+        dmGameObject::Initialize(engine->m_ScriptContext, engine->m_Factory);
 
         dmInput::NewContextParams input_params;
         input_params.m_HidContext = engine->m_HidContext;

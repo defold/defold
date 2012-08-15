@@ -305,6 +305,14 @@ namespace dmScript
     Result ReloadModule(HContext context, lua_State* L, const char* script, uint32_t script_size, dmhash_t module_hash);
 
     /**
+     * Iterate over all modules
+     * @param profile Profile snapshot to iterate over
+     * @param context User context
+     * @param call_back Call-back function pointer
+     */
+    void IterateModules(HContext context, void* user_context, void (*call_back)(void* user_context, void* user_data));
+
+    /**
      * Check if a module is loaded
      * @param context script context
      * @param script_name script name, see AddModule
