@@ -43,6 +43,7 @@ namespace dmDDF
         uint16_t         m_MajorVersion;
         uint16_t         m_MinorVersion;
         const char*      m_Name;
+        uint64_t         m_NameHash;
         uint32_t         m_Size;
         FieldDescriptor* m_Fields;
         uint8_t          m_FieldCount;  // TODO: Where to check < 255...?

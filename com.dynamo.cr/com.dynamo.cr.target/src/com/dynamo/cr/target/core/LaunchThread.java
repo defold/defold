@@ -19,6 +19,8 @@ import javax.ws.rs.core.UriBuilder;
 import org.apache.commons.io.IOUtils;
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.map.ObjectMapper;
+import org.eclipse.jface.dialogs.MessageDialog;
+import org.eclipse.swt.widgets.Display;
 import org.eclipse.ui.console.MessageConsole;
 import org.eclipse.ui.console.MessageConsoleStream;
 
@@ -190,10 +192,22 @@ import com.dynamo.engine.proto.Engine.Reboot.Builder;
             JsonNode infoNode = m.readValue(os.toByteArray(), JsonNode.class);
             JsonNode versionNode = infoNode.get("version");
             if (versionNode != null) {
-                String version = versionNode.asText();
-                String editorVersion = EditorCorePlugin.VERSION;
+                final String version = versionNode.asText();
+                final String editorVersion = EditorCorePlugin.VERSION;
                 if (!editorVersion.equals(version)) {
-                    stream.println(String.format("WARNING: Editor and engine versions differs. Version %s and %s respectively.", editorVersion, version));
+                    final Display display = Display.getDefault();
+                    display.syncExec(new Runnable() {
+
+                        @Override
+                        public void run() {
+                            String msg = String.format("Engine is out of date and must be updated to latest version %s. \nA local instance will be launch instead.", editorVersion);
+                            MessageDialog.openError(display.getActiveShell(),
+                                                    "Engine version mismatch",
+                                                    msg);
+                        }
+                    });
+
+                    return false;
                 }
                 return true;
             } else {

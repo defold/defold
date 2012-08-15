@@ -18,6 +18,7 @@
 #include "res_collection.h"
 #include "res_prototype.h"
 #include "res_script.h"
+#include "res_lua.h"
 
 #include "../proto/gameobject_ddf.h"
 
@@ -269,6 +270,10 @@ namespace dmGameObject
             return ret;
 
         ret = dmResource::RegisterType(factory, "scriptc", 0, &ResScriptCreate, &ResScriptDestroy, &ResScriptRecreate);
+        if (ret != dmResource::RESULT_OK)
+            return ret;
+
+        ret = dmResource::RegisterType(factory, "luac", 0, &ResLuaCreate, &ResLuaDestroy, &ResLuaRecreate);
         if (ret != dmResource::RESULT_OK)
             return ret;
 
@@ -1057,7 +1062,7 @@ namespace dmGameObject
                 response.m_Rotation = dmGameObject::GetRotation(instance);
                 response.m_WorldPosition = dmGameObject::GetWorldPosition(instance);
                 response.m_WorldRotation = dmGameObject::GetWorldRotation(instance);
-                dmhash_t message_id = dmHashString64(dmGameObjectDDF::TransformResponse::m_DDFDescriptor->m_Name);
+                dmhash_t message_id = dmGameObjectDDF::TransformResponse::m_DDFDescriptor->m_NameHash;
                 uintptr_t gotr_descriptor = (uintptr_t)dmGameObjectDDF::TransformResponse::m_DDFDescriptor;
                 uint32_t data_size = sizeof(dmGameObjectDDF::TransformResponse);
                 if (dmMessage::IsSocketValid(message->m_Sender.m_Socket))

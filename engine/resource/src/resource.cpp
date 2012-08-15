@@ -64,7 +64,6 @@ struct SResourceType
 const uint32_t RESOURCE_PATH_MAX = 1024;
 
 const uint32_t MAX_RESOURCE_TYPES = 128;
-const uint32_t MAX_CALLBACKS = 16;
 
 static Result LoadResource(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size);
 
@@ -300,7 +299,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         factory->m_ResourceHashToFilename->SetCapacity(table_size, params->m_MaxResources);
 
         factory->m_ResourceReloadedCallbacks = new dmArray<ResourceReloadedCallbackPair>();
-        factory->m_ResourceReloadedCallbacks->SetCapacity(MAX_CALLBACKS);
+        factory->m_ResourceReloadedCallbacks->SetCapacity(256);
     }
     else
     {
@@ -845,17 +844,14 @@ void RegisterResourceReloadedCallback(HFactory factory, ResourceReloadedCallback
 {
     if (factory->m_ResourceReloadedCallbacks)
     {
-        if (!factory->m_ResourceReloadedCallbacks->Full())
+        if (factory->m_ResourceReloadedCallbacks->Full())
         {
-            ResourceReloadedCallbackPair pair;
-            pair.m_Callback = callback;
-            pair.m_UserData = user_data;
-            factory->m_ResourceReloadedCallbacks->Push(pair);
+            factory->m_ResourceReloadedCallbacks->SetCapacity(factory->m_ResourceReloadedCallbacks->Capacity() + 128);
         }
-        else
-        {
-            dmLogWarning("Resource reloaded callback could not be registered since the maximum capacity of callbacks has been reached (%d).", MAX_CALLBACKS);
-        }
+        ResourceReloadedCallbackPair pair;
+        pair.m_Callback = callback;
+        pair.m_UserData = user_data;
+        factory->m_ResourceReloadedCallbacks->Push(pair);
     }
 }
 

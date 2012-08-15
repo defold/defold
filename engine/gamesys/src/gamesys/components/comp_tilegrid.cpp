@@ -323,7 +323,7 @@ namespace dmGameSystem
     dmGameObject::UpdateResult CompTileGridOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
         TileGrid* tile_grid = (TileGrid*) *params.m_UserData;
-        if (params.m_Message->m_Id == dmHashString64(dmGameSystemDDF::SetTile::m_DDFDescriptor->m_Name))
+        if (params.m_Message->m_Id == dmGameSystemDDF::SetTile::m_DDFDescriptor->m_NameHash)
         {
             dmGameSystemDDF::SetTile* st = (dmGameSystemDDF::SetTile*) params.m_Message->m_Data;
             uint32_t layer_count = tile_grid->m_Layers.Size();
@@ -370,7 +370,7 @@ namespace dmGameSystem
             set_hull_ddf.m_Column = cell_x;
             set_hull_ddf.m_Row = cell_y;
             set_hull_ddf.m_Hull = tile;
-            dmhash_t message_id = dmHashString64(dmPhysicsDDF::SetGridShapeHull::m_DDFDescriptor->m_Name);
+            dmhash_t message_id = dmPhysicsDDF::SetGridShapeHull::m_DDFDescriptor->m_NameHash;
             uintptr_t descriptor = (uintptr_t)dmPhysicsDDF::SetGridShapeHull::m_DDFDescriptor;
             uint32_t data_size = sizeof(dmPhysicsDDF::SetGridShapeHull);
             dmMessage::URL receiver = params.m_Message->m_Receiver;
@@ -381,12 +381,6 @@ namespace dmGameSystem
                 LogMessageError(params.m_Message, "Could not send %s to components, result: %d.", dmPhysicsDDF::SetGridShapeHull::m_DDFDescriptor->m_Name, result);
                 return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
             }
-        }
-        else
-        {
-            const char* id_str = (const char*) dmHashReverse64(params.m_Message->m_Id, 0);
-            LogMessageError(params.m_Message, "Unsupported tilegrid message '%s'.", id_str);
-            return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
         }
         return dmGameObject::UPDATE_RESULT_OK;
     }

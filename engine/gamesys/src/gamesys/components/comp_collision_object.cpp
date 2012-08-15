@@ -348,7 +348,7 @@ namespace dmGameSystem
             dmGameObject::HInstance instance_b = component_b->m_Instance;
             dmhash_t instance_a_id = dmGameObject::GetIdentifier(instance_a);
             dmhash_t instance_b_id = dmGameObject::GetIdentifier(instance_b);
-            dmhash_t message_id = dmHashString64(dmPhysicsDDF::CollisionResponse::m_DDFDescriptor->m_Name);
+            dmhash_t message_id = dmPhysicsDDF::CollisionResponse::m_DDFDescriptor->m_NameHash;
             uintptr_t descriptor = (uintptr_t)dmPhysicsDDF::CollisionResponse::m_DDFDescriptor;
             uint32_t data_size = sizeof(dmPhysicsDDF::CollisionResponse);
             dmPhysicsDDF::CollisionResponse ddf;
@@ -419,7 +419,7 @@ namespace dmGameSystem
             float mass_a = dmMath::Select(-contact_point.m_MassA, 0.0f, contact_point.m_MassA);
             float mass_b = dmMath::Select(-contact_point.m_MassB, 0.0f, contact_point.m_MassB);
 
-            dmhash_t message_id = dmHashString64(dmPhysicsDDF::ContactPointResponse::m_DDFDescriptor->m_Name);
+            dmhash_t message_id = dmPhysicsDDF::ContactPointResponse::m_DDFDescriptor->m_NameHash;
             uintptr_t descriptor = (uintptr_t)dmPhysicsDDF::ContactPointResponse::m_DDFDescriptor;
             uint32_t data_size = sizeof(dmPhysicsDDF::ContactPointResponse);
             dmMessage::URL sender;
@@ -511,7 +511,7 @@ namespace dmGameSystem
             ddf.m_Position = response.m_Position;
             ddf.m_Normal = response.m_Normal;
             ddf.m_RequestId = request.m_UserId & 0xff;
-            dmhash_t message_id = dmHashString64(dmPhysicsDDF::RayCastResponse::m_DDFDescriptor->m_Name);
+            dmhash_t message_id = dmPhysicsDDF::RayCastResponse::m_DDFDescriptor->m_NameHash;
             uintptr_t descriptor = (uintptr_t)dmPhysicsDDF::RayCastResponse::m_DDFDescriptor;
             uint32_t data_size = sizeof(dmPhysicsDDF::RayCastResponse);
             dmMessage::URL receiver;
@@ -682,11 +682,11 @@ namespace dmGameSystem
         PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
         Component* component = (Component*) *params.m_UserData;
 
-        if (params.m_Message->m_Id == dmHashString64(dmGameObjectDDF::Enable::m_DDFDescriptor->m_Name)
-                || params.m_Message->m_Id == dmHashString64(dmGameObjectDDF::Disable::m_DDFDescriptor->m_Name))
+        if (params.m_Message->m_Id == dmGameObjectDDF::Enable::m_DDFDescriptor->m_NameHash
+                || params.m_Message->m_Id == dmGameObjectDDF::Disable::m_DDFDescriptor->m_NameHash)
         {
             bool enable = false;
-            if (params.m_Message->m_Id == dmHashString64(dmGameObjectDDF::Enable::m_DDFDescriptor->m_Name))
+            if (params.m_Message->m_Id == dmGameObjectDDF::Enable::m_DDFDescriptor->m_NameHash)
             {
                 enable = true;
             }
@@ -700,7 +700,7 @@ namespace dmGameSystem
                 dmPhysics::SetEnabled2D(world->m_World2D, component->m_Object2D, enable);
             }
         }
-        else if (params.m_Message->m_Id == dmHashString64(dmPhysicsDDF::ApplyForce::m_DDFDescriptor->m_Name))
+        else if (params.m_Message->m_Id == dmPhysicsDDF::ApplyForce::m_DDFDescriptor->m_NameHash)
         {
             dmPhysicsDDF::ApplyForce* af = (dmPhysicsDDF::ApplyForce*) params.m_Message->m_Data;
             if (physics_context->m_3D)
@@ -712,7 +712,7 @@ namespace dmGameSystem
                 dmPhysics::ApplyForce2D(physics_context->m_Context2D, component->m_Object2D, af->m_Force, af->m_Position);
             }
         }
-        else if (params.m_Message->m_Id == dmHashString64(dmPhysicsDDF::RequestVelocity::m_DDFDescriptor->m_Name))
+        else if (params.m_Message->m_Id == dmPhysicsDDF::RequestVelocity::m_DDFDescriptor->m_NameHash)
         {
             dmPhysicsDDF::VelocityResponse response;
             if (physics_context->m_3D)
@@ -725,7 +725,7 @@ namespace dmGameSystem
                 response.m_LinearVelocity = dmPhysics::GetLinearVelocity2D(physics_context->m_Context2D, component->m_Object2D);
                 response.m_AngularVelocity = dmPhysics::GetAngularVelocity2D(physics_context->m_Context2D, component->m_Object2D);
             }
-            dmhash_t message_id = dmHashString64(dmPhysicsDDF::VelocityResponse::m_DDFDescriptor->m_Name);
+            dmhash_t message_id = dmPhysicsDDF::VelocityResponse::m_DDFDescriptor->m_NameHash;
             uintptr_t descriptor = (uintptr_t)dmPhysicsDDF::VelocityResponse::m_DDFDescriptor;
             uint32_t data_size = sizeof(dmPhysicsDDF::VelocityResponse);
             dmMessage::Result result = dmMessage::Post(&params.m_Message->m_Receiver, &params.m_Message->m_Sender, message_id, 0, descriptor, &response, data_size);
@@ -735,7 +735,7 @@ namespace dmGameSystem
                 return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
             }
         }
-        else if (params.m_Message->m_Id == dmHashString64(dmPhysicsDDF::SetGridShapeHull::m_DDFDescriptor->m_Name))
+        else if (params.m_Message->m_Id == dmPhysicsDDF::SetGridShapeHull::m_DDFDescriptor->m_NameHash)
         {
             if (physics_context->m_3D)
             {

@@ -8,6 +8,7 @@
 #include "socket.h"
 #include "message.h"
 #include "thread.h"
+#include "math.h"
 #include "time.h"
 
 struct dmLogConnection
@@ -328,7 +329,7 @@ void dmLogInternal(dmLogSeverity severity, const char* domain, const char* forma
     }
 
 
-    const int str_buf_size = 512;
+    const int str_buf_size = 1024;
     char tmp_buf[sizeof(dmLogMessage) + str_buf_size];
     dmLogMessage* msg = (dmLogMessage*) &tmp_buf[0];
     char* str_buf = &tmp_buf[sizeof(dmLogMessage)];
@@ -346,7 +347,7 @@ void dmLogInternal(dmLogSeverity severity, const char* domain, const char* forma
     }
     str_buf[str_buf_size-1] = '\0';
 
-    fwrite(str_buf, 1, n, stderr);
+    fwrite(str_buf, 1, dmMath::Min(n, str_buf_size-1), stderr);
     va_end(lst);
 
     dmLogServer* self = g_dmLogServer;

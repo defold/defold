@@ -61,7 +61,7 @@ namespace dmEngine
     {
         uint32_t data_size = sizeof(dmRenderDDF::WindowResized);
         uintptr_t descriptor = (uintptr_t)dmRenderDDF::WindowResized::m_DDFDescriptor;
-        dmhash_t message_id = dmHashString64(dmRenderDDF::WindowResized::m_DDFDescriptor->m_Name);
+        dmhash_t message_id = dmRenderDDF::WindowResized::m_DDFDescriptor->m_NameHash;
 
         dmRenderDDF::WindowResized window_resized;
         window_resized.m_Width = width;

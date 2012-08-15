@@ -72,8 +72,8 @@ namespace dmGameSystem
             dmLogError("Could not find the socket '%s'.", dmRender::RENDER_SOCKET_NAME);
             return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
         }
-        dmhash_t message_id = dmHashString64("set_light");
 
+        dmhash_t message_id = dmGameSystemDDF::SetLight::m_DDFDescriptor->m_NameHash;
         for (uint32_t i = 0; i < light_world->m_Lights.Size(); ++i)
         {
             Light* light = light_world->m_Lights[i];

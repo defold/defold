@@ -1,0 +1,5 @@
+require "test_mod"
+
+function update(self)
+    assert(test_mod_func() == 123)
+end

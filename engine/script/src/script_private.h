@@ -10,9 +10,18 @@
 
 namespace dmScript
 {
+    struct Module
+    {
+        char*       m_Script;
+        uint32_t    m_ScriptSize;
+        char*       m_Name;
+        void*       m_UserData;
+    };
+
     struct Context
     {
-        dmConfigFile::HConfig                   m_ConfigFile;
+        dmConfigFile::HConfig   m_ConfigFile;
+        dmHashTable64<Module>   m_Modules;
     };
 }
 

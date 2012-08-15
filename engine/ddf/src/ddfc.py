@@ -316,6 +316,7 @@ def to_cxx_descriptor(context, pp_cpp, pp_h, message_type, namespace_lst):
     pp_cpp.begin("dmDDF::Descriptor %s_%s_DESCRIPTOR = ", namespace, message_type.name)
     pp_cpp.p('%d, %d,', DDF_MAJOR_VERSION, DDF_MINOR_VERSION)
     pp_cpp.p('"%s",', to_lower_case(message_type.name))
+    pp_cpp.p('0x%016XLL,', dlib.dmHashBuffer64(to_lower_case(message_type.name)))
     pp_cpp.p('sizeof(%s::%s),', namespace.replace("_", "::"), message_type.name)
     pp_cpp.p('%s_%s_FIELDS_DESCRIPTOR,', namespace, message_type.name)
     if len(lst) > 0:

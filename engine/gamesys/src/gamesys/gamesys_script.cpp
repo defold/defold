@@ -103,7 +103,7 @@ namespace dmGameSystem
             dmMessage::URL receiver;
             dmMessage::ResetURL(receiver);
             receiver.m_Socket = context->m_Socket;
-            dmMessage::Post(&sender, &receiver, dmHashString64(dmPhysicsDDF::RequestRayCast::m_DDFDescriptor->m_Name), user_data, (uintptr_t)dmPhysicsDDF::RequestRayCast::m_DDFDescriptor, &request, sizeof(dmPhysicsDDF::RequestRayCast));
+            dmMessage::Post(&sender, &receiver, dmPhysicsDDF::RequestRayCast::m_DDFDescriptor->m_NameHash, user_data, (uintptr_t)dmPhysicsDDF::RequestRayCast::m_DDFDescriptor, &request, sizeof(dmPhysicsDDF::RequestRayCast));
             assert(top == lua_gettop(L));
             return 0;
         }
@@ -204,7 +204,7 @@ namespace dmGameSystem
 
             dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-            dmMessage::Post(&sender, &receiver, dmHashString64(dmGameSystemDDF::Create::m_DDFDescriptor->m_Name), user_data, (uintptr_t)dmGameSystemDDF::Create::m_DDFDescriptor, buffer, msg_size + actual_prop_buffer_size);
+            dmMessage::Post(&sender, &receiver, dmGameSystemDDF::Create::m_DDFDescriptor->m_NameHash, user_data, (uintptr_t)dmGameSystemDDF::Create::m_DDFDescriptor, buffer, msg_size + actual_prop_buffer_size);
             assert(top == lua_gettop(L));
             dmScript::PushHash(L, request->m_Id);
             return 1;

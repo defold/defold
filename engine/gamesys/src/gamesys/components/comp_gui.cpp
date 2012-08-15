@@ -410,11 +410,11 @@ namespace dmGameSystem
     dmGameObject::UpdateResult CompGuiOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
         Component* gui_component = (Component*)*params.m_UserData;
-        if (params.m_Message->m_Id == dmHashString64(dmGameObjectDDF::Enable::m_DDFDescriptor->m_Name))
+        if (params.m_Message->m_Id == dmGameObjectDDF::Enable::m_DDFDescriptor->m_NameHash)
         {
             gui_component->m_Enabled = 1;
         }
-        else if (params.m_Message->m_Id == dmHashString64(dmGameObjectDDF::Disable::m_DDFDescriptor->m_Name))
+        else if (params.m_Message->m_Id == dmGameObjectDDF::Disable::m_DDFDescriptor->m_NameHash)
         {
             gui_component->m_Enabled = 0;
         }
