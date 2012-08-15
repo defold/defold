@@ -317,7 +317,7 @@ namespace dmGameSystem
                         component->m_Playing = 0;
                         if (component->m_ListenerInstance != 0x0)
                         {
-                            dmhash_t message_id = dmHashString64(dmGameSystemDDF::AnimationDone::m_DDFDescriptor->m_Name);
+                            dmhash_t message_id = dmGameSystemDDF::AnimationDone::m_DDFDescriptor->m_NameHash;
                             dmGameSystemDDF::AnimationDone message;
                             message.m_CurrentTile = component->m_CurrentTile;
                             dmMessage::URL receiver;
@@ -409,17 +409,17 @@ namespace dmGameSystem
     dmGameObject::UpdateResult CompSpriteOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
         Component* component = (Component*)*params.m_UserData;
-        if (params.m_Message->m_Id == dmHashString64(dmGameObjectDDF::Enable::m_DDFDescriptor->m_Name))
+        if (params.m_Message->m_Id == dmGameObjectDDF::Enable::m_DDFDescriptor->m_NameHash)
         {
             component->m_Enabled = 1;
         }
-        else if (params.m_Message->m_Id == dmHashString64(dmGameObjectDDF::Disable::m_DDFDescriptor->m_Name))
+        else if (params.m_Message->m_Id == dmGameObjectDDF::Disable::m_DDFDescriptor->m_NameHash)
         {
             component->m_Enabled = 0;
         }
         else if (params.m_Message->m_Descriptor != 0x0)
         {
-            if (params.m_Message->m_Id == dmHashString64(dmGameSystemDDF::PlayAnimation::m_DDFDescriptor->m_Name))
+            if (params.m_Message->m_Id == dmGameSystemDDF::PlayAnimation::m_DDFDescriptor->m_NameHash)
             {
                 dmGameSystemDDF::PlayAnimation* ddf = (dmGameSystemDDF::PlayAnimation*)params.m_Message->m_Data;
                 if (PlayAnimation(component, ddf->m_Id))

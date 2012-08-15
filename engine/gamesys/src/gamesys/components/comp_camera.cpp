@@ -138,7 +138,7 @@ namespace dmGameSystem
 
             // Send the matrices to the render script
 
-            dmhash_t message_id = dmHashString64(dmGameSystemDDF::SetViewProjection::m_DDFDescriptor->m_Name);
+            dmhash_t message_id = dmGameSystemDDF::SetViewProjection::m_DDFDescriptor->m_NameHash;
 
             dmGameSystemDDF::SetViewProjection set_view_projection;
             set_view_projection.m_Id = dmHashString64("game");

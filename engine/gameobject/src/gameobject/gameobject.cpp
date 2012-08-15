@@ -1062,7 +1062,7 @@ namespace dmGameObject
                 response.m_Rotation = dmGameObject::GetRotation(instance);
                 response.m_WorldPosition = dmGameObject::GetWorldPosition(instance);
                 response.m_WorldRotation = dmGameObject::GetWorldRotation(instance);
-                dmhash_t message_id = dmHashString64(dmGameObjectDDF::TransformResponse::m_DDFDescriptor->m_Name);
+                dmhash_t message_id = dmGameObjectDDF::TransformResponse::m_DDFDescriptor->m_NameHash;
                 uintptr_t gotr_descriptor = (uintptr_t)dmGameObjectDDF::TransformResponse::m_DDFDescriptor;
                 uint32_t data_size = sizeof(dmGameObjectDDF::TransformResponse);
                 if (dmMessage::IsSocketValid(message->m_Sender.m_Socket))
