@@ -15,6 +15,7 @@ extern "C"
 namespace dmScript
 {
     #define SCRIPT_TYPE_NAME_HASH "hash"
+    #define SCRIPT_HASH_TABLE "__script_hash_table"
 
     bool IsHash(lua_State *L, int index)
     {
@@ -57,8 +58,20 @@ namespace dmScript
         int top = lua_gettop(L);
 
         const char* str = luaL_checkstring(L, 1);
-        dmhash_t hash = dmHashString64(str);
-        PushHash(L, hash);
+
+        lua_getglobal(L, SCRIPT_HASH_TABLE);
+        lua_pushstring(L, str);
+        lua_rawget(L, -2);
+        if (lua_isnil(L, -1))
+        {
+            lua_pop(L, 1); // pop nil value
+            dmhash_t hash = dmHashString64(str);
+            PushHash(L, hash);
+            lua_pushstring(L, str);
+            lua_pushvalue(L, -2);
+            lua_rawset(L, -4); // set hash value to SCRIPT_HASH_TABLE
+        }
+        lua_remove(L, -2); // remove SCRIPT_HASH_TABLE
 
         assert(top + 1 == lua_gettop(L));
 
@@ -170,6 +183,9 @@ namespace dmScript
 
         lua_pushcfunction(L, Script_Hash);
         lua_setglobal(L, SCRIPT_TYPE_NAME_HASH);
+
+        lua_newtable(L);
+        lua_setglobal(L, SCRIPT_HASH_TABLE);
 
         lua_pop(L, 1);
 
