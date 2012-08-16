@@ -109,6 +109,14 @@ def load(trace, executable):
 
     return mem_profile
 
+def fmt_memory(x):
+    ret = '%d B' % x
+    if x > 1024*1024:
+        ret = '%d M' % (x / (1024.0*1024.0))
+    elif x > 1024:
+        ret = '%d K' % (x / (1024.0))
+    return ret
+
 if __name__ == '__main__':
     if not os.path.exists(sys.argv[1]):
         print >>sys.stderr, 'Executable %s not found' % sys.argv[1]
@@ -122,7 +130,14 @@ if __name__ == '__main__':
 
     lst = profile.summary.values()
     lst.sort(lambda x,y: cmp(y.malloc_total, x.malloc_total))
+    active_total = 0
+    for s in lst:
+        if s.nmalloc > 0:
+            active_total += s.active_total
+
     print '<html>'
+    print '<b>Active total: %s</b>' % fmt_memory(active_total)
+    print '<p>'
     print '<table border="1">'
     print '<td><b>Backtrace</b></td><td><b>Allocations</b></td><td><b>Total</b></td><td><b>Active</b></td><tr/>'
     for s in lst:

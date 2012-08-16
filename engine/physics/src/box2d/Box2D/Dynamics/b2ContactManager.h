@@ -32,8 +32,10 @@ class b2ContactManager
 public:
 	b2ContactManager();
 
-	// Broad-phase callback.
-	void AddPair(void* proxyUserDataA, void* proxyUserDataB);
+    // Broad-phase callback.
+    void AddPair(void* proxyUserDataA, void* proxyUserDataB);
+	// Defold modifications
+	bool CanCollide(void* proxyUserDataA, void* proxyUserDataB);
 
 	void FindNewContacts();
 

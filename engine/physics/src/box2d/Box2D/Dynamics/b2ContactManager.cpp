@@ -174,6 +174,19 @@ void b2ContactManager::FindNewContacts()
 	m_broadPhase.UpdatePairs(this);
 }
 
+// Defold modifications
+// Early out filter (broad-phase)
+// See API-changes for more info
+bool b2ContactManager::CanCollide(void* proxyUserDataA, void* proxyUserDataB)
+{
+    b2FixtureProxy* proxyA = (b2FixtureProxy*)proxyUserDataA;
+    b2FixtureProxy* proxyB = (b2FixtureProxy*)proxyUserDataB;
+
+    b2Fixture* fixtureA = proxyA->fixture;
+    b2Fixture* fixtureB = proxyB->fixture;
+    return !(fixtureA == fixtureB && fixtureA->GetType() == b2Shape::e_grid);
+}
+
 void b2ContactManager::AddPair(void* proxyUserDataA, void* proxyUserDataB)
 {
 	b2FixtureProxy* proxyA = (b2FixtureProxy*)proxyUserDataA;

@@ -88,8 +88,15 @@ public:
 
 	/// Query an AABB for overlapping proxies. The callback class
 	/// is called for each proxy that overlaps the supplied AABB.
-	template <typename T>
-	void Query(T* callback, const b2AABB& aabb) const;
+    template <typename T>
+	inline void Query(T* callback, const b2AABB& aabb) const;
+
+    /// Defold modifications
+    /// Variant of standard Query method with filtering support
+    /// Due to the layered design b2ContectManager -> b2BroadPhase -> b2DynamicTree
+    /// the fix is not the prettiest one
+	template <typename T, typename U>
+	inline void Query(T* callback, U* canCollide, const b2AABB& aabb, int32 aabbProxyId) const;
 
 	/// Ray-cast against the proxies in the tree. This relies on the callback
 	/// to perform a exact ray-cast in the case were the proxy contains a shape.
@@ -160,8 +167,24 @@ inline const b2AABB& b2DynamicTree::GetFatAABB(int32 proxyId) const
 	return m_nodes[proxyId].aabb;
 }
 
+// Defold modifications. Dummy callback
+struct DummyCanCollide
+{
+    inline bool CanCollide(void*, void*)
+    {
+        return true;
+    }
+};
+
 template <typename T>
 inline void b2DynamicTree::Query(T* callback, const b2AABB& aabb) const
+{
+    DummyCanCollide dummy;
+    Query(callback, &dummy, aabb, 0);
+}
+
+template <typename T, typename U>
+inline void b2DynamicTree::Query(T* callback, U* canCollide, const b2AABB& aabb, int32 aabbProxyId) const
 {
 	b2GrowableStack<int32, 256> stack;
 	stack.Push(m_root);
@@ -180,11 +203,16 @@ inline void b2DynamicTree::Query(T* callback, const b2AABB& aabb) const
 		{
 			if (node->IsLeaf())
 			{
-				bool proceed = callback->QueryCallback(nodeId);
-				if (proceed == false)
-				{
-					return;
-				}
+			    // Defold modifications. CanCollide
+			    // Filter out pairs early
+			    if (canCollide->CanCollide(node->userData, GetUserData(aabbProxyId)))
+		        {
+                    bool proceed = callback->QueryCallback(nodeId);
+                    if (proceed == false)
+                    {
+                        return;
+                    }
+		        }
 			}
 			else
 			{
