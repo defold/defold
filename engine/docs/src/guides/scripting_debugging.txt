@@ -29,7 +29,7 @@ Example
 
 [source-code, lua]
 ----
--- main-script in spaceship/spaceship.lua
+-- main-script in spaceship/spaceship.script
 -- Load the utils.player module. The corresponding file is /utils/player.lua
 require "utils.player"
 ----
