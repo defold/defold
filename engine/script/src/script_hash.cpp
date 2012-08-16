@@ -5,6 +5,7 @@
 
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
+#include "script_private.h"
 
 extern "C"
 {
@@ -58,32 +59,44 @@ namespace dmScript
         int top = lua_gettop(L);
 
         const char* str = luaL_checkstring(L, 1);
-
-        lua_getglobal(L, SCRIPT_HASH_TABLE);
-        lua_pushstring(L, str);
-        lua_rawget(L, -2);
-        if (lua_isnil(L, -1))
-        {
-            lua_pop(L, 1); // pop nil value
-            dmhash_t hash = dmHashString64(str);
-            PushHash(L, hash);
-            lua_pushstring(L, str);
-            lua_pushvalue(L, -2);
-            lua_rawset(L, -4); // set hash value to SCRIPT_HASH_TABLE
-        }
-        lua_remove(L, -2); // remove SCRIPT_HASH_TABLE
+        dmhash_t hash = dmHashString64(str);
+        PushHash(L, hash);
 
         assert(top + 1 == lua_gettop(L));
-
         return 1;
     }
 
     void PushHash(lua_State* L, dmhash_t hash)
     {
-        dmhash_t* lua_hash = (dmhash_t*)lua_newuserdata(L, sizeof(dmhash_t));
-        *lua_hash = hash;
-        luaL_getmetatable(L, SCRIPT_TYPE_NAME_HASH);
-        lua_setmetatable(L, -2);
+        int top = lua_gettop(L);
+
+        lua_getglobal(L, SCRIPT_CONTEXT);
+        Context* context = (Context*) (dmConfigFile::HConfig)lua_touserdata(L, -1);
+        lua_pop(L, 1);
+
+        dmHashTable64<int>* instances = &context->m_HashInstances;
+        int* refp = instances->Get(hash);
+        if (refp)
+        {
+            lua_rawgeti(L, LUA_REGISTRYINDEX, *refp);
+        }
+        else
+        {
+            dmhash_t* lua_hash = (dmhash_t*)lua_newuserdata(L, sizeof(dmhash_t));
+            *lua_hash = hash;
+            luaL_getmetatable(L, SCRIPT_TYPE_NAME_HASH);
+            lua_setmetatable(L, -2);
+            lua_pushvalue(L, -1);
+            int ref = luaL_ref(L, LUA_REGISTRYINDEX);
+
+            if (instances->Full())
+            {
+                instances->SetCapacity(instances->Size(), instances->Capacity() + 256);
+            }
+            instances->Put(hash, ref);
+        }
+
+        assert(top + 1 == lua_gettop(L));
     }
 
     dmhash_t CheckHash(lua_State* L, int index)

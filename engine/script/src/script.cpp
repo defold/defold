@@ -22,6 +22,7 @@ namespace dmScript
     {
         Context* context = new Context();
         context->m_Modules.SetCapacity(127, 256);
+        context->m_HashInstances.SetCapacity(443, 256);
         context->m_ConfigFile = config_file;
         return context;
     }

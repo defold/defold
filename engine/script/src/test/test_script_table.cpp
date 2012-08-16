@@ -25,7 +25,10 @@ protected:
         g_LuaTableTest = this;
         L = lua_open();
         lua_atpanic(L, &AtPanic);
-        dmScript::Initialize(L, dmScript::ScriptParams());
+        m_Context = dmScript::NewContext(0);
+        dmScript::ScriptParams params;
+        params.m_Context = m_Context;
+        dmScript::Initialize(L, params);
         top = lua_gettop(L);
     }
 
@@ -42,6 +45,7 @@ protected:
     {
         ASSERT_EQ(top, lua_gettop(L));
         lua_close(L);
+        dmScript::DeleteContext(m_Context);
         g_LuaTableTest = 0;
     }
 
@@ -49,6 +53,7 @@ protected:
     bool accept_panic;
     jmp_buf env;
     int top;
+    dmScript::HContext m_Context;
     lua_State* L;
 };
 

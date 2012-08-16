@@ -22,6 +22,7 @@ namespace dmScript
     {
         dmConfigFile::HConfig   m_ConfigFile;
         dmHashTable64<Module>   m_Modules;
+        dmHashTable64<int>      m_HashInstances;
     };
 }
 
