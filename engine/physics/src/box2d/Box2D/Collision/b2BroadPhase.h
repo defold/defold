@@ -197,7 +197,7 @@ void b2BroadPhase::UpdatePairs(T* callback)
 		const b2AABB& fatAABB = m_tree.GetFatAABB(m_queryProxyId);
 
 		// Query tree, create pairs and add them pair buffer.
-		m_tree.Query(this, fatAABB);
+		m_tree.Query(this, callback, fatAABB, m_queryProxyId);
 	}
 
 	// Reset move buffer
