@@ -29,12 +29,12 @@ public class NewsListResource extends BaseResource {
         TypedQuery<NewsSubscriber> q = em.createQuery("select s from NewsSubscriber s where s.email = :email", NewsSubscriber.class);
         List<NewsSubscriber> lst = q.setParameter("email", email).getResultList();
         if (lst.size() == 0) {
-            throwWebApplicationException(Status.NOT_FOUND, "Invalid email/key to unsubscribe");
+            throwWebApplicationException(Status.NOT_FOUND, "Invalid email/key when unsubscribing");
         }
 
         NewsSubscriber s = lst.get(0);
         if (!s.getUnsubscribeKey().equals(key)) {
-            throwWebApplicationException(Status.NOT_FOUND, "Invalid email/key unsubscribe");
+            throwWebApplicationException(Status.NOT_FOUND, "Invalid email/key when unsubscribing");
         }
         s.setSubscribed(false);
         em.persist(s);
