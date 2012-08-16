@@ -12,7 +12,7 @@ function test_hash(hash_value)
     local key_count = 0
     for i,v in pairs(t)
     do
-    	key_count = key_count + 1
+        key_count = key_count + 1
     end
 
     assert(key_count == 1)
