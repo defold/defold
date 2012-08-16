@@ -203,7 +203,6 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
         Activator.context = bundleContext;
 
         IPreferenceStore store = getPreferenceStore();
-        System.out.println(store.getDefaultBoolean(PreferenceConstants.P_ANONYMOUS_LOGGING));
         if (store.getBoolean(PreferenceConstants.P_ANONYMOUS_LOGGING)) {
             RLogPlugin.getDefault().startLogging();
         }
