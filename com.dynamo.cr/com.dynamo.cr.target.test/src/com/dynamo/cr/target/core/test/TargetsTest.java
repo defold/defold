@@ -46,6 +46,7 @@ public class TargetsTest implements ITargetListener {
     private ITargetService targetService;
     private ArrayList<TargetChangedEvent> events;
     private ISSDP ssdp;
+    private Injector injector;
 
     private final String UDN = "uuid:0509f95d-3d4f-339c-8c4d-f7c6da6771c8";
     private final String URL = "http://localhost:1234";
@@ -109,10 +110,14 @@ public class TargetsTest implements ITargetListener {
         ssdp = mock(ISSDP.class);
         consoleFactory = mock(IConsoleFactory.class);
         Module module = new Module();
-        Injector injector = Guice.createInjector(module);
-        targetService = injector.getInstance(ITargetService.class);
-        targetService.addTargetsListener(this);
+        injector = Guice.createInjector(module);
         events = new ArrayList<TargetChangedEvent>();
+    }
+
+    private void startTargetService() throws Exception {
+        targetService = injector.getInstance(ITargetService.class);
+        targetService.setSearchInternal(1);
+        targetService.addTargetsListener(this);
     }
 
     @After
@@ -122,20 +127,20 @@ public class TargetsTest implements ITargetListener {
 
     @Test
     public void testStartStopService() throws Exception {
-        // Intensionally left empty
+        startTargetService();
     }
 
     @Test
     public void testSearchLocal() throws Exception {
         /*
-         * Search for local target and ensure that the psuedo-target is replaced
+         * Search for local target and ensure that the pseudo-target is replaced
          * by the found local target
          */
         String localAddress = InetAddress.getLocalHost().getHostAddress();
-        targetService.setSearchInternal(1);
         when(urlFetcher.fetch(anyString())).thenReturn(DEVICE_DESC);
         when(ssdp.getDevices()).thenReturn(new DeviceInfo[] { new DeviceInfo(System.currentTimeMillis() + 1000, new HashMap<String, String>(), localAddress) } );
         when(ssdp.update(true)).thenReturn(true);
+        startTargetService();
         Thread.sleep(100);
         synchronized (this) {
             assertThat(events.size(), is(0));
@@ -165,10 +170,10 @@ public class TargetsTest implements ITargetListener {
         /*
          * Search for network target. Expected device count is two. The network target and the local psuedo-target
          */
-        targetService.setSearchInternal(1);
         when(urlFetcher.fetch(anyString())).thenReturn(DEVICE_DESC);
         when(ssdp.getDevices()).thenReturn(new DeviceInfo[] { new DeviceInfo(System.currentTimeMillis() + 1000, new HashMap<String, String>(), "127.0.0.1") } );
         when(ssdp.update(true)).thenReturn(true);
+        startTargetService();
         Thread.sleep(100);
         synchronized (this) {
             assertThat(events.size(), is(0));
@@ -219,7 +224,7 @@ public class TargetsTest implements ITargetListener {
             try {
                 Socket socket = logServer.accept();
                 OutputStream logOut = socket.getOutputStream();
-                logOut.write("testing".getBytes());
+                logOut.write("0 OK\ntesting".getBytes());
                 logOut.close();
                 done = true;
             } catch (Exception e) {
@@ -240,7 +245,6 @@ public class TargetsTest implements ITargetListener {
          */
         GameLogger gameLogger = new GameLogger(LOG_PORT);
         new Thread(gameLogger).start();
-        targetService.setSearchInternal(1);
         when(urlFetcher.fetch(anyString())).thenReturn(DEVICE_DESC);
         IConsole console = mock(IConsole.class);
         ByteArrayOutputStream consoleOut = new ByteArrayOutputStream();
@@ -252,6 +256,7 @@ public class TargetsTest implements ITargetListener {
                 new DeviceInfo[] { new DeviceInfo(System.currentTimeMillis() + 1000, headers,
                         "127.0.0.1") });
         when(ssdp.update(true)).thenReturn(true);
+        startTargetService();
         while (targetService.getTargets().length == 1) {
             Thread.sleep(100);
         }
