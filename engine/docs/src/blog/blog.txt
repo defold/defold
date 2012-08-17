@@ -1,5 +1,54 @@
 :max-width: 45em
 
+Release 1.2.2
+-------------
+_August 17, 2012_
+
+This release features the ability to reuse scripts in other scripts, increased sound control and using hashes as keys in Lua tables.
+It also contains many smaller fixes.
+
+Re-using Scripts
+~~~~~~~~~~~~~~~~
+
+You can now make Lua Modules (.lua-files) which can be included into logic scripts (.script-files).
+By putting functions into the Lua Modules, you can call them from other scripts.
+This is a very basic feature in most programming languages and we are happy to finally add it to our scripts.
+Read more in the link:/doc/scripting_debugging[Scripting & Debugging Guide] about how to use this feature.
+
+Sound Control
+~~~~~~~~~~~~~
+
+When playing sounds with the link:/ref/gamesys#play_sound[play_sound-message], you can now control the gain (volume) of the sounds.
+There is also a new message called link:/ref/gamesys#stop_sound[stop_sound] that stops all the sound voices currently playing in a sound component.
+
+Hashes as Keys
+~~~~~~~~~~~~~~
+
+This has been a long requested feature from the more advanced scripters.
+By using hashes as keys in lua tables, you can make link:http://en.wikipedia.org/wiki/Dispatch_table[dispatch tables] that makes the code a bit easier to read and faster to run than hashing at run-time.
+Examples of this will come at a later time, until then you can always request support in the forums.
+
+Fixes
+~~~~~
+
+* It is not possible to launch the game on iOS when the App is from a previous version (you need to sign and re-install the App again)
+* GUI scenes can have a custom background color for easier previewing (found in the properties of the scene)
+* Physics memory was very over-consumed when loading levels with tile maps, which also made the load-times much longer
+* Fixed error when opening collections referencing game objects with empty paths (happens when a game object file has been deleted)
+* Error logs from the editor are sent to our servers so we can catch unreported errors
+* Fixed log errors in the form "Unable to locate …" when files are deleted
+* Better error handling when App signing fails
+* Components without a visual representation (e.g. factories) are visualized by icons in the Scene Editor
+* Vectors can be constructed from a scalar, which fills the vector with that value, i.e. vmath.vector3(1) == vmath.vector3(1, 1, 1)
+* When box selecting in the Tile Editor, the cursor changes to a cross
+* When message passing fails, the errors are more descriptive, e.g. saying who sent the failing message
+* You can now build and launch the game with Ctrl+B (Cmd+B), however Ctrl+T (Cmd+T) still works
+* Cleaned console logs when launching the game
+* Grid size can be manually set in *File > Preferences > Defold > Scene Editor > Grid*
+* Undoing rotations in the Scene Editor correctly updates properties
+
+Enjoy!
+
 Release 1.2.1
 -------------
 _August 3, 2012_
