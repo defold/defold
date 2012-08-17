@@ -69,6 +69,25 @@ public:
         }
     }
 
+
+    /**
+     * Return begin iterator
+     * @return begin iterator
+     */
+    T* Begin()
+    {
+        return m_Front;
+    }
+
+    /**
+     * Return end iterator
+     * @return end iterator
+     */
+    T* End()
+    {
+        return m_End;
+    }
+
     /**
      * First element
      * @return Reference to the first element
