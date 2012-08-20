@@ -40,6 +40,12 @@ namespace dmGameObject
                     continue;
                 }
 
+                if (!LoadModules(factory, module_script->m_LuaModule))
+                {
+                    dmResource::Release(factory, module_script);
+                    return false;
+                }
+
                 dmScript::Result sr = dmScript::AddModule(g_ScriptContext,
                                                           (const char*) module_script->m_LuaModule->m_Script.m_Data,
                                                           module_script->m_LuaModule->m_Script.m_Count,

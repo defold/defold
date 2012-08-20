@@ -196,21 +196,14 @@ namespace dmScript
         if (lua_istable(L, -1))
         {
             assert(lua_istable(L, -1));
-            lua_getfield(L, -1, "loaders");
-            assert(lua_istable(L, -1));
 
-            int max_key = -1;
-            lua_pushnil(L);
-            while (lua_next(L, -2) != 0)
-            {
-                max_key = dmMath::Max(max_key, (int) luaL_checknumber(L, -2));
-                lua_pop(L, 1);
-            }
-
+            // NOTE: We replace package.loaders table
+            // only our custom loader
+            lua_newtable(L);
             lua_pushcfunction(L, LoadModule);
-            lua_rawseti(L, -2, max_key + 1);
-
-            lua_pop(L, 2);
+            lua_rawseti(L, -2, 1);
+            lua_setfield(L, -2, "loaders");
+            lua_pop(L, 1);
         }
         else
         {

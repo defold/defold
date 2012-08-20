@@ -1,4 +1,6 @@
+require "test_sub_mod"
+
 function test_mod_func()
-	return 123
+	return SUBMODVALUE
 end
 
