@@ -186,7 +186,6 @@ public class SubscriptionView extends Composite implements ClickHandler {
                         } else {
                             button.setText("Upgrade");
                         }
-                        button.addClickHandler(this);
                         this.buttonToProduct.put(button, productInfo);
                         this.productTable.setWidget(i, 2, button);
                     } else {
