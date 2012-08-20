@@ -34,7 +34,7 @@ public class ChargifyResource extends BaseResource {
         String expectedSignature = ChargifyUtil.generateSignature(key, body);
         if (!expectedSignature.equals(signature)) {
             logger.warn(BILLING_MARKER,
-                    "Unauthorized attempt to access chargify resource, body: " + body);
+                    "Unauthorized attempt to access chargify resource, body: {}", body);
             throwWebApplicationException(Status.FORBIDDEN, "Not authorized");
         }
         if (event != null) {
@@ -52,7 +52,7 @@ public class ChargifyResource extends BaseResource {
     }
 
     private void handleSignupSuccess(String subscriptionId) {
-        logger.info(BILLING_MARKER, "Subscription %s was successfully started.", subscriptionId);
+        logger.info(BILLING_MARKER, "Subscription {} was successfully started.", subscriptionId);
         UserSubscription s = ModelUtil.findUserSubscriptionByExternalId(em, subscriptionId);
         s.setState(State.ACTIVE);
         em.getTransaction().begin();
@@ -70,20 +70,20 @@ public class ChargifyResource extends BaseResource {
     }
 
     private void handleSignupFailure(String subscriptionId, String cancellationMessage) {
-        logger.info(BILLING_MARKER, "Subscription %s failed to start because: %s", subscriptionId,
+        logger.info(BILLING_MARKER, "Subscription {} failed to start because: {}", subscriptionId,
                 cancellationMessage);
         cancelSubscription(subscriptionId, cancellationMessage);
     }
 
     private void handleRenewalFailure(String subscriptionId, String cancellationMessage) {
-        logger.info(BILLING_MARKER, "Subscription %s failed to renew because: %s", subscriptionId,
+        logger.info(BILLING_MARKER, "Subscription {} failed to renew because: {}", subscriptionId,
                 cancellationMessage);
         cancelSubscription(subscriptionId, cancellationMessage);
     }
 
     private void handleSubscriptionStateChange(String subscriptionId, String state, String previousState) {
-        logger.info(BILLING_MARKER,
-                String.format("Subscription %s changed from %s to %s.", subscriptionId, previousState, state));
+        logger.info(BILLING_MARKER, "Subscription {} changed from {} to {}.", new Object[] { subscriptionId,
+                previousState, state });
         State s = null;
         if (state.equals("active")) {
             s = State.ACTIVE;

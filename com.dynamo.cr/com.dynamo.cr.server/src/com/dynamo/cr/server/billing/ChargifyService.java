@@ -61,7 +61,7 @@ public class ChargifyService implements IBillingProvider {
         String prefix = String.format("Subscription %d (external: %d)", subscription.getId(),
                 subscription.getExternalId());
         if (status >= 200 && status < 300) {
-            logger.info(BILLING_MARKER, String.format("%s was %s.", prefix, operation));
+            logger.info(BILLING_MARKER, "{} was {}.", prefix, operation);
         } else {
             ObjectMapper mapper = new ObjectMapper();
             String msg = null;
@@ -69,18 +69,20 @@ public class ChargifyService implements IBillingProvider {
                 JsonNode root = mapper.readTree(response.getEntityInputStream());
                 Iterator<JsonNode> errors = root.get("errors").getElements();
                 StringBuilder builder = new StringBuilder();
+                builder.append('{');
                 while (errors.hasNext()) {
                     JsonNode error = errors.next();
-                    builder.append(error.getTextValue()).append(".");
+                    builder.append('\"').append(error.getTextValue()).append('\"');
                     if (errors.hasNext()) {
-                        builder.append(" ");
+                        builder.append(", ");
                     }
                 }
+                builder.append('}');
                 msg = builder.toString();
             } catch (IOException e) {
                 msg = "Could not read billing provider response: " + e.getMessage();
             }
-            logger.error(BILLING_MARKER, String.format("%s could not be %s.", prefix, operation));
+            logger.error(BILLING_MARKER, "{} could not be {}, status: {}", new Object[] { prefix, operation, status });
             logger.error(BILLING_MARKER, msg);
             Response r = Response
                     .status(status)
@@ -134,11 +136,10 @@ public class ChargifyService implements IBillingProvider {
         if (status >= 200 && status < 300) {
             UserSubscription subscription = new UserSubscription();
             jsonToUserSubscription(response, subscription);
-            logger.info(String.format("Subscription (external: %d) was created.", subscription.getExternalId()));
+            logger.info(BILLING_MARKER, "Subscription (external: {}) was created.", subscription.getExternalId());
             return subscription;
         } else {
-            logger.error(BILLING_MARKER,
-                    String.format("Subscription %d could not be found: %d", subscriptionId, status));
+            logger.error(BILLING_MARKER, "Subscription {} could not be found: {}", subscriptionId, status);
         }
         return null;
     }
@@ -148,13 +149,12 @@ public class ChargifyService implements IBillingProvider {
         try {
             root = this.mapper.readTree(response.getEntityInputStream());
         } catch (IOException e) {
-            logger.error(BILLING_MARKER,
-                    String.format("Subscription could not be parsed: %s", e.getMessage()));
+            logger.error(BILLING_MARKER, "Subscription could not be parsed: {}", e.getMessage());
             return;
         }
         JsonNode subJson = root.get("subscription");
         int id = subJson.get("id").asInt();
-        logger.info(String.format("Subscription (external: %d) was created.", id));
+        logger.info(BILLING_MARKER, "Subscription (external: {}) was created.", id);
         CreditCard cc = new CreditCard();
         JsonNode ccJson = subJson.get("credit_card");
         cc.setMaskedNumber(ccJson.get("masked_card_number").getTextValue());
