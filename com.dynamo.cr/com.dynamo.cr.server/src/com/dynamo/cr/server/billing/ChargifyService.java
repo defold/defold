@@ -65,25 +65,31 @@ public class ChargifyService implements IBillingProvider {
         } else {
             ObjectMapper mapper = new ObjectMapper();
             String msg = null;
+            String logMsg = null;
             try {
                 JsonNode root = mapper.readTree(response.getEntityInputStream());
                 Iterator<JsonNode> errors = root.get("errors").getElements();
                 StringBuilder builder = new StringBuilder();
-                builder.append('{');
+                StringBuilder logBuilder = new StringBuilder();
+                logBuilder.append('{');
                 while (errors.hasNext()) {
                     JsonNode error = errors.next();
-                    builder.append('\"').append(error.getTextValue()).append('\"');
+                    builder.append(error.getTextValue());
+                    logBuilder.append('\"').append(error.getTextValue()).append('\"');
                     if (errors.hasNext()) {
-                        builder.append(", ");
+                        builder.append(" ");
+                        logBuilder.append(", ");
                     }
                 }
-                builder.append('}');
+                logBuilder.append('}');
                 msg = builder.toString();
+                logMsg = logBuilder.toString();
             } catch (IOException e) {
-                msg = "Could not read billing provider response: " + e.getMessage();
+                msg = "An external system error ocurred.";
+                logMsg = "Could not read billing provider response: " + e.getMessage();
             }
             logger.error(BILLING_MARKER, "{} could not be {}, status: {}", new Object[] { prefix, operation, status });
-            logger.error(BILLING_MARKER, msg);
+            logger.error(BILLING_MARKER, logMsg);
             Response r = Response
                     .status(status)
                     .type(MediaType.TEXT_PLAIN)
