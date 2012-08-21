@@ -191,8 +191,8 @@ public class ChargifyServiceTest {
         BillingProduct free = server.getProductByHandle("free");
         BillingProduct small = server.getProductByHandle("small");
 
-        billingProvider.migrateSubscription(subscription, free.getId());
-        billingProvider.migrateSubscription(subscription, small.getId());
+        billingProvider.migrateSubscription(subscription, free);
+        billingProvider.migrateSubscription(subscription, small);
     }
 
     @Test
