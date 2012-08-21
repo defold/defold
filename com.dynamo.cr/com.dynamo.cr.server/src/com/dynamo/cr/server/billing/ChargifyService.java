@@ -7,6 +7,7 @@ import java.util.Iterator;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
+import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.UriBuilder;
 
 import org.codehaus.jackson.JsonNode;
@@ -17,7 +18,9 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.Marker;
 import org.slf4j.MarkerFactory;
 
+import com.dynamo.cr.proto.Config.BillingProduct;
 import com.dynamo.cr.proto.Config.Configuration;
+import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.model.UserSubscription;
 import com.dynamo.cr.server.model.UserSubscription.CreditCard;
 import com.dynamo.cr.server.model.UserSubscription.State;
@@ -34,8 +37,6 @@ public class ChargifyService implements IBillingProvider {
     private static Logger logger = LoggerFactory.getLogger(ChargifyService.class);
     private static final Marker BILLING_MARKER = MarkerFactory.getMarker("BILLING");
 
-    private static final String BASE_PATH = "/subscriptions";
-
     private WebResource chargifyResource;
     private ObjectMapper mapper;
 
@@ -46,7 +47,7 @@ public class ChargifyService implements IBillingProvider {
         Client client = Client.create(clientConfig);
 
         client.addFilter(new HTTPBasicAuthFilter(configuration.getBillingApiKey(), "x"));
-        URI uri = UriBuilder.fromUri(String.format("%s%s", configuration.getBillingApiUrl(), BASE_PATH)).build();
+        URI uri = UriBuilder.fromUri(configuration.getBillingApiUrl()).build();
         chargifyResource = client.resource(uri);
         mapper = new ObjectMapper();
     }
@@ -55,13 +56,11 @@ public class ChargifyService implements IBillingProvider {
         return this.chargifyResource;
     }
 
-    private void verifyAndLogResponse(ClientResponse response, UserSubscription subscription,
+    private void verifyAndLogResponse(ClientResponse response, String subject,
             String operation) throws WebApplicationException {
         int status = response.getStatus();
-        String prefix = String.format("Subscription %d (external: %d)", subscription.getId(),
-                subscription.getExternalId());
-        if (status >= 200 && status < 300) {
-            logger.info(BILLING_MARKER, "{} was {}.", prefix, operation);
+        if ((status / 100) == 2) {
+            logger.info(BILLING_MARKER, "{} was {}.", subject, operation);
         } else {
             ObjectMapper mapper = new ObjectMapper();
             String msg = null;
@@ -88,7 +87,7 @@ public class ChargifyService implements IBillingProvider {
                 msg = "An external system error ocurred.";
                 logMsg = "Could not read billing provider response: " + e.getMessage();
             }
-            logger.error(BILLING_MARKER, "{} could not be {}, status: {}", new Object[] { prefix, operation, status });
+            logger.error(BILLING_MARKER, "{} could not be {}, status: {}", new Object[] { subject, operation, status });
             logger.error(BILLING_MARKER, logMsg);
             Response r = Response
                     .status(status)
@@ -99,10 +98,65 @@ public class ChargifyService implements IBillingProvider {
         }
     }
 
+    private void verifyAndLogResponse(ClientResponse response, UserSubscription subscription,
+            String operation) throws WebApplicationException {
+        String subject = String.format("Subscription %d (external: %d)", subscription.getId(),
+                subscription.getExternalId());
+        verifyAndLogResponse(response, subject, operation);
+    }
+
+    @Override
+    public UserSubscription signUpUser(BillingProduct product, User user, String creditCard, String ccExpirationMonth,
+            String ccExpirationYear, String cvv)
+            throws WebApplicationException {
+        ObjectNode root = this.mapper.createObjectNode();
+        ObjectNode customer = this.mapper.createObjectNode();
+        // We can't populate with custom reference here (Defold-id), since
+        // chargify customers can't be deleted and reference must be unique.
+        customer.put("first_name", user.getFirstName());
+        customer.put("last_name", user.getLastName());
+        customer.put("email", user.getEmail());
+        root.put("customer", customer);
+        ClientResponse response = chargifyResource.path("/customers.json").type(MediaType.APPLICATION_JSON_TYPE)
+                .accept(MediaType.APPLICATION_JSON_TYPE).post(ClientResponse.class, root.toString());
+        verifyAndLogResponse(response,
+                String.format("User %s %s (%d)", user.getFirstName(), user.getLastName(), user.getId()), "registered");
+
+        JsonNode c;
+        try {
+            c = mapper.readTree(response.getEntityInputStream());
+        } catch (IOException e) {
+            logger.error(BILLING_MARKER, "Customer could not be parsed: {}", e.getMessage());
+            throw new WebApplicationException(e, Status.INTERNAL_SERVER_ERROR);
+        }
+        int customerId = c.get("customer").get("id").getIntValue();
+
+        root = this.mapper.createObjectNode();
+        ObjectNode subscription = this.mapper.createObjectNode();
+        subscription.put("product_handle", product.getHandle());
+        subscription.put("customer_id", customerId);
+        ObjectNode cc = this.mapper.createObjectNode();
+        cc.put("full_number", creditCard);
+        cc.put("expiration_month", ccExpirationMonth);
+        cc.put("expiration_year", ccExpirationYear);
+        cc.put("cvv", cvv);
+        subscription.put("credit_card_attributes", cc);
+        root.put("subscription", subscription);
+        response = chargifyResource.path("/subscriptions.json").type(MediaType.APPLICATION_JSON_TYPE)
+                .accept(MediaType.APPLICATION_JSON_TYPE).post(ClientResponse.class, root.toString());
+        verifyAndLogResponse(
+                response,
+                String.format("Subscription by %s %s (%d) to product %s", user.getFirstName(), user.getLastName(),
+                        user.getId(), product.getHandle()), "registered");
+        UserSubscription s = new UserSubscription();
+        jsonToUserSubscription(response, s);
+        return s;
+    }
+
     @Override
     public void reactivateSubscription(UserSubscription subscription) throws WebApplicationException {
         ClientResponse response = chargifyResource
-                .path(String.format("/%d/reactivate.json", subscription.getExternalId()))
+                .path(String.format("/subscriptions/%d/reactivate.json", subscription.getExternalId()))
                 .type(MediaType.APPLICATION_JSON_TYPE).accept(MediaType.APPLICATION_JSON_TYPE)
                 .put(ClientResponse.class, "");
         verifyAndLogResponse(response, subscription, "reactivated");
@@ -110,23 +164,24 @@ public class ChargifyService implements IBillingProvider {
     }
 
     @Override
-    public void migrateSubscription(UserSubscription subscription, int newProductId) throws WebApplicationException {
+    public void migrateSubscription(UserSubscription subscription, BillingProduct product)
+            throws WebApplicationException {
         ObjectNode root = mapper.createObjectNode();
         ObjectNode migration = mapper.createObjectNode();
-        migration.put("product_id", newProductId);
+        migration.put("product_id", product.getId());
         root.put("migration", migration);
         ClientResponse response = chargifyResource
-                .path(String.format("/%d/migrations.json", subscription.getExternalId()))
+                .path(String.format("/subscriptions/%d/migrations.json", subscription.getExternalId()))
                 .type(MediaType.APPLICATION_JSON_TYPE).accept(MediaType.APPLICATION_JSON_TYPE)
                 .post(ClientResponse.class, root.toString());
         verifyAndLogResponse(response, subscription,
-                String.format("migrated from %d to %d", subscription.getProductId(), newProductId));
+                String.format("migrated from %d to %d", subscription.getProductId(), product.getId()));
     }
 
     @Override
     public void cancelSubscription(UserSubscription subscription) throws WebApplicationException {
         ClientResponse response = chargifyResource
-                .path(String.format("/%d.json", subscription.getExternalId()))
+                .path(String.format("/subscriptions/%d.json", subscription.getExternalId()))
                 .type(MediaType.APPLICATION_JSON_TYPE).accept(MediaType.APPLICATION_JSON_TYPE)
                 .delete(ClientResponse.class);
         verifyAndLogResponse(response, subscription, "canceled");
@@ -135,7 +190,7 @@ public class ChargifyService implements IBillingProvider {
     @Override
     public UserSubscription getSubscription(Long subscriptionId) throws WebApplicationException {
         ClientResponse response = chargifyResource
-                .path(String.format("/%d.json", subscriptionId))
+                .path(String.format("/subscriptions/%d.json", subscriptionId))
                 .type(MediaType.APPLICATION_JSON_TYPE).accept(MediaType.APPLICATION_JSON_TYPE)
                 .get(ClientResponse.class);
         int status = response.getStatus();
@@ -156,11 +211,10 @@ public class ChargifyService implements IBillingProvider {
             root = this.mapper.readTree(response.getEntityInputStream());
         } catch (IOException e) {
             logger.error(BILLING_MARKER, "Subscription could not be parsed: {}", e.getMessage());
-            return;
+            throw new WebApplicationException(e, Status.INTERNAL_SERVER_ERROR);
         }
         JsonNode subJson = root.get("subscription");
         int id = subJson.get("id").asInt();
-        logger.info(BILLING_MARKER, "Subscription (external: {}) was created.", id);
         CreditCard cc = new CreditCard();
         JsonNode ccJson = subJson.get("credit_card");
         cc.setMaskedNumber(ccJson.get("masked_card_number").getTextValue());

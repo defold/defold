@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.Marker;
 import org.slf4j.MarkerFactory;
 
+import com.dynamo.cr.proto.Config.BillingProduct;
 import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.UserSubscription;
 import com.dynamo.cr.server.model.UserSubscription.State;
@@ -29,7 +30,9 @@ public class ChargifyResource extends BaseResource {
             @FormParam("event") String event, @FormParam("payload[subscription][id]") String subscriptionId,
             @FormParam("payload[subscription][state]") String state,
             @FormParam("payload[subscription][previous_state]") String previousState,
-            @FormParam("payload[subscription][cancellation_message]") String cancellationMessage, String body) {
+            @FormParam("payload[subscription][cancellation_message]") String cancellationMessage,
+            @FormParam("payload[subscription][product][handle]") String productHandle,
+            @FormParam("payload[previous_product][handle]") String previousProductHandle, String body) {
         String key = server.getConfiguration().getBillingSharedKey();
         String expectedSignature = ChargifyUtil.generateSignature(key, body);
         if (!expectedSignature.equals(signature)) {
@@ -42,28 +45,32 @@ public class ChargifyResource extends BaseResource {
                 handleSignupSuccess(subscriptionId);
             } else if (event.equals(ChargifyUtil.SIGNUP_FAILURE_WH)) {
                 handleSignupFailure(subscriptionId, cancellationMessage);
-            } else if (event.equals(ChargifyUtil.RENEWAL_FAILURE_WH)) {
-                handleRenewalFailure(subscriptionId, cancellationMessage);
             } else if (event.equals(ChargifyUtil.SUBSCRIPTION_STATE_CHANGE_WH)) {
-                handleSubscriptionStateChange(subscriptionId, state, previousState);
+                handleSubscriptionStateChange(subscriptionId, state, previousState, cancellationMessage);
+            } else if (event.equals(ChargifyUtil.SUBSCRIPTION_PRODUCT_CHANGE_WH)) {
+                handleSubscriptionProductChange(subscriptionId, productHandle, previousProductHandle, state);
+            } else if (event.equals(ChargifyUtil.TEST_WH)) {
+                // Silently ignore test webhooks
+            } else {
+                // Warn about unknown webhooks
+                logger.warn(BILLING_MARKER, "Received unknown webhook {}", event);
             }
-            // Silently ignore other webhooks
         }
+    }
+
+    private UserSubscription getUserSubscription(String subscriptionId) {
+        UserSubscription s = ModelUtil.findUserSubscriptionByExternalId(em, subscriptionId);
+        if (s == null) {
+            logger.error(BILLING_MARKER, "Subscription {} could not be found", subscriptionId);
+            throwWebApplicationException(Status.NOT_FOUND, "Subscription could not be found");
+        }
+        return s;
     }
 
     private void handleSignupSuccess(String subscriptionId) {
         logger.info(BILLING_MARKER, "Subscription {} was successfully started.", subscriptionId);
-        UserSubscription s = ModelUtil.findUserSubscriptionByExternalId(em, subscriptionId);
+        UserSubscription s = getUserSubscription(subscriptionId);
         s.setState(State.ACTIVE);
-        em.getTransaction().begin();
-        em.persist(s);
-        em.getTransaction().commit();
-    }
-
-    private void cancelSubscription(String subscriptionId, String cancellationMessage) {
-        UserSubscription s = ModelUtil.findUserSubscriptionByExternalId(em, subscriptionId);
-        s.setState(State.CANCELED);
-        s.setCancellationMessage(cancellationMessage);
         em.getTransaction().begin();
         em.persist(s);
         em.getTransaction().commit();
@@ -72,31 +79,57 @@ public class ChargifyResource extends BaseResource {
     private void handleSignupFailure(String subscriptionId, String cancellationMessage) {
         logger.info(BILLING_MARKER, "Subscription {} failed to start because: {}", subscriptionId,
                 cancellationMessage);
-        cancelSubscription(subscriptionId, cancellationMessage);
+        UserSubscription s = getUserSubscription(subscriptionId);
+        s.setState(State.CANCELED);
+        s.setCancellationMessage(cancellationMessage);
+        em.getTransaction().begin();
+        em.persist(s);
+        em.getTransaction().commit();
     }
 
-    private void handleRenewalFailure(String subscriptionId, String cancellationMessage) {
-        logger.info(BILLING_MARKER, "Subscription {} failed to renew because: {}", subscriptionId,
-                cancellationMessage);
-        cancelSubscription(subscriptionId, cancellationMessage);
-    }
-
-    private void handleSubscriptionStateChange(String subscriptionId, String state, String previousState) {
-        logger.info(BILLING_MARKER, "Subscription {} changed from {} to {}.", new Object[] { subscriptionId,
-                previousState, state });
+    private State getState(String state) {
         State s = null;
         if (state.equals("active")) {
             s = State.ACTIVE;
         } else if (state.equals("canceled")) {
             s = State.CANCELED;
         }
+        if (s == null) {
+            logger.warn(BILLING_MARKER, "The state \"{}\" could not be parsed.", state);
+        }
+        return s;
+    }
+
+    private void handleSubscriptionStateChange(String subscriptionId, String state, String previousState,
+            String cancellationMessage) {
+        logger.info(BILLING_MARKER, "Subscription {} changed from {} to {}.", new Object[] { subscriptionId,
+                previousState, state });
+        State s = getState(state);
         if (s != null) {
-            UserSubscription us = ModelUtil.findUserSubscriptionByExternalId(em, subscriptionId);
+            UserSubscription us = getUserSubscription(subscriptionId);
             us.setState(s);
+            us.setCancellationMessage(cancellationMessage);
             em.getTransaction().begin();
             em.persist(us);
             em.getTransaction().commit();
         }
     }
+
+    private void handleSubscriptionProductChange(String subscriptionId, String productHandle,
+            String previousProductHandle, String state) {
+        logger.info(BILLING_MARKER, "Subscription {} migrated from {} to {}.", new Object[] { subscriptionId,
+                previousProductHandle, productHandle });
+        UserSubscription us = getUserSubscription(subscriptionId);
+        BillingProduct p = server.getProductByHandle(productHandle);
+        us.setProductId((long) p.getId());
+        State s = getState(state);
+        if (s != null) {
+            us.setState(s);
+        }
+        em.getTransaction().begin();
+        em.persist(us);
+        em.getTransaction().commit();
+    }
+
 }
 

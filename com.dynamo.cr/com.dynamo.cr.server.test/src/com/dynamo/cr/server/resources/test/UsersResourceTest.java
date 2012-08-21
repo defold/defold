@@ -29,6 +29,7 @@ import org.mockito.stubbing.Answer;
 import com.dynamo.cr.client.filter.DefoldAuthFilter;
 import com.dynamo.cr.common.providers.JsonProviders;
 import com.dynamo.cr.common.providers.ProtobufProviders;
+import com.dynamo.cr.proto.Config.BillingProduct;
 import com.dynamo.cr.protocol.proto.Protocol.CreditCardInfo;
 import com.dynamo.cr.protocol.proto.Protocol.LoginInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ProductInfo;
@@ -697,6 +698,18 @@ public class UsersResourceTest extends AbstractResourceTest {
         assertThat(cc.getExpirationMonth(), is(2));
         assertThat(cc.getExpirationYear(), is(3));
 
+        // Delete it, but fail (only allowed to delete canceled subscriptions)
+        response = deleteUserSubscription(joeUser.getId());
+        assertEquals(Response.Status.CONFLICT.getStatusCode(), response.getStatus());
+
+        // Set it to canceled straight in DB
+        EntityManager em = emf.createEntityManager();
+        s = ModelUtil.findUserSubscriptionByUser(em, joeUser);
+        s.setState(State.CANCELED);
+        em.getTransaction().begin();
+        em.persist(s);
+        em.getTransaction().commit();
+
         // Delete it
         response = deleteUserSubscription(joeUser.getId());
         assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
@@ -765,7 +778,7 @@ public class UsersResourceTest extends AbstractResourceTest {
     public void testUpdateProviderFail() throws Exception {
         Mockito.doThrow(new WebApplicationException()).when(
                 server.getBillingProvider()).migrateSubscription(Mockito.any(UserSubscription.class),
-                Mockito.anyInt());
+                Mockito.any(BillingProduct.class));
 
         Client client = Client.create(clientConfig);
         client.addFilter(new HTTPBasicAuthFilter(joeEmail, joePasswd));
@@ -801,18 +814,6 @@ public class UsersResourceTest extends AbstractResourceTest {
         // Terminate it
         ClientResponse response = putUserSubscription(joeUser.getId(), null, State.CANCELED, null);
         assertEquals(Response.Status.CONFLICT.getStatusCode(), response.getStatus());
-    }
-
-    @Test
-    public void testDeleteProviderFail() throws Exception {
-        Mockito.doThrow(new WebApplicationException()).when(server.getBillingProvider())
-                .cancelSubscription(Mockito.any(UserSubscription.class));
-
-        postUserSubscription(joeUser.getId(), 1l);
-
-        // Delete it
-        ClientResponse response = deleteUserSubscription(joeUser.getId());
-        assertEquals(Response.Status.INTERNAL_SERVER_ERROR.getStatusCode(), response.getStatus());
     }
 
 }

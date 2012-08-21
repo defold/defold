@@ -14,7 +14,6 @@ import org.junit.Test;
 
 import com.dynamo.cr.common.providers.JsonProviders;
 import com.dynamo.cr.common.providers.ProtobufProviders;
-import com.dynamo.cr.protocol.proto.Protocol.ProductInfoList;
 import com.dynamo.cr.protocol.proto.Protocol.UserSubscriptionInfo;
 import com.dynamo.cr.protocol.proto.Protocol.UserSubscriptionState;
 import com.dynamo.cr.server.model.User;
@@ -30,12 +29,14 @@ import com.sun.jersey.api.representation.Form;
 public class ChargifyResourceTest extends AbstractResourceTest {
 
     int port = 6500;
+    Long externalId = 2l;
     String joeEmail = "joe@foo.com";
     String joePasswd = "secret2";
     User joeUser;
     DefaultClientConfig clientConfig;
     WebResource joeUsersWebResource;
     WebResource chargifyResource;
+    WebResource productsResource;
 
     @Before
     public void setUp() throws Exception {
@@ -69,6 +70,11 @@ public class ChargifyResourceTest extends AbstractResourceTest {
         client = Client.create(clientConfig);
         uri = UriBuilder.fromUri(String.format("http://localhost/chargify")).port(port).build();
         chargifyResource = client.resource(uri);
+
+        client = Client.create(clientConfig);
+        client.addFilter(new HTTPBasicAuthFilter(joeEmail, joePasswd));
+        uri = UriBuilder.fromUri(String.format("http://localhost/products")).port(port).build();
+        productsResource = client.resource(uri);
     }
 
     private ClientResponse post(String event, Form f, boolean sign) throws Exception {
@@ -78,7 +84,7 @@ public class ChargifyResourceTest extends AbstractResourceTest {
 
     @Test
     public void testNoAccess() throws Exception {
-        ClientResponse response = post("signup_success", new Form(), false);
+        ClientResponse response = post(ChargifyUtil.SIGNUP_SUCCESS_WH, new Form(), false);
         assertEquals(ClientResponse.Status.FORBIDDEN.getStatusCode(), response.getClientResponseStatus()
                 .getStatusCode());
     }
@@ -90,46 +96,31 @@ public class ChargifyResourceTest extends AbstractResourceTest {
                 .getStatusCode());
     }
 
-    private void createUserSubscription(Long productId, Long externalId, Long externalCustomerId,
-            String ccMaskedNumber, int ccExpirationMonth, int ccExpirationYear) {
+    private UserSubscriptionInfo createUserSubscription() {
         ClientResponse response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
                 .queryParam("external_id", externalId.toString())
                 .post(ClientResponse.class);
         assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
-    }
-
-    @Test
-    public void testSubscriptionSuccess() throws Exception {
-        Client client = Client.create(clientConfig);
-        client.addFilter(new HTTPBasicAuthFilter(joeEmail, joePasswd));
-        URI uri = UriBuilder.fromUri(String.format("http://localhost/products")).port(port).build();
-        WebResource productsResource = client.resource(uri);
-        ProductInfoList productInfoList = productsResource.accept(MediaType.APPLICATION_JSON_TYPE)
-                .type(MediaType.APPLICATION_JSON_TYPE).get(ProductInfoList.class);
-
-        Long externalId = 2l;
-        Long externalCustomerId = 3l;
-        String maskedNumber = "XXXX-XXXX-XXXX-1234";
-        int expirationMonth = 1;
-        int expirationYear = 2;
-
-        createUserSubscription(productInfoList.getProducts(0).getId(), externalId, externalCustomerId, maskedNumber,
-                expirationMonth, expirationYear);
-
         // Retrieve it
         UserSubscriptionInfo subscriptionInfo = joeUsersWebResource
                 .path(String.format("/%d/subscription", joeUser.getId())).accept(MediaType.APPLICATION_JSON_TYPE)
                 .type(MediaType.APPLICATION_JSON_TYPE).get(UserSubscriptionInfo.class);
         assertEquals(UserSubscriptionState.ACTIVE, subscriptionInfo.getState());
+        return subscriptionInfo;
+    }
+
+    @Test
+    public void testSubscriptionSuccess() throws Exception {
+        createUserSubscription();
 
         // Activate through webhook
         Form f = new Form();
         f.add("payload[subscription][id]", externalId.toString());
-        ClientResponse response = post("signup_success", f, true);
+        ClientResponse response = post(ChargifyUtil.SIGNUP_SUCCESS_WH, f, true);
         assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
 
         // Retrieve it
-        subscriptionInfo = joeUsersWebResource
+        UserSubscriptionInfo subscriptionInfo = joeUsersWebResource
                 .path(String.format("/%d/subscription", joeUser.getId())).accept(MediaType.APPLICATION_JSON_TYPE)
                 .type(MediaType.APPLICATION_JSON_TYPE).get(UserSubscriptionInfo.class);
         assertEquals(UserSubscriptionState.ACTIVE, subscriptionInfo.getState());
@@ -137,36 +128,18 @@ public class ChargifyResourceTest extends AbstractResourceTest {
 
     @Test
     public void testSubscriptionFailure() throws Exception {
-        Client client = Client.create(clientConfig);
-        client.addFilter(new HTTPBasicAuthFilter(joeEmail, joePasswd));
-        URI uri = UriBuilder.fromUri(String.format("http://localhost/products")).port(port).build();
-        WebResource productsResource = client.resource(uri);
-        ProductInfoList productInfoList = productsResource.type(MediaType.APPLICATION_JSON_TYPE)
-                .type(MediaType.APPLICATION_JSON_TYPE).get(ProductInfoList.class);
-
-        Long externalId = 2l;
-        Long externalCustomerId = 3l;
-        String maskedNumber = "XXXX-XXXX-XXXX-1234";
-        int expirationMonth = 1;
-        int expirationYear = 2;
-
-        createUserSubscription(productInfoList.getProducts(0).getId(), externalId, externalCustomerId, maskedNumber,
-                expirationMonth, expirationYear);
-
-        // Retrieve it
-        UserSubscriptionInfo subscriptionInfo = joeUsersWebResource
-                .path(String.format("/%d/subscription", joeUser.getId())).accept(MediaType.APPLICATION_JSON_TYPE)
-                .type(MediaType.APPLICATION_JSON_TYPE).get(UserSubscriptionInfo.class);
+        UserSubscriptionInfo subscriptionInfo = createUserSubscription();
         assertEquals(UserSubscriptionState.ACTIVE, subscriptionInfo.getState());
 
-        // Activate through webhook
+        // Cancel through webhook
         Form f = new Form();
         f.add("payload[subscription][id]", externalId.toString());
-        ClientResponse response = post("signup_failure", f, true);
+        ClientResponse response = post(ChargifyUtil.SIGNUP_FAILURE_WH, f, true);
         assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
 
         // Retrieve it
-        subscriptionInfo = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
+        subscriptionInfo = joeUsersWebResource
+                .path(String.format("/%d/subscription", joeUser.getId()))
                 .accept(MediaType.APPLICATION_JSON_TYPE).type(MediaType.APPLICATION_JSON_TYPE)
                 .get(UserSubscriptionInfo.class);
         assertEquals(UserSubscriptionState.CANCELED, subscriptionInfo.getState());
@@ -174,39 +147,49 @@ public class ChargifyResourceTest extends AbstractResourceTest {
 
     @Test
     public void testRenewalFailure() throws Exception {
-        Client client = Client.create(clientConfig);
-        client.addFilter(new HTTPBasicAuthFilter(joeEmail, joePasswd));
-        URI uri = UriBuilder.fromUri(String.format("http://localhost/products")).port(port).build();
-        WebResource productsResource = client.resource(uri);
-        ProductInfoList productInfoList = productsResource.type(MediaType.APPLICATION_JSON_TYPE)
-                .type(MediaType.APPLICATION_JSON_TYPE).get(ProductInfoList.class);
-
-        Long externalId = 2l;
-        Long externalCustomerId = 3l;
-        String maskedNumber = "XXXX-XXXX-XXXX-1234";
-        int expirationMonth = 1;
-        int expirationYear = 2;
-
-        createUserSubscription(productInfoList.getProducts(0).getId(), externalId, externalCustomerId, maskedNumber,
-                expirationMonth, expirationYear);
-
-        // Retrieve it
-        UserSubscriptionInfo subscriptionInfo = joeUsersWebResource
-                .path(String.format("/%d/subscription", joeUser.getId())).accept(MediaType.APPLICATION_JSON_TYPE)
-                .type(MediaType.APPLICATION_JSON_TYPE).get(UserSubscriptionInfo.class);
+        UserSubscriptionInfo subscriptionInfo = createUserSubscription();
         assertEquals(UserSubscriptionState.ACTIVE, subscriptionInfo.getState());
 
-        // Activate through webhook
+        final String MESSAGE = "TEST";
+
+        // Cancel through webhook
         Form f = new Form();
         f.add("payload[subscription][id]", externalId.toString());
-        ClientResponse response = post("renewal_failure", f, true);
+        f.add("payload[subscription][state]", "canceled");
+        f.add("payload[subscription][previous_state]", "active");
+        f.add("payload[subscription][cancellation_message]", MESSAGE);
+        ClientResponse response = post(ChargifyUtil.SUBSCRIPTION_STATE_CHANGE_WH, f, true);
         assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
 
         // Retrieve it
-        subscriptionInfo = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
+        subscriptionInfo = joeUsersWebResource
+                .path(String.format("/%d/subscription", joeUser.getId()))
                 .accept(MediaType.APPLICATION_JSON_TYPE).type(MediaType.APPLICATION_JSON_TYPE)
                 .get(UserSubscriptionInfo.class);
         assertEquals(UserSubscriptionState.CANCELED, subscriptionInfo.getState());
+        assertEquals(MESSAGE, subscriptionInfo.getCancellationMessage());
+    }
+
+    @Test
+    public void testMigration() throws Exception {
+        UserSubscriptionInfo subscriptionInfo = createUserSubscription();
+
+        assertEquals(freeProduct.getId(), subscriptionInfo.getProduct().getId());
+
+        // Migrate through webhook
+        Form f = new Form();
+        f.add("payload[subscription][id]", externalId.toString());
+        f.add("payload[subscription][state]", "active");
+        f.add("payload[subscription][product][handle]", smallProduct.getHandle());
+        f.add("payload[subscription][previous_product][handle]", freeProduct.getHandle());
+        ClientResponse response = post(ChargifyUtil.SUBSCRIPTION_PRODUCT_CHANGE_WH, f, true);
+        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+
+        // Retrieve it
+        subscriptionInfo = joeUsersWebResource
+                .path(String.format("/%d/subscription", joeUser.getId()))
+                .accept(MediaType.APPLICATION_JSON_TYPE).type(MediaType.APPLICATION_JSON_TYPE)
+                .get(UserSubscriptionInfo.class);
+        assertEquals(smallProduct.getId(), subscriptionInfo.getProduct().getId());
     }
 }
-
