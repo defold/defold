@@ -5,6 +5,7 @@ import javax.ws.rs.FormParam;
 import javax.ws.rs.HeaderParam;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
+import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 
 import org.slf4j.Logger;
@@ -26,7 +27,7 @@ public class ChargifyResource extends BaseResource {
     private static final Marker BILLING_MARKER = MarkerFactory.getMarker("BILLING");
 
     @POST
-    public void handleWebHook(@HeaderParam(ChargifyUtil.SIGNATURE_HEADER_NAME) String signature,
+    public Response handleWebHook(@HeaderParam(ChargifyUtil.SIGNATURE_HEADER_NAME) String signature,
             @FormParam("event") String event, @FormParam("payload[subscription][id]") String subscriptionId,
             @FormParam("payload[subscription][state]") String state,
             @FormParam("payload[subscription][previous_state]") String previousState,
@@ -56,6 +57,7 @@ public class ChargifyResource extends BaseResource {
                 logger.warn(BILLING_MARKER, "Received unknown webhook {}", event);
             }
         }
+        return okResponse("");
     }
 
     private UserSubscription getUserSubscription(String subscriptionId) {
