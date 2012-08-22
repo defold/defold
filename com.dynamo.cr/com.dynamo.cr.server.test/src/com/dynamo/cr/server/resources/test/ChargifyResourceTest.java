@@ -92,7 +92,7 @@ public class ChargifyResourceTest extends AbstractResourceTest {
     @Test
     public void testUnsupportedHook() throws Exception {
         ClientResponse response = post("unsupported", new Form(), true);
-        assertEquals(ClientResponse.Status.NO_CONTENT.getStatusCode(), response.getClientResponseStatus()
+        assertEquals(ClientResponse.Status.OK.getStatusCode(), response.getClientResponseStatus()
                 .getStatusCode());
     }
 
@@ -117,7 +117,7 @@ public class ChargifyResourceTest extends AbstractResourceTest {
         Form f = new Form();
         f.add("payload[subscription][id]", externalId.toString());
         ClientResponse response = post(ChargifyUtil.SIGNUP_SUCCESS_WH, f, true);
-        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+        assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
 
         // Retrieve it
         UserSubscriptionInfo subscriptionInfo = joeUsersWebResource
@@ -135,7 +135,7 @@ public class ChargifyResourceTest extends AbstractResourceTest {
         Form f = new Form();
         f.add("payload[subscription][id]", externalId.toString());
         ClientResponse response = post(ChargifyUtil.SIGNUP_FAILURE_WH, f, true);
-        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+        assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
 
         // Retrieve it
         subscriptionInfo = joeUsersWebResource
@@ -159,7 +159,7 @@ public class ChargifyResourceTest extends AbstractResourceTest {
         f.add("payload[subscription][previous_state]", "active");
         f.add("payload[subscription][cancellation_message]", MESSAGE);
         ClientResponse response = post(ChargifyUtil.SUBSCRIPTION_STATE_CHANGE_WH, f, true);
-        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+        assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
 
         // Retrieve it
         subscriptionInfo = joeUsersWebResource
@@ -183,7 +183,7 @@ public class ChargifyResourceTest extends AbstractResourceTest {
         f.add("payload[subscription][product][handle]", smallProduct.getHandle());
         f.add("payload[subscription][previous_product][handle]", freeProduct.getHandle());
         ClientResponse response = post(ChargifyUtil.SUBSCRIPTION_PRODUCT_CHANGE_WH, f, true);
-        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+        assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
 
         // Retrieve it
         subscriptionInfo = joeUsersWebResource
@@ -191,5 +191,41 @@ public class ChargifyResourceTest extends AbstractResourceTest {
                 .accept(MediaType.APPLICATION_JSON_TYPE).type(MediaType.APPLICATION_JSON_TYPE)
                 .get(UserSubscriptionInfo.class);
         assertEquals(smallProduct.getId(), subscriptionInfo.getProduct().getId());
+    }
+
+    /**
+     * In dunning, the subscription should remain active.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testSubscriptionDunning() throws Exception {
+        createUserSubscription();
+
+        // Activate through webhook
+        Form f = new Form();
+        f.add("payload[subscription][id]", externalId.toString());
+        ClientResponse response = post(ChargifyUtil.SIGNUP_SUCCESS_WH, f, true);
+        assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
+
+        // Retrieve it
+        UserSubscriptionInfo subscriptionInfo = joeUsersWebResource
+                .path(String.format("/%d/subscription", joeUser.getId())).accept(MediaType.APPLICATION_JSON_TYPE)
+                .type(MediaType.APPLICATION_JSON_TYPE).get(UserSubscriptionInfo.class);
+        assertEquals(UserSubscriptionState.ACTIVE, subscriptionInfo.getState());
+
+        // Start dunning through webhook
+        f = new Form();
+        f.add("payload[subscription][id]", externalId.toString());
+        f.add("payload[subscription][state]", "past_due");
+        f.add("payload[subscription][previous_state]", "active");
+        response = post(ChargifyUtil.SUBSCRIPTION_STATE_CHANGE_WH, f, true);
+        assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
+
+        // Retrieve it
+        subscriptionInfo = joeUsersWebResource
+                .path(String.format("/%d/subscription", joeUser.getId())).accept(MediaType.APPLICATION_JSON_TYPE)
+                .type(MediaType.APPLICATION_JSON_TYPE).get(UserSubscriptionInfo.class);
+        assertEquals(UserSubscriptionState.ACTIVE, subscriptionInfo.getState());
     }
 }

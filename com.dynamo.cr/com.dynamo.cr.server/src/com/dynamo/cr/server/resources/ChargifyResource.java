@@ -5,6 +5,7 @@ import javax.ws.rs.FormParam;
 import javax.ws.rs.HeaderParam;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
+import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 
 import org.slf4j.Logger;
@@ -26,7 +27,7 @@ public class ChargifyResource extends BaseResource {
     private static final Marker BILLING_MARKER = MarkerFactory.getMarker("BILLING");
 
     @POST
-    public void handleWebHook(@HeaderParam(ChargifyUtil.SIGNATURE_HEADER_NAME) String signature,
+    public Response handleWebHook(@HeaderParam(ChargifyUtil.SIGNATURE_HEADER_NAME) String signature,
             @FormParam("event") String event, @FormParam("payload[subscription][id]") String subscriptionId,
             @FormParam("payload[subscription][state]") String state,
             @FormParam("payload[subscription][previous_state]") String previousState,
@@ -56,6 +57,7 @@ public class ChargifyResource extends BaseResource {
                 logger.warn(BILLING_MARKER, "Received unknown webhook {}", event);
             }
         }
+        return okResponse("");
     }
 
     private UserSubscription getUserSubscription(String subscriptionId) {
@@ -87,15 +89,15 @@ public class ChargifyResource extends BaseResource {
         em.getTransaction().commit();
     }
 
-    private State getState(String state) {
+    private State getDefoldState(String chargifyState) {
         State s = null;
-        if (state.equals("active")) {
+        if (chargifyState.equals("active") || chargifyState.equals("past_due")) {
             s = State.ACTIVE;
-        } else if (state.equals("canceled")) {
+        } else if (chargifyState.equals("canceled")) {
             s = State.CANCELED;
         }
         if (s == null) {
-            logger.warn(BILLING_MARKER, "The state \"{}\" could not be parsed.", state);
+            logger.warn(BILLING_MARKER, "The state \"{}\" could not be parsed.", chargifyState);
         }
         return s;
     }
@@ -104,7 +106,7 @@ public class ChargifyResource extends BaseResource {
             String cancellationMessage) {
         logger.info(BILLING_MARKER, "Subscription {} changed from {} to {}.", new Object[] { subscriptionId,
                 previousState, state });
-        State s = getState(state);
+        State s = getDefoldState(state);
         if (s != null) {
             UserSubscription us = getUserSubscription(subscriptionId);
             us.setState(s);
@@ -122,7 +124,7 @@ public class ChargifyResource extends BaseResource {
         UserSubscription us = getUserSubscription(subscriptionId);
         BillingProduct p = server.getProductByHandle(productHandle);
         us.setProductId((long) p.getId());
-        State s = getState(state);
+        State s = getDefoldState(state);
         if (s != null) {
             us.setState(s);
         }
