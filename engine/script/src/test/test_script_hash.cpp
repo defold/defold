@@ -18,6 +18,7 @@ extern "C"
 class ScriptHashTest : public ::testing::Test
 {
 protected:
+protected:
     virtual void SetUp()
     {
         L = lua_open();
@@ -28,14 +29,19 @@ protected:
         luaopen_math(L);
         luaopen_debug(L);
 
-        dmScript::Initialize(L, dmScript::ScriptParams());
+        m_Context = dmScript::NewContext(0);
+        dmScript::ScriptParams params;
+        params.m_Context = m_Context;
+        dmScript::Initialize(L, params);
     }
 
     virtual void TearDown()
     {
+        dmScript::DeleteContext(m_Context);
         lua_close(L);
     }
 
+    dmScript::HContext m_Context;
     lua_State* L;
 };
 

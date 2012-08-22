@@ -12,12 +12,13 @@
 
 #include "../proto/tile_ddf.h"
 #include "../proto/physics_ddf.h"
+#include "../gamesys_private.h"
 
-extern unsigned char SPRITE_VPC[];
-extern uint32_t SPRITE_VPC_SIZE;
+extern unsigned char TILE_MAP_VPC[];
+extern uint32_t TILE_MAP_VPC_SIZE;
 
-extern unsigned char SPRITE_FPC[];
-extern uint32_t SPRITE_FPC_SIZE;
+extern unsigned char TILE_MAP_FPC[];
+extern uint32_t TILE_MAP_FPC_SIZE;
 
 namespace dmGameSystem
 {
@@ -47,8 +48,8 @@ namespace dmGameSystem
         world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
         world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(render_context), 0, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
 
-        world->m_VertexProgram = dmGraphics::NewVertexProgram(dmRender::GetGraphicsContext(render_context), SPRITE_VPC, SPRITE_VPC_SIZE);
-        world->m_FragmentProgram = dmGraphics::NewFragmentProgram(dmRender::GetGraphicsContext(render_context), SPRITE_FPC, SPRITE_FPC_SIZE);
+        world->m_VertexProgram = dmGraphics::NewVertexProgram(dmRender::GetGraphicsContext(render_context), TILE_MAP_VPC, TILE_MAP_VPC_SIZE);
+        world->m_FragmentProgram = dmGraphics::NewFragmentProgram(dmRender::GetGraphicsContext(render_context), TILE_MAP_FPC, TILE_MAP_FPC_SIZE);
 
         world->m_Material = dmRender::NewMaterial(render_context, world->m_VertexProgram, world->m_FragmentProgram);
         dmRender::SetMaterialProgramConstantType(world->m_Material, dmHashString64("view_proj"), dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ);
@@ -322,7 +323,7 @@ namespace dmGameSystem
     dmGameObject::UpdateResult CompTileGridOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
         TileGrid* tile_grid = (TileGrid*) *params.m_UserData;
-        if (params.m_Message->m_Id == dmHashString64(dmGameSystemDDF::SetTile::m_DDFDescriptor->m_Name))
+        if (params.m_Message->m_Id == dmGameSystemDDF::SetTile::m_DDFDescriptor->m_NameHash)
         {
             dmGameSystemDDF::SetTile* st = (dmGameSystemDDF::SetTile*) params.m_Message->m_Data;
             uint32_t layer_count = tile_grid->m_Layers.Size();
@@ -369,7 +370,7 @@ namespace dmGameSystem
             set_hull_ddf.m_Column = cell_x;
             set_hull_ddf.m_Row = cell_y;
             set_hull_ddf.m_Hull = tile;
-            dmhash_t message_id = dmHashString64(dmPhysicsDDF::SetGridShapeHull::m_DDFDescriptor->m_Name);
+            dmhash_t message_id = dmPhysicsDDF::SetGridShapeHull::m_DDFDescriptor->m_NameHash;
             uintptr_t descriptor = (uintptr_t)dmPhysicsDDF::SetGridShapeHull::m_DDFDescriptor;
             uint32_t data_size = sizeof(dmPhysicsDDF::SetGridShapeHull);
             dmMessage::URL receiver = params.m_Message->m_Receiver;
@@ -377,7 +378,7 @@ namespace dmGameSystem
             dmMessage::Result result = dmMessage::Post(&params.m_Message->m_Receiver, &receiver, message_id, 0, descriptor, &set_hull_ddf, data_size);
             if (result != dmMessage::RESULT_OK)
             {
-                dmLogError("Could not send %s to components, result: %d.", dmPhysicsDDF::SetGridShapeHull::m_DDFDescriptor->m_Name, result);
+                LogMessageError(params.m_Message, "Could not send %s to components, result: %d.", dmPhysicsDDF::SetGridShapeHull::m_DDFDescriptor->m_Name, result);
                 return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
             }
         }

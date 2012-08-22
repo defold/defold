@@ -42,13 +42,13 @@ import org.eclipse.ui.progress.IProgressService;
 import org.eclipse.ui.statushandlers.StatusManager;
 import org.eclipse.ui.views.contentoutline.IContentOutlinePage;
 import org.eclipse.ui.views.properties.IPropertySheetPage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.editor.core.EditorUtil;
-import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.editor.core.inject.LifecycleModule;
 import com.dynamo.cr.editor.ui.AbstractDefoldEditor;
 import com.dynamo.cr.editor.ui.IImageProvider;
-import com.dynamo.cr.editor.ui.Logger;
 import com.dynamo.cr.properties.IFormPropertySheetPage;
 import com.dynamo.cr.sceneed.Activator;
 import com.dynamo.cr.sceneed.core.CameraController;
@@ -85,6 +85,7 @@ import com.google.inject.Injector;
 
 public class TileSetEditor2 extends AbstractDefoldEditor implements ISceneEditor, IPropertyChangeListener {
 
+    private static Logger logger = LoggerFactory.getLogger(TileSetEditor2.class);
     private ISceneOutlinePage outlinePage;
     private IFormPropertySheetPage propertySheetPage;
     private TileSetRenderer2 tileSetRenderer;
@@ -132,8 +133,6 @@ public class TileSetEditor2 extends AbstractDefoldEditor implements ISceneEditor
             bind(IUndoContext.class).toInstance(undoContext);
             bind(UndoActionHandler.class).toInstance(undoHandler);
             bind(RedoActionHandler.class).toInstance(redoHandler);
-
-            bind(ILogger.class).to(Logger.class);
 
             bind(IContainer.class).toInstance(contentRoot);
 
@@ -227,10 +226,10 @@ public class TileSetEditor2 extends AbstractDefoldEditor implements ISceneEditor
         try {
             service.runInUI(service, loader, null);
             if (loader.exception != null) {
-                this.logger.logException(loader.exception);
+                logger.error("Error occurred while reloading file", loader.exception);
             }
         } catch (Throwable e) {
-            this.logger.logException(e);
+            logger.error("Error occurred while reloading file", e);
         }
     }
 
@@ -243,7 +242,7 @@ public class TileSetEditor2 extends AbstractDefoldEditor implements ISceneEditor
                 try {
                     presenter.onResourceChanged(event);
                 } catch (Throwable e) {
-                    logger.logException(e);
+                    logger.error("Error occurred while reloading", e);
                 }
             }
         });
@@ -261,7 +260,7 @@ public class TileSetEditor2 extends AbstractDefoldEditor implements ISceneEditor
                     new ByteArrayInputStream(stream.toByteArray()), false,
                     true, monitor);
         } catch (Throwable e) {
-            logger.logException(e);
+            logger.error("Error occurred while saving", e);
         } finally {
             this.inSave = false;
         }

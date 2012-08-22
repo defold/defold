@@ -61,7 +61,7 @@ namespace dmEngine
     {
         uint32_t data_size = sizeof(dmRenderDDF::WindowResized);
         uintptr_t descriptor = (uintptr_t)dmRenderDDF::WindowResized::m_DDFDescriptor;
-        dmhash_t message_id = dmHashString64(dmRenderDDF::WindowResized::m_DDFDescriptor->m_Name);
+        dmhash_t message_id = dmRenderDDF::WindowResized::m_DDFDescriptor->m_NameHash;
 
         dmRenderDDF::WindowResized window_resized;
         window_resized.m_Width = width;
@@ -180,7 +180,7 @@ namespace dmEngine
             dmHID::DeleteContext(engine->m_HidContext);
         }
 
-        dmGameObject::Finalize();
+        dmGameObject::Finalize(engine->m_Factory);
 
         if (engine->m_Factory)
             dmResource::DeleteFactory(engine->m_Factory);
@@ -321,8 +321,6 @@ namespace dmEngine
         engine->m_InvPhysicalHeight = 1.0f / physical_height;
 
         engine->m_ScriptContext = dmScript::NewContext(engine->m_Config);
-        dmGameObject::Initialize(engine->m_ScriptContext);
-
         engine->m_HidContext = dmHID::NewContext(dmHID::NewContextParams());
         dmHID::Init(engine->m_HidContext);
 
@@ -361,6 +359,7 @@ namespace dmEngine
         params.m_BuiltinsArchiveSize = BUILTINS_ARC_SIZE;
 
         engine->m_Factory = dmResource::NewFactory(&params, dmConfigFile::GetString(engine->m_Config, "resource.uri", content_root));
+        dmGameObject::Initialize(engine->m_ScriptContext, engine->m_Factory);
 
         dmInput::NewContextParams input_params;
         input_params.m_HidContext = engine->m_HidContext;
@@ -815,12 +814,23 @@ bail:
             }
             else
             {
-                dmLogError("Unknown ddf message '%s' sent to socket '%s'.\n", descriptor->m_Name, SYSTEM_SOCKET_NAME);
+                const dmMessage::URL* sender = &message->m_Sender;
+                const char* socket_name = dmMessage::GetSocketName(sender->m_Socket);
+                const char* path_name = (const char*) dmHashReverse64(sender->m_Path, 0);
+                const char* fragment_name = (const char*) dmHashReverse64(sender->m_Fragment, 0);
+                dmLogError("Unknown system message '%s' sent to socket '%s' from %s:%s#%s.",
+                           descriptor->m_Name, SYSTEM_SOCKET_NAME, socket_name, path_name, fragment_name);
             }
         }
         else
         {
-            dmLogError("Only system messages can be sent to the '%s' socket.\n", SYSTEM_SOCKET_NAME);
+            const dmMessage::URL* sender = &message->m_Sender;
+            const char* socket_name = dmMessage::GetSocketName(sender->m_Socket);
+            const char* path_name = (const char*) dmHashReverse64(sender->m_Path, 0);
+            const char* fragment_name = (const char*) dmHashReverse64(sender->m_Fragment, 0);
+
+            dmLogError("Only system messages can be sent to the '%s' socket. Message sent from: %s:%s#%s",
+                       SYSTEM_SOCKET_NAME, socket_name, path_name, fragment_name);
         }
     }
 

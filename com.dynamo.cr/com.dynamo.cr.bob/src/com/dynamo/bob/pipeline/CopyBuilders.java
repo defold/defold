@@ -7,9 +7,6 @@ public class CopyBuilders {
     @BuilderParams(name = "Project", inExts = ".project", outExt = ".projectc")
     public static class ProjectBuilder extends CopyBuilder {}
 
-    @BuilderParams(name = "Script", inExts = ".script", outExt = ".scriptc")
-    public static class ScriptBuilder extends CopyBuilder {}
-
     @BuilderParams(name = "GuiScript", inExts = ".gui_script", outExt = ".gui_scriptc")
     public static class GuiScriptBuilder extends CopyBuilder {}
 

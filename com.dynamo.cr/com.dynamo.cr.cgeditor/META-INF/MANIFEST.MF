@@ -8,5 +8,6 @@ Require-Bundle: org.eclipse.core.runtime,
  org.eclipse.ui,
  org.eclipse.jface.text,
  org.eclipse.ui.editors,
- com.dynamo.cr.editor.core
+ com.dynamo.cr.editor.core,
+ slf4j;bundle-version="1.6.4"
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6

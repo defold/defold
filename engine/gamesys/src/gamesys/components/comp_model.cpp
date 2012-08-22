@@ -10,6 +10,7 @@
 #include <render/render.h>
 
 #include "../resources/res_model.h"
+#include "../gamesys_private.h"
 
 #include "model_ddf.h"
 
@@ -144,17 +145,17 @@ namespace dmGameSystem
                 if (!ro->m_Material)
                     return dmGameObject::UPDATE_RESULT_OK;
 
-                if (params.m_Message->m_Id == dmHashString64(dmModelDDF::SetConstant::m_DDFDescriptor->m_Name))
+                if (params.m_Message->m_Id == dmModelDDF::SetConstant::m_DDFDescriptor->m_NameHash)
                 {
                     dmModelDDF::SetConstant* ddf = (dmModelDDF::SetConstant*)params.m_Message->m_Data;
                     dmRender::EnableRenderObjectConstant(ro, ddf->m_NameHash, ddf->m_Value);
                 }
-                else if (params.m_Message->m_Id == dmHashString64(dmModelDDF::ResetConstant::m_DDFDescriptor->m_Name))
+                else if (params.m_Message->m_Id == dmModelDDF::ResetConstant::m_DDFDescriptor->m_NameHash)
                 {
                     dmModelDDF::ResetConstant* ddf = (dmModelDDF::ResetConstant*)params.m_Message->m_Data;
                     dmRender::DisableRenderObjectConstant(ro, ddf->m_NameHash);
                 }
-                else if (params.m_Message->m_Id == dmHashString64(dmModelDDF::SetTexture::m_DDFDescriptor->m_Name))
+                else if (params.m_Message->m_Id == dmModelDDF::SetTexture::m_DDFDescriptor->m_NameHash)
                 {
                     dmModelDDF::SetTexture* ddf = (dmModelDDF::SetTexture*)params.m_Message->m_Data;
                     uint32_t unit = ddf->m_TextureUnit;
@@ -165,7 +166,7 @@ namespace dmGameSystem
                         ro->m_Textures[unit] = dmGraphics::GetRenderTargetTexture(rendertarget, dmGraphics::BUFFER_TYPE_COLOR_BIT);
                     }
                     else {
-                        dmLogWarning("No such render target: %s",
+                        LogMessageError(params.m_Message, "No such render target: %s.",
                                      (const char*) dmHashReverse64(ddf->m_TextureHash, 0));
                     }
                 }

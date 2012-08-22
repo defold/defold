@@ -29,7 +29,6 @@ import org.junit.Test;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
-import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.editor.ui.IImageProvider;
 import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.sceneed.core.ILoaderContext;
@@ -52,7 +51,6 @@ public class SceneModelTest {
 
     // Mocks
     private IModelListener listener;
-    private ILogger logger;
     private IContainer contentRoot;
     private ILoaderContext loaderContext;
     private IImageProvider imageProvider;
@@ -69,7 +67,6 @@ public class SceneModelTest {
             bind(IUndoContext.class).to(UndoContext.class).in(Singleton.class);
 
             bind(IModelListener.class).toInstance(listener);
-            bind(ILogger.class).toInstance(logger);
             bind(IContainer.class).toInstance(contentRoot);
             bind(ILoaderContext.class).toInstance(loaderContext);
             bind(IImageProvider.class).toInstance(imageProvider);
@@ -79,7 +76,6 @@ public class SceneModelTest {
     @Before
     public void setup() {
         this.listener = mock(IModelListener.class);
-        this.logger = mock(ILogger.class);
         this.contentRoot = mock(IContainer.class);
         when(this.contentRoot.getFullPath()).thenReturn(new Path("/"));
         this.loaderContext = mock(ILoaderContext.class);

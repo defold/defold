@@ -8,6 +8,9 @@ import java.util.Map;
 
 import javax.media.opengl.GLException;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.sun.opengl.util.texture.Texture;
 import com.sun.opengl.util.texture.TextureIO;
 
@@ -19,6 +22,7 @@ import com.sun.opengl.util.texture.TextureIO;
  */
 public class TextureRegistry {
 
+    private static Logger logger = LoggerFactory.getLogger(TextureRegistry.class);
     private Map<String, Texture> textures = new HashMap<String, Texture>();
     private Texture defaultTexture;
 
@@ -61,11 +65,9 @@ public class TextureRegistry {
         try {
             texture = TextureIO.newTexture(url, true, ext);
         } catch (GLException e) {
-            // TODO: See case 1331
-            e.printStackTrace();
+            logger.error("Failed to create texture", e);
         } catch (IOException e) {
-            // TODO: See case 1331
-            e.printStackTrace();
+            logger.error("Failed to create texture", e);
         }
 
         if (texture == null) {

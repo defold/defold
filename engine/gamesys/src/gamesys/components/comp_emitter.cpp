@@ -11,6 +11,7 @@
 #include <render/render.h>
 
 #include "gamesys.h"
+#include "../gamesys_private.h"
 
 namespace dmGameSystem
 {

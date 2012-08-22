@@ -67,8 +67,8 @@ namespace dmGameObject
         dmArray<ScriptInstance*> m_Instances;
     };
 
-    void    InitializeScript(dmScript::HContext context);
-    void    FinalizeScript();
+    void    InitializeScript(dmScript::HContext context, dmResource::HFactory factory);
+    void    FinalizeScript(dmResource::HFactory factory);
 
     HScript NewScript(const void* buffer, uint32_t buffer_size, const char* filename);
     bool    ReloadScript(HScript script, const void* buffer, uint32_t buffer_size, const char* filename);
@@ -78,6 +78,7 @@ namespace dmGameObject
     void            DeleteScriptInstance(HScriptInstance script_instance);
 
     extern lua_State* g_LuaState;
+    extern dmScript::HContext g_ScriptContext;
 }
 
 #endif //__GAMEOBJECTSCRIPT_H__

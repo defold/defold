@@ -8,8 +8,11 @@ import org.eclipse.core.resources.IResource;
 import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.Path;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class EditorUtil {
+    private static Logger logger = LoggerFactory.getLogger(EditorUtil.class);
 
     /**
      * Get the game.project file by searching downwards in the file system.
@@ -66,7 +69,7 @@ public class EditorUtil {
                 }
             }
         } catch (CoreException e) {
-            EditorCorePlugin.logException(e);
+            logger.error("Unable to locate project", e);
             return null;
         }
         return null;

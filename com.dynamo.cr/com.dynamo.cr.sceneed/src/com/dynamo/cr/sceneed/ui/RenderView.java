@@ -38,9 +38,10 @@ import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.Listener;
 import org.eclipse.ui.ISelectionService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.editor.core.EditorUtil;
-import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.sceneed.core.Camera;
 import com.dynamo.cr.sceneed.core.CameraController;
 import com.dynamo.cr.sceneed.core.INodeRenderer;
@@ -61,8 +62,8 @@ MouseMoveListener,
 Listener,
 IRenderView {
 
+    private static Logger logger = LoggerFactory.getLogger(RenderView.class);
     private final INodeTypeRegistry nodeTypeRegistry;
-    private final ILogger logger;
     private final ISelectionService selectionService;
 
     private GLCanvas canvas;
@@ -89,9 +90,8 @@ IRenderView {
     private Map<INodeType, INodeRenderer<Node>> renderers = new HashMap<INodeType, INodeRenderer<Node>>();
 
     @Inject
-    public RenderView(INodeTypeRegistry manager, ILogger logger, ISelectionService selectionService) {
+    public RenderView(INodeTypeRegistry manager, ISelectionService selectionService) {
         this.nodeTypeRegistry = manager;
-        this.logger = logger;
         this.selectionService = selectionService;
         this.selectionBoxNode = new SelectionBoxNode();
         this.selectionBoxRenderViewProvider = new SelectionBoxRenderViewProvider(this, this.selectionBoxNode);
@@ -550,7 +550,7 @@ IRenderView {
                 render(gl, glu);
 
             } catch (Throwable e) {
-                logger.logException(e);
+                logger.error("Error occurred while rendering", e);
             } finally {
                 canvas.swapBuffers();
                 context.release();

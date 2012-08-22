@@ -18,6 +18,10 @@
 #undef DispatchMessage
 #endif
 
+#ifdef FreeModule
+#undef FreeModule
+#endif
+
 #endif // SAFE_WINDOWS_H_
 
 #endif // defined(_MSC_VER)

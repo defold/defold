@@ -15,14 +15,14 @@ class FactoryTest : public ::testing::Test
 protected:
     virtual void SetUp()
     {
-        dmGameObject::Initialize(0x0);
-
         m_UpdateContext.m_DT = 1.0f / 60.0f;
 
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
         m_Factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test/factory");
+        m_ScriptContext = dmScript::NewContext(0);
+        dmGameObject::Initialize(m_ScriptContext, m_Factory);
         m_Register = dmGameObject::NewRegister();
         dmGameObject::RegisterResourceTypes(m_Factory, m_Register);
         dmGameObject::RegisterComponentTypes(m_Factory, m_Register);
@@ -32,12 +32,14 @@ protected:
     virtual void TearDown()
     {
         dmGameObject::DeleteCollection(m_Collection);
+        dmGameObject::Finalize(m_Factory);
+        dmScript::DeleteContext(m_ScriptContext);
         dmResource::DeleteFactory(m_Factory);
         dmGameObject::DeleteRegister(m_Register);
-        dmGameObject::Finalize();
     }
 
 public:
+    dmScript::HContext m_ScriptContext;
     dmGameObject::UpdateContext m_UpdateContext;
     dmGameObject::HRegister m_Register;
     dmGameObject::HCollection m_Collection;

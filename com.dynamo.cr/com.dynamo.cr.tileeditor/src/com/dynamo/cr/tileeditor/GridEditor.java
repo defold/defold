@@ -48,9 +48,10 @@ import org.eclipse.ui.progress.IProgressService;
 import org.eclipse.ui.statushandlers.StatusManager;
 import org.eclipse.ui.views.contentoutline.IContentOutlinePage;
 import org.eclipse.ui.views.properties.IPropertySheetPage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.editor.core.EditorUtil;
-import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.editor.core.inject.LifecycleModule;
 import com.dynamo.cr.editor.ui.AbstractDefoldEditor;
 import com.dynamo.cr.properties.FormPropertySheetPage;
@@ -71,6 +72,8 @@ public class GridEditor extends AbstractDefoldEditor {
     public static final int CURSOR_TYPE_UNAVAILABLE = 2;
     public static final int CURSOR_TYPE_CROSS = 3;
     public static final int CURSOR_TYPE_COUNT = 4;
+
+    private static Logger logger = LoggerFactory.getLogger(GridEditor.class);
 
     private IGridEditorOutlinePage outlinePage;
     private FormPropertySheetPage propertySheetPage;
@@ -105,8 +108,6 @@ public class GridEditor extends AbstractDefoldEditor {
             bind(IUndoContext.class).toInstance(undoContext);
             bind(UndoActionHandler.class).toInstance(undoHandler);
             bind(RedoActionHandler.class).toInstance(redoHandler);
-
-            bind(ILogger.class).to(Logger.class);
 
             bind(IContainer.class).toInstance(contentRoot);
 
@@ -233,7 +234,7 @@ public class GridEditor extends AbstractDefoldEditor {
                 HandlerUtil.toggleCommandState(command);
             }
         } catch (ExecutionException e) {
-            this.logger.logException(e);
+            logger.error("Error occurred while updating actions", e);
         }
     }
 
@@ -245,10 +246,10 @@ public class GridEditor extends AbstractDefoldEditor {
         try {
             service.runInUI(service, loader, null);
             if (loader.exception != null) {
-                this.logger.logException(loader.exception);
+                logger.error("Error occurred while reloading", loader.exception);
             }
         } catch (Throwable e) {
-            this.logger.logException(e);
+            logger.error("Error occurred while reloading", e);
         }
     }
 
@@ -262,7 +263,7 @@ public class GridEditor extends AbstractDefoldEditor {
                     try {
                         presenter.onResourceChanged(event);
                     } catch (Throwable e) {
-                        logger.logException(e);
+                        logger.error("Error occurred while reloading", e);
                     }
                 }
             });
@@ -281,7 +282,7 @@ public class GridEditor extends AbstractDefoldEditor {
                     new ByteArrayInputStream(stream.toByteArray()), false,
                     true, monitor);
         } catch (Throwable e) {
-            logger.logException(e);
+            logger.error("Error occurred while saving", e);
         } finally {
             this.inSave = false;
         }

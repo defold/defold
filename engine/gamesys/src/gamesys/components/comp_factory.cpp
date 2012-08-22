@@ -12,6 +12,7 @@
 #include <vectormath/cpp/vectormath_aos.h>
 
 #include "../gamesys.h"
+#include "../gamesys_private.h"
 
 namespace dmGameSystem
 {
@@ -86,38 +87,30 @@ namespace dmGameSystem
             dmGameObject::HInstance instance = params.m_Instance;
             dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
             dmMessage::Message* message = params.m_Message;
-            if ((dmDDF::Descriptor*)params.m_Message->m_Descriptor == dmGameSystemDDF::Create::m_DDFDescriptor)
+            // redispatch messages on the component socket to the frame socket
+            dmMessage::URL receiver = message->m_Receiver;
+            if (receiver.m_Socket == dmGameObject::GetMessageSocket(collection))
             {
-                // redispatch messages on the component socket to the frame socket
-                dmMessage::URL receiver = message->m_Receiver;
-                if (receiver.m_Socket == dmGameObject::GetMessageSocket(collection))
-                {
-                    receiver.m_Socket = dmGameObject::GetFrameMessageSocket(collection);
-                    dmMessage::Post(&message->m_Sender, &receiver, message->m_Id, message->m_UserData, message->m_Descriptor, (const void*)message->m_Data, message->m_DataSize);
-                }
-                else
-                {
-                    dmGameSystemDDF::Create* create = (dmGameSystemDDF::Create*) params.m_Message->m_Data;
-                    uint32_t msg_size = sizeof(dmGameSystemDDF::Create);
-                    uint32_t property_buffer_size = message->m_DataSize - msg_size;
-                    uint8_t* property_buffer = 0x0;
-                    if (property_buffer_size > 0)
-                    {
-                        property_buffer = (uint8_t*)(((uintptr_t)create) + msg_size);
-                    }
-                    FactoryComponent* fc = (FactoryComponent*) *params.m_UserData;
-                    dmhash_t id = create->m_Id;
-                    if (id == 0)
-                    {
-                        id = dmGameObject::GenerateUniqueInstanceId(collection);
-                    }
-                    dmGameObject::Spawn(collection, fc->m_Resource->m_FactoryDesc->m_Prototype, id, property_buffer, property_buffer_size, create->m_Position, create->m_Rotation);
-                }
+                receiver.m_Socket = dmGameObject::GetFrameMessageSocket(collection);
+                dmMessage::Post(&message->m_Sender, &receiver, message->m_Id, message->m_UserData, message->m_Descriptor, (const void*)message->m_Data, message->m_DataSize);
             }
             else
             {
-                dmLogError("Invalid DDF-type for create message");
-                return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+                dmGameSystemDDF::Create* create = (dmGameSystemDDF::Create*) params.m_Message->m_Data;
+                uint32_t msg_size = sizeof(dmGameSystemDDF::Create);
+                uint32_t property_buffer_size = message->m_DataSize - msg_size;
+                uint8_t* property_buffer = 0x0;
+                if (property_buffer_size > 0)
+                {
+                    property_buffer = (uint8_t*)(((uintptr_t)create) + msg_size);
+                }
+                FactoryComponent* fc = (FactoryComponent*) *params.m_UserData;
+                dmhash_t id = create->m_Id;
+                if (id == 0)
+                {
+                    id = dmGameObject::GenerateUniqueInstanceId(collection);
+                }
+                dmGameObject::Spawn(collection, fc->m_Resource->m_FactoryDesc->m_Prototype, id, property_buffer, property_buffer_size, create->m_Position, create->m_Rotation);
             }
         }
         return dmGameObject::UPDATE_RESULT_OK;

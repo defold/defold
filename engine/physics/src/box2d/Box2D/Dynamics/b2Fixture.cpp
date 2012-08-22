@@ -214,7 +214,15 @@ void b2Fixture::SetFilterData(const b2Filter& filter, int32 index)
     // Defold modifications. Added index
     m_filters[index * m_shape->m_filterPerChild] = filter;
 
-	Refilter();
+    // Defold modifications. Skip re-filtering of grid-shapes
+    // in order to avoid O(n^2) memory allocations
+    // see b2BroadPhase::BufferMove
+    // We don't support changing filters at run-time so the
+    // fix will hopefully have no impact
+    if (GetType() != b2Shape::e_grid)
+    {
+        Refilter();
+    }
 }
 
 void b2Fixture::Refilter()

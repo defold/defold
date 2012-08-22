@@ -3,7 +3,6 @@ package com.dynamo.cr.integrationtest;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -41,7 +40,6 @@ import org.mockito.stubbing.Answer;
 import org.osgi.framework.Bundle;
 
 import com.dynamo.cr.editor.core.EditorUtil;
-import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.editor.ui.IImageProvider;
 import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.sceneed.Activator;
@@ -75,7 +73,6 @@ public abstract class AbstractSceneTest {
     private IContainer contentRoot;
     private IProject project;
     private INodeTypeRegistry nodeTypeRegistry;
-    private ILogger logger;
     private IImageProvider imageProvider;
     private IPresenterContext presenterContext;
     private ILoaderContext loaderContext;
@@ -96,7 +93,6 @@ public abstract class AbstractSceneTest {
             bind(IUndoContext.class).to(UndoContext.class).in(Singleton.class);
             bind(IContainer.class).toInstance(contentRoot);
             bind(INodeTypeRegistry.class).toInstance(nodeTypeRegistry);
-            bind(ILogger.class).toInstance(logger);
             bind(IImageProvider.class).toInstance(imageProvider);
             bind(ManipulatorController.class).in(Singleton.class);
             bind(ISelectionService.class).toInstance(mock(ISelectionService.class));
@@ -141,8 +137,6 @@ public abstract class AbstractSceneTest {
         this.contentRoot = EditorUtil.findContentRoot(this.project.getFile("game.project"));
 
         this.view = mock(ISceneView.class);
-        this.logger = mock(ILogger.class);
-        doThrow(new RuntimeException()).when(this.logger).logException(any(Throwable.class));
 
         this.nodeTypeRegistry = Activator.getDefault().getNodeTypeRegistry();
 

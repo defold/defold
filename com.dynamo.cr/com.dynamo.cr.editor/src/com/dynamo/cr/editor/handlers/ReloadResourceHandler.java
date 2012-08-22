@@ -26,6 +26,8 @@ import org.eclipse.ui.IEditorInput;
 import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.IFileEditorInput;
 import org.eclipse.ui.handlers.HandlerUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.editor.Activator;
 import com.dynamo.cr.editor.core.EditorUtil;
@@ -37,6 +39,9 @@ import com.dynamo.resource.proto.Resource;
 import com.dynamo.resource.proto.Resource.Reload;
 
 public class ReloadResourceHandler extends AbstractHandler {
+
+    private static Logger logger = LoggerFactory
+            .getLogger(ReloadResourceHandler.class);
 
     @Override
     public Object execute(ExecutionEvent event) throws ExecutionException {
@@ -97,7 +102,7 @@ public class ReloadResourceHandler extends AbstractHandler {
                             is.close();
 
                         } catch (Throwable e) {
-                            Activator.getDefault().logger.warning(e.getMessage());
+                            logger.warn(e.getMessage());
                         }
                         return Status.OK_STATUS;
                     }

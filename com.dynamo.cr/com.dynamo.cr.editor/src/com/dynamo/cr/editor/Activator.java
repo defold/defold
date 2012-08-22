@@ -10,7 +10,6 @@ import java.net.URL;
 import java.net.UnknownHostException;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.logging.Logger;
 
 import javax.ws.rs.core.UriBuilder;
 
@@ -58,6 +57,8 @@ import org.glassfish.grizzly.http.server.HttpServer;
 import org.glassfish.grizzly.http.server.NetworkListener;
 import org.osgi.framework.BundleContext;
 import org.osgi.util.tracker.ServiceTracker;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.builtins.Builtins;
 import com.dynamo.cr.client.BranchStatusChangedEvent;
@@ -144,7 +145,7 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
 
     public String activeBranch;
 
-    public Logger logger;
+    private static Logger logger = LoggerFactory.getLogger(Activator.class);
 
     private IClientFactory factory;
 
@@ -200,10 +201,8 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
         super.start(bundleContext);
         plugin = this;
         Activator.context = bundleContext;
-        this.logger = Logger.getLogger(Activator.PLUGIN_ID);
 
         IPreferenceStore store = getPreferenceStore();
-        System.out.println(store.getDefaultBoolean(PreferenceConstants.P_ANONYMOUS_LOGGING));
         if (store.getBoolean(PreferenceConstants.P_ANONYMOUS_LOGGING)) {
             RLogPlugin.getDefault().startLogging();
         }

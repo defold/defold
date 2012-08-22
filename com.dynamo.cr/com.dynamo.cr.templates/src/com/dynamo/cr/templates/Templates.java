@@ -6,8 +6,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.URL;
 import java.util.Enumeration;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
@@ -17,10 +15,13 @@ import org.eclipse.core.runtime.FileLocator;
 import org.eclipse.core.runtime.Plugin;
 import org.osgi.framework.Bundle;
 import org.osgi.framework.BundleContext;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class Templates extends Plugin {
 
     private static Templates plugin;
+    private static Logger logger = LoggerFactory.getLogger(Templates.class);
 
     public static Templates getDefault() {
         return plugin;
@@ -30,8 +31,7 @@ public class Templates extends Plugin {
     {
         File file = new File(zipFile);
         if (!file.exists()) {
-            Logger logger = Logger.getLogger(Templates.class.getPackage().getName());
-            logger.log(Level.WARNING, String.format("Did not extract %s since the file is missing.", zipFile));
+            logger.warn(String.format("Did not extract %s since the file is missing.", zipFile));
             return;
         }
 

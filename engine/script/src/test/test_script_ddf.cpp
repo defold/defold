@@ -9,12 +9,39 @@ extern "C"
 #include <lua/lualib.h>
 }
 
-TEST(LuaTableToDDF, Transform)
+class ScriptDDFTest : public ::testing::Test
 {
-    lua_State *L = lua_open();
+protected:
+protected:
+    virtual void SetUp()
+    {
+        L = lua_open();
 
-    dmScript::Initialize(L, dmScript::ScriptParams());
+        luaopen_base(L);
+        luaopen_table(L);
+        luaopen_string(L);
+        luaopen_math(L);
+        luaopen_debug(L);
 
+        m_Context = dmScript::NewContext(0);
+        dmScript::ScriptParams params;
+        params.m_Context = m_Context;
+        dmScript::Initialize(L, params);
+    }
+
+    virtual void TearDown()
+    {
+        dmScript::DeleteContext(m_Context);
+        lua_close(L);
+    }
+
+    dmScript::HContext m_Context;
+    lua_State* L;
+};
+
+
+TEST_F(ScriptDDFTest, TransformToDDF)
+{
     int top = lua_gettop(L);
 
     lua_newtable(L);
@@ -43,16 +70,10 @@ TEST(LuaTableToDDF, Transform)
     ASSERT_EQ(top, lua_gettop(L));
 
     delete[] buf;
-
-    lua_close(L);
 }
 
-TEST(DDFToLuaTable, Transform)
+TEST_F(ScriptDDFTest, TransformToLua)
 {
-    lua_State *L = lua_open();
-
-    dmScript::Initialize(L, dmScript::ScriptParams());
-
     int top = lua_gettop(L);
 
     TestScript::Transform* t = new TestScript::Transform;
@@ -86,16 +107,10 @@ TEST(DDFToLuaTable, Transform)
     lua_pop(L, 3);
 
     ASSERT_EQ(top, lua_gettop(L));
-
-    lua_close(L);
 }
 
-TEST(LuaTableToDDF, MessageInMessage)
+TEST_F(ScriptDDFTest, MessageInMessageToDDF)
 {
-    lua_State *L = lua_open();
-
-    dmScript::Initialize(L, dmScript::ScriptParams());
-
     int top = lua_gettop(L);
 
     lua_newtable(L);
@@ -166,16 +181,10 @@ TEST(LuaTableToDDF, MessageInMessage)
     lua_pop(L, 1);
 
     ASSERT_EQ(top, lua_gettop(L));
-
-    lua_close(L);
 }
 
-TEST(DDFToLuaTable, MessageInMessage)
+TEST_F(ScriptDDFTest, MessageInMessageToLua)
 {
-    lua_State *L = lua_open();
-
-    dmScript::Initialize(L, dmScript::ScriptParams());
-
     int top = lua_gettop(L);
 
     TestScript::Msg* g = new TestScript::Msg;
@@ -226,17 +235,11 @@ TEST(DDFToLuaTable, MessageInMessage)
     ASSERT_EQ(top, lua_gettop(L));
 
     delete g;
-
-    lua_close(L);
 }
 
-TEST(LuaTableToDDF, DefaultValue)
+TEST_F(ScriptDDFTest, DefaultValueToDDF)
 {
-    lua_State *L = lua_open();
-
-    dmScript::Initialize(L, dmScript::ScriptParams());
-
-    int top = lua_gettop(L);
+     int top = lua_gettop(L);
 
     lua_newtable(L);
 
@@ -262,16 +265,10 @@ TEST(LuaTableToDDF, DefaultValue)
     lua_pop(L, 1);
 
     ASSERT_EQ(top, lua_gettop(L));
-
-    lua_close(L);
 }
 
-TEST(LuaTableToDDF, OptionalNoDefaultValue)
+TEST_F(ScriptDDFTest, OptionalNoDefaultValueToDDF)
 {
-    lua_State *L = lua_open();
-
-    dmScript::Initialize(L, dmScript::ScriptParams());
-
     int top = lua_gettop(L);
 
     lua_newtable(L);
@@ -294,8 +291,6 @@ TEST(LuaTableToDDF, OptionalNoDefaultValue)
     lua_pop(L, 1);
 
     ASSERT_EQ(top, lua_gettop(L));
-
-    lua_close(L);
 }
 
 struct LuaDDFBufferOverflowParam
@@ -320,10 +315,8 @@ int ProtectedLuaDDFBufferOverflow (lua_State *L)
     return 0;
 }
 
-TEST(LuaTableToDDF, LuaDDFBufferOverflow)
+TEST_F(ScriptDDFTest, LuaDDFBufferOverflowToDDF)
 {
-    lua_State *L = lua_open();
-
     int top = lua_gettop(L);
 
     uint32_t expected_size = sizeof(TestScript::LuaDDFBufferOverflow) + strlen("string_value") + 1;
@@ -349,16 +342,10 @@ TEST(LuaTableToDDF, LuaDDFBufferOverflow)
     }
 
     ASSERT_EQ(top, lua_gettop(L));
-
-    lua_close(L);
 }
 
-TEST(LuaTableToDDF, Uint64)
+TEST_F(ScriptDDFTest, Uint64ToDDF)
 {
-    lua_State *L = lua_open();
-
-    dmScript::Initialize(L, dmScript::ScriptParams());
-
     int top = lua_gettop(L);
 
     struct Test
@@ -418,8 +405,6 @@ TEST(LuaTableToDDF, Uint64)
     ASSERT_EQ(sizeof(TestScript::Uint64Msg), test.m_Size);
 
     ASSERT_EQ(top, lua_gettop(L));
-
-    lua_close(L);
 
     delete[] test.m_Buffer;
 }

@@ -39,7 +39,8 @@ Require-Bundle: org.eclipse.ui,
  org.eclipse.swt,
  org.eclipse.jface,
  org.eclipse.ui.workbench,
- com.dynamo.cr.rlog;bundle-version="1.0.0"
+ com.dynamo.cr.rlog;bundle-version="1.0.0",
+ slf4j;bundle-version="1.6.4"
 Bundle-ActivationPolicy: lazy
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
 Bundle-ClassPath: lib/jetty-all-7.0.2.v20100331.jar,

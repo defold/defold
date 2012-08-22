@@ -5,8 +5,6 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
-import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 
 import java.io.IOException;
@@ -31,7 +29,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.editor.core.inject.LifecycleModule;
 import com.dynamo.cr.editor.ui.IImageProvider;
 import com.dynamo.cr.sceneed.Activator;
@@ -59,14 +56,12 @@ public class ManipulatorTest {
     private LifecycleModule module;
     private IOperationHistory undoHistory;
     private UndoContext undoContext;
-    private ILogger logger;
 
     class TestModule extends AbstractModule {
         @Override
         protected void configure() {
             bind(IRenderView.class).toInstance(renderView);
             bind(IManipulatorRegistry.class).toInstance(manipulatorRegistry);
-            bind(ILogger.class).toInstance(logger);
             bind(IOperationHistory.class).toInstance(undoHistory);
             bind(IUndoContext.class).toInstance(undoContext);
             bind(ManipulatorController.class).in(Singleton.class);
@@ -86,8 +81,6 @@ public class ManipulatorTest {
         renderView = mock(IRenderView.class);
         undoContext = new UndoContext();
         undoHistory = new DefaultOperationHistory();
-        logger = mock(ILogger.class);
-        doThrow(new RuntimeException()).when(this.logger).logException(any(Throwable.class));
 
         manipulatorRegistry = Activator.getDefault().getManipulatorRegistry();
         module = new LifecycleModule(new TestModule());

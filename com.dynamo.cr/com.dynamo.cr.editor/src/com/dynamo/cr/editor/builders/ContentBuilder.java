@@ -27,6 +27,8 @@ import org.eclipse.ui.IPageLayout;
 import org.eclipse.ui.IWorkbenchPage;
 import org.eclipse.ui.PartInitException;
 import org.osgi.framework.Bundle;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.DefaultFileSystem;
@@ -44,6 +46,8 @@ import com.dynamo.cr.protocol.proto.Protocol.BuildLog;
 
 public class ContentBuilder extends IncrementalProjectBuilder {
 
+    private static Logger logger = LoggerFactory
+            .getLogger(ContentBuilder.class);
     private IBranchClient branchClient;
 
     public ContentBuilder() {
@@ -135,7 +139,7 @@ public class ContentBuilder extends IncrementalProjectBuilder {
                         marker.setAttribute(IMarker.SEVERITY, IMarker.SEVERITY_ERROR);
                     }
                     else {
-                        Activator.getDefault().logger.warning("Unable to locate: " + resource.getFullPath());
+                        logger.warn("Unable to locate: " + resource.getFullPath());
                     }
                 }
             }
@@ -259,7 +263,7 @@ public class ContentBuilder extends IncrementalProjectBuilder {
                         marker.setAttribute(IMarker.SEVERITY, IMarker.SEVERITY_ERROR);
                     }
                     else {
-                        Activator.getDefault().logger.warning("Unable to locate: " + resource.getFullPath());
+                        logger.warn("Unable to locate: " + resource.getFullPath());
                     }
                     break; // for (Pattern...)
                 }

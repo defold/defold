@@ -91,9 +91,8 @@ public class RLogTest {
         return ds.prepare(new Query("issue")).countEntities(withLimit(1000));
     }
 
-    int issueCount(String month) {
-        Key key = KeyFactory.createKey("month", month);
-        return ds.prepare(new Query("issue", key)).countEntities(withLimit(1000));
+    int issueCount(DateTime date) {
+        return LogModel.getMonthIssues(date).size();
     }
 
     String toIso(DateTime dateTime) {
@@ -125,15 +124,21 @@ public class RLogTest {
             LogModel.putRecord(record);
         }
 
-        assertEquals(0, issueCount(toMonth(now)));
+        assertEquals(0, issueCount(now));
 
         int monthsProcessed = ProcessTask.process();
         assertEquals(1, monthsProcessed);
-        assertEquals(1, issueCount(toMonth(now)));
+        assertEquals(1, issueCount(now));
         assertEquals(1, issueCount());
 
         monthsProcessed = ProcessTask.process();
         assertEquals(0, monthsProcessed);
+    }
+
+    void markFixed(Issue issue) {
+        DateTime date = new DateTime(issue.getRecord().getDate());
+        Issue issuePrim = Issue.newBuilder().mergeFrom(issue).setFixed(true).build();
+        LogModel.putIssue(LogModel.issueKey(date, issue.getSha1()), issuePrim);
     }
 
     @Test
@@ -144,14 +149,13 @@ public class RLogTest {
             LogModel.putRecord(record);
         }
 
-        assertEquals(0, issueCount(toMonth(now)));
+        assertEquals(0, issueCount(now));
 
         int monthsProcessed = ProcessTask.process();
         assertEquals(1, monthsProcessed);
         Issue issue = LogModel.getMonthIssues(now).get(0);
         assertEquals(false, issue.getFixed());
-        Issue issuePrim = Issue.newBuilder().mergeFrom(issue).setFixed(true).build();
-        LogModel.putIssue(LogModel.issueKey(now, issue.getSha1()), issuePrim);
+        markFixed(issue);
 
         // Reset "processed" attribute to force re-processing of month
         Entity month = ds.get(KeyFactory.createKey("month", toMonth(now)));
@@ -180,6 +184,7 @@ public class RLogTest {
         DateTime date1 = new DateTime();
         DateTime date2 = date1.plusMonths(1);
 
+        // Create equivalent records for different months
         Record r1 = createRecord(toIso(date1), createStackTraceElement("m1", 1), createStackTraceElement("m1", 2));
         LogModel.putRecord(r1);
         LogModel.putRecord(r1);
@@ -188,17 +193,36 @@ public class RLogTest {
         LogModel.putRecord(r2);
         LogModel.putRecord(r2);
 
+        // Assert that we have one issue per month and two in total
         assertEquals(0, issueCount());
         int monthsProcessed = ProcessTask.process();
         assertEquals(2, monthsProcessed);
-        assertEquals(1, issueCount(toMonth(date1)));
-        assertEquals(1, issueCount(toMonth(date2)));
+        assertEquals(1, issueCount(date1));
+        assertEquals(1, issueCount(date2));
         assertEquals(2, issueCount());
-
 
         List<Issue> issues1 = LogModel.getMonthIssues(date1);
         assertEquals(1, issues1.size());
-        assertEquals(2, issues1.get(0).getReported());
+        Issue issue1 = issues1.get(0);
+        assertEquals(2, issue1.getReported());
+
+        List<Issue> issues2 = LogModel.getMonthIssues(date2);
+        List<Issue> issue2 = issues2;
+        assertEquals(1, issue2.size());
+        assertEquals(3, issue2.get(0).getReported());
+
+        // Sha1 must be equal
+        assertEquals(issue1.getSha1(), issue2.get(0).getSha1());
+
+        // Mark issues as fixed and validte
+        assertEquals(2, LogModel.getActiveIssues().size());
+        markFixed(issue1);
+        assertEquals(1, LogModel.getActiveIssues().size());
+        markFixed(issue2.get(0));
+        // All fixed and active count is now zero
+        assertEquals(0, LogModel.getActiveIssues().size());
+        // All fixed but the total count is still two
+        assertEquals(2, issueCount());
     }
 
 }

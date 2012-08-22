@@ -195,7 +195,7 @@ TEST_F(dmRenderScriptTest, TestRenderScriptMessage)
     dmRenderDDF::WindowResized window_resize;
     window_resize.m_Width = 1;
     window_resize.m_Height = 1;
-    dmhash_t message_id = dmHashString64(dmRenderDDF::WindowResized::m_DDFDescriptor->m_Name);
+    dmhash_t message_id = dmRenderDDF::WindowResized::m_DDFDescriptor->m_NameHash;
     uintptr_t descriptor = (uintptr_t)dmRenderDDF::WindowResized::m_DDFDescriptor;
     uint32_t data_size = sizeof(dmRenderDDF::WindowResized);
     dmMessage::URL sender;

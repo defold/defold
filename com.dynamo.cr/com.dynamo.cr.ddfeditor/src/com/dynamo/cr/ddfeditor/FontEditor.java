@@ -25,6 +25,8 @@ import org.eclipse.swt.widgets.Canvas;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.ui.statushandlers.StatusManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.protobind.MessageNode;
 import com.dynamo.render.Fontc;
@@ -32,6 +34,7 @@ import com.dynamo.render.proto.Font.FontDesc;
 
 public class FontEditor extends DdfEditor {
 
+    private static Logger logger = LoggerFactory.getLogger(FontEditor.class);
     private ScrolledComposite scrolledComposite;
     private Canvas canvas;
     private Image image;
@@ -152,7 +155,7 @@ public class FontEditor extends DdfEditor {
         } catch (IOException e) {
             if (!previewErrorLogged) {
                 previewErrorLogged = true;
-                Activator.logException(e);
+                logger.error("Error occurred while creating preview", e);
             }
         }
     }

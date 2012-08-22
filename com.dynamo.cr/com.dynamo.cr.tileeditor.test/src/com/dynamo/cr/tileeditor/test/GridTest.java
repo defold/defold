@@ -62,7 +62,6 @@ import org.osgi.framework.Bundle;
 
 import com.dynamo.cr.editor.core.EditorCorePlugin;
 import com.dynamo.cr.editor.core.EditorUtil;
-import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.editor.core.IResourceType;
 import com.dynamo.cr.editor.core.IResourceTypeRegistry;
 import com.dynamo.cr.properties.IPropertyModel;
@@ -95,15 +94,6 @@ public class GridTest implements IResourceChangeListener {
     private IPropertyModel<GridModel, GridModel> propertyModel;
     private Injector injector;
 
-    static class TestLogger implements ILogger {
-
-        @Override
-        public void logException(Throwable exception) {
-            throw new UnsupportedOperationException(exception);
-        }
-
-    }
-
     class TestModule extends AbstractModule {
         @Override
         protected void configure() {
@@ -113,8 +103,6 @@ public class GridTest implements IResourceChangeListener {
 
             bind(IOperationHistory.class).to(DefaultOperationHistory.class).in(Singleton.class);
             bind(IUndoContext.class).to(UndoContext.class).in(Singleton.class);
-
-            bind(ILogger.class).to(TestLogger.class);
 
             bind(IContainer.class).toInstance(contentRoot);
         }
@@ -208,7 +196,7 @@ public class GridTest implements IResourceChangeListener {
     private TileSetModel newTileSet(String path, String image, int tileSpacing) throws IOException, CoreException {
         newResourceFile(path);
         IFile file = this.contentRoot.getFile(new Path(path));
-        TileSetModel tileSetModel = new TileSetModel(this.contentRoot, null, null, new TestLogger());
+        TileSetModel tileSetModel = new TileSetModel(this.contentRoot, null, null);
         tileSetModel.load(file.getContents());
         tileSetModel.setImage(image);
         tileSetModel.setTileSpacing(tileSpacing);

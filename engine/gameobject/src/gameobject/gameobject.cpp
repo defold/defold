@@ -18,6 +18,7 @@
 #include "res_collection.h"
 #include "res_prototype.h"
 #include "res_script.h"
+#include "res_lua.h"
 
 #include "../proto/gameobject_ddf.h"
 
@@ -54,14 +55,14 @@ namespace dmGameObject
         memset(this, 0, sizeof(*this));
     }
 
-    void Initialize(dmScript::HContext context)
+    void Initialize(dmScript::HContext context, dmResource::HFactory factory)
     {
-        InitializeScript(context);
+        InitializeScript(context, factory);
     }
 
-    void Finalize()
+    void Finalize(dmResource::HFactory factory)
     {
-        FinalizeScript();
+        FinalizeScript(factory);
     }
 
     HRegister NewRegister()
@@ -269,6 +270,10 @@ namespace dmGameObject
             return ret;
 
         ret = dmResource::RegisterType(factory, "scriptc", 0, &ResScriptCreate, &ResScriptDestroy, &ResScriptRecreate);
+        if (ret != dmResource::RESULT_OK)
+            return ret;
+
+        ret = dmResource::RegisterType(factory, "luac", 0, &ResLuaCreate, &ResLuaDestroy, &ResLuaRecreate);
         if (ret != dmResource::RESULT_OK)
             return ret;
 
@@ -1024,9 +1029,15 @@ namespace dmGameObject
         }
         if (instance == 0x0)
         {
-            dmLogError("Instance '%s' could not be found when dispatching message '%s'.",
+            const dmMessage::URL* sender = &message->m_Sender;
+            const char* socket_name = dmMessage::GetSocketName(sender->m_Socket);
+            const char* path_name = (const char*) dmHashReverse64(sender->m_Path, 0);
+            const char* fragment_name = (const char*) dmHashReverse64(sender->m_Fragment, 0);
+
+            dmLogError("Instance '%s' could not be found when dispatching message '%s' sent from %s:%s#%s",
                         (const char*) dmHashReverse64(message->m_Receiver.m_Path, 0),
-                        (const char*) dmHashReverse64(message->m_Id, 0));
+                        (const char*) dmHashReverse64(message->m_Id, 0),
+                        socket_name, path_name, fragment_name);
 
             context->m_Success = false;
             return;
@@ -1051,7 +1062,7 @@ namespace dmGameObject
                 response.m_Rotation = dmGameObject::GetRotation(instance);
                 response.m_WorldPosition = dmGameObject::GetWorldPosition(instance);
                 response.m_WorldRotation = dmGameObject::GetWorldRotation(instance);
-                dmhash_t message_id = dmHashString64(dmGameObjectDDF::TransformResponse::m_DDFDescriptor->m_Name);
+                dmhash_t message_id = dmGameObjectDDF::TransformResponse::m_DDFDescriptor->m_NameHash;
                 uintptr_t gotr_descriptor = (uintptr_t)dmGameObjectDDF::TransformResponse::m_DDFDescriptor;
                 uint32_t data_size = sizeof(dmGameObjectDDF::TransformResponse);
                 if (dmMessage::IsSocketValid(message->m_Sender.m_Socket))
@@ -1112,10 +1123,16 @@ namespace dmGameObject
             Result result = GetComponentIndex(instance, message->m_Receiver.m_Fragment, &component_index);
             if (result != RESULT_OK)
             {
-                dmLogError("Component '%s#%s' could not be found when dispatching message '%s'",
+                const dmMessage::URL* sender = &message->m_Sender;
+                const char* socket_name = dmMessage::GetSocketName(sender->m_Socket);
+                const char* path_name = (const char*) dmHashReverse64(sender->m_Path, 0);
+                const char* fragment_name = (const char*) dmHashReverse64(sender->m_Fragment, 0);
+
+                dmLogError("Component '%s#%s' could not be found when dispatching message '%s' sent from %s:%s#%s",
                             (const char*) dmHashReverse64(message->m_Receiver.m_Path, 0),
                             (const char*) dmHashReverse64(message->m_Receiver.m_Fragment, 0),
-                            (const char*) dmHashReverse64(message->m_Id, 0));
+                            (const char*) dmHashReverse64(message->m_Id, 0),
+                            socket_name, path_name, fragment_name);
                 context->m_Success = false;
                 return;
             }

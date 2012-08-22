@@ -12,6 +12,7 @@
 #include "../gameobject_private.h"
 #include "gameobject/test/script/test_gameobject_script_ddf.h"
 #include "../proto/gameobject_ddf.h"
+#include "../proto/lua_ddf.h"
 
 using namespace Vectormath::Aos;
 
@@ -20,9 +21,6 @@ class ScriptTest : public ::testing::Test
 protected:
     virtual void SetUp()
     {
-        m_ScriptContext = dmScript::NewContext(0);
-        dmGameObject::Initialize(m_ScriptContext);
-
         m_UpdateContext.m_DT = 1.0f / 60.0f;
 
         dmResource::NewFactoryParams params;
@@ -30,6 +28,8 @@ protected:
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
         m_Path = "build/default/src/gameobject/test/script";
         m_Factory = dmResource::NewFactory(&params, m_Path);
+        m_ScriptContext = dmScript::NewContext(0);
+        dmGameObject::Initialize(m_ScriptContext, m_Factory);
         m_Register = dmGameObject::NewRegister();
         dmGameObject::RegisterResourceTypes(m_Factory, m_Register);
         dmGameObject::RegisterComponentTypes(m_Factory, m_Register);
@@ -41,9 +41,9 @@ protected:
     {
         dmMessage::DeleteSocket(m_Socket);
         dmGameObject::DeleteCollection(m_Collection);
+        dmGameObject::Finalize(m_Factory);
         dmResource::DeleteFactory(m_Factory);
         dmGameObject::DeleteRegister(m_Register);
-        dmGameObject::Finalize();
         dmScript::DeleteContext(m_ScriptContext);
     }
 
@@ -177,13 +177,15 @@ TEST_F(ScriptTest, TestFailingScript05)
     dmGameObject::Delete(m_Collection, go);
 }
 
-static void CreateFile(const char* file_name, const char* contents)
+static void CreateScriptFile(const char* file_name, const char* contents)
 {
-    FILE* f;
-    f = fopen(file_name, "wb");
-    ASSERT_NE((FILE*) 0, f);
-    fprintf(f, "%s", contents);
-    fclose(f);
+    dmLuaDDF::LuaModule lua_module;
+    memset(&lua_module, 0, sizeof(lua_module));
+    lua_module.m_Type = dmLuaDDF::LuaModule::TYPE_TEXT;
+    lua_module.m_Script.m_Data = (uint8_t*) contents;
+    lua_module.m_Script.m_Count = strlen(contents);
+    dmDDF::Result r = dmDDF::SaveMessageToFile(&lua_module, dmLuaDDF::LuaModule::m_DDFDescriptor, file_name);
+    assert(r == dmDDF::RESULT_OK);
 }
 
 TEST_F(ScriptTest, TestReload)
@@ -210,7 +212,7 @@ TEST_F(ScriptTest, TestReload)
     ASSERT_EQ(dmDDF::RESULT_OK, ddf_r);
 
     // NOTE: +1 to remove /
-    CreateFile(script_file_name + 1,
+    CreateScriptFile(script_file_name + 1,
                "function update(self)\n"
                "    go.set_position(vmath.vector3(1,2,3))\n"
                "end\n");
@@ -228,7 +230,7 @@ TEST_F(ScriptTest, TestReload)
     dmTime::Sleep(1000000); // TODO: Currently seconds time resolution in modification time
 
     // NOTE: +1 to remove /
-    CreateFile(script_file_name + 1,
+    CreateScriptFile(script_file_name + 1,
                "function update(self)\n"
                "    go.set_position(vmath.vector3(10,20,30))\n"
                "end\n");
@@ -250,7 +252,6 @@ TEST_F(ScriptTest, TestReload)
     unlink(go_file_name);
 }
 
-
 TEST_F(ScriptTest, Null)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/null.goc");
@@ -268,6 +269,49 @@ TEST_F(ScriptTest, Null)
     action.m_Repeated = 1;
 
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &action, 1));
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmGameObject::Delete(m_Collection, go);
+}
+
+TEST_F(ScriptTest, TestModule)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/main.goc");
+    ASSERT_NE((void*) 0, (void*) go);
+    dmGameObject::Init(m_Collection);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmGameObject::Delete(m_Collection, go);
+}
+
+TEST_F(ScriptTest, TestReloadModule)
+{
+    const char* script_resource_name = "/test_reload_mod.luac";
+    char script_file_name[512];
+    DM_SNPRINTF(script_file_name, sizeof(script_file_name), "/%s%s", m_Path, script_resource_name);
+
+    // NOTE: +1 to remove /
+    CreateScriptFile(script_file_name + 1,
+               "function test_reload_mod_func()\n"
+               "    return 1010\n"
+               "end\n");
+
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/reload.goc");
+    ASSERT_NE((void*) 0, (void*) go);
+    dmGameObject::Init(m_Collection);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    // NOTE: +1 to remove /
+    CreateScriptFile(script_file_name + 1,
+               "function test_reload_mod_func()\n"
+               "    return 2020\n"
+               "end\n");
+
+    dmTime::Sleep(1000000); // TODO: Currently seconds time resolution in modification time
+    dmResource::Result rr = dmResource::ReloadResource(m_Factory, script_resource_name, 0);
+    ASSERT_EQ(dmResource::RESULT_OK, rr);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 

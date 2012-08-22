@@ -29,12 +29,13 @@ import org.eclipse.ui.operations.LinearUndoViolationUserApprover;
 import org.eclipse.ui.operations.RedoActionHandler;
 import org.eclipse.ui.operations.UndoActionHandler;
 import org.eclipse.ui.part.EditorPart;
-
-import com.dynamo.cr.editor.core.ILogger;
-import com.google.inject.Inject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public abstract class AbstractDefoldEditor extends EditorPart {
 
+    // Named abstractLogger due to abstract class
+    protected static Logger abstractLogger = LoggerFactory.getLogger(AbstractDefoldEditor.class);
     private long lastModificationStamp;
     private ActivationListener activationListener;
     protected UndoContext undoContext;
@@ -45,7 +46,7 @@ public abstract class AbstractDefoldEditor extends EditorPart {
     protected boolean inSave = false;
     private ResourceChangedListener resourceChangeListener;
     private final static int UNDO_LIMIT = 100;
-    @Inject protected ILogger logger;
+
 
     @Override
     public void dispose() {
@@ -117,7 +118,7 @@ public abstract class AbstractDefoldEditor extends EditorPart {
             // Refresh if changed externally
             file.refreshLocal(IFile.DEPTH_ZERO, new NullProgressMonitor());
         } catch (CoreException e) {
-            logger.logException(e);
+            abstractLogger.error("Error occurred while refreshing files", e);
             // We continue here. Not much todo if we an error here.
         }
 
@@ -179,7 +180,7 @@ public abstract class AbstractDefoldEditor extends EditorPart {
                 }
             });
         } catch (CoreException e) {
-            this.logger.logException(e);
+            abstractLogger.error("Error occurred while refreshing files", e);
         }
 
     }

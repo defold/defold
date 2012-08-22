@@ -32,8 +32,9 @@ import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Status;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.properties.Entity;
 import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.properties.NotEmpty;
@@ -55,6 +56,8 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
 
     public static PropertyIntrospector<Layer, GridModel> layerIntrospector = new PropertyIntrospector<Layer, GridModel>(Layer.class);
 
+    private static Logger logger = LoggerFactory.getLogger(GridModel.class);
+
     @Property(editorType=EditorType.RESOURCE, extensions={"tileset", "tilesource"})
     @Resource
     @NotEmpty
@@ -62,7 +65,6 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
 
     private final IOperationHistory history;
     private final IUndoContext undoContext;
-    private final ILogger logger;
     private final IContainer contentRoot;
     private TileSetModel tileSetModel;
     private Layer selectedLayer;
@@ -70,11 +72,10 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
     private List<Layer> layers = new ArrayList<Layer>();
 
     @Inject
-    public GridModel(IContainer contentRoot, IOperationHistory history, IUndoContext undoContext, ILogger logger) {
+    public GridModel(IContainer contentRoot, IOperationHistory history, IUndoContext undoContext) {
         this.contentRoot = contentRoot;
         this.history = history;
         this.undoContext = undoContext;
-        this.logger = logger;
     }
 
     @Override
@@ -101,7 +102,7 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
             this.tileSource = tileSet;
             if (this.tileSource != null && !this.tileSource.equals("")) {
                 if (this.tileSetModel == null) {
-                    this.tileSetModel = new TileSetModel(this.contentRoot, null, null, this.logger);
+                    this.tileSetModel = new TileSetModel(this.contentRoot, null, null);
                 }
                 IFile file = this.contentRoot.getFile(new Path(this.tileSource));
                 try {
@@ -267,7 +268,7 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
                 setSelectedLayer(null);
             }
         } catch (IOException e) {
-            logger.logException(e);
+            logger.error("Error occurred while loading grid-model", e);
         }
     }
 
@@ -324,11 +325,11 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
         try {
             status = this.history.execute(operation, null, null);
         } catch (final ExecutionException e) {
-            this.logger.logException(e);
+            logger.error("Error occurred while executing operation", e);
         }
 
         if (status != Status.OK_STATUS) {
-            this.logger.logException(status.getException());
+            logger.error("Error occurred while executing operation", status.getException());
         }
     }
 
@@ -355,7 +356,7 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
                         }
                     });
                 } catch (CoreException e) {
-                    this.logger.logException(e);
+                    logger.error("Error occurred while reloading", e);
                 }
 
                 if (reload[0]) {

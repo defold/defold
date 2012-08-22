@@ -41,8 +41,6 @@ public interface ISceneModel extends IPropertyObjectWorld {
     ILoaderContext getLoaderContext();
     INodeType getNodeType(Class<? extends Node> nodeClass);
 
-    void logException(Throwable e);
-
     BufferedImage getImage(String path);
     TextureHandle getTexture(String path);
 }

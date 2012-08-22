@@ -57,6 +57,7 @@ public class LuaScanner extends RuleBasedScanner {
         name_rule.addWord("until", keyword);
         name_rule.addWord("while", keyword);
         name_rule.addWord("self", keyword);
+        name_rule.addWord("require", keyword);
         rules[1] = name_rule;
 
         rules[2] = new WordRule(nameDetector, defaultToken);

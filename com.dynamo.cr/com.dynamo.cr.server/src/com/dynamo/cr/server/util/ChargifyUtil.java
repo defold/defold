@@ -22,8 +22,9 @@ public class ChargifyUtil {
 
     public static final String SIGNUP_SUCCESS_WH = "signup_success";
     public static final String SIGNUP_FAILURE_WH = "signup_failure";
-    public static final String RENEWAL_FAILURE_WH = "renewal_failure";
     public static final String SUBSCRIPTION_STATE_CHANGE_WH = "subscription_state_change";
+    public static final String SUBSCRIPTION_PRODUCT_CHANGE_WH = "subscription_product_change";
+    public static final String TEST_WH = "test";
 
     private static MessageDigest digestMD5 = null;
     private static MessageDigest digestSHA = null;

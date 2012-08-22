@@ -27,8 +27,8 @@ public class RLogPlugin implements BundleActivator {
     }
 
     public void startLogging() {
+        stopLogging();
         if (listener == null) {
-            stopLogging();
             listener = new RLogListener(new RLogHttpTransport());
             Platform.addLogListener(listener);
             listener.start();

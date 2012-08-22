@@ -19,12 +19,14 @@ import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.swt.events.MouseEvent;
 import org.eclipse.swt.events.MouseListener;
 import org.eclipse.swt.events.MouseMoveListener;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.sceneed.ui.RootManipulator;
 
 public class ManipulatorController implements IRenderViewProvider, MouseListener, MouseMoveListener {
 
+    private static Logger logger = LoggerFactory.getLogger(ManipulatorController.class);
     private IRenderView renderView;
     private IManipulatorRegistry manipulatorRegistry;
     private IManipulatorMode manipulatorMode;
@@ -33,19 +35,16 @@ public class ManipulatorController implements IRenderViewProvider, MouseListener
     private Manipulator selectedManipulator;
     private IOperationHistory undoHistory;
     private IUndoContext undoContext;
-    private ILogger logger;
 
     @Inject
     public ManipulatorController(IRenderView renderView,
                                  IManipulatorRegistry manipulatorRegistry,
                                  IOperationHistory undoHistory,
-                                 IUndoContext undoContext,
-                                 ILogger logger) {
+                                 IUndoContext undoContext) {
         this.renderView = renderView;
         this.manipulatorRegistry = manipulatorRegistry;
         this.undoHistory = undoHistory;
         this.undoContext = undoContext;
-        this.logger = logger;
         this.renderView.addMouseListener(this);
         this.renderView.addMouseMoveListener(this);
         this.renderView.addRenderProvider(this);
@@ -178,11 +177,11 @@ public class ManipulatorController implements IRenderViewProvider, MouseListener
         try {
             status = this.undoHistory.execute(operation, null, null);
         } catch (final ExecutionException e) {
-            this.logger.logException(e);
+            logger.error("Failed to execute operation", e);
         }
 
         if (status != Status.OK_STATUS) {
-            this.logger.logException(status.getException());
+            logger.error("Failed to execute operation", status.getException());
         }
     }
 

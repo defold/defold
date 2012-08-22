@@ -130,7 +130,16 @@ namespace dmInput
                 dmHID::GetGamepadDeviceName(gamepad, &device_name);
                 if (device_name == 0x0)
                 {
-                    dmLogWarning("Gamepad %d is not connected.", gamepad_index);
+                    /*
+                     * NOTE: We used to log a warning here but the warning is removed for the following reasons:
+                     *  - The input-binding file covers several platforms and certain platforms
+                     *    doesn't have support for e.g. pads. But more importantly, sometimes you might have
+                     *    a device connected but sometimes not. It should be up to the user and we shouldn't
+                     *    spam out warnings in such cases. In other words. It's impossible to tell whether the
+                     *    warning is appropriate or not.
+                     *  - We should also have support dynamic pad-connections. Whether a pad is connected
+                     *    or not should be up to the game-ui.
+                     */
                 }
                 else
                 {

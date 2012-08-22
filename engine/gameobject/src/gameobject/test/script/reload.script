@@ -1,0 +1,12 @@
+require "test_reload_mod"
+
+i = 0
+function update(self)
+    if i == 0 then
+        assert(test_reload_mod_func() == 1010)
+    else
+        assert(test_reload_mod_func() == 2020)
+    end
+    i = i + 1
+end
+

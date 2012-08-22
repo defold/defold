@@ -18,6 +18,55 @@ To fill out function names, you can use *Ctrl+Space* to bring up a list of the f
 .Code completion
 image:images/scripting_debugging/completion.png["Code completion"]
 
+Lua Modules
+-----------
+
+Lua modules can be included using the require statement in lua. The module-name should be the absolute path
+to the script from the root of your project. Path elements are separated with the period character.
+
+Example
+~~~~~~~
+
+[source-code, lua]
+----
+-- main-script in spaceship/spaceship.script
+-- Load the utils.player module. The corresponding file is /utils/player.lua
+require "utils.player"
+----
+
+Lua modules can be reloaded similar to regular scripts.
+More about lua modules can be found here link:http://lua-users.org/wiki/ModulesTutorial[Modules Tutorial].
+
+We recommend not using the module(...) statement in lua. With the module(...) statement the module will start from an empty environment
+without the regular functions such as print, etc. Instead of the module statement we recommend qualified names, e.g.
+names separated by underscore, or manually created modules with tables.
+
+Example
+~~~~~~~
+----
+-- qualified name example
+function utils_move_player(self)
+    -- ...
+end
+
+-- manually created module
+local M = {}
+local function move_player(self)
+    -- ...
+end
+M.move_player = move_player
+utils = M
+
+-- The move_player function is now accessible with
+utils.move_player()
+
+----
+
+
+
+NOTE: Modules are currently only supported for game-object-script and not for gui- and render-scripts
+
+
 Debugging
 ---------
 

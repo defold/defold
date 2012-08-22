@@ -22,12 +22,13 @@ import org.eclipse.jface.dialogs.ProgressMonitorDialog;
 import org.eclipse.jface.operation.IRunnableWithProgress;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.ui.handlers.HandlerUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.client.IProjectClient;
 import com.dynamo.cr.editor.Activator;
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.engine.Engine;
-import com.dynamo.cr.target.core.TargetPlugin;
 import com.dynamo.cr.target.sign.IIdentityLister;
 import com.dynamo.cr.target.sign.ISignView;
 import com.dynamo.cr.target.sign.IdentityLister;
@@ -55,6 +56,7 @@ public class SignHandler extends AbstractHandler {
         }
     }
 
+    private static Logger logger = LoggerFactory.getLogger(SignHandler.class);
     private SignDialog view;
     private IdentityLister identityLister;
     private SignPresenter presenter;
@@ -127,7 +129,7 @@ public class SignHandler extends AbstractHandler {
                         ErrorDialog.openError(shell, "Error signing executable", "Unable to sign application", status);
                     }
                 });
-                TargetPlugin.getDefault().getLog().log(status);
+                logger.error("Unable to sign application", e);
             }
         }
 

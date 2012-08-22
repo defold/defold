@@ -9,6 +9,7 @@
 
 #include "../resources/res_camera.h"
 #include "gamesys_ddf.h"
+#include "../gamesys_private.h"
 
 namespace dmGameSystem
 {
@@ -137,7 +138,7 @@ namespace dmGameSystem
 
             // Send the matrices to the render script
 
-            dmhash_t message_id = dmHashString64(dmGameSystemDDF::SetViewProjection::m_DDFDescriptor->m_Name);
+            dmhash_t message_id = dmGameSystemDDF::SetViewProjection::m_DDFDescriptor->m_NameHash;
 
             dmGameSystemDDF::SetViewProjection set_view_projection;
             set_view_projection.m_Id = dmHashString64("game");
@@ -198,7 +199,7 @@ namespace dmGameSystem
             }
             else
             {
-                dmLogWarning("Could not acquire camera focus since the buffer is full (%d).", camera->m_World->m_FocusStack.Size());
+                LogMessageError(params.m_Message, "Could not acquire camera focus since the buffer is full (%d).", camera->m_World->m_FocusStack.Size());
             }
         }
         else if ((dmDDF::Descriptor*)params.m_Message->m_Descriptor == dmGamesysDDF::ReleaseCameraFocus::m_DDFDescriptor)
@@ -220,6 +221,7 @@ namespace dmGameSystem
                 camera->m_World->m_FocusStack.Pop();
             }
         }
+
         return dmGameObject::UPDATE_RESULT_OK;
     }
 

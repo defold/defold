@@ -5,9 +5,7 @@ import java.io.InputStream;
 
 import org.eclipse.core.runtime.CoreException;
 
-import com.dynamo.cr.editor.core.ILogger;
-
-public interface ILoaderContext extends ILogger {
+public interface ILoaderContext {
     Node loadNode(String path) throws IOException, CoreException;
     Node loadNode(String extension, InputStream contents) throws IOException, CoreException;
     Node loadNodeFromTemplate(Class<? extends Node> nodeClass) throws IOException, CoreException;

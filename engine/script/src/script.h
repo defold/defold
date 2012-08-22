@@ -17,6 +17,14 @@ namespace dmScript
 {
     typedef struct Context* HContext;
 
+    enum Result
+    {
+        RESULT_OK = 0,
+        RESULT_LUA_ERROR = -1,
+        RESULT_ARGVAL = -2,
+        RESULT_MODULE_NOT_LOADED = -3,
+    };
+
     /**
      * Create and return a new context.
      * @param config_file optional config file handle
@@ -273,6 +281,53 @@ namespace dmScript
      * @return true if user data could be found
      */
     bool GetUserData(lua_State* L, uintptr_t* out_user_data);
+
+    /**
+     * Add (load) module
+     * @param context script context
+     * @param script lua script to load
+     * @param script_size lua script size
+     * @param script_name script-name. Should be in lua require-format, i.e. syntax use for the require statement. e.g. x.y.z without any extension
+     * @param user_data user data
+     * @return RESULT_OK on success
+     */
+    Result AddModule(HContext context, const char* script, uint32_t script_size, const char* script_name, void* user_data);
+
+    /**
+     * Reload loaded module
+     * @param context script context
+     * @param L lua state
+     * @param script lua script to load
+     * @param script_size lua script size
+     * @param module_hash module hash-name, hashed version of script_name from AddModule
+     * @return RESULT_OK on success
+     */
+    Result ReloadModule(HContext context, lua_State* L, const char* script, uint32_t script_size, dmhash_t module_hash);
+
+    /**
+     * Iterate over all modules
+     * @param profile Profile snapshot to iterate over
+     * @param context User context
+     * @param call_back Call-back function pointer
+     */
+    void IterateModules(HContext context, void* user_context, void (*call_back)(void* user_context, void* user_data));
+
+    /**
+     * Check if a module is loaded
+     * @param context script context
+     * @param script_name script name, see AddModule
+     * @return true if loaded
+     */
+    bool ModuleLoaded(HContext context, const char* script_name);
+
+    /**
+     * Check if a module is loaded by hash
+     * @param context script context
+     * @param module_hash module hash, see ReloadModule
+     * @return true if loaded
+     */
+    bool ModuleLoaded(HContext context, dmhash_t module_hash);
+
 }
 
 #endif // DM_SCRIPT_H

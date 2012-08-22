@@ -2,7 +2,6 @@ package com.dynamo.cr.sceneed.core.test;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -21,7 +20,6 @@ import org.eclipse.ui.ISelectionService;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.dynamo.cr.editor.core.ILogger;
 import com.dynamo.cr.editor.ui.IImageProvider;
 import com.dynamo.cr.sceneed.core.IClipboard;
 import com.dynamo.cr.sceneed.core.ILoaderContext;
@@ -47,7 +45,6 @@ public class SceneTest {
     private ISceneView.IPresenter presenter;
     private ILoaderContext loaderContext;
     private IPresenterContext presenterContext;
-    private ILogger logger;
     private IImageProvider imageProvider;
     private IContainer contentRoot;
     private INodeTypeRegistry nodeTypeRegistry;
@@ -63,7 +60,6 @@ public class SceneTest {
             bind(IModelListener.class).to(ScenePresenter.class).in(Singleton.class);
             bind(ILoaderContext.class).toInstance(loaderContext);
             bind(IPresenterContext.class).toInstance(presenterContext);
-            bind(ILogger.class).toInstance(logger);
             bind(IImageProvider.class).toInstance(imageProvider);
             bind(INodeTypeRegistry.class).toInstance(nodeTypeRegistry);
             bind(IOperationHistory.class).to(DefaultOperationHistory.class).in(Singleton.class);
@@ -82,12 +78,9 @@ public class SceneTest {
         this.view = mock(ISceneView.class);
         this.loaderContext = mock(ILoaderContext.class);
         this.presenterContext = mock(IPresenterContext.class);
-        this.logger = mock(ILogger.class);
         this.imageProvider = mock(IImageProvider.class);
         this.contentRoot = mock(IContainer.class);
         this.nodeTypeRegistry = mock(INodeTypeRegistry.class);
-
-        doThrow(new RuntimeException()).when(this.logger).logException(any(Throwable.class));
 
         Injector injector = Guice.createInjector(new TestModule());
         this.presenter = injector.getInstance(ISceneView.IPresenter.class);

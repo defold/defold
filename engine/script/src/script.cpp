@@ -8,6 +8,7 @@
 #include "script_msg.h"
 #include "script_vmath.h"
 #include "script_sys.h"
+#include "script_module.h"
 
 extern "C"
 {
@@ -20,12 +21,21 @@ namespace dmScript
     HContext NewContext(dmConfigFile::HConfig config_file)
     {
         Context* context = new Context();
+        context->m_Modules.SetCapacity(127, 256);
+        context->m_HashInstances.SetCapacity(443, 256);
         context->m_ConfigFile = config_file;
         return context;
     }
 
+    static void FreeModuleCallback(void* context, const uint64_t* key, Module* value)
+    {
+        free(value->m_Name);
+        free(value->m_Script);
+    }
+
     void DeleteContext(HContext context)
     {
+        context->m_Modules.Iterate(&FreeModuleCallback, (void*) 0);
         delete context;
     }
 
@@ -46,6 +56,7 @@ namespace dmScript
         InitializeMsg(L);
         InitializeVmath(L);
         InitializeSys(L);
+        InitializeModule(L);
 
         lua_register(L, "print", LuaPrint);
 

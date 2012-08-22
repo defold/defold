@@ -257,14 +257,79 @@ proto_compile_task('tilemap', 'tile_ddf_pb2', 'TileGrid', '.tilemap', '.tilegrid
 
 TaskGen.declare_chain('project', 'cat < ${SRC} > ${TGT}', ext_in='.project', ext_out='.projectc', reentrant = False)
 
-Task.simple_task_type('luascript', 'cat < ${SRC} > ${TGT}',
-                      color='PINK',
-                      before='cc cxx',
-                      shell=True)
+from cStringIO import StringIO
+def strip_single_lua_comments(str):
+    str = str.replace("\r", "");
+    sb = StringIO()
+    for line in str.split('\n'):
+        lineTrimmed = line.strip()
+        # Strip single line comments but preserve "pure" multi-line comments
+        # Note that ---[[ is a single line comment
+        # You can enable a block in Lua by adding a hyphen, e.g.
+        #
+        # ---[[
+        # The block is enabled
+        # --]]
+        #
+
+        if not lineTrimmed.startswith("--") or lineTrimmed.startswith("--[[") or lineTrimmed.startswith("--]]"):
+            sb.write(line)
+        sb.write("\n")
+    return sb.getvalue()
+
+def scan_lua(str):
+    str = strip_single_lua_comments(str)
+    ptr = re.compile('--\\[\\[.*?--\\]\\]', re.MULTILINE | re.DOTALL)
+    # NOTE: We don't preserve line-numbers
+    # '' could be replaced with a function
+    str = ptr.sub('', str)
+
+    modules = []
+    rp1 = re.compile("require\\s*?\"(.*?)\"$")
+    rp2 = re.compile("require\\s*?\\(\\s*?\"(.*?)\"\\s*?\\)$")
+    for line in str.split('\n'):
+        line = line.strip()
+        m1 = rp1.match(line)
+        m2 = rp2.match(line)
+        if m1:
+            modules.append(m1.group(1))
+        elif m2:
+            modules.append(m2.group(1))
+    return modules
+
+def compile_lua(task):
+    import lua_ddf_pb2
+    with open(task.inputs[0].srcpath(task.env), 'rb') as in_f:
+        script = in_f.read()
+        modules = scan_lua(script)
+        lua_module = lua_ddf_pb2.LuaModule()
+        lua_module.script = script
+        lua_module.type = lua_ddf_pb2.LuaModule.TYPE_TEXT
+        for m in modules:
+            module_file = "/%s.lua" % m.replace(".", "/")
+            lua_module.modules.append(m)
+            lua_module.resources.append(module_file + 'c')
+
+        with open(task.outputs[0].bldpath(task.env), 'wb') as out_f:
+            out_f.write(lua_module.SerializeToString())
+
+    return 0
+
+task = Task.task_type_from_func('luascript',
+                                func    = compile_lua,
+                                color   = 'PINK')
 
 @extension('.script')
-def testresourcecont_file(self, node):
+def script_file(self, node):
     obj_ext = '.scriptc'
+    task = self.create_task('luascript')
+    task.set_inputs(node)
+    out = node.change_ext(obj_ext)
+    task.set_outputs(out)
+
+@extension('.lua')
+def script_file(self, node):
+    obj_ext = '.luac'
     task = self.create_task('luascript')
     task.set_inputs(node)
     out = node.change_ext(obj_ext)

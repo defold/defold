@@ -45,14 +45,13 @@ class PropsTest : public ::testing::Test
 protected:
     virtual void SetUp()
     {
-        m_ScriptContext = dmScript::NewContext(0);
-        dmGameObject::Initialize(m_ScriptContext);
-
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
         m_Path = "build/default/src/gameobject/test/props";
         m_Factory = dmResource::NewFactory(&params, m_Path);
+        m_ScriptContext = dmScript::NewContext(0);
+        dmGameObject::Initialize(m_ScriptContext, m_Factory);
         m_Register = dmGameObject::NewRegister();
         dmGameObject::RegisterResourceTypes(m_Factory, m_Register);
         dmGameObject::RegisterComponentTypes(m_Factory, m_Register);
@@ -82,8 +81,8 @@ protected:
     {
         dmGameObject::DeleteCollection(m_Collection);
         dmResource::DeleteFactory(m_Factory);
+        dmGameObject::Finalize(m_Factory);
         dmGameObject::DeleteRegister(m_Register);
-        dmGameObject::Finalize();
         dmScript::DeleteContext(m_ScriptContext);
     }
 

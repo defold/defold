@@ -111,20 +111,39 @@ message SetViewProjection
 }
 
 /*# plays a sound
- * Post this message to a sound-component to make it play its sound.
+ * Post this message to a sound-component to make it play its sound. Multiple voices is support. The limit is set to 32 voices per sound component.
  *
  * @message
  * @name play_sound
  * @param [delay] delay in seconds before the sound starts playing, default is 0 (number)
+ * @param [gain] sound gain between 0 and 1, default is 1 (number)
  * @examples
  * <p>
  * Assuming the script belongs to an instance with a sound-component with id "sound", this will make the component play its sound after 1 second:
  * </p>
  * <pre>
- * msg.post("#sound", "play_sound", {delay = 1})
+ * msg.post("#sound", "play_sound", {delay = 1, gain = 0.5})
  * </pre>
  */
 message PlaySound
 {
     optional float delay = 1 [default=0.0];
+    optional float gain = 2 [default=1.0];
+}
+
+/*# stop a playing a sound(s)
+ * Post this message to a sound-component to make it stop playing all active voices
+ *
+ * @message
+ * @name stop_sound
+ * @examples
+ * <p>
+ * Assuming the script belongs to an instance with a sound-component with id "sound", this will make the component stop all playing voices:
+ * </p>
+ * <pre>
+ * msg.post("#sound", "stop_sound")
+ * </pre>
+ */
+message StopSound
+{
 }

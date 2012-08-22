@@ -9,6 +9,7 @@
 #include <sound/sound.h>
 
 #include "gamesys_ddf.h"
+#include "../gamesys_private.h"
 
 namespace dmGameSystem
 {
@@ -16,6 +17,7 @@ namespace dmGameSystem
     {
         dmSound::HSoundInstance m_Instance;
         float                   m_Delay;
+        uint32_t                m_StopRequested : 1;
     };
 
     struct World
@@ -64,6 +66,7 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompSoundUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
+        dmGameObject::UpdateResult update_result = dmGameObject::UPDATE_RESULT_OK;
         World* world = (World*)params.m_World;
         for (uint32_t i = 0; i < world->m_Entries.Size(); ++i)
         {
@@ -80,24 +83,36 @@ namespace dmGameSystem
                         if (r != dmSound::RESULT_OK)
                         {
                             dmLogError("Error playing sound: (%d)", r);
+                            update_result = dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+                            // IsPlaying will hopefully and eventually be true
+                            // so that the instance can be removed
                         }
                     }
                     else if (!dmSound::IsPlaying(entry.m_Instance))
                     {
                         dmSound::Result r = dmSound::DeleteSoundInstance(entry.m_Instance);
+                        entry.m_Instance = 0;
+                        world->m_EntryIndices.Push(i);
                         if (r != dmSound::RESULT_OK)
                         {
                             dmLogError("Error deleting sound: (%d)", r);
-                            return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+                            update_result = dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
                         }
-                        entry.m_Instance = 0;
-                        world->m_EntryIndices.Push(i);
+                    }
+                    else if (entry.m_StopRequested)
+                    {
+                        dmSound::Result r = dmSound::Stop(entry.m_Instance);
+                        if (r != dmSound::RESULT_OK)
+                        {
+                            dmLogError("Error deleting sound: (%d)", r);
+                            update_result = dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+                        }
                     }
                 }
             }
         }
         dmSound::Update();
-        return dmGameObject::UPDATE_RESULT_OK;
+        return update_result;
     }
 
     dmGameObject::UpdateResult CompSoundOnMessage(const dmGameObject::ComponentOnMessageParams& params)
@@ -111,18 +126,38 @@ namespace dmGameSystem
                 dmSound::HSoundData sound_data = (dmSound::HSoundData)*params.m_UserData;
                 uint32_t index = world->m_EntryIndices.Pop();
                 PlayEntry& entry = world->m_Entries[index];
+                entry.m_StopRequested = 0;
                 entry.m_Delay = play_sound->m_Delay;
                 dmSound::Result result = dmSound::NewSoundInstance(sound_data, &entry.m_Instance);
-                if (result != dmSound::RESULT_OK)
+                if (result == dmSound::RESULT_OK)
                 {
-                    dmLogWarning("A sound could not be played, error: %d", result);
+                    dmSound::SetParameter(entry.m_Instance, dmSound::PARAMETER_GAIN, Vectormath::Aos::Vector4(play_sound->m_Gain, 0, 0, 0));
+                }
+                else
+                {
+                    // Free the sound index slot if we can't create a sound-instance.
+                    world->m_EntryIndices.Push(index);
+                    LogMessageError(params.m_Message, "A sound could not be played, error: %d.", result);
                 }
             }
             else
             {
-                dmLogWarning("A sound could not be played since the sound buffer is full (%d).", world->m_EntryIndices.Capacity());
+                LogMessageError(params.m_Message, "A sound could not be played since the sound buffer is full (%d).", world->m_EntryIndices.Capacity());
             }
         }
+        else if (params.m_Message->m_Descriptor == (uintptr_t)dmGameSystemDDF::StopSound::m_DDFDescriptor)
+        {
+            World* world = (World*)params.m_World;
+            for (uint32_t i = 0; i < world->m_Entries.Size(); ++i)
+            {
+                PlayEntry& entry = world->m_Entries[i];
+                if (entry.m_Instance != 0)
+                {
+                    entry.m_StopRequested = 1;
+                }
+            }
+        }
+
         return dmGameObject::UPDATE_RESULT_OK;
     }
 }

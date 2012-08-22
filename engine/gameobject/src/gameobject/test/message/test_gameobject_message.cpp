@@ -20,15 +20,14 @@ class MessageTest : public ::testing::Test
 protected:
     virtual void SetUp()
     {
-        m_ScriptContext = dmScript::NewContext(0);
-        dmGameObject::Initialize(m_ScriptContext);
-
         m_UpdateContext.m_DT = 1.0f / 60.0f;
 
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
         m_Factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test/message");
+        m_ScriptContext = dmScript::NewContext(0);
+        dmGameObject::Initialize(m_ScriptContext, m_Factory);
         m_Register = dmGameObject::NewRegister();
         dmGameObject::RegisterResourceTypes(m_Factory, m_Register);
         dmGameObject::RegisterComponentTypes(m_Factory, m_Register);
@@ -65,9 +64,9 @@ protected:
     {
         dmMessage::DeleteSocket(m_Socket);
         dmGameObject::DeleteCollection(m_Collection);
+        dmGameObject::Finalize(m_Factory);
         dmResource::DeleteFactory(m_Factory);
         dmGameObject::DeleteRegister(m_Register);
-        dmGameObject::Finalize();
         dmScript::DeleteContext(m_ScriptContext);
     }
 
@@ -99,7 +98,7 @@ public:
 };
 
 const static dmhash_t POST_NAMED_ID = dmHashString64("post_named");
-const static dmhash_t POST_DDF_ID = dmHashString64(TestGameObjectDDF::TestMessage::m_DDFDescriptor->m_Name);
+const static dmhash_t POST_DDF_ID = TestGameObjectDDF::TestMessage::m_DDFDescriptor->m_NameHash;
 const static dmhash_t POST_NAMED_TO_INST_ID = dmHashString64("post_named_to_instance");
 
 dmResource::Result MessageTest::ResMessageTargetCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, dmResource::SResourceDescriptor* resource, const char* filename)
@@ -162,7 +161,7 @@ dmGameObject::UpdateResult MessageTest::CompMessageTargetOnMessage(const dmGameO
     {
         self->m_MessageTargetCounter--;
     }
-    else if (params.m_Message->m_Id == dmHashString64(TestGameObjectDDF::TestMessage::m_DDFDescriptor->m_Name))
+    else if (params.m_Message->m_Id == TestGameObjectDDF::TestMessage::m_DDFDescriptor->m_NameHash)
     {
         self->m_MessageTargetCounter++;
     }
@@ -214,7 +213,7 @@ TEST_F(MessageTest, TestPostDDFTo)
     receiver.m_Path = dmGameObject::GetIdentifier(instance);
     receiver.m_Fragment = dmHashString64("script");
     uintptr_t descriptor = (uintptr_t)TestGameObjectDDF::TestMessage::m_DDFDescriptor;
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, dmHashString64(TestGameObjectDDF::TestMessage::m_DDFDescriptor->m_Name), 0, descriptor, &ddf, sizeof(TestGameObjectDDF::TestMessage)));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, TestGameObjectDDF::TestMessage::m_DDFDescriptor->m_NameHash, 0, descriptor, &ddf, sizeof(TestGameObjectDDF::TestMessage)));
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 }
 
@@ -320,7 +319,7 @@ TEST_F(MessageTest, TestInputFocus)
     ASSERT_NE((void*) 0, (void*) go);
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go, "test_instance"));
 
-    dmhash_t message_id = dmHashString64(dmGameObjectDDF::AcquireInputFocus::m_DDFDescriptor->m_Name);
+    dmhash_t message_id = dmGameObjectDDF::AcquireInputFocus::m_DDFDescriptor->m_NameHash;
     dmMessage::URL receiver;
     receiver.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
     receiver.m_Path = dmGameObject::GetIdentifier(go);
@@ -333,7 +332,7 @@ TEST_F(MessageTest, TestInputFocus)
 
     ASSERT_EQ(1u, m_Collection->m_InputFocusStack.Size());
 
-    message_id = dmHashString64(dmGameObjectDDF::ReleaseInputFocus::m_DDFDescriptor->m_Name);
+    message_id = dmGameObjectDDF::ReleaseInputFocus::m_DDFDescriptor->m_NameHash;
 
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, (uintptr_t)go, (uintptr_t)dmGameObjectDDF::ReleaseInputFocus::m_DDFDescriptor, 0x0, 0));
 
@@ -354,7 +353,7 @@ struct GameObjectTransformContext
 
 void DispatchGameObjectTransformCallback(dmMessage::Message *message, void* user_ptr)
 {
-    if (message->m_Id == dmHashString64(dmGameObjectDDF::TransformResponse::m_DDFDescriptor->m_Name))
+    if (message->m_Id == dmGameObjectDDF::TransformResponse::m_DDFDescriptor->m_NameHash)
     {
         dmGameObjectDDF::TransformResponse* ddf = (dmGameObjectDDF::TransformResponse*)message->m_Data;
         GameObjectTransformContext* context = (GameObjectTransformContext*)user_ptr;
@@ -383,7 +382,7 @@ TEST_F(MessageTest, TestGameObjectTransform)
     dmGameObject::SetPosition(go, Vectormath::Aos::Point3(1.0f, 0.0f, 0.0f));
     dmGameObject::SetRotation(go, Vectormath::Aos::Quat(sq_2_half, 0.0f, 0.0f, sq_2_half));
 
-    dmhash_t message_id = dmHashString64(dmGameObjectDDF::RequestTransform::m_DDFDescriptor->m_Name);
+    dmhash_t message_id = dmGameObjectDDF::RequestTransform::m_DDFDescriptor->m_NameHash;
     dmMessage::HSocket socket;
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("test_socket", &socket));
     dmMessage::URL sender;
@@ -439,7 +438,7 @@ TEST_F(MessageTest, TestSetParent)
     dmGameObject::SetPosition(go, Vectormath::Aos::Point3(1.0f, 0.0f, 0.0f));
     dmGameObject::SetRotation(go, Vectormath::Aos::Quat(sq_2_half, 0.0f, 0.0f, sq_2_half));
 
-    dmhash_t message_id = dmHashString64(dmGameObjectDDF::SetParent::m_DDFDescriptor->m_Name);
+    dmhash_t message_id = dmGameObjectDDF::SetParent::m_DDFDescriptor->m_NameHash;
     dmMessage::URL receiver;
     receiver.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
     receiver.m_Path = dmGameObject::GetIdentifier(go);

@@ -365,6 +365,24 @@
                value="rebuild">
          </parameter>
       </key>
+      <key
+            commandId="com.dynamo.crepo.commands.launch"
+            schemeId="com.dynamo.cr.editor.ui.defoldScheme"
+            sequence="M1+B">
+         <parameter
+               id="com.dynamo.crepo.commands.launch.type"
+               value="build">
+         </parameter>
+      </key>
+      <key
+            commandId="com.dynamo.crepo.commands.launch"
+            schemeId="com.dynamo.cr.editor.ui.defoldScheme"
+            sequence="M1+Shift+B">
+         <parameter
+               id="com.dynamo.crepo.commands.launch.type"
+               value="rebuild">
+         </parameter>
+      </key>
    </extension>
    <extension
          id="com.dynamo.cr.newwizards"

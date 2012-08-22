@@ -202,10 +202,8 @@ public class UsersResource extends BaseResource {
     public UserSubscriptionInfo subscribe(@PathParam("user") String user,
             @QueryParam("external_id") String externalId) {
         User u = server.getUser(em, user);
-        List<UserSubscription> subscriptions = em
-                .createQuery("select us from UserSubscription us where us.user = :user", UserSubscription.class)
-                .setParameter("user", u).getResultList();
-        if (subscriptions.isEmpty()) {
+        UserSubscription us = ModelUtil.findUserSubscriptionByUser(em, u);
+        if (us == null) {
             UserSubscription subscription = server.getBillingProvider().getSubscription(Long.parseLong(externalId));
             subscription.setUser(u);
             em.persist(subscription);
@@ -217,7 +215,8 @@ public class UsersResource extends BaseResource {
             return ResourceUtil.createUserSubscriptionInfo(subscription, server.getConfiguration());
         } else {
             logger.error(BILLING_MARKER,
-                    String.format("Could not create subscription (external %d) for user %s since it already exists.",
+                    String.format(
+                            "Could not create subscription (external %d) for user %s since a subscription already exists.",
                             externalId, u.getEmail()));
             throwWebApplicationException(Status.CONFLICT, "User already has subscription");
         }
@@ -229,11 +228,9 @@ public class UsersResource extends BaseResource {
     @Transactional
     public UserSubscriptionInfo getSubscription(@PathParam("user") String user) {
         User u = server.getUser(em, user);
-        List<UserSubscription> subscriptions = em
-                .createQuery("select us from UserSubscription us where us.user = :user", UserSubscription.class)
-                .setParameter("user", u).getResultList();
-        if (subscriptions.size() > 0) {
-            return ResourceUtil.createUserSubscriptionInfo(subscriptions.get(0), server.getConfiguration());
+        UserSubscription us = ModelUtil.findUserSubscriptionByUser(em, u);
+        if (us != null) {
+            return ResourceUtil.createUserSubscriptionInfo(us, server.getConfiguration());
         } else {
             UserSubscriptionInfo.Builder builder = UserSubscriptionInfo.newBuilder();
             BillingProduct defaultProduct = null;
@@ -261,10 +258,8 @@ public class UsersResource extends BaseResource {
             @PathParam("user") String user, @QueryParam("product") String product, @QueryParam("state") String state,
             @QueryParam("external_id") String externalId) {
         User u = server.getUser(em, user);
-        List<UserSubscription> subscriptions = em
-                .createQuery("select us from UserSubscription us where us.user = :user", UserSubscription.class)
-                .setParameter("user", u).getResultList();
-        if (subscriptions.size() > 0) {
+        UserSubscription us = ModelUtil.findUserSubscriptionByUser(em, u);
+        if (us != null) {
             int nonNull = 0;
             nonNull += product != null ? 1 : 0;
             nonNull += state != null ? 1 : 0;
@@ -273,50 +268,49 @@ public class UsersResource extends BaseResource {
                 throwWebApplicationException(Status.CONFLICT,
                         "Only one of the parameters product, state and external_id is accepted at a time.");
             }
-            UserSubscription subscription = subscriptions.get(0);
             IBillingProvider billingProvider = server.getBillingProvider();
             // Migrate subscription
             if (product != null) {
                 BillingProduct newProduct = server.getProduct(product);
-                if (newProduct.getId() != subscription.getProductId()) {
-                    if (subscription.getState() != State.ACTIVE) {
+                if (newProduct.getId() != us.getProductId()) {
+                    if (us.getState() != State.ACTIVE) {
                         throwWebApplicationException(Status.CONFLICT, "Only active subscriptions can be updated");
                     }
-                    billingProvider.migrateSubscription(subscription, newProduct.getId());
-                    subscription.setProductId((long) newProduct.getId());
+                    billingProvider.migrateSubscription(us, newProduct);
+                    us.setProductId((long) newProduct.getId());
                 }
             }
             // Update state
             if (state != null) {
                 State newState = State.valueOf(state);
-                State oldState = subscription.getState();
+                State oldState = us.getState();
                 if (oldState != newState) {
                     if (newState != State.ACTIVE) {
                         throwWebApplicationException(Status.CONFLICT, "Subscriptions can only be manually activated");
                     }
                     if (oldState == State.CANCELED) {
-                        billingProvider.reactivateSubscription(subscription);
+                        billingProvider.reactivateSubscription(us);
                     }
                 }
             }
             // Update from provider
             if (externalId != null) {
                 UserSubscription s = server.getBillingProvider().getSubscription(Long.parseLong(externalId));
-                subscription.setCreditCard(s.getCreditCard());
-                subscription.setExternalId(s.getExternalId());
-                subscription.setExternalCustomerId(s.getExternalCustomerId());
-                subscription.setProductId(s.getProductId());
-                subscription.setState(s.getState());
+                us.setCreditCard(s.getCreditCard());
+                us.setExternalId(s.getExternalId());
+                us.setExternalCustomerId(s.getExternalCustomerId());
+                us.setProductId(s.getProductId());
+                us.setState(s.getState());
                 logger.info(
                         BILLING_MARKER,
                         String.format("User %s changed payment details for subscription %d (external %d).",
-                                u.getEmail(), subscription.getId(), subscription.getExternalId()));
+                                u.getEmail(), us.getId(), us.getExternalId()));
             }
-            em.persist(subscription);
+            em.persist(us);
             em.getTransaction().commit();
             em.getTransaction().begin();
-            em.refresh(subscription);
-            return ResourceUtil.createUserSubscriptionInfo(subscription, server.getConfiguration());
+            em.refresh(us);
+            return ResourceUtil.createUserSubscriptionInfo(us, server.getConfiguration());
         } else {
             throwWebApplicationException(Status.NOT_FOUND, "User has no subscription");
         }
@@ -328,22 +322,23 @@ public class UsersResource extends BaseResource {
     @Transactional
     public void deleteSubscription(@PathParam("user") String user) {
         User u = server.getUser(em, user);
-        List<UserSubscription> subscriptions = em
-                .createQuery("select us from UserSubscription us where us.user = :user", UserSubscription.class)
-                .setParameter("user", u).getResultList();
-        if (subscriptions.size() > 0) {
-            UserSubscription subscription = subscriptions.get(0);
-            Long subscriptionId = subscription.getId();
-            Long externalId = subscription.getExternalId();
-            server.getBillingProvider().cancelSubscription(subscription);
-            em.remove(subscription);
-            logger.info(BILLING_MARKER,
-                    String.format("Subscription %d (external %d) for user %s was permanently terminated.",
-                            subscriptionId, externalId, u.getEmail()));
+        UserSubscription us = ModelUtil.findUserSubscriptionByUser(em, u);
+        if (us != null) {
+            if (us.getState() == State.CANCELED) {
+                Long subscriptionId = us.getId();
+                Long externalId = us.getExternalId();
+                em.remove(us);
+                logger.info(BILLING_MARKER, "Subscription {} (external {}) for user {} was permanently terminated.",
+                        new Object[] { subscriptionId, externalId, u.getEmail() });
+            } else {
+                logger.error(BILLING_MARKER,
+                        "Forbidden attempt to delete subscription {} (external {}), which is not yet canceled.",
+                        us.getId(), us.getExternalCustomerId());
+                throwWebApplicationException(Status.CONFLICT, "User has no subscription");
+            }
         } else {
             logger.error(BILLING_MARKER,
-                    String.format("Could not permanently terminate subscription for user %s since it's missing.",
-                            u.getEmail()));
+                    "Could not permanently terminate subscription for user {} since it's missing.", u.getEmail());
             throwWebApplicationException(Status.NOT_FOUND, "User has no subscription");
         }
     }

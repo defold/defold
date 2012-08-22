@@ -1,7 +1,6 @@
 package com.dynamo.cr.server.resources.test;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
 import java.io.File;
@@ -11,13 +10,14 @@ import java.util.Properties;
 import javax.inject.Singleton;
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
+import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriBuilder;
 
-import org.codehaus.jackson.JsonNode;
 import org.eclipse.persistence.config.PersistenceUnitProperties;
 import org.eclipse.persistence.jpa.osgi.PersistenceProvider;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -31,7 +31,6 @@ import com.dynamo.cr.protocol.proto.Protocol.UserSubscriptionInfo;
 import com.dynamo.cr.protocol.proto.Protocol.UserSubscriptionState;
 import com.dynamo.cr.server.ConfigurationProvider;
 import com.dynamo.cr.server.Server;
-import com.dynamo.cr.server.billing.ChargifyService;
 import com.dynamo.cr.server.billing.IBillingProvider;
 import com.dynamo.cr.server.billing.test.ChargifySimulator;
 import com.dynamo.cr.server.mail.IMailProcessor;
@@ -41,7 +40,6 @@ import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.model.User.Role;
 import com.dynamo.cr.server.model.UserSubscription;
 import com.dynamo.cr.server.test.Util;
-import com.dynamo.cr.server.util.ChargifyUtil;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
@@ -52,7 +50,6 @@ import com.sun.jersey.api.client.UniformInterfaceException;
 import com.sun.jersey.api.client.WebResource;
 import com.sun.jersey.api.client.config.DefaultClientConfig;
 import com.sun.jersey.api.client.filter.HTTPBasicAuthFilter;
-import com.sun.jersey.api.representation.Form;
 
 public class BillingIntegrationTest {
 
@@ -62,14 +59,12 @@ public class BillingIntegrationTest {
     User joeUser;
     DefaultClientConfig clientConfig;
     WebResource joeUsersWebResource;
-    WebResource webhookResource;
-    ChargifySimulator chargifySimulator;
 
     static Server server;
     static Module module;
     static IMailer mailer;
     static EntityManagerFactory emf;
-    static IBillingProvider billingProvider;
+    static ChargifySimulator chargifySimulator;
     static BillingProduct freeProduct;
     static BillingProduct smallProduct;
 
@@ -81,7 +76,7 @@ public class BillingIntegrationTest {
             bind(Configuration.class).toProvider(ConfigurationProvider.class).in(Singleton.class);
             bind(IMailProcessor.class).to(MailProcessor.class).in(Singleton.class);
             bind(IMailer.class).toInstance(mailer);
-            bind(IBillingProvider.class).to(ChargifyService.class).in(Singleton.class);
+            bind(IBillingProvider.class).to(ChargifySimulator.class).in(Singleton.class);
 
             Properties props = new Properties();
             props.put(PersistenceUnitProperties.CLASSLOADER, this.getClass().getClassLoader());
@@ -110,6 +105,7 @@ public class BillingIntegrationTest {
         Injector injector = Guice.createInjector(module);
         server = injector.getInstance(Server.class);
         emf = server.getEntityManagerFactory();
+        chargifySimulator = (ChargifySimulator) injector.getInstance(IBillingProvider.class);
 
         freeProduct = server.getProductByHandle("free");
         smallProduct = server.getProductByHandle("small");
@@ -146,24 +142,17 @@ public class BillingIntegrationTest {
 
         Client client = Client.create(clientConfig);
 
-        URI uri = UriBuilder.fromUri(String.format("http://localhost/chargify")).port(port).build();
-        this.webhookResource = client.resource(uri);
-
         client = Client.create(clientConfig);
         client.addFilter(new HTTPBasicAuthFilter(joeEmail, joePasswd));
-        uri = UriBuilder.fromUri(String.format("http://localhost/users")).port(port).build();
+        URI uri = UriBuilder.fromUri(String.format("http://localhost/users")).port(port).build();
         joeUsersWebResource = client.resource(uri);
 
-        Configuration configuration = server.getConfiguration();
+        chargifySimulator.setDelayedSignUpFailure(false);
+    }
 
-        client = Client.create(clientConfig);
-        client.addFilter(new HTTPBasicAuthFilter(configuration.getBillingApiKey(), "x"));
-        uri = UriBuilder.fromUri(configuration.getBillingApiUrl()).build();
-        WebResource chargifyResource = client.resource(uri);
-
-        chargifySimulator = new ChargifySimulator(chargifyResource, webhookResource,
-                configuration.getBillingSharedKey());
-        billingProvider = new ChargifyService(configuration);
+    @After
+    public void tearDown() {
+        chargifySimulator.clearWebhooks();
     }
 
     private UserSubscriptionInfo getSubscription() {
@@ -182,11 +171,9 @@ public class BillingIntegrationTest {
         }
     }
 
-    private void createUserSubscription(JsonNode root) {
-        JsonNode subscription = root.get("subscription");
-        int subscriptionId = subscription.get("id").getIntValue();
+    private void createUserSubscription(Long externalId) {
         ClientResponse response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
-                .queryParam("external_id", Integer.toString(subscriptionId))
+                .queryParam("external_id", externalId.toString())
                 .post(ClientResponse.class);
         assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
     }
@@ -194,102 +181,90 @@ public class BillingIntegrationTest {
     @Test
     public void testSignUp() throws Exception {
         // Simulate hosted sign-up page
-        JsonNode root = this.chargifySimulator.signUpUser(smallProduct, joeUser, "1", false);
-        assertTrue(root != null);
+        UserSubscription s = chargifySimulator.signUpUser(smallProduct, joeUser, "1", "12", "2020", "");
 
-        createUserSubscription(root);
-
-        // Verify active
-        UserSubscriptionInfo s = getSubscription();
-        assertEquals(UserSubscriptionState.ACTIVE, s.getState());
-
-        // Webhooks
-        assertTrue(this.chargifySimulator.sendWebhooks());
+        // Create it locally
+        createUserSubscription(s.getExternalId());
 
         // Verify active
-        s = getSubscription();
-        assertEquals(UserSubscriptionState.ACTIVE, s.getState());
+        UserSubscriptionInfo subscription = getSubscription();
+        assertEquals(UserSubscriptionState.ACTIVE, subscription.getState());
+
+        // Wait for webhooks
+        chargifySimulator.sendWebhooks();
+
+        // Verify active
+        subscription = getSubscription();
+        assertEquals(UserSubscriptionState.ACTIVE, subscription.getState());
     }
 
-    @Test
+    @Test(expected = WebApplicationException.class)
     public void testSignUpFailure() throws Exception {
         // Simulate hosted sign-up page, failure by credit card
-        JsonNode subscription = this.chargifySimulator.signUpUser(smallProduct, joeUser, "2", false);
-        assertTrue(subscription == null);
+        chargifySimulator.signUpUser(smallProduct, joeUser, "2", "12", "2020", "");
     }
 
     @Test
     public void testSignUpLaterFailure() throws Exception {
-        // Simulate hosted sign-up page, failure by credit card
-        JsonNode root = this.chargifySimulator.signUpUser(smallProduct, joeUser, "1", true);
-        assertTrue(root != null);
+        chargifySimulator.setDelayedSignUpFailure(true);
+        // Simulate hosted sign-up page, failure later by credit card
+        UserSubscription s = chargifySimulator.signUpUser(smallProduct, joeUser, "1", "12", "2020", "");
 
-        createUserSubscription(root);
+        // Create it locally
+        createUserSubscription(s.getExternalId());
 
         // Verify active
-        UserSubscriptionInfo s = getSubscription();
-        assertEquals(UserSubscriptionState.ACTIVE, s.getState());
+        UserSubscriptionInfo subscription = getSubscription();
+        assertEquals(UserSubscriptionState.ACTIVE, subscription.getState());
 
-        // Webhooks
-        assertTrue(this.chargifySimulator.sendWebhooks());
+        // Wait for webhooks
+        chargifySimulator.sendWebhooks();
 
         // Verify canceled
-        s = getSubscription();
-        assertEquals(UserSubscriptionState.CANCELED, s.getState());
+        subscription = getSubscription();
+        assertEquals(UserSubscriptionState.CANCELED, subscription.getState());
     }
 
     @Test
     public void testRenewalFailureReactivate() throws Exception {
         // Simulate hosted sign-up page
-        JsonNode root = this.chargifySimulator.signUpUser(smallProduct, joeUser, "1", false);
-        assertTrue(root != null);
+        UserSubscription subscription = chargifySimulator.signUpUser(smallProduct, joeUser, "1", "12", "2020", "");
 
-        createUserSubscription(root);
+        // Create it locally
+        createUserSubscription(subscription.getExternalId());
 
         // Verify active
         UserSubscriptionInfo s = getSubscription();
         assertEquals(UserSubscriptionState.ACTIVE, s.getState());
 
-        // Webhooks
-        assertTrue(this.chargifySimulator.sendWebhooks());
+        // Wait for webhooks
+        chargifySimulator.sendWebhooks();
 
         // Verify active
         s = getSubscription();
         assertEquals(UserSubscriptionState.ACTIVE, s.getState());
 
-        int subscriptionId = root.get("subscription").get("id").getIntValue();
-        Form f = new Form();
-        f.add("payload[subscription][id]", Integer.toString(subscriptionId));
-        ClientResponse response = ChargifyUtil.fakeWebhook(this.webhookResource, "renewal_failure", f, true, server
-                .getConfiguration()
-                .getBillingSharedKey());
-        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
-        // Also let chargify update its status
-        UserSubscription subscription = new UserSubscription();
-        subscription.setExternalId((long) subscriptionId);
-        billingProvider.cancelSubscription(subscription);
+        // Simulate external cancel, i.e. renewal failure
+        chargifySimulator.cancelSubscription(subscription);
+
+        // Wait for webhooks
+        chargifySimulator.sendWebhooks();
 
         // Verify canceled
         s = getSubscription();
         assertEquals(UserSubscriptionState.CANCELED, s.getState());
 
         // Reactivate
-        response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
+        ClientResponse response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
                 .queryParam("state", "ACTIVE").put(ClientResponse.class);
         assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
 
-        // Verify pending
+        // Verify active
         s = getSubscription();
         assertEquals(UserSubscriptionState.ACTIVE, s.getState());
 
-        // Webhook it
-        f = new Form();
-        f.add("payload[subscription][id]", Integer.toString(subscriptionId));
-        f.add("payload[subscription][state]", "active");
-        response = ChargifyUtil.fakeWebhook(this.webhookResource, "subscription_state_change", f, true, server
-                .getConfiguration()
-                .getBillingSharedKey());
-        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+        // Cancel it
+        chargifySimulator.cancelSubscription(subscription);
 
         // Verify active
         s = getSubscription();
@@ -299,35 +274,34 @@ public class BillingIntegrationTest {
     @Test
     public void testRenewalFailureTerminate() throws Exception {
         // Simulate hosted sign-up page
-        JsonNode root = this.chargifySimulator.signUpUser(smallProduct, joeUser, "1", false);
-        assertTrue(root != null);
+        UserSubscription subscription = chargifySimulator.signUpUser(smallProduct, joeUser, "1", "12", "2020", "");
 
-        createUserSubscription(root);
+        // Create it locally
+        createUserSubscription(subscription.getExternalId());
 
         // Verify active
         UserSubscriptionInfo s = getSubscription();
         assertEquals(UserSubscriptionState.ACTIVE, s.getState());
 
-        // Webhooks
-        assertTrue(this.chargifySimulator.sendWebhooks());
+        // Wait for webhooks
+        chargifySimulator.sendWebhooks();
 
         // Verify active
         s = getSubscription();
         assertEquals(UserSubscriptionState.ACTIVE, s.getState());
 
-        Form f = new Form();
-        f.add("payload[subscription][id]", Integer.toString(root.get("subscription").get("id").getIntValue()));
-        ClientResponse response = ChargifyUtil.fakeWebhook(this.webhookResource, "renewal_failure", f, true, server
-                .getConfiguration()
-                .getBillingSharedKey());
-        assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+        // Simulate external cancel, i.e. renewal failure
+        chargifySimulator.cancelSubscription(subscription);
+
+        // Wait for webhooks
+        chargifySimulator.sendWebhooks();
 
         // Verify canceled
         s = getSubscription();
         assertEquals(UserSubscriptionState.CANCELED, s.getState());
 
         // Terminate
-        response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
+        ClientResponse response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
                 .delete(ClientResponse.class);
         assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
 
@@ -339,17 +313,17 @@ public class BillingIntegrationTest {
     @Test
     public void testMigrate() throws Exception {
         // Simulate hosted sign-up page
-        JsonNode root = this.chargifySimulator.signUpUser(smallProduct, joeUser, "1", false);
-        assertTrue(root != null);
+        UserSubscription subscription = chargifySimulator.signUpUser(smallProduct, joeUser, "1", "12", "2020", "");
 
-        createUserSubscription(root);
+        // Create it locally
+        createUserSubscription(subscription.getExternalId());
 
         // Verify active
         UserSubscriptionInfo s = getSubscription();
         assertEquals(UserSubscriptionState.ACTIVE, s.getState());
 
-        // Webhooks
-        assertTrue(this.chargifySimulator.sendWebhooks());
+        // Wait for webhooks
+        chargifySimulator.sendWebhooks();
 
         // Verify active
         s = getSubscription();
@@ -357,12 +331,22 @@ public class BillingIntegrationTest {
 
         // Migrate
         ClientResponse response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
-                .queryParam("product", Long.toString(freeProduct.getId()))
+                .queryParam("product", Integer.toString(freeProduct.getId()))
                 .put(ClientResponse.class);
         assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
 
         // Verify migration
         s = getSubscription();
         assertEquals(freeProduct.getId(), s.getProduct().getId());
+
+        // Migrate back
+        response = joeUsersWebResource.path(String.format("/%d/subscription", joeUser.getId()))
+                .queryParam("product", Integer.toString(smallProduct.getId()))
+                .put(ClientResponse.class);
+        assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
+
+        // Verify migration
+        s = getSubscription();
+        assertEquals(smallProduct.getId(), s.getProduct().getId());
     }
 }
