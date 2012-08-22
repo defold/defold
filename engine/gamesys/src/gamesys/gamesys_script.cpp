@@ -7,6 +7,7 @@
 
 #include "physics_ddf.h"
 #include "gamesys_ddf.h"
+#include "sprite_ddf.h"
 
 extern "C"
 {
@@ -39,8 +40,8 @@ namespace dmGameSystem
      * @name physics.ray_cast
      * @param from the world position of the start of the ray (vector3)
      * @param to the world position of the end of the ray (vector3)
-     * @param groups a lua table containing the hashed groups for which to test collisions against
-     * @param [request_id] a number between 0-255 that will be sent back in the response for identification, 0 by default
+     * @param groups a lua table containing the hashed groups for which to test collisions against (table)
+     * @param [request_id] a number between 0-255 that will be sent back in the response for identification, 0 by default (number)
      * @examples
      * <p>
      * How to perform a ray cast:
@@ -156,6 +157,7 @@ namespace dmGameSystem
      * function init(self, params)
      *     -- do something with params.my_value which is now one
      * end
+     * </pre>
      */
     int FactoryComp_Create(lua_State* L)
     {
@@ -222,6 +224,113 @@ namespace dmGameSystem
         {0, 0}
     };
 
+    /*# make a sprite flip the animations horizontally or not
+     * Which sprite to flip is identified by the URL.
+     * If the currently playing animation is flipped by default, flipping it again will make it appear like the original texture.
+     *
+     * @name sprite.set_hflip
+     * @param url the sprite that should flip its animations (url)
+     * @param flip if the sprite should flip its animations or not (boolean)
+     * @examples
+     * <p>
+     * How to flip a sprite so it faces the horizontal movement:
+     * </p>
+     * <pre>
+     * function update(self, dt)
+     *     -- calculate self.velocity somehow
+     *     sprite.set_hflip("#sprite", self.velocity.x < 0)
+     * end
+     * </pre>
+     * <p>It is assumed that the sprite component has id "sprite" and that the original animations faces right.</p>
+     */
+    int SpriteComp_SetHFlip(lua_State* L)
+    {
+        int top = lua_gettop(L);
+
+        dmMessage::URL sender;
+        uintptr_t user_data;
+        if (dmScript::GetURL(L, &sender) && dmScript::GetUserData(L, &user_data) && user_data != 0)
+        {
+            const uint32_t buffer_size = 256;
+            uint8_t buffer[buffer_size];
+            dmGameSystemDDF::SetFlipHorizontal* request = (dmGameSystemDDF::SetFlipHorizontal*)buffer;
+
+            uint32_t msg_size = sizeof(dmGameSystemDDF::SetFlipHorizontal);
+
+            request->m_Flip = (uint32_t)lua_toboolean(L, 2);
+
+            dmMessage::URL receiver;
+
+            dmScript::ResolveURL(L, 1, &receiver, &sender);
+
+            dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetFlipHorizontal::m_DDFDescriptor->m_NameHash, user_data, (uintptr_t)dmGameSystemDDF::SetFlipHorizontal::m_DDFDescriptor, buffer, msg_size);
+            assert(top == lua_gettop(L));
+            return 0;
+        }
+        else
+        {
+            assert(top == lua_gettop(L));
+            return luaL_error(L, "sprite.set_hflip is not available from this script-type.");
+        }
+    }
+
+    /*# make a sprite flip the animations vertically or not
+     * Which sprite to flip is identified by the URL.
+     * If the currently playing animation is flipped by default, flipping it again will make it appear like the original texture.
+     *
+     * @name sprite.set_vflip
+     * @param url the sprite that should flip its animations (url)
+     * @param flip if the sprite should flip its animations or not (boolean)
+     * @examples
+     * <p>
+     * How to flip a sprite in a game which negates gravity as a game mechanic:
+     * </p>
+     * <pre>
+     * function update(self, dt)
+     *     -- calculate self.up_side_down somehow
+     *     sprite.set_vflip("#sprite", self.up_side_down)
+     * end
+     * </pre>
+     * <p>It is assumed that the sprite component has id "sprite" and that the original animations are up-right.</p>
+     */
+    int SpriteComp_SetVFlip(lua_State* L)
+    {
+        int top = lua_gettop(L);
+
+        dmMessage::URL sender;
+        uintptr_t user_data;
+        if (dmScript::GetURL(L, &sender) && dmScript::GetUserData(L, &user_data) && user_data != 0)
+        {
+            const uint32_t buffer_size = 256;
+            uint8_t buffer[buffer_size];
+            dmGameSystemDDF::SetFlipVertical* request = (dmGameSystemDDF::SetFlipVertical*)buffer;
+
+            uint32_t msg_size = sizeof(dmGameSystemDDF::SetFlipVertical);
+
+            request->m_Flip = (uint32_t)lua_toboolean(L, 2);
+
+            dmMessage::URL receiver;
+
+            dmScript::ResolveURL(L, 1, &receiver, &sender);
+
+            dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetFlipVertical::m_DDFDescriptor->m_NameHash, user_data, (uintptr_t)dmGameSystemDDF::SetFlipVertical::m_DDFDescriptor, buffer, msg_size);
+            assert(top == lua_gettop(L));
+            return 0;
+        }
+        else
+        {
+            assert(top == lua_gettop(L));
+            return luaL_error(L, "sprite.set_vflip is not available from this script-type.");
+        }
+    }
+
+    static const luaL_reg SPRITE_COMP_FUNCTIONS[] =
+    {
+            {"set_hflip",   SpriteComp_SetHFlip},
+            {"set_vflip",   SpriteComp_SetVFlip},
+            {0, 0}
+    };
+
     bool InitializeScriptLibs(const ScriptLibContext& context)
     {
         lua_State* L = context.m_LuaState;
@@ -236,6 +345,8 @@ namespace dmGameSystem
         luaL_register(L, "physics", PHYSICS_FUNCTIONS);
         lua_pop(L, 1);
         luaL_register(L, "factory", FACTORY_COMP_FUNCTIONS);
+        lua_pop(L, 1);
+        luaL_register(L, "sprite", SPRITE_COMP_FUNCTIONS);
         lua_pop(L, 1);
 
         PhysicsScriptContext* physics_context = new PhysicsScriptContext();

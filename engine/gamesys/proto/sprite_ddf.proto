@@ -62,3 +62,15 @@ message AnimationDone
 {
     required uint32 current_tile = 1;
 }
+
+/* Function wrapper documented in gamesys_script.cpp */
+message SetFlipHorizontal
+{
+    required uint32 flip = 1;
+}
+
+/* Function wrapper documented in gamesys_script.cpp */
+message SetFlipVertical
+{
+    required uint32 flip = 1;
+}

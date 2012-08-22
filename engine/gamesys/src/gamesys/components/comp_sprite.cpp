@@ -63,6 +63,8 @@ namespace dmGameSystem
         uint8_t                     m_Enabled : 1;
         uint8_t                     m_PlayBackwards : 1;
         uint8_t                     m_Playing : 1;
+        uint8_t                     m_FlipHorizontal : 1;
+        uint8_t                     m_FlipVertical : 1;
     };
 
     struct SpriteWorld
@@ -269,7 +271,6 @@ namespace dmGameSystem
     void SortSprites(SpriteWorld* sprite_world)
     {
         DM_PROFILE(Sprite, "Sort");
-        uint32_t n = sprite_world->m_Components.Size();
         dmArray<uint32_t>* buffer = &sprite_world->m_RenderSortBuffer;
         SortPred pred(sprite_world);
         std::sort(buffer->Begin(), buffer->End(), pred);
@@ -308,7 +309,7 @@ namespace dmGameSystem
 
             float u0 = (tile_x * step_x + tile_set_ddf->m_TileMargin) * texture_width_recip;
             float u1 = u0 + tile_width * texture_width_recip;
-            if (animation_ddf->m_FlipHorizontal != 0)
+            if ((animation_ddf->m_FlipHorizontal != 0) != (component->m_FlipHorizontal != 0))
             {
                 float u = u0;
                 u0 = u1;
@@ -316,7 +317,7 @@ namespace dmGameSystem
             }
             float v0 = (tile_y * step_y + tile_set_ddf->m_TileMargin) * texture_height_recip;
             float v1 = v0 + tile_height * texture_height_recip;
-            if (animation_ddf->m_FlipVertical != 0)
+            if ((animation_ddf->m_FlipVertical != 0) != (component->m_FlipVertical != 0))
             {
                 float v = v0;
                 v0 = v1;
@@ -692,6 +693,16 @@ namespace dmGameSystem
                     component->m_ListenerInstance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(component->m_Instance), params.m_Message->m_Sender.m_Path);
                     component->m_ListenerComponent = params.m_Message->m_Sender.m_Fragment;
                 }
+            }
+            else if (params.m_Message->m_Id == dmGameSystemDDF::SetFlipHorizontal::m_DDFDescriptor->m_NameHash)
+            {
+                dmGameSystemDDF::SetFlipHorizontal* ddf = (dmGameSystemDDF::SetFlipHorizontal*)params.m_Message->m_Data;
+                component->m_FlipHorizontal = ddf->m_Flip;
+            }
+            else if (params.m_Message->m_Id == dmGameSystemDDF::SetFlipVertical::m_DDFDescriptor->m_NameHash)
+            {
+                dmGameSystemDDF::SetFlipVertical* ddf = (dmGameSystemDDF::SetFlipVertical*)params.m_Message->m_Data;
+                component->m_FlipVertical = ddf->m_Flip;
             }
         }
 
