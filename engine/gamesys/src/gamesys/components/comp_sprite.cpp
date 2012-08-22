@@ -31,12 +31,28 @@ extern uint32_t SPRITE_FPC_SIZE;
 using namespace Vectormath::Aos;
 namespace dmGameSystem
 {
+
+    union SortKey
+    {
+        struct
+        {
+            uint64_t m_Index : 16;  // Index is used to ensure stable sort
+            uint64_t m_Z : 16; // Quantified relative z
+            uint64_t m_ResourceHash : 32;
+        };
+        uint64_t     m_Key;
+    };
+
     struct Component
     {
         dmGameObject::HInstance     m_Instance;
         Point3                      m_Position;
         Quat                        m_Rotation;
         Matrix4                     m_World;
+        SortKey                     m_SortKey;
+        // Hash of the m_Resource-pointer. Hash is used to be compatible with 64-bit arch as a 32-bit value is used for sorting
+        // See GenerateKeys
+        uint32_t                    m_ResourceHash;
         dmGameObject::HInstance     m_ListenerInstance;
         dmhash_t                    m_ListenerComponent;
         SpriteResource*             m_Resource;
@@ -61,6 +77,8 @@ namespace dmGameSystem
         dmGraphics::HVertexBuffer       m_VertexBuffer;
 
         dmArray<uint32_t>               m_RenderSortBuffer;
+        float                           m_MinZ;
+        float                           m_MaxZ;
     };
 
     struct SpriteVertex
@@ -90,6 +108,8 @@ namespace dmGameSystem
         {
             sprite_world->m_RenderSortBuffer[i] = i;
         }
+        sprite_world->m_MinZ = 0;
+        sprite_world->m_MaxZ = 0;
 
         // TODO: Everything below here should be move to the "universe" when available
         // and hence shared among all the worlds
@@ -170,6 +190,7 @@ namespace dmGameSystem
         component->m_Instance = params.m_Instance;
         component->m_Position = params.m_Position;
         component->m_Rotation = params.m_Rotation;
+        component->m_ResourceHash = dmHashBufferNoReverse32(&params.m_Resource, sizeof(&params.m_Resource));
         component->m_Resource = (SpriteResource*)params.m_Resource;
         component->m_ListenerInstance = 0x0;
         component->m_ListenerComponent = 0xff;
@@ -210,24 +231,40 @@ namespace dmGameSystem
         {
             Component* c1 = &m_SpriteWorld->m_Components[x];
             Component* c2 = &m_SpriteWorld->m_Components[y];
-            uintptr_t max_ptr = (uintptr_t) ((intptr_t) -1);
-
-            uintptr_t k1 = max_ptr;
-            uintptr_t k2 = max_ptr;
-
-            if (c1->m_Resource && c1->m_Enabled)
-            {
-                k1 = (uintptr_t) c1->m_Resource->m_TileSet;
-            }
-            if (c2->m_Resource && c2->m_Enabled)
-            {
-                k2 = (uintptr_t) c2->m_Resource->m_TileSet;
-            }
-
-            return k1 < k2;
+            return c1->m_SortKey.m_Key < c2->m_SortKey.m_Key;
         }
 
     };
+
+    void GenerateKeys(SpriteWorld* sprite_world)
+    {
+        dmArray<Component>& components = sprite_world->m_Components;
+        uint32_t n = components.Size();
+
+        float min_z = sprite_world->m_MinZ;
+        float range = 1.0f / (sprite_world->m_MaxZ - sprite_world->m_MinZ);
+
+        Component* first = sprite_world->m_Components.Begin();
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            Component* c = &components[i];
+            uint32_t index = c - first;
+
+            if (c->m_Resource && c->m_Enabled)
+            {
+                float z = (c->m_World.getElem(3, 2) - min_z) * range * 65535;
+                z = dmMath::Clamp(z, 0.0f, 65535.0f);
+                uint16_t zf = (uint16_t) z;
+                c->m_SortKey.m_Z = zf;
+                c->m_SortKey.m_Index = index;
+                c->m_SortKey.m_ResourceHash = c->m_ResourceHash;
+            }
+            else
+            {
+                c->m_SortKey.m_Key = 0xffffffffffffffffULL;
+            }
+        }
+    }
 
     void SortSprites(SpriteWorld* sprite_world)
     {
@@ -254,6 +291,10 @@ namespace dmGameSystem
         float texture_height_recip = 1.0f / texture_height;
         uint32_t tiles_per_row = CalculateTileCount(tile_set_ddf->m_TileWidth, texture_width, tile_set_ddf->m_TileMargin, tile_set_ddf->m_TileSpacing);
 
+        const float tile_width = tile_set_ddf->m_TileWidth;
+        const float tile_height = tile_set_ddf->m_TileHeight;
+        const float step_x = tile_set_ddf->m_TileWidth + tile_set_ddf->m_TileSpacing + 2 * tile_set_ddf->m_TileMargin;
+        const float step_y = tile_set_ddf->m_TileHeight + tile_set_ddf->m_TileSpacing + 2 * tile_set_ddf->m_TileMargin;
         for (uint32_t i = start_index; i < end_index; ++i)
         {
             const Component* component = &components[sort_buffer[i]];
@@ -265,19 +306,16 @@ namespace dmGameSystem
 
             SpriteVertex *v = (SpriteVertex*)((vertex_buffer)) + i * 6;
 
-            float tile_width = tile_set_ddf->m_TileWidth;
-            float tile_height = tile_set_ddf->m_TileHeight;
-
-            float u0 = (tile_x * tile_width) * texture_width_recip;
-            float u1 = ((tile_x + 1) * tile_width) * texture_width_recip;
+            float u0 = (tile_x * step_x + tile_set_ddf->m_TileMargin) * texture_width_recip;
+            float u1 = u0 + tile_width * texture_width_recip;
             if (animation_ddf->m_FlipHorizontal != 0)
             {
                 float u = u0;
                 u0 = u1;
                 u1 = u;
             }
-            float v0 = (tile_y * tile_height) * texture_height_recip;
-            float v1 = ((tile_y + 1) * tile_height) * texture_height_recip;
+            float v0 = (tile_y * step_y + tile_set_ddf->m_TileMargin) * texture_height_recip;
+            float v1 = v0 + tile_height * texture_height_recip;
             if (animation_ddf->m_FlipVertical != 0)
             {
                 float v = v0;
@@ -340,12 +378,13 @@ namespace dmGameSystem
         const Component* first = &components[sort_buffer[start_index]];
         assert(first->m_Enabled);
         TileSetResource* tile_set = first->m_Resource->m_TileSet;
+        uint64_t z = first->m_SortKey.m_Z;
 
         uint32_t end_index = n;
         for (uint32_t i = start_index; i < n; ++i)
         {
             const Component* c = &components[sort_buffer[i]];
-            if (!c->m_Enabled || c->m_Resource->m_TileSet != tile_set)
+            if (!c->m_Enabled || c->m_Resource->m_TileSet != tile_set || c->m_SortKey.m_Z != z)
             {
                 end_index = i;
                 break;
@@ -363,9 +402,10 @@ namespace dmGameSystem
         ro.m_VertexCount = (end_index - start_index) * 6;
         ro.m_Material = sprite_world->m_Material;
         ro.m_Textures[0] = tile_set->m_Texture;
-        // NOTE: Identify. The vertex transform is performed in CreateVertexData
-        // This is due to batching. Another approach could be instancing-like rendering.
-        ro.m_WorldTransform = Matrix4::identity();
+        // The first transform is used for the batch. Mean-value might be better?
+        // NOTE: The position is already transformed, see CreateVertexData, but set for sorting.
+        // See also sprite.vp
+        ro.m_WorldTransform = first->m_World;
         ro.m_CalculateDepthKey = 1;
         sprite_world->m_RenderObjects.Push(ro);
         dmRender::AddToRender(render_context, &sprite_world->m_RenderObjects[sprite_world->m_RenderObjects.Size() - 1]);
@@ -380,6 +420,8 @@ namespace dmGameSystem
 
         dmArray<Component>& components = sprite_world->m_Components;
         uint32_t n = components.Size();
+        float min_z = FLT_MAX;
+        float max_z = -FLT_MAX;
         for (uint32_t i = 0; i < n; ++i)
         {
             Component* c = &components[i];
@@ -404,11 +446,24 @@ namespace dmGameSystem
                     position.setX((int) position.getX());
                     position.setY((int) position.getY());
                 }
-
+                float z = position.getZ();
+                min_z = dmMath::Min(min_z, z);
+                max_z = dmMath::Max(max_z, z);
                 world.setCol3(Vector4(position));
                 c->m_World = world;
             }
         }
+
+        if (n == 0)
+        {
+            // NOTE: Avoid large numbers and risk of de-normalized etc.
+            // if n == 0 the actual values of min/max-z doens't matter
+            min_z = 0;
+            max_z = 1;
+        }
+
+        sprite_world->m_MinZ = min_z;
+        sprite_world->m_MaxZ = max_z;
     }
 
     static void PostMessages(SpriteWorld* sprite_world)
@@ -549,15 +604,24 @@ namespace dmGameSystem
         /*
          * All sprites are sorted, using the m_RenderSortBuffer, with respect to the:
          *
-         *     - pointer value of m_Resource->m_TileSet if enabled
+         *     - hash value of m_Resource, i.e. equal iff the sprite is rendering with identical tile-source
+         *     - z-value
+         *     - component index
          *  or
          *     - 0xffffffff (or corresponding 64-bit value) if not enabled
          * such that all non-enabled sprites ends up last in the array
-         * and sprites with equal tileset consecutively
+         * and sprites with equal tileset and depth consecutively
          *
-         * The sorted array of indices are grouped into batches and every
+         * The z-sorting is considered a hack as we assume a camera pointing along the z-axis. We currently
+         * have no access, by design as render-data currently should be invariant to camera parameters,
+         * to the transformation matrices when generating render-data. The render-system and go-system should probably
+         * be changed such that unique render-objects are created when necessary and on-demand instead of up-front as
+         * currently. Another option could be a call-back when the actual rendering occur.
+         *
+         * The sorted array of indices are grouped into batches, using z and resource-hash as predicates, and every
          * batch is rendered using a single draw-call. Note that the world transform
-         * is identity and the actual vertex transformation is performed in code.
+         * is set to first sprite transform for correct batch sorting. The actual vertex transformation is performed in code
+         * and standard world-transformation is removed from vertex-program.
          *
          * NOTES:
          * 1. If custom material is introduced the rending scheme is unaffected
@@ -580,6 +644,7 @@ namespace dmGameSystem
         }
 
         UpdateTransforms(sprite_world, sprite_context->m_Subpixels);
+        GenerateKeys(sprite_world);
         SortSprites(sprite_world);
 
         sprite_world->m_RenderObjects.SetSize(0);

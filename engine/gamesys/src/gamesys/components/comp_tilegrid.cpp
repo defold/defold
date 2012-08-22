@@ -14,11 +14,11 @@
 #include "../proto/physics_ddf.h"
 #include "../gamesys_private.h"
 
-extern unsigned char SPRITE_VPC[];
-extern uint32_t SPRITE_VPC_SIZE;
+extern unsigned char TILE_MAP_VPC[];
+extern uint32_t TILE_MAP_VPC_SIZE;
 
-extern unsigned char SPRITE_FPC[];
-extern uint32_t SPRITE_FPC_SIZE;
+extern unsigned char TILE_MAP_FPC[];
+extern uint32_t TILE_MAP_FPC_SIZE;
 
 namespace dmGameSystem
 {
@@ -48,8 +48,8 @@ namespace dmGameSystem
         world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
         world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(render_context), 0, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
 
-        world->m_VertexProgram = dmGraphics::NewVertexProgram(dmRender::GetGraphicsContext(render_context), SPRITE_VPC, SPRITE_VPC_SIZE);
-        world->m_FragmentProgram = dmGraphics::NewFragmentProgram(dmRender::GetGraphicsContext(render_context), SPRITE_FPC, SPRITE_FPC_SIZE);
+        world->m_VertexProgram = dmGraphics::NewVertexProgram(dmRender::GetGraphicsContext(render_context), TILE_MAP_VPC, TILE_MAP_VPC_SIZE);
+        world->m_FragmentProgram = dmGraphics::NewFragmentProgram(dmRender::GetGraphicsContext(render_context), TILE_MAP_FPC, TILE_MAP_FPC_SIZE);
 
         world->m_Material = dmRender::NewMaterial(render_context, world->m_VertexProgram, world->m_FragmentProgram);
         dmRender::SetMaterialProgramConstantType(world->m_Material, dmHashString64("view_proj"), dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ);
