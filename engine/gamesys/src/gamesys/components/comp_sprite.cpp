@@ -309,7 +309,9 @@ namespace dmGameSystem
 
             float u0 = (tile_x * step_x + tile_set_ddf->m_TileMargin) * texture_width_recip;
             float u1 = u0 + tile_width * texture_width_recip;
-            if ((animation_ddf->m_FlipHorizontal != 0) != (component->m_FlipHorizontal != 0))
+            // ddf values are guaranteed to be 0 or 1 when saved by the editor
+            // component values are guaranteed to be 0 or 1
+            if (animation_ddf->m_FlipHorizontal ^ component->m_FlipHorizontal)
             {
                 float u = u0;
                 u0 = u1;
@@ -317,7 +319,7 @@ namespace dmGameSystem
             }
             float v0 = (tile_y * step_y + tile_set_ddf->m_TileMargin) * texture_height_recip;
             float v1 = v0 + tile_height * texture_height_recip;
-            if ((animation_ddf->m_FlipVertical != 0) != (component->m_FlipVertical != 0))
+            if (animation_ddf->m_FlipVertical ^ component->m_FlipVertical)
             {
                 float v = v0;
                 v0 = v1;
@@ -697,12 +699,12 @@ namespace dmGameSystem
             else if (params.m_Message->m_Id == dmGameSystemDDF::SetFlipHorizontal::m_DDFDescriptor->m_NameHash)
             {
                 dmGameSystemDDF::SetFlipHorizontal* ddf = (dmGameSystemDDF::SetFlipHorizontal*)params.m_Message->m_Data;
-                component->m_FlipHorizontal = ddf->m_Flip;
+                component->m_FlipHorizontal = ddf->m_Flip != 0 ? 1 : 0;
             }
             else if (params.m_Message->m_Id == dmGameSystemDDF::SetFlipVertical::m_DDFDescriptor->m_NameHash)
             {
                 dmGameSystemDDF::SetFlipVertical* ddf = (dmGameSystemDDF::SetFlipVertical*)params.m_Message->m_Data;
-                component->m_FlipVertical = ddf->m_Flip;
+                component->m_FlipVertical = ddf->m_Flip != 0 ? 1 : 0;
             }
         }
 
