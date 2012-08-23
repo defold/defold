@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -5,6 +6,7 @@
 #include "sys.h"
 #include "log.h"
 #include "dstrings.h"
+#include "path.h"
 
 #ifdef _WIN32
 #include <Shlobj.h>
@@ -16,6 +18,7 @@
 #endif
 
 #ifdef __MACH__
+#include <CoreFoundation/CFBundle.h>
 #ifndef __arm__
 #include <Carbon/Carbon.h>
 #endif
@@ -169,4 +172,35 @@ namespace dmSys
             return r;
     }
 #endif
+
+    Result GetResourcesPath(int argc, char* argv[], char* path, uint32_t path_len)
+    {
+        assert(path_len > 0);
+        path[0] = '\0';
+#if defined(__MACH__)
+        CFBundleRef mainBundle = CFBundleGetMainBundle();
+        if (!mainBundle)
+        {
+            dmLogFatal("Unable to get main bundle");
+            return RESULT_UNKNOWN;
+        }
+        CFURLRef resourceURL = CFBundleCopyResourcesDirectoryURL(mainBundle);
+
+        if(resourceURL)
+        {
+            CFURLGetFileSystemRepresentation(resourceURL, true, (UInt8*) path, path_len);
+            CFRelease(resourceURL);
+            return RESULT_OK;
+        }
+        else
+        {
+            dmLogFatal("Unable to locate bundle resource directory");
+            return RESULT_UNKNOWN;
+        }
+#else
+        dmPath::Dirname(argv[0], path, path_len);
+        return RESULT_OK;
+#endif
+    }
+
 }
