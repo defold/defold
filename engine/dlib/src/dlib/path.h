@@ -13,7 +13,7 @@ namespace dmPath
 {
     /**
      * Path normalization. Redundant and trailing slashes are
-     * remove and backslashes are translated into forward slashes
+     * removed and backslashes are translated into forward slashes
      * @param path path to normalize
      * @param out out buffer
      * @param out_size out buffer size
@@ -32,11 +32,11 @@ namespace dmPath
     void Dirname(const char* path, char* out, uint32_t out_size);
 
     /**
-     * Conca
-     * @param path1
-     * @param path2
-     * @param out
-     * @param out_size
+     * Path concatenation function
+     * @param path1 first path to concatenate
+     * @param path2 second path to concatenate
+     * @param out output path
+     * @param out_size output path size
      */
     void Concat(const char* path1, const char* path2, char* out, uint32_t out_size);
 
