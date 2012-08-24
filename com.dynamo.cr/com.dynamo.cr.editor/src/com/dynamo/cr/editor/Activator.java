@@ -203,7 +203,7 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
         Activator.context = bundleContext;
 
         IPreferenceStore store = getPreferenceStore();
-        if (store.getBoolean(PreferenceConstants.P_ANONYMOUS_LOGGING)) {
+        if (store.getBoolean(PreferenceConstants.P_ANONYMOUS_LOGGING) && !EditorUtil.isDev()) {
             RLogPlugin.getDefault().startLogging();
         }
 
@@ -579,7 +579,7 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
         } else if (p.equals(PreferenceConstants.P_ANONYMOUS_LOGGING)) {
             IPreferenceStore store = getPreferenceStore();
             boolean log = store.getBoolean(PreferenceConstants.P_ANONYMOUS_LOGGING);
-            if (log) {
+            if (log && !EditorUtil.isDev()) {
                 RLogPlugin.getDefault().startLogging();
             } else {
                 RLogPlugin.getDefault().stopLogging();
