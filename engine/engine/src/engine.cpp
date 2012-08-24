@@ -291,7 +291,7 @@ namespace dmEngine
     bool Init(HEngine engine, int argc, char *argv[])
     {
         char project_file[DMPATH_MAX_PATH];
-        char content_root[DMPATH_MAX_PATH];
+        char content_root[DMPATH_MAX_PATH] = ".";
         if (GetProjectFile(argc, argv, project_file, sizeof(project_file)))
         {
             dmConfigFile::Result cr = dmConfigFile::Load(project_file, argc, (const char**) argv, &engine->m_Config);
