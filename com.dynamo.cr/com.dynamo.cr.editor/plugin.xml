@@ -181,6 +181,11 @@
                label="Sign App..."
                style="push">
          </command>
+         <command
+               commandId="com.dynamo.cr.target.commands.bundle"
+               label="Bundle App..."
+               style="push">
+         </command>
       </menuContribution>
       <menuContribution
             allPopups="false"
@@ -289,6 +294,11 @@
             defaultHandler="com.dynamo.cr.editor.handlers.SignHandler"
             id="com.dynamo.cr.target.commands.sign"
             name="Sign Executable">
+      </command>
+      <command
+            defaultHandler="com.dynamo.cr.editor.handlers.BundleiOSHandler"
+            id="com.dynamo.cr.target.commands.bundle"
+            name="Bundle Application">
       </command>
       <command
             id="com.dynamo.cr.editor.commands.openWelcome"

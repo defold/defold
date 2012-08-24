@@ -94,6 +94,7 @@ public class ContentBuilder extends IncrementalProjectBuilder {
     private boolean buildLocal(int kind, Map<String,String> args, final IProgressMonitor monitor) throws CoreException {
         String branchLocation = branchClient.getNativeLocation();
 
+        // NOTE: Bundle tasks rely on this structure (build/default)
         String buildDirectory = String.format("build/default");
         Project project = new Project(new DefaultFileSystem(), branchLocation, buildDirectory);
 

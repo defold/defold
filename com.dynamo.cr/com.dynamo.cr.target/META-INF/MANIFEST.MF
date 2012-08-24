@@ -20,6 +20,7 @@ Require-Bundle: org.eclipse.core.runtime,
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
 Bundle-ClassPath: lib/jdom-2.0.1.jar,
  .
-Export-Package: com.dynamo.cr.target.core,
+Export-Package: com.dynamo.cr.target.bundle,
+ com.dynamo.cr.target.core,
  com.dynamo.cr.target.sign
 Bundle-ActivationPolicy: lazy
