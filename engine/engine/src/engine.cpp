@@ -9,6 +9,8 @@
 #include <dlib/profile.h>
 #include <dlib/time.h>
 #include <dlib/math.h>
+#include <dlib/path.h>
+#include <dlib/sys.h>
 #include <gamesys/model_ddf.h>
 #include <gamesys/physics_ddf.h>
 #include <gameobject/gameobject_ddf.h>
@@ -227,57 +229,88 @@ namespace dmEngine
         }
     }
 
-    bool Init(HEngine engine, int argc, char *argv[])
+    static bool GetProjectFile(int argc, char *argv[], char* project_file, uint32_t project_file_size)
     {
-        const char* default_project_files[] =
-        {
-            "build/default/game.projectc",
-            "build/default/content/game.projectc",
-        };
-        const char* default_content_roots[] =
-        {
-            "build/default",
-            "build/default/content"
-        };
-        const char** project_files = default_project_files;
-        uint32_t project_file_count = 2;
         if (argc > 1 && argv[argc-1][0] != '-')
         {
-            project_files = (const char**)&argv[argc-1];
-            project_file_count = 1;
+            dmStrlCpy(project_file, argv[argc-1], project_file_size);
+            return true;
+        }
+        else
+        {
+            char p1[DMPATH_MAX_PATH];
+            char p2[DMPATH_MAX_PATH];
+            char p3[DMPATH_MAX_PATH];
+            char tmp[DMPATH_MAX_PATH];
+            char* paths[] = { p1, p2, p3 };
+            uint32_t count = 0;
+
+            dmStrlCpy(p1, "game.projectc", sizeof(p1));
+            dmStrlCpy(p2, "build/default/game.projectc", sizeof(p2));
+            if (dmSys::GetResourcesPath(argc, argv, tmp, sizeof(tmp)) == dmSys::RESULT_OK)
+            {
+                dmPath::Concat(tmp, "game.projectc", p3, sizeof(p3));
+                count = 3;
+            }
+            else
+            {
+                count = 2;
+            }
+
+            for (uint32_t i = 0; i < count; ++i)
+            {
+                struct stat file_stat;
+                if (stat(paths[i], &file_stat) == 0)
+                {
+                    dmStrlCpy(project_file, paths[i], project_file_size);
+                    return true;
+                }
+            }
         }
 
-        dmConfigFile::Result config_results[2];
-        dmConfigFile::Result config_result = dmConfigFile::RESULT_FILE_NOT_FOUND;
-        uint32_t current_project_file = 0;
-        while (config_result != dmConfigFile::RESULT_OK && current_project_file < project_file_count)
-        {
-            // Try to load game.project from "default" locations
-            config_results[current_project_file] = dmConfigFile::Load(project_files[current_project_file], argc, (const char**) argv, &engine->m_Config);
-            config_result = config_results[current_project_file];
-            ++current_project_file;
-        }
+        return false;
+    }
 
-        if (config_result != dmConfigFile::RESULT_OK && argc == 1)
+
+    /*
+     The game.projectc is located using the following scheme:
+
+     A.
+      1. If an argument is specified load the game.project from specified file
+     B.
+      1. Look for game.project (relative path)
+      2. Look for build/default/game.projectc (relative path)
+      3. Look for dmSys::GetResourcePath()/game.project
+      4. Load first game.project-file found. If none is
+         found start the built-in connect application
+
+      The content-root is set to the directory name of
+      the project if not overridden in project-file
+      (resource.uri)
+    */
+    bool Init(HEngine engine, int argc, char *argv[])
+    {
+        char project_file[DMPATH_MAX_PATH];
+        char content_root[DMPATH_MAX_PATH] = ".";
+        if (GetProjectFile(argc, argv, project_file, sizeof(project_file)))
         {
-            // Load "connect" project if no project is found in default location
-            // *and* argc == 1
-            config_result = dmConfigFile::LoadFromBuffer((const char*) CONNECT_PROJECT, CONNECT_PROJECT_SIZE, argc, (const char**) argv, &engine->m_Config);
-            if (config_result != dmConfigFile::RESULT_OK)
+            dmConfigFile::Result cr = dmConfigFile::Load(project_file, argc, (const char**) argv, &engine->m_Config);
+            if (cr != dmConfigFile::RESULT_OK)
+            {
+                dmLogFatal("Unable to load project file: '%s'", project_file);
+                return false;
+            }
+            dmPath::Dirname(project_file, content_root, sizeof(content_root));
+        }
+        else
+        {
+            dmConfigFile::Result cr = dmConfigFile::LoadFromBuffer((const char*) CONNECT_PROJECT, CONNECT_PROJECT_SIZE, argc, (const char**) argv, &engine->m_Config);
+            if (cr != dmConfigFile::RESULT_OK)
             {
                 dmLogFatal("Unable to load builtin connect project");
                 return false;
             }
         }
-        else if (config_result != dmConfigFile::RESULT_OK)
-        {
-            dmLogFatal("Unable to load project file from any of the locations:");
-            for (uint32_t i = 0; i < project_file_count; ++i)
-                // TODO: Translate code
-                dmLogFatal("Error %d: %s", config_results[i], project_files[i]);
-            return false;
-        }
-        const char* content_root = default_content_roots[current_project_file - 1];
         const char* update_order = dmConfigFile::GetString(engine->m_Config, "gameobject.update_order", 0);
 
         // This scope is mainly here to make sure the "Main" scope is created first.

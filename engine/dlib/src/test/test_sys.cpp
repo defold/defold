@@ -5,6 +5,7 @@
 #include <string>
 #include <gtest/gtest.h>
 #include "../dlib/sys.h"
+#include "../dlib/path.h"
 
 TEST(dmSys, Mkdir)
 {
@@ -54,8 +55,20 @@ TEST(dmSys, GetApplicationSupportPath)
     ASSERT_EQ(S_IFDIR, stat_data.st_mode & S_IFDIR);
 }
 
+int g_Argc;
+char** g_Argv;
+
+TEST(dmSys, GetResourcesPath)
+{
+    char path[DMPATH_MAX_PATH];
+    dmSys::GetResourcesPath(g_Argc, g_Argv, path, sizeof(path));
+    printf("GetResourcesPath: '%s'\n", path);
+}
+
 int main(int argc, char **argv)
 {
+    g_Argc = argc;
+    g_Argv = argv;
     system("python src/test/test_sys.py");
     testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

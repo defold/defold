@@ -74,11 +74,24 @@ namespace dmSys
      * Linux: ~/.APPLICATION_NAME
      * @param application_name application name to get path for. This is the name of "your" application.
      * @param path path buffer
-     * @param path_len path buffer len
-     * @return RESULT_OK success. RESULT_INVAL if the supplied path is too short. Genernal IO-errors could reusult in other
-     * codes, eg RESULT_ACCES if permission is denied.
+     * @param path_len path buffer length
+     * @return RESULT_OK success. RESULT_INVAL if the supplied path is too short. General IO-errors could result in other
+     * codes, e.g. RESULT_ACCES if permission is denied.
      */
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len);
+
+    /**
+     * Get resource directory path. On iOS the bundle directory is returned whereas on MacOSX
+     * the "Resources"-directory within the bundle is returned. If no bundle exists the directory
+     * to where the executable is located is returned.
+     * On other platforms the directory to the executable is always returned.
+     * @param argc argc from main()
+     * @param argv argv from main()
+     * @param path output path
+     * @param path_len output path length
+     * @return RESULT_OK on success
+     */
+    Result GetResourcesPath(int argc, char* argv[], char* path, uint32_t path_len);
 }
 
 #endif

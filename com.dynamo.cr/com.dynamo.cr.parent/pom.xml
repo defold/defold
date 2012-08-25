@@ -86,6 +86,7 @@
         <module>../com.dynamo.cr.common.test</module>
         <module>../com.dynamo.cr.editor</module>
         <module>../com.dynamo.cr.editor.core</module>
+        <module>../com.dynamo.cr.editor.core.test</module>
         <module>../com.dynamo.cr.editor.fs</module>
         <module>../com.dynamo.cr.editor.fs.test</module>
         <module>../com.dynamo.cr.editor.ui</module>

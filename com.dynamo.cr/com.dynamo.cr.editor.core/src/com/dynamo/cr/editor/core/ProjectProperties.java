@@ -4,17 +4,37 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.PrintWriter;
 import java.text.ParseException;
-import java.util.HashMap;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
-public class ProjectProperties {
-    Map<String, Map<String, String>> properties;
+import org.apache.commons.io.IOUtils;
 
+/**
+ * .ini-file-link parser abstraction
+ * @author chmu
+ *
+ */
+public class ProjectProperties {
+    private Map<String, Map<String, String>> properties;
+
+    /**
+     * Constructor with initially empty
+     */
     public ProjectProperties() {
-        this.properties = new HashMap<String, Map<String, String>>();
+        this.properties = new LinkedHashMap<String, Map<String, String>>();
     }
 
+    /**
+     * Get property as string
+     * @param category property category
+     * @param key category key
+     * @return property value. null if not set
+     */
     public String getStringValue(String category, String key) {
         Map<String, String> group = this.properties.get(category);
         if (group != null) {
@@ -23,6 +43,12 @@ public class ProjectProperties {
         return null;
     }
 
+    /**
+     * Get property as integer
+     * @param category property category
+     * @param key category key
+     * @return property value as integer. null if not set or on number format errors
+     */
     public Integer getIntValue(String category, String key) {
         String value = getStringValue(category, key);
         try {
@@ -32,7 +58,56 @@ public class ProjectProperties {
         }
     }
 
-    public void load(InputStream in) throws IOException, ParseException {
+    /**
+     * Get property as integer
+     * @param category property category
+     * @param key category key
+     * @return property value as boolean. null if not set.
+     */
+    public Boolean getBooleanValue(String category, String key) {
+        String value = getStringValue(category, key);
+        if (value != null) {
+            return value.equals("1");
+        }
+        return null;
+    }
+
+    /**
+     * Put property (string variant)
+     * @param category property category
+     * @param key category key
+     * @param value value
+     */
+    public void putStringValue(String category, String key, String value) {
+        Map<String, String> group = this.properties.get(category);
+        if (group == null) {
+            group = new LinkedHashMap<String, String>();
+            this.properties.put(category, group);
+        }
+        group.put(key, value);
+    }
+
+    /**
+     * Put property (int variant)
+     * @param category property category
+     * @param key category key
+     * @param value value
+     */
+    public void putIntValue(String category, String key, int value) {
+        putStringValue(category, key, Integer.toString(value));
+    }
+
+    /**
+     * Put property (boolean variant)
+     * @param category property category
+     * @param key category key
+     * @param value value
+     */
+    public void putBooleanValue(String category, String key, boolean value) {
+        putStringValue(category, key, value ? "1" : "0");
+    }
+
+    private void doLoad(InputStream in) throws IOException, ParseException {
         BufferedReader reader = new BufferedReader(new InputStreamReader(in));
         Map<String, String> propGroup = null;
         int cursor = 0;
@@ -46,7 +121,7 @@ public class ProjectProperties {
                 String category = line.substring(1, line.length() - 1);
                 propGroup = this.properties.get(category);
                 if (propGroup == null) {
-                    propGroup = new HashMap<String, String>();
+                    propGroup = new LinkedHashMap<String, String>();
                     this.properties.put(category, propGroup);
                 }
             } else if (line.length() > 0) {
@@ -74,4 +149,61 @@ public class ProjectProperties {
             line = reader.readLine();
         }
     }
+
+    /**
+     * Load properties in-place from {@link InputStream}
+     * @param in {@link InputStream} to load from
+     * @throws IOException
+     * @throws ParseException
+     */
+    public void load(InputStream in) throws IOException, ParseException {
+        try {
+            doLoad(in);
+        } finally {
+            IOUtils.closeQuietly(in);
+        }
+    }
+
+    /**
+     * Get all category names
+     * @return {@link Collection} of cateory names
+     */
+    public Collection<String> getCategoryNames() {
+        return properties.keySet();
+    }
+
+    /**
+     * Save to OutputStream
+     * @param os {@link OutputStream} to save to
+     * @throws IOException
+     */
+    public void save(OutputStream os) throws IOException {
+        PrintWriter pw = new PrintWriter(os);
+        for (String category : getCategoryNames()) {
+            pw.format("[%s]%n", category);
+
+            for (String key : getKeys(category)) {
+                String value = getStringValue(category, key);
+                pw.format("%s = %s%n", key, value);
+            }
+            pw.println();
+        }
+        pw.close();
+        os.close();
+    }
+
+    /**
+     * Get all keys for given category
+     * @param category category to get keys for
+     * @return collection of keys
+     */
+    public Collection<String> getKeys(String category) {
+        Map<String, String> group = this.properties.get(category);
+        if (group != null) {
+            return group.keySet();
+        } else {
+            return Collections.emptySet();
+        }
+    }
+
 }
