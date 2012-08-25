@@ -67,22 +67,28 @@ public class ChargifyService implements IBillingProvider {
             String logMsg = null;
             try {
                 JsonNode root = mapper.readTree(response.getEntityInputStream());
-                Iterator<JsonNode> errors = root.get("errors").getElements();
-                StringBuilder builder = new StringBuilder();
-                StringBuilder logBuilder = new StringBuilder();
-                logBuilder.append('{');
-                while (errors.hasNext()) {
-                    JsonNode error = errors.next();
-                    builder.append(error.getTextValue());
-                    logBuilder.append('\"').append(error.getTextValue()).append('\"');
-                    if (errors.hasNext()) {
-                        builder.append(" ");
-                        logBuilder.append(", ");
+                JsonNode errorsNode = root.get("errors");
+                if (errorsNode != null) {
+                    Iterator<JsonNode> errors = errorsNode.getElements();
+                    StringBuilder builder = new StringBuilder();
+                    StringBuilder logBuilder = new StringBuilder();
+                    logBuilder.append('{');
+                    while (errors.hasNext()) {
+                        JsonNode error = errors.next();
+                        builder.append(error.getTextValue());
+                        logBuilder.append('\"').append(error.getTextValue()).append('\"');
+                        if (errors.hasNext()) {
+                            builder.append(" ");
+                            logBuilder.append(", ");
+                        }
                     }
+                    logBuilder.append('}');
+                    msg = builder.toString();
+                    logMsg = logBuilder.toString();
+                } else {
+                    logger.error(BILLING_MARKER, "Erroneous response ({}) containing no errors: '{}'", status,
+                            root.toString());
                 }
-                logBuilder.append('}');
-                msg = builder.toString();
-                logMsg = logBuilder.toString();
             } catch (IOException e) {
                 msg = "An external system error ocurred.";
                 logMsg = "Could not read billing provider response: " + e.getMessage();
