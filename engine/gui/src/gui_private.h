@@ -63,6 +63,7 @@ namespace dmGui
         uint16_t m_Version;
         uint16_t m_Index;
         uint16_t m_Deleted : 1; // Set to true for deferred deletion
+        uint16_t m_Enabled : 1; // Only enabled (1) nodes are animated and rendered
     };
 
     struct NodeProxy
@@ -87,6 +88,7 @@ namespace dmGui
         uint16_t m_FirstUpdate : 1;
         uint16_t m_AnimationCompleteCalled : 1;
         uint16_t m_Cancelled : 1;
+        uint16_t m_Enabled : 1;
     };
 
     struct Script

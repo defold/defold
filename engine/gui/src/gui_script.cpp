@@ -786,6 +786,30 @@ namespace dmGui
         return 1;
     }
 
+    /*# enables/disables a node
+     *
+     * Disabled nodes are not rendered and animations acting on them are not evaluated.
+     *
+     * @name gui.set_enabled
+     * @param node node to be enabled/disabled (node)
+     * @param enabled whether the node should be enabled or not (boolean)
+     */
+    static int LuaSetEnabled(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+
+        int enabled = lua_toboolean(L, 2);
+
+        lua_getglobal(L, "__scene__");
+        Scene* scene = (Scene*)lua_touserdata(L, -1);
+
+        dmGui::SetNodeEnabled(scene, hnode, enabled != 0);
+
+        return 0;
+    }
+
     /*# gets the node position
      *
      * @name gui.get_position
@@ -965,6 +989,7 @@ namespace dmGui
         {"get_width",       LuaGetWidth},
         {"get_height",      LuaGetHeight},
         {"pick_node",       LuaPickNode},
+        {"set_enabled",     LuaSetEnabled},
         REGGETSET(Position, position)
         REGGETSET(Rotation, rotation)
         REGGETSET(Scale, scale)

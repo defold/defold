@@ -249,7 +249,7 @@ namespace dmGui
         for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
         {
             InternalNode* n = &scene->m_Nodes[i];
-            if (n->m_Index != 0xffff)
+            if (n->m_Index != 0xffff && n->m_Enabled)
             {
                 CalculateNodeTransform(scene, n->m_Node, scale, false, &node_transform);
                 HNode node = GetNodeHandle(n);
@@ -267,7 +267,7 @@ namespace dmGui
         {
             Animation* anim = &(*animations)[i];
 
-            if (anim->m_Elapsed >= anim->m_Duration || anim->m_Cancelled)
+            if ((!anim->m_Enabled) || anim->m_Elapsed >= anim->m_Duration || anim->m_Cancelled)
             {
                 continue;
             }
@@ -618,6 +618,7 @@ namespace dmGui
             node->m_Node.m_Font = 0;
             node->m_Version = version;
             node->m_Index = index;
+            node->m_Enabled = 1;
             scene->m_NextVersionNumber = (version + 1) % ((1 << 16) - 1);
 
             return hnode;
@@ -902,6 +903,7 @@ namespace dmGui
         animation.m_FirstUpdate = 1;
         animation.m_AnimationCompleteCalled = 0;
         animation.m_Cancelled = 0;
+        animation.m_Enabled = n->m_Enabled;
 
         switch (easing)
         {
@@ -985,6 +987,22 @@ namespace dmGui
                 && node_pos.getX() <= 1.0f
                 && node_pos.getY() >= 0.0f
                 && node_pos.getY() <= 1.0f;
+    }
+
+    void SetNodeEnabled(HScene scene, HNode node, bool enabled)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Enabled = enabled;
+        dmArray<Animation>& anims = scene->m_Animations;
+        uint32_t anim_count = anims.Size();
+        for (uint32_t i = 0; i < anim_count; ++i)
+        {
+            Animation& anim = anims[i];
+            if (anim.m_Node == node)
+            {
+                anim.m_Enabled = enabled;
+            }
+        }
     }
 
     void CalculateNodeTransform(HScene scene, const Node& node, const Vector4& reference_scale, bool boundary, Matrix4* out_transform)

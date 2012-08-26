@@ -1674,6 +1674,81 @@ TEST_F(dmGuiTest, ScriptPicking)
     ASSERT_EQ(dmGui::RESULT_OK, r);
 }
 
+// This render function simply flags a provided boolean when called
+static void RenderEnabledNodes(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms, uint32_t node_count, void* context)
+{
+    bool* rendered = (bool*)context;
+    *rendered = true;
+}
+
+TEST_F(dmGuiTest, EnableDisable)
+{
+    // Setup
+    Vector3 size(10, 10, 0);
+    Point3 pos(size * 0.5f);
+    dmGui::HNode n1 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+
+    // Initially enabled
+    dmGui::InternalNode* node = dmGui::GetNode(m_Scene, n1);
+    ASSERT_TRUE(node->m_Enabled);
+
+    // Test rendering
+    bool rendered = false;
+    dmGui::RenderScene(m_Scene, RenderEnabledNodes, &rendered);
+    ASSERT_TRUE(rendered);
+
+    // Test no rendering when disabled
+    dmGui::SetNodeEnabled(m_Scene, n1, false);
+    rendered = false;
+    dmGui::RenderScene(m_Scene, RenderEnabledNodes, &rendered);
+    ASSERT_FALSE(rendered);
+
+    // Test animations disabled from start for disabled nodes
+    dmGui::AnimateNode(m_Scene, n1, dmGui::PROPERTY_COLOR, Vector4(0.0f, 0.0f, 0.0f, 0.0f), dmGui::EASING_NONE, 1.0f, 0.0f, 0x0, 0x0, 0x0);
+    ASSERT_EQ(1U, m_Scene->m_Animations.Size());
+    ASSERT_FALSE(m_Scene->m_Animations[0].m_Enabled);
+
+    // Test animations properly enabled/disabled
+    dmGui::SetNodeEnabled(m_Scene, n1, true);
+    ASSERT_TRUE(m_Scene->m_Animations[0].m_Enabled);
+    dmGui::SetNodeEnabled(m_Scene, n1, false);
+    ASSERT_FALSE(m_Scene->m_Animations[0].m_Enabled);
+
+    // Test no animation evaluation
+    dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    ASSERT_EQ(0.0f, m_Scene->m_Animations[0].m_Elapsed);
+
+    // Test animation evaluation when enabled
+    dmGui::SetNodeEnabled(m_Scene, n1, true);
+    dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    ASSERT_LT(0.0f, m_Scene->m_Animations[0].m_Elapsed);
+}
+
+TEST_F(dmGuiTest, ScriptEnableDisable)
+{
+    char buffer[512];
+    const char* s = "function init(self)\n"
+                    "    local id = \"node_1\"\n"
+                    "    local size = vmath.vector3(string.len(id) * %.2f, %.2f + %.2f, 0)\n"
+                    "    local position = size * 0.5\n"
+                    "    self.n1 = gui.new_text_node(position, id)\n"
+                    "    gui.set_enabled(self.n1, false)\n"
+                    "end\n";
+    sprintf(buffer, s, TEXT_GLYPH_WIDTH, TEXT_MAX_ASCENT, TEXT_MAX_DESCENT);
+    dmGui::Result r;
+    r = dmGui::SetScript(m_Script, buffer, strlen(buffer), "file");
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    // Run init function
+    r = dmGui::InitScene(m_Scene);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    // Retrieve node
+    dmGui::InternalNode* node = &m_Scene->m_Nodes[0];
+    ASSERT_STREQ("node_1", node->m_Node.m_Text); // make sure we found the right one
+    ASSERT_FALSE(node->m_Enabled);
+}
+
 int main(int argc, char **argv)
 {
     dmDDF::RegisterAllTypes();

@@ -398,6 +398,16 @@ namespace dmGui
      */
     bool PickNode(HScene scene, HNode node, float x, float y);
 
+    /** enables/disables a node
+     * Set if a node should be enabled or not. Only enabled nodes are animated and rendered.
+     *
+     * @note This function updates every animation acting on the node and has a complexity of O(n) over the total animation count in the scene.
+     * @param scene the scene the node exists in
+     * @param node the node to be enabled/disabled
+     * @param enabled whether the node should be enabled
+     */
+    void SetNodeEnabled(HScene scene, HNode node, bool enabled);
+
     HScript NewScript(HContext context);
     void DeleteScript(HScript script);
     Result SetScript(HScript script, const char* source, uint32_t source_length, const char* filename);
