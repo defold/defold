@@ -36,6 +36,7 @@ import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.model.User.Role;
 import com.dynamo.cr.server.model.UserSubscription;
 import com.dynamo.cr.server.model.UserSubscription.CreditCard;
+import com.dynamo.cr.server.model.UserSubscription.State;
 import com.dynamo.cr.server.test.Util;
 
 public class ModelTest {
@@ -541,6 +542,14 @@ public class ModelTest {
         em.getTransaction().begin();
         assertTrue(ModelUtil.isMemberQualified(em, u2, p2, products));
         em.getTransaction().commit();
+
+        // Test canceled small plan
+        UserSubscription subscription = ModelUtil.findUserSubscriptionByUser(em, u2);
+        subscription.setState(State.CANCELED);
+        em.getTransaction().begin();
+        em.persist(subscription);
+        em.getTransaction().commit();
+        assertFalse(ModelUtil.isMemberQualified(em, u2, p2, products));
     }
 }
 

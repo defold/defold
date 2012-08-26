@@ -10,6 +10,7 @@ import javax.persistence.TypedQuery;
 import com.dynamo.cr.proto.Config.BillingProduct;
 import com.dynamo.cr.server.model.User.Role;
 import com.dynamo.cr.server.model.UserSubscription.CreditCard;
+import com.dynamo.cr.server.model.UserSubscription.State;
 
 public class ModelUtil {
 
@@ -187,6 +188,22 @@ public class ModelUtil {
         return result;
     }
 
+    public static int getUserMaxMemberCount(EntityManager entityManager, User user,
+            List<BillingProduct> products) {
+        BillingProduct product = getUserProduct(entityManager, user, products);
+        // Use default in case the subscription is canceled
+        UserSubscription subscription = ModelUtil.findUserSubscriptionByUser(entityManager, user);
+        if (subscription != null && subscription.getState().equals(State.CANCELED)) {
+            for (BillingProduct p : products) {
+                if (p.getDefault() != 0) {
+                    product = p;
+                    break;
+                }
+            }
+        }
+        return product.getMaxMemberCount();
+    }
+
     public static boolean isMemberQualified(EntityManager em, User user, Project project, List<BillingProduct> products) {
         // Check membership
         if (!project.getMembers().contains(user)) {
@@ -196,13 +213,14 @@ public class ModelUtil {
         if (user.getRole() == Role.ADMIN) {
             return true;
         }
-        BillingProduct product = ModelUtil.getUserProduct(em, user, products);
+        int maxMemberCount = ModelUtil.getUserMaxMemberCount(em, user, products);
         // Unlimited member count is -1
-        if (product.getMaxMemberCount() < 0) {
+        if (maxMemberCount < 0) {
+            // Check subscription status
             return true;
         } else {
             int memberCount = project.getMemberCount();
-            return memberCount <= product.getMaxMemberCount();
+            return memberCount <= maxMemberCount;
         }
     }
 
