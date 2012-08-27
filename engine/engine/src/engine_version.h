@@ -3,8 +3,8 @@
 
 namespace dmEngineVersion
 {
-    static const char* VERSION = "1.2.2";
-    static const char* VERSION_SHA1 = "2940ae6";
+    static const char* VERSION = "1.2.3";
+    static const char* VERSION_SHA1 = "392ff4b";
 }
 
 #endif // DM_ENGINE_VERSION
