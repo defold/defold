@@ -185,6 +185,12 @@
                commandId="com.dynamo.cr.target.commands.bundle"
                label="Bundle App..."
                style="push">
+            <visibleWhen
+                  checkEnabled="false">
+               <test
+                     property="com.dynamo.cr.editor.is_dev">
+               </test>
+            </visibleWhen>
          </command>
       </menuContribution>
       <menuContribution
