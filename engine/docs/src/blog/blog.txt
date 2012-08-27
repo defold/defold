@@ -1,5 +1,55 @@
 :max-width: 45em
 
+Release 1.2.3
+-------------
+_August 27, 2012_
+
+This release contains:
+
+* Billing
+* Sprite-flipping in runtime
+* Enabling/disabling GUI nodes
+* Recursive module loading
+* Optimized sprite rendering
+
+Billing
+~~~~~~~
+
+We are now officially charging for Defold if you work in a team.
+If you work alone, you can still use it for free.
+See the link:/plans[plans]-page for details on how we are charging.
+We welcome all feedback regarding our pricing strategy in the link:http://defold.userecho.com[forums].
+
+[IMPORTANT]
+If you joined us during the Alpha stage, you will receive a coupon code for 2 months of free access to the Small plan.
+Info about this will arrive in a separate email, so keep your eyes open for that.
+
+Sprite-flipping
+~~~~~~~~~~~~~~~
+
+Sprites can now be flipped in runtime with the functions link:/ref/gamesys#sprite.set_hflip[+sprite.set_hflip+] and link:/ref/gamesys#sprite.set_vflip[+sprite.set_vflip+].
+
+Enabling/disabling GUI nodes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Individual GUI nodes can now be enabled/disabled through link:/ref/gamesys#gui.set_enabled[+gui.set_enabled+].
+Disabled GUI nodes are neither rendered nor animated.
+To hide a node, disabling it is a much better option performance-wise than setting its alpha to zero or moving it off-screen.
+
+Recursive module loading
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+In 1.2.2, we introduced the ability to include link:/doc/scripting_debugging[lua modules] in scripts using +require+.
+Now you can include lua modules in other lua modules, which makes this feature even more powerful.
+
+Optimized sprite rendering
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+We have optimized the rendering of sprites, which appeared to be a bottleneck on the iOS platform.
+The rendering is now batched for fewer draw-calls, but this should not have any impact in the appearance of your games.
+
+Hope you enjoy this release!
+
 Release 1.2.2
 -------------
 _August 17, 2012_
