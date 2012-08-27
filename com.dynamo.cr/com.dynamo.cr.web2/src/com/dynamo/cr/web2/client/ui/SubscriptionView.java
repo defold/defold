@@ -81,6 +81,7 @@ public class SubscriptionView extends Composite implements ClickHandler {
 
         setLoading(false);
         this.cancellationMessage.setVisible(false);
+        this.providerMessage.setStyleName("label label-important");
         Element thead = DOM.createElement("thead");
         Element tr = DOM.createTR();
 
@@ -170,8 +171,10 @@ public class SubscriptionView extends Composite implements ClickHandler {
                         this.productTable.clearCell(i, 3);
                     } else if (canceled) {
                         this.reactivateButton = createButton("Reactivate");
+                        this.reactivateButton.setStyleName("btn btn-success");
                         this.productTable.setWidget(i, 2, this.reactivateButton);
                         this.terminateButton = createButton("Terminate");
+                        this.terminateButton.setStyleName("btn btn-danger");
                         this.productTable.setWidget(i, 3, this.terminateButton);
                     } else {
                         this.productTable.setText(i, 2, state);
