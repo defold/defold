@@ -243,7 +243,6 @@ IRenderView {
                                     viewPort[2],
                                     viewPort[3]);
 
-            // TODO: Temp "camera"
             Point size = canvas.getSize();
             double aspect = ((double) size.x) / size.y;
             camera.setOrthographic(camera.getFov(), aspect, -100000, 100000);
