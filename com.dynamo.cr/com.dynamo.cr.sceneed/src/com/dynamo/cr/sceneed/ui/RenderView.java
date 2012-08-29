@@ -246,7 +246,7 @@ IRenderView {
             // TODO: Temp "camera"
             Point size = canvas.getSize();
             double aspect = ((double) size.x) / size.y;
-            camera.setOrthographic(300, aspect, -100000, 100000);
+            camera.setOrthographic(camera.getFov(), aspect, -100000, 100000);
         } else if (event.type == SWT.Paint) {
             requestPaint();
         }
