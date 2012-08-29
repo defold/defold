@@ -110,6 +110,8 @@
         <module>../com.dynamo.cr.tileeditor.test</module>
         <module>../com.dynamo.cr.properties</module>
         <module>../com.dynamo.cr.properties.test</module>
+        <module>../com.dynamo.cr.projed</module>
+        <module>../com.dynamo.cr.projed.test</module>
         <module>../com.dynamo.cr.rlog</module>
         <module>../com.dynamo.cr.rlog.test</module>
         <module>../com.dynamo.cr.sceneed</module>
