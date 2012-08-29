@@ -3,25 +3,6 @@
 <plugin>
    <extension-point id="com.dynamo.cr.editor.ui.tip" name="Tip" schema="schema/com.dynamo.cr.editor.ui.tip.exsd"/>
    <extension
-         point="org.eclipse.ui.editors">
-      <editor
-            class="org.eclipse.ui.editors.text.TextEditor"
-            default="false"
-            extensions="project"
-            id="com.dynamo.cr.editor.ui.gameProjectEditor"
-            name="Game Project Editor">
-      </editor>
-   </extension>
-   <extension
-         point="com.dynamo.cr.editor.ui.tip">
-      <tip
-            editor-id="com.dynamo.cr.editor.ui.gameProjectEditor"
-            link="See &lt;a href=&quot;http://www.defold.com/doc/game_project&quot;&gt;Project Settings&lt;/a&gt; for more info."
-            tip="Edit your project settings in this file."
-            title="Project Settings">
-      </tip>
-   </extension>
-   <extension
          point="org.eclipse.core.expressions.propertyTesters">
       <propertyTester
             class="com.dynamo.cr.editor.ui.tip.TipAvailablePropertyTester"
