@@ -56,7 +56,9 @@ public class ProjectEditorView implements SelectionListener, KeyListener, FocusL
             Section section = toolkit.createSection(form.getBody(), Section.TITLE_BAR | Section.EXPANDED | Section.DESCRIPTION);
             section.setDescription(categoryMeta.getDescription());
             section.setText(categoryMeta.getName());
-            section.setLayoutData(new GridData(GridData.FILL_HORIZONTAL));
+            GridData gd = new GridData();
+            gd.widthHint = 500;
+            section.setLayoutData(gd);
             Composite sectionComposite = toolkit.createComposite(section);
             sectionComposite.setLayout(new GridLayout(3, false));
             for (KeyMeta keyMeta : categoryMeta.getKeys()) {
@@ -67,8 +69,7 @@ public class ProjectEditorView implements SelectionListener, KeyListener, FocusL
     }
 
     private static GridData spanTwo() {
-        GridData gd = new GridData();
-        gd.widthHint = 200;
+        GridData gd = new GridData(GridData.FILL_HORIZONTAL);
         gd.horizontalSpan = 2;
         return gd;
     }
@@ -109,8 +110,7 @@ public class ProjectEditorView implements SelectionListener, KeyListener, FocusL
             break;
 
         case RESOURCE:
-            gd = new GridData();
-            gd.widthHint = 250;
+            gd = new GridData(GridData.FILL_HORIZONTAL);
             Text text = createText(sectionComposite, keyMeta, "");
             text.setLayoutData(gd);
             gd = new GridData(SWT.DEFAULT, 1);
