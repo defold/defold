@@ -8,7 +8,6 @@ import java.text.ParseException;
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.IOperationHistory;
 import org.eclipse.core.commands.operations.IOperationHistoryListener;
-import org.eclipse.core.commands.operations.IUndoContext;
 import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.core.commands.operations.OperationHistoryEvent;
 import org.eclipse.core.commands.operations.UndoContext;
@@ -24,18 +23,16 @@ public class ProjectEditorPresenter implements ProjectEditorView.IPresenter, IOp
     protected static Logger logger = LoggerFactory.getLogger(ProjectEditorPresenter.class);
     private ProjectProperties projectProperties;
     private IProjectEditorView view;
-    private UndoContext undoContext;
     private IOperationHistory history;
+    private UndoContext undoContext;
     private int undoRedoCounter;
     private IProjectEditor projectEditor;
 
-    public ProjectEditorPresenter(IProjectEditor projectEditor, IOperationHistory history) {
+    public ProjectEditorPresenter(IProjectEditor projectEditor, IOperationHistory history, UndoContext undoContext) {
         this.projectEditor = projectEditor;
         this.history = history;
+        this.undoContext = undoContext;
         projectProperties = new ProjectProperties();
-
-        this.undoContext = new UndoContext();
-        history.setLimit(this.undoContext, 100);
         history.addOperationHistoryListener(this);
     }
 
@@ -67,12 +64,12 @@ public class ProjectEditorPresenter implements ProjectEditorView.IPresenter, IOp
             return;
         }
 
-        if (value.equals(keyMeta.getDefaultValue())) {
-            return;
-        }
-
         if (value.equals("")) {
             value = keyMeta.getDefaultValue();
+        }
+
+        if (value.equals(keyMeta.getDefaultValue()) && oldValue == null) {
+            return;
         }
 
         IUndoableOperation op = new SetProjectPropertyOperation(label, projectProperties, keyMeta, value, oldValue, this.view);
@@ -164,10 +161,6 @@ public class ProjectEditorPresenter implements ProjectEditorView.IPresenter, IOp
             this.projectEditor.updateDirty();
             validate();
         }
-    }
-
-    public IUndoContext getUndoContext() {
-        return undoContext;
     }
 
 }

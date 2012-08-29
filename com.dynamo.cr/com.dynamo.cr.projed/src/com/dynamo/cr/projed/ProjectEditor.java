@@ -7,31 +7,28 @@ import java.io.InputStream;
 import java.text.ParseException;
 
 import org.apache.commons.io.IOUtils;
+import org.eclipse.core.resources.IFile;
+import org.eclipse.core.resources.IResourceChangeEvent;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.swt.widgets.Composite;
-import org.eclipse.ui.IActionBars;
 import org.eclipse.ui.IEditorInput;
 import org.eclipse.ui.IEditorSite;
 import org.eclipse.ui.IFileEditorInput;
 import org.eclipse.ui.PartInitException;
 import org.eclipse.ui.PlatformUI;
-import org.eclipse.ui.actions.ActionFactory;
-import org.eclipse.ui.operations.RedoActionHandler;
-import org.eclipse.ui.operations.UndoActionHandler;
-import org.eclipse.ui.part.EditorPart;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class ProjectEditor extends EditorPart implements IProjectEditor {
+import com.dynamo.cr.editor.ui.AbstractDefoldEditor;
+
+public class ProjectEditor extends AbstractDefoldEditor implements IProjectEditor {
 
     protected static Logger logger = LoggerFactory.getLogger(ProjectEditor.class);
     private ProjectEditorView view;
     private ProjectEditorPresenter presenter;
-    private UndoActionHandler undoAction;
-    private RedoActionHandler redoAction;
 
     public ProjectEditor() {
     }
@@ -46,21 +43,27 @@ public class ProjectEditor extends EditorPart implements IProjectEditor {
 
     @Override
     public void doSave(IProgressMonitor monitor) {
-        IFileEditorInput input = (IFileEditorInput) getEditorInput();
+        inSave = true;
+
         try {
-            ByteArrayOutputStream os = new ByteArrayOutputStream();
-            presenter.save(os);
-            os.close();
-            InputStream is = new ByteArrayInputStream(os.toByteArray());
-            input.getFile().setContents(is, true, false, new NullProgressMonitor());
-            presenter.clearDirty();
-            updateDirty();
-        } catch (CoreException e) {
-            MessageDialog.openError(getSite().getShell(), "Error saving project file", e.getMessage());
-            logger.error("Error saving project file", e);
-        } catch (IOException e) {
-            MessageDialog.openError(getSite().getShell(), "Error saving project file", e.getMessage());
-            logger.error("Error saving project file", e);
+            IFileEditorInput input = (IFileEditorInput) getEditorInput();
+            try {
+                ByteArrayOutputStream os = new ByteArrayOutputStream();
+                presenter.save(os);
+                os.close();
+                InputStream is = new ByteArrayInputStream(os.toByteArray());
+                input.getFile().setContents(is, true, false, new NullProgressMonitor());
+                presenter.clearDirty();
+                updateDirty();
+            } catch (CoreException e) {
+                MessageDialog.openError(getSite().getShell(), "Error saving project file", e.getMessage());
+                logger.error("Error saving project file", e);
+            } catch (IOException e) {
+                MessageDialog.openError(getSite().getShell(), "Error saving project file", e.getMessage());
+                logger.error("Error saving project file", e);
+            }
+        } finally {
+            inSave = false;
         }
     }
 
@@ -76,11 +79,9 @@ public class ProjectEditor extends EditorPart implements IProjectEditor {
     @Override
     public void init(IEditorSite site, IEditorInput input)
             throws PartInitException {
-        setSite(site);
-        setInput(input);
-        setPartName(input.getName());
+        super.init(site, input);
 
-        presenter = new ProjectEditorPresenter(this, PlatformUI.getWorkbench().getOperationSupport().getOperationHistory());
+        presenter = new ProjectEditorPresenter(this, PlatformUI.getWorkbench().getOperationSupport().getOperationHistory(), undoContext);
         IFileEditorInput fileInput = (IFileEditorInput) input;
         InputStream is = null;
         try {
@@ -96,15 +97,6 @@ public class ProjectEditor extends EditorPart implements IProjectEditor {
             IOUtils.closeQuietly(is);
         }
 
-        this.undoAction = new UndoActionHandler(this.getEditorSite(), presenter.getUndoContext());
-        this.redoAction = new RedoActionHandler(this.getEditorSite(), presenter.getUndoContext());
-    }
-
-    public void updateActions() {
-        IActionBars actionBars = getEditorSite().getActionBars();
-        actionBars.updateActionBars();
-        actionBars.setGlobalActionHandler(ActionFactory.UNDO.getId(), undoAction);
-        actionBars.setGlobalActionHandler(ActionFactory.REDO.getId(), redoAction);
     }
 
     @Override
@@ -129,5 +121,28 @@ public class ProjectEditor extends EditorPart implements IProjectEditor {
     public void setFocus() {
         view.setFocus();
         updateActions();
+    }
+
+    @Override
+    protected void doReload(IFile file) {
+        InputStream is = null;
+        try {
+            is = file.getContents();
+            presenter.load(is);
+            presenter.refreshAll();
+        } catch (CoreException e) {
+            throw new RuntimeException(e);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        } catch (ParseException e) {
+            throw new RuntimeException(e);
+        } finally {
+            IOUtils.closeQuietly(is);
+        }
+
+    }
+
+    @Override
+    protected void handleResourceChanged(IResourceChangeEvent event) {
     }
 }

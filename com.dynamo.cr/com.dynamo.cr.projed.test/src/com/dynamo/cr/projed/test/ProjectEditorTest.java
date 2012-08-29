@@ -14,6 +14,7 @@ import java.util.Collections;
 
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.DefaultOperationHistory;
+import org.eclipse.core.commands.operations.UndoContext;
 import org.eclipse.core.runtime.NullProgressMonitor;
 import org.junit.Before;
 import org.junit.Test;
@@ -32,13 +33,15 @@ public class ProjectEditorTest {
     private ProjectEditorPresenter presenter;
     private DefaultOperationHistory history;
     private IProjectEditor projectEditor;
+    private UndoContext undoContext;
 
     @Before
     public void setUp() throws Exception {
         view = mock(IProjectEditorView.class);
         history = new DefaultOperationHistory();
         projectEditor = mock(IProjectEditor.class);
-        presenter = new ProjectEditorPresenter(projectEditor, history);
+        undoContext = new UndoContext();
+        presenter = new ProjectEditorPresenter(projectEditor, history, undoContext);
         presenter.setView(view);
     }
 
@@ -71,11 +74,11 @@ public class ProjectEditorTest {
     }
 
     private void undo() throws ExecutionException {
-        history.undo(presenter.getUndoContext(), new NullProgressMonitor(), null);
+        history.undo(undoContext, new NullProgressMonitor(), null);
     }
 
     private void redo() throws ExecutionException {
-        history.redo(presenter.getUndoContext(), new NullProgressMonitor(), null);
+        history.redo(undoContext, new NullProgressMonitor(), null);
     }
 
     void setValue(String category, String key, String value) {
