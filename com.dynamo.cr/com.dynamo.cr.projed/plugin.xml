@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+   <extension
+         point="org.eclipse.ui.editors">
+      <editor
+            class="com.dynamo.cr.projed.ProjectEditor"
+            default="true"
+            filenames="game.project"
+            icon="icons/defold.png"
+            id="com.dynamo.cr.projed.projectEditor"
+            name="Project Editor">
+      </editor>
+   </extension>
+   <extension
+         point="com.dynamo.cr.editor.ui.tip">
+      <tip
+            editor-id="com.dynamo.cr.projed.projectEditor"
+            link="See &lt;a href=&quot;http://www.defold.com/doc/game_project&quot;&gt;Project Settings&lt;/a&gt; for more info."
+            tip="Edit your project settings in this file."
+            title="Project Settings">
+      </tip>
+   </extension>
+
+</plugin>

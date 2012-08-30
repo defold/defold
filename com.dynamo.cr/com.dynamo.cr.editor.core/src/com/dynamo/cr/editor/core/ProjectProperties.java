@@ -36,6 +36,17 @@ public class ProjectProperties {
      * @return property value. null if not set
      */
     public String getStringValue(String category, String key) {
+        return getStringValue(category, key, null);
+    }
+
+    /**
+     * Get property as string with default value
+     * @param category
+     * @param key
+     * @param defaultValue
+     * @return property value. defaultValue if not set
+     */
+    public String getStringValue(String category, String key, String defaultValue) {
         Map<String, String> group = this.properties.get(category);
         if (group != null) {
             return group.get(key);
@@ -76,15 +87,24 @@ public class ProjectProperties {
      * Put property (string variant)
      * @param category property category
      * @param key category key
-     * @param value value
+     * @param value value. if value is null the key/value-pair is effectively removed
      */
     public void putStringValue(String category, String key, String value) {
         Map<String, String> group = this.properties.get(category);
         if (group == null) {
+            if (value == null) {
+                // Category doesn't exists and the value is null
+                // Just return
+                return;
+            }
             group = new LinkedHashMap<String, String>();
             this.properties.put(category, group);
         }
-        group.put(key, value);
+        if (value != null) {
+            group.put(key, value);
+        } else {
+            group.remove(key);
+        }
     }
 
     /**
