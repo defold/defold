@@ -207,9 +207,7 @@ public class UsersResource extends BaseResource {
             UserSubscription subscription = server.getBillingProvider().getSubscription(Long.parseLong(externalId));
             subscription.setUser(u);
             em.persist(subscription);
-            em.getTransaction().commit();
-            em.getTransaction().begin();
-            em.refresh(subscription);
+            em.flush();
             logger.info(BILLING_MARKER, String.format("Subscription %d (external %d) created for user %s.",
                     subscription.getId(), subscription.getExternalId(), u.getEmail()));
             return ResourceUtil.createUserSubscriptionInfo(subscription, server.getConfiguration());
@@ -307,9 +305,7 @@ public class UsersResource extends BaseResource {
                                 u.getEmail(), us.getId(), us.getExternalId()));
             }
             em.persist(us);
-            em.getTransaction().commit();
-            em.getTransaction().begin();
-            em.refresh(us);
+            em.flush();
             return ResourceUtil.createUserSubscriptionInfo(us, server.getConfiguration());
         } else {
             throwWebApplicationException(Status.NOT_FOUND, "User has no subscription");

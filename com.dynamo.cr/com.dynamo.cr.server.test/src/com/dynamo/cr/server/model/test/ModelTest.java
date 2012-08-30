@@ -508,6 +508,9 @@ public class ModelTest {
         assertThat(FREE_PRODUCT_ID, is((long) product.getId()));
 
         ModelUtil.newUserSubscription(em, carl, SMALL_PRODUCT_ID, 2l, 3l, null);
+        // Register joe too
+        User joe = ModelUtil.findUserByEmail(em, JOE_CODER_EMAIL);
+        ModelUtil.newUserSubscription(em, joe, SMALL_PRODUCT_ID, 3l, 4l, null);
         em.getTransaction().commit();
 
         em.getTransaction().begin();
