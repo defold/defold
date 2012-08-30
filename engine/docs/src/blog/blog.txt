@@ -4,13 +4,7 @@ Release 1.2.3
 -------------
 _August 27, 2012_
 
-This release contains:
-
-* Billing
-* Sprite-flipping in runtime
-* Enabling/disabling GUI nodes
-* Recursive module loading
-* Optimized sprite rendering
+This release contains billing, sprite-flipping in runtime, enabling/disabling GUI nodes, recursive module loading and optimized sprite rendering.
 
 Billing
 ~~~~~~~
