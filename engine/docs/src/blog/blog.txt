@@ -2,7 +2,7 @@
 
 Release 1.2.3
 -------------
-_August 27, 2012_
+_August 30, 2012_
 
 This release contains billing, sprite-flipping in runtime, enabling/disabling GUI nodes, recursive module loading and optimized sprite rendering.
 
@@ -26,7 +26,7 @@ Sprites can now be flipped in runtime with the functions link:/ref/gamesys#sprit
 Enabling/disabling GUI nodes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Individual GUI nodes can now be enabled/disabled through link:/ref/gamesys#gui.set_enabled[+gui.set_enabled+].
+Individual GUI nodes can now be enabled/disabled through link:/ref/gui#gui.set_enabled[+gui.set_enabled+].
 Disabled GUI nodes are neither rendered nor animated.
 To hide a node, disabling it is a much better option performance-wise than setting its alpha to zero or moving it off-screen.
 
