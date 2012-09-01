@@ -137,6 +137,10 @@ public class Server implements ServerMBean {
 
     private ExecutorService executorService;
 
+    // Value it retrieved from configuration in order to
+    // be run-time changeable. Required for unit-tests
+    private int openRegistrationMaxUsers;
+
     class CleanBuildsThread extends Thread {
         private boolean quit = false;
 
@@ -308,6 +312,8 @@ public class Server implements ServerMBean {
                   Configuration configuration,
                   IMailProcessor mailProcessor,
             IBillingProvider billingProvider) throws IOException {
+
+        this.openRegistrationMaxUsers = configuration.getOpenRegistrationMaxUsers();
 
         this.emf = emf;
         this.configuration = configuration;
@@ -1096,10 +1102,18 @@ public class Server implements ServerMBean {
         return FileUtils.readFileToByteArray(file);
     }
 
+    public int getOpenRegistrationMaxUsers() {
+        return openRegistrationMaxUsers;
+    }
+
+    public void setOpenRegistrationMaxUsers(int openRegistrationMaxUsers) {
+        this.openRegistrationMaxUsers = openRegistrationMaxUsers;
+    }
+
     public boolean openRegistration(EntityManager em) {
         Query query = em.createQuery("select count(u.id) from User u");
         Number count = (Number) query.getSingleResult();
-        int maxUsers = getConfiguration().getOpenRegistrationMaxUsers();
+        int maxUsers = getOpenRegistrationMaxUsers();
         boolean open = count.intValue() < maxUsers;
         return open;
     }

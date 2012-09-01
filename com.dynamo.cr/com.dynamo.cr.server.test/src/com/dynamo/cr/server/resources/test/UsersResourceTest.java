@@ -98,7 +98,7 @@ public class UsersResourceTest extends AbstractResourceTest {
         InvitationAccount joeAccount = new InvitationAccount();
         joeAccount.setUser(joeUser);
         joeAccount.setOriginalCount(1);
-        joeAccount.setCurrentCount(1);
+        joeAccount.setCurrentCount(2);
         em.persist(joeAccount);
 
         bobUser = new User();
@@ -338,7 +338,7 @@ public class UsersResourceTest extends AbstractResourceTest {
         assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
 
         // Mail processes runs in a separate thread. Wait some time..
-        Thread.sleep(200);
+        Thread.sleep(400);
         assertThat(mailer.emails.size(), is(1));
     }
 
@@ -351,7 +351,7 @@ public class UsersResourceTest extends AbstractResourceTest {
         assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
 
         // Mail processes runs in a separate thread. Wait some time..
-        Thread.sleep(200);
+        Thread.sleep(400);
         assertThat(mailer.emails.size(), is(1));
 
         response = joeUsersWebResource
@@ -360,13 +360,16 @@ public class UsersResourceTest extends AbstractResourceTest {
         assertEquals(Response.Status.CONFLICT.getStatusCode(), response.getStatus());
 
         // Mail processes runs in a separate thread. Wait some time..
-        Thread.sleep(200);
+        Thread.sleep(400);
         assertThat(mailer.emails.size(), is(1));
     }
 
     @Test
     public void testInviteProspect() throws Exception {
         EntityManager em = emf.createEntityManager();
+
+        // Force prospect behavior and not immediate invitation
+        server.setOpenRegistrationMaxUsers(0);
 
         ClientResponse response = anonymousResource
                 .path("/prospects/newuser@foo.com").put(ClientResponse.class);
@@ -385,8 +388,13 @@ public class UsersResourceTest extends AbstractResourceTest {
     public void testNoRemainingInvitations() throws Exception {
         assertThat(mailer.emails.size(), is(0));
         ClientResponse response = joeUsersWebResource
-            .path(String.format("/%d/invite/newuser@foo.com", joeUser.getId()))
-            .put(ClientResponse.class);
+                .path(String.format("/%d/invite/newuser1@foo.com", joeUser.getId()))
+                .put(ClientResponse.class);
+        assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
+
+        response = joeUsersWebResource
+                .path(String.format("/%d/invite/newuser2@foo.com", joeUser.getId()))
+                .put(ClientResponse.class);
         assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
 
         response = joeUsersWebResource
