@@ -4,6 +4,11 @@ import java.io.File;
 import java.util.Arrays;
 import java.util.List;
 
+import javax.ws.rs.WebApplicationException;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
+import javax.ws.rs.core.Response.Status;
+
 import org.apache.commons.io.FilenameUtils;
 import org.eclipse.jgit.util.StringUtils;
 
@@ -24,6 +29,16 @@ import com.dynamo.cr.server.model.UserSubscription.CreditCard;
 import com.dynamo.cr.server.util.ChargifyUtil;
 
 public class ResourceUtil {
+
+    public static void throwWebApplicationException(Status status, String msg) {
+        Response response = Response
+                .status(status)
+                .type(MediaType.TEXT_PLAIN)
+                .entity(msg)
+                .build();
+        throw new WebApplicationException(response);
+    }
+
     public static UserInfo createUserInfo(User user) {
         UserInfo userInfo = UserInfo.newBuilder()
             .setId(user.getId())

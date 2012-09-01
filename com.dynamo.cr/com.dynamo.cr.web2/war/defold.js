@@ -15,15 +15,23 @@ function trackPage(pageName) {
     }
 }
 
-function signUp() {
+function signUp(messageSelector) {
+    $(messageSelector).parent().hide();
 	var email = $("#email").val();
 	$.ajax({
 		type : "PUT",
-		url : getServerUrl() + "/prospects/" + email
+		url : getServerUrl() + "/prospects/" + email,
+		error: function(data) {
+            $(messageSelector).text(data.responseText);
+            $(messageSelector).parent().show();
+		},
+		success: function(data) {
+            $(messageSelector).text(data);
+            $(messageSelector).parent().show();
+		}
 	})
 	$("#email").val("");
-	$("#signUp").html('<h3>Signed up!</h3>');
-	trackPage('signup');
+	trackPage('dosignup');
 	return false;
 }
 

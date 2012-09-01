@@ -81,6 +81,10 @@ message Configuration
 
     // Grizzly test
     optional int32 grizzly_idle_timeout = 35;
+
+    // Max number of users registered until the open registration will be closed
+    optional int32 open_registration_max_users = 36 [default=1000];
+    optional int32 open_invitation_count = 37 [default=3];
 }
 
 message EMailTemplate

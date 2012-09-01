@@ -5145,6 +5145,18 @@ div.search-result {
           border-radius: 6px;
 }
 
+/* Signup */
+
+a.signup {
+  padding-top: 0.7em;
+  padding-right: 1.6em;
+  padding-bottom: 0.7em;
+  padding-left: 1.6em;
+  margin-top: 0.7em;
+  margin-bottom: 0.7em;
+  font-size: 24px;
+}
+
 .ref-doc h3.name {
   color: #008ee3;
 }

@@ -19,6 +19,7 @@ render('500.html', 'error/500.html', skip_index = True, root='/')
 
 render('landing.html', 'index.html')
 render('plans.html', 'plans/index.html', active_page = 'plans')
+render('signup.html', 'signup/index.html')
 
 docs = ['game_project.html',
         'hud.html',

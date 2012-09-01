@@ -25,13 +25,8 @@ public class BaseResource {
     @Inject
     protected EntityManager em;
 
-    protected void throwWebApplicationException(Status status, String msg) {
-        Response response = Response
-                .status(status)
-                .type(MediaType.TEXT_PLAIN)
-                .entity(msg)
-                .build();
-        throw new WebApplicationException(response);
+    protected static void throwWebApplicationException(Status status, String msg) {
+        ResourceUtil.throwWebApplicationException(status, msg);
     }
 
     protected Response okResponse(String fmt, Object...args) {
