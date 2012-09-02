@@ -1,13 +1,8 @@
 package com.dynamo.cr.server.resources;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 
 import javax.annotation.security.RolesAllowed;
-import javax.persistence.TypedQuery;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
@@ -25,7 +20,6 @@ import org.slf4j.Marker;
 import org.slf4j.MarkerFactory;
 
 import com.dynamo.cr.proto.Config.BillingProduct;
-import com.dynamo.cr.proto.Config.EMailTemplate;
 import com.dynamo.cr.protocol.proto.Protocol.InvitationAccountInfo;
 import com.dynamo.cr.protocol.proto.Protocol.RegisterUser;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
@@ -34,11 +28,8 @@ import com.dynamo.cr.protocol.proto.Protocol.UserSubscriptionInfo;
 import com.dynamo.cr.protocol.proto.Protocol.UserSubscriptionState;
 import com.dynamo.cr.server.ServerException;
 import com.dynamo.cr.server.billing.IBillingProvider;
-import com.dynamo.cr.server.mail.EMail;
-import com.dynamo.cr.server.model.Invitation;
 import com.dynamo.cr.server.model.InvitationAccount;
 import com.dynamo.cr.server.model.ModelUtil;
-import com.dynamo.cr.server.model.Prospect;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.model.UserSubscription;
 import com.dynamo.cr.server.model.UserSubscription.State;
@@ -133,11 +124,6 @@ public class UsersResource extends BaseResource {
     @Path("/{user}/invite/{email}")
     @Transactional
     public Response invite(@PathParam("user") String user, @PathParam("email") String email) {
-        TypedQuery<Invitation> q = em.createQuery("select i from Invitation i where i.email = :email", Invitation.class);
-        List<Invitation> lst = q.setParameter("email", email).getResultList();
-        if (lst.size() > 0) {
-            throwWebApplicationException(Status.CONFLICT, "User already invited");
-        }
         InvitationAccount a = server.getInvitationAccount(em, user);
         if (a.getCurrentCount() == 0) {
             throwWebApplicationException(Status.FORBIDDEN, "Inviter has no invitations left");
@@ -145,45 +131,9 @@ public class UsersResource extends BaseResource {
         a.setCurrentCount(a.getCurrentCount() - 1);
         em.persist(a);
 
-        // Remove prospects
-        Prospect p = ModelUtil.findProspectByEmail(em, email);
-        if (p != null) {
-            em.remove(p);
-        }
-
-        String key = UUID.randomUUID().toString();
         User u = server.getUser(em, user);
-
-        EMailTemplate template = server.getConfiguration().getInvitationTemplate();
-        Map<String, String> params = new HashMap<String, String>();
-        params.put("inviter", String.format("%s %s", u.getFirstName(), u.getLastName()));
-        params.put("key", key);
-        EMail emailMessage = EMail.format(template, email, params);
-
-        Invitation invitation = new Invitation();
-        invitation.setEmail(email);
-        invitation.setInviterEmail(u.getEmail());
-        invitation.setRegistrationKey(key);
-        invitation.setInitialInvitationCount(server.getInvitationCount(a.getOriginalCount()));
-        em.persist(invitation);
-        server.getMailProcessor().send(em, emailMessage);
-        em.flush();
-
-        // NOTE: This is totally arbitrary. server.getMailProcessor().process()
-        // should be invoked *after* the transaction is commited. Commits are
-        // however container managed. Thats why we run a bit later.. budget..
-        // The mail is eventually sent though as we periodically process the queue
-        server.getExecutorService().execute(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) { e.printStackTrace(); }
-                server.getMailProcessor().process();
-            }
-        });
-
-        ModelUtil.subscribeToNewsLetter(em, email, "", "");
+        String inviter = String.format("%s %s", u.getFirstName(), u.getLastName());
+        server.invite(em, email, inviter, u.getEmail(), a.getOriginalCount());
 
         return okResponse("User %s invited", email);
     }

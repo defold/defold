@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
@@ -28,6 +29,8 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
+import javax.persistence.Query;
+import javax.persistence.TypedQuery;
 import javax.servlet.ServletContextEvent;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
@@ -61,6 +64,7 @@ import org.slf4j.LoggerFactory;
 import com.dynamo.cr.branchrepo.BranchRepository;
 import com.dynamo.cr.proto.Config.BillingProduct;
 import com.dynamo.cr.proto.Config.Configuration;
+import com.dynamo.cr.proto.Config.EMailTemplate;
 import com.dynamo.cr.proto.Config.InvitationCountEntry;
 import com.dynamo.cr.protocol.proto.Protocol.BuildDesc;
 import com.dynamo.cr.protocol.proto.Protocol.BuildDesc.Activity;
@@ -71,6 +75,7 @@ import com.dynamo.cr.server.auth.GitSecurityFilter;
 import com.dynamo.cr.server.auth.OpenIDAuthenticator;
 import com.dynamo.cr.server.auth.SecurityFilter;
 import com.dynamo.cr.server.billing.IBillingProvider;
+import com.dynamo.cr.server.mail.EMail;
 import com.dynamo.cr.server.mail.IMailProcessor;
 import com.dynamo.cr.server.model.Invitation;
 import com.dynamo.cr.server.model.InvitationAccount;
@@ -131,6 +136,10 @@ public class Server implements ServerMBean {
     private CleanBuildsThread cleanupThread;
 
     private ExecutorService executorService;
+
+    // Value it retrieved from configuration in order to
+    // be run-time changeable. Required for unit-tests
+    private int openRegistrationMaxUsers;
 
     class CleanBuildsThread extends Thread {
         private boolean quit = false;
@@ -303,6 +312,8 @@ public class Server implements ServerMBean {
                   Configuration configuration,
                   IMailProcessor mailProcessor,
             IBillingProvider billingProvider) throws IOException {
+
+        this.openRegistrationMaxUsers = configuration.getOpenRegistrationMaxUsers();
 
         this.emf = emf;
         this.configuration = configuration;
@@ -1090,5 +1101,72 @@ public class Server implements ServerMBean {
         File file = getEngineFile(configuration, projectId, platform);
         return FileUtils.readFileToByteArray(file);
     }
+
+    public int getOpenRegistrationMaxUsers() {
+        return openRegistrationMaxUsers;
+    }
+
+    public void setOpenRegistrationMaxUsers(int openRegistrationMaxUsers) {
+        this.openRegistrationMaxUsers = openRegistrationMaxUsers;
+    }
+
+    public boolean openRegistration(EntityManager em) {
+        Query query = em.createQuery("select count(u.id) from User u");
+        Number count = (Number) query.getSingleResult();
+        int maxUsers = getOpenRegistrationMaxUsers();
+        boolean open = count.intValue() < maxUsers;
+        return open;
+    }
+
+    public void invite(EntityManager em, String email, String inviter, String inviterEmail, int originalInvitationCount) {
+        TypedQuery<Invitation> q = em.createQuery("select i from Invitation i where i.email = :email", Invitation.class);
+        List<Invitation> lst = q.setParameter("email", email).getResultList();
+        if (lst.size() > 0) {
+            String msg = String.format("The email %s is already registred. An invitation will be sent to you as soon as we can " +
+                                       "handle the high volume of registrations.", email);
+            ResourceUtil.throwWebApplicationException(Status.CONFLICT, msg);
+        }
+
+        // Remove prospects
+        Prospect p = ModelUtil.findProspectByEmail(em, email);
+        if (p != null) {
+            em.remove(p);
+        }
+
+        String key = UUID.randomUUID().toString();
+
+        EMailTemplate template = getConfiguration().getInvitationTemplate();
+        Map<String, String> params = new HashMap<String, String>();
+        params.put("inviter", inviter);
+        params.put("key", key);
+        EMail emailMessage = EMail.format(template, email, params);
+
+        Invitation invitation = new Invitation();
+        invitation.setEmail(email);
+        invitation.setInviterEmail(inviterEmail);
+        invitation.setRegistrationKey(key);
+        invitation.setInitialInvitationCount(getInvitationCount(originalInvitationCount));
+        em.persist(invitation);
+        getMailProcessor().send(em, emailMessage);
+        em.flush();
+
+        // NOTE: This is totally arbitrary. server.getMailProcessor().process()
+        // should be invoked *after* the transaction is commited. Commits are
+        // however container managed. Thats why we run a bit later.. budget..
+        // The mail is eventually sent though as we periodically process the queue
+        getExecutorService().execute(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) { e.printStackTrace(); }
+                getMailProcessor().process();
+            }
+        });
+
+        ModelUtil.subscribeToNewsLetter(em, email, "", "");
+
+    }
+
 
 }

@@ -4,8 +4,10 @@ import static org.junit.Assert.assertEquals;
 
 import java.io.IOException;
 import java.net.URI;
+import java.util.List;
 
 import javax.persistence.EntityManager;
+import javax.persistence.Query;
 import javax.ws.rs.core.UriBuilder;
 
 import org.junit.Before;
@@ -13,6 +15,8 @@ import org.junit.Test;
 
 import com.dynamo.cr.common.providers.JsonProviders;
 import com.dynamo.cr.common.providers.ProtobufProviders;
+import com.dynamo.cr.server.model.Invitation;
+import com.dynamo.cr.server.model.User;
 import com.dynamo.server.dgit.CommandUtil;
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientResponse;
@@ -66,25 +70,88 @@ public class ProspectsResourceTest extends AbstractResourceTest {
         prospectsWebResource = client.resource(uri);
     }
 
+    void sleep() throws InterruptedException {
+        // Arbitrary sleep for mail processor
+        Thread.sleep(200);
+    }
+
+    @SuppressWarnings("unchecked")
+    List<Invitation> invitations(EntityManager em) {
+        return em.createQuery("select i from Invitation i").getResultList();
+    }
+
     @Test
     public void testNewProspect() throws Exception {
+        EntityManager em = emf.createEntityManager();
+        assertEquals(0, mailer.emails.size());
         final String email = "test@foo.com";
 
         ClientResponse response;
         response = prospectsWebResource.path(String.format("/%s", email)).put(ClientResponse.class);
         assertEquals(ClientResponse.Status.OK.getStatusCode(), response.getStatus());
+        sleep();
+        assertEquals(1, mailer.emails.size());
+        assertEquals(1, invitations(em).size());
+
+        em.close();
     }
 
     @Test
     public void testNewProspectDuplicate() throws Exception {
+        EntityManager em = emf.createEntityManager();
+
+        assertEquals(0, mailer.emails.size());
         final String email = "test@foo.com";
 
         ClientResponse response;
         response = prospectsWebResource.path(String.format("/%s", email)).put(ClientResponse.class);
         assertEquals(ClientResponse.Status.OK.getStatusCode(), response.getStatus());
+        sleep();
+        assertEquals(1, mailer.emails.size());
+        assertEquals(1, invitations(em).size());
 
         response = prospectsWebResource.path(String.format("/%s", email)).put(ClientResponse.class);
         assertEquals(ClientResponse.Status.CONFLICT.getStatusCode(), response.getStatus());
+        sleep();
+        assertEquals(1, mailer.emails.size());
+        assertEquals(1, invitations(em).size());
+
+        em.close();
+    }
+
+    @Test
+    public void testNewProspectCap() throws Exception {
+        EntityManager em = emf.createEntityManager();
+
+        assertEquals(0, mailer.emails.size());
+        assertEquals(0, invitations(em).size());
+
+        Query query = em.createQuery("select count(u.id) from User u");
+        int userCount = ((Number) query.getSingleResult()).intValue();
+        int maxUsers = server.getConfiguration().getOpenRegistrationMaxUsers();
+
+        // Create users up to maxUsers
+        em.getTransaction().begin();
+        while (userCount < maxUsers) {
+            User user = new User();
+            user.setPassword("pass");
+            user.setEmail(String.format("foo%d@bar.com", userCount));
+            user.setFirstName(String.format("first", userCount));
+            user.setLastName(String.format("last", userCount));
+            em.persist(user);
+            userCount++;
+        }
+        em.getTransaction().commit();
+
+        ClientResponse response;
+        final String email = "test@foo.com";
+        response = prospectsWebResource.path(String.format("/%s", email)).put(ClientResponse.class);
+        assertEquals(ClientResponse.Status.OK.getStatusCode(), response.getStatus());
+        sleep();
+        assertEquals(0, mailer.emails.size());
+        assertEquals(0, invitations(em).size());
+
+        em.close();
     }
 
 }

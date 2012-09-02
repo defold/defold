@@ -4,7 +4,9 @@
 	<g:HTMLPanel>
 	    <h2>Login or Register New Account </h2>
 	    <p>
-	        Select a site where you already have an account registered:
+	        Select a site where you already have an account registered to login
+	        or register a Defold account. If you don't have an invitation yet please
+	        go to this <a href="/signup">page</a> to sign up first.
 	    </p>
 
 	    <g:Button ui:field="loginGoogleButton" text="" styleName="openIDGoogle"></g:Button>

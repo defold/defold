@@ -39,6 +39,7 @@
 /unsubscribe.html
 /index.html
 /plans/index.html
+/signup/index.html
 /doc/game_project.html
 /doc/hud.html
 /doc/input.html
