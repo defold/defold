@@ -3,12 +3,15 @@ package com.dynamo.cr.sceneed.ui;
 import javax.vecmath.Matrix4d;
 import javax.vecmath.Vector4d;
 
+import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.MouseEvent;
 
 import com.dynamo.cr.sceneed.core.IRenderView;
 import com.dynamo.cr.sceneed.core.Node;
 
 public class ManipulatorUtil {
+
+    private static final double CLAMP_LEVEL = 0.2;
 
     public static Vector4d closestPoint(Node node, IRenderView renderView, MouseEvent e) {
         Vector4d pos = new Vector4d(node.getTranslation());
@@ -60,4 +63,22 @@ public class ManipulatorUtil {
         return axis;
     }
 
+    public static boolean isSnappingActive(MouseEvent event) {
+        return (event.stateMask & SWT.SHIFT) != 0;
+    }
+
+    public static Vector4d snapToGrid(Vector4d point, IRenderView renderView) {
+        double gridSize = renderView.getGrid().getPrimarySize();
+        double[] p = new double[4];
+        point.get(p);
+        for (int i = 0; i < 3; ++i) {
+            p[i] /= gridSize;
+            double v = Math.abs(p[i] - Math.floor(p[i]));
+            if (v < CLAMP_LEVEL || v > 1.0f - CLAMP_LEVEL) {
+                p[i] = Math.round(p[i]);
+            }
+            p[i] *= gridSize;
+        }
+        return new Vector4d(p);
+    }
 }

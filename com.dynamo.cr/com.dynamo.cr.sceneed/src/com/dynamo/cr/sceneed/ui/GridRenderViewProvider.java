@@ -19,7 +19,7 @@ public class GridRenderViewProvider implements IRenderViewProvider {
     public GridRenderViewProvider(IRenderView renderView) {
         this.renderView = renderView;
         renderView.addRenderProvider(this);
-        this.gridNode = new GridNode();
+        this.gridNode = new GridNode(renderView.getGrid());
     }
 
     @PreDestroy

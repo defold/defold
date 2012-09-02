@@ -36,4 +36,6 @@ public interface IRenderView  {
     void releaseGLContext();
 
     void setNodeTypeVisible(INodeType nodeType, boolean visible);
+
+    SceneGrid getGrid();
 }

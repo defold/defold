@@ -68,9 +68,11 @@ import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.ManipulatorController;
 import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.sceneed.core.SceneGrid;
 import com.dynamo.cr.sceneed.core.SceneModel;
 import com.dynamo.cr.sceneed.core.ScenePresenter;
 import com.dynamo.cr.sceneed.handlers.ShowGroupHandler;
+import com.dynamo.cr.sceneed.ui.preferences.PreferenceConstants;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
@@ -175,11 +177,13 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
         this.gridRenderViewProvider = injector.getInstance(GridRenderViewProvider.class);
         this.sceneRenderViewProvider = injector.getInstance(SceneRenderViewProvider.class);
 
+        this.cameraController = injector.getInstance(CameraController.class);
+
+        updateSceneGrid();
+
         this.manipulatorController = injector.getInstance(ManipulatorController.class);
         IManipulatorMode selectMode = manipulatorRegistry.getMode(Activator.SELECT_MODE_ID);
         manipulatorController.setManipulatorMode(selectMode);
-
-        this.cameraController = injector.getInstance(CameraController.class);
 
         this.presenter = injector.getInstance(ISceneView.IPresenter.class);
         this.presenterContext = injector.getInstance(ISceneView.IPresenterContext.class);
@@ -406,16 +410,29 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
     @Override
     public void propertyChange(PropertyChangeEvent event) {
         if (event.getSource().equals(Activator.getDefault().getPreferenceStore())) {
-            if (event.getProperty().startsWith(ShowGroupHandler.PREFERENCE_PREFIX)) {
+            String property = event.getProperty();
+            if (property.startsWith(ShowGroupHandler.PREFERENCE_PREFIX)) {
                 String displayGroup = event.getProperty().substring(ShowGroupHandler.PREFERENCE_PREFIX.length());
                 for (INodeType nodeType : this.nodeTypeRegistry.getNodeTypes()) {
                     if (displayGroup.equals(nodeType.getDisplayGroup())) {
                         this.renderView.setNodeTypeVisible(nodeType, !(Boolean)event.getNewValue());
                     }
                 }
+            } else if (property.equals(PreferenceConstants.P_GRID)
+                    || property.equals(PreferenceConstants.P_GRID_SIZE)
+                    || property.equals(PreferenceConstants.P_GRID_COLOR)) {
+                updateSceneGrid();
             }
             this.renderView.refresh();
         }
+    }
+
+    private void updateSceneGrid() {
+        SceneGrid grid = this.renderView.getGrid();
+        IPreferenceStore store = Activator.getDefault().getPreferenceStore();
+        grid.setAutoGrid(store.getString(PreferenceConstants.P_GRID).equals(PreferenceConstants.P_GRID_AUTO_VALUE));
+        grid.setGridColor(RenderUtil.parseColor(PreferenceConstants.P_GRID_COLOR));
+        grid.setFixedGridSize(store.getInt(PreferenceConstants.P_GRID_SIZE));
     }
 
     @Override

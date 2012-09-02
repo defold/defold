@@ -54,6 +54,7 @@ import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.RenderContext;
 import com.dynamo.cr.sceneed.core.RenderContext.Pass;
 import com.dynamo.cr.sceneed.core.RenderData;
+import com.dynamo.cr.sceneed.core.SceneGrid;
 import com.dynamo.cr.sceneed.ui.RenderView.SelectResult.Pair;
 
 public class RenderView implements
@@ -89,6 +90,8 @@ IRenderView {
     private TextureRegistry textureRegistry;
     private Map<INodeType, INodeRenderer<Node>> renderers = new HashMap<INodeType, INodeRenderer<Node>>();
 
+    private SceneGrid grid;
+
     @Inject
     public RenderView(INodeTypeRegistry manager, ISelectionService selectionService) {
         this.nodeTypeRegistry = manager;
@@ -97,6 +100,8 @@ IRenderView {
         this.selectionBoxRenderViewProvider = new SelectionBoxRenderViewProvider(this, this.selectionBoxNode);
         this.textureRegistry = new TextureRegistry();
         addRenderProvider(this.selectionBoxRenderViewProvider);
+
+        grid = new SceneGrid();
     }
 
     @Override
@@ -151,6 +156,7 @@ IRenderView {
 
     @Override
     public void refresh() {
+        this.grid.updateGrids(getViewTransform(), getProjectionTransform());
         requestPaint();
     }
 
@@ -816,5 +822,10 @@ IRenderView {
         } else {
             this.hiddenNodeTypes.add(nodeType);
         }
+    }
+
+    @Override
+    public SceneGrid getGrid() {
+        return this.grid;
     }
 }

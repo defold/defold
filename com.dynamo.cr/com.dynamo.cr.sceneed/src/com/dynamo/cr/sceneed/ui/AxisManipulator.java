@@ -56,6 +56,9 @@ public class AxisManipulator extends Manipulator {
 
             Vector4d translation = new Vector4d(originalTranslation);
             translation.add(delta);
+            if (ManipulatorUtil.isSnappingActive(e)) {
+                translation = ManipulatorUtil.snapToGrid(translation, this.getController().getRenderView());
+            }
             rootManipulator.setTranslation(new Point3d(translation.getX(), translation.getY(), translation.getZ()));
             rootManipulator.transformChanged();
         }
