@@ -48,6 +48,7 @@ public class ProjectEditorView implements SelectionListener, KeyListener, FocusL
 
     public void createPartControl(Composite parent, List<CategoryMeta> meta) {
         toolkit = new FormToolkit(parent.getDisplay());
+        toolkit.setBorderStyle(SWT.BORDER);
         form = toolkit.createScrolledForm(parent);
         form.setText("Project Settings");
         form.getBody().setLayout(new GridLayout());
