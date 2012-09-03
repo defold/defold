@@ -83,6 +83,10 @@ public class Defold implements EntryPoint {
         sendRequestRetrieve(resource, RequestBuilder.GET, "", callback, null);
     }
 
+    public void getStringResource(String resource, final ResourceCallback<String> callback) {
+        sendRequestRetrieveString(resource, RequestBuilder.GET, "", callback, null);
+    }
+
     private <T extends BaseResponse> void sendRequestRetrieve(String resource, RequestBuilder.Method method,
             String requestData,
             final ResourceCallback<T> callback, String contentType) {
@@ -95,6 +99,31 @@ public class Defold implements EntryPoint {
                 T entity = null;
                 if (statusCode >= 200 && statusCode < 300) {
                     entity = (T) BaseResponse.getResponse(response.getText());
+                }
+                callback.onSuccess(entity, request, response);
+            }
+
+            @Override
+            public void onFailure(Request request, Response response) {
+                callback.onFailure(request, response);
+            }
+        };
+
+        sendRequest(resource, method, requestData, interceptCallback, contentType);
+    }
+
+    private void sendRequestRetrieveString(String resource, RequestBuilder.Method method,
+                                           String requestData,
+                                           final ResourceCallback<String> callback,
+                                           String contentType) {
+        ResourceCallback<String> interceptCallback = new ResourceCallback<String>() {
+
+            @Override
+            public void onSuccess(String result, Request request, Response response) {
+                int statusCode = response.getStatusCode();
+                String entity = null;
+                if (statusCode >= 200 && statusCode < 300) {
+                    entity = response.getText();
                 }
                 callback.onSuccess(entity, request, response);
             }

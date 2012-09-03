@@ -31,6 +31,9 @@
             <g:SimplePanel ui:field="panel"></g:SimplePanel>
         </div>
 
+        <div style="height: 100px">
+        </div>
+
         <div id="loginBar">
             <div id="debugHost"><p2:EditableLabel value="http://example.com" ui:field="editableLabel" /></div>
         </div>

@@ -25,9 +25,11 @@ public class NewsListResourceTest extends AbstractResourceTest {
 
     private WebResource adminResource;
     private WebResource bobResource;
+    private WebResource joeResource;
     private WebResource anonymousResource;
     private NewsSubscriber adminSubscription;
     private NewsSubscriber bobSubscription;
+    private User joeUser;
 
     NewsSubscriber createNewsSubscription(User user) {
         EntityManager em = emf.createEntityManager();
@@ -49,6 +51,9 @@ public class NewsListResourceTest extends AbstractResourceTest {
 
         User bobUser = createUser("bob@foo.com", "bob", "Mr", "Bob", Role.USER);
         bobResource = createResource("http://localhost/news_list", bobUser, "bob");
+
+        joeUser = createUser("joe@foo.com", "joe", "Mr", "Joe", Role.USER);
+        joeResource = createResource("http://localhost/news_list", joeUser, "joe");
 
         anonymousResource = createAnonymousResource("http://localhost/news_list");
 
@@ -79,7 +84,37 @@ public class NewsListResourceTest extends AbstractResourceTest {
     }
 
     @Test
-    public void testUnsubscribe() throws Exception {
+    public void testSubscribe() throws Exception {
+        NewsSubscriberList lst = adminResource.get(NewsSubscriberList.class);
+        assertThat(lst.getSubscribersList().size(), is(2));
+
+        joeResource.path(joeUser.getId().toString()).path("subscribe").put();
+        lst = adminResource.get(NewsSubscriberList.class);
+        assertThat(lst.getSubscribersList().size(), is(3));
+
+        joeResource.path(joeUser.getId().toString()).path("subscribe").delete();
+        lst = adminResource.get(NewsSubscriberList.class);
+        assertThat(lst.getSubscribersList().size(), is(2));
+
+        joeResource.path(joeUser.getId().toString()).path("subscribe").put();
+        lst = adminResource.get(NewsSubscriberList.class);
+        assertThat(lst.getSubscribersList().size(), is(3));
+    }
+
+    @Test
+    public void testSubscribeForbidden() throws Exception {
+        NewsSubscriberList lst = adminResource.get(NewsSubscriberList.class);
+        assertThat(lst.getSubscribersList().size(), is(2));
+
+        ClientResponse resp = bobResource.path(joeUser.getId().toString()).path("subscribe").put(ClientResponse.class);
+        assertThat(resp.getClientResponseStatus(), is(ClientResponse.Status.FORBIDDEN));
+
+        lst = adminResource.get(NewsSubscriberList.class);
+        assertThat(lst.getSubscribersList().size(), is(2));
+    }
+
+    @Test
+    public void testUnsubscribeWithKey() throws Exception {
         NewsSubscriberList lst = adminResource.get(NewsSubscriberList.class);
         assertThat(lst.getSubscribersList().size(), is(2));
 
@@ -91,7 +126,7 @@ public class NewsListResourceTest extends AbstractResourceTest {
     }
 
     @Test
-    public void testUnsubscribeWrongEmailKey() throws Exception {
+    public void testUnsubscribeWithKeyWrongEmailKey() throws Exception {
         NewsSubscriberList lst = adminResource.get(NewsSubscriberList.class);
         assertThat(lst.getSubscribersList().size(), is(2));
 

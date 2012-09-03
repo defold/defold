@@ -5157,6 +5157,16 @@ a.signup {
   font-size: 24px;
 }
 
+/* gwt stuff */
+
+span.gwt-CheckBox label {
+  display: inline-block;
+}
+
+span.gwt-CheckBox input {
+  margin-right: 0.5em;
+}
+
 .ref-doc h3.name {
   color: #008ee3;
 }

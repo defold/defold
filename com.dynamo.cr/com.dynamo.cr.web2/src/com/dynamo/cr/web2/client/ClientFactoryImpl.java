@@ -7,6 +7,7 @@ import com.dynamo.cr.web2.client.ui.LoginView;
 import com.dynamo.cr.web2.client.ui.NewProjectView;
 import com.dynamo.cr.web2.client.ui.OpenIDView;
 import com.dynamo.cr.web2.client.ui.ProjectView;
+import com.dynamo.cr.web2.client.ui.SettingsView;
 import com.dynamo.cr.web2.client.ui.SubscriptionView;
 import com.google.gwt.event.shared.SimpleEventBus;
 import com.google.gwt.place.shared.PlaceController;
@@ -24,6 +25,7 @@ public class ClientFactoryImpl implements ClientFactory {
     private static final InviteView inviteView = new InviteView();
     private static final DownloadsView downloadsView = new DownloadsView();
     private static final SubscriptionView subscriptionView = new SubscriptionView();
+    private static final SettingsView settingsView = new SettingsView();
 
     private Defold defold;
 
@@ -85,5 +87,10 @@ public class ClientFactoryImpl implements ClientFactory {
     @Override
     public SubscriptionView getSubscriptionView() {
         return subscriptionView;
+    }
+
+    @Override
+    public SettingsView getSettingsView() {
+        return settingsView;
     }
 }
