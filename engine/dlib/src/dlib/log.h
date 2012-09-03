@@ -73,11 +73,22 @@ void dmLogInternal(dmLogSeverity severity, const char* domain, const char* forma
 
 #endif
 
+struct dmLogParams
+{
+    dmLogParams()
+    {
+        m_LogToFile = false;
+    }
+
+    bool m_LogToFile;
+};
+
 /**
  * Initialize logging system. Running this function is only required in order to start the log-server.
  * The function will never fail even if the log-server can't be started. Any errors will be reported to stderr though
+ * @param params log parameters
  */
-void dmLogInitialize();
+void dmLogInitialize(const dmLogParams* params);
 
 
 /**

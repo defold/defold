@@ -55,6 +55,8 @@ namespace dmSocket
         RESULT_CONNREFUSED    = -29,  //!< RESULT_CONNREFUSED
         RESULT_ADDRINUSE      = -30,  //!< RESULT_ADDRINUSE
 
+        RESULT_NOTSUP         = -31,  //!< RESULT_NOTSUP
+
         // gethostbyname errors
         RESULT_HOST_NOT_FOUND = -100, //!< RESULT_HOST_NOT_FOUND
         RESULT_TRY_AGAIN      = -101, //!< RESULT_TRY_AGAIN
