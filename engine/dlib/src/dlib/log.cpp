@@ -10,6 +10,10 @@
 #include "thread.h"
 #include "math.h"
 #include "time.h"
+#include "path.h"
+#include "sys.h"
+
+const uint32_t DM_LOG_MAX_LOG_FILE_SIZE = 1024 * 1024 * 32;
 
 struct dmLogConnection
 {
@@ -45,6 +49,8 @@ struct dmLogServer
         m_Port = port;
         m_MessgeSocket = message_socket;
         m_Thread = 0;
+        m_LogFile = 0;
+        m_TotalBytesLogged = 0;
     }
 
     dmArray<dmLogConnection> m_Connections;
@@ -52,6 +58,8 @@ struct dmLogServer
     uint16_t                 m_Port;
     dmMessage::HSocket       m_MessgeSocket;
     dmThread::Thread         m_Thread;
+    FILE*                    m_LogFile;
+    uint32_t                 m_TotalBytesLogged;
 };
 
 dmLogServer* g_dmLogServer = 0;
@@ -134,6 +142,17 @@ static void dmLogDispatch(dmMessage::Message *message, void* user_ptr)
     }
     int msg_len = (int) strlen(log_message->m_Message);
 
+    self->m_TotalBytesLogged += msg_len;
+
+    if (self->m_LogFile && self->m_TotalBytesLogged < DM_LOG_MAX_LOG_FILE_SIZE)
+    {
+        size_t n = fwrite(log_message->m_Message, 1, msg_len, self->m_LogFile);
+        if (n >= 0)
+        {
+            fflush(self->m_LogFile);
+        }
+    }
+
     // NOTE: Keep i as signed! See --i below after EraseSwap
     int n = (int) self->m_Connections.Size();
     for (int i = 0; i < n; ++i)
@@ -180,7 +199,7 @@ static void dmLogThread(void* args)
     }
 }
 
-void dmLogInitialize()
+void dmLogInitialize(const dmLogParams* params)
 {
     if (g_dmLogServer)
     {
@@ -233,6 +252,18 @@ void dmLogInitialize()
     thread = dmThread::New(dmLogThread, 0x80000, 0);
     g_dmLogServer->m_Thread = thread;
 
+    if (params->m_LogToFile)
+    {
+        char log_path[DMPATH_MAX_PATH];
+        dmSys::GetApplicationSupportPath("defold", log_path, sizeof(log_path));
+        dmStrlCat(log_path, "/log.txt", sizeof(log_path));
+        g_dmLogServer->m_LogFile = fopen(log_path, "wb");
+        if (g_dmLogServer->m_LogFile == 0)
+        {
+            fprintf(stderr, "ERROR:DLIB: Unable to open log file%s\n", log_path);
+        }
+    }
+
     return;
 
 bail:
@@ -275,6 +306,11 @@ void dmLogFinalize()
     if (self->m_MessgeSocket != 0)
     {
         dmMessage::DeleteSocket(self->m_MessgeSocket);
+    }
+
+    if (self->m_LogFile)
+    {
+        fclose(self->m_LogFile);
     }
 
     delete self;

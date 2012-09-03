@@ -12,7 +12,8 @@
 
 TEST(dmLog, Init)
 {
-    dmLogInitialize();
+    dmLogParams params;
+    dmLogInitialize(&params);
     dmLogFinalize();
 }
 
@@ -25,7 +26,9 @@ static void LogThread(void* arg)
 TEST(dmLog, Client)
 {
     char buf[256];
-    dmLogInitialize();
+    dmLogParams params;
+    params.m_LogToFile = true;
+    dmLogInitialize(&params);
     uint16_t port = dmLogGetPort();
     ASSERT_GT(port, 0);
     DM_SNPRINTF(buf, sizeof(buf), "python src/test/test_log.py %d", port);

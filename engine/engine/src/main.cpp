@@ -11,7 +11,8 @@ int main(int argc, char *argv[])
     dmSocket::Initialize();
     dmMemProfile::Initialize();
     dmProfile::Initialize(256, 1024 * 16, 128);
-    dmLogInitialize();
+    dmLogParams params;
+    dmLogInitialize(&params);
 
     // NOTE: We do glfwInit as glfw doesn't cleanup menus properly on OSX.
     if (glfwInit() == GL_FALSE)

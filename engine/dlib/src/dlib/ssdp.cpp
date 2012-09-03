@@ -370,7 +370,10 @@ bail:
                                     0,
                                     SSDP_MCAST_TTL);
 
-        if (sr != dmSocket::RESULT_OK) goto bail;
+        if (sr != dmSocket::RESULT_OK)
+        {
+            dmLogError("Unable to add broadcast membership for ssdp socket. No network connection? (%d)", sr);
+        }
 
         ssdp = new SSDP();
 
