@@ -8,6 +8,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.matchers.JUnitMatchers.hasItem;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -42,6 +43,42 @@ import com.dynamo.bob.TaskResult;
 public class JBobTest {
     @BuilderParams(name = "InCopyBuilder", inExts = ".in", outExt = ".out")
     public static class InCopyBuilder extends CopyBuilder {}
+
+    @BuilderParams(name = "ArcBuilder", inExts = ".proj", outExt = ".arc", createOrder = 1000)
+    public static class ArcBuilder extends Builder<Void> {
+
+        @Override
+        public Task<Void> create(IResource input) throws IOException,
+                CompileExceptionError {
+
+            TaskBuilder<Void> builder = Task.<Void>newBuilder(this)
+                    .setName(params.name())
+                    .addInput(input)
+                    .addOutput(input.changeExt(params.outExt()));
+
+            for (Task<?> task : project.getTasks()) {
+                for (IResource output : task.getOutputs()) {
+                    builder.addInput(output);
+                }
+            }
+
+            return builder.build();
+        }
+
+        @Override
+        public void build(Task<Void> task) throws CompileExceptionError,
+                IOException {
+
+            StringBuilder sb = new StringBuilder();
+            for (IResource input : task.getInputs()) {
+                sb.append(new String(input.getContent()));
+            }
+
+            IResource out = task.getOutputs().get(0);
+            out.setContent(sb.toString().getBytes());
+        }
+
+    }
 
     @BuilderParams(name = "CBuilder", inExts = ".c", outExt = ".o")
     public static class CBuilder extends CopyBuilder {
@@ -193,6 +230,11 @@ public class JBobTest {
         public void remove() {
             content = null;
         }
+
+        @Override
+        public void setContent(InputStream stream) throws IOException {
+            throw new RuntimeException("Not implemented");
+        }
     }
 
     public class MockFileSystem extends AbstractFileSystem<MockFileSystem, MockResource> {
@@ -253,6 +295,22 @@ public class JBobTest {
         IResource testOut = fileSystem.get("test.out").output();
         assertNotNull(testOut);
         assertThat(new String(testOut.getContent()), is("test data"));
+    }
+
+    @Test
+    public void testTaskOutputAsInput() throws Exception {
+        fileSystem.addFile("test.proj", "".getBytes());
+        fileSystem.addFile("test1.in", "A".getBytes());
+        fileSystem.addFile("test2.in", "B".getBytes());
+        project.setInputs(Arrays.asList("test.proj", "test1.in", "test2.in"));
+        List<TaskResult> result = build();
+        assertThat(result.size(), is(3));
+        IResource test1Out = fileSystem.get("test1.out").output();
+        assertThat(new String(test1Out.getContent()), is("A"));
+        IResource test2Out = fileSystem.get("test2.out").output();
+        assertThat(new String(test2Out.getContent()), is("B"));
+        IResource arcOut = fileSystem.get("test.arc").output();
+        assertThat(new String(arcOut.getContent()), is("AB"));
     }
 
     @Test

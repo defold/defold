@@ -301,6 +301,23 @@ namespace dmEngine
                 return false;
             }
             dmPath::Dirname(project_file, content_root, sizeof(content_root));
+
+            char tmp[DMPATH_MAX_PATH];
+            dmStrlCpy(tmp, content_root, sizeof(tmp));
+            if (content_root[0])
+            {
+                dmStrlCat(tmp, "/game.arc", sizeof(tmp));
+            }
+            else
+            {
+                dmStrlCat(tmp, "game.arc", sizeof(tmp));
+            }
+            struct stat stats;
+            if (stat(tmp, &stats) == 0)
+            {
+                dmStrlCpy(content_root, "arc:", sizeof(content_root));
+                dmStrlCat(content_root, tmp, sizeof(content_root));
+            }
         }
         else
         {
@@ -391,7 +408,13 @@ namespace dmEngine
         params.m_BuiltinsArchive = (const void*) BUILTINS_ARC;
         params.m_BuiltinsArchiveSize = BUILTINS_ARC_SIZE;
 
-        engine->m_Factory = dmResource::NewFactory(&params, dmConfigFile::GetString(engine->m_Config, "resource.uri", content_root));
+        const char* resource_uri = dmConfigFile::GetString(engine->m_Config, "resource.uri", content_root);
+        dmLogInfo("Loading data from: %s", resource_uri);
+        engine->m_Factory = dmResource::NewFactory(&params, resource_uri);
+        if (!engine->m_Factory)
+        {
+            return false;
+        }
         dmGameObject::Initialize(engine->m_ScriptContext, engine->m_Factory);
 
         dmInput::NewContextParams input_params;
@@ -404,7 +427,7 @@ namespace dmEngine
         if (mr != dmMessage::RESULT_OK)
         {
             dmLogFatal("Unable to create system socket: %s (%d)", SYSTEM_SOCKET_NAME, mr);
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+            return false;
         }
 
         dmGui::NewContextParams gui_params;

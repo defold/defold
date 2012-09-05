@@ -7,6 +7,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -96,8 +98,7 @@ public class Project {
     }
 
     private Task<?> doCreateTask(String input) throws CompileExceptionError {
-        String ext = "." + FilenameUtils.getExtension(input);
-        Class<? extends Builder<?>> builderClass = extToBuilder.get(ext);
+        Class<? extends Builder<?>> builderClass = getBuilderFromExtension(input);
         Builder<?> builder;
         if (builderClass != null) {
             try {
@@ -118,6 +119,12 @@ public class Project {
         return null;
     }
 
+    private Class<? extends Builder<?>> getBuilderFromExtension(String input) {
+        String ext = "." + FilenameUtils.getExtension(input);
+        Class<? extends Builder<?>> builderClass = extToBuilder.get(ext);
+        return builderClass;
+    }
+
     /**
      * Create task from resource. Typically called from builder
      * that create intermediate output/input-files
@@ -133,9 +140,29 @@ public class Project {
         return task;
     }
 
+    private List<String> sortInputs() {
+        ArrayList<String> sortedInputs = new ArrayList<String>(inputs);
+        Collections.sort(sortedInputs, new Comparator<String>() {
+
+            @Override
+            public int compare(String i1, String i2) {
+                Class<? extends Builder<?>> b1 = getBuilderFromExtension(i1);
+                Class<? extends Builder<?>> b2 = getBuilderFromExtension(i2);
+
+                BuilderParams p1 = b1.getAnnotation(BuilderParams.class);
+                BuilderParams p2 = b2.getAnnotation(BuilderParams.class);
+
+                return p1.createOrder() - p2.createOrder();
+            }
+        });
+        return sortedInputs;
+    }
+
     private void createTasks() throws CompileExceptionError {
         tasks = new ArrayList<Task<?>>();
-        for (String input : inputs) {
+        List<String> sortedInputs = sortInputs();
+
+        for (String input : sortedInputs) {
             Task<?> task = doCreateTask(input);
             if (task != null) {
                 tasks.add(task);
@@ -428,6 +455,10 @@ run:
 
     public IResource getResource(String path) {
         return fileSystem.get(path);
+    }
+
+    public List<Task<?>> getTasks() {
+        return Collections.unmodifiableList(this.tasks);
     }
 
 }

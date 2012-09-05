@@ -53,12 +53,26 @@ namespace dmPath
         char buf[DMPATH_MAX_PATH];
         Normalize(path, buf, sizeof(buf));
 
-        char* last_slash = strrchr(buf, '/');
-        if (last_slash && last_slash != buf)
+        if (strcmp(buf, ".") == 0)
         {
-            // Truncate string if slash found isn't
-            // the first character (edge case for path "/")
-            *last_slash = '\0';
+            // Special case
+        }
+        else
+        {
+            char* last_slash = strrchr(buf, '/');
+            if (last_slash)
+            {
+                if (last_slash != buf)
+                {
+                    // Truncate string if slash found isn't
+                    // the first character (edge case for path "/")
+                    *last_slash = '\0';
+                }
+            }
+            else
+            {
+                buf[0] = '\0';
+            }
         }
         dmStrlCpy(out, buf, out_size);
     }

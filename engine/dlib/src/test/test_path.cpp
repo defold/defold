@@ -84,6 +84,9 @@ TEST(dmPathDirname, Basic)
     dmPath::Dirname("", path, sizeof(path));
     ASSERT_STREQ("", path);
 
+    dmPath::Dirname("foo", path, sizeof(path));
+    ASSERT_STREQ("", path);
+
     dmPath::Dirname("/", path, sizeof(path));
     ASSERT_STREQ("/", path);
 

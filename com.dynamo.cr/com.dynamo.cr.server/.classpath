@@ -8,7 +8,6 @@
 	<classpathentry exported="true" kind="lib" path="ext/jersey-core-1.11.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/jersey-grizzly2-1.11.jar" sourcepath="/Users/chmu/Downloads/jersey-grizzly2-1.11-sources.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/jersey-server-1.11.jar"/>
-	<classpathentry exported="true" kind="lib" path="ext/commons-codec-1.5.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/jetty-all-7.0.2.v20100331.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/postgresql-9.0-801.jdbc4.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/derby.jar"/>

@@ -106,8 +106,10 @@ struct SResourceFactory
     int                                          m_HttpStatus;
     Result                                       m_HttpFactoryResult;
 
-    // Resource archive
+    // Builtin resource archive
     dmResourceArchive::HArchive                  m_BuiltinsArchive;
+    // Resource archive
+    dmResourceArchive::HArchive                  m_Archive;
 };
 
 static SResourceType* FindResourceType(SResourceFactory* factory, const char* extension)
@@ -273,6 +275,18 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     {
         // Ok
     }
+    else if (strcmp(factory->m_UriParts.m_Scheme, "arc") == 0)
+    {
+        dmResourceArchive::Result r = dmResourceArchive::LoadArchive(factory->m_UriParts.m_Path, &factory->m_Archive);
+        if (r != dmResourceArchive::RESULT_OK)
+        {
+            dmLogError("Unable to load archive: %s", factory->m_UriParts.m_Path);
+            dmMessage::DeleteSocket(socket);
+            free(buffer);
+            delete factory;
+            return 0;
+        }
+    }
     else
     {
         dmLogError("Invalid URI: %s", uri);
@@ -333,6 +347,10 @@ void DeleteFactory(HFactory factory)
     if (factory->m_HttpCache)
     {
         dmHttpCache::Close(factory->m_HttpCache);
+    }
+    if (factory->m_Archive)
+    {
+        dmResourceArchive::Delete(factory->m_Archive);
     }
 
     delete factory->m_Resources;
@@ -408,26 +426,43 @@ Result RegisterType(HFactory factory,
     return RESULT_OK;
 }
 
+static Result LoadFromArchive(HFactory factory, dmResourceArchive::HArchive archive, const char* path, const char* original_name, uint32_t* resource_size)
+{
+    dmResourceArchive::EntryInfo entry_info;
+    dmResourceArchive::Result r = dmResourceArchive::FindEntry(archive, original_name, &entry_info);
+    if (r == dmResourceArchive::RESULT_OK)
+    {
+        uint32_t file_size = entry_info.m_Size;
+        // Extra byte for resources expecting null-terminated string...
+        if (file_size + 1 >= factory->m_StreamBufferSize)
+        {
+            dmLogError("Resource too large for streambuffer: %s", path);
+            return RESULT_STREAMBUFFER_TOO_SMALL;
+        }
+
+        dmResourceArchive::Read(archive, &entry_info, factory->m_StreamBuffer);
+        factory->m_StreamBuffer[file_size] = 0; // Null-terminate. See comment above
+        *resource_size = file_size;
+
+        return RESULT_OK;
+    }
+    else if (r == dmResourceArchive::RESULT_NOT_FOUND)
+    {
+        return RESULT_RESOURCE_NOT_FOUND;
+    }
+    else
+    {
+        return RESULT_IO_ERROR;
+    }
+}
+
+
 static Result LoadResource(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size)
 {
     if (factory->m_BuiltinsArchive)
     {
-        dmResourceArchive::EntryInfo entry_info;
-        dmResourceArchive::Result r = dmResourceArchive::FindEntry(factory->m_BuiltinsArchive, original_name, &entry_info);
-        if (r == dmResourceArchive::RESULT_OK)
+        if (LoadFromArchive(factory, factory->m_BuiltinsArchive, path, original_name, resource_size) == RESULT_OK)
         {
-            uint32_t file_size = entry_info.m_Size;
-            // Extra byte for resources expecting null-terminated string...
-            if (file_size + 1 >= factory->m_StreamBufferSize)
-            {
-                dmLogError("Resource too large for streambuffer: %s", path);
-                return RESULT_STREAMBUFFER_TOO_SMALL;
-            }
-
-            dmResourceArchive::Read(factory->m_BuiltinsArchive, &entry_info, factory->m_StreamBuffer);
-            factory->m_StreamBuffer[file_size] = 0; // Null-terminate. See comment above
-            *resource_size = file_size;
-
             return RESULT_OK;
         }
     }
@@ -479,6 +514,11 @@ static Result LoadResource(HFactory factory, const char* path, const char* origi
 
         *resource_size = factory->m_HttpTotalBytesStreamed;
         return RESULT_OK;
+    }
+    else if (factory->m_Archive)
+    {
+        Result r =  LoadFromArchive(factory, factory->m_Archive, path, original_name, resource_size);
+        return r;
     }
     else
     {

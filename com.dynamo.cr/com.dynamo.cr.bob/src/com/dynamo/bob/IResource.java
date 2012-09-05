@@ -1,6 +1,7 @@
 package com.dynamo.bob;
 
 import java.io.IOException;
+import java.io.InputStream;
 
 
 /**
@@ -81,4 +82,11 @@ public interface IResource {
      * @return true if an output-resource
      */
     boolean isOutput();
+
+    /**
+     * Set content from input stream
+     * @param stream input stream
+     * @throws IOException
+     */
+    void setContent(InputStream stream) throws IOException;
 }

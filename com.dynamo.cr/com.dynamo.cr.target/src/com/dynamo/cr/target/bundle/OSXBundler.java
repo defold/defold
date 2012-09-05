@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import org.apache.commons.configuration.ConfigurationException;
@@ -87,8 +88,10 @@ public class OSXBundler {
         resourcesDir.mkdirs();
         macosDir.mkdirs();
 
-        // Copy content
-        FileUtils.copyDirectory(new File(contentRoot), resourcesDir);
+        // Copy archive and game.projectc
+        for (String name : Arrays.asList("game.projectc", "game.arc")) {
+            FileUtils.copyFile(new File(contentRoot, name), new File(resourcesDir, name));
+        }
 
         // Create Info.plist
         InputStream infoIn = getClass().getResourceAsStream("resources/osx/Info.plist");

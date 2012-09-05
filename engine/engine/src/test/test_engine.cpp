@@ -47,6 +47,13 @@ TEST_F(EngineTest, Project)
     ASSERT_GT(frame_count, 5u);
 }
 
+TEST_F(EngineTest, ArchiveNotFound)
+{
+    uint32_t frame_count = 0;
+    const char* argv[] = {"test_engine", "--config=resource.uri=arc:not_found.arc", "build/default/src/test/game.projectc"};
+    dmEngine::Launch(2, (char**)argv, 0, PostRunFrameCount, &frame_count);
+}
+
 TEST_F(EngineTest, GuiRenderCrash)
 {
     uint32_t frame_count = 0;

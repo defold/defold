@@ -4,13 +4,16 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.apache.commons.lang.SerializationUtils;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IMarker;
 import org.eclipse.core.resources.IProject;
@@ -43,6 +46,7 @@ import com.dynamo.cr.editor.ui.ViewUtil;
 import com.dynamo.cr.protocol.proto.Protocol.BuildDesc;
 import com.dynamo.cr.protocol.proto.Protocol.BuildDesc.Activity;
 import com.dynamo.cr.protocol.proto.Protocol.BuildLog;
+import com.sun.jersey.core.util.Base64;
 
 public class ContentBuilder extends IncrementalProjectBuilder {
 
@@ -97,6 +101,18 @@ public class ContentBuilder extends IncrementalProjectBuilder {
         // NOTE: Bundle tasks rely on this structure (build/default)
         String buildDirectory = String.format("build/default");
         Project project = new Project(new DefaultFileSystem(), branchLocation, buildDirectory);
+
+        /*
+         * bob args is a serialized HashMap stored in bobArgs
+         */
+        String bobArgsEncoded = args.get("bobArgs");
+        if (bobArgsEncoded != null) {
+            @SuppressWarnings("unchecked")
+            HashMap<String, String> bobArgs = (HashMap<String, String>) SerializationUtils.deserialize(Base64.decode(bobArgsEncoded));
+            for (Entry<String, String> e : bobArgs.entrySet()) {
+                project.setOption(e.getKey(), e.getValue());
+            }
+        }
 
         Bundle bundle = Activator.getDefault().getBundle();
         project.scanBundlePackage(bundle, "com.dynamo.bob");

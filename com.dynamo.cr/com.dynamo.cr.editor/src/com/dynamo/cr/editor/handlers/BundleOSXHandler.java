@@ -9,8 +9,10 @@ import java.text.ParseException;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang.SerializationUtils;
 import org.eclipse.core.commands.AbstractHandler;
 import org.eclipse.core.commands.ExecutionEvent;
 import org.eclipse.core.commands.ExecutionException;
@@ -57,8 +59,15 @@ public class BundleOSXHandler extends AbstractHandler {
     class BundleRunnable implements IRunnableWithProgress {
 
         private void buildProject(IProject project, IProgressMonitor monitor) throws CoreException {
+
+            HashMap<String, String> bobArgs = new HashMap<String, String>();
+            bobArgs.put("build_disk_archive", "true");
+
+            String bobArgsEncoded = Base64.encodeBase64String(SerializationUtils.serialize(bobArgs));
+
             Map<String, String> args = new HashMap<String, String>();
             args.put("location", "local");
+            args.put("bobArgs", bobArgsEncoded);
             project.build(IncrementalProjectBuilder.FULL_BUILD,  "com.dynamo.cr.editor.builders.contentbuilder", args, monitor);
         }
 

@@ -329,7 +329,7 @@ TEST_P(GetResourceTest, Loop)
 
 INSTANTIATE_TEST_CASE_P(GetResourceTestURI,
                         GetResourceTest,
-                        ::testing::Values("build/default/src/test/", "http://localhost:6123"));
+                        ::testing::Values("build/default/src/test/", "http://localhost:6123", "arc:build/default/src/test/test_resource.arc"));
 
 TEST_P(GetResourceTest, GetReference1)
 {
