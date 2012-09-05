@@ -24,8 +24,8 @@ def build(bld):
 
     bld.new_task_gen(features='jar seq',
                      basedir='java',
-                     destfile='resource.jar')
-    bld.install_files('${PREFIX}/share/java', 'resource.jar')
+                     destfile='resource_archive.jar')
+    bld.install_files('${PREFIX}/share/java', 'resource_archive.jar')
 
     bld.add_group()
 
