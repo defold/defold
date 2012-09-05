@@ -1,0 +1,6 @@
+LANGUAGE 9, 1
+
+#define IDI_TESTICON 100
+
+IDI_TESTICON       ICON         "defold.ico"
+
