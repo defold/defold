@@ -39,6 +39,9 @@ public class ProjectPropertiesTest {
         assertThat(p.getStringValue("main", "does_not_exists"), nullValue());
         assertThat(p.getBooleanValue("main", "does_not_exists"), nullValue());
         assertThat(p.getBooleanValue("other", "does_not_exists"), nullValue());
+
+        assertThat(p.getStringValue("main", "does_not_exists", "my_default"), is("my_default"));
+        assertThat(p.getStringValue("other", "does_not_exists", "my_default"), is("my_default"));
     }
 
     @Test

@@ -140,7 +140,9 @@ public class ProjectEditorView implements SelectionListener, KeyListener, FocusL
                 KeyMeta keyMeta = (KeyMeta) text.getData();
                 String path = EditorUtil.makeResourcePath(resource);
                 // TODO: A hack until we compile the game.project-file
-                path += "c";
+                if (!path.endsWith(".icns")) {
+                    path += "c";
+                }
                 presenter.setValue(keyMeta, path);
                 text.setText(path);
             }

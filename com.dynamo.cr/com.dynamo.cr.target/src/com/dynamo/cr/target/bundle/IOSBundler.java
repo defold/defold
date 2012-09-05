@@ -32,7 +32,7 @@ public class IOSBundler {
         FileUtils.copyDirectory(new File(contentRoot), appDir);
 
         // Create Info.plist
-        InputStream infoIn = getClass().getResourceAsStream("Info.plist");
+        InputStream infoIn = getClass().getResourceAsStream("resources/ios/Info.plist");
         XMLPropertyListConfiguration info = new XMLPropertyListConfiguration();
         info.load(infoIn);
         infoIn.close();
@@ -41,7 +41,7 @@ public class IOSBundler {
         }
 
         // Copy ResourceRules.plist
-        InputStream resourceRulesIn = getClass().getResourceAsStream("ResourceRules.plist");
+        InputStream resourceRulesIn = getClass().getResourceAsStream("resources/ios/ResourceRules.plist");
         File resourceRulesOutFile = new File(appDir, "ResourceRules.plist");
         FileUtils.copyInputStreamToFile(resourceRulesIn, resourceRulesOutFile);
         resourceRulesIn.close();

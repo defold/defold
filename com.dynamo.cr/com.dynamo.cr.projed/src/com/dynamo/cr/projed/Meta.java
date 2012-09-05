@@ -106,7 +106,9 @@ public class Meta {
 
                 IFolder root = EditorUtil.getContentRoot(project);
                 // TODO: Hack until we compile game.project file
-                value = value.substring(0, value.length() - 1);
+                if (!value.endsWith(".icns")) {
+                    value = value.substring(0, value.length() - 1);
+                }
 
                 if (!root.getFile(new Path(value)).exists()) {
                     return new Status(IStatus.ERROR, "com.dynamo.cr.editor", String.format("Resource %s does not exists (%s)", value, key));

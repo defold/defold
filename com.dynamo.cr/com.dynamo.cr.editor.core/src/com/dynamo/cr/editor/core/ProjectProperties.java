@@ -49,9 +49,12 @@ public class ProjectProperties {
     public String getStringValue(String category, String key, String defaultValue) {
         Map<String, String> group = this.properties.get(category);
         if (group != null) {
-            return group.get(key);
+            String val = group.get(key);
+            if (val != null) {
+                return val;
+            }
         }
-        return null;
+        return defaultValue;
     }
 
     /**

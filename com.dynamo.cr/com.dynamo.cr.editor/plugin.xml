@@ -182,8 +182,19 @@
                style="push">
          </command>
          <command
-               commandId="com.dynamo.cr.target.commands.bundle"
-               label="Bundle App..."
+               commandId="com.dynamo.cr.target.commands.bundleiOS"
+               label="Bundle iOS Application..."
+               style="push">
+            <visibleWhen
+                  checkEnabled="false">
+               <test
+                     property="com.dynamo.cr.editor.is_dev">
+               </test>
+            </visibleWhen>
+         </command>
+         <command
+               commandId="com.dynamo.cr.target.commands.bundleOSX"
+               label="Bundle OSX Application..."
                style="push">
             <visibleWhen
                   checkEnabled="false">
@@ -303,8 +314,13 @@
       </command>
       <command
             defaultHandler="com.dynamo.cr.editor.handlers.BundleiOSHandler"
-            id="com.dynamo.cr.target.commands.bundle"
-            name="Bundle Application">
+            id="com.dynamo.cr.target.commands.bundleiOS"
+            name="Bundle iOS Application">
+      </command>
+      <command
+            defaultHandler="com.dynamo.cr.editor.handlers.BundleOSXHandler"
+            id="com.dynamo.cr.target.commands.bundleOSX"
+            name="Bundle OSX Application">
       </command>
       <command
             id="com.dynamo.cr.editor.commands.openWelcome"
