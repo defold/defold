@@ -7,6 +7,7 @@
  - All entries are lexically sorted by name
 
  uint32_t m_Version;     // No minor or bug-fix version numbering. Version must match identically.
+ uint32_t m_Pad;
  uint64_t m_Userdata;    // For run-time use
  uint32_t m_StringPoolOffset;
  uint32_t m_StringPoolSize;

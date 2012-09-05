@@ -32,6 +32,8 @@ def compile(input_files, options):
     out_file = open(options.output_file, 'wb')
     # Version
     out_file.write(struct.pack('!I', VERSION))
+    # Pad
+    out_file.write(struct.pack('!I', 0))
     # Userdata
     out_file.write(struct.pack('!Q', 0))
     # StringPoolOffset (dummy)
@@ -74,6 +76,8 @@ def compile(input_files, options):
     out_file.seek(0)
     # Version
     out_file.write(struct.pack('!I', VERSION))
+    # Pad
+    out_file.write(struct.pack('!I', 0))
     # Userdata
     out_file.write(struct.pack('!Q', 0))
     # StringPoolOffset

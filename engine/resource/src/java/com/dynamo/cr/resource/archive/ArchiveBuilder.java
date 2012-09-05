@@ -69,6 +69,8 @@ public class ArchiveBuilder {
     public void write(RandomAccessFile outFile) throws IOException {
         // Version
         outFile.writeInt(VERSION);
+        // Pad
+        outFile.writeInt(0);
         // Userdata
         outFile.writeLong(0);
         // StringPoolOffset
@@ -115,6 +117,8 @@ public class ArchiveBuilder {
         outFile.seek(0);
         // Version
         outFile.writeInt(VERSION);
+        // Pad
+        outFile.writeInt(0);
         // Userdata
         outFile.writeLong(0);
         // StringPoolOffset

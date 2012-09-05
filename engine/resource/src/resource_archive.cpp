@@ -58,6 +58,7 @@ namespace dmResourceArchive
     struct Archive
     {
         uint32_t m_Version;
+        uint32_t m_Pad;
         union
         {
             uint64_t m_Userdata;
