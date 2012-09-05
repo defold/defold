@@ -111,7 +111,7 @@ public class OSXBundler {
         info.save(new File(contentsDir, "Info.plist"));
 
         // Copy Executable
-        File exeOut = new File(macosDir, FilenameUtils.getBaseName(exe));
+        File exeOut = new File(macosDir, FilenameUtils.getName(exe));
         FileUtils.copyFile(new File(exe), exeOut);
         ProcessBuilder pb = new ProcessBuilder("chmod", "+x", exeOut.getAbsolutePath());
         Process p = pb.start();
