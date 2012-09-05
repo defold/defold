@@ -3,6 +3,8 @@
 import stat, os, sys, struct
 from optparse import OptionParser
 
+VERSION = 2
+
 class Entry(object):
     def __init__(self, root, filename):
         rel_name = os.path.relpath(filename, root)
@@ -29,22 +31,31 @@ def compile(input_files, options):
 
     out_file = open(options.output_file, 'wb')
     # Version
-    out_file.write(struct.pack('!I', 1))
+    out_file.write(struct.pack('!I', VERSION))
+    # Userdata
+    out_file.write(struct.pack('!Q', 0))
+    # StringPoolOffset (dummy)
+    out_file.write(struct.pack('!I', 0))
+    # StringPoolSize (dummy)
+    out_file.write(struct.pack('!I', 0))
     # EntryCount (dummy)
     out_file.write(struct.pack('!I', 0))
     # EntryOffset (dummy)
     out_file.write(struct.pack('!I', 0))
 
     entries = []
+    string_pool_offset = out_file.tell()
     strings_offset = []
     for i,f in enumerate(input_files):
         e = Entry(options.root, f)
         # Store offset to string
-        strings_offset.append(out_file.tell())
+        strings_offset.append(out_file.tell() - string_pool_offset)
         # Write filename string
         out_file.write(e.filename)
         out_file.write(chr(0))
         entries.append(e)
+
+    string_pool_size = out_file.tell() - string_pool_offset
 
     resources_offset = []
     for i,e in enumerate(entries):
@@ -62,7 +73,13 @@ def compile(input_files, options):
     # Reset file and write actual offsets
     out_file.seek(0)
     # Version
-    out_file.write(struct.pack('!I', 1))
+    out_file.write(struct.pack('!I', VERSION))
+    # Userdata
+    out_file.write(struct.pack('!Q', 0))
+    # StringPoolOffset
+    out_file.write(struct.pack('!I', string_pool_offset))
+    # StringPoolSize
+    out_file.write(struct.pack('!I', string_pool_size))
     # EntryCount
     out_file.write(struct.pack('!I', len(entries)))
     # EntryOffset

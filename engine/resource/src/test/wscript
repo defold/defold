@@ -24,6 +24,12 @@ def build(bld):
     archive = bld.new_task_gen(features = 'archive',
                                archive_target='test.arc',
                                source = 'archive_data/file4.ad archive_data/file1.ad archive_data/file3.ad archive_data/file2.ad')
+
+    # Same as above but created with the java-based archive builder
+    jarchive = bld.new_task_gen(features = 'jarchive',
+                                archive_target='test.jarc',
+                                source = 'archive_data/file4.ad archive_data/file1.ad archive_data/file3.ad archive_data/file2.ad')
+
     bld.add_group()
 
     test_resource = bld.new_task_gen(features = 'cxx cprogram embed',

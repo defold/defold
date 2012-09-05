@@ -31,5 +31,44 @@ def apply_archive_file(self):
     arcc.outputs = [out]
     arcc.env['ARCCFLAGS'] = ['-r', self.path.bldpath(self.env)]
 
+Task.simple_task_type('resource_jarchive', '${JAVA} -classpath ${CLASSPATH} com.dynamo.cr.resource.archive.ArchiveBuilder ${ARCCFLAGS} ${TGT} ${SRC}',
+                      color='PINK',
+                      shell=False)
+
+# Copy-paste of archive above
+# This is the java-version of the archive builder
+# Currently only used for unit-test and it will probably stay that way
+
+@feature('jarchive')
+@before('apply_core')
+def apply_jarchive(self):
+    Utils.def_attrs(self, archive_target = None)
+
+@feature('jarchive')
+@after('apply_core')
+def apply_jarchive_file(self):
+    if not self.archive_target:
+        error('archive_target not specified')
+        return
+
+    classpath = [self.env['DYNAMO_HOME'] + '/share/java/resource.jar',
+                 # NOTE: Only needed when running within resource-project.
+                 # Should be fixed somehow... in configure perhaps?
+                 'default/src/java']
+
+
+    out = self.path.find_or_declare(self.archive_target)
+    arcc = self.create_task('resource_jarchive')
+    arcc.env['CLASSPATH'] = os.pathsep.join(classpath)
+
+    inputs = []
+    for t in self.tasks:
+        if t != arcc:
+            arcc.set_run_after(t)
+            inputs += t.outputs
+    arcc.inputs = inputs
+    arcc.outputs = [out]
+    arcc.env['ARCCFLAGS'] = self.path.bldpath(self.env)
+
 def detect(conf):
     conf.find_file('arcc.py', var='ARCC', mandatory = True)

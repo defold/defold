@@ -424,7 +424,7 @@ static Result LoadResource(HFactory factory, const char* path, const char* origi
                 return RESULT_STREAMBUFFER_TOO_SMALL;
             }
 
-            memcpy(factory->m_StreamBuffer, entry_info.m_Resource, file_size);
+            dmResourceArchive::Read(factory->m_BuiltinsArchive, &entry_info, factory->m_StreamBuffer);
             factory->m_StreamBuffer[file_size] = 0; // Null-terminate. See comment above
             *resource_size = file_size;
 
