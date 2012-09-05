@@ -171,6 +171,9 @@ public class TileSetEditor2 extends AbstractDefoldEditor implements ISceneEditor
         this.outlinePage = injector.getInstance(ISceneOutlinePage.class);
         this.propertySheetPage = injector.getInstance(IFormPropertySheetPage.class);
 
+        @SuppressWarnings("unused")
+        CameraController cameraController = injector.getInstance(CameraController.class);
+
         this.manipulatorController = injector.getInstance(ManipulatorController.class);
         IManipulatorMode selectMode = manipulatorRegistry.getMode(Activator.SELECT_MODE_ID);
         manipulatorController.setManipulatorMode(selectMode);
