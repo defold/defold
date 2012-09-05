@@ -35,11 +35,7 @@ public class GameProjectBuilder extends Builder<Void> {
 
             for (Task<?> task : project.getTasks()) {
                 for (IResource output : task.getOutputs()) {
-                    if (!output.getPath().startsWith("/builtins")) {
-                        builder.addInput(output);
-                    } else {
-                        System.err.println("Skipping " + output);
-                    }
+                    builder.addInput(output);
                 }
             }
 
@@ -63,7 +59,6 @@ public class GameProjectBuilder extends Builder<Void> {
             if (i > 0) {
                 // First input is game.project
                 ab.add(input.getAbsPath());
-                System.out.println(input.getPath());
             }
             ++i;
         }
