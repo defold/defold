@@ -73,7 +73,7 @@ public class ProjectProperties {
     }
 
     /**
-     * Get property as integer
+     * Get property as boolean
      * @param category property category
      * @param key category key
      * @return property value as boolean. null if not set.
@@ -84,6 +84,20 @@ public class ProjectProperties {
             return value.equals("1");
         }
         return null;
+    }
+
+    /**
+     * Get property as boolean with default
+     * @param category property category
+     * @param key category key
+     * @return property value as boolean. defaultValue if not set
+     */
+    public Boolean getBooleanValue(String category, String key, Boolean defaultValue) {
+        String value = getStringValue(category, key);
+        if (value != null) {
+            return value.equals("1");
+        }
+        return defaultValue;
     }
 
     /**

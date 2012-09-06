@@ -8,6 +8,8 @@ import org.eclipse.core.runtime.FileLocator;
 import org.eclipse.core.runtime.Plugin;
 import org.osgi.framework.BundleContext;
 
+import com.dynamo.cr.editor.core.Exec;
+
 
 public class DGit extends Plugin {
 
@@ -27,7 +29,7 @@ public class DGit extends Plugin {
 
             for (File d : new File[] {binDir, libExecDir}) {
                 for (File f : d.listFiles()) {
-                    Runtime.getRuntime().exec("chmod +x " + f.getPath());
+                    Exec.exec("chmod", "+x", f.getPath());
                 }
             }
         }

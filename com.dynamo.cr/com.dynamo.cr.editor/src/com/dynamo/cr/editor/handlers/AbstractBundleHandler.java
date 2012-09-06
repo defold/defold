@@ -50,7 +50,7 @@ import com.dynamo.cr.editor.core.ProjectProperties;
 public abstract class AbstractBundleHandler extends AbstractHandler {
 
     private static Logger logger = LoggerFactory.getLogger(AbstractBundleHandler.class);
-    private Shell shell;
+    protected Shell shell;
     private IProjectClient projectClient;
     private String outputDirectory;
 
@@ -125,6 +125,10 @@ public abstract class AbstractBundleHandler extends AbstractHandler {
         }
     }
 
+    protected boolean openBundleDialog() {
+        return true;
+    }
+
     @Override
     public Object execute(ExecutionEvent event) throws ExecutionException {
         projectClient = Activator.getDefault().projectClient;
@@ -134,6 +138,10 @@ public abstract class AbstractBundleHandler extends AbstractHandler {
         }
 
         shell = HandlerUtil.getActiveShell(event);
+
+        if (!openBundleDialog()) {
+            return null;
+        }
 
         DirectoryDialog dirDialog = new DirectoryDialog(shell);
         dirDialog.setMessage("Select output directory for application");
