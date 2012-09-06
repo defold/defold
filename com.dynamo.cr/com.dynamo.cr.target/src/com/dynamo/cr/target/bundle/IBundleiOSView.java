@@ -10,6 +10,5 @@ public interface IBundleiOSView {
     void setEnabled(boolean enabled);
     void setIdentities(String[] identities);
     void setPresenter(IPresenter presenter);
-    void setVersion(String version);
 
 }

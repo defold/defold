@@ -101,7 +101,7 @@ public class OSXBundler {
 
         // Set properties from project file
         for (PropertyAlias alias : propertyAliases) {
-            info.setProperty(alias.bundleProperty, projectProperties.getStringValue(alias.category, alias.key));
+            info.setProperty(alias.bundleProperty, projectProperties.getStringValue(alias.category, alias.key, alias.defaultValue));
         }
 
         // Copy icon
