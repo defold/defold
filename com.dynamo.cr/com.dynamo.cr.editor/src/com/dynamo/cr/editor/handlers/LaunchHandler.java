@@ -29,6 +29,7 @@ import org.eclipse.ui.internal.ide.actions.BuildUtilities;
 import com.dynamo.cr.client.IBranchClient;
 import com.dynamo.cr.editor.Activator;
 import com.dynamo.cr.editor.core.EditorCorePlugin;
+import com.dynamo.cr.editor.core.Exec;
 import com.dynamo.cr.editor.preferences.PreferenceConstants;
 import com.dynamo.cr.engine.Engine;
 import com.dynamo.cr.target.core.ITargetService;
@@ -74,7 +75,7 @@ public class LaunchHandler extends AbstractHandler {
             String platform = EditorCorePlugin.getPlatform();
             if (!platform.equals("win32")) {
                 try {
-                    Runtime.getRuntime().exec("chmod +x " + exeName);
+                    Exec.exec("chmod", "+x", exeName);
                 } catch (IOException e) {
                     return new Status(IStatus.ERROR, Activator.PLUGIN_ID, String.format("'%s' could not be made executable.", exeName));
                 }
