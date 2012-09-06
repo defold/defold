@@ -16,6 +16,7 @@ public class Win32Bundler {
     private String contentRoot;
     private File appDir;
     private String exe;
+    private String title;
 
     /**
      *
@@ -32,7 +33,8 @@ public class Win32Bundler {
         this.contentRoot = contentRoot;
 
         File packageDir = new File(outputDir);
-        appDir = new File(packageDir, projectProperties.getStringValue("project", "title", "Unnamed"));
+        this.title = projectProperties.getStringValue("project", "title", "Unnamed");
+        appDir = new File(packageDir, title);
     }
 
     public void bundleApplication() throws IOException, ConfigurationException {
@@ -45,7 +47,7 @@ public class Win32Bundler {
         }
 
         // Copy Executable
-        File exeOut = new File(appDir, FilenameUtils.getName(exe));
+        File exeOut = new File(appDir, String.format("%s.exe", title));
         FileUtils.copyFile(new File(exe), exeOut);
 
         String icon = projectProperties.getStringValue("windows", "app_icon");
