@@ -9,9 +9,7 @@ import org.apache.commons.io.FileUtils;
 
 import com.dynamo.cr.editor.core.ProjectProperties;
 
-public class Win32Bundler {
-    private ProjectProperties projectProperties;
-    private String projectRoot;
+public class LinuxBundler {
     private String contentRoot;
     private File appDir;
     private String exe;
@@ -25,10 +23,8 @@ public class Win32Bundler {
      * @param contentRoot path to *compiled* content
      * @param outputDir output directory
      */
-    public Win32Bundler(ProjectProperties projectProperties, String exe, String projectRoot, String contentRoot, String outputDir) {
-        this.projectProperties = projectProperties;
+    public LinuxBundler(ProjectProperties projectProperties, String exe, String projectRoot, String contentRoot, String outputDir) {
         this.exe = exe;
-        this.projectRoot = projectRoot;
         this.contentRoot = contentRoot;
 
         File packageDir = new File(outputDir);
@@ -46,20 +42,7 @@ public class Win32Bundler {
         }
 
         // Copy Executable
-        File exeOut = new File(appDir, String.format("%s.exe", title));
+        File exeOut = new File(appDir, title);
         FileUtils.copyFile(new File(exe), exeOut);
-
-        String icon = projectProperties.getStringValue("windows", "app_icon");
-        if (icon != null) {
-            File iconFile = new File(projectRoot, icon);
-            if (iconFile.exists()) {
-                String[] args = new String[] { exe, iconFile.getAbsolutePath() };
-                try {
-                    IconExe.main(args);
-                } catch (Exception e) {
-                    throw new IOException("Failed to set icon for executable", e);
-                }
-            }
-        }
     }
 }

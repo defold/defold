@@ -178,42 +178,56 @@
          </separator>
          <command
                commandId="com.dynamo.cr.target.commands.sign"
-               label="Sign App..."
+               label="Sign iOS App..."
                style="push">
          </command>
-         <command
-               commandId="com.dynamo.cr.target.commands.bundleiOS"
-               label="Bundle iOS Application..."
-               style="push">
-            <visibleWhen
-                  checkEnabled="false">
-               <test
-                     property="com.dynamo.cr.editor.is_dev">
-               </test>
-            </visibleWhen>
-         </command>
-         <command
-               commandId="com.dynamo.cr.target.commands.bundleOSX"
-               label="Bundle OSX Application..."
-               style="push">
-            <visibleWhen
-                  checkEnabled="false">
-               <test
-                     property="com.dynamo.cr.editor.is_dev">
-               </test>
-            </visibleWhen>
-         </command>
-         <command
-               commandId="com.dynamo.cr.target.commands.bundleWin32"
-               label="Bundle Windows Application..."
-               style="push">
-            <visibleWhen
-                  checkEnabled="false">
-               <test
-                     property="com.dynamo.cr.editor.is_dev">
-               </test>
-            </visibleWhen>
-         </command>
+         <menu
+               label="Bundle">
+            <command
+                  commandId="com.dynamo.cr.target.commands.bundleiOS"
+                  label="iOS Application..."
+                  style="push">
+               <visibleWhen
+                     checkEnabled="false">
+                  <test
+                        property="com.dynamo.cr.editor.is_dev">
+                  </test>
+               </visibleWhen>
+            </command>
+            <command
+                  commandId="com.dynamo.cr.target.commands.bundleOSX"
+                  label="OSX Application..."
+                  style="push">
+               <visibleWhen
+                     checkEnabled="false">
+                  <test
+                        property="com.dynamo.cr.editor.is_dev">
+                  </test>
+               </visibleWhen>
+            </command>
+            <command
+                  commandId="com.dynamo.cr.target.commands.bundleWin32"
+                  label="Windows Application..."
+                  style="push">
+               <visibleWhen
+                     checkEnabled="false">
+                  <test
+                        property="com.dynamo.cr.editor.is_dev">
+                  </test>
+               </visibleWhen>
+            </command>
+            <command
+                  commandId="com.dynamo.cr.target.commands.bundleLinux"
+                  label="Linux Application..."
+                  style="push">
+               <visibleWhen
+                     checkEnabled="false">
+                  <test
+                        property="com.dynamo.cr.editor.is_dev">
+                  </test>
+               </visibleWhen>
+            </command>
+         </menu>
       </menuContribution>
       <menuContribution
             allPopups="false"
@@ -337,6 +351,11 @@
             defaultHandler="com.dynamo.cr.editor.handlers.BundleWin32Handler"
             id="com.dynamo.cr.target.commands.bundleWin32"
             name="Bundle Windows Application">
+      </command>
+      <command
+            defaultHandler="com.dynamo.cr.editor.handlers.BundleLinuxHandler"
+            id="com.dynamo.cr.target.commands.bundleLinux"
+            name="Bundle Linux Application">
       </command>
       <command
             id="com.dynamo.cr.editor.commands.openWelcome"
