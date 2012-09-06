@@ -1,4 +1,4 @@
-package com.dynamo.cr.target.core.test;
+package com.dynamo.cr.target.bundle;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
