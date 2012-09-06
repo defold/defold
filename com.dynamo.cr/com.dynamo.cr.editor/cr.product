@@ -11,7 +11,7 @@
 ./jre/bin</programArgsLin>
       <programArgsWin>-vm
 jre\bin\javaw.exe</programArgsWin>
-      <vmArgs>-Declipse.p2.unsignedPolicy=allow -Dsun.net.client.defaultReadTimeout=30000</vmArgs>
+      <vmArgs>-Declipse.p2.unsignedPolicy=allow -Dsun.net.client.defaultReadTimeout=30000 -XX:MaxPermSize=128M -Xmx=1600M</vmArgs>
       <vmArgsMac>-XstartOnFirstThread -Dorg.eclipse.swt.internal.carbon.smallFonts</vmArgsMac>
    </launcherArgs>
 
@@ -31,7 +31,6 @@ jre\bin\javaw.exe</programArgsWin>
 
    <vm>
    </vm>
-
 
    <plugins>
       <plugin id="com.dynamo.cr.bob"/>
