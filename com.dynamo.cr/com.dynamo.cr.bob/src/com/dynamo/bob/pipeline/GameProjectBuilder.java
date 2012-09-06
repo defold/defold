@@ -26,23 +26,21 @@ public class GameProjectBuilder extends Builder<Void> {
 
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
+        TaskBuilder<Void> builder = Task.<Void> newBuilder(this)
+                .setName(params.name())
+                .addInput(input)
+                .addOutput(input.changeExt(".projectc"));
         if (project.option("build_disk_archive", "false").equals("true")) {
-            TaskBuilder<Void> builder = Task.<Void>newBuilder(this)
-                    .setName(params.name())
-                    .addInput(input)
-                    .addOutput(input.changeExt(".projectc"))
-                    .addOutput(input.changeExt(".arc"));
-
-            for (Task<?> task : project.getTasks()) {
-                for (IResource output : task.getOutputs()) {
-                    builder.addInput(output);
-                }
-            }
-
-            return builder.build();
+            builder.addOutput(input.changeExt(".arc"));
         }
 
-        return null;
+        for (Task<?> task : project.getTasks()) {
+            for (IResource output : task.getOutputs()) {
+                builder.addInput(output);
+            }
+        }
+
+        return builder.build();
     }
 
     private File createArchive(Task<Void> task) throws IOException {
@@ -72,11 +70,13 @@ public class GameProjectBuilder extends Builder<Void> {
     public void build(Task<Void> task) throws CompileExceptionError, IOException {
         FileInputStream is = null;
         try {
-            File archiveFile = createArchive(task);
-            is = new FileInputStream(archiveFile);
-            IResource arcOut = task.getOutputs().get(1);
-            arcOut.setContent(is);
-            archiveFile.delete();
+            if (project.option("build_disk_archive", "false").equals("true")) {
+                File archiveFile = createArchive(task);
+                is = new FileInputStream(archiveFile);
+                IResource arcOut = task.getOutputs().get(1);
+                arcOut.setContent(is);
+                archiveFile.delete();
+            }
 
             IResource in = task.getInputs().get(0);
             IResource projOut = task.getOutputs().get(0);
