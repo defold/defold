@@ -1,14 +1,12 @@
-package com.dynamo.cr.editor.core;
+package com.dynamo.cr.common.util;
 
 import java.io.IOException;
 import java.io.InputStream;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.util.logging.*;
 
 public class Exec {
 
-    private static Logger logger = LoggerFactory.getLogger(Exec.class);
+    private static Logger logger = Logger.getLogger(Exec.class.getCanonicalName());
 
     public static int exec(String... args) throws IOException {
         Process p = new ProcessBuilder(args).redirectErrorStream(true).start();
@@ -22,7 +20,7 @@ public class Exec {
             }
             ret = p.waitFor();
         } catch (InterruptedException e) {
-            logger.error("Unexpected interruption", e);
+            logger.log(Level.SEVERE, "Unexpected interruption", e);
         }
 
         return ret;

@@ -27,9 +27,9 @@ import org.eclipse.ui.handlers.HandlerUtil;
 import org.eclipse.ui.internal.ide.actions.BuildUtilities;
 
 import com.dynamo.cr.client.IBranchClient;
+import com.dynamo.cr.common.util.Exec;
 import com.dynamo.cr.editor.Activator;
 import com.dynamo.cr.editor.core.EditorCorePlugin;
-import com.dynamo.cr.editor.core.Exec;
 import com.dynamo.cr.editor.preferences.PreferenceConstants;
 import com.dynamo.cr.engine.Engine;
 import com.dynamo.cr.target.core.ITargetService;

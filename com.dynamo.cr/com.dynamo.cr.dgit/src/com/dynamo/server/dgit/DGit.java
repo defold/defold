@@ -8,7 +8,7 @@ import org.eclipse.core.runtime.FileLocator;
 import org.eclipse.core.runtime.Plugin;
 import org.osgi.framework.BundleContext;
 
-import com.dynamo.cr.editor.core.Exec;
+import com.dynamo.cr.common.util.Exec;
 
 
 public class DGit extends Plugin {
