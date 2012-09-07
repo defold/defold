@@ -67,7 +67,7 @@ def build(bld):
 
     # copy images
     img_pattern = '*.png'
-    img_dirs = ['src/guides/images', 'src/blog/images']
+    img_dirs = ['src/guides/images', 'src/blog/images', 'src/tutorials/docs/images']
     for img_dir in img_dirs:
         for root, dirs, files in os.walk(img_dir):
             for dir in dirs:

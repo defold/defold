@@ -50,6 +50,8 @@
 /doc/message_passing.html
 /doc/parallax.html
 /doc/physics.html
+/doc/platformer.html
+/doc/platformer_script.html
 /doc/reload.html
 /doc/scene_editing.html
 /doc/script_properties.html
