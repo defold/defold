@@ -1,5 +1,40 @@
 :max-width: 45em
 
+Brand New Platformer Article and Release 1.2.4
+----------------------------------------------
+_September 7, 2012_
+
+This release features an article about platformer physics and a more open registration process.
+We also made some minor but sweet fixes.
+
+Platformer Article
+~~~~~~~~~~~~~~~~~~
+
+The article can be found link:/doc/platformer[here].
+We explain how you can make a classic 2D platformer using a physics engine for collision detection.
+Please share it to anyone interested.
+
+Registration
+~~~~~~~~~~~~
+
+We have opened up the registration process a bit more by allowing anyone to register.
+What actually happens is that there is now a cap on the total amount of registered users.
+Until the cap has been reached, anyone signing up will be automatically invited to Defold.
+Anyone with an invitation is guaranteed a spot.
+When the cap has been reached, anyone registering will be put into the Beta queue as usual.
+You can register link:/signup[here].
+
+Fixes
+~~~~~
+
+* When moving objects in the scene editor, you can make the manipulator snap to the grid by holding down *Shift*
+* The +game.project+ file now has a proper editor so you don't need to fiddle with the text format anymore
+* The editor starts with a splash-screen on Windows and Linux (this always worked on Mac)
+* When resizing the Scene Editor, the camera zoom is retained (it was reset before)
+* There is a new Settings-category in the link:/dashboard/[Dashboard] where you can decide if you want to receive the newsletters
+
+Hope you enjoy this release!
+
 Release 1.2.3
 -------------
 _August 30, 2012_
