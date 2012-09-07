@@ -58,6 +58,7 @@ import org.glassfish.grizzly.http.server.ServerConfiguration;
 import org.glassfish.grizzly.http.server.StaticHttpHandler;
 import org.glassfish.grizzly.http.util.Header;
 import org.glassfish.grizzly.servlet.ServletHandler;
+import org.joda.time.DateTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -336,6 +337,7 @@ public class Server implements ServerMBean {
         }
         bootStrapUsers();
         migrateNewsSubscriptions();
+        updateRegistrationDate();
 
         String builtinsDirectory = null;
         if (configuration.hasBuiltinsDirectory())
@@ -652,6 +654,34 @@ public class Server implements ServerMBean {
 
         em.getTransaction().commit();
         em.close();
+    }
+
+    private void updateRegistrationDate() {
+        /*
+         * Set registration date to min of all creation date
+         * of all projects.
+         * This method can be removed after first run as it's
+         * only required to set sensible registration dates.
+         * The database is updated to have current date as registration date
+         * for all users
+         */
+
+        EntityManager em = emf.createEntityManager();
+        em.getTransaction().begin();
+
+        List<User> users = em.createQuery("select u from User u", User.class).getResultList();
+        for (User user : users) {
+            DateTime minDate = new DateTime(user.getRegistrationDate());
+            for (Project project : user.getProjects()) {
+                DateTime d = new DateTime(project.getCreated());
+                if (d.isBefore(minDate)) {
+                    minDate = d;
+                }
+            }
+            user.setRegistrationDate(minDate.toDate());
+        }
+
+        em.getTransaction().commit();
     }
 
     public void stop() {

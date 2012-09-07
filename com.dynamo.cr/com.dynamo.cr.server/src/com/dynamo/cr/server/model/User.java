@@ -2,6 +2,7 @@ package com.dynamo.cr.server.model;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -15,6 +16,8 @@ import javax.persistence.GenerationType;
 import javax.persistence.Id;
 import javax.persistence.OneToMany;
 import javax.persistence.Table;
+import javax.persistence.Temporal;
+import javax.persistence.TemporalType;
 
 @Entity
 @Table(name="users")
@@ -45,6 +48,10 @@ public class User {
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)
     private Role role = Role.USER;
+
+    @Column(nullable = false)
+    @Temporal(TemporalType.TIMESTAMP)
+    private Date registrationDate = new Date();
 
     @OneToMany(cascade={CascadeType.PERSIST})
     private Set<Project> projects = new HashSet<Project>();
@@ -110,6 +117,14 @@ public class User {
 
     public void setRole(Role role) {
         this.role = role;
+    }
+
+    public Date getRegistrationDate() {
+        return registrationDate;
+    }
+
+    public void setRegistrationDate(Date registrationDate) {
+        this.registrationDate = registrationDate;
     }
 
     public Set<Project> getProjects() {
