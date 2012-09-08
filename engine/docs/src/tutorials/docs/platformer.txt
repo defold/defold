@@ -18,12 +18,19 @@ If you are already using Defold, you can create a new project based on the _Arti
 
 We would love to hear your feedback, so please comment at the bottom of the page!
 
+[NOTE]
+Some readers has brought up that our suggested method is not possible with the default implementation of Box2D.
+This is absolutely true and we are sorry for not mentioning that before.
+See the bottom of the page for info on what modifications we made to Box2D to make this work.
+
 Collision Detection
 -------------------
 
 Collision detection is needed to keep the player from moving through the level geometry.
 There are a number of ways to deal with this depending on your game and its specific requirements.
-One of the easiest ways, if possible, is to let a physics engine take care of it (in Defold we use the physics engine link:http://box2d.org/[Box2D] for 2D games).
+One of the easiest ways, if possible, is to let a physics engine take care of it.
+In Defold we use the physics engine link:http://box2d.org/[Box2D] for 2D games.
+The default implementation of Box2D does not have all the features needed, see the bottom of this article for how we modified it.
 
 A physics engine stores the states of the physics objects along with their shapes in order to simulate physical behaviour.
 It also reports collisions while simulating, so the game can react as they happen.
@@ -286,3 +293,11 @@ You can get an idea by checking out the link:/doc/platformer_script[player.scrip
 
 We hope you found this information useful!
 Please make a great platformer so we all can play it! <3
+
+Update: Box2D Modifications
+---------------------------
+
+* Collisions between kinematic and static objects are ignored.
+  Change the checks in b2Body::ShouldCollide and b2ContactManager::Collide.
+* The contact distance (called separation in Box2D) is not supplied to the callback-function.
+  Add a distance-member to b2ManifoldPoint and make sure it's updated in the b2Collide* functions.
