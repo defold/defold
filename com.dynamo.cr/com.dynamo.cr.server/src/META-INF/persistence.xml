@@ -19,7 +19,7 @@
             <property name="javax.persistence.jdbc.driver" value="org.postgresql.Driver" />
             <property name="javax.persistence.jdbc.url" value="jdbc:postgresql://localhost/cr_production" />
             <property name="javax.persistence.jdbc.user" value="postgres" />
-            <property name="javax.persistence.jdbc.password" value="Ryodnidoyd" />
+            <property name="javax.persistence.jdbc.password" value="a3AnZMULRSL7" />
 
             <!-- logging -->
             <property name="eclipselink.logging.level" value="WARNING"/>
@@ -47,7 +47,7 @@
             <property name="javax.persistence.jdbc.driver" value="org.postgresql.Driver" />
             <property name="javax.persistence.jdbc.url" value="jdbc:postgresql://localhost/local_developer" />
             <property name="javax.persistence.jdbc.user" value="postgres" />
-            <property name="javax.persistence.jdbc.password" value="Ryodnidoyd" />
+            <property name="javax.persistence.jdbc.password" value="a3AnZMULRSL7" />
 
             <!-- logging -->
             <property name="eclipselink.logging.level" value="WARNING"/>
