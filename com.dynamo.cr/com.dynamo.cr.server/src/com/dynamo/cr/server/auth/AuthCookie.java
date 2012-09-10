@@ -5,7 +5,7 @@ import java.security.NoSuchAlgorithmException;
 
 public class AuthCookie {
 
-    private static final String secret = "%&#uihdf#/83nudufnDIJFIJD4343&/%/()#)djnfgnF";
+    private static final String secret = "^!pe45Q9bj$wTb4lkbzSCM3jY5O9BDIxmDW";
 
     public static String login(String email) {
         MessageDigest sha1;
