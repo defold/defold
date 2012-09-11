@@ -44,5 +44,6 @@ public class LinuxBundler {
         // Copy Executable
         File exeOut = new File(appDir, title);
         FileUtils.copyFile(new File(exe), exeOut);
+        exeOut.setExecutable(true);
     }
 }
