@@ -4,6 +4,7 @@ function usage() {
     echo "build.sh PRODUCT PLATFORM"
     echo "Supported platforms"
     echo " * darwin"
+    echo " * x86_64-darwin"
     echo " * linux"
     echo " * armv6-darwin"
     echo " * i586-mingw32msvc"

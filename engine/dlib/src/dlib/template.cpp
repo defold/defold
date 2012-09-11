@@ -23,7 +23,7 @@ namespace dmTemplate
                     return RESULT_SYNTAX_ERROR;
 
                 fmt += 2;
-                dmStrlCpy(key, fmt, dmMath::Min((int) sizeof(key), brace - fmt + 1));
+                dmStrlCpy(key, fmt, dmMath::Min((int) sizeof(key), (int) (brace - fmt + 1)));
 
                 const char* value = call_back(user_data, key);
                 if (!value)

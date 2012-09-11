@@ -25,12 +25,15 @@ def default_flags(self):
         # OSX and iOS
         self.env.append_value('LINKFLAGS', ['-framework', 'Foundation'])
 
-    if platform == "linux" or platform == "darwin":
+    if platform == "linux" or platform == "darwin" or platform == "x86_64-darwin":
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-m32'])
+            self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall'])
+            if platform == "darwin":
+                self.env.append_value(f, ['-m32'])
             # We link by default to uuid on linux. libuuid is wrapped in dlib (at least currently)
-        self.env.append_value('LINKFLAGS', ['-m32'])
         if platform == "darwin":
+            self.env.append_value('LINKFLAGS', ['-m32'])
+        if platform == "darwin" or platform == "x86_64-darwin":
             # OSX only
             self.env.append_value('LINKFLAGS', ['-framework', 'Carbon'])
         elif platform == "linux":
@@ -392,7 +395,7 @@ def detect(conf):
     if not platform:
         platform = build_platform
 
-    if platform == 'darwin':
+    if platform == 'darwin' or platform == 'x86_64-darwin':
         # Force gcc without llvm on darwin.
         # We got strange bugs with http cache with gcc-llvm...
         os.environ['CC'] = 'gcc-4.2'

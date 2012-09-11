@@ -585,7 +585,7 @@ namespace dmProfile
                 dmThread::SetTlsValue(g_TlsKey, (void*) thread_id);
                 tls_data = (void*) thread_id;
             }
-            int32_t thread_id = ((int32_t) tls_data) - 1;
+            intptr_t thread_id = ((intptr_t) tls_data) - 1;
             assert(thread_id >= 0);
 
             uint32_t size = profile->m_Samples.Size();
