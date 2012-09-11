@@ -148,7 +148,12 @@ class Configuration(object):
         skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
         skip_codesign = '--skip-codesign' if self.skip_codesign else ''
         eclipse = '--eclipse' if self.eclipse else ''
-        libs="dlib ddf particle glfw graphics hid input physics resource lua script render gameobject gui sound gamesys tools record engine".split()
+
+        if self.target_platform.startswith('x86_64'):
+            # Only partial support for 64-bit
+            libs="dlib ddf particle".split()
+        else:
+            libs="dlib ddf particle glfw graphics hid input physics resource lua script render gameobject gui sound gamesys tools record engine".split()
 
         # NOTE: We run waf using python <PATH_TO_WAF>/waf as windows don't understand that waf is an executable
         if self.target_platform != self.host:
@@ -371,7 +376,7 @@ Multiple commands can be specified'''
 
     parser.add_option('--platform', dest='target_platform',
                       default = None,
-                      choices = ['linux', 'darwin', 'win32', 'armv6-darwin'],
+                      choices = ['linux', 'darwin', 'x86_64-darwin', 'win32', 'armv6-darwin'],
                       help = 'Target platform')
 
     parser.add_option('--skip-tests', dest='skip_tests',
