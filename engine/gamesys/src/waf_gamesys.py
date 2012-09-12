@@ -2,6 +2,7 @@ import Task, TaskGen, Utils, re, os, sys
 from TaskGen import extension
 from waf_content import proto_compile_task
 from threading import Lock
+from waf_dynamo import new_copy_task
 
 stderr_lock = Lock()
 
@@ -255,7 +256,7 @@ proto_compile_task('sprite', 'sprite_ddf_pb2', 'SpriteDesc', '.sprite', '.sprite
 proto_compile_task('tilegrid', 'tile_ddf_pb2', 'TileGrid', '.tilegrid', '.tilegridc', transform_tilegrid)
 proto_compile_task('tilemap', 'tile_ddf_pb2', 'TileGrid', '.tilemap', '.tilegridc', transform_tilegrid)
 
-TaskGen.declare_chain('project', 'cat < ${SRC} > ${TGT}', ext_in='.project', ext_out='.projectc', reentrant = False)
+new_copy_task('project', '.project', '.projectc')
 
 from cStringIO import StringIO
 def strip_single_lua_comments(str):
@@ -335,30 +336,8 @@ def script_file(self, node):
     out = node.change_ext(obj_ext)
     task.set_outputs(out)
 
-Task.simple_task_type('render_script', 'cat < ${SRC} > ${TGT}',
-                      color='PINK',
-                      before='cc cxx',
-                      shell=True)
-
-@extension('.render_script')
-def testresourcecont_file(self, node):
-    obj_ext = '.render_scriptc'
-    task = self.create_task('render_script')
-    task.set_inputs(node)
-    out = node.change_ext(obj_ext)
-    task.set_outputs(out)
-
-Task.simple_task_type('wav', 'cat < ${SRC} > ${TGT}',
-                      color='PINK',
-                      shell=True)
-
-@extension('.wav')
-def testresourcecont_file(self, node):
-    obj_ext = '.wavc'
-    task = self.create_task('wav')
-    task.set_inputs(node)
-    out = node.change_ext(obj_ext)
-    task.set_outputs(out)
+new_copy_task('render_script', '.render_script', '.render_scriptc')
+new_copy_task('wav', '.wav', '.wavc')
 
 Task.simple_task_type('mesh', 'python ${MESHC} ${SRC} -o ${TGT}',
                       color='PINK',
@@ -374,19 +353,7 @@ def dae_file(self, node):
     out = node.change_ext(obj_ext)
     mesh.set_outputs(out)
 
-
-Task.simple_task_type('gui_script', 'cat < ${SRC} > ${TGT}',
-                      color='PINK',
-                      before='cc cxx',
-                      shell=True)
-
-@extension('.gui_script')
-def testresourcecont_file(self, node):
-    obj_ext = '.gui_scriptc'
-    task = self.create_task('gui_script')
-    task.set_inputs(node)
-    out = node.change_ext(obj_ext)
-    task.set_outputs(out)
+new_copy_task('gui_script', '.gui_script', '.gui_scriptc')
 
 Task.simple_task_type('tileset', '${JAVA} -classpath ${CLASSPATH} com.dynamo.tile.TileSetc ${SRC} ${TGT}',
                       color='PINK',

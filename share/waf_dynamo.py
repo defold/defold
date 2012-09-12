@@ -5,6 +5,25 @@ from TaskGen import extension, taskgen, feature, after, before
 from Logs import error
 import cc, cxx
 
+def new_copy_task(name, input_ext, output_ext):
+    def compile(task):
+        with open(task.inputs[0].srcpath(task.env), 'rb') as in_f:
+            with open(task.outputs[0].bldpath(task.env), 'wb') as out_f:
+                out_f.write(in_f.read())
+
+        return 0
+
+    task = Task.task_type_from_func(name,
+                                    func  = compile,
+                                    color = 'PINK')
+
+    @extension(input_ext)
+    def copy_file(self, node):
+        task = self.create_task(name)
+        task.set_inputs(node)
+        out = node.change_ext(output_ext)
+        task.set_outputs(out)
+
 ARM_DARWIN_ROOT='/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer'
 IOS_SDK_VERSION="5.1"
 MIN_IOS_SDK_VERSION=IOS_SDK_VERSION
