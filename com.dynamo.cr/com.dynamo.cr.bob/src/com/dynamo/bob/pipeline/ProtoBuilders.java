@@ -263,6 +263,7 @@ public class ProtoBuilders {
             BuilderUtil.checkFile(this.project, resource, "tile source", messageBuilder.getTileSet());
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tileset", "tilesetc"));
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tilesource", "tilesetc"));
+            messageBuilder.setMaterial(BuilderUtil.replaceExt(messageBuilder.getMaterial(), "material", "materialc"));
             return messageBuilder;
         }
     }

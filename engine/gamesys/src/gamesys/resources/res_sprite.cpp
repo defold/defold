@@ -22,6 +22,11 @@ namespace dmGameSystem
         {
             return fr;
         }
+        fr = dmResource::Get(factory, resource->m_DDF->m_Material, (void**)&resource->m_Material);
+        if (fr != dmResource::RESULT_OK)
+        {
+            return fr;
+        }
         resource->m_DefaultAnimation = dmHashString64(resource->m_DDF->m_DefaultAnimation);
         uint32_t n_animations = resource->m_TileSet->m_AnimationIds.Size();
         bool found = false;
@@ -57,6 +62,8 @@ namespace dmGameSystem
             dmDDF::FreeMessage(resource->m_DDF);
         if (resource->m_TileSet != 0x0)
             dmResource::Release(factory, resource->m_TileSet);
+        if (resource->m_Material != 0x0)
+            dmResource::Release(factory, resource->m_Material);
     }
 
     dmResource::Result ResSpriteCreate(dmResource::HFactory factory,

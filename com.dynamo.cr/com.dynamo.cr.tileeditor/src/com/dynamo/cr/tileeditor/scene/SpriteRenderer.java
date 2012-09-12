@@ -34,17 +34,33 @@ public class SpriteRenderer implements INodeRenderer<SpriteNode> {
         Texture texture = tileSet.getTextureHandle().getTexture();
         FloatBuffer v = node.getVertexData();
 
-        boolean useTexture = renderData.getPass() == Pass.TRANSPARENT;
-        if (useTexture) {
+        GL gl = renderContext.getGL();
+
+        boolean transparent = renderData.getPass() == Pass.TRANSPARENT;
+        if (transparent) {
             texture.bind();
             texture.setTexParameteri(GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST);
             texture.setTexParameteri(GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST);
             texture.setTexParameteri(GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP);
             texture.setTexParameteri(GL.GL_TEXTURE_WRAP_T, GL.GL_CLAMP);
             texture.enable();
+
+            switch (node.getBlendMode()) {
+            case BLEND_MODE_ALPHA:
+                // No change
+                break;
+            case BLEND_MODE_ADD:
+                gl.glBlendFunc(GL.GL_ONE, GL.GL_ONE);
+                break;
+            case BLEND_MODE_ADD_ALPHA:
+                gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE);
+                break;
+            case BLEND_MODE_MULT:
+                gl.glBlendFunc(GL.GL_ZERO, GL.GL_SRC_COLOR);
+                break;
+            }
         }
 
-        GL gl = renderContext.getGL();
         gl.glColor4fv(renderContext.selectColor(node, COLOR), 0);
 
         gl.glEnableClientState(GL.GL_VERTEX_ARRAY);
@@ -57,8 +73,10 @@ public class SpriteRenderer implements INodeRenderer<SpriteNode> {
         gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
         gl.glDisableClientState(GL.GL_TEXTURE_COORD_ARRAY);
 
-        if (useTexture) {
+        if (transparent) {
             texture.disable();
+
+            gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
         }
     }
 
