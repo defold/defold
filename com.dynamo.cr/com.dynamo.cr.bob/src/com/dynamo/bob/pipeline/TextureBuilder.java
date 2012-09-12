@@ -27,6 +27,14 @@ public class TextureBuilder extends Builder<Void> {
         return defaultTask(input);
     }
 
+    private BufferedImage convertImage(BufferedImage origImage, int type) {
+        BufferedImage image = new BufferedImage(origImage.getWidth(), origImage.getHeight(), type);
+        Graphics2D g2d = image.createGraphics();
+        g2d.drawImage(origImage, 0, 0, null);
+        g2d.dispose();
+        return image;
+    }
+
     @Override
     public void build(Task<Void> task) throws CompileExceptionError,
             IOException {
@@ -50,15 +58,19 @@ public class TextureBuilder extends Builder<Void> {
             } else {
                 type = BufferedImage.TYPE_3BYTE_BGR;
             }
-
-            image = new BufferedImage(origImage.getWidth(), origImage.getHeight(), type);
-            Graphics2D g2d = image.createGraphics();
-            g2d.drawImage(origImage, 0, 0, null);
-            g2d.dispose();
+            image = convertImage(origImage, type);
 
         } else {
-            // Keep image as is
-            image = origImage;
+            if (origImage.getType() == BufferedImage.TYPE_CUSTOM) {
+                if (origImage.getColorModel().hasAlpha()) {
+                    image = convertImage(origImage, BufferedImage.TYPE_4BYTE_ABGR);
+                } else {
+                    image = convertImage(origImage, BufferedImage.TYPE_3BYTE_BGR);
+                }
+            } else {
+                // Keep image as is
+                image = origImage;
+            }
         }
 
         TextureImage.Builder textureBuilder = TextureImage.newBuilder();
