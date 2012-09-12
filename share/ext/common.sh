@@ -94,6 +94,10 @@ function cmi() {
             cmi_buildplatform $1
             ;;
 
+        x86_64-darwin)
+            cmi_buildplatform $1
+            ;;
+
         linux)
             cmi_buildplatform $1
             ;;

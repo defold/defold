@@ -1,8 +1,10 @@
+set -e
 mkdir -p engine/linux
 mkdir -p engine/darwin
 mkdir -p engine/win32
 mkdir -p engine/ios
-[ -f ~/builds/linux/dmengine ] && cp -v ~/builds/linux/dmengine engine/linux
-[ -f ~/builds/darwin/dmengine ] && cp -v ~/builds/darwin/dmengine engine/darwin
-[ -f ~/builds/win32/dmengine.exe ] && cp -v ~/builds/win32/dmengine.exe engine/win32
-[ -f ~/builds/ios/dmengine ] && cp -v ~/builds/ios/dmengine engine/ios
+
+scp ci-master.defold.com:builds/linux/dmengine engine/linux
+scp ci-master.defold.com:builds/darwin/dmengine engine/darwin
+scp ci-master.defold.com:builds/win32/dmengine.exe engine/win32
+scp ci-master.defold.com:builds/ios/dmengine engine/ios

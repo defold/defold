@@ -1,3 +1,5 @@
+#!/bin/bash
+
 set -e
 
 [ ! -e templates ] && echo "Directory templates not found. Running script from other directory than root of template plug-in?" && exit 5

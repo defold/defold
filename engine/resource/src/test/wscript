@@ -1,5 +1,6 @@
 import Task, TaskGen
 from TaskGen import extension, declare_extension
+from waf_dynamo import new_copy_task
 
 def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = True, color = 'PINK'):
     def create(self, node):
@@ -16,7 +17,7 @@ create_simple_protoc_task('testresourcecont', '.cont_pb', '.cont', 'TestResource
 create_simple_protoc_task('resourcefoo', '.foo_pb', '.foo', 'TestResource.ResourceFoo', before='cc cxx')
 
 # Test archive data. Only copy the source data.
-TaskGen.declare_chain(name='ad',rule='cat < ${SRC} > ${TGT}',ext_in='.ad', ext_out='.adc', reentrant = False)
+new_copy_task('ad', '.ad', '.adc')
 
 def build(bld):
     resources = bld.new_task_gen(source = 'test.cont_pb')

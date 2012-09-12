@@ -5,6 +5,25 @@ from TaskGen import extension, taskgen, feature, after, before
 from Logs import error
 import cc, cxx
 
+def new_copy_task(name, input_ext, output_ext):
+    def compile(task):
+        with open(task.inputs[0].srcpath(task.env), 'rb') as in_f:
+            with open(task.outputs[0].bldpath(task.env), 'wb') as out_f:
+                out_f.write(in_f.read())
+
+        return 0
+
+    task = Task.task_type_from_func(name,
+                                    func  = compile,
+                                    color = 'PINK')
+
+    @extension(input_ext)
+    def copy_file(self, node):
+        task = self.create_task(name)
+        task.set_inputs(node)
+        out = node.change_ext(output_ext)
+        task.set_outputs(out)
+
 ARM_DARWIN_ROOT='/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer'
 IOS_SDK_VERSION="5.1"
 MIN_IOS_SDK_VERSION=IOS_SDK_VERSION
@@ -25,12 +44,15 @@ def default_flags(self):
         # OSX and iOS
         self.env.append_value('LINKFLAGS', ['-framework', 'Foundation'])
 
-    if platform == "linux" or platform == "darwin":
+    if platform == "linux" or platform == "darwin" or platform == "x86_64-darwin":
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-m32'])
+            self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall'])
+            if platform == "darwin":
+                self.env.append_value(f, ['-m32'])
             # We link by default to uuid on linux. libuuid is wrapped in dlib (at least currently)
-        self.env.append_value('LINKFLAGS', ['-m32'])
         if platform == "darwin":
+            self.env.append_value('LINKFLAGS', ['-m32'])
+        if platform == "darwin" or platform == "x86_64-darwin":
             # OSX only
             self.env.append_value('LINKFLAGS', ['-framework', 'Carbon'])
         elif platform == "linux":
@@ -392,7 +414,7 @@ def detect(conf):
     if not platform:
         platform = build_platform
 
-    if platform == 'darwin':
+    if platform == 'darwin' or platform == 'x86_64-darwin':
         # Force gcc without llvm on darwin.
         # We got strange bugs with http cache with gcc-llvm...
         os.environ['CC'] = 'gcc-4.2'
