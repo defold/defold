@@ -462,12 +462,47 @@ namespace dmGameSystem
         }
     }
 
+    // Docs intentionally left out until we decide to go public with this function
+    int SpriteComp_SetScale(lua_State* L)
+    {
+        int top = lua_gettop(L);
+
+        dmMessage::URL sender;
+        uintptr_t user_data;
+        if (dmScript::GetURL(L, &sender) && dmScript::GetUserData(L, &user_data) && user_data != 0)
+        {
+            Vectormath::Aos::Vector3* scale = dmScript::CheckVector3(L, 2);
+
+            const uint32_t buffer_size = 256;
+            uint8_t buffer[buffer_size];
+            dmGameSystemDDF::SetScale* request = (dmGameSystemDDF::SetScale*)buffer;
+
+            uint32_t msg_size = sizeof(dmGameSystemDDF::SetScale);
+
+            request->m_Scale = *scale;
+
+            dmMessage::URL receiver;
+
+            dmScript::ResolveURL(L, 1, &receiver, &sender);
+
+            dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetScale::m_DDFDescriptor->m_NameHash, user_data, (uintptr_t)dmGameSystemDDF::SetScale::m_DDFDescriptor, buffer, msg_size);
+            assert(top == lua_gettop(L));
+            return 0;
+        }
+        else
+        {
+            assert(top == lua_gettop(L));
+            return luaL_error(L, "sprite.set_scale is not available from this script-type.");
+        }
+    }
+
     static const luaL_reg SPRITE_COMP_FUNCTIONS[] =
     {
             {"set_hflip",       SpriteComp_SetHFlip},
             {"set_vflip",       SpriteComp_SetVFlip},
             {"set_constant",    SpriteComp_SetConstant},
             {"reset_constant",  SpriteComp_ResetConstant},
+            {"set_scale",       SpriteComp_SetScale},
             {0, 0}
     };
 

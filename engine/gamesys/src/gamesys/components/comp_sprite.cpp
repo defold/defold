@@ -42,6 +42,7 @@ namespace dmGameSystem
         dmGameObject::HInstance     m_Instance;
         Point3                      m_Position;
         Quat                        m_Rotation;
+        Vector3                     m_Scale;
         Matrix4                     m_World;
         SortKey                     m_SortKey;
         // Hash of the m_Resource-pointer. Hash is used to be compatible with 64-bit arch as a 32-bit value is used for sorting
@@ -473,8 +474,8 @@ namespace dmGameSystem
                 Point3 position = rotate(world_rot, Vector3(local_pos)) + world_pos;
                 Matrix4 world = Matrix4::rotation(rotation);
                 // This is equivalent to world = world * diag(w, h, 1, 0) but more efficient
-                world.setCol(0, world.getCol(0) * tile_set_ddf->m_TileWidth);
-                world.setCol(1, world.getCol(1) * tile_set_ddf->m_TileHeight);
+                world.setCol(0, world.getCol(0) * tile_set_ddf->m_TileWidth * c->m_Scale.getX());
+                world.setCol(1, world.getCol(1) * tile_set_ddf->m_TileHeight * c->m_Scale.getY());
 
                 if (!sub_pixels)
                 {
@@ -777,6 +778,11 @@ namespace dmGameSystem
                         break;
                     }
                 }
+            }
+            else if (params.m_Message->m_Id == dmGameSystemDDF::SetScale::m_DDFDescriptor->m_NameHash)
+            {
+                dmGameSystemDDF::SetScale* ddf = (dmGameSystemDDF::SetScale*)params.m_Message->m_Data;
+                component->m_Scale = ddf->m_Scale;
             }
         }
 

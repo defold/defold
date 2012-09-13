@@ -98,3 +98,9 @@ message ResetConstant
 {
     required uint64         name_hash   = 1;
 }
+
+/* Function wrapper documented in gamesys_script.cpp */
+message SetScale
+{
+    required dmMath.Vector3 scale  = 1;
+}
