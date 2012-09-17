@@ -35,9 +35,10 @@ public class GameObjectReloadTest extends AbstractSceneTest {
         getPresenter().onLoad("go", new ByteArrayInputStream("".getBytes()));
     }
 
-    private void saveSpriteComponent(String path, String tileSet, String defaultAnimation) throws IOException, CoreException {
+    private void saveSpriteComponent(String path, String tileSet, String defaultAnimation, String material)
+            throws IOException, CoreException {
         SpriteDesc.Builder builder = SpriteDesc.newBuilder();
-        builder.setTileSet(tileSet).setDefaultAnimation(defaultAnimation);
+        builder.setTileSet(tileSet).setDefaultAnimation(defaultAnimation).setMaterial(material);
         IFile file = getContentRoot().getFile(new Path(path));
         CharArrayWriter output = new CharArrayWriter();
         TextFormat.print(builder.build(), output);
@@ -57,13 +58,15 @@ public class GameObjectReloadTest extends AbstractSceneTest {
         String path = "/sprite/reload.sprite";
         String tileSet = "/tileset/test.tileset";
         String defaultAnimation = "test";
+        String material = "/sprite/sprite.material";
 
         when(getPresenterContext().selectFile(anyString(), any(String[].class))).thenReturn(path);
         SpriteNode componentType = new SpriteNode();
         componentType.setTileSource(tileSet);
         componentType.setDefaultAnimation(defaultAnimation);
+        componentType.setMaterial(material);
 
-        saveSpriteComponent(path, "", "");
+        saveSpriteComponent(path, "", "", "");
 
         GameObjectNode go = (GameObjectNode)getModel().getRoot();
         RefComponentNode component = new RefComponentNode(new SpriteNode());
@@ -74,7 +77,7 @@ public class GameObjectReloadTest extends AbstractSceneTest {
         assertNodePropertyStatus(component, "component", IStatus.ERROR, null);
         ComponentTypeNode type = component.getType();
 
-        saveSpriteComponent(path, tileSet, defaultAnimation);
+        saveSpriteComponent(path, tileSet, defaultAnimation, material);
 
         assertNodePropertyStatus(component, "component", IStatus.OK, null);
         assertThat((RefComponentNode)go.getChildren().get(0), is(component));

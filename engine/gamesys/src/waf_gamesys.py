@@ -120,6 +120,7 @@ def transform_render(task, msg):
 def transform_sprite(task, msg):
     msg.tile_set = msg.tile_set.replace('.tileset', '.tilesetc')
     msg.tile_set = msg.tile_set.replace('.tilesource', '.tilesetc')
+    msg.material = msg.material.replace('.material', '.materialc')
     return msg
 
 def transform_tilegrid(task, msg):
