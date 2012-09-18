@@ -49,6 +49,7 @@ jre\bin\javaw.exe</programArgsWin>
       <plugin id="com.dynamo.cr.go"/>
       <plugin id="com.dynamo.cr.guieditor"/>
       <plugin id="com.dynamo.cr.luaeditor"/>
+      <plugin id="com.dynamo.cr.parted"/>
       <plugin id="com.dynamo.cr.projed"/>
       <plugin id="com.dynamo.cr.properties"/>
       <plugin id="com.dynamo.cr.protobind"/>
