@@ -17,89 +17,33 @@ max_particle_count: 8
 type: EMITTER_TYPE_CONE
 properties {
   key: EMITTER_KEY_CONE_RADIUS
-  value: 0.2
-  modifiers {
-    type: MODIFIER_TYPE_LINEAR
-    input: INPUT_TYPE_RAND
-  }
+  samples: { x: 0 y: 0.2 }
 }
 properties {
   key: EMITTER_KEY_CONE_HEIGHT
-  value: 0.05
-  modifiers {
-    type: MODIFIER_TYPE_LINEAR
-    input: INPUT_TYPE_RAND
-    properties {
-      key: MODIFIER_KEY_MIN
-      value: 0.1
-    }
-  }
+  samples: { x: 0 y: 0.05 }
 }
 properties {
   key: EMITTER_KEY_SPAWN_DELAY
-  value: 0.016
-  modifiers {
-    type: MODIFIER_TYPE_LINEAR
-    input: INPUT_TYPE_RAND
-    properties {
-      key: MODIFIER_KEY_MIN
-      value: 0.5
-    }
-  }
+  samples: { x: 0 y: 0.016 }
 }
 properties {
   key: EMITTER_KEY_PARTICLE_LIFE_TIME
-  value: 0.4
+  samples: { x: 0 y: 0.4 }
 }
 properties {
   key: EMITTER_KEY_PARTICLE_SPEED
-  value: 6.0
-  modifiers {
-    type: MODIFIER_TYPE_LINEAR
-    input: INPUT_TYPE_RAND
-    properties {
-      key: MODIFIER_KEY_MIN
-      value: 0.8
-    }
-  }
+  samples: { x: 0 y: 6.0 }
 }
 properties {
   key: EMITTER_KEY_PARTICLE_SIZE
-  value: 0.04
+  samples: { x: 0 y: 0.04 }
 }
-particle_modifiers {
-  type: MODIFIER_TYPE_LINEAR
-  modify: PARTICLE_KEY_VELOCITY
-  properties {
-    key: MODIFIER_KEY_MIN
-    value: 1.0
-  }
-  properties {
-    key: MODIFIER_KEY_MAX
-    value: 0.0
-  }
+particle_properties {
+  key: PARTICLE_KEY_SCALE
+  samples: { x: 0 y: 0.5 }
 }
-particle_modifiers {
-  type: MODIFIER_TYPE_EASE_OUT
-  modify: PARTICLE_KEY_SIZE
-  properties {
-    key: MODIFIER_KEY_MIN
-    value: 0.5
-  }
-  properties {
-    key: MODIFIER_KEY_MAX
-    value: 3.0
-  }
-}
-particle_modifiers {
-  type: MODIFIER_TYPE_EASE_OUT
-  modify: PARTICLE_KEY_ALPHA
-  properties {
-    key: MODIFIER_KEY_MIN
-    value: 1.0
-  }
-  properties {
-    key: MODIFIER_KEY_MAX
-    value: 0.0
-  }
+particle_properties {
+  key: PARTICLE_KEY_ALPHA
+  samples: { x: 0 y: 1.0 }
 }
