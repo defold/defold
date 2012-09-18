@@ -9,5 +9,5 @@ texture:            { name: "tiny_explosion.texture" t_x: 8 t_y: 8 }
 max_particle_count:   1
 
 type:               EMITTER_TYPE_CONE
-properties:         { key: EMITTER_KEY_SPAWN_DELAY          value: 0.0334 }
-properties:         { key: EMITTER_KEY_PARTICLE_LIFE_TIME   value: 0.0167 }
+properties:         { key: EMITTER_KEY_SPAWN_DELAY          samples: { x: 0 y: 0.0334 } }
+properties:         { key: EMITTER_KEY_PARTICLE_LIFE_TIME   samples: { x: 0 y: 0.0167 } }
