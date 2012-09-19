@@ -176,7 +176,7 @@ class Configuration(object):
         self.exec_command(cmd.split(), cwd = cwd)
 
     def test_cr(self):
-        for plugin in ['common', 'luaeditor', 'builtins']:
+        for plugin in ['common', 'luaeditor', 'builtins', 'parted']:
             self.exec_command(['ln', '-sfn',
                                self.dynamo_home,
                                join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.%s/DYNAMO_HOME' % plugin)])
