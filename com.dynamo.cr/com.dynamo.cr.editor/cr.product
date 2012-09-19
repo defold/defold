@@ -60,6 +60,7 @@ jre\bin\javaw.exe</programArgsWin>
       <plugin id="com.google.common"/>
       <plugin id="com.google.inject"/>
       <plugin id="com.ibm.icu"/>
+      <plugin id="com.sun.jna"/>
       <plugin id="javax.media.opengl"/>
       <plugin id="javax.persistence"/>
       <plugin id="javax.servlet"/>
