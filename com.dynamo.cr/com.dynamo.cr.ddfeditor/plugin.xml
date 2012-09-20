@@ -94,15 +94,6 @@
             name="Gamepad Map Editor">
       </editor>
       <editor
-            class="com.dynamo.cr.ddfeditor.EmitterEditor"
-            contributorClass="com.dynamo.cr.ddfeditor.DdfEditorActionBarContributor"
-            default="false"
-            extensions="emitter"
-            icon="icons/dynamite.png"
-            id="com.dynamo.cr.ddfeditor.emittereditor"
-            name="Emitter Editor">
-      </editor>
-      <editor
             class="com.dynamo.cr.ddfeditor.ConvexShapeEditor"
             contributorClass="com.dynamo.cr.ddfeditor.DdfEditorActionBarContributor"
             default="false"
@@ -192,13 +183,6 @@
             icon="icons/keyboard.png"
             id="com.dynamo.cr.ddfeditor.wizards.InputBindingNewWizard"
             name="Input Binding File">
-      </wizard>
-      <wizard
-            category="com.dynamo.cr.editor.wizardCategory"
-            class="com.dynamo.cr.ddfeditor.wizards.EmitterNewWizard"
-            icon="icons/dynamite.png"
-            id="com.dynamo.cr.ddfeditor.wizards.EmitterNewWizard"
-            name="Emitter File">
       </wizard>
    </extension>
    <extension
@@ -415,7 +399,6 @@
             template-data="  ">
       </resource-type>
       <resource-type
-            edit-support-class="com.dynamo.cr.ddfeditor.resourcetypes.EmitterEditSupport"
             file-extension="emitter"
             id="com.dynamo.cr.ddfeditor.resourcetypes.Emitter"
             name="Emitter"
@@ -494,9 +477,6 @@
          </newWizardShortcut>
          <newWizardShortcut
                id="com.dynamo.cr.ddfeditor.wizards.InputBindingNewWizard">
-         </newWizardShortcut>
-         <newWizardShortcut
-               id="com.dynamo.cr.ddfeditor.wizards.EmitterNewWizard">
          </newWizardShortcut>
          <newWizardShortcut
                id="com.dynamo.cr.ddfeditor.wizards.ConvexShapeNewWizard">

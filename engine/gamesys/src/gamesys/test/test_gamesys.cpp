@@ -235,22 +235,8 @@ INSTANTIATE_TEST_CASE_P(ConvexShape, ResourceFailTest, ::testing::ValuesIn(inval
 const char* valid_emitter_resources[] = {"/emitter/valid.emitterc"};
 INSTANTIATE_TEST_CASE_P(Emitter, ResourceTest, ::testing::ValuesIn(valid_emitter_resources));
 
-ResourceFailParams invalid_emitter_resources[] =
-{
-    {"/emitter/valid.emitterc", "/emitter/invalid_material.emitterc"},
-    {"/emitter/valid.emitterc", "/emitter/invalid_texture.emitterc"},
-};
-INSTANTIATE_TEST_CASE_P(Emitter, ResourceFailTest, ::testing::ValuesIn(invalid_emitter_resources));
-
 const char* valid_emitter_gos[] = {"/emitter/valid_emitter.goc"};
 INSTANTIATE_TEST_CASE_P(Emitter, ComponentTest, ::testing::ValuesIn(valid_emitter_gos));
-
-const char* invalid_emitter_gos[] =
-{
-    "/emitter/invalid_material.goc",
-    "/emitter/invalid_texture.goc"
-};
-INSTANTIATE_TEST_CASE_P(Emitter, ComponentFailTest, ::testing::ValuesIn(invalid_emitter_gos));
 
 /* Font map */
 
@@ -375,6 +361,28 @@ INSTANTIATE_TEST_CASE_P(Model, ComponentTest, ::testing::ValuesIn(valid_model_go
 
 const char* invalid_model_gos[] = {"/model/invalid_model.goc", "/model/invalid_material.goc"};
 INSTANTIATE_TEST_CASE_P(Model, ComponentFailTest, ::testing::ValuesIn(invalid_model_gos));
+
+/* Particle FX */
+
+const char* valid_particlefx_resources[] = {"/particlefx/valid.particlefxc"};
+INSTANTIATE_TEST_CASE_P(ParticleFX, ResourceTest, ::testing::ValuesIn(valid_particlefx_resources));
+
+ResourceFailParams invalid_particlefx_resources[] =
+{
+    {"/particlefx/valid.particlefxc", "/particlefx/invalid_material.particlefxc"},
+    {"/particlefx/valid.particlefxc", "/particlefx/invalid_texture.particlefxc"},
+};
+INSTANTIATE_TEST_CASE_P(ParticleFX, ResourceFailTest, ::testing::ValuesIn(invalid_particlefx_resources));
+
+const char* valid_particlefx_gos[] = {"/particlefx/valid_particlefx.goc"};
+INSTANTIATE_TEST_CASE_P(ParticleFX, ComponentTest, ::testing::ValuesIn(valid_particlefx_gos));
+
+const char* invalid_particlefx_gos[] =
+{
+    "/particlefx/invalid_material.goc",
+    "/particlefx/invalid_texture.goc"
+};
+INSTANTIATE_TEST_CASE_P(ParticleFX, ComponentFailTest, ::testing::ValuesIn(invalid_particlefx_gos));
 
 /* Render */
 

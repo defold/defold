@@ -37,7 +37,7 @@ namespace dmGameSystem
         uint64_t     m_Key;
     };
 
-    struct Component
+    struct SpriteComponent
     {
         dmGameObject::HInstance     m_Instance;
         Point3                      m_Position;
@@ -65,7 +65,7 @@ namespace dmGameSystem
 
     struct SpriteWorld
     {
-        dmArray<Component>              m_Components;
+        dmArray<SpriteComponent>        m_Components;
         dmIndexPool32                   m_ComponentIndices;
         dmArray<dmRender::RenderObject> m_RenderObjects;
         dmGraphics::HVertexDeclaration  m_VertexDeclaration;
@@ -93,7 +93,7 @@ namespace dmGameSystem
 
         sprite_world->m_Components.SetCapacity(sprite_context->m_MaxSpriteCount);
         sprite_world->m_Components.SetSize(sprite_context->m_MaxSpriteCount);
-        memset(&sprite_world->m_Components[0], 0, sizeof(Component) * sprite_context->m_MaxSpriteCount);
+        memset(&sprite_world->m_Components[0], 0, sizeof(SpriteComponent) * sprite_context->m_MaxSpriteCount);
         sprite_world->m_ComponentIndices.SetCapacity(sprite_context->m_MaxSpriteCount);
         sprite_world->m_RenderObjects.SetCapacity(sprite_context->m_MaxSpriteCount);
 
@@ -130,7 +130,7 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    bool PlayAnimation(Component* component, dmhash_t animation_id)
+    bool PlayAnimation(SpriteComponent* component, dmhash_t animation_id)
     {
         bool anim_found = false;
         TileSetResource* tile_set = component->m_Resource->m_TileSet;
@@ -156,7 +156,7 @@ namespace dmGameSystem
         return anim_found;
     }
 
-    void ReHash(Component* component)
+    void ReHash(SpriteComponent* component)
     {
         // Hash resource-ptr, material-handle, blend mode and render constants
         HashState32 state;
@@ -182,7 +182,7 @@ namespace dmGameSystem
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
         uint32_t index = sprite_world->m_ComponentIndices.Pop();
-        Component* component = &sprite_world->m_Components[index];
+        SpriteComponent* component = &sprite_world->m_Components[index];
         component->m_Instance = params.m_Instance;
         component->m_Position = params.m_Position;
         component->m_Rotation = params.m_Rotation;
@@ -202,9 +202,9 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompSpriteDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
         SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
-        Component* component = (Component*)*params.m_UserData;
+        SpriteComponent* component = (SpriteComponent*)*params.m_UserData;
         uint32_t index = component - &sprite_world->m_Components[0];
-        memset(component, 0, sizeof(Component));
+        memset(component, 0, sizeof(SpriteComponent));
         sprite_world->m_ComponentIndices.Push(index);
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -227,8 +227,8 @@ namespace dmGameSystem
 
         inline bool operator () (const uint32_t x, const uint32_t y)
         {
-            Component* c1 = &m_SpriteWorld->m_Components[x];
-            Component* c2 = &m_SpriteWorld->m_Components[y];
+            SpriteComponent* c1 = &m_SpriteWorld->m_Components[x];
+            SpriteComponent* c2 = &m_SpriteWorld->m_Components[y];
             return c1->m_SortKey.m_Key < c2->m_SortKey.m_Key;
         }
 
@@ -236,16 +236,16 @@ namespace dmGameSystem
 
     void GenerateKeys(SpriteWorld* sprite_world)
     {
-        dmArray<Component>& components = sprite_world->m_Components;
+        dmArray<SpriteComponent>& components = sprite_world->m_Components;
         uint32_t n = components.Size();
 
         float min_z = sprite_world->m_MinZ;
         float range = 1.0f / (sprite_world->m_MaxZ - sprite_world->m_MinZ);
 
-        Component* first = sprite_world->m_Components.Begin();
+        SpriteComponent* first = sprite_world->m_Components.Begin();
         for (uint32_t i = 0; i < n; ++i)
         {
-            Component* c = &components[i];
+            SpriteComponent* c = &components[i];
             uint32_t index = c - first;
 
             if (c->m_Resource && c->m_Enabled)
@@ -276,7 +276,7 @@ namespace dmGameSystem
     {
         DM_PROFILE(Sprite, "CreateVertexData");
 
-        const dmArray<Component>& components = sprite_world->m_Components;
+        const dmArray<SpriteComponent>& components = sprite_world->m_Components;
         const dmArray<uint32_t>& sort_buffer = sprite_world->m_RenderSortBuffer;
 
         dmGameSystemDDF::TileSet* tile_set_ddf = tile_set->m_TileSet;
@@ -294,7 +294,7 @@ namespace dmGameSystem
         const float step_y = tile_set_ddf->m_TileHeight + tile_set_ddf->m_TileSpacing + 2 * tile_set_ddf->m_TileMargin;
         for (uint32_t i = start_index; i < end_index; ++i)
         {
-            const Component* component = &components[sort_buffer[i]];
+            const SpriteComponent* component = &components[sort_buffer[i]];
 
             dmGameSystemDDF::Animation* animation_ddf = &tile_set_ddf->m_Animations[component->m_CurrentAnimation];
 
@@ -371,10 +371,10 @@ namespace dmGameSystem
         DM_PROFILE(Sprite, "RenderBatch");
         uint32_t n = sprite_world->m_Components.Size();
 
-        const dmArray<Component>& components = sprite_world->m_Components;
+        const dmArray<SpriteComponent>& components = sprite_world->m_Components;
         const dmArray<uint32_t>& sort_buffer = sprite_world->m_RenderSortBuffer;
 
-        const Component* first = &components[sort_buffer[start_index]];
+        const SpriteComponent* first = &components[sort_buffer[start_index]];
         assert(first->m_Enabled);
         TileSetResource* tile_set = first->m_Resource->m_TileSet;
         uint64_t z = first->m_SortKey.m_Z;
@@ -383,7 +383,7 @@ namespace dmGameSystem
         uint32_t end_index = n;
         for (uint32_t i = start_index; i < n; ++i)
         {
-            const Component* c = &components[sort_buffer[i]];
+            const SpriteComponent* c = &components[sort_buffer[i]];
             if (!c->m_Enabled || c->m_MixedHash != hash || c->m_SortKey.m_Z != z)
             {
                 end_index = i;
@@ -455,13 +455,13 @@ namespace dmGameSystem
     {
         DM_PROFILE(Sprite, "UpdateTransforms");
 
-        dmArray<Component>& components = sprite_world->m_Components;
+        dmArray<SpriteComponent>& components = sprite_world->m_Components;
         uint32_t n = components.Size();
         float min_z = FLT_MAX;
         float max_z = -FLT_MAX;
         for (uint32_t i = 0; i < n; ++i)
         {
-            Component* c = &components[i];
+            SpriteComponent* c = &components[i];
             if (c->m_Enabled)
             {
                 TileSetResource* tile_set = c->m_Resource->m_TileSet;
@@ -507,11 +507,11 @@ namespace dmGameSystem
     {
         DM_PROFILE(Sprite, "PostMessages");
 
-        dmArray<Component>& components = sprite_world->m_Components;
+        dmArray<SpriteComponent>& components = sprite_world->m_Components;
         uint32_t n = components.Size();
         for (uint32_t i = 0; i < n; ++i)
         {
-            Component* component = &components[i];
+            SpriteComponent* component = &components[i];
             if (!component->m_Enabled)
                 continue;
 
@@ -563,11 +563,11 @@ namespace dmGameSystem
     {
         DM_PROFILE(Sprite, "Animate");
 
-        dmArray<Component>& components = sprite_world->m_Components;
+        dmArray<SpriteComponent>& components = sprite_world->m_Components;
         uint32_t n = components.Size();
         for (uint32_t i = 0; i < n; ++i)
         {
-            Component* component = &components[i];
+            SpriteComponent* component = &components[i];
             if (!component->m_Enabled)
                 continue;
 
@@ -686,7 +686,7 @@ namespace dmGameSystem
 
         sprite_world->m_RenderObjects.SetSize(0);
 
-        const dmArray<Component>& components = sprite_world->m_Components;
+        const dmArray<SpriteComponent>& components = sprite_world->m_Components;
         const dmArray<uint32_t>& sort_buffer = sprite_world->m_RenderSortBuffer;
 
         uint32_t start_index = 0;
@@ -710,7 +710,7 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompSpriteOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
-        Component* component = (Component*)*params.m_UserData;
+        SpriteComponent* component = (SpriteComponent*)*params.m_UserData;
         if (params.m_Message->m_Id == dmGameObjectDDF::Enable::m_DDFDescriptor->m_NameHash)
         {
             component->m_Enabled = 1;
@@ -792,7 +792,7 @@ namespace dmGameSystem
 
     void CompSpriteOnReload(const dmGameObject::ComponentOnReloadParams& params)
     {
-        Component* component = (Component*)*params.m_UserData;
+        SpriteComponent* component = (SpriteComponent*)*params.m_UserData;
         component->m_CurrentTile = 0;
         component->m_FrameTimer = 0.0f;
         component->m_FrameTime = 0.0f;

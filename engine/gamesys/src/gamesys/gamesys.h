@@ -39,10 +39,14 @@ namespace dmGameSystem
         bool m_3D;
     };
 
-    struct EmitterContext
+    struct ParticleFXContext
     {
+        ParticleFXContext()
+        {
+            memset(this, 0, sizeof(*this));
+        }
         dmRender::HRenderContext m_RenderContext;
-        uint32_t m_MaxEmitterCount;
+        uint32_t m_MaxParticleFXCount;
         uint32_t m_MaxParticleCount;
         bool m_Debug;
     };
@@ -116,7 +120,7 @@ namespace dmGameSystem
                                                   dmGameObject::HRegister regist,
                                                   dmRender::HRenderContext render_context,
                                                   PhysicsContext* physics_context,
-                                                  EmitterContext* emitter_context,
+                                                  ParticleFXContext* emitter_context,
                                                   GuiContext* gui_context,
                                                   SpriteContext* sprite_context,
                                                   CollectionProxyContext* collection_proxy_context,

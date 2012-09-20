@@ -27,8 +27,6 @@ import com.dynamo.gui.proto.Gui.SceneDesc.TextureDesc;
 import com.dynamo.input.proto.Input.GamepadMaps;
 import com.dynamo.input.proto.Input.InputBinding;
 import com.dynamo.model.proto.Model.ModelDesc;
-import com.dynamo.particle.proto.Particle;
-import com.dynamo.particle.proto.Particle.Emitter;
 import com.dynamo.physics.proto.Physics.CollisionObjectDesc;
 import com.dynamo.physics.proto.Physics.CollisionShape;
 import com.dynamo.physics.proto.Physics.CollisionShape.Shape;
@@ -78,26 +76,6 @@ public class ProtoBuilders {
         protected CollectionProxyDesc.Builder transform(IResource resource, CollectionProxyDesc.Builder messageBuilder) throws CompileExceptionError {
             BuilderUtil.checkFile(this.project, resource, "collection", messageBuilder.getCollection());
             return messageBuilder.setCollection(BuilderUtil.replaceExt(messageBuilder.getCollection(), ".collection", ".collectionc"));
-        }
-    }
-
-    @ProtoParams(messageClass = Emitter.class)
-    @BuilderParams(name="emitter", inExts=".emitter", outExt=".emitterc")
-    public static class EmitterBuilder extends ProtoBuilder<Emitter.Builder> {
-        @Override
-        protected Emitter.Builder transform(IResource resource, Emitter.Builder messageBuilder) throws CompileExceptionError {
-
-            Particle.Texture_t.Builder tb = messageBuilder.getTexture().newBuilderForType().mergeFrom(messageBuilder.getTexture());
-            String texture = tb.getName();
-            if (!texture.isEmpty()) {
-                BuilderUtil.checkFile(this.project, resource, "name", texture);
-                tb.setName(replaceTextureName(texture));
-            }
-
-            BuilderUtil.checkFile(this.project, resource, "material", messageBuilder.getMaterial());
-            return messageBuilder
-                    .setMaterial(BuilderUtil.replaceExt(messageBuilder.getMaterial(), ".material", ".materialc"))
-                    .setTexture(tb);
         }
     }
 

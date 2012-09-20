@@ -57,7 +57,7 @@ def transform_collisionobject(task, msg):
     msg.collision_shape = msg.collision_shape.replace('.tilemap', '.tilegridc')
     return msg
 
-def transform_emitter(task, msg):
+def transform_particlefx(task, msg):
     msg.material = msg.material.replace('.material', '.materialc')
     msg.texture.name = transform_texture_name(task, msg.texture.name)
     return msg
@@ -68,6 +68,7 @@ def transform_gameobject(task, msg):
         c.component = c.component.replace('.collectionproxy', '.collectionproxyc')
         c.component = c.component.replace('.collisionobject', '.collisionobjectc')
         c.component = c.component.replace('.emitter', '.emitterc')
+        c.component = c.component.replace('.particlefx', '.particlefxc')
         c.component = c.component.replace('.gui', '.guic')
         c.component = c.component.replace('.model', '.modelc')
         c.component = c.component.replace('.script', '.scriptc')
@@ -242,7 +243,7 @@ def gofile(self, node):
 
 proto_compile_task('collection', 'gameobject_ddf_pb2', 'CollectionDesc', '.collection', '.collectionc', transform_collection)
 proto_compile_task('collectionproxy', 'gamesys_ddf_pb2', 'CollectionProxyDesc', '.collectionproxy', '.collectionproxyc', transform_collectionproxy)
-proto_compile_task('emitter', 'particle.particle_ddf_pb2', 'particle_ddf_pb2.Emitter', '.emitter', '.emitterc', transform_emitter)
+proto_compile_task('particlefx', 'particle.particle_ddf_pb2', 'particle_ddf_pb2.Emitter', '.particlefx', '.particlefxc', transform_particlefx)
 proto_compile_task('model', 'model_ddf_pb2', 'ModelDesc', '.model', '.modelc', transform_model)
 proto_compile_task('convexshape',  'physics_ddf_pb2', 'ConvexShape', '.convexshape', '.convexshapec')
 proto_compile_task('collisionobject',  'physics_ddf_pb2', 'CollisionObjectDesc', '.collisionobject', '.collisionobjectc', transform_collisionobject)
@@ -258,6 +259,7 @@ proto_compile_task('tilegrid', 'tile_ddf_pb2', 'TileGrid', '.tilegrid', '.tilegr
 proto_compile_task('tilemap', 'tile_ddf_pb2', 'TileGrid', '.tilemap', '.tilegridc', transform_tilegrid)
 
 new_copy_task('project', '.project', '.projectc')
+new_copy_task('emitter', '.emitter', '.emitterc')
 
 from cStringIO import StringIO
 def strip_single_lua_comments(str):

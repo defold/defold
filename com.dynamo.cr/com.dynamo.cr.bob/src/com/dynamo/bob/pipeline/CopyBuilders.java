@@ -13,4 +13,8 @@ public class CopyBuilders {
     @BuilderParams(name = "Wav", inExts = ".wav", outExt = ".wavc")
     public static class WavBuilder extends CopyBuilder {}
 
+    @BuilderParams(name = "Emitter", inExts = ".emitter", outExt = ".emitterc")
+    public static class EmitterBuilder extends CopyBuilder {
+    }
+
 }

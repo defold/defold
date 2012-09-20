@@ -23,7 +23,7 @@ namespace dmGameSystem
     /// Config key to use for tweaking maximum number of contacts reported
     const char* PHYSICS_MAX_CONTACTS_KEY    = "physics.max_contacts";
 
-    struct World
+    struct CollisionWorld
     {
         uint64_t m_Groups[16];
         union
@@ -33,7 +33,7 @@ namespace dmGameSystem
         };
     };
 
-    struct Component
+    struct CollisionComponent
     {
         CollisionObjectResource* m_Resource;
         dmGameObject::HInstance m_Instance;
@@ -56,7 +56,7 @@ namespace dmGameSystem
     {
         if (!user_data)
             return;
-        Component* component = (Component*)user_data;
+        CollisionComponent* component = (CollisionComponent*)user_data;
         dmGameObject::HInstance instance = component->m_Instance;
         position = dmGameObject::GetWorldPosition(instance);
         rotation = dmGameObject::GetWorldRotation(instance);
@@ -66,7 +66,7 @@ namespace dmGameSystem
     {
         if (!user_data)
             return;
-        Component* component = (Component*)user_data;
+        CollisionComponent* component = (CollisionComponent*)user_data;
         dmGameObject::HInstance instance = component->m_Instance;
         if (component->m_3D)
         {
@@ -89,8 +89,8 @@ namespace dmGameSystem
         dmPhysics::NewWorldParams world_params;
         world_params.m_GetWorldTransformCallback = GetWorldTransform;
         world_params.m_SetWorldTransformCallback = SetWorldTransform;
-        World* world = new World();
-        memset(world, 0, sizeof(World));
+        CollisionWorld* world = new CollisionWorld();
+        memset(world, 0, sizeof(CollisionWorld));
         if (physics_context->m_3D)
             world->m_World3D = dmPhysics::NewWorld3D(physics_context->m_Context3D, world_params);
         else
@@ -102,7 +102,7 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompCollisionObjectDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
     {
         PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
-        World* world = (World*)params.m_World;
+        CollisionWorld* world = (CollisionWorld*)params.m_World;
         if (physics_context->m_3D)
             dmPhysics::DeleteWorld3D(physics_context->m_Context3D, world->m_World3D);
         else
@@ -123,7 +123,7 @@ namespace dmGameSystem
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
         PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
-        Component* component = new Component();
+        CollisionComponent* component = new CollisionComponent();
         component->m_3D = (uint8_t) physics_context->m_3D;
         component->m_Resource = (CollisionObjectResource*)params.m_Resource;
         component->m_Instance = params.m_Instance;
@@ -135,11 +135,11 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompCollisionObjectDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
-        delete (Component*)*params.m_UserData;
+        delete (CollisionComponent*)*params.m_UserData;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    uint16_t GetGroupBitIndex(World* world, uint64_t group_hash)
+    uint16_t GetGroupBitIndex(CollisionWorld* world, uint64_t group_hash)
     {
         if (group_hash != 0)
         {
@@ -168,7 +168,7 @@ namespace dmGameSystem
         return 0;
     }
 
-    uint64_t GetLSBGroupHash(World* world, uint16_t mask)
+    uint64_t GetLSBGroupHash(CollisionWorld* world, uint16_t mask)
     {
         if (mask > 0)
         {
@@ -183,7 +183,7 @@ namespace dmGameSystem
         return 0;
     }
 
-    bool CreateCollisionObject(PhysicsContext* physics_context, World* world, dmGameObject::HInstance instance, Component* component)
+    bool CreateCollisionObject(PhysicsContext* physics_context, CollisionWorld* world, dmGameObject::HInstance instance, CollisionComponent* component)
     {
         CollisionObjectResource* resource = component->m_Resource;
         dmPhysicsDDF::CollisionObjectDesc* ddf = resource->m_DDF;
@@ -290,10 +290,10 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompCollisionObjectInit(const dmGameObject::ComponentInitParams& params)
     {
         PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
-        Component* component = (Component*) *params.m_UserData;
+        CollisionComponent* component = (CollisionComponent*) *params.m_UserData;
         if (component->m_Object2D == 0)
         {
-            World* world = (World*)params.m_World;
+            CollisionWorld* world = (CollisionWorld*)params.m_World;
             if (!CreateCollisionObject(physics_context, world, params.m_Instance, component))
             {
                 return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
@@ -305,8 +305,8 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompCollisionObjectFinal(const dmGameObject::ComponentFinalParams& params)
     {
         PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
-        Component* component = (Component*)*params.m_UserData;
-        World* world = (World*)params.m_World;
+        CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
+        CollisionWorld* world = (CollisionWorld*)params.m_World;
         if (physics_context->m_3D)
         {
             if (component->m_Object3D != 0)
@@ -330,7 +330,7 @@ namespace dmGameSystem
 
     struct CollisionUserData
     {
-        World* m_World;
+        CollisionWorld* m_World;
         PhysicsContext* m_Context;
         uint32_t m_Count;
     };
@@ -342,8 +342,8 @@ namespace dmGameSystem
         {
             cud->m_Count += 1;
 
-            Component* component_a = (Component*)user_data_a;
-            Component* component_b = (Component*)user_data_b;
+            CollisionComponent* component_a = (CollisionComponent*)user_data_a;
+            CollisionComponent* component_b = (CollisionComponent*)user_data_b;
             dmGameObject::HInstance instance_a = component_a->m_Instance;
             dmGameObject::HInstance instance_b = component_b->m_Instance;
             dmhash_t instance_a_id = dmGameObject::GetIdentifier(instance_a);
@@ -408,8 +408,8 @@ namespace dmGameSystem
         {
             cud->m_Count += 1;
 
-            Component* component_a = (Component*)contact_point.m_UserDataA;
-            Component* component_b = (Component*)contact_point.m_UserDataB;
+            CollisionComponent* component_a = (CollisionComponent*)contact_point.m_UserDataA;
+            CollisionComponent* component_b = (CollisionComponent*)contact_point.m_UserDataB;
             dmGameObject::HInstance instance_a = component_a->m_Instance;
             dmGameObject::HInstance instance_b = component_b->m_Instance;
             dmhash_t instance_a_id = dmGameObject::GetIdentifier(instance_a);
@@ -493,7 +493,7 @@ namespace dmGameSystem
     struct RayCastUserData
     {
         dmGameObject::HInstance m_Instance;
-        World* m_World;
+        CollisionWorld* m_World;
     };
 
     static void RayCastCallback(const dmPhysics::RayCastResponse& response, const dmPhysics::RayCastRequest& request, void* user_data)
@@ -501,8 +501,8 @@ namespace dmGameSystem
         if (response.m_Hit)
         {
             dmGameObject::HInstance instance = (dmGameObject::HInstance)request.m_UserData;
-            World* world = (World*)user_data;
-            Component* component = (Component*)response.m_CollisionObjectUserData;
+            CollisionWorld* world = (CollisionWorld*)user_data;
+            CollisionComponent* component = (CollisionComponent*)response.m_CollisionObjectUserData;
 
             dmPhysicsDDF::RayCastResponse ddf;
             ddf.m_Fraction = response.m_Fraction;
@@ -539,7 +539,7 @@ namespace dmGameSystem
         PhysicsContext* m_PhysicsContext;
         bool m_Success;
         dmGameObject::HCollection m_Collection;
-        World* m_World;
+        CollisionWorld* m_World;
     };
 
     void DispatchCallback(dmMessage::Message *message, void* user_ptr)
@@ -573,7 +573,7 @@ namespace dmGameSystem
                     dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
                     // Make sure no external component has sent a ray cast message during the update of this collection
                     assert(collection == context->m_Collection);
-                    World* world = context->m_World;
+                    CollisionWorld* world = context->m_World;
                     if (context->m_PhysicsContext->m_3D)
                     {
                         dmPhysics::RequestRayCast3D(world->m_World3D, request);
@@ -594,7 +594,7 @@ namespace dmGameSystem
         PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
 
         dmGameObject::UpdateResult result = dmGameObject::UPDATE_RESULT_OK;
-        World* world = (World*)params.m_World;
+        CollisionWorld* world = (CollisionWorld*)params.m_World;
 
         // Dispatch messages
         DispatchContext dispatch_context;
@@ -680,7 +680,7 @@ namespace dmGameSystem
     dmGameObject::UpdateResult CompCollisionObjectOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
         PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
-        Component* component = (Component*) *params.m_UserData;
+        CollisionComponent* component = (CollisionComponent*) *params.m_UserData;
 
         if (params.m_Message->m_Id == dmGameObjectDDF::Enable::m_DDFDescriptor->m_NameHash
                 || params.m_Message->m_Id == dmGameObjectDDF::Disable::m_DDFDescriptor->m_NameHash)
@@ -690,7 +690,7 @@ namespace dmGameSystem
             {
                 enable = true;
             }
-            World* world = (World*)params.m_World;
+            CollisionWorld* world = (CollisionWorld*)params.m_World;
            if (physics_context->m_3D)
             {
                 dmPhysics::SetEnabled3D(world->m_World3D, component->m_Object3D, enable);
@@ -759,8 +759,8 @@ namespace dmGameSystem
     void CompCollisionObjectOnReload(const dmGameObject::ComponentOnReloadParams& params)
     {
         PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
-        World* world = (World*)params.m_World;
-        Component* component = (Component*)*params.m_UserData;
+        CollisionWorld* world = (CollisionWorld*)params.m_World;
+        CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
         component->m_Resource = (CollisionObjectResource*)params.m_Resource;
         if (!CreateCollisionObject(physics_context, world, params.m_Instance, component))
         {
@@ -770,6 +770,6 @@ namespace dmGameSystem
 
     uint16_t CompCollisionGetGroupBitIndex(void* world, uint64_t group_hash)
     {
-        return GetGroupBitIndex((World*)world, group_hash);
+        return GetGroupBitIndex((CollisionWorld*)world, group_hash);
     }
 }

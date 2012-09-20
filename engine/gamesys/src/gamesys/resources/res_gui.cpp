@@ -51,7 +51,7 @@ namespace dmGameSystem
                 GuiWorld* world = (GuiWorld*)gui_context->m_Worlds[i];
                 for (uint32_t j = 0; j < world->m_Components.Size(); ++j)
                 {
-                    Component* component = world->m_Components[j];
+                    GuiComponent* component = world->m_Components[j];
                     if (script == dmGui::GetSceneScript(component->m_Scene))
                     {
                         dmGui::ReloadScene(component->m_Scene);
