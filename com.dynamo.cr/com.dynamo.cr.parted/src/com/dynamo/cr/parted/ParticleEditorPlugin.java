@@ -1,5 +1,8 @@
 package com.dynamo.cr.parted;
 
+import java.net.URL;
+
+import org.eclipse.core.runtime.FileLocator;
 import org.eclipse.ui.plugin.AbstractUIPlugin;
 import org.osgi.framework.BundleContext;
 
@@ -22,6 +25,21 @@ public class ParticleEditorPlugin extends AbstractUIPlugin {
 
 	public void start(BundleContext context) throws Exception {
 		super.start(context);
+
+		URL bundleUrl;
+		if (System.getProperty("os.name").toLowerCase().indexOf("mac") != -1) {
+		    // The editor is 64-bit only on Mac OS X and shared libraries are
+		    // loaded from platform directory
+	        bundleUrl = getBundle().getEntry("/DYNAMO_HOME/lib/x86_64-darwin");
+		} else {
+		    // On other platforms shared libraries are loaded from default location
+		    // We should perhaps always use qualifed directories?
+            bundleUrl = getBundle().getEntry("/DYNAMO_HOME/lib");
+		}
+
+        URL fileUrl = FileLocator.toFileURL(bundleUrl);
+        System.setProperty("jna.library.path", fileUrl.getPath());
+
 		plugin = this;
 	}
 

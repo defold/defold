@@ -129,6 +129,7 @@
         <module>../com.dynamo.cr.bob.test</module>
         <module>../com.dynamo.cr.templates</module>
         <module>../javax.media.opengl</module>
+        <module>../com.sun.jna</module>
         <module>../joda.time</module>
         <module>../slf4j</module>
     </modules>

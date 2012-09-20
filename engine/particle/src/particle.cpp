@@ -648,4 +648,77 @@ namespace dmParticle
             }
         }
     }
+
+#define DM_PARTICLE_TRAMPOLINE1(ret, name, t1) \
+    ret Particle_##name(t1 a1)\
+    {\
+        return name(a1);\
+    }\
+
+#define DM_PARTICLE_TRAMPOLINE2(ret, name, t1, t2) \
+    ret Particle_##name(t1 a1, t2 a2)\
+    {\
+        return name(a1, a2);\
+    }\
+
+#define DM_PARTICLE_TRAMPOLINE3(ret, name, t1, t2, t3) \
+    ret Particle_##name(t1 a1, t2 a2, t3 a3)\
+    {\
+        return name(a1, a2, a3);\
+    }\
+
+#define DM_PARTICLE_TRAMPOLINE4(ret, name, t1, t2, t3, t4) \
+    ret Particle_##name(t1 a1, t2 a2, t3 a3, t4 a4)\
+    {\
+        return name(a1, a2, a3, a4);\
+    }\
+
+#define DM_PARTICLE_TRAMPOLINE5(ret, name, t1, t2, t3, t4, t5) \
+    ret Particle_##name(t1 a1, t2 a2, t3 a3, t4 a4, t5 a5)\
+    {\
+        return name(a1, a2, a3, a4, a5);\
+    }\
+
+
+    DM_PARTICLE_TRAMPOLINE2(HContext, CreateContext, uint32_t, uint32_t);
+    DM_PARTICLE_TRAMPOLINE1(void, DestroyContext, HContext);
+
+    Prototype* Particle_NewPrototype(HContext context, void* emitter_data, uint32_t emitter_data_size)
+    {
+        dmParticleDDF::Emitter* emitter = 0;
+        dmDDF::Result r = dmDDF::LoadMessage<dmParticleDDF::Emitter>(emitter_data, emitter_data_size, &emitter);
+        if (r == dmDDF::RESULT_OK)
+        {
+
+            Prototype* prototype = new Prototype();
+            prototype->m_DDF = emitter;
+            return prototype;
+        }
+        else
+        {
+            dmLogError("Failed to load emitter data");
+            return 0;
+        }
+    }
+
+    void Particle_DeletePrototype(HContext context, Prototype* prototype)
+    {
+        dmDDF::FreeMessage(prototype->m_DDF);
+        delete prototype;
+    }
+
+    DM_PARTICLE_TRAMPOLINE2(HEmitter, CreateEmitter, HContext, Prototype*);
+    DM_PARTICLE_TRAMPOLINE2(void, DestroyEmitter, HContext, HEmitter);
+
+    DM_PARTICLE_TRAMPOLINE2(void, StartEmitter, HContext, HEmitter);
+    DM_PARTICLE_TRAMPOLINE2(void, StopEmitter, HContext, HEmitter);
+    DM_PARTICLE_TRAMPOLINE2(void, RestartEmitter, HContext, HEmitter);
+    DM_PARTICLE_TRAMPOLINE3(void, SetPosition, HContext, HEmitter, Point3);
+    DM_PARTICLE_TRAMPOLINE3(void, SetRotation, HContext, HEmitter, Quat);
+
+    DM_PARTICLE_TRAMPOLINE2(bool, IsSpawning, HContext, HEmitter);
+    DM_PARTICLE_TRAMPOLINE2(bool, IsSleeping, HContext, HEmitter);
+    DM_PARTICLE_TRAMPOLINE5(void, Update, HContext, float, float*, uint32_t, uint32_t*);
+    DM_PARTICLE_TRAMPOLINE3(void, Render, HContext, void*, RenderEmitterCallback);
+
 }

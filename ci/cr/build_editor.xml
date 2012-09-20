@@ -45,6 +45,13 @@
               <arg value="DYNAMO_HOME"/>
         </exec>
 
+        <exec dir="${buildDirectory}/plugins/com.dynamo.cr.parted"
+              executable="ln" failonerror="true">
+              <arg value="-s"/>
+              <arg value="${env.DYNAMO_HOME}"/>
+              <arg value="DYNAMO_HOME"/>
+        </exec>
+
         <exec dir="${buildDirectory}/plugins/com.dynamo.cr.engine"
               executable="sh" failonerror="true">
               <arg value="scripts/copy_dmengine.sh"/>
