@@ -191,6 +191,7 @@ namespace dmGameSystem
         component->m_ListenerInstance = 0x0;
         component->m_ListenerComponent = 0xff;
         component->m_Enabled = 1;
+        component->m_Scale = Vector3(1.0f);
         ReHash(component);
         PlayAnimation(component, component->m_Resource->m_DefaultAnimation);
 
