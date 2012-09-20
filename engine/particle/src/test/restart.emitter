@@ -10,5 +10,11 @@ max_particle_count:   2
 
 type:               EMITTER_TYPE_CONE
 
-properties:         { key: EMITTER_KEY_SPAWN_DELAY          samples: { x: 0 y: 0.0334 } }
-properties:         { key: EMITTER_KEY_PARTICLE_LIFE_TIME   samples: { x: 0 y: 0.0167 } }
+properties:         { key: EMITTER_KEY_SPAWN_DELAY
+    points: { x: 0 y: 0.0334 t_x: 1 t_y: 0 }
+    points: { x: 1 y: 0.0334 t_x: 1 t_y: 0 }
+}
+properties:         { key: EMITTER_KEY_PARTICLE_LIFE_TIME
+    points: { x: 0 y: 0.0167 t_x: 1 t_y: 0 }
+    points: { x: 1 y: 0.0167 t_x: 1 t_y: 0 }
+}

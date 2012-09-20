@@ -12,6 +12,8 @@ namespace dmParticle
     static const uint32_t VERTEX_FIELD_COUNT        = 6;
     /// Byte size of a vertex.
     static const uint32_t VERTEX_SIZE               = sizeof(float) * VERTEX_FIELD_COUNT;
+    /// Number of samples per property (spline => linear segments)
+    static const uint32_t PROPERTY_SAMPLE_COUNT     = 64;
 
     /**
      * Representation of a particle.
@@ -33,9 +35,23 @@ namespace dmParticle
         /// Inverted duration.
         float       m_ooMaxLifeTime;
         /// Particle size
+        float       m_SourceSize;
         float       m_Size;
         /// Particle alpha
+        float       m_SourceAlpha;
         float       m_Alpha;
+    };
+
+    struct LinearSegment
+    {
+        float x;
+        float y;
+        float k;
+    };
+
+    struct Property
+    {
+        LinearSegment m_Segments[PROPERTY_SAMPLE_COUNT];
     };
 
     /**
@@ -63,6 +79,9 @@ namespace dmParticle
 
         }
 
+        // TODO Only store animated properties
+        Property                m_Properties[dmParticleDDF::EMITTER_KEY_COUNT];
+        Property                m_ParticleProperties[dmParticleDDF::PARTICLE_KEY_COUNT];
         /// Emitter resource.
         Prototype*              m_Prototype;
         /// World position of the emitter.

@@ -59,6 +59,60 @@ namespace dmParticle
         return e;
     }
 
+    double Hermite(float x0, float x1, float t0, float t1, float t) {
+        return (2 * t * t * t - 3 * t * t + 1) * x0 +
+               (t * t * t - 2 * t * t + t) * t0 +
+               (- 2 * t * t * t + 3 * t * t) * x1 +
+               (t * t * t - t * t) * t1;
+    }
+
+    float GetValue(const dmParticleDDF::SplinePoint* segments, int segment, float t)
+    {
+        SplinePoint p0 = segments[segment];
+        SplinePoint p1 = segments[segment + 1];
+        float dx = p1.m_X - p0.m_X;
+
+        float py0 = p0.m_Y;
+        float py1 = p1.m_Y;
+        float pt0 = dx * p0.m_TY / p0.m_TX;
+        float pt1 = dx * p1.m_TY / p1.m_TX;
+
+        return Hermite(py0, py1, pt0, pt1, t);
+    }
+
+    float GetY(const dmParticleDDF::SplinePoint* segments, uint32_t segment_count, float x)
+    {
+        uint32_t segment_index = 0;
+        float t = 0;
+        for (uint32_t s = 0; s < segment_count - 1; ++s) {
+            const SplinePoint& p0 = segments[s];
+            const SplinePoint& p1 = segments[s + 1];
+            if (x >= p0.m_X && x < p1.m_X) {
+                t = (x - p0.m_X) / (p1.m_X - p0.m_X);
+                segment_index = s;
+                break;
+            }
+        }
+
+        return GetValue(segments, segment_index, t);
+    }
+
+    void SampleProperty(const dmParticleDDF::SplinePoint* segments, uint32_t segments_count, LinearSegment* out_segments)
+    {
+        float dx = 1.0f / PROPERTY_SAMPLE_COUNT;
+        float x0 = 0.0f;
+        float y0 = GetY(segments, segments_count, x0);
+        for (uint32_t j = 0; j < PROPERTY_SAMPLE_COUNT; ++j)
+        {
+            float y1 = GetY(segments, segments_count, x0 + dx);
+            out_segments[j].x = x0;
+            out_segments[j].y = y0;
+            out_segments[j].k = (y1 - y0) * PROPERTY_SAMPLE_COUNT;
+            x0 += dx;
+            y0 = y1;
+        }
+    }
+
     HEmitter CreateEmitter(HContext context, Prototype* prototype)
     {
         if (context->m_EmitterIndexPool.Remaining() == 0)
@@ -80,11 +134,28 @@ namespace dmParticle
 
         context->m_Emitters[index] = e;
 
+        dmParticleDDF::Emitter* ddf = prototype->m_DDF;
         e->m_Prototype = prototype;
-        e->m_Particles.SetCapacity(prototype->m_DDF->m_MaxParticleCount);
-        e->m_Particles.SetSize(prototype->m_DDF->m_MaxParticleCount);
-        memset(&e->m_Particles.Front(), 0, prototype->m_DDF->m_MaxParticleCount * sizeof(Particle));
+        e->m_Particles.SetCapacity(ddf->m_MaxParticleCount);
+        e->m_Particles.SetSize(ddf->m_MaxParticleCount);
+        memset(&e->m_Particles.Front(), 0, ddf->m_MaxParticleCount * sizeof(Particle));
         e->m_Timer = 0.0f;
+
+        // Approximate splines with linear segments
+        memset(e->m_Properties, 0, sizeof(e->m_Properties));
+        memset(e->m_ParticleProperties, 0, sizeof(e->m_ParticleProperties));
+        uint32_t prop_count = ddf->m_Properties.m_Count;
+        for (uint32_t i = 0; i < prop_count; ++i)
+        {
+            const dmParticleDDF::Emitter::Property& p = ddf->m_Properties[i];
+            SampleProperty(p.m_Points.m_Data, p.m_Points.m_Count, e->m_Properties[p.m_Key].m_Segments);
+        }
+        prop_count = ddf->m_ParticleProperties.m_Count;
+        for (uint32_t i = 0; i < prop_count; ++i)
+        {
+            const dmParticleDDF::Emitter::ParticleProperty& p = ddf->m_ParticleProperties[i];
+            SampleProperty(p.m_Points.m_Data, p.m_Points.m_Count, e->m_ParticleProperties[p.m_Key].m_Segments);
+        }
 
         return e->m_VersionNumber << 16 | index;
     }
@@ -197,6 +268,28 @@ namespace dmParticle
     static void SpawnParticle(HContext context, Particle* particle, Emitter* emitter);
     static uint32_t UpdateRenderData(HContext context, Emitter* emitter, uint32_t vertex_index, float* vertex_buffer, uint32_t vertex_buffer_size);
 
+    static void EvaluateParticleProperties(Emitter* emitter)
+    {
+        float properties[PARTICLE_KEY_COUNT];
+        uint32_t count = emitter->m_Particles.Size();
+        // TODO Optimize this
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            Particle* particle = &emitter->m_Particles[i];
+            float x = dmMath::Select(-particle->m_MaxLifeTime, 0.0f, 1.0f - particle->m_TimeLeft * particle->m_ooMaxLifeTime);
+            for (uint32_t i = 0; i < PARTICLE_KEY_COUNT; ++i)
+            {
+                Property* property = &emitter->m_ParticleProperties[i];
+                uint32_t segment_index = (uint32_t)(x * PROPERTY_SAMPLE_COUNT);
+                LinearSegment* segment = &property->m_Segments[segment_index];
+                float y = (x - segment->x) * segment->k + segment->y;
+                properties[i] = y;
+            }
+            particle->m_Size = particle->m_SourceSize * properties[PARTICLE_KEY_SCALE];
+            particle->m_Alpha = particle->m_SourceAlpha * properties[PARTICLE_KEY_ALPHA];
+        }
+    }
+
     void Update(HContext context, float dt, float* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size)
     {
         DM_PROFILE(Particle, "Update");
@@ -263,7 +356,7 @@ namespace dmParticle
             // Simulate
             {
                 DM_PROFILE(Particle, "Simulate");
-                // TODO Evaluate particle properties
+                EvaluateParticleProperties(emitter);
                 // TODO Apply modifiers
                 for (uint32_t j = 0; j < particle_count; j++)
                 {
@@ -305,15 +398,14 @@ namespace dmParticle
     static void EvaluateEmitterProperties(Emitter* emitter, float properties[EMITTER_KEY_COUNT])
     {
         dmParticleDDF::Emitter* ddf = emitter->m_Prototype->m_DDF;
-        for (uint32_t i = 0; i < ddf->m_Properties.m_Count; ++i)
+        float x = emitter->m_Timer / ddf->m_Duration;
+        for (uint32_t i = 0; i < EMITTER_KEY_COUNT; ++i)
         {
-            const dmParticleDDF::Emitter::Property& property = ddf->m_Properties[i];
-            uint32_t size = property.m_Samples.m_Count;
-            // TODO proper evaluation
-            if (size > 0)
-            {
-                properties[property.m_Key] = property.m_Samples[0].m_Y;
-            }
+            Property* property = &emitter->m_Properties[i];
+            uint32_t segment_index = (uint32_t)(x * PROPERTY_SAMPLE_COUNT);
+            LinearSegment* segment = &property->m_Segments[segment_index];
+            float y = (x - segment->x) * segment->k + segment->y;
+            properties[i] = y;
         }
     }
 
@@ -330,8 +422,8 @@ namespace dmParticle
         particle->m_MaxLifeTime = emitter_properties[EMITTER_KEY_PARTICLE_LIFE_TIME];
         particle->m_ooMaxLifeTime = 1.0f / particle->m_MaxLifeTime;
         particle->m_TimeLeft = particle->m_MaxLifeTime;
-        particle->m_Size = emitter_properties[EMITTER_KEY_PARTICLE_SIZE];
-        particle->m_Alpha = emitter_properties[EMITTER_KEY_PARTICLE_ALPHA];
+        particle->m_SourceSize = emitter_properties[EMITTER_KEY_PARTICLE_SIZE];
+        particle->m_SourceAlpha = emitter_properties[EMITTER_KEY_PARTICLE_ALPHA];
 
         if (emitter->m_ParticleTimeLeft < particle->m_TimeLeft)
             emitter->m_ParticleTimeLeft = particle->m_TimeLeft;
@@ -576,7 +668,7 @@ namespace dmParticle
             {
             case EMITTER_TYPE_SPHERE:
             {
-                const float radius = ddf->m_Properties[EMITTER_KEY_SPHERE_RADIUS].m_Samples[0].m_Y;
+                const float radius = ddf->m_Properties[EMITTER_KEY_SPHERE_RADIUS].m_Points[0].m_Y;
 
                 const uint32_t segment_count = 16;
                 Vector3 vertices[segment_count + 1][3];
@@ -596,8 +688,8 @@ namespace dmParticle
             }
             case EMITTER_TYPE_CONE:
             {
-                const float radius = ddf->m_Properties[EMITTER_KEY_CONE_RADIUS].m_Samples[0].m_Y;
-                const float height = ddf->m_Properties[EMITTER_KEY_CONE_HEIGHT].m_Samples[0].m_Y;
+                const float radius = ddf->m_Properties[EMITTER_KEY_CONE_RADIUS].m_Points[0].m_Y;
+                const float height = ddf->m_Properties[EMITTER_KEY_CONE_HEIGHT].m_Points[0].m_Y;
 
                 // 4 pillars
                 render_line_callback(user_context, e->m_Position, e->m_Position + rotate(e->m_Rotation, Vector3(radius, 0.0f, height)), color);
@@ -621,9 +713,9 @@ namespace dmParticle
             }
             case EMITTER_TYPE_BOX:
             {
-                const float x_ext = 0.5f * ddf->m_Properties[EMITTER_KEY_BOX_WIDTH].m_Samples[0].m_Y;
-                const float y_ext = 0.5f * ddf->m_Properties[EMITTER_KEY_BOX_HEIGHT].m_Samples[0].m_Y;
-                const float z_ext = 0.5f * ddf->m_Properties[EMITTER_KEY_BOX_DEPTH].m_Samples[0].m_Y;
+                const float x_ext = 0.5f * ddf->m_Properties[EMITTER_KEY_BOX_WIDTH].m_Points[0].m_Y;
+                const float y_ext = 0.5f * ddf->m_Properties[EMITTER_KEY_BOX_HEIGHT].m_Points[0].m_Y;
+                const float z_ext = 0.5f * ddf->m_Properties[EMITTER_KEY_BOX_DEPTH].m_Points[0].m_Y;
 
                 render_line_callback(user_context, e->m_Position + rotate(e->m_Rotation, Vector3(-x_ext, -y_ext, -z_ext)), e->m_Position + rotate(e->m_Rotation, Vector3(x_ext, -y_ext, -z_ext)), color);
                 render_line_callback(user_context, e->m_Position + rotate(e->m_Rotation, Vector3(x_ext, -y_ext, -z_ext)), e->m_Position + rotate(e->m_Rotation, Vector3(x_ext, y_ext, -z_ext)), color);

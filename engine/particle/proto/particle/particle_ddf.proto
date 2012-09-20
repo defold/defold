@@ -32,11 +32,12 @@ message Texture_t
     required uint32 t_y     = 3;
 }
 
-// TODO Separate between source (spline) and compiled (linear segments)
-message PropertySample
+message SplinePoint
 {
     required float x = 1;
     required float y = 2;
+    required float t_x = 3;
+    required float t_y = 4;
 }
 
 enum EmitterKey
@@ -80,14 +81,14 @@ message Emitter
     message Property
     {
         required EmitterKey         key     = 1;
-        repeated PropertySample     samples = 2;
+        repeated SplinePoint        points  = 2;
     }
     repeated Property properties = 9;
 
     message ParticleProperty
     {
-        required ParticleKey    key      = 1;
-        repeated PropertySample samples  = 2;
+        required ParticleKey    key     = 1;
+        repeated SplinePoint    points  = 2;
     }
     repeated ParticleProperty particle_properties = 10;
 }
