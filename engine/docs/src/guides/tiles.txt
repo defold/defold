@@ -121,6 +121,33 @@ This feature will however come at a later time.
 For the time being, you add collision objects with collision shapes like you would for any game object.
 See the link:/doc/physics[physics guide] for more info.
 
+Blend Mode
+~~~~~~~~~~
+
+Blend mode defines how the sprite should be blended with the graphics behind.
+These are the available blend modes and how they are calculated:
+
+* *Alpha* - Normal blending: +a~0~ * rgb~0~ + (1 - a~0~) * rgb~1~+
+* *Add* - Brighten the background with the sprite: +rgb~0~ + rgb~1~+
+* *Add Alpha* - Brighten the background with the visible parts of the sprite: +a~0~ * rgb~0~ + rgb~1~+
+* *Multiply* - Darken the background with the sprite: +rgb~0~ * rgb~1~+
+
+Sprite Shading
+~~~~~~~~~~~~~~
+
+The default sprite shading files are located under +/builtins/material/sprite.*+ in your project.
+The default shading performs a regular texture lookup, but has also a tint (fragment shader constant) which is multiplied with the texture color.
+
+To obtain other effects, like flashing a sprite white at hit-frames, you can implement your own custom shading.
+To set a custom shading for your sprites, follow these steps:
+
+. Copy the files +/builtins/material/sprite.*+ into one of your own directories (the files in the builtins-directory should never be modified). This is not mandatory but makes the process easier.
+. Open +/your-directory/sprite.material+ and remap the shaders (.vp and .fp) to your own copies.
+. Edit the .vp and .fp as you please. If you introduce shader constants, they must also be declared in the material file.
+. Open your sprite and specify your new material in the properties.
+
+To set shader constants while the game is running, use the functions link:/ref/gamesys#sprite.set_constant[sprite.set_constant] or link:/ref/gamesys#sprite.reset_constant[sprite.reset_constant].
+
 Tile Maps
 ---------
 
