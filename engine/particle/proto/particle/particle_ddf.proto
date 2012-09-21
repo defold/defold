@@ -8,28 +8,36 @@ option java_outer_classname = "Particle";
 
 enum EmitterType
 {
-    EMITTER_TYPE_SPHERE =    0;
-    EMITTER_TYPE_CONE =      1;
-    EMITTER_TYPE_BOX =       2;
+    EMITTER_TYPE_SPHERE = 0;
+    EMITTER_TYPE_CONE   = 1;
+    EMITTER_TYPE_BOX    = 2;
 };
 
 enum PlayMode
 {
-    PLAY_MODE_ONCE = 0;
-    PLAY_MODE_LOOP = 1;
+    PLAY_MODE_ONCE  = 0;
+    PLAY_MODE_LOOP  = 1;
 }
 
 enum EmissionSpace
 {
-    EMISSION_SPACE_WORLD =      0;
-    EMISSION_SPACE_EMITTER =    1;
+    EMISSION_SPACE_WORLD    = 0;
+    EMISSION_SPACE_EMITTER  = 1;
 }
 
 message Texture_t
 {
-    required string name =  1 [(resource)=true];
-    required uint32 t_x =    2;
-    required uint32 t_y =    3;
+    required string name    = 1 [(resource)=true];
+    required uint32 t_x     = 2;
+    required uint32 t_y     = 3;
+}
+
+message SplinePoint
+{
+    required float x = 1;
+    required float y = 2;
+    required float t_x = 3;
+    required float t_y = 4;
 }
 
 enum EmitterKey
@@ -50,54 +58,9 @@ enum EmitterKey
 
 enum ParticleKey
 {
-    PARTICLE_KEY_VELOCITY   = 0;
-    PARTICLE_KEY_SIZE       = 1;
-    PARTICLE_KEY_ALPHA      = 2;
-    PARTICLE_KEY_COUNT      = 3;
-}
-
-/**
- * MODIFIER_TYPE_LINEAR:
- *   MODIFIER_KEY_MIN = relative min
- *   MODIFIER_KEY_MAX = relative max
- * MODIFIER_TYPE_EASY_IN:
- *   MODIFIER_KEY_MIN = relative min
- *   MODIFIER_KEY_MAX = relative max
- * MODIFIER_TYPE_EASY_OUT:
- *   MODIFIER_KEY_MIN = relative min
- *   MODIFIER_KEY_MAX = relative max
- * MODIFIER_TYPE_EASY_IN_OUT:
- *   MODIFIER_KEY_MIN = relative min
- *   MODIFIER_KEY_MAX = relative max
- * MODIFIER_TYPE_TWO_SEG_SPLINE:
- *   MODIFIER_KEY_T = key frame t (repeated),
- *   MODIFIER_KEY_MIN = value at 0
- *   MODIFIER_KEY_MID = value at t
- *   MODIFIER_KEY_MAX = value at 1
- */
-enum ModifierType
-{
-    MODIFIER_TYPE_LINEAR         = 0;
-    MODIFIER_TYPE_EASE_IN        = 1;
-    MODIFIER_TYPE_EASE_OUT       = 2;
-    MODIFIER_TYPE_EASE_IN_OUT    = 3;
-    MODIFIER_TYPE_TWO_SEG_SPLINE = 4;
-    MODIFIER_TYPE_COUNT          = 5;
-}
-
-enum ModifierKey
-{
-    MODIFIER_KEY_MIN    = 0;
-    MODIFIER_KEY_MID    = 1;
-    MODIFIER_KEY_MAX    = 2;
-    MODIFIER_KEY_T      = 3;
-    MODIFIER_KEY_COUNT  = 4;
-}
-
-message ModifierProperty
-{
-    required ModifierKey    key     = 1;
-    required float          value   = 2;
+    PARTICLE_KEY_SCALE      = 0;
+    PARTICLE_KEY_ALPHA      = 1;
+    PARTICLE_KEY_COUNT      = 2;
 }
 
 message Emitter
@@ -111,36 +74,21 @@ message Emitter
     required Texture_t      texture             = 5;
     required string         material            = 6 [(resource)=true];
 
-    required uint32         max_particle_count    = 7;
+    required uint32         max_particle_count  = 7;
 
     required EmitterType    type                = 8;
 
-    message Modifier
-    {
-        enum InputType
-        {
-            INPUT_TYPE_RAND = 0;
-            INPUT_TYPE_GAIN = 1;
-        }
-
-        required ModifierType       type        = 1;
-        required InputType          input       = 2;
-        repeated ModifierProperty   properties  = 3;
-    }
-
     message Property
     {
-        required EmitterKey key         = 1;
-        required float      value       = 2;
-        repeated Modifier   modifiers   = 3;
+        required EmitterKey         key     = 1;
+        repeated SplinePoint        points  = 2;
     }
-    repeated Property properties                = 9;
+    repeated Property properties = 9;
 
-    message ParticleModifier
+    message ParticleProperty
     {
-        required ModifierType       type        = 1;
-        required ParticleKey        modify      = 2;
-        repeated ModifierProperty   properties  = 3;
+        required ParticleKey    key     = 1;
+        repeated SplinePoint    points  = 2;
     }
-    repeated ParticleModifier particle_modifiers = 10;
+    repeated ParticleProperty particle_properties = 10;
 }

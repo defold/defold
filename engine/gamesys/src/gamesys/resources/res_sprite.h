@@ -17,6 +17,7 @@ namespace dmGameSystem
         dmhash_t m_DefaultAnimation;
         TileSetResource* m_TileSet;
         dmGameSystemDDF::SpriteDesc* m_DDF;
+        dmRender::HMaterial m_Material;
     };
 
     dmResource::Result ResSpriteCreate(dmResource::HFactory factory,

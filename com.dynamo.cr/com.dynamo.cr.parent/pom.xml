@@ -118,6 +118,8 @@
         <module>../com.dynamo.cr.sceneed.test</module>
         <module>../com.dynamo.cr.go</module>
         <module>../com.dynamo.cr.go.test</module>
+        <module>../com.dynamo.cr.parted</module>
+        <module>../com.dynamo.cr.parted.test</module>
         <module>../com.dynamo.cr.dgit</module>
         <module>../com.dynamo.cr.dgit.test</module>
         <module>../com.dynamo.cr.branchrepo</module>
@@ -127,6 +129,7 @@
         <module>../com.dynamo.cr.bob.test</module>
         <module>../com.dynamo.cr.templates</module>
         <module>../javax.media.opengl</module>
+        <module>../com.sun.jna</module>
         <module>../joda.time</module>
         <module>../slf4j</module>
     </modules>

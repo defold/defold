@@ -45,7 +45,7 @@ public class RenderContext {
         /**
          * Icon outline pass
          */
-        ICON_OUTLINE(false, true),
+        ICON_OUTLINE(false, false),
 
         /**
          * Outline pass

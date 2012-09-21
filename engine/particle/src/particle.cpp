@@ -11,6 +11,7 @@
 namespace dmParticle
 {
     using namespace dmParticleDDF;
+    using namespace Vectormath::Aos;
 
     struct Vertex
     {
@@ -23,13 +24,6 @@ namespace dmParticle
     const char* MAX_EMITTER_COUNT_KEY        = "particle_system.max_emitter_count";
     /// Config key to use for tweaking the total maximum number of particles in a context.
     const char* MAX_PARTICLE_COUNT_KEY       = "particle_system.max_particle_count";
-
-    uint32_t PARTICLE_PROPERTY_INDICES[dmParticleDDF::PARTICLE_KEY_COUNT] =
-    {
-        0, // PARTICLE_KEY_VELOCITY
-        3, // PARTICLE_KEY_SIZE
-        4 // PARTICLE_KEY_ALPHA
-    };
 
     HContext CreateContext(uint32_t max_emitter_count, uint32_t max_particle_count)
     {
@@ -65,6 +59,60 @@ namespace dmParticle
         return e;
     }
 
+    double Hermite(float x0, float x1, float t0, float t1, float t) {
+        return (2 * t * t * t - 3 * t * t + 1) * x0 +
+               (t * t * t - 2 * t * t + t) * t0 +
+               (- 2 * t * t * t + 3 * t * t) * x1 +
+               (t * t * t - t * t) * t1;
+    }
+
+    float GetValue(const dmParticleDDF::SplinePoint* segments, int segment, float t)
+    {
+        SplinePoint p0 = segments[segment];
+        SplinePoint p1 = segments[segment + 1];
+        float dx = p1.m_X - p0.m_X;
+
+        float py0 = p0.m_Y;
+        float py1 = p1.m_Y;
+        float pt0 = dx * p0.m_TY / p0.m_TX;
+        float pt1 = dx * p1.m_TY / p1.m_TX;
+
+        return Hermite(py0, py1, pt0, pt1, t);
+    }
+
+    float GetY(const dmParticleDDF::SplinePoint* segments, uint32_t segment_count, float x)
+    {
+        uint32_t segment_index = 0;
+        float t = 0;
+        for (uint32_t s = 0; s < segment_count - 1; ++s) {
+            const SplinePoint& p0 = segments[s];
+            const SplinePoint& p1 = segments[s + 1];
+            if (x >= p0.m_X && x < p1.m_X) {
+                t = (x - p0.m_X) / (p1.m_X - p0.m_X);
+                segment_index = s;
+                break;
+            }
+        }
+
+        return GetValue(segments, segment_index, t);
+    }
+
+    void SampleProperty(const dmParticleDDF::SplinePoint* segments, uint32_t segments_count, LinearSegment* out_segments)
+    {
+        float dx = 1.0f / PROPERTY_SAMPLE_COUNT;
+        float x0 = 0.0f;
+        float y0 = GetY(segments, segments_count, x0);
+        for (uint32_t j = 0; j < PROPERTY_SAMPLE_COUNT; ++j)
+        {
+            float y1 = GetY(segments, segments_count, x0 + dx);
+            out_segments[j].x = x0;
+            out_segments[j].y = y0;
+            out_segments[j].k = (y1 - y0) * PROPERTY_SAMPLE_COUNT;
+            x0 += dx;
+            y0 = y1;
+        }
+    }
+
     HEmitter CreateEmitter(HContext context, Prototype* prototype)
     {
         if (context->m_EmitterIndexPool.Remaining() == 0)
@@ -86,11 +134,28 @@ namespace dmParticle
 
         context->m_Emitters[index] = e;
 
+        dmParticleDDF::Emitter* ddf = prototype->m_DDF;
         e->m_Prototype = prototype;
-        e->m_Particles.SetCapacity(prototype->m_DDF->m_MaxParticleCount);
-        e->m_Particles.SetSize(prototype->m_DDF->m_MaxParticleCount);
-        memset(&e->m_Particles.Front(), 0, prototype->m_DDF->m_MaxParticleCount * sizeof(Particle));
+        e->m_Particles.SetCapacity(ddf->m_MaxParticleCount);
+        e->m_Particles.SetSize(ddf->m_MaxParticleCount);
+        memset(&e->m_Particles.Front(), 0, ddf->m_MaxParticleCount * sizeof(Particle));
         e->m_Timer = 0.0f;
+
+        // Approximate splines with linear segments
+        memset(e->m_Properties, 0, sizeof(e->m_Properties));
+        memset(e->m_ParticleProperties, 0, sizeof(e->m_ParticleProperties));
+        uint32_t prop_count = ddf->m_Properties.m_Count;
+        for (uint32_t i = 0; i < prop_count; ++i)
+        {
+            const dmParticleDDF::Emitter::Property& p = ddf->m_Properties[i];
+            SampleProperty(p.m_Points.m_Data, p.m_Points.m_Count, e->m_Properties[p.m_Key].m_Segments);
+        }
+        prop_count = ddf->m_ParticleProperties.m_Count;
+        for (uint32_t i = 0; i < prop_count; ++i)
+        {
+            const dmParticleDDF::Emitter::ParticleProperty& p = ddf->m_ParticleProperties[i];
+            SampleProperty(p.m_Points.m_Data, p.m_Points.m_Count, e->m_ParticleProperties[p.m_Key].m_Segments);
+        }
 
         return e->m_VersionNumber << 16 | index;
     }
@@ -201,8 +266,29 @@ namespace dmParticle
 
     // helper functions in update
     static void SpawnParticle(HContext context, Particle* particle, Emitter* emitter);
-    static void ApplyParticleModifiers(Emitter* emitter, float* particle_states);
-    static uint32_t UpdateRenderData(HContext context, Emitter* emitter, uint32_t vertex_index, float* particle_state, float* vertex_buffer, uint32_t vertex_buffer_size);
+    static uint32_t UpdateRenderData(HContext context, Emitter* emitter, uint32_t vertex_index, float* vertex_buffer, uint32_t vertex_buffer_size);
+
+    static void EvaluateParticleProperties(Emitter* emitter)
+    {
+        float properties[PARTICLE_KEY_COUNT];
+        uint32_t count = emitter->m_Particles.Size();
+        // TODO Optimize this
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            Particle* particle = &emitter->m_Particles[i];
+            float x = dmMath::Select(-particle->m_MaxLifeTime, 0.0f, 1.0f - particle->m_TimeLeft * particle->m_ooMaxLifeTime);
+            for (uint32_t i = 0; i < PARTICLE_KEY_COUNT; ++i)
+            {
+                Property* property = &emitter->m_ParticleProperties[i];
+                uint32_t segment_index = (uint32_t)(x * PROPERTY_SAMPLE_COUNT);
+                LinearSegment* segment = &property->m_Segments[segment_index];
+                float y = (x - segment->x) * segment->k + segment->y;
+                properties[i] = y;
+            }
+            particle->m_Size = particle->m_SourceSize * properties[PARTICLE_KEY_SCALE];
+            particle->m_Alpha = particle->m_SourceAlpha * properties[PARTICLE_KEY_ALPHA];
+        }
+    }
 
     void Update(HContext context, float dt, float* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size)
     {
@@ -267,31 +353,26 @@ namespace dmParticle
                 }
             }
 
-            // init states
-            for (uint32_t j = 0; j < particle_count; ++j)
-            {
-                Particle* p = &emitter->m_Particles[j];
-                memcpy(&context->m_ParticleStates[j * PARTICLE_PROPERTY_FIELD_COUNT], p->m_Properties, sizeof(float) * PARTICLE_PROPERTY_FIELD_COUNT);
-            }
-
-            // Modifiers
-            ApplyParticleModifiers(emitter, context->m_ParticleStates);
-
             // Simulate
             {
                 DM_PROFILE(Particle, "Simulate");
+                EvaluateParticleProperties(emitter);
+                // TODO Apply modifiers
                 for (uint32_t j = 0; j < particle_count; j++)
                 {
                     Particle* p = &emitter->m_Particles[j];
-                    float* v = &context->m_ParticleStates[j * PARTICLE_PROPERTY_FIELD_COUNT + PARTICLE_PROPERTY_INDICES[PARTICLE_KEY_VELOCITY]];
-                    p->m_Position += Vector3(v[0], v[1], v[2]) * dt;
+                    const Vector3& v = p->m_Velocity;
+                    // NOTE This velocity integration has a larger error than normal since we don't use the velocity at the
+                    // beginning of the frame, but it's ok since particle movement does not need to be very exact
+                    p->m_Position += v * dt;
                     p->m_TimeLeft -= dt;
+                    // TODO Handle death-action
                 }
             }
 
             // Render data
             if (vertex_buffer != 0x0)
-                vertex_index += UpdateRenderData(context, emitter, vertex_index, context->m_ParticleStates, vertex_buffer, vertex_buffer_size);
+                vertex_index += UpdateRenderData(context, emitter, vertex_index, vertex_buffer, vertex_buffer_size);
 
             // Update emitter
             if (emitter->m_IsSpawning)
@@ -314,86 +395,35 @@ namespace dmParticle
         }
     }
 
-    static float CalcModifierWeight(ModifierType type, float t, float* data)
+    static void EvaluateEmitterProperties(Emitter* emitter, float properties[EMITTER_KEY_COUNT])
     {
-        // value at t = 0
-        float min = data[MODIFIER_KEY_MIN];
-        // value at t = t_mid
-        float mid = data[MODIFIER_KEY_MID];
-        // value at t = 1
-        float max = data[MODIFIER_KEY_MAX];
-        float t_mid = data[MODIFIER_KEY_T];
-        switch (type)
+        dmParticleDDF::Emitter* ddf = emitter->m_Prototype->m_DDF;
+        float x = emitter->m_Timer / ddf->m_Duration;
+        for (uint32_t i = 0; i < EMITTER_KEY_COUNT; ++i)
         {
-        case MODIFIER_TYPE_LINEAR:
-            return dmMath::LinearBezier(t, min, max);
-        case MODIFIER_TYPE_EASE_IN:
-            return dmMath::CubicBezier(t, min, min, min, max);
-        case MODIFIER_TYPE_EASE_OUT:
-            return dmMath::CubicBezier(t, min, max, max, max);
-        case MODIFIER_TYPE_EASE_IN_OUT:
-            return dmMath::CubicBezier(t, min, min, max, max);
-        case MODIFIER_TYPE_TWO_SEG_SPLINE:
-            {
-                float t0 = t / t_mid;
-                float t1 = (t - t_mid) / (1.0f - t_mid);
-                float w0 = dmMath::CubicBezier(t0, min, min, mid, mid);
-                float w1 = dmMath::CubicBezier(t1, mid, mid, max, max);
-                return dmMath::Select(t - t_mid, w1, w0);
-            }
-        default:
-            dmLogFatal("Unknown modifier type (%d) when calculating weight.", type);
-            return -1.0f;
+            Property* property = &emitter->m_Properties[i];
+            uint32_t segment_index = (uint32_t)(x * PROPERTY_SAMPLE_COUNT);
+            LinearSegment* segment = &property->m_Segments[segment_index];
+            float y = (x - segment->x) * segment->k + segment->y;
+            properties[i] = y;
         }
     }
 
-    static void SetParticleProperty(float* properties, ParticleKey key, const float* in_values);
-
     static void SpawnParticle(HContext context, Particle* particle, Emitter* emitter)
     {
+        // TODO Handle birth-action
+
         dmParticleDDF::Emitter* ddf = emitter->m_Prototype->m_DDF;
+        float emitter_properties[EMITTER_KEY_COUNT];
+        memset(emitter_properties, 0, sizeof(emitter_properties));
+        EvaluateEmitterProperties(emitter, emitter_properties);
 
-        memset(emitter->m_Properties, 0, sizeof(emitter->m_Properties));
-        emitter->m_Properties[EMITTER_KEY_PARTICLE_ALPHA] = 1.0f;
-
-        float key_weights[EMITTER_KEY_COUNT];
-        for (uint32_t i = 0; i < EMITTER_KEY_COUNT; ++i)
-            key_weights[i] = 1.0f;
-        for (uint32_t i = 0; i < ddf->m_Properties.m_Count; ++i)
-        {
-            const dmParticleDDF::Emitter::Property& property = ddf->m_Properties[i];
-            float weight = 1.0f;
-            for (uint32_t j = 0; j < property.m_Modifiers.m_Count; ++j)
-            {
-                const dmParticleDDF::Emitter::Modifier& modifier = property.m_Modifiers[j];
-                float t = 0.0f;
-                switch (modifier.m_Input)
-                {
-                case dmParticleDDF::Emitter::Modifier::INPUT_TYPE_GAIN:
-                    t = emitter->m_Gain;
-                    break;
-                case dmParticleDDF::Emitter::Modifier::INPUT_TYPE_RAND:
-                    t = dmMath::Rand01();
-                    break;
-                default:
-                    dmLogError("Unknown input type (%d).", modifier.m_Input);
-                }
-                float modifier_values[MODIFIER_KEY_COUNT];
-                memcpy(modifier_values, context->m_DefaultModifierProperties, sizeof(modifier_values));
-                for (uint32_t k = 0; k < modifier.m_Properties.m_Count; ++k)
-                {
-                    const dmParticleDDF::ModifierProperty& p = modifier.m_Properties[k];
-                    modifier_values[p.m_Key] = p.m_Value;
-                }
-                weight *= CalcModifierWeight(modifier.m_Type, t, modifier_values);
-            }
-            emitter->m_Properties[property.m_Key] = property.m_Value;
-            key_weights[property.m_Key] = weight;
-        }
-        emitter->m_SpawnDelay = emitter->m_Properties[EMITTER_KEY_SPAWN_DELAY] * key_weights[EMITTER_KEY_SPAWN_DELAY];
-        particle->m_MaxLifeTime = emitter->m_Properties[EMITTER_KEY_PARTICLE_LIFE_TIME] * key_weights[EMITTER_KEY_PARTICLE_LIFE_TIME];
+        emitter->m_SpawnDelay = emitter_properties[EMITTER_KEY_SPAWN_DELAY];
+        particle->m_MaxLifeTime = emitter_properties[EMITTER_KEY_PARTICLE_LIFE_TIME];
         particle->m_ooMaxLifeTime = 1.0f / particle->m_MaxLifeTime;
         particle->m_TimeLeft = particle->m_MaxLifeTime;
+        particle->m_SourceSize = emitter_properties[EMITTER_KEY_PARTICLE_SIZE];
+        particle->m_SourceAlpha = emitter_properties[EMITTER_KEY_PARTICLE_ALPHA];
 
         if (emitter->m_ParticleTimeLeft < particle->m_TimeLeft)
             emitter->m_ParticleTimeLeft = particle->m_TimeLeft;
@@ -404,20 +434,20 @@ namespace dmParticle
         {
             case EMITTER_TYPE_SPHERE:
             {
-                Vector3 p = Vector3::zAxis();
-                Vector3 v(dmMath::Rand11(), dmMath::Rand11(), dmMath::Rand11());
+                Vectormath::Aos::Vector3 p = Vectormath::Aos::Vector3::zAxis();
+                Vectormath::Aos::Vector3 v(dmMath::Rand11(), dmMath::Rand11(), dmMath::Rand11());
                 if (lengthSqr(v) > 0.0f)
                     p = normalize(v);
 
-                local_position = p * emitter->m_Properties[EMITTER_KEY_SPHERE_RADIUS] * key_weights[EMITTER_KEY_SPHERE_RADIUS];
+                local_position = p * emitter_properties[EMITTER_KEY_SPHERE_RADIUS];
 
                 break;
             }
 
             case EMITTER_TYPE_CONE:
             {
-                float height = emitter->m_Properties[EMITTER_KEY_CONE_HEIGHT] * key_weights[EMITTER_KEY_CONE_HEIGHT];
-                float radius = emitter->m_Properties[EMITTER_KEY_CONE_RADIUS] * key_weights[EMITTER_KEY_CONE_RADIUS] * key_weights[EMITTER_KEY_CONE_HEIGHT];
+                float height = emitter_properties[EMITTER_KEY_CONE_HEIGHT];
+                float radius = emitter_properties[EMITTER_KEY_CONE_RADIUS];
                 float angle = 2.0f * ((float) M_PI) * dmMath::RandOpen01();
 
                 local_position = Vector3(cosf(angle) * radius, sinf(angle) * radius, height);
@@ -427,9 +457,9 @@ namespace dmParticle
 
             case EMITTER_TYPE_BOX:
             {
-                float width = emitter->m_Properties[EMITTER_KEY_BOX_WIDTH] * key_weights[EMITTER_KEY_BOX_WIDTH];
-                float height = emitter->m_Properties[EMITTER_KEY_BOX_HEIGHT] * key_weights[EMITTER_KEY_BOX_HEIGHT];
-                float depth = emitter->m_Properties[EMITTER_KEY_BOX_DEPTH] * key_weights[EMITTER_KEY_BOX_DEPTH];
+                float width = emitter_properties[EMITTER_KEY_BOX_WIDTH];
+                float height = emitter_properties[EMITTER_KEY_BOX_HEIGHT];
+                float depth = emitter_properties[EMITTER_KEY_BOX_DEPTH];
                 local_position = Vector3(dmMath::Rand11() * width, dmMath::Rand11() * height, dmMath::Rand11() * depth);
 
                 break;
@@ -441,34 +471,27 @@ namespace dmParticle
                 break;
         }
 
-        float speed = emitter->m_Properties[EMITTER_KEY_PARTICLE_SPEED] * key_weights[EMITTER_KEY_PARTICLE_SPEED];
         Vector3 velocity = Vector3::zAxis();
         if (lengthSqr(local_position) > 0.0f)
             velocity = normalize(local_position);
+        velocity *= emitter_properties[EMITTER_KEY_PARTICLE_SPEED];
 
         switch (emitter->m_Prototype->m_DDF->m_Space)
         {
         case EMISSION_SPACE_WORLD:
             particle->m_Position = emitter->m_Position + rotate(emitter->m_Rotation, local_position);
             particle->m_Rotation = Quat::identity();
-            velocity = speed * rotate(emitter->m_Rotation, velocity);
+            particle->m_Velocity = velocity;
             break;
         case EMISSION_SPACE_EMITTER:
             particle->m_Position = Point3(local_position);
             particle->m_Rotation = emitter->m_Prototype->m_DDF->m_Rotation;
-            velocity *= speed;
+            particle->m_Velocity = rotate(particle->m_Rotation, velocity);
             break;
         }
-        // Store properties
-        float particle_velocity[] = {velocity.getX(), velocity.getY(), velocity.getZ()};
-        SetParticleProperty(particle->m_Properties, PARTICLE_KEY_VELOCITY, particle_velocity);
-        float particle_size = emitter->m_Properties[EMITTER_KEY_PARTICLE_SIZE] * key_weights[EMITTER_KEY_PARTICLE_SIZE];
-        SetParticleProperty(particle->m_Properties, PARTICLE_KEY_SIZE, &particle_size);
-        float particle_alpha = emitter->m_Properties[EMITTER_KEY_PARTICLE_ALPHA] * key_weights[EMITTER_KEY_PARTICLE_ALPHA];
-        SetParticleProperty(particle->m_Properties, PARTICLE_KEY_ALPHA, &particle_alpha);
     }
 
-    static uint32_t UpdateRenderData(HContext context, Emitter* emitter, uint32_t vertex_index, float* particle_state, float* vertex_buffer, uint32_t vertex_buffer_size)
+    static uint32_t UpdateRenderData(HContext context, Emitter* emitter, uint32_t vertex_index, float* vertex_buffer, uint32_t vertex_buffer_size)
     {
         DM_PROFILE(Particle, "UpdateRenderData");
 
@@ -498,8 +521,8 @@ namespace dmParticle
         {
             Particle* particle = &emitter->m_Particles[j];
 
-            float size = particle_state[j * PARTICLE_PROPERTY_FIELD_COUNT + PARTICLE_PROPERTY_INDICES[PARTICLE_KEY_SIZE]];
-            float alpha = particle_state[j * PARTICLE_PROPERTY_FIELD_COUNT + PARTICLE_PROPERTY_INDICES[PARTICLE_KEY_ALPHA]];
+            float size = particle->m_Size;
+            float alpha = particle->m_Alpha;
 
             // invisible dead particles
             // TODO: Better to not render them?
@@ -627,24 +650,25 @@ namespace dmParticle
             Emitter* e = context->m_Emitters[i];
             if (!e || e == INVALID_EMITTER) continue;
 
+            dmParticleDDF::Emitter* ddf = e->m_Prototype->m_DDF;
             Vectormath::Aos::Vector4 color(0.0f, 1.0f, 0.0f, 1.0f);
             if (IsSleeping(e))
             {
                 color.setY(0.0f);
                 color.setZ(1.0f);
             }
-            else if (e->m_Prototype->m_DDF->m_Mode == dmParticle::PLAY_MODE_ONCE)
+            else if (ddf->m_Mode == dmParticle::PLAY_MODE_ONCE)
             {
-                float t = e->m_Timer / e->m_Prototype->m_DDF->m_Duration;
+                float t = e->m_Timer / ddf->m_Duration;
                 color.setY(1.0f - t);
                 color.setZ(t);
             }
 
-            switch (e->m_Prototype->m_DDF->m_Type)
+            switch (ddf->m_Type)
             {
             case EMITTER_TYPE_SPHERE:
             {
-                const float radius = e->m_Properties[EMITTER_KEY_SPHERE_RADIUS];
+                const float radius = ddf->m_Properties[EMITTER_KEY_SPHERE_RADIUS].m_Points[0].m_Y;
 
                 const uint32_t segment_count = 16;
                 Vector3 vertices[segment_count + 1][3];
@@ -664,8 +688,8 @@ namespace dmParticle
             }
             case EMITTER_TYPE_CONE:
             {
-                const float radius = e->m_Properties[EMITTER_KEY_CONE_RADIUS];
-                const float height = e->m_Properties[EMITTER_KEY_CONE_HEIGHT];
+                const float radius = ddf->m_Properties[EMITTER_KEY_CONE_RADIUS].m_Points[0].m_Y;
+                const float height = ddf->m_Properties[EMITTER_KEY_CONE_HEIGHT].m_Points[0].m_Y;
 
                 // 4 pillars
                 render_line_callback(user_context, e->m_Position, e->m_Position + rotate(e->m_Rotation, Vector3(radius, 0.0f, height)), color);
@@ -689,9 +713,9 @@ namespace dmParticle
             }
             case EMITTER_TYPE_BOX:
             {
-                const float x_ext = 0.5f * e->m_Properties[EMITTER_KEY_BOX_WIDTH];
-                const float y_ext = 0.5f * e->m_Properties[EMITTER_KEY_BOX_HEIGHT];
-                const float z_ext = 0.5f * e->m_Properties[EMITTER_KEY_BOX_DEPTH];
+                const float x_ext = 0.5f * ddf->m_Properties[EMITTER_KEY_BOX_WIDTH].m_Points[0].m_Y;
+                const float y_ext = 0.5f * ddf->m_Properties[EMITTER_KEY_BOX_HEIGHT].m_Points[0].m_Y;
+                const float z_ext = 0.5f * ddf->m_Properties[EMITTER_KEY_BOX_DEPTH].m_Points[0].m_Y;
 
                 render_line_callback(user_context, e->m_Position + rotate(e->m_Rotation, Vector3(-x_ext, -y_ext, -z_ext)), e->m_Position + rotate(e->m_Rotation, Vector3(x_ext, -y_ext, -z_ext)), color);
                 render_line_callback(user_context, e->m_Position + rotate(e->m_Rotation, Vector3(x_ext, -y_ext, -z_ext)), e->m_Position + rotate(e->m_Rotation, Vector3(x_ext, y_ext, -z_ext)), color);
@@ -717,264 +741,76 @@ namespace dmParticle
         }
     }
 
-    static void ApplyEaseIn1ParticleModifier(Emitter* emitter, float min, float max, ParticleKey key, float* output_states);
-    static void ApplyTwoSegSpline3ParticleModifier(Emitter* emitter, float t_mid, float min, float mid, float max, ParticleKey key, float* output_states);
-    static void ApplyTwoSegSpline1ParticleModifier(Emitter* emitter, float t_mid, float min, float mid, float max, ParticleKey key, float* output_states);
-    static void ApplyEaseInOut3ParticleModifier(Emitter* emitter, float min, float max, ParticleKey key, float* output_states);
-    static void ApplyEaseInOut1ParticleModifier(Emitter* emitter, float min, float max, ParticleKey key, float* output_states);
-    static void ApplyEaseOut3ParticleModifier(Emitter* emitter, float min, float max, ParticleKey key, float* output_states);
-    static void ApplyEaseOut1ParticleModifier(Emitter* emitter, float min, float max, ParticleKey key, float* output_states);
-    static void ApplyEaseIn3ParticleModifier(Emitter* emitter, float min, float max, ParticleKey key, float* output_states);
-    static void ApplyLinear3ParticleModifier(Emitter* emitter, float min, float max, ParticleKey key, float* output_states);
-    static void ApplyLinear1ParticleModifier(Emitter* emitter, float min, float max, ParticleKey key, float* output_states);
+#define DM_PARTICLE_TRAMPOLINE1(ret, name, t1) \
+    ret Particle_##name(t1 a1)\
+    {\
+        return name(a1);\
+    }\
 
-    static void ApplyParticleModifiers(Emitter* emitter, float* particle_states)
+#define DM_PARTICLE_TRAMPOLINE2(ret, name, t1, t2) \
+    ret Particle_##name(t1 a1, t2 a2)\
+    {\
+        return name(a1, a2);\
+    }\
+
+#define DM_PARTICLE_TRAMPOLINE3(ret, name, t1, t2, t3) \
+    ret Particle_##name(t1 a1, t2 a2, t3 a3)\
+    {\
+        return name(a1, a2, a3);\
+    }\
+
+#define DM_PARTICLE_TRAMPOLINE4(ret, name, t1, t2, t3, t4) \
+    ret Particle_##name(t1 a1, t2 a2, t3 a3, t4 a4)\
+    {\
+        return name(a1, a2, a3, a4);\
+    }\
+
+#define DM_PARTICLE_TRAMPOLINE5(ret, name, t1, t2, t3, t4, t5) \
+    ret Particle_##name(t1 a1, t2 a2, t3 a3, t4 a4, t5 a5)\
+    {\
+        return name(a1, a2, a3, a4, a5);\
+    }\
+
+
+    DM_PARTICLE_TRAMPOLINE2(HContext, CreateContext, uint32_t, uint32_t);
+    DM_PARTICLE_TRAMPOLINE1(void, DestroyContext, HContext);
+
+    Prototype* Particle_NewPrototype(HContext context, void* emitter_data, uint32_t emitter_data_size)
     {
-        DM_PROFILE(Particle, "ApplyParticleModifiers");
-        for (uint32_t j = 0; j < emitter->m_Prototype->m_DDF->m_ParticleModifiers.m_Count; ++j)
+        dmParticleDDF::Emitter* emitter = 0;
+        dmDDF::Result r = dmDDF::LoadMessage<dmParticleDDF::Emitter>(emitter_data, emitter_data_size, &emitter);
+        if (r == dmDDF::RESULT_OK)
         {
-            const dmParticleDDF::Emitter::ParticleModifier& modifier = emitter->m_Prototype->m_DDF->m_ParticleModifiers[j];
-            float t_mid = 0.5f;
-            float min = 0.0f;
-            float mid = 0.5f;
-            float max = 1.0f;
-            for (uint32_t k = 0; k < modifier.m_Properties.m_Count; ++k)
-            {
-                float value = modifier.m_Properties[k].m_Value;
-                switch (modifier.m_Properties[k].m_Key)
-                {
-                case MODIFIER_KEY_T:
-                    t_mid = value;
-                    break;
-                case MODIFIER_KEY_MIN:
-                    min = value;
-                    break;
-                case MODIFIER_KEY_MID:
-                    mid = value;
-                    break;
-                case MODIFIER_KEY_MAX:
-                    max = value;
-                    break;
-                default:
-                    // quietly ignore
-                    break;
-                }
-            }
-            switch (modifier.m_Type)
-            {
-            case MODIFIER_TYPE_LINEAR:
-                switch (modifier.m_Modify)
-                {
-                case PARTICLE_KEY_VELOCITY:
-                    ApplyLinear3ParticleModifier(emitter, min, max, modifier.m_Modify, particle_states);
-                    break;
-                default:
-                    ApplyLinear1ParticleModifier(emitter, min, max, modifier.m_Modify, particle_states);
-                    break;
-                }
-                break;
-            case MODIFIER_TYPE_EASE_IN:
-                switch (modifier.m_Modify)
-                {
-                case PARTICLE_KEY_VELOCITY:
-                    ApplyEaseIn3ParticleModifier(emitter, min, max, modifier.m_Modify, particle_states);
-                    break;
-                default:
-                    ApplyEaseIn1ParticleModifier(emitter, min, max, modifier.m_Modify, particle_states);
-                    break;
-                }
-                break;
-            case MODIFIER_TYPE_EASE_OUT:
-                switch (modifier.m_Modify)
-                {
-                case PARTICLE_KEY_VELOCITY:
-                    ApplyEaseOut3ParticleModifier(emitter, min, max, modifier.m_Modify, particle_states);
-                    break;
-                default:
-                    ApplyEaseOut1ParticleModifier(emitter, min, max, modifier.m_Modify, particle_states);
-                    break;
-                }
-                break;
-            case MODIFIER_TYPE_EASE_IN_OUT:
-                switch (modifier.m_Modify)
-                {
-                case PARTICLE_KEY_VELOCITY:
-                    ApplyEaseInOut3ParticleModifier(emitter, min, max, modifier.m_Modify, particle_states);
-                    break;
-                default:
-                    ApplyEaseInOut1ParticleModifier(emitter, min, max, modifier.m_Modify, particle_states);
-                    break;
-                }
-                break;
-            case MODIFIER_TYPE_TWO_SEG_SPLINE:
-                switch (modifier.m_Modify)
-                {
-                case PARTICLE_KEY_VELOCITY:
-                    ApplyTwoSegSpline3ParticleModifier(emitter, t_mid, min, mid, max, modifier.m_Modify, particle_states);
-                    break;
-                default:
-                    ApplyTwoSegSpline1ParticleModifier(emitter, t_mid, min, mid, max, modifier.m_Modify, particle_states);
-                    break;
-                }
-                break;
-            default:
-                // quietly ignore
-                break;
-            }
+
+            Prototype* prototype = new Prototype();
+            prototype->m_DDF = emitter;
+            return prototype;
+        }
+        else
+        {
+            dmLogError("Failed to load emitter data");
+            return 0;
         }
     }
 
-    static void ApplyLinear1ParticleModifier(Emitter* emitter, float min, float max, ParticleKey key, float* output_states)
+    void Particle_DeletePrototype(HContext context, Prototype* prototype)
     {
-        uint32_t index = PARTICLE_PROPERTY_INDICES[key];
-        uint32_t particle_count = emitter->m_Particles.Size();
-        for (uint32_t j = 0; j < particle_count; j++)
-        {
-            Particle* p = &emitter->m_Particles[j];
-            output_states[j * PARTICLE_PROPERTY_FIELD_COUNT + index] = p->m_Properties[index] * dmMath::LinearBezier(1.0f - p->m_TimeLeft * p->m_ooMaxLifeTime, min, max);
-        }
+        dmDDF::FreeMessage(prototype->m_DDF);
+        delete prototype;
     }
 
-    static void ApplyLinear3ParticleModifier(Emitter* emitter, float min, float max, ParticleKey key, float* output_states)
-    {
-        uint32_t index = PARTICLE_PROPERTY_INDICES[key];
-        uint32_t particle_count = emitter->m_Particles.Size();
-        for (uint32_t j = 0; j < particle_count; j++)
-        {
-            Particle* p = &emitter->m_Particles[j];
-            output_states[j * PARTICLE_PROPERTY_FIELD_COUNT + index+0] = p->m_Properties[index+0] * dmMath::LinearBezier(1.0f - p->m_TimeLeft * p->m_ooMaxLifeTime, min, max);
-            output_states[j * PARTICLE_PROPERTY_FIELD_COUNT + index+1] = p->m_Properties[index+1] * dmMath::LinearBezier(1.0f - p->m_TimeLeft * p->m_ooMaxLifeTime, min, max);
-            output_states[j * PARTICLE_PROPERTY_FIELD_COUNT + index+2] = p->m_Properties[index+2] * dmMath::LinearBezier(1.0f - p->m_TimeLeft * p->m_ooMaxLifeTime, min, max);
-        }
-    }
+    DM_PARTICLE_TRAMPOLINE2(HEmitter, CreateEmitter, HContext, Prototype*);
+    DM_PARTICLE_TRAMPOLINE2(void, DestroyEmitter, HContext, HEmitter);
 
-    static void ApplyEaseIn1ParticleModifier(Emitter* emitter, float min, float max, ParticleKey key, float* output_states)
-    {
-        uint32_t index = PARTICLE_PROPERTY_INDICES[key];
-        uint32_t particle_count = emitter->m_Particles.Size();
-        for (uint32_t j = 0; j < particle_count; j++)
-        {
-            Particle* p = &emitter->m_Particles[j];
-            output_states[j * PARTICLE_PROPERTY_FIELD_COUNT + index] = p->m_Properties[index] * dmMath::CubicBezier(1.0f - p->m_TimeLeft * p->m_ooMaxLifeTime, min, min, min, max);
-        }
-    }
+    DM_PARTICLE_TRAMPOLINE2(void, StartEmitter, HContext, HEmitter);
+    DM_PARTICLE_TRAMPOLINE2(void, StopEmitter, HContext, HEmitter);
+    DM_PARTICLE_TRAMPOLINE2(void, RestartEmitter, HContext, HEmitter);
+    DM_PARTICLE_TRAMPOLINE3(void, SetPosition, HContext, HEmitter, Point3);
+    DM_PARTICLE_TRAMPOLINE3(void, SetRotation, HContext, HEmitter, Quat);
 
-    static void ApplyEaseIn3ParticleModifier(Emitter* emitter, float min, float max, ParticleKey key, float* output_states)
-    {
-        uint32_t index = PARTICLE_PROPERTY_INDICES[key];
-        uint32_t particle_count = emitter->m_Particles.Size();
-        for (uint32_t j = 0; j < particle_count; j++)
-        {
-            Particle* p = &emitter->m_Particles[j];
-            output_states[j * PARTICLE_PROPERTY_FIELD_COUNT + index+0] = p->m_Properties[index+0] * dmMath::CubicBezier(1.0f - p->m_TimeLeft * p->m_ooMaxLifeTime, min, min, min, max);
-            output_states[j * PARTICLE_PROPERTY_FIELD_COUNT + index+1] = p->m_Properties[index+1] * dmMath::CubicBezier(1.0f - p->m_TimeLeft * p->m_ooMaxLifeTime, min, min, min, max);
-            output_states[j * PARTICLE_PROPERTY_FIELD_COUNT + index+2] = p->m_Properties[index+2] * dmMath::CubicBezier(1.0f - p->m_TimeLeft * p->m_ooMaxLifeTime, min, min, min, max);
-        }
-    }
+    DM_PARTICLE_TRAMPOLINE2(bool, IsSpawning, HContext, HEmitter);
+    DM_PARTICLE_TRAMPOLINE2(bool, IsSleeping, HContext, HEmitter);
+    DM_PARTICLE_TRAMPOLINE5(void, Update, HContext, float, float*, uint32_t, uint32_t*);
+    DM_PARTICLE_TRAMPOLINE3(void, Render, HContext, void*, RenderEmitterCallback);
 
-    static void ApplyEaseOut1ParticleModifier(Emitter* emitter, float min, float max, ParticleKey key, float* output_states)
-    {
-        uint32_t index = PARTICLE_PROPERTY_INDICES[key];
-        uint32_t particle_count = emitter->m_Particles.Size();
-        for (uint32_t j = 0; j < particle_count; j++)
-        {
-            Particle* p = &emitter->m_Particles[j];
-            output_states[j * PARTICLE_PROPERTY_FIELD_COUNT + index] = p->m_Properties[index] * dmMath::CubicBezier(1.0f - p->m_TimeLeft * p->m_ooMaxLifeTime, min, max, max, max);
-        }
-    }
-
-    static void ApplyEaseOut3ParticleModifier(Emitter* emitter, float min, float max, ParticleKey key, float* output_states)
-    {
-        uint32_t index = PARTICLE_PROPERTY_INDICES[key];
-        uint32_t particle_count = emitter->m_Particles.Size();
-        for (uint32_t j = 0; j < particle_count; j++)
-        {
-            Particle* p = &emitter->m_Particles[j];
-            output_states[j * PARTICLE_PROPERTY_FIELD_COUNT + index+0] = p->m_Properties[index+0] * dmMath::CubicBezier(1.0f - p->m_TimeLeft * p->m_ooMaxLifeTime, min, max, max, max);
-            output_states[j * PARTICLE_PROPERTY_FIELD_COUNT + index+1] = p->m_Properties[index+1] * dmMath::CubicBezier(1.0f - p->m_TimeLeft * p->m_ooMaxLifeTime, min, max, max, max);
-            output_states[j * PARTICLE_PROPERTY_FIELD_COUNT + index+2] = p->m_Properties[index+2] * dmMath::CubicBezier(1.0f - p->m_TimeLeft * p->m_ooMaxLifeTime, min, max, max, max);
-        }
-    }
-
-    static void ApplyEaseInOut1ParticleModifier(Emitter* emitter, float min, float max, ParticleKey key, float* output_states)
-    {
-        uint32_t index = PARTICLE_PROPERTY_INDICES[key];
-        uint32_t particle_count = emitter->m_Particles.Size();
-        for (uint32_t j = 0; j < particle_count; j++)
-        {
-            Particle* p = &emitter->m_Particles[j];
-            output_states[j * PARTICLE_PROPERTY_FIELD_COUNT + index] = p->m_Properties[index] * dmMath::CubicBezier(1.0f - p->m_TimeLeft * p->m_ooMaxLifeTime, min, min, max, max);
-        }
-    }
-
-    static void ApplyEaseInOut3ParticleModifier(Emitter* emitter, float min, float max, ParticleKey key, float* output_states)
-    {
-        uint32_t index = PARTICLE_PROPERTY_INDICES[key];
-        uint32_t particle_count = emitter->m_Particles.Size();
-        for (uint32_t j = 0; j < particle_count; j++)
-        {
-            Particle* p = &emitter->m_Particles[j];
-            output_states[j * PARTICLE_PROPERTY_FIELD_COUNT + index+0] = p->m_Properties[index+0] * dmMath::CubicBezier(1.0f - p->m_TimeLeft * p->m_ooMaxLifeTime, min, min, max, max);
-            output_states[j * PARTICLE_PROPERTY_FIELD_COUNT + index+1] = p->m_Properties[index+1] * dmMath::CubicBezier(1.0f - p->m_TimeLeft * p->m_ooMaxLifeTime, min, min, max, max);
-            output_states[j * PARTICLE_PROPERTY_FIELD_COUNT + index+2] = p->m_Properties[index+2] * dmMath::CubicBezier(1.0f - p->m_TimeLeft * p->m_ooMaxLifeTime, min, min, max, max);
-        }
-    }
-
-    static void ApplyTwoSegSpline1ParticleModifier(Emitter* emitter, float t_mid, float min, float mid, float max, ParticleKey key, float* output_states)
-    {
-        uint32_t index = PARTICLE_PROPERTY_INDICES[key];
-        float t_mid_recip = 1.0f / t_mid;
-        float s_mid_recip = 1.0f / (1.0f - t_mid);
-        uint32_t particle_count = emitter->m_Particles.Size();
-        for (uint32_t j = 0; j < particle_count; j++)
-        {
-            Particle* p = &emitter->m_Particles[j];
-            float t = (1.0f - p->m_TimeLeft * p->m_ooMaxLifeTime);
-            float t0 = t * t_mid_recip;
-            float t1 = (t - t_mid) * s_mid_recip;
-            float w0 = dmMath::CubicBezier(t0, min, min, mid, mid);
-            float w1 = dmMath::CubicBezier(t1, mid, mid, max, max);
-            output_states[j * PARTICLE_PROPERTY_FIELD_COUNT + index] = p->m_Properties[index] * dmMath::Select(t - t_mid, w1, w0);
-        }
-    }
-
-    static void ApplyTwoSegSpline3ParticleModifier(Emitter* emitter, float t_mid, float min, float mid, float max, ParticleKey key, float* output_states)
-    {
-        uint32_t index = PARTICLE_PROPERTY_INDICES[key];
-        float t_mid_recip = 1.0f / t_mid;
-        float s_mid_recip = 1.0f / (1.0f - t_mid);
-        uint32_t particle_count = emitter->m_Particles.Size();
-        for (uint32_t j = 0; j < particle_count; j++)
-        {
-            Particle* p = &emitter->m_Particles[j];
-            float t = (1.0f - p->m_TimeLeft * p->m_ooMaxLifeTime);
-            float t0 = t * t_mid_recip;
-            float t1 = (t - t_mid) * s_mid_recip;
-            float w0 = dmMath::CubicBezier(t0, min, min, mid, mid);
-            float w1 = dmMath::CubicBezier(t1, mid, mid, max, max);
-            output_states[j * PARTICLE_PROPERTY_FIELD_COUNT + index+0] = p->m_Properties[index+0] * dmMath::Select(t - t_mid, w1, w0);
-            output_states[j * PARTICLE_PROPERTY_FIELD_COUNT + index+1] = p->m_Properties[index+1] * dmMath::Select(t - t_mid, w1, w0);
-            output_states[j * PARTICLE_PROPERTY_FIELD_COUNT + index+2] = p->m_Properties[index+2] * dmMath::Select(t - t_mid, w1, w0);
-        }
-    }
-
-    static void SetParticleProperty(float* properties, ParticleKey key, const float* in_values)
-    {
-        uint32_t index = PARTICLE_PROPERTY_INDICES[key];
-        switch (key)
-        {
-        case PARTICLE_KEY_VELOCITY:
-            memcpy(&properties[index], in_values, sizeof(float) * 3);
-            break;
-        case PARTICLE_KEY_SIZE:
-            memcpy(&properties[index], in_values, sizeof(float));
-            break;
-        case PARTICLE_KEY_ALPHA:
-            memcpy(&properties[index], in_values, sizeof(float));
-            break;
-        default:
-            dmLogError("Unknown particle property: %d.", key);
-            break;
-        }
-    }
 }

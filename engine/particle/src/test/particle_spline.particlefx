@@ -1,0 +1,31 @@
+mode:               PLAY_MODE_ONCE
+duration:           1
+space:              EMISSION_SPACE_WORLD
+rotation:           { x: 0 y: 0 z: 0 w: 1 }
+
+material:           "particle.material"
+texture:            { name: "tiny_explosion.texture" t_x: 8 t_y: 8 }
+
+max_particle_count:   1
+
+type:               EMITTER_TYPE_CONE
+
+properties:         { key: EMITTER_KEY_SPAWN_DELAY
+    points: { x: 0 y: 0 t_x: 1 t_y: 0 }
+    points: { x: 1 y: 0 t_x: 1 t_y: 0 }
+}
+properties:         { key: EMITTER_KEY_PARTICLE_LIFE_TIME
+    points: { x: 0 y: 1 t_x: 1 t_y: 0 }
+    points: { x: 1 y: 1 t_x: 1 t_y: 0 }
+}
+properties:         { key: EMITTER_KEY_PARTICLE_SIZE
+    points: { x: 0 y: 1 t_x: 1 t_y: 0 }
+    points: { x: 1 y: 1 t_x: 1 t_y: 0 }
+}
+particle_properties: { key: PARTICLE_KEY_SCALE
+    points: { x: 0.00 y: 0 t_x: 1 t_y: 0 }
+    points: { x: 0.25 y: 0 t_x: 1 t_y: 1 }
+    points: { x: 0.50 y: 1 t_x: 1 t_y: 0 }
+    points: { x: 0.75 y: 0 t_x: 1 t_y: -1 }
+    points: { x: 1.00 y: 0 t_x: 1 t_y: 0 }
+}

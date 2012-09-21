@@ -97,7 +97,7 @@ local dv = acceleration * dt
 +
 
 . Check if dv exceeds the intended speed difference, clamp it in that case
-Save the current velocity for later use (+self.velocity+, which right now is the velocity used the previous frame):
+. Save the current velocity for later use (+self.velocity+, which right now is the velocity used the previous frame):
 +
 [source-code, lua]
 ---------------
@@ -194,16 +194,15 @@ self.correction = self.correction + comp
 ---------------
 go.set_position(go.get_position() + comp)
 ---------------
-+
 
 We also need to cancel out the part of the player velocity that moves towards the contact point:
+
 . Project the velocity onto the normal:
 +
 [source-code, lua]
 ---------------
 proj = vmath.dot(self.velocity, message.normal)
 ---------------
-+
 
 . If the projection is negative, it means that some of the velocity points towards the contact point; remove that component in that case:
 +

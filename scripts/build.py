@@ -15,6 +15,7 @@ PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.5.0 vectormathlibrary-r1649 nvidi
 PACKAGES_HOST="protobuf-2.3.0 gtest-1.5.0 glut-3.7.6 cg-2.1 nvidia-texture-tools-2.0.6 PIL-1.1.6 openal-1.1 PVRTexToolCL-2.08.28.0634 vpx-v0.9.7-p1".split()
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg".split()
 PACKAGES_IOS="protobuf-2.3.0 gtest-1.5.0".split()
+PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0".split()
 
 class Configuration(object):
     def __init__(self, dynamo_home = None,
@@ -93,6 +94,10 @@ class Configuration(object):
         for p in PACKAGES_IOS:
             self._extract_tgz(make_path('armv6-darwin'), ext)
 
+        if self.host == 'darwin':
+            for p in PACKAGES_DARWIN_64:
+                self._extract_tgz(make_path('x86_64-darwin'), ext)
+
         for egg in glob(join(self.defold_root, 'packages', '*.egg')):
             self._log('Installing %s' % basename(egg))
             self.exec_command(['easy_install', '-q', '-d', join(ext, 'lib', 'python'), '-N', egg])
@@ -143,7 +148,12 @@ class Configuration(object):
         skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
         skip_codesign = '--skip-codesign' if self.skip_codesign else ''
         eclipse = '--eclipse' if self.eclipse else ''
-        libs="dlib ddf particle glfw graphics hid input physics resource lua script render gameobject gui sound gamesys tools record engine".split()
+
+        if self.target_platform.startswith('x86_64'):
+            # Only partial support for 64-bit
+            libs="dlib ddf particle".split()
+        else:
+            libs="dlib ddf particle glfw graphics hid input physics resource lua script render gameobject gui sound gamesys tools record engine".split()
 
         # NOTE: We run waf using python <PATH_TO_WAF>/waf as windows don't understand that waf is an executable
         if self.target_platform != self.host:
@@ -166,7 +176,7 @@ class Configuration(object):
         self.exec_command(cmd.split(), cwd = cwd)
 
     def test_cr(self):
-        for plugin in ['common', 'luaeditor', 'builtins']:
+        for plugin in ['common', 'luaeditor', 'builtins', 'parted']:
             self.exec_command(['ln', '-sfn',
                                self.dynamo_home,
                                join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.%s/DYNAMO_HOME' % plugin)])
@@ -366,7 +376,7 @@ Multiple commands can be specified'''
 
     parser.add_option('--platform', dest='target_platform',
                       default = None,
-                      choices = ['linux', 'darwin', 'win32', 'armv6-darwin'],
+                      choices = ['linux', 'darwin', 'x86_64-darwin', 'win32', 'armv6-darwin'],
                       help = 'Target platform')
 
     parser.add_option('--skip-tests', dest='skip_tests',

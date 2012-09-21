@@ -32,7 +32,7 @@ protected:
     dmGraphics::HContext m_GraphicsContext;
     dmRender::HRenderContext m_RenderContext;
     dmGameSystem::PhysicsContext m_PhysicsContext;
-    dmGameSystem::EmitterContext m_EmitterContext;
+    dmGameSystem::ParticleFXContext m_ParticleFXContext;
     dmGameSystem::GuiContext m_GuiContext;
     dmHID::HContext m_HidContext;
     dmInput::HContext m_InputContext;
@@ -118,8 +118,9 @@ void GamesysTest<T>::SetUp()
     m_PhysicsContext.m_3D = false;
     m_PhysicsContext.m_Context2D = dmPhysics::NewContext2D(dmPhysics::NewContextParams());
 
-    memset(&m_EmitterContext, 0, sizeof(m_EmitterContext));
-    m_EmitterContext.m_RenderContext = m_RenderContext;
+    m_ParticleFXContext.m_RenderContext = m_RenderContext;
+    m_ParticleFXContext.m_MaxParticleFXCount = 64;
+    m_ParticleFXContext.m_MaxParticleCount = 256;
 
     m_SpriteContext.m_RenderContext = m_RenderContext;
     m_SpriteContext.m_MaxSpriteCount = 32;
@@ -135,7 +136,7 @@ void GamesysTest<T>::SetUp()
     assert(m_GamepadMapsDDF);
     dmInput::RegisterGamepads(m_InputContext, m_GamepadMapsDDF);
 
-    assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, &m_PhysicsContext, &m_EmitterContext, &m_GuiContext, &m_SpriteContext, &m_CollectionProxyContext, &m_FactoryContext));
+    assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, &m_PhysicsContext, &m_ParticleFXContext, &m_GuiContext, &m_SpriteContext, &m_CollectionProxyContext, &m_FactoryContext));
 
     m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
 }

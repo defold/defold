@@ -8,8 +8,19 @@ option java_outer_classname = "Sprite";
 
 message SpriteDesc
 {
+    // NOTE: Enum values must correspond to the enum values in comp_sprite.cpp
+    enum BlendMode
+    {
+        BLEND_MODE_ALPHA     = 0 [(displayName) = "Alpha"];
+        BLEND_MODE_ADD       = 1 [(displayName) = "Add"];
+        BLEND_MODE_ADD_ALPHA = 2 [(displayName) = "Add Alpha"];
+        BLEND_MODE_MULT      = 3 [(displayName) = "Multiply"];
+    }
+
     required string tile_set            = 1 [(resource)=true];
     required string default_animation   = 2;
+    optional string material            = 3 [(resource)=true, default="/builtins/materials/sprite.material"];
+    optional BlendMode blend_mode       = 4 [default = BLEND_MODE_ALPHA];
 }
 
 /*# plays a sprite animation
@@ -73,4 +84,23 @@ message SetFlipHorizontal
 message SetFlipVertical
 {
     required uint32 flip = 1;
+}
+
+/* Function wrapper documented in gamesys_script.cpp */
+message SetConstant
+{
+    required uint64         name_hash   = 1;
+    required dmMath.Vector4 value       = 2;
+}
+
+/* Function wrapper documented in gamesys_script.cpp */
+message ResetConstant
+{
+    required uint64         name_hash   = 1;
+}
+
+/* Function wrapper documented in gamesys_script.cpp */
+message SetScale
+{
+    required dmMath.Vector3 scale  = 1;
 }

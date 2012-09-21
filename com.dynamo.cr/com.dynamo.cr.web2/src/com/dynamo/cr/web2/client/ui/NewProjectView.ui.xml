@@ -26,7 +26,7 @@
             </div>
 
             <div class="control-group">
-                <label class="control-label">Description</label>
+                <label class="control-label">Template</label>
                 <div class="controls">
                     <g:ListBox ui:field="templatesCombo" />
                 </div>

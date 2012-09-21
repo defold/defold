@@ -199,7 +199,7 @@ namespace dmGameSystem
 
         GuiSceneResource* scene_resource = (GuiSceneResource*) params.m_Resource;
 
-        Component* gui_component = new Component();
+        GuiComponent* gui_component = new GuiComponent();
         gui_component->m_Instance = params.m_Instance;
         gui_component->m_ComponentIndex = params.m_ComponentIndex;
         gui_component->m_Enabled = 1;
@@ -228,7 +228,7 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompGuiDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
-        Component* gui_component = (Component*)*params.m_UserData;
+        GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
         for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)
         {
             if (gui_world->m_Components[i] == gui_component)
@@ -244,7 +244,7 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompGuiInit(const dmGameObject::ComponentInitParams& params)
     {
-        Component* gui_component = (Component*)*params.m_UserData;
+        GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
         dmGui::Result result = dmGui::InitScene(gui_component->m_Scene);
         if (result != dmGui::RESULT_OK)
         {
@@ -257,7 +257,7 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompGuiFinal(const dmGameObject::ComponentFinalParams& params)
     {
-        Component* gui_component = (Component*)*params.m_UserData;
+        GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
         dmGui::Result result = dmGui::FinalScene(gui_component->m_Scene);
         if (result != dmGui::RESULT_OK)
         {
@@ -385,7 +385,7 @@ namespace dmGameSystem
         uint32_t total_node_count = 0;
         for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)
         {
-            Component* c = gui_world->m_Components[i];
+            GuiComponent* c = gui_world->m_Components[i];
             if (c->m_Enabled)
             {
                 total_node_count += dmGui::GetNodeCount(c->m_Scene);
@@ -399,7 +399,7 @@ namespace dmGameSystem
         gui_world->m_GuiRenderObjects.SetSize(0);
         for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)
         {
-            Component* c = gui_world->m_Components[i];
+            GuiComponent* c = gui_world->m_Components[i];
             if (c->m_Enabled)
                 dmGui::RenderScene(c->m_Scene, &RenderNodes, &render_gui_context);
         }
@@ -409,7 +409,7 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompGuiOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
-        Component* gui_component = (Component*)*params.m_UserData;
+        GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
         if (params.m_Message->m_Id == dmGameObjectDDF::Enable::m_DDFDescriptor->m_NameHash)
         {
             gui_component->m_Enabled = 1;
@@ -429,7 +429,7 @@ namespace dmGameSystem
 
     dmGameObject::InputResult CompGuiOnInput(const dmGameObject::ComponentOnInputParams& params)
     {
-        Component* gui_component = (Component*)*params.m_UserData;
+        GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
 
         if (gui_component->m_Enabled)
         {
@@ -462,7 +462,7 @@ namespace dmGameSystem
     void CompGuiOnReload(const dmGameObject::ComponentOnReloadParams& params)
     {
         GuiSceneResource* scene_resource = (GuiSceneResource*) params.m_Resource;
-        Component* gui_component = (Component*)*params.m_UserData;
+        GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
         dmGui::Result result = dmGui::FinalScene(gui_component->m_Scene);
         if (result != dmGui::RESULT_OK)
         {
@@ -489,7 +489,7 @@ namespace dmGameSystem
 
     void GuiGetURLCallback(dmGui::HScene scene, dmMessage::URL* url)
     {
-        Component* component = (Component*)dmGui::GetSceneUserData(scene);
+        GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
         url->m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(component->m_Instance));
         url->m_Path = dmGameObject::GetIdentifier(component->m_Instance);
         dmGameObject::Result result = dmGameObject::GetComponentId(component->m_Instance, component->m_ComponentIndex, &url->m_Fragment);
@@ -501,13 +501,13 @@ namespace dmGameSystem
 
     uintptr_t GuiGetUserDataCallback(dmGui::HScene scene)
     {
-        Component* component = (Component*)dmGui::GetSceneUserData(scene);
+        GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
         return (uintptr_t)component->m_Instance;
     }
 
     dmhash_t GuiResolvePathCallback(dmGui::HScene scene, const char* path, uint32_t path_size)
     {
-        Component* component = (Component*)dmGui::GetSceneUserData(scene);
+        GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
         if (path_size > 0)
         {
             return dmGameObject::GetAbsoluteIdentifier(component->m_Instance, path, path_size);

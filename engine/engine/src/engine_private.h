@@ -102,7 +102,7 @@ namespace dmEngine
         dmGraphics::HContext                        m_GraphicsContext;
         dmRender::HRenderContext                    m_RenderContext;
         dmGameSystem::PhysicsContext                m_PhysicsContext;
-        dmGameSystem::EmitterContext                m_EmitterContext;
+        dmGameSystem::ParticleFXContext             m_ParticleFXContext;
         dmScript::HContext                          m_ScriptContext;
         dmResource::HFactory                        m_Factory;
         dmGameSystem::GuiContext                    m_GuiContext;

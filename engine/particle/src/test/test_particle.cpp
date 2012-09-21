@@ -64,7 +64,7 @@ bool LoadPrototype(const char* filename, dmParticle::Prototype* prototype)
 
 TEST_F(ParticleTest, CreationSuccess)
 {
-    ASSERT_TRUE(LoadPrototype("once.emitterc", &m_Prototype));
+    ASSERT_TRUE(LoadPrototype("once.particlefxc", &m_Prototype));
     dmParticle::HEmitter emitter = dmParticle::CreateEmitter(m_Context, &m_Prototype);
     ASSERT_NE(dmParticle::INVALID_EMITTER, emitter);
     ASSERT_EQ(1U, m_Context->m_EmitterIndexPool.Size());
@@ -74,14 +74,14 @@ TEST_F(ParticleTest, CreationSuccess)
 
 TEST_F(ParticleTest, CreationFailure)
 {
-    ASSERT_FALSE(LoadPrototype("null.emitterc", &m_Prototype));
+    ASSERT_FALSE(LoadPrototype("null.particlefxc", &m_Prototype));
 }
 
 TEST_F(ParticleTest, StartEmitter)
 {
     float dt = 1.0f / 60.0f;
 
-    ASSERT_TRUE(LoadPrototype("once.emitterc", &m_Prototype));
+    ASSERT_TRUE(LoadPrototype("once.particlefxc", &m_Prototype));
     dmParticle::HEmitter emitter = dmParticle::CreateEmitter(m_Context, &m_Prototype);
     uint16_t index = emitter & 0xffff;
 
@@ -122,7 +122,7 @@ TEST_F(ParticleTest, StartOnceEmitter)
 {
     float dt = 1.0f / 60.0f;
 
-    ASSERT_TRUE(LoadPrototype("once.emitterc", &m_Prototype));
+    ASSERT_TRUE(LoadPrototype("once.particlefxc", &m_Prototype));
     dmParticle::HEmitter emitter = dmParticle::CreateEmitter(m_Context, &m_Prototype);
     uint16_t index = emitter & 0xffff;
 
@@ -144,7 +144,7 @@ TEST_F(ParticleTest, StartLoopEmitter)
 {
     float dt = 1.0f / 60.0f;
 
-    ASSERT_TRUE(LoadPrototype("loop.emitterc", &m_Prototype));
+    ASSERT_TRUE(LoadPrototype("loop.particlefxc", &m_Prototype));
     dmParticle::HEmitter emitter = dmParticle::CreateEmitter(m_Context, &m_Prototype);
     uint16_t index = emitter & 0xffff;
 
@@ -165,7 +165,7 @@ TEST_F(ParticleTest, FireAndForget)
 {
     float dt = 1.0f / 60.0f;
 
-    ASSERT_TRUE(LoadPrototype("once.emitterc", &m_Prototype));
+    ASSERT_TRUE(LoadPrototype("once.particlefxc", &m_Prototype));
     dmParticle::FireAndForget(m_Context, &m_Prototype, Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f), Vectormath::Aos::Quat::identity());
 
     // counting on 0
@@ -194,7 +194,7 @@ TEST_F(ParticleTest, EmissionSpace)
 
     // Test world space
 
-    ASSERT_TRUE(LoadPrototype("once.emitterc", &m_Prototype));
+    ASSERT_TRUE(LoadPrototype("once.particlefxc", &m_Prototype));
     dmParticle::HEmitter emitter = dmParticle::CreateEmitter(m_Context, &m_Prototype);
     uint16_t index = emitter & 0xffff;
 
@@ -210,7 +210,7 @@ TEST_F(ParticleTest, EmissionSpace)
 
     // Test emitter space
 
-    ASSERT_TRUE(LoadPrototype("emitter_space.emitterc", &m_Prototype));
+    ASSERT_TRUE(LoadPrototype("emitter_space.particlefxc", &m_Prototype));
     emitter = dmParticle::CreateEmitter(m_Context, &m_Prototype);
     index = emitter & 0xffff;
 
@@ -229,7 +229,7 @@ TEST_F(ParticleTest, RestartEmitter)
 {
     float dt = 1.0f / 60.0f;
 
-    ASSERT_TRUE(LoadPrototype("restart.emitterc", &m_Prototype));
+    ASSERT_TRUE(LoadPrototype("restart.particlefxc", &m_Prototype));
     dmParticle::HEmitter emitter = dmParticle::CreateEmitter(m_Context, &m_Prototype);
     uint16_t index = emitter & 0xffff;
 
@@ -251,6 +251,136 @@ TEST_F(ParticleTest, RestartEmitter)
 
     ASSERT_GT(0.0f, m_Context->m_Emitters[index]->m_Particles[0].m_TimeLeft);
     ASSERT_LT(0.0f, m_Context->m_Emitters[index]->m_Particles[1].m_TimeLeft);
+
+    dmParticle::DestroyEmitter(m_Context, emitter);
+}
+
+/**
+ * The emitter has a spline for particle size, which has the points and tangents:
+ * (0.00, 0), (1,0)
+ * (0.25, 0), (1,1)
+ * (0.50, 1), (1,0)
+ * (0.75, 0), (1,-1)
+ * (1.00, 0), (1,0)
+ *
+ * Test evaluation of the size at t = [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1]
+ */
+TEST_F(ParticleTest, EvaluateEmitterProperty)
+{
+    float dt = 1.0f / 8.0f;
+
+    ASSERT_TRUE(LoadPrototype("emitter_spline.particlefxc", &m_Prototype));
+    dmParticle::HEmitter emitter = dmParticle::CreateEmitter(m_Context, &m_Prototype);
+    uint16_t index = emitter & 0xffff;
+    dmParticle::Emitter* e = m_Context->m_Emitters[index];
+
+    dmParticle::StartEmitter(m_Context, emitter);
+    dmParticle::Particle* particle = &e->m_Particles[0];
+
+    ASSERT_GE(0.0f, particle->m_TimeLeft);
+
+    // t = 0, size = 0
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0);
+    ASSERT_DOUBLE_EQ(0.0f, particle->m_Size);
+
+    // t = 0.125, size < 0
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0);
+    ASSERT_GT(0.0f, particle->m_Size);
+
+    // t = 0.25, size = 0
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0);
+    ASSERT_DOUBLE_EQ(0.0f, particle->m_Size);
+
+    // t = 0.375, size > 0
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0);
+    ASSERT_LT(0.0f, particle->m_Size);
+
+    // t = 0.5, size = 1
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0);
+    ASSERT_DOUBLE_EQ(1.0f, particle->m_Size);
+
+    // t = 0.625, size > 0
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0);
+    ASSERT_LT(0.0f, particle->m_Size);
+
+    // t = 0.75, size = 0
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0);
+    ASSERT_DOUBLE_EQ(0.0f, particle->m_Size);
+
+    // t = 0.875, size < 0
+    // Updating with a full dt here will make the emitter reach its duration
+    float epsilon = 0.000001f;
+    dmParticle::Update(m_Context, dt - epsilon, m_VertexBuffer, m_VertexBufferSize, 0x0);
+    ASSERT_GT(0.0f, particle->m_Size);
+
+    // t = 1, size = 0
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0);
+    ASSERT_NEAR(0.0f, particle->m_Size, epsilon);
+
+    dmParticle::DestroyEmitter(m_Context, emitter);
+}
+
+/**
+ * The emitter has a spline for particle scale (size is always 1), which has the points and tangents:
+ * (0.00, 0), (1,0)
+ * (0.25, 0), (1,1)
+ * (0.50, 1), (1,0)
+ * (0.75, 0), (1,-1)
+ * (1.00, 0), (1,0)
+ *
+ * Test evaluation of the size at t = [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1]
+ */
+TEST_F(ParticleTest, EvaluateParticleProperty)
+{
+    float dt = 1.0f / 8.0f;
+
+    ASSERT_TRUE(LoadPrototype("particle_spline.particlefxc", &m_Prototype));
+    dmParticle::HEmitter emitter = dmParticle::CreateEmitter(m_Context, &m_Prototype);
+    uint16_t index = emitter & 0xffff;
+    dmParticle::Emitter* e = m_Context->m_Emitters[index];
+
+    dmParticle::StartEmitter(m_Context, emitter);
+    dmParticle::Particle* particle = &e->m_Particles[0];
+
+    ASSERT_GE(0.0f, particle->m_TimeLeft);
+
+    // t = 0, size = 0
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0);
+    ASSERT_DOUBLE_EQ(0.0f, particle->m_Size);
+
+    // t = 0.125, size < 0
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0);
+    ASSERT_GT(0.0f, particle->m_Size);
+
+    // t = 0.25, size = 0
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0);
+    ASSERT_DOUBLE_EQ(0.0f, particle->m_Size);
+
+    // t = 0.375, size > 0
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0);
+    ASSERT_LT(0.0f, particle->m_Size);
+
+    // t = 0.5, size = 1
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0);
+    ASSERT_DOUBLE_EQ(1.0f, particle->m_Size);
+
+    // t = 0.625, size > 0
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0);
+    ASSERT_LT(0.0f, particle->m_Size);
+
+    // t = 0.75, size = 0
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0);
+    ASSERT_DOUBLE_EQ(0.0f, particle->m_Size);
+
+    // t = 0.875, size < 0
+    // Updating with a full dt here will make the emitter reach its duration
+    float epsilon = 0.000001f;
+    dmParticle::Update(m_Context, dt - epsilon, m_VertexBuffer, m_VertexBufferSize, 0x0);
+    ASSERT_GT(0.0f, particle->m_Size);
+
+    // t = 1, size = 0
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0);
+    ASSERT_NEAR(0.0f, particle->m_Size, epsilon);
 
     dmParticle::DestroyEmitter(m_Context, emitter);
 }

@@ -50,7 +50,8 @@ def build(bld):
 
 def shutdown():
     run = False
-    if sys.platform == 'linux2' and (os.path.exists('/dev/snd') or os.path.exists('/dev/dsp')):
+    # Try to determine if sound device exists
+    if sys.platform == 'linux2' and os.path.exists('/dev/snd/controlC0'):
         run = True
     elif sys.platform == 'darwin':
         run = True

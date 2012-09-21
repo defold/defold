@@ -64,6 +64,13 @@ namespace dmParticle
         void*                   m_Material;
     };
 
+#define DM_PARTICLE_PROTO(ret, name,  ...) \
+    \
+    ret name(__VA_ARGS__);\
+    extern "C" DM_DLLEXPORT ret Particle_##name(__VA_ARGS__);
+
+    DM_PARTICLE_PROTO(HContext, Foo, int x);
+
     /**
      * Create a context.
      * @param render_context Context for use when rendering.
@@ -71,12 +78,12 @@ namespace dmParticle
      * @param max_particle_count Max number of particles
      * @return Context handle, or INVALID_CONTEXT when out of memory.
      */
-    HContext                CreateContext(uint32_t max_emitter_count, uint32_t max_particle_count);
+    DM_PARTICLE_PROTO(HContext, CreateContext, uint32_t max_emitter_count, uint32_t max_particle_count);
     /**
      * Destroy a context.
      * @param context Context to destroy. This will also destroy any remaining emitters.
      */
-    void                    DestroyContext(HContext context);
+    DM_PARTICLE_PROTO(void, DestroyContext, HContext context);
 
     /**
      * Create an emitter from the supplied path and fetch resources using the supplied factory.
@@ -84,33 +91,33 @@ namespace dmParticle
      * @param prototype Prototype of the emitter to be created
      * @return Emitter handle, or INVALID_EMITTER when the resource is broken or the context is full.
      */
-    HEmitter                CreateEmitter(HContext context, Prototype* prototype);
+    DM_PARTICLE_PROTO(HEmitter, CreateEmitter, HContext context, Prototype* prototype);
     /**
      * Destroy emitter in the specified context.
      * @param context Context handle, must be valid.
      * @param emitter Emitter to destroy, must not be valid.
      */
-    void                    DestroyEmitter(HContext context, HEmitter emitter);
+    DM_PARTICLE_PROTO(void, DestroyEmitter, HContext context, HEmitter emitter);
     /**
      * Start the specified emitter, which means it will start spawning particles.
      * @param context Context in which the emitter exists.
      * @param emitter Emitter to start, must not be valid.
      */
-    void                    StartEmitter(HContext context, HEmitter emitter);
+    DM_PARTICLE_PROTO(void, StartEmitter, HContext context, HEmitter emitter);
     /**
      * Stop the specified emitter, which means it will stop spawning particles.
      * Any spawned particles will still be simulated until they die.
      * @param context Context in which the emitter exists.
      * @param emitter Emitter to start, must not be valid.
      */
-    void                    StopEmitter(HContext context, HEmitter emitter);
+    DM_PARTICLE_PROTO(void, StopEmitter, HContext context, HEmitter emitter);
     /**
      * Restart the specified emitter, which means it will start spawning particles again.
      * Any already living particles will remain after this call.
      * @param context Context in which the emitter exists.
      * @param emitter Emitter to restart, must not be valid.
      */
-    void                    RestartEmitter(HContext context, HEmitter emitter);
+    DM_PARTICLE_PROTO(void, RestartEmitter, HContext context, HEmitter emitter);
     /**
      * Create and start a new emitter. Once the emitter is sleeping (@see IsSleeping), the particle system will automatically destroy it.
      * Looping emitters can not be created this way since they would never be destroyed in that case.
@@ -120,7 +127,7 @@ namespace dmParticle
      * @param position Position of the created emitter.
      * @param rotation Rotation of the created emitter.
      */
-    void                    FireAndForget(HContext context, Prototype* prototype, Point3 position, Quat rotation);
+    DM_PARTICLE_PROTO(void, FireAndForget, HContext context, Prototype* prototype, Point3 position, Quat rotation);
 
     /**
      * Set the position of the specified emitter.
@@ -128,32 +135,32 @@ namespace dmParticle
      * @param emitter Emitter to set position for.
      * @param position Position in world space.
      */
-    void                    SetPosition(HContext context, HEmitter emitter, Point3 position);
+    DM_PARTICLE_PROTO(void, SetPosition, HContext context, HEmitter emitter, Point3 position);
     /**
      * Set the position of the specified emitter.
      * @param context Context in which the emitter exists.
      * @param emitter Emitter to set rotation for.
      * @param rotation Rotation in world space.
      */
-    void                    SetRotation(HContext context, HEmitter emitter, Quat rotation);
+    DM_PARTICLE_PROTO(void, SetRotation, HContext context, HEmitter emitter, Quat rotation);
     /**
      * Set the gain signal of the specified emitter. The signal is used to modify properties when spawning particles.
      * @param context Context in which the emitter exists.
      * @param emitter Emitter to set gain for.
      * @param gain Gain to set, truncated to [0,1].
      */
-    void                    SetGain(HContext context, HEmitter emitter, float gain);
+    DM_PARTICLE_PROTO(void, SetGain, HContext context, HEmitter emitter, float gain);
 
     /**
      * Returns if the specified emitter is spawning particles or not.
      * A looping emitter is always spawning particles, other emitters are spawning until their duration has elapsed.
      */
-    bool                    IsSpawning(HContext context, HEmitter emitter);
+    DM_PARTICLE_PROTO(bool, IsSpawning, HContext context, HEmitter emitter);
     /**
      * Returns if the specified emitter is spawning particles or not.
      * A looping emitter is never sleeping, other emitters are sleeping when they are not spawning and have no remaining living particles.
      */
-    bool                    IsSleeping(HContext context, HEmitter emitter);
+    DM_PARTICLE_PROTO(bool, IsSleeping, HContext context, HEmitter emitter);
 
     /**
      * Update the emitters within the specified context.
@@ -163,19 +170,29 @@ namespace dmParticle
      * @param vertex_buffer_size Size in bytes of the supplied vertex buffer.
      * @param out_vertex_buffer_size How many bytes was actually written to the vertex buffer, 0x0 is allowed.
      */
-    void                    Update(HContext context, float dt, float* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size);
+    DM_PARTICLE_PROTO(void, Update, HContext context, float dt, float* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size);
 
     /**
      * Render the emitters within the specified context.
      * @param context Context of the emitters to render.
      */
-    void                    Render(HContext context, void* user_context, RenderEmitterCallback render_emitter_callback);
+    DM_PARTICLE_PROTO(void, Render, HContext context, void* user_context, RenderEmitterCallback render_emitter_callback);
     /**
      * Debug render the status of the emitters within the specified context.
      * @param context Context of the emitters to render.
      * @param RenderLine Function pointer to use to render the lines.
      */
-    void                    DebugRender(HContext context, void* user_context, RenderLineCallback render_line_callback);
+    DM_PARTICLE_PROTO(void, DebugRender, HContext context, void* user_context, RenderLineCallback render_line_callback);
+
+    extern "C"
+    {
+        // Currently custom for java bindings. Might be changed with the new interface
+        Prototype* Particle_NewPrototype(HContext context, void* emitter_data, uint32_t emitter_data_size);
+        void Particle_DeletePrototype(HContext context, Prototype* prototype);
+    }
+
+#undef DM_PARTICLE_PROTO
+
 }
 
 #endif // DM_PARTICLE_H

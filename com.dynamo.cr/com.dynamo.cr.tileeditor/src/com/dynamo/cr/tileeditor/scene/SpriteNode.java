@@ -17,6 +17,7 @@ import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.tileeditor.Activator;
+import com.dynamo.sprite.proto.Sprite.SpriteDesc.BlendMode;
 import com.dynamo.tile.TileSetUtil;
 
 @SuppressWarnings("serial")
@@ -32,6 +33,14 @@ public class SpriteNode extends ComponentTypeNode {
     private String defaultAnimation = "";
 
     private transient TileSetNode tileSetNode = null;
+
+    @Property(editorType = EditorType.RESOURCE, extensions = { "material" })
+    @Resource
+    @NotEmpty
+    private String material = "";
+
+    @Property
+    private BlendMode blendMode = BlendMode.BLEND_MODE_ALPHA;
 
     // Graphics resources
     private transient FloatBuffer vertexData;
@@ -98,6 +107,22 @@ public class SpriteNode extends ComponentTypeNode {
 
     public TileSetNode getTileSetNode() {
         return this.tileSetNode;
+    }
+
+    public String getMaterial() {
+        return this.material;
+    }
+
+    public void setMaterial(String material) {
+        this.material = material;
+    }
+
+    public BlendMode getBlendMode() {
+        return this.blendMode;
+    }
+
+    public void setBlendMode(BlendMode blendMode) {
+        this.blendMode = blendMode;
     }
 
     public FloatBuffer getVertexData() {

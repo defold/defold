@@ -11,7 +11,7 @@ namespace dmGameSystem
 {
     extern dmRender::HRenderType g_GuiRenderType;
 
-    struct Component
+    struct GuiComponent
     {
         dmGui::HScene           m_Scene;
         dmGameObject::HInstance m_Instance;
@@ -21,7 +21,7 @@ namespace dmGameSystem
 
     struct GuiWorld
     {
-        dmArray<Component*>              m_Components;
+        dmArray<GuiComponent*>           m_Components;
         dmRender::HMaterial              m_Material;
         dmGraphics::HVertexProgram       m_VertexProgram;
         dmGraphics::HFragmentProgram     m_FragmentProgram;

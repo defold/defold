@@ -26,6 +26,8 @@ public class SpriteLoader implements INodeLoader<SpriteNode> {
         SpriteNode node = new SpriteNode();
         node.setTileSource(ddf.getTileSet());
         node.setDefaultAnimation(ddf.getDefaultAnimation());
+        node.setMaterial(ddf.getMaterial());
+        node.setBlendMode(ddf.getBlendMode());
         return node;
     }
 
@@ -33,7 +35,8 @@ public class SpriteLoader implements INodeLoader<SpriteNode> {
     public Message buildMessage(ILoaderContext context, SpriteNode node,
             IProgressMonitor monitor) throws IOException, CoreException {
         SpriteDesc.Builder builder = SpriteDesc.newBuilder();
-        builder.setTileSet(node.getTileSource()).setDefaultAnimation(node.getDefaultAnimation());
+        builder.setTileSet(node.getTileSource()).setDefaultAnimation(node.getDefaultAnimation())
+                .setMaterial(node.getMaterial()).setBlendMode(node.getBlendMode());
         return builder.build();
     }
 }

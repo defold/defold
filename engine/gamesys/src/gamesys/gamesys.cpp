@@ -9,6 +9,7 @@
 #include "resources/res_collision_object.h"
 #include "resources/res_convex_shape.h"
 #include "resources/res_emitter.h"
+#include "resources/res_particlefx.h"
 #include "resources/res_texture.h"
 #include "resources/res_vertex_program.h"
 #include "resources/res_fragment_program.h"
@@ -32,6 +33,7 @@
 #include "components/comp_collection_proxy.h"
 #include "components/comp_collision_object.h"
 #include "components/comp_emitter.h"
+#include "components/comp_particlefx.h"
 #include "components/comp_model.h"
 #include "components/comp_gui.h"
 #include "components/comp_sound.h"
@@ -74,6 +76,7 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("collisionobjectc", physics_context, ResCollisionObjectCreate, ResCollisionObjectDestroy, ResCollisionObjectRecreate);
         REGISTER_RESOURCE_TYPE("convexshapec", physics_context, ResConvexShapeCreate, ResConvexShapeDestroy, ResConvexShapeRecreate);
         REGISTER_RESOURCE_TYPE("emitterc", 0, ResEmitterCreate, ResEmitterDestroy, ResEmitterRecreate);
+        REGISTER_RESOURCE_TYPE("particlefxc", 0, ResParticleFXCreate, ResParticleFXDestroy, ResParticleFXRecreate);
         REGISTER_RESOURCE_TYPE("texturec", graphics_context, ResTextureCreate, ResTextureDestroy, ResTextureRecreate);
         REGISTER_RESOURCE_TYPE("vpc", graphics_context, ResVertexProgramCreate, ResVertexProgramDestroy, ResVertexProgramRecreate);
         REGISTER_RESOURCE_TYPE("fpc", graphics_context, ResFragmentProgramCreate, ResFragmentProgramDestroy, ResFragmentProgramRecreate);
@@ -104,7 +107,7 @@ namespace dmGameSystem
                                                 dmGameObject::HRegister regist,
                                                 dmRender::RenderContext* render_context,
                                                 PhysicsContext* physics_context,
-                                                EmitterContext* emitter_context,
+                                                ParticleFXContext* particlefx_context,
                                                 GuiContext* gui_context,
                                                 SpriteContext* sprite_context,
                                                 CollectionProxyContext* collection_proxy_context,
@@ -180,10 +183,15 @@ namespace dmGameSystem
                 CompModelCreate, CompModelDestroy, 0, 0,
                 CompModelUpdate, 0, CompModelOnMessage, 0, 0);
 
-        REGISTER_COMPONENT_TYPE("emitterc", 800, emitter_context,
+        REGISTER_COMPONENT_TYPE("emitterc", 750, 0x0,
                 &CompEmitterNewWorld, &CompEmitterDeleteWorld,
                 &CompEmitterCreate, &CompEmitterDestroy, 0, 0,
-                &CompEmitterUpdate, 0, &CompEmitterOnMessage, 0, &CompEmitterOnReload);
+                0, 0, CompEmitterOnMessage, 0, 0);
+
+        REGISTER_COMPONENT_TYPE("particlefxc", 800, particlefx_context,
+                &CompParticleFXNewWorld, &CompParticleFXDeleteWorld,
+                &CompParticleFXCreate, &CompParticleFXDestroy, 0, 0,
+                &CompParticleFXUpdate, 0, &CompParticleFXOnMessage, 0, &CompParticleFXOnReload);
 
         REGISTER_COMPONENT_TYPE("factoryc", 900, factory_context,
                 CompFactoryNewWorld, CompFactoryDeleteWorld,

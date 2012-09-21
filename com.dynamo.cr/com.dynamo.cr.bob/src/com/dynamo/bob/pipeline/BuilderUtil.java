@@ -12,7 +12,7 @@ public class BuilderUtil {
 
     static String replaceExt(String str, String from, String to) {
         if (str.endsWith(from)) {
-            return str.replace(from, to);
+            return str.substring(0, str.lastIndexOf(from)).concat(to);
         }
         return str;
     }

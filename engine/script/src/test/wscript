@@ -1,18 +1,8 @@
 import Task, TaskGen
 from TaskGen import extension, declare_extension
+from waf_dynamo import new_copy_task
 
-Task.simple_task_type('luascript', 'cat < ${SRC} > ${TGT}',
-                      color='PINK',
-                      before='cc cxx',
-                      shell=True)
-
-@extension('.lua')
-def testresourcecont_file(self, node):
-    obj_ext = '.luac'
-    task = self.create_task('luascript')
-    task.set_inputs(node)
-    out = node.change_ext(obj_ext)
-    task.set_outputs(out)
+new_copy_task('luascript', '.lua', '.luac')
 
 def build(bld):
     test_script_ddf = bld.new_task_gen(features = 'cxx cprogram',
