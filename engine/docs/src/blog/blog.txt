@@ -32,6 +32,13 @@ Fixes
 
 * Added support for textures with 16-bit color depth
 * The outlines of the icons used for visual-less components were offset incorrectly
+* When browsing for files in the game.project editor, the necessary 'c' was not appended to the filenames
+
+Known Issues
+~~~~~~~~~~~~
+
+* Engine crashes (OpenGL error) when shaders (both fragment and vertex) are hot reloaded
+* Reloading a material with modified shader paths does not update the shaders
 
 Hope you enjoy the release and stay tuned for more improved visuals!
 
