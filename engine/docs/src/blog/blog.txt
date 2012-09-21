@@ -1,5 +1,40 @@
 :max-width: 45em
 
+Improved Sprite Rendering (Release 1.2.5)
+-----------------------------------------
+_September 21, 2012_
+
+This release features improved sprite rendering, preparations for the brand new particle system and a few minor fixes.
+
+Sprite Rendering
+~~~~~~~~~~~~~~~~
+
+Sprites have now been extended with blend mode and custom shading.
+Blend mode lets you choose how the graphics of a sprite should be blended with the graphics behind the sprite.
+Custom shading is achieved by specifying a custom material + shaders in the sprite properties.
+We have extended the link:/doc/tiles[Tiles guide] with information about this in the Sprite-section.
+
+Particle System
+~~~~~~~~~~~~~~~
+
+We have had a particle system in place for a long time (2 years) in Defold, accessible through Emitter components.
+This system had many drawbacks and was poorly designed, which is why we are completely redesigning it now.
+As a preparation for this, we have deprecated the .emitter files.
+If you are using them in your project, they will now not be rendered (with a warning in the Console-view when loading the game) and show up as text-files if you try to edit them.
+Please let us know if you use them and we will help you convert to the new system.
+We would in fact be very impressed if anyone has get the Emitters to work, due to the lack of documentation and complex editing.
+
+The new component type is called _ParticleFX_, we will provide better documentation when it's ready for release.
+We are very excited about the new system, we are getting great feedback and advice from very talented effects artists and designers in the games and CGI industry.
+
+Fixes
+~~~~~
+
+* Added support for textures with 16-bit color depth
+* The outlines of the icons used for visual-less components were offset incorrectly
+
+Hope you enjoy the release and stay tuned for more improved visuals!
+
 Brand New Platformer Article and Release 1.2.4
 ----------------------------------------------
 _September 7, 2012_

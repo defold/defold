@@ -4,6 +4,7 @@
 /ref/gui.html
 /ref/render.html
 /ref/script.html
+/blog/improved_sprite_rendering_release_1_2_5.html
 /blog/brand_new_platformer_article_and_release_1_2_4.html
 /blog/release_1_2_3.html
 /blog/release_1_2_2.html
