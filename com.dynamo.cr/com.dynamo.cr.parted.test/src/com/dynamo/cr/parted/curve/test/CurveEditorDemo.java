@@ -5,6 +5,7 @@ import org.eclipse.core.commands.operations.DefaultOperationHistory;
 import org.eclipse.core.commands.operations.IOperationHistory;
 import org.eclipse.core.commands.operations.UndoContext;
 import org.eclipse.core.runtime.NullProgressMonitor;
+import org.eclipse.jface.resource.JFaceResources;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.KeyEvent;
 import org.eclipse.swt.events.KeyListener;
@@ -30,7 +31,7 @@ public class CurveEditorDemo {
         layout.marginBottom = layout.marginTop = layout.marginLeft = layout.marginRight = 16;
         shell.setLayout(layout);
         final CurveEditor ce = new CurveEditor(shell, SWT.NONE, context,
-                history);
+                history, JFaceResources.getColorRegistry());
         ce.setLayoutData(new GridData(GridData.FILL_BOTH));
         ce.addFocusListener(new org.eclipse.swt.events.FocusListener() {
 

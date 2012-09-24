@@ -16,6 +16,8 @@ import javax.vecmath.Vector4d;
 
 import org.eclipse.swt.graphics.RGB;
 
+import com.dynamo.cr.properties.types.ValueSpread;
+
 public class BeanPropertyAccessor implements IPropertyAccessor<Object, IPropertyObjectWorld> {
 
     private static class Methods {
@@ -106,6 +108,8 @@ public class BeanPropertyAccessor implements IPropertyAccessor<Object, IProperty
                 mergeQuat4dValue(methods, obj, (Quat4d) oldValue, (Double[]) newValue);
             } else if (oldValue instanceof RGB && newValue instanceof Double[]) {
                 mergeRGBValue(methods, obj, (RGB) oldValue, (Double[]) newValue);
+            } else if (oldValue instanceof ValueSpread && newValue instanceof Double[]) {
+                mergeValueSpread(methods, obj, (ValueSpread) oldValue, (Double[]) newValue);
             }
             else {
                 // Generic set
@@ -168,6 +172,15 @@ public class BeanPropertyAccessor implements IPropertyAccessor<Object, IProperty
         methods.propertyDescriptor.getWriteMethod().invoke(obj, toSet);
     }
 
+    private void mergeValueSpread(Methods methods, Object obj,
+            ValueSpread oldValue, Double[] delta) throws IllegalArgumentException, IllegalAccessException, InvocationTargetException {
+        ValueSpread toSet = new ValueSpread();
+
+        toSet.setValue(delta[0] != null ? delta[0] : oldValue.getValue());
+        toSet.setSpread(delta[1] != null ? delta[1] : oldValue.getSpread());
+
+        methods.propertyDescriptor.getWriteMethod().invoke(obj, toSet);
+    }
 
     @Override
     public Object getValue(Object obj, String property,

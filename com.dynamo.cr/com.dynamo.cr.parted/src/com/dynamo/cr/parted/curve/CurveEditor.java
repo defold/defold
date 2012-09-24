@@ -1,13 +1,12 @@
 package com.dynamo.cr.parted.curve;
 
-import java.util.EnumMap;
-
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.IOperationHistory;
 import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.core.commands.operations.UndoContext;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
+import org.eclipse.jface.resource.ColorRegistry;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.MouseEvent;
 import org.eclipse.swt.events.MouseListener;
@@ -19,6 +18,7 @@ import org.eclipse.swt.graphics.Color;
 import org.eclipse.swt.graphics.Font;
 import org.eclipse.swt.graphics.GC;
 import org.eclipse.swt.graphics.Point;
+import org.eclipse.swt.graphics.RGB;
 import org.eclipse.swt.widgets.Canvas;
 import org.eclipse.swt.widgets.Composite;
 import org.slf4j.Logger;
@@ -34,6 +34,13 @@ public class CurveEditor extends Canvas implements PaintListener,
 
     private static Logger logger = LoggerFactory.getLogger(CurveEditor.class);
 
+    public static final String BACKGROUND_COLOR_KEY = "com.dynamo.cr.parted.curve.BACKGROUND_COLOR";
+    public static final String AXIS_COLOR_KEY = "com.dynamo.cr.parted.curve.AXIS_COLOR";
+    public static final String GRID_COLOR_KEY = "com.dynamo.cr.parted.curve.GRID_COLOR";
+    public static final String TICK_COLOR_KEY = "com.dynamo.cr.parted.curve.TICK_COLOR";
+    public static final String TANGENT_COLOR_KEY = "com.dynamo.cr.parted.curve.TANGENT_COLOR";
+    public static final String CONTROL_COLOR_KEY = "com.dynamo.cr.parted.curve.CONTROL_COLOR";
+
     private int yAxisWidth = 90;
     private int marginRight = 32;
     private int tickHeight = 16;
@@ -46,9 +53,6 @@ public class CurveEditor extends Canvas implements PaintListener,
     private int prevY = -1;
     private Mode mode = Mode.IDLE;
     private Hit hit;
-
-    private EnumMap<ColorType, Color> colors = new EnumMap<ColorType, Color>(
-            ColorType.class);
     private Font font;
 
     private HermiteSpline spline = new HermiteSpline();
@@ -56,34 +60,18 @@ public class CurveEditor extends Canvas implements PaintListener,
     private UndoContext undoContext;
     private IOperationHistory history;
 
+    private ColorRegistry colorsRegistry;
+
     private enum Mode {
         IDLE, PANNING, MOVE,
     }
 
-    public enum ColorType {
-        BACKGROUND(233, 233, 233), AXIS(100, 100, 100), GRID(169, 169, 169), TICK(
-                0, 0, 0), TANGENT(0, 200, 255), CONTROL(255, 0, 160);
-
-        int r, g, b;
-
-        private ColorType(int r, int g, int b) {
-            this.r = r;
-            this.g = g;
-            this.b = b;
-        }
-    }
-
-    private Color getColor(ColorType colorType) {
-        if (!colors.containsKey(colorType)) {
-            colors.put(colorType, new Color(getDisplay(), colorType.r,
-                    colorType.g, colorType.b));
-        }
-
-        return colors.get(colorType);
+    private Color getColor(String key) {
+        return colorsRegistry.get(key);
     }
 
     public CurveEditor(Composite parent, int style, UndoContext undoContext,
-            IOperationHistory history) {
+            IOperationHistory history, ColorRegistry colorRegistry) {
         super(parent, style);
         addPaintListener(this);
         addMouseWheelListener(this);
@@ -95,6 +83,23 @@ public class CurveEditor extends Canvas implements PaintListener,
         setFont(font);
         this.undoContext = undoContext;
         this.history = history;
+        this.colorsRegistry = colorRegistry;
+        initColors();
+    }
+
+    private void putColor(String key, RGB rgb) {
+        if (colorsRegistry.get(key) == null) {
+            colorsRegistry.put(key, rgb);
+        }
+    }
+
+    private void initColors() {
+        putColor(BACKGROUND_COLOR_KEY, new RGB(233, 233, 233));
+        putColor(AXIS_COLOR_KEY, new RGB(100, 100, 100));
+        putColor(GRID_COLOR_KEY, new RGB(169, 169, 169));
+        putColor(TICK_COLOR_KEY, new RGB(0, 0, 0));
+        putColor(TANGENT_COLOR_KEY, new RGB(0, 200, 255));
+        putColor(CONTROL_COLOR_KEY, new RGB(255, 0, 160));
     }
 
     @Override
@@ -104,11 +109,6 @@ public class CurveEditor extends Canvas implements PaintListener,
         removeMouseWheelListener(this);
         removeMouseMoveListener(this);
         removeMouseListener(this);
-
-        for (Color c : colors.values()) {
-            c.dispose();
-        }
-
         font.dispose();
     }
 
@@ -175,13 +175,13 @@ public class CurveEditor extends Canvas implements PaintListener,
             String s = String.format("%d", i * 10);
             Point extents = gc.stringExtent(s);
 
-            gc.setForeground(getColor(ColorType.GRID));
+            gc.setForeground(getColor(GRID_COLOR_KEY));
             int x = yAxisWidth + i * plotWidth / 10;
             int y = (int) toScreenY(0) + tickHeight / 2 + 2; // + 2 for some
                                                              // extra margin
             gc.drawLine(x, 0, x, size.y);
 
-            gc.setForeground(getColor(ColorType.TICK));
+            gc.setForeground(getColor(TICK_COLOR_KEY));
             gc.drawString(s, x - extents.x / 2, y);
             int tickX = yAxisWidth + i * plotWidth / 10;
             int tickY = (int) toScreenY(0);
@@ -215,10 +215,10 @@ public class CurveEditor extends Canvas implements PaintListener,
             int x = yAxisWidth;
             int y = (int) toScreenY(valueY);
 
-            gc.setForeground(getColor(ColorType.GRID));
+            gc.setForeground(getColor(GRID_COLOR_KEY));
             gc.drawLine(yAxisWidth, y, size.x, y);
 
-            gc.setForeground(getColor(ColorType.TICK));
+            gc.setForeground(getColor(TICK_COLOR_KEY));
             gc.drawString(s, yAxisWidth - extents.x - 10, y - extents.y / 2);
             gc.drawLine(x - tickHeight / 2, y, x + tickHeight / 2, y);
             valueY += yStep;
@@ -257,8 +257,8 @@ public class CurveEditor extends Canvas implements PaintListener,
             int x1 = (int) toScreenX(p.x + p.tx * scale);
             int y1 = (int) toScreenY(p.y + p.ty * scale);
 
-            gc.setForeground(getColor(ColorType.TANGENT));
-            gc.setBackground(getColor(ColorType.TANGENT));
+            gc.setForeground(getColor(TANGENT_COLOR_KEY));
+            gc.setBackground(getColor(TANGENT_COLOR_KEY));
             gc.drawLine(x0, y0, x1, y1);
 
             gc.fillOval(x0 - tangentControlSize / 2, y0 - tangentControlSize
@@ -267,8 +267,8 @@ public class CurveEditor extends Canvas implements PaintListener,
             gc.fillOval(x1 - tangentControlSize / 2, y1 - tangentControlSize
                     / 2, tangentControlSize, tangentControlSize);
 
-            gc.setForeground(getColor(ColorType.CONTROL));
-            gc.setBackground(getColor(ColorType.BACKGROUND));
+            gc.setForeground(getColor(CONTROL_COLOR_KEY));
+            gc.setBackground(getColor(BACKGROUND_COLOR_KEY));
             gc.fillOval(x - controlSize / 2, y - controlSize / 2, controlSize,
                     controlSize);
             gc.drawOval(x - controlSize / 2, y - controlSize / 2, controlSize,
