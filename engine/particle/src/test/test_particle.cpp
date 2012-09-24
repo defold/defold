@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <stdio.h>
 
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
@@ -15,57 +16,54 @@ protected:
     {
         m_Context = dmParticle::CreateContext(64, 1024);
         assert(m_Context != 0);
-        m_Prototype.m_DDF = 0;
-        m_Prototype.m_Material = 0;
-        m_Prototype.m_Texture = 0;
         m_VertexBufferSize = 1024 * 4 * 6 * sizeof(float);
         m_VertexBuffer = new float[m_VertexBufferSize];
+        m_Prototype = 0x0;
     }
 
     virtual void TearDown()
     {
+        if (m_Prototype != 0x0)
+        {
+            dmParticle::Particle_DeletePrototype(m_Context, m_Prototype);
+        }
         dmParticle::DestroyContext(m_Context);
-        if (m_Prototype.m_DDF != 0)
-            dmDDF::FreeMessage(m_Prototype.m_DDF);
         delete [] m_VertexBuffer;
     }
 
     dmParticle::HContext m_Context;
-    dmParticle::Prototype m_Prototype;
+    dmParticle::HPrototype m_Prototype;
     float* m_VertexBuffer;
     uint32_t m_VertexBufferSize;
 };
 
-bool LoadPrototype(const char* filename, dmParticle::Prototype* prototype)
+bool LoadPrototype(dmParticle::HContext context, const char* filename, dmParticle::HPrototype* prototype)
 {
-    dmParticleDDF::Emitter* prototype_ddf;
     char path[64];
     DM_SNPRINTF(path, 64, "build/default/src/test/%s", filename);
-    dmDDF::Result e = dmDDF::LoadMessageFromFile(path, &dmParticleDDF_Emitter_DESCRIPTOR, (void**) &prototype_ddf);
-    if (e != dmDDF::RESULT_OK)
+    const uint32_t MAX_FILE_SIZE = 4 * 1024;
+    unsigned char buffer[MAX_FILE_SIZE];
+    uint32_t file_size = 0;
+
+    FILE* f = fopen(path, "rb");
+    if (f)
+    {
+        file_size = fread(buffer, 1, MAX_FILE_SIZE, f);
+        *prototype = dmParticle::Particle_NewPrototype(context, buffer, file_size);
+        fclose(f);
+        return *prototype != 0x0;
+    }
+    else
     {
         dmLogWarning("Emitter could not be loaded: %s.", path);
         return false;
     }
-    if (prototype_ddf->m_Material == 0x0 || *prototype_ddf->m_Material == '\0'
-            || prototype_ddf->m_Texture.m_Name == 0x0 || *prototype_ddf->m_Texture.m_Name == '\0')
-    {
-        dmDDF::FreeMessage(prototype_ddf);
-        return false;
-    }
-
-    if (prototype->m_DDF != 0)
-        dmDDF::FreeMessage(prototype->m_DDF);
-    prototype->m_DDF = prototype_ddf;
-    prototype->m_Material = 0;
-    prototype->m_Texture = 0;
-    return true;
 }
 
 TEST_F(ParticleTest, CreationSuccess)
 {
-    ASSERT_TRUE(LoadPrototype("once.particlefxc", &m_Prototype));
-    dmParticle::HEmitter emitter = dmParticle::CreateEmitter(m_Context, &m_Prototype);
+    ASSERT_TRUE(LoadPrototype(m_Context, "once.particlefxc", &m_Prototype));
+    dmParticle::HEmitter emitter = dmParticle::CreateEmitter(m_Context, m_Prototype);
     ASSERT_NE(dmParticle::INVALID_EMITTER, emitter);
     ASSERT_EQ(1U, m_Context->m_EmitterIndexPool.Size());
     dmParticle::DestroyEmitter(m_Context, emitter);
@@ -74,15 +72,15 @@ TEST_F(ParticleTest, CreationSuccess)
 
 TEST_F(ParticleTest, CreationFailure)
 {
-    ASSERT_FALSE(LoadPrototype("null.particlefxc", &m_Prototype));
+    ASSERT_FALSE(LoadPrototype(m_Context, "null.particlefxc", &m_Prototype));
 }
 
 TEST_F(ParticleTest, StartEmitter)
 {
     float dt = 1.0f / 60.0f;
 
-    ASSERT_TRUE(LoadPrototype("once.particlefxc", &m_Prototype));
-    dmParticle::HEmitter emitter = dmParticle::CreateEmitter(m_Context, &m_Prototype);
+    ASSERT_TRUE(LoadPrototype(m_Context, "once.particlefxc", &m_Prototype));
+    dmParticle::HEmitter emitter = dmParticle::CreateEmitter(m_Context, m_Prototype);
     uint16_t index = emitter & 0xffff;
 
     ASSERT_NE((void*)0, (void*)m_Context->m_Emitters[index]);
@@ -122,8 +120,8 @@ TEST_F(ParticleTest, StartOnceEmitter)
 {
     float dt = 1.0f / 60.0f;
 
-    ASSERT_TRUE(LoadPrototype("once.particlefxc", &m_Prototype));
-    dmParticle::HEmitter emitter = dmParticle::CreateEmitter(m_Context, &m_Prototype);
+    ASSERT_TRUE(LoadPrototype(m_Context, "once.particlefxc", &m_Prototype));
+    dmParticle::HEmitter emitter = dmParticle::CreateEmitter(m_Context, m_Prototype);
     uint16_t index = emitter & 0xffff;
 
     dmParticle::StartEmitter(m_Context, emitter);
@@ -144,8 +142,8 @@ TEST_F(ParticleTest, StartLoopEmitter)
 {
     float dt = 1.0f / 60.0f;
 
-    ASSERT_TRUE(LoadPrototype("loop.particlefxc", &m_Prototype));
-    dmParticle::HEmitter emitter = dmParticle::CreateEmitter(m_Context, &m_Prototype);
+    ASSERT_TRUE(LoadPrototype(m_Context, "loop.particlefxc", &m_Prototype));
+    dmParticle::HEmitter emitter = dmParticle::CreateEmitter(m_Context, m_Prototype);
     uint16_t index = emitter & 0xffff;
 
     dmParticle::StartEmitter(m_Context, emitter);
@@ -165,8 +163,8 @@ TEST_F(ParticleTest, FireAndForget)
 {
     float dt = 1.0f / 60.0f;
 
-    ASSERT_TRUE(LoadPrototype("once.particlefxc", &m_Prototype));
-    dmParticle::FireAndForget(m_Context, &m_Prototype, Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f), Vectormath::Aos::Quat::identity());
+    ASSERT_TRUE(LoadPrototype(m_Context, "once.particlefxc", &m_Prototype));
+    dmParticle::FireAndForget(m_Context, m_Prototype, Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f), Vectormath::Aos::Quat::identity());
 
     // counting on 0
     uint16_t index = 0;
@@ -194,8 +192,8 @@ TEST_F(ParticleTest, EmissionSpace)
 
     // Test world space
 
-    ASSERT_TRUE(LoadPrototype("once.particlefxc", &m_Prototype));
-    dmParticle::HEmitter emitter = dmParticle::CreateEmitter(m_Context, &m_Prototype);
+    ASSERT_TRUE(LoadPrototype(m_Context, "once.particlefxc", &m_Prototype));
+    dmParticle::HEmitter emitter = dmParticle::CreateEmitter(m_Context, m_Prototype);
     uint16_t index = emitter & 0xffff;
 
     dmParticle::SetPosition(m_Context, emitter, Vectormath::Aos::Point3(10.0f, 0.0f, 0.0f));
@@ -210,8 +208,9 @@ TEST_F(ParticleTest, EmissionSpace)
 
     // Test emitter space
 
-    ASSERT_TRUE(LoadPrototype("emitter_space.particlefxc", &m_Prototype));
-    emitter = dmParticle::CreateEmitter(m_Context, &m_Prototype);
+    dmParticle::Particle_DeletePrototype(m_Context, m_Prototype);
+    ASSERT_TRUE(LoadPrototype(m_Context, "emitter_space.particlefxc", &m_Prototype));
+    emitter = dmParticle::CreateEmitter(m_Context, m_Prototype);
     index = emitter & 0xffff;
 
     dmParticle::SetPosition(m_Context, emitter, Vectormath::Aos::Point3(10.0f, 0.0f, 0.0f));
@@ -229,8 +228,8 @@ TEST_F(ParticleTest, RestartEmitter)
 {
     float dt = 1.0f / 60.0f;
 
-    ASSERT_TRUE(LoadPrototype("restart.particlefxc", &m_Prototype));
-    dmParticle::HEmitter emitter = dmParticle::CreateEmitter(m_Context, &m_Prototype);
+    ASSERT_TRUE(LoadPrototype(m_Context, "restart.particlefxc", &m_Prototype));
+    dmParticle::HEmitter emitter = dmParticle::CreateEmitter(m_Context, m_Prototype);
     uint16_t index = emitter & 0xffff;
 
     dmParticle::StartEmitter(m_Context, emitter);
@@ -269,8 +268,8 @@ TEST_F(ParticleTest, EvaluateEmitterProperty)
 {
     float dt = 1.0f / 8.0f;
 
-    ASSERT_TRUE(LoadPrototype("emitter_spline.particlefxc", &m_Prototype));
-    dmParticle::HEmitter emitter = dmParticle::CreateEmitter(m_Context, &m_Prototype);
+    ASSERT_TRUE(LoadPrototype(m_Context, "emitter_spline.particlefxc", &m_Prototype));
+    dmParticle::HEmitter emitter = dmParticle::CreateEmitter(m_Context, m_Prototype);
     uint16_t index = emitter & 0xffff;
     dmParticle::Emitter* e = m_Context->m_Emitters[index];
 
@@ -334,8 +333,8 @@ TEST_F(ParticleTest, EvaluateParticleProperty)
 {
     float dt = 1.0f / 8.0f;
 
-    ASSERT_TRUE(LoadPrototype("particle_spline.particlefxc", &m_Prototype));
-    dmParticle::HEmitter emitter = dmParticle::CreateEmitter(m_Context, &m_Prototype);
+    ASSERT_TRUE(LoadPrototype(m_Context, "particle_spline.particlefxc", &m_Prototype));
+    dmParticle::HEmitter emitter = dmParticle::CreateEmitter(m_Context, m_Prototype);
     uint16_t index = emitter & 0xffff;
     dmParticle::Emitter* e = m_Context->m_Emitters[index];
 

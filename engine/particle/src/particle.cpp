@@ -105,15 +105,15 @@ namespace dmParticle
         for (uint32_t j = 0; j < PROPERTY_SAMPLE_COUNT; ++j)
         {
             float y1 = GetY(segments, segments_count, x0 + dx);
-            out_segments[j].x = x0;
-            out_segments[j].y = y0;
-            out_segments[j].k = (y1 - y0) * PROPERTY_SAMPLE_COUNT;
+            out_segments[j].m_X = x0;
+            out_segments[j].m_Y = y0;
+            out_segments[j].m_K = (y1 - y0) * PROPERTY_SAMPLE_COUNT;
             x0 += dx;
             y0 = y1;
         }
     }
 
-    HEmitter CreateEmitter(HContext context, Prototype* prototype)
+    HEmitter CreateEmitter(HContext context, HPrototype prototype)
     {
         if (context->m_EmitterIndexPool.Remaining() == 0)
         {
@@ -140,22 +140,6 @@ namespace dmParticle
         e->m_Particles.SetSize(ddf->m_MaxParticleCount);
         memset(&e->m_Particles.Front(), 0, ddf->m_MaxParticleCount * sizeof(Particle));
         e->m_Timer = 0.0f;
-
-        // Approximate splines with linear segments
-        memset(e->m_Properties, 0, sizeof(e->m_Properties));
-        memset(e->m_ParticleProperties, 0, sizeof(e->m_ParticleProperties));
-        uint32_t prop_count = ddf->m_Properties.m_Count;
-        for (uint32_t i = 0; i < prop_count; ++i)
-        {
-            const dmParticleDDF::Emitter::Property& p = ddf->m_Properties[i];
-            SampleProperty(p.m_Points.m_Data, p.m_Points.m_Count, e->m_Properties[p.m_Key].m_Segments);
-        }
-        prop_count = ddf->m_ParticleProperties.m_Count;
-        for (uint32_t i = 0; i < prop_count; ++i)
-        {
-            const dmParticleDDF::Emitter::ParticleProperty& p = ddf->m_ParticleProperties[i];
-            SampleProperty(p.m_Points.m_Data, p.m_Points.m_Count, e->m_ParticleProperties[p.m_Key].m_Segments);
-        }
 
         return e->m_VersionNumber << 16 | index;
     }
@@ -272,6 +256,7 @@ namespace dmParticle
     {
         float properties[PARTICLE_KEY_COUNT];
         uint32_t count = emitter->m_Particles.Size();
+        Prototype* prototype = emitter->m_Prototype;
         // TODO Optimize this
         for (uint32_t i = 0; i < count; ++i)
         {
@@ -279,10 +264,10 @@ namespace dmParticle
             float x = dmMath::Select(-particle->m_MaxLifeTime, 0.0f, 1.0f - particle->m_TimeLeft * particle->m_ooMaxLifeTime);
             for (uint32_t i = 0; i < PARTICLE_KEY_COUNT; ++i)
             {
-                Property* property = &emitter->m_ParticleProperties[i];
+                Property* property = &prototype->m_ParticleProperties[i];
                 uint32_t segment_index = (uint32_t)(x * PROPERTY_SAMPLE_COUNT);
                 LinearSegment* segment = &property->m_Segments[segment_index];
-                float y = (x - segment->x) * segment->k + segment->y;
+                float y = (x - segment->m_X) * segment->m_K + segment->m_Y;
                 properties[i] = y;
             }
             particle->m_Size = particle->m_SourceSize * properties[PARTICLE_KEY_SCALE];
@@ -397,14 +382,15 @@ namespace dmParticle
 
     static void EvaluateEmitterProperties(Emitter* emitter, float properties[EMITTER_KEY_COUNT])
     {
-        dmParticleDDF::Emitter* ddf = emitter->m_Prototype->m_DDF;
+        Prototype* prototype = emitter->m_Prototype;
+        dmParticleDDF::Emitter* ddf = prototype->m_DDF;
         float x = emitter->m_Timer / ddf->m_Duration;
         for (uint32_t i = 0; i < EMITTER_KEY_COUNT; ++i)
         {
-            Property* property = &emitter->m_Properties[i];
+            Property* property = &prototype->m_Properties[i];
             uint32_t segment_index = (uint32_t)(x * PROPERTY_SAMPLE_COUNT);
             LinearSegment* segment = &property->m_Segments[segment_index];
-            float y = (x - segment->x) * segment->k + segment->y;
+            float y = (x - segment->m_X) * segment->m_K + segment->m_Y;
             properties[i] = y;
         }
     }
@@ -781,9 +767,31 @@ namespace dmParticle
         dmDDF::Result r = dmDDF::LoadMessage<dmParticleDDF::Emitter>(emitter_data, emitter_data_size, &emitter);
         if (r == dmDDF::RESULT_OK)
         {
-
+            if (emitter->m_Material == 0x0 || *emitter->m_Material == '\0'
+                        || emitter->m_Texture.m_Name == 0x0 || *emitter->m_Texture.m_Name == '\0')
+            {
+                dmDDF::FreeMessage(emitter);
+                dmLogError("Failed to load emitter data because of unspecified resources");
+                return 0;
+            }
             Prototype* prototype = new Prototype();
             prototype->m_DDF = emitter;
+            // Approximate splines with linear segments
+            memset(prototype->m_Properties, 0, sizeof(prototype->m_Properties));
+            memset(prototype->m_ParticleProperties, 0, sizeof(prototype->m_ParticleProperties));
+            uint32_t prop_count = emitter->m_Properties.m_Count;
+            for (uint32_t i = 0; i < prop_count; ++i)
+            {
+                const dmParticleDDF::Emitter::Property& p = emitter->m_Properties[i];
+                SampleProperty(p.m_Points.m_Data, p.m_Points.m_Count, prototype->m_Properties[p.m_Key].m_Segments);
+            }
+            prop_count = emitter->m_ParticleProperties.m_Count;
+            for (uint32_t i = 0; i < prop_count; ++i)
+            {
+                const dmParticleDDF::Emitter::ParticleProperty& p = emitter->m_ParticleProperties[i];
+                SampleProperty(p.m_Points.m_Data, p.m_Points.m_Count, prototype->m_ParticleProperties[p.m_Key].m_Segments);
+            }
+
             return prototype;
         }
         else
@@ -793,13 +801,13 @@ namespace dmParticle
         }
     }
 
-    void Particle_DeletePrototype(HContext context, Prototype* prototype)
+    void Particle_DeletePrototype(HContext context, HPrototype prototype)
     {
         dmDDF::FreeMessage(prototype->m_DDF);
         delete prototype;
     }
 
-    DM_PARTICLE_TRAMPOLINE2(HEmitter, CreateEmitter, HContext, Prototype*);
+    DM_PARTICLE_TRAMPOLINE2(HEmitter, CreateEmitter, HContext, HPrototype);
     DM_PARTICLE_TRAMPOLINE2(void, DestroyEmitter, HContext, HEmitter);
 
     DM_PARTICLE_TRAMPOLINE2(void, StartEmitter, HContext, HEmitter);

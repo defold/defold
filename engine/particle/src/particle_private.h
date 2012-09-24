@@ -15,6 +15,8 @@ namespace dmParticle
     /// Number of samples per property (spline => linear segments)
     static const uint32_t PROPERTY_SAMPLE_COUNT     = 64;
 
+    struct Prototype;
+
     /**
      * Representation of a particle.
      *
@@ -42,18 +44,6 @@ namespace dmParticle
         float       m_Alpha;
     };
 
-    struct LinearSegment
-    {
-        float x;
-        float y;
-        float k;
-    };
-
-    struct Property
-    {
-        LinearSegment m_Segments[PROPERTY_SAMPLE_COUNT];
-    };
-
     /**
      * Representation of an emitter.
      */
@@ -79,9 +69,6 @@ namespace dmParticle
 
         }
 
-        // TODO Only store animated properties
-        Property                m_Properties[dmParticleDDF::EMITTER_KEY_COUNT];
-        Property                m_ParticleProperties[dmParticleDDF::PARTICLE_KEY_COUNT];
         /// Emitter resource.
         Prototype*              m_Prototype;
         /// World position of the emitter.
@@ -149,6 +136,45 @@ namespace dmParticle
         /// Version number used to create new handles.
         uint16_t            m_NextVersionNumber;
     };
+
+    struct LinearSegment
+    {
+        float m_X;
+        float m_Y;
+        float m_K;
+    };
+
+    struct Property
+    {
+        LinearSegment m_Segments[PROPERTY_SAMPLE_COUNT];
+    };
+
+    /**
+     * Representation of an emitter resource.
+     *
+     * NOTE The size of the properties-arrays is roughly 10 kB.
+     */
+    struct Prototype
+    {
+        Prototype()
+        : m_DDF(0x0)
+        , m_Texture(0)
+        , m_Material(0)
+        {
+        }
+
+        /// Emitter properties
+        Property                m_Properties[dmParticleDDF::EMITTER_KEY_COUNT];
+        /// Particle properties
+        Property                m_ParticleProperties[dmParticleDDF::PARTICLE_KEY_COUNT];
+        /// DDF structure read from the resource.
+        dmParticleDDF::Emitter* m_DDF;
+        /// Texture to use when rendering particles.
+        void*                   m_Texture;
+        /// Material to use when rendering particles.
+        void*                   m_Material;
+    };
+
 }
 
 #endif // DM_PARTICLE_PRIVATE_H

@@ -18,6 +18,10 @@ namespace dmParticle
      */
     typedef struct Context* HContext;
     /**
+     * Prototype handle
+     */
+    typedef struct Prototype* HPrototype;
+    /**
      * Emitter handle
      */
     typedef uint32_t HEmitter;
@@ -44,25 +48,6 @@ namespace dmParticle
      * Callback to handle rendering of lines for debug purposes
      */
     typedef void (*RenderLineCallback)(void* usercontext, Vectormath::Aos::Point3 start, Vectormath::Aos::Point3 end, Vectormath::Aos::Vector4 color);
-    /**
-     * Representation of an emitter resource.
-     */
-    struct Prototype
-    {
-        Prototype()
-        : m_DDF(0x0)
-        , m_Texture(0)
-        , m_Material(0)
-        {
-        }
-
-        /// DDF structure read from the resource.
-        dmParticleDDF::Emitter* m_DDF;
-        /// Texture to use when rendering particles.
-        void*                   m_Texture;
-        /// Material to use when rendering particles.
-        void*                   m_Material;
-    };
 
 #define DM_PARTICLE_PROTO(ret, name,  ...) \
     \
@@ -91,7 +76,7 @@ namespace dmParticle
      * @param prototype Prototype of the emitter to be created
      * @return Emitter handle, or INVALID_EMITTER when the resource is broken or the context is full.
      */
-    DM_PARTICLE_PROTO(HEmitter, CreateEmitter, HContext context, Prototype* prototype);
+    DM_PARTICLE_PROTO(HEmitter, CreateEmitter, HContext context, HPrototype prototype);
     /**
      * Destroy emitter in the specified context.
      * @param context Context handle, must be valid.
@@ -127,7 +112,7 @@ namespace dmParticle
      * @param position Position of the created emitter.
      * @param rotation Rotation of the created emitter.
      */
-    DM_PARTICLE_PROTO(void, FireAndForget, HContext context, Prototype* prototype, Point3 position, Quat rotation);
+    DM_PARTICLE_PROTO(void, FireAndForget, HContext context, HPrototype prototype, Point3 position, Quat rotation);
 
     /**
      * Set the position of the specified emitter.
@@ -187,8 +172,8 @@ namespace dmParticle
     extern "C"
     {
         // Currently custom for java bindings. Might be changed with the new interface
-        Prototype* Particle_NewPrototype(HContext context, void* emitter_data, uint32_t emitter_data_size);
-        void Particle_DeletePrototype(HContext context, Prototype* prototype);
+        HPrototype Particle_NewPrototype(HContext context, void* emitter_data, uint32_t emitter_data_size);
+        void Particle_DeletePrototype(HContext context, HPrototype prototype);
     }
 
 #undef DM_PARTICLE_PROTO
