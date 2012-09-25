@@ -42,6 +42,7 @@ namespace dmGameSystem
             dmPhysics::HCollisionObject3D m_Object3D;
             dmPhysics::HCollisionObject2D m_Object2D;
         };
+        uint16_t m_Mask;
         uint8_t m_ComponentIndex;
         // True if the physics is 3D
         // This is used to determine physics engine kind and to preserve
@@ -284,6 +285,7 @@ namespace dmGameSystem
                 return false;
             }
         }
+        component->m_Mask = data.m_Mask;
         return true;
     }
 
@@ -751,7 +753,18 @@ namespace dmGameSystem
             uint32_t column = ddf->m_Column;
             uint32_t row = ddf->m_Row;
             uint32_t hull = ddf->m_Hull;
-            dmPhysics::SetGridShapeHull(component->m_Object2D, component->m_Resource->m_TileGridResource->m_GridShapes[ddf->m_Shape], row, column, hull);
+            TileGridResource* tile_grid_resource = component->m_Resource->m_TileGridResource;
+            dmPhysics::SetGridShapeHull(component->m_Object2D, tile_grid_resource->m_GridShapes[ddf->m_Shape], row, column, hull);
+            uint16_t child = column + tile_grid_resource->m_ColumnCount * row;
+            uint16_t group = 0;
+            uint16_t mask = 0;
+            // Hull-index of 0xffffffff is empty cell
+            if (hull != ~0u)
+            {
+                group = GetGroupBitIndex((CollisionWorld*)params.m_World, tile_grid_resource->m_TileSet->m_HullCollisionGroups[hull]);
+                mask = component->m_Mask;
+            }
+            dmPhysics::SetCollisionObjectFilter(component->m_Object2D, ddf->m_Shape, child, group, mask);
         }
         return dmGameObject::UPDATE_RESULT_OK;
     }
