@@ -12,7 +12,7 @@ def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = Tru
     Task.simple_task_type(name, cmd, before=before, shell=shell, color=color)
     declare_extension([ext], create)
 
-create_simple_protoc_task('particle_fx', '.particlefx', '.particlefxc', 'dmParticleDDF.Emitter', before='cc cxx')
+create_simple_protoc_task('particle_fx', '.particlefx', '.particlefxc', 'dmParticleDDF.ParticleFX', before='cc cxx')
 
 def build(bld):
     test_particle = bld.new_task_gen(features = 'cc cxx cprogram',

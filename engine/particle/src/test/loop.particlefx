@@ -1,10 +1,13 @@
-mode:               PLAY_MODE_LOOP
-space:              EMISSION_SPACE_WORLD
-rotation:           { x: 0 y: 0 z: 0 w: 1 }
+emitters: {
+    mode:               PLAY_MODE_LOOP
+    space:              EMISSION_SPACE_WORLD
+    position:           { x: 0 y: 0 z: 0 }
+    rotation:           { x: 0 y: 0 z: 0 w: 1 }
 
-material:           "particle.material"
-texture:            { name: "tiny_explosion.texture" t_x: 8 t_y: 8 }
+    material:           "particle.material"
+    texture:            { name: "tiny_explosion.texture" t_x: 8 t_y: 8 }
 
-max_particle_count: 1
+    max_particle_count: 1
 
-type:               EMITTER_TYPE_CONE
+    type:               EMITTER_TYPE_CONE
+}
