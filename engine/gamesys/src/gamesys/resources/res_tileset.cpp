@@ -6,6 +6,56 @@
 
 namespace dmGameSystem
 {
+
+    static void CalculateTexCoord(uint32_t tile_x, uint32_t tile_y, dmGameSystemDDF::TileSet* tile_set_ddf, float recip_tex_width, float recip_tex_height, float out_v[4])
+    {
+        uint32_t u0 = tile_x * (tile_set_ddf->m_TileSpacing + 2 * tile_set_ddf->m_TileMargin + tile_set_ddf->m_TileWidth) + tile_set_ddf->m_TileMargin;
+        uint32_t u1 = u0 + tile_set_ddf->m_TileWidth;
+        uint32_t v1 = tile_y * (tile_set_ddf->m_TileSpacing + 2 * tile_set_ddf->m_TileMargin + tile_set_ddf->m_TileHeight) + tile_set_ddf->m_TileMargin;
+        uint32_t v0 = v1 + tile_set_ddf->m_TileHeight;
+        out_v[0] = u0 * recip_tex_width;
+        out_v[1] = v0 * recip_tex_height;
+        out_v[2] = u1 * recip_tex_width;
+        out_v[3] = v1 * recip_tex_height;
+    }
+
+    void CalculateTexCoords(TileSetResource* tile_set)
+    {
+        dmGameSystemDDF::TileSet* tile_set_ddf = tile_set->m_TileSet;
+
+        dmGraphics::HTexture texture = tile_set->m_Texture;
+        uint32_t texture_width = dmGraphics::GetTextureWidth(texture);
+        uint32_t texture_height = dmGraphics::GetTextureHeight(texture);
+        float recip_tex_width = 1.0f / texture_width;
+        float recip_tex_height = 1.0f / texture_height;
+
+        uint32_t tiles_x = 0;
+        uint32_t tiles_y = 0;
+        uint32_t actual_tile_width = (2 * tile_set_ddf->m_TileMargin + tile_set_ddf->m_TileSpacing + tile_set_ddf->m_TileWidth);
+        if (actual_tile_width > 0)
+        {
+            tiles_x = (texture_width + tile_set_ddf->m_TileSpacing) / actual_tile_width;
+        }
+
+        uint32_t actual_tile_height = (2 * tile_set_ddf->m_TileMargin + tile_set_ddf->m_TileSpacing + tile_set_ddf->m_TileWidth);
+        if (actual_tile_height > 0)
+        {
+            tiles_y = (texture_height + tile_set_ddf->m_TileSpacing) / actual_tile_height;
+        }
+
+        dmArray<float>& tex_coords = tile_set->m_TexCoords;
+        tex_coords.SetCapacity(tiles_x * tiles_y * 4);
+        float uv[4];
+        for (uint32_t y = 0; y < tiles_y; ++y)
+        {
+            for (uint32_t x = 0; x < tiles_x; ++x)
+            {
+                CalculateTexCoord(x, y, tile_set_ddf, recip_tex_width, recip_tex_height, uv);
+                tex_coords.PushArray(uv, 4);
+            }
+        }
+    }
+
     dmResource::Result AcquireResources(dmPhysics::HContext2D context, dmResource::HFactory factory, const void* buffer, uint32_t buffer_size,
                           TileSetResource* tile_set, const char* filename)
     {
@@ -58,6 +108,8 @@ namespace dmGameSystem
             {
                 tile_set->m_AnimationIds.Push(dmHashString64(tile_set_ddf->m_Animations[i].m_Id));
             }
+
+            CalculateTexCoords(tile_set);
         }
         else
         {
