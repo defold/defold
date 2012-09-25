@@ -20,6 +20,7 @@ namespace dmGameSystem
             memset(this, 0, sizeof(*this));
         }
 
+        dmArray<float>              m_TexCoords;
         dmArray<dmhash_t>           m_HullCollisionGroups;
         dmArray<dmhash_t>           m_AnimationIds;
         dmGraphics::HTexture        m_Texture;
