@@ -125,7 +125,10 @@ namespace dmParticle
         {
             m_Instances.SetCapacity(max_instance_count);
             m_Instances.SetSize(max_instance_count);
-            memset(&m_Instances.Front(), 0, max_instance_count * sizeof(Instance*));
+            if (max_instance_count > 0)
+            {
+                memset(&m_Instances.Front(), 0, max_instance_count * sizeof(Instance*));
+            }
             m_InstanceIndexPool.SetCapacity(max_instance_count);
 
             m_MaxParticleCount = max_particle_count;
