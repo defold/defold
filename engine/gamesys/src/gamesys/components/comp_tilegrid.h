@@ -8,6 +8,14 @@
 
 namespace dmGameSystem
 {
+    struct TileGridRegion
+    {
+        dmRender::RenderObject    m_RenderObject;
+        void*                     m_ClientBuffer;
+        uint32_t                  m_ClientBufferSize;
+        uint32_t                  m_Dirty : 1;
+    };
+
     struct TileGrid
     {
         struct Layer
@@ -18,12 +26,13 @@ namespace dmGameSystem
 
         TileGrid();
 
-        // TODO: Batch multiple grids into shared ROs
-        dmRender::RenderObject      m_RenderObject;
         dmArray<Layer>              m_Layers;
         dmGameObject::HInstance     m_Instance;
         TileGridResource*           m_TileGridResource;
         uint16_t*                   m_Cells;
+        uint16_t                    m_RegionsX;
+        uint16_t                    m_RegionsY;
+        dmArray<TileGridRegion>     m_Regions;
     };
 
     struct TileGridWorld
@@ -34,7 +43,6 @@ namespace dmGameSystem
         }
 
         dmArray<TileGrid*>              m_TileGrids;
-        dmGraphics::HVertexBuffer       m_VertexBuffer;
         dmGraphics::HVertexDeclaration  m_VertexDeclaration;
         dmRender::HMaterial             m_Material;
         dmGraphics::HVertexProgram      m_VertexProgram;

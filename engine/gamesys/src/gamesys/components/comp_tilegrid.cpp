@@ -1,10 +1,13 @@
 #include "comp_tilegrid.h"
 //#include "resources/res_light.h"
 
+#include <new>
 #include <dlib/log.h>
 #include <dlib/hash.h>
 #include <dlib/message.h>
 #include <dlib/dstrings.h>
+#include <dlib/math.h>
+#include <dlib/time.h>
 #include <graphics/graphics.h>
 #include <render/render.h>
 #include <gameobject/gameobject.h>
@@ -23,6 +26,11 @@ extern uint32_t TILE_MAP_FPC_SIZE;
 namespace dmGameSystem
 {
     using namespace Vectormath::Aos;
+
+    // Number of tiles in a region. A region is a subset of a tile-grid.
+    // Tile-grids are divied into regions to reduce the vertex buffer creation cost
+    const uint32_t TILEGRID_REGION_WIDTH = 32;
+    const uint32_t TILEGRID_REGION_HEIGHT = 32;
 
     TileGrid::TileGrid()
     : m_Instance(0)
@@ -46,7 +54,6 @@ namespace dmGameSystem
                 {"texcoord0", 1, 2, dmGraphics::TYPE_FLOAT},
         };
         world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
-        world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(render_context), 0, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
 
         world->m_VertexProgram = dmGraphics::NewVertexProgram(dmRender::GetGraphicsContext(render_context), TILE_MAP_VPC, TILE_MAP_VPC_SIZE);
         world->m_FragmentProgram = dmGraphics::NewFragmentProgram(dmRender::GetGraphicsContext(render_context), TILE_MAP_FPC, TILE_MAP_FPC_SIZE);
@@ -68,7 +75,6 @@ namespace dmGameSystem
             delete [] (char*)world->m_ClientBuffer;
         dmRender::DeleteMaterial(render_context, world->m_Material);
         dmGraphics::DeleteVertexDeclaration(world->m_VertexDeclaration);
-        dmGraphics::DeleteVertexBuffer(world->m_VertexBuffer);
         dmGraphics::DeleteVertexProgram(world->m_VertexProgram);
         dmGraphics::DeleteFragmentProgram(world->m_FragmentProgram);
         delete world;
@@ -139,17 +145,35 @@ namespace dmGameSystem
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
 
-        dmRender::RenderObject* ro = &tile_grid->m_RenderObject;
-        ro->m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_SRC_ALPHA;
-        ro->m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-        ro->m_SetBlendFactors = 1;
-        ro->m_VertexDeclaration = world->m_VertexDeclaration;
-        ro->m_VertexBuffer = world->m_VertexBuffer;
-        ro->m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
-        ro->m_Material = world->m_Material;
-        ro->m_CalculateDepthKey = 1;
-        world->m_TileGrids.Push(tile_grid);
+        // Round up to closest multiple
+        tile_grid->m_RegionsX = ((resource->m_ColumnCount + TILEGRID_REGION_WIDTH - 1) / TILEGRID_REGION_WIDTH);
+        tile_grid->m_RegionsY = ((resource->m_RowCount + TILEGRID_REGION_HEIGHT - 1) / TILEGRID_REGION_HEIGHT);
+        uint32_t region_count = tile_grid->m_RegionsX * tile_grid->m_RegionsY;
 
+        tile_grid->m_Regions.SetCapacity(region_count);
+        tile_grid->m_Regions.SetSize(region_count);
+
+        for (uint32_t i = 0; i < region_count; ++i)
+        {
+            TileGridRegion* region = &tile_grid->m_Regions[i];
+            memset(region, 0, sizeof(*region));
+            region->m_Dirty = 1;
+
+            dmRender::RenderObject* ro = &region->m_RenderObject;
+            // NOTE: Run constructor explicitly with placement new
+            new(ro) dmRender::RenderObject;
+
+            ro->m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_SRC_ALPHA;
+            ro->m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+            ro->m_SetBlendFactors = 1;
+            ro->m_VertexDeclaration = world->m_VertexDeclaration;
+            ro->m_VertexBuffer = 0;
+            ro->m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
+            ro->m_Material = world->m_Material;
+            ro->m_CalculateDepthKey = 1;
+        }
+
+        world->m_TileGrids.Push(tile_grid);
         *params.m_UserData = (uintptr_t) tile_grid;
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -162,6 +186,17 @@ namespace dmGameSystem
         {
             if (world->m_TileGrids[i] == tile_grid)
             {
+                dmArray<TileGridRegion>& regions = tile_grid->m_Regions;
+                uint32_t n_regions = regions.Size();
+                for (uint32_t ir = 0; ir < n_regions; ++ir)
+                {
+                    dmRender::RenderObject* ro = &regions[ir].m_RenderObject;
+                    if (ro->m_VertexBuffer)
+                    {
+                        dmGraphics::DeleteVertexBuffer(ro->m_VertexBuffer);
+                    }
+                }
+
                 delete [] tile_grid->m_Cells;
                 world->m_TileGrids.EraseSwap(i);
                 delete tile_grid;
@@ -172,17 +207,7 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
     }
 
-    uint32_t CalculateTileCount(uint32_t tile_size, uint32_t image_size, uint32_t tile_margin, uint32_t tile_spacing)
-    {
-        uint32_t actual_tile_size = (2 * tile_margin + tile_spacing + tile_size);
-        if (actual_tile_size > 0) {
-            return (image_size + tile_spacing)/actual_tile_size;
-        } else {
-            return 0;
-        }
-    }
-
-    void CalculateCellBounds(int32_t cell_x, int32_t cell_y, int32_t cell_width, int32_t cell_height, float out_v[4])
+    static void CalculateCellBounds(int32_t cell_x, int32_t cell_y, int32_t cell_width, int32_t cell_height, float out_v[4])
     {
         out_v[0] = cell_x * cell_width;
         out_v[1] = cell_y * cell_height;
@@ -190,18 +215,131 @@ namespace dmGameSystem
         out_v[3] = (cell_y + 1) * cell_height;
     }
 
-    void CalculateTileTexCoords(uint32_t tile_index, dmGameSystemDDF::TileSet* tile_set_ddf, uint32_t tiles_per_row, float recip_tex_width, float recip_tex_height, float out_v[4])
+    void CompTileGridUpdateRegion(dmRender::HRenderContext render_context, TileGrid* tile_grid, uint32_t region_x, uint32_t region_y)
     {
-        uint32_t tile_x = tile_index % tiles_per_row;
-        uint32_t tile_y = tile_index / tiles_per_row;
-        uint32_t u0 = tile_x * (tile_set_ddf->m_TileSpacing + 2 * tile_set_ddf->m_TileMargin + tile_set_ddf->m_TileWidth) + tile_set_ddf->m_TileMargin;
-        uint32_t u1 = u0 + tile_set_ddf->m_TileWidth;
-        uint32_t v1 = tile_y * (tile_set_ddf->m_TileSpacing + 2 * tile_set_ddf->m_TileMargin + tile_set_ddf->m_TileHeight) + tile_set_ddf->m_TileMargin;
-        uint32_t v0 = v1 + tile_set_ddf->m_TileHeight;
-        out_v[0] = u0 * recip_tex_width;
-        out_v[1] = v0 * recip_tex_height;
-        out_v[2] = u1 * recip_tex_width;
-        out_v[3] = v1 * recip_tex_height;
+        TileGridResource* resource = tile_grid->m_TileGridResource;
+        uint32_t region_index = region_y * tile_grid->m_RegionsX + region_x;
+        TileGridRegion* region = &tile_grid->m_Regions[region_index];
+        if (!region->m_Dirty)
+        {
+            return;
+        }
+
+        region->m_Dirty = false;
+
+        dmGameSystemDDF::TileGrid* tile_grid_ddf = resource->m_TileGrid;
+        dmGameSystemDDF::TileSet* tile_set_ddf = resource->m_TileSet->m_TileSet;
+
+        // TODO Cull against screen
+        uint32_t column_count = resource->m_ColumnCount;
+        uint32_t row_count = resource->m_RowCount;
+        int32_t min_x = resource->m_MinCellX + region_x * TILEGRID_REGION_WIDTH;
+        int32_t min_y = resource->m_MinCellY + region_y * TILEGRID_REGION_HEIGHT;
+        int32_t max_x = dmMath::Min(min_x + TILEGRID_REGION_WIDTH, resource->m_MinCellX + column_count);
+        int32_t max_y = dmMath::Min(min_y + TILEGRID_REGION_HEIGHT, resource->m_MinCellY + row_count);
+
+        dmArray<TileGrid::Layer>& layers = tile_grid->m_Layers;
+        uint32_t layer_count = layers.Size();
+
+        uint32_t visible_tiles = 0;
+        for (uint32_t j = 0; j < layer_count; ++j)
+        {
+            TileGrid::Layer* layer = &layers[j];
+            if (layer->m_Visible)
+            {
+                for (int32_t y = min_y; y < max_y; ++y)
+                {
+                    for (int32_t x = min_x; x < max_x; ++x)
+                    {
+                        uint32_t cell = CalculateCellIndex(j, x - resource->m_MinCellX, y - resource->m_MinCellY, column_count, row_count);
+                        uint16_t tile = tile_grid->m_Cells[cell];
+                        if (tile != 0xffff)
+                        {
+                            ++visible_tiles;
+                        }
+                    }
+                }
+            }
+        }
+
+        struct Vertex
+        {
+            float x;
+            float y;
+            float z;
+            float u;
+            float v;
+        };
+
+        const uint32_t VERTCIES_PER_TILE = 6;
+
+        uint32_t buffer_size = sizeof(Vertex) * VERTCIES_PER_TILE * visible_tiles;
+        if (region->m_ClientBufferSize < buffer_size)
+        {
+            if (region->m_ClientBuffer != 0x0)
+            {
+                delete [] (char*)region->m_ClientBuffer;
+            }
+
+            const uint32_t margin = 16;
+            uint32_t allocation_size = sizeof(Vertex) * VERTCIES_PER_TILE * (visible_tiles + margin);
+            region->m_ClientBuffer = new char[allocation_size];
+            region->m_ClientBufferSize = allocation_size;
+        }
+
+        Vertex* v = &((Vertex*)region->m_ClientBuffer)[0];
+        float p[4];
+        float t[4];
+
+        uint32_t vertex_count = 0;
+        dmArray<float>& tex_coords = resource->m_TileSet->m_TexCoords;
+
+        for (uint32_t j = 0; j < layer_count; ++j)
+        {
+            TileGrid::Layer* layer = &layers[j];
+            if (layer->m_Visible)
+            {
+                float z = tile_grid_ddf->m_Layers[j].m_Z;
+                for (int32_t y = min_y; y < max_y; ++y)
+                {
+                    for (int32_t x = min_x; x < max_x; ++x)
+                    {
+                        uint32_t cell = CalculateCellIndex(j, x - resource->m_MinCellX, y - resource->m_MinCellY, column_count, row_count);
+                        uint16_t tile = tile_grid->m_Cells[cell];
+                        if (tile != 0xffff)
+                        {
+                            CalculateCellBounds(x, y, tile_set_ddf->m_TileWidth, tile_set_ddf->m_TileHeight, p);
+                            float* puv = &tex_coords[tile * 4];
+                            t[0] = puv[0];
+                            t[1] = puv[1];
+                            t[2] = puv[2];
+                            t[3] = puv[3];
+
+                            v->x = p[0]; v->y = p[1]; v->z = z; v->u = t[0]; v->v = t[1]; ++v;
+                            v->x = p[0]; v->y = p[3]; v->z = z; v->u = t[0]; v->v = t[3]; ++v;
+                            v->x = p[2]; v->y = p[3]; v->z = z; v->u = t[2]; v->v = t[3]; ++v;
+                            v->x = p[0]; v->y = p[1]; v->z = z; v->u = t[0]; v->v = t[1]; ++v;
+                            v->x = p[2]; v->y = p[3]; v->z = z; v->u = t[2]; v->v = t[3]; ++v;
+                            v->x = p[2]; v->y = p[1]; v->z = z; v->u = t[2]; v->v = t[1]; ++v;
+                            vertex_count += VERTCIES_PER_TILE;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Clear the data to avoid locks (according to internet rumors)
+        dmRender::RenderObject* ro = &region->m_RenderObject;
+
+        if (ro->m_VertexBuffer == 0)
+        {
+            ro->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(render_context), 0, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        }
+        ro->m_VertexStart = 0;
+        ro->m_VertexCount = vertex_count;
+
+        dmGraphics::SetVertexBufferData(ro->m_VertexBuffer, 0, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        dmGraphics::SetVertexBufferData(ro->m_VertexBuffer, vertex_count * sizeof(Vertex), region->m_ClientBuffer, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
     }
 
     dmGameObject::UpdateResult CompTileGridUpdate(const dmGameObject::ComponentsUpdateParams& params)
@@ -212,110 +350,31 @@ namespace dmGameSystem
         dmArray<TileGrid*>& tile_grids = world->m_TileGrids;
         uint32_t n = tile_grids.Size();
 
-        // Count cells
-        uint32_t max_cell_count = 0;
         for (uint32_t i = 0; i < n; ++i)
         {
             TileGrid* tile_grid = tile_grids[i];
             TileGridResource* resource = tile_grid->m_TileGridResource;
-            max_cell_count += resource->m_ColumnCount * resource->m_RowCount * resource->m_TileGrid->m_Layers.m_Count;
-        }
-        if (max_cell_count > 0)
-        {
-            // TODO: Reuse vertices for neighbouring cells?
-            uint32_t max_vertex_count = 6 * max_cell_count;
-            struct Vertex
-            {
-                float x;
-                float y;
-                float z;
-                float u;
-                float v;
-            };
-            // Recreate client buffer
-            uint32_t buffer_size = sizeof(Vertex) * max_vertex_count;
-            if (world->m_ClientBufferSize < buffer_size)
-            {
-                if (world->m_ClientBuffer != 0x0)
-                {
-                    delete [] (char*)world->m_ClientBuffer;
-                }
-                world->m_ClientBuffer = new char[buffer_size];
-                world->m_ClientBufferSize = buffer_size;
-            }
-            // Build vertex data
-            uint32_t vertex_index = 0;
-            for (uint32_t i = 0; i < n; ++i)
-            {
-                TileGrid* tile_grid = tile_grids[i];
-                TileGridResource* resource = tile_grid->m_TileGridResource;
-                dmGameSystemDDF::TileGrid* tile_grid_ddf = resource->m_TileGrid;
-                uint32_t vertex_count = 0;
-                dmGameSystemDDF::TileSet* tile_set_ddf = resource->m_TileSet->m_TileSet;
-                dmGraphics::HTexture texture = resource->m_TileSet->m_Texture;
-                uint32_t texture_width = dmGraphics::GetTextureWidth(texture);
-                uint32_t texture_height = dmGraphics::GetTextureHeight(texture);
-                float recip_tex_width = 1.0f / texture_width;
-                float recip_tex_height = 1.0f / texture_height;
-                uint32_t tiles_per_row = CalculateTileCount(tile_set_ddf->m_TileWidth, texture_width, tile_set_ddf->m_TileMargin, tile_set_ddf->m_TileSpacing);
-                Vertex* v = &((Vertex*)world->m_ClientBuffer)[vertex_index];
-                float p[4];
-                float t[4];
+            dmGraphics::HTexture texture = resource->m_TileSet->m_Texture;
 
-                // TODO Cull against screen
-                uint32_t column_count = resource->m_ColumnCount;
-                uint32_t row_count = resource->m_RowCount;
-                int32_t min_x = resource->m_MinCellX;
-                int32_t min_y = resource->m_MinCellY;
-                int32_t max_x = min_x + column_count;
-                int32_t max_y = min_y + resource->m_RowCount;
-
-                dmArray<TileGrid::Layer>& layers = tile_grid->m_Layers;
-                uint32_t layer_count = layers.Size();
-                for (uint32_t j = 0; j < layer_count; ++j)
+            for (uint32_t rx = 0; rx < tile_grid->m_RegionsX; ++rx)
+            {
+                for (uint32_t ry = 0; ry < tile_grid->m_RegionsY; ++ry)
                 {
-                    TileGrid::Layer* layer = &layers[j];
-                    if (layer->m_Visible)
+                    CompTileGridUpdateRegion(render_context, tile_grid, rx, ry);
+
+                    uint32_t region_index = ry * tile_grid->m_RegionsX + rx;
+                    TileGridRegion* region = &tile_grid->m_Regions[region_index];
+                    dmRender::RenderObject* ro = &region->m_RenderObject;
+                    if (ro->m_VertexCount > 0)
                     {
-                        float z = tile_grid_ddf->m_Layers[j].m_Z;
-                        for (int32_t y = min_y; y < max_y; ++y)
-                        {
-                            for (int32_t x = min_x; x < max_x; ++x)
-                            {
-                                uint32_t cell = CalculateCellIndex(j, x - min_x, y - min_y, column_count, row_count);
-                                uint16_t tile = tile_grid->m_Cells[cell];
-                                if (tile != 0xffff)
-                                {
-                                    CalculateCellBounds(x, y, tile_set_ddf->m_TileWidth, tile_set_ddf->m_TileHeight, p);
-                                    CalculateTileTexCoords(tile, tile_set_ddf, tiles_per_row, recip_tex_width, recip_tex_height, t);
-                                    v->x = p[0]; v->y = p[1]; v->z = z; v->u = t[0]; v->v = t[1]; ++v;
-                                    v->x = p[0]; v->y = p[3]; v->z = z; v->u = t[0]; v->v = t[3]; ++v;
-                                    v->x = p[2]; v->y = p[3]; v->z = z; v->u = t[2]; v->v = t[3]; ++v;
-                                    v->x = p[0]; v->y = p[1]; v->z = z; v->u = t[0]; v->v = t[1]; ++v;
-                                    v->x = p[2]; v->y = p[3]; v->z = z; v->u = t[2]; v->v = t[3]; ++v;
-                                    v->x = p[2]; v->y = p[1]; v->z = z; v->u = t[2]; v->v = t[1]; ++v;
-                                    vertex_count += 6;
-                                }
-                            }
-                        }
+                        Matrix4 world = Matrix4::rotation(dmGameObject::GetWorldRotation(tile_grid->m_Instance));
+                        world.setCol3(Vector4(dmGameObject::GetWorldPosition(tile_grid->m_Instance)));
+                        ro->m_WorldTransform = world;
+                        ro->m_Textures[0] = texture;
+                        dmRender::AddToRender(render_context, ro);
                     }
                 }
-                if (vertex_count > 0)
-                {
-                    dmRender::RenderObject* ro = &tile_grid->m_RenderObject;
-                    ro->m_VertexStart = vertex_index;
-                    ro->m_VertexCount = vertex_count;
-                    Matrix4 world = Matrix4::rotation(dmGameObject::GetWorldRotation(tile_grid->m_Instance));
-                    world.setCol3(Vector4(dmGameObject::GetWorldPosition(tile_grid->m_Instance)));
-                    ro->m_WorldTransform = world;
-                    ro->m_Textures[0] = texture;
-                    vertex_index += vertex_count;
-                    dmRender::AddToRender(render_context, ro);
-                }
             }
-            // Clear the data to avoid locks (according to internet rumors)
-            dmGraphics::SetVertexBufferData(world->m_VertexBuffer, 0, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-            dmGraphics::SetVertexBufferData(world->m_VertexBuffer, vertex_index * sizeof(Vertex), world->m_ClientBuffer, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         }
         return dmGameObject::UPDATE_RESULT_OK;
     }
@@ -356,6 +415,12 @@ namespace dmGameSystem
                 return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
             }
             uint32_t cell_index = CalculateCellIndex(layer_index, cell_x, cell_y, resource->m_ColumnCount, resource->m_RowCount);
+            uint32_t region_x = cell_x / TILEGRID_REGION_WIDTH;
+            uint32_t region_y = cell_y / TILEGRID_REGION_HEIGHT;
+            uint32_t region_index = region_y * tile_grid->m_RegionsX + region_x;
+            TileGridRegion* region = &tile_grid->m_Regions[region_index];
+            region->m_Dirty = true;
+
             /*
              * NOTE AND BEWARE: Empty tile is encoded as 0xffffffff
              * That's why tile-index is subtracted by 1
