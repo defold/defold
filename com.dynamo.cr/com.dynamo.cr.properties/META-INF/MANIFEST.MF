@@ -16,4 +16,5 @@ Require-Bundle: org.eclipse.core.resources;bundle-version="3.6.0",
  com.dynamo.cr.editor.core;bundle-version="1.0.0",
  com.dynamo.cr.editor.ui;bundle-version="1.0.0"
 Export-Package: com.dynamo.cr.properties,
- com.dynamo.cr.properties.descriptors
+ com.dynamo.cr.properties.descriptors,
+ com.dynamo.cr.properties.types

@@ -1,7 +1,7 @@
 Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
 Bundle-Name: Parted
-Bundle-SymbolicName: com.dynamo.cr.parted
+Bundle-SymbolicName: com.dynamo.cr.parted;singleton:=true
 Bundle-Version: 1.0.0.qualifier
 Bundle-Activator: com.dynamo.cr.parted.ParticleEditorPlugin
 Bundle-Vendor: DYNAMO

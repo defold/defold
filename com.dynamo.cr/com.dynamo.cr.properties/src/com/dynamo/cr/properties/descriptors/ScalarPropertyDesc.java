@@ -5,8 +5,10 @@ import java.util.List;
 
 import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.core.resources.IContainer;
+import org.eclipse.jface.resource.ColorRegistry;
+import org.eclipse.jface.resource.JFaceResources;
 import org.eclipse.swt.SWT;
-import org.eclipse.swt.graphics.Color;
+import org.eclipse.swt.graphics.RGB;
 import org.eclipse.swt.widgets.Combo;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
@@ -26,9 +28,22 @@ public abstract class ScalarPropertyDesc<S, T, U extends IPropertyObjectWorld> e
 
     private EditorType editorType;
 
+    public static final String BACKGROUND_COLOR_KEY = "com.dynamo.cr.properties.BACKGROUND_COLOR";
+    public static final String OVERRIDDEN_COLOR_KEY = "com.dynamo.cr.properties.OVERRIDDEN_COLOR";
+
     public ScalarPropertyDesc(String id, String name, EditorType editorType) {
         super(id, name);
         this.editorType = editorType;
+
+        // NOTE: A temporary solution in order to avoid memory leaks (Color)
+        // A ColorRegistry should probably be passed in the constructor or similar for theming support
+        ColorRegistry r = JFaceResources.getColorRegistry();
+
+        if (!r.hasValueFor(BACKGROUND_COLOR_KEY))
+            r.put(BACKGROUND_COLOR_KEY, new RGB(255, 255, 255));
+
+        if (!r.hasValueFor(OVERRIDDEN_COLOR_KEY))
+            r.put(OVERRIDDEN_COLOR_KEY, new RGB(214, 230, 255));
     }
 
     public abstract S fromString(String text);
@@ -126,6 +141,9 @@ public abstract class ScalarPropertyDesc<S, T, U extends IPropertyObjectWorld> e
             getControl().setEnabled(editable);
             S firstValue = (S) models[0].getPropertyValue(getId());
             boolean overridden = models[0].isPropertyOverridden(getId());
+
+            ColorRegistry colorRegistry = JFaceResources.getColorRegistry();
+
             for (int i = 1; i < models.length; ++i) {
                 if (models[i].isPropertyOverridden(getId())) {
                     overridden = true;
@@ -133,16 +151,16 @@ public abstract class ScalarPropertyDesc<S, T, U extends IPropertyObjectWorld> e
                 S value = (S) models[i].getPropertyValue(getId());
                 if (!firstValue.equals(value)) {
                     widget.setText("");
-                    widget.getControl().setBackground(new Color(getControl().getDisplay(), 255, 255, 255));
+                    widget.getControl().setBackground(colorRegistry.get(BACKGROUND_COLOR_KEY));
                     oldValue = "";
                     return;
                 }
             }
             widget.setText(firstValue.toString());
             if (overridden) {
-                widget.getControl().setBackground(new Color(getControl().getDisplay(), 214, 230, 255));
+                widget.getControl().setBackground(colorRegistry.get(OVERRIDDEN_COLOR_KEY));
             } else {
-                widget.getControl().setBackground(new Color(getControl().getDisplay(), 255, 255, 255));
+                widget.getControl().setBackground(colorRegistry.get(BACKGROUND_COLOR_KEY));
             }
             oldValue = firstValue.toString();
         }

@@ -32,8 +32,10 @@ import com.dynamo.cr.properties.descriptors.Quat4PropertyDesc;
 import com.dynamo.cr.properties.descriptors.RGBPropertyDesc;
 import com.dynamo.cr.properties.descriptors.ResourcePropertyDesc;
 import com.dynamo.cr.properties.descriptors.TextPropertyDesc;
+import com.dynamo.cr.properties.descriptors.ValueSpreadPropertyDesc;
 import com.dynamo.cr.properties.descriptors.Vector3PropertyDesc;
 import com.dynamo.cr.properties.descriptors.Vector4PropertyDesc;
+import com.dynamo.cr.properties.types.ValueSpread;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 import com.google.protobuf.ProtocolMessageEnum;
@@ -107,6 +109,8 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
                             descriptor = new Vector3PropertyDesc<T, U>(propertyId, propertyDisplayName);
                         } else if (field.getType() == Point3d.class) {
                             descriptor = new Point3PropertyDesc<T, U>(propertyId, propertyDisplayName);
+                        } else if (field.getType() == ValueSpread.class) {
+                            descriptor = new ValueSpreadPropertyDesc<T, U>(propertyId, propertyDisplayName);
                         } else if (field.getType() == RGB.class) {
                             descriptor = new RGBPropertyDesc<T, U>(propertyId, propertyDisplayName);
                         } else if (field.getType() == Double.TYPE) {
