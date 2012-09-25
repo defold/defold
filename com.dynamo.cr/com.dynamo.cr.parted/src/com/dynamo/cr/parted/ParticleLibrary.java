@@ -13,23 +13,35 @@ public class ParticleLibrary {
         Native.register("particle_shared");
     }
 
-    public interface RenderEmitterCallback extends Callback {
-        void invoke(Pointer userContext, Vector3 position, Pointer material, Pointer texture, int vertexIndex, int vertexCount);
+    public interface RenderInstanceCallback extends Callback {
+        void invoke(Pointer userContext, Pointer material, Pointer texture, int vertexIndex, int vertexCount);
     }
 
-    public static native Pointer Particle_NewPrototype(Pointer context, Buffer emitter_data, int emitterDataSize);
-    public static native void Particle_DeletePrototype(Pointer context, Pointer prototype);
+    public static native Pointer Particle_NewPrototype(Buffer emitterData, int emitterDataSize);
+
+    public static native void Particle_DeletePrototype(Pointer prototype);
+
     public static native Pointer Particle_CreateContext(int maxEmitterCount, int maxParticleCount);
+
     public static native Pointer Particle_DestroyContext(Pointer context);
-    public static native Pointer Particle_CreateEmitter(Pointer context, Pointer prototype);
-    public static native void Particle_DestroyEmitter(Pointer context, Pointer emitter);
-    public static native void Particle_StartEmitter(Pointer context, Pointer emitter);
-    public static native void Particle_StopEmitter(Pointer context, Pointer emitter);
-    public static native void Particle_RestartEmitter(Pointer context, Pointer emitter);
-    public static native void Particle_SetPosition(Pointer context, Pointer emitter, Vector3 position);
-    public static native void Particle_SetRotation(Pointer context, Pointer emitter, Quat rotation);
+
+    public static native Pointer Particle_CreateInstance(Pointer context, Pointer prototype);
+
+    public static native void Particle_DestroyInstance(Pointer context, Pointer instance);
+
+    public static native void Particle_StartInstance(Pointer context, Pointer instance);
+
+    public static native void Particle_StopInstance(Pointer context, Pointer instance);
+
+    public static native void Particle_RestartInstance(Pointer context, Pointer instance);
+
+    public static native void Particle_SetPosition(Pointer context, Pointer instance, Vector3 position);
+
+    public static native void Particle_SetRotation(Pointer context, Pointer instance, Quat rotation);
+
     public static native void Particle_Update(Pointer context, float dt, Buffer vertexBuffer, int vertexBufferSize, IntByReference outVertexBufferSize);
-    public static native void Particle_Render(Pointer context, Pointer userContext, RenderEmitterCallback callback);
+
+    public static native void Particle_Render(Pointer context, Pointer userContext, RenderInstanceCallback callback);
 
     public static class Vector3 extends Structure {
 

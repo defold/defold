@@ -14,11 +14,12 @@ import org.junit.Test;
 
 import com.dynamo.cr.parted.ParticleLibrary;
 import com.dynamo.cr.parted.ParticleLibrary.Quat;
-import com.dynamo.cr.parted.ParticleLibrary.RenderEmitterCallback;
+import com.dynamo.cr.parted.ParticleLibrary.RenderInstanceCallback;
 import com.dynamo.cr.parted.ParticleLibrary.Vector3;
 import com.dynamo.particle.proto.Particle.EmissionSpace;
 import com.dynamo.particle.proto.Particle.Emitter;
 import com.dynamo.particle.proto.Particle.EmitterType;
+import com.dynamo.particle.proto.Particle.ParticleFX;
 import com.dynamo.particle.proto.Particle.PlayMode;
 import com.dynamo.particle.proto.Particle.Texture_t;
 import com.sun.jna.Pointer;
@@ -28,6 +29,7 @@ public class ParticleSystemTest {
 
     private Pointer context;
 
+    private static final int MAX_PARTICLE_COUNT = 1024;
 
     @Before
     public void setUp() throws Exception {
@@ -37,7 +39,7 @@ public class ParticleSystemTest {
             Display.getDefault();
         }
 
-        context = ParticleLibrary.Particle_CreateContext(32, 1024);
+        context = ParticleLibrary.Particle_CreateContext(32, MAX_PARTICLE_COUNT);
     }
 
     @After
@@ -50,45 +52,47 @@ public class ParticleSystemTest {
         Emitter.Builder eb = Emitter.newBuilder()
                 .setMode(PlayMode.PLAY_MODE_ONCE)
                 .setSpace(EmissionSpace.EMISSION_SPACE_WORLD)
+                .setPosition(com.dynamo.proto.DdfMath.Point3.newBuilder().build())
                 .setRotation(com.dynamo.proto.DdfMath.Quat.newBuilder().build())
                 .setTexture(Texture_t.newBuilder().setName("foo").setTX(16).setTY(16))
                 .setMaterial("test")
                 .setMaxParticleCount(17)
                 .setType(EmitterType.EMITTER_TYPE_SPHERE);
+        ParticleFX.Builder pfxb = ParticleFX.newBuilder()
+                .addEmitters(eb);
 
-        byte[] emitterData = eb.build().toByteArray();
+        byte[] pfxData = pfxb.build().toByteArray();
 
-        Pointer prototype = ParticleLibrary.Particle_NewPrototype(context, ByteBuffer.wrap(emitterData), emitterData.length);
-        Pointer emitter = ParticleLibrary.Particle_CreateEmitter(context, prototype);
-        assertNotNull(emitter);
-        ParticleLibrary.Particle_SetPosition(context, emitter, new Vector3(1, 2, 3));
-        ParticleLibrary.Particle_SetRotation(context, emitter, new Quat(0, 0, 0, 1));
+        Pointer prototype = ParticleLibrary.Particle_NewPrototype(ByteBuffer.wrap(pfxData), pfxData.length);
+        Pointer instance = ParticleLibrary.Particle_CreateInstance(context, prototype);
+        assertNotNull(instance);
+        ParticleLibrary.Particle_SetPosition(context, instance, new Vector3(1, 2, 3));
+        ParticleLibrary.Particle_SetRotation(context, instance, new Quat(0, 0, 0, 1));
 
-        ParticleLibrary.Particle_StartEmitter(context, emitter);
+        ParticleLibrary.Particle_StartInstance(context, instance);
 
         IntByReference out_size = new IntByReference(1234);
-        ByteBuffer vertex_buffer = ByteBuffer.wrap(new byte[1024]);
+        // 6 vertices * 6 floats of 4 bytes
+        int vertex_buffer_size = MAX_PARTICLE_COUNT * 6 * 6 * 4;
+        ByteBuffer vertex_buffer = ByteBuffer.wrap(new byte[vertex_buffer_size]);
         ParticleLibrary.Particle_Update(context, 1.0f / 60.0f, vertex_buffer, vertex_buffer.capacity(), out_size);
         assertTrue(1234 != out_size.getValue());
 
-        ParticleLibrary.Particle_Render(context, new Pointer(1122), new RenderEmitterCallback() {
+        ParticleLibrary.Particle_Render(context, new Pointer(1122), new RenderInstanceCallback() {
             @Override
-            public void invoke(Pointer userContext, Vector3 position, Pointer material,
+            public void invoke(Pointer userContext, Pointer material,
                     Pointer texture, int vertexIndex, int vertexCount) {
 
-                assertEquals(1.0f, position.x, 0);
-                assertEquals(2.0f, position.y, 0);
-                assertEquals(3.0f, position.z, 0);
                 assertEquals(new Pointer(1122), userContext);
                 assertEquals(Pointer.NULL, material);
                 assertEquals(Pointer.NULL, texture);
             }
         });
 
-        ParticleLibrary.Particle_StopEmitter(context, emitter);
-        ParticleLibrary.Particle_RestartEmitter(context, emitter);
-        ParticleLibrary.Particle_DestroyEmitter(context, emitter);
-        ParticleLibrary.Particle_DeletePrototype(context, prototype);
+        ParticleLibrary.Particle_StopInstance(context, instance);
+        ParticleLibrary.Particle_RestartInstance(context, instance);
+        ParticleLibrary.Particle_DestroyInstance(context, instance);
+        ParticleLibrary.Particle_DeletePrototype(prototype);
     }
 
 }

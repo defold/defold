@@ -959,7 +959,7 @@ namespace dmParticle
     DM_PARTICLE_TRAMPOLINE5(void, Update, HContext, float, float*, uint32_t, uint32_t*);
     DM_PARTICLE_TRAMPOLINE3(void, Render, HContext, void*, RenderInstanceCallback);
 
-    DM_PARTICLE_TRAMPOLINE2(HPrototype, NewPrototype, void*, uint32_t);
+    DM_PARTICLE_TRAMPOLINE2(HPrototype, NewPrototype, const void*, uint32_t);
     DM_PARTICLE_TRAMPOLINE1(void, DeletePrototype, HPrototype);
 
     DM_PARTICLE_TRAMPOLINE1(uint32_t, GetEmitterCount, HPrototype);
