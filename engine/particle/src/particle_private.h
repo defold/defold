@@ -120,16 +120,13 @@ namespace dmParticle
      */
     struct Context
     {
-        Context(uint32_t max_emitter_count, uint32_t max_particle_count)
+        Context(uint32_t max_instance_count, uint32_t max_particle_count)
         : m_NextVersionNumber(1)
         {
-            m_Instances.SetCapacity(max_emitter_count);
-            m_Instances.SetSize(max_emitter_count);
-            for (uint32_t i = 0; i < m_Instances.Size(); ++i)
-            {
-                m_Instances[i] = 0;
-            }
-            m_InstanceIndexPool.SetCapacity(max_emitter_count);
+            m_Instances.SetCapacity(max_instance_count);
+            m_Instances.SetSize(max_instance_count);
+            memset(&m_Instances.Front(), 0, max_instance_count * sizeof(Instance*));
+            m_InstanceIndexPool.SetCapacity(max_instance_count);
 
             m_MaxParticleCount = max_particle_count;
         }

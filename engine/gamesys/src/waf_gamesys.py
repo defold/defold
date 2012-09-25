@@ -58,8 +58,9 @@ def transform_collisionobject(task, msg):
     return msg
 
 def transform_particlefx(task, msg):
-    msg.material = msg.material.replace('.material', '.materialc')
-    msg.texture.name = transform_texture_name(task, msg.texture.name)
+    for emitter in msg.emitters:
+        emitter.material = emitter.material.replace('.material', '.materialc')
+        emitter.texture.name = transform_texture_name(task, emitter.texture.name)
     return msg
 
 def transform_gameobject(task, msg):
@@ -243,7 +244,7 @@ def gofile(self, node):
 
 proto_compile_task('collection', 'gameobject_ddf_pb2', 'CollectionDesc', '.collection', '.collectionc', transform_collection)
 proto_compile_task('collectionproxy', 'gamesys_ddf_pb2', 'CollectionProxyDesc', '.collectionproxy', '.collectionproxyc', transform_collectionproxy)
-proto_compile_task('particlefx', 'particle.particle_ddf_pb2', 'particle_ddf_pb2.Emitter', '.particlefx', '.particlefxc', transform_particlefx)
+proto_compile_task('particlefx', 'particle.particle_ddf_pb2', 'particle_ddf_pb2.ParticleFX', '.particlefx', '.particlefxc', transform_particlefx)
 proto_compile_task('model', 'model_ddf_pb2', 'ModelDesc', '.model', '.modelc', transform_model)
 proto_compile_task('convexshape',  'physics_ddf_pb2', 'ConvexShape', '.convexshape', '.convexshapec')
 proto_compile_task('collisionobject',  'physics_ddf_pb2', 'CollisionObjectDesc', '.collisionobject', '.collisionobjectc', transform_collisionobject)

@@ -25,7 +25,7 @@ protected:
     {
         if (m_Prototype != 0x0)
         {
-            dmParticle::Particle_DeletePrototype(m_Context, m_Prototype);
+            dmParticle::Particle_DeletePrototype(m_Prototype);
         }
         dmParticle::DestroyContext(m_Context);
         delete [] m_VertexBuffer;
@@ -37,7 +37,7 @@ protected:
     uint32_t m_VertexBufferSize;
 };
 
-bool LoadPrototype(dmParticle::HContext context, const char* filename, dmParticle::HPrototype* prototype)
+bool LoadPrototype(const char* filename, dmParticle::HPrototype* prototype)
 {
     char path[64];
     DM_SNPRINTF(path, 64, "build/default/src/test/%s", filename);
@@ -49,7 +49,7 @@ bool LoadPrototype(dmParticle::HContext context, const char* filename, dmParticl
     if (f)
     {
         file_size = fread(buffer, 1, MAX_FILE_SIZE, f);
-        *prototype = dmParticle::Particle_NewPrototype(context, buffer, file_size);
+        *prototype = dmParticle::NewPrototype(buffer, file_size);
         fclose(f);
         return *prototype != 0x0;
     }
@@ -62,7 +62,7 @@ bool LoadPrototype(dmParticle::HContext context, const char* filename, dmParticl
 
 TEST_F(ParticleTest, CreationSuccess)
 {
-    ASSERT_TRUE(LoadPrototype(m_Context, "once.particlefxc", &m_Prototype));
+    ASSERT_TRUE(LoadPrototype("once.particlefxc", &m_Prototype));
     dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype);
     ASSERT_NE(dmParticle::INVALID_INSTANCE, instance);
     ASSERT_EQ(1U, m_Context->m_InstanceIndexPool.Size());
@@ -72,14 +72,14 @@ TEST_F(ParticleTest, CreationSuccess)
 
 TEST_F(ParticleTest, CreationFailure)
 {
-    ASSERT_FALSE(LoadPrototype(m_Context, "null.particlefxc", &m_Prototype));
+    ASSERT_FALSE(LoadPrototype("null.particlefxc", &m_Prototype));
 }
 
 TEST_F(ParticleTest, StartInstance)
 {
     float dt = 1.0f / 60.0f;
 
-    ASSERT_TRUE(LoadPrototype(m_Context, "once.particlefxc", &m_Prototype));
+    ASSERT_TRUE(LoadPrototype("once.particlefxc", &m_Prototype));
     dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype);
     uint16_t index = instance & 0xffff;
 
@@ -125,7 +125,7 @@ TEST_F(ParticleTest, StartOnceInstance)
 {
     float dt = 1.0f / 60.0f;
 
-    ASSERT_TRUE(LoadPrototype(m_Context, "once.particlefxc", &m_Prototype));
+    ASSERT_TRUE(LoadPrototype("once.particlefxc", &m_Prototype));
     dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype);
     uint16_t index = instance & 0xffff;
 
@@ -148,7 +148,7 @@ TEST_F(ParticleTest, StartLoopInstance)
 {
     float dt = 1.0f / 60.0f;
 
-    ASSERT_TRUE(LoadPrototype(m_Context, "loop.particlefxc", &m_Prototype));
+    ASSERT_TRUE(LoadPrototype("loop.particlefxc", &m_Prototype));
     dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype);
 
     dmParticle::StartInstance(m_Context, instance);
@@ -168,7 +168,7 @@ TEST_F(ParticleTest, FireAndForget)
 {
     float dt = 1.0f / 60.0f;
 
-    ASSERT_TRUE(LoadPrototype(m_Context, "once.particlefxc", &m_Prototype));
+    ASSERT_TRUE(LoadPrototype("once.particlefxc", &m_Prototype));
     dmParticle::FireAndForget(m_Context, m_Prototype, Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f), Vectormath::Aos::Quat::identity());
 
     // counting on 0
@@ -199,7 +199,7 @@ TEST_F(ParticleTest, EmissionSpace)
 
     // Test world space
 
-    ASSERT_TRUE(LoadPrototype(m_Context, "once.particlefxc", &m_Prototype));
+    ASSERT_TRUE(LoadPrototype("once.particlefxc", &m_Prototype));
     dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype);
     uint16_t index = instance & 0xffff;
 
@@ -216,8 +216,8 @@ TEST_F(ParticleTest, EmissionSpace)
 
     // Test emitter space
 
-    dmParticle::Particle_DeletePrototype(m_Context, m_Prototype);
-    ASSERT_TRUE(LoadPrototype(m_Context, "emitter_space.particlefxc", &m_Prototype));
+    dmParticle::Particle_DeletePrototype(m_Prototype);
+    ASSERT_TRUE(LoadPrototype("emitter_space.particlefxc", &m_Prototype));
     instance = dmParticle::CreateInstance(m_Context, m_Prototype);
     index = instance & 0xffff;
 
@@ -237,7 +237,7 @@ TEST_F(ParticleTest, RestartInstance)
 {
     float dt = 1.0f / 60.0f;
 
-    ASSERT_TRUE(LoadPrototype(m_Context, "restart.particlefxc", &m_Prototype));
+    ASSERT_TRUE(LoadPrototype("restart.particlefxc", &m_Prototype));
     dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype);
     uint16_t index = instance & 0xffff;
 
@@ -278,7 +278,7 @@ TEST_F(ParticleTest, EvaluateEmitterProperty)
 {
     float dt = 1.0f / 8.0f;
 
-    ASSERT_TRUE(LoadPrototype(m_Context, "emitter_spline.particlefxc", &m_Prototype));
+    ASSERT_TRUE(LoadPrototype("emitter_spline.particlefxc", &m_Prototype));
     dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype);
     uint16_t index = instance & 0xffff;
     dmParticle::Instance* i = m_Context->m_Instances[index];
@@ -343,7 +343,7 @@ TEST_F(ParticleTest, EvaluateParticleProperty)
 {
     float dt = 1.0f / 8.0f;
 
-    ASSERT_TRUE(LoadPrototype(m_Context, "particle_spline.particlefxc", &m_Prototype));
+    ASSERT_TRUE(LoadPrototype("particle_spline.particlefxc", &m_Prototype));
     dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype);
     uint16_t index = instance & 0xffff;
     dmParticle::Instance* i = m_Context->m_Instances[index];

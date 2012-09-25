@@ -352,7 +352,7 @@ namespace dmParticle
         {
             Instance* instance = context->m_Instances[i];
             // empty slot
-            if (!instance) continue;
+            if (instance == INVALID_INSTANCE) continue;
             // don't update sleeping emitters
             if (IsSleeping(instance))
             {
@@ -450,11 +450,10 @@ namespace dmParticle
                 if (emitter->m_ParticleTimeLeft > 0.0f)
                     emitter->m_ParticleTimeLeft -= dt;
             }
-
-            if (out_vertex_buffer_size != 0x0)
-            {
-                *out_vertex_buffer_size = vertex_index * sizeof(Vertex);
-            }
+        }
+        if (out_vertex_buffer_size != 0x0)
+        {
+            *out_vertex_buffer_size = vertex_index * sizeof(Vertex);
         }
     }
 
@@ -698,6 +697,7 @@ namespace dmParticle
             for (uint32_t i = 0; i < instance_count; i++)
             {
                 Instance* instance = context->m_Instances[i];
+                if (instance == INVALID_INSTANCE) continue;
                 uint32_t emitter_count = instance->m_Emitters.Size();
                 for (uint32_t j = 0; j < emitter_count; ++j)
                 {
@@ -817,44 +817,10 @@ namespace dmParticle
         }
     }
 
-#define DM_PARTICLE_TRAMPOLINE1(ret, name, t1) \
-    ret Particle_##name(t1 a1)\
-    {\
-        return name(a1);\
-    }\
-
-#define DM_PARTICLE_TRAMPOLINE2(ret, name, t1, t2) \
-    ret Particle_##name(t1 a1, t2 a2)\
-    {\
-        return name(a1, a2);\
-    }\
-
-#define DM_PARTICLE_TRAMPOLINE3(ret, name, t1, t2, t3) \
-    ret Particle_##name(t1 a1, t2 a2, t3 a3)\
-    {\
-        return name(a1, a2, a3);\
-    }\
-
-#define DM_PARTICLE_TRAMPOLINE4(ret, name, t1, t2, t3, t4) \
-    ret Particle_##name(t1 a1, t2 a2, t3 a3, t4 a4)\
-    {\
-        return name(a1, a2, a3, a4);\
-    }\
-
-#define DM_PARTICLE_TRAMPOLINE5(ret, name, t1, t2, t3, t4, t5) \
-    ret Particle_##name(t1 a1, t2 a2, t3 a3, t4 a4, t5 a5)\
-    {\
-        return name(a1, a2, a3, a4, a5);\
-    }\
-
-
-    DM_PARTICLE_TRAMPOLINE2(HContext, CreateContext, uint32_t, uint32_t);
-    DM_PARTICLE_TRAMPOLINE1(void, DestroyContext, HContext);
-
-    Prototype* Particle_NewPrototype(HContext context, void* instance_data, uint32_t instance_data_size)
+    Prototype* NewPrototype(const void* buffer, uint32_t buffer_size)
     {
         dmParticleDDF::ParticleFX* ddf = 0;
-        dmDDF::Result r = dmDDF::LoadMessage<dmParticleDDF::ParticleFX>(instance_data, instance_data_size, &ddf);
+        dmDDF::Result r = dmDDF::LoadMessage<dmParticleDDF::ParticleFX>(buffer, buffer_size, &ddf);
         if (r == dmDDF::RESULT_OK)
         {
             uint32_t emitter_count = ddf->m_Emitters.m_Count;
@@ -873,6 +839,7 @@ namespace dmParticle
             prototype->m_DDF = ddf;
             prototype->m_Emitters.SetCapacity(emitter_count);
             prototype->m_Emitters.SetSize(emitter_count);
+            memset(&prototype->m_Emitters.Front(), 0, emitter_count * sizeof(EmitterPrototype));
             for (uint32_t i = 0; i < emitter_count; ++i)
             {
                 dmParticleDDF::Emitter* emitter_ddf = &ddf->m_Emitters[i];
@@ -904,11 +871,79 @@ namespace dmParticle
         }
     }
 
-    void Particle_DeletePrototype(HContext context, HPrototype prototype)
+    void DeletePrototype(HPrototype prototype)
     {
         dmDDF::FreeMessage(prototype->m_DDF);
         delete prototype;
     }
+
+    uint32_t GetEmitterCount(HPrototype prototype)
+    {
+        return prototype->m_Emitters.Size();
+    }
+
+    const char* GetMaterialPath(HPrototype prototype, uint32_t emitter_index)
+    {
+        return prototype->m_DDF->m_Emitters[emitter_index].m_Material;
+    }
+
+    const char* GetTexturePath(HPrototype prototype, uint32_t emitter_index)
+    {
+        return prototype->m_DDF->m_Emitters[emitter_index].m_Texture.m_Name;
+    }
+
+    void* GetMaterial(HPrototype prototype, uint32_t emitter_index)
+    {
+        return prototype->m_Emitters[emitter_index].m_Material;
+    }
+
+    void* GetTexture(HPrototype prototype, uint32_t emitter_index)
+    {
+        return prototype->m_Emitters[emitter_index].m_Texture;
+    }
+
+    void SetMaterial(HPrototype prototype, uint32_t emitter_index, void* material)
+    {
+        prototype->m_Emitters[emitter_index].m_Material = material;
+    }
+
+    void SetTexture(HPrototype prototype, uint32_t emitter_index, void* texture)
+    {
+        prototype->m_Emitters[emitter_index].m_Texture = texture;
+    }
+
+#define DM_PARTICLE_TRAMPOLINE1(ret, name, t1) \
+    ret Particle_##name(t1 a1)\
+    {\
+        return name(a1);\
+    }\
+
+#define DM_PARTICLE_TRAMPOLINE2(ret, name, t1, t2) \
+    ret Particle_##name(t1 a1, t2 a2)\
+    {\
+        return name(a1, a2);\
+    }\
+
+#define DM_PARTICLE_TRAMPOLINE3(ret, name, t1, t2, t3) \
+    ret Particle_##name(t1 a1, t2 a2, t3 a3)\
+    {\
+        return name(a1, a2, a3);\
+    }\
+
+#define DM_PARTICLE_TRAMPOLINE4(ret, name, t1, t2, t3, t4) \
+    ret Particle_##name(t1 a1, t2 a2, t3 a3, t4 a4)\
+    {\
+        return name(a1, a2, a3, a4);\
+    }\
+
+#define DM_PARTICLE_TRAMPOLINE5(ret, name, t1, t2, t3, t4, t5) \
+    ret Particle_##name(t1 a1, t2 a2, t3 a3, t4 a4, t5 a5)\
+    {\
+        return name(a1, a2, a3, a4, a5);\
+    }\
+
+    DM_PARTICLE_TRAMPOLINE2(HContext, CreateContext, uint32_t, uint32_t);
+    DM_PARTICLE_TRAMPOLINE1(void, DestroyContext, HContext);
 
     DM_PARTICLE_TRAMPOLINE2(HInstance, CreateInstance, HContext, HPrototype);
     DM_PARTICLE_TRAMPOLINE2(void, DestroyInstance, HContext, HInstance);
@@ -923,5 +958,16 @@ namespace dmParticle
     DM_PARTICLE_TRAMPOLINE2(bool, IsSleeping, HContext, HInstance);
     DM_PARTICLE_TRAMPOLINE5(void, Update, HContext, float, float*, uint32_t, uint32_t*);
     DM_PARTICLE_TRAMPOLINE3(void, Render, HContext, void*, RenderInstanceCallback);
+
+    DM_PARTICLE_TRAMPOLINE2(HPrototype, NewPrototype, void*, uint32_t);
+    DM_PARTICLE_TRAMPOLINE1(void, DeletePrototype, HPrototype);
+
+    DM_PARTICLE_TRAMPOLINE1(uint32_t, GetEmitterCount, HPrototype);
+    DM_PARTICLE_TRAMPOLINE2(const char*, GetMaterialPath, HPrototype, uint32_t);
+    DM_PARTICLE_TRAMPOLINE2(const char*, GetTexturePath, HPrototype, uint32_t);
+    DM_PARTICLE_TRAMPOLINE2(void*, GetMaterial, HPrototype, uint32_t);
+    DM_PARTICLE_TRAMPOLINE2(void*, GetTexture, HPrototype, uint32_t);
+    DM_PARTICLE_TRAMPOLINE3(void, SetMaterial, HPrototype, uint32_t, void*);
+    DM_PARTICLE_TRAMPOLINE3(void, SetTexture, HPrototype, uint32_t, void*);
 
 }

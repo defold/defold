@@ -15,14 +15,14 @@
 
 namespace dmGameSystem
 {
-    const uint32_t MAX_EMITTER_COUNT = 64;
+    const uint32_t MAX_COMPONENT_COUNT = 64;
 
     struct ParticleFXWorld;
 
     struct ParticleFXComponent
     {
         dmGameObject::HInstance m_Instance;
-        dmParticle::HEmitter m_Emitter;
+        dmParticle::HInstance m_ParticleFXInstance;
         ParticleFXWorld* m_World;
     };
 
@@ -84,11 +84,11 @@ namespace dmGameSystem
         dmParticle::Prototype* prototype = (dmParticle::Prototype*)params.m_Resource;
         assert(prototype);
         ParticleFXWorld* w = (ParticleFXWorld*)params.m_World;
-        if (w->m_Components.Size() < MAX_EMITTER_COUNT)
+        if (w->m_Components.Size() < MAX_COMPONENT_COUNT)
         {
             ParticleFXComponent emitter;
             emitter.m_Instance = params.m_Instance;
-            emitter.m_Emitter = dmParticle::CreateEmitter(w->m_ParticleContext, prototype);
+            emitter.m_ParticleFXInstance = dmParticle::CreateInstance(w->m_ParticleContext, prototype);
             emitter.m_World = w;
             w->m_Components.Push(emitter);
             *params.m_UserData = (uintptr_t)&w->m_Components[w->m_Components.Size() - 1];
@@ -96,7 +96,7 @@ namespace dmGameSystem
         }
         else
         {
-            dmLogError("Emitter buffer is full (%d), component disregarded.", MAX_EMITTER_COUNT);
+            dmLogError("Particle component buffer is full (%d), component disregarded.", MAX_COMPONENT_COUNT);
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
     }
@@ -108,7 +108,7 @@ namespace dmGameSystem
         {
             if (w->m_Components[i].m_Instance == params.m_Instance)
             {
-                dmParticle::DestroyEmitter(w->m_ParticleContext, w->m_Components[i].m_Emitter);
+                dmParticle::DestroyInstance(w->m_ParticleContext, w->m_Components[i].m_ParticleFXInstance);
                 w->m_Components.EraseSwap(i);
                 return dmGameObject::CREATE_RESULT_OK;
             }
@@ -118,7 +118,7 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
     }
 
-    void RenderEmitterCallback(void* render_context, const Point3& position, void* material, void* texture, uint32_t vertex_index, uint32_t vertex_count);
+    void RenderInstanceCallback(void* render_context, void* material, void* texture, uint32_t vertex_index, uint32_t vertex_count);
     void RenderLineCallback(void* render_context, Vectormath::Aos::Point3 start, Vectormath::Aos::Point3 end, Vectormath::Aos::Vector4 color);
 
     dmGameObject::UpdateResult CompParticleFXUpdate(const dmGameObject::ComponentsUpdateParams& params)
@@ -132,8 +132,8 @@ namespace dmGameSystem
         {
             ParticleFXComponent& emitter = w->m_Components[i];
             Point3 position = dmGameObject::GetWorldPosition(emitter.m_Instance);
-            dmParticle::SetPosition(particle_context, emitter.m_Emitter, position);
-            dmParticle::SetRotation(particle_context, emitter.m_Emitter, dmGameObject::GetWorldRotation(emitter.m_Instance));
+            dmParticle::SetPosition(particle_context, emitter.m_ParticleFXInstance, position);
+            dmParticle::SetRotation(particle_context, emitter.m_ParticleFXInstance, dmGameObject::GetWorldRotation(emitter.m_Instance));
         }
         ParticleFXContext* ctx = (ParticleFXContext*)params.m_Context;
 
@@ -144,7 +144,7 @@ namespace dmGameSystem
         uint32_t max_vertex_buffer_size = ctx->m_MaxParticleCount * 6 * sizeof(ParticleVertex);
         uint32_t vertex_buffer_size;
         dmParticle::Update(particle_context, params.m_UpdateContext->m_DT, vertex_buffer, max_vertex_buffer_size, &vertex_buffer_size);
-        dmParticle::Render(particle_context, w, RenderEmitterCallback);
+        dmParticle::Render(particle_context, w, RenderInstanceCallback);
         dmGraphics::SetVertexBufferData(w->m_VertexBuffer, 0, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         dmGraphics::SetVertexBufferData(w->m_VertexBuffer, vertex_buffer_size, w->m_ClientBuffer, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         dmRender::HRenderContext render_context = ctx->m_RenderContext;
@@ -167,26 +167,26 @@ namespace dmGameSystem
         ParticleFXComponent* emitter = (ParticleFXComponent*)*params.m_UserData;
         if (params.m_Message->m_Id == dmHashString64("start"))
         {
-            dmParticle::StartEmitter(emitter->m_World->m_ParticleContext, emitter->m_Emitter);
+            dmParticle::StartInstance(emitter->m_World->m_ParticleContext, emitter->m_ParticleFXInstance);
         }
         else if (params.m_Message->m_Id == dmHashString64("restart"))
         {
-            dmParticle::RestartEmitter(emitter->m_World->m_ParticleContext, emitter->m_Emitter);
+            dmParticle::RestartInstance(emitter->m_World->m_ParticleContext, emitter->m_ParticleFXInstance);
         }
         else if (params.m_Message->m_Id == dmHashString64("stop"))
         {
-            dmParticle::StopEmitter(emitter->m_World->m_ParticleContext, emitter->m_Emitter);
+            dmParticle::StopInstance(emitter->m_World->m_ParticleContext, emitter->m_ParticleFXInstance);
         }
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
     void CompParticleFXOnReload(const dmGameObject::ComponentOnReloadParams& params)
     {
-        ParticleFXComponent* emitter = (ParticleFXComponent*)*params.m_UserData;
-        dmParticle::RestartEmitter(emitter->m_World->m_ParticleContext, emitter->m_Emitter);
+        ParticleFXComponent* component = (ParticleFXComponent*)*params.m_UserData;
+        dmParticle::RestartInstance(component->m_World->m_ParticleContext, component->m_ParticleFXInstance);
     }
 
-    void RenderEmitterCallback(void* context, const Point3& position, void* material, void* texture, uint32_t vertex_index, uint32_t vertex_count)
+    void RenderInstanceCallback(void* context, void* material, void* texture, uint32_t vertex_index, uint32_t vertex_count)
     {
         ParticleFXWorld* world = (ParticleFXWorld*)context;
         dmRender::RenderObject ro;

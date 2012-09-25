@@ -370,7 +370,6 @@ INSTANTIATE_TEST_CASE_P(ParticleFX, ResourceTest, ::testing::ValuesIn(valid_part
 ResourceFailParams invalid_particlefx_resources[] =
 {
     {"/particlefx/valid.particlefxc", "/particlefx/invalid_material.particlefxc"},
-    {"/particlefx/valid.particlefxc", "/particlefx/invalid_texture.particlefxc"},
 };
 INSTANTIATE_TEST_CASE_P(ParticleFX, ResourceFailTest, ::testing::ValuesIn(invalid_particlefx_resources));
 

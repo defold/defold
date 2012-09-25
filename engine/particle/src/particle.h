@@ -31,6 +31,10 @@ namespace dmParticle
      */
     const HContext INVALID_CONTEXT = 0;
     /**
+     * Invalid prototype handle
+     */
+    const HPrototype INVALID_PROTOTYPE = 0;
+    /**
      * Invalid instance handle
      */
     const HInstance INVALID_INSTANCE = 0;
@@ -162,12 +166,64 @@ namespace dmParticle
      */
     DM_PARTICLE_PROTO(void, DebugRender, HContext context, void* user_context, RenderLineCallback render_line_callback);
 
-    extern "C"
-    {
-        // Currently custom for java bindings. Might be changed with the new interface
-        HPrototype Particle_NewPrototype(HContext context, void* instance_data, uint32_t instance_data_size);
-        void Particle_DeletePrototype(HContext context, HPrototype prototype);
-    }
+    /**
+     * Create a new prototype from ddf data.
+     * @param buffer Buffer of ddf data
+     * @param buffer_size Size of ddf data
+     * @return prototype handle
+     */
+    DM_PARTICLE_PROTO(HPrototype, NewPrototype, const void* buffer, uint32_t buffer_size);
+    /**
+     * Delete a prototype
+     * @param prototype Prototype to delete
+     */
+    DM_PARTICLE_PROTO(void, DeletePrototype, HPrototype prototype);
+
+    /**
+     * Retrieve number of emitters in the supplied prototype
+     * @param prototype Prototype
+     */
+    DM_PARTICLE_PROTO(uint32_t, GetEmitterCount, HPrototype prototype);
+    /**
+     * Retrieve material path from the emitter in the supplied prototype
+     * @param prototype Prototype
+     * @param emitter_index Index of the emitter in question
+     */
+    DM_PARTICLE_PROTO(const char*, GetMaterialPath, HPrototype prototype, uint32_t emitter_index);
+    /**
+     * Retrieve texture path from the emitter in the supplied prototype
+     * @param prototype Prototype
+     * @param emitter_index Index of the emitter in question
+     */
+    DM_PARTICLE_PROTO(const char*, GetTexturePath, HPrototype prototype, uint32_t emitter_index);
+    /**
+     * Retrieve material from the emitter in the supplied prototype
+     * @param prototype Prototype
+     * @param emitter_index Index of the emitter in question
+     * @return pointer to the material
+     */
+    DM_PARTICLE_PROTO(void*, GetMaterial, HPrototype prototype, uint32_t emitter_index);
+    /**
+     * Retrieve texture from the emitter in the supplied prototype
+     * @param prototype Prototype
+     * @param emitter_index Index of the emitter in question
+     * @return pointer to the texture
+     */
+    DM_PARTICLE_PROTO(void*, GetTexture, HPrototype prototype, uint32_t emitter_index);
+    /**
+     * Set material in the emitter in the supplied prototype
+     * @param prototype Prototype
+     * @param emitter_index Index of the emitter in question
+     * @param material Material to set
+     */
+    DM_PARTICLE_PROTO(void, SetMaterial, HPrototype prototype, uint32_t emitter_index, void* material);
+    /**
+     * Set texture in the emitter in the supplied prototype
+     * @param prototype Prototype
+     * @param emitter_index Index of the emitter in question
+     * @param texture Texture to set
+     */
+    DM_PARTICLE_PROTO(void, SetTexture, HPrototype prototype, uint32_t emitter_index, void* texture);
 
 #undef DM_PARTICLE_PROTO
 
