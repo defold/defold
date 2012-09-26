@@ -12,6 +12,7 @@ import org.eclipse.swt.graphics.RGB;
 import org.eclipse.swt.widgets.Combo;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
+import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.Listener;
 import org.eclipse.swt.widgets.Text;
@@ -37,13 +38,16 @@ public abstract class ScalarPropertyDesc<S, T, U extends IPropertyObjectWorld> e
 
         // NOTE: A temporary solution in order to avoid memory leaks (Color)
         // A ColorRegistry should probably be passed in the constructor or similar for theming support
-        ColorRegistry r = JFaceResources.getColorRegistry();
+        if (Display.getCurrent() != null) {
+            // Only create colors if a display is present (i.e. not in unit-test)
+            ColorRegistry r = JFaceResources.getColorRegistry();
 
-        if (!r.hasValueFor(BACKGROUND_COLOR_KEY))
-            r.put(BACKGROUND_COLOR_KEY, new RGB(255, 255, 255));
+            if (!r.hasValueFor(BACKGROUND_COLOR_KEY))
+                r.put(BACKGROUND_COLOR_KEY, new RGB(255, 255, 255));
 
-        if (!r.hasValueFor(OVERRIDDEN_COLOR_KEY))
-            r.put(OVERRIDDEN_COLOR_KEY, new RGB(214, 230, 255));
+            if (!r.hasValueFor(OVERRIDDEN_COLOR_KEY))
+                r.put(OVERRIDDEN_COLOR_KEY, new RGB(214, 230, 255));
+        }
     }
 
     public abstract S fromString(String text);
