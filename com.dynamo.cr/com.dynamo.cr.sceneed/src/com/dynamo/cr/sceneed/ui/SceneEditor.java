@@ -371,6 +371,8 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
             return this.propertySheetPage;
         } else if (adapter == IContentOutlinePage.class) {
             return this.outlinePage;
+        } else if (adapter == IUndoContext.class) {
+            return undoContext;
         } else {
             return super.getAdapter(adapter);
         }

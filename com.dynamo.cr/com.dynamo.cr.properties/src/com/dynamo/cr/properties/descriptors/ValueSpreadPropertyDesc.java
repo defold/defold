@@ -37,10 +37,11 @@ public class ValueSpreadPropertyDesc<T, U extends IPropertyObjectWorld> extends 
     public ValueSpreadPropertyDesc(String id, String name) {
         super(id, name);
 
-        ColorRegistry r = JFaceResources.getColorRegistry();
-
-        if (!r.hasValueFor(ANIMATED_COLOR_KEY))
-            r.put(ANIMATED_COLOR_KEY, new RGB(214, 230, 214));
+        if (Display.getCurrent() != null) {
+            ColorRegistry r = JFaceResources.getColorRegistry();
+            if (!r.hasValueFor(ANIMATED_COLOR_KEY))
+                r.put(ANIMATED_COLOR_KEY, new RGB(214, 230, 214));
+        }
     }
 
     @Override

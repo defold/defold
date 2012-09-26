@@ -399,14 +399,6 @@
             template-data="  ">
       </resource-type>
       <resource-type
-            file-extension="emitter"
-            id="com.dynamo.cr.ddfeditor.resourcetypes.Emitter"
-            name="Emitter"
-            proto-message-class="com.dynamo.particle.proto.Particle$Emitter"
-            template-data="mode: PLAY_MODE_ONCE duration: 0.2 space: EMISSION_SPACE_WORLD rotation { x: 0.0 y: 0.0 z: 0.0 w: 1.0 } texture { name: &apos;unnamed&apos; t_x: 1 t_y: 1 } material: &apos;unnamed&apos; max_particle_count: 8 type: EMITTER_TYPE_CONE"
-            type-class="component">
-      </resource-type>
-      <resource-type
             file-extension="convexshape"
             id="com.dynamo.cr.ddfeditor.resourcetypes.ConvexShape"
             name="Convex Shape"
@@ -523,12 +515,6 @@
             node="com.dynamo.cr.ddfeditor.scene.CameraNode"
             renderer="com.dynamo.cr.ddfeditor.scene.CameraRenderer"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Camera">
-      </node-type>
-      <node-type
-            id="com.dynamo.cr.ddfeditor.scene.emitterNode"
-            loader="com.dynamo.cr.ddfeditor.scene.EmitterLoader"
-            node="com.dynamo.cr.ddfeditor.scene.EmitterNode"
-            resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Emitter">
       </node-type>
       <node-type
             id="com.dynamo.cr.ddfeditor.scene.lightNode"

@@ -1,5 +1,120 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<?eclipse version="3.4"?>
-<plugin>
-
+<?eclipse version="3.0"?>
+<plugin
+>
+   <extension
+         point="com.dynamo.cr.nodetypes">
+      <node-type
+            id="com.dynamo.cr.parted.particleFX"
+            loader="com.dynamo.cr.parted.ParticleFXLoader"
+            node="com.dynamo.cr.parted.ParticleFXNode"
+            presenter="com.dynamo.cr.parted.ParticleFXPresenter"
+            resource-type="com.dynamo.cr.parted.resourcetypes.particleFX">
+      </node-type>
+      <node-type
+            id="com.dynamo.cr.parted.emitter"
+            loader="com.dynamo.cr.parted.EmitterLoader"
+            node="com.dynamo.cr.parted.EmitterNode"
+            resource-type="com.dynamo.cr.parted.resourcetypes.emitter">
+      </node-type>
+   </extension>
+   <extension
+         point="org.eclipse.ui.editors">
+      <editor
+            class="com.dynamo.cr.parted.ParticleFXEditor"
+            contributorClass="com.dynamo.cr.editor.ui.DefoldEditorActionBarContributor"
+            default="false"
+            extensions="particlefx"
+            icon="icons/dynamite.png"
+            id="com.dynamo.cr.parted.particleFXEditor"
+            name="Particle FX Editor">
+      </editor>
+   </extension>
+   <extension
+         point="org.eclipse.ui.newWizards">
+      <wizard
+            category="com.dynamo.cr.editor.wizardCategory"
+            class="com.dynamo.cr.parted.ui.wizards.ParticleFXNewWizard"
+            icon="icons/dynamite.png"
+            id="com.dynamo.cr.parted.particleFXNewWizard"
+            name="ParticleFX File">
+      </wizard>
+   </extension>
+   <extension
+         point="org.eclipse.ui.perspectiveExtensions">
+      <perspectiveExtension
+            targetID="*">
+         <newWizardShortcut
+               id="com.dynamo.cr.parted.particleFXNewWizard">
+         </newWizardShortcut>
+         <view
+               id="com.dynamo.cr.parted.curveEditorView"
+               minimized="false"
+               relationship="stack"
+               relative="org.eclipse.ui.console.ConsoleView">
+         </view>
+      </perspectiveExtension>
+   </extension>
+   <extension
+         point="com.dynamo.cr.resourcetypes">
+      <resource-type
+            file-extension="particlefx"
+            id="com.dynamo.cr.parted.resourcetypes.particleFX"
+            name="Particle FX"
+            proto-message-class="com.dynamo.particle.proto.Particle$ParticleFX"
+            template-data=" "
+            type-class="component">
+      </resource-type>
+      <resource-type
+            file-extension="emitter"
+            id="com.dynamo.cr.parted.resourcetypes.emitter"
+            name="Emitter"
+            proto-message-class="com.dynamo.particle.proto.Particle$Emitter"
+            template-data="mode: PLAY_MODE_LOOP space: EMISSION_SPACE_WORLD position { } rotation { } texture {  name: &quot;unnamed&quot; t_x: 16 t_y: 16 } material: &quot;unnamed&quot; max_particle_count: 64 type: EMITTER_TYPE_SPHERE">
+      </resource-type>
+   </extension>
+   <extension
+         point="org.eclipse.ui.views">
+      <view
+            allowMultiple="false"
+            class="com.dynamo.cr.parted.CurveEditorView"
+            icon="icons/linechart.png"
+            id="com.dynamo.cr.parted.curveEditorView"
+            name="Curve Editor"
+            restorable="false">
+      </view>
+   </extension>
+   <extension
+         point="org.eclipse.ui.propertiesView">
+      <excludeSources
+            id="com.dynamo.cr.parted.curveEditorView">
+      </excludeSources>
+   </extension>
+   <extension
+         point="org.eclipse.ui.menus">
+      <menuContribution
+            allPopups="false"
+            locationURI="popup:com.dynamo.cr.sceneed.menus.sceneOutlineContext?before=com.dynamo.cr.sceneed.genericSeparator">
+         <command
+               commandId="com.dynamo.cr.parted.command.addEmitter"
+               icon="icons/dynamite.png"
+               label="Add Emitter"
+               style="push">
+         </command>
+      </menuContribution>
+   </extension>
+   <extension
+         point="org.eclipse.ui.commands">
+      <command
+            id="com.dynamo.cr.parted.command.addEmitter"
+            name="Add Emitter">
+      </command>
+   </extension>
+   <extension
+         point="org.eclipse.ui.handlers">
+      <handler
+            class="com.dynamo.cr.parted.handlers.AddEmitterHandler"
+            commandId="com.dynamo.cr.parted.command.addEmitter">
+      </handler>
+   </extension>
 </plugin>

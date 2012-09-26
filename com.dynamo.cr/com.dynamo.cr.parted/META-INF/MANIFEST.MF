@@ -9,7 +9,12 @@ Require-Bundle: org.eclipse.ui,
  org.eclipse.core.runtime,
  slf4j;bundle-version="1.6.4",
  com.sun.jna;bundle-version="3.4.1",
- com.dynamo.cr.common;bundle-version="1.0.0"
+ com.dynamo.cr.common;bundle-version="1.0.0",
+ com.dynamo.cr.sceneed;bundle-version="1.0.0",
+ com.dynamo.cr.editor.core;bundle-version="1.0.0",
+ com.dynamo.cr.editor.ui;bundle-version="1.0.0",
+ com.dynamo.cr.properties;bundle-version="1.0.0",
+ org.eclipse.core.resources;bundle-version="3.7.101"
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
 Bundle-ActivationPolicy: lazy
 Eclipse-BundleShape: dir
