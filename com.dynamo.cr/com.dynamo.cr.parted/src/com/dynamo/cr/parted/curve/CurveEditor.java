@@ -2,6 +2,7 @@ package com.dynamo.cr.parted.curve;
 
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.IOperationHistory;
+import org.eclipse.core.commands.operations.IUndoContext;
 import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.core.commands.operations.UndoContext;
 import org.eclipse.core.runtime.IStatus;
@@ -41,7 +42,7 @@ public class CurveEditor extends Canvas implements PaintListener,
     public static final String TANGENT_COLOR_KEY = "com.dynamo.cr.parted.curve.TANGENT_COLOR";
     public static final String CONTROL_COLOR_KEY = "com.dynamo.cr.parted.curve.CONTROL_COLOR";
 
-    private int yAxisWidth = 90;
+    private int yAxisWidth = 60;
     private int marginRight = 32;
     private int tickHeight = 16;
     private int controlSize = 6;
@@ -55,9 +56,9 @@ public class CurveEditor extends Canvas implements PaintListener,
     private Hit hit;
     private Font font;
 
-    private HermiteSpline spline = new HermiteSpline();
+    private HermiteSpline spline;
 
-    private UndoContext undoContext;
+    private IUndoContext undoContext;
     private IOperationHistory history;
 
     private ColorRegistry colorsRegistry;
@@ -85,6 +86,8 @@ public class CurveEditor extends Canvas implements PaintListener,
         this.history = history;
         this.colorsRegistry = colorRegistry;
         initColors();
+
+        setBackground(getColor(BACKGROUND_COLOR_KEY));
     }
 
     private void putColor(String key, RGB rgb) {
@@ -94,7 +97,7 @@ public class CurveEditor extends Canvas implements PaintListener,
     }
 
     private void initColors() {
-        putColor(BACKGROUND_COLOR_KEY, new RGB(233, 233, 233));
+        putColor(BACKGROUND_COLOR_KEY, new RGB(255, 255, 255));
         putColor(AXIS_COLOR_KEY, new RGB(100, 100, 100));
         putColor(GRID_COLOR_KEY, new RGB(169, 169, 169));
         putColor(TICK_COLOR_KEY, new RGB(0, 0, 0));
@@ -104,15 +107,19 @@ public class CurveEditor extends Canvas implements PaintListener,
 
     @Override
     public void dispose() {
-        super.dispose();
         removePaintListener(this);
         removeMouseWheelListener(this);
         removeMouseMoveListener(this);
         removeMouseListener(this);
         font.dispose();
+        super.dispose();
     }
 
     public void executeOperation(IUndoableOperation operation) {
+        if (undoContext == null) {
+            return;
+        }
+
         operation.addContext(this.undoContext);
         IStatus status = null;
         try {
@@ -166,6 +173,9 @@ public class CurveEditor extends Canvas implements PaintListener,
 
     @Override
     public void paintControl(PaintEvent e) {
+        if (!isEnabled() || spline == null)
+            return;
+
         GC gc = e.gc;
         Point size = getSize();
 
@@ -333,6 +343,9 @@ public class CurveEditor extends Canvas implements PaintListener,
 
     @Override
     public void mouseMove(MouseEvent e) {
+        if (spline == null)
+            return;
+
         int dy = e.y - prevY;
         if (mode == Mode.PANNING) {
             offsetY += dy;
@@ -369,6 +382,9 @@ public class CurveEditor extends Canvas implements PaintListener,
 
     @Override
     public void mouseScrolled(MouseEvent e) {
+        if (spline == null)
+            return;
+
         zoomY += 0.01 * e.count * zoomY;
         zoomY = Math.max(0.01, zoomY);
         redraw();
@@ -376,6 +392,9 @@ public class CurveEditor extends Canvas implements PaintListener,
 
     @Override
     public void mouseDoubleClick(MouseEvent e) {
+        if (spline == null)
+            return;
+
         mode = Mode.IDLE;
         double x = fromScreenX(e.x);
         double y = spline.getY(x);
@@ -397,6 +416,9 @@ public class CurveEditor extends Canvas implements PaintListener,
 
     @Override
     public void mouseDown(MouseEvent e) {
+        if (spline == null)
+            return;
+
         hit = hitTest(e);
         if (hit != null) {
             mode = Mode.MOVE;
@@ -408,6 +430,9 @@ public class CurveEditor extends Canvas implements PaintListener,
 
     @Override
     public void mouseUp(MouseEvent e) {
+        if (spline == null)
+            return;
+
         if (mode == Mode.MOVE) {
             if (hit.handle == Handle.CONTROL) {
                 SplinePoint p = spline.getPoint(hit.index);
@@ -426,6 +451,18 @@ public class CurveEditor extends Canvas implements PaintListener,
         }
 
         mode = Mode.IDLE;
+    }
+
+    public void setSpline(HermiteSpline spline) {
+        this.spline = spline;
+    }
+
+    public HermiteSpline getSpline() {
+        return this.spline;
+    }
+
+    public void setUndoContext(IUndoContext undoContext) {
+        this.undoContext = undoContext;
     }
 
 }

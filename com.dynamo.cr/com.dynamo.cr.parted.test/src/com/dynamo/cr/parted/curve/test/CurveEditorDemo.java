@@ -16,6 +16,7 @@ import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Shell;
 
 import com.dynamo.cr.parted.curve.CurveEditor;
+import com.dynamo.cr.parted.curve.HermiteSpline;
 
 public class CurveEditorDemo {
 
@@ -32,6 +33,7 @@ public class CurveEditorDemo {
         shell.setLayout(layout);
         final CurveEditor ce = new CurveEditor(shell, SWT.NONE, context,
                 history, JFaceResources.getColorRegistry());
+        ce.setSpline(new HermiteSpline());
         ce.setLayoutData(new GridData(GridData.FILL_BOTH));
         ce.addFocusListener(new org.eclipse.swt.events.FocusListener() {
 

@@ -1,11 +1,13 @@
 package com.dynamo.cr.properties.types;
 
 
+
 public class ValueSpread  {
 
     private double value;
     private double spread;
     private boolean animated;
+    private Object curve;
 
     public ValueSpread() {
         super();
@@ -15,6 +17,7 @@ public class ValueSpread  {
         this.value = vs.value;
         this.spread = vs.spread;
         this.animated = vs.animated;
+        this.curve = vs.curve;
     }
 
     public double getValue() {
@@ -45,7 +48,10 @@ public class ValueSpread  {
     public boolean equals(Object other) {
         if (other instanceof ValueSpread) {
             ValueSpread vs = (ValueSpread) other;
-            return value == vs.value && spread == vs.spread && animated == vs.animated;
+            return value == vs.value
+                && spread == vs.spread
+                && animated == vs.animated
+                && curve.equals(vs.curve);
         }
         return super.equals(other);
     }
@@ -54,6 +60,15 @@ public class ValueSpread  {
         this.value = vs.value;
         this.spread = vs.spread;
         this.animated = vs.animated;
+        this.curve = vs.curve;
+    }
+
+    public Object getCurve() {
+        return curve;
+    }
+
+    public void setCurve(Object curve) {
+        this.curve = curve;
     }
 
 }
