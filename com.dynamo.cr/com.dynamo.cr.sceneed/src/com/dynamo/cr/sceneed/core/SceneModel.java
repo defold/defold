@@ -34,6 +34,7 @@ import com.dynamo.cr.properties.Entity;
 import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.properties.PropertyIntrospector;
 import com.dynamo.cr.properties.PropertyIntrospectorModel;
+import com.dynamo.cr.sceneed.core.operations.SelectOperation;
 import com.google.inject.Inject;
 
 @Entity(commandFactory = SceneUndoableCommandFactory.class)
@@ -107,12 +108,12 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
                 root.setModel(this);
                 this.root.updateStatus();
             }
-            this.listener.rootChanged(root);
             if (root != null) {
                 setSelection(new StructuredSelection(this.root));
             } else {
                 setSelection(new StructuredSelection());
             }
+            this.listener.rootChanged(root);
             clearDirty();
         }
     }
@@ -197,11 +198,15 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
         case OperationHistoryEvent.DONE:
         case OperationHistoryEvent.REDONE:
             change = true;
-            ++this.undoRedoCounter;
+            if (!(event.getOperation() instanceof SelectOperation)) {
+                ++this.undoRedoCounter;
+            }
             break;
         case OperationHistoryEvent.UNDONE:
             change = true;
-            --this.undoRedoCounter;
+            if (!(event.getOperation() instanceof SelectOperation)) {
+                --this.undoRedoCounter;
+            }
             break;
         }
         if (change && this.root != null) {

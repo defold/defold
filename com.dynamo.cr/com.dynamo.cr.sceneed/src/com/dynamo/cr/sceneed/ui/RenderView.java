@@ -23,6 +23,7 @@ import javax.vecmath.Point3d;
 import javax.vecmath.Vector4d;
 
 import org.eclipse.jface.viewers.IStructuredSelection;
+import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.MouseEvent;
 import org.eclipse.swt.events.MouseListener;
@@ -37,11 +38,9 @@ import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.Listener;
-import org.eclipse.ui.ISelectionService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.sceneed.core.Camera;
 import com.dynamo.cr.sceneed.core.CameraController;
 import com.dynamo.cr.sceneed.core.INodeRenderer;
@@ -49,7 +48,7 @@ import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
 import com.dynamo.cr.sceneed.core.IRenderView;
 import com.dynamo.cr.sceneed.core.IRenderViewProvider;
-import com.dynamo.cr.sceneed.core.Manipulator;
+import com.dynamo.cr.sceneed.core.IRenderViewProvider.MouseEventType;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.RenderContext;
 import com.dynamo.cr.sceneed.core.RenderContext.Pass;
@@ -65,7 +64,7 @@ IRenderView {
 
     private static Logger logger = LoggerFactory.getLogger(RenderView.class);
     private final INodeTypeRegistry nodeTypeRegistry;
-    private final ISelectionService selectionService;
+    private IStructuredSelection selection;
 
     private GLCanvas canvas;
     private GLContext context;
@@ -81,8 +80,7 @@ IRenderView {
     private static final int PICK_BUFFER_SIZE = 4096;
     private static IntBuffer selectBuffer = ByteBuffer.allocateDirect(4 * PICK_BUFFER_SIZE).order(ByteOrder.nativeOrder()).asIntBuffer();
     private static final int MIN_SELECTION_BOX = 16;
-    private SelectionBoxRenderViewProvider selectionBoxRenderViewProvider;
-    private SelectionBoxNode selectionBoxNode;
+    private Point2i mouseStart = new Point2i();
 
     private boolean paintRequested = false;
 
@@ -93,13 +91,10 @@ IRenderView {
     private SceneGrid grid;
 
     @Inject
-    public RenderView(INodeTypeRegistry manager, ISelectionService selectionService) {
+    public RenderView(INodeTypeRegistry manager) {
         this.nodeTypeRegistry = manager;
-        this.selectionService = selectionService;
-        this.selectionBoxNode = new SelectionBoxNode();
-        this.selectionBoxRenderViewProvider = new SelectionBoxRenderViewProvider(this, this.selectionBoxNode);
+        this.selection = new StructuredSelection();
         this.textureRegistry = new TextureRegistry();
-        addRenderProvider(this.selectionBoxRenderViewProvider);
 
         grid = new SceneGrid();
     }
@@ -158,6 +153,11 @@ IRenderView {
     public void refresh() {
         this.grid.updateGrids(getViewTransform(), getProjectionTransform());
         requestPaint();
+    }
+
+    @Override
+    public void setSelection(IStructuredSelection selection) {
+        this.selection = selection;
     }
 
     public Rectangle getViewRect() {
@@ -261,13 +261,8 @@ IRenderView {
 
     @Override
     public void mouseMove(MouseEvent e) {
-        if (this.selectionBoxNode.isVisible()) {
-            if (!CameraController.hasCameraControlModifiers(e)) {
-                this.selectionBoxNode.setCurrent(e.x, e.y);
-                boxSelect();
-            } else {
-                this.selectionBoxNode.setVisible(false);
-            }
+        if (!CameraController.hasCameraControlModifiers(e) && (e.stateMask & SWT.BUTTON1) != 0) {
+            select(e, MouseEventType.MOUSE_MOVE);
         }
         for (MouseMoveListener listener : mouseMoveListeners) {
             listener.mouseMove(e);
@@ -284,74 +279,53 @@ IRenderView {
     }
 
     @Override
-    public void mouseDown(MouseEvent event) {
-        if (!CameraController.hasCameraControlModifiers(event)) {
-            List<Node> nodes = findNodesBySelection(event.x, event.y, MIN_SELECTION_BOX, MIN_SELECTION_BOX);
-            if (nodes.isEmpty()) {
-                this.selectionBoxNode.setVisible(true);
-                this.selectionBoxNode.set(event.x, event.y);
-            } else {
-                boolean macModifiers = (event.stateMask & (SWT.MOD1 | SWT.SHIFT)) != 0;
-                boolean othersModifiers = (event.stateMask & SWT.CTRL) != 0;
-                boolean multiSelect = macModifiers || (!EditorUtil.isMac() && othersModifiers);
-                List<Node> selectedNodes = null;
-                if (multiSelect) {
-                    IStructuredSelection selection = (IStructuredSelection)this.selectionService.getSelection();
-                    @SuppressWarnings("unchecked")
-                    List<Object> selectionList = selection.toList();
-                    selectedNodes = new ArrayList<Node>(selectionList.size() + 1);
-                    selectedNodes.add(nodes.get(0));
-                    for (Object o : selectionList) {
-                        selectedNodes.add((Node)o);
-                    }
-                } else {
-                    selectedNodes = Collections.singletonList(nodes.get(0));
-                }
-                for (IRenderViewProvider provider : providers) {
-                    provider.onNodeHit(selectedNodes);
-                }
-            }
+    public void mouseDown(MouseEvent e) {
+        if (!CameraController.hasCameraControlModifiers(e) && e.button == 1) {
+            this.mouseStart.set(e.x, e.y);
+            select(e, MouseEventType.MOUSE_DOWN);
         }
 
         for (MouseListener listener : mouseListeners) {
-            listener.mouseDown(event);
+            listener.mouseDown(e);
         }
     }
 
     @Override
     public void mouseUp(MouseEvent e) {
-        if (!CameraController.hasCameraControlModifiers(e)) {
-            if (this.selectionBoxNode.isVisible()) {
-                this.selectionBoxNode.setCurrent(e.x, e.y);
-                boxSelect();
-                this.selectionBoxNode.setVisible(false);
-                requestPaint();
-            }
+        if (!CameraController.hasCameraControlModifiers(e) && e.button == 1) {
+            select(e, MouseEventType.MOUSE_UP);
+            requestPaint();
         }
         for (MouseListener listener : mouseListeners) {
             listener.mouseUp(e);
         }
     }
 
-    private void boxSelect() {
-        Point2i start = this.selectionBoxNode.getStart();
-        Point2i dims = this.selectionBoxNode.getCurrent();
-        dims.sub(this.selectionBoxNode.getStart());
-        Point2i center = new Point2i((int)Math.round(dims.x * 0.5), (int)Math.round(dims.y * 0.5));
-        center.add(start);
+    private void select(MouseEvent event, MouseEventType mouseEventType) {
+        Point2i dims = new Point2i(event.x, event.y);
+        dims.sub(this.mouseStart);
+        Point2i center = new Point2i((int) Math.round(dims.x * 0.5), (int) Math.round(dims.y * 0.5));
+        center.add(this.mouseStart);
         dims.absolute();
-        dims.set(Math.max(MIN_SELECTION_BOX, dims.x), Math.max(MIN_SELECTION_BOX, dims.y));
-        List<Node> nodes = findNodesBySelection(center.x, center.y, dims.x, dims.y);
-        // Better way?
-        // Filter out manipulators
-        List<Node> selection = new ArrayList<Node>(nodes);
-        for (Node node : nodes) {
-            if (node instanceof Manipulator) {
-                selection.remove(node);
+        int x = center.x;
+        int y = center.y;
+        int width = Math.max(MIN_SELECTION_BOX, dims.x);
+        int height = Math.max(MIN_SELECTION_BOX, dims.y);
+        List<Node> selection = findNodesBySelection(x, y, width, height);
+
+        IRenderViewProvider focusProvider = null;
+        for (IRenderViewProvider provider : providers) {
+            if (provider.hasFocus(selection)) {
+                focusProvider = provider;
+                break;
             }
         }
-        for (IRenderViewProvider provider : providers) {
-            provider.onNodeHit(selection);
+        if (focusProvider != null) {
+            focusProvider.onNodeHit(selection, event, mouseEventType);
+        } else {
+            for (IRenderViewProvider provider : providers) {
+                provider.onNodeHit(selection, event, mouseEventType);
+            }
         }
     }
 
@@ -583,7 +557,7 @@ IRenderView {
     }
 
     private RenderContext renderNodes(GL gl, GLU glu, List<Pass> passes, boolean pick) {
-        RenderContext renderContext = new RenderContext(this, gl, glu, textureRegistry, selectionService.getSelection());
+        RenderContext renderContext = new RenderContext(this, gl, glu, textureRegistry, this.selection);
 
         for (IRenderViewProvider provider : providers) {
             for (Pass pass : passes) {

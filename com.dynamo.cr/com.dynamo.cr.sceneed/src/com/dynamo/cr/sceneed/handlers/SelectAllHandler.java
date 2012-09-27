@@ -15,7 +15,7 @@ public class SelectAllHandler extends AbstractHandler {
         IEditorPart editorPart = HandlerUtil.getActiveEditor(event);
         if (editorPart instanceof ISceneEditor) {
             ISceneEditor editor = (ISceneEditor) editorPart;
-            editor.getScenePresenter().onSelectAll();
+            editor.getScenePresenter().onSelectAll(editor.getPresenterContext());
         }
         return null;
     }

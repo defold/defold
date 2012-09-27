@@ -4,6 +4,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Iterator;
 import java.util.List;
 
 import org.eclipse.core.resources.IResourceChangeEvent;
@@ -11,6 +14,7 @@ import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
+import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.swt.dnd.Transfer;
@@ -21,6 +25,7 @@ import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.operations.AddChildrenOperation;
 import com.dynamo.cr.sceneed.core.operations.MoveChildrenOperation;
 import com.dynamo.cr.sceneed.core.operations.RemoveChildrenOperation;
+import com.dynamo.cr.sceneed.core.operations.SelectOperation;
 import com.dynamo.cr.sceneed.core.util.NodeListTransfer;
 import com.google.inject.Inject;
 import com.google.protobuf.Message;
@@ -33,6 +38,8 @@ public class ScenePresenter implements IPresenter, IModelListener {
     private final ILoaderContext loaderContext;
     private final IClipboard clipboard;
 
+    private IStructuredSelection currentSelection;
+
     @Inject
     public ScenePresenter(ISceneModel model, ISceneView view, INodeTypeRegistry manager, ILoaderContext loaderContext, IClipboard clipboard) {
         this.model = model;
@@ -42,23 +49,22 @@ public class ScenePresenter implements IPresenter, IModelListener {
         this.clipboard = clipboard;
     }
 
-    @Override
-    public void onSelect(IStructuredSelection selection) {
-        IStructuredSelection oldSelection = this.model.getSelection();
-        if (oldSelection != selection) {
-            this.model.setSelection(selection);
-            this.view.refresh(selection, this.model.isDirty());
+    private void setSelection(IPresenterContext presenterContext, IStructuredSelection selection) {
+        if (!sameSelection(this.currentSelection, selection)) {
+            presenterContext.executeOperation(new SelectOperation(this.currentSelection, selection, presenterContext));
+            this.currentSelection = selection;
         }
     }
 
     @Override
-    public void onSelectAll() {
-        IStructuredSelection oldSelection = this.model.getSelection();
+    public void onSelect(IPresenterContext presenterContext, IStructuredSelection selection) {
+        setSelection(presenterContext, selection);
+    }
+
+    @Override
+    public void onSelectAll(IPresenterContext presenterContext) {
         IStructuredSelection selection = new StructuredSelection(this.model.getRoot().getChildren());
-        if (oldSelection != selection) {
-            this.model.setSelection(selection);
-            this.view.refresh(selection, this.model.isDirty());
-        }
+        setSelection(presenterContext, selection);
     }
 
     @Override
@@ -97,11 +103,13 @@ public class ScenePresenter implements IPresenter, IModelListener {
 
     @Override
     public void rootChanged(Node root) {
+        this.currentSelection = this.model.getSelection();
         this.view.setRoot(root);
     }
 
     @Override
     public void stateChanged(IStructuredSelection selection, boolean dirty) {
+        this.currentSelection = this.model.getSelection();
         this.view.refresh(selection, dirty);
     }
 
@@ -181,5 +189,46 @@ public class ScenePresenter implements IPresenter, IModelListener {
             nodes.add((Node)object);
         }
         return nodes;
+    }
+
+    private boolean sameSelection(ISelection selectionA, ISelection selectionB) {
+        if (selectionA == selectionB) {
+            return true;
+        }
+        if (selectionA instanceof IStructuredSelection && selectionB instanceof IStructuredSelection) {
+            IStructuredSelection a = (IStructuredSelection) selectionA;
+            IStructuredSelection b = (IStructuredSelection) selectionB;
+            int sA = a.size();
+            int sB = b.size();
+            if (sA != sB) {
+                return false;
+            }
+            if (a.isEmpty() && b.isEmpty()) {
+                return true;
+            }
+            @SuppressWarnings("unchecked") List<Object> lA = a.toList();
+            @SuppressWarnings("unchecked") List<Object> lB = b.toList();
+            Comparator<Object> comp = new Comparator<Object>() {
+                @Override
+                public int compare(Object o1, Object o2) {
+                    return o2.hashCode() - o1.hashCode();
+                }
+            };
+            Collections.sort(lA, comp);
+            Collections.sort(lB, comp);
+            Iterator<Object> itA = lA.iterator();
+            Iterator<Object> itB = lB.iterator();
+            while (itA.hasNext()) {
+                Object oA = itA.next();
+                Object oB = itB.next();
+                if (oA != oB) {
+                    return false;
+                }
+            }
+            // Same objects in both selections
+            return true;
+        }
+        // No idea what type of selection, assume inequality
+        return false;
     }
 }

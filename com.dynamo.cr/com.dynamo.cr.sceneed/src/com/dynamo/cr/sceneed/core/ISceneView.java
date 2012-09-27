@@ -18,8 +18,9 @@ import org.eclipse.ui.ISelectionListener;
 public interface ISceneView extends ISelectionListener {
 
     public interface IPresenter {
-        void onSelect(IStructuredSelection selection);
-        void onSelectAll();
+        void onSelect(IPresenterContext presenterContext, IStructuredSelection selection);
+
+        void onSelectAll(IPresenterContext presenterContext);
         void onRefresh();
 
         void onLoad(String type, InputStream contents) throws IOException, CoreException;
