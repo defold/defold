@@ -19,6 +19,9 @@ public class TileGridRenderer implements INodeRenderer<TileGridNode> {
     private static final EnumSet<Pass> passes = EnumSet.of(Pass.OUTLINE, Pass.TRANSPARENT, Pass.SELECTION);
 
     @Override
+    public void dispose() { }
+
+    @Override
     public void setup(RenderContext renderContext, TileGridNode node) {
         if (passes.contains(renderContext.getPass())) {
             TileSetNode tileSet = node.getTileSetNode();

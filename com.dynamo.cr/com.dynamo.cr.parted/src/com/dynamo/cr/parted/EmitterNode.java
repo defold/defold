@@ -1,5 +1,8 @@
 package com.dynamo.cr.parted;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.cr.sceneed.core.Node;
@@ -32,6 +35,9 @@ public class EmitterNode extends Node {
     @Property
     private EmitterType emitterType;
 
+    private ArrayList<Emitter.Property> properties;
+    private ArrayList<Emitter.ParticleProperty> particleProperties;
+
     public EmitterNode(Emitter emitter) {
         setPlayMode(emitter.getMode());
         setDuration(emitter.getDuration());
@@ -39,6 +45,24 @@ public class EmitterNode extends Node {
         setMaterial(emitter.getMaterial());
         setMaxParticleCount(emitter.getMaxParticleCount());
         setEmitterType(emitter.getType());
+
+        setProperties(emitter.getPropertiesList());
+        setParticleProperties(emitter.getParticlePropertiesList());
+    }
+
+    private void resetSystem() {
+        ParticleFXNode parent = (ParticleFXNode) getParent();
+        if (parent != null) {
+            parent.reset();
+        }
+    }
+
+    private void setProperties(List<Emitter.Property> list) {
+        this.properties = new ArrayList<Emitter.Property>(list);
+    }
+
+    private void setParticleProperties(List<Emitter.ParticleProperty> particleProperties) {
+        this.particleProperties = new ArrayList<Emitter.ParticleProperty>(particleProperties);
     }
 
     public PlayMode getPlayMode() {
@@ -47,6 +71,7 @@ public class EmitterNode extends Node {
 
     public void setPlayMode(PlayMode playMode) {
         this.playMode = playMode;
+        resetSystem();
     }
 
     public EmissionSpace getEmissionSpace() {
@@ -55,6 +80,7 @@ public class EmitterNode extends Node {
 
     public void setEmissionSpace(EmissionSpace emissionSpace) {
         this.emissionSpace = emissionSpace;
+        resetSystem();
     }
 
     public float getDuration() {
@@ -63,6 +89,7 @@ public class EmitterNode extends Node {
 
     public void setDuration(float duration) {
         this.duration = duration;
+        resetSystem();
     }
 
     public String getMaterial() {
@@ -71,6 +98,7 @@ public class EmitterNode extends Node {
 
     public void setMaterial(String material) {
         this.material = material;
+        resetSystem();
     }
 
     public int getMaxParticleCount() {
@@ -79,6 +107,7 @@ public class EmitterNode extends Node {
 
     public void setMaxParticleCount(int maxParticleCount) {
         this.maxParticleCount = maxParticleCount;
+        resetSystem();
     }
 
     public EmitterType getEmitterType() {
@@ -87,6 +116,7 @@ public class EmitterNode extends Node {
 
     public void setEmitterType(EmitterType emitterType) {
         this.emitterType = emitterType;
+        resetSystem();
     }
 
     @Override
@@ -104,7 +134,9 @@ public class EmitterNode extends Node {
             .setType(getEmitterType())
             .setPosition(LoaderUtil.toPoint3(getTranslation()))
             .setRotation(LoaderUtil.toQuat(getRotation()))
-            .setTexture(Texture_t.newBuilder().setName("TODO").setTX(16).setTY(16));
+            .setTexture(Texture_t.newBuilder().setName("TODO").setTX(16).setTY(16))
+            .addAllProperties(this.properties)
+            .addAllParticleProperties(this.particleProperties);
     }
 
 }

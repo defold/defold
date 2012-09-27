@@ -19,6 +19,9 @@ public class SphereCollisionShapeRenderer extends CollisionShapeRenderer impleme
     }
 
     @Override
+    public void dispose() { }
+
+    @Override
     public void setup(RenderContext renderContext, SphereCollisionShapeNode node) {
         if (passes.contains(renderContext.getPass())) {
             renderContext.add(this, node, new Point3d(), this.unitSphere);

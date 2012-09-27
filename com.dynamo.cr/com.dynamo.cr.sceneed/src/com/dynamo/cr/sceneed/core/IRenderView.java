@@ -23,6 +23,7 @@ public interface IRenderView  {
     void setFocus();
     void createControls(Composite parent);
     void refresh();
+    void setSimulating(boolean simulating);
     void viewToWorld(int x, int y, Vector4d clickPos, Vector4d clickDir);
     double[] worldToView(Point3d point);
     Camera getCamera();

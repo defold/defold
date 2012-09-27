@@ -14,6 +14,7 @@ import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.swt.dnd.Transfer;
+import org.eclipse.swt.widgets.Display;
 
 import com.dynamo.cr.sceneed.Activator;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenter;
@@ -32,6 +33,18 @@ public class ScenePresenter implements IPresenter, IModelListener {
     private final INodeTypeRegistry nodeTypeRegistry;
     private final ILoaderContext loaderContext;
     private final IClipboard clipboard;
+    private boolean simulating = false;
+    private final Animator animator = new Animator();
+
+    private class Animator implements Runnable {
+        @Override
+        public void run() {
+            if (simulating) {
+                view.refreshRenderView();
+                Display.getCurrent().timerExec(16, this);
+            }
+        }
+    }
 
     @Inject
     public ScenePresenter(ISceneModel model, ISceneView view, INodeTypeRegistry manager, ILoaderContext loaderContext, IClipboard clipboard) {
@@ -182,4 +195,14 @@ public class ScenePresenter implements IPresenter, IModelListener {
         }
         return nodes;
     }
+
+    @Override
+    public void toogleSimulation() {
+        simulating = !simulating;
+        if (simulating) {
+            Display.getCurrent().asyncExec(animator);
+        }
+        view.setSimulating(simulating);
+    }
+
 }

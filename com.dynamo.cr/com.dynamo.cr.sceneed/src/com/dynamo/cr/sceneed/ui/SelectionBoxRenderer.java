@@ -16,6 +16,9 @@ public class SelectionBoxRenderer implements INodeRenderer<SelectionBoxNode> {
     }
 
     @Override
+    public void dispose() { }
+
+    @Override
     public void setup(RenderContext renderContext, SelectionBoxNode node) {
         if (renderContext.getPass() == Pass.OVERLAY) {
             if (node.isVisible()) {

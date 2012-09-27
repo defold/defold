@@ -9,6 +9,7 @@
             loader="com.dynamo.cr.parted.ParticleFXLoader"
             node="com.dynamo.cr.parted.ParticleFXNode"
             presenter="com.dynamo.cr.parted.ParticleFXPresenter"
+            renderer="com.dynamo.cr.parted.ParticleFXRenderer"
             resource-type="com.dynamo.cr.parted.resourcetypes.particleFX">
       </node-type>
       <node-type
@@ -100,6 +101,12 @@
                icon="icons/dynamite.png"
                label="Add Emitter"
                style="push">
+            <visibleWhen
+                  checkEnabled="false">
+               <reference
+                     definitionId="com.dynamo.cr.parted.definitions.particleEditorActive">
+               </reference>
+            </visibleWhen>
          </command>
       </menuContribution>
    </extension>
@@ -109,12 +116,50 @@
             id="com.dynamo.cr.parted.command.addEmitter"
             name="Add Emitter">
       </command>
+      <command
+            id="com.dynamo.cr.parted.command.toggleSimulation"
+            name="Toogle Simulation">
+      </command>
    </extension>
    <extension
          point="org.eclipse.ui.handlers">
       <handler
             class="com.dynamo.cr.parted.handlers.AddEmitterHandler"
             commandId="com.dynamo.cr.parted.command.addEmitter">
+         <activeWhen>
+            <reference
+                  definitionId="com.dynamo.cr.parted.definitions.particleEditorActive">
+            </reference></activeWhen>
       </handler>
+      <handler
+            class="com.dynamo.cr.parted.handlers.ToggleSimulationHandler"
+            commandId="com.dynamo.cr.parted.command.toggleSimulation">
+         <activeWhen>
+            <reference
+                  definitionId="com.dynamo.cr.parted.definitions.particleEditorActive">
+            </reference>
+         </activeWhen>
+      </handler>
+   </extension>
+   <extension
+         point="org.eclipse.core.expressions.definitions">
+      <definition
+            id="com.dynamo.cr.parted.definitions.particleEditorActive">
+         <with
+               variable="activeEditorId">
+            <equals
+                  value="com.dynamo.cr.parted.particleFXEditor">
+            </equals>
+         </with>
+      </definition>
+   </extension>
+   <extension
+         point="org.eclipse.ui.bindings">
+      <key
+            commandId="com.dynamo.cr.parted.command.toggleSimulation"
+            contextId="com.dynamo.cr.sceneed.ui.contexts.sceneEditor"
+            schemeId="com.dynamo.cr.editor.ui.defoldScheme"
+            sequence="SPACE">
+      </key>
    </extension>
 </plugin>

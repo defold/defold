@@ -91,6 +91,7 @@ IRenderView {
     private Map<INodeType, INodeRenderer<Node>> renderers = new HashMap<INodeType, INodeRenderer<Node>>();
 
     private SceneGrid grid;
+    private boolean simulating = false;
 
     @Inject
     public RenderView(INodeTypeRegistry manager, ISelectionService selectionService) {
@@ -137,6 +138,13 @@ IRenderView {
     public void dispose() {
         if (this.context != null) {
             this.context.makeCurrent();
+
+            for (INodeRenderer<Node> r : this.renderers.values()) {
+                if (r != null) {
+                    r.dispose();
+                }
+            }
+
             this.context.release();
             this.context.destroy();
         }
@@ -158,6 +166,11 @@ IRenderView {
     public void refresh() {
         this.grid.updateGrids(getViewTransform(), getProjectionTransform());
         requestPaint();
+    }
+
+    @Override
+    public void setSimulating(boolean simulating) {
+        this.simulating  = simulating;
     }
 
     public Rectangle getViewRect() {
@@ -583,7 +596,11 @@ IRenderView {
     }
 
     private RenderContext renderNodes(GL gl, GLU glu, List<Pass> passes, boolean pick) {
-        RenderContext renderContext = new RenderContext(this, gl, glu, textureRegistry, selectionService.getSelection());
+        double dt = 0;
+        if (simulating) {
+            dt = 1.0 / 60.0;
+        }
+        RenderContext renderContext = new RenderContext(this, dt, gl, glu, textureRegistry, selectionService.getSelection());
 
         for (IRenderViewProvider provider : providers) {
             for (Pass pass : passes) {

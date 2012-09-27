@@ -18,6 +18,9 @@ public class SpriteRenderer implements INodeRenderer<SpriteNode> {
     private static final EnumSet<Pass> passes = EnumSet.of(Pass.OUTLINE, Pass.TRANSPARENT, Pass.SELECTION);
 
     @Override
+    public void dispose() { }
+
+    @Override
     public void setup(RenderContext renderContext, SpriteNode node) {
         if (passes.contains(renderContext.getPass())) {
             TileSetNode tileSet = node.getTileSetNode();

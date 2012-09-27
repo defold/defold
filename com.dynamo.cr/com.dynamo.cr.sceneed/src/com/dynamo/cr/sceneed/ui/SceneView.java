@@ -96,6 +96,11 @@ public class SceneView extends AbstractSceneView {
     }
 
     @Override
+    public void setSimulating(boolean simulating) {
+        this.renderView.setSimulating(simulating);
+    }
+
+    @Override
     public void asyncExec(Runnable runnable) {
         Display.getCurrent().asyncExec(runnable);
     }

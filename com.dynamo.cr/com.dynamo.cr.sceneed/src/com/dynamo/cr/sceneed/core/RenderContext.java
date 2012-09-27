@@ -25,6 +25,7 @@ public class RenderContext {
     private Set<Node> selectedNodes = new HashSet<Node>();
     private IRenderView renderView;
     private TextureRegistry textureRegistry;
+    private double dt;
 
     public enum Pass {
         /**
@@ -120,8 +121,9 @@ public class RenderContext {
     }
 
     @SuppressWarnings("unchecked")
-    public RenderContext(IRenderView renderView, GL gl, GLU glu, TextureRegistry textureRegistry, ISelection selection) {
+    public RenderContext(IRenderView renderView, double dt, GL gl, GLU glu, TextureRegistry textureRegistry, ISelection selection) {
         this.renderView = renderView;
+        this.dt = dt;
         this.gl = gl;
         this.glu = glu;
         this.textureRegistry = textureRegistry;
@@ -209,6 +211,10 @@ public class RenderContext {
         }
 
         return objectColor;
+    }
+
+    public double getDt() {
+        return dt;
     }
 
 }

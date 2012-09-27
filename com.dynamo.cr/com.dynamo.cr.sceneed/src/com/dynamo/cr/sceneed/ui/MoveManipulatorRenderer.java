@@ -10,6 +10,9 @@ public class MoveManipulatorRenderer implements INodeRenderer<MoveManipulator> {
     }
 
     @Override
+    public void dispose() { }
+
+    @Override
     public void setup(RenderContext renderContext, MoveManipulator node) {
     }
 

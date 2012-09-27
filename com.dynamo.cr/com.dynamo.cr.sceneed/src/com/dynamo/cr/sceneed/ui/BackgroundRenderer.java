@@ -15,6 +15,9 @@ public class BackgroundRenderer implements INodeRenderer<BackgroundNode> {
     }
 
     @Override
+    public void dispose() { }
+
+    @Override
     public void setup(RenderContext renderContext, BackgroundNode node) {
         if (renderContext.getPass() == Pass.BACKGROUND) {
             renderContext.add(this, node, new Point3d(), null);

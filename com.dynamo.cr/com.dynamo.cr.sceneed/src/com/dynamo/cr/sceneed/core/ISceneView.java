@@ -33,6 +33,8 @@ public interface ISceneView extends ISelectionListener {
         void onPasteIntoSelection(IPresenterContext presenterContext) throws IOException, CoreException;
         void onDNDMoveSelection(IPresenterContext presenterContext, List<Node> copies, Node targetParent);
         void onDNDDuplicateSelection(IPresenterContext presenterContext, List<Node> copies, Node targetParent);
+
+        void toogleSimulation();
     }
 
     public interface IPresenterContext {
@@ -57,6 +59,7 @@ public interface ISceneView extends ISelectionListener {
     void setRoot(Node root);
     void refresh(IStructuredSelection selection, boolean dirty);
     void refreshRenderView();
+    void setSimulating(boolean simulating);
     void asyncExec(Runnable runnable);
 
     String selectFromList(String title, String message, String... lst);

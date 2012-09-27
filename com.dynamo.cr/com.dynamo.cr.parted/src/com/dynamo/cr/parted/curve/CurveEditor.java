@@ -99,10 +99,10 @@ public class CurveEditor extends Canvas implements PaintListener,
     private void initColors() {
         putColor(BACKGROUND_COLOR_KEY, new RGB(255, 255, 255));
         putColor(AXIS_COLOR_KEY, new RGB(100, 100, 100));
-        putColor(GRID_COLOR_KEY, new RGB(169, 169, 169));
+        putColor(GRID_COLOR_KEY, new RGB(220, 220, 220));
         putColor(TICK_COLOR_KEY, new RGB(0, 0, 0));
-        putColor(TANGENT_COLOR_KEY, new RGB(0, 200, 255));
-        putColor(CONTROL_COLOR_KEY, new RGB(255, 0, 160));
+        putColor(TANGENT_COLOR_KEY, new RGB(0, 0x88, 0xcc));
+        putColor(CONTROL_COLOR_KEY, new RGB(0xff, 0x24, 0x1e));
     }
 
     @Override
@@ -162,7 +162,7 @@ public class CurveEditor extends Canvas implements PaintListener,
     }
 
     private double getTangentScale(SplinePoint p) {
-        double tangentLength = 100.0;
+        double tangentLength = 110.0;
         double a = toScreenX(p.tx) - toScreenX(0);
         double b = toScreenY(p.ty) - toScreenY(0);
         double unitLength = 2 * Math.sqrt(a * a + b * b);
