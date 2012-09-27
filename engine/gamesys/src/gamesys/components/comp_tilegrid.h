@@ -47,8 +47,6 @@ namespace dmGameSystem
         dmRender::HMaterial             m_Material;
         dmGraphics::HVertexProgram      m_VertexProgram;
         dmGraphics::HFragmentProgram    m_FragmentProgram;
-        void*                           m_ClientBuffer;
-        uint32_t                        m_ClientBufferSize;
     };
 
     dmGameObject::CreateResult CompTileGridNewWorld(const dmGameObject::ComponentNewWorldParams& params);
