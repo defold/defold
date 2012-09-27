@@ -39,6 +39,10 @@ public class EmitterNode extends Node {
     private ArrayList<Emitter.ParticleProperty> particleProperties;
 
     public EmitterNode(Emitter emitter) {
+        setTransformable(true);
+        setTranslation(LoaderUtil.toPoint3d(emitter.getPosition()));
+        setRotation(LoaderUtil.toQuat4(emitter.getRotation()));
+
         setPlayMode(emitter.getMode());
         setDuration(emitter.getDuration());
         setEmissionSpace(emitter.getSpace());
@@ -48,6 +52,11 @@ public class EmitterNode extends Node {
 
         setProperties(emitter.getPropertiesList());
         setParticleProperties(emitter.getParticlePropertiesList());
+    }
+
+    @Override
+    protected void transformChanged() {
+        resetSystem();
     }
 
     private void resetSystem() {

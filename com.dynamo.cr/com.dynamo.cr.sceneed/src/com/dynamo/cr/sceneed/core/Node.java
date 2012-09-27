@@ -78,6 +78,10 @@ public abstract class Node implements IAdaptable, Serializable {
 
     private void setDirty() {
         this.worldAABBDirty = true;
+        transformChanged();
+    }
+
+    protected void transformChanged() {
     }
 
     public boolean isFlagSet(Flags flag) {

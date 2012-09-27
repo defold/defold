@@ -16,6 +16,7 @@
             id="com.dynamo.cr.parted.emitter"
             loader="com.dynamo.cr.parted.EmitterLoader"
             node="com.dynamo.cr.parted.EmitterNode"
+            renderer="com.dynamo.cr.parted.EmitterRenderer"
             resource-type="com.dynamo.cr.parted.resourcetypes.emitter">
       </node-type>
    </extension>
