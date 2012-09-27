@@ -68,7 +68,7 @@ public class ManipulatorController implements IRenderViewProvider, MouseListener
     }
 
     @Override
-    public void onNodeHit(List<Node> nodes) {
+    public void onNodeHit(List<Node> nodes, MouseEvent event, MouseEventType mouseEventType) {
         this.selectedManipulator = null;
         for (Node node : nodes) {
             if (node instanceof Manipulator) {
@@ -200,6 +200,16 @@ public class ManipulatorController implements IRenderViewProvider, MouseListener
         if (rootManipulator != null) {
             rootManipulator.refresh();
         }
+    }
+
+    @Override
+    public boolean hasFocus(List<Node> nodes) {
+        for (Node node : nodes) {
+            if (node instanceof Manipulator) {
+                return true;
+            }
+        }
+        return false;
     }
 
 }

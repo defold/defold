@@ -1,10 +1,10 @@
 package com.dynamo.cr.sceneed.core.test;
 
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 
@@ -19,6 +19,8 @@ import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.ui.ISelectionService;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
 import com.dynamo.cr.editor.ui.IImageProvider;
 import com.dynamo.cr.sceneed.core.IClipboard;
@@ -34,6 +36,7 @@ import com.dynamo.cr.sceneed.core.ManipulatorController;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.SceneModel;
 import com.dynamo.cr.sceneed.core.ScenePresenter;
+import com.dynamo.cr.sceneed.core.operations.SelectOperation;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
@@ -49,7 +52,8 @@ public class SceneTest {
     private IContainer contentRoot;
     private INodeTypeRegistry nodeTypeRegistry;
 
-    private int selectCount;
+    private int expectedSelectCount;
+    private IStructuredSelection currentSelection;
 
     class TestModule extends AbstractModule {
         @Override
@@ -85,23 +89,32 @@ public class SceneTest {
         Injector injector = Guice.createInjector(new TestModule());
         this.presenter = injector.getInstance(ISceneView.IPresenter.class);
 
-        this.selectCount = 0;
+        this.expectedSelectCount = 0;
+
+        when(this.presenterContext.getSelection()).thenAnswer(new Answer<IStructuredSelection>() {
+            @Override
+            public IStructuredSelection answer(InvocationOnMock invocation) throws Throwable {
+                return currentSelection;
+            }
+        });
     }
 
     // Helpers
-    protected void verifyRefresh() {
-        ++this.selectCount;
-        verify(this.view, times(this.selectCount)).refresh(any(IStructuredSelection.class), anyBoolean());
+    protected void verifySelect() {
+        ++this.expectedSelectCount;
+        verify(this.presenterContext, times(this.expectedSelectCount)).executeOperation(any(SelectOperation.class));
     }
 
-    protected void verifyNoRefresh() {
-        verify(this.view, times(this.selectCount)).refresh(any(IStructuredSelection.class), anyBoolean());
+    protected void verifyNoSelect() {
+        verify(this.presenterContext, times(this.expectedSelectCount)).executeOperation(any(SelectOperation.class));
     }
 
     // Tests
 
     private void select(Node node) {
-        this.presenter.onSelect(new StructuredSelection(node));
+        IStructuredSelection selection = new StructuredSelection(node);
+        this.presenter.onSelect(this.presenterContext, selection);
+        this.currentSelection = selection;
     }
 
     @Test
@@ -111,11 +124,11 @@ public class SceneTest {
         root.addChild(child);
 
         select(root);
-        verifyRefresh();
+        verifySelect();
         select(root);
-        verifyRefresh();
+        verifyNoSelect();
         select(child);
-        verifyRefresh();
+        verifySelect();
     }
 
 }

@@ -4,6 +4,7 @@ import javax.vecmath.Matrix4d;
 import javax.vecmath.Point3d;
 import javax.vecmath.Vector4d;
 
+import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.swt.events.MouseListener;
 import org.eclipse.swt.events.MouseMoveListener;
 import org.eclipse.swt.widgets.Composite;
@@ -23,6 +24,8 @@ public interface IRenderView  {
     void setFocus();
     void createControls(Composite parent);
     void refresh();
+
+    void setSelection(IStructuredSelection selection);
     void viewToWorld(int x, int y, Vector4d clickPos, Vector4d clickDir);
     double[] worldToView(Point3d point);
     Camera getCamera();

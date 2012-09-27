@@ -53,6 +53,7 @@ public class SceneView extends AbstractSceneView {
         sceneRenderViewProvider.setSelection(selection);
         manipulatorController.setSelection(selection);
         manipulatorController.refresh();
+        renderView.setSelection(selection);
         renderView.refresh();
 
         // The rest is expensive, so force a low frequency
