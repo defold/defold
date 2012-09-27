@@ -25,6 +25,11 @@ namespace dmParticle
     /// Config key to use for tweaking the total maximum number of particles in a context.
     const char* MAX_PARTICLE_COUNT_KEY       = "particle_system.max_particle_count";
 
+    AnimationData::AnimationData()
+    {
+        memset(this, 0, sizeof(*this));
+    }
+
     HContext CreateContext(uint32_t max_instance_count, uint32_t max_particle_count)
     {
         return new Context(max_instance_count, max_particle_count);
@@ -143,18 +148,24 @@ namespace dmParticle
         instance->m_Prototype = prototype;
         instance->m_Emitters.SetCapacity(emitter_count);
         instance->m_Emitters.SetSize(emitter_count);
-        memset(&instance->m_Emitters.Front(), 0, emitter_count * sizeof(Emitter));
-        for (uint32_t i = 0; i < emitter_count; ++i)
+        if (emitter_count > 0)
         {
-            Emitter* emitter = &instance->m_Emitters[i];
-            EmitterPrototype* emitter_prototype = &prototype->m_Emitters[i];
-            dmParticleDDF::Emitter* emitter_ddf = &ddf->m_Emitters[i];
-            emitter->m_Prototype = emitter_prototype;
-            uint32_t particle_count = emitter_ddf->m_MaxParticleCount;
-            emitter->m_Particles.SetCapacity(particle_count);
-            emitter->m_Particles.SetSize(particle_count);
-            memset(&emitter->m_Particles.Front(), 0, particle_count * sizeof(Particle));
-            emitter->m_Timer = 0.0f;
+            memset(&instance->m_Emitters.Front(), 0, emitter_count * sizeof(Emitter));
+            for (uint32_t i = 0; i < emitter_count; ++i)
+            {
+                Emitter* emitter = &instance->m_Emitters[i];
+                EmitterPrototype* emitter_prototype = &prototype->m_Emitters[i];
+                dmParticleDDF::Emitter* emitter_ddf = &ddf->m_Emitters[i];
+                emitter->m_Prototype = emitter_prototype;
+                uint32_t particle_count = emitter_ddf->m_MaxParticleCount;
+                emitter->m_Particles.SetCapacity(particle_count);
+                emitter->m_Particles.SetSize(particle_count);
+                if (particle_count > 0)
+                {
+                    memset(&emitter->m_Particles.Front(), 0, particle_count * sizeof(Particle));
+                }
+                emitter->m_Timer = 0.0f;
+            }
         }
 
         return instance->m_VersionNumber << 16 | index;
@@ -340,7 +351,7 @@ namespace dmParticle
         }
     }
 
-    void Update(HContext context, float dt, float* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size)
+    void Update(HContext context, float dt, float* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size, FetchAnimationCallback fetch_animation_callback)
     {
         DM_PROFILE(Particle, "Update");
 
@@ -375,16 +386,45 @@ namespace dmParticle
             for (uint32_t emitter_i = 0; emitter_i < emitter_count; ++emitter_i)
             {
                 Emitter* emitter = &instance->m_Emitters[emitter_i];
+                EmitterPrototype* prototype = emitter->m_Prototype;
+
+                if (fetch_animation_callback != 0x0)
+                {
+                    FetchAnimationResult result = fetch_animation_callback(prototype->m_TileSource, prototype->m_Animation, &emitter->m_AnimationData);
+                    if (result != FETCH_ANIMATION_OK)
+                    {
+                        if (!emitter->m_FetchAnimWarning)
+                        {
+                            emitter->m_FetchAnimWarning = 1;
+                            const char* anim = (const char*)dmHashReverse64(prototype->m_Animation, 0x0);
+                            if (anim == 0x0)
+                                anim = "<unknown>";
+                            const char* reason = "of an unkown error";
+                            if (result == FETCH_ANIMATION_NOT_FOUND)
+                            {
+                                reason = "the animation could not be found";
+                            }
+                            dmLogWarning("The emitter with animation '%s' could not play because %s", anim, reason);
+                        }
+                        // Skip simulating since we don't have UVs
+                        continue;
+                    } else {
+                        emitter->m_FetchAnimWarning = 0;
+                    }
+                }
 
                 // Resize particle buffer if the resource has been reloaded, wipe particles
-                uint32_t max_particle_count = emitter->m_Prototype->m_DDF->m_MaxParticleCount;
+                uint32_t max_particle_count = prototype->m_DDF->m_MaxParticleCount;
                 if (emitter->m_Particles.Size() != max_particle_count)
                 {
                     if (max_particle_count <= context->m_MaxParticleCount)
                     {
                         emitter->m_Particles.SetCapacity(max_particle_count);
                         emitter->m_Particles.SetSize(max_particle_count);
-                        memset(&emitter->m_Particles.Front(), 0, max_particle_count * sizeof(Particle));
+                        if (max_particle_count > 0)
+                        {
+                            memset(&emitter->m_Particles.Front(), 0, max_particle_count * sizeof(Particle));
+                        }
                         emitter->m_ResizeWarning = 0;
                         emitter->m_RenderWarning = 0;
                     }
@@ -444,7 +484,7 @@ namespace dmParticle
                     if (emitter->m_SpawnTimer < emitter->m_SpawnDelay)
                         emitter->m_SpawnTimer += dt;
                     // stop once-emitters that have lived their life
-                    if (emitter->m_Prototype->m_DDF->m_Mode == PLAY_MODE_ONCE && emitter->m_Timer >= emitter->m_Prototype->m_DDF->m_Duration)
+                    if (prototype->m_DDF->m_Mode == PLAY_MODE_ONCE && emitter->m_Timer >= prototype->m_DDF->m_Duration)
                         emitter->m_IsSpawning = 0;
                 }
                 if (emitter->m_ParticleTimeLeft > 0.0f)
@@ -461,7 +501,7 @@ namespace dmParticle
     {
         EmitterPrototype* prototype = emitter->m_Prototype;
         dmParticleDDF::Emitter* ddf = prototype->m_DDF;
-        float x = emitter->m_Timer / ddf->m_Duration;
+        float x = dmMath::Select(-ddf->m_Duration, 0.0f, emitter->m_Timer / ddf->m_Duration);
         for (uint32_t i = 0; i < EMITTER_KEY_COUNT; ++i)
         {
             Property* property = &prototype->m_Properties[i];
@@ -551,6 +591,11 @@ namespace dmParticle
         }
     }
 
+    static float unit_tex_coords[] =
+    {
+            0.0f, 0.0f, 1.0f, 1.0f
+    };
+
     static uint32_t UpdateRenderData(HContext context, Instance* instance, Emitter* emitter, uint32_t vertex_index, float* vertex_buffer, uint32_t vertex_buffer_size)
     {
         DM_PROFILE(Particle, "UpdateRenderData");
@@ -559,9 +604,18 @@ namespace dmParticle
         emitter->m_VertexCount = 0;
 
         // texture animation
-        uint32_t total_frames = emitter->m_Prototype->m_DDF->m_Texture.m_TX * emitter->m_Prototype->m_DDF->m_Texture.m_TY;
-        float dU = 1.0f / (float)(emitter->m_Prototype->m_DDF->m_Texture.m_TX);
-        float dV = 1.0f / (float)(emitter->m_Prototype->m_DDF->m_Texture.m_TY);
+        uint32_t start_tile = emitter->m_AnimationData.m_StartTile - 1;
+        uint32_t end_tile = emitter->m_AnimationData.m_EndTile - 1;
+        uint32_t tile_count = end_tile - start_tile + 1;
+        float* tex_coords = emitter->m_AnimationData.m_TexCoords;
+
+        if (tex_coords == 0x0)
+        {
+            tex_coords = unit_tex_coords;
+            start_tile = 0;
+            end_tile = 0;
+            tile_count = 1;
+        }
 
         // calculate emission space
         Quat emission_rotation = Quat::identity();
@@ -572,21 +626,21 @@ namespace dmParticle
             emission_position = Vector3(instance->m_Position);
         }
 
-        uint32_t tex_tx = emitter->m_Prototype->m_DDF->m_Texture.m_TX;
-        uint32_t tex_ty = emitter->m_Prototype->m_DDF->m_Texture.m_TY;
         uint32_t max_vertex_count = vertex_buffer_size / sizeof(Vertex);
-        uint32_t j;
         uint32_t particle_count = emitter->m_Particles.Size();
-        for (j = 0; j < particle_count && vertex_index + 6 < max_vertex_count; j++)
+        uint32_t j;
+        for (j = 0; j < particle_count && vertex_index + 6 <= max_vertex_count; j++)
         {
             Particle* particle = &emitter->m_Particles[j];
 
             float size = particle->m_Size;
             float alpha = particle->m_Alpha;
 
-            // invisible dead particles
-            // TODO: Better to not render them?
-            alpha = dmMath::Select(particle->m_TimeLeft, alpha, 0.0f);
+            bool alive = (bool)dmMath::Select(particle->m_TimeLeft, 1.0f, 0.0f);
+            if (!alive)
+            {
+                continue;
+            }
 
             Vector3 particle_position = rotate(emission_rotation, Vector3(particle->m_Position)) + emission_position;
             Quat particle_rotation = emission_rotation * particle->m_Rotation;
@@ -601,23 +655,17 @@ namespace dmParticle
 
             // avoid wrapping for dead particles
             float time_left = dmMath::Select(particle->m_TimeLeft, particle->m_TimeLeft, 0.0f);
-            uint32_t frame = (uint32_t)((float)total_frames * (1.0f - time_left * particle->m_ooMaxLifeTime) - 0.5f );
-            uint32_t uframe = frame % tex_tx;
-            uint32_t vframe = frame / tex_ty;
-
-            assert(uframe >= 0 && uframe < tex_tx);
-            assert(vframe >= 0 && vframe < tex_ty);
-
-            float u = uframe * dU;
-            float v = vframe * dV;
-            float u0 = u + 0.0f;
-            float v0 = v + dV;
-            float u1 = u + 0.0f;
-            float v1 = v + 0.0f;
-            float u2 = u + dU;
-            float v2 = v + dV;
-            float u3 = u + dU;
-            float v3 = v + 0.0f;
+            float t = (1.0f - time_left * particle->m_ooMaxLifeTime);
+            uint32_t tile = (uint32_t)(tile_count * t);
+            // TODO only for once
+            if (tile == tile_count)
+                --tile;
+            tile += start_tile;
+            float* tex_coord = &tex_coords[tile * 4];
+            float u0 = tex_coord[0];
+            float v0 = tex_coord[1];
+            float u1 = tex_coord[2];
+            float v1 = tex_coord[3];
 
             // store values in the buffer
             uint32_t field_index = vertex_index * VERTEX_FIELD_COUNT;
@@ -626,13 +674,21 @@ namespace dmParticle
             vertex_buffer[field_index + 1] = p0.getY();
             vertex_buffer[field_index + 2] = p0.getZ();
             vertex_buffer[field_index + 3] = u0;
+            vertex_buffer[field_index + 4] = v1;
+            vertex_buffer[field_index + 5] = alpha;
+
+            field_index += VERTEX_FIELD_COUNT;
+            vertex_buffer[field_index + 0] = p1.getX();
+            vertex_buffer[field_index + 1] = p1.getY();
+            vertex_buffer[field_index + 2] = p1.getZ();
+            vertex_buffer[field_index + 3] = u0;
             vertex_buffer[field_index + 4] = v0;
             vertex_buffer[field_index + 5] = alpha;
 
             field_index += VERTEX_FIELD_COUNT;
-            vertex_buffer[field_index + 0] = p1.getX();
-            vertex_buffer[field_index + 1] = p1.getY();
-            vertex_buffer[field_index + 2] = p1.getZ();
+            vertex_buffer[field_index + 0] = p2.getX();
+            vertex_buffer[field_index + 1] = p2.getY();
+            vertex_buffer[field_index + 2] = p2.getZ();
             vertex_buffer[field_index + 3] = u1;
             vertex_buffer[field_index + 4] = v1;
             vertex_buffer[field_index + 5] = alpha;
@@ -641,32 +697,24 @@ namespace dmParticle
             vertex_buffer[field_index + 0] = p2.getX();
             vertex_buffer[field_index + 1] = p2.getY();
             vertex_buffer[field_index + 2] = p2.getZ();
-            vertex_buffer[field_index + 3] = u2;
-            vertex_buffer[field_index + 4] = v2;
-            vertex_buffer[field_index + 5] = alpha;
-
-            field_index += VERTEX_FIELD_COUNT;
-            vertex_buffer[field_index + 0] = p2.getX();
-            vertex_buffer[field_index + 1] = p2.getY();
-            vertex_buffer[field_index + 2] = p2.getZ();
-            vertex_buffer[field_index + 3] = u2;
-            vertex_buffer[field_index + 4] = v2;
+            vertex_buffer[field_index + 3] = u1;
+            vertex_buffer[field_index + 4] = v1;
             vertex_buffer[field_index + 5] = alpha;
 
             field_index += VERTEX_FIELD_COUNT;
             vertex_buffer[field_index + 0] = p1.getX();
             vertex_buffer[field_index + 1] = p1.getY();
             vertex_buffer[field_index + 2] = p1.getZ();
-            vertex_buffer[field_index + 3] = u1;
-            vertex_buffer[field_index + 4] = v1;
+            vertex_buffer[field_index + 3] = u0;
+            vertex_buffer[field_index + 4] = v0;
             vertex_buffer[field_index + 5] = alpha;
 
             field_index += VERTEX_FIELD_COUNT;
             vertex_buffer[field_index + 0] = p3.getX();
             vertex_buffer[field_index + 1] = p3.getY();
             vertex_buffer[field_index + 2] = p3.getZ();
-            vertex_buffer[field_index + 3] = u3;
-            vertex_buffer[field_index + 4] = v3;
+            vertex_buffer[field_index + 3] = u1;
+            vertex_buffer[field_index + 4] = v0;
             vertex_buffer[field_index + 5] = alpha;
 
             vertex_index += 6;
@@ -704,7 +752,7 @@ namespace dmParticle
                     Emitter* emitter = &instance->m_Emitters[j];
                     if (!emitter || emitter->m_VertexCount == 0) continue;
 
-                    render_emitter_callback(usercontext, emitter->m_Prototype->m_Material, emitter->m_Prototype->m_Texture, emitter->m_VertexIndex, emitter->m_VertexCount);
+                    render_emitter_callback(usercontext, emitter->m_Prototype->m_Material, emitter->m_AnimationData.m_Texture, emitter->m_VertexIndex, emitter->m_VertexCount);
                 }
             }
         }
@@ -817,7 +865,7 @@ namespace dmParticle
         }
     }
 
-    Prototype* NewPrototype(const void* buffer, uint32_t buffer_size)
+    bool LoadResources(Prototype* prototype, const void* buffer, uint32_t buffer_size)
     {
         dmParticleDDF::ParticleFX* ddf = 0;
         dmDDF::Result r = dmDDF::LoadMessage<dmParticleDDF::ParticleFX>(buffer, buffer_size, &ddf);
@@ -828,46 +876,63 @@ namespace dmParticle
             {
                 dmParticleDDF::Emitter* emitter_ddf = &ddf->m_Emitters[i];
                 if (emitter_ddf->m_Material == 0x0 || *emitter_ddf->m_Material == '\0'
-                            || emitter_ddf->m_Texture.m_Name == 0x0 || *emitter_ddf->m_Texture.m_Name == '\0')
+                            || emitter_ddf->m_TileSource == 0x0 || *emitter_ddf->m_TileSource == '\0')
                 {
                     dmDDF::FreeMessage(ddf);
                     dmLogError("Failed to load particle data because of unspecified resources");
-                    return 0;
+                    return false;
                 }
             }
-            Prototype* prototype = new Prototype();
+            if (prototype->m_DDF != 0x0)
+            {
+                dmDDF::FreeMessage(prototype->m_DDF);
+            }
             prototype->m_DDF = ddf;
             prototype->m_Emitters.SetCapacity(emitter_count);
             prototype->m_Emitters.SetSize(emitter_count);
-            memset(&prototype->m_Emitters.Front(), 0, emitter_count * sizeof(EmitterPrototype));
-            for (uint32_t i = 0; i < emitter_count; ++i)
+            if (emitter_count > 0)
             {
-                dmParticleDDF::Emitter* emitter_ddf = &ddf->m_Emitters[i];
-                EmitterPrototype* emitter = &prototype->m_Emitters[i];
-                emitter->m_DDF = emitter_ddf;
-                // Approximate splines with linear segments
-                memset(emitter->m_Properties, 0, sizeof(emitter->m_Properties));
-                memset(emitter->m_ParticleProperties, 0, sizeof(emitter->m_ParticleProperties));
-                uint32_t prop_count = emitter_ddf->m_Properties.m_Count;
-                for (uint32_t i = 0; i < prop_count; ++i)
+                memset(&prototype->m_Emitters.Front(), 0, emitter_count * sizeof(EmitterPrototype));
+                for (uint32_t i = 0; i < emitter_count; ++i)
                 {
-                    const dmParticleDDF::Emitter::Property& p = emitter_ddf->m_Properties[i];
-                    SampleProperty(p.m_Points.m_Data, p.m_Points.m_Count, emitter->m_Properties[p.m_Key].m_Segments);
-                }
-                prop_count = emitter_ddf->m_ParticleProperties.m_Count;
-                for (uint32_t i = 0; i < prop_count; ++i)
-                {
-                    const dmParticleDDF::Emitter::ParticleProperty& p = emitter_ddf->m_ParticleProperties[i];
-                    SampleProperty(p.m_Points.m_Data, p.m_Points.m_Count, emitter->m_ParticleProperties[p.m_Key].m_Segments);
+                    dmParticleDDF::Emitter* emitter_ddf = &ddf->m_Emitters[i];
+                    EmitterPrototype* emitter = &prototype->m_Emitters[i];
+                    emitter->m_DDF = emitter_ddf;
+                    emitter->m_Animation = dmHashString64(emitter_ddf->m_Animation);
+                    // Approximate splines with linear segments
+                    memset(emitter->m_Properties, 0, sizeof(emitter->m_Properties));
+                    memset(emitter->m_ParticleProperties, 0, sizeof(emitter->m_ParticleProperties));
+                    uint32_t prop_count = emitter_ddf->m_Properties.m_Count;
+                    for (uint32_t i = 0; i < prop_count; ++i)
+                    {
+                        const dmParticleDDF::Emitter::Property& p = emitter_ddf->m_Properties[i];
+                        SampleProperty(p.m_Points.m_Data, p.m_Points.m_Count, emitter->m_Properties[p.m_Key].m_Segments);
+                    }
+                    prop_count = emitter_ddf->m_ParticleProperties.m_Count;
+                    for (uint32_t i = 0; i < prop_count; ++i)
+                    {
+                        const dmParticleDDF::Emitter::ParticleProperty& p = emitter_ddf->m_ParticleProperties[i];
+                        SampleProperty(p.m_Points.m_Data, p.m_Points.m_Count, emitter->m_ParticleProperties[p.m_Key].m_Segments);
+                    }
                 }
             }
+            return true;
+        }
+        return false;
+    }
 
+    Prototype* NewPrototype(const void* buffer, uint32_t buffer_size)
+    {
+        Prototype* prototype = new Prototype();
+        if (LoadResources(prototype, buffer, buffer_size))
+        {
             return prototype;
         }
         else
         {
+            delete prototype;
             dmLogError("Failed to load particle data");
-            return 0;
+            return 0x0;
         }
     }
 
@@ -875,6 +940,11 @@ namespace dmParticle
     {
         dmDDF::FreeMessage(prototype->m_DDF);
         delete prototype;
+    }
+
+    bool ReloadPrototype(HPrototype prototype, const void* buffer, uint32_t buffer_size)
+    {
+        return LoadResources(prototype, buffer, buffer_size);
     }
 
     uint32_t GetEmitterCount(HPrototype prototype)
@@ -887,9 +957,9 @@ namespace dmParticle
         return prototype->m_DDF->m_Emitters[emitter_index].m_Material;
     }
 
-    const char* GetTexturePath(HPrototype prototype, uint32_t emitter_index)
+    const char* GetTileSourcePath(HPrototype prototype, uint32_t emitter_index)
     {
-        return prototype->m_DDF->m_Emitters[emitter_index].m_Texture.m_Name;
+        return prototype->m_DDF->m_Emitters[emitter_index].m_TileSource;
     }
 
     void* GetMaterial(HPrototype prototype, uint32_t emitter_index)
@@ -897,9 +967,9 @@ namespace dmParticle
         return prototype->m_Emitters[emitter_index].m_Material;
     }
 
-    void* GetTexture(HPrototype prototype, uint32_t emitter_index)
+    void* GetTileSource(HPrototype prototype, uint32_t emitter_index)
     {
-        return prototype->m_Emitters[emitter_index].m_Texture;
+        return prototype->m_Emitters[emitter_index].m_TileSource;
     }
 
     void SetMaterial(HPrototype prototype, uint32_t emitter_index, void* material)
@@ -907,9 +977,9 @@ namespace dmParticle
         prototype->m_Emitters[emitter_index].m_Material = material;
     }
 
-    void SetTexture(HPrototype prototype, uint32_t emitter_index, void* texture)
+    void SetTileSource(HPrototype prototype, uint32_t emitter_index, void* tile_source)
     {
-        prototype->m_Emitters[emitter_index].m_Texture = texture;
+        prototype->m_Emitters[emitter_index].m_TileSource = tile_source;
     }
 
 #define DM_PARTICLE_TRAMPOLINE1(ret, name, t1) \
@@ -942,6 +1012,12 @@ namespace dmParticle
         return name(a1, a2, a3, a4, a5);\
     }\
 
+#define DM_PARTICLE_TRAMPOLINE6(ret, name, t1, t2, t3, t4, t5, t6) \
+    ret Particle_##name(t1 a1, t2 a2, t3 a3, t4 a4, t5 a5, t6 a6)\
+    {\
+        return name(a1, a2, a3, a4, a5, a6);\
+    }\
+
     DM_PARTICLE_TRAMPOLINE2(HContext, CreateContext, uint32_t, uint32_t);
     DM_PARTICLE_TRAMPOLINE1(void, DestroyContext, HContext);
 
@@ -956,18 +1032,19 @@ namespace dmParticle
 
     DM_PARTICLE_TRAMPOLINE2(bool, IsSpawning, HContext, HInstance);
     DM_PARTICLE_TRAMPOLINE2(bool, IsSleeping, HContext, HInstance);
-    DM_PARTICLE_TRAMPOLINE5(void, Update, HContext, float, float*, uint32_t, uint32_t*);
+    DM_PARTICLE_TRAMPOLINE6(void, Update, HContext, float, float*, uint32_t, uint32_t*, FetchAnimationCallback);
     DM_PARTICLE_TRAMPOLINE3(void, Render, HContext, void*, RenderInstanceCallback);
 
     DM_PARTICLE_TRAMPOLINE2(HPrototype, NewPrototype, const void*, uint32_t);
     DM_PARTICLE_TRAMPOLINE1(void, DeletePrototype, HPrototype);
+    DM_PARTICLE_TRAMPOLINE3(bool, ReloadPrototype, HPrototype, const void*, uint32_t);
 
     DM_PARTICLE_TRAMPOLINE1(uint32_t, GetEmitterCount, HPrototype);
     DM_PARTICLE_TRAMPOLINE2(const char*, GetMaterialPath, HPrototype, uint32_t);
-    DM_PARTICLE_TRAMPOLINE2(const char*, GetTexturePath, HPrototype, uint32_t);
+    DM_PARTICLE_TRAMPOLINE2(const char*, GetTileSourcePath, HPrototype, uint32_t);
     DM_PARTICLE_TRAMPOLINE2(void*, GetMaterial, HPrototype, uint32_t);
-    DM_PARTICLE_TRAMPOLINE2(void*, GetTexture, HPrototype, uint32_t);
+    DM_PARTICLE_TRAMPOLINE2(void*, GetTileSource, HPrototype, uint32_t);
     DM_PARTICLE_TRAMPOLINE3(void, SetMaterial, HPrototype, uint32_t, void*);
-    DM_PARTICLE_TRAMPOLINE3(void, SetTexture, HPrototype, uint32_t, void*);
+    DM_PARTICLE_TRAMPOLINE3(void, SetTileSource, HPrototype, uint32_t, void*);
 
 }

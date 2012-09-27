@@ -5,6 +5,8 @@
 
 #include <resource/resource.h>
 
+#include <particle/particle.h>
+
 namespace dmGameSystem
 {
     dmResource::Result ResParticleFXCreate(dmResource::HFactory factory,

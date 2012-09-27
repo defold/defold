@@ -25,13 +25,6 @@ enum EmissionSpace
     EMISSION_SPACE_EMITTER  = 1;
 }
 
-message Texture_t
-{
-    required string name    = 1 [(resource)=true];
-    required uint32 t_x     = 2;
-    required uint32 t_y     = 3;
-}
-
 message SplinePoint
 {
     required float x = 1;
@@ -72,26 +65,27 @@ message Emitter
     required dmMath.Point3  position            = 4;
     required dmMath.Quat    rotation            = 5;
 
-    required Texture_t      texture             = 6;
-    required string         material            = 7 [(resource)=true];
+    required string         tile_source         = 6 [(resource)=true];
+    required string         animation           = 7;
+    required string         material            = 8 [(resource)=true];
 
-    required uint32         max_particle_count  = 8;
+    required uint32         max_particle_count  = 9;
 
-    required EmitterType    type                = 9;
+    required EmitterType    type                = 10;
 
     message Property
     {
         required EmitterKey         key     = 1;
         repeated SplinePoint        points  = 2;
     }
-    repeated Property properties = 10;
+    repeated Property       properties          = 11;
 
     message ParticleProperty
     {
         required ParticleKey    key     = 1;
         repeated SplinePoint    points  = 2;
     }
-    repeated ParticleProperty particle_properties = 11;
+    repeated ParticleProperty particle_properties = 12;
 }
 
 message ParticleFX

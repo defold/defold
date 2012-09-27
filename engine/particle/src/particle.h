@@ -53,6 +53,42 @@ namespace dmParticle
      */
     typedef void (*RenderLineCallback)(void* usercontext, Vectormath::Aos::Point3 start, Vectormath::Aos::Point3 end, Vectormath::Aos::Vector4 color);
 
+    enum AnimPlayback
+    {
+        ANIM_PLAYBACK_NONE = 0,
+        ANIM_PLAYBACK_ONCE_FORWARD = 1,
+        ANIM_PLAYBACK_ONCE_BACKWARD = 2,
+        ANIM_PLAYBACK_LOOP_FORWARD = 3,
+        ANIM_PLAYBACK_LOOP_BACKWARD = 4,
+        ANIM_PLAYBACK_LOOP_PINGPONG = 5,
+    };
+
+    struct AnimationData
+    {
+        AnimationData();
+
+        void* m_Texture;
+        float* m_TexCoords;
+        AnimPlayback m_Playback;
+        uint16_t m_StartTile;
+        uint16_t m_EndTile;
+        uint16_t m_FPS;
+        uint16_t m_HFlip : 1;
+        uint16_t m_VFlip : 1;
+    };
+
+    enum FetchAnimationResult
+    {
+        FETCH_ANIMATION_OK = 0,
+        FETCH_ANIMATION_NOT_FOUND = -1,
+        FETCH_ANIMATION_UNKNOWN_ERROR = -1000
+    };
+
+    /**
+     * Callback to fetch the animation from a tile source
+     */
+    typedef FetchAnimationResult (*FetchAnimationCallback)(void* tile_source, dmhash_t animation, AnimationData* out_data);
+
 #define DM_PARTICLE_PROTO(ret, name,  ...) \
     \
     ret name(__VA_ARGS__);\
@@ -152,7 +188,7 @@ namespace dmParticle
      * @param vertex_buffer_size Size in bytes of the supplied vertex buffer.
      * @param out_vertex_buffer_size How many bytes was actually written to the vertex buffer, 0x0 is allowed.
      */
-    DM_PARTICLE_PROTO(void, Update, HContext context, float dt, float* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size);
+    DM_PARTICLE_PROTO(void, Update, HContext context, float dt, float* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size, FetchAnimationCallback fetch_animation_callback);
 
     /**
      * Render the instances within the specified context.
@@ -179,6 +215,8 @@ namespace dmParticle
      */
     DM_PARTICLE_PROTO(void, DeletePrototype, HPrototype prototype);
 
+    DM_PARTICLE_PROTO(bool, ReloadPrototype, HPrototype prototype, const void* buffer, uint32_t buffer_size);
+
     /**
      * Retrieve number of emitters in the supplied prototype
      * @param prototype Prototype
@@ -191,11 +229,11 @@ namespace dmParticle
      */
     DM_PARTICLE_PROTO(const char*, GetMaterialPath, HPrototype prototype, uint32_t emitter_index);
     /**
-     * Retrieve texture path from the emitter in the supplied prototype
+     * Retrieve tile source path from the emitter in the supplied prototype
      * @param prototype Prototype
      * @param emitter_index Index of the emitter in question
      */
-    DM_PARTICLE_PROTO(const char*, GetTexturePath, HPrototype prototype, uint32_t emitter_index);
+    DM_PARTICLE_PROTO(const char*, GetTileSourcePath, HPrototype prototype, uint32_t emitter_index);
     /**
      * Retrieve material from the emitter in the supplied prototype
      * @param prototype Prototype
@@ -204,12 +242,12 @@ namespace dmParticle
      */
     DM_PARTICLE_PROTO(void*, GetMaterial, HPrototype prototype, uint32_t emitter_index);
     /**
-     * Retrieve texture from the emitter in the supplied prototype
+     * Retrieve tile source from the emitter in the supplied prototype
      * @param prototype Prototype
      * @param emitter_index Index of the emitter in question
-     * @return pointer to the texture
+     * @return pointer to the tile source
      */
-    DM_PARTICLE_PROTO(void*, GetTexture, HPrototype prototype, uint32_t emitter_index);
+    DM_PARTICLE_PROTO(void*, GetTileSource, HPrototype prototype, uint32_t emitter_index);
     /**
      * Set material in the emitter in the supplied prototype
      * @param prototype Prototype
@@ -218,12 +256,12 @@ namespace dmParticle
      */
     DM_PARTICLE_PROTO(void, SetMaterial, HPrototype prototype, uint32_t emitter_index, void* material);
     /**
-     * Set texture in the emitter in the supplied prototype
+     * Set tile source in the emitter in the supplied prototype
      * @param prototype Prototype
      * @param emitter_index Index of the emitter in question
-     * @param texture Texture to set
+     * @param tile_source Tile source to set
      */
-    DM_PARTICLE_PROTO(void, SetTexture, HPrototype prototype, uint32_t emitter_index, void* texture);
+    DM_PARTICLE_PROTO(void, SetTileSource, HPrototype prototype, uint32_t emitter_index, void* tile_source);
 
 #undef DM_PARTICLE_PROTO
 

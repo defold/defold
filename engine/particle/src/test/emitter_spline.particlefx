@@ -5,8 +5,9 @@ emitters: {
     position:           { x: 0 y: 0 z: 0 }
     rotation:           { x: 0 y: 0 z: 0 w: 1 }
 
+    tile_source:        "particle.tilesource"
+    animation:          ""
     material:           "particle.material"
-    texture:            { name: "tiny_explosion.texture" t_x: 8 t_y: 8 }
 
     max_particle_count:   1
 

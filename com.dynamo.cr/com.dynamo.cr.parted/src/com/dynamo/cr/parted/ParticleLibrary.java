@@ -17,6 +17,10 @@ public class ParticleLibrary {
         void invoke(Pointer userContext, Pointer material, Pointer texture, int vertexIndex, int vertexCount);
     }
 
+    public interface FetchAnimationCallback extends Callback {
+        void invoke(Pointer tileSource, long hash, AnimationData outAnimationData);
+    }
+
     public static native Pointer Particle_NewPrototype(Buffer emitterData, int emitterDataSize);
 
     public static native void Particle_DeletePrototype(Pointer prototype);
@@ -39,7 +43,8 @@ public class ParticleLibrary {
 
     public static native void Particle_SetRotation(Pointer context, Pointer instance, Quat rotation);
 
-    public static native void Particle_Update(Pointer context, float dt, Buffer vertexBuffer, int vertexBufferSize, IntByReference outVertexBufferSize);
+    public static native void Particle_Update(Pointer context, float dt, Buffer vertexBuffer, int vertexBufferSize,
+            IntByReference outVertexBufferSize, FetchAnimationCallback callback);
 
     public static native void Particle_Render(Pointer context, Pointer userContext, RenderInstanceCallback callback);
 
@@ -82,4 +87,23 @@ public class ParticleLibrary {
         public float w;
     }
 
+    public static interface AnimPlayback {
+        public static final int ANIM_PLAYBACK_NONE = 0;
+        public static final int ANIM_PLAYBACK_ONCE_FORWARD = 1;
+        public static final int ANIM_PLAYBACK_ONCE_BACKWARD = 1;
+        public static final int ANIM_PLAYBACK_LOOP_FORWARD = 1;
+        public static final int ANIM_PLAYBACK_LOOP_BACKWARD = 1;
+        public static final int ANIM_PLAYBACK_LOOP_PINGPONG = 1;
+    }
+
+    public static class AnimationData extends Structure {
+        Pointer texture;
+        Buffer texCoords;
+        int playback;
+        short startTile;
+        short endTile;
+        short fps;
+        boolean hFlip;
+        boolean vFlip;
+    }
 }

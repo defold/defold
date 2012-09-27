@@ -64,6 +64,7 @@ namespace dmParticle
 
         }
 
+        AnimationData           m_AnimationData;
         /// Particle buffer.
         dmArray<Particle>       m_Particles;
         /// DDF prototype
@@ -86,6 +87,7 @@ namespace dmParticle
         uint16_t                m_RenderWarning : 1;
         /// If the user has been warned that the emitters particle buffer could not be resized as a result from a reload.
         uint16_t                m_ResizeWarning : 1;
+        uint16_t                m_FetchAnimWarning : 1;
     };
 
     struct Instance
@@ -169,7 +171,7 @@ namespace dmParticle
     struct EmitterPrototype
     {
         EmitterPrototype()
-        : m_Texture(0)
+        : m_TileSource(0)
         , m_Material(0)
         , m_DDF(0)
         {
@@ -180,8 +182,9 @@ namespace dmParticle
         Property                m_Properties[dmParticleDDF::EMITTER_KEY_COUNT];
         /// Particle properties
         Property                m_ParticleProperties[dmParticleDDF::PARTICLE_KEY_COUNT];
-        /// Texture to use when rendering particles.
-        void*                   m_Texture;
+        dmhash_t                m_Animation;
+        /// Tile source to use when rendering particles.
+        void*                   m_TileSource;
         /// Material to use when rendering particles.
         void*                   m_Material;
         /// DDF from the resource
