@@ -127,7 +127,7 @@ public class ParticleFXCurveEditorPage implements ICurveEditorPage, ISelectionLi
 
         @Override
         public String toString() {
-            return desc.getId();
+            return desc.getName();
         }
 
         public HermiteSpline getCurve() {

@@ -117,10 +117,20 @@ public class ValueSpreadPropertyDesc<T, U extends IPropertyObjectWorld> extends 
             }
         }
 
+        protected boolean isAnyAnimated(IPropertyModel<T, U>[] models) {
+            for (IPropertyModel<T, U> m : models) {
+                ValueSpread vs = (ValueSpread) m.getPropertyValue(propertyDesc.getId());
+                if (vs.isAnimated())
+                    return true;
+            }
+            return false;
+        }
+
         @Override
         public void refresh() {
             boolean editable = models[0].isPropertyEditable(propertyDesc.getId());
-            getControl().setEnabled(editable);
+            textFields[0].setEnabled(editable);
+            textFields[1].setEnabled(editable);
 
             boolean[] equal = new boolean[] { true, true };
             ValueSpread firstValue = (ValueSpread) models[0].getPropertyValue(propertyDesc.getId());
@@ -154,6 +164,8 @@ public class ValueSpreadPropertyDesc<T, U extends IPropertyObjectWorld> extends 
                 textFields[i].setBackground(color);
                 oldValue[i] = s;
             }
+
+            textFields[0].setEditable(!isAnyAnimated(models));
         }
 
         @Override
