@@ -97,13 +97,13 @@ public class ParticleLibrary {
     }
 
     public static class AnimationData extends Structure {
-        Pointer texture;
-        Buffer texCoords;
-        int playback;
-        short startTile;
-        short endTile;
-        short fps;
-        boolean hFlip;
-        boolean vFlip;
+        public Pointer texture;
+        public Buffer texCoords;
+        public int playback;
+        public int startTile;
+        public int endTile;
+        public int fps;
+        public boolean hFlip;
+        public boolean vFlip;
     }
 }

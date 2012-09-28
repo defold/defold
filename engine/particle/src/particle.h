@@ -70,11 +70,11 @@ namespace dmParticle
         void* m_Texture;
         float* m_TexCoords;
         AnimPlayback m_Playback;
-        uint16_t m_StartTile;
-        uint16_t m_EndTile;
-        uint16_t m_FPS;
-        uint16_t m_HFlip : 1;
-        uint16_t m_VFlip : 1;
+        uint32_t m_StartTile;
+        uint32_t m_EndTile;
+        uint32_t m_FPS;
+        bool m_HFlip;
+        bool m_VFlip;
     };
 
     enum FetchAnimationResult

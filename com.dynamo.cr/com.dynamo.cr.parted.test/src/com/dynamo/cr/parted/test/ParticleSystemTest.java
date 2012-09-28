@@ -13,7 +13,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.dynamo.cr.parted.ParticleLibrary;
-import com.dynamo.cr.parted.ParticleLibrary.AnimationData;
 import com.dynamo.cr.parted.ParticleLibrary.Quat;
 import com.dynamo.cr.parted.ParticleLibrary.RenderInstanceCallback;
 import com.dynamo.cr.parted.ParticleLibrary.Vector3;
@@ -76,13 +75,7 @@ public class ParticleSystemTest {
         // 6 vertices * 6 floats of 4 bytes
         int vertex_buffer_size = MAX_PARTICLE_COUNT * 6 * 6 * 4;
         ByteBuffer vertex_buffer = ByteBuffer.wrap(new byte[vertex_buffer_size]);
-        ParticleLibrary.Particle_Update(context, 1.0f / 60.0f, vertex_buffer, vertex_buffer.capacity(), out_size,
-                new ParticleLibrary.FetchAnimationCallback() {
-                    @Override
-                    public void invoke(Pointer tileSource, long hash, AnimationData outAnimationData) {
-                        // TODO Auto-generated method stub
-                    }
-                });
+        ParticleLibrary.Particle_Update(context, 1.0f / 60.0f, vertex_buffer, vertex_buffer.capacity(), out_size, null);
         assertTrue(1234 != out_size.getValue());
 
         ParticleLibrary.Particle_Render(context, new Pointer(1122), new RenderInstanceCallback() {
