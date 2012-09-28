@@ -42,24 +42,24 @@ message SplinePoint
 
 enum EmitterKey
 {
-    EMITTER_KEY_SPAWN_DELAY         = 0;
-    EMITTER_KEY_SPHERE_RADIUS       = 1;
-    EMITTER_KEY_CONE_RADIUS         = 2;
-    EMITTER_KEY_CONE_HEIGHT         = 3;
-    EMITTER_KEY_BOX_WIDTH           = 4;
-    EMITTER_KEY_BOX_HEIGHT          = 5;
-    EMITTER_KEY_BOX_DEPTH           = 6;
-    EMITTER_KEY_PARTICLE_LIFE_TIME  = 7;
-    EMITTER_KEY_PARTICLE_SPEED      = 8;
-    EMITTER_KEY_PARTICLE_SIZE       = 9;
-    EMITTER_KEY_PARTICLE_ALPHA      = 10;
+    EMITTER_KEY_SPAWN_DELAY         = 0 [(displayName) = "Spawn Delay"];
+    EMITTER_KEY_SPHERE_RADIUS       = 1 [(displayName) = "Sphere Radius"];
+    EMITTER_KEY_CONE_RADIUS         = 2 [(displayName) = "Cone Radius"];
+    EMITTER_KEY_CONE_HEIGHT         = 3 [(displayName) = "Cone Height"];
+    EMITTER_KEY_BOX_WIDTH           = 4 [(displayName) = "Box Width"];
+    EMITTER_KEY_BOX_HEIGHT          = 5 [(displayName) = "Box Height"];
+    EMITTER_KEY_BOX_DEPTH           = 6 [(displayName) = "Box Depth"];
+    EMITTER_KEY_PARTICLE_LIFE_TIME  = 7 [(displayName) = "Particle Life Time"];
+    EMITTER_KEY_PARTICLE_SPEED      = 8 [(displayName) = "Initial Speed"];
+    EMITTER_KEY_PARTICLE_SIZE       = 9 [(displayName) = "Initial Size"];
+    EMITTER_KEY_PARTICLE_ALPHA      = 10 [(displayName) = "Initial Alpha"];
     EMITTER_KEY_COUNT               = 11;
 }
 
 enum ParticleKey
 {
-    PARTICLE_KEY_SCALE      = 0;
-    PARTICLE_KEY_ALPHA      = 1;
+    PARTICLE_KEY_SCALE      = 0 [(displayName) = "Particle Scale"];
+    PARTICLE_KEY_ALPHA      = 1 [(displayName) = "Particle Alpha"];
     PARTICLE_KEY_COUNT      = 2;
 }
 

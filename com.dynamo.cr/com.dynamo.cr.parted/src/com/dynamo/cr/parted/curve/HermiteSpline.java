@@ -47,6 +47,12 @@ public class HermiteSpline {
         points.add(new SplinePoint(1, 1, 0.5, 0.5));
     }
 
+    public HermiteSpline(float[] data) {
+        for (int i = 0; i < data.length; i+=4) {
+            points.add(new SplinePoint(data[i], data[i+1], data[i+2], data[i+3]));
+        }
+    }
+
     private static double hermite(double x0, double x1, double t0, double t1, double t) {
         return (2 * t * t * t - 3 * t * t + 1) * x0 +
                (t * t * t - 2 * t * t + t) * t0 +

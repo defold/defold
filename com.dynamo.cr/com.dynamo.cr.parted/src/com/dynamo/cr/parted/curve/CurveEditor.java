@@ -44,13 +44,13 @@ public class CurveEditor extends Canvas implements PaintListener,
 
     private int yAxisWidth = 60;
     private int marginRight = 32;
-    private int tickHeight = 16;
+    private int tickHeight = 12;
     private int controlSize = 6;
     private int tangentControlSize = 6;
     private int subDivisions = 55;
 
     private double offsetY = 0;
-    private double zoomY = 1;
+    private double zoomY = 100;
     private int prevY = -1;
     private Mode mode = Mode.IDLE;
     private Hit hit;
@@ -100,7 +100,7 @@ public class CurveEditor extends Canvas implements PaintListener,
         putColor(BACKGROUND_COLOR_KEY, new RGB(255, 255, 255));
         putColor(AXIS_COLOR_KEY, new RGB(100, 100, 100));
         putColor(GRID_COLOR_KEY, new RGB(220, 220, 220));
-        putColor(TICK_COLOR_KEY, new RGB(0, 0, 0));
+        putColor(TICK_COLOR_KEY, new RGB(100, 100, 100));
         putColor(TANGENT_COLOR_KEY, new RGB(0, 0x88, 0xcc));
         putColor(CONTROL_COLOR_KEY, new RGB(0xff, 0x24, 0x1e));
     }
