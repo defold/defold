@@ -104,9 +104,14 @@
                style="push">
             <visibleWhen
                   checkEnabled="false">
-               <reference
-                     definitionId="com.dynamo.cr.parted.definitions.particleEditorActive">
-               </reference>
+               <and>
+                  <reference
+                        definitionId="com.dynamo.cr.parted.definitions.particleEditorActive">
+                  </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.sceneed.definitions.singleSelection">
+                  </reference>
+               </and>
             </visibleWhen>
          </command>
       </menuContribution>

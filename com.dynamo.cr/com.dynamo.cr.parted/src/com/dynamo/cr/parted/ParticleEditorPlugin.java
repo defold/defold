@@ -3,6 +3,8 @@ package com.dynamo.cr.parted;
 import java.net.URL;
 
 import org.eclipse.core.runtime.FileLocator;
+import org.eclipse.jface.resource.ImageDescriptor;
+import org.eclipse.jface.resource.ImageRegistry;
 import org.eclipse.ui.plugin.AbstractUIPlugin;
 import org.osgi.framework.BundleContext;
 
@@ -13,6 +15,8 @@ public class ParticleEditorPlugin extends AbstractUIPlugin {
 
 	// The plug-in ID
 	public static final String PLUGIN_ID = "com.dynamo.cr.parted"; //$NON-NLS-1$
+
+    public static final String EMITTER_IMAGE_ID = "EMITTER"; //$NON-NLS-1$
 
 	// The shared instance
 	private static ParticleEditorPlugin plugin;
@@ -47,6 +51,19 @@ public class ParticleEditorPlugin extends AbstractUIPlugin {
 		plugin = null;
 		super.stop(context);
 	}
+
+	@Override
+	protected void initializeImageRegistry(ImageRegistry reg) {
+	    super.initializeImageRegistry(reg);
+        registerImage(reg, EMITTER_IMAGE_ID, "icons/dynamite.png");
+	}
+
+    private void registerImage(ImageRegistry registry, String key,
+            String fileName) {
+
+        ImageDescriptor id = imageDescriptorFromPlugin(PLUGIN_ID, fileName);
+        registry.put(key, id);
+    }
 
 	/**
 	 * Returns the shared instance

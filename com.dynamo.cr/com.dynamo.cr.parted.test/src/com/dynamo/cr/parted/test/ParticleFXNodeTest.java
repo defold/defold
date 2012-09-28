@@ -29,7 +29,6 @@ import com.dynamo.particle.proto.Particle.EmitterType;
 import com.dynamo.particle.proto.Particle.ParticleFX;
 import com.dynamo.particle.proto.Particle.PlayMode;
 import com.dynamo.particle.proto.Particle.SplinePoint;
-import com.dynamo.particle.proto.Particle.Texture_t;
 import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
 import com.google.protobuf.TextFormat;
@@ -117,8 +116,9 @@ public class ParticleFXNodeTest extends AbstractNodeTest {
             .setSpace(EmissionSpace.EMISSION_SPACE_EMITTER)
             .setPosition(Point3.newBuilder())
             .setRotation(Quat.newBuilder())
-            .setTexture(Texture_t.newBuilder().setName("").setTX(0).setTY(0))
             .setMaterial("")
+            .setTileSource("")
+            .setAnimation("")
             .setMaxParticleCount(100)
             .setType(EmitterType.EMITTER_TYPE_SPHERE);
         return eb;
