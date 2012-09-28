@@ -7,6 +7,8 @@ import javax.vecmath.Vector4d;
 
 import org.eclipse.core.runtime.NullProgressMonitor;
 
+import com.dynamo.cr.parted.ParticleLibrary.AnimationData;
+import com.dynamo.cr.parted.ParticleLibrary.FetchAnimationCallback;
 import com.dynamo.cr.parted.ParticleLibrary.Quat;
 import com.dynamo.cr.parted.ParticleLibrary.Vector3;
 import com.dynamo.cr.parted.curve.HermiteSpline;
@@ -28,6 +30,7 @@ public class ParticleFXNode extends Node {
     private Pointer instance;
     private Pointer context;
     private boolean reset;
+    private Callback callback = new Callback();
 
     public ParticleFXNode() {
         test.setCurve(new HermiteSpline());
@@ -84,12 +87,20 @@ public class ParticleFXNode extends Node {
         }
     }
 
+    private class Callback implements FetchAnimationCallback {
+        @Override
+        public void invoke(Pointer tileSource, long hash, AnimationData outAnimationData) {
+            // TODO implement
+        }
+    }
+
     public void simulate(Pointer context, ByteBuffer vertexBuffer, double dt) {
         createInstance(context);
         IntByReference outSize = new IntByReference(0);
 
         if (dt > 0) {
-            ParticleLibrary.Particle_Update(context, (float) dt, vertexBuffer, vertexBuffer.capacity(), outSize);
+            ParticleLibrary.Particle_Update(context, (float) dt, vertexBuffer, vertexBuffer.capacity(), outSize,
+                    callback);
         } else {
             ParticleLibrary.Particle_RestartInstance(context, instance);
         }

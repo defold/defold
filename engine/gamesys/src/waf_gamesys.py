@@ -14,6 +14,11 @@ def transform_texture_name(task, name):
     name = name.replace('.jpg', '.texturec')
     return name
 
+def transform_tilesource_name(name):
+    name = name.replace('.tileset', '.tilesetc')
+    name = name.replace('.tilesource', '.tilesetc')
+    return name
+
 def transform_collection(task, msg):
     for i in msg.instances:
         i.prototype = i.prototype.replace('.go', '.goc')
@@ -60,7 +65,7 @@ def transform_collisionobject(task, msg):
 def transform_particlefx(task, msg):
     for emitter in msg.emitters:
         emitter.material = emitter.material.replace('.material', '.materialc')
-        emitter.texture.name = transform_texture_name(task, emitter.texture.name)
+        emitter.tile_source = transform_tilesource_name(emitter.tile_source)
     return msg
 
 def transform_gameobject(task, msg):
@@ -126,8 +131,7 @@ def transform_sprite(task, msg):
     return msg
 
 def transform_tilegrid(task, msg):
-    msg.tile_set = msg.tile_set.replace('.tileset', '.tilesetc')
-    msg.tile_set = msg.tile_set.replace('.tilesource', '.tilesetc')
+    msg.tile_set = transform_tilesource_name(msg.tile_set)
     return msg
 
 def write_embedded(task):

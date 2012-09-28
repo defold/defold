@@ -27,7 +27,6 @@ import com.dynamo.particle.proto.Particle.EmitterType;
 import com.dynamo.particle.proto.Particle.ParticleKey;
 import com.dynamo.particle.proto.Particle.PlayMode;
 import com.dynamo.particle.proto.Particle.SplinePoint;
-import com.dynamo.particle.proto.Particle.Texture_t;
 import com.dynamo.proto.DdfExtensions;
 
 public class EmitterNode extends Node {
@@ -45,7 +44,13 @@ public class EmitterNode extends Node {
     @Property
     private float duration;
 
-    @Property(editorType = EditorType.RESOURCE)
+    @Property(editorType = EditorType.RESOURCE, extensions = { "tilesource", "tileset" })
+    private String tileSource;
+
+    @Property
+    private String animation;
+
+    @Property(editorType = EditorType.RESOURCE, extensions = { "material" })
     private String material;
 
     @Property
@@ -65,6 +70,8 @@ public class EmitterNode extends Node {
         setPlayMode(emitter.getMode());
         setDuration(emitter.getDuration());
         setEmissionSpace(emitter.getSpace());
+        setTileSource(emitter.getTileSource());
+        setAnimation(emitter.getAnimation());
         setMaterial(emitter.getMaterial());
         setMaxParticleCount(emitter.getMaxParticleCount());
         setEmitterType(emitter.getType());
@@ -237,6 +244,24 @@ public class EmitterNode extends Node {
         resetSystem();
     }
 
+    public String getTileSource() {
+        return tileSource;
+    }
+
+    public void setTileSource(String tileSource) {
+        this.tileSource = tileSource;
+        resetSystem();
+    }
+
+    public String getAnimation() {
+        return animation;
+    }
+
+    public void setAnimation(String animation) {
+        this.animation = animation;
+        resetSystem();
+    }
+
     public String getMaterial() {
         return material;
     }
@@ -274,12 +299,13 @@ public class EmitterNode extends Node {
             .setMode(getPlayMode())
             .setDuration(getDuration())
             .setSpace(getEmissionSpace())
+            .setTileSource(getTileSource())
+            .setAnimation(getAnimation())
             .setMaterial(getMaterial())
             .setMaxParticleCount(getMaxParticleCount())
             .setType(getEmitterType())
             .setPosition(LoaderUtil.toPoint3(getTranslation()))
-            .setRotation(LoaderUtil.toQuat(getRotation()))
-            .setTexture(Texture_t.newBuilder().setName("TODO").setTX(16).setTY(16));
+            .setRotation(LoaderUtil.toQuat(getRotation()));
 
         // NOTE: Use enum for predictable order
         for (EmitterKey k : EmitterKey.values()) {

@@ -13,6 +13,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.dynamo.cr.parted.ParticleLibrary;
+import com.dynamo.cr.parted.ParticleLibrary.AnimationData;
 import com.dynamo.cr.parted.ParticleLibrary.Quat;
 import com.dynamo.cr.parted.ParticleLibrary.RenderInstanceCallback;
 import com.dynamo.cr.parted.ParticleLibrary.Vector3;
@@ -21,7 +22,6 @@ import com.dynamo.particle.proto.Particle.Emitter;
 import com.dynamo.particle.proto.Particle.EmitterType;
 import com.dynamo.particle.proto.Particle.ParticleFX;
 import com.dynamo.particle.proto.Particle.PlayMode;
-import com.dynamo.particle.proto.Particle.Texture_t;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.IntByReference;
 
@@ -54,7 +54,8 @@ public class ParticleSystemTest {
                 .setSpace(EmissionSpace.EMISSION_SPACE_WORLD)
                 .setPosition(com.dynamo.proto.DdfMath.Point3.newBuilder().build())
                 .setRotation(com.dynamo.proto.DdfMath.Quat.newBuilder().build())
-                .setTexture(Texture_t.newBuilder().setName("foo").setTX(16).setTY(16))
+                .setTileSource("foo")
+                .setAnimation("anim")
                 .setMaterial("test")
                 .setMaxParticleCount(17)
                 .setType(EmitterType.EMITTER_TYPE_SPHERE);
@@ -75,7 +76,13 @@ public class ParticleSystemTest {
         // 6 vertices * 6 floats of 4 bytes
         int vertex_buffer_size = MAX_PARTICLE_COUNT * 6 * 6 * 4;
         ByteBuffer vertex_buffer = ByteBuffer.wrap(new byte[vertex_buffer_size]);
-        ParticleLibrary.Particle_Update(context, 1.0f / 60.0f, vertex_buffer, vertex_buffer.capacity(), out_size);
+        ParticleLibrary.Particle_Update(context, 1.0f / 60.0f, vertex_buffer, vertex_buffer.capacity(), out_size,
+                new ParticleLibrary.FetchAnimationCallback() {
+                    @Override
+                    public void invoke(Pointer tileSource, long hash, AnimationData outAnimationData) {
+                        // TODO Auto-generated method stub
+                    }
+                });
         assertTrue(1234 != out_size.getValue());
 
         ParticleLibrary.Particle_Render(context, new Pointer(1122), new RenderInstanceCallback() {

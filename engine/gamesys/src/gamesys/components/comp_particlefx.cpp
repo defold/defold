@@ -13,6 +13,9 @@
 #include "gamesys.h"
 #include "../gamesys_private.h"
 
+#include "resources/res_particlefx.h"
+#include "resources/res_tileset.h"
+
 namespace dmGameSystem
 {
     const uint32_t MAX_COMPONENT_COUNT = 64;
@@ -81,8 +84,8 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompParticleFXCreate(const dmGameObject::ComponentCreateParams& params)
     {
-        dmParticle::Prototype* prototype = (dmParticle::Prototype*)params.m_Resource;
-        assert(prototype);
+        dmParticle::HPrototype prototype = (dmParticle::HPrototype)params.m_Resource;
+        assert(prototype != dmParticle::INVALID_PROTOTYPE);
         ParticleFXWorld* w = (ParticleFXWorld*)params.m_World;
         if (w->m_Components.Size() < MAX_COMPONENT_COUNT)
         {
@@ -120,6 +123,7 @@ namespace dmGameSystem
 
     void RenderInstanceCallback(void* render_context, void* material, void* texture, uint32_t vertex_index, uint32_t vertex_count);
     void RenderLineCallback(void* render_context, Vectormath::Aos::Point3 start, Vectormath::Aos::Point3 end, Vectormath::Aos::Vector4 color);
+    dmParticle::FetchAnimationResult FetchAnimationCallback(void* tile_source, dmhash_t animation, dmParticle::AnimationData* out_data);
 
     dmGameObject::UpdateResult CompParticleFXUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
@@ -143,7 +147,7 @@ namespace dmGameSystem
         float* vertex_buffer = (float*)w->m_ClientBuffer;
         uint32_t max_vertex_buffer_size = ctx->m_MaxParticleCount * 6 * sizeof(ParticleVertex);
         uint32_t vertex_buffer_size;
-        dmParticle::Update(particle_context, params.m_UpdateContext->m_DT, vertex_buffer, max_vertex_buffer_size, &vertex_buffer_size);
+        dmParticle::Update(particle_context, params.m_UpdateContext->m_DT, vertex_buffer, max_vertex_buffer_size, &vertex_buffer_size, FetchAnimationCallback);
         dmParticle::Render(particle_context, w, RenderInstanceCallback);
         dmGraphics::SetVertexBufferData(w->m_VertexBuffer, 0, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         dmGraphics::SetVertexBufferData(w->m_VertexBuffer, vertex_buffer_size, w->m_ClientBuffer, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
@@ -204,5 +208,61 @@ namespace dmGameSystem
     void RenderLineCallback(void* usercontext, Vectormath::Aos::Point3 start, Vectormath::Aos::Point3 end, Vectormath::Aos::Vector4 color)
     {
         dmRender::Line3D((dmRender::HRenderContext)usercontext, start, end, color, color);
+    }
+
+    dmParticle::FetchAnimationResult FetchAnimationCallback(void* tile_source, dmhash_t animation, dmParticle::AnimationData* out_data)
+    {
+        TileSetResource* tile_set = (TileSetResource*)tile_source;
+        uint32_t anim_count = tile_set->m_AnimationIds.Size();
+        uint32_t anim_index = ~0u;
+        for (uint32_t i = 0; i < anim_count; ++i)
+        {
+            if (tile_set->m_AnimationIds[i] == animation)
+            {
+                anim_index = i;
+                break;
+            }
+        }
+        if (anim_index != ~0u)
+        {
+            if (tile_set->m_TexCoords.Size() == 0)
+            {
+                return dmParticle::FETCH_ANIMATION_UNKNOWN_ERROR;
+            }
+            out_data->m_Texture = tile_set->m_Texture;
+            out_data->m_TexCoords = &tile_set->m_TexCoords.Front();
+            dmGameSystemDDF::Animation* animation = &tile_set->m_TileSet->m_Animations[anim_index];
+            out_data->m_FPS = animation->m_Fps;
+            out_data->m_StartTile = animation->m_StartTile;
+            out_data->m_EndTile = animation->m_EndTile;
+            out_data->m_HFlip = animation->m_FlipHorizontal;
+            out_data->m_VFlip = animation->m_FlipVertical;
+            switch (animation->m_Playback)
+            {
+            case dmGameSystemDDF::PLAYBACK_NONE:
+                out_data->m_Playback = dmParticle::ANIM_PLAYBACK_NONE;
+                break;
+            case dmGameSystemDDF::PLAYBACK_ONCE_FORWARD:
+                out_data->m_Playback = dmParticle::ANIM_PLAYBACK_ONCE_FORWARD;
+                break;
+            case dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD:
+                out_data->m_Playback = dmParticle::ANIM_PLAYBACK_ONCE_BACKWARD;
+                break;
+            case dmGameSystemDDF::PLAYBACK_LOOP_FORWARD:
+                out_data->m_Playback = dmParticle::ANIM_PLAYBACK_LOOP_FORWARD;
+                break;
+            case dmGameSystemDDF::PLAYBACK_LOOP_BACKWARD:
+                out_data->m_Playback = dmParticle::ANIM_PLAYBACK_LOOP_BACKWARD;
+                break;
+            case dmGameSystemDDF::PLAYBACK_LOOP_PINGPONG:
+                out_data->m_Playback = dmParticle::ANIM_PLAYBACK_LOOP_PINGPONG;
+                break;
+            }
+            return dmParticle::FETCH_ANIMATION_OK;
+        }
+        else
+        {
+            return dmParticle::FETCH_ANIMATION_NOT_FOUND;
+        }
     }
 }
