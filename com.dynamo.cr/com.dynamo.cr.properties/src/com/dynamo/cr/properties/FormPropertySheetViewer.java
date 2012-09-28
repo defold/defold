@@ -221,14 +221,6 @@ public class FormPropertySheetViewer extends Viewer {
             c.setLayout(layout);
             layout.numColumns = 2;
 
-            // Sort properties lexicographically for display
-            Arrays.sort(descs, new Comparator<IPropertyDesc>() {
-                @Override
-                public int compare(IPropertyDesc arg0, IPropertyDesc arg1) {
-                    return arg0.getId().compareTo(arg1.getId());
-                }
-            });
-
             for (final IPropertyDesc desc : descs) {
 
                 if (!model.isPropertyVisible(desc.getId()))
