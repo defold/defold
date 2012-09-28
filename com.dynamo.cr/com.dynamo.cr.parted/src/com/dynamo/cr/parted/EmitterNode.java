@@ -112,7 +112,12 @@ public class EmitterNode extends Node {
 
     /* package */  public ValueSpread getProperty(String key) {
         ValueSpread ret = null;
-        if (EmitterKey.valueOf(key) != null) {
+        boolean isEmitterKey = false;
+        try {
+            isEmitterKey = EmitterKey.valueOf(key) != null;
+        } catch (Throwable e) {}
+
+        if (isEmitterKey) {
             ret = properties.get(EmitterKey.valueOf(key));
         } else {
             ret = particleProperties.get(ParticleKey.valueOf(key));
@@ -124,6 +129,16 @@ public class EmitterNode extends Node {
     private static void createDescriptors() {
         List<IPropertyDesc<EmitterNode, ISceneModel>> lst = new ArrayList<IPropertyDesc<EmitterNode,ISceneModel>>();
         for (EmitterKey k : emitterKeys) {
+
+            String displayName = k.getValueDescriptor().getOptions().getExtension(DdfExtensions.displayName);
+            if (displayName == null) {
+                displayName = k.name();
+            }
+            IPropertyDesc<EmitterNode, ISceneModel> p = new ValueSpreadPropertyDesc<EmitterNode, ISceneModel>(k.name(), displayName);
+            lst.add(p);
+        }
+
+        for (ParticleKey k : particleKeys) {
 
             String displayName = k.getValueDescriptor().getOptions().getExtension(DdfExtensions.displayName);
             if (displayName == null) {
