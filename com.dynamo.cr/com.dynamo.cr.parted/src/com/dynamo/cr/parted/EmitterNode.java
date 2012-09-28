@@ -5,6 +5,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.eclipse.swt.graphics.Image;
+
 import com.dynamo.cr.parted.curve.HermiteSpline;
 import com.dynamo.cr.properties.DynamicProperties;
 import com.dynamo.cr.properties.DynamicPropertyAccessor;
@@ -34,6 +36,8 @@ public class EmitterNode extends Node {
     private static final long serialVersionUID = 1L;
 
     private static IPropertyDesc<EmitterNode, ISceneModel>[] descriptors;
+    private static EmitterKey[] emitterKeys;
+    private static ParticleKey[] particleKeys;
 
     @Property(editorType = EditorType.DROP_DOWN)
     private PlayMode playMode;
@@ -81,6 +85,7 @@ public class EmitterNode extends Node {
     }
 
     static {
+        createPropertyKeys();
         createDescriptors();
     }
 
@@ -91,6 +96,18 @@ public class EmitterNode extends Node {
         } else {
             particleProperties.get(ParticleKey.valueOf(key)).set(value);
         }
+    }
+
+    private static void createPropertyKeys() {
+        // Copy everything apart from last element (*_COUNT)
+
+        EmitterKey[] ek = Particle.EmitterKey.values();
+        emitterKeys = new Particle.EmitterKey[ek.length - 1];
+        System.arraycopy(ek, 0, emitterKeys, 0, ek.length - 1);
+
+        ParticleKey[] pk = ParticleKey.values();
+        particleKeys = new ParticleKey[pk.length - 1];
+        System.arraycopy(pk, 0, particleKeys, 0, pk.length - 1);
     }
 
     /* package */  public ValueSpread getProperty(String key) {
@@ -106,7 +123,7 @@ public class EmitterNode extends Node {
     @SuppressWarnings("unchecked")
     private static void createDescriptors() {
         List<IPropertyDesc<EmitterNode, ISceneModel>> lst = new ArrayList<IPropertyDesc<EmitterNode,ISceneModel>>();
-        for (EmitterKey k : Particle.EmitterKey.values()) {
+        for (EmitterKey k : emitterKeys) {
 
             String displayName = k.getValueDescriptor().getOptions().getExtension(DdfExtensions.displayName);
             if (displayName == null) {
@@ -192,7 +209,7 @@ public class EmitterNode extends Node {
     }
 
     private void setProperties(List<Emitter.Property> list) {
-        for (EmitterKey k : EmitterKey.values()) {
+        for (EmitterKey k : emitterKeys) {
             ValueSpread vs = new ValueSpread();
             vs.setCurve(new HermiteSpline());
             this.properties.put(k, vs);
@@ -205,7 +222,7 @@ public class EmitterNode extends Node {
     }
 
     private void setParticleProperties(List<Emitter.ParticleProperty> list) {
-        for (ParticleKey k : ParticleKey.values()) {
+        for (ParticleKey k : particleKeys) {
             ValueSpread vs = new ValueSpread();
             vs.setCurve(new HermiteSpline());
             this.particleProperties.put(k, vs);
@@ -308,7 +325,7 @@ public class EmitterNode extends Node {
             .setRotation(LoaderUtil.toQuat(getRotation()));
 
         // NOTE: Use enum for predictable order
-        for (EmitterKey k : EmitterKey.values()) {
+        for (EmitterKey k : emitterKeys) {
             ValueSpread vs = properties.get(k);
             Builder pb = Emitter.Property.newBuilder().setKey(k);
             HermiteSpline spline = (HermiteSpline) vs.getCurve();
@@ -326,7 +343,7 @@ public class EmitterNode extends Node {
             b.addProperties(pb);
         }
 
-        for (ParticleKey k : ParticleKey.values()) {
+        for (ParticleKey k : particleKeys) {
             ParticleProperty.Builder pb = Emitter.ParticleProperty.newBuilder().setKey(k);
             ValueSpread vs = particleProperties.get(k);
             HermiteSpline spline = (HermiteSpline) vs.getCurve();
@@ -342,6 +359,11 @@ public class EmitterNode extends Node {
         }
 
         return b;
+    }
+
+    @Override
+    public Image getIcon() {
+        return ParticleEditorPlugin.getDefault().getImageRegistry().get(ParticleEditorPlugin.EMITTER_IMAGE_ID);
     }
 
 }

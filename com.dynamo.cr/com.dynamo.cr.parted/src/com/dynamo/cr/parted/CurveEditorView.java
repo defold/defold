@@ -28,6 +28,11 @@ public class CurveEditorView extends ViewPart implements IPartListener {
     public void createPartControl(Composite parent) {
         this.parent = parent;
         getSite().getPage().addPartListener(this);
+
+        IEditorPart activeEditor = getSite().getPage().getActiveEditor();
+        if (activeEditor instanceof IEditorPart) {
+            openPage(activeEditor);
+        }
     }
 
     @Override

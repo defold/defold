@@ -1,5 +1,6 @@
 package com.dynamo.cr.parted;
 
+import org.eclipse.jface.viewers.IStructuredSelection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -16,7 +17,11 @@ public class ParticleFXPresenter implements ISceneView.INodePresenter<ParticleFX
     }
 
     public void onAddEmitter(IPresenterContext presenterContext, ILoaderContext loaderContext) {
-        Node parent = (Node) presenterContext.getSelection().getFirstElement();
+        IStructuredSelection selection = presenterContext.getSelection();
+        if (selection.isEmpty())
+            return;
+
+        Node parent = (Node) selection.getFirstElement();
         while (parent.getParent() != null) {
             parent = parent.getParent();
         }
