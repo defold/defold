@@ -33,13 +33,42 @@ protected:
         delete [] m_VertexBuffer;
     }
 
-    void VerifyUVs(ParticleVertex* vertex_buffer, uint32_t tile);
+    void VerifyUVs(ParticleVertex* vertex_buffer, float* tex_coords, uint32_t tile);
 
     dmParticle::HContext m_Context;
     dmParticle::HPrototype m_Prototype;
     float* m_VertexBuffer;
     uint32_t m_VertexBufferSize;
 };
+
+struct ParticleVertex
+{
+    float m_X, m_Y, m_Z;
+    float m_U, m_V;
+    float m_Alpha;
+};
+
+void ParticleTest::VerifyUVs(ParticleVertex* vertex_buffer, float* tex_coords, uint32_t tile)
+{
+    uint32_t u0 = 0;
+    uint32_t v0 = 1;
+    uint32_t u1 = 2;
+    uint32_t v1 = 3;
+    float* tc = &tex_coords[tile * 4];
+    // The particle vertices are ordered like an N, where the first triangle is the lower left, second is upper right
+    ASSERT_FLOAT_EQ(tc[u0], vertex_buffer[0].m_U);
+    ASSERT_FLOAT_EQ(tc[v1], vertex_buffer[0].m_V);
+    ASSERT_FLOAT_EQ(tc[u0], vertex_buffer[1].m_U);
+    ASSERT_FLOAT_EQ(tc[v0], vertex_buffer[1].m_V);
+    ASSERT_FLOAT_EQ(tc[u1], vertex_buffer[2].m_U);
+    ASSERT_FLOAT_EQ(tc[v1], vertex_buffer[2].m_V);
+    ASSERT_FLOAT_EQ(tc[u1], vertex_buffer[3].m_U);
+    ASSERT_FLOAT_EQ(tc[v1], vertex_buffer[3].m_V);
+    ASSERT_FLOAT_EQ(tc[u0], vertex_buffer[4].m_U);
+    ASSERT_FLOAT_EQ(tc[v0], vertex_buffer[4].m_V);
+    ASSERT_FLOAT_EQ(tc[u1], vertex_buffer[5].m_U);
+    ASSERT_FLOAT_EQ(tc[v0], vertex_buffer[5].m_V);
+}
 
 bool LoadPrototype(const char* filename, dmParticle::HPrototype* prototype)
 {
@@ -64,6 +93,23 @@ bool LoadPrototype(const char* filename, dmParticle::HPrototype* prototype)
     }
 }
 
+struct RenderData
+{
+    void* m_Material;
+    void* m_Texture;
+    uint32_t m_VertexIndex;
+    uint32_t m_VertexCount;
+};
+
+void RenderInstanceCallback(void* usercontext, void* material, void* texture, uint32_t vertex_index, uint32_t vertex_count)
+{
+    RenderData* data = (RenderData*)usercontext;
+    data->m_Material = material;
+    data->m_Texture = texture;
+    data->m_VertexIndex = vertex_index;
+    data->m_VertexCount = vertex_count;
+}
+
 TEST_F(ParticleTest, CreationSuccess)
 {
     ASSERT_TRUE(LoadPrototype("once.particlefxc", &m_Prototype));
@@ -74,9 +120,105 @@ TEST_F(ParticleTest, CreationSuccess)
     ASSERT_EQ(0U, m_Context->m_InstanceIndexPool.Size());
 }
 
-TEST_F(ParticleTest, CreationFailure)
+dmParticle::FetchAnimationResult EmptyFetchAnimationCallback(void* tile_source, dmhash_t animation, dmParticle::AnimationData* out_data)
 {
-    ASSERT_FALSE(LoadPrototype("null.particlefxc", &m_Prototype));
+    // Trash data to verify that this function is not called
+    memset(out_data, 1, sizeof(*out_data));
+    return dmParticle::FETCH_ANIMATION_UNKNOWN_ERROR;
+}
+
+dmParticle::FetchAnimationResult FailFetchAnimationCallback(void* tile_source, dmhash_t animation, dmParticle::AnimationData* out_data)
+{
+    return dmParticle::FETCH_ANIMATION_NOT_FOUND;
+}
+
+void EmptyRenderInstanceCallback(void* usercontext, void* material, void* texture, uint32_t vertex_index, uint32_t vertex_count)
+{
+    // Trash data to verify that this function is not called
+    RenderData* data = (RenderData*)usercontext;
+    memset(data, 1, sizeof(*data));
+}
+
+float g_UnitTexCoords[] =
+{
+        0.0f, 0.0f, 1.0f, 1.0f
+};
+
+TEST_F(ParticleTest, IncompleteParticleFX)
+{
+    float dt = 1.0f / 60.0f;
+
+    const char* files[] =
+    {
+            "empty.particlefxc",
+            "empty_emitter.particlefxc",
+            "empty_emitter.particlefxc"
+    };
+    bool has_emitter[] =
+    {
+            false,
+            true,
+            true
+    };
+    bool fetch_anim[] =
+    {
+            false,
+            false,
+            true
+    };
+    ParticleVertex vertex_buffer[6];
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        if (m_Prototype != 0x0)
+            dmParticle::Particle_DeletePrototype(m_Prototype);
+        ASSERT_TRUE(LoadPrototype(files[i], &m_Prototype));
+
+        dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype);
+
+        ASSERT_FALSE(dmParticle::IsSpawning(m_Context, instance));
+
+        dmParticle::StartInstance(m_Context, instance);
+
+        if (has_emitter[i])
+            ASSERT_TRUE(dmParticle::IsSpawning(m_Context, instance));
+        else
+            ASSERT_FALSE(dmParticle::IsSpawning(m_Context, instance));
+
+        uint32_t out_vertex_buffer_size;
+        if (fetch_anim[i])
+        {
+            dmParticle::SetTileSource(m_Prototype, 0, (void*)0xBAADF00D);
+            dmParticle::Update(m_Context, dt, (float*)vertex_buffer, sizeof(vertex_buffer), &out_vertex_buffer_size, FailFetchAnimationCallback);
+        }
+        else
+        {
+            dmParticle::Update(m_Context, dt, (float*)vertex_buffer, sizeof(vertex_buffer), &out_vertex_buffer_size, EmptyFetchAnimationCallback);
+        }
+
+        RenderData render_data;
+
+        if (has_emitter[i])
+        {
+            dmParticle::Render(m_Context, &render_data, RenderInstanceCallback);
+            ASSERT_EQ(sizeof(vertex_buffer), out_vertex_buffer_size);
+            ASSERT_EQ((void*)0x0, render_data.m_Material);
+            ASSERT_EQ((void*)0x0, render_data.m_Texture);
+            VerifyUVs((ParticleVertex*)&((float*)vertex_buffer)[render_data.m_VertexIndex], g_UnitTexCoords, 0);
+            ASSERT_EQ(6u, render_data.m_VertexCount);
+            ASSERT_EQ((void*)0x0, render_data.m_Texture);
+        }
+        else
+        {
+            memset(&render_data, 0, sizeof(RenderData));
+            dmParticle::Render(m_Context, &render_data, EmptyRenderInstanceCallback);
+            ASSERT_EQ((void*)0x0, render_data.m_Material);
+            ASSERT_EQ((void*)0x0, render_data.m_Texture);
+            ASSERT_EQ(0u, render_data.m_VertexCount);
+            ASSERT_EQ(0u, out_vertex_buffer_size);
+        }
+
+        dmParticle::DestroyInstance(m_Context, instance);
+    }
 }
 
 TEST_F(ParticleTest, StartInstance)
@@ -401,29 +543,6 @@ TEST_F(ParticleTest, EvaluateParticleProperty)
 /**
  * Test that flip book animations are updated correctly
  */
-struct AnimRenderData
-{
-    void* m_Material;
-    void* m_Texture;
-    uint32_t m_VertexIndex;
-    uint32_t m_VertexCount;
-};
-
-struct ParticleVertex
-{
-    float m_X, m_Y, m_Z;
-    float m_U, m_V;
-    float m_Alpha;
-};
-
-void AnimRenderInstanceCallback(void* usercontext, void* material, void* texture, uint32_t vertex_index, uint32_t vertex_count)
-{
-    AnimRenderData* data = (AnimRenderData*)usercontext;
-    data->m_Material = material;
-    data->m_Texture = texture;
-    data->m_VertexIndex = vertex_index;
-    data->m_VertexCount = vertex_count;
-}
 
 float g_TexCoords[] =
 {
@@ -475,28 +594,6 @@ dmParticle::FetchAnimationResult FetchAnimationCallback(void* tile_source, dmhas
     return dmParticle::FETCH_ANIMATION_OK;
 }
 
-void ParticleTest::VerifyUVs(ParticleVertex* vertex_buffer, uint32_t tile)
-{
-    uint32_t u0 = 0;
-    uint32_t v0 = 1;
-    uint32_t u1 = 2;
-    uint32_t v1 = 3;
-    float* tc = &g_TexCoords[tile * 4];
-    // The particle vertices are ordered like an N, where the first triangle is the lower left, second is upper right
-    ASSERT_FLOAT_EQ(tc[u0], vertex_buffer[0].m_U);
-    ASSERT_FLOAT_EQ(tc[v1], vertex_buffer[0].m_V);
-    ASSERT_FLOAT_EQ(tc[u0], vertex_buffer[1].m_U);
-    ASSERT_FLOAT_EQ(tc[v0], vertex_buffer[1].m_V);
-    ASSERT_FLOAT_EQ(tc[u1], vertex_buffer[2].m_U);
-    ASSERT_FLOAT_EQ(tc[v1], vertex_buffer[2].m_V);
-    ASSERT_FLOAT_EQ(tc[u1], vertex_buffer[3].m_U);
-    ASSERT_FLOAT_EQ(tc[v1], vertex_buffer[3].m_V);
-    ASSERT_FLOAT_EQ(tc[u0], vertex_buffer[4].m_U);
-    ASSERT_FLOAT_EQ(tc[v0], vertex_buffer[4].m_V);
-    ASSERT_FLOAT_EQ(tc[u1], vertex_buffer[5].m_U);
-    ASSERT_FLOAT_EQ(tc[v0], vertex_buffer[5].m_V);
-}
-
 TEST_F(ParticleTest, Animation)
 {
     float dt = 0.2f;
@@ -517,11 +614,6 @@ TEST_F(ParticleTest, Animation)
     ParticleVertex vertex_buffer[6];
     uint32_t vertex_buffer_size;
 
-    // Expect failure since anim can't be found
-    dmParticle::Update(m_Context, dt, (float*)vertex_buffer, sizeof(vertex_buffer), &vertex_buffer_size, FetchAnimationCallback);
-    ASSERT_EQ(0u, vertex_buffer_size);
-    ASSERT_EQ(0.0f, particle->m_TimeLeft);
-
     // Test once anim
     emitter->m_Prototype->m_Animation = dmHashString64("once");
 
@@ -529,15 +621,15 @@ TEST_F(ParticleTest, Animation)
     for (uint32_t i = 0; i < 5; ++i)
     {
         dmParticle::Update(m_Context, dt, (float*)vertex_buffer, sizeof(vertex_buffer), &vertex_buffer_size, FetchAnimationCallback);
-        VerifyUVs(vertex_buffer, i);
+        VerifyUVs(vertex_buffer, g_TexCoords, i);
     }
 
     ASSERT_EQ(sizeof(vertex_buffer), vertex_buffer_size);
     ASSERT_LT(0.0f, particle->m_TimeLeft);
 
     // Test rendering of last frame
-    AnimRenderData data;
-    dmParticle::Render(m_Context, &data, AnimRenderInstanceCallback);
+    RenderData data;
+    dmParticle::Render(m_Context, &data, RenderInstanceCallback);
     ASSERT_EQ(m_Prototype->m_Emitters[0].m_Material, data.m_Material);
     ASSERT_EQ(tile_source.m_Texture, data.m_Texture);
     ASSERT_EQ(0u, data.m_VertexIndex);

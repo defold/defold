@@ -388,7 +388,7 @@ namespace dmParticle
                 Emitter* emitter = &instance->m_Emitters[emitter_i];
                 EmitterPrototype* prototype = emitter->m_Prototype;
 
-                if (fetch_animation_callback != 0x0)
+                if (fetch_animation_callback != 0x0 && prototype->m_TileSource)
                 {
                     FetchAnimationResult result = fetch_animation_callback(prototype->m_TileSource, prototype->m_Animation, &emitter->m_AnimationData);
                     if (result != FETCH_ANIMATION_OK)
@@ -399,15 +399,8 @@ namespace dmParticle
                             const char* anim = (const char*)dmHashReverse64(prototype->m_Animation, 0x0);
                             if (anim == 0x0)
                                 anim = "<unknown>";
-                            const char* reason = "of an unkown error";
-                            if (result == FETCH_ANIMATION_NOT_FOUND)
-                            {
-                                reason = "the animation could not be found";
-                            }
-                            dmLogWarning("The emitter with animation '%s' could not play because %s", anim, reason);
+                            dmLogWarning("The animation '%s' could not be found", anim);
                         }
-                        // Skip simulating since we don't have UVs
-                        continue;
                     } else {
                         emitter->m_FetchAnimWarning = 0;
                     }
@@ -872,17 +865,6 @@ namespace dmParticle
         if (r == dmDDF::RESULT_OK)
         {
             uint32_t emitter_count = ddf->m_Emitters.m_Count;
-            for (uint32_t i = 0; i < emitter_count; ++i)
-            {
-                dmParticleDDF::Emitter* emitter_ddf = &ddf->m_Emitters[i];
-                if (emitter_ddf->m_Material == 0x0 || *emitter_ddf->m_Material == '\0'
-                            || emitter_ddf->m_TileSource == 0x0 || *emitter_ddf->m_TileSource == '\0')
-                {
-                    dmDDF::FreeMessage(ddf);
-                    dmLogError("Failed to load particle data because of unspecified resources");
-                    return false;
-                }
-            }
             if (prototype->m_DDF != 0x0)
             {
                 dmDDF::FreeMessage(prototype->m_DDF);
