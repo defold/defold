@@ -551,6 +551,11 @@ TEST_F(ParticleTest, Animation)
     dmParticle::DestroyInstance(m_Context, instance);
 }
 
+TEST_F(ParticleTest, InvalidKeys)
+{
+    ASSERT_TRUE(LoadPrototype("invalid_keys.particlefxc", &m_Prototype));
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

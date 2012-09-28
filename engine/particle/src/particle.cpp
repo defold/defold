@@ -906,13 +906,27 @@ namespace dmParticle
                     for (uint32_t i = 0; i < prop_count; ++i)
                     {
                         const dmParticleDDF::Emitter::Property& p = emitter_ddf->m_Properties[i];
-                        SampleProperty(p.m_Points.m_Data, p.m_Points.m_Count, emitter->m_Properties[p.m_Key].m_Segments);
+                        if (p.m_Key < dmParticleDDF::EMITTER_KEY_COUNT)
+                        {
+                            SampleProperty(p.m_Points.m_Data, p.m_Points.m_Count, emitter->m_Properties[p.m_Key].m_Segments);
+                        }
+                        else
+                        {
+                            dmLogWarning("The key %d is not a valid emitter key.", p.m_Key);
+                        }
                     }
                     prop_count = emitter_ddf->m_ParticleProperties.m_Count;
                     for (uint32_t i = 0; i < prop_count; ++i)
                     {
                         const dmParticleDDF::Emitter::ParticleProperty& p = emitter_ddf->m_ParticleProperties[i];
-                        SampleProperty(p.m_Points.m_Data, p.m_Points.m_Count, emitter->m_ParticleProperties[p.m_Key].m_Segments);
+                        if (p.m_Key < dmParticleDDF::PARTICLE_KEY_COUNT)
+                        {
+                            SampleProperty(p.m_Points.m_Data, p.m_Points.m_Count, emitter->m_ParticleProperties[p.m_Key].m_Segments);
+                        }
+                        else
+                        {
+                            dmLogWarning("The key %d is not a valid particle key.", p.m_Key);
+                        }
                     }
                 }
             }
