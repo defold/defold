@@ -6,6 +6,7 @@ import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.FloatBuffer;
 
 import org.eclipse.swt.widgets.Display;
 import org.junit.After;
@@ -13,16 +14,21 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.dynamo.cr.parted.ParticleLibrary;
+import com.dynamo.cr.parted.ParticleLibrary.AnimationData;
+import com.dynamo.cr.parted.ParticleLibrary.FetchAnimationCallback;
 import com.dynamo.cr.parted.ParticleLibrary.Quat;
 import com.dynamo.cr.parted.ParticleLibrary.RenderInstanceCallback;
 import com.dynamo.cr.parted.ParticleLibrary.Vector3;
 import com.dynamo.particle.proto.Particle.EmissionSpace;
 import com.dynamo.particle.proto.Particle.Emitter;
+import com.dynamo.particle.proto.Particle.EmitterKey;
 import com.dynamo.particle.proto.Particle.EmitterType;
 import com.dynamo.particle.proto.Particle.ParticleFX;
 import com.dynamo.particle.proto.Particle.PlayMode;
+import com.dynamo.particle.proto.Particle.SplinePoint;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.IntByReference;
+import com.sun.opengl.util.BufferUtil;
 
 public class ParticleSystemTest {
 
@@ -48,6 +54,18 @@ public class ParticleSystemTest {
 
     @Test
     public void smokeTest() throws IOException {
+        Emitter.Property.Builder pb = Emitter.Property.newBuilder()
+                .setKey(EmitterKey.EMITTER_KEY_PARTICLE_LIFE_TIME)
+                .addPoints(SplinePoint.newBuilder()
+                        .setX(0.0f)
+                        .setY(1.0f)
+                        .setTX(1.0f)
+                        .setTY(0.0f))
+                .addPoints(SplinePoint.newBuilder()
+                        .setX(1.0f)
+                        .setY(1.0f)
+                        .setTX(1.0f)
+                        .setTY(0.0f));
         Emitter.Builder eb = Emitter.newBuilder()
                 .setMode(PlayMode.PLAY_MODE_ONCE)
                 .setSpace(EmissionSpace.EMISSION_SPACE_WORLD)
@@ -56,8 +74,9 @@ public class ParticleSystemTest {
                 .setTileSource("foo")
                 .setAnimation("anim")
                 .setMaterial("test")
-                .setMaxParticleCount(17)
-                .setType(EmitterType.EMITTER_TYPE_SPHERE);
+                .setMaxParticleCount(1)
+                .setType(EmitterType.EMITTER_TYPE_SPHERE)
+                .addProperties(pb);
         ParticleFX.Builder pfxb = ParticleFX.newBuilder()
                 .addEmitters(eb);
 
@@ -71,23 +90,51 @@ public class ParticleSystemTest {
 
         ParticleLibrary.Particle_StartInstance(context, instance);
 
+        final Pointer originalMaterial = new Pointer(1);
+        ParticleLibrary.Particle_SetMaterial(prototype, 0, originalMaterial);
+        final Pointer originalTileSource = new Pointer(2);
+        ParticleLibrary.Particle_SetTileSource(prototype, 0, originalTileSource);
+        final Pointer originalTexture = new Pointer(3);
+        final FloatBuffer texCoords = BufferUtil.newFloatBuffer(4);
         IntByReference out_size = new IntByReference(1234);
         // 6 vertices * 6 floats of 4 bytes
         int vertex_buffer_size = MAX_PARTICLE_COUNT * 6 * 6 * 4;
         ByteBuffer vertex_buffer = ByteBuffer.wrap(new byte[vertex_buffer_size]);
-        ParticleLibrary.Particle_Update(context, 1.0f / 60.0f, vertex_buffer, vertex_buffer.capacity(), out_size, null);
-        assertTrue(1234 != out_size.getValue());
+        final boolean fetchAnim[] = new boolean[] { false };
+        ParticleLibrary.Particle_Update(context, 1.0f / 60.0f, vertex_buffer, vertex_buffer.capacity(), out_size,
+                new FetchAnimationCallback() {
 
+                    @Override
+                    public int invoke(Pointer tileSource, long hash, AnimationData data) {
+                        assertTrue(tileSource.equals(originalTileSource));
+                        data.texCoords = texCoords;
+                        data.texture = originalTexture;
+                        data.playback = ParticleLibrary.AnimPlayback.ANIM_PLAYBACK_ONCE_FORWARD;
+                        data.startTile = 1;
+                        data.endTile = 1;
+                        data.fps = 30;
+                        data.hFlip = 0;
+                        data.vFlip = 0;
+                        fetchAnim[0] = true;
+                        return ParticleLibrary.FetchAnimationResult.FETCH_ANIMATION_OK;
+                    }
+                });
+        assertTrue(1234 != out_size.getValue());
+        assertTrue(0 != out_size.getValue());
+        assertTrue(fetchAnim[0]);
+
+        final boolean rendered[] = new boolean[] { false };
         ParticleLibrary.Particle_Render(context, new Pointer(1122), new RenderInstanceCallback() {
             @Override
             public void invoke(Pointer userContext, Pointer material,
                     Pointer texture, int vertexIndex, int vertexCount) {
-
+                assertTrue(material.equals(originalMaterial));
+                assertTrue(texture.equals(originalTexture));
                 assertEquals(new Pointer(1122), userContext);
-                assertEquals(Pointer.NULL, material);
-                assertEquals(Pointer.NULL, texture);
+                rendered[0] = true;
             }
         });
+        assertTrue(rendered[0]);
 
         ParticleLibrary.Particle_StopInstance(context, instance);
         ParticleLibrary.Particle_RestartInstance(context, instance);

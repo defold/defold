@@ -73,8 +73,8 @@ namespace dmParticle
         uint32_t m_StartTile;
         uint32_t m_EndTile;
         uint32_t m_FPS;
-        bool m_HFlip;
-        bool m_VFlip;
+        uint32_t m_HFlip;
+        uint32_t m_VFlip;
     };
 
     enum FetchAnimationResult

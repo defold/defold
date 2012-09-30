@@ -112,15 +112,15 @@ public class ParticleFXNodeTest extends AbstractNodeTest {
 
     private Emitter.Builder emitterBuilder() {
         Emitter.Builder eb = Emitter.newBuilder()
-            .setMode(PlayMode.PLAY_MODE_LOOP)
-            .setSpace(EmissionSpace.EMISSION_SPACE_EMITTER)
-            .setPosition(Point3.newBuilder())
-            .setRotation(Quat.newBuilder())
-            .setMaterial("")
-            .setTileSource("")
-            .setAnimation("")
-            .setMaxParticleCount(100)
-            .setType(EmitterType.EMITTER_TYPE_SPHERE);
+                .setMode(PlayMode.PLAY_MODE_LOOP)
+                .setSpace(EmissionSpace.EMISSION_SPACE_EMITTER)
+                .setPosition(Point3.newBuilder())
+                .setRotation(Quat.newBuilder())
+                .setTileSource("")
+                .setAnimation("")
+                .setMaterial("")
+                .setMaxParticleCount(100)
+                .setType(EmitterType.EMITTER_TYPE_SPHERE);
         return eb;
     }
 

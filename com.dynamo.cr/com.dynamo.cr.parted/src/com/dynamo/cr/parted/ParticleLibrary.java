@@ -1,6 +1,7 @@
 package com.dynamo.cr.parted;
 
 import java.nio.Buffer;
+import java.nio.FloatBuffer;
 
 import com.sun.jna.Callback;
 import com.sun.jna.Native;
@@ -18,7 +19,7 @@ public class ParticleLibrary {
     }
 
     public interface FetchAnimationCallback extends Callback {
-        void invoke(Pointer tileSource, long hash, AnimationData outAnimationData);
+        int invoke(Pointer tileSource, long hash, AnimationData outAnimationData);
     }
 
     public static native Pointer Particle_NewPrototype(Buffer emitterData, int emitterDataSize);
@@ -43,10 +44,15 @@ public class ParticleLibrary {
 
     public static native void Particle_SetRotation(Pointer context, Pointer instance, Quat rotation);
 
-    public static native void Particle_Update(Pointer context, float dt, Buffer vertexBuffer, int vertexBufferSize,
+    public static native void Particle_Update(Pointer context, float dt, Buffer vertexBuffer,
+            int vertexBufferSize,
             IntByReference outVertexBufferSize, FetchAnimationCallback callback);
 
     public static native void Particle_Render(Pointer context, Pointer userContext, RenderInstanceCallback callback);
+
+    public static native void Particle_SetMaterial(Pointer prototype, int emitter_index, Pointer material);
+
+    public static native void Particle_SetTileSource(Pointer prototype, int emitter_index, Pointer tile_source);
 
     public static class Vector3 extends Structure {
 
@@ -96,14 +102,26 @@ public class ParticleLibrary {
         public static final int ANIM_PLAYBACK_LOOP_PINGPONG = 1;
     }
 
+    public static interface FetchAnimationResult {
+        public static final int FETCH_ANIMATION_OK = 0;
+        public static final int FETCH_ANIMATION_NOT_FOUND = -1;
+        public static final int FETCH_ANIMATION_UNKNOWN_ERROR = -1000;
+    };
+
     public static class AnimationData extends Structure {
+        public AnimationData() {
+            super();
+            setFieldOrder(new String[] { "texture", "texCoords", "playback", "startTile", "endTile", "fps", "hFlip",
+                    "vFlip" });
+        }
+
         public Pointer texture;
-        public Buffer texCoords;
+        public FloatBuffer texCoords;
         public int playback;
         public int startTile;
         public int endTile;
         public int fps;
-        public boolean hFlip;
-        public boolean vFlip;
+        public int hFlip;
+        public int vFlip;
     }
 }
