@@ -94,8 +94,6 @@ namespace dmParticle
     ret name(__VA_ARGS__);\
     extern "C" DM_DLLEXPORT ret Particle_##name(__VA_ARGS__);
 
-    DM_PARTICLE_PROTO(HContext, Foo, int x);
-
     /**
      * Create a context.
      * @param render_context Context for use when rendering.
@@ -215,6 +213,12 @@ namespace dmParticle
      */
     DM_PARTICLE_PROTO(void, DeletePrototype, HPrototype prototype);
 
+    /**
+     * Reload a prototype. This does not update any dependant instances which should be recreated.
+     * @param prototype Prototype to reload
+     * @param buffer Buffer of ddf data
+     * @param buffer_size Size of ddf data
+     */
     DM_PARTICLE_PROTO(bool, ReloadPrototype, HPrototype prototype, const void* buffer, uint32_t buffer_size);
 
     /**
@@ -262,6 +266,13 @@ namespace dmParticle
      * @param tile_source Tile source to set
      */
     DM_PARTICLE_PROTO(void, SetTileSource, HPrototype prototype, uint32_t emitter_index, void* tile_source);
+
+    /**
+     * Wrapper for dmHashString64
+     * @param value string to hash
+     * @return hashed string
+     */
+    extern "C" DM_DLLEXPORT dmhash_t Particle_Hash(const char* value);
 
 #undef DM_PARTICLE_PROTO
 

@@ -5,6 +5,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.eclipse.core.resources.IFile;
+import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Status;
+import org.eclipse.osgi.util.NLS;
 import org.eclipse.swt.graphics.Image;
 
 import com.dynamo.cr.parted.curve.HermiteSpline;
@@ -19,6 +23,8 @@ import com.dynamo.cr.properties.types.ValueSpread;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.util.LoaderUtil;
+import com.dynamo.cr.tileeditor.scene.AnimationNode;
+import com.dynamo.cr.tileeditor.scene.TileSetNode;
 import com.dynamo.particle.proto.Particle;
 import com.dynamo.particle.proto.Particle.EmissionSpace;
 import com.dynamo.particle.proto.Particle.Emitter;
@@ -49,13 +55,15 @@ public class EmitterNode extends Node {
     private float duration;
 
     @Property(editorType = EditorType.RESOURCE, extensions = { "tilesource", "tileset" })
-    private String tileSource;
+    private String tileSource = "";
+
+    private transient TileSetNode tileSetNode = null;
 
     @Property
-    private String animation;
+    private String animation = "";
 
     @Property(editorType = EditorType.RESOURCE, extensions = { "material" })
-    private String material;
+    private String material = "";
 
     @Property
     private int maxParticleCount;
@@ -172,6 +180,7 @@ public class EmitterNode extends Node {
     private void resetSystem() {
         ParticleFXNode parent = (ParticleFXNode) getParent();
         if (parent != null) {
+            parent.reloadPrototype();
             parent.reset();
         }
     }
@@ -284,8 +293,26 @@ public class EmitterNode extends Node {
     }
 
     public void setTileSource(String tileSource) {
-        this.tileSource = tileSource;
-        resetSystem();
+        if (!this.tileSource.equals(tileSource)) {
+            this.tileSource = tileSource;
+            reloadTileSource();
+            resetSystem();
+        }
+    }
+
+    public IStatus validateTileSource() {
+        if (this.tileSetNode != null) {
+            this.tileSetNode.updateStatus();
+            IStatus status = this.tileSetNode.getStatus();
+            if (!status.isOK()) {
+                return new Status(IStatus.ERROR, ParticleEditorPlugin.PLUGIN_ID,
+                        Messages.EmitterNode_tileSource_INVALID_REFERENCE);
+            }
+        } else if (!this.tileSource.isEmpty()) {
+            return new Status(IStatus.ERROR, ParticleEditorPlugin.PLUGIN_ID,
+                    Messages.EmitterNode_tileSource_CONTENT_ERROR);
+        }
+        return Status.OK_STATUS;
     }
 
     public String getAnimation() {
@@ -295,6 +322,25 @@ public class EmitterNode extends Node {
     public void setAnimation(String animation) {
         this.animation = animation;
         resetSystem();
+    }
+
+    public IStatus validateAnimation() {
+        if (!this.animation.isEmpty()) {
+            if (this.tileSetNode != null) {
+                boolean exists = false;
+                for (AnimationNode animation : this.tileSetNode.getAnimations()) {
+                    if (animation.getId().equals(this.animation)) {
+                        exists = true;
+                        break;
+                    }
+                }
+                if (!exists) {
+                    return new Status(IStatus.ERROR, ParticleEditorPlugin.PLUGIN_ID, NLS.bind(
+                            Messages.EmitterNode_animation_INVALID, this.animation));
+                }
+            }
+        }
+        return Status.OK_STATUS;
     }
 
     public String getMaterial() {
@@ -322,6 +368,10 @@ public class EmitterNode extends Node {
     public void setEmitterType(EmitterType emitterType) {
         this.emitterType = emitterType;
         resetSystem();
+    }
+
+    public TileSetNode getTileSetNode() {
+        return this.tileSetNode;
     }
 
     @Override
@@ -385,4 +435,53 @@ public class EmitterNode extends Node {
         return ParticleEditorPlugin.getDefault().getImageRegistry().get(ParticleEditorPlugin.EMITTER_IMAGE_ID);
     }
 
+    @Override
+    public void setModel(ISceneModel model) {
+        super.setModel(model);
+        if (model != null && this.tileSetNode == null) {
+            reloadTileSource();
+        }
+    }
+
+    @Override
+    public boolean handleReload(IFile file) {
+        boolean reloaded = false;
+        if (!this.tileSource.isEmpty()) {
+            IFile tileSetFile = getModel().getFile(this.tileSource);
+            if (tileSetFile.exists() && tileSetFile.equals(file)) {
+                if (reloadTileSource()) {
+                    reloaded = true;
+                }
+            }
+            if (this.tileSetNode != null) {
+                if (this.tileSetNode.handleReload(file)) {
+                    reloaded = true;
+                }
+            }
+        }
+        return reloaded;
+    }
+
+    private boolean reloadTileSource() {
+        ISceneModel model = getModel();
+        if (model != null) {
+            this.tileSetNode = null;
+            if (!this.tileSource.isEmpty()) {
+                try {
+                    Node node = model.loadNode(this.tileSource);
+                    if (node instanceof TileSetNode) {
+                        this.tileSetNode = (TileSetNode) node;
+                        this.tileSetNode.setModel(getModel());
+                        updateStatus();
+                    }
+                } catch (Exception e) {
+                    // no reason to handle exception since having a null type is
+                    // invalid state, will be caught in validateComponent below
+                }
+            }
+            // attempted to reload
+            return true;
+        }
+        return false;
+    }
 }

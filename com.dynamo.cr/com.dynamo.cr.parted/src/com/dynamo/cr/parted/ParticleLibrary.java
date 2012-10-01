@@ -22,9 +22,11 @@ public class ParticleLibrary {
         int invoke(Pointer tileSource, long hash, AnimationData outAnimationData);
     }
 
-    public static native Pointer Particle_NewPrototype(Buffer emitterData, int emitterDataSize);
+    public static native Pointer Particle_NewPrototype(Buffer buffer, int bufferSize);
 
     public static native void Particle_DeletePrototype(Pointer prototype);
+
+    public static native boolean Particle_ReloadPrototype(Pointer prototype, Buffer buffer, int bufferSize);
 
     public static native Pointer Particle_CreateContext(int maxEmitterCount, int maxParticleCount);
 
@@ -44,15 +46,17 @@ public class ParticleLibrary {
 
     public static native void Particle_SetRotation(Pointer context, Pointer instance, Quat rotation);
 
-    public static native void Particle_Update(Pointer context, float dt, Buffer vertexBuffer,
+    public static native void Particle_Update(Pointer context, float dt, FloatBuffer vertexBuffer,
             int vertexBufferSize,
             IntByReference outVertexBufferSize, FetchAnimationCallback callback);
 
     public static native void Particle_Render(Pointer context, Pointer userContext, RenderInstanceCallback callback);
 
-    public static native void Particle_SetMaterial(Pointer prototype, int emitter_index, Pointer material);
+    public static native void Particle_SetMaterial(Pointer prototype, int emitterIndex, Pointer material);
 
-    public static native void Particle_SetTileSource(Pointer prototype, int emitter_index, Pointer tile_source);
+    public static native void Particle_SetTileSource(Pointer prototype, int emitterIndex, Pointer tileSource);
+
+    public static native long Particle_Hash(String value);
 
     public static class Vector3 extends Structure {
 

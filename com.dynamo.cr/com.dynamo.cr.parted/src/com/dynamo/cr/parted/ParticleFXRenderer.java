@@ -1,7 +1,7 @@
 package com.dynamo.cr.parted;
 
 import java.awt.Font;
-import java.nio.ByteBuffer;
+import java.nio.FloatBuffer;
 import java.util.EnumSet;
 
 import javax.media.opengl.GL;
@@ -13,7 +13,9 @@ import com.dynamo.cr.sceneed.core.RenderContext;
 import com.dynamo.cr.sceneed.core.RenderContext.Pass;
 import com.dynamo.cr.sceneed.core.RenderData;
 import com.sun.jna.Pointer;
+import com.sun.opengl.util.BufferUtil;
 import com.sun.opengl.util.j2d.TextRenderer;
+import com.sun.opengl.util.texture.Texture;
 
 public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
 
@@ -21,7 +23,7 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
     private static final int MAX_PARTICLE_COUNT = 1024;
     private static final int MAX_EMITTER_COUNT = 128;
 
-    private ByteBuffer vertexBuffer;
+    private FloatBuffer vertexBuffer;
     private Pointer context;
     private Callback callBack = new Callback();
     private TextRenderer textRenderer;
@@ -29,18 +31,39 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
 
     private class Callback implements RenderInstanceCallback {
         GL gl;
+        ParticleFXNode currentNode;
         @Override
         public void invoke(Pointer userContext, Pointer material,
                 Pointer texture, int vertexIndex, int vertexCount) {
+            Texture t = null;
+            if (texture != null) {
+                int index = (int) Pointer.nativeValue(texture);
+                if (index == 0) {
+                    return;
+                }
+                --index;
+                EmitterNode emitter = (EmitterNode)
+                        currentNode.getChildren().get(index);
+                t = emitter.getTileSetNode().getTextureHandle().getTexture();
+                t.bind();
+                t.setTexParameteri(GL.GL_TEXTURE_MIN_FILTER, GL.GL_INTERPOLATE);
+                t.setTexParameteri(GL.GL_TEXTURE_MAG_FILTER, GL.GL_INTERPOLATE);
+                t.setTexParameteri(GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP);
+                t.setTexParameteri(GL.GL_TEXTURE_WRAP_T, GL.GL_CLAMP);
+                t.enable();
+            }
             gl.glDrawArrays(GL.GL_TRIANGLES, vertexIndex, vertexCount);
+            if (t != null) {
+                t.disable();
+            }
         }
     }
 
     public ParticleFXRenderer() {
-        // 6 vertices * 6 floats of 4 bytes
-        int vertexBufferSize = MAX_PARTICLE_COUNT * 6 * 6 * 4;
-        vertexBuffer = ByteBuffer.allocateDirect(vertexBufferSize);
-        context = ParticleLibrary.Particle_CreateContext(MAX_EMITTER_COUNT , MAX_PARTICLE_COUNT);
+        // 6 vertices * 6 floats
+        final int elementCount = MAX_PARTICLE_COUNT * 6 * 6;
+        vertexBuffer = BufferUtil.newFloatBuffer(elementCount);
+        context = ParticleLibrary.Particle_CreateContext(MAX_EMITTER_COUNT, MAX_PARTICLE_COUNT);
     }
 
     @Override
@@ -90,16 +113,29 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
 
         } else {
             // General particle rendering
+
             node.simulate(context, vertexBuffer, dt);
+
+            // TODO proper color
+            gl.glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+
             gl.glEnableClientState(GL.GL_VERTEX_ARRAY);
-            gl.glVertexPointer(3, GL.GL_FLOAT, 6 * 4, vertexBuffer);
+            gl.glEnableClientState(GL.GL_TEXTURE_COORD_ARRAY);
+
+            // TODO custom vertex format for alpha component
+            final int stride = 6 * 4;
+            gl.glInterleavedArrays(GL.GL_T2F_V3F, stride, vertexBuffer);
 
             callBack.gl = gl;
+            callBack.currentNode = node;
+
             // TODO: Creating a new callback here instead of the allocated one above
             // jna will crash in com.sun.jna.Native.freeNativeCallback when finalizers are run (during gc)
             // WHY!? Bug in JNA?
             ParticleLibrary.Particle_Render(context, new Pointer(0), callBack);
+
             gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
+            gl.glDisableClientState(GL.GL_TEXTURE_COORD_ARRAY);
         }
 
         timeElapsed += dt;

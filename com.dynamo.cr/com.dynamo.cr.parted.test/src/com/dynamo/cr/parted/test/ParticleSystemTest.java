@@ -96,17 +96,21 @@ public class ParticleSystemTest {
         ParticleLibrary.Particle_SetTileSource(prototype, 0, originalTileSource);
         final Pointer originalTexture = new Pointer(3);
         final FloatBuffer texCoords = BufferUtil.newFloatBuffer(4);
-        IntByReference out_size = new IntByReference(1234);
-        // 6 vertices * 6 floats of 4 bytes
-        int vertex_buffer_size = MAX_PARTICLE_COUNT * 6 * 6 * 4;
-        ByteBuffer vertex_buffer = ByteBuffer.wrap(new byte[vertex_buffer_size]);
+        texCoords.put(1.0f).put(2.0f).put(3.0f).put(4.0f).flip();
+        IntByReference outSize = new IntByReference(1234);
+        // 6 vertices * 6 floats
+        final int elementCount = MAX_PARTICLE_COUNT * 6 * 6;
+        final int vertexBufferSize = elementCount * 4;
+        final FloatBuffer vertexBuffer = BufferUtil.newFloatBuffer(elementCount);
         final boolean fetchAnim[] = new boolean[] { false };
-        ParticleLibrary.Particle_Update(context, 1.0f / 60.0f, vertex_buffer, vertex_buffer.capacity(), out_size,
+        ParticleLibrary.Particle_Update(context, 1.0f / 60.0f, vertexBuffer, vertexBufferSize, outSize,
                 new FetchAnimationCallback() {
 
                     @Override
                     public int invoke(Pointer tileSource, long hash, AnimationData data) {
                         assertTrue(tileSource.equals(originalTileSource));
+                        long h = ParticleLibrary.Particle_Hash("anim");
+                        assertTrue(hash == h);
                         data.texCoords = texCoords;
                         data.texture = originalTexture;
                         data.playback = ParticleLibrary.AnimPlayback.ANIM_PLAYBACK_ONCE_FORWARD;
@@ -119,9 +123,29 @@ public class ParticleSystemTest {
                         return ParticleLibrary.FetchAnimationResult.FETCH_ANIMATION_OK;
                     }
                 });
-        assertTrue(1234 != out_size.getValue());
-        assertTrue(0 != out_size.getValue());
         assertTrue(fetchAnim[0]);
+        int vertexSize = outSize.getValue();
+        assertTrue(6 * 6 * 4 == vertexSize);
+        int uvIdx[] = new int[] {
+                0, 3,
+                0, 1,
+                2, 3,
+                2, 3,
+                0, 1,
+                2, 1
+        };
+        for (int i = 0; i < 6; ++i) {
+            // u
+            assertTrue(texCoords.get(uvIdx[i * 2 + 0]) == vertexBuffer.get());
+            // v
+            assertTrue(texCoords.get(uvIdx[i * 2 + 1]) == vertexBuffer.get());
+            // p
+            assertTrue(1.0f == vertexBuffer.get());
+            assertTrue(2.0f == vertexBuffer.get());
+            assertTrue(3.0f == vertexBuffer.get());
+            // a
+            assertTrue(0.0f == vertexBuffer.get());
+        }
 
         final boolean rendered[] = new boolean[] { false };
         ParticleLibrary.Particle_Render(context, new Pointer(1122), new RenderInstanceCallback() {

@@ -388,6 +388,8 @@ namespace dmParticle
                 Emitter* emitter = &instance->m_Emitters[emitter_i];
                 EmitterPrototype* prototype = emitter->m_Prototype;
 
+                // Needed to avoid autoread of AnimationData when calling java through JNA
+                memset(&emitter->m_AnimationData, 0, sizeof(AnimationData));
                 if (fetch_animation_callback != 0x0 && prototype->m_TileSource)
                 {
                     FetchAnimationResult result = fetch_animation_callback(prototype->m_TileSource, prototype->m_Animation, &emitter->m_AnimationData);
@@ -663,51 +665,51 @@ namespace dmParticle
             // store values in the buffer
             uint32_t field_index = vertex_index * VERTEX_FIELD_COUNT;
 
-            vertex_buffer[field_index + 0] = p0.getX();
-            vertex_buffer[field_index + 1] = p0.getY();
-            vertex_buffer[field_index + 2] = p0.getZ();
-            vertex_buffer[field_index + 3] = u0;
-            vertex_buffer[field_index + 4] = v1;
+            vertex_buffer[field_index + 0] = u0;
+            vertex_buffer[field_index + 1] = v1;
+            vertex_buffer[field_index + 2] = p0.getX();
+            vertex_buffer[field_index + 3] = p0.getY();
+            vertex_buffer[field_index + 4] = p0.getZ();
             vertex_buffer[field_index + 5] = alpha;
 
             field_index += VERTEX_FIELD_COUNT;
-            vertex_buffer[field_index + 0] = p1.getX();
-            vertex_buffer[field_index + 1] = p1.getY();
-            vertex_buffer[field_index + 2] = p1.getZ();
-            vertex_buffer[field_index + 3] = u0;
-            vertex_buffer[field_index + 4] = v0;
+            vertex_buffer[field_index + 0] = u0;
+            vertex_buffer[field_index + 1] = v0;
+            vertex_buffer[field_index + 2] = p1.getX();
+            vertex_buffer[field_index + 3] = p1.getY();
+            vertex_buffer[field_index + 4] = p1.getZ();
             vertex_buffer[field_index + 5] = alpha;
 
             field_index += VERTEX_FIELD_COUNT;
-            vertex_buffer[field_index + 0] = p2.getX();
-            vertex_buffer[field_index + 1] = p2.getY();
-            vertex_buffer[field_index + 2] = p2.getZ();
-            vertex_buffer[field_index + 3] = u1;
-            vertex_buffer[field_index + 4] = v1;
+            vertex_buffer[field_index + 0] = u1;
+            vertex_buffer[field_index + 1] = v1;
+            vertex_buffer[field_index + 2] = p2.getX();
+            vertex_buffer[field_index + 3] = p2.getY();
+            vertex_buffer[field_index + 4] = p2.getZ();
             vertex_buffer[field_index + 5] = alpha;
 
             field_index += VERTEX_FIELD_COUNT;
-            vertex_buffer[field_index + 0] = p2.getX();
-            vertex_buffer[field_index + 1] = p2.getY();
-            vertex_buffer[field_index + 2] = p2.getZ();
-            vertex_buffer[field_index + 3] = u1;
-            vertex_buffer[field_index + 4] = v1;
+            vertex_buffer[field_index + 0] = u1;
+            vertex_buffer[field_index + 1] = v1;
+            vertex_buffer[field_index + 2] = p2.getX();
+            vertex_buffer[field_index + 3] = p2.getY();
+            vertex_buffer[field_index + 4] = p2.getZ();
             vertex_buffer[field_index + 5] = alpha;
 
             field_index += VERTEX_FIELD_COUNT;
-            vertex_buffer[field_index + 0] = p1.getX();
-            vertex_buffer[field_index + 1] = p1.getY();
-            vertex_buffer[field_index + 2] = p1.getZ();
-            vertex_buffer[field_index + 3] = u0;
-            vertex_buffer[field_index + 4] = v0;
+            vertex_buffer[field_index + 0] = u0;
+            vertex_buffer[field_index + 1] = v0;
+            vertex_buffer[field_index + 2] = p1.getX();
+            vertex_buffer[field_index + 3] = p1.getY();
+            vertex_buffer[field_index + 4] = p1.getZ();
             vertex_buffer[field_index + 5] = alpha;
 
             field_index += VERTEX_FIELD_COUNT;
-            vertex_buffer[field_index + 0] = p3.getX();
-            vertex_buffer[field_index + 1] = p3.getY();
-            vertex_buffer[field_index + 2] = p3.getZ();
-            vertex_buffer[field_index + 3] = u1;
-            vertex_buffer[field_index + 4] = v0;
+            vertex_buffer[field_index + 0] = u1;
+            vertex_buffer[field_index + 1] = v0;
+            vertex_buffer[field_index + 2] = p3.getX();
+            vertex_buffer[field_index + 3] = p3.getY();
+            vertex_buffer[field_index + 4] = p3.getZ();
             vertex_buffer[field_index + 5] = alpha;
 
             vertex_index += 6;
@@ -1043,4 +1045,8 @@ namespace dmParticle
     DM_PARTICLE_TRAMPOLINE3(void, SetMaterial, HPrototype, uint32_t, void*);
     DM_PARTICLE_TRAMPOLINE3(void, SetTileSource, HPrototype, uint32_t, void*);
 
+    dmhash_t Particle_Hash(const char* value)
+    {
+        return dmHashString64(value);
+    }
 }
