@@ -43,8 +43,8 @@ protected:
 
 struct ParticleVertex
 {
-    float m_X, m_Y, m_Z;
     float m_U, m_V;
+    float m_X, m_Y, m_Z;
     float m_Alpha;
 };
 
