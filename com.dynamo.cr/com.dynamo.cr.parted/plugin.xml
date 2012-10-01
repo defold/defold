@@ -163,9 +163,17 @@
          point="org.eclipse.ui.bindings">
       <key
             commandId="com.dynamo.cr.parted.command.toggleSimulation"
-            contextId="com.dynamo.cr.sceneed.ui.contexts.sceneEditor"
+            contextId="com.dynamo.cr.parted.contexts.partEditor"
             schemeId="com.dynamo.cr.editor.ui.defoldScheme"
             sequence="SPACE">
       </key>
+   </extension>
+   <extension
+         point="org.eclipse.ui.contexts">
+      <context
+            id="com.dynamo.cr.parted.contexts.partEditor"
+            name="Particle Editor"
+            parentId="com.dynamo.cr.sceneed.ui.contexts.sceneEditor">
+      </context>
    </extension>
 </plugin>
