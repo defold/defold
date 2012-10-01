@@ -89,15 +89,6 @@ public class EmitterNode extends Node {
         createDescriptors();
     }
 
-    /* package */ void setProperty(String key, ValueSpread value) {
-
-        if (EmitterKey.valueOf(key) != null) {
-            properties.get(EmitterKey.valueOf(key)).set(value);
-        } else {
-            particleProperties.get(ParticleKey.valueOf(key)).set(value);
-        }
-    }
-
     private static void createPropertyKeys() {
         // Copy everything apart from last element (*_COUNT)
 
@@ -110,14 +101,26 @@ public class EmitterNode extends Node {
         System.arraycopy(pk, 0, particleKeys, 0, pk.length - 1);
     }
 
+    private boolean isEmitterKey(String key) {
+        try {
+            return EmitterKey.valueOf(key) != null;
+        } catch (Throwable e) {}
+        return false;
+    }
+
+    /* package */ void setProperty(String key, ValueSpread value) {
+
+        if (isEmitterKey(key)) {
+            properties.get(EmitterKey.valueOf(key)).set(value);
+        } else {
+            particleProperties.get(ParticleKey.valueOf(key)).set(value);
+        }
+        resetSystem();
+    }
+
     /* package */  public ValueSpread getProperty(String key) {
         ValueSpread ret = null;
-        boolean isEmitterKey = false;
-        try {
-            isEmitterKey = EmitterKey.valueOf(key) != null;
-        } catch (Throwable e) {}
-
-        if (isEmitterKey) {
+        if (isEmitterKey(key)) {
             ret = properties.get(EmitterKey.valueOf(key));
         } else {
             ret = particleProperties.get(ParticleKey.valueOf(key));
@@ -371,6 +374,7 @@ public class EmitterNode extends Node {
                         .setTX(1)
                         .setTY(0));
             }
+            b.addParticleProperties(pb);
         }
 
         return b;
