@@ -12,14 +12,13 @@ import com.dynamo.cr.sceneed.core.Manipulator;
 public class AxisManipulator extends Manipulator {
 
     private RootManipulator rootManipulator;
-    private float[] color;
     private Vector4d startPoint;
     private Vector4d originalTranslation = new Vector4d();
     private boolean moving = false;
 
     public AxisManipulator(RootManipulator rootManipulator, float[] color) {
+        super(color);
         this.rootManipulator = rootManipulator;
-        this.color = color;
     }
 
     @Override
@@ -27,13 +26,9 @@ public class AxisManipulator extends Manipulator {
         return false;
     }
 
-    public float[] getColor() {
-        return color;
-    }
-
     @Override
     public void mouseDown(MouseEvent e) {
-        if (getController().isManipulatorSelected(this)) {
+        if (isEnabled() && getController().isManipulatorSelected(this)) {
             Matrix4d transform = new Matrix4d();
             getWorldTransform(transform);
             transform.getColumn(3, originalTranslation);

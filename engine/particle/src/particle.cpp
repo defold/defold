@@ -535,15 +535,15 @@ namespace dmParticle
                 if (lengthSqr(v) > 0.0f)
                     p = normalize(v);
 
-                local_position = p * emitter_properties[EMITTER_KEY_SPHERE_RADIUS];
+                local_position = p * emitter_properties[EMITTER_KEY_SIZE_X];
 
                 break;
             }
 
             case EMITTER_TYPE_CONE:
             {
-                float height = emitter_properties[EMITTER_KEY_CONE_HEIGHT];
-                float radius = emitter_properties[EMITTER_KEY_CONE_RADIUS];
+                float height = emitter_properties[EMITTER_KEY_SIZE_X];
+                float radius = emitter_properties[EMITTER_KEY_SIZE_Y];
                 float angle = 2.0f * ((float) M_PI) * dmMath::RandOpen01();
 
                 local_position = Vector3(cosf(angle) * radius, sinf(angle) * radius, height);
@@ -553,9 +553,9 @@ namespace dmParticle
 
             case EMITTER_TYPE_BOX:
             {
-                float width = emitter_properties[EMITTER_KEY_BOX_WIDTH];
-                float height = emitter_properties[EMITTER_KEY_BOX_HEIGHT];
-                float depth = emitter_properties[EMITTER_KEY_BOX_DEPTH];
+                float width = emitter_properties[EMITTER_KEY_SIZE_X];
+                float height = emitter_properties[EMITTER_KEY_SIZE_Y];
+                float depth = emitter_properties[EMITTER_KEY_SIZE_Z];
                 local_position = Vector3(dmMath::Rand11() * width, dmMath::Rand11() * height, dmMath::Rand11() * depth);
 
                 break;
@@ -784,7 +784,7 @@ namespace dmParticle
                 {
                 case EMITTER_TYPE_SPHERE:
                 {
-                    const float radius = ddf->m_Properties[EMITTER_KEY_SPHERE_RADIUS].m_Points[0].m_Y;
+                    const float radius = ddf->m_Properties[EMITTER_KEY_SIZE_X].m_Points[0].m_Y;
 
                     const uint32_t segment_count = 16;
                     Vector3 vertices[segment_count + 1][3];
@@ -804,8 +804,8 @@ namespace dmParticle
                 }
                 case EMITTER_TYPE_CONE:
                 {
-                    const float radius = ddf->m_Properties[EMITTER_KEY_CONE_RADIUS].m_Points[0].m_Y;
-                    const float height = ddf->m_Properties[EMITTER_KEY_CONE_HEIGHT].m_Points[0].m_Y;
+                    const float radius = ddf->m_Properties[EMITTER_KEY_SIZE_X].m_Points[0].m_Y;
+                    const float height = ddf->m_Properties[EMITTER_KEY_SIZE_Y].m_Points[0].m_Y;
 
                     // 4 pillars
                     render_line_callback(user_context, position, position + rotate(rotation, Vector3(radius, 0.0f, height)), color);
@@ -829,9 +829,9 @@ namespace dmParticle
                 }
                 case EMITTER_TYPE_BOX:
                 {
-                    const float x_ext = 0.5f * ddf->m_Properties[EMITTER_KEY_BOX_WIDTH].m_Points[0].m_Y;
-                    const float y_ext = 0.5f * ddf->m_Properties[EMITTER_KEY_BOX_HEIGHT].m_Points[0].m_Y;
-                    const float z_ext = 0.5f * ddf->m_Properties[EMITTER_KEY_BOX_DEPTH].m_Points[0].m_Y;
+                    const float x_ext = 0.5f * ddf->m_Properties[EMITTER_KEY_SIZE_X].m_Points[0].m_Y;
+                    const float y_ext = 0.5f * ddf->m_Properties[EMITTER_KEY_SIZE_Y].m_Points[0].m_Y;
+                    const float z_ext = 0.5f * ddf->m_Properties[EMITTER_KEY_SIZE_Z].m_Points[0].m_Y;
 
                     render_line_callback(user_context, position + rotate(rotation, Vector3(-x_ext, -y_ext, -z_ext)), position + rotate(rotation, Vector3(x_ext, -y_ext, -z_ext)), color);
                     render_line_callback(user_context, position + rotate(rotation, Vector3(x_ext, -y_ext, -z_ext)), position + rotate(rotation, Vector3(x_ext, y_ext, -z_ext)), color);

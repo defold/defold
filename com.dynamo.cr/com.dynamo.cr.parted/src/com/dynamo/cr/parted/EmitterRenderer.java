@@ -11,6 +11,7 @@ import com.dynamo.cr.sceneed.core.RenderContext;
 import com.dynamo.cr.sceneed.core.RenderContext.Pass;
 import com.dynamo.cr.sceneed.core.RenderData;
 import com.dynamo.cr.sceneed.ui.RenderUtil;
+import com.dynamo.particle.proto.Particle.EmitterKey;
 
 public class EmitterRenderer implements INodeRenderer<EmitterNode> {
 
@@ -55,6 +56,28 @@ public class EmitterRenderer implements INodeRenderer<EmitterNode> {
     public void render(RenderContext renderContext, EmitterNode node,
             RenderData<EmitterNode> renderData) {
         GL gl = renderContext.getGL();
+
+        double scaleX = 1;
+        double scaleY = 1;
+        double scaleZ = 1;
+
+        switch (node.getEmitterType()) {
+        case EMITTER_TYPE_SPHERE:
+            scaleX = scaleY = scaleZ = node.getProperty(EmitterKey.EMITTER_KEY_SIZE_X.toString()).getValue();
+            break;
+        case EMITTER_TYPE_CONE:
+            scaleX = scaleZ = node.getProperty(EmitterKey.EMITTER_KEY_SIZE_X.toString()).getValue();
+            scaleY = node.getProperty(EmitterKey.EMITTER_KEY_SIZE_Y.toString()).getValue();
+            break;
+        case EMITTER_TYPE_BOX:
+            scaleX = node.getProperty(EmitterKey.EMITTER_KEY_SIZE_X.toString()).getValue();
+            scaleY = node.getProperty(EmitterKey.EMITTER_KEY_SIZE_Y.toString()).getValue();
+            scaleZ = node.getProperty(EmitterKey.EMITTER_KEY_SIZE_Z.toString()).getValue();
+            break;
+        }
+
+        gl.glPushMatrix();
+        gl.glScaled(scaleX, scaleY, scaleZ);
         gl.glColor4fv(renderContext.selectColor(node, color), 0);
 
         FloatBuffer v = (FloatBuffer) renderData.getUserData();
@@ -64,6 +87,8 @@ public class EmitterRenderer implements INodeRenderer<EmitterNode> {
         gl.glVertexPointer(3, GL.GL_FLOAT, 0, v);
         gl.glDrawArrays(GL.GL_LINES, 0, v.limit() / 3);
         gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
+
+        gl.glPopMatrix();
     }
 
 }

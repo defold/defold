@@ -108,7 +108,7 @@ public class EmitterNode extends Node {
         return false;
     }
 
-    /* package */ void setProperty(String key, ValueSpread value) {
+    public void setProperty(String key, ValueSpread value) {
 
         if (isEmitterKey(key)) {
             properties.get(EmitterKey.valueOf(key)).set(value);
@@ -118,7 +118,7 @@ public class EmitterNode extends Node {
         resetSystem();
     }
 
-    /* package */  public ValueSpread getProperty(String key) {
+    public ValueSpread getProperty(String key) {
         ValueSpread ret = null;
         if (isEmitterKey(key)) {
             ret = properties.get(EmitterKey.valueOf(key));

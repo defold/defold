@@ -34,7 +34,7 @@ emitters: {
       }
     }
     properties {
-      key: EMITTER_KEY_SPHERE_RADIUS
+      key: EMITTER_KEY_SIZE_X
       points {
         x: 0.0
         y: 0.0
@@ -49,7 +49,7 @@ emitters: {
       }
     }
     properties {
-      key: EMITTER_KEY_CONE_RADIUS
+      key: EMITTER_KEY_SIZE_X
       points {
         x: 0.0
         y: 0.0
@@ -64,7 +64,7 @@ emitters: {
       }
     }
     properties {
-      key: EMITTER_KEY_CONE_HEIGHT
+      key: EMITTER_KEY_SIZE_Y
       points {
         x: 0.0
         y: 0.0
@@ -79,7 +79,7 @@ emitters: {
       }
     }
     properties {
-      key: EMITTER_KEY_BOX_WIDTH
+      key: EMITTER_KEY_SIZE_X
       points {
         x: 0.0
         y: 0.0
@@ -94,7 +94,7 @@ emitters: {
       }
     }
     properties {
-      key: EMITTER_KEY_BOX_HEIGHT
+      key: EMITTER_KEY_SIZE_Y
       points {
         x: 0.0
         y: 0.0
@@ -109,7 +109,7 @@ emitters: {
       }
     }
     properties {
-      key: EMITTER_KEY_BOX_DEPTH
+      key: EMITTER_KEY_SIZE_Z
       points {
         x: 0.0
         y: 0.0

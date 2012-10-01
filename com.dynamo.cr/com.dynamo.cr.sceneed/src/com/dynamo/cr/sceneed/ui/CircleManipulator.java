@@ -13,15 +13,14 @@ import com.dynamo.cr.sceneed.core.Manipulator;
 public class CircleManipulator extends Manipulator {
 
     private RootManipulator rootManipulator;
-    private float[] color;
     private boolean rotating = false;
     private int startX;
     private double angle;
     private Quat4d originalRotation = new Quat4d();
 
     public CircleManipulator(RootManipulator rootManipulator, float[] color) {
+        super(color);
         this.rootManipulator = rootManipulator;
-        this.color = color;
     }
 
     @Override
@@ -29,13 +28,9 @@ public class CircleManipulator extends Manipulator {
         return false;
     }
 
-    public float[] getColor() {
-        return color;
-    }
-
     @Override
     public void mouseDown(MouseEvent e) {
-        if (getController().isManipulatorSelected(this)) {
+        if (isEnabled() && getController().isManipulatorSelected(this)) {
             startX = e.x;
             rotating = true;
             originalRotation = rootManipulator.getRotation();
