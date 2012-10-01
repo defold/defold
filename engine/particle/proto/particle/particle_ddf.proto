@@ -43,7 +43,7 @@ enum EmitterKey
     EMITTER_KEY_PARTICLE_SPEED      = 5 [(displayName) = "Initial Speed"];
     EMITTER_KEY_PARTICLE_SIZE       = 6 [(displayName) = "Initial Size"];
     EMITTER_KEY_PARTICLE_ALPHA      = 7 [(displayName) = "Initial Alpha"];
-    EMITTER_KEY_COUNT               = 11;
+    EMITTER_KEY_COUNT               = 8;
 }
 
 enum ParticleKey
