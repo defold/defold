@@ -6,6 +6,8 @@ import java.util.EnumSet;
 import javax.media.opengl.GL;
 import javax.vecmath.Point3d;
 
+import com.dynamo.cr.parted.curve.HermiteSpline;
+import com.dynamo.cr.properties.types.ValueSpread;
 import com.dynamo.cr.sceneed.core.INodeRenderer;
 import com.dynamo.cr.sceneed.core.RenderContext;
 import com.dynamo.cr.sceneed.core.RenderContext.Pass;
@@ -52,6 +54,20 @@ public class EmitterRenderer implements INodeRenderer<EmitterNode> {
         }
     }
 
+    private double getScale(EmitterNode node, EmitterKey key) {
+        // This logic is due the abstract spline in ValueSpread
+        // ValueSpread is in the ...properties bundle as it's currently not possible
+        // to extend the property system with new types.
+        // Another side effect is that the "value" of ValueSpread isn't set to
+        // first key-frame when the property is animated, i.e. when altering the spline.
+        ValueSpread vs = node.getProperty(key.toString());
+        if (vs.isAnimated()) {
+            return ((HermiteSpline) vs.getCurve()).getY(0);
+        } else {
+            return vs.getValue();
+        }
+    }
+
     @Override
     public void render(RenderContext renderContext, EmitterNode node,
             RenderData<EmitterNode> renderData) {
@@ -63,16 +79,16 @@ public class EmitterRenderer implements INodeRenderer<EmitterNode> {
 
         switch (node.getEmitterType()) {
         case EMITTER_TYPE_SPHERE:
-            scaleX = scaleY = scaleZ = node.getProperty(EmitterKey.EMITTER_KEY_SIZE_X.toString()).getValue();
+            scaleX = scaleY = scaleZ = getScale(node, EmitterKey.EMITTER_KEY_SIZE_X);
             break;
         case EMITTER_TYPE_CONE:
-            scaleX = scaleZ = node.getProperty(EmitterKey.EMITTER_KEY_SIZE_X.toString()).getValue();
-            scaleY = node.getProperty(EmitterKey.EMITTER_KEY_SIZE_Y.toString()).getValue();
+            scaleX = scaleZ = getScale(node, EmitterKey.EMITTER_KEY_SIZE_X);
+            scaleY = getScale(node, EmitterKey.EMITTER_KEY_SIZE_Y);
             break;
         case EMITTER_TYPE_BOX:
-            scaleX = node.getProperty(EmitterKey.EMITTER_KEY_SIZE_X.toString()).getValue();
-            scaleY = node.getProperty(EmitterKey.EMITTER_KEY_SIZE_Y.toString()).getValue();
-            scaleZ = node.getProperty(EmitterKey.EMITTER_KEY_SIZE_Z.toString()).getValue();
+            scaleX = getScale(node, EmitterKey.EMITTER_KEY_SIZE_X);
+            scaleY = getScale(node, EmitterKey.EMITTER_KEY_SIZE_Y);
+            scaleZ = getScale(node, EmitterKey.EMITTER_KEY_SIZE_Z);
             break;
         }
 
