@@ -734,6 +734,10 @@ IRenderView {
 
     @Override
     public void setupNode(RenderContext renderContext, Node node) {
+        if (!node.isVisible()) {
+            return;
+        }
+
         Class<? extends Node> nodeClass = node.getClass();
         INodeType nodeType = this.nodeTypeRegistry.getNodeTypeClass(nodeClass);
         boolean abort = false;

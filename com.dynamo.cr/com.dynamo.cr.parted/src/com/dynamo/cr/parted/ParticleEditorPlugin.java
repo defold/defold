@@ -18,6 +18,8 @@ public class ParticleEditorPlugin extends AbstractUIPlugin {
 
     public static final String EMITTER_IMAGE_ID = "EMITTER"; //$NON-NLS-1$
 
+    public static final String PARTED_CONTEXT_ID = "com.dynamo.cr.parted.contexts.partEditor";
+
 	// The shared instance
 	private static ParticleEditorPlugin plugin;
 

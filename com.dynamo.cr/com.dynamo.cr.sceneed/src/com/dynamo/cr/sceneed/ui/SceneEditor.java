@@ -344,6 +344,10 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
         return true;
     }
 
+    public String getContextID() {
+        return Activator.SCENEED_CONTEXT_ID;
+    }
+
     @Override
     public void createPartControl(Composite parent) {
         this.renderView.createControls(parent);
@@ -351,7 +355,7 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
         // This makes sure the context will be active while this component is
         IContextService contextService = (IContextService) getSite()
                 .getService(IContextService.class);
-        contextService.activateContext(Activator.SCENEED_CONTEXT_ID);
+        contextService.activateContext(getContextID());
 
         // Set the render view as selection provider
         getSite().setSelectionProvider(this.sceneRenderViewProvider);

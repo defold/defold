@@ -7,12 +7,27 @@ import org.eclipse.swt.events.MouseMoveListener;
 @SuppressWarnings("serial")
 public abstract class Manipulator extends Node implements MouseListener, MouseMoveListener {
 
+    private static float[] DISABLED_COLOR = new float[] { 0.5f, 0.5f, 0.5f, 0.5f };
+
     private ManipulatorController controller;
+    private boolean enabled = true;
+    private float[] color;
 
     public abstract boolean match(Object[] selection);
 
+    public Manipulator(float[] color) {
+        this.color = color;
+    }
+
     public ManipulatorController getController() {
         return controller;
+    }
+
+    public final float[] getColor() {
+        if (isEnabled())
+            return color;
+        else
+            return DISABLED_COLOR;
     }
 
     public final void setController(ManipulatorController controller) {
@@ -21,6 +36,14 @@ public abstract class Manipulator extends Node implements MouseListener, MouseMo
             Manipulator m = (Manipulator) c;
             m.setController(controller);
         }
+    }
+
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
     }
 
     @Override

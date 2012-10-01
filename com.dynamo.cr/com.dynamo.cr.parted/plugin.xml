@@ -19,6 +19,10 @@
             renderer="com.dynamo.cr.parted.EmitterRenderer"
             resource-type="com.dynamo.cr.parted.resourcetypes.emitter">
       </node-type>
+      <node-type
+            id="com.dynamo.cr.parted.emitterManipulator"
+            node="com.dynamo.cr.parted.manipulators.EmitterManipulator">
+      </node-type>
    </extension>
    <extension
          point="org.eclipse.ui.editors">
@@ -163,9 +167,25 @@
          point="org.eclipse.ui.bindings">
       <key
             commandId="com.dynamo.cr.parted.command.toggleSimulation"
-            contextId="com.dynamo.cr.sceneed.ui.contexts.sceneEditor"
+            contextId="com.dynamo.cr.parted.contexts.partEditor"
             schemeId="com.dynamo.cr.editor.ui.defoldScheme"
             sequence="SPACE">
       </key>
+   </extension>
+   <extension
+         point="org.eclipse.ui.contexts">
+      <context
+            id="com.dynamo.cr.parted.contexts.partEditor"
+            name="Particle Editor"
+            parentId="com.dynamo.cr.sceneed.ui.contexts.sceneEditor">
+      </context>
+   </extension>
+   <extension
+         point="com.dynamo.cr.manipulators">
+      <manipulator
+            mode="com.dynamo.cr.sceneed.core.manipulators.scale-mode"
+            name="com.dynamo.cr.parted.manipulators.emitterManipulator"
+            node-type="com.dynamo.cr.parted.emitterManipulator">
+      </manipulator>
    </extension>
 </plugin>

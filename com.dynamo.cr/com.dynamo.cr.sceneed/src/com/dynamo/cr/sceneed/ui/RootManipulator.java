@@ -9,6 +9,10 @@ import com.dynamo.cr.sceneed.core.Node;
 @SuppressWarnings("serial")
 public abstract class RootManipulator extends Manipulator {
 
+    public RootManipulator() {
+        super(new float[] { 1, 1, 1, 1 } );
+    }
+
     private List<Node> selection = new ArrayList<Node>();
 
     /**

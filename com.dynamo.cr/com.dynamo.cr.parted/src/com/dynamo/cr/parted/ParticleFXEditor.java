@@ -17,4 +17,10 @@ public class ParticleFXEditor extends SceneEditor {
             return super.getAdapter(adapter);
         }
     }
+
+    @Override
+    public String getContextID() {
+        return ParticleEditorPlugin.PARTED_CONTEXT_ID;
+    }
+
 }
