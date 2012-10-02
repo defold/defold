@@ -115,6 +115,7 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
             // General particle rendering
 
             node.simulate(context, vertexBuffer, dt);
+            timeElapsed += dt;
 
             // TODO proper color
             gl.glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
@@ -137,7 +138,5 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
             gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
             gl.glDisableClientState(GL.GL_TEXTURE_COORD_ARRAY);
         }
-
-        timeElapsed += dt;
     }
 }

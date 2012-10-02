@@ -91,9 +91,8 @@ public class ParticleFXNode extends Node {
     private Pointer prototype;
     private Pointer instance;
     private Pointer context;
-    private boolean reset;
     private FetchAnimCallback animCallback = new FetchAnimCallback();
-    private boolean reloadPrototype = false;
+    private boolean reload = false;
 
     public ParticleFXNode() {
         test.setCurve(new HermiteSpline());
@@ -117,85 +116,86 @@ public class ParticleFXNode extends Node {
     @Override
     protected void childAdded(Node child) {
         super.childAdded(child);
-        reloadPrototype();
+        reload();
+    }
+
+    @Override
+    protected void childRemoved(Node child) {
+        super.childRemoved(child);
+        reload();
+    }
+
+    private byte[] toByteArray() {
+        ISceneModel model = getModel();
+        INodeLoader<Node> nodeLoader = model.getNodeLoader(ParticleFXNode.class);
+        if (nodeLoader != null) {
+            Message msg;
+            try {
+                msg = nodeLoader.buildMessage(model.getLoaderContext(), this, new NullProgressMonitor());
+                return msg.toByteArray();
+            } catch (IOException e) {
+                logger.error("Particle FX could not be serialized.", e);
+            } catch (CoreException e) {
+                logger.error("Particle FX could not be serialized.", e);
+            }
+        }
+        return null;
+    }
+
+    private void updateTileSources() {
+        int emitterCount = getChildren().size();
+        for (int i = 0; i < emitterCount; ++i) {
+            // Fake pointer as index + 1 (avoid 0x0)
+            ParticleLibrary.Particle_SetTileSource(prototype, i, new Pointer(i + 1));
+        }
     }
 
     private void createInstance(Pointer context) {
-        if (instance != null && !reset) {
-            // TODO: Recreation predicate
+        if (instance != null) {
             return;
         }
-        reset = false;
 
-        if (instance != null) {
-            ParticleLibrary.Particle_DeletePrototype(prototype);
-            ParticleLibrary.Particle_DestroyInstance(context, instance);
-        }
+        this.context = context;
 
-        if (this.context == null) {
-            this.context = context;
-        } else {
-            if (this.context != context) {
-                throw new IllegalArgumentException("createInstance called with different context");
-            }
+        byte[] data = toByteArray();
+        if (data == null) {
+            return;
         }
+        prototype = ParticleLibrary.Particle_NewPrototype(ByteBuffer.wrap(data), data.length);
+        updateTileSources();
 
-        ParticleFXLoader loader = new ParticleFXLoader();
-        Message msg;
-        try {
-            msg = loader.buildMessage(null, this, new NullProgressMonitor());
-            byte[] pfxData = msg.toByteArray();
-            prototype = ParticleLibrary.Particle_NewPrototype(ByteBuffer.wrap(pfxData), pfxData.length);
-            int emitterCount = getChildren().size();
-            for (int i = 0; i < emitterCount; ++i) {
-                ParticleLibrary.Particle_SetTileSource(prototype, i, new Pointer(i));
-            }
-            instance = ParticleLibrary.Particle_CreateInstance(context, prototype);
-            ParticleLibrary.Particle_SetPosition(context, instance, new Vector3(0, 0, 0));
-            ParticleLibrary.Particle_SetRotation(context, instance, new Quat(0, 0, 0, 1));
-            ParticleLibrary.Particle_StartInstance(context, instance);
-        } catch (Exception e) {
-            // Logging here might be dangerous (inside simulation loop)
-            e.printStackTrace();
-        }
+        instance = ParticleLibrary.Particle_CreateInstance(context, prototype);
+        ParticleLibrary.Particle_SetPosition(context, instance, new Vector3(0, 0, 0));
+        ParticleLibrary.Particle_SetRotation(context, instance, new Quat(0, 0, 0, 1));
     }
 
-    private void updatePrototype() {
-        ISceneModel model = getModel();
-        if (model != null && prototype != null && reloadPrototype) {
-            INodeLoader<Node> nodeLoader = model.getNodeLoader(ParticleFXNode.class);
-            if (nodeLoader != null) {
-                Message msg;
-                try {
-                    msg = nodeLoader.buildMessage(model.getLoaderContext(), this, new NullProgressMonitor());
-                    byte[] pfxData = msg.toByteArray();
-                    ParticleLibrary.Particle_ReloadPrototype(prototype, ByteBuffer.wrap(pfxData), pfxData.length);
-                    int emitterCount = getChildren().size();
-                    for (int i = 0; i < emitterCount; ++i) {
-                        // Fake pointer as index + 1 (avoid 0x0)
-                        ParticleLibrary.Particle_SetTileSource(prototype, i, new Pointer(i + 1));
-                    }
-                    reloadPrototype = false;
-                } catch (IOException e) {
-                    logger.error("Prototype could not be reloaded.", e);
-                } catch (CoreException e) {
-                    logger.error("Prototype could not be reloaded.", e);
-                }
-            }
+    private void doReload() {
+        if (prototype == null || !reload) {
+            return;
+        }
+        reload = false;
+        byte[] data = toByteArray();
+        if (data != null) {
+            ParticleLibrary.Particle_ReloadPrototype(prototype, ByteBuffer.wrap(data), data.length);
+            updateTileSources();
+            ParticleLibrary.Particle_ReloadInstance(this.context, this.instance);
         }
     }
 
     public void simulate(Pointer context, FloatBuffer vertexBuffer, double dt) {
         createInstance(context);
-        updatePrototype();
+        doReload();
         IntByReference outSize = new IntByReference(0);
 
         if (dt > 0) {
+            if (ParticleLibrary.Particle_IsSleeping(context, this.instance)) {
+                ParticleLibrary.Particle_StartInstance(context, this.instance);
+            }
             ParticleLibrary.Particle_Update(context, (float) dt, vertexBuffer, vertexBuffer.capacity(), outSize,
                     animCallback);
 
         } else {
-            ParticleLibrary.Particle_RestartInstance(context, instance);
+            ParticleLibrary.Particle_ResetInstance(context, instance);
         }
     }
 
@@ -207,12 +207,8 @@ public class ParticleFXNode extends Node {
         this.test.set(test);
     }
 
-    public void reset() {
-        this.reset = true;
-    }
-
-    public void reloadPrototype() {
-        this.reloadPrototype = true;
+    public void reload() {
+        this.reload = true;
     }
 
 }

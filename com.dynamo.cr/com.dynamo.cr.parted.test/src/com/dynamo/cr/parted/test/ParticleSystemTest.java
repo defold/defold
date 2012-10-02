@@ -75,6 +75,7 @@ public class ParticleSystemTest {
                 .setAnimation("anim")
                 .setMaterial("test")
                 .setMaxParticleCount(1)
+                .setDuration(1.0f)
                 .setType(EmitterType.EMITTER_TYPE_SPHERE)
                 .addProperties(pb);
         ParticleFX.Builder pfxb = ParticleFX.newBuilder()
