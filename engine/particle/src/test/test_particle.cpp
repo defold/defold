@@ -93,6 +93,29 @@ bool LoadPrototype(const char* filename, dmParticle::HPrototype* prototype)
     }
 }
 
+bool ReloadPrototype(const char* filename, dmParticle::HPrototype prototype)
+{
+    char path[64];
+    DM_SNPRINTF(path, 64, "build/default/src/test/%s", filename);
+    const uint32_t MAX_FILE_SIZE = 4 * 1024;
+    unsigned char buffer[MAX_FILE_SIZE];
+    uint32_t file_size = 0;
+
+    FILE* f = fopen(path, "rb");
+    if (f)
+    {
+        file_size = fread(buffer, 1, MAX_FILE_SIZE, f);
+        bool result = dmParticle::ReloadPrototype(prototype, buffer, file_size);
+        fclose(f);
+        return result;
+    }
+    else
+    {
+        dmLogWarning("Particle FX could not be reloaded: %s.", path);
+        return false;
+    }
+}
+
 struct RenderData
 {
     void* m_Material;
@@ -248,7 +271,7 @@ TEST_F(ParticleTest, StartInstance)
     ASSERT_LT(0.0f, e->m_Particles[0].m_TimeLeft);
     ASSERT_EQ(e->m_ParticleTimeLeft, e->m_Particles[0].m_TimeLeft);
     ASSERT_TRUE(dmParticle::IsSpawning(m_Context, instance));
-    ASSERT_GT(e->m_Prototype->m_DDF->m_Duration, e->m_Timer);
+    ASSERT_GT(m_Prototype->m_DDF->m_Emitters[0].m_Duration, e->m_Timer);
     ASSERT_EQ(6 * 6 * sizeof(float), out_vertex_buffer_size); // 6 vertices of 6 floats (pos, uv, alpha)
 
     dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
@@ -258,11 +281,11 @@ TEST_F(ParticleTest, StartInstance)
     ASSERT_NE((void*)0, (void*)i);
     ASSERT_EQ(0U, i->m_Emitters[0].m_Particles.Size());
     ASSERT_FALSE(dmParticle::IsSpawning(m_Context, instance));
-    ASSERT_LT(e->m_Prototype->m_DDF->m_Duration, e->m_Timer);
+    ASSERT_LT(m_Prototype->m_DDF->m_Emitters[0].m_Duration, e->m_Timer);
 
     dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
 
-    ASSERT_LT(e->m_Prototype->m_DDF->m_Duration, e->m_Timer);
+    ASSERT_LT(m_Prototype->m_DDF->m_Emitters[0].m_Duration, e->m_Timer);
     ASSERT_FALSE(dmParticle::IsSpawning(m_Context, instance));
 
     dmParticle::DestroyInstance(m_Context, instance);
@@ -285,7 +308,7 @@ TEST_F(ParticleTest, StartOnceInstance)
     dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
 
     dmParticle::Emitter* e = &m_Context->m_Instances[index]->m_Emitters[0];
-    ASSERT_LT(e->m_Prototype->m_DDF->m_Duration, e->m_Timer);
+    ASSERT_LT(m_Prototype->m_DDF->m_Emitters[0].m_Duration, e->m_Timer);
     ASSERT_FALSE(dmParticle::IsSpawning(m_Context, instance));
 
     dmParticle::DestroyInstance(m_Context, instance);
@@ -633,7 +656,7 @@ TEST_F(ParticleTest, Animation)
     uint32_t vertex_buffer_size;
 
     // Test once anim
-    emitter->m_Prototype->m_Animation = dmHashString64("once");
+    m_Prototype->m_Emitters[0].m_Animation = dmHashString64("once");
 
     // 5 tiles
     for (uint32_t i = 0; i < 5; ++i)
@@ -699,6 +722,54 @@ TEST_F(ParticleTest, StableSort)
     ASSERT_EQ(x1, p1->m_Position.getX());
     ASSERT_EQ(x2, p2->m_Position.getX());
     ASSERT_EQ(p1->m_TimeLeft, p2->m_TimeLeft);
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
+TEST_F(ParticleTest, ReloadPrototype)
+{
+    ASSERT_TRUE(LoadPrototype("reload1.particlefxc", &m_Prototype));
+    ASSERT_EQ(1u, m_Prototype->m_Emitters.Size());
+
+    ASSERT_TRUE(ReloadPrototype("reload2.particlefxc", m_Prototype));
+    ASSERT_EQ(2u, m_Prototype->m_Emitters.Size());
+
+    ASSERT_TRUE(ReloadPrototype("reload1.particlefxc", m_Prototype));
+    ASSERT_EQ(1u, m_Prototype->m_Emitters.Size());
+}
+
+TEST_F(ParticleTest, ReloadInstance)
+{
+    float dt = 1.0f / 60.0f;
+
+    ASSERT_TRUE(LoadPrototype("reload1.particlefxc", &m_Prototype));
+
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype);
+    uint16_t index = instance & 0xffff;
+    dmParticle::Instance* i = m_Context->m_Instances[index];
+    dmParticle::StartInstance(m_Context, instance);
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+
+    ASSERT_EQ(1u, i->m_Emitters.Size());
+    ASSERT_EQ(1u, i->m_Emitters[0].m_Particles.Size());
+    ASSERT_TRUE(dmParticle::IsSpawning(m_Context, instance));
+
+    ASSERT_TRUE(ReloadPrototype("reload2.particlefxc", m_Prototype));
+    dmParticle::ReloadInstance(m_Context, instance);
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+
+    ASSERT_EQ(2u, i->m_Emitters.Size());
+    ASSERT_EQ(1u, i->m_Emitters[0].m_Particles.Size());
+    ASSERT_EQ(1u, i->m_Emitters[1].m_Particles.Size());
+    ASSERT_TRUE(dmParticle::IsSpawning(m_Context, instance));
+
+    ASSERT_TRUE(ReloadPrototype("reload1.particlefxc", m_Prototype));
+    dmParticle::ReloadInstance(m_Context, instance);
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+
+    ASSERT_EQ(1u, i->m_Emitters.Size());
+    ASSERT_EQ(1u, i->m_Emitters[0].m_Particles.Size());
+    ASSERT_TRUE(dmParticle::IsSpawning(m_Context, instance));
 
     dmParticle::DestroyInstance(m_Context, instance);
 }

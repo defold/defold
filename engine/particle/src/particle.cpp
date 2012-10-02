@@ -155,9 +155,7 @@ namespace dmParticle
             for (uint32_t i = 0; i < emitter_count; ++i)
             {
                 Emitter* emitter = &instance->m_Emitters[i];
-                EmitterPrototype* emitter_prototype = &prototype->m_Emitters[i];
                 dmParticleDDF::Emitter* emitter_ddf = &ddf->m_Emitters[i];
-                emitter->m_Prototype = emitter_prototype;
                 uint32_t particle_count = emitter_ddf->m_MaxParticleCount;
                 emitter->m_Particles.SetCapacity(particle_count);
             }
@@ -180,6 +178,52 @@ namespace dmParticle
             i->m_Emitters[emitter_i].m_Particles.SetCapacity(0);
         }
         delete i;
+    }
+
+    void ReloadInstance(HContext context, HInstance instance)
+    {
+        if (instance == INVALID_INSTANCE) return;
+        Instance* i = GetInstance(context, instance);
+        if (!i) return;
+        uint32_t emitter_count = i->m_Emitters.Size();
+        Prototype* prototype = i->m_Prototype;
+        dmParticleDDF::ParticleFX* ddf = prototype->m_DDF;
+        uint32_t prototype_emitter_count = prototype->m_Emitters.Size();
+        if (emitter_count != prototype_emitter_count)
+        {
+            // Deallocate particle data if we are shrinking
+            if (prototype_emitter_count < emitter_count)
+            {
+                for (uint32_t emitter_i = prototype_emitter_count; emitter_i < emitter_count; ++emitter_i)
+                {
+                    i->m_Emitters[emitter_i].m_Particles.SetCapacity(0);
+                }
+            }
+            bool spawning = IsSpawning(context, instance);
+            i->m_Emitters.SetCapacity(prototype_emitter_count);
+            i->m_Emitters.SetSize(prototype_emitter_count);
+            // Make sure old particle buffers have the right capacity
+            uint32_t old_count = dmMath::Min(emitter_count, prototype_emitter_count);
+            for (uint32_t emitter_i = 0; emitter_i < old_count; ++emitter_i)
+            {
+                i->m_Emitters[emitter_i].m_Particles.SetCapacity(ddf->m_Emitters[emitter_i].m_MaxParticleCount);
+            }
+            // Initialize emitters if we have grown
+            if (emitter_count < prototype_emitter_count)
+            {
+                memset(&i->m_Emitters.Begin()[emitter_count], 0, (prototype_emitter_count - emitter_count) * sizeof(Emitter));
+                for (uint32_t emitter_i = emitter_count; emitter_i < prototype_emitter_count; ++emitter_i)
+                {
+                    Emitter* emitter = &i->m_Emitters[emitter_i];
+                    dmParticleDDF::Emitter* emitter_ddf = &prototype->m_DDF->m_Emitters[emitter_i];
+                    uint32_t particle_count = emitter_ddf->m_MaxParticleCount;
+                    emitter->m_Particles.SetCapacity(particle_count);
+                }
+                ResetInstance(context, instance);
+                if (spawning)
+                    StartInstance(context, instance);
+            }
+        }
     }
 
     void StartInstance(HContext context, HInstance instance)
@@ -233,15 +277,13 @@ namespace dmParticle
         for (uint32_t emitter_i = 0; emitter_i < emitter_count; ++emitter_i)
         {
             Emitter* emitter = &i->m_Emitters[emitter_i];
-            // Save particles array and prototype
+            // Save particles array
             dmArray<Particle> tmp;
             tmp.Swap(emitter->m_Particles);
-            EmitterPrototype* prototype = emitter->m_Prototype;
             // Clear emitter
             memset(emitter, 0, sizeof(Emitter));
-            // Restore particles and prototype
+            // Restore particles
             tmp.Swap(emitter->m_Particles);
-            emitter->m_Prototype = prototype;
             // Remove living particles
             emitter->m_Particles.SetSize(0);
         }
@@ -257,16 +299,16 @@ namespace dmParticle
         {
             // A looping emitter would never be removed, destroy it and report error
             uint32_t emitter_count = prototype->m_Emitters.Size();
+            dmParticleDDF::ParticleFX* ddf = prototype->m_DDF;
             for (uint32_t emitter_i = 0; emitter_i < emitter_count; ++emitter_i)
             {
-                Emitter* emitter = &instance->m_Emitters[emitter_i];
-                if (prototype->m_DDF->m_Emitters[emitter_i].m_Mode == PLAY_MODE_LOOP)
+                if (ddf->m_Emitters[emitter_i].m_Mode == PLAY_MODE_LOOP)
                 {
                     dmLogError("An emitter is set to loop and can't be created in this manner, it would never be destroyed.");
                     DestroyInstance(context, i);
                     return;
                 }
-                emitter->m_IsSpawning = 1;
+                instance->m_Emitters[emitter_i].m_IsSpawning = 1;
             }
             instance->m_Dangling = 1;
             instance->m_Position = position;
@@ -311,9 +353,9 @@ namespace dmParticle
         return is_spawning;
     }
 
-    bool IsSleeping(Emitter* emitter)
+    bool IsSleeping(Emitter* emitter, dmParticleDDF::Emitter* ddf)
     {
-        if (emitter->m_Prototype->m_DDF->m_Mode == PLAY_MODE_LOOP)
+        if (ddf->m_Mode == PLAY_MODE_LOOP)
             return false;
         if (emitter->m_IsSpawning || emitter->m_ParticleTimeLeft > 0.0f)
             return false;
@@ -326,9 +368,10 @@ namespace dmParticle
         if (!instance) return true;
         bool is_sleeping = true;
         uint32_t emitter_count = instance->m_Emitters.Size();
+        dmParticleDDF::ParticleFX* ddf = instance->m_Prototype->m_DDF;
         for (uint32_t emitter_i = 0; emitter_i < emitter_count; ++emitter_i)
         {
-            if (!IsSleeping(&instance->m_Emitters[emitter_i]))
+            if (!IsSleeping(&instance->m_Emitters[emitter_i], &ddf->m_Emitters[emitter_i]))
             {
                 is_sleeping = false;
                 break;
@@ -343,15 +386,14 @@ namespace dmParticle
     }
 
     // helper functions in update
-    static void SpawnParticles(HContext context, Instance* instance, Emitter* emitter, float dt);
-    static uint32_t UpdateRenderData(HContext context, Instance* instance, Emitter* emitter, uint32_t vertex_index, float* vertex_buffer, uint32_t vertex_buffer_size);
+    static void SpawnParticles(Instance* instance, Emitter* emitter, EmitterPrototype* prototype, dmParticleDDF::Emitter* ddf, float dt);
+    static uint32_t UpdateRenderData(HContext context, Instance* instance, Emitter* emitter, dmParticleDDF::Emitter* ddf, uint32_t vertex_index, float* vertex_buffer, uint32_t vertex_buffer_size);
     static void SortParticles(Emitter* emitter);
 
-    static void EvaluateParticleProperties(Emitter* emitter)
+    static void EvaluateParticleProperties(Emitter* emitter, Property* particle_properties)
     {
         float properties[PARTICLE_KEY_COUNT];
         uint32_t count = emitter->m_Particles.Size();
-        EmitterPrototype* prototype = emitter->m_Prototype;
         // TODO Optimize this
         for (uint32_t i = 0; i < count; ++i)
         {
@@ -359,7 +401,7 @@ namespace dmParticle
             float x = dmMath::Select(-particle->m_MaxLifeTime, 0.0f, 1.0f - particle->m_TimeLeft * particle->m_ooMaxLifeTime);
             for (uint32_t i = 0; i < PARTICLE_KEY_COUNT; ++i)
             {
-                Property* property = &prototype->m_ParticleProperties[i];
+                Property* property = &particle_properties[i];
                 uint32_t segment_index = dmMath::Min((uint32_t)(x * PROPERTY_SAMPLE_COUNT), PROPERTY_SAMPLE_COUNT - 1);
                 LinearSegment* segment = &property->m_Segments[segment_index];
                 float y = (x - segment->m_X) * segment->m_K + segment->m_Y;
@@ -401,48 +443,31 @@ namespace dmParticle
                 continue;
             }
 
+            Prototype* prototype = instance->m_Prototype;
             uint32_t emitter_count = instance->m_Emitters.Size();
             for (uint32_t emitter_i = 0; emitter_i < emitter_count; ++emitter_i)
             {
                 Emitter* emitter = &instance->m_Emitters[emitter_i];
-                EmitterPrototype* prototype = emitter->m_Prototype;
+                EmitterPrototype* emitter_prototype = &prototype->m_Emitters[emitter_i];
+                dmParticleDDF::Emitter* emitter_ddf = &prototype->m_DDF->m_Emitters[emitter_i];
 
                 // Needed to avoid autoread of AnimationData when calling java through JNA
                 memset(&emitter->m_AnimationData, 0, sizeof(AnimationData));
-                if (fetch_animation_callback != 0x0 && prototype->m_TileSource)
+                if (fetch_animation_callback != 0x0 && emitter_prototype->m_TileSource)
                 {
-                    FetchAnimationResult result = fetch_animation_callback(prototype->m_TileSource, prototype->m_Animation, &emitter->m_AnimationData);
+                    FetchAnimationResult result = fetch_animation_callback(emitter_prototype->m_TileSource, emitter_prototype->m_Animation, &emitter->m_AnimationData);
                     if (result != FETCH_ANIMATION_OK)
                     {
                         if (!emitter->m_FetchAnimWarning)
                         {
                             emitter->m_FetchAnimWarning = 1;
-                            const char* anim = (const char*)dmHashReverse64(prototype->m_Animation, 0x0);
+                            const char* anim = (const char*)dmHashReverse64(emitter_prototype->m_Animation, 0x0);
                             if (anim == 0x0)
                                 anim = "<unknown>";
                             dmLogWarning("The animation '%s' could not be found", anim);
                         }
                     } else {
                         emitter->m_FetchAnimWarning = 0;
-                    }
-                }
-
-                // Resize particle buffer if the resource has been reloaded, wipe particles
-                uint32_t max_particle_count = prototype->m_DDF->m_MaxParticleCount;
-                if (emitter->m_Particles.Capacity() != max_particle_count)
-                {
-                    if (max_particle_count <= context->m_MaxParticleCount)
-                    {
-                        emitter->m_Particles.SetCapacity(max_particle_count);
-                        emitter->m_ResizeWarning = 0;
-                    }
-                    else
-                    {
-                        if (emitter->m_ResizeWarning == 0)
-                        {
-                            dmLogWarning("Maximum number of particles (%d) exceeded, emitter will not be resized. Change the max particle count for the emitter or \"%s\" in the config file.", context->m_MaxParticleCount, MAX_PARTICLE_COUNT_KEY);
-                            emitter->m_ResizeWarning = 1;
-                        }
                     }
                 }
 
@@ -477,18 +502,18 @@ namespace dmParticle
                     if (!emitter->m_Particles.Full() || emitter->m_SpawnTimer < emitter->m_SpawnDelay)
                         emitter->m_SpawnTimer += dt;
                     // stop once-emitters that have lived their life
-                    if (prototype->m_DDF->m_Mode == PLAY_MODE_ONCE && emitter->m_Timer > prototype->m_DDF->m_Duration)
+                    if (emitter_ddf->m_Mode == PLAY_MODE_ONCE && emitter->m_Timer > emitter_ddf->m_Duration)
                         emitter->m_IsSpawning = 0;
                 }
 
-                SpawnParticles(context, instance, emitter, dt);
+                SpawnParticles(instance, emitter, emitter_prototype, emitter_ddf, dt);
 
                 SortParticles(emitter);
 
                 // Simulate
                 {
                     DM_PROFILE(Particle, "Simulate");
-                    EvaluateParticleProperties(emitter);
+                    EvaluateParticleProperties(emitter, emitter_prototype->m_ParticleProperties);
                     // TODO Apply modifiers
                     uint32_t particle_count = emitter->m_Particles.Size();
                     for (uint32_t j = 0; j < particle_count; ++j)
@@ -503,7 +528,7 @@ namespace dmParticle
 
                 // Render data
                 if (vertex_buffer != 0x0)
-                    vertex_index += UpdateRenderData(context, instance, emitter, vertex_index, vertex_buffer, vertex_buffer_size);
+                    vertex_index += UpdateRenderData(context, instance, emitter, emitter_ddf, vertex_index, vertex_buffer, vertex_buffer_size);
             }
         }
         if (out_vertex_buffer_size != 0x0)
@@ -512,14 +537,12 @@ namespace dmParticle
         }
     }
 
-    static void EvaluateEmitterProperties(Emitter* emitter, float properties[EMITTER_KEY_COUNT])
+    static void EvaluateEmitterProperties(Emitter* emitter, Property* emitter_properties, float duration, float properties[EMITTER_KEY_COUNT])
     {
-        EmitterPrototype* prototype = emitter->m_Prototype;
-        dmParticleDDF::Emitter* ddf = prototype->m_DDF;
-        float x = dmMath::Select(-ddf->m_Duration, 0.0f, emitter->m_Timer / ddf->m_Duration);
+        float x = dmMath::Select(-duration, 0.0f, emitter->m_Timer / duration);
         for (uint32_t i = 0; i < EMITTER_KEY_COUNT; ++i)
         {
-            Property* property = &prototype->m_Properties[i];
+            Property* property = &emitter_properties[i];
             uint32_t segment_index = dmMath::Min((uint32_t)(x * PROPERTY_SAMPLE_COUNT), PROPERTY_SAMPLE_COUNT - 1);
             LinearSegment* segment = &property->m_Segments[segment_index];
             float y = (x - segment->m_X) * segment->m_K + segment->m_Y;
@@ -527,7 +550,7 @@ namespace dmParticle
         }
     }
 
-    static void SpawnParticles(HContext context, Instance* instance, Emitter* emitter, float dt)
+    static void SpawnParticles(Instance* instance, Emitter* emitter, EmitterPrototype* prototype, dmParticleDDF::Emitter* ddf, float dt)
     {
         DM_PROFILE(Particle, "Spawn");
         if (emitter->m_IsSpawning)
@@ -543,10 +566,9 @@ namespace dmParticle
 
                 // TODO Handle birth-action
 
-                dmParticleDDF::Emitter* ddf = emitter->m_Prototype->m_DDF;
                 float emitter_properties[EMITTER_KEY_COUNT];
                 memset(emitter_properties, 0, sizeof(emitter_properties));
-                EvaluateEmitterProperties(emitter, emitter_properties);
+                EvaluateEmitterProperties(emitter, prototype->m_Properties, ddf->m_Duration, emitter_properties);
 
                 emitter->m_SpawnDelay = emitter_properties[EMITTER_KEY_SPAWN_DELAY];
                 particle->m_MaxLifeTime = emitter_properties[EMITTER_KEY_PARTICLE_LIFE_TIME];
@@ -611,7 +633,7 @@ namespace dmParticle
                 particle->m_Rotation = ddf->m_Rotation;
                 particle->m_Velocity = rotate(ddf->m_Rotation, velocity);
 
-                if (emitter->m_Prototype->m_DDF->m_Space == EMISSION_SPACE_WORLD)
+                if (ddf->m_Space == EMISSION_SPACE_WORLD)
                 {
                     particle->m_Position = instance->m_Position + rotate(instance->m_Rotation, Vector3(particle->m_Position));
                     particle->m_Rotation = instance->m_Rotation * particle->m_Rotation;
@@ -626,7 +648,7 @@ namespace dmParticle
             0.0f, 0.0f, 1.0f, 1.0f
     };
 
-    static uint32_t UpdateRenderData(HContext context, Instance* instance, Emitter* emitter, uint32_t vertex_index, float* vertex_buffer, uint32_t vertex_buffer_size)
+    static uint32_t UpdateRenderData(HContext context, Instance* instance, Emitter* emitter, dmParticleDDF::Emitter* ddf, uint32_t vertex_index, float* vertex_buffer, uint32_t vertex_buffer_size)
     {
         DM_PROFILE(Particle, "UpdateRenderData");
 
@@ -650,7 +672,7 @@ namespace dmParticle
         // calculate emission space
         Quat emission_rotation = Quat::identity();
         Vector3 emission_position(0.0f, 0.0f, 0.0f);
-        if (emitter->m_Prototype->m_DDF->m_Space == EMISSION_SPACE_EMITTER)
+        if (ddf->m_Space == EMISSION_SPACE_EMITTER)
         {
             emission_rotation = instance->m_Rotation;
             emission_position = Vector3(instance->m_Position);
@@ -811,7 +833,7 @@ namespace dmParticle
                     Emitter* emitter = &instance->m_Emitters[j];
                     if (!emitter || emitter->m_VertexCount == 0) continue;
 
-                    render_emitter_callback(usercontext, emitter->m_Prototype->m_Material, emitter->m_AnimationData.m_Texture, emitter->m_VertexIndex, emitter->m_VertexCount);
+                    render_emitter_callback(usercontext, instance->m_Prototype->m_Emitters[j].m_Material, emitter->m_AnimationData.m_Texture, emitter->m_VertexIndex, emitter->m_VertexCount);
                 }
             }
         }
@@ -824,22 +846,23 @@ namespace dmParticle
         {
             Instance* instance = context->m_Instances[i];
             if (instance == INVALID_INSTANCE) continue;
+            Prototype* prototype = instance->m_Prototype;
 
             uint32_t emitter_count = instance->m_Emitters.Size();
             for (uint32_t j = 0; j < emitter_count; j++)
             {
                 Emitter* e = &instance->m_Emitters[j];
 
-                dmParticleDDF::Emitter* ddf = e->m_Prototype->m_DDF;
+                dmParticleDDF::Emitter* ddf = &prototype->m_DDF->m_Emitters[j];
                 Vectormath::Aos::Vector4 color(0.0f, 1.0f, 0.0f, 1.0f);
-                if (IsSleeping(e))
+                if (IsSleeping(e, ddf))
                 {
                     color.setY(0.0f);
                     color.setZ(1.0f);
                 }
                 else if (ddf->m_Mode == dmParticle::PLAY_MODE_ONCE)
                 {
-                    float t = e->m_Timer / ddf->m_Duration;
+                    float t = dmMath::Select(-ddf->m_Duration, 0.0f, e->m_Timer / ddf->m_Duration);
                     color.setY(1.0f - t);
                     color.setZ(t);
                 }
@@ -945,7 +968,6 @@ namespace dmParticle
                 {
                     dmParticleDDF::Emitter* emitter_ddf = &ddf->m_Emitters[i];
                     EmitterPrototype* emitter = &prototype->m_Emitters[i];
-                    emitter->m_DDF = emitter_ddf;
                     emitter->m_Animation = dmHashString64(emitter_ddf->m_Animation);
                     // Approximate splines with linear segments
                     memset(emitter->m_Properties, 0, sizeof(emitter->m_Properties));
@@ -1085,6 +1107,7 @@ namespace dmParticle
 
     DM_PARTICLE_TRAMPOLINE2(HInstance, CreateInstance, HContext, HPrototype);
     DM_PARTICLE_TRAMPOLINE2(void, DestroyInstance, HContext, HInstance);
+    DM_PARTICLE_TRAMPOLINE2(void, ReloadInstance, HContext, HInstance);
 
     DM_PARTICLE_TRAMPOLINE2(void, StartInstance, HContext, HInstance);
     DM_PARTICLE_TRAMPOLINE2(void, StopInstance, HContext, HInstance);

@@ -187,7 +187,7 @@ namespace dmGameSystem
     void CompParticleFXOnReload(const dmGameObject::ComponentOnReloadParams& params)
     {
         ParticleFXComponent* component = (ParticleFXComponent*)*params.m_UserData;
-        dmParticle::RestartInstance(component->m_World->m_ParticleContext, component->m_ParticleFXInstance);
+        dmParticle::ReloadInstance(component->m_World->m_ParticleContext, component->m_ParticleFXInstance);
     }
 
     void RenderInstanceCallback(void* context, void* material, void* texture, uint32_t vertex_index, uint32_t vertex_count)

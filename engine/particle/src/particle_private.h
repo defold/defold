@@ -73,8 +73,6 @@ namespace dmParticle
         AnimationData           m_AnimationData;
         /// Particle buffer.
         dmArray<Particle>       m_Particles;
-        /// DDF prototype
-        EmitterPrototype*       m_Prototype;
         /// Vertex index of the render data for the particles spawned by this emitter.
         uint32_t                m_VertexIndex;
         /// Number of vertices of the render data for the particles spawned by this emitter.
@@ -93,8 +91,7 @@ namespace dmParticle
         uint16_t                m_IsSpawning : 1;
         /// If the user has been warned that all particles cannot be rendered.
         uint16_t                m_RenderWarning : 1;
-        /// If the user has been warned that the emitters particle buffer could not be resized as a result from a reload.
-        uint16_t                m_ResizeWarning : 1;
+        /// If the user has been warned that the emitters animation could not be fetched
         uint16_t                m_FetchAnimWarning : 1;
     };
 
@@ -131,7 +128,8 @@ namespace dmParticle
     struct Context
     {
         Context(uint32_t max_instance_count, uint32_t max_particle_count)
-        : m_NextVersionNumber(1)
+        : m_MaxParticleCount(max_particle_count)
+        , m_NextVersionNumber(1)
         {
             m_Instances.SetCapacity(max_instance_count);
             m_Instances.SetSize(max_instance_count);
@@ -140,8 +138,6 @@ namespace dmParticle
                 memset(&m_Instances.Front(), 0, max_instance_count * sizeof(Instance*));
             }
             m_InstanceIndexPool.SetCapacity(max_instance_count);
-
-            m_MaxParticleCount = max_particle_count;
         }
 
         ~Context()
@@ -181,7 +177,6 @@ namespace dmParticle
         EmitterPrototype()
         : m_TileSource(0)
         , m_Material(0)
-        , m_DDF(0)
         {
 
         }
@@ -195,8 +190,6 @@ namespace dmParticle
         void*                   m_TileSource;
         /// Material to use when rendering particles.
         void*                   m_Material;
-        /// DDF from the resource
-        dmParticleDDF::Emitter* m_DDF;
     };
 
     /**

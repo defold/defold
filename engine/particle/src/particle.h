@@ -122,6 +122,13 @@ namespace dmParticle
      */
     DM_PARTICLE_PROTO(void, DestroyInstance, HContext context, HInstance instance);
     /**
+     * Reload instance in the specified context based on its prototype.
+     * If the number of emitters has changed, the instance will be reset, and restarted if currently playing.
+     * @param context Context handle, must be valid.
+     * @param instance Instance to reload, can be invalid.
+     */
+    DM_PARTICLE_PROTO(void, ReloadInstance, HContext context, HInstance instance);
+    /**
      * Start the specified instance, which means it will start spawning particles.
      * @param context Context in which the instance exists.
      * @param instance Instance to start, can be invalid.
