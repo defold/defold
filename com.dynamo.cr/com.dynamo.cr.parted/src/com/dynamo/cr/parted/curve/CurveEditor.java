@@ -1,12 +1,5 @@
 package com.dynamo.cr.parted.curve;
 
-import org.eclipse.core.commands.ExecutionException;
-import org.eclipse.core.commands.operations.IOperationHistory;
-import org.eclipse.core.commands.operations.IUndoContext;
-import org.eclipse.core.commands.operations.IUndoableOperation;
-import org.eclipse.core.commands.operations.UndoContext;
-import org.eclipse.core.runtime.IStatus;
-import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.resource.ColorRegistry;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.MouseEvent;
@@ -22,8 +15,6 @@ import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.graphics.RGB;
 import org.eclipse.swt.widgets.Canvas;
 import org.eclipse.swt.widgets.Composite;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Curve Editor
@@ -33,14 +24,14 @@ import org.slf4j.LoggerFactory;
 public class CurveEditor extends Canvas implements PaintListener,
         MouseWheelListener, MouseMoveListener, MouseListener {
 
-    private static Logger logger = LoggerFactory.getLogger(CurveEditor.class);
-
     public static final String BACKGROUND_COLOR_KEY = "com.dynamo.cr.parted.curve.BACKGROUND_COLOR";
     public static final String AXIS_COLOR_KEY = "com.dynamo.cr.parted.curve.AXIS_COLOR";
     public static final String GRID_COLOR_KEY = "com.dynamo.cr.parted.curve.GRID_COLOR";
     public static final String TICK_COLOR_KEY = "com.dynamo.cr.parted.curve.TICK_COLOR";
     public static final String TANGENT_COLOR_KEY = "com.dynamo.cr.parted.curve.TANGENT_COLOR";
     public static final String CONTROL_COLOR_KEY = "com.dynamo.cr.parted.curve.CONTROL_COLOR";
+
+    private ICurveEditorListener listener = null;
 
     private int yAxisWidth = 60;
     private int marginRight = 32;
@@ -58,9 +49,6 @@ public class CurveEditor extends Canvas implements PaintListener,
 
     private HermiteSpline spline;
 
-    private IUndoContext undoContext;
-    private IOperationHistory history;
-
     private ColorRegistry colorsRegistry;
 
     private enum Mode {
@@ -71,8 +59,7 @@ public class CurveEditor extends Canvas implements PaintListener,
         return colorsRegistry.get(key);
     }
 
-    public CurveEditor(Composite parent, int style, UndoContext undoContext,
-            IOperationHistory history, ColorRegistry colorRegistry) {
+    public CurveEditor(Composite parent, int style, ICurveEditorListener listener, ColorRegistry colorRegistry) {
         super(parent, style);
         addPaintListener(this);
         addMouseWheelListener(this);
@@ -82,8 +69,7 @@ public class CurveEditor extends Canvas implements PaintListener,
         font = new Font(getDisplay(), currentFont.getFontData()[0].getName(),
                 10, SWT.NORMAL);
         setFont(font);
-        this.undoContext = undoContext;
-        this.history = history;
+        this.listener = listener;
         this.colorsRegistry = colorRegistry;
         initColors();
 
@@ -115,22 +101,9 @@ public class CurveEditor extends Canvas implements PaintListener,
         super.dispose();
     }
 
-    public void executeOperation(IUndoableOperation operation) {
-        if (undoContext == null) {
-            return;
-        }
-
-        operation.addContext(this.undoContext);
-        IStatus status = null;
-        try {
-            status = this.history.execute(operation, null, null);
-            if (status != Status.OK_STATUS) {
-                logger.error("Failed to execute operation",
-                        status.getException());
-            }
-        } catch (final ExecutionException e) {
-            logger.error("Failed to execute operation", e);
-        }
+    private void splineChanged(String label, HermiteSpline oldSpline, HermiteSpline newSpline) {
+        listener.splineChanged(label, this, oldSpline, newSpline);
+        this.spline = newSpline;
     }
 
     double toScreenX(double xValue) {
@@ -163,8 +136,8 @@ public class CurveEditor extends Canvas implements PaintListener,
 
     private double getTangentScale(SplinePoint p) {
         double tangentLength = 110.0;
-        double a = toScreenX(p.tx) - toScreenX(0);
-        double b = toScreenY(p.ty) - toScreenY(0);
+        double a = toScreenX(p.getTx()) - toScreenX(0);
+        double b = toScreenY(p.getTy()) - toScreenY(0);
         double unitLength = 2 * Math.sqrt(a * a + b * b);
 
         double scale = tangentLength / unitLength;
@@ -259,13 +232,13 @@ public class CurveEditor extends Canvas implements PaintListener,
         for (int i = 0; i < nPoints; ++i) {
             SplinePoint p = spline.getPoint(i);
 
-            int x = (int) toScreenX(p.x);
-            int y = (int) toScreenY(p.y);
+            int x = (int) toScreenX(p.getX());
+            int y = (int) toScreenY(p.getY());
             double scale = getTangentScale(p);
-            int x0 = (int) toScreenX(p.x - p.tx * scale);
-            int y0 = (int) toScreenY(p.y - p.ty * scale);
-            int x1 = (int) toScreenX(p.x + p.tx * scale);
-            int y1 = (int) toScreenY(p.y + p.ty * scale);
+            int x0 = (int) toScreenX(p.getX() - p.getTx() * scale);
+            int y0 = (int) toScreenY(p.getY() - p.getTy() * scale);
+            int x1 = (int) toScreenX(p.getX() + p.getTx() * scale);
+            int y1 = (int) toScreenY(p.getY() + p.getTy() * scale);
 
             gc.setForeground(getColor(TANGENT_COLOR_KEY));
             gc.setBackground(getColor(TANGENT_COLOR_KEY));
@@ -321,13 +294,13 @@ public class CurveEditor extends Canvas implements PaintListener,
         for (int i = 0; i < nPoints; ++i) {
             SplinePoint p = spline.getPoint(i);
 
-            int x = (int) toScreenX(p.x);
-            int y = (int) toScreenY(p.y);
+            int x = (int) toScreenX(p.getX());
+            int y = (int) toScreenY(p.getY());
             double scale = getTangentScale(p);
-            int x0 = (int) toScreenX(p.x - p.tx * scale);
-            int y0 = (int) toScreenY(p.y - p.ty * scale);
-            int x1 = (int) toScreenX(p.x + p.tx * scale);
-            int y1 = (int) toScreenY(p.y + p.ty * scale);
+            int x0 = (int) toScreenX(p.getX() - p.getTx() * scale);
+            int y0 = (int) toScreenY(p.getY() - p.getTy() * scale);
+            int x1 = (int) toScreenX(p.getX() + p.getTx() * scale);
+            int y1 = (int) toScreenY(p.getY() + p.getTy() * scale);
 
             if (hit(e, x, y)) {
                 return new Hit(i, Handle.CONTROL, p, e.x - x, e.y - y);
@@ -355,12 +328,12 @@ public class CurveEditor extends Canvas implements PaintListener,
             if (hit.handle == Handle.CONTROL) {
                 double newX = fromScreenX(e.x - hit.mouseDX) ;
                 double newY = fromScreenY(e.y - hit.mouseDY);
-                spline.setPosition(hit.index, newX, newY);
+                spline = spline.setPosition_(hit.index, newX, newY);
                 redraw();
             } else if (hit.handle == Handle.TANGENT_CONTROL1
                     || hit.handle == Handle.TANGENT_CONTROL2) {
-                double tx = hit.point.x - fromScreenX(e.x - hit.mouseDX);
-                double ty = hit.point.y - fromScreenY(e.y - hit.mouseDY);
+                double tx = hit.point.getX() - fromScreenX(e.x - hit.mouseDX);
+                double ty = hit.point.getY() - fromScreenY(e.y - hit.mouseDY);
                 if (hit.handle == Handle.TANGENT_CONTROL2) {
                     tx *= -1;
                     ty *= -1;
@@ -372,7 +345,7 @@ public class CurveEditor extends Canvas implements PaintListener,
                     tx = Math.cos(a);
                     ty = Math.sin(a);
                 }
-                spline.setTangent(hit.index, tx, ty);
+                spline = spline.setTangent_(hit.index, tx, ty);
                 redraw();
             }
         }
@@ -404,12 +377,9 @@ public class CurveEditor extends Canvas implements PaintListener,
 
         Hit hit = hitTest(e);
         if (hit != null && hit.handle == Handle.CONTROL) {
-            RemovePointOperation op = new RemovePointOperation("Insert point", spline, hit.index);
-            executeOperation(op);
+            splineChanged("Remove point", spline, spline.removePoint(hit.index));
         } else {
-            InsertPointOperation op = new InsertPointOperation("Insert point",
-                    spline, x, y);
-            executeOperation(op);
+            splineChanged("Insert point", spline, spline.insertPoint(x, y));
         }
         redraw();
     }
@@ -435,16 +405,14 @@ public class CurveEditor extends Canvas implements PaintListener,
 
         if (mode == Mode.MOVE) {
             if (hit.handle == Handle.CONTROL) {
-                SplinePoint p = spline.getPoint(hit.index);
-                MovePointOperation op = new MovePointOperation("Move point", spline, hit.index, hit.point.x, hit.point.y, p.x, p.y);
-                executeOperation(op);
+                HermiteSpline oldSpline = spline.setPosition_(hit.index, hit.point.getX(), hit.point.getY());
+                splineChanged("Move point", oldSpline, spline);
                 redraw();
             } else if (hit.handle == Handle.TANGENT_CONTROL1
                     || hit.handle == Handle.TANGENT_CONTROL2) {
 
-                SplinePoint p = spline.getPoint(hit.index);
-                MoveTangentOperation op = new MoveTangentOperation("Set tangent", spline, hit.index, hit.point.tx, hit.point.ty, p.tx, p.ty);
-                executeOperation(op);
+                HermiteSpline oldSpline = spline.setTangent_(hit.index, hit.point.getTx(), hit.point.getTy());
+                splineChanged("Set tangent", oldSpline, spline);
 
                 redraw();
             }
@@ -459,10 +427,6 @@ public class CurveEditor extends Canvas implements PaintListener,
 
     public HermiteSpline getSpline() {
         return this.spline;
-    }
-
-    public void setUndoContext(IUndoContext undoContext) {
-        this.undoContext = undoContext;
     }
 
 }

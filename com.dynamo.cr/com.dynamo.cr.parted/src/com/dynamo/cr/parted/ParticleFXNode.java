@@ -16,9 +16,6 @@ import com.dynamo.cr.parted.ParticleLibrary.AnimationData;
 import com.dynamo.cr.parted.ParticleLibrary.FetchAnimationCallback;
 import com.dynamo.cr.parted.ParticleLibrary.Quat;
 import com.dynamo.cr.parted.ParticleLibrary.Vector3;
-import com.dynamo.cr.parted.curve.HermiteSpline;
-import com.dynamo.cr.properties.Property;
-import com.dynamo.cr.properties.types.ValueSpread;
 import com.dynamo.cr.sceneed.core.INodeLoader;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Node;
@@ -85,9 +82,6 @@ public class ParticleFXNode extends Node {
         }
     }
 
-    @Property
-    private ValueSpread test = new ValueSpread();
-
     private Pointer prototype;
     private Pointer instance;
     private Pointer context;
@@ -96,7 +90,6 @@ public class ParticleFXNode extends Node {
     private boolean reloadPrototype = false;
 
     public ParticleFXNode() {
-        test.setCurve(new HermiteSpline());
     }
 
     public ParticleFXNode(Vector4d translation, Quat4d rotation) {
@@ -197,14 +190,6 @@ public class ParticleFXNode extends Node {
         } else {
             ParticleLibrary.Particle_RestartInstance(context, instance);
         }
-    }
-
-    public ValueSpread getTest() {
-        return new ValueSpread(test);
-    }
-
-    public void setTest(ValueSpread test) {
-        this.test.set(test);
     }
 
     public void reset() {

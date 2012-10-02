@@ -7,38 +7,37 @@ import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 
-public class RemovePointOperation extends AbstractOperation {
+public class AlterSplineOperation extends AbstractOperation {
 
     private HermiteSpline spline;
-    private int index;
-    private SplinePoint prevPoint;
+    private HermiteSpline oldSpline;
+    private CurveEditor editor;
 
-    public RemovePointOperation(String label, HermiteSpline spline, int index) {
+    public AlterSplineOperation(String label, CurveEditor curveEditor, HermiteSpline oldSpline, HermiteSpline spline) {
         super(label);
+        this.editor = curveEditor;
+        this.oldSpline = oldSpline;
         this.spline = spline;
-        this.index = index;
-        this.prevPoint = spline.getPoint(index);
     }
 
     @Override
     public IStatus execute(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
-        spline.removePoint(index);
+        editor.setSpline(spline);
         return Status.OK_STATUS;
     }
 
     @Override
     public IStatus redo(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
-        spline.removePoint(index);
+        editor.setSpline(spline);
         return Status.OK_STATUS;
     }
 
     @Override
     public IStatus undo(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
-        spline.insertPoint(prevPoint.x, prevPoint.y);
-        spline.setTangent(index, prevPoint.tx, prevPoint.ty);
+        editor.setSpline(oldSpline);
         return Status.OK_STATUS;
     }
 

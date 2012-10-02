@@ -224,10 +224,10 @@ public class EmitterNode extends Node {
         for (int i = 0; i < spline.getCount(); ++i) {
             com.dynamo.cr.parted.curve.SplinePoint p = spline.getPoint(i);
             SplinePoint sp = SplinePoint.newBuilder()
-                    .setX((float) p.x)
-                    .setY((float) p.y)
-                    .setTX((float) p.tx)
-                    .setTY((float) p.ty)
+                    .setX((float) p.getX())
+                    .setY((float) p.getY())
+                    .setTX((float) p.getTx())
+                    .setTY((float) p.getTy())
                     .build();
 
             lst.add(sp);
