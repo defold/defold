@@ -19,6 +19,19 @@ namespace dmParticle
     struct Prototype;
 
     /**
+     * Key when sorting particles, based on life time with additional index for stable sort
+     */
+    union SortKey
+    {
+        struct
+        {
+            uint32_t m_Index : 16;  // Index is used to ensure stable sort
+            uint32_t m_LifeTime : 16; // Quantified relative life time
+        };
+        uint32_t     m_Key;
+    };
+
+    /**
      * Representation of a particle.
      *
      * TODO Separate source state from current (chaining modifiers)
@@ -43,6 +56,8 @@ namespace dmParticle
         /// Particle alpha
         float       m_SourceAlpha;
         float       m_Alpha;
+        // Sorting
+        SortKey     m_SortKey;
     };
 
     /**
@@ -51,17 +66,8 @@ namespace dmParticle
     struct Emitter
     {
         Emitter()
-        : m_VertexIndex(0)
-        , m_VertexCount(0)
-        , m_Timer(0.0f)
-        , m_SpawnTimer(0.0f)
-        , m_SpawnDelay(0.0f)
-        , m_ParticleTimeLeft(0.0f)
-        , m_IsSpawning(0)
-        , m_RenderWarning(0)
-        , m_ResizeWarning(0)
         {
-
+            memset(this, 0, sizeof(Emitter));
         }
 
         AnimationData           m_AnimationData;
@@ -81,6 +87,8 @@ namespace dmParticle
         float                   m_SpawnDelay;
         /// The time left before the particle dies which has the longest time left to live.
         float                   m_ParticleTimeLeft;
+        /// The max life time of any particle spawned so far (used for quantizing particle life time when sorting)
+        float                   m_MaxParticleLifeTime;
         /// If the emitter is still spawning particles.
         uint16_t                m_IsSpawning : 1;
         /// If the user has been warned that all particles cannot be rendered.

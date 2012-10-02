@@ -118,29 +118,36 @@ namespace dmParticle
     /**
      * Destroy instance in the specified context.
      * @param context Context handle, must be valid.
-     * @param instance Instance to destroy, must not be valid.
+     * @param instance Instance to destroy, can be invalid.
      */
     DM_PARTICLE_PROTO(void, DestroyInstance, HContext context, HInstance instance);
     /**
      * Start the specified instance, which means it will start spawning particles.
      * @param context Context in which the instance exists.
-     * @param instance Instance to start, must not be valid.
+     * @param instance Instance to start, can be invalid.
      */
     DM_PARTICLE_PROTO(void, StartInstance, HContext context, HInstance instance);
     /**
      * Stop the specified instance, which means it will stop spawning particles.
      * Any spawned particles will still be simulated until they die.
      * @param context Context in which the instance exists.
-     * @param instance Instance to start, must not be valid.
+     * @param instance Instance to start, can be invalid.
      */
     DM_PARTICLE_PROTO(void, StopInstance, HContext context, HInstance instance);
     /**
      * Restart the specified instance, which means it will start spawning particles again.
      * Any already living particles will remain after this call.
      * @param context Context in which the instance exists.
-     * @param instance Instance to restart, must not be valid.
+     * @param instance Instance to restart, can be invalid.
      */
     DM_PARTICLE_PROTO(void, RestartInstance, HContext context, HInstance instance);
+    /**
+     * Reset the specified instance, which means its state will be like when first created.
+     * Any already living particles will be annihilated.
+     * @param context Context in which the instance exists.
+     * @param instance Instance to reset, can be invalid.
+     */
+    DM_PARTICLE_PROTO(void, ResetInstance, HContext context, HInstance instance);
     /**
      * Create and start a new instance. Once the instance is sleeping (@see IsSleeping), the particle system will automatically destroy it.
      * Instances with looping emitters can not be created this way since they would never be destroyed in that case.
