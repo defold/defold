@@ -183,12 +183,12 @@ namespace dmParticle
 
     /**
      * Returns if the specified instance is spawning particles or not.
-     * A looping instance is always spawning particles, other instances are spawning until their duration has elapsed.
+     * A looping instance is spawning particles until stopped, other instances are spawning until stopped or their duration has elapsed.
      */
     DM_PARTICLE_PROTO(bool, IsSpawning, HContext context, HInstance instances);
     /**
      * Returns if the specified instance is spawning particles or not.
-     * A looping instance is never sleeping, other instances are sleeping when they are not spawning and have no remaining living particles.
+     * Instances are sleeping when they are not spawning and have no remaining living particles.
      */
     DM_PARTICLE_PROTO(bool, IsSleeping, HContext context, HInstance instance);
 

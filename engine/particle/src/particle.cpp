@@ -355,8 +355,6 @@ namespace dmParticle
 
     bool IsSleeping(Emitter* emitter, dmParticleDDF::Emitter* ddf)
     {
-        if (ddf->m_Mode == PLAY_MODE_LOOP)
-            return false;
         if (emitter->m_IsSpawning || emitter->m_ParticleTimeLeft > 0.0f)
             return false;
         return true;
@@ -504,6 +502,9 @@ namespace dmParticle
                     // stop once-emitters that have lived their life
                     if (emitter_ddf->m_Mode == PLAY_MODE_ONCE && emitter->m_Timer > emitter_ddf->m_Duration)
                         emitter->m_IsSpawning = 0;
+                    // wrap looping emitters when they reach the end
+                    if (emitter_ddf->m_Mode == PLAY_MODE_LOOP)
+                        emitter->m_Timer -= dmMath::Select(emitter->m_Timer - emitter_ddf->m_Duration, emitter_ddf->m_Duration, 0.0f);
                 }
 
                 SpawnParticles(instance, emitter, emitter_prototype, emitter_ddf, dt);

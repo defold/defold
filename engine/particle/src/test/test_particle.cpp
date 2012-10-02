@@ -298,8 +298,10 @@ TEST_F(ParticleTest, StartOnceInstance)
     ASSERT_TRUE(LoadPrototype("once.particlefxc", &m_Prototype));
     dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype);
     uint16_t index = instance & 0xffff;
+    ASSERT_TRUE(dmParticle::IsSleeping(m_Context, instance));
 
     dmParticle::StartInstance(m_Context, instance);
+    ASSERT_FALSE(dmParticle::IsSleeping(m_Context, instance));
 
     dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
 
@@ -310,26 +312,41 @@ TEST_F(ParticleTest, StartOnceInstance)
     dmParticle::Emitter* e = &m_Context->m_Instances[index]->m_Emitters[0];
     ASSERT_LT(m_Prototype->m_DDF->m_Emitters[0].m_Duration, e->m_Timer);
     ASSERT_FALSE(dmParticle::IsSpawning(m_Context, instance));
+    ASSERT_TRUE(dmParticle::IsSleeping(m_Context, instance));
 
     dmParticle::DestroyInstance(m_Context, instance);
 }
 
 TEST_F(ParticleTest, StartLoopInstance)
 {
-    float dt = 1.0f / 60.0f;
+    const uint32_t loop_count = 4;
+    const uint32_t sample_count = 4;
+    float dt = 1.0f / sample_count;
 
     ASSERT_TRUE(LoadPrototype("loop.particlefxc", &m_Prototype));
     dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype);
+    ASSERT_TRUE(dmParticle::IsSleeping(m_Context, instance));
+
+    dmParticle::Emitter* e = &m_Context->m_Instances[instance & 0xffff]->m_Emitters[0];
 
     dmParticle::StartInstance(m_Context, instance);
+    ASSERT_FALSE(dmParticle::IsSleeping(m_Context, instance));
 
-    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
-
-    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
-
-    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    for (uint32_t i = 0; i < loop_count; ++i)
+    {
+        for (uint32_t j = 0; j < sample_count; ++j)
+        {
+            dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+            float v = ((j+1)%sample_count)/(float)sample_count;
+            ASSERT_EQ(v, e->m_Particles[0].m_SourceSize);
+        }
+    }
 
     ASSERT_TRUE(dmParticle::IsSpawning(m_Context, instance));
+    ASSERT_FALSE(dmParticle::IsSleeping(m_Context, instance));
+
+    dmParticle::StopInstance(m_Context, instance);
+    ASSERT_TRUE(dmParticle::IsSleeping(m_Context, instance));
 
     dmParticle::DestroyInstance(m_Context, instance);
 }
