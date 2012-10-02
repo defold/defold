@@ -88,6 +88,12 @@ namespace dmParticle
 
     float GetY(const dmParticleDDF::SplinePoint* segments, uint32_t segment_count, float x)
     {
+        if (segment_count == 1)
+        {
+            // Fall-back to linear interpolation
+            const SplinePoint& p = *segments;
+            return p.m_Y + (x - p.m_X) * p.m_TY / p.m_TX;
+        }
         uint32_t segment_index = 0;
         float t = 0;
         for (uint32_t s = 0; s < segment_count - 1; ++s) {
@@ -386,6 +392,7 @@ namespace dmParticle
     // helper functions in update
     static void SpawnParticles(Instance* instance, Emitter* emitter, EmitterPrototype* prototype, dmParticleDDF::Emitter* ddf, float dt);
     static uint32_t UpdateRenderData(HContext context, Instance* instance, Emitter* emitter, dmParticleDDF::Emitter* ddf, uint32_t vertex_index, float* vertex_buffer, uint32_t vertex_buffer_size);
+    static void GenerateKeys(Emitter* emitter);
     static void SortParticles(Emitter* emitter);
 
     static void EvaluateParticleProperties(Emitter* emitter, Property* particle_properties)
@@ -509,6 +516,7 @@ namespace dmParticle
 
                 SpawnParticles(instance, emitter, emitter_prototype, emitter_ddf, dt);
 
+                GenerateKeys(emitter);
                 SortParticles(emitter);
 
                 // Simulate

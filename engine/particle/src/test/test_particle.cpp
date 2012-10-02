@@ -1,8 +1,10 @@
 #include <gtest/gtest.h>
 #include <stdio.h>
+#include <algorithm>
 
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
+#include <dlib/math.h>
 
 #include <ddf/ddf.h>
 
@@ -721,24 +723,35 @@ TEST_F(ParticleTest, StableSort)
 
     dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
 
-    ASSERT_EQ(2u, i->m_Emitters[0].m_Particles.Size());
-    dmParticle::Particle* p1 = &i->m_Emitters[0].m_Particles[0];
-    dmParticle::Particle* p2 = &i->m_Emitters[0].m_Particles[1];
-    // Use position to track the particles
-    float x1 = p1->m_Position.getX();
-    float x2 = p2->m_Position.getX();
-    ASSERT_NE(x1, x2);
-    ASSERT_EQ(p1->m_TimeLeft, p2->m_TimeLeft);
+    const uint32_t particle_count = 20;
+    ASSERT_EQ(particle_count, i->m_Emitters[0].m_Particles.Size());
 
+    float x[particle_count];
+    dmParticle::Particle* p = &i->m_Emitters[0].m_Particles[0];
+    // Store x-positions
+    for (uint32_t pi = 0; pi < particle_count; ++pi)
+    {
+        float f = (float)pi + 1;
+        x[pi] = f;
+        p[pi].m_Position.setX(f);
+    }
+    // Disturb order by altering a few particles
+    const uint32_t disturb_count = particle_count / 2;
+    for (uint32_t d = 0; d < disturb_count; ++d)
+    {
+        p[d].m_TimeLeft -= dt;
+        x[d] += particle_count;
+        p[d].m_Position.setX(x[d]);
+    }
+    // Sort
     dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
-    ASSERT_EQ(x1, p1->m_Position.getX());
-    ASSERT_EQ(x2, p2->m_Position.getX());
-    ASSERT_EQ(p1->m_TimeLeft, p2->m_TimeLeft);
-
-    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
-    ASSERT_EQ(x1, p1->m_Position.getX());
-    ASSERT_EQ(x2, p2->m_Position.getX());
-    ASSERT_EQ(p1->m_TimeLeft, p2->m_TimeLeft);
+    // Sort verification
+    std::sort(x, x+particle_count);
+    // Verify order of undisturbed
+    for (uint32_t pi = 0; pi < particle_count; ++pi)
+    {
+        ASSERT_EQ(x[pi], p[pi].m_Position.getX());
+    }
 
     dmParticle::DestroyInstance(m_Context, instance);
 }
