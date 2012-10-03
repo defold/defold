@@ -8,21 +8,21 @@ option java_outer_classname = "Particle";
 
 enum EmitterType
 {
-    EMITTER_TYPE_SPHERE = 0;
-    EMITTER_TYPE_CONE   = 1;
-    EMITTER_TYPE_BOX    = 2;
+    EMITTER_TYPE_SPHERE = 0 [(displayName) = "Sphere"];
+    EMITTER_TYPE_CONE   = 1 [(displayName) = "Cone"];
+    EMITTER_TYPE_BOX    = 2 [(displayName) = "Box"];
 };
 
 enum PlayMode
 {
-    PLAY_MODE_ONCE  = 0;
-    PLAY_MODE_LOOP  = 1;
+    PLAY_MODE_ONCE  = 0 [(displayName) = "Once"];
+    PLAY_MODE_LOOP  = 1 [(displayName) = "Loop"];
 }
 
 enum EmissionSpace
 {
-    EMISSION_SPACE_WORLD    = 0;
-    EMISSION_SPACE_EMITTER  = 1;
+    EMISSION_SPACE_WORLD    = 0 [(displayName) = "World"];
+    EMISSION_SPACE_EMITTER  = 1 [(displayName) = "Emitter"];
 }
 
 message SplinePoint
@@ -51,6 +51,32 @@ enum ParticleKey
     PARTICLE_KEY_SCALE      = 0 [(displayName) = "Particle Scale"];
     PARTICLE_KEY_ALPHA      = 1 [(displayName) = "Particle Alpha"];
     PARTICLE_KEY_COUNT      = 2;
+}
+
+enum ModifierType
+{
+    MODIFIER_TYPE_ACCELERATION  = 0 [(displayName) = "Acceleration"];
+    MODIFIER_TYPE_DRAG          = 1 [(displayName) = "Drag"];
+}
+
+enum ModifierKey
+{
+    MODIFIER_KEY_MAGNITUDE      = 0 [(displayName) = "Magnitude"];
+    MODIFIER_KEY_ATTENUATION    = 1 [(displayName) = "Attenuation"];
+}
+
+message Modifier
+{
+    required uint32         use_direction   = 1 [default = 0];
+    required dmMath.Point3  position        = 2;
+    required dmMath.Quat    rotation        = 3;
+
+    message Property
+    {
+        required ModifierKey        key     = 1;
+        repeated SplinePoint        points  = 2;
+    }
+    repeated Property       properties      = 4;
 }
 
 message Emitter
@@ -83,6 +109,8 @@ message Emitter
         repeated SplinePoint    points  = 2;
     }
     repeated ParticleProperty particle_properties = 12;
+
+    repeated Modifier       modifiers           = 13;
 }
 
 message ParticleFX
