@@ -405,7 +405,7 @@ namespace dmParticle
     static uint32_t UpdateRenderData(HContext context, Instance* instance, Emitter* emitter, dmParticleDDF::Emitter* ddf, uint32_t vertex_index, float* vertex_buffer, uint32_t vertex_buffer_size);
     static void GenerateKeys(Emitter* emitter);
     static void SortParticles(Emitter* emitter);
-    static void Simulate(Emitter* emitter, Property* particle_properties, float dt);
+    static void Simulate(Emitter* emitter, EmitterPrototype* prototype, dmParticleDDF::Emitter* ddf, float dt);
 
     void Update(HContext context, float dt, float* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size, FetchAnimationCallback fetch_animation_callback)
     {
@@ -455,7 +455,7 @@ namespace dmParticle
                 GenerateKeys(emitter);
                 SortParticles(emitter);
 
-                Simulate(emitter, emitter_prototype->m_ParticleProperties, dt);
+                Simulate(emitter, emitter_prototype, emitter_ddf, dt);
 
                 // Render data
                 if (vertex_buffer != 0x0 && vertex_buffer_size > 0)
@@ -624,42 +624,6 @@ namespace dmParticle
                     particle->m_Velocity = rotate(instance->m_Rotation, particle->m_Velocity);
                 }
             }
-        }
-    }
-
-    static void EvaluateEmitterProperties(Emitter* emitter, Property* emitter_properties, float duration, float properties[EMITTER_KEY_COUNT])
-    {
-        float x = dmMath::Select(-duration, 0.0f, emitter->m_Timer / duration);
-        for (uint32_t i = 0; i < EMITTER_KEY_COUNT; ++i)
-        {
-            Property* property = &emitter_properties[i];
-            uint32_t segment_index = dmMath::Min((uint32_t)(x * PROPERTY_SAMPLE_COUNT), PROPERTY_SAMPLE_COUNT - 1);
-            LinearSegment* segment = &property->m_Segments[segment_index];
-            float y = (x - segment->m_X) * segment->m_K + segment->m_Y;
-            properties[i] = y;
-        }
-    }
-
-    static void EvaluateParticleProperties(Emitter* emitter, Property* particle_properties)
-    {
-        float properties[PARTICLE_KEY_COUNT];
-        uint32_t count = emitter->m_Particles.Size();
-        // TODO Optimize this
-        dmArray<Particle>& particles = emitter->m_Particles;
-        for (uint32_t i = 0; i < count; ++i)
-        {
-            Particle* particle = &particles[i];
-            float x = dmMath::Select(-particle->m_MaxLifeTime, 0.0f, 1.0f - particle->m_TimeLeft * particle->m_ooMaxLifeTime);
-            for (uint32_t key = 0; key < PARTICLE_KEY_COUNT; ++key)
-            {
-                Property* property = &particle_properties[key];
-                uint32_t segment_index = dmMath::Min((uint32_t)(x * PROPERTY_SAMPLE_COUNT), PROPERTY_SAMPLE_COUNT - 1);
-                LinearSegment* segment = &property->m_Segments[segment_index];
-                float y = (x - segment->m_X) * segment->m_K + segment->m_Y;
-                properties[key] = y;
-            }
-            particle->m_Size = particle->m_SourceSize * properties[PARTICLE_KEY_SCALE];
-            particle->m_Alpha = particle->m_SourceAlpha * properties[PARTICLE_KEY_ALPHA];
         }
     }
 
@@ -834,17 +798,110 @@ namespace dmParticle
         std::sort(emitter->m_Particles.Begin(), emitter->m_Particles.End(), SortPred());
     }
 
-    void Simulate(Emitter* emitter, Property* particle_properties, float dt)
+#define SAMPLE_PROP(segment, x, target)\
+    {\
+        LinearSegment* s = &segment;\
+        target = (x - s->m_X) * s->m_K + s->m_Y;\
+    }\
+
+    void EvaluateEmitterProperties(Emitter* emitter, Property* emitter_properties, float duration, float properties[EMITTER_KEY_COUNT])
+    {
+        float x = dmMath::Select(-duration, 0.0f, emitter->m_Timer / duration);
+        uint32_t segment_index = dmMath::Min((uint32_t)(x * PROPERTY_SAMPLE_COUNT), PROPERTY_SAMPLE_COUNT - 1);
+        for (uint32_t i = 0; i < EMITTER_KEY_COUNT; ++i)
+        {
+            SAMPLE_PROP(emitter_properties[i].m_Segments[segment_index], x, properties[i])
+        }
+    }
+
+    void EvaluateParticleProperties(Emitter* emitter, Property* particle_properties)
+    {
+        float properties[PARTICLE_KEY_COUNT];
+        uint32_t count = emitter->m_Particles.Size();
+        // TODO Optimize this
+        dmArray<Particle>& particles = emitter->m_Particles;
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            Particle* particle = &particles[i];
+            float x = dmMath::Select(-particle->m_MaxLifeTime, 0.0f, 1.0f - particle->m_TimeLeft * particle->m_ooMaxLifeTime);
+            uint32_t segment_index = dmMath::Min((uint32_t)(x * PROPERTY_SAMPLE_COUNT), PROPERTY_SAMPLE_COUNT - 1);
+
+            SAMPLE_PROP(particle_properties[PARTICLE_KEY_SCALE].m_Segments[segment_index], x, properties[PARTICLE_KEY_SCALE])
+            SAMPLE_PROP(particle_properties[PARTICLE_KEY_ALPHA].m_Segments[segment_index], x, properties[PARTICLE_KEY_ALPHA])
+
+            particle->m_Size = particle->m_SourceSize * properties[PARTICLE_KEY_SCALE];
+            particle->m_Alpha = particle->m_SourceAlpha * properties[PARTICLE_KEY_ALPHA];
+        }
+    }
+
+    void ApplyAcceleration(dmArray<Particle>& particles, Property* modifier_properties, Vector3 direction, float dt)
+    {
+        uint32_t particle_count = particles.Size();
+        uint32_t key = MODIFIER_KEY_MAGNITUDE;
+        Vector3 unit_acc = direction * dt;
+        for (uint32_t i = 0; i < particle_count; ++i)
+        {
+            Particle* particle = &particles[i];
+            float x = dmMath::Select(-particle->m_MaxLifeTime, 0.0f, 1.0f - particle->m_TimeLeft * particle->m_ooMaxLifeTime);
+            uint32_t segment_index = dmMath::Min((uint32_t)(x * PROPERTY_SAMPLE_COUNT), PROPERTY_SAMPLE_COUNT - 1);
+
+            float magnitude;
+            SAMPLE_PROP(modifier_properties[key].m_Segments[segment_index], x, magnitude)
+
+            particle->m_Velocity += unit_acc * magnitude;
+        }
+    }
+
+    void ApplyDrag(dmArray<Particle>& particles, Property* modifier_properties, dmParticleDDF::Modifier* modifier_ddf, Quat world_rotation, float dt)
+    {
+        uint32_t particle_count = particles.Size();
+        const Point3& position = modifier_ddf->m_Position;
+        const Vector3 direction = rotate(world_rotation, Vector3::xAxis());
+        for (uint32_t i = 0; i < particle_count; ++i)
+        {
+            Particle* particle = &particles[i];
+            float x = dmMath::Select(-particle->m_MaxLifeTime, 0.0f, 1.0f - particle->m_TimeLeft * particle->m_ooMaxLifeTime);
+            uint32_t segment_index = dmMath::Min((uint32_t)(x * PROPERTY_SAMPLE_COUNT), PROPERTY_SAMPLE_COUNT - 1);
+
+            float attenuation, magnitude;
+            SAMPLE_PROP(modifier_properties[MODIFIER_KEY_ATTENUATION].m_Segments[segment_index], x, attenuation)
+            SAMPLE_PROP(modifier_properties[MODIFIER_KEY_MAGNITUDE].m_Segments[segment_index], x, magnitude)
+
+            float denumerator = 1.0f + attenuation * distSqr(particle->m_Position, position);
+            float c = dmMath::Select(-dmMath::Abs(denumerator), 0.0f, magnitude / denumerator);
+            Vector3 v = particle->m_Velocity;
+            if (modifier_ddf->m_UseDirection)
+                v = projection(Point3(particle->m_Velocity), direction) * direction;
+            particle->m_Velocity += -c * v * dt;
+        }
+    }
+
+    void Simulate(Emitter* emitter, EmitterPrototype* prototype, dmParticleDDF::Emitter* ddf, float dt)
     {
         DM_PROFILE(Particle, "Simulate");
 
-        EvaluateParticleProperties(emitter, particle_properties);
-        // TODO Apply modifiers
         dmArray<Particle>& particles = emitter->m_Particles;
-        uint32_t particle_count = particles.Size();
-        for (uint32_t j = 0; j < particle_count; ++j)
+        EvaluateParticleProperties(emitter, prototype->m_ParticleProperties);
+        // Apply modifiers
+        uint32_t modifier_count = prototype->m_Modifiers.Size();
+        for (uint32_t i = 0; i < modifier_count; ++i)
         {
-            Particle* p = &particles[j];
+            ModifierPrototype* modifier = &prototype->m_Modifiers[i];
+            dmParticleDDF::Modifier* modifier_ddf = &ddf->m_Modifiers[i];
+            switch (modifier_ddf->m_Type)
+            {
+            case dmParticleDDF::MODIFIER_TYPE_ACCELERATION:
+                ApplyAcceleration(particles, modifier->m_Properties, rotate(modifier_ddf->m_Rotation, Vector3::xAxis()), dt);
+                break;
+            case dmParticleDDF::MODIFIER_TYPE_DRAG:
+                ApplyDrag(particles, modifier->m_Properties, modifier_ddf, ddf->m_Rotation * modifier_ddf->m_Rotation, dt);
+                break;
+            }
+        }
+        uint32_t particle_count = particles.Size();
+        for (uint32_t i = 0; i < particle_count; ++i)
+        {
+            Particle* p = &particles[i];
             const Vector3& v = p->m_Velocity;
             // NOTE This velocity integration has a larger error than normal since we don't use the velocity at the
             // beginning of the frame, but it's ok since particle movement does not need to be very exact
@@ -1036,6 +1093,28 @@ namespace dmParticle
                         dmLogWarning("The key %d is not a valid particle key.", p.m_Key);
                     }
                 }
+                uint32_t modifier_count = emitter_ddf->m_Modifiers.m_Count;
+                emitter->m_Modifiers.SetCapacity(modifier_count);
+                emitter->m_Modifiers.SetSize(modifier_count);
+                memset(emitter->m_Modifiers.Begin(), 0, modifier_count * sizeof(ModifierPrototype));
+                for (uint32_t i = 0; i < modifier_count; ++i)
+                {
+                    ModifierPrototype& modifier = emitter->m_Modifiers[i];
+                    const dmParticleDDF::Modifier& modifier_ddf = emitter_ddf->m_Modifiers[i];
+                    prop_count = modifier_ddf.m_Properties.m_Count;
+                    for (uint32_t j = 0; j < prop_count; ++j)
+                    {
+                        const dmParticleDDF::Modifier::Property& p = modifier_ddf.m_Properties[i];
+                        if (p.m_Key < dmParticleDDF::MODIFIER_KEY_COUNT)
+                        {
+                            SampleProperty(p.m_Points.m_Data, p.m_Points.m_Count, modifier.m_Properties[p.m_Key].m_Segments);
+                        }
+                        else
+                        {
+                            dmLogWarning("The key %d is not a valid modifier key.", p.m_Key);
+                        }
+                    }
+                }
             }
             return true;
         }
@@ -1059,6 +1138,11 @@ namespace dmParticle
 
     void DeletePrototype(HPrototype prototype)
     {
+        uint32_t emitter_count = prototype->m_Emitters.Size();
+        for (uint32_t i = 0; i < emitter_count; ++i)
+        {
+            prototype->m_Emitters[i].m_Modifiers.SetCapacity(0);
+        }
         dmDDF::FreeMessage(prototype->m_DDF);
         delete prototype;
     }

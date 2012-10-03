@@ -63,14 +63,15 @@ enum ModifierKey
 {
     MODIFIER_KEY_MAGNITUDE      = 0 [(displayName) = "Magnitude"];
     MODIFIER_KEY_ATTENUATION    = 1 [(displayName) = "Attenuation"];
+    MODIFIER_KEY_COUNT          = 2;
 }
 
 message Modifier
 {
     required ModifierType   type            = 1;
-    required uint32         use_direction   = 2 [default = 0];
-    required dmMath.Point3  position        = 3;
-    required dmMath.Quat    rotation        = 4;
+    optional uint32         use_direction   = 2 [default = 0];
+    optional dmMath.Point3  position        = 3;
+    optional dmMath.Quat    rotation        = 4;
 
     message Property
     {

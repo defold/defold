@@ -167,6 +167,11 @@ namespace dmParticle
         LinearSegment m_Segments[PROPERTY_SAMPLE_COUNT];
     };
 
+    struct ModifierPrototype
+    {
+        Property m_Properties[dmParticleDDF::MODIFIER_KEY_COUNT];
+    };
+
     /**
      * Representation of an emitter resource.
      *
@@ -182,14 +187,15 @@ namespace dmParticle
         }
 
         /// Emitter properties
-        Property                m_Properties[dmParticleDDF::EMITTER_KEY_COUNT];
+        Property                    m_Properties[dmParticleDDF::EMITTER_KEY_COUNT];
         /// Particle properties
-        Property                m_ParticleProperties[dmParticleDDF::PARTICLE_KEY_COUNT];
-        dmhash_t                m_Animation;
+        Property                    m_ParticleProperties[dmParticleDDF::PARTICLE_KEY_COUNT];
+        dmArray<ModifierPrototype>  m_Modifiers;
+        dmhash_t                    m_Animation;
         /// Tile source to use when rendering particles.
-        void*                   m_TileSource;
+        void*                       m_TileSource;
         /// Material to use when rendering particles.
-        void*                   m_Material;
+        void*                       m_Material;
     };
 
     /**
