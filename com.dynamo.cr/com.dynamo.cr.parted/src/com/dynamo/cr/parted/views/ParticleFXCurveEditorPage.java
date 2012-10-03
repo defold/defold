@@ -1,4 +1,4 @@
-package com.dynamo.cr.parted;
+package com.dynamo.cr.parted.views;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -42,6 +42,7 @@ import org.slf4j.LoggerFactory;
 import com.dynamo.cr.parted.curve.CurveEditor;
 import com.dynamo.cr.parted.curve.HermiteSpline;
 import com.dynamo.cr.parted.curve.ICurveEditorListener;
+import com.dynamo.cr.parted.operations.SelectSplineOperation;
 import com.dynamo.cr.properties.IPropertyDesc;
 import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.properties.IPropertyObjectWorld;

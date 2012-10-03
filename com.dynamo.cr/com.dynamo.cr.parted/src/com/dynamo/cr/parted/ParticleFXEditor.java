@@ -1,5 +1,7 @@
 package com.dynamo.cr.parted;
 
+import com.dynamo.cr.parted.views.ICurveEditorPage;
+import com.dynamo.cr.parted.views.ParticleFXCurveEditorPage;
 import com.dynamo.cr.sceneed.ui.SceneEditor;
 
 public class ParticleFXEditor extends SceneEditor {

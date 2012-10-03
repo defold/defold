@@ -1,4 +1,4 @@
-package com.dynamo.cr.parted;
+package com.dynamo.cr.parted.nodes;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -12,6 +12,7 @@ import org.eclipse.core.runtime.NullProgressMonitor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.dynamo.cr.parted.ParticleLibrary;
 import com.dynamo.cr.parted.ParticleLibrary.AnimationData;
 import com.dynamo.cr.parted.ParticleLibrary.FetchAnimationCallback;
 import com.dynamo.cr.parted.ParticleLibrary.Quat;

@@ -1,4 +1,4 @@
-package com.dynamo.cr.parted;
+package com.dynamo.cr.parted.nodes;
 
 import java.io.IOException;
 import java.io.InputStream;

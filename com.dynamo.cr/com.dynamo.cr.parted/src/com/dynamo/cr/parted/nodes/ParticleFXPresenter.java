@@ -1,9 +1,10 @@
-package com.dynamo.cr.parted;
+package com.dynamo.cr.parted.nodes;
 
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.dynamo.cr.parted.operations.AddEmitterOperation;
 import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;

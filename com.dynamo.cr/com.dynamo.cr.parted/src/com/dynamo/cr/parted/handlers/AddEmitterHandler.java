@@ -6,8 +6,8 @@ import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.handlers.HandlerUtil;
 
-import com.dynamo.cr.parted.ParticleFXNode;
-import com.dynamo.cr.parted.ParticleFXPresenter;
+import com.dynamo.cr.parted.nodes.ParticleFXNode;
+import com.dynamo.cr.parted.nodes.ParticleFXPresenter;
 import com.dynamo.cr.sceneed.core.ISceneEditor;
 
 public class AddEmitterHandler extends AbstractHandler {
