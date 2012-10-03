@@ -1,5 +1,6 @@
 package com.dynamo.cr.parted.curve;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -36,7 +37,9 @@ import java.util.List;
  * @author chmu
  *
  */
-public class HermiteSpline {
+public class HermiteSpline implements Serializable {
+
+    private static final long serialVersionUID = 1L;
 
     static final double MAX_TANGENT_ANGLE = Math.PI / 2 - 0.0001;
 

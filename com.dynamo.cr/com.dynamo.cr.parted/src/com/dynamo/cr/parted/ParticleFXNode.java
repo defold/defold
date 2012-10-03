@@ -82,12 +82,12 @@ public class ParticleFXNode extends Node {
         }
     }
 
-    private Pointer prototype;
-    private Pointer instance;
-    private Pointer context;
-    private boolean reset;
-    private FetchAnimCallback animCallback = new FetchAnimCallback();
-    private boolean reloadPrototype = false;
+    private transient Pointer prototype;
+    private transient Pointer instance;
+    private transient Pointer context;
+    private transient boolean reset;
+    private transient FetchAnimCallback animCallback = new FetchAnimCallback();
+    private transient boolean reloadPrototype = false;
 
     public ParticleFXNode() {
     }

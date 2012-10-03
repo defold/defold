@@ -1,9 +1,10 @@
 package com.dynamo.cr.properties.types;
 
+import java.io.Serializable;
 
+public class ValueSpread implements Serializable {
 
-public class ValueSpread  {
-
+    private static final long serialVersionUID = 1L;
     private double value;
     private double spread;
     private boolean animated;

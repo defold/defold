@@ -1,6 +1,10 @@
 package com.dynamo.cr.parted.curve;
 
-public class SplinePoint {
+import java.io.Serializable;
+
+public class SplinePoint implements Serializable {
+
+    private static final long serialVersionUID = 1L;
 
     private double x;
     private double y;

@@ -141,6 +141,7 @@ public class ParticleFXCurveEditorPage implements ICurveEditorPage, ISelectionLi
                 if (value instanceof ValueSpread) {
                     ValueSpread vs = (ValueSpread) value;
                     if (vs.isAnimated()) {
+                        ((HermiteSpline)vs.getCurve()).setUserdata(pd);
                         input.add(pd);
                     }
                 }
@@ -210,7 +211,6 @@ public class ParticleFXCurveEditorPage implements ICurveEditorPage, ISelectionLi
             IPropertyDesc<Node, IPropertyObjectWorld> pd = (IPropertyDesc<Node, IPropertyObjectWorld>) ((IStructuredSelection) selection).getFirstElement();
             IPropertyModel<Node, IPropertyObjectWorld> propertyModel = ((IPropertyModel<Node, IPropertyObjectWorld>) selectedNode.getAdapter(IPropertyModel.class));
             newSel = (HermiteSpline) ((ValueSpread) propertyModel.getPropertyValue(pd.getId())).getCurve();
-            newSel.setUserdata(pd);
         } else {
             curveEditor.setSpline(null);
         }

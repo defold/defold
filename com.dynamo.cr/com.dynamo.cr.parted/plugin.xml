@@ -11,6 +11,9 @@
             presenter="com.dynamo.cr.parted.ParticleFXPresenter"
             renderer="com.dynamo.cr.parted.ParticleFXRenderer"
             resource-type="com.dynamo.cr.parted.resourcetypes.particleFX">
+         <reference-node-type
+               node-type="com.dynamo.cr.parted.emitter">
+         </reference-node-type>
       </node-type>
       <node-type
             id="com.dynamo.cr.parted.emitter"
