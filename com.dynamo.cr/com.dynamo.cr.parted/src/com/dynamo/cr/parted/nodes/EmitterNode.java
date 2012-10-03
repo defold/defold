@@ -34,9 +34,9 @@ import com.dynamo.particle.proto.Particle.Emitter.ParticleProperty;
 import com.dynamo.particle.proto.Particle.Emitter.Property.Builder;
 import com.dynamo.particle.proto.Particle.EmitterKey;
 import com.dynamo.particle.proto.Particle.EmitterType;
+import com.dynamo.particle.proto.Particle.Modifier;
 import com.dynamo.particle.proto.Particle.ParticleKey;
 import com.dynamo.particle.proto.Particle.PlayMode;
-import com.dynamo.particle.proto.Particle.SplinePoint;
 import com.dynamo.proto.DdfExtensions;
 
 public class EmitterNode extends Node {
@@ -92,6 +92,16 @@ public class EmitterNode extends Node {
 
         setProperties(emitter.getPropertiesList());
         setParticleProperties(emitter.getParticlePropertiesList());
+
+        for (Modifier m : emitter.getModifiersList()) {
+            switch (m.getType()) {
+            case MODIFIER_TYPE_ACCELERATION:
+                addChild(new AccelerationNode(m));
+                break;
+            case MODIFIER_TYPE_DRAG:
+                throw new RuntimeException("TODO");
+            }
+        }
     }
 
     static {
@@ -186,56 +196,6 @@ public class EmitterNode extends Node {
         }
     }
 
-    private ValueSpread toValueSpread(List<SplinePoint> pl) {
-        int count = pl.size() * 4;
-        boolean animated = pl.size() > 1;
-
-        if (!animated) {
-            count += 4;
-        }
-
-        float[] data = new float[count];
-        int i = 0;
-        for (SplinePoint sp : pl) {
-            data[i++] = sp.getX();
-            data[i++] = sp.getY();
-            data[i++] = sp.getTX();
-            data[i++] = sp.getTY();
-        }
-
-        ValueSpread vs = new ValueSpread();
-        if (!animated) {
-            SplinePoint sp = pl.get(0);
-            data[i++] = 1;
-            data[i++] = sp.getY();
-            data[i++] = sp.getTX();
-            data[i++] = sp.getTY();
-            vs.setValue(sp.getY());
-        }
-
-        HermiteSpline spline = new HermiteSpline(data);
-        vs.setCurve(spline);
-        vs.setAnimated(animated);
-        vs.setValue(pl.get(0).getY());
-        return vs;
-    }
-
-    private List<SplinePoint> toSplinePointList(HermiteSpline spline) {
-        List<SplinePoint> lst = new ArrayList<Particle.SplinePoint>();
-        for (int i = 0; i < spline.getCount(); ++i) {
-            com.dynamo.cr.parted.curve.SplinePoint p = spline.getPoint(i);
-            SplinePoint sp = SplinePoint.newBuilder()
-                    .setX((float) p.getX())
-                    .setY((float) p.getY())
-                    .setTX((float) p.getTx())
-                    .setTY((float) p.getTy())
-                    .build();
-
-            lst.add(sp);
-        }
-        return lst;
-    }
-
     private void setProperties(List<Emitter.Property> list) {
         for (EmitterKey k : emitterKeys) {
             ValueSpread vs = new ValueSpread();
@@ -244,7 +204,7 @@ public class EmitterNode extends Node {
         }
 
         for (Emitter.Property p : list) {
-            ValueSpread vs = toValueSpread(p.getPointsList());
+            ValueSpread vs = ParticleUtils.toValueSpread(p.getPointsList());
             this.properties.put(p.getKey(), vs);
         }
     }
@@ -257,7 +217,7 @@ public class EmitterNode extends Node {
         }
 
         for (ParticleProperty p : list) {
-            ValueSpread vs = toValueSpread(p.getPointsList());
+            ValueSpread vs = ParticleUtils.toValueSpread(p.getPointsList());
             this.particleProperties.put(p.getKey(), vs);
         }
     }
@@ -397,35 +357,22 @@ public class EmitterNode extends Node {
         for (EmitterKey k : emitterKeys) {
             ValueSpread vs = properties.get(k);
             Builder pb = Emitter.Property.newBuilder().setKey(k);
-            HermiteSpline spline = (HermiteSpline) vs.getCurve();
-
-            if (vs.isAnimated()) {
-                pb.addAllPoints(toSplinePointList(spline));
-            } else {
-                pb.addPoints(SplinePoint.newBuilder()
-                        .setX(0)
-                        .setY((float) vs.getValue())
-                        .setTX(1)
-                        .setTY(0));
-            }
-
+            pb.addAllPoints(ParticleUtils.toSplinePointList(vs));
             b.addProperties(pb);
         }
 
         for (ParticleKey k : particleKeys) {
             ParticleProperty.Builder pb = Emitter.ParticleProperty.newBuilder().setKey(k);
             ValueSpread vs = particleProperties.get(k);
-            HermiteSpline spline = (HermiteSpline) vs.getCurve();
-            if (vs.isAnimated()) {
-                pb.addAllPoints(toSplinePointList(spline));
-            } else {
-                pb.addPoints(SplinePoint.newBuilder()
-                        .setX(0)
-                        .setY((float) vs.getValue())
-                        .setTX(1)
-                        .setTY(0));
-            }
+            pb.addAllPoints(ParticleUtils.toSplinePointList(vs));
             b.addParticleProperties(pb);
+        }
+
+        for (Node c : getChildren()) {
+            if (c instanceof ModifierNode) {
+                ModifierNode m = (ModifierNode) c;
+                b.addModifiers(m.buildMessage());
+            }
         }
 
         return b;

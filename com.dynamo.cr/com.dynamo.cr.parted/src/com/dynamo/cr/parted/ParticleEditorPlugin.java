@@ -5,13 +5,14 @@ import java.net.URL;
 import org.eclipse.core.runtime.FileLocator;
 import org.eclipse.jface.resource.ImageDescriptor;
 import org.eclipse.jface.resource.ImageRegistry;
-import org.eclipse.ui.plugin.AbstractUIPlugin;
 import org.osgi.framework.BundleContext;
+
+import com.dynamo.cr.editor.ui.AbstractDefoldPlugin;
 
 /**
  * The activator class controls the plug-in life cycle
  */
-public class ParticleEditorPlugin extends AbstractUIPlugin {
+public class ParticleEditorPlugin extends AbstractDefoldPlugin {
 
 	// The plug-in ID
 	public static final String PLUGIN_ID = "com.dynamo.cr.parted"; //$NON-NLS-1$
@@ -58,6 +59,7 @@ public class ParticleEditorPlugin extends AbstractUIPlugin {
 	protected void initializeImageRegistry(ImageRegistry reg) {
 	    super.initializeImageRegistry(reg);
         registerImage(reg, EMITTER_IMAGE_ID, "icons/dynamite.png");
+        registerImage(reg, "acceleration", "icons/dynamite.png");
 	}
 
     private void registerImage(ImageRegistry registry, String key,

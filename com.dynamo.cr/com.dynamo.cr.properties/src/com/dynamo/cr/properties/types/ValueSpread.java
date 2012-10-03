@@ -14,6 +14,10 @@ public class ValueSpread implements Serializable {
         super();
     }
 
+    public ValueSpread(Object curve) {
+        this.curve = curve;
+    }
+
     public ValueSpread(ValueSpread vs) {
         this.value = vs.value;
         this.spread = vs.spread;

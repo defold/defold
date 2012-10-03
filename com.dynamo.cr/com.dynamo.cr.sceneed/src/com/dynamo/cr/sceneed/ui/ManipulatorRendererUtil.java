@@ -5,14 +5,14 @@ import javax.vecmath.Point3d;
 import javax.vecmath.Vector4d;
 
 import com.dynamo.cr.sceneed.core.IRenderView;
-import com.dynamo.cr.sceneed.core.Manipulator;
+import com.dynamo.cr.sceneed.core.Node;
 
 public class ManipulatorRendererUtil {
     public static final double BASE_LENGTH = 110;
     public static final double BASE_THICKNESS = 1.5;
     public static final double BASE_HEAD_RADIUS = 6.5;
 
-    public static double getScaleFactor(Manipulator node,
+    public static double getScaleFactor(Node node,
             IRenderView renderView) {
 
         Matrix4d world = new Matrix4d();

@@ -26,6 +26,8 @@ import com.dynamo.particle.proto.Particle.EmissionSpace;
 import com.dynamo.particle.proto.Particle.Emitter;
 import com.dynamo.particle.proto.Particle.EmitterKey;
 import com.dynamo.particle.proto.Particle.EmitterType;
+import com.dynamo.particle.proto.Particle.Modifier;
+import com.dynamo.particle.proto.Particle.ModifierType;
 import com.dynamo.particle.proto.Particle.ParticleFX;
 import com.dynamo.particle.proto.Particle.PlayMode;
 import com.dynamo.particle.proto.Particle.SplinePoint;
@@ -110,6 +112,13 @@ public class ParticleFXNodeTest extends AbstractNodeTest {
         assertThat(vs.getSpread(), is(0.0));
     }
 
+    @Test
+    public void testModifier() throws Exception {
+        Emitter.Builder eb = emitterBuilder().addModifiers(modifierBuilder().setType(ModifierType.MODIFIER_TYPE_ACCELERATION));
+        EmitterNode node = new EmitterNode(eb.build());
+        assertThat(node.buildMessage().getModifiersCount(), is(1));
+    }
+
     private Emitter.Builder emitterBuilder() {
         Emitter.Builder eb = Emitter.newBuilder()
                 .setMode(PlayMode.PLAY_MODE_LOOP)
@@ -121,6 +130,14 @@ public class ParticleFXNodeTest extends AbstractNodeTest {
                 .setMaterial("")
                 .setMaxParticleCount(100)
                 .setType(EmitterType.EMITTER_TYPE_SPHERE);
+        return eb;
+    }
+
+    private Modifier.Builder modifierBuilder() {
+        Modifier.Builder eb = Modifier.newBuilder()
+                .setUseDirection(0)
+                .setPosition(Point3.newBuilder())
+                .setRotation(Quat.newBuilder());
         return eb;
     }
 

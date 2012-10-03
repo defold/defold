@@ -23,4 +23,5 @@ Bundle-ActivationPolicy: lazy
 Eclipse-BundleShape: dir
 Export-Package: com.dynamo.cr.parted,
  com.dynamo.cr.parted.curve,
- com.dynamo.cr.parted.nodes
+ com.dynamo.cr.parted.nodes,
+ com.dynamo.cr.parted.operations
