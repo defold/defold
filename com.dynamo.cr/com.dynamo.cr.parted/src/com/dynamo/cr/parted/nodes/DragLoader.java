@@ -13,21 +13,21 @@ import com.dynamo.particle.proto.Particle.Modifier;
 import com.google.protobuf.Message;
 
 
-public class AccelerationLoader implements INodeLoader<AccelerationNode> {
+public class DragLoader implements INodeLoader<DragNode> {
 
-    public AccelerationLoader() {
+    public DragLoader() {
     }
 
     @Override
-    public AccelerationNode load(ILoaderContext context, InputStream contents)
+    public DragNode load(ILoaderContext context, InputStream contents)
             throws IOException, CoreException {
         Modifier.Builder builder = Modifier.newBuilder();
         LoaderUtil.loadBuilder(builder, contents);
-        return new AccelerationNode(builder.build());
+        return new DragNode(builder.build());
     }
 
     @Override
-    public Message buildMessage(ILoaderContext context, AccelerationNode node,
+    public Message buildMessage(ILoaderContext context, DragNode node,
             IProgressMonitor monitor) throws IOException, CoreException {
         return null;
     }

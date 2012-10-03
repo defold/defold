@@ -24,6 +24,9 @@
          <reference-node-type
                node-type="com.dynamo.cr.parted.acceleration">
          </reference-node-type>
+         <reference-node-type
+               node-type="com.dynamo.cr.parted.drag">
+         </reference-node-type>
       </node-type>
       <node-type
             id="com.dynamo.cr.parted.emitterManipulator"
@@ -35,6 +38,13 @@
             node="com.dynamo.cr.parted.nodes.AccelerationNode"
             renderer="com.dynamo.cr.parted.nodes.AccelerationRenderer"
             resource-type="com.dynamo.cr.parted.resourcetypes.acceleration">
+      </node-type>
+      <node-type
+            id="com.dynamo.cr.parted.drag"
+            loader="com.dynamo.cr.parted.nodes.DragLoader"
+            node="com.dynamo.cr.parted.nodes.DragNode"
+            renderer="com.dynamo.cr.parted.nodes.DragRenderer"
+            resource-type="com.dynamo.cr.parted.resourcetypes.drag">
       </node-type>
    </extension>
    <extension
@@ -97,6 +107,13 @@
             name="Acceleration"
             proto-message-class="com.dynamo.particle.proto.Particle$Modifier"
             template-data="type: MODIFIER_TYPE_ACCELERATION use_direction: 0 position { } rotation { }">
+      </resource-type>
+      <resource-type
+            file-extension="drag"
+            id="com.dynamo.cr.parted.resourcetypes.drag"
+            name="Drag"
+            proto-message-class="com.dynamo.particle.proto.Particle$Modifier"
+            template-data="type: MODIFIER_TYPE_DRAG use_direction: 0 position { } rotation { }">
       </resource-type>
    </extension>
    <extension

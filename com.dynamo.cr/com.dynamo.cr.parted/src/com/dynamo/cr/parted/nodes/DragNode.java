@@ -3,22 +3,22 @@ package com.dynamo.cr.parted.nodes;
 import com.dynamo.particle.proto.Particle.Modifier;
 import com.dynamo.particle.proto.Particle.ModifierType;
 
-public class AccelerationNode extends AbstractForceModifierNode {
+public class DragNode extends AbstractForceModifierNode {
 
     private static final long serialVersionUID = 1L;
 
-    public AccelerationNode(Modifier modifier) {
+    public DragNode(Modifier modifier) {
         super(modifier);
     }
 
     @Override
     public ModifierType getModifierType() {
-        return ModifierType.MODIFIER_TYPE_ACCELERATION;
+        return ModifierType.MODIFIER_TYPE_DRAG;
     }
 
     @Override
     public String toString() {
-        return "Acceleration";
+        return "Drag";
     }
 
 }
