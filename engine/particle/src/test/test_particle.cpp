@@ -652,6 +652,7 @@ dmParticle::FetchAnimationResult FetchAnimationCallback(void* tile_source, dmhas
         return dmParticle::FETCH_ANIMATION_NOT_FOUND;
     }
     out_data->m_Texture = (void*)0xBAADF00D;
+    out_data->m_StructSize = sizeof(dmParticle::AnimationData);
     return dmParticle::FETCH_ANIMATION_OK;
 }
 

@@ -75,6 +75,7 @@ public class ParticleFXNode extends Node {
                     data.fps = animation.getFps();
                     data.hFlip = animation.isFlipHorizontally() ? 1 : 0;
                     data.vFlip = animation.isFlipVertically() ? 1 : 0;
+                    data.structSize = data.size();
                     return ParticleLibrary.FetchAnimationResult.FETCH_ANIMATION_OK;
                 }
             }

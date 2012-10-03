@@ -122,7 +122,7 @@ public class ParticleLibrary {
         public AnimationData() {
             super();
             setFieldOrder(new String[] { "texture", "texCoords", "playback", "startTile", "endTile", "fps", "hFlip",
-                    "vFlip" });
+                    "vFlip", "structSize" });
         }
 
         public Pointer texture;
@@ -133,5 +133,7 @@ public class ParticleLibrary {
         public int fps;
         public int hFlip;
         public int vFlip;
+        // Used to validate the struct size in particle.cpp
+        public int structSize;
     }
 }

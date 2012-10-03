@@ -75,6 +75,8 @@ namespace dmParticle
         uint32_t m_FPS;
         uint32_t m_HFlip;
         uint32_t m_VFlip;
+        /// Clients are responsible for setting this to the size of the AnimationData (e.g. in ParticleLibrary.java)
+        uint32_t m_StructSize;
     };
 
     enum FetchAnimationResult

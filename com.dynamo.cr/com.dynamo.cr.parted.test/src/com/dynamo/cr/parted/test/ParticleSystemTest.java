@@ -121,6 +121,7 @@ public class ParticleSystemTest {
                         data.hFlip = 0;
                         data.vFlip = 0;
                         fetchAnim[0] = true;
+                        data.structSize = data.size();
                         return ParticleLibrary.FetchAnimationResult.FETCH_ANIMATION_OK;
                     }
                 });

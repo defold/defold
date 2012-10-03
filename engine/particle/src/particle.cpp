@@ -472,6 +472,7 @@ namespace dmParticle
                             dmLogWarning("The animation '%s' could not be found", anim);
                         }
                     } else {
+                        assert(emitter->m_AnimationData.m_StructSize == sizeof(AnimationData) && "AnimationData::m_StructSize has an invalid size");
                         emitter->m_FetchAnimWarning = 0;
                     }
                 }
