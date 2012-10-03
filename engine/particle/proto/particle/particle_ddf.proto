@@ -67,16 +67,17 @@ enum ModifierKey
 
 message Modifier
 {
-    required uint32         use_direction   = 1 [default = 0];
-    required dmMath.Point3  position        = 2;
-    required dmMath.Quat    rotation        = 3;
+    required ModifierType   type            = 1;
+    required uint32         use_direction   = 2 [default = 0];
+    required dmMath.Point3  position        = 3;
+    required dmMath.Quat    rotation        = 4;
 
     message Property
     {
         required ModifierKey        key     = 1;
         repeated SplinePoint        points  = 2;
     }
-    repeated Property       properties      = 4;
+    repeated Property       properties      = 5;
 }
 
 message Emitter
