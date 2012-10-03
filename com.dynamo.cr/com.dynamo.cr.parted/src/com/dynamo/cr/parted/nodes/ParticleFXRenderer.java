@@ -1,4 +1,4 @@
-package com.dynamo.cr.parted;
+package com.dynamo.cr.parted.nodes;
 
 import java.awt.Font;
 import java.nio.FloatBuffer;
@@ -7,6 +7,7 @@ import java.util.EnumSet;
 import javax.media.opengl.GL;
 import javax.vecmath.Point3d;
 
+import com.dynamo.cr.parted.ParticleLibrary;
 import com.dynamo.cr.parted.ParticleLibrary.RenderInstanceCallback;
 import com.dynamo.cr.sceneed.core.INodeRenderer;
 import com.dynamo.cr.sceneed.core.RenderContext;

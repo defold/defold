@@ -11,10 +11,10 @@ import org.eclipse.core.runtime.CoreException;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.dynamo.cr.parted.AddEmitterOperation;
-import com.dynamo.cr.parted.EmitterNode;
-import com.dynamo.cr.parted.ParticleFXLoader;
-import com.dynamo.cr.parted.ParticleFXNode;
+import com.dynamo.cr.parted.nodes.EmitterNode;
+import com.dynamo.cr.parted.nodes.ParticleFXLoader;
+import com.dynamo.cr.parted.nodes.ParticleFXNode;
+import com.dynamo.cr.parted.operations.AddEmitterOperation;
 import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.properties.types.ValueSpread;
 import com.dynamo.cr.sceneed.Activator;

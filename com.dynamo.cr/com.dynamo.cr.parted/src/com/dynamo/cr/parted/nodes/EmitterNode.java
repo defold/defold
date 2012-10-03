@@ -1,4 +1,4 @@
-package com.dynamo.cr.parted;
+package com.dynamo.cr.parted.nodes;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -11,6 +11,8 @@ import org.eclipse.core.runtime.Status;
 import org.eclipse.osgi.util.NLS;
 import org.eclipse.swt.graphics.Image;
 
+import com.dynamo.cr.parted.Messages;
+import com.dynamo.cr.parted.ParticleEditorPlugin;
 import com.dynamo.cr.parted.curve.HermiteSpline;
 import com.dynamo.cr.properties.DynamicProperties;
 import com.dynamo.cr.properties.DynamicPropertyAccessor;

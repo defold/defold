@@ -5,7 +5,7 @@ import javax.vecmath.Quat4d;
 import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.swt.events.MouseEvent;
 
-import com.dynamo.cr.parted.EmitterNode;
+import com.dynamo.cr.parted.nodes.EmitterNode;
 import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.properties.types.ValueSpread;
 import com.dynamo.cr.sceneed.core.ISceneModel;

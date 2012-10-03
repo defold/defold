@@ -1,4 +1,4 @@
-package com.dynamo.cr.parted;
+package com.dynamo.cr.parted.views;
 
 import org.eclipse.ui.IViewSite;
 import org.eclipse.ui.part.IPage;

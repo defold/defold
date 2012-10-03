@@ -22,4 +22,5 @@ Bundle-RequiredExecutionEnvironment: JavaSE-1.6
 Bundle-ActivationPolicy: lazy
 Eclipse-BundleShape: dir
 Export-Package: com.dynamo.cr.parted,
- com.dynamo.cr.parted.curve
+ com.dynamo.cr.parted.curve,
+ com.dynamo.cr.parted.nodes

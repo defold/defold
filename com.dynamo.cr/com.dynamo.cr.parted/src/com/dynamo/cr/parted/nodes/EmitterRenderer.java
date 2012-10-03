@@ -1,4 +1,4 @@
-package com.dynamo.cr.parted;
+package com.dynamo.cr.parted.nodes;
 
 import java.nio.FloatBuffer;
 import java.util.EnumSet;
