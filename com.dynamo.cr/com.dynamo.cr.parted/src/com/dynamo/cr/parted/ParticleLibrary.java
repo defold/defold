@@ -36,15 +36,21 @@ public class ParticleLibrary {
 
     public static native void Particle_DestroyInstance(Pointer context, Pointer instance);
 
+    public static native void Particle_ReloadInstance(Pointer context, Pointer instance);
+
     public static native void Particle_StartInstance(Pointer context, Pointer instance);
 
     public static native void Particle_StopInstance(Pointer context, Pointer instance);
 
     public static native void Particle_RestartInstance(Pointer context, Pointer instance);
 
+    public static native void Particle_ResetInstance(Pointer context, Pointer instance);
+
     public static native void Particle_SetPosition(Pointer context, Pointer instance, Vector3 position);
 
     public static native void Particle_SetRotation(Pointer context, Pointer instance, Quat rotation);
+
+    public static native boolean Particle_IsSleeping(Pointer context, Pointer instance);
 
     public static native void Particle_Update(Pointer context, float dt, FloatBuffer vertexBuffer,
             int vertexBufferSize,
@@ -116,7 +122,7 @@ public class ParticleLibrary {
         public AnimationData() {
             super();
             setFieldOrder(new String[] { "texture", "texCoords", "playback", "startTile", "endTile", "fps", "hFlip",
-                    "vFlip" });
+                    "vFlip", "structSize" });
         }
 
         public Pointer texture;
@@ -127,5 +133,7 @@ public class ParticleLibrary {
         public int fps;
         public int hFlip;
         public int vFlip;
+        // Used to validate the struct size in particle.cpp
+        public int structSize;
     }
 }

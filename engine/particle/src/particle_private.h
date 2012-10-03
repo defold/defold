@@ -19,6 +19,19 @@ namespace dmParticle
     struct Prototype;
 
     /**
+     * Key when sorting particles, based on life time with additional index for stable sort
+     */
+    union SortKey
+    {
+        struct
+        {
+            uint32_t m_Index : 16;  // Index is used to ensure stable sort
+            uint32_t m_LifeTime : 16; // Quantified relative life time
+        };
+        uint32_t     m_Key;
+    };
+
+    /**
      * Representation of a particle.
      *
      * TODO Separate source state from current (chaining modifiers)
@@ -43,6 +56,8 @@ namespace dmParticle
         /// Particle alpha
         float       m_SourceAlpha;
         float       m_Alpha;
+        // Sorting
+        SortKey     m_SortKey;
     };
 
     /**
@@ -51,24 +66,13 @@ namespace dmParticle
     struct Emitter
     {
         Emitter()
-        : m_VertexIndex(0)
-        , m_VertexCount(0)
-        , m_Timer(0.0f)
-        , m_SpawnTimer(0.0f)
-        , m_SpawnDelay(0.0f)
-        , m_ParticleTimeLeft(0.0f)
-        , m_IsSpawning(0)
-        , m_RenderWarning(0)
-        , m_ResizeWarning(0)
         {
-
+            memset(this, 0, sizeof(Emitter));
         }
 
         AnimationData           m_AnimationData;
         /// Particle buffer.
         dmArray<Particle>       m_Particles;
-        /// DDF prototype
-        EmitterPrototype*       m_Prototype;
         /// Vertex index of the render data for the particles spawned by this emitter.
         uint32_t                m_VertexIndex;
         /// Number of vertices of the render data for the particles spawned by this emitter.
@@ -81,12 +85,13 @@ namespace dmParticle
         float                   m_SpawnDelay;
         /// The time left before the particle dies which has the longest time left to live.
         float                   m_ParticleTimeLeft;
+        /// The max life time of any particle spawned so far (used for quantizing particle life time when sorting)
+        float                   m_MaxParticleLifeTime;
         /// If the emitter is still spawning particles.
         uint16_t                m_IsSpawning : 1;
         /// If the user has been warned that all particles cannot be rendered.
         uint16_t                m_RenderWarning : 1;
-        /// If the user has been warned that the emitters particle buffer could not be resized as a result from a reload.
-        uint16_t                m_ResizeWarning : 1;
+        /// If the user has been warned that the emitters animation could not be fetched
         uint16_t                m_FetchAnimWarning : 1;
     };
 
@@ -123,7 +128,8 @@ namespace dmParticle
     struct Context
     {
         Context(uint32_t max_instance_count, uint32_t max_particle_count)
-        : m_NextVersionNumber(1)
+        : m_MaxParticleCount(max_particle_count)
+        , m_NextVersionNumber(1)
         {
             m_Instances.SetCapacity(max_instance_count);
             m_Instances.SetSize(max_instance_count);
@@ -132,8 +138,6 @@ namespace dmParticle
                 memset(&m_Instances.Front(), 0, max_instance_count * sizeof(Instance*));
             }
             m_InstanceIndexPool.SetCapacity(max_instance_count);
-
-            m_MaxParticleCount = max_particle_count;
         }
 
         ~Context()
@@ -173,7 +177,6 @@ namespace dmParticle
         EmitterPrototype()
         : m_TileSource(0)
         , m_Material(0)
-        , m_DDF(0)
         {
 
         }
@@ -187,8 +190,6 @@ namespace dmParticle
         void*                   m_TileSource;
         /// Material to use when rendering particles.
         void*                   m_Material;
-        /// DDF from the resource
-        dmParticleDDF::Emitter* m_DDF;
     };
 
     /**

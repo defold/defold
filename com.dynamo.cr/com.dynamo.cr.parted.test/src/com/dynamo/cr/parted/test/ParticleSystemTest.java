@@ -75,6 +75,7 @@ public class ParticleSystemTest {
                 .setAnimation("anim")
                 .setMaterial("test")
                 .setMaxParticleCount(1)
+                .setDuration(1.0f)
                 .setType(EmitterType.EMITTER_TYPE_SPHERE)
                 .addProperties(pb);
         ParticleFX.Builder pfxb = ParticleFX.newBuilder()
@@ -120,6 +121,7 @@ public class ParticleSystemTest {
                         data.hFlip = 0;
                         data.vFlip = 0;
                         fetchAnim[0] = true;
+                        data.structSize = data.size();
                         return ParticleLibrary.FetchAnimationResult.FETCH_ANIMATION_OK;
                     }
                 });

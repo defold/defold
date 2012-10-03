@@ -123,7 +123,7 @@ public class EmitterNode extends Node {
         } else {
             particleProperties.get(ParticleKey.valueOf(key)).set(value);
         }
-        resetSystem();
+        reloadSystem();
     }
 
     public ValueSpread getProperty(String key) {
@@ -174,14 +174,13 @@ public class EmitterNode extends Node {
 
     @Override
     protected void transformChanged() {
-        resetSystem();
+        reloadSystem();
     }
 
-    private void resetSystem() {
+    private void reloadSystem() {
         ParticleFXNode parent = (ParticleFXNode) getParent();
         if (parent != null) {
-            parent.reloadPrototype();
-            parent.reset();
+            parent.reload();
         }
     }
 
@@ -267,7 +266,7 @@ public class EmitterNode extends Node {
 
     public void setPlayMode(PlayMode playMode) {
         this.playMode = playMode;
-        resetSystem();
+        reloadSystem();
     }
 
     public EmissionSpace getEmissionSpace() {
@@ -276,7 +275,7 @@ public class EmitterNode extends Node {
 
     public void setEmissionSpace(EmissionSpace emissionSpace) {
         this.emissionSpace = emissionSpace;
-        resetSystem();
+        reloadSystem();
     }
 
     public float getDuration() {
@@ -285,7 +284,7 @@ public class EmitterNode extends Node {
 
     public void setDuration(float duration) {
         this.duration = duration;
-        resetSystem();
+        reloadSystem();
     }
 
     public String getTileSource() {
@@ -296,7 +295,7 @@ public class EmitterNode extends Node {
         if (!this.tileSource.equals(tileSource)) {
             this.tileSource = tileSource;
             reloadTileSource();
-            resetSystem();
+            reloadSystem();
         }
     }
 
@@ -321,7 +320,7 @@ public class EmitterNode extends Node {
 
     public void setAnimation(String animation) {
         this.animation = animation;
-        resetSystem();
+        reloadSystem();
     }
 
     public IStatus validateAnimation() {
@@ -349,7 +348,7 @@ public class EmitterNode extends Node {
 
     public void setMaterial(String material) {
         this.material = material;
-        resetSystem();
+        reloadSystem();
     }
 
     public int getMaxParticleCount() {
@@ -358,7 +357,7 @@ public class EmitterNode extends Node {
 
     public void setMaxParticleCount(int maxParticleCount) {
         this.maxParticleCount = maxParticleCount;
-        resetSystem();
+        reloadSystem();
     }
 
     public EmitterType getEmitterType() {
@@ -367,7 +366,7 @@ public class EmitterNode extends Node {
 
     public void setEmitterType(EmitterType emitterType) {
         this.emitterType = emitterType;
-        resetSystem();
+        reloadSystem();
     }
 
     public TileSetNode getTileSetNode() {
