@@ -184,10 +184,6 @@
             id="com.dynamo.cr.parted.command.addModifier"
             name="Add Modifier">
       </command>
-      <command
-            id="com.dynamo.cr.parted.command.toggleSimulation"
-            name="Toogle Simulation">
-      </command>
    </extension>
    <extension
          point="org.eclipse.ui.handlers">
@@ -210,7 +206,7 @@
       </handler>
       <handler
             class="com.dynamo.cr.parted.handlers.ToggleSimulationHandler"
-            commandId="com.dynamo.cr.parted.command.toggleSimulation">
+            commandId="com.dynamo.cr.sceneed.commands.toggleSimulation">
          <activeWhen>
             <reference
                   definitionId="com.dynamo.cr.parted.definitions.particleEditorActive">
@@ -241,15 +237,6 @@
             </iterate>
          </with>
       </definition>
-   </extension>
-   <extension
-         point="org.eclipse.ui.bindings">
-      <key
-            commandId="com.dynamo.cr.parted.command.toggleSimulation"
-            contextId="com.dynamo.cr.parted.contexts.partEditor"
-            schemeId="com.dynamo.cr.editor.ui.defoldScheme"
-            sequence="SPACE">
-      </key>
    </extension>
    <extension
          point="org.eclipse.ui.contexts">
