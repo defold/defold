@@ -18,7 +18,7 @@ namespace dmParticle
     {
         float m_Position[3];
         float m_UV[2];
-        float m_Alpha;
+        float m_Red, m_Green, m_Blue, m_Alpha;
     };
 
     /// Config key to use for tweaking maximum number of instances in a context.
@@ -560,7 +560,10 @@ namespace dmParticle
                 // Include dt since already existing particles have already been advanced
                 particle->m_TimeLeft = particle->m_MaxLifeTime - dt;
                 particle->m_SourceSize = emitter_properties[EMITTER_KEY_PARTICLE_SIZE];
-                particle->m_SourceAlpha = emitter_properties[EMITTER_KEY_PARTICLE_ALPHA];
+                particle->m_SourceColor.setX(emitter_properties[EMITTER_KEY_PARTICLE_RED]);
+                particle->m_SourceColor.setY(emitter_properties[EMITTER_KEY_PARTICLE_GREEN]);
+                particle->m_SourceColor.setZ(emitter_properties[EMITTER_KEY_PARTICLE_BLUE]);
+                particle->m_SourceColor.setW(emitter_properties[EMITTER_KEY_PARTICLE_ALPHA]);
 
                 emitter->m_MaxParticleLifeTime = dmMath::Max(emitter->m_MaxParticleLifeTime, particle->m_MaxLifeTime);
                 emitter->m_ParticleTimeLeft = dmMath::Max(emitter->m_ParticleTimeLeft, particle->m_TimeLeft);
@@ -662,6 +665,7 @@ namespace dmParticle
             emission_position = Vector3(instance->m_Position);
         }
 
+        const uint32_t vertex_field_count = sizeof(Vertex) / sizeof(float);
         uint32_t max_vertex_count = vertex_buffer_size / sizeof(Vertex);
         uint32_t particle_count = emitter->m_Particles.Size();
         uint32_t j;
@@ -670,7 +674,6 @@ namespace dmParticle
             Particle* particle = &emitter->m_Particles[j];
 
             float size = particle->m_Size;
-            float alpha = particle->m_Alpha;
 
             Vector3 particle_position = rotate(emission_rotation, Vector3(particle->m_Position)) + emission_position;
             Quat particle_rotation = emission_rotation * particle->m_Rotation;
@@ -698,54 +701,54 @@ namespace dmParticle
             float v1 = tex_coord[3];
 
             // store values in the buffer
-            uint32_t field_index = vertex_index * VERTEX_FIELD_COUNT;
+            uint32_t field_index = vertex_index * vertex_field_count;
 
             vertex_buffer[field_index + 0] = u0;
             vertex_buffer[field_index + 1] = v1;
             vertex_buffer[field_index + 2] = p0.getX();
             vertex_buffer[field_index + 3] = p0.getY();
             vertex_buffer[field_index + 4] = p0.getZ();
-            vertex_buffer[field_index + 5] = alpha;
+            memcpy(&vertex_buffer[field_index + 5], &particle->m_Color, sizeof(Vector4));
 
-            field_index += VERTEX_FIELD_COUNT;
+            field_index += vertex_field_count;
             vertex_buffer[field_index + 0] = u0;
             vertex_buffer[field_index + 1] = v0;
             vertex_buffer[field_index + 2] = p1.getX();
             vertex_buffer[field_index + 3] = p1.getY();
             vertex_buffer[field_index + 4] = p1.getZ();
-            vertex_buffer[field_index + 5] = alpha;
+            memcpy(&vertex_buffer[field_index + 5], &particle->m_Color, sizeof(Vector4));
 
-            field_index += VERTEX_FIELD_COUNT;
+            field_index += vertex_field_count;
             vertex_buffer[field_index + 0] = u1;
             vertex_buffer[field_index + 1] = v1;
             vertex_buffer[field_index + 2] = p2.getX();
             vertex_buffer[field_index + 3] = p2.getY();
             vertex_buffer[field_index + 4] = p2.getZ();
-            vertex_buffer[field_index + 5] = alpha;
+            memcpy(&vertex_buffer[field_index + 5], &particle->m_Color, sizeof(Vector4));
 
-            field_index += VERTEX_FIELD_COUNT;
+            field_index += vertex_field_count;
             vertex_buffer[field_index + 0] = u1;
             vertex_buffer[field_index + 1] = v1;
             vertex_buffer[field_index + 2] = p2.getX();
             vertex_buffer[field_index + 3] = p2.getY();
             vertex_buffer[field_index + 4] = p2.getZ();
-            vertex_buffer[field_index + 5] = alpha;
+            memcpy(&vertex_buffer[field_index + 5], &particle->m_Color, sizeof(Vector4));
 
-            field_index += VERTEX_FIELD_COUNT;
+            field_index += vertex_field_count;
             vertex_buffer[field_index + 0] = u0;
             vertex_buffer[field_index + 1] = v0;
             vertex_buffer[field_index + 2] = p1.getX();
             vertex_buffer[field_index + 3] = p1.getY();
             vertex_buffer[field_index + 4] = p1.getZ();
-            vertex_buffer[field_index + 5] = alpha;
+            memcpy(&vertex_buffer[field_index + 5], &particle->m_Color, sizeof(Vector4));
 
-            field_index += VERTEX_FIELD_COUNT;
+            field_index += vertex_field_count;
             vertex_buffer[field_index + 0] = u1;
             vertex_buffer[field_index + 1] = v0;
             vertex_buffer[field_index + 2] = p3.getX();
             vertex_buffer[field_index + 3] = p3.getY();
             vertex_buffer[field_index + 4] = p3.getZ();
-            vertex_buffer[field_index + 5] = alpha;
+            memcpy(&vertex_buffer[field_index + 5], &particle->m_Color, sizeof(Vector4));
 
             vertex_index += 6;
         }
@@ -827,10 +830,16 @@ namespace dmParticle
             uint32_t segment_index = dmMath::Min((uint32_t)(x * PROPERTY_SAMPLE_COUNT), PROPERTY_SAMPLE_COUNT - 1);
 
             SAMPLE_PROP(particle_properties[PARTICLE_KEY_SCALE].m_Segments[segment_index], x, properties[PARTICLE_KEY_SCALE])
+            SAMPLE_PROP(particle_properties[PARTICLE_KEY_RED].m_Segments[segment_index], x, properties[PARTICLE_KEY_RED])
+            SAMPLE_PROP(particle_properties[PARTICLE_KEY_GREEN].m_Segments[segment_index], x, properties[PARTICLE_KEY_GREEN])
+            SAMPLE_PROP(particle_properties[PARTICLE_KEY_BLUE].m_Segments[segment_index], x, properties[PARTICLE_KEY_BLUE])
             SAMPLE_PROP(particle_properties[PARTICLE_KEY_ALPHA].m_Segments[segment_index], x, properties[PARTICLE_KEY_ALPHA])
 
             particle->m_Size = particle->m_SourceSize * properties[PARTICLE_KEY_SCALE];
-            particle->m_Alpha = particle->m_SourceAlpha * properties[PARTICLE_KEY_ALPHA];
+            particle->m_Color.setX(particle->m_SourceColor.getX() * properties[PARTICLE_KEY_RED]);
+            particle->m_Color.setY(particle->m_SourceColor.getY() * properties[PARTICLE_KEY_GREEN]);
+            particle->m_Color.setZ(particle->m_SourceColor.getZ() * properties[PARTICLE_KEY_BLUE]);
+            particle->m_Color.setW(particle->m_SourceColor.getW() * properties[PARTICLE_KEY_ALPHA]);
         }
     }
 

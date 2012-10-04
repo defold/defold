@@ -36,6 +36,9 @@ public class ParticleSystemTest {
 
     private static final int MAX_PARTICLE_COUNT = 1024;
 
+    private static final int VERTEX_COMPONENT_COUNT = 9;
+    private static final int PARTICLE_VERTEX_COUNT = 6;
+
     @Before
     public void setUp() throws Exception {
         // Avoid hang when running unit-test on Mac OSX
@@ -99,8 +102,7 @@ public class ParticleSystemTest {
         final FloatBuffer texCoords = BufferUtil.newFloatBuffer(4);
         texCoords.put(1.0f).put(2.0f).put(3.0f).put(4.0f).flip();
         IntByReference outSize = new IntByReference(1234);
-        // 6 vertices * 6 floats
-        final int elementCount = MAX_PARTICLE_COUNT * 6 * 6;
+        final int elementCount = MAX_PARTICLE_COUNT * PARTICLE_VERTEX_COUNT * VERTEX_COMPONENT_COUNT;
         final int vertexBufferSize = elementCount * 4;
         final FloatBuffer vertexBuffer = BufferUtil.newFloatBuffer(elementCount);
         final boolean fetchAnim[] = new boolean[] { false };
@@ -127,7 +129,7 @@ public class ParticleSystemTest {
                 });
         assertTrue(fetchAnim[0]);
         int vertexSize = outSize.getValue();
-        assertTrue(6 * 6 * 4 == vertexSize);
+        assertTrue(VERTEX_COMPONENT_COUNT * PARTICLE_VERTEX_COUNT * 4 == vertexSize);
         int uvIdx[] = new int[] {
                 0, 3,
                 0, 1,
@@ -136,7 +138,7 @@ public class ParticleSystemTest {
                 0, 1,
                 2, 1
         };
-        for (int i = 0; i < 6; ++i) {
+        for (int i = 0; i < PARTICLE_VERTEX_COUNT; ++i) {
             // u
             assertTrue(texCoords.get(uvIdx[i * 2 + 0]) == vertexBuffer.get());
             // v
@@ -145,7 +147,10 @@ public class ParticleSystemTest {
             assertTrue(1.0f == vertexBuffer.get());
             assertTrue(2.0f == vertexBuffer.get());
             assertTrue(3.0f == vertexBuffer.get());
-            // a
+            // rgba
+            assertTrue(0.0f == vertexBuffer.get());
+            assertTrue(0.0f == vertexBuffer.get());
+            assertTrue(0.0f == vertexBuffer.get());
             assertTrue(0.0f == vertexBuffer.get());
         }
 

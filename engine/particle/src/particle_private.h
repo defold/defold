@@ -8,10 +8,6 @@
 
 namespace dmParticle
 {
-    /// Number of float fields that define a vertex; 3 position, 2 uv, 1 alpha.
-    static const uint32_t VERTEX_FIELD_COUNT        = 6;
-    /// Byte size of a vertex.
-    static const uint32_t VERTEX_SIZE               = sizeof(float) * VERTEX_FIELD_COUNT;
     /// Number of samples per property (spline => linear segments)
     static const uint32_t PROPERTY_SAMPLE_COUNT     = 64;
 
@@ -53,9 +49,9 @@ namespace dmParticle
         /// Particle size
         float       m_SourceSize;
         float       m_Size;
-        /// Particle alpha
-        float       m_SourceAlpha;
-        float       m_Alpha;
+        // Particle color
+        Vector4     m_SourceColor;
+        Vector4     m_Color;
         // Sorting
         SortKey     m_SortKey;
     };

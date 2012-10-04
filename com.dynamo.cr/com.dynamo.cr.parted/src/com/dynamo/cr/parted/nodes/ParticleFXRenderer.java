@@ -24,6 +24,9 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
     private static final int MAX_PARTICLE_COUNT = 1024;
     private static final int MAX_EMITTER_COUNT = 128;
 
+    private static final int VERTEX_COMPONENT_COUNT = 9;
+    private static final int PARTICLE_VERTEX_COUNT = 6;
+
     private FloatBuffer vertexBuffer;
     private Pointer context;
     private Callback callBack = new Callback();
@@ -61,8 +64,7 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
     }
 
     public ParticleFXRenderer() {
-        // 6 vertices * 6 floats
-        final int elementCount = MAX_PARTICLE_COUNT * 6 * 6;
+        final int elementCount = MAX_PARTICLE_COUNT * PARTICLE_VERTEX_COUNT * VERTEX_COMPONENT_COUNT;
         vertexBuffer = BufferUtil.newFloatBuffer(elementCount);
         context = ParticleLibrary.Particle_CreateContext(MAX_EMITTER_COUNT, MAX_PARTICLE_COUNT);
     }
@@ -118,15 +120,20 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
             node.simulate(context, vertexBuffer, dt);
             timeElapsed += dt;
 
-            // TODO proper color
-            gl.glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
-
-            gl.glEnableClientState(GL.GL_VERTEX_ARRAY);
             gl.glEnableClientState(GL.GL_TEXTURE_COORD_ARRAY);
+            gl.glEnableClientState(GL.GL_VERTEX_ARRAY);
+            gl.glEnableClientState(GL.GL_COLOR_ARRAY);
 
-            // TODO custom vertex format for alpha component
-            final int stride = 6 * 4;
-            gl.glInterleavedArrays(GL.GL_T2F_V3F, stride, vertexBuffer);
+            final int stride = VERTEX_COMPONENT_COUNT * 4;
+            FloatBuffer texCoords = vertexBuffer.slice();
+            gl.glTexCoordPointer(2, GL.GL_FLOAT, stride, texCoords);
+            vertexBuffer.position(2);
+            FloatBuffer vertices = vertexBuffer.slice();
+            gl.glVertexPointer(3, GL.GL_FLOAT, stride, vertices);
+            vertexBuffer.position(5);
+            FloatBuffer colors = vertexBuffer.slice();
+            gl.glColorPointer(4, GL.GL_FLOAT, stride, colors);
+            vertexBuffer.position(0);
 
             callBack.gl = gl;
             callBack.currentNode = node;
@@ -136,8 +143,9 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
             // WHY!? Bug in JNA?
             ParticleLibrary.Particle_Render(context, new Pointer(0), callBack);
 
-            gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
             gl.glDisableClientState(GL.GL_TEXTURE_COORD_ARRAY);
+            gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
+            gl.glDisableClientState(GL.GL_COLOR_ARRAY);
         }
     }
 }

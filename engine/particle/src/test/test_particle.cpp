@@ -47,7 +47,7 @@ struct ParticleVertex
 {
     float m_U, m_V;
     float m_X, m_Y, m_Z;
-    float m_Alpha;
+    float m_Red, m_Green, m_Blue, m_Alpha;
 };
 
 void ParticleTest::VerifyUVs(ParticleVertex* vertex_buffer, float* tex_coords, uint32_t tile)
@@ -274,7 +274,7 @@ TEST_F(ParticleTest, StartInstance)
     ASSERT_EQ(e->m_ParticleTimeLeft, e->m_Particles[0].m_TimeLeft);
     ASSERT_TRUE(dmParticle::IsSpawning(m_Context, instance));
     ASSERT_GT(m_Prototype->m_DDF->m_Emitters[0].m_Duration, e->m_Timer);
-    ASSERT_EQ(6 * 6 * sizeof(float), out_vertex_buffer_size); // 6 vertices of 6 floats (pos, uv, alpha)
+    ASSERT_EQ(6 * sizeof(ParticleVertex), out_vertex_buffer_size); // 6 vertices
 
     dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
 
