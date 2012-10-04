@@ -46,13 +46,13 @@ public class HermiteSplineTest {
     @Test
     public void testContinuity() {
         HermiteSpline spline = new HermiteSpline();
-        spline = spline.setPosition_(0, 0, 0);
-        spline = spline.setTangent_(0, 1, 1);
-        spline = spline.setPosition_(1, 0, 0);
-        spline = spline.setTangent_(0, 1, -1);
+        spline = spline.setPosition(0, 0, 0);
+        spline = spline.setTangent(0, 1, 1);
+        spline = spline.setPosition(1, 0, 0);
+        spline = spline.setTangent(0, 1, -1);
 
         spline = spline.insertPoint(0.25, 0.5);
-        spline = spline.setTangent_(1, 1, -3);
+        spline = spline.setTangent(1, 1, -3);
 
         double[] v1 = new double[2];
         double[] v2 = new double[2];

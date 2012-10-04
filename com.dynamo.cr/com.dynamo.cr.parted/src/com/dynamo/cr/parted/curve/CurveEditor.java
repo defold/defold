@@ -30,8 +30,7 @@ public class CurveEditor extends Canvas implements PaintListener,
     public static final String TICK_COLOR_KEY = "com.dynamo.cr.parted.curve.TICK_COLOR";
     public static final String TANGENT_COLOR_KEY = "com.dynamo.cr.parted.curve.TANGENT_COLOR";
     public static final String CONTROL_COLOR_KEY = "com.dynamo.cr.parted.curve.CONTROL_COLOR";
-
-    private ICurveEditorListener listener = null;
+    public static final String SPLINE_COLOR_KEY = "com.dynamo.cr.parted.curve.SPLINE_COLOR";
 
     private int yAxisWidth = 60;
     private int marginRight = 32;
@@ -47,7 +46,11 @@ public class CurveEditor extends Canvas implements PaintListener,
     private Hit hit;
     private Font font;
 
-    private HermiteSpline spline;
+    private ICurveProvider provider;
+    private Object[] input = new Object[0];
+
+    private int activeIndex = -1;
+    private HermiteSpline activeSpline = null;
 
     private ColorRegistry colorsRegistry;
 
@@ -59,7 +62,7 @@ public class CurveEditor extends Canvas implements PaintListener,
         return colorsRegistry.get(key);
     }
 
-    public CurveEditor(Composite parent, int style, ICurveEditorListener listener, ColorRegistry colorRegistry) {
+    public CurveEditor(Composite parent, int style, ColorRegistry colorRegistry) {
         super(parent, style);
         addPaintListener(this);
         addMouseWheelListener(this);
@@ -69,11 +72,18 @@ public class CurveEditor extends Canvas implements PaintListener,
         font = new Font(getDisplay(), currentFont.getFontData()[0].getName(),
                 10, SWT.NORMAL);
         setFont(font);
-        this.listener = listener;
         this.colorsRegistry = colorRegistry;
         initColors();
 
         setBackground(getColor(BACKGROUND_COLOR_KEY));
+    }
+
+    public void setInput(Object[] input) {
+        this.input = input;
+    }
+
+    public void setProvider(ICurveProvider provider) {
+        this.provider = provider;
     }
 
     private void putColor(String key, RGB rgb) {
@@ -89,6 +99,7 @@ public class CurveEditor extends Canvas implements PaintListener,
         putColor(TICK_COLOR_KEY, new RGB(100, 100, 100));
         putColor(TANGENT_COLOR_KEY, new RGB(0, 0x88, 0xcc));
         putColor(CONTROL_COLOR_KEY, new RGB(0xff, 0x24, 0x1e));
+        putColor(SPLINE_COLOR_KEY, new RGB(0xcc, 0x00, 0x2f));
     }
 
     @Override
@@ -101,9 +112,8 @@ public class CurveEditor extends Canvas implements PaintListener,
         super.dispose();
     }
 
-    private void splineChanged(String label, HermiteSpline oldSpline, HermiteSpline newSpline) {
-        listener.splineChanged(label, this, oldSpline, newSpline);
-        this.spline = newSpline;
+    private void splineChanged(String label, int index, HermiteSpline oldSpline, HermiteSpline newSpline) {
+        provider.setSpline(newSpline, index);
     }
 
     double toScreenX(double xValue) {
@@ -144,12 +154,7 @@ public class CurveEditor extends Canvas implements PaintListener,
         return scale;
     }
 
-    @Override
-    public void paintControl(PaintEvent e) {
-        if (!isEnabled() || spline == null)
-            return;
-
-        GC gc = e.gc;
+    private void drawGrid(GC gc) {
         Point size = getSize();
 
         int plotWidth = size.x - yAxisWidth - marginRight;
@@ -206,26 +211,29 @@ public class CurveEditor extends Canvas implements PaintListener,
             gc.drawLine(x - tickHeight / 2, y, x + tickHeight / 2, y);
             valueY += yStep;
         }
+    }
 
+    private void drawSpline(GC gc, HermiteSpline spline, Color splineColor) {
         int segCount = spline.getSegmentCount();
         double[] value = new double[2];
         double[] prevValue = new double[2];
+        gc.setForeground(splineColor);
 
+        int[] points = new int[subDivisions * 2];
         for (int s = 0; s < segCount; s++) {
             spline.getValue(s, 0, prevValue);
-
+            points[0] = (int) toScreenX(prevValue[0]);
+            points[1] = (int) toScreenY(prevValue[1]);
             for (int i = 1; i < subDivisions; ++i) {
                 double t = i / (double) (subDivisions - 1);
                 spline.getValue(s, t, value);
-
-                gc.drawLine((int) toScreenX(prevValue[0]),
-                        (int) toScreenY(prevValue[1]),
-                        (int) toScreenX(value[0]), (int) toScreenY(value[1]));
-
+                points[i * 2] = (int) toScreenX(value[0]);
+                points[i * 2 + 1] = (int) toScreenY(value[1]);
                 double[] tmp = prevValue;
                 prevValue = value;
                 value = tmp;
             }
+            gc.drawPolyline(points);
         }
 
         int nPoints = spline.getCount();
@@ -260,6 +268,29 @@ public class CurveEditor extends Canvas implements PaintListener,
         }
     }
 
+    @Override
+    public void paintControl(PaintEvent e) {
+        if (!isEnabled())
+            return;
+
+        GC gc = e.gc;
+        drawGrid(gc);
+        for (int i = 0; i < input.length; ++i) {
+            if (!provider.isEnabled(i))
+                continue;
+
+            HermiteSpline spline = this.provider.getSpline(i);
+            Color color = this.provider.getColor(i);
+            if (color == null) {
+                color = getColor(SPLINE_COLOR_KEY);
+            }
+            if (i == activeIndex) {
+                spline = activeSpline;
+            }
+            drawSpline(gc, spline, color);
+        }
+    }
+
     boolean hit(MouseEvent e, int x, int y) {
         int hitRadius = 16;
         int dx = (x - e.x);
@@ -289,7 +320,7 @@ public class CurveEditor extends Canvas implements PaintListener,
 
     }
 
-    private Hit hitTest(MouseEvent e) {
+    private Hit hitTest(MouseEvent e, HermiteSpline spline) {
         int nPoints = spline.getCount();
         for (int i = 0; i < nPoints; ++i) {
             SplinePoint p = spline.getPoint(i);
@@ -316,7 +347,7 @@ public class CurveEditor extends Canvas implements PaintListener,
 
     @Override
     public void mouseMove(MouseEvent e) {
-        if (spline == null)
+        if (provider == null)
             return;
 
         int dy = e.y - prevY;
@@ -328,7 +359,7 @@ public class CurveEditor extends Canvas implements PaintListener,
             if (hit.handle == Handle.CONTROL) {
                 double newX = fromScreenX(e.x - hit.mouseDX) ;
                 double newY = fromScreenY(e.y - hit.mouseDY);
-                spline = spline.setPosition_(hit.index, newX, newY);
+                activeSpline = activeSpline.setPosition(hit.index, newX, newY);
                 redraw();
             } else if (hit.handle == Handle.TANGENT_CONTROL1
                     || hit.handle == Handle.TANGENT_CONTROL2) {
@@ -345,7 +376,7 @@ public class CurveEditor extends Canvas implements PaintListener,
                     tx = Math.cos(a);
                     ty = Math.sin(a);
                 }
-                spline = spline.setTangent_(hit.index, tx, ty);
+                activeSpline = activeSpline.setTangent(hit.index, tx, ty);
                 redraw();
             }
         }
@@ -355,7 +386,7 @@ public class CurveEditor extends Canvas implements PaintListener,
 
     @Override
     public void mouseScrolled(MouseEvent e) {
-        if (spline == null)
+        if (provider == null)
             return;
 
         zoomY += 0.01 * e.count * zoomY;
@@ -363,11 +394,38 @@ public class CurveEditor extends Canvas implements PaintListener,
         redraw();
     }
 
+    private int closestSpline(MouseEvent e) {
+        int index = -1;
+        double distance = Double.MAX_VALUE;
+        for (int i = 0; i < input.length; ++i) {
+            if (!provider.isEnabled(i))
+                continue;
+
+            HermiteSpline spline = provider.getSpline(i);
+
+            double d = Math.abs(spline.getY(fromScreenX(e.x)) - fromScreenY(e.y));
+            if (d < distance) {
+                distance = d;
+                index = i;
+            }
+        }
+        return index;
+    }
+
     @Override
     public void mouseDoubleClick(MouseEvent e) {
-        if (spline == null)
+        if (provider == null)
             return;
 
+        activeIndex = -1;
+        activeSpline = null;
+
+        int index = closestSpline(e);
+        if (index == -1) {
+            return;
+        }
+
+        HermiteSpline spline = provider.getSpline(index);
         mode = Mode.IDLE;
         double x = fromScreenX(e.x);
         double y = spline.getY(x);
@@ -375,58 +433,60 @@ public class CurveEditor extends Canvas implements PaintListener,
         e.x = (int) toScreenX(x);
         e.y = (int) toScreenY(y);
 
-        Hit hit = hitTest(e);
+        Hit hit = hitTest(e, spline);
         if (hit != null && hit.handle == Handle.CONTROL) {
-            splineChanged("Remove point", spline, spline.removePoint(hit.index));
+            splineChanged("Remove point", index, spline, spline.removePoint(hit.index));
         } else {
-            splineChanged("Insert point", spline, spline.insertPoint(x, y));
+            splineChanged("Insert point", index, spline, spline.insertPoint(x, y));
         }
         redraw();
     }
 
     @Override
     public void mouseDown(MouseEvent e) {
-        if (spline == null)
-            return;
+        activeIndex = -1;
+        activeSpline = null;
 
-        hit = hitTest(e);
-        if (hit != null) {
-            mode = Mode.MOVE;
-        } else {
-            mode = Mode.PANNING;
-            prevY = e.y;
+        for (int i = 0; i < input.length; ++i) {
+            if (!provider.isEnabled(i))
+                continue;
+
+            HermiteSpline spline = provider.getSpline(i);
+            hit = hitTest(e, spline);
+            if (hit != null) {
+                mode = Mode.MOVE;
+                activeIndex = i;
+                activeSpline = spline;
+                return;
+            }
         }
+        mode = Mode.PANNING;
+        prevY = e.y;
     }
 
     @Override
     public void mouseUp(MouseEvent e) {
-        if (spline == null)
-            return;
+        int i = activeIndex;
+        HermiteSpline s = activeSpline;
+
+        activeIndex = -1;
+        activeSpline = null;
 
         if (mode == Mode.MOVE) {
             if (hit.handle == Handle.CONTROL) {
-                HermiteSpline oldSpline = spline.setPosition_(hit.index, hit.point.getX(), hit.point.getY());
-                splineChanged("Move point", oldSpline, spline);
+                HermiteSpline oldSpline = s.setPosition(hit.index, hit.point.getX(), hit.point.getY());
+                splineChanged("Move point", i, oldSpline, s);
                 redraw();
             } else if (hit.handle == Handle.TANGENT_CONTROL1
                     || hit.handle == Handle.TANGENT_CONTROL2) {
 
-                HermiteSpline oldSpline = spline.setTangent_(hit.index, hit.point.getTx(), hit.point.getTy());
-                splineChanged("Set tangent", oldSpline, spline);
-
+                HermiteSpline oldSpline = s.setTangent(hit.index, hit.point.getTx(), hit.point.getTy());
+                splineChanged("Set tangent", i, oldSpline, s);
                 redraw();
             }
         }
 
         mode = Mode.IDLE;
-    }
-
-    public void setSpline(HermiteSpline spline) {
-        this.spline = spline;
-    }
-
-    public HermiteSpline getSpline() {
-        return this.spline;
     }
 
 }
