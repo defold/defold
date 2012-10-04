@@ -40,6 +40,7 @@ public abstract class Node implements IAdaptable, Serializable {
     public enum Flags {
         TRANSFORMABLE,
         LOCKED,
+        NO_INHERIT_TRANSFORM,
     }
 
     private transient ISceneModel model;
@@ -267,6 +268,7 @@ public abstract class Node implements IAdaptable, Serializable {
     }
 
     public void getWorldTransform(Matrix4d transform) {
+        boolean noInherit = flags.contains(Flags.NO_INHERIT_TRANSFORM);
         Matrix4d tmp = new Matrix4d();
         transform.setIdentity();
         Node n = this;
@@ -274,6 +276,8 @@ public abstract class Node implements IAdaptable, Serializable {
         {
             n.getLocalTransform(tmp);
             transform.mul(tmp, transform);
+            if (noInherit)
+                break;
             n = n.getParent();
         }
     }
@@ -460,22 +464,32 @@ public abstract class Node implements IAdaptable, Serializable {
     }
 
     public void setWorldTransform(Matrix4d transform) {
-        Matrix4d worldInv = new Matrix4d();
-        getWorldTransform(worldInv);
-        worldInv.invert();
+        boolean noInherit = flags.contains(Flags.NO_INHERIT_TRANSFORM);
+        Point3d translation;
+        Quat4d rotation;
 
-        transform.mul(worldInv, transform);
+        if (noInherit) {
+            translation = this.translation;
+            rotation = this.rotation;
+        } else {
+            Matrix4d worldInv = new Matrix4d();
+            getWorldTransform(worldInv);
+            worldInv.invert();
 
-        Matrix4d local = new Matrix4d();
-        getLocalTransform(local);
+            transform.mul(worldInv, transform);
 
-        local.mul(local, transform);
+            Matrix4d local = new Matrix4d();
+            getLocalTransform(local);
 
-        Vector4d translation = new Vector4d();
-        Quat4d rotation = new Quat4d();
-        local.getColumn(3, translation);
-        rotation.set(local);
-        setTranslation(new Point3d(translation.getX(), translation.getY(), translation.getZ()));
+            local.mul(local, transform);
+
+            Vector4d t = new Vector4d();
+            rotation = new Quat4d();
+            local.getColumn(3, t);
+            translation = new Point3d(t.x, t.y, t.z);
+            rotation.set(local);
+        }
+        setTranslation(translation);
         setRotation(rotation);
     }
 

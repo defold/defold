@@ -12,10 +12,12 @@ public abstract class ModifierNode extends Node {
 
     public ModifierNode() {
         super();
+        setFlags(Flags.NO_INHERIT_TRANSFORM);
     }
 
     public ModifierNode(Vector4d translation, Quat4d rotation) {
         super(translation, rotation);
+        setFlags(Flags.NO_INHERIT_TRANSFORM);
     }
 
     public abstract Modifier buildMessage();

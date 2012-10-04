@@ -61,6 +61,10 @@
                optional="false">
          </commandParameter>
       </command>
+      <command
+            id="com.dynamo.cr.sceneed.commands.toggleSimulation"
+            name="Toogle Simulation">
+      </command>
    </extension>
    <extension
          point="org.eclipse.ui.bindings">
@@ -127,6 +131,12 @@
             contextId="com.dynamo.cr.sceneed.ui.contexts.sceneEditor"
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
             sequence="F">
+      </key>
+      <key
+            commandId="com.dynamo.cr.sceneed.commands.toggleSimulation"
+            contextId="com.dynamo.cr.sceneed.ui.contexts.sceneEditor"
+            schemeId="com.dynamo.cr.editor.ui.defoldScheme"
+            sequence="SPACE">
       </key>
    </extension>
    <extension

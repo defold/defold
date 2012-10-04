@@ -12,20 +12,18 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 
 import org.eclipse.core.runtime.CoreException;
-import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.jface.viewers.ILabelProvider;
 import org.junit.Before;
 import org.junit.Test;
 
 import com.dynamo.cr.parted.nodes.AccelerationNode;
+import com.dynamo.cr.parted.nodes.DragNode;
 import com.dynamo.cr.parted.nodes.EmitterNode;
-import com.dynamo.cr.parted.nodes.ParticleFXLoader;
 import com.dynamo.cr.parted.nodes.ParticleFXNode;
 import com.dynamo.cr.parted.nodes.ParticleFXPresenter;
 import com.dynamo.cr.parted.operations.AddModifierOperation;
 import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.Node;
-import com.google.protobuf.Message;
 
 public class ParticleTest extends AbstractSceneTest {
 
@@ -58,7 +56,8 @@ public class ParticleTest extends AbstractSceneTest {
         INodeType pfxNodeType = getNodeTypeRegistry().getNodeTypeClass(ParticleFXNode.class);
         ParticleFXPresenter presenter = (ParticleFXPresenter) pfxNodeType.getPresenter();
 
-        INodeType[] nodeTypes = new INodeType[] { getNodeTypeRegistry().getNodeTypeClass(AccelerationNode.class) };
+        INodeType[] nodeTypes = new INodeType[] { getNodeTypeRegistry().getNodeTypeClass(AccelerationNode.class),
+                                                  getNodeTypeRegistry().getNodeTypeClass(DragNode.class)};
         int count = 1;
         for (INodeType nodeType : nodeTypes) {
             assertNotNull(nodeType.getResourceType());

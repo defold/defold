@@ -99,7 +99,7 @@ public class EmitterNode extends Node {
                 addChild(new AccelerationNode(m));
                 break;
             case MODIFIER_TYPE_DRAG:
-                throw new RuntimeException("TODO");
+                addChild(new DragNode(m));
             }
         }
     }

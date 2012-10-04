@@ -57,4 +57,5 @@ public class AccelerationRenderer implements INodeRenderer<AccelerationNode> {
                                  0.2 * ManipulatorRendererUtil.BASE_THICKNESS / factor,
                                  ManipulatorRendererUtil.BASE_HEAD_RADIUS / factor);
     }
+
 }

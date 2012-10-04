@@ -6,7 +6,10 @@ import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.IPartListener;
 import org.eclipse.ui.IViewSite;
 import org.eclipse.ui.IWorkbenchPart;
+import org.eclipse.ui.contexts.IContextService;
 import org.eclipse.ui.part.ViewPart;
+
+import com.dynamo.cr.sceneed.Activator;
 
 // NOTE: This could be moved to another plugin if general enough
 public class CurveEditorView extends ViewPart implements IPartListener {
@@ -28,6 +31,10 @@ public class CurveEditorView extends ViewPart implements IPartListener {
     public void createPartControl(Composite parent) {
         this.parent = parent;
         getSite().getPage().addPartListener(this);
+
+        IContextService contextService = (IContextService) getSite()
+                .getService(IContextService.class);
+        contextService.activateContext(Activator.SCENEED_CONTEXT_ID);
 
         IEditorPart activeEditor = getSite().getPage().getActiveEditor();
         if (activeEditor instanceof IEditorPart) {
