@@ -34,12 +34,30 @@ namespace dmParticle
      */
     struct Particle
     {
+#define GET_SET(property, type)\
+        inline type Get##property() const { return m_##property; }\
+        inline void Set##property(type v) { m_##property = v; }\
+
+        GET_SET(Position, Point3)
+        GET_SET(Rotation, Quat)
+        GET_SET(Velocity, Vector3)
+        GET_SET(TimeLeft, float)
+        GET_SET(MaxLifeTime, float)
+        GET_SET(ooMaxLifeTime, float)
+        GET_SET(SourceSize, float)
+        GET_SET(Size, float)
+        GET_SET(SourceColor, Vector4)
+        GET_SET(Color, Vector4)
+        GET_SET(SortKey, SortKey)
+#undef GET_SET
+
+    private:
         /// Position, which is defined in emitter space or world space depending on how the emitter which spawned the particles is tweaked.
-        Vectormath::Aos::Point3 m_Position;
+        Point3 m_Position;
         /// Rotation, which is defined in emitter space or world space depending on how the emitter which spawned the particles is tweaked.
-        Vectormath::Aos::Quat m_Rotation;
+        Quat m_Rotation;
         /// Velocity of the particle
-        Vectormath::Aos::Vector3 m_Velocity;
+        Vector3 m_Velocity;
         /// Time left before the particle dies.
         float       m_TimeLeft;
         /// The duration of this particle.

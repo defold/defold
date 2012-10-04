@@ -504,8 +504,8 @@ namespace dmParticle
         while (j < particle_count)
         {
             Particle* p = &emitter->m_Particles[j];
-            p->m_TimeLeft -= dt;
-            if (p->m_TimeLeft < 0.0f)
+            p->SetTimeLeft(p->GetTimeLeft() - dt);
+            if (p->GetTimeLeft() < 0.0f)
             {
                 // TODO Handle death-action
                 emitter->m_Particles.EraseSwap(j);
@@ -555,18 +555,19 @@ namespace dmParticle
                 EvaluateEmitterProperties(emitter, prototype->m_Properties, ddf->m_Duration, emitter_properties);
 
                 emitter->m_SpawnDelay = emitter_properties[EMITTER_KEY_SPAWN_DELAY];
-                particle->m_MaxLifeTime = emitter_properties[EMITTER_KEY_PARTICLE_LIFE_TIME];
-                particle->m_ooMaxLifeTime = 1.0f / particle->m_MaxLifeTime;
+                particle->SetMaxLifeTime(emitter_properties[EMITTER_KEY_PARTICLE_LIFE_TIME]);
+                particle->SetooMaxLifeTime(1.0f / particle->GetMaxLifeTime());
                 // Include dt since already existing particles have already been advanced
-                particle->m_TimeLeft = particle->m_MaxLifeTime - dt;
-                particle->m_SourceSize = emitter_properties[EMITTER_KEY_PARTICLE_SIZE];
-                particle->m_SourceColor.setX(emitter_properties[EMITTER_KEY_PARTICLE_RED]);
-                particle->m_SourceColor.setY(emitter_properties[EMITTER_KEY_PARTICLE_GREEN]);
-                particle->m_SourceColor.setZ(emitter_properties[EMITTER_KEY_PARTICLE_BLUE]);
-                particle->m_SourceColor.setW(emitter_properties[EMITTER_KEY_PARTICLE_ALPHA]);
+                particle->SetTimeLeft(particle->GetMaxLifeTime() - dt);
+                particle->SetSourceSize(emitter_properties[EMITTER_KEY_PARTICLE_SIZE]);
+                particle->SetSourceColor(Vector4(
+                        emitter_properties[EMITTER_KEY_PARTICLE_RED],
+                        emitter_properties[EMITTER_KEY_PARTICLE_GREEN],
+                        emitter_properties[EMITTER_KEY_PARTICLE_BLUE],
+                        emitter_properties[EMITTER_KEY_PARTICLE_ALPHA]));
 
-                emitter->m_MaxParticleLifeTime = dmMath::Max(emitter->m_MaxParticleLifeTime, particle->m_MaxLifeTime);
-                emitter->m_ParticleTimeLeft = dmMath::Max(emitter->m_ParticleTimeLeft, particle->m_TimeLeft);
+                emitter->m_MaxParticleLifeTime = dmMath::Max(emitter->m_MaxParticleLifeTime, particle->GetMaxLifeTime());
+                emitter->m_ParticleTimeLeft = dmMath::Max(emitter->m_ParticleTimeLeft, particle->GetTimeLeft());
 
                 Vector3 local_position;
 
@@ -616,15 +617,15 @@ namespace dmParticle
                     velocity = normalize(local_position);
                 velocity *= emitter_properties[EMITTER_KEY_PARTICLE_SPEED];
 
-                particle->m_Position = ddf->m_Position + rotate(ddf->m_Rotation, local_position);
-                particle->m_Rotation = ddf->m_Rotation;
-                particle->m_Velocity = rotate(ddf->m_Rotation, velocity);
+                particle->SetPosition(ddf->m_Position + rotate(ddf->m_Rotation, local_position));
+                particle->SetRotation(ddf->m_Rotation);
+                particle->SetVelocity(rotate(ddf->m_Rotation, velocity));
 
                 if (ddf->m_Space == EMISSION_SPACE_WORLD)
                 {
-                    particle->m_Position = instance->m_Position + rotate(instance->m_Rotation, Vector3(particle->m_Position));
-                    particle->m_Rotation = instance->m_Rotation * particle->m_Rotation;
-                    particle->m_Velocity = rotate(instance->m_Rotation, particle->m_Velocity);
+                    particle->SetPosition(instance->m_Position + rotate(instance->m_Rotation, Vector3(particle->GetPosition())));
+                    particle->SetRotation(instance->m_Rotation * particle->GetRotation());
+                    particle->SetVelocity(rotate(instance->m_Rotation, particle->GetVelocity()));
                 }
             }
         }
@@ -673,10 +674,10 @@ namespace dmParticle
         {
             Particle* particle = &emitter->m_Particles[j];
 
-            float size = particle->m_Size;
+            float size = particle->GetSize();
 
-            Vector3 particle_position = rotate(emission_rotation, Vector3(particle->m_Position)) + emission_position;
-            Quat particle_rotation = emission_rotation * particle->m_Rotation;
+            Vector3 particle_position = rotate(emission_rotation, Vector3(particle->GetPosition())) + emission_position;
+            Quat particle_rotation = emission_rotation * particle->GetRotation();
 
             Vector3 x = rotate(particle_rotation, Vector3(size, 0.0f, 0.0f));
             Vector3 y = rotate(particle_rotation, Vector3(0.0f, size, 0.0f));
@@ -687,8 +688,8 @@ namespace dmParticle
             Vector3 p3 = x + y + particle_position;
 
             // avoid wrapping for dead particles
-            float time_left = dmMath::Select(particle->m_TimeLeft, particle->m_TimeLeft, 0.0f);
-            float t = (1.0f - time_left * particle->m_ooMaxLifeTime);
+            float time_left = dmMath::Select(particle->GetTimeLeft(), particle->GetTimeLeft(), 0.0f);
+            float t = (1.0f - time_left * particle->GetooMaxLifeTime());
             uint32_t tile = (uint32_t)(tile_count * t);
             // TODO only for once
             if (tile == tile_count)
@@ -702,13 +703,14 @@ namespace dmParticle
 
             // store values in the buffer
             uint32_t field_index = vertex_index * vertex_field_count;
+            Vector4 c = particle->GetColor();
 
             vertex_buffer[field_index + 0] = u0;
             vertex_buffer[field_index + 1] = v1;
             vertex_buffer[field_index + 2] = p0.getX();
             vertex_buffer[field_index + 3] = p0.getY();
             vertex_buffer[field_index + 4] = p0.getZ();
-            memcpy(&vertex_buffer[field_index + 5], &particle->m_Color, sizeof(Vector4));
+            memcpy(&vertex_buffer[field_index + 5], &c, sizeof(Vector4));
 
             field_index += vertex_field_count;
             vertex_buffer[field_index + 0] = u0;
@@ -716,7 +718,7 @@ namespace dmParticle
             vertex_buffer[field_index + 2] = p1.getX();
             vertex_buffer[field_index + 3] = p1.getY();
             vertex_buffer[field_index + 4] = p1.getZ();
-            memcpy(&vertex_buffer[field_index + 5], &particle->m_Color, sizeof(Vector4));
+            memcpy(&vertex_buffer[field_index + 5], &c, sizeof(Vector4));
 
             field_index += vertex_field_count;
             vertex_buffer[field_index + 0] = u1;
@@ -724,7 +726,7 @@ namespace dmParticle
             vertex_buffer[field_index + 2] = p2.getX();
             vertex_buffer[field_index + 3] = p2.getY();
             vertex_buffer[field_index + 4] = p2.getZ();
-            memcpy(&vertex_buffer[field_index + 5], &particle->m_Color, sizeof(Vector4));
+            memcpy(&vertex_buffer[field_index + 5], &c, sizeof(Vector4));
 
             field_index += vertex_field_count;
             vertex_buffer[field_index + 0] = u1;
@@ -732,7 +734,7 @@ namespace dmParticle
             vertex_buffer[field_index + 2] = p2.getX();
             vertex_buffer[field_index + 3] = p2.getY();
             vertex_buffer[field_index + 4] = p2.getZ();
-            memcpy(&vertex_buffer[field_index + 5], &particle->m_Color, sizeof(Vector4));
+            memcpy(&vertex_buffer[field_index + 5], &c, sizeof(Vector4));
 
             field_index += vertex_field_count;
             vertex_buffer[field_index + 0] = u0;
@@ -740,7 +742,7 @@ namespace dmParticle
             vertex_buffer[field_index + 2] = p1.getX();
             vertex_buffer[field_index + 3] = p1.getY();
             vertex_buffer[field_index + 4] = p1.getZ();
-            memcpy(&vertex_buffer[field_index + 5], &particle->m_Color, sizeof(Vector4));
+            memcpy(&vertex_buffer[field_index + 5], &c, sizeof(Vector4));
 
             field_index += vertex_field_count;
             vertex_buffer[field_index + 0] = u1;
@@ -748,7 +750,7 @@ namespace dmParticle
             vertex_buffer[field_index + 2] = p3.getX();
             vertex_buffer[field_index + 3] = p3.getY();
             vertex_buffer[field_index + 4] = p3.getZ();
-            memcpy(&vertex_buffer[field_index + 5], &particle->m_Color, sizeof(Vector4));
+            memcpy(&vertex_buffer[field_index + 5], &c, sizeof(Vector4));
 
             vertex_index += 6;
         }
@@ -768,7 +770,7 @@ namespace dmParticle
     {
         inline bool operator () (const Particle& p1, const Particle& p2)
         {
-            return p1.m_SortKey.m_Key < p2.m_SortKey.m_Key;
+            return p1.GetSortKey().m_Key < p2.GetSortKey().m_Key;
         }
 
     };
@@ -786,11 +788,13 @@ namespace dmParticle
             Particle* p = &particles[i];
             uint32_t index = p - first;
 
-            float life_time = (1.0f - p->m_TimeLeft * range) * 65535;
+            float life_time = (1.0f - p->GetTimeLeft() * range) * 65535;
             life_time = dmMath::Clamp(life_time, 0.0f, 65535.0f);
             uint16_t lt = (uint16_t) life_time;
-            p->m_SortKey.m_LifeTime = lt;
-            p->m_SortKey.m_Index = index;
+            SortKey key;
+            key.m_LifeTime = lt;
+            key.m_Index = index;
+            p->SetSortKey(key);
         }
     }
 
@@ -826,7 +830,7 @@ namespace dmParticle
         for (uint32_t i = 0; i < count; ++i)
         {
             Particle* particle = &particles[i];
-            float x = dmMath::Select(-particle->m_MaxLifeTime, 0.0f, 1.0f - particle->m_TimeLeft * particle->m_ooMaxLifeTime);
+            float x = dmMath::Select(-particle->GetMaxLifeTime(), 0.0f, 1.0f - particle->GetTimeLeft() * particle->GetooMaxLifeTime());
             uint32_t segment_index = dmMath::Min((uint32_t)(x * PROPERTY_SAMPLE_COUNT), PROPERTY_SAMPLE_COUNT - 1);
 
             SAMPLE_PROP(particle_properties[PARTICLE_KEY_SCALE].m_Segments[segment_index], x, properties[PARTICLE_KEY_SCALE])
@@ -835,11 +839,12 @@ namespace dmParticle
             SAMPLE_PROP(particle_properties[PARTICLE_KEY_BLUE].m_Segments[segment_index], x, properties[PARTICLE_KEY_BLUE])
             SAMPLE_PROP(particle_properties[PARTICLE_KEY_ALPHA].m_Segments[segment_index], x, properties[PARTICLE_KEY_ALPHA])
 
-            particle->m_Size = particle->m_SourceSize * properties[PARTICLE_KEY_SCALE];
-            particle->m_Color.setX(particle->m_SourceColor.getX() * properties[PARTICLE_KEY_RED]);
-            particle->m_Color.setY(particle->m_SourceColor.getY() * properties[PARTICLE_KEY_GREEN]);
-            particle->m_Color.setZ(particle->m_SourceColor.getZ() * properties[PARTICLE_KEY_BLUE]);
-            particle->m_Color.setW(particle->m_SourceColor.getW() * properties[PARTICLE_KEY_ALPHA]);
+            Vector4 c = particle->GetSourceColor();
+            particle->SetSize(particle->GetSourceSize() * properties[PARTICLE_KEY_SCALE]);
+            particle->SetColor(Vector4(c.getX() * properties[PARTICLE_KEY_RED],
+                    c.getY() * properties[PARTICLE_KEY_GREEN],
+                    c.getZ() * properties[PARTICLE_KEY_BLUE],
+                    c.getW() * properties[PARTICLE_KEY_ALPHA]));
         }
     }
 
@@ -851,13 +856,13 @@ namespace dmParticle
         for (uint32_t i = 0; i < particle_count; ++i)
         {
             Particle* particle = &particles[i];
-            float x = dmMath::Select(-particle->m_MaxLifeTime, 0.0f, 1.0f - particle->m_TimeLeft * particle->m_ooMaxLifeTime);
+            float x = dmMath::Select(-particle->GetMaxLifeTime(), 0.0f, 1.0f - particle->GetTimeLeft() * particle->GetooMaxLifeTime());
             uint32_t segment_index = dmMath::Min((uint32_t)(x * PROPERTY_SAMPLE_COUNT), PROPERTY_SAMPLE_COUNT - 1);
 
             float magnitude;
             SAMPLE_PROP(modifier_properties[key].m_Segments[segment_index], x, magnitude)
 
-            particle->m_Velocity += unit_acc * magnitude;
+            particle->SetVelocity(particle->GetVelocity() + unit_acc * magnitude);
         }
     }
 
@@ -869,19 +874,19 @@ namespace dmParticle
         for (uint32_t i = 0; i < particle_count; ++i)
         {
             Particle* particle = &particles[i];
-            float x = dmMath::Select(-particle->m_MaxLifeTime, 0.0f, 1.0f - particle->m_TimeLeft * particle->m_ooMaxLifeTime);
+            float x = dmMath::Select(-particle->GetMaxLifeTime(), 0.0f, 1.0f - particle->GetTimeLeft() * particle->GetooMaxLifeTime());
             uint32_t segment_index = dmMath::Min((uint32_t)(x * PROPERTY_SAMPLE_COUNT), PROPERTY_SAMPLE_COUNT - 1);
 
             float attenuation, magnitude;
             SAMPLE_PROP(modifier_properties[MODIFIER_KEY_ATTENUATION].m_Segments[segment_index], x, attenuation)
             SAMPLE_PROP(modifier_properties[MODIFIER_KEY_MAGNITUDE].m_Segments[segment_index], x, magnitude)
 
-            float denumerator = 1.0f + attenuation * distSqr(particle->m_Position, position);
+            float denumerator = 1.0f + attenuation * distSqr(particle->GetPosition(), position);
             float c = dmMath::Select(-dmMath::Abs(denumerator), 0.0f, magnitude / denumerator);
-            Vector3 v = particle->m_Velocity;
+            Vector3 v = particle->GetVelocity();
             if (modifier_ddf->m_UseDirection)
-                v = projection(Point3(particle->m_Velocity), direction) * direction;
-            particle->m_Velocity += -c * v * dt;
+                v = projection(Point3(particle->GetVelocity()), direction) * direction;
+            particle->SetVelocity(particle->GetVelocity() - c * v * dt);
         }
     }
 
@@ -911,10 +916,9 @@ namespace dmParticle
         for (uint32_t i = 0; i < particle_count; ++i)
         {
             Particle* p = &particles[i];
-            const Vector3& v = p->m_Velocity;
             // NOTE This velocity integration has a larger error than normal since we don't use the velocity at the
             // beginning of the frame, but it's ok since particle movement does not need to be very exact
-            p->m_Position += v * dt;
+            p->SetPosition(p->GetPosition() + p->GetVelocity() * dt);
         }
     }
 
