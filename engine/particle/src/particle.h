@@ -98,7 +98,6 @@ namespace dmParticle
 
     /**
      * Create a context.
-     * @param render_context Context for use when rendering.
      * @param max_instance_count Max number of instances
      * @param max_particle_count Max number of particles
      * @return Context handle, or INVALID_CONTEXT when out of memory.
@@ -109,6 +108,19 @@ namespace dmParticle
      * @param context Context to destroy. This will also destroy any remaining instances.
      */
     DM_PARTICLE_PROTO(void, DestroyContext, HContext context);
+
+    /**
+     * Retrieve max particle count for the context.
+     * @param context Context to update.
+     * @return Max number of particles
+     */
+    DM_PARTICLE_PROTO(uint32_t, GetContextMaxParticleCount, HContext context);
+    /**
+     * Set new max particle count for the context.
+     * @param context Context to update.
+     * @param max_particle_count Max number of particles
+     */
+    DM_PARTICLE_PROTO(void, SetContextMaxParticleCount, HContext context, uint32_t max_particle_count);
 
     /**
      * Create an instance from the supplied path and fetch resources using the supplied factory.

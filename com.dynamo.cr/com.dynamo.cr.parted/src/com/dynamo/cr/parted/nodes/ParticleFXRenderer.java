@@ -14,21 +14,13 @@ import com.dynamo.cr.sceneed.core.RenderContext;
 import com.dynamo.cr.sceneed.core.RenderContext.Pass;
 import com.dynamo.cr.sceneed.core.RenderData;
 import com.sun.jna.Pointer;
-import com.sun.opengl.util.BufferUtil;
 import com.sun.opengl.util.j2d.TextRenderer;
 import com.sun.opengl.util.texture.Texture;
 
 public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
 
     private static final EnumSet<Pass> passes = EnumSet.of(Pass.TRANSPARENT, Pass.OVERLAY);
-    private static final int MAX_PARTICLE_COUNT = 1024;
-    private static final int MAX_EMITTER_COUNT = 128;
 
-    private static final int VERTEX_COMPONENT_COUNT = 9;
-    private static final int PARTICLE_VERTEX_COUNT = 6;
-
-    private FloatBuffer vertexBuffer;
-    private Pointer context;
     private Callback callBack = new Callback();
     private TextRenderer textRenderer;
     private float timeElapsed = 0;
@@ -64,16 +56,10 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
     }
 
     public ParticleFXRenderer() {
-        final int elementCount = MAX_PARTICLE_COUNT * PARTICLE_VERTEX_COUNT * VERTEX_COMPONENT_COUNT;
-        vertexBuffer = BufferUtil.newFloatBuffer(elementCount);
-        context = ParticleLibrary.Particle_CreateContext(MAX_EMITTER_COUNT, MAX_PARTICLE_COUNT);
     }
 
     @Override
     public void dispose() {
-        if (context != null) {
-            ParticleLibrary.Particle_DestroyContext(context);
-        }
         if (textRenderer != null) {
             textRenderer.dispose();
         }
@@ -117,14 +103,17 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
         } else {
             // General particle rendering
 
-            node.simulate(context, vertexBuffer, dt);
+            Pointer context = node.getContext();
+
+            node.simulate(dt);
             timeElapsed += dt;
 
             gl.glEnableClientState(GL.GL_TEXTURE_COORD_ARRAY);
             gl.glEnableClientState(GL.GL_VERTEX_ARRAY);
             gl.glEnableClientState(GL.GL_COLOR_ARRAY);
 
-            final int stride = VERTEX_COMPONENT_COUNT * 4;
+            final int stride = ParticleFXNode.VERTEX_COMPONENT_COUNT * 4;
+            FloatBuffer vertexBuffer = node.getVertexBuffer();
             FloatBuffer texCoords = vertexBuffer.slice();
             gl.glTexCoordPointer(2, GL.GL_FLOAT, stride, texCoords);
             vertexBuffer.position(2);

@@ -22,9 +22,9 @@ namespace dmParticle
     };
 
     /// Config key to use for tweaking maximum number of instances in a context.
-    const char* MAX_INSTANCE_COUNT_KEY        = "particle_system.max_instance_count";
+    const char* MAX_INSTANCE_COUNT_KEY        = "particle_fx.max_count";
     /// Config key to use for tweaking the total maximum number of particles in a context.
-    const char* MAX_PARTICLE_COUNT_KEY       = "particle_system.max_particle_count";
+    const char* MAX_PARTICLE_COUNT_KEY       = "particle_fx.max_particle_count";
 
     AnimationData::AnimationData()
     {
@@ -49,6 +49,16 @@ namespace dmParticle
         if (lingering > 0)
             dmLogWarning("Destroyed %d client-owned emitters (this might indicate leakage).", lingering);
         delete context;
+    }
+
+    uint32_t GetContextMaxParticleCount(HContext context)
+    {
+        return context->m_MaxParticleCount;
+    }
+
+    void SetContextMaxParticleCount(HContext context, uint32_t max_particle_count)
+    {
+        context->m_MaxParticleCount = max_particle_count;
     }
 
     static Instance* GetInstance(HContext context, HInstance instance)
@@ -130,7 +140,7 @@ namespace dmParticle
     {
         if (context->m_InstanceIndexPool.Remaining() == 0)
         {
-            dmLogWarning("Instance could not be created since the buffer is full (%d). Tweak \"%s\" in the config file.", context->m_Instances.Capacity(), MAX_INSTANCE_COUNT_KEY);
+            dmLogError("Instance could not be created since the buffer is full (%d). Tweak \"%s\" in the config file.", context->m_Instances.Capacity(), MAX_INSTANCE_COUNT_KEY);
             return 0;
         }
         dmParticleDDF::ParticleFX* ddf = prototype->m_DDF;
@@ -140,7 +150,7 @@ namespace dmParticle
             dmParticleDDF::Emitter* emitter_ddf = &ddf->m_Emitters[i];
             if (emitter_ddf->m_MaxParticleCount > context->m_MaxParticleCount)
             {
-                dmLogWarning("Instance could not be created since it has a higher particle count than the maximum number allowed (%d). Tweak \"%s\" in the config file.", context->m_MaxParticleCount, MAX_PARTICLE_COUNT_KEY);
+                dmLogError("Instance could not be created since it has a higher particle count than the maximum number allowed (%d). Tweak \"%s\" in the config file.", context->m_MaxParticleCount, MAX_PARTICLE_COUNT_KEY);
                 return 0;
             }
         }
@@ -1238,6 +1248,8 @@ namespace dmParticle
 
     DM_PARTICLE_TRAMPOLINE2(HContext, CreateContext, uint32_t, uint32_t);
     DM_PARTICLE_TRAMPOLINE1(void, DestroyContext, HContext);
+    DM_PARTICLE_TRAMPOLINE1(uint32_t, GetContextMaxParticleCount, HContext);
+    DM_PARTICLE_TRAMPOLINE2(void, SetContextMaxParticleCount, HContext, uint32_t);
 
     DM_PARTICLE_TRAMPOLINE2(HInstance, CreateInstance, HContext, HPrototype);
     DM_PARTICLE_TRAMPOLINE2(void, DestroyInstance, HContext, HInstance);

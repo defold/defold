@@ -17,7 +17,8 @@ Require-Bundle: org.eclipse.ui,
  org.eclipse.core.resources;bundle-version="3.7.101",
  org.eclipse.core.expressions;bundle-version="3.4.300",
  javax.media.opengl;bundle-version="1.1.1",
- com.dynamo.cr.tileeditor;bundle-version="1.0.0"
+ com.dynamo.cr.tileeditor;bundle-version="1.0.0",
+ com.google.inject;bundle-version="3.0.0"
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
 Bundle-ActivationPolicy: lazy
 Eclipse-BundleShape: dir

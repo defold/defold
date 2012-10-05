@@ -32,6 +32,10 @@ public class ParticleLibrary {
 
     public static native Pointer Particle_DestroyContext(Pointer context);
 
+    public static native int Particle_GetContextMaxParticleCount(Pointer context);
+
+    public static native void Particle_SetContextMaxParticleCount(Pointer context, int maxParticleCount);
+
     public static native Pointer Particle_CreateInstance(Pointer context, Pointer prototype);
 
     public static native void Particle_DestroyInstance(Pointer context, Pointer instance);

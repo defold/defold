@@ -25,8 +25,11 @@ import com.dynamo.cr.tileeditor.scene.TileSetNode;
 import com.google.protobuf.Message;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.IntByReference;
+import com.sun.opengl.util.BufferUtil;
 
 public class ParticleFXNode extends Node {
+    public static final int VERTEX_COMPONENT_COUNT = 9;
+    public static final int PARTICLE_VERTEX_COUNT = 6;
 
     private static Logger logger = LoggerFactory.getLogger(ParticleFXNode.class);
 
@@ -89,6 +92,8 @@ public class ParticleFXNode extends Node {
     private transient Pointer context;
     private transient FetchAnimCallback animCallback = new FetchAnimCallback();
     private transient boolean reload = false;
+    private transient FloatBuffer vertexBuffer;
+    private transient int maxParticleCount = 0;
 
     public ParticleFXNode() {
     }
@@ -106,6 +111,34 @@ public class ParticleFXNode extends Node {
        if (prototype != null) {
            ParticleLibrary.Particle_DeletePrototype(prototype);
        }
+       if (context != null) {
+           ParticleLibrary.Particle_DestroyContext(context);
+       }
+    }
+
+    public void bindContext(Pointer context) {
+        if (this.context != null) {
+            throw new UnsupportedOperationException("A context can only be bound once.");
+        }
+        this.context = context;
+        byte[] data = toByteArray();
+        if (data == null) {
+            return;
+        }
+        prototype = ParticleLibrary.Particle_NewPrototype(ByteBuffer.wrap(data), data.length);
+        updateTileSources();
+
+        instance = ParticleLibrary.Particle_CreateInstance(context, prototype);
+        ParticleLibrary.Particle_SetPosition(context, instance, new Vector3(0, 0, 0));
+        ParticleLibrary.Particle_SetRotation(context, instance, new Quat(0, 0, 0, 1));
+    }
+
+    public Pointer getContext() {
+        return this.context;
+    }
+
+    public FloatBuffer getVertexBuffer() {
+        return this.vertexBuffer;
     }
 
     @Override
@@ -145,25 +178,6 @@ public class ParticleFXNode extends Node {
         }
     }
 
-    private void createInstance(Pointer context) {
-        if (instance != null) {
-            return;
-        }
-
-        this.context = context;
-
-        byte[] data = toByteArray();
-        if (data == null) {
-            return;
-        }
-        prototype = ParticleLibrary.Particle_NewPrototype(ByteBuffer.wrap(data), data.length);
-        updateTileSources();
-
-        instance = ParticleLibrary.Particle_CreateInstance(context, prototype);
-        ParticleLibrary.Particle_SetPosition(context, instance, new Vector3(0, 0, 0));
-        ParticleLibrary.Particle_SetRotation(context, instance, new Quat(0, 0, 0, 1));
-    }
-
     private void doReload() {
         if (prototype == null || !reload) {
             return;
@@ -177,8 +191,13 @@ public class ParticleFXNode extends Node {
         }
     }
 
-    public void simulate(Pointer context, FloatBuffer vertexBuffer, double dt) {
-        createInstance(context);
+    public void simulate(double dt) {
+        int maxParticleCount = ParticleLibrary.Particle_GetContextMaxParticleCount(this.context);
+        if (maxParticleCount != this.maxParticleCount) {
+            this.maxParticleCount = maxParticleCount;
+            this.vertexBuffer = BufferUtil.newFloatBuffer(this.maxParticleCount * VERTEX_COMPONENT_COUNT * PARTICLE_VERTEX_COUNT);
+        }
+
         doReload();
         IntByReference outSize = new IntByReference(0);
 
@@ -186,7 +205,7 @@ public class ParticleFXNode extends Node {
             if (ParticleLibrary.Particle_IsSleeping(context, this.instance)) {
                 ParticleLibrary.Particle_StartInstance(context, this.instance);
             }
-            ParticleLibrary.Particle_Update(context, (float) dt, vertexBuffer, vertexBuffer.capacity(), outSize,
+            ParticleLibrary.Particle_Update(context, (float) dt, this.vertexBuffer, this.vertexBuffer.capacity(), outSize,
                     animCallback);
 
         } else {

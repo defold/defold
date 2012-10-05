@@ -32,6 +32,9 @@ import org.eclipse.ui.part.EditorPart;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.dynamo.cr.editor.core.EditorUtil;
+import com.dynamo.cr.editor.core.ProjectProperties;
+
 public abstract class AbstractDefoldEditor extends EditorPart {
 
     // Named abstractLogger due to abstract class
@@ -46,7 +49,6 @@ public abstract class AbstractDefoldEditor extends EditorPart {
     protected boolean inSave = false;
     private ResourceChangedListener resourceChangeListener;
     private final static int UNDO_LIMIT = 100;
-
 
     @Override
     public void dispose() {
@@ -162,6 +164,7 @@ public abstract class AbstractDefoldEditor extends EditorPart {
     protected void handleReloadResourceChanged(IResourceChangeEvent event) {
         IFileEditorInput fileEditorInput = (IFileEditorInput) getEditorInput();
         final IFile file = fileEditorInput.getFile();
+        final IFile gameProject = EditorUtil.findGameProjectFile(file.getParent());
 
         try {
             event.getDelta().accept(new IResourceDeltaVisitor() {
@@ -173,6 +176,15 @@ public abstract class AbstractDefoldEditor extends EditorPart {
 
                         checkFileState();
 
+                        return false;
+                    } else if (resource.equals(gameProject)) {
+                        try {
+                            ProjectProperties projectProperties = new ProjectProperties();
+                            projectProperties.load(gameProject.getContents());
+                            handleProjectPropertiesChanged(projectProperties);
+                        } catch (Exception e) {
+                            // Ignore errors, they should be displayed by the game-project editor
+                        }
                         return false;
                     } else {
                         return true;
@@ -187,6 +199,10 @@ public abstract class AbstractDefoldEditor extends EditorPart {
 
     protected abstract void doReload(IFile file);
     protected abstract void handleResourceChanged(IResourceChangeEvent event);
+
+    protected void handleProjectPropertiesChanged(ProjectProperties properties) {
+
+    }
 
     class ResourceChangedListener implements IResourceChangeListener {
 

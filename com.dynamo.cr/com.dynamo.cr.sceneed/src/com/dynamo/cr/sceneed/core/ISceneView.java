@@ -15,6 +15,8 @@ import org.eclipse.jface.viewers.ILabelProvider;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.ui.ISelectionListener;
 
+import com.dynamo.cr.editor.core.ProjectProperties;
+
 public interface ISceneView extends ISelectionListener {
 
     public interface IPresenter {
@@ -27,6 +29,7 @@ public interface ISceneView extends ISelectionListener {
 
         void onSave(OutputStream contents, IProgressMonitor monitor) throws IOException, CoreException;
         void onResourceChanged(IResourceChangeEvent event) throws CoreException;
+        void onProjectPropertiesChanged(ProjectProperties properties) throws CoreException;
 
         void onDeleteSelection(IPresenterContext presenterContext);
         void onCopySelection(IPresenterContext presenterContext, ILoaderContext loaderContext, IProgressMonitor monitor) throws IOException, CoreException;

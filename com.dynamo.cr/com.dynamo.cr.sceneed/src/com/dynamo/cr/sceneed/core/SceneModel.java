@@ -29,6 +29,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.editor.core.EditorUtil;
+import com.dynamo.cr.editor.core.ProjectProperties;
 import com.dynamo.cr.editor.ui.IImageProvider;
 import com.dynamo.cr.properties.Entity;
 import com.dynamo.cr.properties.IPropertyModel;
@@ -47,6 +48,7 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
     private final IContainer contentRoot;
     private final ILoaderContext loaderContext;
     private final IImageProvider imageProvider;
+    private ProjectProperties projectProperties;
 
     private Node root;
     private IStructuredSelection selection;
@@ -368,4 +370,8 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
         return texture;
     }
 
+    @Override
+    public ProjectProperties getProjectProperties() {
+        return this.projectProperties;
+    }
 }

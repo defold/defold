@@ -10,6 +10,7 @@ import org.eclipse.core.runtime.CoreException;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.swt.graphics.Image;
 
+import com.dynamo.cr.editor.core.ProjectProperties;
 import com.dynamo.cr.properties.IPropertyObjectWorld;
 
 public interface ISceneModel extends IPropertyObjectWorld {
@@ -43,4 +44,6 @@ public interface ISceneModel extends IPropertyObjectWorld {
 
     BufferedImage getImage(String path);
     TextureHandle getTexture(String path);
+
+    ProjectProperties getProjectProperties();
 }
