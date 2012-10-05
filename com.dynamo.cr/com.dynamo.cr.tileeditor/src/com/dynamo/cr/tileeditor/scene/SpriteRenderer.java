@@ -50,7 +50,7 @@ public class SpriteRenderer implements INodeRenderer<SpriteNode> {
 
             switch (node.getBlendMode()) {
             case BLEND_MODE_ALPHA:
-                // No change
+                gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
                 break;
             case BLEND_MODE_ADD:
                 gl.glBlendFunc(GL.GL_ONE, GL.GL_ONE);

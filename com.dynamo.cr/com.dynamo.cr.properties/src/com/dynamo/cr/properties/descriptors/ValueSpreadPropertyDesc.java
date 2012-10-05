@@ -34,8 +34,8 @@ public class ValueSpreadPropertyDesc<T, U extends IPropertyObjectWorld> extends 
 
     public static final String ANIMATED_COLOR_KEY = "com.dynamo.cr.properties.ANIMATED_COLOR";
 
-    public ValueSpreadPropertyDesc(String id, String name) {
-        super(id, name);
+    public ValueSpreadPropertyDesc(String id, String name, String catgory) {
+        super(id, name, catgory);
 
         if (Display.getCurrent() != null) {
             ColorRegistry r = JFaceResources.getColorRegistry();

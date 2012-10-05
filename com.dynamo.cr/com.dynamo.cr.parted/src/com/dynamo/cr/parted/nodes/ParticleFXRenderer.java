@@ -13,6 +13,7 @@ import com.dynamo.cr.sceneed.core.INodeRenderer;
 import com.dynamo.cr.sceneed.core.RenderContext;
 import com.dynamo.cr.sceneed.core.RenderContext.Pass;
 import com.dynamo.cr.sceneed.core.RenderData;
+import com.dynamo.particle.proto.Particle.BlendMode;
 import com.sun.jna.Pointer;
 import com.sun.opengl.util.j2d.TextRenderer;
 import com.sun.opengl.util.texture.Texture;
@@ -28,9 +29,30 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
     private class Callback implements RenderInstanceCallback {
         GL gl;
         ParticleFXNode currentNode;
+
+        private void setBlendFactors(BlendMode blendMode, GL gl) {
+            switch (blendMode) {
+                case BLEND_MODE_ALPHA:
+                    gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
+                break;
+
+                case BLEND_MODE_ADD:
+                    gl.glBlendFunc(GL.GL_ONE, GL.GL_ONE);
+                break;
+
+                case BLEND_MODE_ADD_ALPHA:
+                    gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE);
+                break;
+
+                case BLEND_MODE_MULT:
+                    gl.glBlendFunc(GL.GL_ZERO, GL.GL_SRC_COLOR);
+                break;
+            }
+        }
+
         @Override
         public void invoke(Pointer userContext, Pointer material,
-                Pointer texture, int vertexIndex, int vertexCount) {
+                Pointer texture, int blendMode, int vertexIndex, int vertexCount) {
             Texture t = null;
             if (texture != null) {
                 int index = (int) Pointer.nativeValue(texture);
@@ -48,6 +70,7 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
                 t.setTexParameteri(GL.GL_TEXTURE_WRAP_T, GL.GL_CLAMP);
                 t.enable();
             }
+            setBlendFactors(BlendMode.valueOf(blendMode), gl);
             gl.glDrawArrays(GL.GL_TRIANGLES, vertexIndex, vertexCount);
             if (t != null) {
                 t.disable();
@@ -135,6 +158,9 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
             gl.glDisableClientState(GL.GL_TEXTURE_COORD_ARRAY);
             gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
             gl.glDisableClientState(GL.GL_COLOR_ARRAY);
+
+            // Reset to default blend functions
+            gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
         }
     }
 }

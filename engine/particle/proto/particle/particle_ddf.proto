@@ -87,6 +87,15 @@ message Modifier
     repeated Property       properties      = 5;
 }
 
+// NOTE: Enum values must correspond to the enum values in XXX.cpp
+enum BlendMode
+{
+    BLEND_MODE_ALPHA     = 0 [(displayName) = "Alpha"];
+    BLEND_MODE_ADD       = 1 [(displayName) = "Add"];
+    BLEND_MODE_ADD_ALPHA = 2 [(displayName) = "Add Alpha"];
+    BLEND_MODE_MULT      = 3 [(displayName) = "Multiply"];
+}
+
 message Emitter
 {
     required PlayMode       mode                = 1;
@@ -99,26 +108,27 @@ message Emitter
     required string         tile_source         = 6 [(resource)=true];
     required string         animation           = 7;
     required string         material            = 8 [(resource)=true];
+    optional BlendMode      blend_mode          = 9 [default = BLEND_MODE_ALPHA];
 
-    required uint32         max_particle_count  = 9;
+    required uint32         max_particle_count  = 10;
 
-    required EmitterType    type                = 10;
+    required EmitterType    type                = 11;
 
     message Property
     {
         required EmitterKey         key     = 1;
         repeated SplinePoint        points  = 2;
     }
-    repeated Property       properties          = 11;
+    repeated Property       properties          = 12;
 
     message ParticleProperty
     {
         required ParticleKey    key     = 1;
         repeated SplinePoint    points  = 2;
     }
-    repeated ParticleProperty particle_properties = 12;
+    repeated ParticleProperty particle_properties = 13;
 
-    repeated Modifier       modifiers           = 13;
+    repeated Modifier       modifiers           = 14;
 }
 
 message ParticleFX

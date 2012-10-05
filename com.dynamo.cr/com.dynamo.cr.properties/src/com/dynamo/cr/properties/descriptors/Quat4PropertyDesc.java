@@ -6,8 +6,8 @@ import com.dynamo.cr.properties.IPropertyObjectWorld;
 
 public class Quat4PropertyDesc<T, U extends IPropertyObjectWorld> extends ArrayPropertyDesc<Quat4d, T, U> {
 
-    public Quat4PropertyDesc(String id, String name) {
-        super(id, name, 4);
+    public Quat4PropertyDesc(String id, String name, String catgory) {
+        super(id, name, catgory, 4);
     }
 
     @Override

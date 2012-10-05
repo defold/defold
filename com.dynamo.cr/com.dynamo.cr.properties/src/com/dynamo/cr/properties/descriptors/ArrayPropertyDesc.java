@@ -14,8 +14,8 @@ public abstract class ArrayPropertyDesc<V, T, U extends IPropertyObjectWorld> ex
 
     private int count;
 
-    public ArrayPropertyDesc(String id, String name, int count) {
-        super(id, name);
+    public ArrayPropertyDesc(String id, String name, String catgory, int count) {
+        super(id, name, catgory);
         this.count = count;
     }
 

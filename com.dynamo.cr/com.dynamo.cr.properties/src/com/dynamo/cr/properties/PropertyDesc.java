@@ -8,10 +8,12 @@ public class PropertyDesc<T, U extends IPropertyObjectWorld> implements IPropert
 
     private String id;
     private String name;
+    private String category;
 
-    public PropertyDesc(String id, String name) {
+    public PropertyDesc(String id, String name, String category) {
         this.id = id;
         this.name = name;
+        this.category = category;
     }
 
     @Override
@@ -21,7 +23,7 @@ public class PropertyDesc<T, U extends IPropertyObjectWorld> implements IPropert
 
     @Override
     public String getCategory() {
-        return null;
+        return category;
     }
 
     @Override

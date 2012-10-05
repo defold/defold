@@ -122,15 +122,17 @@ struct RenderData
 {
     void* m_Material;
     void* m_Texture;
+    dmParticleDDF::BlendMode m_BlendMode;
     uint32_t m_VertexIndex;
     uint32_t m_VertexCount;
 };
 
-void RenderInstanceCallback(void* usercontext, void* material, void* texture, uint32_t vertex_index, uint32_t vertex_count)
+void RenderInstanceCallback(void* usercontext, void* material, void* texture, dmParticleDDF::BlendMode blendMode, uint32_t vertex_index, uint32_t vertex_count)
 {
     RenderData* data = (RenderData*)usercontext;
     data->m_Material = material;
     data->m_Texture = texture;
+    data->m_BlendMode = blendMode;
     data->m_VertexIndex = vertex_index;
     data->m_VertexCount = vertex_count;
 }
@@ -157,7 +159,7 @@ dmParticle::FetchAnimationResult FailFetchAnimationCallback(void* tile_source, d
     return dmParticle::FETCH_ANIMATION_NOT_FOUND;
 }
 
-void EmptyRenderInstanceCallback(void* usercontext, void* material, void* texture, uint32_t vertex_index, uint32_t vertex_count)
+void EmptyRenderInstanceCallback(void* usercontext, void* material, void* texture, dmParticleDDF::BlendMode blendMode, uint32_t vertex_index, uint32_t vertex_count)
 {
     // Trash data to verify that this function is not called
     RenderData* data = (RenderData*)usercontext;

@@ -188,7 +188,7 @@ public class DummyClass {
     @SuppressWarnings("unchecked")
     @DynamicProperties
     public IPropertyDesc<DummyClass, DummyWorld>[] getDynamicProperties() {
-        IPropertyDesc<DummyClass, DummyWorld> p1 = new TextPropertyDesc<DummyClass, DummyWorld>("prop1", "Prop1", EditorType.DEFAULT);
+        IPropertyDesc<DummyClass, DummyWorld> p1 = new TextPropertyDesc<DummyClass, DummyWorld>("prop1", "Prop1", null, EditorType.DEFAULT);
         return new IPropertyDesc[] { p1 };
     }
 

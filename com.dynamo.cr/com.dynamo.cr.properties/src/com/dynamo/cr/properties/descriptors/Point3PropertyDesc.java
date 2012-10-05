@@ -6,8 +6,8 @@ import com.dynamo.cr.properties.IPropertyObjectWorld;
 
 public class Point3PropertyDesc<T, U extends IPropertyObjectWorld> extends ArrayPropertyDesc<Point3d, T, U> {
 
-    public Point3PropertyDesc(String id, String name) {
-        super(id, name, 3);
+    public Point3PropertyDesc(String id, String name, String catgory) {
+        super(id, name, catgory, 3);
     }
 
     @Override

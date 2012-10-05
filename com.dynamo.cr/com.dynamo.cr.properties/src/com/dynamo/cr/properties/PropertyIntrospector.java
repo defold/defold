@@ -95,36 +95,38 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
                             propertyDisplayName = property.displayName();
                         }
 
+                        String category = property.category();
+
                         IPropertyDesc<T, U> descriptor;
                         if (field.getType() == String.class) {
                             if (property.editorType() == EditorType.RESOURCE)
-                                descriptor = new ResourcePropertyDesc<T, U>(propertyId, propertyDisplayName, property.extensions());
+                                descriptor = new ResourcePropertyDesc<T, U>(propertyId, propertyDisplayName, category, property.extensions());
                             else
-                                descriptor = new TextPropertyDesc<T, U>(propertyId, propertyDisplayName, property.editorType());
+                                descriptor = new TextPropertyDesc<T, U>(propertyId, propertyDisplayName, category, property.editorType());
                         } else if (field.getType() == Vector4d.class) {
-                            descriptor = new Vector4PropertyDesc<T, U>(propertyId, propertyDisplayName);
+                            descriptor = new Vector4PropertyDesc<T, U>(propertyId, propertyDisplayName, category);
                         } else if (field.getType() == Quat4d.class) {
-                            descriptor = new Quat4PropertyDesc<T, U>(propertyId, propertyDisplayName);
+                            descriptor = new Quat4PropertyDesc<T, U>(propertyId, propertyDisplayName, category);
                         } else if (field.getType() == Vector3d.class) {
-                            descriptor = new Vector3PropertyDesc<T, U>(propertyId, propertyDisplayName);
+                            descriptor = new Vector3PropertyDesc<T, U>(propertyId, propertyDisplayName, category);
                         } else if (field.getType() == Point3d.class) {
-                            descriptor = new Point3PropertyDesc<T, U>(propertyId, propertyDisplayName);
+                            descriptor = new Point3PropertyDesc<T, U>(propertyId, propertyDisplayName, category);
                         } else if (field.getType() == ValueSpread.class) {
-                            descriptor = new ValueSpreadPropertyDesc<T, U>(propertyId, propertyDisplayName);
+                            descriptor = new ValueSpreadPropertyDesc<T, U>(propertyId, propertyDisplayName, category);
                         } else if (field.getType() == RGB.class) {
-                            descriptor = new RGBPropertyDesc<T, U>(propertyId, propertyDisplayName);
+                            descriptor = new RGBPropertyDesc<T, U>(propertyId, propertyDisplayName, category);
                         } else if (field.getType() == Double.TYPE) {
-                            descriptor = new DoublePropertyDesc<T, U>(propertyId, propertyDisplayName, property.editorType());
+                            descriptor = new DoublePropertyDesc<T, U>(propertyId, propertyDisplayName, category, property.editorType());
                         } else if (field.getType() == Float.TYPE) {
-                            descriptor = new FloatPropertyDesc<T, U>(propertyId, propertyDisplayName, property.editorType());
+                            descriptor = new FloatPropertyDesc<T, U>(propertyId, propertyDisplayName, category, property.editorType());
                         } else if (field.getType() == Integer.TYPE) {
-                            descriptor = new IntegerPropertyDesc<T, U>(propertyId, propertyDisplayName, property.editorType());
+                            descriptor = new IntegerPropertyDesc<T, U>(propertyId, propertyDisplayName, category, property.editorType());
                         } else if (field.getType() == Boolean.TYPE) {
-                            descriptor = new BooleanPropertyDesc<T, U>(propertyId, propertyDisplayName);
+                            descriptor = new BooleanPropertyDesc<T, U>(propertyId, propertyDisplayName, category);
                         } else if (ProtocolMessageEnum.class.isAssignableFrom(field.getType())) {
-                            descriptor = new ProtoEnumDesc<T, U>((Class<? extends ProtocolMessageEnum>) field.getType(), propertyId, propertyDisplayName);
+                            descriptor = new ProtoEnumDesc<T, U>((Class<? extends ProtocolMessageEnum>) field.getType(), propertyId, propertyDisplayName, category);
                         } else {
-                            descriptor = new PropertyDesc<T, U>(propertyId, propertyDisplayName);
+                            descriptor = new PropertyDesc<T, U>(propertyId, propertyDisplayName, null);
                         }
 
                         descriptors.add(descriptor);

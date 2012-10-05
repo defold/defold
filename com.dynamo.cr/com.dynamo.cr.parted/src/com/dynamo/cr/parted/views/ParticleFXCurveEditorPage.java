@@ -1,7 +1,10 @@
 package com.dynamo.cr.parted.views;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.IOperationHistory;
@@ -10,21 +13,25 @@ import org.eclipse.core.commands.operations.IUndoContext;
 import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.core.commands.operations.OperationHistoryEvent;
 import org.eclipse.core.runtime.IStatus;
-import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.resource.JFaceResources;
 import org.eclipse.jface.viewers.ArrayContentProvider;
+import org.eclipse.jface.viewers.CheckStateChangedEvent;
+import org.eclipse.jface.viewers.CheckboxTableViewer;
+import org.eclipse.jface.viewers.ICheckStateListener;
+import org.eclipse.jface.viewers.ICheckStateProvider;
 import org.eclipse.jface.viewers.ISelection;
-import org.eclipse.jface.viewers.ISelectionChangedListener;
 import org.eclipse.jface.viewers.IStructuredSelection;
+import org.eclipse.jface.viewers.ITableColorProvider;
 import org.eclipse.jface.viewers.LabelProvider;
-import org.eclipse.jface.viewers.ListViewer;
-import org.eclipse.jface.viewers.SelectionChangedEvent;
 import org.eclipse.swt.SWT;
+import org.eclipse.swt.graphics.Color;
+import org.eclipse.swt.graphics.RGB;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
+import org.eclipse.swt.widgets.Display;
 import org.eclipse.ui.IActionBars;
 import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.ISelectionListener;
@@ -41,15 +48,14 @@ import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.parted.curve.CurveEditor;
 import com.dynamo.cr.parted.curve.HermiteSpline;
-import com.dynamo.cr.parted.curve.ICurveEditorListener;
-import com.dynamo.cr.parted.operations.SelectSplineOperation;
+import com.dynamo.cr.parted.curve.ICurveProvider;
 import com.dynamo.cr.properties.IPropertyDesc;
 import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.properties.IPropertyObjectWorld;
 import com.dynamo.cr.properties.types.ValueSpread;
 import com.dynamo.cr.sceneed.core.Node;
 
-public class ParticleFXCurveEditorPage implements ICurveEditorPage, ISelectionListener, ISelectionChangedListener, IOperationHistoryListener, ICurveEditorListener {
+public class ParticleFXCurveEditorPage implements ICurveEditorPage, ISelectionListener, IOperationHistoryListener, ICheckStateListener {
 
     private static Logger logger = LoggerFactory
             .getLogger(ParticleFXCurveEditorPage.class);
@@ -58,46 +64,141 @@ public class ParticleFXCurveEditorPage implements ICurveEditorPage, ISelectionLi
     private IUndoContext undoContext;
     private Node selectedNode;
     private Composite composite;
-    private ListViewer list;
+    private Set<Object> hidden = new HashSet<Object>();
+    private CheckboxTableViewer list;
     private IOperationHistory history;
-    private List<IPropertyDesc<Node, IPropertyObjectWorld>> oldInput = new ArrayList<IPropertyDesc<Node,IPropertyObjectWorld>>();
+    @SuppressWarnings("unchecked")
+    private IPropertyDesc<Node, ? extends IPropertyObjectWorld>[] input = new IPropertyDesc[0];
+    @SuppressWarnings("unchecked")
+    private IPropertyDesc<Node, ? extends IPropertyObjectWorld>[] oldInput = new IPropertyDesc[0];
     private UndoActionHandler undoHandler;
     private RedoActionHandler redoHandler;
+    private Color[] colors = new Color[24];
 
     public ParticleFXCurveEditorPage(UndoActionHandler undoHandler, RedoActionHandler redoHandler) {
         this.undoHandler = undoHandler;
         this.redoHandler = redoHandler;
     }
 
+    private Color getColor(Object element) {
+        for (int i = 0; i < input.length; ++i) {
+            if (element == input[i]) {
+                int index = (i * colors.length) / input.length;
+                return colors[index % colors.length];
+            }
+        }
+        return null;
+    }
+
+    class Provider implements ICurveProvider {
+
+        @SuppressWarnings("unchecked")
+        @Override
+        public HermiteSpline getSpline(int i) {
+            IPropertyDesc<Node, IPropertyObjectWorld> pd = (IPropertyDesc<Node, IPropertyObjectWorld>) input[i];
+            IPropertyModel<Node, IPropertyObjectWorld> propertyModel = ((IPropertyModel<Node, IPropertyObjectWorld>) selectedNode.getAdapter(IPropertyModel.class));
+            ValueSpread vs = (ValueSpread) propertyModel.getPropertyValue(pd.getId());
+            HermiteSpline spline = (HermiteSpline) vs.getCurve();
+            return spline;
+        }
+
+        @SuppressWarnings("unchecked")
+        @Override
+        public void setSpline(HermiteSpline spline, int i) {
+            IPropertyDesc<Node, IPropertyObjectWorld> pd = (IPropertyDesc<Node, IPropertyObjectWorld>) input[i];
+            IPropertyModel<Node, IPropertyObjectWorld> propertyModel = ((IPropertyModel<Node, IPropertyObjectWorld>) selectedNode.getAdapter(IPropertyModel.class));
+            ValueSpread vs = (ValueSpread) propertyModel.getPropertyValue(pd.getId());
+            vs.setCurve(spline);
+            IUndoableOperation operation = propertyModel.setPropertyValue(pd.getId(), vs);
+
+            operation.addContext(undoContext);
+            IStatus status = null;
+            try {
+                status = history.execute(operation, null, null);
+                if (status != Status.OK_STATUS) {
+                    logger.error("Failed to execute operation", status.getException());
+                    throw new RuntimeException(status.toString());
+                }
+            } catch (final ExecutionException e) {
+                logger.error("Failed to execute operation", e);
+            }
+        }
+
+        @Override
+        public boolean isEnabled(int i) {
+            return list.getChecked(input[i]);
+        }
+
+        @Override
+        public Color getColor(int i) {
+            return ParticleFXCurveEditorPage.this.getColor(input[i]);
+        }
+    }
+
+    class CheckStateProvider implements ICheckStateProvider {
+
+        @Override
+        public boolean isChecked(Object element) {
+            return !hidden.contains(element);
+        }
+
+        @Override
+        public boolean isGrayed(Object element) {
+            return false;
+        }
+    }
+
+    class ColorLabelProvider extends LabelProvider implements ITableColorProvider {
+
+        @Override
+        public String getText(Object element) {
+            if (element instanceof IPropertyDesc<?, ?>) {
+                IPropertyDesc<?, ?> pd = (IPropertyDesc<?, ?>) element;
+                return pd.getName();
+            }
+            return super.getText(element);
+        }
+
+        @Override
+        public Color getForeground(Object element, int columnIndex) {
+            return getColor(element);
+        }
+
+        @Override
+        public Color getBackground(Object element, int columnIndex) {
+            return null;
+        }
+    }
+
     @Override
     public void createControl(Composite parent) {
+
+        Display display = parent.getDisplay();
+        for (int i = 0; i < colors.length; i++) {
+            float hue = 360.0f * i / (colors.length - 1.0f);
+            colors[i] = new Color(display, new RGB(hue, 0.85f, 0.7f));
+        }
+
         composite = new Composite(parent, SWT.NONE);
         GridLayout layout = new GridLayout(2, false);
         layout.verticalSpacing = 0;
         layout.marginWidth = layout.marginHeight = 0;
         composite.setLayout(layout);
 
-        list = new ListViewer(composite, SWT.SINGLE);
+        list = CheckboxTableViewer.newCheckList(composite, SWT.SINGLE);
+        list.setCheckStateProvider(new CheckStateProvider());
+        list.addCheckStateListener(this);
         GridData gd = new GridData(GridData.FILL_VERTICAL);
         gd.widthHint = 120;
         list.getControl().setLayoutData(gd);
         list.setContentProvider(new ArrayContentProvider());
-        list.setLabelProvider(new LabelProvider() {
-           @Override
-           public String getText(Object element) {
-               if (element instanceof IPropertyDesc<?, ?>) {
-                   IPropertyDesc<?, ?> pd = (IPropertyDesc<?, ?>) element;
-                   return pd.getName();
-               }
-               return super.getText(element);
-           }
-        });
-        list.addSelectionChangedListener(this);
+        list.setLabelProvider(new ColorLabelProvider());
 
         history = PlatformUI.getWorkbench().getOperationSupport().getOperationHistory();
         history.addOperationHistoryListener(this);
-        curveEditor = new CurveEditor(composite, SWT.NONE, this, JFaceResources.getColorRegistry());
+        curveEditor = new CurveEditor(composite, SWT.NONE, JFaceResources.getColorRegistry());
         curveEditor.setLayoutData(new GridData(GridData.FILL_BOTH));
+        curveEditor.setProvider(new Provider());
     }
 
     @Override
@@ -115,6 +216,14 @@ public class ParticleFXCurveEditorPage implements ICurveEditorPage, ISelectionLi
         if (history != null) {
             history.removeOperationHistoryListener(this);
         }
+
+        for (int i = 0; i < colors.length; i++) {
+            Color c = colors[i];
+            if (c != null) {
+                c.dispose();
+            }
+        }
+
     }
 
     @Override
@@ -133,7 +242,7 @@ public class ParticleFXCurveEditorPage implements ICurveEditorPage, ISelectionLi
 
     @SuppressWarnings({ "unchecked" })
     public void refresh() {
-        List<IPropertyDesc<Node, IPropertyObjectWorld>> input = new ArrayList<IPropertyDesc<Node,IPropertyObjectWorld>>();
+        List<IPropertyDesc<Node, IPropertyObjectWorld>> lst = new ArrayList<IPropertyDesc<Node,IPropertyObjectWorld>>();
         if (selectedNode != null) {
             IPropertyModel<Node, IPropertyObjectWorld> propertyModel = (IPropertyModel<Node, IPropertyObjectWorld>) selectedNode.getAdapter(IPropertyModel.class);
             IPropertyDesc<Node, IPropertyObjectWorld>[] descs = propertyModel.getPropertyDescs();
@@ -143,27 +252,20 @@ public class ParticleFXCurveEditorPage implements ICurveEditorPage, ISelectionLi
                     ValueSpread vs = (ValueSpread) value;
                     if (vs.isAnimated()) {
                         ((HermiteSpline)vs.getCurve()).setUserdata(pd);
-                        input.add(pd);
+                        lst.add(pd);
                     }
                 }
             }
         }
 
-        if (!input.equals(oldInput)) {
-            list.setInput(input.toArray());
-            curveEditor.setSpline(null);
-        }
+        input = (IPropertyDesc<Node, IPropertyObjectWorld>[]) lst.toArray(new IPropertyDesc<?, ?>[lst.size()]);
 
-        if (curveEditor.getSpline() != null) {
-            // Re-read spline as the spline is immutable
-            IPropertyDesc<Node, IPropertyObjectWorld> pd = (IPropertyDesc<Node, IPropertyObjectWorld>) curveEditor.getSpline().getUserData();
-            IPropertyModel<Node, IPropertyObjectWorld> propertyModel = ((IPropertyModel<Node, IPropertyObjectWorld>) selectedNode.getAdapter(IPropertyModel.class));
-            ValueSpread vs = (ValueSpread) propertyModel.getPropertyValue(pd.getId());
-            curveEditor.setSpline((HermiteSpline) vs.getCurve());
+        if (!Arrays.equals(input, oldInput)) {
+            list.setInput(input);
+            curveEditor.setInput(input);
         }
 
         oldInput = input;
-
         list.refresh();
         curveEditor.redraw();
     }
@@ -200,32 +302,6 @@ public class ParticleFXCurveEditorPage implements ICurveEditorPage, ISelectionLi
         refresh();
     }
 
-    @SuppressWarnings("unchecked")
-    @Override
-    public void selectionChanged(SelectionChangedEvent event) {
-        ISelection selection = event.getSelection();
-
-        HermiteSpline oldSel = curveEditor.getSpline();
-        HermiteSpline newSel = null;
-
-        if (!selection.isEmpty()) {
-            IPropertyDesc<Node, IPropertyObjectWorld> pd = (IPropertyDesc<Node, IPropertyObjectWorld>) ((IStructuredSelection) selection).getFirstElement();
-            IPropertyModel<Node, IPropertyObjectWorld> propertyModel = ((IPropertyModel<Node, IPropertyObjectWorld>) selectedNode.getAdapter(IPropertyModel.class));
-            newSel = (HermiteSpline) ((ValueSpread) propertyModel.getPropertyValue(pd.getId())).getCurve();
-        } else {
-            curveEditor.setSpline(null);
-        }
-
-        SelectSplineOperation op = new SelectSplineOperation("Select spline", curveEditor, oldSel, newSel);
-        op.addContext(this.undoContext);
-        try {
-            history.execute(op, new NullProgressMonitor(), null);
-        } catch (ExecutionException e) {
-            logger.error("Failed to execute set-spline operation", e);
-        }
-
-    }
-
     @Override
     public void historyNotification(OperationHistoryEvent event) {
         switch (event.getEventType()) {
@@ -238,27 +314,15 @@ public class ParticleFXCurveEditorPage implements ICurveEditorPage, ISelectionLi
         }
     }
 
-    @SuppressWarnings("unchecked")
     @Override
-    public void splineChanged(String label, CurveEditor editor,
-            HermiteSpline oldSpline, HermiteSpline newSpline) {
-
-        IPropertyDesc<Node, IPropertyObjectWorld> pd = (IPropertyDesc<Node, IPropertyObjectWorld>) newSpline.getUserData();
-        IPropertyModel<Node, IPropertyObjectWorld> propertyModel = (IPropertyModel<Node, IPropertyObjectWorld>) selectedNode.getAdapter(IPropertyModel.class);
-        ValueSpread value = (ValueSpread) propertyModel.getPropertyValue(pd.getId());
-        value.setCurve(newSpline);
-        IUndoableOperation operation = propertyModel.setPropertyValue(pd.getId(), value);
-        operation.addContext(undoContext);
-        IStatus status = null;
-        try {
-            status = history.execute(operation, null, null);
-            if (status != Status.OK_STATUS) {
-                logger.error("Failed to execute operation", status.getException());
-                throw new RuntimeException(status.toString());
-            }
-        } catch (final ExecutionException e) {
-            logger.error("Failed to execute operation", e);
+    public void checkStateChanged(CheckStateChangedEvent event) {
+        Object element = event.getElement();
+        if (event.getChecked()) {
+            hidden.remove(element);
+        } else {
+            hidden.add(element);
         }
+        this.curveEditor.redraw();
     }
 }
 

@@ -26,6 +26,7 @@ import org.eclipse.ui.forms.events.HyperlinkEvent;
 import org.eclipse.ui.forms.widgets.FormToolkit;
 import org.eclipse.ui.forms.widgets.Hyperlink;
 import org.eclipse.ui.forms.widgets.ScrolledForm;
+import org.eclipse.ui.forms.widgets.Section;
 
 @SuppressWarnings({"rawtypes", "unchecked"})
 public class FormPropertySheetViewer extends Viewer {
@@ -213,16 +214,36 @@ public class FormPropertySheetViewer extends Viewer {
 
         if (!modelComposities.containsKey(hashString)) {
             Composite c = toolkit.createComposite(this.propertiesComposite);
+            Composite modelComposite = c;
 
             GridLayout layout = new GridLayout();
             layout.marginWidth = 0;
             c.setLayout(layout);
             layout.numColumns = 2;
 
+            String category = "";
             for (final IPropertyDesc desc : descs) {
 
                 if (!model.isPropertyVisible(desc.getId()))
                     continue;
+
+                if (!category.equals(desc.getCategory()) && !desc.getCategory().equals("")) {
+                    category = desc.getCategory();
+                    Section section = toolkit.createSection(modelComposite,  Section.TITLE_BAR| Section.TWISTIE|Section.EXPANDED);
+                    section.setText(category);
+                    GridData gd = new GridData(GridData.FILL_HORIZONTAL);
+                    gd.horizontalSpan = 2;
+                    section.setLayoutData(gd);
+
+                    Composite sectionClient = toolkit.createComposite(section);
+                    GridLayout sectionClientLayout = new GridLayout();
+                    sectionClientLayout.marginWidth = 0;
+                    sectionClient.setLayout(sectionClientLayout);
+                    sectionClientLayout.numColumns = 2;
+
+                    section.setClient(sectionClient);
+                    c = sectionClient;
+                }
 
                 String labelText = niceifyLabel(desc.getName());
                 final Composite labelComposite = toolkit.createComposite(c, SWT.NONE);
@@ -267,10 +288,10 @@ public class FormPropertySheetViewer extends Viewer {
                 gd.horizontalSpan = 1;
                 statusLabel.setLayoutData(gd);
                 Entry entry = new Entry(label, link, editor, statusLabel, dummyLabel);
-                c.setData(desc.getId(), entry);
+                modelComposite.setData(desc.getId(), entry);
             }
 
-            modelComposities.put(hashString, c);
+            modelComposities.put(hashString, modelComposite);
         }
 
         return modelComposities.get(hashString);

@@ -5,8 +5,8 @@ import com.dynamo.cr.properties.Property.EditorType;
 
 public class IntegerPropertyDesc<T, U extends IPropertyObjectWorld> extends ScalarPropertyDesc<Integer, T, U> {
 
-    public IntegerPropertyDesc(String id, String name, EditorType editorType) {
-        super(id, name, editorType);
+    public IntegerPropertyDesc(String id, String name, String catgory, EditorType editorType) {
+        super(id, name, catgory, editorType);
     }
 
     @Override

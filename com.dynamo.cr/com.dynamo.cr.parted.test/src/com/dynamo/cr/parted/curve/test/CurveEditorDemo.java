@@ -1,5 +1,7 @@
 package com.dynamo.cr.parted.curve.test;
 
+import java.util.Arrays;
+
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.DefaultOperationHistory;
 import org.eclipse.core.commands.operations.IOperationHistory;
@@ -20,7 +22,7 @@ import org.eclipse.swt.widgets.Shell;
 import com.dynamo.cr.parted.curve.AlterSplineOperation;
 import com.dynamo.cr.parted.curve.CurveEditor;
 import com.dynamo.cr.parted.curve.HermiteSpline;
-import com.dynamo.cr.parted.curve.ICurveEditorListener;
+import com.dynamo.cr.parted.curve.ICurveProvider;
 
 public class CurveEditorDemo {
 
@@ -32,13 +34,18 @@ public class CurveEditorDemo {
         final UndoContext context = new UndoContext();
         final IOperationHistory history = new DefaultOperationHistory();
 
-        ICurveEditorListener listener = new ICurveEditorListener() {
+        GridLayout layout = new GridLayout(1, true);
+        layout.marginBottom = layout.marginTop = layout.marginLeft = layout.marginRight = 16;
+        shell.setLayout(layout);
+        final CurveEditor ce = new CurveEditor(shell, SWT.NONE, JFaceResources.getColorRegistry());
+        final Object[] input = Arrays.asList(new HermiteSpline(), new HermiteSpline()).toArray();
+        ce.setInput(input);
+        ce.setProvider(new ICurveProvider() {
 
             @Override
-            public void splineChanged(String label, CurveEditor editor, HermiteSpline oldSpline,
-                    HermiteSpline newSpline) {
+            public void setSpline(HermiteSpline spline, int i) {
 
-                AlterSplineOperation operation = new AlterSplineOperation(label, editor, oldSpline, newSpline);
+                AlterSplineOperation operation = new AlterSplineOperation("Edit Spline", input, i, (HermiteSpline) input[i], spline);
                 operation.addContext(context);
                 IStatus status = null;
                 try {
@@ -50,14 +57,22 @@ public class CurveEditorDemo {
                     throw new RuntimeException(e);
                 }
             }
-        };
 
+            @Override
+            public boolean isEnabled(int i) {
+                return true;
+            }
 
-        GridLayout layout = new GridLayout(1, true);
-        layout.marginBottom = layout.marginTop = layout.marginLeft = layout.marginRight = 16;
-        shell.setLayout(layout);
-        final CurveEditor ce = new CurveEditor(shell, SWT.NONE, listener, JFaceResources.getColorRegistry());
-        ce.setSpline(new HermiteSpline());
+            @Override
+            public HermiteSpline getSpline(int i) {
+                return (HermiteSpline) input[i];
+            }
+
+            @Override
+            public Color getColor(int i) {
+                return null;
+            }
+        });
         ce.setLayoutData(new GridData(GridData.FILL_BOTH));
         ce.addFocusListener(new org.eclipse.swt.events.FocusListener() {
 

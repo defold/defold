@@ -11,11 +11,13 @@ public class AlterSplineOperation extends AbstractOperation {
 
     private HermiteSpline spline;
     private HermiteSpline oldSpline;
-    private CurveEditor editor;
+    private int index;
+    private Object[] input;
 
-    public AlterSplineOperation(String label, CurveEditor curveEditor, HermiteSpline oldSpline, HermiteSpline spline) {
+    public AlterSplineOperation(String label, Object[] input, int index, HermiteSpline oldSpline, HermiteSpline spline) {
         super(label);
-        this.editor = curveEditor;
+        this.input = input;
+        this.index = index;
         this.oldSpline = oldSpline;
         this.spline = spline;
     }
@@ -23,21 +25,21 @@ public class AlterSplineOperation extends AbstractOperation {
     @Override
     public IStatus execute(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
-        editor.setSpline(spline);
+        input[index] = spline;
         return Status.OK_STATUS;
     }
 
     @Override
     public IStatus redo(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
-        editor.setSpline(spline);
+        input[index] = spline;
         return Status.OK_STATUS;
     }
 
     @Override
     public IStatus undo(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
-        editor.setSpline(oldSpline);
+        input[index] = oldSpline;
         return Status.OK_STATUS;
     }
 
