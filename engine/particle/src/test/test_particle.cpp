@@ -897,6 +897,11 @@ TEST_F(ParticleTest, DragDir)
     dmParticle::DestroyInstance(m_Context, instance);
 }
 
+TEST_F(ParticleTest, case1544)
+{
+    ASSERT_TRUE(LoadPrototype("modifier_crash.particlefxc", &m_Prototype));
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

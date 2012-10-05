@@ -1130,7 +1130,7 @@ namespace dmParticle
                     prop_count = modifier_ddf.m_Properties.m_Count;
                     for (uint32_t j = 0; j < prop_count; ++j)
                     {
-                        const dmParticleDDF::Modifier::Property& p = modifier_ddf.m_Properties[i];
+                        const dmParticleDDF::Modifier::Property& p = modifier_ddf.m_Properties[j];
                         if (p.m_Key < dmParticleDDF::MODIFIER_KEY_COUNT)
                         {
                             SampleProperty(p.m_Points.m_Data, p.m_Points.m_Count, modifier.m_Properties[p.m_Key].m_Segments);
