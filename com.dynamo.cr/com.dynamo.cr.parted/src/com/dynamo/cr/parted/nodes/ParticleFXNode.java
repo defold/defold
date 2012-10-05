@@ -111,9 +111,6 @@ public class ParticleFXNode extends Node {
        if (prototype != null) {
            ParticleLibrary.Particle_DeletePrototype(prototype);
        }
-       if (context != null) {
-           ParticleLibrary.Particle_DestroyContext(context);
-       }
     }
 
     public void bindContext(Pointer context) {
