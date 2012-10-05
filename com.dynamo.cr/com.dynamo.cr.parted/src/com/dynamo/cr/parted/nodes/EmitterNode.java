@@ -91,6 +91,7 @@ public class EmitterNode extends Node {
         setTileSource(emitter.getTileSource());
         setAnimation(emitter.getAnimation());
         setMaterial(emitter.getMaterial());
+        setBlendMode(emitter.getBlendMode());
         setMaxParticleCount(emitter.getMaxParticleCount());
         setEmitterType(emitter.getType());
 
