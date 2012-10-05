@@ -370,12 +370,13 @@ public class CurveEditor extends Canvas implements PaintListener,
                     ty *= -1;
                 }
 
-                double a = Math.atan2(ty, tx);
-                if (Math.abs(a) > HermiteSpline.MAX_TANGENT_ANGLE) {
-                    a = Math.signum(a) * HermiteSpline.MAX_TANGENT_ANGLE;
-                    tx = Math.cos(a);
-                    ty = Math.sin(a);
+                double MIN_TX = 0.001;
+                if (hit.handle == Handle.TANGENT_CONTROL1) {
+                    tx = Math.max(tx, MIN_TX);
+                } else {
+                    tx = Math.max(tx, MIN_TX);
                 }
+
                 activeSpline = activeSpline.setTangent(hit.index, tx, ty);
                 redraw();
             }

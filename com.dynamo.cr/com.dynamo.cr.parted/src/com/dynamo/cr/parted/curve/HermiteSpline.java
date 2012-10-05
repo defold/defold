@@ -41,8 +41,6 @@ public class HermiteSpline implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    static final double MAX_TANGENT_ANGLE = Math.PI / 2 - 0.0001;
-
     private List<SplinePoint> points = new ArrayList<SplinePoint>(32);
 
     private Object userData;
