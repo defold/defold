@@ -1,5 +1,7 @@
 package com.dynamo.cr.sceneed.core;
 
+import java.util.List;
+
 import javax.annotation.PreDestroy;
 import javax.inject.Inject;
 import javax.vecmath.AxisAngle4d;
@@ -11,14 +13,13 @@ import javax.vecmath.Vector4d;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.swt.SWT;
+import org.eclipse.swt.events.KeyEvent;
 import org.eclipse.swt.events.MouseEvent;
-import org.eclipse.swt.events.MouseListener;
-import org.eclipse.swt.events.MouseMoveListener;
 import org.eclipse.ui.ISelectionService;
 
 import com.dynamo.cr.sceneed.core.SceneUtil.MouseType;
 
-public class CameraController implements MouseListener, MouseMoveListener {
+public class CameraController implements IRenderViewController {
 
     private static enum State {
         IDLE,
@@ -41,15 +42,13 @@ public class CameraController implements MouseListener, MouseMoveListener {
         this.renderView = renderView;
         this.selectionService = selectionService;
         this.sceneModel = sceneModel;
-        this.renderView.addMouseListener(this);
-        this.renderView.addMouseMoveListener(this);
+        this.renderView.addRenderController(this);
         this.renderView.setCamera(camera);
     }
 
     @PreDestroy
     public void dispose() {
-        this.renderView.removeMouseListener(this);
-        this.renderView.removeMouseMoveListener(this);
+        this.renderView.removeRenderController(this);
     }
 
     public Vector4d getFocusPoint() {
@@ -184,7 +183,7 @@ public class CameraController implements MouseListener, MouseMoveListener {
     public void mouseDoubleClick(MouseEvent e) {
     }
 
-    public static boolean hasCameraControlModifiers(MouseEvent event) {
+    private static boolean hasCameraControlModifiers(MouseEvent event) {
         MouseType type = SceneUtil.getMouseType();
 
         return (type == MouseType.THREE_BUTTON && (event.stateMask & SWT.ALT) != 0)
@@ -331,6 +330,35 @@ public class CameraController implements MouseListener, MouseMoveListener {
         }
 
         this.renderView.refresh();
+    }
+
+    @Override
+    public IRenderViewController.FocusType getFocusType(List<Node> nodes, MouseEvent event) {
+        if (hasCameraControlModifiers(event)) {
+            return FocusType.CAMERA;
+        } else {
+            return FocusType.NONE;
+        }
+    }
+
+    @Override
+    public void initControl(List<Node> nodes) {
+    }
+
+    @Override
+    public void finalControl() {
+    }
+
+    @Override
+    public void keyPressed(KeyEvent e) {
+        // TODO Auto-generated method stub
+
+    }
+
+    @Override
+    public void keyReleased(KeyEvent e) {
+        // TODO Auto-generated method stub
+
     }
 
 }

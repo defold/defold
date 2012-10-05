@@ -25,6 +25,8 @@ import javax.vecmath.Vector4d;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.swt.SWT;
+import org.eclipse.swt.events.KeyEvent;
+import org.eclipse.swt.events.KeyListener;
 import org.eclipse.swt.events.MouseEvent;
 import org.eclipse.swt.events.MouseListener;
 import org.eclipse.swt.events.MouseMoveListener;
@@ -42,13 +44,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.sceneed.core.Camera;
-import com.dynamo.cr.sceneed.core.CameraController;
 import com.dynamo.cr.sceneed.core.INodeRenderer;
 import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
 import com.dynamo.cr.sceneed.core.IRenderView;
+import com.dynamo.cr.sceneed.core.IRenderViewController;
+import com.dynamo.cr.sceneed.core.IRenderViewController.FocusType;
 import com.dynamo.cr.sceneed.core.IRenderViewProvider;
-import com.dynamo.cr.sceneed.core.IRenderViewProvider.MouseEventType;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.RenderContext;
 import com.dynamo.cr.sceneed.core.RenderContext.Pass;
@@ -59,6 +61,7 @@ import com.dynamo.cr.sceneed.ui.RenderView.SelectResult.Pair;
 public class RenderView implements
 MouseListener,
 MouseMoveListener,
+KeyListener,
 Listener,
 IRenderView {
 
@@ -71,8 +74,9 @@ IRenderView {
     private final int[] viewPort = new int[4];
     private boolean enabled = true;
 
-    private List<MouseListener> mouseListeners = new ArrayList<MouseListener>();
-    private List<MouseMoveListener> mouseMoveListeners = new ArrayList<MouseMoveListener>();
+    private List<IRenderViewProvider> providers = new ArrayList<IRenderViewProvider>();
+    private List<IRenderViewController> controllers = new ArrayList<IRenderViewController>();
+    private IRenderViewController focusController = null;
 
     private Camera camera;
 
@@ -80,7 +84,6 @@ IRenderView {
     private static final int PICK_BUFFER_SIZE = 4096;
     private static IntBuffer selectBuffer = ByteBuffer.allocateDirect(4 * PICK_BUFFER_SIZE).order(ByteOrder.nativeOrder()).asIntBuffer();
     private static final int MIN_SELECTION_BOX = 16;
-    private Point2i mouseStart = new Point2i();
 
     private boolean paintRequested = false;
 
@@ -126,6 +129,7 @@ IRenderView {
         this.canvas.addListener(SWT.MouseExit, this);
         this.canvas.addMouseListener(this);
         this.canvas.addMouseMoveListener(this);
+        this.canvas.addKeyListener(this);
     }
 
     @Override
@@ -261,11 +265,9 @@ IRenderView {
 
     @Override
     public void mouseMove(MouseEvent e) {
-        if (!CameraController.hasCameraControlModifiers(e) && (e.stateMask & SWT.BUTTON1) != 0) {
-            select(e, MouseEventType.MOUSE_MOVE);
-        }
-        for (MouseMoveListener listener : mouseMoveListeners) {
-            listener.mouseMove(e);
+        if (this.focusController != null) {
+            this.focusController.mouseMove(e);
+            requestPaint();
         }
     }
 
@@ -273,59 +275,123 @@ IRenderView {
 
     @Override
     public void mouseDoubleClick(MouseEvent e) {
-        for (MouseListener listener : mouseListeners) {
-            listener.mouseDoubleClick(e);
+        if (this.focusController != null) {
+            this.focusController.mouseDoubleClick(e);
+            requestPaint();
         }
     }
 
     @Override
     public void mouseDown(MouseEvent e) {
-        if (!CameraController.hasCameraControlModifiers(e) && e.button == 1) {
-            this.mouseStart.set(e.x, e.y);
-            select(e, MouseEventType.MOUSE_DOWN);
+        if (this.focusController != null) {
+            this.focusController.finalControl();
+            requestPaint();
         }
-
-        for (MouseListener listener : mouseListeners) {
-            listener.mouseDown(e);
+        this.focusController = null;
+        List<Node> nodes = findNodesBySelection(new Point2i(e.x, e.y));
+        FocusType topFocus = FocusType.NONE;
+        for (IRenderViewController controller : this.controllers) {
+            FocusType focus = controller.getFocusType(nodes, e);
+            if (focus.ordinal() > topFocus.ordinal()) {
+                topFocus = focus;
+                this.focusController = controller;
+            }
+        }
+        if (this.focusController != null) {
+            this.focusController.initControl(nodes);
+            this.focusController.mouseDown(e);
+            requestPaint();
         }
     }
 
     @Override
     public void mouseUp(MouseEvent e) {
-        if (!CameraController.hasCameraControlModifiers(e) && e.button == 1) {
-            select(e, MouseEventType.MOUSE_UP);
+        if (this.focusController != null) {
+            this.focusController.mouseUp(e);
+            this.focusController.finalControl();
+            this.focusController = null;
             requestPaint();
-        }
-        for (MouseListener listener : mouseListeners) {
-            listener.mouseUp(e);
         }
     }
 
-    private void select(MouseEvent event, MouseEventType mouseEventType) {
-        Point2i dims = new Point2i(event.x, event.y);
-        dims.sub(this.mouseStart);
+    public List<Node> findNodesBySelection(Point2i p) {
+        return findNodesBySelection(p, p);
+    }
+
+    @Override
+    public List<Node> findNodesBySelection(Point2i start, Point2i end) {
+        Point2i dims = new Point2i(end.x, end.y);
+        dims.sub(start);
         Point2i center = new Point2i((int) Math.round(dims.x * 0.5), (int) Math.round(dims.y * 0.5));
-        center.add(this.mouseStart);
+        center.add(start);
         dims.absolute();
         int x = center.x;
         int y = center.y;
         int width = Math.max(MIN_SELECTION_BOX, dims.x);
         int height = Math.max(MIN_SELECTION_BOX, dims.y);
-        List<Node> selection = findNodesBySelection(x, y, width, height);
+        return findNodesBySelection(x, y, width, height);
+    }
 
-        IRenderViewProvider focusProvider = null;
-        for (IRenderViewProvider provider : providers) {
-            if (provider.hasFocus(selection)) {
-                focusProvider = provider;
-                break;
+    /**
+     * NOTE: x and y must be center coordinates
+     * @param x center coordinate
+     * @param y center coordinate
+     * @param width width to select for
+     * @param height height to select for
+     * @return list of selected nodes
+     */
+    public List<Node> findNodesBySelection(int x, int y, int width, int height) {
+        ArrayList<Node> nodes = new ArrayList<Node>(32);
+
+        if (width > 0 && height > 0) {
+            context.makeCurrent();
+            GL gl = context.getGL();
+            GLU glu = new GLU();
+
+            for (Pass pass : Pass.getSelectionPasses() ) {
+
+                beginSelect(gl, pass, x, y, width, height);
+
+                List<Pass> passes = Arrays.asList(pass);
+                RenderContext renderContext = renderNodes(gl, glu, passes, true);
+
+                SelectResult result = endSelect(gl);
+
+                List<RenderData<? extends Node>> renderDataList = renderContext.getRenderData();
+
+                // The selection result is sorted according to z
+                // We want to use the draw-order instead that is a function of
+                // pass, z among other such that eg manipulators get higher priority than regular nodes
+                List<RenderData<? extends Node>> drawOrderSorted = new ArrayList<RenderData<? extends Node>>();
+                for (Pair pair : result.selected) {
+                    RenderData<? extends Node> renderData = renderDataList.get(pair.index);
+                    drawOrderSorted.add(renderData);
+                }
+                Collections.sort(drawOrderSorted);
+                Collections.reverse(drawOrderSorted);
+
+                for (RenderData<? extends Node> renderData : drawOrderSorted) {
+                    nodes.add(renderData.getNode());
+                }
             }
         }
-        if (focusProvider != null) {
-            focusProvider.onNodeHit(selection, event, mouseEventType);
-        } else {
-            for (IRenderViewProvider provider : providers) {
-                provider.onNodeHit(selection, event, mouseEventType);
-            }
+
+        return nodes;
+    }
+
+    @Override
+    public void keyPressed(KeyEvent e) {
+        if (this.focusController != null) {
+            this.focusController.keyPressed(e);
+            requestPaint();
+        }
+    }
+
+    @Override
+    public void keyReleased(KeyEvent e) {
+        if (this.focusController != null) {
+            this.focusController.keyReleased(e);
+            requestPaint();
         }
     }
 
@@ -445,53 +511,6 @@ IRenderView {
         {
             return new SelectResult(selected, minz);
         }
-    }
-
-    /**
-     * NOTE: x and y must be center coordinates
-     * @param x center coordinate
-     * @param y center coordinate
-     * @param width width to select for
-     * @param height height to select for
-     * @return list of selected nodes
-     */
-    private List<Node> findNodesBySelection(int x, int y, int width, int height) {
-        ArrayList<Node> nodes = new ArrayList<Node>(32);
-
-        if (width > 0 && height > 0) {
-            context.makeCurrent();
-            GL gl = context.getGL();
-            GLU glu = new GLU();
-
-            for (Pass pass : Pass.getSelectionPasses() ) {
-
-                beginSelect(gl, pass, x, y, width, height);
-
-                List<Pass> passes = Arrays.asList(pass);
-                RenderContext renderContext = renderNodes(gl, glu, passes, true);
-
-                SelectResult result = endSelect(gl);
-
-                List<RenderData<? extends Node>> renderDataList = renderContext.getRenderData();
-
-                // The selection result is sorted according to z
-                // We want to use the draw-order instead that is a function of
-                // pass, z among other such that eg manipulators get higher priority than regular nodes
-                List<RenderData<? extends Node>> drawOrderSorted = new ArrayList<RenderData<? extends Node>>();
-                for (Pair pair : result.selected) {
-                    RenderData<? extends Node> renderData = renderDataList.get(pair.index);
-                    drawOrderSorted.add(renderData);
-                }
-                Collections.sort(drawOrderSorted);
-                Collections.reverse(drawOrderSorted);
-
-                for (RenderData<? extends Node> renderData : drawOrderSorted) {
-                    nodes.add(renderData.getNode());
-                }
-            }
-        }
-
-        return nodes;
     }
 
     public void requestPaint() {
@@ -745,7 +764,6 @@ IRenderView {
 
     // IRenderView
 
-    private List<IRenderViewProvider> providers = new ArrayList<IRenderViewProvider>();
     @Override
     public void addRenderProvider(IRenderViewProvider provider) {
         assert !providers.contains(provider);
@@ -759,23 +777,13 @@ IRenderView {
     }
 
     @Override
-    public void addMouseListener(MouseListener listener) {
-        this.mouseListeners.add(listener);
+    public void addRenderController(IRenderViewController controller) {
+        this.controllers.add(controller);
     }
 
     @Override
-    public void removeMouseListener(MouseListener listener) {
-        this.mouseListeners.remove(listener);
-    }
-
-    @Override
-    public void addMouseMoveListener(MouseMoveListener listener) {
-        this.mouseMoveListeners.add(listener);
-    }
-
-    @Override
-    public void removeMouseMoveListener(MouseMoveListener listener) {
-        this.mouseMoveListeners.remove(listener);
+    public void removeRenderController(IRenderViewController controller) {
+        this.controllers.remove(controller);
     }
 
     @Override
@@ -802,4 +810,5 @@ IRenderView {
     public SceneGrid getGrid() {
         return this.grid;
     }
+
 }

@@ -74,19 +74,21 @@ public class SceneView extends AbstractSceneView {
 
         @Override
         public void run() {
-            ISelection selection = getSelection();
-            if (this.selection != selection) {
-                // Keep delaying as long as the selection is changing
-                Display.getDefault().timerExec(REFRESH_DELAY, this);
-                this.selection = selection;
-            } else {
-                refreshRequested = false;
-                setIgnoreOutlineSelection(true);
-                outline.refresh();
-                outline.setSelection(selection);
-                setIgnoreOutlineSelection(false);
-                propertySheetPage.setSelection(selection);
-                propertySheetPage.refresh();
+            if (refreshRequested) {
+                ISelection selection = getSelection();
+                if (this.selection != selection) {
+                    // Keep delaying as long as the selection is changing
+                    Display.getDefault().timerExec(REFRESH_DELAY, this);
+                    this.selection = selection;
+                } else {
+                    refreshRequested = false;
+                    setIgnoreOutlineSelection(true);
+                    outline.refresh();
+                    outline.setSelection(selection);
+                    setIgnoreOutlineSelection(false);
+                    propertySheetPage.setSelection(selection);
+                    propertySheetPage.refresh();
+                }
             }
         }
     }

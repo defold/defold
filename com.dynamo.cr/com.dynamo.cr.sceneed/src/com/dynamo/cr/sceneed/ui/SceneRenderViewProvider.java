@@ -17,12 +17,12 @@ import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.SelectionChangedEvent;
 import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.swt.SWT;
+import org.eclipse.swt.events.KeyEvent;
 import org.eclipse.swt.events.MouseEvent;
-import org.eclipse.swt.events.MouseListener;
-import org.eclipse.swt.events.MouseMoveListener;
 
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.sceneed.core.IRenderView;
+import com.dynamo.cr.sceneed.core.IRenderViewController;
 import com.dynamo.cr.sceneed.core.IRenderViewProvider;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.Manipulator;
@@ -30,8 +30,7 @@ import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.RenderContext;
 import com.dynamo.cr.sceneed.core.RenderContext.Pass;
 
-public class SceneRenderViewProvider implements IRenderViewProvider, ISelectionProvider, MouseMoveListener,
-        MouseListener {
+public class SceneRenderViewProvider implements IRenderViewProvider, ISelectionProvider, IRenderViewController {
 
     private IRenderView renderView;
     private IPresenterContext presenterContext;
@@ -42,8 +41,8 @@ public class SceneRenderViewProvider implements IRenderViewProvider, ISelectionP
     private IStructuredSelection selection = new StructuredSelection();
 
     // Scene selections
-    private boolean selecting = false;
     private SelectionBoxNode selectionBoxNode;
+    private boolean selecting = false;
     private boolean dragSelect = false;
     private static final int DRAG_MARGIN = 2;
     private List<Node> originalSelection = Collections.emptyList();
@@ -53,9 +52,8 @@ public class SceneRenderViewProvider implements IRenderViewProvider, ISelectionP
         this.renderView = renderView;
         this.presenterContext = presenterContext;
         this.selectionBoxNode = new SelectionBoxNode();
-        renderView.addMouseListener(this);
-        renderView.addMouseMoveListener(this);
         renderView.addRenderProvider(this);
+        renderView.addRenderController(this);
     }
 
     public void setRoot(Node root) {
@@ -65,6 +63,7 @@ public class SceneRenderViewProvider implements IRenderViewProvider, ISelectionP
     @PreDestroy
     public void dispose() {
         renderView.removeRenderProvider(this);
+        renderView.removeRenderController(this);
     }
 
     @Override
@@ -72,21 +71,118 @@ public class SceneRenderViewProvider implements IRenderViewProvider, ISelectionP
         if (root != null) {
             renderView.setupNode(renderContext, root);
         }
-        if (renderContext.getPass().equals(Pass.OVERLAY)) {
+        if (renderContext.getPass().equals(Pass.OVERLAY) && this.selectionBoxNode.isVisible()) {
             this.renderView.setupNode(renderContext, this.selectionBoxNode);
         }
     }
 
+    // SelectionProvider
+
     @Override
-    public void onNodeHit(List<Node> nodes, MouseEvent event, MouseEventType mouseEventType) {
+    public void addSelectionChangedListener(ISelectionChangedListener listener) {
+        this.selectionListeners.add(listener);
+    }
+
+    @Override
+    public ISelection getSelection() {
+        return this.selection;
+    }
+
+    @Override
+    public void removeSelectionChangedListener(
+            ISelectionChangedListener listener) {
+        this.selectionListeners.remove(listener);
+    }
+
+    @Override
+    public void setSelection(ISelection selection) {
+        if (!this.selecting && this.selection != selection && selection instanceof IStructuredSelection) {
+            this.selection = (IStructuredSelection)selection;
+        }
+    }
+
+    private void fireSelectionChanged(ISelection selection) {
+        SelectionChangedEvent event = new SelectionChangedEvent(this, this.selection);
+        for (ISelectionChangedListener listener : this.selectionListeners) {
+            listener.selectionChanged(event);
+        }
+    }
+
+    @Override
+    public FocusType getFocusType(List<Node> nodes, MouseEvent event) {
+        if (event.button == 1) {
+            return FocusType.SELECTION;
+        } else {
+            return FocusType.NONE;
+        }
+    }
+
+    @Override
+    public void initControl(List<Node> nodes) {
+        this.originalSelection = new ArrayList<Node>(this.selection.size());
+        for (Object o : this.selection.toList()) {
+            this.originalSelection.add((Node) o);
+        }
         this.selecting = true;
-        // Save the orginial selection for later use when multi/toggle-selecting
-        if (mouseEventType == MouseEventType.MOUSE_DOWN) {
-            this.originalSelection = new ArrayList<Node>(this.selection.size());
-            for (Object o : this.selection.toList()) {
-                this.originalSelection.add((Node) o);
+    }
+
+    @Override
+    public void finalControl() {
+        this.selectionBoxNode.setVisible(false);
+        this.selecting = false;
+        this.dragSelect = false;
+        this.originalSelection.clear();
+        this.presenterContext.setSelection(this.selection);
+        this.presenterContext.refreshView();
+    }
+
+    @Override
+    public void mouseDoubleClick(MouseEvent e) {
+    }
+
+    @Override
+    public void mouseDown(MouseEvent e) {
+        this.selectionBoxNode.set(e.x, e.y);
+        this.dragSelect = false;
+        IStructuredSelection selection = boxSelect(e);
+        this.presenterContext.setSelection(selection);
+        this.presenterContext.refreshView();
+    }
+
+    @Override
+    public void mouseUp(MouseEvent e) {
+        IStructuredSelection selection = boxSelect(e);
+        this.selecting = false;
+        setSelection(selection);
+        fireSelectionChanged(selection);
+    }
+
+    @Override
+    public void mouseMove(MouseEvent e) {
+        this.selectionBoxNode.setCurrent(e.x, e.y);
+        if (!this.dragSelect) {
+            // Check if the mouse has moved far enough to be considered
+            // dragging
+            Point2i delta = new Point2i(this.selectionBoxNode.getCurrent());
+            delta.sub(this.selectionBoxNode.getStart());
+            delta.absolute();
+            if (delta.x > DRAG_MARGIN || delta.y > DRAG_MARGIN) {
+                this.dragSelect = true;
+                this.selectionBoxNode.setVisible(true);
             }
         }
+        IStructuredSelection selection = boxSelect(e);
+        this.presenterContext.setSelection(selection);
+        this.presenterContext.refreshView();
+    }
+
+    private IStructuredSelection boxSelect(MouseEvent event) {
+        this.selectionBoxNode.setCurrent(event.x, event.y);
+        return boxSelect(event.stateMask);
+    }
+
+    private IStructuredSelection boxSelect(int stateMask) {
+        List<Node> nodes = this.renderView.findNodesBySelection(this.selectionBoxNode.getStart(), this.selectionBoxNode.getCurrent());
         // TODO This should probably be filtered differently
         List<Node> filteredNodes = new ArrayList<Node>(nodes.size());
         for (Node n : nodes) {
@@ -118,8 +214,8 @@ public class SceneRenderViewProvider implements IRenderViewProvider, ISelectionP
             }
         }
         // Handle multi-select and toggling
-        boolean macModifiers = (event.stateMask & (SWT.MOD1 | SWT.SHIFT)) != 0;
-        boolean othersModifiers = (event.stateMask & SWT.CTRL) != 0;
+        boolean macModifiers = (stateMask & (SWT.MOD1 | SWT.SHIFT)) != 0;
+        boolean othersModifiers = (stateMask & SWT.CTRL) != 0;
         boolean multiSelect = macModifiers || (!EditorUtil.isMac() && othersModifiers);
         if (multiSelect) {
             for (Node node : this.originalSelection) {
@@ -135,89 +231,16 @@ public class SceneRenderViewProvider implements IRenderViewProvider, ISelectionP
             selectedNodes.add(this.root);
         }
         List<Node> selected = new ArrayList<Node>(selectedNodes);
-        StructuredSelection newSelection = new StructuredSelection(selected);
-        // Finalize selection with operation if mouse up, pure visualization
-        // otherwise
-        if (mouseEventType == MouseEventType.MOUSE_UP) {
-            fireSelectionChanged(newSelection);
-            this.selecting = false;
-            setSelection(newSelection);
-        } else {
-            this.presenterContext.setSelection(newSelection);
-            this.presenterContext.refreshView();
-        }
-    }
-
-    // SelectionProvider
-
-    @Override
-    public void addSelectionChangedListener(ISelectionChangedListener listener) {
-        this.selectionListeners.add(listener);
+        return new StructuredSelection(selected);
     }
 
     @Override
-    public ISelection getSelection() {
-        return this.selection;
+    public void keyPressed(KeyEvent e) {
+
     }
 
     @Override
-    public void removeSelectionChangedListener(
-            ISelectionChangedListener listener) {
-        this.selectionListeners.remove(listener);
-    }
+    public void keyReleased(KeyEvent e) {
 
-    @Override
-    public void setSelection(ISelection selection) {
-        if (this.selection != selection && selection instanceof IStructuredSelection) {
-            this.selection = (IStructuredSelection)selection;
-        }
-    }
-
-    private void fireSelectionChanged(ISelection selection) {
-        SelectionChangedEvent event = new SelectionChangedEvent(this, this.selection);
-        for (ISelectionChangedListener listener : this.selectionListeners) {
-            listener.selectionChanged(event);
-        }
-    }
-
-    @Override
-    public boolean hasFocus(List<Node> nodes) {
-        return this.selecting;
-    }
-
-    @Override
-    public void mouseDoubleClick(MouseEvent e) {
-    }
-
-    @Override
-    public void mouseDown(MouseEvent e) {
-        if (this.selecting) {
-            this.selectionBoxNode.set(e.x, e.y);
-            this.dragSelect = false;
-        }
-    }
-
-    @Override
-    public void mouseUp(MouseEvent e) {
-        this.selectionBoxNode.setVisible(false);
-        this.dragSelect = false;
-    }
-
-    @Override
-    public void mouseMove(MouseEvent e) {
-        if (this.selecting) {
-            this.selectionBoxNode.setCurrent(e.x, e.y);
-            if (!this.dragSelect) {
-                // Check if the mouse has moved far enough to be considered
-                // dragging
-                Point2i delta = new Point2i(this.selectionBoxNode.getCurrent());
-                delta.sub(this.selectionBoxNode.getStart());
-                delta.absolute();
-                if (delta.x > DRAG_MARGIN || delta.y > DRAG_MARGIN) {
-                    this.dragSelect = true;
-                    this.selectionBoxNode.setVisible(true);
-                }
-            }
-        }
     }
 }

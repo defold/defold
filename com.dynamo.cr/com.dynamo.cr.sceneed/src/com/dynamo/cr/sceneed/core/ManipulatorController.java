@@ -16,15 +16,14 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.IStructuredSelection;
+import org.eclipse.swt.events.KeyEvent;
 import org.eclipse.swt.events.MouseEvent;
-import org.eclipse.swt.events.MouseListener;
-import org.eclipse.swt.events.MouseMoveListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.sceneed.ui.RootManipulator;
 
-public class ManipulatorController implements IRenderViewProvider, MouseListener, MouseMoveListener {
+public class ManipulatorController implements IRenderViewProvider, IRenderViewController {
 
     private static Logger logger = LoggerFactory.getLogger(ManipulatorController.class);
     private IRenderView renderView;
@@ -45,9 +44,8 @@ public class ManipulatorController implements IRenderViewProvider, MouseListener
         this.manipulatorRegistry = manipulatorRegistry;
         this.undoHistory = undoHistory;
         this.undoContext = undoContext;
-        this.renderView.addMouseListener(this);
-        this.renderView.addMouseMoveListener(this);
         this.renderView.addRenderProvider(this);
+        this.renderView.addRenderController(this);
     }
 
     public IRenderView getRenderView() {
@@ -62,21 +60,8 @@ public class ManipulatorController implements IRenderViewProvider, MouseListener
 
     @PreDestroy
     public void dispose() {
-        this.renderView.removeMouseListener(this);
-        this.renderView.removeMouseMoveListener(this);
         this.renderView.removeRenderProvider(this);
-    }
-
-    @Override
-    public void onNodeHit(List<Node> nodes, MouseEvent event, MouseEventType mouseEventType) {
-        this.selectedManipulator = null;
-        for (Node node : nodes) {
-            if (node instanceof Manipulator) {
-                Manipulator m = (Manipulator) node;
-                this.selectedManipulator = m;
-                return;
-            }
-        }
+        this.renderView.removeRenderController(this);
     }
 
     public RootManipulator getRootManipulator() {
@@ -132,8 +117,6 @@ public class ManipulatorController implements IRenderViewProvider, MouseListener
 
     @Override
     public void mouseDoubleClick(MouseEvent e) {
-        if (CameraController.hasCameraControlModifiers(e)) return;
-
         List<Manipulator> lst = getAllManipulators(this.rootManipulator);
         for (Manipulator m : lst) {
             m.mouseDoubleClick(e);
@@ -142,8 +125,6 @@ public class ManipulatorController implements IRenderViewProvider, MouseListener
 
     @Override
     public void mouseDown(MouseEvent e) {
-        if (CameraController.hasCameraControlModifiers(e)) return;
-
         List<Manipulator> lst = getAllManipulators(this.rootManipulator);
         for (Manipulator m : lst) {
             m.mouseDown(e);
@@ -152,8 +133,6 @@ public class ManipulatorController implements IRenderViewProvider, MouseListener
 
     @Override
     public void mouseUp(MouseEvent e) {
-        if (CameraController.hasCameraControlModifiers(e)) return;
-
         List<Manipulator> lst = getAllManipulators(this.rootManipulator);
         for (Manipulator m : lst) {
             m.mouseUp(e);
@@ -162,8 +141,6 @@ public class ManipulatorController implements IRenderViewProvider, MouseListener
 
     @Override
     public void mouseMove(MouseEvent e) {
-        if (CameraController.hasCameraControlModifiers(e)) return;
-
         List<Manipulator> lst = getAllManipulators(this.rootManipulator);
         for (Manipulator m : lst) {
             m.mouseMove(e);
@@ -203,13 +180,42 @@ public class ManipulatorController implements IRenderViewProvider, MouseListener
     }
 
     @Override
-    public boolean hasFocus(List<Node> nodes) {
-        for (Node node : nodes) {
-            if (node instanceof Manipulator) {
-                return true;
+    public FocusType getFocusType(List<Node> nodes, MouseEvent event) {
+        if (event.button == 1) {
+            for (Node node : nodes) {
+                if (node instanceof Manipulator) {
+                    return FocusType.MANIPULATOR;
+                }
             }
         }
-        return false;
+        return FocusType.NONE;
     }
 
+    @Override
+    public void initControl(List<Node> nodes) {
+        this.selectedManipulator = null;
+        for (Node node : nodes) {
+            if (node instanceof Manipulator) {
+                this.selectedManipulator = (Manipulator) node;
+                return;
+            }
+        }
+    }
+
+    @Override
+    public void finalControl() {
+        this.selectedManipulator = null;
+    }
+
+    @Override
+    public void keyPressed(KeyEvent e) {
+        // TODO Auto-generated method stub
+
+    }
+
+    @Override
+    public void keyReleased(KeyEvent e) {
+        // TODO Auto-generated method stub
+
+    }
 }
