@@ -354,7 +354,7 @@ public class CurveEditor extends Canvas implements PaintListener,
         if (mode == Mode.PANNING) {
             offsetY += dy;
             redraw();
-        } else if (mode == Mode.MOVE) {
+        } else if (mode == Mode.MOVE && activeSpline != null) {
 
             if (hit.handle == Handle.CONTROL) {
                 double newX = fromScreenX(e.x - hit.mouseDX) ;
@@ -389,8 +389,16 @@ public class CurveEditor extends Canvas implements PaintListener,
         if (provider == null)
             return;
 
+        Point size = getSize();
+
+        double center = (fromScreenY(0) + fromScreenY(size.y)) * 0.5;
+        double screenCenter0 = toScreenY(center);
+
         zoomY += 0.01 * e.count * zoomY;
         zoomY = Math.max(0.01, zoomY);
+        double screenCenter1 = toScreenY(center);
+        offsetY += (screenCenter0 - screenCenter1);
+
         redraw();
     }
 
@@ -487,6 +495,78 @@ public class CurveEditor extends Canvas implements PaintListener,
         }
 
         mode = Mode.IDLE;
+    }
+
+    /**
+     * Zoom to fit
+     * @param zoomScale extra margin, e.g. 1.1 yields 10% extra
+     */
+    public void fit(double zoomScale) {
+        double[] e = new double[2];
+        double min = Double.MAX_VALUE;
+        double max = -Double.MAX_VALUE;
+
+        for (int i = 0; i < input.length; ++i) {
+            if (!provider.isEnabled(i))
+                continue;
+
+            HermiteSpline spline = this.provider.getSpline(i);
+            spline.getExtremValues(e);
+            min = Math.min(min, e[0]);
+            max = Math.max(max, e[1]);
+        }
+
+        if (min != Double.MAX_VALUE) {
+            // We must have at least one spline
+
+            double dist = max - min;
+            min -= (dist * zoomScale - dist) / 2.0;
+            max += (dist * zoomScale - dist) / 2.0;
+
+            Point size = getSize();
+            double plotHeight = size.y;
+
+            /*
+             * The transformation to screen space
+             * yScreen = plotHeight - (y * zoomY - offsetY)
+             *
+             * Solve the equations:
+             *
+             *   0 = plotHeight - (max * zoomY - offsetY)           (1)
+             *   plotHeight = plotHeight - (min * zoomY - offsetY)  (2)
+             *
+             * <=>
+             *
+             *   0 = plotHeight - (max * zoomY - offsetY)           (3)
+             *   0 = -(min * zoomY - offsetY)                       (4)
+             *
+             * <=>
+             *
+             *   0 = plotHeight - (max * zoomY - offsetY)           (5)
+             *   offsetY = min * zoomY                              (6)
+             *
+             *   (5) + (6)
+             *
+             * =>
+             *
+             *   0 = plotHeight - (max * zoomY - min * zoomY) = plotHeight - zoomY * (max - min)
+             *
+             * <=>
+             *
+             *   zoomY = plotHeight / (max - min)                   (7)
+             *
+             *
+             */
+
+            if (Math.abs(max - min) <= 0.001) {
+                min -= 5;
+                max += 5;
+            }
+            zoomY = plotHeight / (max - min);
+
+            offsetY = min * zoomY;
+        }
+
     }
 
 }

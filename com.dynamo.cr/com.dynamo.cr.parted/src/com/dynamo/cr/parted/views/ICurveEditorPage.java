@@ -8,4 +8,6 @@ public interface ICurveEditorPage extends IPage {
 
     public void init(IViewSite site);
 
+    public void frame();
+
 }

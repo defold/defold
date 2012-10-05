@@ -122,6 +122,65 @@ public class HermiteSpline implements Serializable {
         return value[1];
     }
 
+    public void getExtremValues(double[] v) {
+        int segmentCount = getSegmentCount();
+        double min = Double.MAX_VALUE;
+        double max = -Double.MAX_VALUE;
+
+        for (int s = 0; s < segmentCount; ++s) {
+            SplinePoint p0 = getPoint(s);
+            SplinePoint p1 = getPoint(s + 1);
+
+            double dx = p1.getX() - p0.getX();
+
+            double py0 = p0.getY();
+            double py1 = p1.getY();
+            double pt0 = dx * p0.getTy() / p0.getTx();
+            double pt1 = dx * p1.getTy() / p1.getTx();
+
+            //double x = p0.getX() * (1 - segT) + p1.getX() * segT;
+            //double y = hermite(py0, py1, pt0, pt1, segT);
+
+            /*
+             * A, B and C are the coefficent to the differntitated hermite spline
+             * in power form, i.e. A * t^3 + B * t^2 ...
+             */
+            double A = 3 * (2 * py0  - 2 * py1 + pt0 + pt1);
+            double B = 2 * (-3 * py0 + 3 * py1 - 2 * pt0 - pt1);
+            double C = pt0;
+
+            double t0, t1;
+            // Solve the equation for extreme points
+
+            // Solution to the equation? (A straight line donsn't have a solution)
+            if (Math.abs(A) > 0.0001) {
+                double Q0 = B / (2 * A);
+                double Q1 = B * B / (4 * A * A) - C / A;
+                if (Q1 > 0) {
+                    t0 = -Q0 + Math.sqrt(Q1);
+                    t1 = -Q0 - Math.sqrt(Q1);
+                } else {
+                    // No solution the equation
+                    t0 = 0;
+                    t1 = 1;
+                }
+            } else {
+                t0 = 0;
+                t1 = 1;
+            }
+
+            double y0 = hermite(py0, py1, pt0, pt1, t0);
+            double y1 = hermite(py0, py1, pt0, pt1, t1);
+
+            min = Math.min(min, Math.min(y0, y1));
+            max = Math.max(max, Math.max(y0, y1));
+        }
+
+        v[0] = min;
+        v[1] = max;
+    }
+
+
     public void getTangent(int segment, double t, double[] value) {
         SplinePoint p0 = getPoint(segment);
         SplinePoint p1 = getPoint(segment + 1);
@@ -216,4 +275,5 @@ public class HermiteSpline implements Serializable {
     public Object getUserData() {
         return userData;
     }
+
 }

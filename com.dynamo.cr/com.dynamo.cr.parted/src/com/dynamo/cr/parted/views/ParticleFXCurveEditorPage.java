@@ -263,6 +263,7 @@ public class ParticleFXCurveEditorPage implements ICurveEditorPage, ISelectionLi
         if (!Arrays.equals(input, oldInput)) {
             list.setInput(input);
             curveEditor.setInput(input);
+            curveEditor.fit(1.1);
         }
 
         oldInput = input;
@@ -322,6 +323,12 @@ public class ParticleFXCurveEditorPage implements ICurveEditorPage, ISelectionLi
         } else {
             hidden.add(element);
         }
+        this.curveEditor.redraw();
+    }
+
+    @Override
+    public void frame() {
+        this.curveEditor.fit(1.1);
         this.curveEditor.redraw();
     }
 }

@@ -62,5 +62,46 @@ public class HermiteSplineTest {
         assertEquals(v1[1], v2[1], EPSILON);
     }
 
+    @Test
+    public void testExtremValues1() {
+        HermiteSpline spline = new HermiteSpline();
+        spline = spline.setPosition(0, 0, 0);
+        spline = spline.setTangent(0, 1, 1);
+        spline = spline.setPosition(1, 0, 0);
+        spline = spline.setTangent(1, 1, 0);
+
+        double[] v = new double[2];
+        spline.getExtremValues(v);
+        assertEquals(0, v[0], EPSILON);
+        assertEquals(0.148148, v[1], EPSILON);
+    }
+
+    @Test
+    public void testExtremValues2() {
+        HermiteSpline spline = new HermiteSpline();
+        spline = spline.setPosition(0, 0, 0);
+        spline = spline.setTangent(0, 1, 1);
+        spline = spline.setPosition(1, 0, 1);
+        spline = spline.setTangent(1, 1, 1);
+
+        double[] v = new double[2];
+        spline.getExtremValues(v);
+        assertEquals(0, v[0], EPSILON);
+        assertEquals(1, v[1], EPSILON);
+    }
+
+    @Test
+    public void testExtremValues3() {
+        HermiteSpline spline = new HermiteSpline();
+        spline = spline.setPosition(0, 0, 0);
+        spline = spline.setTangent(0, 1, 0);
+        spline = spline.setPosition(1, 0, 0);
+        spline = spline.setTangent(1, 1, 0);
+
+        double[] v = new double[2];
+        spline.getExtremValues(v);
+        assertEquals(0, v[0], EPSILON);
+        assertEquals(0, v[1], EPSILON);
+    }
 
 }

@@ -109,6 +109,12 @@ public class CurveEditorDemo {
                             }
                         }
                     }
+
+                    if (e.character == 'f') {
+                        ce.fit(1.1);
+                        ce.redraw();
+                    }
+
                 } catch (ExecutionException e1) {
                     e1.printStackTrace();
                 }

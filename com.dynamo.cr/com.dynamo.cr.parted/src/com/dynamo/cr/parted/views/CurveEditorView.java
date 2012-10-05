@@ -106,4 +106,10 @@ public class CurveEditorView extends ViewPart implements IPartListener {
         }
     }
 
+    public void frame() {
+        if (this.page != null) {
+            page.frame();
+        }
+    }
+
 }

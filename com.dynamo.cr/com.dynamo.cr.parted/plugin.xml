@@ -213,6 +213,23 @@
             </reference>
          </activeWhen>
       </handler>
+      <handler
+            class="com.dynamo.cr.parted.handlers.FrameCurves"
+            commandId="com.dynamo.cr.sceneed.ui.commands.frameObjects">
+         <activeWhen>
+            <and>
+               <with
+                     variable="activePartId">
+                  <equals
+                        value="com.dynamo.cr.parted.curveEditorView">
+                  </equals>
+               </with>
+               <reference
+                     definitionId="com.dynamo.cr.sceneed.definitions.sceneEditorActive">
+               </reference>
+            </and>
+         </activeWhen>
+      </handler>
    </extension>
    <extension
          point="org.eclipse.core.expressions.definitions">
@@ -235,6 +252,15 @@
                      value="com.dynamo.cr.parted.nodes.EmitterNode">
                </instanceof>
             </iterate>
+         </with>
+      </definition>
+      <definition
+            id="com.dynamo.cr.parted.definitions.curveEditorActive">
+         <with
+               variable="activePartId">
+            <equals
+                  value="com.dynamo.cr.parted.curveEditorView">
+            </equals>
          </with>
       </definition>
    </extension>
