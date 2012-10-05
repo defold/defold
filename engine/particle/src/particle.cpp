@@ -146,15 +146,6 @@ namespace dmParticle
         }
         dmParticleDDF::ParticleFX* ddf = prototype->m_DDF;
         uint32_t emitter_count = ddf->m_Emitters.m_Count;
-        for (uint32_t i = 0; i < emitter_count; ++i)
-        {
-            dmParticleDDF::Emitter* emitter_ddf = &ddf->m_Emitters[i];
-            if (emitter_ddf->m_MaxParticleCount > context->m_MaxParticleCount)
-            {
-                dmLogError("Instance could not be created since it has a higher particle count than the maximum number allowed (%d). Tweak \"%s\" in the config file.", context->m_MaxParticleCount, MAX_PARTICLE_COUNT_KEY);
-                return 0;
-            }
-        }
         Instance* instance = new Instance;
         uint16_t index = context->m_InstanceIndexPool.Pop();
 
@@ -206,7 +197,27 @@ namespace dmParticle
         Prototype* prototype = i->m_Prototype;
         dmParticleDDF::ParticleFX* ddf = prototype->m_DDF;
         uint32_t prototype_emitter_count = prototype->m_Emitters.Size();
-        if (emitter_count != prototype_emitter_count)
+
+        /*
+         * Reload if
+         * - emitter count differs
+         *   or
+         * - max particle count differs
+         */
+        bool do_reload = emitter_count != prototype_emitter_count;
+        if (emitter_count == prototype_emitter_count)
+        {
+            for (uint32_t emitter_i = 0; emitter_i < emitter_count; ++emitter_i)
+            {
+                if (emitters[emitter_i].m_Particles.Capacity() != ddf->m_Emitters[emitter_i].m_MaxParticleCount)
+                {
+                    do_reload = true;
+                    break;
+                }
+            }
+        }
+
+        if (do_reload)
         {
             // Deallocate particle data if we are shrinking
             if (prototype_emitter_count < emitter_count)

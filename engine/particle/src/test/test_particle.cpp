@@ -811,6 +811,15 @@ TEST_F(ParticleTest, ReloadInstance)
     ASSERT_EQ(1u, i->m_Emitters[0].m_Particles.Size());
     ASSERT_TRUE(dmParticle::IsSpawning(m_Context, instance));
 
+    // Test reload with max_particle_count changed
+    ASSERT_TRUE(ReloadPrototype("reload3.particlefxc", m_Prototype));
+    dmParticle::ReloadInstance(m_Context, instance);
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+
+    ASSERT_EQ(1u, i->m_Emitters.Size());
+    ASSERT_EQ(2u, i->m_Emitters[0].m_Particles.Size());
+    ASSERT_TRUE(dmParticle::IsSpawning(m_Context, instance));
+
     dmParticle::DestroyInstance(m_Context, instance);
 }
 
