@@ -28,8 +28,8 @@ import com.dynamo.cr.properties.PropertyUtil;
 
 public class RGBPropertyDesc<T, U extends IPropertyObjectWorld> extends PropertyDesc<T, U>  {
 
-    public RGBPropertyDesc(String id, String name) {
-        super(id, name);
+    public RGBPropertyDesc(String id, String name, String catgory) {
+        super(id, name, catgory);
     }
 
     private class Editor implements IPropertyEditor<T, U>, Listener {

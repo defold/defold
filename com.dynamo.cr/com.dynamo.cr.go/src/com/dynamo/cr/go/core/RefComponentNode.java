@@ -220,7 +220,7 @@ public class RefComponentNode extends ComponentNode {
                 for (int j = 1; j < tokenCount; ++j) {
                     name += tokens[j].substring(0, 1).toUpperCase() + tokens[j].substring(1);
                 }
-                descs[i] = new TextPropertyDesc<RefComponentNode, ISceneModel>(defProp.getName(), name, EditorType.DEFAULT);
+                descs[i] = new TextPropertyDesc<RefComponentNode, ISceneModel>(defProp.getName(), name, null, EditorType.DEFAULT);
             }
             ++i;
         }

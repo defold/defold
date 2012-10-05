@@ -30,8 +30,8 @@ public class ProtoEnumDesc<T, U extends IPropertyObjectWorld> extends PropertyDe
 
     private Enum<?>[] enumValues;
 
-    public ProtoEnumDesc(Class<? extends ProtocolMessageEnum> type, String id, String name) {
-        super(id, name);
+    public ProtoEnumDesc(Class<? extends ProtocolMessageEnum> type, String id, String name, String catgory) {
+        super(id, name, catgory);
         Method values;
         try {
             values = type.getMethod("values");

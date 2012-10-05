@@ -32,8 +32,8 @@ public abstract class ScalarPropertyDesc<S, T, U extends IPropertyObjectWorld> e
     public static final String BACKGROUND_COLOR_KEY = "com.dynamo.cr.properties.BACKGROUND_COLOR";
     public static final String OVERRIDDEN_COLOR_KEY = "com.dynamo.cr.properties.OVERRIDDEN_COLOR";
 
-    public ScalarPropertyDesc(String id, String name, EditorType editorType) {
-        super(id, name);
+    public ScalarPropertyDesc(String id, String name, String catgory, EditorType editorType) {
+        super(id, name, catgory);
         this.editorType = editorType;
 
         // NOTE: A temporary solution in order to avoid memory leaks (Color)

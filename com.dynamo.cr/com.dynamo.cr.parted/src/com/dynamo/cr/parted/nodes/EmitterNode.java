@@ -47,7 +47,7 @@ public class EmitterNode extends Node {
     private static EmitterKey[] emitterKeys;
     private static ParticleKey[] particleKeys;
 
-    @Property(editorType = EditorType.DROP_DOWN)
+    @Property(editorType = EditorType.DROP_DOWN, category = "Emitter")
     private PlayMode playMode;
 
     @Property(editorType = EditorType.DROP_DOWN)
@@ -157,7 +157,7 @@ public class EmitterNode extends Node {
             if (displayName == null) {
                 displayName = k.name();
             }
-            IPropertyDesc<EmitterNode, ISceneModel> p = new ValueSpreadPropertyDesc<EmitterNode, ISceneModel>(k.name(), displayName);
+            IPropertyDesc<EmitterNode, ISceneModel> p = new ValueSpreadPropertyDesc<EmitterNode, ISceneModel>(k.name(), displayName, "Emitter");
             lst.add(p);
         }
 
@@ -167,7 +167,7 @@ public class EmitterNode extends Node {
             if (displayName == null) {
                 displayName = k.name();
             }
-            IPropertyDesc<EmitterNode, ISceneModel> p = new ValueSpreadPropertyDesc<EmitterNode, ISceneModel>(k.name(), displayName);
+            IPropertyDesc<EmitterNode, ISceneModel> p = new ValueSpreadPropertyDesc<EmitterNode, ISceneModel>(k.name(), displayName, "Particle");
             lst.add(p);
         }
 
