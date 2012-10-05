@@ -23,6 +23,7 @@ import org.junit.Test;
 
 import com.dynamo.cr.editor.core.IResourceType;
 import com.dynamo.cr.editor.core.IResourceTypeRegistry;
+import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.Node;
 
 public class NodeTest extends AbstractNodeTest {
@@ -119,6 +120,39 @@ public class NodeTest extends AbstractNodeTest {
         child.setWorldTransform(world);
 
         assertWorld(child, translation, rotation);
+    }
+
+
+    void assertAABBCenterX(Node node, double x) {
+        AABB aabb = new AABB();
+        node.getWorldAABB(aabb);
+        double cx = (aabb.getMin().x + aabb.getMax().x) * 0.5;
+        assertEquals(x, cx, 0.001);
+    }
+
+    @Test
+    public void testAABB() throws ExecutionException {
+        int c = DummyNode.AABB_EXTENTS;
+        int rootX = 10;
+
+        DummyNode r = new DummyNode();
+        r.setTranslation(new Point3d(-5, 0, 0));
+        assertAABBCenterX(r, -5);
+        r.setTranslation(new Point3d(-rootX, 0, 0));
+        assertAABBCenterX(r, -rootX);
+
+        DummyNode c1 = new DummyNode();
+        c1.setTranslation(new Point3d(1, 0, 0));
+        r.addChild(c1);
+        assertAABBCenterX(r, ((-rootX - c) + (-rootX + c + c)) * 0.5);
+
+        c1.setTranslation(new Point3d(0, 0, 0));
+        assertAABBCenterX(r, -rootX);
+
+        c1.setTranslation(new Point3d(1, 0, 0));
+        assertAABBCenterX(r, ((-rootX - c) + (-rootX + c + c)) * 0.5);
+        r.removeChild(c1);
+        assertAABBCenterX(r, -rootX);
     }
 
 }

@@ -22,6 +22,7 @@ import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.cr.properties.descriptors.ValueSpreadPropertyDesc;
 import com.dynamo.cr.properties.types.ValueSpread;
+import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.util.LoaderUtil;
@@ -81,6 +82,7 @@ public class EmitterNode extends Node {
     private Map<ParticleKey, ValueSpread> particleProperties = new HashMap<ParticleKey, ValueSpread>();
 
     public EmitterNode(Emitter emitter) {
+        initDefaults();
         setTransformable(true);
         setTranslation(LoaderUtil.toPoint3d(emitter.getPosition()));
         setRotation(LoaderUtil.toQuat4(emitter.getRotation()));
@@ -106,6 +108,22 @@ public class EmitterNode extends Node {
             case MODIFIER_TYPE_DRAG:
                 addChild(new DragNode(m));
             }
+        }
+
+        updateAABB();
+    }
+
+    private void initDefaults() {
+        for (EmitterKey k : emitterKeys) {
+            ValueSpread vs = new ValueSpread();
+            vs.setCurve(new HermiteSpline());
+            this.properties.put(k, vs);
+        }
+
+        for (ParticleKey k : particleKeys) {
+            ValueSpread vs = new ValueSpread();
+            vs.setCurve(new HermiteSpline());
+            this.particleProperties.put(k, vs);
         }
     }
 
@@ -133,10 +151,44 @@ public class EmitterNode extends Node {
         return false;
     }
 
-    public void setProperty(String key, ValueSpread value) {
+    private final void updateAABB() {
 
+        AABB aabb = new AABB();
+        double sizeX = getProperty(EmitterKey.EMITTER_KEY_SIZE_X.toString()).getValue();
+        double sizeY = getProperty(EmitterKey.EMITTER_KEY_SIZE_Y.toString()).getValue();
+        double sizeZ = getProperty(EmitterKey.EMITTER_KEY_SIZE_Z.toString()).getValue();
+
+        double wExt = 1;
+        double hExt = 1;
+        double dExt = 1;
+
+        switch (getEmitterType()) {
+        case EMITTER_TYPE_BOX:
+            wExt = sizeX;
+            hExt = sizeY;
+            dExt = sizeZ;
+            break;
+        case EMITTER_TYPE_SPHERE:
+            wExt = sizeX;
+            hExt = sizeX;
+            dExt = sizeX;
+            break;
+        case EMITTER_TYPE_CONE:
+            wExt = sizeX;
+            hExt = sizeY;
+            dExt = sizeX;
+            break;
+        }
+
+        aabb.union(-wExt, -hExt, -dExt);
+        aabb.union(wExt, hExt, dExt);
+        setAABB(aabb);
+    }
+
+    public void setProperty(String key, ValueSpread value) {
         if (isEmitterKey(key)) {
             properties.get(EmitterKey.valueOf(key)).set(value);
+            updateAABB();
         } else {
             particleProperties.get(ParticleKey.valueOf(key)).set(value);
         }
@@ -202,12 +254,6 @@ public class EmitterNode extends Node {
     }
 
     private void setProperties(List<Emitter.Property> list) {
-        for (EmitterKey k : emitterKeys) {
-            ValueSpread vs = new ValueSpread();
-            vs.setCurve(new HermiteSpline());
-            this.properties.put(k, vs);
-        }
-
         for (Emitter.Property p : list) {
             ValueSpread vs = ParticleUtils.toValueSpread(p.getPointsList());
             this.properties.put(p.getKey(), vs);
@@ -215,12 +261,6 @@ public class EmitterNode extends Node {
     }
 
     private void setParticleProperties(List<Emitter.ParticleProperty> list) {
-        for (ParticleKey k : particleKeys) {
-            ValueSpread vs = new ValueSpread();
-            vs.setCurve(new HermiteSpline());
-            this.particleProperties.put(k, vs);
-        }
-
         for (ParticleProperty p : list) {
             ValueSpread vs = ParticleUtils.toValueSpread(p.getPointsList());
             this.particleProperties.put(p.getKey(), vs);
@@ -342,6 +382,7 @@ public class EmitterNode extends Node {
 
     public void setEmitterType(EmitterType emitterType) {
         this.emitterType = emitterType;
+        updateAABB();
         reloadSystem();
     }
 

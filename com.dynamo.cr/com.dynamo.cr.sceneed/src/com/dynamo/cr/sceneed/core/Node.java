@@ -87,7 +87,11 @@ public abstract class Node implements IAdaptable, Serializable {
     }
 
     private void setDirty() {
-        this.worldAABBDirty = true;
+        Node p = this;
+        while (p != null) {
+            p.worldAABBDirty = true;
+            p = p.getParent();
+        }
         transformChanged();
     }
 
@@ -314,6 +318,7 @@ public abstract class Node implements IAdaptable, Serializable {
             child.setParent(this);
             childAdded(child);
         }
+        setDirty();
     }
 
     protected void childAdded(Node child) {
@@ -326,6 +331,7 @@ public abstract class Node implements IAdaptable, Serializable {
             children.remove(child);
             child.setParent(null);
             childRemoved(child);
+            setDirty();
         }
     }
 
