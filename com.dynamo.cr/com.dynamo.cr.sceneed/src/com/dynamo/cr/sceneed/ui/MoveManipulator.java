@@ -85,11 +85,10 @@ public class MoveManipulator extends RootManipulator {
             Vector3d translation = new Vector3d();
             transform.get(translation);
             center.add(translation);
-            this.translation.set(translation);
         }
 
         center.scale(1.0 / sel.size());
-        setTranslation(center);
+        this.translation.set(center);
     }
 
     @Override
