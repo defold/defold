@@ -110,7 +110,8 @@ namespace dmParticle
         for (uint32_t s = 0; s < segment_count - 1; ++s) {
             const SplinePoint& p0 = segments[s];
             const SplinePoint& p1 = segments[s + 1];
-            if (x >= p0.m_X && x < p1.m_X) {
+            // break when we found the appropriate segemnt, or the last one
+            if ((x >= p0.m_X && x < p1.m_X) || s == segment_count - 2) {
                 t = (x - p0.m_X) / (p1.m_X - p0.m_X);
                 segment_index = s;
                 break;
