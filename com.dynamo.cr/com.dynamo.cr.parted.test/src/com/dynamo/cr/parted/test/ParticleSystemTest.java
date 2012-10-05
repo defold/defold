@@ -19,6 +19,7 @@ import com.dynamo.cr.parted.ParticleLibrary.FetchAnimationCallback;
 import com.dynamo.cr.parted.ParticleLibrary.Quat;
 import com.dynamo.cr.parted.ParticleLibrary.RenderInstanceCallback;
 import com.dynamo.cr.parted.ParticleLibrary.Vector3;
+import com.dynamo.particle.proto.Particle.BlendMode;
 import com.dynamo.particle.proto.Particle.EmissionSpace;
 import com.dynamo.particle.proto.Particle.Emitter;
 import com.dynamo.particle.proto.Particle.EmitterKey;
@@ -77,6 +78,7 @@ public class ParticleSystemTest {
                 .setTileSource("foo")
                 .setAnimation("anim")
                 .setMaterial("test")
+                .setBlendMode(BlendMode.BLEND_MODE_MULT)
                 .setMaxParticleCount(1)
                 .setDuration(1.0f)
                 .setType(EmitterType.EMITTER_TYPE_SPHERE)
@@ -158,10 +160,11 @@ public class ParticleSystemTest {
         ParticleLibrary.Particle_Render(context, new Pointer(1122), new RenderInstanceCallback() {
             @Override
             public void invoke(Pointer userContext, Pointer material,
-                    Pointer texture, int vertexIndex, int vertexCount) {
+                    Pointer texture, int blendMode, int vertexIndex, int vertexCount) {
                 assertTrue(material.equals(originalMaterial));
                 assertTrue(texture.equals(originalTexture));
                 assertEquals(new Pointer(1122), userContext);
+                assertEquals(BlendMode.BLEND_MODE_MULT, BlendMode.valueOf(blendMode));
                 rendered[0] = true;
             }
         });

@@ -32,6 +32,7 @@ import com.dynamo.particle.proto.Particle.EmissionSpace;
 import com.dynamo.particle.proto.Particle.Emitter;
 import com.dynamo.particle.proto.Particle.Emitter.ParticleProperty;
 import com.dynamo.particle.proto.Particle.Emitter.Property.Builder;
+import com.dynamo.particle.proto.Particle.BlendMode;
 import com.dynamo.particle.proto.Particle.EmitterKey;
 import com.dynamo.particle.proto.Particle.EmitterType;
 import com.dynamo.particle.proto.Particle.Modifier;
@@ -66,6 +67,9 @@ public class EmitterNode extends Node {
 
     @Property(editorType = EditorType.RESOURCE, extensions = { "material" })
     private String material = "";
+
+    @Property(editorType = EditorType.DROP_DOWN)
+    private BlendMode blendMode = BlendMode.BLEND_MODE_ALPHA;
 
     @Property
     private int maxParticleCount;
@@ -313,6 +317,15 @@ public class EmitterNode extends Node {
         reloadSystem();
     }
 
+    public BlendMode getBlendMode() {
+        return blendMode;
+    }
+
+    public void setBlendMode(BlendMode blendMode) {
+        this.blendMode = blendMode;
+        reloadSystem();
+    }
+
     public int getMaxParticleCount() {
         return maxParticleCount;
     }
@@ -348,6 +361,7 @@ public class EmitterNode extends Node {
             .setTileSource(getTileSource())
             .setAnimation(getAnimation())
             .setMaterial(getMaterial())
+            .setBlendMode(getBlendMode())
             .setMaxParticleCount(getMaxParticleCount())
             .setType(getEmitterType())
             .setPosition(LoaderUtil.toPoint3(getTranslation()))

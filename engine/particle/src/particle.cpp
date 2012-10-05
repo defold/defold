@@ -942,7 +942,8 @@ namespace dmParticle
                     Emitter* emitter = &instance->m_Emitters[j];
                     if (!emitter || emitter->m_VertexCount == 0) continue;
 
-                    render_emitter_callback(usercontext, instance->m_Prototype->m_Emitters[j].m_Material, emitter->m_AnimationData.m_Texture, emitter->m_VertexIndex, emitter->m_VertexCount);
+                dmParticle::EmitterPrototype* emitter_proto = &instance->m_Prototype->m_Emitters[j];
+                render_emitter_callback(usercontext, emitter_proto->m_Material, emitter->m_AnimationData.m_Texture, emitter_proto->m_BlendMode, emitter->m_VertexIndex, emitter->m_VertexCount);
                 }
             }
         }
@@ -1077,6 +1078,7 @@ namespace dmParticle
                 dmParticleDDF::Emitter* emitter_ddf = &ddf->m_Emitters[i];
                 EmitterPrototype* emitter = &prototype->m_Emitters[i];
                 emitter->m_Animation = dmHashString64(emitter_ddf->m_Animation);
+                emitter->m_BlendMode = emitter_ddf->m_BlendMode;
                 // Approximate splines with linear segments
                 memset(emitter->m_Properties, 0, sizeof(emitter->m_Properties));
                 memset(emitter->m_ParticleProperties, 0, sizeof(emitter->m_ParticleProperties));

@@ -210,6 +210,8 @@ namespace dmParticle
         void*                       m_TileSource;
         /// Material to use when rendering particles.
         void*                       m_Material;
+        /// Blend mode
+        dmParticleDDF::BlendMode    m_BlendMode;
     };
 
     /**

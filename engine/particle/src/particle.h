@@ -47,7 +47,7 @@ namespace dmParticle
     /**
      * Callback to handle rendering of instances
      */
-    typedef void (*RenderInstanceCallback)(void* usercontext, void* material, void* texture, uint32_t vertex_index, uint32_t vertex_count);
+    typedef void (*RenderInstanceCallback)(void* usercontext, void* material, void* texture, dmParticleDDF::BlendMode blend_mode, uint32_t vertex_index, uint32_t vertex_count);
     /**
      * Callback to handle rendering of lines for debug purposes
      */

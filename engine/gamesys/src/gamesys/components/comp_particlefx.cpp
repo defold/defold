@@ -121,7 +121,7 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
     }
 
-    void RenderInstanceCallback(void* render_context, void* material, void* texture, uint32_t vertex_index, uint32_t vertex_count);
+    void RenderInstanceCallback(void* render_context, void* material, void* texture, dmParticleDDF::BlendMode blend_mode, uint32_t vertex_index, uint32_t vertex_count);
     void RenderLineCallback(void* render_context, Vectormath::Aos::Point3 start, Vectormath::Aos::Point3 end, Vectormath::Aos::Vector4 color);
     dmParticle::FetchAnimationResult FetchAnimationCallback(void* tile_source, dmhash_t animation, dmParticle::AnimationData* out_data);
 
@@ -190,7 +190,37 @@ namespace dmGameSystem
         dmParticle::ReloadInstance(component->m_World->m_ParticleContext, component->m_ParticleFXInstance);
     }
 
-    void RenderInstanceCallback(void* context, void* material, void* texture, uint32_t vertex_index, uint32_t vertex_count)
+    static void SetBlendFactors(dmRender::RenderObject* ro, dmParticleDDF::BlendMode blend_mode)
+    {
+        switch (blend_mode)
+        {
+            case dmParticleDDF::BLEND_MODE_ALPHA:
+                ro->m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_SRC_ALPHA;
+                ro->m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+            break;
+
+            case dmParticleDDF::BLEND_MODE_ADD:
+                ro->m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
+                ro->m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
+            break;
+
+            case dmParticleDDF::BLEND_MODE_ADD_ALPHA:
+                ro->m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_SRC_ALPHA;
+                ro->m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
+            break;
+
+            case dmParticleDDF::BLEND_MODE_MULT:
+                ro->m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_ZERO;
+                ro->m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_SRC_COLOR;
+            break;
+
+            default:
+                dmLogError("Unknown blend mode: %d\n", blend_mode);
+            break;
+        }
+    }
+
+    void RenderInstanceCallback(void* context, void* material, void* texture, dmParticleDDF::BlendMode blend_mode, uint32_t vertex_index, uint32_t vertex_count)
     {
         ParticleFXWorld* world = (ParticleFXWorld*)context;
         dmRender::RenderObject ro;
@@ -202,6 +232,8 @@ namespace dmGameSystem
         ro.m_VertexDeclaration = world->m_VertexDeclaration;
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_CalculateDepthKey = 1;
+        ro.m_SetBlendFactors = 1;
+        SetBlendFactors(&ro, blend_mode);
         world->m_RenderObjects.Push(ro);
     }
 
