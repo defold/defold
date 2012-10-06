@@ -179,6 +179,7 @@ namespace dmParticle
     struct Property
     {
         LinearSegment m_Segments[PROPERTY_SAMPLE_COUNT];
+        float m_Spread;
     };
 
     struct ModifierPrototype

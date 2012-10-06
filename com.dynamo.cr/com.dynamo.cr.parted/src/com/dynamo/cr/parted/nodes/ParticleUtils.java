@@ -12,6 +12,10 @@ import com.dynamo.particle.proto.Particle.SplinePoint;
 public class ParticleUtils {
 
     public static ValueSpread toValueSpread(List<SplinePoint> pl) {
+        return toValueSpread(pl, 0.0f);
+    }
+
+    public static ValueSpread toValueSpread(List<SplinePoint> pl, float spread) {
         int count = pl.size() * 4;
         boolean animated = pl.size() > 1;
 
@@ -42,6 +46,7 @@ public class ParticleUtils {
         vs.setCurve(spline);
         vs.setAnimated(animated);
         vs.setValue(pl.get(0).getY());
+        vs.setSpread(spread);
         return vs;
     }
 

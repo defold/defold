@@ -548,6 +548,29 @@ TEST_F(ParticleTest, EvaluateEmitterProperty)
 }
 
 /**
+ * The emitter has a constant for particle size = 0 and spread +- 1.0
+ */
+TEST_F(ParticleTest, EvaluateEmitterPropertySpread)
+{
+    float dt = 1.0f / 8.0f;
+
+    ASSERT_TRUE(LoadPrototype("emitter_spline_spread.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype);
+    uint16_t index = instance & 0xffff;
+    dmParticle::Instance* i = m_Context->m_Instances[index];
+
+    dmParticle::StartInstance(m_Context, instance);
+
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    dmParticle::Particle* particle = &i->m_Emitters[0].m_Particles[0];
+    // NOTE size could potentially be 0, but not likely
+    ASSERT_NE(0.0f, particle->GetSize());
+    ASSERT_GT(1.0f, dmMath::Abs(particle->GetSize()));
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
+/**
  * The emitter has a spline for particle scale (size is always 1), which has the points and tangents:
  * (0.00, 0), (1,0)
  * (0.25, 0), (1,1)

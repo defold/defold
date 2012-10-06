@@ -836,10 +836,12 @@ namespace dmParticle
     void EvaluateEmitterProperties(Emitter* emitter, Property* emitter_properties, float duration, float properties[EMITTER_KEY_COUNT])
     {
         float x = dmMath::Select(-duration, 0.0f, emitter->m_Timer / duration);
+        float r = dmMath::Rand11();
         uint32_t segment_index = dmMath::Min((uint32_t)(x * PROPERTY_SAMPLE_COUNT), PROPERTY_SAMPLE_COUNT - 1);
         for (uint32_t i = 0; i < EMITTER_KEY_COUNT; ++i)
         {
             SAMPLE_PROP(emitter_properties[i].m_Segments[segment_index], x, properties[i])
+            properties[i] += r * emitter_properties[i].m_Spread;
         }
     }
 
@@ -911,6 +913,8 @@ namespace dmParticle
             particle->SetVelocity(particle->GetVelocity() - c * v * dt);
         }
     }
+
+#undef SAMPLE_PROP
 
     void Simulate(Emitter* emitter, EmitterPrototype* prototype, dmParticleDDF::Emitter* ddf, float dt)
     {
@@ -1111,6 +1115,7 @@ namespace dmParticle
                     if (p.m_Key < dmParticleDDF::EMITTER_KEY_COUNT)
                     {
                         SampleProperty(p.m_Points.m_Data, p.m_Points.m_Count, emitter->m_Properties[p.m_Key].m_Segments);
+                        emitter->m_Properties[p.m_Key].m_Spread = emitter_ddf->m_Properties[i].m_Spread;
                     }
                     else
                     {

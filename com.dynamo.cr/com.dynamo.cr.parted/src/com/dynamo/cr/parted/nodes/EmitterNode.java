@@ -29,11 +29,11 @@ import com.dynamo.cr.sceneed.core.util.LoaderUtil;
 import com.dynamo.cr.tileeditor.scene.AnimationNode;
 import com.dynamo.cr.tileeditor.scene.TileSetNode;
 import com.dynamo.particle.proto.Particle;
+import com.dynamo.particle.proto.Particle.BlendMode;
 import com.dynamo.particle.proto.Particle.EmissionSpace;
 import com.dynamo.particle.proto.Particle.Emitter;
 import com.dynamo.particle.proto.Particle.Emitter.ParticleProperty;
 import com.dynamo.particle.proto.Particle.Emitter.Property.Builder;
-import com.dynamo.particle.proto.Particle.BlendMode;
 import com.dynamo.particle.proto.Particle.EmitterKey;
 import com.dynamo.particle.proto.Particle.EmitterType;
 import com.dynamo.particle.proto.Particle.Modifier;
@@ -255,7 +255,7 @@ public class EmitterNode extends Node {
 
     private void setProperties(List<Emitter.Property> list) {
         for (Emitter.Property p : list) {
-            ValueSpread vs = ParticleUtils.toValueSpread(p.getPointsList());
+            ValueSpread vs = ParticleUtils.toValueSpread(p.getPointsList(), p.getSpread());
             this.properties.put(p.getKey(), vs);
         }
     }
@@ -414,6 +414,7 @@ public class EmitterNode extends Node {
             ValueSpread vs = properties.get(k);
             Builder pb = Emitter.Property.newBuilder().setKey(k);
             pb.addAllPoints(ParticleUtils.toSplinePointList(vs));
+            pb.setSpread((float)vs.getSpread());
             b.addProperties(pb);
         }
 

@@ -118,6 +118,7 @@ message Emitter
     {
         required EmitterKey         key     = 1;
         repeated SplinePoint        points  = 2;
+        optional float              spread  = 3 [default = 0.0];
     }
     repeated Property       properties          = 12;
 
