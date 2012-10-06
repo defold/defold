@@ -192,6 +192,7 @@ public class ManipulatorTest {
 
         MouseEvent e = mock(MouseEvent.class);
         assertThat(0, is(undoHistory.getUndoHistory(undoContext).length));
+        manipulatorController.mouseDown(e);
         manipulatorController.mouseUp(e);
         // Verify that *no* operation was executed
         assertThat(0, is(undoHistory.getUndoHistory(undoContext).length));

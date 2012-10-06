@@ -99,6 +99,7 @@ public class MoveManipulator extends RootManipulator {
     @Override
     public void mouseDown(MouseEvent e) {
         this.originalTranslation = getTranslation();
+        this.transformChanged = false;
     }
 
     @Override
