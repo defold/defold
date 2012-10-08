@@ -27,6 +27,8 @@ import com.dynamo.gui.proto.Gui.SceneDesc.TextureDesc;
 import com.dynamo.input.proto.Input.GamepadMaps;
 import com.dynamo.input.proto.Input.InputBinding;
 import com.dynamo.model.proto.Model.ModelDesc;
+import com.dynamo.particle.proto.Particle.Emitter;
+import com.dynamo.particle.proto.Particle.ParticleFX;
 import com.dynamo.physics.proto.Physics.CollisionObjectDesc;
 import com.dynamo.physics.proto.Physics.CollisionShape;
 import com.dynamo.physics.proto.Physics.CollisionShape.Shape;
@@ -255,6 +257,26 @@ public class ProtoBuilders {
             BuilderUtil.checkFile(this.project, resource, "tile source", messageBuilder.getTileSet());
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tileset", "tilesetc"));
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tilesource", "tilesetc"));
+            return messageBuilder;
+        }
+    }
+
+    @ProtoParams(messageClass = ParticleFX.class)
+    @BuilderParams(name="ParticleFX", inExts=".particlefx", outExt=".particlefxc")
+    public static class ParticleFXBuilder extends ProtoBuilder<ParticleFX.Builder> {
+        @Override
+        protected ParticleFX.Builder transform(IResource resource, ParticleFX.Builder messageBuilder)
+                throws IOException, CompileExceptionError {
+            int emitterCount = messageBuilder.getEmittersCount();
+            for (int i = 0; i < emitterCount; ++i) {
+                Emitter.Builder emitterBuilder = Emitter.newBuilder(messageBuilder.getEmitters(i));
+                BuilderUtil.checkFile(this.project, resource, "tile source", emitterBuilder.getTileSource());
+                BuilderUtil.checkFile(this.project, resource, "material", emitterBuilder.getMaterial());
+                emitterBuilder.setTileSource(BuilderUtil.replaceExt(emitterBuilder.getTileSource(), "tileset", "tilesetc"));
+                emitterBuilder.setTileSource(BuilderUtil.replaceExt(emitterBuilder.getTileSource(), "tilesource", "tilesetc"));
+                emitterBuilder.setMaterial(BuilderUtil.replaceExt(emitterBuilder.getMaterial(), "material", "materialc"));
+                messageBuilder.setEmitters(i, emitterBuilder.build());
+            }
             return messageBuilder;
         }
     }

@@ -90,7 +90,9 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
 
     @Override
     public void setup(RenderContext renderContext, ParticleFXNode node) {
-        if (passes.contains(renderContext.getPass())) {
+        Pointer context = node.getContext();
+
+        if (context != null && passes.contains(renderContext.getPass())) {
             renderContext.add(this, node, new Point3d(), null);
         }
     }

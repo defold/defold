@@ -266,9 +266,9 @@ namespace dmGameSystem
             out_data->m_TexCoords = &tile_set_res->m_TexCoords.Front();
             dmGameSystemDDF::Animation* animation = &tile_set->m_Animations[anim_index];
             out_data->m_FPS = animation->m_Fps;
-            out_data->m_StartTile = animation->m_StartTile;
             out_data->m_TileWidth = tile_set->m_TileWidth;
             out_data->m_TileHeight = tile_set->m_TileHeight;
+            out_data->m_StartTile = animation->m_StartTile;
             out_data->m_EndTile = animation->m_EndTile;
             out_data->m_HFlip = animation->m_FlipHorizontal;
             out_data->m_VFlip = animation->m_FlipVertical;
@@ -293,6 +293,7 @@ namespace dmGameSystem
                 out_data->m_Playback = dmParticle::ANIM_PLAYBACK_LOOP_PINGPONG;
                 break;
             }
+            out_data->m_StructSize = sizeof(dmParticle::AnimationData);
             return dmParticle::FETCH_ANIMATION_OK;
         }
         else
