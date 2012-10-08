@@ -636,13 +636,23 @@ namespace dmParticle
                         break;
                 }
 
-                Vector3 velocity = Vector3::zAxis();
+                Vector3 dir = Vector3::yAxis();
                 if (lengthSqr(local_position) > 0.0f)
-                    velocity = normalize(local_position);
-                velocity *= emitter_properties[EMITTER_KEY_PARTICLE_SPEED];
+                    dir = normalize(local_position);
+                Vector3 velocity = dir * emitter_properties[EMITTER_KEY_PARTICLE_SPEED];
+                Quat rotation;
+                switch (ddf->m_ParticleDirection)
+                {
+                case PARTICLE_DIRECTION_NONE:
+                    rotation = Quat::identity();
+                    break;
+                case PARTICLE_DIRECTION_INITIAL_DIRECTION:
+                    rotation = Quat::rotation(Vector3::yAxis(), dir);
+                    break;
+                }
 
                 particle->SetPosition(ddf->m_Position + rotate(ddf->m_Rotation, local_position));
-                particle->SetRotation(ddf->m_Rotation);
+                particle->SetRotation(ddf->m_Rotation * rotation);
                 particle->SetVelocity(rotate(ddf->m_Rotation, velocity));
 
                 if (ddf->m_Space == EMISSION_SPACE_WORLD)
