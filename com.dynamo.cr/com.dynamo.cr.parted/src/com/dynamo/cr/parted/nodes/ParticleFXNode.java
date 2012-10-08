@@ -74,6 +74,8 @@ public class ParticleFXNode extends Node {
                         data.playback = ParticleLibrary.AnimPlayback.ANIM_PLAYBACK_LOOP_PINGPONG;
                         break;
                     }
+                    data.tileWidth = tileSetNode.getTileWidth();
+                    data.tileHeight = tileSetNode.getTileHeight();
                     data.startTile = animation.getStartTile();
                     data.endTile = animation.getEndTile();
                     data.fps = animation.getFps();

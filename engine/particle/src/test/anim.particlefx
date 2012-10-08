@@ -25,4 +25,8 @@ emitters: {
         points: { x: 0 y: 1 t_x: 1 t_y: 0 }
         points: { x: 1 y: 1 t_x: 1 t_y: 0 }
     }
+    particle_properties:         { key: PARTICLE_KEY_SCALE
+        points: { x: 0 y: 1 t_x: 1 t_y: 0 }
+        points: { x: 1 y: 1 t_x: 1 t_y: 0 }
+    }
 }

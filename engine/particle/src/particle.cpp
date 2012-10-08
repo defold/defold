@@ -665,11 +665,25 @@ namespace dmParticle
         emitter->m_VertexIndex = vertex_index;
         emitter->m_VertexCount = 0;
 
+        const AnimationData& anim_data = emitter->m_AnimationData;
         // texture animation
-        uint32_t start_tile = emitter->m_AnimationData.m_StartTile - 1;
-        uint32_t end_tile = emitter->m_AnimationData.m_EndTile - 1;
+        uint32_t start_tile = anim_data.m_StartTile - 1;
+        uint32_t end_tile = anim_data.m_EndTile - 1;
         uint32_t tile_count = end_tile - start_tile + 1;
-        float* tex_coords = emitter->m_AnimationData.m_TexCoords;
+        float* tex_coords = anim_data.m_TexCoords;
+        float width_factor = 1.0f;
+        float height_factor = 1.0f;
+        if (anim_data.m_TileWidth > anim_data.m_TileHeight)
+        {
+            height_factor = anim_data.m_TileHeight / (float)anim_data.m_TileWidth;
+        }
+        else
+        {
+            width_factor = anim_data.m_TileWidth / (float)anim_data.m_TileHeight;
+        }
+        // Extent for each vertex, scale by half
+        width_factor *= 0.5f;
+        height_factor *= 0.5f;
 
         if (tex_coords == 0x0)
         {
@@ -701,8 +715,8 @@ namespace dmParticle
             Vector3 particle_position = rotate(emission_rotation, Vector3(particle->GetPosition())) + emission_position;
             Quat particle_rotation = emission_rotation * particle->GetRotation();
 
-            Vector3 x = rotate(particle_rotation, Vector3(size, 0.0f, 0.0f));
-            Vector3 y = rotate(particle_rotation, Vector3(0.0f, size, 0.0f));
+            Vector3 x = rotate(particle_rotation, Vector3(size * width_factor, 0.0f, 0.0f));
+            Vector3 y = rotate(particle_rotation, Vector3(0.0f, size * height_factor, 0.0f));
 
             Vector3 p0 = -x - y + particle_position;
             Vector3 p1 = -x + y + particle_position;
