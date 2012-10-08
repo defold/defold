@@ -602,28 +602,30 @@ namespace dmParticle
                         if (lengthSqr(v) > 0.0f)
                             p = normalize(v);
 
-                        local_position = p * emitter_properties[EMITTER_KEY_SIZE_X];
+                        float radius = 0.5f * emitter_properties[EMITTER_KEY_SIZE_X];
+                        local_position = p * radius;
 
                         break;
                     }
 
                     case EMITTER_TYPE_CONE:
                     {
-                        float height = emitter_properties[EMITTER_KEY_SIZE_X];
-                        float radius = emitter_properties[EMITTER_KEY_SIZE_Y];
+                        float radius = 0.5f * emitter_properties[EMITTER_KEY_SIZE_X];
+                        float height = emitter_properties[EMITTER_KEY_SIZE_Y];
                         float angle = 2.0f * ((float) M_PI) * dmMath::RandOpen01();
 
-                        local_position = Vector3(cosf(angle) * radius, sinf(angle) * radius, height);
+                        float ry = dmMath::Rand01();
+                        local_position = Vector3(cosf(angle) * radius * ry, ry * height, sinf(angle) * radius * ry);
 
                         break;
                     }
 
                     case EMITTER_TYPE_BOX:
                     {
-                        float width = emitter_properties[EMITTER_KEY_SIZE_X];
-                        float height = emitter_properties[EMITTER_KEY_SIZE_Y];
-                        float depth = emitter_properties[EMITTER_KEY_SIZE_Z];
-                        local_position = Vector3(dmMath::Rand11() * width, dmMath::Rand11() * height, dmMath::Rand11() * depth);
+                        float extent_x = 0.5f * emitter_properties[EMITTER_KEY_SIZE_X];
+                        float extent_y = 0.5f * emitter_properties[EMITTER_KEY_SIZE_Y];
+                        float extent_z = 0.5f * emitter_properties[EMITTER_KEY_SIZE_Z];
+                        local_position = Vector3(dmMath::Rand11() * extent_x * 0.5f, dmMath::Rand11() * extent_y * 0.5f, dmMath::Rand11() * extent_z * 0.5f);
 
                         break;
                     }
@@ -1023,7 +1025,7 @@ namespace dmParticle
                 {
                 case EMITTER_TYPE_SPHERE:
                 {
-                    const float radius = ddf->m_Properties[EMITTER_KEY_SIZE_X].m_Points[0].m_Y;
+                    const float radius = 0.5f * ddf->m_Properties[EMITTER_KEY_SIZE_X].m_Points[0].m_Y;
 
                     const uint32_t segment_count = 16;
                     Vector3 vertices[segment_count + 1][3];
@@ -1043,7 +1045,7 @@ namespace dmParticle
                 }
                 case EMITTER_TYPE_CONE:
                 {
-                    const float radius = ddf->m_Properties[EMITTER_KEY_SIZE_X].m_Points[0].m_Y;
+                    const float radius = 0.5f * ddf->m_Properties[EMITTER_KEY_SIZE_X].m_Points[0].m_Y;
                     const float height = ddf->m_Properties[EMITTER_KEY_SIZE_Y].m_Points[0].m_Y;
 
                     // 4 pillars
