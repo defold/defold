@@ -19,8 +19,8 @@ public class CapsuleSizeManipulator extends RootManipulator {
     private ScaleAxisManipulator xScaleManipulator;
     private ScaleAxisManipulator yScaleManipulator;
     private boolean sizeChanged = false;
-    private double radius, height;
-    private double originalRadius, originalHeight;
+    private double diameter, height;
+    private double originalDiameter, originalHeight;
 
     public CapsuleSizeManipulator() {
         xScaleManipulator = new ScaleAxisManipulator(this, new float[] {1, 0, 0, 1});
@@ -47,17 +47,14 @@ public class CapsuleSizeManipulator extends RootManipulator {
     @Override
     public void manipulatorChanged(Manipulator manipulator) {
         sizeChanged = true;
-        double factor = 1.0;
-        if (manipulator == yScaleManipulator) {
-            factor = 2.0;
-        }
+        double factor = 2.0;
         for (Node node : getSelection()) {
             if (node instanceof CapsuleCollisionShapeNode) {
                 CapsuleCollisionShapeNode capsule = (CapsuleCollisionShapeNode) node;
                 if (manipulator == xScaleManipulator) {
-                    radius = originalRadius + xScaleManipulator.getDistance() * factor;
-                    radius = Math.max(0, radius);
-                    capsule.setRadius(radius);
+                    diameter = originalDiameter + xScaleManipulator.getDistance() * factor;
+                    diameter = Math.max(0, diameter);
+                    capsule.setDiameter(diameter);
                 } else if (manipulator == yScaleManipulator) {
                     height = originalHeight + yScaleManipulator.getDistance() * factor;
                     height = Math.max(0, height);
@@ -70,7 +67,7 @@ public class CapsuleSizeManipulator extends RootManipulator {
     @Override
     protected void selectionChanged() {
         CapsuleCollisionShapeNode node = (CapsuleCollisionShapeNode) getSelection().get(0);
-        radius = originalRadius = node.getRadius();
+        diameter = originalDiameter = node.getDiameter();
         height = originalHeight = node.getHeight();
         setTranslation(node.getTranslation());
         setRotation(node.getRotation());
@@ -87,15 +84,15 @@ public class CapsuleSizeManipulator extends RootManipulator {
             Node node = getSelection().get(0);
             CapsuleCollisionShapeNode capsule = (CapsuleCollisionShapeNode) node;
             // We must reset. Otherwise setPropertyValue will detect no change and return null operation
-            capsule.setRadius(originalRadius);
+            capsule.setDiameter(originalDiameter);
             capsule.setHeight(originalHeight);
 
             @SuppressWarnings("unchecked")
             IPropertyModel<Node, ISceneModel> propertyModel = (IPropertyModel<Node, ISceneModel>) node.getAdapter(IPropertyModel.class);
 
             IUndoableOperation operation = null;
-            if (radius != originalRadius) {
-                operation = propertyModel.setPropertyValue("radius", radius);
+            if (diameter != originalDiameter) {
+                operation = propertyModel.setPropertyValue("diameter", diameter);
             } else if (height != originalHeight) {
                 operation = propertyModel.setPropertyValue("height", height);
             }
@@ -105,7 +102,7 @@ public class CapsuleSizeManipulator extends RootManipulator {
             }
 
             // Set original values to current in order to "continue" scaling
-            originalRadius = radius;
+            originalDiameter = diameter;
             originalHeight = height;
         }
     }
