@@ -8,10 +8,11 @@ option java_outer_classname = "Model";
 
 message ModelDesc
 {
-    required string name        = 1;
     required string mesh        = 2 [(resource)=true];
     required string material    = 3 [(resource)=true];
     repeated string textures    = 4 [(resource)=true];
+
+    optional string name        = 10; // Deprecated
 }
 
 message SetConstant

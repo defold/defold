@@ -241,6 +241,7 @@
    <extension
          point="com.dynamo.cr.resourcetypes">
       <resource-type
+            embeddable="true"
             file-extension="model"
             id="com.dynamo.cr.ddfeditor.resourcetypes.Model"
             name="Model"
@@ -534,6 +535,7 @@
             id="com.dynamo.cr.ddfeditor.scene.modelNode"
             loader="com.dynamo.cr.ddfeditor.scene.ModelLoader"
             node="com.dynamo.cr.ddfeditor.scene.ModelNode"
+            renderer="com.dynamo.cr.ddfeditor.scene.ModelRenderer"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Model">
       </node-type>
       <node-type
@@ -582,6 +584,12 @@
       <node-type
             id="com.dynamo.cr.ddfeditor.scene.collisionShape"
             node="com.dynamo.cr.ddfeditor.scene.CollisionShapeNode">
+      </node-type>
+      <node-type
+            id="com.dynamo.cr.ddfeditor.scene.meshNode"
+            loader="com.dynamo.cr.ddfeditor.scene.MeshLoader"
+            node="com.dynamo.cr.ddfeditor.scene.MeshNode"
+            resource-type="com.dynamo.cr.ddfeditor.resourcetype.Mesh">
       </node-type>
    </extension>
    <extension
