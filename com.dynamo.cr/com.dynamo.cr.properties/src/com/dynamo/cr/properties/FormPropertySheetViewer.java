@@ -155,6 +155,7 @@ public class FormPropertySheetViewer extends Viewer {
             }
         }
 
+        this.form.setOrigin(0, 0);
         if (changed) {
             currentComposite.pack();
             currentComposite.layout(true);
