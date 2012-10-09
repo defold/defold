@@ -10,6 +10,7 @@
 
 #include "gamesys_ddf.h"
 #include "../gamesys_private.h"
+#include "../resources/res_sound.h"
 
 namespace dmGameSystem
 {
@@ -123,7 +124,8 @@ namespace dmGameSystem
             if (world->m_EntryIndices.Remaining() > 0)
             {
                 dmGameSystemDDF::PlaySound* play_sound = (dmGameSystemDDF::PlaySound*)params.m_Message->m_Data;
-                dmSound::HSoundData sound_data = (dmSound::HSoundData)*params.m_UserData;
+                Sound* sound = (Sound*) *params.m_UserData;
+                dmSound::HSoundData sound_data = sound->m_SoundData;
                 uint32_t index = world->m_EntryIndices.Pop();
                 PlayEntry& entry = world->m_Entries[index];
                 entry.m_StopRequested = 0;
@@ -132,6 +134,7 @@ namespace dmGameSystem
                 if (result == dmSound::RESULT_OK)
                 {
                     dmSound::SetParameter(entry.m_Instance, dmSound::PARAMETER_GAIN, Vectormath::Aos::Vector4(play_sound->m_Gain, 0, 0, 0));
+                    dmSound::SetLooping(entry.m_Instance, sound->m_Looping);
                 }
                 else
                 {

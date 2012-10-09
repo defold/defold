@@ -1,0 +1,13 @@
+package dmSoundDDF;
+
+import "ddf/ddf_extensions.proto";
+import "ddf/ddf_math.proto";
+
+option java_package = "com.dynamo.sound.proto";
+option java_outer_classname = "Sound";
+
+message SoundDesc
+{
+    required string sound       = 1 [(resource)=true];
+    optional int32  looping     = 2 [default = 0];
+}

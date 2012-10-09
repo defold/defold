@@ -1,4 +1,4 @@
 components {
   id: "sound"
-  component: "/sound/missing.wav"
+  component: "/sound/missing.sound"
 }

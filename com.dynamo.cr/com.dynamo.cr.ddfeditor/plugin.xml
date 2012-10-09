@@ -423,8 +423,16 @@
       </resource-type>
       <resource-type
             file-extension="wav"
+            id="com.dynamo.cr.ddfeditor.resourcetypes.WavSound"
+            name="Wav sound"
+            type-class="component">
+      </resource-type>
+      <resource-type
+            embeddable="true"
+            file-extension="sound"
             id="com.dynamo.cr.ddfeditor.resourcetypes.Sound"
             name="Sound"
+            template-data="sound: &quot;&quot; "
             type-class="component">
       </resource-type>
       <resource-type
@@ -568,6 +576,12 @@
             loader="com.dynamo.cr.ddfeditor.scene.SoundLoader"
             node="com.dynamo.cr.ddfeditor.scene.SoundNode"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Sound">
+      </node-type>
+      <node-type
+            id="com.dynamo.cr.ddfeditor.scene.wavSoundNode"
+            loader="com.dynamo.cr.ddfeditor.scene.WavSoundLoader"
+            node="com.dynamo.cr.ddfeditor.scene.WavSoundNode"
+            resource-type="com.dynamo.cr.ddfeditor.resourcetypes.WavSound">
       </node-type>
       <node-type
             id="com.dynamo.cr.ddfeditor.manipulators.sphereRadiusManipulator"

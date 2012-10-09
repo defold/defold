@@ -37,6 +37,7 @@ import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.render.proto.Material.MaterialDesc;
 import com.dynamo.render.proto.Render.RenderPrototypeDesc;
+import com.dynamo.sound.proto.Sound.SoundDesc;
 import com.dynamo.sprite.proto.Sprite.SpriteDesc;
 import com.dynamo.tile.proto.Tile.TileGrid;
 
@@ -294,5 +295,19 @@ public class ProtoBuilders {
             return messageBuilder;
         }
     }
+
+    @ProtoParams(messageClass = SoundDesc.class)
+    @BuilderParams(name="SoundDesc", inExts=".sound", outExt=".soundc")
+    public static class SoundDescBuilder extends ProtoBuilder<SoundDesc.Builder> {
+        @Override
+        protected SoundDesc.Builder transform(IResource resource, SoundDesc.Builder messageBuilder)
+                throws IOException, CompileExceptionError {
+            BuilderUtil.checkFile(this.project, resource, "sound", messageBuilder.getSound());
+            messageBuilder.setSound(BuilderUtil.replaceExt(messageBuilder.getSound(), "wav", "wavc"));
+            messageBuilder.setSound(BuilderUtil.replaceExt(messageBuilder.getSound(), "ogg", "oggc"));
+            return messageBuilder;
+        }
+    }
+
 
 }

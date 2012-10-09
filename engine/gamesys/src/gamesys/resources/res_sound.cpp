@@ -1,0 +1,71 @@
+#include "res_sound.h"
+
+#include <dlib/log.h>
+#include <sound/sound.h>
+#include "sound_ddf.h"
+
+namespace dmGameSystem
+{
+    dmResource::Result AcquireResources(dmResource::HFactory factory,
+                                        const void* buffer, uint32_t buffer_size,
+                                        Sound** sound)
+    {
+        dmSoundDDF::SoundDesc* sound_desc;
+
+        dmDDF::Result e = dmDDF::LoadMessage<dmSoundDDF::SoundDesc>(buffer, buffer_size, &sound_desc);
+        if ( e != dmDDF::RESULT_OK )
+        {
+            return dmResource::RESULT_FORMAT_ERROR;
+        }
+
+        dmSound::HSoundData sound_data = 0;
+        dmResource::Result fr = dmResource::Get(factory, sound_desc->m_Sound, (void**) &sound_data);
+        if (fr == dmResource::RESULT_OK)
+        {
+            Sound*s = new Sound();
+            s->m_SoundData = sound_data;
+            s->m_Looping = sound_desc->m_Looping;
+            *sound = s;
+        }
+
+        dmDDF::FreeMessage(sound_desc);
+        return fr;
+    }
+
+    dmResource::Result ResSoundCreate(dmResource::HFactory factory,
+                                           void* context,
+                                           const void* buffer, uint32_t buffer_size,
+                                           dmResource::SResourceDescriptor* resource,
+                                           const char* filename)
+    {
+        Sound* sound;
+        dmResource::Result r = AcquireResources(factory, buffer, buffer_size, &sound);
+        if (r == dmResource::RESULT_OK)
+        {
+            resource->m_Resource = (void*) sound;
+        }
+        return r;
+    }
+
+    dmResource::Result ResSoundDestroy(dmResource::HFactory factory,
+                                            void* context,
+                                            dmResource::SResourceDescriptor* resource)
+    {
+        Sound* sound = (Sound*) resource->m_Resource;
+
+        dmResource::Release(factory, (void*) sound->m_SoundData);
+        delete sound;
+        return dmResource::RESULT_OK;
+    }
+
+    dmResource::Result ResSoundRecreate(dmResource::HFactory factory,
+            void* context,
+            const void* buffer, uint32_t buffer_size,
+            dmResource::SResourceDescriptor* resource,
+            const char* filename)
+    {
+        // Not supported yet. This might be difficult to set a new HSouncdInstance
+        // while a sound is playing?
+        return dmResource::RESULT_OK;
+    }
+}
