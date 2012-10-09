@@ -20,7 +20,8 @@ Require-Bundle: org.eclipse.ui;bundle-version="3.6.1",
  com.dynamo.cr.properties;bundle-version="1.0.0",
  javax.media.opengl;bundle-version="1.1.1",
  com.dynamo.cr.sceneed;bundle-version="1.0.0",
- slf4j;bundle-version="1.6.4"
+ slf4j;bundle-version="1.6.4",
+ com.dynamo.cr.bob;bundle-version="1.0.0"
 Bundle-Activator: com.dynamo.cr.ddfeditor.Activator
 Bundle-ActivationPolicy: lazy
 Export-Package: com.dynamo.cr.ddfeditor.scene

@@ -31,6 +31,8 @@ namespace dmGameSystem
 
         Model* m_Model;
         dmGameObject::HInstance m_Instance;
+        Point3 m_Position;
+        Quat   m_Rotation;
         dmRender::RenderObject m_RenderObject;
         ModelWorld* m_ModelWorld;
     };
@@ -63,7 +65,10 @@ namespace dmGameSystem
         {
             Model* model = (Model*)params.m_Resource;
             ModelComponent component;
+
             component.m_Instance = params.m_Instance;
+            component.m_Position = params.m_Position;
+            component.m_Rotation = params.m_Rotation;
             component.m_Model = model;
             component.m_ModelWorld = model_world;
             component.m_RenderObject.m_Material = 0;
@@ -108,7 +113,16 @@ namespace dmGameSystem
             model = component.m_Model;
             mesh = model->m_Mesh;
             dmRender::RenderObject& ro = component.m_RenderObject;
-            Point3 position = dmGameObject::GetWorldPosition(component.m_Instance);
+
+            Point3 world_pos = dmGameObject::GetWorldPosition(component.m_Instance);
+            Quat world_rot = dmGameObject::GetWorldRotation(component.m_Instance);
+            const Quat& local_rot = component.m_Rotation;
+            const Point3& local_pos = component.m_Position;
+            Quat rotation = world_rot * local_rot;
+            Point3 position = rotate(world_rot, Vector3(local_pos)) + world_pos;
+            Matrix4 world = Matrix4::rotation(rotation);
+            world.setCol3(Vector4(position));
+
             ro.m_Material = model->m_Material;
             for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
                 ro.m_Textures[i] = model->m_Textures[i];
@@ -118,7 +132,6 @@ namespace dmGameSystem
             ro.m_VertexStart = 0;
             ro.m_VertexCount = mesh->m_VertexCount;
             ro.m_TextureTransform = Matrix4::identity();
-            Matrix4 world(dmGameObject::GetWorldRotation(component.m_Instance), Vector3(position));
             ro.m_WorldTransform = world;
             ro.m_CalculateDepthKey = 1;
             dmRender::AddToRender(render_context, &component.m_RenderObject);
