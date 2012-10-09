@@ -38,7 +38,6 @@ import com.dynamo.cr.sceneed.core.IManipulatorMode;
 import com.dynamo.cr.sceneed.core.IManipulatorRegistry;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
 import com.dynamo.cr.sceneed.core.IRenderView;
-import com.dynamo.cr.sceneed.core.IRenderViewProvider.MouseEventType;
 import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.Manipulator;
 import com.dynamo.cr.sceneed.core.ManipulatorController;
@@ -171,7 +170,7 @@ public class ManipulatorTest {
 
         MouseEvent e = mock(MouseEvent.class);
 
-        manipulatorController.onNodeHit(Arrays.asList((Node) xAxis), e, MouseEventType.MOUSE_DOWN);
+        manipulatorController.initControl(Arrays.asList((Node) xAxis));
 
         assertThat(0, is(undoHistory.getUndoHistory(undoContext).length));
         manipulatorController.mouseDown(e);
@@ -193,6 +192,7 @@ public class ManipulatorTest {
 
         MouseEvent e = mock(MouseEvent.class);
         assertThat(0, is(undoHistory.getUndoHistory(undoContext).length));
+        manipulatorController.mouseDown(e);
         manipulatorController.mouseUp(e);
         // Verify that *no* operation was executed
         assertThat(0, is(undoHistory.getUndoHistory(undoContext).length));

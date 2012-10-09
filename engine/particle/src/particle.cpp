@@ -602,28 +602,30 @@ namespace dmParticle
                         if (lengthSqr(v) > 0.0f)
                             p = normalize(v);
 
-                        local_position = p * emitter_properties[EMITTER_KEY_SIZE_X];
+                        float radius = 0.5f * emitter_properties[EMITTER_KEY_SIZE_X];
+                        local_position = p * radius;
 
                         break;
                     }
 
                     case EMITTER_TYPE_CONE:
                     {
-                        float height = emitter_properties[EMITTER_KEY_SIZE_X];
-                        float radius = emitter_properties[EMITTER_KEY_SIZE_Y];
+                        float radius = 0.5f * emitter_properties[EMITTER_KEY_SIZE_X];
+                        float height = emitter_properties[EMITTER_KEY_SIZE_Y];
                         float angle = 2.0f * ((float) M_PI) * dmMath::RandOpen01();
 
-                        local_position = Vector3(cosf(angle) * radius, sinf(angle) * radius, height);
+                        float ry = dmMath::Rand01();
+                        local_position = Vector3(cosf(angle) * radius * ry, ry * height, sinf(angle) * radius * ry);
 
                         break;
                     }
 
                     case EMITTER_TYPE_BOX:
                     {
-                        float width = emitter_properties[EMITTER_KEY_SIZE_X];
-                        float height = emitter_properties[EMITTER_KEY_SIZE_Y];
-                        float depth = emitter_properties[EMITTER_KEY_SIZE_Z];
-                        local_position = Vector3(dmMath::Rand11() * width, dmMath::Rand11() * height, dmMath::Rand11() * depth);
+                        float extent_x = 0.5f * emitter_properties[EMITTER_KEY_SIZE_X];
+                        float extent_y = 0.5f * emitter_properties[EMITTER_KEY_SIZE_Y];
+                        float extent_z = 0.5f * emitter_properties[EMITTER_KEY_SIZE_Z];
+                        local_position = Vector3(dmMath::Rand11() * extent_x * 0.5f, dmMath::Rand11() * extent_y * 0.5f, dmMath::Rand11() * extent_z * 0.5f);
 
                         break;
                     }
@@ -634,13 +636,23 @@ namespace dmParticle
                         break;
                 }
 
-                Vector3 velocity = Vector3::zAxis();
+                Vector3 dir = Vector3::yAxis();
                 if (lengthSqr(local_position) > 0.0f)
-                    velocity = normalize(local_position);
-                velocity *= emitter_properties[EMITTER_KEY_PARTICLE_SPEED];
+                    dir = normalize(local_position);
+                Vector3 velocity = dir * emitter_properties[EMITTER_KEY_PARTICLE_SPEED];
+                Quat rotation;
+                switch (ddf->m_ParticleDirection)
+                {
+                case PARTICLE_DIRECTION_NONE:
+                    rotation = Quat::identity();
+                    break;
+                case PARTICLE_DIRECTION_INITIAL_DIRECTION:
+                    rotation = Quat::rotation(Vector3::yAxis(), dir);
+                    break;
+                }
 
                 particle->SetPosition(ddf->m_Position + rotate(ddf->m_Rotation, local_position));
-                particle->SetRotation(ddf->m_Rotation);
+                particle->SetRotation(ddf->m_Rotation * rotation);
                 particle->SetVelocity(rotate(ddf->m_Rotation, velocity));
 
                 if (ddf->m_Space == EMISSION_SPACE_WORLD)
@@ -665,11 +677,25 @@ namespace dmParticle
         emitter->m_VertexIndex = vertex_index;
         emitter->m_VertexCount = 0;
 
+        const AnimationData& anim_data = emitter->m_AnimationData;
         // texture animation
-        uint32_t start_tile = emitter->m_AnimationData.m_StartTile - 1;
-        uint32_t end_tile = emitter->m_AnimationData.m_EndTile - 1;
+        uint32_t start_tile = anim_data.m_StartTile - 1;
+        uint32_t end_tile = anim_data.m_EndTile - 1;
         uint32_t tile_count = end_tile - start_tile + 1;
-        float* tex_coords = emitter->m_AnimationData.m_TexCoords;
+        float* tex_coords = anim_data.m_TexCoords;
+        float width_factor = 1.0f;
+        float height_factor = 1.0f;
+        if (anim_data.m_TileWidth > anim_data.m_TileHeight)
+        {
+            height_factor = anim_data.m_TileHeight / (float)anim_data.m_TileWidth;
+        }
+        else
+        {
+            width_factor = anim_data.m_TileWidth / (float)anim_data.m_TileHeight;
+        }
+        // Extent for each vertex, scale by half
+        width_factor *= 0.5f;
+        height_factor *= 0.5f;
 
         if (tex_coords == 0x0)
         {
@@ -701,8 +727,8 @@ namespace dmParticle
             Vector3 particle_position = rotate(emission_rotation, Vector3(particle->GetPosition())) + emission_position;
             Quat particle_rotation = emission_rotation * particle->GetRotation();
 
-            Vector3 x = rotate(particle_rotation, Vector3(size, 0.0f, 0.0f));
-            Vector3 y = rotate(particle_rotation, Vector3(0.0f, size, 0.0f));
+            Vector3 x = rotate(particle_rotation, Vector3(size * width_factor, 0.0f, 0.0f));
+            Vector3 y = rotate(particle_rotation, Vector3(0.0f, size * height_factor, 0.0f));
 
             Vector3 p0 = -x - y + particle_position;
             Vector3 p1 = -x + y + particle_position;
@@ -836,10 +862,12 @@ namespace dmParticle
     void EvaluateEmitterProperties(Emitter* emitter, Property* emitter_properties, float duration, float properties[EMITTER_KEY_COUNT])
     {
         float x = dmMath::Select(-duration, 0.0f, emitter->m_Timer / duration);
+        float r = dmMath::Rand11();
         uint32_t segment_index = dmMath::Min((uint32_t)(x * PROPERTY_SAMPLE_COUNT), PROPERTY_SAMPLE_COUNT - 1);
         for (uint32_t i = 0; i < EMITTER_KEY_COUNT; ++i)
         {
             SAMPLE_PROP(emitter_properties[i].m_Segments[segment_index], x, properties[i])
+            properties[i] += r * emitter_properties[i].m_Spread;
         }
     }
 
@@ -911,6 +939,8 @@ namespace dmParticle
             particle->SetVelocity(particle->GetVelocity() - c * v * dt);
         }
     }
+
+#undef SAMPLE_PROP
 
     void Simulate(Emitter* emitter, EmitterPrototype* prototype, dmParticleDDF::Emitter* ddf, float dt)
     {
@@ -1005,7 +1035,7 @@ namespace dmParticle
                 {
                 case EMITTER_TYPE_SPHERE:
                 {
-                    const float radius = ddf->m_Properties[EMITTER_KEY_SIZE_X].m_Points[0].m_Y;
+                    const float radius = 0.5f * ddf->m_Properties[EMITTER_KEY_SIZE_X].m_Points[0].m_Y;
 
                     const uint32_t segment_count = 16;
                     Vector3 vertices[segment_count + 1][3];
@@ -1025,7 +1055,7 @@ namespace dmParticle
                 }
                 case EMITTER_TYPE_CONE:
                 {
-                    const float radius = ddf->m_Properties[EMITTER_KEY_SIZE_X].m_Points[0].m_Y;
+                    const float radius = 0.5f * ddf->m_Properties[EMITTER_KEY_SIZE_X].m_Points[0].m_Y;
                     const float height = ddf->m_Properties[EMITTER_KEY_SIZE_Y].m_Points[0].m_Y;
 
                     // 4 pillars
@@ -1111,6 +1141,7 @@ namespace dmParticle
                     if (p.m_Key < dmParticleDDF::EMITTER_KEY_COUNT)
                     {
                         SampleProperty(p.m_Points.m_Data, p.m_Points.m_Count, emitter->m_Properties[p.m_Key].m_Segments);
+                        emitter->m_Properties[p.m_Key].m_Spread = emitter_ddf->m_Properties[i].m_Spread;
                     }
                     else
                     {

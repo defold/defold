@@ -12,7 +12,7 @@ public class CapsuleCollisionShapeNode extends CollisionShapeNode {
 
     @Property
     @GreaterThanZero
-    private double radius;
+    private double diameter;
     @Property
     @GreaterThanZero
     private double height;
@@ -22,7 +22,7 @@ public class CapsuleCollisionShapeNode extends CollisionShapeNode {
         if (data.length - index < 2) {
             createBoundsStatusError();
         } else {
-            setRadius(data[index + 0]);
+            setDiameter(2.0f * data[index + 0]);
             setHeight(data[index + 1]);
         }
         updateAABB();
@@ -30,17 +30,18 @@ public class CapsuleCollisionShapeNode extends CollisionShapeNode {
 
     private final void updateAABB() {
         AABB aabb = new AABB();
+        double radius = 0.5f * this.diameter;
         aabb.union(-radius, -height, -radius);
         aabb.union(radius, height, radius);
         setAABB(aabb);
     }
 
-    public double getRadius() {
-        return radius;
+    public double getDiameter() {
+        return diameter;
     }
 
-    public void setRadius(double radius) {
-        this.radius = radius;
+    public void setDiameter(double diameter) {
+        this.diameter = diameter;
         updateAABB();
     }
 

@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 
+import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
 import javax.vecmath.Vector4d;
 
@@ -12,6 +13,7 @@ import org.eclipse.core.runtime.NullProgressMonitor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.dynamo.cr.go.core.ComponentTypeNode;
 import com.dynamo.cr.parted.ParticleLibrary;
 import com.dynamo.cr.parted.ParticleLibrary.AnimationData;
 import com.dynamo.cr.parted.ParticleLibrary.FetchAnimationCallback;
@@ -27,7 +29,7 @@ import com.sun.jna.Pointer;
 import com.sun.jna.ptr.IntByReference;
 import com.sun.opengl.util.BufferUtil;
 
-public class ParticleFXNode extends Node {
+public class ParticleFXNode extends ComponentTypeNode {
     public static final int VERTEX_COMPONENT_COUNT = 9;
     public static final int PARTICLE_VERTEX_COUNT = 6;
 
@@ -74,6 +76,8 @@ public class ParticleFXNode extends Node {
                         data.playback = ParticleLibrary.AnimPlayback.ANIM_PLAYBACK_LOOP_PINGPONG;
                         break;
                     }
+                    data.tileWidth = tileSetNode.getTileWidth();
+                    data.tileHeight = tileSetNode.getTileHeight();
                     data.startTile = animation.getStartTile();
                     data.endTile = animation.getEndTile();
                     data.fps = animation.getFps();
@@ -99,7 +103,9 @@ public class ParticleFXNode extends Node {
     }
 
     public ParticleFXNode(Vector4d translation, Quat4d rotation) {
-        super(translation, rotation);
+        super();
+        setTranslation(new Point3d(translation.getX(), translation.getY(), translation.getZ()));
+        setRotation(rotation);
     }
 
     @Override
@@ -176,7 +182,7 @@ public class ParticleFXNode extends Node {
     }
 
     private void doReload() {
-        if (prototype == null || !reload) {
+        if (context == null || prototype == null || !reload) {
             return;
         }
         reload = false;
@@ -189,6 +195,9 @@ public class ParticleFXNode extends Node {
     }
 
     public void simulate(double dt) {
+        if (this.context == null) {
+            return;
+        }
         int maxParticleCount = ParticleLibrary.Particle_GetContextMaxParticleCount(this.context);
         if (maxParticleCount != this.maxParticleCount) {
             this.maxParticleCount = maxParticleCount;

@@ -107,6 +107,7 @@ public class GameObjectBuilder extends Builder<Void> {
         {".collectionproxy", ".collectionproxyc"},
         {".collisionobject", ".collisionobjectc"},
         {".emitter", ".emitterc"},
+        {".particlefx", ".particlefxc"},
         {".gui", ".guic"},
         {".model", ".modelc"},
         {".script", ".scriptc"},

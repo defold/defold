@@ -125,13 +125,15 @@ public class ParticleLibrary {
     public static class AnimationData extends Structure {
         public AnimationData() {
             super();
-            setFieldOrder(new String[] { "texture", "texCoords", "playback", "startTile", "endTile", "fps", "hFlip",
+            setFieldOrder(new String[] { "texture", "texCoords", "playback", "tileWidth", "tileHeight", "startTile", "endTile", "fps", "hFlip",
                     "vFlip", "structSize" });
         }
 
         public Pointer texture;
         public FloatBuffer texCoords;
         public int playback;
+        public int tileWidth;
+        public int tileHeight;
         public int startTile;
         public int endTile;
         public int fps;

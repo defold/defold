@@ -1,23 +1,22 @@
 package com.dynamo.cr.sceneed.core;
 
+import java.util.List;
+
 import javax.vecmath.Matrix4d;
+import javax.vecmath.Point2i;
 import javax.vecmath.Point3d;
 import javax.vecmath.Vector4d;
 
 import org.eclipse.jface.viewers.IStructuredSelection;
-import org.eclipse.swt.events.MouseListener;
-import org.eclipse.swt.events.MouseMoveListener;
 import org.eclipse.swt.widgets.Composite;
 
 public interface IRenderView  {
     void addRenderProvider(IRenderViewProvider provider);
     void removeRenderProvider(IRenderViewProvider provider);
 
-    void addMouseListener(MouseListener listener);
-    void removeMouseListener(MouseListener listener);
+    void addRenderController(IRenderViewController controller);
+    void removeRenderController(IRenderViewController controller);
 
-    void addMouseMoveListener(MouseMoveListener listener);
-    void removeMouseMoveListener(MouseMoveListener listener);
     void setupNode(RenderContext renderContext, Node node);
 
     void dispose();
@@ -25,6 +24,9 @@ public interface IRenderView  {
     void createControls(Composite parent);
     void refresh();
     void setSimulating(boolean simulating);
+
+    List<Node> findNodesBySelection(Point2i start, Point2i end);
+
     void setSelection(IStructuredSelection selection);
     void viewToWorld(int x, int y, Vector4d clickPos, Vector4d clickDir);
     double[] worldToView(Point3d point);

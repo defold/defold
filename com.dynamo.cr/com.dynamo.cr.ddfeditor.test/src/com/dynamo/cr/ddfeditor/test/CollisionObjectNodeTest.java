@@ -76,7 +76,7 @@ public class CollisionObjectNodeTest extends AbstractNodeTest {
         int i = 0;
         assertThat(children.get(i), instanceOf(SphereCollisionShapeNode.class));
         SphereCollisionShapeNode sphere = (SphereCollisionShapeNode) children.get(i);
-        assertThat(sphere.getRadius(), is(8.0));
+        assertThat(sphere.getDiameter(), is(16.0));
 
         ++i;
         assertThat(children.get(i), instanceOf(BoxCollisionShapeNode.class));
@@ -88,7 +88,7 @@ public class CollisionObjectNodeTest extends AbstractNodeTest {
         ++i;
         assertThat(children.get(i), instanceOf(CapsuleCollisionShapeNode.class));
         CapsuleCollisionShapeNode capsule = (CapsuleCollisionShapeNode) children.get(i);
-        assertThat(capsule.getRadius(), is(123.0));
+        assertThat(capsule.getDiameter(), is(246.0));
         assertThat(capsule.getHeight(), is(456.0));
     }
 
@@ -105,13 +105,13 @@ public class CollisionObjectNodeTest extends AbstractNodeTest {
         int i = 0;
         assertThat(children.get(i), instanceOf(SphereCollisionShapeNode.class));
         SphereCollisionShapeNode sphere = (SphereCollisionShapeNode) children.get(i);
-        assertThat(sphere.getRadius(), is(0.0));
+        assertThat(sphere.getDiameter(), is(0.0));
         assertThat(sphere.getStatus().getSeverity(), is(IStatus.ERROR));
         assertNodeStatus(sphere, IStatus.ERROR, Messages.CollisionShape_bounds_ERROR);
         assertNodeStatus(sphere, IStatus.ERROR, com.dynamo.cr.properties.Messages.GreaterThanZero_OUTSIDE_RANGE);
 
-        // Set radius to valid value. The shape should now be valid
-        setNodeProperty(sphere, "radius", 1.0);
+        // Set diameter to valid value. The shape should now be valid
+        setNodeProperty(sphere, "diameter", 2.0);
         assertThat(sphere.getStatus().getSeverity(), is(IStatus.OK));
 
         ++i;

@@ -12,14 +12,14 @@ import com.dynamo.cr.sceneed.ui.RootManipulator;
 import com.dynamo.cr.sceneed.ui.ScaleAxisManipulator;
 
 @SuppressWarnings("serial")
-public class SphereRadiusManipulator extends RootManipulator {
+public class SphereSizeManipulator extends RootManipulator {
 
     private ScaleAxisManipulator scaleManipulator;
-    private double originalRadius;
-    private boolean radiusChanged = false;
-    private double radius;
+    private double originalDiameter;
+    private boolean diameterChanged = false;
+    private double diameter;
 
-    public SphereRadiusManipulator() {
+    public SphereSizeManipulator() {
         scaleManipulator = new ScaleAxisManipulator(this, new float[] {1, 0, 0, 1});
         addChild(scaleManipulator);
     }
@@ -38,14 +38,14 @@ public class SphereRadiusManipulator extends RootManipulator {
 
     @Override
     public void manipulatorChanged(Manipulator manipulator) {
-        radiusChanged = true;
-        double factor = 1.0;
+        diameterChanged = true;
+        double factor = 2.0;
         for (Node node : getSelection()) {
             if (node instanceof SphereCollisionShapeNode) {
                 SphereCollisionShapeNode sphere = (SphereCollisionShapeNode) node;
-                radius = originalRadius + scaleManipulator.getDistance() * factor;
-                radius = Math.max(0, radius);
-                sphere.setRadius(radius);
+                diameter = originalDiameter + scaleManipulator.getDistance() * factor;
+                diameter = Math.max(0, diameter);
+                sphere.setDiameter(diameter);
             }
         }
     }
@@ -53,7 +53,7 @@ public class SphereRadiusManipulator extends RootManipulator {
     @Override
     protected void selectionChanged() {
         Node node = getSelection().get(0);
-        originalRadius = ((SphereCollisionShapeNode) node).getRadius();
+        originalDiameter = ((SphereCollisionShapeNode) node).getDiameter();
         setTranslation(node.getTranslation());
     }
 
@@ -64,17 +64,17 @@ public class SphereRadiusManipulator extends RootManipulator {
 
     @Override
     public void mouseUp(MouseEvent e) {
-        if (radiusChanged) {
+        if (diameterChanged) {
             Node node = getSelection().get(0);
             SphereCollisionShapeNode sphere = (SphereCollisionShapeNode) node;
-            // We must reset radius. Otherwise setPropertyValue will detect no change and return null operation
-            sphere.setRadius(originalRadius);
-            // Set original radius to current in order to "continue" scaling
-            originalRadius = radius;
+            // We must reset diameter. Otherwise setPropertyValue will detect no change and return null operation
+            sphere.setDiameter(originalDiameter);
+            // Set original diameter to current in order to "continue" scaling
+            originalDiameter = diameter;
 
             @SuppressWarnings("unchecked")
             IPropertyModel<Node, ISceneModel> propertyModel = (IPropertyModel<Node, ISceneModel>) node.getAdapter(IPropertyModel.class);
-            IUndoableOperation operation = propertyModel.setPropertyValue("radius", radius);
+            IUndoableOperation operation = propertyModel.setPropertyValue("diameter", diameter);
             if (operation != null) {
                 getController().executeOperation(operation);
             }

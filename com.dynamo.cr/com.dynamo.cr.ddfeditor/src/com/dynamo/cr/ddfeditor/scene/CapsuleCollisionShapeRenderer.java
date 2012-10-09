@@ -35,7 +35,7 @@ public class CapsuleCollisionShapeRenderer extends CollisionShapeRenderer implem
         gl.glColor4fv(renderContext.selectColor(node, COLOR), 0);
         final int slices = 16;
         final int stacks = 6;
-        float radius = (float) node.getRadius();
+        float radius = 0.5f * (float) node.getDiameter();
         float height = (float) node.getHeight();
         RenderUtil.drawCapsule(gl, glu, radius, height, slices, stacks);
     }

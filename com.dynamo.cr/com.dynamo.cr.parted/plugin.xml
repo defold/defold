@@ -280,4 +280,12 @@
             node-type="com.dynamo.cr.parted.emitterManipulator">
       </manipulator>
    </extension>
+   <extension
+         point="org.eclipse.ui.navigator.navigatorContent">
+      <commonWizard
+            type="new"
+            wizardId="com.dynamo.cr.parted.particleFXNewWizard">
+         <enablement></enablement>
+      </commonWizard>
+   </extension>
 </plugin>

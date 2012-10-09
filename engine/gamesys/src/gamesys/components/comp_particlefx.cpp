@@ -244,12 +244,13 @@ namespace dmGameSystem
 
     dmParticle::FetchAnimationResult FetchAnimationCallback(void* tile_source, dmhash_t animation, dmParticle::AnimationData* out_data)
     {
-        TileSetResource* tile_set = (TileSetResource*)tile_source;
-        uint32_t anim_count = tile_set->m_AnimationIds.Size();
+        TileSetResource* tile_set_res = (TileSetResource*)tile_source;
+        dmGameSystemDDF::TileSet* tile_set = tile_set_res->m_TileSet;
+        uint32_t anim_count = tile_set_res->m_AnimationIds.Size();
         uint32_t anim_index = ~0u;
         for (uint32_t i = 0; i < anim_count; ++i)
         {
-            if (tile_set->m_AnimationIds[i] == animation)
+            if (tile_set_res->m_AnimationIds[i] == animation)
             {
                 anim_index = i;
                 break;
@@ -257,14 +258,16 @@ namespace dmGameSystem
         }
         if (anim_index != ~0u)
         {
-            if (tile_set->m_TexCoords.Size() == 0)
+            if (tile_set_res->m_TexCoords.Size() == 0)
             {
                 return dmParticle::FETCH_ANIMATION_UNKNOWN_ERROR;
             }
-            out_data->m_Texture = tile_set->m_Texture;
-            out_data->m_TexCoords = &tile_set->m_TexCoords.Front();
-            dmGameSystemDDF::Animation* animation = &tile_set->m_TileSet->m_Animations[anim_index];
+            out_data->m_Texture = tile_set_res->m_Texture;
+            out_data->m_TexCoords = &tile_set_res->m_TexCoords.Front();
+            dmGameSystemDDF::Animation* animation = &tile_set->m_Animations[anim_index];
             out_data->m_FPS = animation->m_Fps;
+            out_data->m_TileWidth = tile_set->m_TileWidth;
+            out_data->m_TileHeight = tile_set->m_TileHeight;
             out_data->m_StartTile = animation->m_StartTile;
             out_data->m_EndTile = animation->m_EndTile;
             out_data->m_HFlip = animation->m_FlipHorizontal;
@@ -290,6 +293,7 @@ namespace dmGameSystem
                 out_data->m_Playback = dmParticle::ANIM_PLAYBACK_LOOP_PINGPONG;
                 break;
             }
+            out_data->m_StructSize = sizeof(dmParticle::AnimationData);
             return dmParticle::FETCH_ANIMATION_OK;
         }
         else

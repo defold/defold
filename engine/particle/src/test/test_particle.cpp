@@ -35,7 +35,8 @@ protected:
         delete [] m_VertexBuffer;
     }
 
-    void VerifyUVs(ParticleVertex* vertex_buffer, float* tex_coords, uint32_t tile);
+    void VerifyVertexTexCoords(ParticleVertex* vertex_buffer, float* tex_coords, uint32_t tile);
+    void VerifyVertexDims(ParticleVertex* vertex_buffer, uint32_t particle_count, float size, uint32_t tile_width, uint32_t tile_height);
 
     dmParticle::HContext m_Context;
     dmParticle::HPrototype m_Prototype;
@@ -50,7 +51,7 @@ struct ParticleVertex
     float m_Red, m_Green, m_Blue, m_Alpha;
 };
 
-void ParticleTest::VerifyUVs(ParticleVertex* vertex_buffer, float* tex_coords, uint32_t tile)
+void ParticleTest::VerifyVertexTexCoords(ParticleVertex* vertex_buffer, float* tex_coords, uint32_t tile)
 {
     uint32_t u0 = 0;
     uint32_t v0 = 1;
@@ -70,6 +71,32 @@ void ParticleTest::VerifyUVs(ParticleVertex* vertex_buffer, float* tex_coords, u
     ASSERT_FLOAT_EQ(tc[v0], vertex_buffer[4].m_V);
     ASSERT_FLOAT_EQ(tc[u1], vertex_buffer[5].m_U);
     ASSERT_FLOAT_EQ(tc[v0], vertex_buffer[5].m_V);
+}
+
+void ParticleTest::VerifyVertexDims(ParticleVertex* vertex_buffer, uint32_t particle_count, float size, uint32_t tile_width, uint32_t tile_height)
+{
+    float width_factor = 1.0f;
+    float height_factor = 1.0f;
+    if (tile_width > tile_height)
+    {
+        height_factor = tile_height / (float)tile_width;
+    }
+    else
+    {
+        width_factor = tile_width / (float)tile_height;
+    }
+    for (uint32_t i = 0; i < particle_count; ++i)
+    {
+        ParticleVertex* v = &vertex_buffer[i*6];
+        float x = v[0].m_X - v[2].m_X;
+        float y = v[0].m_Y - v[2].m_Y;
+        float w = sqrt(x * x + y * y);
+        ASSERT_NEAR(size * width_factor, w, 0.000001f);
+        x = v[0].m_X - v[1].m_X;
+        y = v[0].m_Y - v[1].m_Y;
+        float h = sqrt(x * x + y * y);
+        ASSERT_NEAR(size * height_factor, h, 0.000001f);
+    }
 }
 
 bool LoadPrototype(const char* filename, dmParticle::HPrototype* prototype)
@@ -230,7 +257,7 @@ TEST_F(ParticleTest, IncompleteParticleFX)
             ASSERT_EQ(sizeof(vertex_buffer), out_vertex_buffer_size);
             ASSERT_EQ((void*)0x0, render_data.m_Material);
             ASSERT_EQ((void*)0x0, render_data.m_Texture);
-            VerifyUVs((ParticleVertex*)&((float*)vertex_buffer)[render_data.m_VertexIndex], g_UnitTexCoords, 0);
+            VerifyVertexTexCoords((ParticleVertex*)&((float*)vertex_buffer)[render_data.m_VertexIndex], g_UnitTexCoords, 0);
             ASSERT_EQ(6u, render_data.m_VertexCount);
             ASSERT_EQ((void*)0x0, render_data.m_Texture);
         }
@@ -548,6 +575,29 @@ TEST_F(ParticleTest, EvaluateEmitterProperty)
 }
 
 /**
+ * The emitter has a constant for particle size = 0 and spread +- 1.0
+ */
+TEST_F(ParticleTest, EvaluateEmitterPropertySpread)
+{
+    float dt = 1.0f / 8.0f;
+
+    ASSERT_TRUE(LoadPrototype("emitter_spline_spread.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype);
+    uint16_t index = instance & 0xffff;
+    dmParticle::Instance* i = m_Context->m_Instances[index];
+
+    dmParticle::StartInstance(m_Context, instance);
+
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    dmParticle::Particle* particle = &i->m_Emitters[0].m_Particles[0];
+    // NOTE size could potentially be 0, but not likely
+    ASSERT_NE(0.0f, particle->GetSize());
+    ASSERT_GT(1.0f, dmMath::Abs(particle->GetSize()));
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
+/**
  * The emitter has a spline for particle scale (size is always 1), which has the points and tangents:
  * (0.00, 0), (1,0)
  * (0.25, 0), (1,1)
@@ -648,6 +698,8 @@ dmParticle::FetchAnimationResult FetchAnimationCallback(void* tile_source, dmhas
     if (animation == dmHashString64("once"))
     {
         out_data->m_Playback = dmParticle::ANIM_PLAYBACK_ONCE_FORWARD;
+        out_data->m_TileWidth = 2;
+        out_data->m_TileHeight = 3;
         out_data->m_StartTile = 1;
         out_data->m_EndTile = 5;
         out_data->m_FPS = 30;
@@ -687,7 +739,8 @@ TEST_F(ParticleTest, Animation)
     for (uint32_t i = 0; i < 5; ++i)
     {
         dmParticle::Update(m_Context, dt, (float*)vertex_buffer, sizeof(vertex_buffer), &vertex_buffer_size, FetchAnimationCallback);
-        VerifyUVs(vertex_buffer, g_TexCoords, i);
+        VerifyVertexTexCoords(vertex_buffer, g_TexCoords, i);
+        VerifyVertexDims(vertex_buffer, 1, 1.0f, 2, 3);
     }
 
     ASSERT_EQ(sizeof(vertex_buffer), vertex_buffer_size);

@@ -571,7 +571,7 @@
       </node-type>
       <node-type
             id="com.dynamo.cr.ddfeditor.manipulators.sphereRadiusManipulator"
-            node="com.dynamo.cr.ddfeditor.manipulators.SphereRadiusManipulator">
+            node="com.dynamo.cr.ddfeditor.manipulators.SphereSizeManipulator">
       </node-type>
       <node-type
             id="com.dynamo.cr.ddfeditor.manipulators.boxSizeManipulator"
