@@ -99,7 +99,7 @@
             id="com.dynamo.cr.parted.resourcetypes.emitter"
             name="Emitter"
             proto-message-class="com.dynamo.particle.proto.Particle$Emitter"
-            template-data="mode: PLAY_MODE_LOOP space: EMISSION_SPACE_WORLD position { } rotation { } tile_source:  &quot;unnamed&quot; animation: &quot;unnamed&quot; material: &quot;unnamed&quot; max_particle_count: 64 type: EMITTER_TYPE_SPHERE">
+            template-data="mode: PLAY_MODE_LOOP space: EMISSION_SPACE_WORLD position { } rotation { } tile_source:  &quot;unnamed&quot; animation: &quot;unnamed&quot; material: &quot;/builtins/materials/particlefx.material&quot; max_particle_count: 64 type: EMITTER_TYPE_SPHERE">
       </resource-type>
       <resource-type
             file-extension="acceleration"

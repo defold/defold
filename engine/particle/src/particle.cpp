@@ -16,8 +16,8 @@ namespace dmParticle
 
     struct Vertex
     {
-        float m_Position[3];
         float m_UV[2];
+        float m_Position[3];
         float m_Red, m_Green, m_Blue, m_Alpha;
     };
 

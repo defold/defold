@@ -45,7 +45,7 @@ namespace dmGameSystem
     {
         float m_Position[3];
         float m_UV[2];
-        float m_Alpha;
+        float m_Red, m_Green, m_Blue, m_Alpha;
     };
 
     dmGameObject::CreateResult CompParticleFXNewWorld(const dmGameObject::ComponentNewWorldParams& params)
@@ -62,9 +62,9 @@ namespace dmGameSystem
         world->m_ClientBuffer = new char[buffer_size];
         dmGraphics::VertexElement ve[] =
         {
-            {"position", 0, 3, dmGraphics::TYPE_FLOAT},
-            {"texcoord0", 1, 2, dmGraphics::TYPE_FLOAT},
-            {"alpha", 2, 1, dmGraphics::TYPE_FLOAT}
+            {"texcoord0", 0, 2, dmGraphics::TYPE_FLOAT},
+            {"position", 1, 3, dmGraphics::TYPE_FLOAT},
+            {"color", 2, 4, dmGraphics::TYPE_FLOAT}
         };
         world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(ctx->m_RenderContext), ve, 3);
         *params.m_World = world;
