@@ -6,10 +6,10 @@ def create():
     mesh = OpenMaya.MFnMesh()
     face_index = xutil.createFromInt(0)
 
-    NX = 18
-    NY = 10
-    width = 60 * NX
-    height = 60 * NY
+    NX = 18 * 2
+    NY = 10 * 2
+    width = 60 * NX / 2
+    height = 60 * NY / 2
     t = thickness = 3
 
     for j in range(NY):
