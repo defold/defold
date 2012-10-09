@@ -99,21 +99,21 @@
             id="com.dynamo.cr.parted.resourcetypes.emitter"
             name="Emitter"
             proto-message-class="com.dynamo.particle.proto.Particle$Emitter"
-            template-data="mode: PLAY_MODE_LOOP space: EMISSION_SPACE_WORLD position { } rotation { } tile_source:  &quot;unnamed&quot; animation: &quot;unnamed&quot; material: &quot;unnamed&quot; max_particle_count: 64 type: EMITTER_TYPE_SPHERE">
+            template-data="mode: PLAY_MODE_LOOP duration: 1.0 space: EMISSION_SPACE_WORLD position { x: 0.0 y: 0.0 z: 0.0 } rotation { x: 0.0 y: 0.0 z: 0.0 w: 1.0 } tile_source: &quot;/builtins/graphics/particle_blob.tilesource&quot; animation: &quot;anim&quot; material: &quot;/builtins/materials/particlefx.material&quot; blend_mode: BLEND_MODE_ADD_ALPHA particle_direction: PARTICLE_DIRECTION_NONE max_particle_count: 128 type: EMITTER_TYPE_CONE properties { key: EMITTER_KEY_SPAWN_DELAY points { x: 0.0 y: 0.02 t_x: 1.0 t_y: 0.0 } spread: 0.0 } properties { key: EMITTER_KEY_SIZE_X points { x: 0.0 y: 8.0 t_x: 1.0 t_y: 0.0 } spread: 0.0 } properties { key: EMITTER_KEY_SIZE_Y points { x: 0.0 y: 12.0 t_x: 1.0 t_y: 0.0 } spread: 0.0 } properties { key: EMITTER_KEY_SIZE_Z points { x: 0.0 y: 0.0 t_x: 1.0 t_y: 0.0 } spread: 0.0 } properties { key: EMITTER_KEY_PARTICLE_LIFE_TIME points { x: 0.0 y: 2.5 t_x: 1.0 t_y: 0.0 } spread: 0.0 } properties { key: EMITTER_KEY_PARTICLE_SPEED points { x: 0.0 y: 100.0 t_x: 1.0 t_y: 0.0 } spread: 0.0 } properties { key: EMITTER_KEY_PARTICLE_SIZE points { x: 0.0 y: 20.0 t_x: 1.0 t_y: 0.0 } spread: 0.0 } properties { key: EMITTER_KEY_PARTICLE_RED points { x: 0.0 y: 1.0 t_x: 1.0 t_y: 0.0 } spread: 0.0 } properties { key: EMITTER_KEY_PARTICLE_GREEN points { x: 0.0 y: 1.0 t_x: 1.0 t_y: 0.0 } spread: 0.0 } properties { key: EMITTER_KEY_PARTICLE_BLUE points { x: 0.0 y: 1.0 t_x: 1.0 t_y: 0.0 } spread: 0.0 } properties { key: EMITTER_KEY_PARTICLE_ALPHA points { x: 0.0 y: 1.0 t_x: 1.0  t_y: 0.0 } spread: 0.0 } particle_properties { key: PARTICLE_KEY_SCALE points { x: 0.0 y: 1.0 t_x: 1.0 t_y: 0.0 } } particle_properties { key: PARTICLE_KEY_RED points { x: 0.0 y: 1.0 t_x: 1.0 t_y: 0.0 } } particle_properties { key: PARTICLE_KEY_GREEN points { x: 0.0 y: 1.0 t_x: 1.0 t_y: 0.0 } } particle_properties { key: PARTICLE_KEY_BLUE points { x: 0.0 y: 1.0 t_x: 1.0 t_y: 0.0 } } particle_properties { key: PARTICLE_KEY_ALPHA points { x: 0.0 y: 0.0 t_x: 0.07194582 t_y: 0.99740857 } points { x: 0.11320755 y: 0.99277455 t_x: 0.99418455 t_y: 0.10768964 } points { x: 0.7112546 y: 0.555656 t_x: 0.5694311 t_y: -0.82203907 } points { x: 1.0 y: 0.0072254334 t_x: 0.4737472 t_y: -0.8806609 } }">
       </resource-type>
       <resource-type
             file-extension="acceleration"
             id="com.dynamo.cr.parted.resourcetypes.acceleration"
             name="Acceleration"
             proto-message-class="com.dynamo.particle.proto.Particle$Modifier"
-            template-data="type: MODIFIER_TYPE_ACCELERATION use_direction: 0 position { } rotation { }">
+            template-data="type: MODIFIER_TYPE_ACCELERATION use_direction: 0 position { x: 0.0 y: 0.0 z: 0.0 } rotation { x: 0.0 y: 0.0 z: -0.70710677 w: 0.70710677 } properties { key: MODIFIER_KEY_MAGNITUDE points { x: 0.0 y: 90.0 t_x: 1.0 t_y: 0.0 } }">
       </resource-type>
       <resource-type
             file-extension="drag"
             id="com.dynamo.cr.parted.resourcetypes.drag"
             name="Drag"
             proto-message-class="com.dynamo.particle.proto.Particle$Modifier"
-            template-data="type: MODIFIER_TYPE_DRAG use_direction: 0 position { } rotation { }">
+            template-data="type: MODIFIER_TYPE_DRAG use_direction: 0 position { x: 0.0 y: 0.0 z: 0.0 } rotation { x: 0.0 y: 0.0 z: 0.0 w: 1.0 } properties { key: MODIFIER_KEY_MAGNITUDE points { x: 0.0 y: 0.7 t_x: 1.0 t_y: 0.0 } } properties { key: MODIFIER_KEY_ATTENUATION points { x: 0.0 y: 0.0 t_x: 1.0 t_y: 0.0 } }">
       </resource-type>
    </extension>
    <extension

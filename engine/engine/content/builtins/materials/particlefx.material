@@ -1,0 +1,12 @@
+name: "particle"
+vertex_program: "/builtins/materials/particlefx.vp"
+fragment_program: "/builtins/materials/particlefx.fp"
+tags: "particle"
+vertex_constants {
+  name: "view_proj"
+  type: CONSTANT_TYPE_VIEWPROJ
+}
+vertex_constants {
+  name: "world"
+  type: CONSTANT_TYPE_WORLD
+}
