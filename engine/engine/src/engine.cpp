@@ -390,11 +390,6 @@ namespace dmEngine
         render_params.m_MaxDebugVertexCount = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_debug_vertices", 10000);
         engine->m_RenderContext = dmRender::NewRenderContext(engine->m_GraphicsContext, render_params);
 
-        engine->m_ParticleFXContext.m_RenderContext = engine->m_RenderContext;
-        engine->m_ParticleFXContext.m_MaxParticleFXCount = dmConfigFile::GetInt(engine->m_Config, dmParticle::MAX_INSTANCE_COUNT_KEY, 64);
-        engine->m_ParticleFXContext.m_MaxParticleCount = dmConfigFile::GetInt(engine->m_Config, dmParticle::MAX_PARTICLE_COUNT_KEY, 1024);
-        engine->m_ParticleFXContext.m_Debug = false;
-
         const uint32_t max_resources = dmConfigFile::GetInt(engine->m_Config, dmResource::MAX_RESOURCES_KEY, 1024);
 
         dmResource::NewFactoryParams params;
@@ -415,6 +410,12 @@ namespace dmEngine
             return false;
         }
         dmGameObject::Initialize(engine->m_ScriptContext, engine->m_Factory);
+
+        engine->m_ParticleFXContext.m_Factory = engine->m_Factory;
+        engine->m_ParticleFXContext.m_RenderContext = engine->m_RenderContext;
+        engine->m_ParticleFXContext.m_MaxParticleFXCount = dmConfigFile::GetInt(engine->m_Config, dmParticle::MAX_INSTANCE_COUNT_KEY, 64);
+        engine->m_ParticleFXContext.m_MaxParticleCount = dmConfigFile::GetInt(engine->m_Config, dmParticle::MAX_PARTICLE_COUNT_KEY, 1024);
+        engine->m_ParticleFXContext.m_Debug = false;
 
         dmInput::NewContextParams input_params;
         input_params.m_HidContext = engine->m_HidContext;

@@ -26,6 +26,7 @@ namespace dmGameSystem
     {
         dmGameObject::HInstance m_Instance;
         dmParticle::HInstance m_ParticleFXInstance;
+        dmParticle::HPrototype m_ParticleFXPrototype;
         ParticleFXWorld* m_World;
     };
 
@@ -76,7 +77,9 @@ namespace dmGameSystem
         ParticleFXWorld* emitter_world = (ParticleFXWorld*)params.m_World;
         for (uint32_t i = 0; i < emitter_world->m_Components.Size(); ++i)
         {
-            dmParticle::DestroyInstance(emitter_world->m_ParticleContext, emitter_world->m_Components[i].m_ParticleFXInstance);
+            ParticleFXComponent* c = &emitter_world->m_Components[i];
+            dmResource::Release(emitter_world->m_Context->m_Factory, c->m_ParticleFXPrototype);
+            dmParticle::DestroyInstance(emitter_world->m_ParticleContext, c->m_ParticleFXInstance);
         }
         dmParticle::DestroyContext(emitter_world->m_ParticleContext);
         delete [] (char*)emitter_world->m_ClientBuffer;
@@ -163,6 +166,7 @@ namespace dmGameSystem
             ParticleFXComponent& c = components[i];
             if (dmParticle::IsSleeping(particle_context, c.m_ParticleFXInstance))
             {
+                dmResource::Release(ctx->m_Factory, c.m_ParticleFXPrototype);
                 dmParticle::DestroyInstance(particle_context, c.m_ParticleFXInstance);
                 components.EraseSwap(i);
                 --count;
@@ -183,7 +187,11 @@ namespace dmGameSystem
             world->m_Components.SetSize(count + 1);
             ParticleFXComponent* emitter = &world->m_Components[count];
             emitter->m_Instance = go_instance;
+            // NOTE: We must increase ref-count as a particle fx might be playing after the component is destroyed
+            dmResource::HFactory factory = world->m_Context->m_Factory;
+            dmResource::IncRef(factory, prototype);
             emitter->m_ParticleFXInstance = dmParticle::CreateInstance(world->m_ParticleContext, prototype);
+            emitter->m_ParticleFXPrototype = prototype;
             emitter->m_World = world;
             return emitter->m_ParticleFXInstance;
         }
