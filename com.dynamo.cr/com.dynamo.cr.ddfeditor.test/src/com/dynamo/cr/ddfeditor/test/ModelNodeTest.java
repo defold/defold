@@ -73,6 +73,11 @@ public class ModelNodeTest extends AbstractNodeTest {
         ModelDesc msg = (ModelDesc) this.loader.buildMessage(getLoaderContext(), this.node, new NullProgressMonitor());
         assertEquals("/cube.dae", msg.getMesh());
         assertEquals("/test.material", msg.getMaterial());
+        assertEquals(0, msg.getTexturesCount());
+
+        this.node.setTexture("foo.png");
+        msg = (ModelDesc) this.loader.buildMessage(getLoaderContext(), this.node, new NullProgressMonitor());
+        assertEquals(1, msg.getTexturesCount());
     }
 
     @Test

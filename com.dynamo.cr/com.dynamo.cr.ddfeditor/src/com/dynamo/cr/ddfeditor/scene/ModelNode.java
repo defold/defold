@@ -14,6 +14,7 @@ import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.model.proto.Model.ModelDesc;
+import com.dynamo.model.proto.Model.ModelDesc.Builder;
 import com.google.protobuf.Message;
 
 @SuppressWarnings("serial")
@@ -137,11 +138,14 @@ public class ModelNode extends ComponentTypeNode {
     }
 
     public Message buildMessage() {
-        return ModelDesc.newBuilder()
+        Builder b = ModelDesc.newBuilder()
             .setMesh(this.mesh)
-            .setMaterial(this.material)
-            .addTextures(texture)
-            .build();
+            .setMaterial(this.material);
+
+        if (texture.length() > 0) {
+            b.addTextures(texture);
+        }
+        return b.build();
     }
 
 }
