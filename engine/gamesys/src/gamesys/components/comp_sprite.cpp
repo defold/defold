@@ -772,7 +772,7 @@ namespace dmGameSystem
             }
             else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstant::m_DDFDescriptor->m_NameHash)
             {
-                dmGameSystemDDF::SetConstant* ddf = (dmGameSystemDDF::SetConstant*)params.m_Message->m_Data;
+                dmGameSystemDDF::ResetConstant* ddf = (dmGameSystemDDF::ResetConstant*)params.m_Message->m_Data;
                 dmArray<dmGameSystemDDF::SetConstant>& constants = component->m_RenderConstants;
                 uint32_t size = constants.Size();
                 for (uint32_t i = 0; i < size; ++i)

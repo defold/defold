@@ -149,9 +149,16 @@ message StopSound
 }
 
 /* Documented in scripts/script_particlefx.cpp */
-message PlayParticleFX
+message PlayParticleFX {}
+message StopParticleFX {}
+message SetConstantParticleFX
 {
+    required uint64         emitter_id  = 1;
+    required uint64         name_hash   = 2;
+    required dmMath.Vector4 value       = 3;
 }
-message StopParticleFX
+message ResetConstantParticleFX
 {
+    required uint64         emitter_id  = 1;
+    required uint64         name_hash   = 2;
 }

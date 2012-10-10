@@ -109,7 +109,7 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    void RenderInstanceCallback(void* render_context, void* material, void* texture, dmParticleDDF::BlendMode blend_mode, uint32_t vertex_index, uint32_t vertex_count);
+    void RenderInstanceCallback(void* render_context, void* material, void* texture, dmParticleDDF::BlendMode blend_mode, uint32_t vertex_index, uint32_t vertex_count, dmParticle::RenderConstant* constants, uint32_t constant_count);
     void RenderLineCallback(void* render_context, Vectormath::Aos::Point3 start, Vectormath::Aos::Point3 end, Vectormath::Aos::Vector4 color);
     dmParticle::FetchAnimationResult FetchAnimationCallback(void* tile_source, dmhash_t animation, dmParticle::AnimationData* out_data);
 
@@ -197,7 +197,7 @@ namespace dmGameSystem
         }
         else
         {
-            dmLogError("Particle component buffer is full (%d), component disregarded.", world->m_Components.Capacity());
+            dmLogError("Particle FX component buffer is full (%d), component disregarded.", world->m_Components.Capacity());
             return dmParticle::INVALID_INSTANCE;
         }
     }
@@ -226,7 +226,45 @@ namespace dmGameSystem
             }
             if (found_count == 0)
             {
-                dmLogWarning("Particle instance to stop could not be found.");
+                dmLogWarning("Particle FX to stop could not be found.");
+            }
+        }
+        else if (params.m_Message->m_Id == dmGameSystemDDF::SetConstantParticleFX::m_DDFDescriptor->m_NameHash)
+        {
+            dmGameSystemDDF::SetConstantParticleFX* ddf = (dmGameSystemDDF::SetConstantParticleFX*)params.m_Message->m_Data;
+            uint32_t count = world->m_Components.Size();
+            uint32_t found_count = 0;
+            for (uint32_t i = 0; i < count; ++i)
+            {
+                ParticleFXComponent* component = &world->m_Components[i];
+                if (component->m_Instance == params.m_Instance)
+                {
+                    dmParticle::SetRenderConstant(world->m_ParticleContext, component->m_ParticleFXInstance, ddf->m_EmitterId, ddf->m_NameHash, ddf->m_Value);
+                    ++found_count;
+                }
+            }
+            if (found_count == 0)
+            {
+                dmLogWarning("Particle FX to set constant for could not be found.");
+            }
+        }
+        else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstantParticleFX::m_DDFDescriptor->m_NameHash)
+        {
+            dmGameSystemDDF::ResetConstantParticleFX* ddf = (dmGameSystemDDF::ResetConstantParticleFX*)params.m_Message->m_Data;
+            uint32_t count = world->m_Components.Size();
+            uint32_t found_count = 0;
+            for (uint32_t i = 0; i < count; ++i)
+            {
+                ParticleFXComponent* component = &world->m_Components[i];
+                if (component->m_Instance == params.m_Instance)
+                {
+                    dmParticle::ResetRenderConstant(world->m_ParticleContext, component->m_ParticleFXInstance, ddf->m_EmitterId, ddf->m_NameHash);
+                    ++found_count;
+                }
+            }
+            if (found_count == 0)
+            {
+                dmLogWarning("Particle FX to reset constant for could not be found.");
             }
         }
         return dmGameObject::UPDATE_RESULT_OK;
@@ -277,7 +315,16 @@ namespace dmGameSystem
         }
     }
 
-    void RenderInstanceCallback(void* context, void* material, void* texture, dmParticleDDF::BlendMode blend_mode, uint32_t vertex_index, uint32_t vertex_count)
+    static void SetRenderConstants(dmRender::RenderObject* ro, dmParticle::RenderConstant* constants, uint32_t constant_count)
+    {
+        for (uint32_t i = 0; i < constant_count; ++i)
+        {
+            dmParticle::RenderConstant* c = &constants[i];
+            dmRender::EnableRenderObjectConstant(ro, c->m_NameHash, c->m_Value);
+        }
+    }
+
+    void RenderInstanceCallback(void* context, void* material, void* texture, dmParticleDDF::BlendMode blend_mode, uint32_t vertex_index, uint32_t vertex_count, dmParticle::RenderConstant* constants, uint32_t constant_count)
     {
         ParticleFXWorld* world = (ParticleFXWorld*)context;
         dmRender::RenderObject ro;
@@ -291,6 +338,7 @@ namespace dmGameSystem
         ro.m_CalculateDepthKey = 1;
         ro.m_SetBlendFactors = 1;
         SetBlendFactors(&ro, blend_mode);
+        SetRenderConstants(&ro, constants, constant_count);
         world->m_RenderObjects.Push(ro);
     }
 

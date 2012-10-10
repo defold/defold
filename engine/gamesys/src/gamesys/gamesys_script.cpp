@@ -408,7 +408,7 @@ namespace dmGameSystem
      * @examples
      * <p>
      * The following examples assumes that the sprite has id "sprite" and that the default-material in builtins is used.
-     * If you assign a custom material to the sprite, you can set the constants defined there in the same manner.
+     * If you assign a custom material to the sprite, you can reset the constants defined there in the same manner.
      * </p>
      * <p>
      * How to reset the tinting of a sprite:

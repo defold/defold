@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include <stdio.h>
 #include <algorithm>
+#include <map>
 
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
@@ -12,6 +13,8 @@
 #include "../particle_private.h"
 
 struct ParticleVertex;
+
+using namespace Vectormath::Aos;
 
 class ParticleTest : public ::testing::Test
 {
@@ -154,7 +157,7 @@ struct RenderData
     uint32_t m_VertexCount;
 };
 
-void RenderInstanceCallback(void* usercontext, void* material, void* texture, dmParticleDDF::BlendMode blendMode, uint32_t vertex_index, uint32_t vertex_count)
+void RenderInstanceCallback(void* usercontext, void* material, void* texture, dmParticleDDF::BlendMode blendMode, uint32_t vertex_index, uint32_t vertex_count, dmParticle::RenderConstant* constants, uint32_t constant_count)
 {
     RenderData* data = (RenderData*)usercontext;
     data->m_Material = material;
@@ -186,7 +189,7 @@ dmParticle::FetchAnimationResult FailFetchAnimationCallback(void* tile_source, d
     return dmParticle::FETCH_ANIMATION_NOT_FOUND;
 }
 
-void EmptyRenderInstanceCallback(void* usercontext, void* material, void* texture, dmParticleDDF::BlendMode blendMode, uint32_t vertex_index, uint32_t vertex_count)
+void EmptyRenderInstanceCallback(void* usercontext, void* material, void* texture, dmParticleDDF::BlendMode blendMode, uint32_t vertex_index, uint32_t vertex_count, dmParticle::RenderConstant* constants, uint32_t constant_count)
 {
     // Trash data to verify that this function is not called
     RenderData* data = (RenderData*)usercontext;
@@ -962,6 +965,56 @@ TEST_F(ParticleTest, DragDir)
 TEST_F(ParticleTest, case1544)
 {
     ASSERT_TRUE(LoadPrototype("modifier_crash.particlefxc", &m_Prototype));
+}
+
+void RenderConstantRenderInstanceCallback(void* usercontext, void* material, void* texture, dmParticleDDF::BlendMode blendMode, uint32_t vertex_index, uint32_t vertex_count, dmParticle::RenderConstant* constants, uint32_t constant_count)
+{
+    std::map<dmhash_t, Vector4>* render_constants = (std::map<dmhash_t, Vector4>*)usercontext;
+    for (uint32_t i = 0; i < constant_count; ++i)
+    {
+        dmParticle::RenderConstant& c = constants[i];
+        (*render_constants)[c.m_NameHash] = c.m_Value;
+    }
+}
+
+TEST_F(ParticleTest, RenderConstants)
+{
+    dmhash_t emitter_id = dmHashString64("emitter");
+    dmhash_t constant_id = dmHashString64("tint");
+
+    float dt = 1.0f / 60.0f;
+
+    ASSERT_TRUE(LoadPrototype("render_constant.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype);
+
+    dmParticle::StartInstance(m_Context, instance);
+
+    std::map<dmhash_t, Vector4> constants;
+
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+
+    dmParticle::Render(m_Context, (void*)&constants, RenderConstantRenderInstanceCallback);
+
+    ASSERT_TRUE(constants.empty());
+
+    dmParticle::SetRenderConstant(m_Context, instance, emitter_id, constant_id, Vector4(1, 2, 3, 4));
+    dmParticle::Render(m_Context, (void*)&constants, RenderConstantRenderInstanceCallback);
+
+    ASSERT_TRUE(constants.end() != constants.find(constant_id));
+    Vector4 v = constants.at(constant_id);
+    ASSERT_EQ(1, v.getX());
+    ASSERT_EQ(2, v.getY());
+    ASSERT_EQ(3, v.getZ());
+    ASSERT_EQ(4, v.getW());
+
+    constants.clear();
+
+    dmParticle::ResetRenderConstant(m_Context, instance, emitter_id, constant_id);
+    dmParticle::Render(m_Context, (void*)&constants, RenderConstantRenderInstanceCallback);
+
+    ASSERT_TRUE(constants.empty());
+
+    dmParticle::DestroyInstance(m_Context, instance);
 }
 
 int main(int argc, char **argv)

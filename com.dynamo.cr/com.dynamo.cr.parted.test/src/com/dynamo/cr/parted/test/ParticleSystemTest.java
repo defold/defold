@@ -146,6 +146,9 @@ public class ParticleSystemTest {
             // v
             assertTrue(texCoords.get(uvIdx[i * 2 + 1]) == vertexBuffer.get());
             // p
+            float x = vertexBuffer.get();
+            float y = vertexBuffer.get();
+            float z = vertexBuffer.get();
             assertTrue(1.0f == vertexBuffer.get());
             assertTrue(2.0f == vertexBuffer.get());
             assertTrue(3.0f == vertexBuffer.get());
@@ -160,7 +163,7 @@ public class ParticleSystemTest {
         ParticleLibrary.Particle_Render(context, new Pointer(1122), new RenderInstanceCallback() {
             @Override
             public void invoke(Pointer userContext, Pointer material,
-                    Pointer texture, int blendMode, int vertexIndex, int vertexCount) {
+                    Pointer texture, int blendMode, int vertexIndex, int vertexCount, Pointer constants, int constantCount) {
                 assertTrue(material.equals(originalMaterial));
                 assertTrue(texture.equals(originalTexture));
                 assertEquals(new Pointer(1122), userContext);

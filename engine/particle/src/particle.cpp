@@ -164,6 +164,7 @@ namespace dmParticle
         {
             Emitter* emitter = &instance->m_Emitters[i];
             dmParticleDDF::Emitter* emitter_ddf = &ddf->m_Emitters[i];
+            emitter->m_Id = dmHashString64(emitter_ddf->m_Id);
             uint32_t particle_count = emitter_ddf->m_MaxParticleCount;
             emitter->m_Particles.SetCapacity(particle_count);
         }
@@ -182,7 +183,9 @@ namespace dmParticle
         uint32_t emitter_count = i->m_Emitters.Size();
         for (uint32_t emitter_i = 0; emitter_i < emitter_count; ++emitter_i)
         {
-            i->m_Emitters[emitter_i].m_Particles.SetCapacity(0);
+            Emitter* emitter = &i->m_Emitters[emitter_i];
+            emitter->m_Particles.SetCapacity(0);
+            emitter->m_RenderConstants.SetCapacity(0);
         }
         delete i;
     }
@@ -994,8 +997,8 @@ namespace dmParticle
                     Emitter* emitter = &instance->m_Emitters[j];
                     if (!emitter || emitter->m_VertexCount == 0) continue;
 
-                dmParticle::EmitterPrototype* emitter_proto = &instance->m_Prototype->m_Emitters[j];
-                render_emitter_callback(usercontext, emitter_proto->m_Material, emitter->m_AnimationData.m_Texture, emitter_proto->m_BlendMode, emitter->m_VertexIndex, emitter->m_VertexCount);
+                    dmParticle::EmitterPrototype* emitter_proto = &instance->m_Prototype->m_Emitters[j];
+                    render_emitter_callback(usercontext, emitter_proto->m_Material, emitter->m_AnimationData.m_Texture, emitter_proto->m_BlendMode, emitter->m_VertexIndex, emitter->m_VertexCount, emitter->m_RenderConstants.Begin(), emitter->m_RenderConstants.Size());
                 }
             }
         }
@@ -1255,6 +1258,66 @@ namespace dmParticle
         prototype->m_Emitters[emitter_index].m_TileSource = tile_source;
     }
 
+    void SetRenderConstant(HContext context, HInstance instance, dmhash_t emitter_id, dmhash_t name_hash, Vector4 value)
+    {
+        Instance* inst = GetInstance(context, instance);
+        uint32_t count = inst->m_Emitters.Size();
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            Emitter* e = &inst->m_Emitters[i];
+            if (e->m_Id == emitter_id)
+            {
+                RenderConstant* c = 0x0;
+                dmArray<RenderConstant>& constants = e->m_RenderConstants;
+                uint32_t constant_count = constants.Size();
+                for (uint32_t constant_i = 0; constant_i < constant_count; ++constant_i)
+                {
+                    RenderConstant* constant = &constants[constant_i];
+                    if (constant->m_NameHash == name_hash)
+                    {
+                        c = constant;
+                        break;
+                    }
+                }
+                if (c == 0x0)
+                {
+                    if (constants.Full())
+                    {
+                        constants.SetCapacity(constants.Capacity() + 4);
+                    }
+                    constants.SetSize(constant_count + 1);
+                    c = &constants[constant_count];
+                    c->m_NameHash = name_hash;
+                }
+                c->m_Value = value;
+            }
+        }
+    }
+
+    void ResetRenderConstant(HContext context, HInstance instance, dmhash_t emitter_id, dmhash_t name_hash)
+    {
+        Instance* inst = GetInstance(context, instance);
+        uint32_t count = inst->m_Emitters.Size();
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            Emitter* e = &inst->m_Emitters[i];
+            if (e->m_Id == emitter_id)
+            {
+                dmArray<RenderConstant>& constants = e->m_RenderConstants;
+                uint32_t constant_count = constants.Size();
+                for (uint32_t constant_i = 0; constant_i < constant_count; ++i)
+                {
+                    if (constants[constant_i].m_NameHash == name_hash)
+                    {
+                        constants.EraseSwap(constant_i);
+                        break;
+                    }
+                }
+                // Don't break here, look for more
+            }
+        }
+    }
+
 #define DM_PARTICLE_TRAMPOLINE1(ret, name, t1) \
     ret Particle_##name(t1 a1)\
     {\
@@ -1323,6 +1386,9 @@ namespace dmParticle
     DM_PARTICLE_TRAMPOLINE2(void*, GetTileSource, HPrototype, uint32_t);
     DM_PARTICLE_TRAMPOLINE3(void, SetMaterial, HPrototype, uint32_t, void*);
     DM_PARTICLE_TRAMPOLINE3(void, SetTileSource, HPrototype, uint32_t, void*);
+
+    DM_PARTICLE_TRAMPOLINE5(void, SetRenderConstant, HContext, HInstance, dmhash_t, dmhash_t, Vector4);
+    DM_PARTICLE_TRAMPOLINE4(void, ResetRenderConstant, HContext, HInstance, dmhash_t, dmhash_t);
 
     dmhash_t Particle_Hash(const char* value)
     {

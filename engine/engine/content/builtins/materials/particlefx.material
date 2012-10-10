@@ -10,3 +10,8 @@ vertex_constants {
   name: "world"
   type: CONSTANT_TYPE_WORLD
 }
+fragment_constants {
+  name: "tint"
+  type: CONSTANT_TYPE_USER
+  value: {x: 1 y: 1 z: 1 w: 1}
+}

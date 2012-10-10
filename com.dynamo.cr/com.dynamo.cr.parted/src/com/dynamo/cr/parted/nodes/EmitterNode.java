@@ -18,6 +18,7 @@ import com.dynamo.cr.properties.DynamicProperties;
 import com.dynamo.cr.properties.DynamicPropertyAccessor;
 import com.dynamo.cr.properties.IPropertyAccessor;
 import com.dynamo.cr.properties.IPropertyDesc;
+import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.cr.properties.descriptors.ValueSpreadPropertyDesc;
@@ -50,7 +51,11 @@ public class EmitterNode extends Node {
     private static EmitterKey[] emitterKeys;
     private static ParticleKey[] particleKeys;
 
-    @Property(editorType = EditorType.DROP_DOWN, category = "Emitter")
+    @Property(category = "Emitter")
+    @NotEmpty(severity = IStatus.ERROR)
+    private String id;
+
+    @Property(editorType = EditorType.DROP_DOWN)
     private PlayMode playMode;
 
     @Property(editorType = EditorType.DROP_DOWN)
@@ -91,6 +96,7 @@ public class EmitterNode extends Node {
         setTranslation(LoaderUtil.toPoint3d(emitter.getPosition()));
         setRotation(LoaderUtil.toQuat4(emitter.getRotation()));
 
+        setId(emitter.getId());
         setPlayMode(emitter.getMode());
         setDuration(emitter.getDuration());
         setEmissionSpace(emitter.getSpace());
@@ -272,6 +278,14 @@ public class EmitterNode extends Node {
         }
     }
 
+    public String getId() {
+        return this.id;
+    }
+
+    public void setId(String id) {
+        this.id = id;
+    }
+
     public PlayMode getPlayMode() {
         return playMode;
     }
@@ -411,6 +425,7 @@ public class EmitterNode extends Node {
 
     public Emitter.Builder buildMessage() {
         Emitter.Builder b = Emitter.newBuilder()
+            .setId(getId())
             .setMode(getPlayMode())
             .setDuration(getDuration())
             .setSpace(getEmissionSpace())

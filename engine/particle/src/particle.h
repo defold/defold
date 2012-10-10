@@ -3,16 +3,17 @@
 
 #include <vectormath/cpp/vectormath_aos.h>
 #include <dlib/configfile.h>
+#include <dlib/hash.h>
 #include <ddf/ddf.h>
 #include "particle/particle_ddf.h"
-
-using namespace Vectormath::Aos;
 
 /**
  * System to handle particle systems
  */
 namespace dmParticle
 {
+    using namespace Vectormath::Aos;
+
     /**
      * Context handle
      */
@@ -45,9 +46,18 @@ namespace dmParticle
     extern const char* MAX_PARTICLE_COUNT_KEY;
 
     /**
+     * Render constants supplied to the render callback.
+     */
+    struct RenderConstant
+    {
+        dmhash_t m_NameHash;
+        Vector4 m_Value;
+    };
+
+    /**
      * Callback to handle rendering of instances
      */
-    typedef void (*RenderInstanceCallback)(void* usercontext, void* material, void* texture, dmParticleDDF::BlendMode blend_mode, uint32_t vertex_index, uint32_t vertex_count);
+    typedef void (*RenderInstanceCallback)(void* usercontext, void* material, void* texture, dmParticleDDF::BlendMode blend_mode, uint32_t vertex_index, uint32_t vertex_count, RenderConstant* constants, uint32_t constant_count);
     /**
      * Callback to handle rendering of lines for debug purposes
      */
@@ -296,6 +306,24 @@ namespace dmParticle
      * @param tile_source Tile source to set
      */
     DM_PARTICLE_PROTO(void, SetTileSource, HPrototype prototype, uint32_t emitter_index, void* tile_source);
+
+    /**
+     * Set a render constant for the emitter with the specified id
+     * @param context Particle context
+     * @param instance Instance containing the emitter
+     * @param emitter_id Id of the emitter
+     * @param name_hash Hashed name of the constant to set
+     * @param value Value to set the constant to
+     */
+    DM_PARTICLE_PROTO(void, SetRenderConstant, HContext context, HInstance instance, dmhash_t emitter_id, dmhash_t name_hash, Vector4 value);
+    /**
+     * Reset a render constant for the emitter with the specified id
+     * @param context Particle context
+     * @param instance Instance containing the emitter
+     * @param emitter_id Id of the emitter
+     * @param name_hash Hashed name of the constant to reset
+     */
+    DM_PARTICLE_PROTO(void, ResetRenderConstant, HContext context, HInstance instance, dmhash_t emitter_id, dmhash_t name_hash);
 
     /**
      * Wrapper for dmHashString64
