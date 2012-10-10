@@ -155,7 +155,6 @@ public class FormPropertySheetViewer extends Viewer {
             }
         }
 
-        this.form.setOrigin(0, 0);
         if (changed) {
             currentComposite.pack();
             currentComposite.layout(true);
@@ -347,6 +346,7 @@ public class FormPropertySheetViewer extends Viewer {
         stackLayout.topControl = currentComposite;
 
         if (relayout) {
+            this.form.setOrigin(0, 0);
             propertiesComposite.layout();
             this.form.reflow(true);
         }
