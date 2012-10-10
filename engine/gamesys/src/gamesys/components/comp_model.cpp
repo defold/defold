@@ -183,7 +183,6 @@ namespace dmGameSystem
                                      (const char*) dmHashReverse64(ddf->m_TextureHash, 0));
                     }
                 }
-                break;
             }
         }
 
