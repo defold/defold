@@ -45,11 +45,15 @@ namespace dmGameSystem
     {
         World* world = (World*)params.m_World;
         uint32_t size = world->m_Entries.Size();
+
         for (uint32_t i = 0; i < size; ++i)
         {
-            if (world->m_Entries[i].m_SoundInstance != 0)
+            PlayEntry& entry = world->m_Entries[i];
+            if (entry.m_SoundInstance != 0)
             {
-                dmSound::DeleteSoundInstance(world->m_Entries[i].m_SoundInstance);
+                dmSound::Stop(entry.m_SoundInstance);
+                dmSound::DeleteSoundInstance(entry.m_SoundInstance);
+                dmResource::Release(entry.m_Factory, entry.m_Sound);
             }
         }
         delete world;
