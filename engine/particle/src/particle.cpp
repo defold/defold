@@ -692,7 +692,7 @@ namespace dmParticle
         {
             height_factor = anim_data.m_TileHeight / (float)anim_data.m_TileWidth;
         }
-        else
+        else if (anim_data.m_TileHeight > 0)
         {
             width_factor = anim_data.m_TileWidth / (float)anim_data.m_TileHeight;
         }

@@ -146,9 +146,6 @@ public class ParticleSystemTest {
             // v
             assertTrue(texCoords.get(uvIdx[i * 2 + 1]) == vertexBuffer.get());
             // p
-            float x = vertexBuffer.get();
-            float y = vertexBuffer.get();
-            float z = vertexBuffer.get();
             assertTrue(1.0f == vertexBuffer.get());
             assertTrue(2.0f == vertexBuffer.get());
             assertTrue(3.0f == vertexBuffer.get());
