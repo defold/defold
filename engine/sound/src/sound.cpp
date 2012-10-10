@@ -42,6 +42,7 @@ namespace dmSound
         float           m_Gain;
         stb_vorbis*     m_StbVorbis;
         uint32_t        m_Looping : 1;
+        uint32_t        m_EndOfStream : 1;
     };
 
     struct SoundSystem
@@ -61,6 +62,8 @@ namespace dmSound
         float                  m_MasterGain;
         uint32_t               m_BufferSize;
         void*                  m_TempBuffer;
+
+        Stats                  m_Stats;
     };
 
     SoundSystem* g_SoundSystem = 0;
@@ -164,6 +167,8 @@ namespace dmSound
             CheckAndPrintError();
         }
 
+        memset(&g_SoundSystem->m_Stats, 0, sizeof(g_SoundSystem->m_Stats));
+
         return RESULT_OK;
     }
 
@@ -199,6 +204,11 @@ namespace dmSound
             g_SoundSystem = 0;
         }
         return result;
+    }
+
+    void GetStats(Stats* stats)
+    {
+        *stats = g_SoundSystem->m_Stats;
     }
 
     Result SetSoundDataWav(HSoundData sound_data, const void* sound_buffer, uint32_t sound_buffer_size)
@@ -342,6 +352,7 @@ namespace dmSound
         si->m_BufferIndices[1] = 0xffff;
         si->m_Gain = 1.0f;
         si->m_Looping = 0;
+        si->m_EndOfStream = 0;
 
         if (sound_data->m_Type == SOUND_DATA_TYPE_OGG_VORBIS)
         {
@@ -397,6 +408,7 @@ namespace dmSound
         const char* p = (const char*) sound_data->m_Data;
         p += instance->m_CurrentBufferOffset;
         alBufferData(buffer, sound_data->m_Format, p, to_buffer, sound_data->m_Frequency);
+        CheckAndPrintError();
 
         instance->m_CurrentBufferOffset += to_buffer;
         return to_buffer;
@@ -416,7 +428,7 @@ namespace dmSound
             }
             else if (sound_data->m_Format == AL_FORMAT_STEREO16)
             {
-                ret = stb_vorbis_get_samples_short_interleaved(instance->m_StbVorbis, 2, (short*) (((char*) sound->m_TempBuffer) + total_read), (sound->m_BufferSize - total_read) / 4);
+                ret = stb_vorbis_get_samples_short_interleaved(instance->m_StbVorbis, 2, (short*) (((char*) sound->m_TempBuffer) + total_read), (sound->m_BufferSize - total_read) / 2);
             }
             else
             {
@@ -472,6 +484,41 @@ namespace dmSound
         }
     }
 
+    static uint32_t InitialBufferFill(HSoundInstance sound_instance)
+    {
+        SoundSystem* sound = g_SoundSystem;
+
+        ALuint source = sound->m_Sources[sound_instance->m_SourceIndex];
+        SoundData* sound_data = &sound->m_SoundData[sound_instance->m_SoundDataIndex];
+
+        ALuint buf1 = sound->m_Buffers[sound_instance->m_BufferIndices[0]];
+        ALuint buf2 = sound->m_Buffers[sound_instance->m_BufferIndices[1]];
+
+        uint32_t to_buffer1 = FillBuffer(sound_data, sound_instance, buf1);
+        (void) to_buffer1;
+        uint32_t to_buffer2 = FillBuffer(sound_data, sound_instance, buf2);
+
+        uint32_t total = to_buffer1 + to_buffer2;
+
+        alSourceQueueBuffers(source, 1, &buf1);
+        CheckAndPrintError();
+        if (to_buffer2 > 0)
+        {
+            alSourceQueueBuffers(source, 1, &buf2);
+            CheckAndPrintError();
+        }
+
+        if (total == 0)
+        {
+            sound_instance->m_EndOfStream = 1;
+        }
+
+        alSourcePlay(source);
+        CheckAndPrintError();
+
+        return total;
+    }
+
     Result Update()
     {
         SoundSystem* sound = g_SoundSystem;
@@ -491,7 +538,16 @@ namespace dmSound
             alGetSourcei (source, AL_SOURCE_STATE, &state);
             CheckAndPrintError();
 
-            if (state != AL_PLAYING && !instance->m_Looping)
+            /* Stop the sound if
+             *  -     at end of stream
+             *  - and source isn't playing
+             *  - and not looping
+             *
+             * We can't just rely on state as OpenAL will put sources in state != AL_PLAYING when
+             * out of buffers, i.e. buffer underflow
+             */
+
+            if (instance->m_EndOfStream && state != AL_PLAYING && !instance->m_Looping)
             {
                 // Instance done playing
                 assert(instance->m_BufferIndices[0] != 0xffff);
@@ -507,24 +563,42 @@ namespace dmSound
             }
             else
             {
-                // Buffer more data
-                int processed;
-                alGetSourcei(source, AL_BUFFERS_PROCESSED, &processed);
-                while (processed > 0)
+                if (state != AL_PLAYING)
                 {
-                    ALuint buffer;
-                    alSourceUnqueueBuffers(source, 1, &buffer);
-                    CheckAndPrintError();
-
-                    uint32_t to_buffer = FillBuffer(sound_data, instance, buffer);
-                    CheckAndPrintError();
-
-                    if (to_buffer > 0)
+                    // Buffer underflow. Restart the sound and refill the buffers
+                    alSourcei(source, AL_BUFFER, AL_NONE);
+                    uint32_t total_buffered = InitialBufferFill(instance);
+                    if (total_buffered > 0)
                     {
-                        alSourceQueueBuffers(source, 1, &buffer);
-                        CheckAndPrintError();
+                        sound->m_Stats.m_BufferUnderflowCount++;
+                        dmLogWarning("Sound buffer underflow");
                     }
-                    --processed;
+                }
+                else
+                {
+                    // Buffer more data
+                    int processed;
+                    alGetSourcei(source, AL_BUFFERS_PROCESSED, &processed);
+                    while (processed > 0)
+                    {
+                        ALuint buffer;
+                        alSourceUnqueueBuffers(source, 1, &buffer);
+                        CheckAndPrintError();
+
+                        uint32_t to_buffer = FillBuffer(sound_data, instance, buffer);
+                        CheckAndPrintError();
+
+                        if (to_buffer > 0)
+                        {
+                            alSourceQueueBuffers(source, 1, &buffer);
+                            CheckAndPrintError();
+                        }
+                        else
+                        {
+                            instance->m_EndOfStream = 1;
+                        }
+                        --processed;
+                    }
                 }
             }
         }
@@ -552,14 +626,13 @@ namespace dmSound
             return RESULT_OUT_OF_SOURCES;
         }
 
-        SoundData* sound_data = &sound->m_SoundData[sound_instance->m_SoundDataIndex];
-
         sound_instance->m_CurrentBufferOffset = 0;
 
         uint16_t index = sound->m_SourcesPool.Pop();
         sound_instance->m_SourceIndex = index;
         ALuint source = sound->m_Sources[index];
         alSourcei(source, AL_BUFFER, AL_NONE);
+        CheckAndPrintError();
 
         ALint prev_state;
         alGetSourcei (source, AL_SOURCE_STATE, &prev_state);
@@ -576,23 +649,7 @@ namespace dmSound
         sound_instance->m_BufferIndices[0] = buf_index1;
         sound_instance->m_BufferIndices[1] = buf_index2;
 
-        ALuint buf1 = sound->m_Buffers[buf_index1];
-        ALuint buf2 = sound->m_Buffers[buf_index2];
-
-        uint32_t to_buffer1 = FillBuffer(sound_data, sound_instance, buf1);
-        (void) to_buffer1;
-        uint32_t to_buffer2 = FillBuffer(sound_data, sound_instance, buf2);
-
-        alSourceQueueBuffers(source, 1, &buf1);
-        CheckAndPrintError();
-        if (to_buffer2 > 0)
-        {
-            alSourceQueueBuffers(source, 1, &buf2);
-            CheckAndPrintError();
-        }
-
-        alSourcePlay(source);
-        CheckAndPrintError();
+        InitialBufferFill(sound_instance);
 
         return RESULT_OK;
     }
@@ -601,6 +658,7 @@ namespace dmSound
     {
         SoundSystem* sound = g_SoundSystem;
         sound_instance->m_Looping = 0;
+        sound_instance->m_EndOfStream = 1;
         if (sound_instance->m_SourceIndex != 0xffff)
         {
             ALuint source = sound->m_Sources[sound_instance->m_SourceIndex];

@@ -37,7 +37,7 @@ namespace dmGameSystem
             tiles_x = (texture_width + tile_set_ddf->m_TileSpacing) / actual_tile_width;
         }
 
-        uint32_t actual_tile_height = (2 * tile_set_ddf->m_TileMargin + tile_set_ddf->m_TileSpacing + tile_set_ddf->m_TileWidth);
+        uint32_t actual_tile_height = (2 * tile_set_ddf->m_TileMargin + tile_set_ddf->m_TileSpacing + tile_set_ddf->m_TileHeight);
         if (actual_tile_height > 0)
         {
             tiles_y = (texture_height + tile_set_ddf->m_TileSpacing) / actual_tile_height;

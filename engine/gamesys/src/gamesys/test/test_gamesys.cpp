@@ -425,12 +425,12 @@ INSTANTIATE_TEST_CASE_P(Script, ComponentFailTest, ::testing::ValuesIn(invalid_s
 
 /* Sound */
 
-const char* valid_sound_resources[] = {"/sound/valid.wavc"};
+const char* valid_sound_resources[] = {"/sound/valid.soundc"};
 INSTANTIATE_TEST_CASE_P(Sound, ResourceTest, ::testing::ValuesIn(valid_sound_resources));
 
 ResourceFailParams invalid_sound_resources[] =
 {
-    {"/sound/valid.wavc", "/sound/missing.wavc"},
+    {"/sound/valid.soundc", "/sound/missing.soundc"},
 };
 INSTANTIATE_TEST_CASE_P(Sound, ResourceFailTest, ::testing::ValuesIn(invalid_sound_resources));
 

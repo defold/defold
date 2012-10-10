@@ -62,7 +62,8 @@ def build(bld):
             'script',
             'sprite',
             'vp',
-            'wav']
+            'wav',
+            'sound']
     test_task_gen = bld.new_task_gen(features = 'cxx cprogram',
                                      includes = '../../../src ../../../proto %s' % (dir),
                                      uselib = 'GTEST GAMEOBJECT DDF RESOURCE GRAPHICS_UTIL PHYSICS RENDER GRAPHICS_NULL PLATFORM_SOCKET LUA SCRIPT INPUT HID_NULL PARTICLE GUI SOUND_NULL DLIB',

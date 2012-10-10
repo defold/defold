@@ -853,6 +853,17 @@ Result GetDescriptor(HFactory factory, const char* name, SResourceDescriptor* de
     }
 }
 
+void IncRef(HFactory factory, void* resource)
+{
+    uint64_t* resource_hash = factory->m_ResourceToHash->Get((uintptr_t) resource);
+    assert(resource_hash);
+
+    SResourceDescriptor* rd = factory->m_Resources->Get(*resource_hash);
+    assert(rd);
+    assert(rd->m_ReferenceCount > 0);
+    ++rd->m_ReferenceCount;
+}
+
 void Release(HFactory factory, void* resource)
 {
     uint64_t* resource_hash = factory->m_ResourceToHash->Get((uintptr_t) resource);

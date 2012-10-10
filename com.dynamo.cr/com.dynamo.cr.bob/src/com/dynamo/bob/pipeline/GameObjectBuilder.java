@@ -13,17 +13,50 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.IResource;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
+import com.dynamo.gameobject.proto.GameObject;
 import com.dynamo.gameobject.proto.GameObject.ComponentDesc;
 import com.dynamo.gameobject.proto.GameObject.EmbeddedComponentDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
+import com.dynamo.sound.proto.Sound.SoundDesc;
+import com.google.protobuf.TextFormat;
 
 @BuilderParams(name = "GameObject", inExts = ".go", outExt = ".goc")
 public class GameObjectBuilder extends Builder<Void> {
 
-    @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
+    private PrototypeDesc.Builder loadPrototype(IResource input) throws IOException, CompileExceptionError {
         PrototypeDesc.Builder b = PrototypeDesc.newBuilder();
         ProtoUtil.merge(input, b);
+
+        List<ComponentDesc> lst = b.getComponentsList();
+        List<ComponentDesc> newList = new ArrayList<GameObject.ComponentDesc>();
+
+
+        for (ComponentDesc componentDesc : lst) {
+            // Convert .wav resource component to an embedded sound
+            // We might generalize this in the future if necessary
+            if (componentDesc.getComponent().endsWith(".wav")) {
+                SoundDesc.Builder sd = SoundDesc.newBuilder().setSound(componentDesc.getComponent());
+                EmbeddedComponentDesc ec = EmbeddedComponentDesc.newBuilder()
+                    .setId(componentDesc.getId())
+                    .setType("sound")
+                    .setData(TextFormat.printToString(sd.build()))
+                    .build();
+                b.addEmbeddedComponents(ec);
+            } else {
+                newList.add(componentDesc);
+            }
+        }
+
+        b.clearComponents();
+        b.addAllComponents(newList);
+
+
+        return b;
+    }
+
+    @Override
+    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
+        PrototypeDesc.Builder b = loadPrototype(input);
         PrototypeDesc proto = b.build();
 
         TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
@@ -63,8 +96,7 @@ public class GameObjectBuilder extends Builder<Void> {
             IOException {
         IResource input = task.getInputs().get(0);
 
-        PrototypeDesc.Builder protoBuilder = PrototypeDesc.newBuilder();
-        ProtoUtil.merge(input, protoBuilder);
+        PrototypeDesc.Builder protoBuilder = loadPrototype(input);
         for (ComponentDesc c : protoBuilder.getComponentsList()) {
             String component = c.getComponent();
             BuilderUtil.checkFile(this.project, input, "component", component);
@@ -111,7 +143,8 @@ public class GameObjectBuilder extends Builder<Void> {
         {".gui", ".guic"},
         {".model", ".modelc"},
         {".script", ".scriptc"},
-        {".wav", ".wavc"},
+        {".sound", ".soundc"},
+        {".wav", ".soundc"},
         {".factory", ".factoryc"},
         {".light", ".lightc"},
         {".sprite", ".spritec"},

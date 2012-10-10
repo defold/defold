@@ -78,7 +78,7 @@ def transform_gameobject(task, msg):
         c.component = c.component.replace('.gui', '.guic')
         c.component = c.component.replace('.model', '.modelc')
         c.component = c.component.replace('.script', '.scriptc')
-        c.component = c.component.replace('.wav', '.wavc')
+        c.component = c.component.replace('.sound', '.soundc')
         c.component = c.component.replace('.factory', '.factoryc')
         c.component = c.component.replace('.light', '.lightc')
         c.component = c.component.replace('.sprite', '.spritec')
@@ -132,6 +132,11 @@ def transform_sprite(task, msg):
 
 def transform_tilegrid(task, msg):
     msg.tile_set = transform_tilesource_name(msg.tile_set)
+    return msg
+
+def transform_sound(task, msg):
+    msg.sound = msg.sound.replace('.wav', '.wavc')
+    msg.sound = msg.sound.replace('.ogg', '.oggc')
     return msg
 
 def write_embedded(task):
@@ -262,6 +267,7 @@ proto_compile_task('render', 'render.render_ddf_pb2', 'render_ddf_pb2.RenderProt
 proto_compile_task('sprite', 'sprite_ddf_pb2', 'SpriteDesc', '.sprite', '.spritec', transform_sprite)
 proto_compile_task('tilegrid', 'tile_ddf_pb2', 'TileGrid', '.tilegrid', '.tilegridc', transform_tilegrid)
 proto_compile_task('tilemap', 'tile_ddf_pb2', 'TileGrid', '.tilemap', '.tilegridc', transform_tilegrid)
+proto_compile_task('sound', 'sound_ddf_pb2', 'SoundDesc', '.sound', '.soundc', transform_sound)
 
 new_copy_task('project', '.project', '.projectc')
 new_copy_task('emitter', '.emitter', '.emitterc')
@@ -346,6 +352,7 @@ def script_file(self, node):
 
 new_copy_task('render_script', '.render_script', '.render_scriptc')
 new_copy_task('wav', '.wav', '.wavc')
+new_copy_task('ogg', '.ogg', '.oggc')
 
 Task.simple_task_type('mesh', 'python ${MESHC} ${SRC} -o ${TGT}',
                       color='PINK',

@@ -1,3 +1,4 @@
+#include <string.h>
 #include <sound/sound.h>
 #include "res_sound_data.h"
 
@@ -10,7 +11,16 @@ namespace dmGameSystem
                                                 const char* filename)
     {
         dmSound::HSoundData sound_data;
-        dmSound::Result r = dmSound::NewSoundData(buffer, buffer_size, dmSound::SOUND_DATA_TYPE_WAV, &sound_data);
+
+        dmSound::SoundDataType type = dmSound::SOUND_DATA_TYPE_WAV;
+
+        size_t filename_len = strlen(filename);
+        if (filename_len > 5 && strcmp(filename + filename_len - 5, ".oggc") == 0)
+        {
+            type = dmSound::SOUND_DATA_TYPE_OGG_VORBIS;
+        }
+
+        dmSound::Result r = dmSound::NewSoundData(buffer, buffer_size, type, &sound_data);
         if (r != dmSound::RESULT_OK)
         {
             return dmResource::RESULT_OUT_OF_RESOURCES;

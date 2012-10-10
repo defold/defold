@@ -18,6 +18,8 @@ extern unsigned char LAYER_GUITAR_A_OGG[];
 extern uint32_t LAYER_GUITAR_A_OGG_SIZE;
 extern unsigned char OSC2_SIN_440HZ_WAV[];
 extern uint32_t OSC2_SIN_440HZ_WAV_SIZE;
+extern unsigned char DOOR_OPENING_WAV[];
+extern uint32_t DOOR_OPENING_WAV_SIZE;
 
 class dmSoundTest : public ::testing::Test
 {
@@ -36,6 +38,9 @@ public:
 
     void*    m_SineWave;
     uint32_t m_SineWaveSize;
+
+    void*    m_DoorOpening;
+    uint32_t m_DoorOpeningSize;
 
     void LoadFile(const char* file_name, void** buffer, uint32_t* size)
     {
@@ -82,6 +87,9 @@ public:
 
         m_SineWave = (void*) OSC2_SIN_440HZ_WAV;
         m_SineWaveSize = OSC2_SIN_440HZ_WAV_SIZE;
+
+        m_DoorOpening = (void*) DOOR_OPENING_WAV;
+        m_DoorOpeningSize = DOOR_OPENING_WAV_SIZE;
     }
 
     virtual void TearDown()
@@ -177,6 +185,43 @@ TEST_F(dmSoundTest, Play)
 
     r = dmSound::DeleteSoundData(sd);
     ASSERT_EQ(dmSound::RESULT_OK, r);
+}
+
+TEST_F(dmSoundTest, UnderflowBug)
+{
+    /* Test for a invalid buffer underflow bug fixed */
+
+    dmSound::HSoundData sd = 0;
+    dmSound::Result r = dmSound::NewSoundData(m_DoorOpening, m_DoorOpeningSize, dmSound::SOUND_DATA_TYPE_WAV, &sd);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    dmSound::HSoundInstance instance = 0;
+    r = dmSound::NewSoundInstance(sd, &instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    ASSERT_NE((dmSound::HSoundInstance) 0, instance);
+
+    r = dmSound::Play(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    r = dmSound::Update();
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    while (dmSound::IsPlaying(instance))
+    {
+        r = dmSound::Update();
+        ASSERT_EQ(dmSound::RESULT_OK, r);
+
+        dmTime::Sleep(1000);
+    }
+
+    r = dmSound::DeleteSoundInstance(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::DeleteSoundData(sd);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    dmSound::Stats stats;
+    dmSound::GetStats(&stats);
+
+    ASSERT_EQ(0U, stats.m_BufferUnderflowCount);
 }
 
 TEST_F(dmSoundTest, PlayOggVorbis)
