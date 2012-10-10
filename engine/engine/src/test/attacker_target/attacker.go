@@ -8,7 +8,7 @@ components {
 }
 components {
   id: "shot"
-  component: "/attacker_target/shot.wav"
+  component: "/attacker_target/shot.sound"
 }
 embedded_components {
   id: "bullet_factory"
