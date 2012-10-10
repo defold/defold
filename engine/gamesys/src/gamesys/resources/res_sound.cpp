@@ -64,7 +64,7 @@ namespace dmGameSystem
             dmResource::SResourceDescriptor* resource,
             const char* filename)
     {
-        // Not supported yet. This might be difficult to set a new HSouncdInstance
+        // Not supported yet. This might be difficult to set a new HSoundInstance
         // while a sound is playing?
         return dmResource::RESULT_OK;
     }

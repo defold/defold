@@ -16,7 +16,9 @@ namespace dmGameSystem
 {
     struct PlayEntry
     {
-        dmSound::HSoundInstance m_Instance;
+        dmResource::HFactory    m_Factory;
+        Sound*                  m_Sound;
+        dmSound::HSoundInstance m_SoundInstance;
         float                   m_Delay;
         uint32_t                m_StopRequested : 1;
     };
@@ -45,9 +47,9 @@ namespace dmGameSystem
         uint32_t size = world->m_Entries.Size();
         for (uint32_t i = 0; i < size; ++i)
         {
-            if (world->m_Entries[i].m_Instance != 0)
+            if (world->m_Entries[i].m_SoundInstance != 0)
             {
-                dmSound::DeleteSoundInstance(world->m_Entries[i].m_Instance);
+                dmSound::DeleteSoundInstance(world->m_Entries[i].m_SoundInstance);
             }
         }
         delete world;
@@ -72,7 +74,7 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < world->m_Entries.Size(); ++i)
         {
             PlayEntry& entry = world->m_Entries[i];
-            if (entry.m_Instance != 0)
+            if (entry.m_SoundInstance != 0)
             {
                 float prev_delay = entry.m_Delay;
                 entry.m_Delay -= params.m_UpdateContext->m_DT;
@@ -80,7 +82,7 @@ namespace dmGameSystem
                 {
                     if (prev_delay >= 0.0f)
                     {
-                        dmSound::Result r = dmSound::Play(entry.m_Instance);
+                        dmSound::Result r = dmSound::Play(entry.m_SoundInstance);
                         if (r != dmSound::RESULT_OK)
                         {
                             dmLogError("Error playing sound: (%d)", r);
@@ -89,10 +91,11 @@ namespace dmGameSystem
                             // so that the instance can be removed
                         }
                     }
-                    else if (!dmSound::IsPlaying(entry.m_Instance))
+                    else if (!dmSound::IsPlaying(entry.m_SoundInstance))
                     {
-                        dmSound::Result r = dmSound::DeleteSoundInstance(entry.m_Instance);
-                        entry.m_Instance = 0;
+                        dmResource::Release(entry.m_Factory, entry.m_Sound);
+                        dmSound::Result r = dmSound::DeleteSoundInstance(entry.m_SoundInstance);
+                        entry.m_SoundInstance = 0;
                         world->m_EntryIndices.Push(i);
                         if (r != dmSound::RESULT_OK)
                         {
@@ -102,7 +105,7 @@ namespace dmGameSystem
                     }
                     else if (entry.m_StopRequested)
                     {
-                        dmSound::Result r = dmSound::Stop(entry.m_Instance);
+                        dmSound::Result r = dmSound::Stop(entry.m_SoundInstance);
                         if (r != dmSound::RESULT_OK)
                         {
                             dmLogError("Error deleting sound: (%d)", r);
@@ -128,13 +131,18 @@ namespace dmGameSystem
                 dmSound::HSoundData sound_data = sound->m_SoundData;
                 uint32_t index = world->m_EntryIndices.Pop();
                 PlayEntry& entry = world->m_Entries[index];
+                dmResource::HFactory factory = dmGameObject::GetFactory(dmGameObject::GetCollection(params.m_Instance));
+                // NOTE: We must increase ref-count as a sound might be active after the component is destroyed
+                dmResource::IncRef(factory, sound);
+                entry.m_Factory = factory;
+                entry.m_Sound = sound;
                 entry.m_StopRequested = 0;
                 entry.m_Delay = play_sound->m_Delay;
-                dmSound::Result result = dmSound::NewSoundInstance(sound_data, &entry.m_Instance);
+                dmSound::Result result = dmSound::NewSoundInstance(sound_data, &entry.m_SoundInstance);
                 if (result == dmSound::RESULT_OK)
                 {
-                    dmSound::SetParameter(entry.m_Instance, dmSound::PARAMETER_GAIN, Vectormath::Aos::Vector4(play_sound->m_Gain, 0, 0, 0));
-                    dmSound::SetLooping(entry.m_Instance, sound->m_Looping);
+                    dmSound::SetParameter(entry.m_SoundInstance, dmSound::PARAMETER_GAIN, Vectormath::Aos::Vector4(play_sound->m_Gain, 0, 0, 0));
+                    dmSound::SetLooping(entry.m_SoundInstance, sound->m_Looping);
                 }
                 else
                 {
@@ -154,7 +162,7 @@ namespace dmGameSystem
             for (uint32_t i = 0; i < world->m_Entries.Size(); ++i)
             {
                 PlayEntry& entry = world->m_Entries[i];
-                if (entry.m_Instance != 0)
+                if (entry.m_SoundInstance != 0 && entry.m_Sound == (Sound*) *params.m_UserData)
                 {
                     entry.m_StopRequested = 1;
                 }

@@ -268,6 +268,13 @@ namespace dmResource
     Result GetDescriptor(HFactory factory, const char* name, SResourceDescriptor* descriptor);
 
     /**
+     * Increase resource reference count
+     * @param factory Factory handle
+     * @param resource Resource
+     */
+    void IncRef(HFactory factory, void* resource);
+
+    /**
      * Release resource
      * @param factory Factory handle
      * @param resource Resource

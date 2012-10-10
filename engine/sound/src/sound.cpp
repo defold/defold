@@ -62,6 +62,8 @@ namespace dmSound
         float                  m_MasterGain;
         uint32_t               m_BufferSize;
         void*                  m_TempBuffer;
+
+        Stats                  m_Stats;
     };
 
     SoundSystem* g_SoundSystem = 0;
@@ -165,6 +167,8 @@ namespace dmSound
             CheckAndPrintError();
         }
 
+        memset(&g_SoundSystem->m_Stats, 0, sizeof(g_SoundSystem->m_Stats));
+
         return RESULT_OK;
     }
 
@@ -200,6 +204,11 @@ namespace dmSound
             g_SoundSystem = 0;
         }
         return result;
+    }
+
+    void GetStats(Stats* stats)
+    {
+        *stats = g_SoundSystem->m_Stats;
     }
 
     Result SetSoundDataWav(HSoundData sound_data, const void* sound_buffer, uint32_t sound_buffer_size)
@@ -475,7 +484,7 @@ namespace dmSound
         }
     }
 
-    static void InitialBufferFill(HSoundInstance sound_instance)
+    static uint32_t InitialBufferFill(HSoundInstance sound_instance)
     {
         SoundSystem* sound = g_SoundSystem;
 
@@ -489,6 +498,8 @@ namespace dmSound
         (void) to_buffer1;
         uint32_t to_buffer2 = FillBuffer(sound_data, sound_instance, buf2);
 
+        uint32_t total = to_buffer1 + to_buffer2;
+
         alSourceQueueBuffers(source, 1, &buf1);
         CheckAndPrintError();
         if (to_buffer2 > 0)
@@ -497,8 +508,15 @@ namespace dmSound
             CheckAndPrintError();
         }
 
+        if (total == 0)
+        {
+            sound_instance->m_EndOfStream = 1;
+        }
+
         alSourcePlay(source);
         CheckAndPrintError();
+
+        return total;
     }
 
     Result Update()
@@ -549,8 +567,12 @@ namespace dmSound
                 {
                     // Buffer underflow. Restart the sound and refill the buffers
                     alSourcei(source, AL_BUFFER, AL_NONE);
-                    InitialBufferFill(instance);
-                    dmLogWarning("Sound buffer underflow");
+                    uint32_t total_buffered = InitialBufferFill(instance);
+                    if (total_buffered > 0)
+                    {
+                        sound->m_Stats.m_BufferUnderflowCount++;
+                        dmLogWarning("Sound buffer underflow");
+                    }
                 }
                 else
                 {
@@ -603,8 +625,6 @@ namespace dmSound
             dmLogWarning("Out of sound sources");
             return RESULT_OUT_OF_SOURCES;
         }
-
-        SoundData* sound_data = &sound->m_SoundData[sound_instance->m_SoundDataIndex];
 
         sound_instance->m_CurrentBufferOffset = 0;
 

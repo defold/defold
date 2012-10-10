@@ -39,10 +39,13 @@ namespace dmSound
         RESULT_UNKNOWN_ERROR      = -1000, //!< RESULT_UNKNOWN_ERROR
     };
 
+    struct Stats
+    {
+        uint32_t m_BufferUnderflowCount;
+    };
+
     // TODO:
     // - Music streaming.
-    // - Ogg support
-    // - Fire and forget?
 
     struct InitializeParams;
     void SetDefaultInitializeParams(InitializeParams* params);
@@ -64,6 +67,8 @@ namespace dmSound
 
     Result Initialize(dmConfigFile::HConfig config, const InitializeParams* params);
     Result Finalize();
+
+    void   GetStats(Stats* stats);
 
     Result NewSoundData(const void* sound_buffer, uint32_t sound_buffer_size, SoundDataType type, HSoundData* sound_data);
     Result SetSoundData(HSoundData sound_data, const void* sound_buffer, uint32_t sound_buffer_size);

@@ -6,7 +6,7 @@ def build(bld):
     embedded_sounds = bld.new_task_gen(features = 'cxx cstaticlib embed',
                                        target = 'embedded_sounds',
                                        source = 'dummy.cpp',  # Make waf happy
-                                       embed_source = 'drumloop.wav onefootstep.wav layer-guitar-a.ogg click-track.ogg osc2_sin_440hz.wav')
+                                       embed_source = 'drumloop.wav onefootstep.wav layer-guitar-a.ogg click-track.ogg osc2_sin_440hz.wav door_opening.wav')
 
     test_sound = bld.new_task_gen(features = 'cxx cprogram embed',
                                   includes = '../../../src .',
