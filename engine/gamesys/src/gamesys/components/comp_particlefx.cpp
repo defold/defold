@@ -1,6 +1,7 @@
 #include "comp_particlefx.h"
 
 #include <float.h>
+#include <stdio.h>
 #include <assert.h>
 
 #include <dlib/hash.h>
@@ -11,6 +12,7 @@
 #include <render/render.h>
 
 #include "gamesys.h"
+#include "gamesys_ddf.h"
 #include "../gamesys_private.h"
 
 #include "resources/res_particlefx.h"
@@ -18,8 +20,6 @@
 
 namespace dmGameSystem
 {
-    const uint32_t MAX_COMPONENT_COUNT = 64;
-
     struct ParticleFXWorld;
 
     struct ParticleFXComponent
@@ -74,6 +74,10 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompParticleFXDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
     {
         ParticleFXWorld* emitter_world = (ParticleFXWorld*)params.m_World;
+        for (uint32_t i = 0; i < emitter_world->m_Components.Size(); ++i)
+        {
+            dmParticle::DestroyInstance(emitter_world->m_ParticleContext, emitter_world->m_Components[i].m_ParticleFXInstance);
+        }
         dmParticle::DestroyContext(emitter_world->m_ParticleContext);
         delete [] (char*)emitter_world->m_ClientBuffer;
         dmGraphics::DeleteVertexBuffer(emitter_world->m_VertexBuffer);
@@ -84,24 +88,8 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompParticleFXCreate(const dmGameObject::ComponentCreateParams& params)
     {
-        dmParticle::HPrototype prototype = (dmParticle::HPrototype)params.m_Resource;
-        assert(prototype != dmParticle::INVALID_PROTOTYPE);
-        ParticleFXWorld* w = (ParticleFXWorld*)params.m_World;
-        if (w->m_Components.Size() < MAX_COMPONENT_COUNT)
-        {
-            ParticleFXComponent emitter;
-            emitter.m_Instance = params.m_Instance;
-            emitter.m_ParticleFXInstance = dmParticle::CreateInstance(w->m_ParticleContext, prototype);
-            emitter.m_World = w;
-            w->m_Components.Push(emitter);
-            *params.m_UserData = (uintptr_t)&w->m_Components[w->m_Components.Size() - 1];
-            return dmGameObject::CREATE_RESULT_OK;
-        }
-        else
-        {
-            dmLogError("Particle component buffer is full (%d), component disregarded.", MAX_COMPONENT_COUNT);
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
-        }
+        *params.m_UserData = (uintptr_t)params.m_Resource;
+        return dmGameObject::CREATE_RESULT_OK;
     }
 
     dmGameObject::CreateResult CompParticleFXDestroy(const dmGameObject::ComponentDestroyParams& params)
@@ -109,16 +97,13 @@ namespace dmGameSystem
         ParticleFXWorld* w = (ParticleFXWorld*)params.m_World;
         for (uint32_t i = 0; i < w->m_Components.Size(); ++i)
         {
-            if (w->m_Components[i].m_Instance == params.m_Instance)
+            ParticleFXComponent* c = &w->m_Components[i];
+            if (c->m_Instance == params.m_Instance)
             {
-                dmParticle::DestroyInstance(w->m_ParticleContext, w->m_Components[i].m_ParticleFXInstance);
-                w->m_Components.EraseSwap(i);
-                return dmGameObject::CREATE_RESULT_OK;
+                c->m_Instance = 0;
             }
         }
-
-        dmLogError("Destroyed emitter could not be found, something is fishy.");
-        return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+        return dmGameObject::CREATE_RESULT_OK;
     }
 
     void RenderInstanceCallback(void* render_context, void* material, void* texture, dmParticleDDF::BlendMode blend_mode, uint32_t vertex_index, uint32_t vertex_count);
@@ -128,17 +113,24 @@ namespace dmGameSystem
     dmGameObject::UpdateResult CompParticleFXUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
         ParticleFXWorld* w = (ParticleFXWorld*)params.m_World;
-        if (w->m_Components.Size() == 0)
+        dmArray<ParticleFXComponent>& components = w->m_Components;
+        if (components.Empty())
             return dmGameObject::UPDATE_RESULT_OK;
 
         dmParticle::HContext particle_context = w->m_ParticleContext;
-        for (uint32_t i = 0; i < w->m_Components.Size(); ++i)
+        uint32_t count = components.Size();
+
+        // Update positions
+        for (uint32_t i = 0; i < count; ++i)
         {
-            ParticleFXComponent& emitter = w->m_Components[i];
-            Point3 position = dmGameObject::GetWorldPosition(emitter.m_Instance);
-            dmParticle::SetPosition(particle_context, emitter.m_ParticleFXInstance, position);
-            dmParticle::SetRotation(particle_context, emitter.m_ParticleFXInstance, dmGameObject::GetWorldRotation(emitter.m_Instance));
+            ParticleFXComponent& c = w->m_Components[i];
+            if (c.m_Instance != 0)
+            {
+                dmParticle::SetPosition(particle_context, c.m_ParticleFXInstance, dmGameObject::GetWorldPosition(c.m_Instance));
+                dmParticle::SetRotation(particle_context, c.m_ParticleFXInstance, dmGameObject::GetWorldRotation(c.m_Instance));
+            }
         }
+
         ParticleFXContext* ctx = (ParticleFXContext*)params.m_Context;
 
         // NOTE: Objects are added in RenderEmitterCallback
@@ -163,31 +155,88 @@ namespace dmGameSystem
         {
             dmParticle::DebugRender(particle_context, render_context, RenderLineCallback);
         }
+
+        // Prune sleeping instances
+        uint32_t i = 0;
+        while (i < count)
+        {
+            ParticleFXComponent& c = components[i];
+            if (dmParticle::IsSleeping(particle_context, c.m_ParticleFXInstance))
+            {
+                dmParticle::DestroyInstance(particle_context, c.m_ParticleFXInstance);
+                components.EraseSwap(i);
+                --count;
+            }
+            else
+            {
+                ++i;
+            }
+        }
         return dmGameObject::UPDATE_RESULT_OK;
+    }
+
+    static dmParticle::HInstance CreateComponent(ParticleFXWorld* world, dmGameObject::HInstance go_instance, dmParticle::HPrototype prototype)
+    {
+        if (!world->m_Components.Full())
+        {
+            uint32_t count = world->m_Components.Size();
+            world->m_Components.SetSize(count + 1);
+            ParticleFXComponent* emitter = &world->m_Components[count];
+            emitter->m_Instance = go_instance;
+            emitter->m_ParticleFXInstance = dmParticle::CreateInstance(world->m_ParticleContext, prototype);
+            emitter->m_World = world;
+            return emitter->m_ParticleFXInstance;
+        }
+        else
+        {
+            dmLogError("Particle component buffer is full (%d), component disregarded.", world->m_Components.Capacity());
+            return dmParticle::INVALID_INSTANCE;
+        }
     }
 
     dmGameObject::UpdateResult CompParticleFXOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
-        ParticleFXComponent* emitter = (ParticleFXComponent*)*params.m_UserData;
-        if (params.m_Message->m_Id == dmHashString64("start"))
+        ParticleFXWorld* world = (ParticleFXWorld*)params.m_World;
+        if (params.m_Message->m_Id == dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor->m_NameHash)
         {
-            dmParticle::StartInstance(emitter->m_World->m_ParticleContext, emitter->m_ParticleFXInstance);
+            dmParticle::HInstance instance = CreateComponent(world, params.m_Instance, (dmParticle::HPrototype)*params.m_UserData);
+            Point3 p = dmGameObject::GetPosition(params.m_Instance);
+            dmParticle::StartInstance(world->m_ParticleContext, instance);
         }
-        else if (params.m_Message->m_Id == dmHashString64("restart"))
+        else if (params.m_Message->m_Id == dmGameSystemDDF::StopParticleFX::m_DDFDescriptor->m_NameHash)
         {
-            dmParticle::RestartInstance(emitter->m_World->m_ParticleContext, emitter->m_ParticleFXInstance);
-        }
-        else if (params.m_Message->m_Id == dmHashString64("stop"))
-        {
-            dmParticle::StopInstance(emitter->m_World->m_ParticleContext, emitter->m_ParticleFXInstance);
+            uint32_t count = world->m_Components.Size();
+            uint32_t found_count = 0;
+            for (uint32_t i = 0; i < count; ++i)
+            {
+                ParticleFXComponent* component = &world->m_Components[i];
+                if (component->m_Instance == params.m_Instance)
+                {
+                    dmParticle::StopInstance(world->m_ParticleContext, component->m_ParticleFXInstance);
+                    ++found_count;
+                }
+            }
+            if (found_count == 0)
+            {
+                dmLogWarning("Particle instance to stop could not be found.");
+            }
         }
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
     void CompParticleFXOnReload(const dmGameObject::ComponentOnReloadParams& params)
     {
-        ParticleFXComponent* component = (ParticleFXComponent*)*params.m_UserData;
-        dmParticle::ReloadInstance(component->m_World->m_ParticleContext, component->m_ParticleFXInstance);
+        ParticleFXWorld* world = (ParticleFXWorld*)params.m_World;
+        uint32_t count = world->m_Components.Size();
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            ParticleFXComponent* component = &world->m_Components[i];
+            if (component->m_Instance == params.m_Instance)
+            {
+                dmParticle::ReloadInstance(world->m_ParticleContext, component->m_ParticleFXInstance);
+            }
+        }
+        // Don't warn if none could be found
     }
 
     static void SetBlendFactors(dmRender::RenderObject* ro, dmParticleDDF::BlendMode blend_mode)

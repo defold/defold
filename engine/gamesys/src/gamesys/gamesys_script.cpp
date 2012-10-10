@@ -5,6 +5,8 @@
 
 #include "components/comp_collision_object.h"
 
+#include "scripts/script_particlefx.h"
+
 #include "physics_ddf.h"
 #include "gamesys_ddf.h"
 #include "sprite_ddf.h"
@@ -523,6 +525,8 @@ namespace dmGameSystem
         lua_pop(L, 1);
         luaL_register(L, "sprite", SPRITE_COMP_FUNCTIONS);
         lua_pop(L, 1);
+
+        ScriptParticleFXRegister(L);
 
         PhysicsScriptContext* physics_context = new PhysicsScriptContext();
         dmMessage::Result socket_result = dmMessage::GetSocket(dmPhysics::PHYSICS_SOCKET_NAME, &physics_context->m_Socket);

@@ -147,3 +147,11 @@ message PlaySound
 message StopSound
 {
 }
+
+/* Documented in scripts/script_particlefx.cpp */
+message PlayParticleFX
+{
+}
+message StopParticleFX
+{
+}

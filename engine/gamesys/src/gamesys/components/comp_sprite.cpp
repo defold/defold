@@ -168,7 +168,14 @@ namespace dmGameSystem
         dmHashUpdateBuffer32(&state, &resource->m_Material, sizeof(resource->m_Material));
         dmHashUpdateBuffer32(&state, &ddf->m_BlendMode, sizeof(ddf->m_BlendMode));
         dmArray<dmGameSystemDDF::SetConstant>& constants = component->m_RenderConstants;
-        dmHashUpdateBuffer32(&state, constants.Begin(), constants.Size() * sizeof(dmGameSystemDDF::SetConstant));
+        uint32_t size = constants.Size();
+        // Padding in the SetConstant-struct forces us to copy the components by hand
+        for (uint32_t i = 0; i < size; ++i)
+        {
+            dmGameSystemDDF::SetConstant& c = constants[i];
+            dmHashUpdateBuffer32(&state, &c.m_NameHash, sizeof(uint64_t));
+            dmHashUpdateBuffer32(&state, &c.m_Value, sizeof(Vector4));
+        }
         component->m_MixedHash = dmHashFinal32(&state);
     }
 
@@ -186,7 +193,6 @@ namespace dmGameSystem
         component->m_Instance = params.m_Instance;
         component->m_Position = params.m_Position;
         component->m_Rotation = params.m_Rotation;
-        component->m_MixedHash = dmHashBufferNoReverse32(&params.m_Resource, sizeof(&params.m_Resource));
         component->m_Resource = (SpriteResource*)params.m_Resource;
         component->m_ListenerInstance = 0x0;
         component->m_ListenerComponent = 0xff;
@@ -247,7 +253,6 @@ namespace dmGameSystem
         {
             SpriteComponent* c = &components[i];
             uint32_t index = c - first;
-
             if (c->m_Resource && c->m_Enabled)
             {
                 float z = (c->m_World.getElem(3, 2) - min_z) * range * 65535;
