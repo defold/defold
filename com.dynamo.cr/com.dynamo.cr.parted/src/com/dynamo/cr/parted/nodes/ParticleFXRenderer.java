@@ -52,7 +52,7 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
 
         @Override
         public void invoke(Pointer userContext, Pointer material,
-                Pointer texture, int blendMode, int vertexIndex, int vertexCount) {
+                Pointer texture, int blendMode, int vertexIndex, int vertexCount, Pointer constants, int constantCount) {
             Texture t = null;
             if (texture != null) {
                 int index = (int) Pointer.nativeValue(texture);

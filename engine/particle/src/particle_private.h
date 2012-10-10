@@ -87,6 +87,8 @@ namespace dmParticle
         AnimationData           m_AnimationData;
         /// Particle buffer.
         dmArray<Particle>       m_Particles;
+        dmArray<RenderConstant> m_RenderConstants;
+        dmhash_t                m_Id;
         /// Vertex index of the render data for the particles spawned by this emitter.
         uint32_t                m_VertexIndex;
         /// Number of vertices of the render data for the particles spawned by this emitter.

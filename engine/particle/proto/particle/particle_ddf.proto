@@ -104,22 +104,23 @@ enum ParticleDirection
 
 message Emitter
 {
-    required PlayMode           mode                = 1;
-    optional float              duration            = 2 [default = 0];
+    optional string             id                  = 1 [default = "emitter"];
+    required PlayMode           mode                = 2;
+    optional float              duration            = 3 [default = 0];
 
-    required EmissionSpace      space               = 3;
-    required dmMath.Point3      position            = 4;
-    required dmMath.Quat        rotation            = 5;
+    required EmissionSpace      space               = 4;
+    required dmMath.Point3      position            = 5;
+    required dmMath.Quat        rotation            = 6;
 
-    required string             tile_source         = 6 [(resource)=true];
-    required string             animation           = 7;
-    required string             material            = 8 [(resource)=true];
-    optional BlendMode          blend_mode          = 9 [default = BLEND_MODE_ALPHA];
-    optional ParticleDirection  particle_direction  = 10 [default = PARTICLE_DIRECTION_NONE];
+    required string             tile_source         = 7 [(resource)=true];
+    required string             animation           = 8;
+    required string             material            = 9 [(resource)=true];
+    optional BlendMode          blend_mode          = 10 [default = BLEND_MODE_ALPHA];
+    optional ParticleDirection  particle_direction  = 11 [default = PARTICLE_DIRECTION_NONE];
 
-    required uint32             max_particle_count  = 11;
+    required uint32             max_particle_count  = 12;
 
-    required EmitterType        type                = 12;
+    required EmitterType        type                = 13;
 
     message Property
     {
@@ -127,16 +128,16 @@ message Emitter
         repeated SplinePoint        points  = 2;
         optional float              spread  = 3 [default = 0.0];
     }
-    repeated Property           properties          = 13;
+    repeated Property           properties          = 14;
 
     message ParticleProperty
     {
         required ParticleKey    key     = 1;
         repeated SplinePoint    points  = 2;
     }
-    repeated ParticleProperty   particle_properties = 14;
+    repeated ParticleProperty   particle_properties = 15;
 
-    repeated Modifier           modifiers           = 15;
+    repeated Modifier           modifiers           = 16;
 }
 
 message ParticleFX

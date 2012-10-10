@@ -15,7 +15,7 @@ public class ParticleLibrary {
     }
 
     public interface RenderInstanceCallback extends Callback {
-        void invoke(Pointer userContext, Pointer material, Pointer texture, int blendMode, int vertexIndex, int vertexCount);
+        void invoke(Pointer userContext, Pointer material, Pointer texture, int blendMode, int vertexIndex, int vertexCount, Pointer constants, int constantCount);
     }
 
     public interface FetchAnimationCallback extends Callback {

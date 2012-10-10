@@ -45,6 +45,7 @@ namespace dmGameSystem
         {
             memset(this, 0, sizeof(*this));
         }
+        dmResource::HFactory m_Factory;
         dmRender::HRenderContext m_RenderContext;
         uint32_t m_MaxParticleFXCount;
         uint32_t m_MaxParticleCount;
