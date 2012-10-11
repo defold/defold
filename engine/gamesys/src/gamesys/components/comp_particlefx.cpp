@@ -207,9 +207,11 @@ namespace dmGameSystem
         ParticleFXWorld* world = (ParticleFXWorld*)params.m_World;
         if (params.m_Message->m_Id == dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor->m_NameHash)
         {
+            dmParticle::HContext context = world->m_ParticleContext;
             dmParticle::HInstance instance = CreateComponent(world, params.m_Instance, (dmParticle::HPrototype)*params.m_UserData);
-            Point3 p = dmGameObject::GetPosition(params.m_Instance);
-            dmParticle::StartInstance(world->m_ParticleContext, instance);
+            dmParticle::StartInstance(context, instance);
+            dmParticle::SetPosition(context, instance, dmGameObject::GetWorldPosition(params.m_Instance));
+            dmParticle::SetRotation(context, instance, dmGameObject::GetWorldRotation(params.m_Instance));
         }
         else if (params.m_Message->m_Id == dmGameSystemDDF::StopParticleFX::m_DDFDescriptor->m_NameHash)
         {
