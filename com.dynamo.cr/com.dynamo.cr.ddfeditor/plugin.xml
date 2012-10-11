@@ -432,6 +432,8 @@
             file-extension="sound"
             id="com.dynamo.cr.ddfeditor.resourcetypes.Sound"
             name="Sound"
+            proto-message-class="com.dynamo.sound.proto.Sound$SoundDesc"
+            resource-refactor-participant-class="com.dynamo.cr.ddfeditor.refactoring.SoundRefactorParticipant"
             template-data="sound: &quot;&quot; "
             type-class="component">
       </resource-type>
