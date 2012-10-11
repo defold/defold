@@ -619,6 +619,7 @@ namespace dmParticle
                         float angle = 2.0f * ((float) M_PI) * dmMath::RandOpen01();
 
                         float ry = dmMath::Rand01();
+                        radius *= dmMath::Rand01();
                         local_position = Vector3(cosf(angle) * radius * ry, ry * height, sinf(angle) * radius * ry);
 
                         break;
