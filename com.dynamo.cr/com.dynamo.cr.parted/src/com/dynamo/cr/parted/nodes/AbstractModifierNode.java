@@ -64,7 +64,8 @@ public abstract class AbstractModifierNode extends ModifierNode {
             .setRotation(LoaderUtil.toQuat(getRotation()))
             .addProperties(Modifier.Property.newBuilder()
                     .setKey(ModifierKey.MODIFIER_KEY_MAGNITUDE)
-                    .addAllPoints(ParticleUtils.toSplinePointList(magnitude)));
+                    .addAllPoints(ParticleUtils.toSplinePointList(magnitude))
+                    .setSpread((float)magnitude.getSpread()));
         buildProperties(b);
         return b.build();
     }

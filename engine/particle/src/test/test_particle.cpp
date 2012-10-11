@@ -900,6 +900,27 @@ TEST_F(ParticleTest, Acceleration)
     dmParticle::DestroyInstance(m_Context, instance);
 }
 
+TEST_F(ParticleTest, AccelerationSpread)
+{
+    float dt = 1.0f / 4.0f;
+
+    ASSERT_TRUE(LoadPrototype("mod_acc_spread.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype);
+    uint16_t index = instance & 0xffff;
+    dmParticle::Instance* i = m_Context->m_Instances[index];
+
+    dmParticle::StartInstance(m_Context, instance);
+
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    float v0 = lengthSqr(i->m_Emitters[0].m_Particles[0].GetVelocity());
+    float v1 = lengthSqr(i->m_Emitters[0].m_Particles[1].GetVelocity());
+    ASSERT_NE(0.0f, v0);
+    ASSERT_NE(0.0f, v1);
+    ASSERT_NE(v0, v1);
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
 TEST_F(ParticleTest, DragNoDir)
 {
     float dt = 1.0f / 4.0f;
@@ -958,6 +979,36 @@ TEST_F(ParticleTest, DragDir)
     ASSERT_GT(dmMath::Abs(velocity.getX()), dmMath::Abs(particle->GetVelocity().getX()));
     ASSERT_EQ(dmMath::Abs(velocity.getY()), dmMath::Abs(particle->GetVelocity().getY()));
     ASSERT_EQ(dmMath::Abs(velocity.getZ()), dmMath::Abs(particle->GetVelocity().getZ()));
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
+TEST_F(ParticleTest, DragSpread)
+{
+    float dt = 1.0f / 4.0f;
+
+    ASSERT_TRUE(LoadPrototype("mod_drag_spread.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype);
+    uint16_t index = instance & 0xffff;
+    dmParticle::Instance* i = m_Context->m_Instances[index];
+
+    dmParticle::StartInstance(m_Context, instance);
+
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    dmParticle::Particle* particle0 = &i->m_Emitters[0].m_Particles[0];
+    dmParticle::Particle* particle1 = &i->m_Emitters[0].m_Particles[1];
+    float v0 = lengthSqr(particle0->GetVelocity());
+    float v1 = lengthSqr(particle1->GetVelocity());
+    // Requirement for later assertions
+    ASSERT_NE(0.0f, v0);
+    ASSERT_NE(0.0f, v1);
+
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    float d0 = lengthSqr(particle0->GetVelocity()) - v0;
+    float d1 = lengthSqr(particle1->GetVelocity()) - v1;
+    ASSERT_NE(0.0f, d0);
+    ASSERT_NE(0.0f, d1);
+    ASSERT_NE(d0, d1);
 
     dmParticle::DestroyInstance(m_Context, instance);
 }

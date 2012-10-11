@@ -44,6 +44,7 @@ namespace dmParticle
         GET_SET(TimeLeft, float)
         GET_SET(MaxLifeTime, float)
         GET_SET(ooMaxLifeTime, float)
+        GET_SET(SpreadFactor, float)
         GET_SET(SourceSize, float)
         GET_SET(Size, float)
         GET_SET(SourceColor, Vector4)
@@ -64,6 +65,8 @@ namespace dmParticle
         float       m_MaxLifeTime;
         /// Inverted duration.
         float       m_ooMaxLifeTime;
+        /// Factor used for spread
+        float       m_SpreadFactor;
         /// Particle size
         float       m_SourceSize;
         float       m_Size;

@@ -584,6 +584,7 @@ namespace dmParticle
                 particle->SetooMaxLifeTime(1.0f / particle->GetMaxLifeTime());
                 // Include dt since already existing particles have already been advanced
                 particle->SetTimeLeft(particle->GetMaxLifeTime() - dt);
+                particle->SetSpreadFactor(dmMath::Rand11());
                 particle->SetSourceSize(emitter_properties[EMITTER_KEY_PARTICLE_SIZE]);
                 particle->SetSourceColor(Vector4(
                         emitter_properties[EMITTER_KEY_PARTICLE_RED],
@@ -858,7 +859,7 @@ namespace dmParticle
 
 #define SAMPLE_PROP(segment, x, target)\
     {\
-        LinearSegment* s = &segment;\
+        const LinearSegment* s = &segment;\
         target = (x - s->m_X) * s->m_K + s->m_Y;\
     }\
 
@@ -877,9 +878,9 @@ namespace dmParticle
     void EvaluateParticleProperties(Emitter* emitter, Property* particle_properties)
     {
         float properties[PARTICLE_KEY_COUNT];
-        uint32_t count = emitter->m_Particles.Size();
         // TODO Optimize this
         dmArray<Particle>& particles = emitter->m_Particles;
+        uint32_t count = particles.Size();
         for (uint32_t i = 0; i < count; ++i)
         {
             Particle* particle = &particles[i];
@@ -904,8 +905,8 @@ namespace dmParticle
     void ApplyAcceleration(dmArray<Particle>& particles, Property* modifier_properties, Vector3 direction, float dt)
     {
         uint32_t particle_count = particles.Size();
-        uint32_t key = MODIFIER_KEY_MAGNITUDE;
         Vector3 unit_acc = direction * dt;
+        const Property& magnitude_property = modifier_properties[MODIFIER_KEY_MAGNITUDE];
         for (uint32_t i = 0; i < particle_count; ++i)
         {
             Particle* particle = &particles[i];
@@ -913,7 +914,8 @@ namespace dmParticle
             uint32_t segment_index = dmMath::Min((uint32_t)(x * PROPERTY_SAMPLE_COUNT), PROPERTY_SAMPLE_COUNT - 1);
 
             float magnitude;
-            SAMPLE_PROP(modifier_properties[key].m_Segments[segment_index], x, magnitude)
+            SAMPLE_PROP(magnitude_property.m_Segments[segment_index], x, magnitude)
+            magnitude += particle->GetSpreadFactor() * magnitude_property.m_Spread;
 
             particle->SetVelocity(particle->GetVelocity() + unit_acc * magnitude);
         }
@@ -924,15 +926,20 @@ namespace dmParticle
         uint32_t particle_count = particles.Size();
         const Point3& position = modifier_ddf->m_Position;
         const Vector3 direction = rotate(world_rotation, Vector3::xAxis());
+        const Property& magnitude_property = modifier_properties[MODIFIER_KEY_MAGNITUDE];
+        const Property& attenuation_property = modifier_properties[MODIFIER_KEY_ATTENUATION];
         for (uint32_t i = 0; i < particle_count; ++i)
         {
             Particle* particle = &particles[i];
             float x = dmMath::Select(-particle->GetMaxLifeTime(), 0.0f, 1.0f - particle->GetTimeLeft() * particle->GetooMaxLifeTime());
             uint32_t segment_index = dmMath::Min((uint32_t)(x * PROPERTY_SAMPLE_COUNT), PROPERTY_SAMPLE_COUNT - 1);
 
-            float attenuation, magnitude;
-            SAMPLE_PROP(modifier_properties[MODIFIER_KEY_ATTENUATION].m_Segments[segment_index], x, attenuation)
-            SAMPLE_PROP(modifier_properties[MODIFIER_KEY_MAGNITUDE].m_Segments[segment_index], x, magnitude)
+            float magnitude;
+            SAMPLE_PROP(magnitude_property.m_Segments[segment_index], x, magnitude)
+            magnitude += particle->GetSpreadFactor() * magnitude_property.m_Spread;
+            float attenuation;
+            SAMPLE_PROP(attenuation_property.m_Segments[segment_index], x, attenuation)
+            attenuation += particle->GetSpreadFactor() * attenuation_property.m_Spread;
 
             float denumerator = 1.0f + attenuation * distSqr(particle->GetPosition(), position);
             float c = dmMath::Select(-dmMath::Abs(denumerator), 0.0f, magnitude / denumerator);
@@ -1143,8 +1150,9 @@ namespace dmParticle
                     const dmParticleDDF::Emitter::Property& p = emitter_ddf->m_Properties[i];
                     if (p.m_Key < dmParticleDDF::EMITTER_KEY_COUNT)
                     {
-                        SampleProperty(p.m_Points.m_Data, p.m_Points.m_Count, emitter->m_Properties[p.m_Key].m_Segments);
-                        emitter->m_Properties[p.m_Key].m_Spread = emitter_ddf->m_Properties[i].m_Spread;
+                        Property& property = emitter->m_Properties[p.m_Key];
+                        SampleProperty(p.m_Points.m_Data, p.m_Points.m_Count, property.m_Segments);
+                        property.m_Spread = p.m_Spread;
                     }
                     else
                     {
@@ -1178,7 +1186,9 @@ namespace dmParticle
                         const dmParticleDDF::Modifier::Property& p = modifier_ddf.m_Properties[j];
                         if (p.m_Key < dmParticleDDF::MODIFIER_KEY_COUNT)
                         {
-                            SampleProperty(p.m_Points.m_Data, p.m_Points.m_Count, modifier.m_Properties[p.m_Key].m_Segments);
+                            Property& property = modifier.m_Properties[p.m_Key];
+                            SampleProperty(p.m_Points.m_Data, p.m_Points.m_Count, property.m_Segments);
+                            property.m_Spread = p.m_Spread;
                         }
                         else
                         {

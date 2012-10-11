@@ -14,7 +14,7 @@ public class AccelerationNode extends AbstractModifierNode {
         for (Modifier.Property p : modifier.getPropertiesList()) {
             switch (p.getKey()) {
             case MODIFIER_KEY_MAGNITUDE:
-                magnitude = ParticleUtils.toValueSpread(p.getPointsList());
+                magnitude = ParticleUtils.toValueSpread(p.getPointsList(), p.getSpread());
                 break;
             }
         }

@@ -9,7 +9,7 @@ emitters: {
     animation:          ""
     material:           "particle.material"
 
-    max_particle_count: 1
+    max_particle_count: 2
 
     type:               EMITTER_TYPE_CONE
 
@@ -25,8 +25,7 @@ emitters: {
         properties:     {
             key: MODIFIER_KEY_MAGNITUDE
             points: { x: 0 y: 0 t_x: 1 t_y: 0 }
-            points: { x: 0.25 y: 0 t_x: 1 t_y: 0 }
-            points: { x: 1 y: 1 t_x: 1 t_y: 0 }
+            spread: 1
         }
     }
 }
