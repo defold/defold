@@ -91,6 +91,8 @@ namespace dmParticle
         /// Particle buffer.
         dmArray<Particle>       m_Particles;
         dmArray<RenderConstant> m_RenderConstants;
+        Vector3                 m_Velocity;
+        Point3                  m_LastPosition;
         dmhash_t                m_Id;
         /// Vertex index of the render data for the particles spawned by this emitter.
         uint32_t                m_VertexIndex;
@@ -112,6 +114,7 @@ namespace dmParticle
         uint16_t                m_RenderWarning : 1;
         /// If the user has been warned that the emitters animation could not be fetched
         uint16_t                m_FetchAnimWarning : 1;
+        uint16_t                m_LastPositionSet : 1;
     };
 
     struct Instance

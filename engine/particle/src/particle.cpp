@@ -312,13 +312,15 @@ namespace dmParticle
         for (uint32_t emitter_i = 0; emitter_i < emitter_count; ++emitter_i)
         {
             Emitter* emitter = &emitters[emitter_i];
-            // Save particles array
+            // Save particles array and id
             dmArray<Particle> tmp;
             tmp.Swap(emitter->m_Particles);
+            dmhash_t id = emitter->m_Id;
             // Clear emitter
             memset(emitter, 0, sizeof(Emitter));
-            // Restore particles
+            // Restore particles and id
             tmp.Swap(emitter->m_Particles);
+            emitter->m_Id = id;
             // Remove living particles
             emitter->m_Particles.SetSize(0);
         }
@@ -423,7 +425,7 @@ namespace dmParticle
 
     // helper functions in update
     static void FetchAnimation(Emitter* emitter, EmitterPrototype* prototype, FetchAnimationCallback fetch_animation_callback);
-    static void Advance(Emitter* emitter, dmParticleDDF::Emitter* emitter_ddf, float dt);
+    static void Advance(Instance* instance, Emitter* emitter, dmParticleDDF::Emitter* emitter_ddf, float dt);
     static void SpawnParticles(Instance* instance, Emitter* emitter, EmitterPrototype* prototype, dmParticleDDF::Emitter* ddf, float dt);
     static void EvaluateEmitterProperties(Emitter* emitter, Property* emitter_properties, float duration, float properties[EMITTER_KEY_COUNT]);
     static void EvaluateParticleProperties(Emitter* emitter, Property* particle_properties);
@@ -473,7 +475,7 @@ namespace dmParticle
 
                 FetchAnimation(emitter, emitter_prototype, fetch_animation_callback);
 
-                Advance(emitter, emitter_ddf, dt);
+                Advance(instance, emitter, emitter_ddf, dt);
 
                 SpawnParticles(instance, emitter, emitter_prototype, emitter_ddf, dt);
 
@@ -519,7 +521,7 @@ namespace dmParticle
         }
     }
 
-    static void Advance(Emitter* emitter, dmParticleDDF::Emitter* emitter_ddf, float dt)
+    static void Advance(Instance* instance, Emitter* emitter, dmParticleDDF::Emitter* emitter_ddf, float dt)
     {
         DM_PROFILE(Particle, "Advance");
 
@@ -557,6 +559,21 @@ namespace dmParticle
             if (emitter_ddf->m_Mode == PLAY_MODE_LOOP)
                 emitter->m_Timer -= dmMath::Select(emitter->m_Timer - emitter_ddf->m_Duration, emitter_ddf->m_Duration, 0.0f);
         }
+        // Update emitter velocity (1-frame estimate)
+        Point3 world_position = instance->m_Position + rotate(instance->m_Rotation, Vector3(emitter_ddf->m_Position));
+        if (emitter->m_LastPositionSet)
+        {
+            if (dt > 0.0f)
+            {
+                Vector3 diff = world_position - emitter->m_LastPosition;
+                emitter->m_Velocity = diff * (1.0f/dt);
+            }
+        }
+        else
+        {
+            emitter->m_LastPositionSet = 1;
+        }
+        emitter->m_LastPosition = world_position;
     }
 
     static void SpawnParticles(Instance* instance, Emitter* emitter, EmitterPrototype* prototype, dmParticleDDF::Emitter* ddf, float dt)
@@ -596,41 +613,51 @@ namespace dmParticle
                 emitter->m_ParticleTimeLeft = dmMath::Max(emitter->m_ParticleTimeLeft, particle->GetTimeLeft());
 
                 Vector3 local_position;
+                Vector3 dir(0.0f, 0.0f, 0.0f);
 
                 switch (ddf->m_Type)
                 {
                     case EMITTER_TYPE_SPHERE:
                     {
-                        Vectormath::Aos::Vector3 p = Vectormath::Aos::Vector3::zAxis();
-                        Vectormath::Aos::Vector3 v(dmMath::Rand11(), dmMath::Rand11(), dmMath::Rand11());
-                        if (lengthSqr(v) > 0.0f)
-                            p = normalize(v);
+                        while (lengthSqr(dir) == 0.0f)
+                            dir = Vector3(dmMath::Rand11(), dmMath::Rand11(), dmMath::Rand11());
+                        dir = normalize(dir);
 
                         float radius = 0.5f * emitter_properties[EMITTER_KEY_SIZE_X];
-                        local_position = p * radius;
+                        local_position = dir * dmMath::Rand01() * radius;
 
                         break;
                     }
 
                     case EMITTER_TYPE_CONE:
                     {
+                        dir = Vector3::yAxis();
+
                         float radius = 0.5f * emitter_properties[EMITTER_KEY_SIZE_X];
                         float height = emitter_properties[EMITTER_KEY_SIZE_Y];
+
                         float angle = 2.0f * ((float) M_PI) * dmMath::RandOpen01();
 
-                        float ry = dmMath::Rand01();
+                        float rh = dmMath::Select(-height, 1.0f, dmMath::Rand01());
                         radius *= dmMath::Rand01();
-                        local_position = Vector3(cosf(angle) * radius * ry, ry * height, sinf(angle) * radius * ry);
+                        local_position = Vector3(cosf(angle) * radius * rh, rh * height, sinf(angle) * radius * rh);
 
+                        if (lengthSqr(local_position) > 0.0f)
+                            dir = normalize(local_position);
                         break;
                     }
 
                     case EMITTER_TYPE_BOX:
                     {
-                        float extent_x = 0.5f * emitter_properties[EMITTER_KEY_SIZE_X];
-                        float extent_y = 0.5f * emitter_properties[EMITTER_KEY_SIZE_Y];
-                        float extent_z = 0.5f * emitter_properties[EMITTER_KEY_SIZE_Z];
-                        local_position = Vector3(dmMath::Rand11() * extent_x * 0.5f, dmMath::Rand11() * extent_y * 0.5f, dmMath::Rand11() * extent_z * 0.5f);
+                        Vector3 p(dmMath::Rand11(), dmMath::Rand11(), dmMath::Rand11());
+                        while (lengthSqr(p) == 0.0f)
+                            p = Vector3(dmMath::Rand11(), dmMath::Rand11(), dmMath::Rand11());
+                        dir = normalize(p);
+
+                        Vector3 extent(0.5f * emitter_properties[EMITTER_KEY_SIZE_X],
+                                0.5f * emitter_properties[EMITTER_KEY_SIZE_Y],
+                                0.5f * emitter_properties[EMITTER_KEY_SIZE_Z]);
+                        local_position = mulPerElem(p, extent);
 
                         break;
                     }
@@ -641,9 +668,6 @@ namespace dmParticle
                         break;
                 }
 
-                Vector3 dir = Vector3::yAxis();
-                if (lengthSqr(local_position) > 0.0f)
-                    dir = normalize(local_position);
                 Vector3 velocity = dir * emitter_properties[EMITTER_KEY_PARTICLE_SPEED];
                 Quat rotation;
                 switch (ddf->m_ParticleDirection)
@@ -658,14 +682,19 @@ namespace dmParticle
 
                 particle->SetPosition(ddf->m_Position + rotate(ddf->m_Rotation, local_position));
                 particle->SetRotation(ddf->m_Rotation * rotation);
-                particle->SetVelocity(rotate(ddf->m_Rotation, velocity));
+                velocity = rotate(ddf->m_Rotation, velocity);
 
                 if (ddf->m_Space == EMISSION_SPACE_WORLD)
                 {
                     particle->SetPosition(instance->m_Position + rotate(instance->m_Rotation, Vector3(particle->GetPosition())));
                     particle->SetRotation(instance->m_Rotation * particle->GetRotation());
-                    particle->SetVelocity(rotate(instance->m_Rotation, particle->GetVelocity()));
+                    velocity = rotate(instance->m_Rotation, velocity);
+                    if (ddf->m_InheritVelocity != 0)
+                    {
+                        velocity += emitter->m_Velocity;
+                    }
                 }
+                particle->SetVelocity(velocity);
             }
         }
     }

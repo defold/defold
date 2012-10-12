@@ -87,6 +87,9 @@ public class EmitterNode extends Node {
     @Property
     private ParticleDirection particleDirection;
 
+    @Property
+    private boolean inheritVelocity;
+
     private Map<EmitterKey, ValueSpread> properties = new HashMap<EmitterKey, ValueSpread>();
     private Map<ParticleKey, ValueSpread> particleProperties = new HashMap<ParticleKey, ValueSpread>();
 
@@ -107,6 +110,7 @@ public class EmitterNode extends Node {
         setMaxParticleCount(emitter.getMaxParticleCount());
         setEmitterType(emitter.getType());
         setParticleDirection(emitter.getParticleDirection());
+        setInheritVelocity(emitter.getInheritVelocity() != 0);
 
         setProperties(emitter.getPropertiesList());
         setParticleProperties(emitter.getParticlePropertiesList());
@@ -414,6 +418,19 @@ public class EmitterNode extends Node {
         reloadSystem();
     }
 
+    public boolean isInheritVelocity() {
+        return this.inheritVelocity;
+    }
+
+    public void setInheritVelocity(boolean inheritVelocity) {
+        this.inheritVelocity = inheritVelocity;
+        reloadSystem();
+    }
+
+    public boolean isInheritVelocityEditable() {
+        return this.emissionSpace == EmissionSpace.EMISSION_SPACE_WORLD;
+    }
+
     public TileSetNode getTileSetNode() {
         return this.tileSetNode;
     }
@@ -436,6 +453,7 @@ public class EmitterNode extends Node {
             .setMaxParticleCount(getMaxParticleCount())
             .setType(getEmitterType())
             .setParticleDirection(getParticleDirection())
+            .setInheritVelocity(isInheritVelocity() ? 1 : 0)
             .setPosition(LoaderUtil.toPoint3(getTranslation()))
             .setRotation(LoaderUtil.toQuat(getRotation()));
 
