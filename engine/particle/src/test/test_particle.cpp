@@ -1013,6 +1013,27 @@ TEST_F(ParticleTest, DragSpread)
     dmParticle::DestroyInstance(m_Context, instance);
 }
 
+TEST_F(ParticleTest, Radial)
+{
+    float dt = 1.0f / 4.0f;
+
+    ASSERT_TRUE(LoadPrototype("mod_radial.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype);
+    uint16_t index = instance & 0xffff;
+    dmParticle::Instance* i = m_Context->m_Instances[index];
+
+    dmParticle::StartInstance(m_Context, instance);
+
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    dmParticle::Particle* particle = &i->m_Emitters[0].m_Particles[0];
+    ASSERT_EQ(0.0f, lengthSqr(particle->GetVelocity()));
+
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    ASSERT_LT(0.0f, particle->GetVelocity().getY());
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
 TEST_F(ParticleTest, case1544)
 {
     ASSERT_TRUE(LoadPrototype("modifier_crash.particlefxc", &m_Prototype));

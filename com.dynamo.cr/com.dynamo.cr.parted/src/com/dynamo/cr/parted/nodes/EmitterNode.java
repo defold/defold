@@ -122,6 +122,10 @@ public class EmitterNode extends Node {
                 break;
             case MODIFIER_TYPE_DRAG:
                 addChild(new DragNode(m));
+                break;
+            case MODIFIER_TYPE_RADIAL:
+                addChild(new RadialNode(m));
+                break;
             }
         }
 

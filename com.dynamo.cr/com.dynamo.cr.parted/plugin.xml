@@ -46,6 +46,13 @@
             renderer="com.dynamo.cr.parted.nodes.DragRenderer"
             resource-type="com.dynamo.cr.parted.resourcetypes.drag">
       </node-type>
+      <node-type
+            id="com.dynamo.cr.parted.radial"
+            loader="com.dynamo.cr.parted.nodes.RadialLoader"
+            node="com.dynamo.cr.parted.nodes.RadialNode"
+            renderer="com.dynamo.cr.parted.nodes.RadialRenderer"
+            resource-type="com.dynamo.cr.parted.resourcetypes.radial">
+      </node-type>
    </extension>
    <extension
          point="org.eclipse.ui.editors">
@@ -114,6 +121,13 @@
             name="Drag"
             proto-message-class="com.dynamo.particle.proto.Particle$Modifier"
             template-data="type: MODIFIER_TYPE_DRAG use_direction: 0 position { x: 0.0 y: 0.0 z: 0.0 } rotation { x: 0.0 y: 0.0 z: 0.0 w: 1.0 } properties { key: MODIFIER_KEY_MAGNITUDE points { x: 0.0 y: 0.7 t_x: 1.0 t_y: 0.0 } } properties { key: MODIFIER_KEY_ATTENUATION points { x: 0.0 y: 0.0 t_x: 1.0 t_y: 0.0 } }">
+      </resource-type>
+      <resource-type
+            file-extension="radial"
+            id="com.dynamo.cr.parted.resourcetypes.radial"
+            name="Radial"
+            proto-message-class="com.dynamo.particle.proto.Particle$Modifier"
+            template-data="type: MODIFIER_TYPE_RADIAL use_direction: 0 position { x: 0.0 y: 0.0 z: 0.0 } rotation { x: 0.0 y: 0.0 z: -0.70710677 w: 0.70710677 } properties { key: MODIFIER_KEY_MAGNITUDE points { x: 0.0 y: 90.0 t_x: 1.0 t_y: 0.0 } }">
       </resource-type>
    </extension>
    <extension

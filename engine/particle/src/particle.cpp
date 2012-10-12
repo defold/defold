@@ -432,7 +432,7 @@ namespace dmParticle
     static uint32_t UpdateRenderData(HContext context, Instance* instance, Emitter* emitter, dmParticleDDF::Emitter* ddf, uint32_t vertex_index, float* vertex_buffer, uint32_t vertex_buffer_size);
     static void GenerateKeys(Emitter* emitter);
     static void SortParticles(Emitter* emitter);
-    static void Simulate(Emitter* emitter, EmitterPrototype* prototype, dmParticleDDF::Emitter* ddf, float dt);
+    static void Simulate(Instance* instance, Emitter* emitter, EmitterPrototype* prototype, dmParticleDDF::Emitter* ddf, float dt);
 
     void Update(HContext context, float dt, float* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size, FetchAnimationCallback fetch_animation_callback)
     {
@@ -482,7 +482,7 @@ namespace dmParticle
                 GenerateKeys(emitter);
                 SortParticles(emitter);
 
-                Simulate(emitter, emitter_prototype, emitter_ddf, dt);
+                Simulate(instance, emitter, emitter_prototype, emitter_ddf, dt);
 
                 // Render data
                 if (vertex_buffer != 0x0 && vertex_buffer_size > 0)
@@ -951,11 +951,9 @@ namespace dmParticle
         }
     }
 
-    void ApplyDrag(dmArray<Particle>& particles, Property* modifier_properties, dmParticleDDF::Modifier* modifier_ddf, Quat world_rotation, float dt)
+    void ApplyDrag(dmArray<Particle>& particles, Property* modifier_properties, dmParticleDDF::Modifier* modifier_ddf, Point3 position, Vector3 direction, float dt)
     {
         uint32_t particle_count = particles.Size();
-        const Point3& position = modifier_ddf->m_Position;
-        const Vector3 direction = rotate(world_rotation, Vector3::xAxis());
         const Property& magnitude_property = modifier_properties[MODIFIER_KEY_MAGNITUDE];
         const Property& attenuation_property = modifier_properties[MODIFIER_KEY_ATTENUATION];
         for (uint32_t i = 0; i < particle_count; ++i)
@@ -971,7 +969,7 @@ namespace dmParticle
             SAMPLE_PROP(attenuation_property.m_Segments[segment_index], x, attenuation)
             attenuation += particle->GetSpreadFactor() * attenuation_property.m_Spread;
 
-            float denumerator = 1.0f + attenuation * distSqr(particle->GetPosition(), position);
+            float denumerator = 1.0f + attenuation * attenuation * distSqr(particle->GetPosition(), position);
             float c = dmMath::Select(-dmMath::Abs(denumerator), 0.0f, magnitude / denumerator);
             Vector3 v = particle->GetVelocity();
             if (modifier_ddf->m_UseDirection)
@@ -980,9 +978,47 @@ namespace dmParticle
         }
     }
 
+    void ApplyRadial(dmArray<Particle>& particles, Property* modifier_properties, Point3 position, float dt)
+    {
+        uint32_t particle_count = particles.Size();
+        const Property& magnitude_property = modifier_properties[MODIFIER_KEY_MAGNITUDE];
+        const Property& attenuation_property = modifier_properties[MODIFIER_KEY_ATTENUATION];
+        for (uint32_t i = 0; i < particle_count; ++i)
+        {
+            Particle* particle = &particles[i];
+            float x = dmMath::Select(-particle->GetMaxLifeTime(), 0.0f, 1.0f - particle->GetTimeLeft() * particle->GetooMaxLifeTime());
+            uint32_t segment_index = dmMath::Min((uint32_t)(x * PROPERTY_SAMPLE_COUNT), PROPERTY_SAMPLE_COUNT - 1);
+
+            float magnitude;
+            SAMPLE_PROP(magnitude_property.m_Segments[segment_index], x, magnitude)
+            magnitude += particle->GetSpreadFactor() * magnitude_property.m_Spread;
+            float attenuation;
+            SAMPLE_PROP(attenuation_property.m_Segments[segment_index], x, attenuation)
+            attenuation += particle->GetSpreadFactor() * attenuation_property.m_Spread;
+
+            Vector3 delta = position - particle->GetPosition();
+            float delta_sq_len = lengthSqr(delta);
+            delta *= dmMath::Select(-delta_sq_len, 0.0f, sqrt(delta_sq_len));
+            float denumerator = 1.0f + attenuation * attenuation * delta_sq_len;
+            float a = dmMath::Select(-dmMath::Abs(denumerator), 0.0f, magnitude / denumerator);
+            particle->SetVelocity(particle->GetVelocity() + delta * a * dt);
+        }
+    }
+
 #undef SAMPLE_PROP
 
-    void Simulate(Emitter* emitter, EmitterPrototype* prototype, dmParticleDDF::Emitter* ddf, float dt)
+    static Point3 CalculateModifierPosition(Instance* instance, dmParticleDDF::Emitter* emitter_ddf, dmParticleDDF::Modifier* modifier_ddf)
+    {
+        Point3 position = modifier_ddf->m_Position;
+        if (emitter_ddf->m_Space == EMISSION_SPACE_WORLD)
+        {
+            position = emitter_ddf->m_Position + rotate(emitter_ddf->m_Rotation, Vector3(position));
+            position = instance->m_Position + rotate(instance->m_Rotation, Vector3(position));
+        }
+        return position;
+    }
+
+    void Simulate(Instance* instance, Emitter* emitter, EmitterPrototype* prototype, dmParticleDDF::Emitter* ddf, float dt)
     {
         DM_PROFILE(Particle, "Simulate");
 
@@ -1000,7 +1036,17 @@ namespace dmParticle
                 ApplyAcceleration(particles, modifier->m_Properties, rotate(modifier_ddf->m_Rotation, Vector3::xAxis()), dt);
                 break;
             case dmParticleDDF::MODIFIER_TYPE_DRAG:
-                ApplyDrag(particles, modifier->m_Properties, modifier_ddf, ddf->m_Rotation * modifier_ddf->m_Rotation, dt);
+                {
+                    Point3 position = CalculateModifierPosition(instance, ddf, modifier_ddf);
+                    Vector3 direction = rotate(ddf->m_Rotation * modifier_ddf->m_Rotation, Vector3::xAxis());
+                    ApplyDrag(particles, modifier->m_Properties, modifier_ddf, position, direction, dt);
+                }
+                break;
+            case dmParticleDDF::MODIFIER_TYPE_RADIAL:
+                {
+                    Point3 position = CalculateModifierPosition(instance, ddf, modifier_ddf);
+                    ApplyRadial(particles, modifier->m_Properties, position, dt);
+                }
                 break;
             }
         }

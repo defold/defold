@@ -1,8 +1,5 @@
 package com.dynamo.cr.parted.nodes;
 
-import javax.vecmath.Quat4d;
-import javax.vecmath.Vector4d;
-
 import com.dynamo.cr.parted.curve.HermiteSpline;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.types.ValueSpread;
@@ -23,10 +20,6 @@ public abstract class AbstractModifierNode extends ModifierNode {
         setTransformable(true);
         setTranslation(LoaderUtil.toPoint3d(modifier.getPosition()));
         setRotation(LoaderUtil.toQuat4(modifier.getRotation()));
-    }
-
-    public AbstractModifierNode(Vector4d translation, Quat4d rotation) {
-        super(translation, rotation);
     }
 
     public ValueSpread getMagnitude() {

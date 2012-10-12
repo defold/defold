@@ -114,7 +114,7 @@ public class ParticleFXNodeTest extends AbstractNodeTest {
 
     @Test
     public void testModifier() throws Exception {
-        for (ModifierType t : new ModifierType[] {ModifierType.MODIFIER_TYPE_ACCELERATION, ModifierType.MODIFIER_TYPE_DRAG}) {
+        for (ModifierType t : new ModifierType[] {ModifierType.MODIFIER_TYPE_ACCELERATION, ModifierType.MODIFIER_TYPE_DRAG, ModifierType.MODIFIER_TYPE_RADIAL}) {
             Emitter.Builder eb = emitterBuilder().addModifiers(modifierBuilder().setType(t));
             EmitterNode node = new EmitterNode(eb.build());
             assertThat(node.buildMessage().getModifiersCount(), is(1));
