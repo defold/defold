@@ -628,8 +628,10 @@ namespace dmGraphics
     void DeleteRenderTarget(HRenderTarget rt)
     {
         for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
+        {
             if (rt->m_BufferTextures[i])
                 DeleteTexture(rt->m_BufferTextures[i]);
+        }
         delete [] (char*)rt->m_FrameBuffer.m_ColorBuffer;
         delete [] (char*)rt->m_FrameBuffer.m_DepthBuffer;
         delete [] (char*)rt->m_FrameBuffer.m_StencilBuffer;
