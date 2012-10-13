@@ -117,7 +117,9 @@ namespace dmEngine
     , m_ShowProfile(false)
     , m_GraphicsContext(0)
     , m_RenderContext(0)
-    , m_ScriptContext(0x0)
+    , m_GOScriptContext(0x0)
+    , m_RenderScriptContext(0x0)
+    , m_GuiScriptContext(0x0)
     , m_Factory(0x0)
     , m_SystemSocket(0x0)
     , m_SystemFontMap(0x0)
@@ -186,8 +188,12 @@ namespace dmEngine
         if (engine->m_Factory)
             dmResource::DeleteFactory(engine->m_Factory);
 
-        if (engine->m_ScriptContext)
-            dmScript::DeleteContext(engine->m_ScriptContext);
+        if (engine->m_GOScriptContext)
+            dmScript::DeleteContext(engine->m_GOScriptContext);
+        if (engine->m_RenderScriptContext)
+            dmScript::DeleteContext(engine->m_RenderScriptContext);
+        if (engine->m_GuiScriptContext)
+            dmScript::DeleteContext(engine->m_GuiScriptContext);
 
         if (engine->m_GraphicsContext)
         {
@@ -369,7 +375,9 @@ namespace dmEngine
         engine->m_InvPhysicalWidth = 1.0f / physical_width;
         engine->m_InvPhysicalHeight = 1.0f / physical_height;
 
-        engine->m_ScriptContext = dmScript::NewContext(engine->m_Config);
+        engine->m_GOScriptContext = dmScript::NewContext(engine->m_Config);
+        engine->m_RenderScriptContext = dmScript::NewContext(engine->m_Config);
+        engine->m_GuiScriptContext = dmScript::NewContext(engine->m_Config);
         engine->m_HidContext = dmHID::NewContext(dmHID::NewContextParams());
         dmHID::Init(engine->m_HidContext);
 
@@ -386,7 +394,7 @@ namespace dmEngine
         render_params.m_FragmentProgramDataSize = ::DEBUG_FPC_SIZE;
         render_params.m_MaxCharacters = 2048 * 4;
         render_params.m_CommandBufferSize = 1024;
-        render_params.m_ScriptContext = engine->m_ScriptContext;
+        render_params.m_ScriptContext = engine->m_RenderScriptContext;
         render_params.m_MaxDebugVertexCount = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_debug_vertices", 10000);
         engine->m_RenderContext = dmRender::NewRenderContext(engine->m_GraphicsContext, render_params);
 
@@ -409,7 +417,7 @@ namespace dmEngine
         {
             return false;
         }
-        dmGameObject::Initialize(engine->m_ScriptContext, engine->m_Factory);
+        dmGameObject::Initialize(engine->m_GOScriptContext, engine->m_Factory);
 
         engine->m_ParticleFXContext.m_Factory = engine->m_Factory;
         engine->m_ParticleFXContext.m_RenderContext = engine->m_RenderContext;
@@ -431,7 +439,7 @@ namespace dmEngine
         }
 
         dmGui::NewContextParams gui_params;
-        gui_params.m_ScriptContext = engine->m_ScriptContext;
+        gui_params.m_ScriptContext = engine->m_GuiScriptContext;
         gui_params.m_GetURLCallback = dmGameSystem::GuiGetURLCallback;
         gui_params.m_GetUserDataCallback = dmGameSystem::GuiGetUserDataCallback;
         gui_params.m_ResolvePathCallback = dmGameSystem::GuiResolvePathCallback;

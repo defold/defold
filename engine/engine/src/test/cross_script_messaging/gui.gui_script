@@ -1,0 +1,3 @@
+function on_message(self, message_id, message, sender)
+    msg.post(sender, message_id, message)
+end

@@ -211,6 +211,34 @@ TEST_F(dmRenderScriptTest, TestRenderScriptMessage)
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
+TEST_F(dmRenderScriptTest, TestRenderScriptUserMessage)
+{
+    const char* script =
+    "function init(self)\n"
+    "    msg.post(\"@render:\", \"test_message\", {test_value = 1})\n"
+    "end\n"
+    "function update(self)\n"
+    "    assert(self.received)\n"
+    "end\n"
+    "\n"
+    "function on_message(self, message_id, message, sender)\n"
+    "    print(message_id)\n"
+    "    if message_id == hash(\"test_message\") then\n"
+    "        self.received = message.test_value == 1\n"
+    "    end\n"
+    "end\n";
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, script, strlen(script), "none");
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::UpdateRenderScriptInstance(render_script_instance));
+
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance));
+
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
 TEST_F(dmRenderScriptTest, TestLuaState)
 {
     const char* script =

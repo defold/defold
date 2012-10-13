@@ -1,0 +1,5 @@
+name: "main"
+instances {
+  id: "main"
+  prototype: "/cross_script_messaging/main.go"
+}

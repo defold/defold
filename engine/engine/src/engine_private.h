@@ -103,7 +103,9 @@ namespace dmEngine
         dmRender::HRenderContext                    m_RenderContext;
         dmGameSystem::PhysicsContext                m_PhysicsContext;
         dmGameSystem::ParticleFXContext             m_ParticleFXContext;
-        dmScript::HContext                          m_ScriptContext;
+        dmScript::HContext                          m_GOScriptContext;
+        dmScript::HContext                          m_RenderScriptContext;
+        dmScript::HContext                          m_GuiScriptContext;
         dmResource::HFactory                        m_Factory;
         dmGameSystem::GuiContext                    m_GuiContext;
         dmMessage::HSocket                          m_SystemSocket;
