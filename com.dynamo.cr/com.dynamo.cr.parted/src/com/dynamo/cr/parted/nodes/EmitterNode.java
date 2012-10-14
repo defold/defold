@@ -126,6 +126,9 @@ public class EmitterNode extends Node {
             case MODIFIER_TYPE_RADIAL:
                 addChild(new RadialNode(m));
                 break;
+            case MODIFIER_TYPE_VORTEX:
+                addChild(new VortexNode(m));
+                break;
             }
         }
 

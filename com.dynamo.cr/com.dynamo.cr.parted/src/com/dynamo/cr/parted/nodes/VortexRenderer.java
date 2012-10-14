@@ -13,7 +13,7 @@ import com.dynamo.cr.sceneed.core.RenderData;
 import com.dynamo.cr.sceneed.ui.ManipulatorRendererUtil;
 import com.dynamo.cr.sceneed.ui.RenderUtil;
 
-public class RadialRenderer implements INodeRenderer<RadialNode> {
+public class VortexRenderer implements INodeRenderer<VortexNode> {
 
     private static final float[] color = new float[] { 1, 1, 1, 1 };
     private static final EnumSet<Pass> passes = EnumSet.of(Pass.OUTLINE, Pass.SELECTION);
@@ -23,30 +23,38 @@ public class RadialRenderer implements INodeRenderer<RadialNode> {
     }
 
     @Override
-    public void setup(RenderContext renderContext, RadialNode node) {
+    public void setup(RenderContext renderContext, VortexNode node) {
         if (passes.contains(renderContext.getPass())) {
             renderContext.add(this, node, new Point3d(), null);
         }
     }
 
     @Override
-    public void render(RenderContext renderContext, RadialNode node,
-            RenderData<RadialNode> renderData) {
+    public void render(RenderContext renderContext, VortexNode node,
+            RenderData<VortexNode> renderData) {
 
         GL gl = renderContext.getGL();
         double factor = ManipulatorRendererUtil.getScaleFactor(node, renderContext.getRenderView());
-        float[] color = renderContext.selectColor(node, RadialRenderer.color);
+        float[] color = renderContext.selectColor(node, VortexRenderer.color);
         gl.glColor4fv(color, 0);
         boolean positive = node.getMagnitude().getValue() > 0.0;
 
-//        gl.glPushMatrix();
-        Matrix4d w = new Matrix4d();
-        node.getWorldTransform(w);
-//        RenderUtil.loadMatrix(gl, w);
         double length = ManipulatorRendererUtil.BASE_LENGTH / factor;
-        Matrix4d dim = new Matrix4d();
         Matrix4d scale = new Matrix4d();
-        int n = 3;
+
+        for (int i = 0; i < 4; ++i) {
+            gl.glPushMatrix();
+            gl.glRotated(90.0 * i + 45.0, 0.0, 1.0, 0.0);
+            gl.glTranslated(0.0, 0.0, length);
+            if (!positive) {
+                gl.glScaled(-1.0, 1.0, 1.0);
+            }
+            gl.glTranslated(-0.5 * length, 0.0, 0.0);
+            drawArrow(gl, factor);
+            gl.glPopMatrix();
+        }
+
+/*        int n = 4;
         for (int i = 0; i < n; ++i) {
             dim.setIdentity();
             dim.setElement(0, 0, 0.0);
@@ -60,25 +68,25 @@ public class RadialRenderer implements INodeRenderer<RadialNode> {
             gl.glPushMatrix();
             double gap = 0.2;
             if (positive) {
-                gl.glTranslated(length * gap, 0, 0);
-            } else {
                 gl.glTranslated(length * (1.0 + gap), 0, 0);
                 RenderUtil.multMatrix(gl, scale);
+            } else {
+                gl.glTranslated(length * gap, 0, 0);
             }
             drawArrow(gl, factor);
             gl.glPopMatrix();
             RenderUtil.multMatrix(gl, scale);
             gl.glPushMatrix();
             if (positive) {
-                gl.glTranslated(length * gap, 0, 0);
-            } else {
                 gl.glTranslated(length * (1.0 + gap), 0, 0);
                 RenderUtil.multMatrix(gl, scale);
+            } else {
+                gl.glTranslated(length * gap, 0, 0);
             }
             drawArrow(gl, factor);
             gl.glPopMatrix();
             gl.glPopMatrix();
-        }
+        }*/
 
     }
 

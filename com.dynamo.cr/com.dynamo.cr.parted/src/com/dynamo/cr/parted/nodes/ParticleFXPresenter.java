@@ -81,7 +81,8 @@ public class ParticleFXPresenter implements ISceneView.INodePresenter<ParticleFX
 
         INodeType[] emitterTypes = new INodeType[] { presenterContext.getNodeType(AccelerationNode.class),
                                                      presenterContext.getNodeType(DragNode.class),
-                                                     presenterContext.getNodeType(RadialNode.class)};
+                                                     presenterContext.getNodeType(RadialNode.class),
+                                                     presenterContext.getNodeType(VortexNode.class)};
         INodeType emitterType = (INodeType) presenterContext.selectFromArray("Add Modifier", "Select a emitter type:", emitterTypes, labelProvider);
         if (emitterType != null) {
             try {

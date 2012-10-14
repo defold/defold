@@ -969,8 +969,7 @@ namespace dmParticle
             SAMPLE_PROP(attenuation_property.m_Segments[segment_index], x, attenuation)
             attenuation += particle->GetSpreadFactor() * attenuation_property.m_Spread;
 
-            float denumerator = 1.0f + attenuation * attenuation * distSqr(particle->GetPosition(), position);
-            float c = dmMath::Select(-dmMath::Abs(denumerator), 0.0f, magnitude / denumerator);
+            float c = magnitude / 1.0f + attenuation * attenuation * distSqr(particle->GetPosition(), position);
             Vector3 v = particle->GetVelocity();
             if (modifier_ddf->m_UseDirection)
                 v = projection(Point3(particle->GetVelocity()), direction) * direction;
@@ -995,13 +994,48 @@ namespace dmParticle
             float attenuation;
             SAMPLE_PROP(attenuation_property.m_Segments[segment_index], x, attenuation)
             attenuation += particle->GetSpreadFactor() * attenuation_property.m_Spread;
-
-            Vector3 delta = position - particle->GetPosition();
+            Vector3 delta = particle->GetPosition() - position;
             float delta_sq_len = lengthSqr(delta);
-            delta *= dmMath::Select(-delta_sq_len, 0.0f, sqrt(delta_sq_len));
-            float denumerator = 1.0f + attenuation * attenuation * delta_sq_len;
-            float a = dmMath::Select(-dmMath::Abs(denumerator), 0.0f, magnitude / denumerator);
+            float a = magnitude / 1.0f + attenuation * attenuation * delta_sq_len;
+            // TODO can we get rid of sqrt and flt div here?
+            delta *= 1.0f / dmMath::Select(-delta_sq_len, 1.0f, sqrt(delta_sq_len));
             particle->SetVelocity(particle->GetVelocity() + delta * a * dt);
+        }
+    }
+
+    void ApplyVortex(dmArray<Particle>& particles, Property* modifier_properties, Point3 position, Quat rotation, float dt)
+    {
+        uint32_t particle_count = particles.Size();
+        const Property& magnitude_property = modifier_properties[MODIFIER_KEY_MAGNITUDE];
+        const Property& attenuation_property = modifier_properties[MODIFIER_KEY_ATTENUATION];
+        Vector3 axis = rotate(rotation, Vector3::yAxis());
+        Vector3 start = rotate(rotation, Vector3::xAxis());
+        for (uint32_t i = 0; i < particle_count; ++i)
+        {
+            Particle* particle = &particles[i];
+            float x = dmMath::Select(-particle->GetMaxLifeTime(), 0.0f, 1.0f - particle->GetTimeLeft() * particle->GetooMaxLifeTime());
+            uint32_t segment_index = dmMath::Min((uint32_t)(x * PROPERTY_SAMPLE_COUNT), PROPERTY_SAMPLE_COUNT - 1);
+
+            float magnitude;
+            SAMPLE_PROP(magnitude_property.m_Segments[segment_index], x, magnitude)
+            magnitude += particle->GetSpreadFactor() * magnitude_property.m_Spread;
+            float attenuation;
+            SAMPLE_PROP(attenuation_property.m_Segments[segment_index], x, attenuation)
+            attenuation += particle->GetSpreadFactor() * attenuation_property.m_Spread;
+
+            Vector3 delta = particle->GetPosition() - position;
+            Vector3 v = delta - projection(Point3(delta), axis) * axis;
+            // TODO necessary to normalize f? acceleration will be linearly dependent on distance without it
+            Vector3 f = cross(axis, v);
+            float delta_sq_len = lengthSqr(delta);
+            // In case we are dealing with a 0-vector, give the particle a start
+            f.setX(dmMath::Select(-delta_sq_len, start.getX(), f.getX()));
+            f.setY(dmMath::Select(-delta_sq_len, start.getY(), f.getY()));
+            f.setZ(dmMath::Select(-delta_sq_len, start.getZ(), f.getZ()));
+            // TODO can we get rid of sqrt and flt div here?
+            delta *= 1.0f / dmMath::Select(-delta_sq_len, 1.0f, sqrt(delta_sq_len));
+            float a = magnitude / 1.0f + attenuation * attenuation * delta_sq_len;
+            particle->SetVelocity(particle->GetVelocity() + f * a * dt);
         }
     }
 
@@ -1016,6 +1050,17 @@ namespace dmParticle
             position = instance->m_Position + rotate(instance->m_Rotation, Vector3(position));
         }
         return position;
+    }
+
+    static Quat CalculateModifierRotation(Instance* instance, dmParticleDDF::Emitter* emitter_ddf, dmParticleDDF::Modifier* modifier_ddf)
+    {
+        Quat rotation = modifier_ddf->m_Rotation;
+        if (emitter_ddf->m_Space == EMISSION_SPACE_WORLD)
+        {
+            rotation *= emitter_ddf->m_Rotation;
+            rotation *= instance->m_Rotation;
+        }
+        return rotation;
     }
 
     void Simulate(Instance* instance, Emitter* emitter, EmitterPrototype* prototype, dmParticleDDF::Emitter* ddf, float dt)
@@ -1046,6 +1091,13 @@ namespace dmParticle
                 {
                     Point3 position = CalculateModifierPosition(instance, ddf, modifier_ddf);
                     ApplyRadial(particles, modifier->m_Properties, position, dt);
+                }
+                break;
+            case dmParticleDDF::MODIFIER_TYPE_VORTEX:
+                {
+                    Point3 position = CalculateModifierPosition(instance, ddf, modifier_ddf);
+                    Quat rotation = CalculateModifierRotation(instance, ddf, modifier_ddf);
+                    ApplyVortex(particles, modifier->m_Properties, position, rotation, dt);
                 }
                 break;
             }

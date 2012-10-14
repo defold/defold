@@ -64,6 +64,7 @@ enum ModifierType
     MODIFIER_TYPE_ACCELERATION  = 0 [(displayName) = "Acceleration"];
     MODIFIER_TYPE_DRAG          = 1 [(displayName) = "Drag"];
     MODIFIER_TYPE_RADIAL        = 2 [(displayName) = "Radial"];
+    MODIFIER_TYPE_VORTEX        = 3 [(displayName) = "Vortex"];
 }
 
 enum ModifierKey
