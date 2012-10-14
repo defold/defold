@@ -1,5 +1,8 @@
 package com.dynamo.cr.parted.nodes;
 
+import org.eclipse.swt.graphics.Image;
+
+import com.dynamo.cr.parted.ParticleEditorPlugin;
 import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.particle.proto.Particle.Modifier;
@@ -24,4 +27,8 @@ public abstract class ModifierNode extends Node {
 
     public abstract Modifier buildMessage();
 
+    @Override
+    public Image getIcon() {
+        return ParticleEditorPlugin.getDefault().getImageRegistry().get(ParticleEditorPlugin.MODIFIER_IMAGE_ID);
+    }
 }

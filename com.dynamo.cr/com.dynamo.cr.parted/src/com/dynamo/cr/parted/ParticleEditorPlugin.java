@@ -18,6 +18,7 @@ public class ParticleEditorPlugin extends AbstractDefoldPlugin {
 	public static final String PLUGIN_ID = "com.dynamo.cr.parted"; //$NON-NLS-1$
 
     public static final String EMITTER_IMAGE_ID = "EMITTER"; //$NON-NLS-1$
+    public static final String MODIFIER_IMAGE_ID = "MODIFIER"; //$NON-NLS-1$
 
     public static final String PARTED_CONTEXT_ID = "com.dynamo.cr.parted.contexts.partEditor";
 
@@ -58,8 +59,8 @@ public class ParticleEditorPlugin extends AbstractDefoldPlugin {
 	@Override
 	protected void initializeImageRegistry(ImageRegistry reg) {
 	    super.initializeImageRegistry(reg);
-        registerImage(reg, EMITTER_IMAGE_ID, "icons/dynamite.png");
-        registerImage(reg, "acceleration", "icons/dynamite.png");
+        registerImage(reg, EMITTER_IMAGE_ID, "icons/drop.png");
+        registerImage(reg, MODIFIER_IMAGE_ID, "icons/tornado.png");
 	}
 
     private void registerImage(ImageRegistry registry, String key,

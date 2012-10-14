@@ -86,7 +86,7 @@
             contributorClass="com.dynamo.cr.editor.ui.DefoldEditorActionBarContributor"
             default="false"
             extensions="particlefx"
-            icon="icons/dynamite.png"
+            icon="icons/clouds.png"
             id="com.dynamo.cr.parted.particleFXEditor"
             name="Particle FX Editor">
       </editor>
@@ -96,7 +96,7 @@
       <wizard
             category="com.dynamo.cr.editor.wizardCategory"
             class="com.dynamo.cr.parted.ui.wizards.ParticleFXNewWizard"
-            icon="icons/dynamite.png"
+            icon="icons/clouds.png"
             id="com.dynamo.cr.parted.particleFXNewWizard"
             name="ParticleFX File">
       </wizard>
