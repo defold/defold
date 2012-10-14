@@ -7,6 +7,7 @@ import java.util.List;
 import com.dynamo.cr.parted.curve.HermiteSpline;
 import com.dynamo.cr.properties.types.ValueSpread;
 import com.dynamo.particle.proto.Particle;
+import com.dynamo.particle.proto.Particle.Modifier;
 import com.dynamo.particle.proto.Particle.SplinePoint;
 
 public class ParticleUtils {
@@ -75,5 +76,19 @@ public class ParticleUtils {
                     .build());
 
         }
+    }
+
+    public static ModifierNode createModifierNode(Modifier m) {
+        switch (m.getType()) {
+        case MODIFIER_TYPE_ACCELERATION:
+            return new AccelerationNode(m);
+        case MODIFIER_TYPE_DRAG:
+            return new DragNode(m);
+        case MODIFIER_TYPE_RADIAL:
+            return new RadialNode(m);
+        case MODIFIER_TYPE_VORTEX:
+            return new VortexNode(m);
+        }
+        return null;
     }
 }

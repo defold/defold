@@ -11,6 +11,7 @@ import com.dynamo.cr.sceneed.core.INodeLoader;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.util.LoaderUtil;
 import com.dynamo.particle.proto.Particle.Emitter;
+import com.dynamo.particle.proto.Particle.Modifier;
 import com.dynamo.particle.proto.Particle.ParticleFX;
 import com.dynamo.particle.proto.Particle.ParticleFX.Builder;
 import com.google.protobuf.Message;
@@ -34,6 +35,9 @@ public class ParticleFXLoader implements INodeLoader<ParticleFXNode> {
             EmitterNode en = new EmitterNode(e);
             node.addChild(en);
         }
+        for (Modifier m : particleFX.getModifiersList()) {
+            node.addChild(ParticleUtils.createModifierNode(m));
+        }
 
         return node;
     }
@@ -44,9 +48,14 @@ public class ParticleFXLoader implements INodeLoader<ParticleFXNode> {
         Builder b = ParticleFX.newBuilder();
 
         for (Node n : node.getChildren()) {
-            EmitterNode e = (EmitterNode) n;
-            Emitter.Builder eb = e.buildMessage();
-            b.addEmitters(eb);
+            if (n instanceof EmitterNode) {
+                EmitterNode e = (EmitterNode) n;
+                Emitter.Builder eb = e.buildMessage();
+                b.addEmitters(eb);
+            } else {
+                ModifierNode m = (ModifierNode) n;
+                b.addModifiers(m.buildMessage());
+            }
         }
 
         return b.build();

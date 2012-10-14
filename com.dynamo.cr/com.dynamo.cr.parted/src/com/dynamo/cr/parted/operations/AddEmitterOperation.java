@@ -15,7 +15,10 @@ public class AddEmitterOperation extends AddChildrenOperation {
         id = NodeUtil.getUniqueId(node, id, new NodeUtil.IdFetcher<Node>() {
             @Override
             public String getId(Node child) {
-                return ((EmitterNode)child).getId();
+                if (child instanceof EmitterNode) {
+                    return ((EmitterNode)child).getId();
+                }
+                return null;
             }
         });
         emitter.setId(id);

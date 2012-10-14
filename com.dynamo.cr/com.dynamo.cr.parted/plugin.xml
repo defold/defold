@@ -14,6 +14,18 @@
          <reference-node-type
                node-type="com.dynamo.cr.parted.emitter">
          </reference-node-type>
+         <reference-node-type
+               node-type="com.dynamo.cr.parted.acceleration">
+         </reference-node-type>
+         <reference-node-type
+               node-type="com.dynamo.cr.parted.drag">
+         </reference-node-type>
+         <reference-node-type
+               node-type="com.dynamo.cr.parted.radial">
+         </reference-node-type>
+         <reference-node-type
+               node-type="com.dynamo.cr.parted.vortex">
+         </reference-node-type>
       </node-type>
       <node-type
             id="com.dynamo.cr.parted.emitter"
@@ -233,9 +245,14 @@
             class="com.dynamo.cr.parted.handlers.AddModifierHandler"
             commandId="com.dynamo.cr.parted.command.addModifier">
          <activeWhen>
-            <reference
-                  definitionId="com.dynamo.cr.parted.definitions.emitterSelected">
-            </reference>
+            <or>
+               <reference
+                     definitionId="com.dynamo.cr.parted.definitions.emitterSelected">
+               </reference>
+               <reference
+                     definitionId="com.dynamo.cr.parted.definitions.particleFXSelected">
+               </reference>
+            </or>
          </activeWhen>
       </handler>
       <handler
@@ -295,6 +312,18 @@
             <equals
                   value="com.dynamo.cr.parted.curveEditorView">
             </equals>
+         </with>
+      </definition>
+      <definition
+            id="com.dynamo.cr.parted.definitions.particleFXSelected">
+         <with
+               variable="selection">
+            <iterate
+                  operator="or">
+               <instanceof
+                     value="com.dynamo.cr.parted.nodes.ParticleFXNode">
+               </instanceof>
+            </iterate>
          </with>
       </definition>
    </extension>

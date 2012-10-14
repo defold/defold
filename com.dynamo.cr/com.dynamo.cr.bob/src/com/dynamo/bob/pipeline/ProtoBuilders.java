@@ -28,6 +28,7 @@ import com.dynamo.input.proto.Input.GamepadMaps;
 import com.dynamo.input.proto.Input.InputBinding;
 import com.dynamo.model.proto.Model.ModelDesc;
 import com.dynamo.particle.proto.Particle.Emitter;
+import com.dynamo.particle.proto.Particle.Modifier;
 import com.dynamo.particle.proto.Particle.ParticleFX;
 import com.dynamo.physics.proto.Physics.CollisionObjectDesc;
 import com.dynamo.physics.proto.Physics.CollisionShape;
@@ -269,6 +270,8 @@ public class ProtoBuilders {
         protected ParticleFX.Builder transform(IResource resource, ParticleFX.Builder messageBuilder)
                 throws IOException, CompileExceptionError {
             int emitterCount = messageBuilder.getEmittersCount();
+            // Move modifiers to all emitters, clear the list at the end
+            List<Modifier> modifiers = messageBuilder.getModifiersList();
             for (int i = 0; i < emitterCount; ++i) {
                 Emitter.Builder emitterBuilder = Emitter.newBuilder(messageBuilder.getEmitters(i));
                 BuilderUtil.checkFile(this.project, resource, "tile source", emitterBuilder.getTileSource());
@@ -276,8 +279,10 @@ public class ProtoBuilders {
                 emitterBuilder.setTileSource(BuilderUtil.replaceExt(emitterBuilder.getTileSource(), "tileset", "tilesetc"));
                 emitterBuilder.setTileSource(BuilderUtil.replaceExt(emitterBuilder.getTileSource(), "tilesource", "tilesetc"));
                 emitterBuilder.setMaterial(BuilderUtil.replaceExt(emitterBuilder.getMaterial(), "material", "materialc"));
+                emitterBuilder.addAllModifiers(modifiers);
                 messageBuilder.setEmitters(i, emitterBuilder.build());
             }
+            messageBuilder.clearModifiers();
             return messageBuilder;
         }
     }

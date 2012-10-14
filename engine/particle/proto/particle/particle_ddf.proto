@@ -146,5 +146,6 @@ message Emitter
 
 message ParticleFX
 {
-    repeated Emitter emitters = 1;
+    repeated Emitter    emitters    = 1;
+    repeated Modifier   modifiers   = 2;
 }

@@ -116,20 +116,7 @@ public class EmitterNode extends Node {
         setParticleProperties(emitter.getParticlePropertiesList());
 
         for (Modifier m : emitter.getModifiersList()) {
-            switch (m.getType()) {
-            case MODIFIER_TYPE_ACCELERATION:
-                addChild(new AccelerationNode(m));
-                break;
-            case MODIFIER_TYPE_DRAG:
-                addChild(new DragNode(m));
-                break;
-            case MODIFIER_TYPE_RADIAL:
-                addChild(new RadialNode(m));
-                break;
-            case MODIFIER_TYPE_VORTEX:
-                addChild(new VortexNode(m));
-                break;
-            }
+            addChild(ParticleUtils.createModifierNode(m));
         }
 
         updateAABB();

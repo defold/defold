@@ -62,9 +62,10 @@ public class ParticleFXPresenter implements ISceneView.INodePresenter<ParticleFX
     public void onAddModifier(IPresenterContext presenterContext,
             ILoaderContext loaderContext) {
 
-        EmitterNode parent = findEmitter(presenterContext);
-        if (parent == null)
-            return;
+        Node parent = findEmitter(presenterContext);
+        if (parent == null) {
+            parent = findRoot(presenterContext);
+        }
 
         LabelProvider labelProvider = new LabelProvider() {
 

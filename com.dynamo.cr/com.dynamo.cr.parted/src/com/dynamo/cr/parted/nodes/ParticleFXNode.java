@@ -3,6 +3,7 @@ package com.dynamo.cr.parted.nodes;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
+import java.util.List;
 
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
@@ -24,6 +25,9 @@ import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.tileeditor.scene.AnimationNode;
 import com.dynamo.cr.tileeditor.scene.TileSetNode;
+import com.dynamo.particle.proto.Particle.Emitter;
+import com.dynamo.particle.proto.Particle.Modifier;
+import com.dynamo.particle.proto.Particle.ParticleFX;
 import com.google.protobuf.Message;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.IntByReference;
@@ -163,6 +167,20 @@ public class ParticleFXNode extends ComponentTypeNode {
             Message msg;
             try {
                 msg = nodeLoader.buildMessage(model.getLoaderContext(), this, new NullProgressMonitor());
+                // Reconstruct message so all emitters contain the instance modifiers
+                ParticleFX particleFX = (ParticleFX)msg;
+                if (particleFX.getModifiersCount() > 0) {
+                    List<Modifier> modifiers = particleFX.getModifiersList();
+                    ParticleFX.Builder builder = ParticleFX.newBuilder(particleFX);
+                    builder.clearModifiers();
+                    int emitterCount = builder.getEmittersCount();
+                    for (int i = 0; i < emitterCount; ++i) {
+                        Emitter.Builder eb = Emitter.newBuilder(builder.getEmitters(i));
+                        eb.addAllModifiers(modifiers);
+                        builder.setEmitters(i, eb);
+                    }
+                    msg = builder.build();
+                }
                 return msg.toByteArray();
             } catch (IOException e) {
                 logger.error("Particle FX could not be serialized.", e);
@@ -174,10 +192,15 @@ public class ParticleFXNode extends ComponentTypeNode {
     }
 
     private void updateTileSources() {
-        int emitterCount = getChildren().size();
-        for (int i = 0; i < emitterCount; ++i) {
-            // Fake pointer as index + 1 (avoid 0x0)
-            ParticleLibrary.Particle_SetTileSource(prototype, i, new Pointer(i + 1));
+        List<Node> children = getChildren();
+        int childCount = children.size();
+        int emitterIndex = 0;
+        for (int i = 0; i < childCount; ++i) {
+            Node n = children.get(i);
+            if (n instanceof EmitterNode) {
+                // Fake pointer as index + 1 (avoid 0x0)
+                ParticleLibrary.Particle_SetTileSource(prototype, emitterIndex++, new Pointer(i + 1));
+            }
         }
     }
 
