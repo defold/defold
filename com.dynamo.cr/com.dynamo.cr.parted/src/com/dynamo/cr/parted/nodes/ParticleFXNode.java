@@ -14,6 +14,7 @@ import org.eclipse.core.runtime.NullProgressMonitor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.dynamo.cr.common.util.MathUtil;
 import com.dynamo.cr.go.core.ComponentTypeNode;
 import com.dynamo.cr.parted.ParticleLibrary;
 import com.dynamo.cr.parted.ParticleLibrary.AnimationData;
@@ -27,6 +28,7 @@ import com.dynamo.cr.tileeditor.scene.AnimationNode;
 import com.dynamo.cr.tileeditor.scene.TileSetNode;
 import com.dynamo.particle.proto.Particle.Emitter;
 import com.dynamo.particle.proto.Particle.Modifier;
+import com.dynamo.particle.proto.Particle.ModifierType;
 import com.dynamo.particle.proto.Particle.ParticleFX;
 import com.google.protobuf.Message;
 import com.sun.jna.Pointer;
@@ -182,7 +184,21 @@ public class ParticleFXNode extends ComponentTypeNode {
                     int emitterCount = builder.getEmittersCount();
                     for (int i = 0; i < emitterCount; ++i) {
                         Emitter.Builder eb = Emitter.newBuilder(builder.getEmitters(i));
-                        eb.addAllModifiers(modifiers);
+                        Point3d ep = MathUtil.ddfToVecmath(eb.getPosition());
+                        Quat4d er = MathUtil.ddfToVecmath(eb.getRotation());
+                        for (Modifier modifier : modifiers) {
+                            Modifier.Builder mb = Modifier.newBuilder(modifier);
+                            // Acceleration is currently always global
+                            if (modifier.getType() != ModifierType.MODIFIER_TYPE_ACCELERATION) {
+                                Point3d p = MathUtil.ddfToVecmath(modifier.getPosition());
+                                Quat4d r = MathUtil.ddfToVecmath(modifier.getRotation());
+                                MathUtil.invTransform(ep, er, p);
+                                mb.setPosition(MathUtil.vecmathToDDF(p));
+                                MathUtil.invTransform(er, r);
+                                mb.setRotation(MathUtil.vecmathToDDF(r));
+                            }
+                            eb.addModifiers(mb.build());
+                        }
                         builder.setEmitters(i, eb);
                     }
                     msg = builder.build();

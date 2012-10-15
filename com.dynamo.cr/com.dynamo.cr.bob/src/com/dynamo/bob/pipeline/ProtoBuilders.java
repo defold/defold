@@ -6,6 +6,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import javax.vecmath.Point3d;
+import javax.vecmath.Quat4d;
+
 import org.eclipse.osgi.util.NLS;
 
 import com.dynamo.bob.BuilderParams;
@@ -14,6 +17,7 @@ import com.dynamo.bob.IResource;
 import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.ProtoParams;
 import com.dynamo.camera.proto.Camera.CameraDesc;
+import com.dynamo.cr.common.util.MathUtil;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 import com.dynamo.gameobject.proto.GameObject.CollectionInstanceDesc;
 import com.dynamo.gameobject.proto.GameObject.InstanceDesc;
@@ -29,6 +33,7 @@ import com.dynamo.input.proto.Input.InputBinding;
 import com.dynamo.model.proto.Model.ModelDesc;
 import com.dynamo.particle.proto.Particle.Emitter;
 import com.dynamo.particle.proto.Particle.Modifier;
+import com.dynamo.particle.proto.Particle.ModifierType;
 import com.dynamo.particle.proto.Particle.ParticleFX;
 import com.dynamo.physics.proto.Physics.CollisionObjectDesc;
 import com.dynamo.physics.proto.Physics.CollisionShape;
@@ -279,7 +284,21 @@ public class ProtoBuilders {
                 emitterBuilder.setTileSource(BuilderUtil.replaceExt(emitterBuilder.getTileSource(), "tileset", "tilesetc"));
                 emitterBuilder.setTileSource(BuilderUtil.replaceExt(emitterBuilder.getTileSource(), "tilesource", "tilesetc"));
                 emitterBuilder.setMaterial(BuilderUtil.replaceExt(emitterBuilder.getMaterial(), "material", "materialc"));
-                emitterBuilder.addAllModifiers(modifiers);
+                Point3d ep = MathUtil.ddfToVecmath(emitterBuilder.getPosition());
+                Quat4d er = MathUtil.ddfToVecmath(emitterBuilder.getRotation());
+                for (Modifier modifier : modifiers) {
+                    Modifier.Builder mb = Modifier.newBuilder(modifier);
+                    // Acceleration is currently always global
+                    if (modifier.getType() != ModifierType.MODIFIER_TYPE_ACCELERATION) {
+                        Point3d p = MathUtil.ddfToVecmath(modifier.getPosition());
+                        Quat4d r = MathUtil.ddfToVecmath(modifier.getRotation());
+                        MathUtil.invTransform(ep, er, p);
+                        mb.setPosition(MathUtil.vecmathToDDF(p));
+                        MathUtil.invTransform(er, r);
+                        mb.setRotation(MathUtil.vecmathToDDF(r));
+                    }
+                    emitterBuilder.addModifiers(mb.build());
+                }
                 messageBuilder.setEmitters(i, emitterBuilder.build());
             }
             messageBuilder.clearModifiers();

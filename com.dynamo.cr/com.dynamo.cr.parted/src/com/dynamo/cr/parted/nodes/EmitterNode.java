@@ -255,7 +255,7 @@ public class EmitterNode extends Node {
         reloadSystem();
     }
 
-    private void reloadSystem() {
+    protected void reloadSystem() {
         ParticleFXNode parent = (ParticleFXNode) getParent();
         if (parent != null) {
             parent.reload();
