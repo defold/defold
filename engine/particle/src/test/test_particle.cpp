@@ -1059,6 +1059,30 @@ TEST_F(ParticleTest, DragSpread)
     dmParticle::DestroyInstance(m_Context, instance);
 }
 
+TEST_F(ParticleTest, DragAttenuation)
+{
+    float dt = 1.0f;
+
+    ASSERT_TRUE(LoadPrototype("mod_drag_att.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype);
+    uint16_t index = instance & 0xffff;
+    dmParticle::Instance* i = m_Context->m_Instances[index];
+
+    dmParticle::StartInstance(m_Context, instance);
+
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    dmParticle::Particle* particle = &i->m_Emitters[0].m_Particles[0];
+    Vector3 velocity = particle->GetVelocity();
+
+    // speed = 1, mag = 1, att = 1, dist = 1, dt = 1
+    // c = mag / (1 + att * att * dist * dist)
+    // vel = speed - c * speed * dt
+    // vel = 0.5
+    ASSERT_NEAR(0.5f, length(velocity), 0.000001f);
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
 TEST_F(ParticleTest, Radial)
 {
     float dt = 1.0f / 4.0f;
@@ -1076,6 +1100,29 @@ TEST_F(ParticleTest, Radial)
 
     dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
     ASSERT_LT(0.0f, dmMath::Abs(particle->GetVelocity().getY()));
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
+TEST_F(ParticleTest, RadialAttenuation)
+{
+    float dt = 1.0f;
+
+    ASSERT_TRUE(LoadPrototype("mod_radial_att.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype);
+    uint16_t index = instance & 0xffff;
+    dmParticle::Instance* i = m_Context->m_Instances[index];
+
+    dmParticle::StartInstance(m_Context, instance);
+
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    dmParticle::Particle* particle = &i->m_Emitters[0].m_Particles[0];
+
+    // speed = 0, mag = 1, att = 1, dist = 1, dt = 1
+    // a = mag / (1 + att * att * dist * dist)
+    // vel = speed + a * dt
+    // vel = 0.5
+    ASSERT_EQ(0.5f, length(particle->GetVelocity()));
 
     dmParticle::DestroyInstance(m_Context, instance);
 }
@@ -1101,6 +1148,29 @@ TEST_F(ParticleTest, Vortex)
     Vector3 v = particle->GetVelocity();
     ASSERT_LT(0.0f, v.getX() * v.getX() + v.getZ() * v.getZ());
     ASSERT_EQ(0.0f, particle->GetVelocity().getY());
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
+TEST_F(ParticleTest, VortexAttenuation)
+{
+    float dt = 1.0f;
+
+    ASSERT_TRUE(LoadPrototype("mod_vortex_att.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype);
+    uint16_t index = instance & 0xffff;
+    dmParticle::Instance* i = m_Context->m_Instances[index];
+
+    dmParticle::StartInstance(m_Context, instance);
+
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    dmParticle::Particle* particle = &i->m_Emitters[0].m_Particles[0];
+
+    // speed = 0, mag = 1, att = 1, dist = 1, dt = 1
+    // a = mag / (1 + att * att * dist * dist)
+    // vel = speed + a * dt
+    // vel = 0.5
+    ASSERT_EQ(0.5f, length(particle->GetVelocity()));
 
     dmParticle::DestroyInstance(m_Context, instance);
 }

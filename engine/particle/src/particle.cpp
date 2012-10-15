@@ -1047,6 +1047,11 @@ namespace dmParticle
         }
     }
 
+    static float CalcAcceleration(float magnitude, float attenuation, float sq_distance)
+    {
+        return magnitude / (1.0f + attenuation * attenuation * sq_distance);
+    }
+
     void ApplyDrag(dmArray<Particle>& particles, Property* modifier_properties, dmParticleDDF::Modifier* modifier_ddf, Point3 position, Vector3 direction, float dt)
     {
         uint32_t particle_count = particles.Size();
@@ -1065,7 +1070,7 @@ namespace dmParticle
             SAMPLE_PROP(attenuation_property.m_Segments[segment_index], x, attenuation)
             attenuation += particle->GetSpreadFactor() * attenuation_property.m_Spread;
 
-            float c = magnitude / 1.0f + attenuation * attenuation * distSqr(particle->GetPosition(), position);
+            float c = CalcAcceleration(magnitude, attenuation, distSqr(particle->GetPosition(), position));
             Vector3 v = particle->GetVelocity();
             if (modifier_ddf->m_UseDirection)
                 v = projection(Point3(particle->GetVelocity()), direction) * direction;
@@ -1092,7 +1097,7 @@ namespace dmParticle
             attenuation += particle->GetSpreadFactor() * attenuation_property.m_Spread;
             Vector3 delta = particle->GetPosition() - position;
             float delta_sq_len = lengthSqr(delta);
-            float a = magnitude / 1.0f + attenuation * attenuation * delta_sq_len;
+            float a = CalcAcceleration(magnitude, attenuation, delta_sq_len);
             // TODO can we get rid of sqrt and flt div here?
             delta *= 1.0f / dmMath::Select(-delta_sq_len, 1.0f, sqrt(delta_sq_len));
             particle->SetVelocity(particle->GetVelocity() + delta * a * dt);
@@ -1121,16 +1126,16 @@ namespace dmParticle
 
             Vector3 delta = particle->GetPosition() - position;
             Vector3 v = delta - projection(Point3(delta), axis) * axis;
-            // TODO necessary to normalize f? acceleration will be linearly dependent on distance without it
             Vector3 f = cross(axis, v);
             float delta_sq_len = lengthSqr(delta);
             // In case we are dealing with a 0-vector, give the particle a start
             f.setX(dmMath::Select(-delta_sq_len, start.getX(), f.getX()));
             f.setY(dmMath::Select(-delta_sq_len, start.getY(), f.getY()));
             f.setZ(dmMath::Select(-delta_sq_len, start.getZ(), f.getZ()));
+            f = normalize(f);
             // TODO can we get rid of sqrt and flt div here?
             delta *= 1.0f / dmMath::Select(-delta_sq_len, 1.0f, sqrt(delta_sq_len));
-            float a = magnitude / 1.0f + attenuation * attenuation * delta_sq_len;
+            float a = CalcAcceleration(magnitude, attenuation, delta_sq_len);
             particle->SetVelocity(particle->GetVelocity() + f * a * dt);
         }
     }
