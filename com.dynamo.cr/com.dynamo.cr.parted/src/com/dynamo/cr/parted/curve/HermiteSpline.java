@@ -43,8 +43,6 @@ public class HermiteSpline implements Serializable {
 
     private List<SplinePoint> points = new ArrayList<SplinePoint>(32);
 
-    private Object userData;
-
     public HermiteSpline() {
         points.add(new SplinePoint(0, 0, 0.5, 0.5));
         points.add(new SplinePoint(1, 1, 0.5, 0.5));
@@ -57,7 +55,6 @@ public class HermiteSpline implements Serializable {
     }
 
     private HermiteSpline(HermiteSpline spline, ArrayList<SplinePoint> l) {
-        this.userData = spline.userData;
         this.points = l;
     }
 
@@ -264,14 +261,6 @@ public class HermiteSpline implements Serializable {
         } else {
             return this;
         }
-    }
-
-    public void setUserdata(Object userData) {
-        this.userData = userData;
-    }
-
-    public Object getUserData() {
-        return userData;
     }
 
 }

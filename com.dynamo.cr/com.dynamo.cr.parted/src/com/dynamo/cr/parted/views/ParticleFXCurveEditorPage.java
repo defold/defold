@@ -251,7 +251,6 @@ public class ParticleFXCurveEditorPage implements ICurveEditorPage, ISelectionLi
                 if (value instanceof ValueSpread) {
                     ValueSpread vs = (ValueSpread) value;
                     if (vs.isAnimated()) {
-                        ((HermiteSpline)vs.getCurve()).setUserdata(pd);
                         lst.add(pd);
                     }
                 }
