@@ -1,15 +1,15 @@
 emitters: {
-    mode:               PLAY_MODE_ONCE
+    mode:               PLAY_MODE_LOOP
     space:              EMISSION_SPACE_WORLD
     position:           { x: 0 y: 0 z: 0 }
     rotation:           { x: 0 y: 0 z: 0 w: 1 }
-    duration:           1
+    duration:           0.2
 
     tile_source:        ""
     animation:          ""
     material:           ""
 
-    max_particle_count:   2
+    max_particle_count:   1
 
     type:               EMITTER_TYPE_SPHERE
 
@@ -18,7 +18,6 @@ emitters: {
     }
 
     properties:         { key: EMITTER_KEY_PARTICLE_LIFE_TIME
-        points: { x: 0 y: 1 t_x: 1 t_y: 0 }
-        points: { x: 1 y: 1 t_x: 1 t_y: 0 }
+        points: { x: 0 y: 0.5 t_x: 1 t_y: 0 }
     }
 }

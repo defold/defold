@@ -152,8 +152,9 @@ namespace dmParticle
      * If the number of emitters has changed, the instance will be reset, and restarted if currently playing.
      * @param context Context handle, must be valid.
      * @param instance Instance to reload, can be invalid.
+     * @param reload_looping if looping emitters should be replayed
      */
-    DM_PARTICLE_PROTO(void, ReloadInstance, HContext context, HInstance instance);
+    DM_PARTICLE_PROTO(void, ReloadInstance, HContext context, HInstance instance, bool replay_looping);
     /**
      * Start the specified instance, which means it will start spawning particles.
      * @param context Context in which the instance exists.

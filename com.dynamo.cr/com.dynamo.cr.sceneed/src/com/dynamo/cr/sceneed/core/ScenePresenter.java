@@ -207,6 +207,8 @@ public class ScenePresenter implements IPresenter, IModelListener {
         simulating = !simulating;
         if (simulating) {
             Display.getCurrent().asyncExec(animator);
+        } else {
+            view.refreshRenderView();
         }
         view.setSimulating(simulating);
     }

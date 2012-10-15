@@ -102,6 +102,8 @@ public class ParticleFXNode extends ComponentTypeNode {
     private transient boolean reload = false;
     private transient FloatBuffer vertexBuffer;
     private transient int maxParticleCount = 0;
+    private transient double elapsedTime = 0.0f;
+    private transient boolean running = false;
 
     public ParticleFXNode() {
     }
@@ -146,6 +148,10 @@ public class ParticleFXNode extends ComponentTypeNode {
 
     public FloatBuffer getVertexBuffer() {
         return this.vertexBuffer;
+    }
+
+    public double getElapsedTime() {
+        return this.elapsedTime;
     }
 
     @Override
@@ -204,7 +210,7 @@ public class ParticleFXNode extends ComponentTypeNode {
         }
     }
 
-    private void doReload() {
+    private void doReload(boolean replayLooping) {
         if (context == null || prototype == null || !reload) {
             return;
         }
@@ -213,7 +219,7 @@ public class ParticleFXNode extends ComponentTypeNode {
         if (data != null) {
             ParticleLibrary.Particle_ReloadPrototype(prototype, ByteBuffer.wrap(data), data.length);
             updateTileSources();
-            ParticleLibrary.Particle_ReloadInstance(this.context, this.instance);
+            ParticleLibrary.Particle_ReloadInstance(this.context, this.instance, replayLooping);
         }
     }
 
@@ -227,19 +233,26 @@ public class ParticleFXNode extends ComponentTypeNode {
             this.vertexBuffer = BufferUtil.newFloatBuffer(this.maxParticleCount * VERTEX_COMPONENT_COUNT * PARTICLE_VERTEX_COUNT);
         }
 
-        doReload();
+        boolean running = dt > 0.0;
+        if (!this.running && running) {
+            reset();
+        }
+        this.running = running;
+        doReload(!running);
         IntByReference outSize = new IntByReference(0);
 
-        if (dt > 0) {
-            if (ParticleLibrary.Particle_IsSleeping(context, this.instance)) {
-                ParticleLibrary.Particle_StartInstance(context, this.instance);
-            }
-            ParticleLibrary.Particle_Update(context, (float) dt, this.vertexBuffer, this.vertexBuffer.capacity(), outSize,
-                    animCallback);
-
-        } else {
-            ParticleLibrary.Particle_ResetInstance(context, instance);
+        if (ParticleLibrary.Particle_IsSleeping(context, this.instance)) {
+            reset();
+            ParticleLibrary.Particle_StartInstance(context, this.instance);
         }
+        ParticleLibrary.Particle_Update(context, (float) dt, this.vertexBuffer, this.vertexBuffer.capacity(), outSize,
+                animCallback);
+        this.elapsedTime += dt;
+    }
+
+    public void reset() {
+        this.elapsedTime = 0.0f;
+        ParticleLibrary.Particle_ResetInstance(context, instance);
     }
 
     public void reload() {

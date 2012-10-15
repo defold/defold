@@ -850,18 +850,25 @@ TEST_F(ParticleTest, ReloadInstance)
     ASSERT_EQ(1u, i->m_Emitters[0].m_Particles.Size());
     ASSERT_TRUE(dmParticle::IsSpawning(m_Context, instance));
 
+    dmParticle::Particle original_particle;
+    memcpy(&original_particle, &i->m_Emitters[0].m_Particles[0], sizeof(dmParticle::Particle));
+
     ASSERT_TRUE(ReloadPrototype("reload2.particlefxc", m_Prototype));
-    dmParticle::ReloadInstance(m_Context, instance);
-    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    dmParticle::ReloadInstance(m_Context, instance, false);
 
     ASSERT_EQ(2u, i->m_Emitters.Size());
     ASSERT_EQ(1u, i->m_Emitters[0].m_Particles.Size());
+    dmParticle::Particle* particle = &i->m_Emitters[0].m_Particles[0];
+    ASSERT_EQ(0, memcmp(&original_particle, particle, sizeof(dmParticle::Particle)));
     ASSERT_EQ(1u, i->m_Emitters[1].m_Particles.Size());
     ASSERT_TRUE(dmParticle::IsSpawning(m_Context, instance));
 
     ASSERT_TRUE(ReloadPrototype("reload1.particlefxc", m_Prototype));
-    dmParticle::ReloadInstance(m_Context, instance);
-    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    dmParticle::ReloadInstance(m_Context, instance, false);
+    ASSERT_EQ(1u, i->m_Emitters.Size());
+    ASSERT_EQ(1u, i->m_Emitters[0].m_Particles.Size());
+    particle = &i->m_Emitters[0].m_Particles[0];
+    ASSERT_EQ(0, memcmp(&original_particle, particle, sizeof(dmParticle::Particle)));
 
     ASSERT_EQ(1u, i->m_Emitters.Size());
     ASSERT_EQ(1u, i->m_Emitters[0].m_Particles.Size());
@@ -869,12 +876,51 @@ TEST_F(ParticleTest, ReloadInstance)
 
     // Test reload with max_particle_count changed
     ASSERT_TRUE(ReloadPrototype("reload3.particlefxc", m_Prototype));
-    dmParticle::ReloadInstance(m_Context, instance);
-    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    dmParticle::ReloadInstance(m_Context, instance, false);
 
     ASSERT_EQ(1u, i->m_Emitters.Size());
     ASSERT_EQ(2u, i->m_Emitters[0].m_Particles.Size());
+    particle = &i->m_Emitters[0].m_Particles[0];
+    ASSERT_EQ(0, memcmp(&original_particle, particle, sizeof(dmParticle::Particle)));
     ASSERT_TRUE(dmParticle::IsSpawning(m_Context, instance));
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
+TEST_F(ParticleTest, ReloadInstanceLoop)
+{
+    float dt = 1.0f / 60.0f;
+
+    ASSERT_TRUE(LoadPrototype("reload_loop.particlefxc", &m_Prototype));
+
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype);
+    uint16_t index = instance & 0xffff;
+    dmParticle::Instance* i = m_Context->m_Instances[index];
+    dmParticle::StartInstance(m_Context, instance);
+
+    const float time = 0.4f;
+    float timer = 0.0f;
+    while (timer < time)
+    {
+        dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+        timer += dt;
+    }
+
+    ASSERT_EQ(1u, i->m_Emitters.Size());
+    ASSERT_EQ(1u, i->m_Emitters[0].m_Particles.Size());
+    float emitter_timer = i->m_Emitters[0].m_Timer;
+
+    dmParticle::Particle original_particle;
+    memcpy(&original_particle, &i->m_Emitters[0].m_Particles[0], sizeof(dmParticle::Particle));
+
+    ASSERT_TRUE(ReloadPrototype("reload_loop.particlefxc", m_Prototype));
+    dmParticle::ReloadInstance(m_Context, instance, true);
+
+    ASSERT_EQ(1u, i->m_Emitters.Size());
+    ASSERT_EQ(emitter_timer, i->m_Emitters[0].m_Timer);
+    ASSERT_EQ(1u, i->m_Emitters[0].m_Particles.Size());
+    dmParticle::Particle* particle = &i->m_Emitters[0].m_Particles[0];
+    ASSERT_EQ(0, memcmp(&original_particle, particle, sizeof(dmParticle::Particle)));
 
     dmParticle::DestroyInstance(m_Context, instance);
 }

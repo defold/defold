@@ -24,7 +24,6 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
 
     private Callback callBack = new Callback();
     private TextRenderer textRenderer;
-    private float timeElapsed = 0;
 
     private class Callback implements RenderInstanceCallback {
         GL gl;
@@ -103,9 +102,6 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
 
         GL gl = renderContext.getGL();
         double dt = renderContext.getDt();
-        if (dt == 0) {
-            timeElapsed = 0;
-        }
 
         if (renderData.getPass() == Pass.OVERLAY) {
             // Special case for background pass. Render simulation time feedback
@@ -120,7 +116,7 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
             gl.glScaled(1, -1, 1);
             textRenderer.setColor(1, 1, 1, 1);
             textRenderer.begin3DRendering();
-            String text = String.format("%.1f", timeElapsed);
+            String text = String.format("%.1f", node.getElapsedTime());
             textRenderer.draw3D(text, (float) 10, (float) -26, 1, 1);
             textRenderer.end3DRendering();
             gl.glPopMatrix();
@@ -131,7 +127,6 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
             Pointer context = node.getContext();
 
             node.simulate(dt);
-            timeElapsed += dt;
 
             gl.glEnableClientState(GL.GL_TEXTURE_COORD_ARRAY);
             gl.glEnableClientState(GL.GL_VERTEX_ARRAY);

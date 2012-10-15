@@ -106,8 +106,7 @@ namespace dmParticle
         float                   m_SpawnDelay;
         /// The time left before the particle dies which has the longest time left to live.
         float                   m_ParticleTimeLeft;
-        /// The max life time of any particle spawned so far (used for quantizing particle life time when sorting)
-        float                   m_MaxParticleLifeTime;
+        uint32_t                m_Seed;
         /// If the emitter is still spawning particles.
         uint16_t                m_IsSpawning : 1;
         /// If the user has been warned that all particles cannot be rendered.
@@ -124,6 +123,7 @@ namespace dmParticle
         , m_Position(0.0f, 0.0f, 0.0f)
         , m_Rotation(0.0f, 0.0f, 0.0f, 1.0f)
         , m_Prototype(0x0)
+        , m_PlayTime(0.0f)
         , m_VersionNumber(0)
         , m_Dangling(0)
         {
@@ -138,6 +138,8 @@ namespace dmParticle
         Vectormath::Aos::Quat   m_Rotation;
         /// DDF resource.
         Prototype*              m_Prototype;
+        /// Used when reloading to fast forward new emitters
+        float                   m_PlayTime;
         /// Version number used to check that the handle is still valid.
         uint16_t                m_VersionNumber;
         /// True for instances who are create through FireAndForget.
@@ -221,6 +223,8 @@ namespace dmParticle
         void*                       m_Material;
         /// Blend mode
         dmParticleDDF::BlendMode    m_BlendMode;
+        /// The max life time possible of a particle (used for quantizing particle life time when sorting)
+        float                   m_MaxParticleLifeTime;
     };
 
     /**
