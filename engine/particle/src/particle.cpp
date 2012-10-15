@@ -788,10 +788,7 @@ namespace dmParticle
                     particle->SetPosition(instance->m_Position + rotate(instance->m_Rotation, Vector3(particle->GetPosition())));
                     particle->SetRotation(instance->m_Rotation * particle->GetRotation());
                     velocity = rotate(instance->m_Rotation, velocity);
-                    if (ddf->m_InheritVelocity != 0)
-                    {
-                        velocity += emitter->m_Velocity;
-                    }
+                    velocity += emitter->m_Velocity * ddf->m_InheritVelocity;
                 }
                 particle->SetVelocity(velocity);
             }

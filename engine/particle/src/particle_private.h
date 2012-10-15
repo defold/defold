@@ -106,6 +106,7 @@ namespace dmParticle
         float                   m_SpawnDelay;
         /// The time left before the particle dies which has the longest time left to live.
         float                   m_ParticleTimeLeft;
+        /// Seed used to ensure a deterministic simulation
         uint32_t                m_Seed;
         /// If the emitter is still spawning particles.
         uint16_t                m_IsSpawning : 1;

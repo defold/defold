@@ -120,7 +120,7 @@ message Emitter
     required string             material            = 9 [(resource)=true];
     optional BlendMode          blend_mode          = 10 [default = BLEND_MODE_ALPHA];
     optional ParticleDirection  particle_direction  = 11 [default = PARTICLE_DIRECTION_NONE];
-    optional uint32             inherit_velocity    = 12 [default = 0];
+    optional float              inherit_velocity    = 12 [default = 0.0];
 
     required uint32             max_particle_count  = 13;
 
