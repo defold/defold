@@ -1074,7 +1074,9 @@ namespace dmParticle
             Vector3 v = particle->GetVelocity();
             if (modifier_ddf->m_UseDirection)
                 v = projection(Point3(particle->GetVelocity()), direction) * direction;
-            particle->SetVelocity(particle->GetVelocity() - c * v * dt);
+            // Applied drag > 1 means the particle would travel in the reverse direction
+            float applied_drag = dmMath::Min(c * dt, 1.0f);
+            particle->SetVelocity(particle->GetVelocity() - v * applied_drag);
         }
     }
 
