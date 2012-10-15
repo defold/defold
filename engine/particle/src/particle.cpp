@@ -1127,15 +1127,13 @@ namespace dmParticle
             Vector3 delta = particle->GetPosition() - position;
             Vector3 v = delta - projection(Point3(delta), axis) * axis;
             Vector3 f = cross(axis, v);
-            float delta_sq_len = lengthSqr(delta);
+            float sq_len = lengthSqr(f);
             // In case we are dealing with a 0-vector, give the particle a start
-            f.setX(dmMath::Select(-delta_sq_len, start.getX(), f.getX()));
-            f.setY(dmMath::Select(-delta_sq_len, start.getY(), f.getY()));
-            f.setZ(dmMath::Select(-delta_sq_len, start.getZ(), f.getZ()));
+            f.setX(dmMath::Select(-sq_len, start.getX(), f.getX()));
+            f.setY(dmMath::Select(-sq_len, start.getY(), f.getY()));
+            f.setZ(dmMath::Select(-sq_len, start.getZ(), f.getZ()));
             f = normalize(f);
-            // TODO can we get rid of sqrt and flt div here?
-            delta *= 1.0f / dmMath::Select(-delta_sq_len, 1.0f, sqrt(delta_sq_len));
-            float a = CalcAcceleration(magnitude, attenuation, delta_sq_len);
+            float a = CalcAcceleration(magnitude, attenuation, sq_len);
             particle->SetVelocity(particle->GetVelocity() + f * a * dt);
         }
     }
@@ -1158,8 +1156,8 @@ namespace dmParticle
         Quat rotation = modifier_ddf->m_Rotation;
         if (emitter_ddf->m_Space == EMISSION_SPACE_WORLD)
         {
-            rotation *= emitter_ddf->m_Rotation;
-            rotation *= instance->m_Rotation;
+            rotation = emitter_ddf->m_Rotation * rotation;
+            rotation = instance->m_Rotation * rotation;
         }
         return rotation;
     }
