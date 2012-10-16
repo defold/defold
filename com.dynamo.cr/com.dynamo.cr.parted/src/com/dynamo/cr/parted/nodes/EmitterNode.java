@@ -21,6 +21,7 @@ import com.dynamo.cr.properties.IPropertyDesc;
 import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Property.EditorType;
+import com.dynamo.cr.properties.Range;
 import com.dynamo.cr.properties.descriptors.ValueSpreadPropertyDesc;
 import com.dynamo.cr.properties.types.ValueSpread;
 import com.dynamo.cr.sceneed.core.AABB;
@@ -62,6 +63,7 @@ public class EmitterNode extends Node {
     private EmissionSpace emissionSpace;
 
     @Property
+    @Range(min = 0.0)
     private float duration;
 
     @Property(editorType = EditorType.RESOURCE, extensions = { "tilesource", "tileset" })
@@ -79,6 +81,7 @@ public class EmitterNode extends Node {
     private BlendMode blendMode = BlendMode.BLEND_MODE_ALPHA;
 
     @Property
+    @Range(min = 0.0)
     private int maxParticleCount;
 
     @Property
@@ -214,6 +217,17 @@ public class EmitterNode extends Node {
         return new ValueSpread(ret);
     }
 
+    private static boolean isColor(String key) {
+        // NOTE: Hack to check if a key is a color component, see below
+        if (key.endsWith("_RED") ||
+            key.endsWith("_GREEN") ||
+            key.endsWith("_BLUE") ||
+            key.endsWith("_ALPHA")) {
+            return true;
+        }
+        return false;
+    }
+
     @SuppressWarnings("unchecked")
     private static void createDescriptors() {
         List<IPropertyDesc<EmitterNode, ISceneModel>> lst = new ArrayList<IPropertyDesc<EmitterNode,ISceneModel>>();
@@ -224,6 +238,7 @@ public class EmitterNode extends Node {
                 displayName = k.name();
             }
             IPropertyDesc<EmitterNode, ISceneModel> p = new ValueSpreadPropertyDesc<EmitterNode, ISceneModel>(k.name(), displayName, "Emitter");
+            p.setMin(0.0);
             lst.add(p);
         }
 
@@ -234,10 +249,18 @@ public class EmitterNode extends Node {
                 displayName = k.name();
             }
             IPropertyDesc<EmitterNode, ISceneModel> p = new ValueSpreadPropertyDesc<EmitterNode, ISceneModel>(k.name(), displayName, "Particle");
+            p.setMin(0.0);
             lst.add(p);
         }
 
         descriptors = lst.toArray(new IPropertyDesc[lst.size()]);
+
+        // NOTE: "Hack" to set max-value for color components
+        for (IPropertyDesc<EmitterNode, ISceneModel> pd : lst) {
+            if (isColor(pd.getId())) {
+                pd.setMax(1.0);
+            }
+        }
     }
 
     @DynamicProperties

@@ -51,6 +51,7 @@ public abstract class ScalarPropertyDesc<S, T, U extends IPropertyObjectWorld> e
     }
 
     public abstract S fromString(String text);
+    public abstract Class<?> getTypeClass();
 
     /**
      * Widet abstraction classs for Text/Combo-box
@@ -58,13 +59,24 @@ public abstract class ScalarPropertyDesc<S, T, U extends IPropertyObjectWorld> e
      */
     private class EditorWidget {
         private Text text;
+        private SpinnerText spinnerText;
         private Combo combo;
+        private Control control;
 
         public EditorWidget(Composite parent) {
             if (editorType == EditorType.DEFAULT) {
-                text = new Text(parent, SWT.BORDER);
+                Class<?> typeClass = getTypeClass();
+                if (Number.class.isAssignableFrom(typeClass)) {
+                    boolean floatOrDouble = typeClass == Float.class || typeClass == Double.class;
+                    control = spinnerText = new SpinnerText(parent, SWT.BORDER, !floatOrDouble);
+                    spinnerText.setMin(getMin());
+                    spinnerText.setMax(getMax());
+                    text = spinnerText.getText();
+                } else {
+                    control = text = new Text(parent, SWT.BORDER);
+                }
             } else {
-                combo = new Combo(parent, SWT.DROP_DOWN);
+                control = combo = new Combo(parent, SWT.DROP_DOWN);
             }
         }
 
@@ -83,10 +95,7 @@ public abstract class ScalarPropertyDesc<S, T, U extends IPropertyObjectWorld> e
         }
 
         public Control getControl() {
-            if (editorType == EditorType.DEFAULT)
-                return this.text;
-            else
-                return this.combo;
+            return control;
         }
 
         private void updateOptions(IPropertyModel<T, U>[] models) {
@@ -125,7 +134,7 @@ public abstract class ScalarPropertyDesc<S, T, U extends IPropertyObjectWorld> e
             widget = new EditorWidget(parent);
             widget.addListener(SWT.KeyDown, this);
             widget.addListener(SWT.FocusOut, this);
-            widget.addListener(SWT.Selection, this);
+            widget.addListener(SWT.DefaultSelection, this);
         }
 
         @Override
@@ -185,7 +194,7 @@ public abstract class ScalarPropertyDesc<S, T, U extends IPropertyObjectWorld> e
                 updateValue = true;
             } else if (event.type == SWT.FocusOut && !value.equals(oldValue)) {
                 updateValue = true;
-            } else if (event.type == SWT.Selection && !value.equals(oldValue)) {
+            } else if (event.type == SWT.DefaultSelection && !value.equals(oldValue) && (event.detail & SWT.DRAG) == 0) {
                 updateValue = true;
             }
             if (updateValue) {

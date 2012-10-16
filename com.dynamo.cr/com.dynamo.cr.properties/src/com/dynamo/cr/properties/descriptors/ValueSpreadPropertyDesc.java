@@ -20,7 +20,6 @@ import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.Listener;
 import org.eclipse.swt.widgets.Menu;
 import org.eclipse.swt.widgets.MenuItem;
-import org.eclipse.swt.widgets.Text;
 import org.eclipse.ui.forms.widgets.FormToolkit;
 
 import com.dynamo.cr.properties.IPropertyEditor;
@@ -56,7 +55,7 @@ public class ValueSpreadPropertyDesc<T, U extends IPropertyObjectWorld> extends 
      */
     static class Editor<T, U extends IPropertyObjectWorld> implements IPropertyEditor<T, U>, Listener, SelectionListener {
 
-        private Text[] textFields;
+        private SpinnerText[] textFields;
         private Composite composite;
         private IPropertyModel<T, U>[] models;
         private String[] oldValue;
@@ -79,13 +78,17 @@ public class ValueSpreadPropertyDesc<T, U extends IPropertyObjectWorld> extends 
             animated.setText("Animated");
             animated.addSelectionListener(this);
 
-            textFields = new Text[2];
+            textFields = new SpinnerText[2];
             for (int i = 0; i < 2; i++) {
-                Text t = createText(composite);
-                t.setMenu(menu);
+                SpinnerText t = createText(composite);
+                t.getText().setMenu(menu);
                 t.setLayoutData(gd);
                 textFields[i] = t;
             }
+            textFields[0].setMin(propertyDesc.getMin());
+            textFields[0].setMax(propertyDesc.getMax());
+            textFields[1].setMin(0);
+
             oldValue = new String[2];
         }
 
@@ -96,10 +99,11 @@ public class ValueSpreadPropertyDesc<T, U extends IPropertyObjectWorld> extends 
         public void dispose() {
         }
 
-        Text createText(Composite parent) {
-            Text text = new Text(parent, SWT.BORDER);
-            text.addListener(SWT.KeyDown, this);
-            text.addListener(SWT.FocusOut, this);
+        SpinnerText createText(Composite parent) {
+            SpinnerText text = new SpinnerText(parent, SWT.BORDER, false);
+            text.getText().addListener(SWT.KeyDown, this);
+            text.getText().addListener(SWT.FocusOut, this);
+            text.getText().addListener(SWT.DefaultSelection, this);
             return text;
         }
 
@@ -120,8 +124,9 @@ public class ValueSpreadPropertyDesc<T, U extends IPropertyObjectWorld> extends 
         protected boolean isAnyAnimated(IPropertyModel<T, U>[] models) {
             for (IPropertyModel<T, U> m : models) {
                 ValueSpread vs = (ValueSpread) m.getPropertyValue(propertyDesc.getId());
-                if (vs.isAnimated())
+                if (vs.isAnimated()) {
                     return true;
+                }
             }
             return false;
         }
@@ -129,8 +134,8 @@ public class ValueSpreadPropertyDesc<T, U extends IPropertyObjectWorld> extends 
         @Override
         public void refresh() {
             boolean editable = models[0].isPropertyEditable(propertyDesc.getId());
-            textFields[0].setEnabled(editable);
-            textFields[1].setEnabled(editable);
+            textFields[0].getText().setEnabled(editable);
+            textFields[1].getText().setEnabled(editable);
 
             boolean[] equal = new boolean[] { true, true };
             ValueSpread firstValue = (ValueSpread) models[0].getPropertyValue(propertyDesc.getId());
@@ -160,12 +165,12 @@ public class ValueSpreadPropertyDesc<T, U extends IPropertyObjectWorld> extends 
                 } else {
                     s = "";
                 }
-                textFields[i].setText(s);
-                textFields[i].setBackground(color);
+                textFields[i].getText().setText(s);
+                textFields[i].getText().setBackground(color);
                 oldValue[i] = s;
             }
 
-            textFields[0].setEditable(!isAnyAnimated(models));
+            textFields[0].getText().setEditable(!isAnyAnimated(models));
         }
 
         @Override
@@ -180,7 +185,7 @@ public class ValueSpreadPropertyDesc<T, U extends IPropertyObjectWorld> extends 
             String[] newStringValue = new String[2];
             try {
                 for (int i = 0; i < newValue.length; i++) {
-                    String s = this.textFields[i].getText();
+                    String s = this.textFields[i].getText().getText();
                     newStringValue[i] = s;
                     // NOTE: Treat "" as 0
                     if (s.length() != 0) {
@@ -191,10 +196,17 @@ public class ValueSpreadPropertyDesc<T, U extends IPropertyObjectWorld> extends 
                 return;
             }
 
+            if ((event.type == SWT.KeyDown || event.type == SWT.KeyUp) && (event.stateMask & SWT.MOD1) == SWT.MOD1 && event.character == 'z') {
+                event.doit = false;
+                return;
+            }
+
             boolean updateValue = false;
             if (event.type == SWT.KeyDown && (event.character == '\r' || event.character == '\n')) {
                 updateValue = true;
             } else if (event.type == SWT.FocusOut && !Arrays.equals(newStringValue, oldValue)) {
+                updateValue = true;
+            } else if (event.type == SWT.DefaultSelection && (event.detail & SWT.DRAG) == 0) {
                 updateValue = true;
             }
 
@@ -202,7 +214,7 @@ public class ValueSpreadPropertyDesc<T, U extends IPropertyObjectWorld> extends 
                 Double[] diff = new Double[2];
 
                 for (int i = 0; i < diff.length; i++) {
-                    if (event.widget == this.textFields[i]) {
+                    if (event.widget == this.textFields[i].getText()) {
                         diff[i] = newValue[i];
                     }
                 }
@@ -216,16 +228,17 @@ public class ValueSpreadPropertyDesc<T, U extends IPropertyObjectWorld> extends 
 
         @Override
         public void widgetSelected(SelectionEvent e) {
-            ValueSpread value = (ValueSpread) models[0].getPropertyValue(propertyDesc.getId());
-            value.setAnimated(animated.getSelection());
-            IUndoableOperation combinedOperation = PropertyUtil.setProperty(models, propertyDesc.getId(), value);
-            if (combinedOperation != null)
-                models[0].getCommandFactory().execute(combinedOperation, models[0].getWorld());
-
+            if (e.widget == this.animated) {
+                ValueSpread value = (ValueSpread) models[0].getPropertyValue(propertyDesc.getId());
+                value.setAnimated(animated.getSelection());
+                IUndoableOperation combinedOperation = PropertyUtil.setProperty(models, propertyDesc.getId(), value);
+                if (combinedOperation != null)
+                    models[0].getCommandFactory().execute(combinedOperation, models[0].getWorld());
+            }
         }
 
         @Override
-        public void widgetDefaultSelected(SelectionEvent e) {}
+        public void widgetDefaultSelected(SelectionEvent e) {  }
     }
 
 }

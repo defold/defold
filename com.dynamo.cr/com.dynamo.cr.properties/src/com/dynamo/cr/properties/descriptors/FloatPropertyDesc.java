@@ -17,4 +17,10 @@ public class FloatPropertyDesc<T, U extends IPropertyObjectWorld> extends Scalar
             return null;
         }
     }
+
+    @Override
+    public Class<?> getTypeClass() {
+        return Float.class;
+    }
+
 }

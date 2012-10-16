@@ -149,6 +149,18 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
         }
 
         accessor = accessorClass.newInstance();
+        /*
+         * Extract min/max value from @Range annotation
+         */
+        for (IPropertyDesc<T, U> pd : descriptors) {
+            for (Annotation v : this.validators.get(pd.getId())) {
+                if (v instanceof Range) {
+                    Range range = (Range) v;
+                    pd.setMin(range.min());
+                    pd.setMax(range.max());
+                }
+            }
+        }
 
         this.descriptors = descriptors.toArray(new IPropertyDesc[descriptors.size()]);
         // Make sure the set is unmodifiable

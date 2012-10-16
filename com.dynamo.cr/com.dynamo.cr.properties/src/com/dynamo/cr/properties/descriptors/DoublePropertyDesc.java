@@ -17,4 +17,9 @@ public class DoublePropertyDesc<T, U extends IPropertyObjectWorld> extends Scala
             return null;
         }
     }
+
+    @Override
+    public Class<?> getTypeClass() {
+        return Double.class;
+    }
 }

@@ -10,7 +10,6 @@ import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.Listener;
-import org.eclipse.swt.widgets.Text;
 
 import com.dynamo.cr.properties.IPropertyEditor;
 import com.dynamo.cr.properties.IPropertyModel;
@@ -19,7 +18,7 @@ import com.dynamo.cr.properties.PropertyUtil;
 
 public class ArrayPropertyEditor<V, T, U extends IPropertyObjectWorld> implements IPropertyEditor<T, U>, Listener {
 
-    private Text[] textFields;
+    private SpinnerText[] spinnerFields;
     private Composite composite;
     private IPropertyModel<T, U>[] models;
     private String[] oldValue;
@@ -37,11 +36,11 @@ public class ArrayPropertyEditor<V, T, U extends IPropertyObjectWorld> implement
         GridData gd = new GridData();
         gd.widthHint = 54;
 
-        textFields = new Text[count];
+        spinnerFields = new SpinnerText[count];
         for (int i = 0; i < count; i++) {
-            Text t = createText(composite);
+            SpinnerText t = createText(composite);
             t.setLayoutData(gd);
-            textFields[i] = t;
+            spinnerFields[i] = t;
         }
         oldValue = new String[count];
     }
@@ -50,10 +49,11 @@ public class ArrayPropertyEditor<V, T, U extends IPropertyObjectWorld> implement
     public void dispose() {
     }
 
-    Text createText(Composite parent) {
-        Text text = new Text(parent, SWT.BORDER);
-        text.addListener(SWT.KeyDown, this);
-        text.addListener(SWT.FocusOut, this);
+    SpinnerText createText(Composite parent) {
+        SpinnerText text = new SpinnerText(parent, SWT.BORDER, false);
+        text.getText().addListener(SWT.KeyDown, this);
+        text.getText().addListener(SWT.FocusOut, this);
+        text.getText().addListener(SWT.DefaultSelection, this);
         return text;
     }
 
@@ -91,7 +91,7 @@ public class ArrayPropertyEditor<V, T, U extends IPropertyObjectWorld> implement
             } else {
                 s = "";
             }
-            textFields[i].setText(s);
+            spinnerFields[i].getText().setText(s);
             oldValue[i] = s;
         }
     }
@@ -108,7 +108,7 @@ public class ArrayPropertyEditor<V, T, U extends IPropertyObjectWorld> implement
         String[] newStringValue = new String[count];
         try {
             for (int i = 0; i < newValue.length; i++) {
-                String s = this.textFields[i].getText();
+                String s = this.spinnerFields[i].getText().getText();
                 newStringValue[i] = s;
                 // NOTE: Treat "" as 0
                 if (s.length() != 0) {
@@ -124,12 +124,15 @@ public class ArrayPropertyEditor<V, T, U extends IPropertyObjectWorld> implement
             updateValue = true;
         } else if (event.type == SWT.FocusOut && !Arrays.equals(newStringValue, oldValue)) {
             updateValue = true;
+        } else if (event.type == SWT.DefaultSelection && (event.detail & SWT.DRAG) == 0) {
+            updateValue = true;
         }
+
         if (updateValue) {
             Double[] diff = new Double[count];
 
             for (int i = 0; i < diff.length; i++) {
-                if (event.widget == this.textFields[i]) {
+                if (event.widget == this.spinnerFields[i].getText()) {
                     diff[i] = newValue[i];
                 }
             }

@@ -17,4 +17,10 @@ public class IntegerPropertyDesc<T, U extends IPropertyObjectWorld> extends Scal
             return null;
         }
     }
+
+    @Override
+    public Class<?> getTypeClass() {
+        return Integer.class;
+    }
+
 }

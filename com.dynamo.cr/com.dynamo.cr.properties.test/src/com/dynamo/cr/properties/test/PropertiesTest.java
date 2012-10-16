@@ -14,6 +14,7 @@ import org.eclipse.osgi.util.NLS;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.dynamo.cr.properties.IPropertyDesc;
 import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.properties.PropertyIntrospector;
 import com.dynamo.cr.properties.PropertyIntrospectorModel;
@@ -189,6 +190,19 @@ public class PropertiesTest {
     }
 
     @Test
+    public void testMinMax() throws Exception {
+
+        IPropertyDesc<DummyClass, DummyWorld> propertyDesc = null;
+        for (IPropertyDesc<DummyClass, DummyWorld> pd : source.getPropertyDescs()) {
+            if (pd.getId().equals("integerValue")) { //$NON-NLS-1$
+                 propertyDesc = pd;
+            }
+        }
+        assertEquals(1.0, propertyDesc.getMin(), 0.0);
+        assertEquals(10000.0, propertyDesc.getMax(), 0.0);
+    }
+
+    @Test
     public void testMethodValidator() throws Exception {
         source.setPropertyValue("stringValue", "test"); //$NON-NLS-1$ //$NON-NLS-2$
         assertTrue(source.getPropertyStatus("stringValue").isOK()); //$NON-NLS-1$
@@ -235,7 +249,7 @@ public class PropertiesTest {
         this.source.setPropertyValue("integerValue", 0);
         IStatus status = this.source.getPropertyStatus("integerValue");
         assertThat(status.getSeverity(), is(IStatus.ERROR));
-        assertThat(status.getMessage(), is(NLS.bind(Messages.DummyClass_integerValue_OUTSIDE_RANGE, 1, 10000)));
+        assertThat(status.getMessage(), is(NLS.bind(Messages.DummyClass_integerValue_OUTSIDE_RANGE, 1.0, 10000.0)));
     }
 
     @Test
@@ -258,11 +272,11 @@ public class PropertiesTest {
         introspectorModel.setPropertyValue("integerValue", 0); //$NON-NLS-1$
         IStatus integerStatus = introspectorModel.getPropertyStatus("integerValue"); //$NON-NLS-1$
         assertThat(integerStatus.getSeverity(), is(IStatus.ERROR));
-        assertThat(integerStatus.getMessage(), is(NLS.bind(Messages.DummyClass_integerValue_OUTSIDE_RANGE, 1, 10000)));
+        assertThat(integerStatus.getMessage(), is(NLS.bind(Messages.DummyClass_integerValue_OUTSIDE_RANGE, 1.0, 10000.0)));
 
         introspectorModel.setPropertyValue("subIntegerValue", 0); //$NON-NLS-1$
         IStatus subIntegerStatus = introspectorModel.getPropertyStatus("subIntegerValue"); //$NON-NLS-1$
         assertThat(subIntegerStatus.getSeverity(), is(IStatus.ERROR));
-        assertThat(subIntegerStatus.getMessage(), is(NLS.bind(com.dynamo.cr.properties.test.subpackage.Messages.SubDummyClass_subIntegerValue_OUTSIDE_RANGE, 1, 10000)));
+        assertThat(subIntegerStatus.getMessage(), is(NLS.bind(com.dynamo.cr.properties.test.subpackage.Messages.SubDummyClass_subIntegerValue_OUTSIDE_RANGE, 1.0, 10000.0)));
     }
 }
