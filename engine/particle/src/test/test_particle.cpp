@@ -850,18 +850,25 @@ TEST_F(ParticleTest, ReloadInstance)
     ASSERT_EQ(1u, i->m_Emitters[0].m_Particles.Size());
     ASSERT_TRUE(dmParticle::IsSpawning(m_Context, instance));
 
+    dmParticle::Particle original_particle;
+    memcpy(&original_particle, &i->m_Emitters[0].m_Particles[0], sizeof(dmParticle::Particle));
+
     ASSERT_TRUE(ReloadPrototype("reload2.particlefxc", m_Prototype));
-    dmParticle::ReloadInstance(m_Context, instance);
-    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    dmParticle::ReloadInstance(m_Context, instance, false);
 
     ASSERT_EQ(2u, i->m_Emitters.Size());
     ASSERT_EQ(1u, i->m_Emitters[0].m_Particles.Size());
+    dmParticle::Particle* particle = &i->m_Emitters[0].m_Particles[0];
+    ASSERT_EQ(0, memcmp(&original_particle, particle, sizeof(dmParticle::Particle)));
     ASSERT_EQ(1u, i->m_Emitters[1].m_Particles.Size());
     ASSERT_TRUE(dmParticle::IsSpawning(m_Context, instance));
 
     ASSERT_TRUE(ReloadPrototype("reload1.particlefxc", m_Prototype));
-    dmParticle::ReloadInstance(m_Context, instance);
-    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    dmParticle::ReloadInstance(m_Context, instance, false);
+    ASSERT_EQ(1u, i->m_Emitters.Size());
+    ASSERT_EQ(1u, i->m_Emitters[0].m_Particles.Size());
+    particle = &i->m_Emitters[0].m_Particles[0];
+    ASSERT_EQ(0, memcmp(&original_particle, particle, sizeof(dmParticle::Particle)));
 
     ASSERT_EQ(1u, i->m_Emitters.Size());
     ASSERT_EQ(1u, i->m_Emitters[0].m_Particles.Size());
@@ -869,12 +876,51 @@ TEST_F(ParticleTest, ReloadInstance)
 
     // Test reload with max_particle_count changed
     ASSERT_TRUE(ReloadPrototype("reload3.particlefxc", m_Prototype));
-    dmParticle::ReloadInstance(m_Context, instance);
-    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    dmParticle::ReloadInstance(m_Context, instance, false);
 
     ASSERT_EQ(1u, i->m_Emitters.Size());
     ASSERT_EQ(2u, i->m_Emitters[0].m_Particles.Size());
+    particle = &i->m_Emitters[0].m_Particles[0];
+    ASSERT_EQ(0, memcmp(&original_particle, particle, sizeof(dmParticle::Particle)));
     ASSERT_TRUE(dmParticle::IsSpawning(m_Context, instance));
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
+TEST_F(ParticleTest, ReloadInstanceLoop)
+{
+    float dt = 1.0f / 60.0f;
+
+    ASSERT_TRUE(LoadPrototype("reload_loop.particlefxc", &m_Prototype));
+
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype);
+    uint16_t index = instance & 0xffff;
+    dmParticle::Instance* i = m_Context->m_Instances[index];
+    dmParticle::StartInstance(m_Context, instance);
+
+    const float time = 0.4f;
+    float timer = 0.0f;
+    while (timer < time)
+    {
+        dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+        timer += dt;
+    }
+
+    ASSERT_EQ(1u, i->m_Emitters.Size());
+    ASSERT_EQ(1u, i->m_Emitters[0].m_Particles.Size());
+    float emitter_timer = i->m_Emitters[0].m_Timer;
+
+    dmParticle::Particle original_particle;
+    memcpy(&original_particle, &i->m_Emitters[0].m_Particles[0], sizeof(dmParticle::Particle));
+
+    ASSERT_TRUE(ReloadPrototype("reload_loop.particlefxc", m_Prototype));
+    dmParticle::ReloadInstance(m_Context, instance, true);
+
+    ASSERT_EQ(1u, i->m_Emitters.Size());
+    ASSERT_EQ(emitter_timer, i->m_Emitters[0].m_Timer);
+    ASSERT_EQ(1u, i->m_Emitters[0].m_Particles.Size());
+    dmParticle::Particle* particle = &i->m_Emitters[0].m_Particles[0];
+    ASSERT_EQ(0, memcmp(&original_particle, particle, sizeof(dmParticle::Particle)));
 
     dmParticle::DestroyInstance(m_Context, instance);
 }
@@ -1013,6 +1059,48 @@ TEST_F(ParticleTest, DragSpread)
     dmParticle::DestroyInstance(m_Context, instance);
 }
 
+TEST_F(ParticleTest, DragAttenuation)
+{
+    float dt = 1.0f;
+
+    ASSERT_TRUE(LoadPrototype("mod_drag_att.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype);
+    uint16_t index = instance & 0xffff;
+    dmParticle::Instance* i = m_Context->m_Instances[index];
+
+    dmParticle::StartInstance(m_Context, instance);
+
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    dmParticle::Particle* particle = &i->m_Emitters[0].m_Particles[0];
+    Vector3 velocity = particle->GetVelocity();
+
+    // speed = 1, mag = 1, att = 1, dist = 1, dt = 1
+    // c = mag / (1 + att * att * dist * dist)
+    // vel = speed - c * speed * dt
+    // vel = 0.5
+    ASSERT_NEAR(0.5f, length(velocity), 0.000001f);
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
+TEST_F(ParticleTest, DragBigMagnitude)
+{
+    float dt = 1.0f / 4.0f;
+
+    ASSERT_TRUE(LoadPrototype("mod_drag_bigmag.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype);
+    uint16_t index = instance & 0xffff;
+    dmParticle::Instance* i = m_Context->m_Instances[index];
+
+    dmParticle::StartInstance(m_Context, instance);
+
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    dmParticle::Particle* particle = &i->m_Emitters[0].m_Particles[0];
+    ASSERT_EQ(0u, lengthSqr(particle->GetVelocity()));
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
 TEST_F(ParticleTest, Radial)
 {
     float dt = 1.0f / 4.0f;
@@ -1030,6 +1118,29 @@ TEST_F(ParticleTest, Radial)
 
     dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
     ASSERT_LT(0.0f, dmMath::Abs(particle->GetVelocity().getY()));
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
+TEST_F(ParticleTest, RadialAttenuation)
+{
+    float dt = 1.0f;
+
+    ASSERT_TRUE(LoadPrototype("mod_radial_att.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype);
+    uint16_t index = instance & 0xffff;
+    dmParticle::Instance* i = m_Context->m_Instances[index];
+
+    dmParticle::StartInstance(m_Context, instance);
+
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    dmParticle::Particle* particle = &i->m_Emitters[0].m_Particles[0];
+
+    // speed = 0, mag = 1, att = 1, dist = 1, dt = 1
+    // a = mag / (1 + att * att * dist * dist)
+    // vel = speed + a * dt
+    // vel = 0.5
+    ASSERT_EQ(0.5f, length(particle->GetVelocity()));
 
     dmParticle::DestroyInstance(m_Context, instance);
 }
@@ -1055,6 +1166,29 @@ TEST_F(ParticleTest, Vortex)
     Vector3 v = particle->GetVelocity();
     ASSERT_LT(0.0f, v.getX() * v.getX() + v.getZ() * v.getZ());
     ASSERT_EQ(0.0f, particle->GetVelocity().getY());
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
+TEST_F(ParticleTest, VortexAttenuation)
+{
+    float dt = 1.0f;
+
+    ASSERT_TRUE(LoadPrototype("mod_vortex_att.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype);
+    uint16_t index = instance & 0xffff;
+    dmParticle::Instance* i = m_Context->m_Instances[index];
+
+    dmParticle::StartInstance(m_Context, instance);
+
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    dmParticle::Particle* particle = &i->m_Emitters[0].m_Particles[0];
+
+    // speed = 0, mag = 1, att = 1, dist = 1, dt = 1
+    // a = mag / (1 + att * att * dist * dist)
+    // vel = speed + a * dt
+    // vel = 0.5
+    ASSERT_EQ(0.5f, length(particle->GetVelocity()));
 
     dmParticle::DestroyInstance(m_Context, instance);
 }

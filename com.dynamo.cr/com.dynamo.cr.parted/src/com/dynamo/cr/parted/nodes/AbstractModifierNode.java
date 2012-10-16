@@ -36,15 +36,6 @@ public abstract class AbstractModifierNode extends ModifierNode {
         reloadSystem();
     }
 
-    protected void reloadSystem() {
-        if (getParent() != null) {
-            ParticleFXNode parent = (ParticleFXNode) getParent().getParent();
-            if (parent != null) {
-                parent.reload();
-            }
-        }
-    }
-
     public abstract ModifierType getModifierType();
     public abstract void buildProperties(Modifier.Builder builder);
 

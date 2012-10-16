@@ -279,9 +279,9 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < count; ++i)
         {
             ParticleFXComponent* component = &world->m_Components[i];
-            if (component->m_Instance == params.m_Instance)
+            if (component->m_ParticleFXPrototype == params.m_Resource)
             {
-                dmParticle::ReloadInstance(world->m_ParticleContext, component->m_ParticleFXInstance);
+                dmParticle::ReloadInstance(world->m_ParticleContext, component->m_ParticleFXInstance, true);
             }
         }
         // Don't warn if none could be found

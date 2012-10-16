@@ -91,7 +91,7 @@ public class EmitterNode extends Node {
     private ParticleDirection particleDirection;
 
     @Property
-    private boolean inheritVelocity;
+    private double inheritVelocity;
 
     private Map<EmitterKey, ValueSpread> properties = new HashMap<EmitterKey, ValueSpread>();
     private Map<ParticleKey, ValueSpread> particleProperties = new HashMap<ParticleKey, ValueSpread>();
@@ -113,7 +113,7 @@ public class EmitterNode extends Node {
         setMaxParticleCount(emitter.getMaxParticleCount());
         setEmitterType(emitter.getType());
         setParticleDirection(emitter.getParticleDirection());
-        setInheritVelocity(emitter.getInheritVelocity() != 0);
+        setInheritVelocity(emitter.getInheritVelocity());
 
         setProperties(emitter.getPropertiesList());
         setParticleProperties(emitter.getParticlePropertiesList());
@@ -278,7 +278,7 @@ public class EmitterNode extends Node {
         reloadSystem();
     }
 
-    private void reloadSystem() {
+    protected void reloadSystem() {
         ParticleFXNode parent = (ParticleFXNode) getParent();
         if (parent != null) {
             parent.reload();
@@ -435,11 +435,11 @@ public class EmitterNode extends Node {
         reloadSystem();
     }
 
-    public boolean isInheritVelocity() {
+    public double getInheritVelocity() {
         return this.inheritVelocity;
     }
 
-    public void setInheritVelocity(boolean inheritVelocity) {
+    public void setInheritVelocity(double inheritVelocity) {
         this.inheritVelocity = inheritVelocity;
         reloadSystem();
     }
@@ -470,7 +470,7 @@ public class EmitterNode extends Node {
             .setMaxParticleCount(getMaxParticleCount())
             .setType(getEmitterType())
             .setParticleDirection(getParticleDirection())
-            .setInheritVelocity(isInheritVelocity() ? 1 : 0)
+            .setInheritVelocity((float)getInheritVelocity())
             .setPosition(LoaderUtil.toPoint3(getTranslation()))
             .setRotation(LoaderUtil.toQuat(getRotation()));
 

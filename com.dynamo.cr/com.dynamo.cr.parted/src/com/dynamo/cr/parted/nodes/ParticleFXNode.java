@@ -14,6 +14,7 @@ import org.eclipse.core.runtime.NullProgressMonitor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.dynamo.cr.common.util.MathUtil;
 import com.dynamo.cr.go.core.ComponentTypeNode;
 import com.dynamo.cr.parted.ParticleLibrary;
 import com.dynamo.cr.parted.ParticleLibrary.AnimationData;
@@ -27,6 +28,7 @@ import com.dynamo.cr.tileeditor.scene.AnimationNode;
 import com.dynamo.cr.tileeditor.scene.TileSetNode;
 import com.dynamo.particle.proto.Particle.Emitter;
 import com.dynamo.particle.proto.Particle.Modifier;
+import com.dynamo.particle.proto.Particle.ModifierType;
 import com.dynamo.particle.proto.Particle.ParticleFX;
 import com.google.protobuf.Message;
 import com.sun.jna.Pointer;
@@ -102,6 +104,8 @@ public class ParticleFXNode extends ComponentTypeNode {
     private transient boolean reload = false;
     private transient FloatBuffer vertexBuffer;
     private transient int maxParticleCount = 0;
+    private transient double elapsedTime = 0.0f;
+    private transient boolean running = false;
 
     public ParticleFXNode() {
     }
@@ -148,6 +152,10 @@ public class ParticleFXNode extends ComponentTypeNode {
         return this.vertexBuffer;
     }
 
+    public double getElapsedTime() {
+        return this.elapsedTime;
+    }
+
     @Override
     protected void childAdded(Node child) {
         super.childAdded(child);
@@ -176,7 +184,21 @@ public class ParticleFXNode extends ComponentTypeNode {
                     int emitterCount = builder.getEmittersCount();
                     for (int i = 0; i < emitterCount; ++i) {
                         Emitter.Builder eb = Emitter.newBuilder(builder.getEmitters(i));
-                        eb.addAllModifiers(modifiers);
+                        Point3d ep = MathUtil.ddfToVecmath(eb.getPosition());
+                        Quat4d er = MathUtil.ddfToVecmath(eb.getRotation());
+                        for (Modifier modifier : modifiers) {
+                            Modifier.Builder mb = Modifier.newBuilder(modifier);
+                            // Acceleration is currently always global
+                            if (modifier.getType() != ModifierType.MODIFIER_TYPE_ACCELERATION) {
+                                Point3d p = MathUtil.ddfToVecmath(modifier.getPosition());
+                                Quat4d r = MathUtil.ddfToVecmath(modifier.getRotation());
+                                MathUtil.invTransform(ep, er, p);
+                                mb.setPosition(MathUtil.vecmathToDDF(p));
+                                MathUtil.invTransform(er, r);
+                                mb.setRotation(MathUtil.vecmathToDDF(r));
+                            }
+                            eb.addModifiers(mb.build());
+                        }
                         builder.setEmitters(i, eb);
                     }
                     msg = builder.build();
@@ -204,7 +226,7 @@ public class ParticleFXNode extends ComponentTypeNode {
         }
     }
 
-    private void doReload() {
+    private void doReload(boolean replayLooping) {
         if (context == null || prototype == null || !reload) {
             return;
         }
@@ -213,7 +235,7 @@ public class ParticleFXNode extends ComponentTypeNode {
         if (data != null) {
             ParticleLibrary.Particle_ReloadPrototype(prototype, ByteBuffer.wrap(data), data.length);
             updateTileSources();
-            ParticleLibrary.Particle_ReloadInstance(this.context, this.instance);
+            ParticleLibrary.Particle_ReloadInstance(this.context, this.instance, replayLooping);
         }
     }
 
@@ -227,19 +249,26 @@ public class ParticleFXNode extends ComponentTypeNode {
             this.vertexBuffer = BufferUtil.newFloatBuffer(this.maxParticleCount * VERTEX_COMPONENT_COUNT * PARTICLE_VERTEX_COUNT);
         }
 
-        doReload();
+        boolean running = dt > 0.0;
+        if (!this.running && running) {
+            reset();
+        }
+        this.running = running;
+        doReload(!running);
         IntByReference outSize = new IntByReference(0);
 
-        if (dt > 0) {
-            if (ParticleLibrary.Particle_IsSleeping(context, this.instance)) {
-                ParticleLibrary.Particle_StartInstance(context, this.instance);
-            }
-            ParticleLibrary.Particle_Update(context, (float) dt, this.vertexBuffer, this.vertexBuffer.capacity(), outSize,
-                    animCallback);
-
-        } else {
-            ParticleLibrary.Particle_ResetInstance(context, instance);
+        if (ParticleLibrary.Particle_IsSleeping(context, this.instance)) {
+            reset();
+            ParticleLibrary.Particle_StartInstance(context, this.instance);
         }
+        ParticleLibrary.Particle_Update(context, (float) dt, this.vertexBuffer, this.vertexBuffer.capacity(), outSize,
+                animCallback);
+        this.elapsedTime += dt;
+    }
+
+    public void reset() {
+        this.elapsedTime = 0.0f;
+        ParticleLibrary.Particle_ResetInstance(context, instance);
     }
 
     public void reload() {

@@ -31,4 +31,17 @@ public abstract class ModifierNode extends Node {
     public Image getIcon() {
         return ParticleEditorPlugin.getDefault().getImageRegistry().get(ParticleEditorPlugin.MODIFIER_IMAGE_ID);
     }
+
+    protected void reloadSystem() {
+        Node parent = getParent();
+        if (parent != null) {
+            if (parent instanceof EmitterNode) {
+                EmitterNode e = (EmitterNode)parent;
+                e.reloadSystem();
+            } else {
+                ParticleFXNode p = (ParticleFXNode) parent;
+                p.reload();
+            }
+        }
+    }
 }
