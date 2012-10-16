@@ -190,5 +190,24 @@ public class TransformManipulatorTest extends AbstractManipulatorTest {
 
         assertNoCommand();
     }
+
+    @Test
+    public void testOpNop() throws Exception {
+        setManipulatorMode(this.mode);
+
+        Node sphere = createSphere();
+        select(sphere);
+
+        assertNoCommand();
+
+        dragRelease(handle(0), new Vector3d(10.0, 0.0, 0.0));
+
+        // Verify that a operation was executed
+        assertCommand();
+
+        click(handle(0));
+
+        assertNoCommand();
+    }
 }
 

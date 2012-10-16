@@ -78,6 +78,7 @@ public abstract class TransformManipulator extends RootManipulator {
 
             TransformNodeOperation operation = new TransformNodeOperation(getOperation(), getSelection(), originalLocalTransforms, newLocalTransforms);
             getController().executeOperation(operation);
+            transformChanged = false;
         }
     }
 }
