@@ -12,6 +12,8 @@ import com.dynamo.cr.sceneed.core.Manipulator;
 @SuppressWarnings("serial")
 public class CircleManipulator extends Manipulator {
 
+    public static double ROTATE_FACTOR = 0.02;
+
     private RootManipulator rootManipulator;
     private boolean rotating = false;
     private int startX;
@@ -46,7 +48,7 @@ public class CircleManipulator extends Manipulator {
     public void mouseMove(MouseEvent e) {
         if (rotating) {
             int dx = e.x - startX;
-            double mouseAngle = dx * 0.02;
+            double mouseAngle = dx * ROTATE_FACTOR;
             this.angle = mouseAngle;
 
             Matrix4d transform = new Matrix4d();
