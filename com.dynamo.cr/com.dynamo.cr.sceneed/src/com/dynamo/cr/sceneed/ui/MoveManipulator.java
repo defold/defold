@@ -65,7 +65,6 @@ public class MoveManipulator extends TransformManipulator {
     @Override
     public void mouseDown(MouseEvent e) {
         this.originalTranslation = getTranslation();
-        this.transformChanged = false;
     }
 
 
