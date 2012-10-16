@@ -278,6 +278,16 @@ public class EmitterNode extends Node {
         reloadSystem();
     }
 
+    @Override
+    protected void childAdded(Node child) {
+        reloadSystem();
+    }
+
+    @Override
+    protected void childRemoved(Node child) {
+        reloadSystem();
+    }
+
     protected void reloadSystem() {
         ParticleFXNode parent = (ParticleFXNode) getParent();
         if (parent != null) {
