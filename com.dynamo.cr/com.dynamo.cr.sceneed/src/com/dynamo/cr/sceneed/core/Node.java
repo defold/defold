@@ -41,12 +41,12 @@ public abstract class Node implements IAdaptable, Serializable {
         TRANSFORMABLE,
         LOCKED,
         NO_INHERIT_TRANSFORM,
+        INVISIBLE
     }
 
     private transient ISceneModel model;
     private transient List<Node> children = new ArrayList<Node>();
     private transient Node parent;
-    private transient boolean visible = true;
     private EnumSet<Flags> flags = EnumSet.noneOf(Flags.class);
 
     private AABB aabb = new AABB();
@@ -79,11 +79,15 @@ public abstract class Node implements IAdaptable, Serializable {
     }
 
     public boolean isVisible() {
-        return visible;
+        return !flags.contains(Flags.INVISIBLE);
     }
 
     public void setVisible(boolean visible) {
-        this.visible = visible;
+        if (visible) {
+            flags.remove(Flags.INVISIBLE);
+        } else {
+            flags.add(Flags.INVISIBLE);
+        }
     }
 
     private void setAABBDirty() {
