@@ -661,7 +661,7 @@
             </visibleWhen>
          </command>
          <command
-               commandId="com.dynamo.cr.tileeditor.commands.togglePlayback"
+               commandId="com.dynamo.cr.sceneed.commands.toggleSimulation"
                label="Play/Stop Animation"
                style="push">
             <visibleWhen
