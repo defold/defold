@@ -1,6 +1,5 @@
 package com.dynamo.cr.sceneed.ui;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import javax.vecmath.Matrix4d;
@@ -10,19 +9,14 @@ import javax.vecmath.Vector3d;
 
 import org.eclipse.swt.events.MouseEvent;
 
-import com.dynamo.cr.sceneed.core.Manipulator;
 import com.dynamo.cr.sceneed.core.Node;
-import com.dynamo.cr.sceneed.core.operations.TransformNodeOperation;
 
 @SuppressWarnings("serial")
-public class MoveManipulator extends RootManipulator {
+public class MoveManipulator extends TransformManipulator {
 
     private AxisManipulator xAxisManipulator;
     private AxisManipulator yAxisManipulator;
     private AxisManipulator zAxisManipulator;
-    private List<Matrix4d> originalLocalTransforms = new ArrayList<Matrix4d>();
-    private List<Matrix4d> newLocalTransforms = new ArrayList<Matrix4d>();
-    private boolean transformChanged = false;
     private Point3d originalTranslation = new Point3d();
 
     public MoveManipulator() {
@@ -39,61 +33,33 @@ public class MoveManipulator extends RootManipulator {
     }
 
     @Override
-    public boolean match(Object[] selection) {
-        for (Object object : selection) {
-            if (!(object instanceof Node) || !((Node) object).isFlagSet(Node.Flags.TRANSFORMABLE)) {
-                return false;
-            }
-        }
-        return true;
+    protected String getOperation() {
+        return "Move";
     }
 
     @Override
-    protected void transformChanged() {
-        transformChanged = true;
-        List<Node> selection = getSelection();
-
+    protected void applyTransform(List<Node> selection, List<Matrix4d> originalLocalTransforms) {
         Vector3d delta = new Vector3d(getTranslation());
         delta.sub(this.originalTranslation);
         Vector3d translation = new Vector3d();
         Point3d pTranslation = new Point3d();
+        Matrix4d invWorld = new Matrix4d();
+        Vector3d localDelta = new Vector3d();
         int n = selection.size();
         for (int i = 0; i < n; ++i) {
-            this.originalLocalTransforms.get(i).get(translation);
-            translation.add(delta);
+            Node node = selection.get(i);
+            Node parent = node.getParent();
+            localDelta.set(delta);
+            if (parent != null) {
+                parent.getWorldTransform(invWorld);
+                invWorld.invert();
+                invWorld.transform(localDelta);
+            }
+            originalLocalTransforms.get(i).get(translation);
+            translation.add(localDelta);
             pTranslation.set(translation);
             selection.get(i).setTranslation(pTranslation);
         }
-    }
-
-    @Override
-    public void manipulatorChanged(Manipulator manipulator) {
-    }
-
-    @Override
-    protected void selectionChanged() {
-        List<Node> sel = getSelection();
-        Point3d center = new Point3d();
-        this.originalLocalTransforms.clear();
-        for (Node node : sel) {
-            Matrix4d transform = new Matrix4d();
-            node.getLocalTransform(transform);
-            this.originalLocalTransforms.add(transform);
-
-            transform = new Matrix4d();
-            node.getWorldTransform(transform);
-            Vector3d translation = new Vector3d();
-            transform.get(translation);
-            center.add(translation);
-        }
-
-        center.scale(1.0 / sel.size());
-        this.translation.set(center);
-    }
-
-    @Override
-    public void refresh() {
-        selectionChanged();
     }
 
     @Override
@@ -101,18 +67,5 @@ public class MoveManipulator extends RootManipulator {
         this.originalTranslation = getTranslation();
     }
 
-    @Override
-    public void mouseUp(MouseEvent e) {
-        if (transformChanged) {
-            for (Node node : getSelection()) {
-                Matrix4d transform = new Matrix4d();
-                node.getLocalTransform(transform);
-                newLocalTransforms.add(transform);
-            }
-
-            TransformNodeOperation operation = new TransformNodeOperation("Move", getSelection(), originalLocalTransforms, newLocalTransforms);
-            getController().executeOperation(operation);
-        }
-    }
 
 }

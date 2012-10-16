@@ -1,28 +1,21 @@
 package com.dynamo.cr.sceneed.ui;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import javax.vecmath.Matrix4d;
-import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
-import javax.vecmath.Vector4d;
 
 import org.eclipse.swt.events.MouseEvent;
 
-import com.dynamo.cr.sceneed.core.Manipulator;
 import com.dynamo.cr.sceneed.core.Node;
-import com.dynamo.cr.sceneed.core.operations.TransformNodeOperation;
 
 @SuppressWarnings("serial")
-public class RotateManipulator extends RootManipulator {
+public class RotateManipulator extends TransformManipulator {
 
     private CircleManipulator xCircleManipulator;
     private CircleManipulator yCircleManipulator;
     private CircleManipulator zCircleManipulator;
-    private List<Matrix4d> originalLocalTransforms = new ArrayList<Matrix4d>();
-    private List<Matrix4d> newLocalTransforms = new ArrayList<Matrix4d>();
-    private boolean transformChanged = false;
+    private Quat4d originalRotation = new Quat4d();
 
     public RotateManipulator() {
         xCircleManipulator = new CircleManipulator(this, new float[] {1, 0, 0, 1});
@@ -38,77 +31,38 @@ public class RotateManipulator extends RootManipulator {
     }
 
     @Override
-    public boolean match(Object[] selection) {
-        for (Object object : selection) {
-            if (!(object instanceof Node) || !((Node) object).isFlagSet(Node.Flags.TRANSFORMABLE)) {
-                return false;
-            }
-        }
-        return true;
+    protected String getOperation() {
+        return "Rotate";
     }
 
     @Override
-    protected void transformChanged() {
-        transformChanged = true;
-        List<Node> selection = getSelection();
-
-        Quat4d rotation = getRotation();
+    protected void applyTransform(List<Node> selection, List<Matrix4d> originalLocalTransforms) {
+        Quat4d delta = getRotation();
+        delta.mulInverse(this.originalRotation);
+        Matrix4d world = new Matrix4d();
+        Quat4d rotation = new Quat4d();
+        Quat4d localDelta = new Quat4d();
         int n = selection.size();
         for (int i = 0; i < n; ++i) {
-            selection.get(i).setRotation(rotation);
-        }
-    }
-
-    @Override
-    public void manipulatorChanged(Manipulator manipulator) {
-    }
-
-    @Override
-    protected void selectionChanged() {
-        List<Node> sel = getSelection();
-        Vector4d center = new Vector4d();
-        this.originalLocalTransforms.clear();
-        for (Node node : sel) {
-            Matrix4d transform = new Matrix4d();
-            node.getLocalTransform(transform);
-            this.originalLocalTransforms.add(transform);
-
-            transform = new Matrix4d();
-            node.getWorldTransform(transform);
-            Vector4d translation = new Vector4d();
-            transform.getColumn(3, translation);
-            center.add(translation);
-            this.translation.set(translation.getX(), translation.getY(), translation.getZ());
-        }
-
-        Matrix4d transform = new Matrix4d();
-        sel.get(0).getLocalTransform(transform);
-        Vector4d translation = new Vector4d();
-        Quat4d rotation = new Quat4d();
-        transform.getColumn(3, translation);
-        rotation.set(transform);
-
-        setTranslation(new Point3d(translation.getX(), translation.getY(), translation.getZ()));
-        setRotation(rotation);
-    }
-
-    @Override
-    public void refresh() {
-        selectionChanged();
-    }
-
-    @Override
-    public void mouseUp(MouseEvent e) {
-        if (transformChanged) {
-            for (Node node : getSelection()) {
-                Matrix4d transform = new Matrix4d();
-                node.getLocalTransform(transform);
-                newLocalTransforms.add(transform);
+            Node node = selection.get(i);
+            Node parent = node.getParent();
+            localDelta.set(delta);
+            if (parent != null) {
+                parent.getWorldTransform(world);
+                world.get(rotation);
+                localDelta.mul(rotation);
+                rotation.conjugate();
+                localDelta.mul(rotation, localDelta);
             }
-
-            TransformNodeOperation operation = new TransformNodeOperation("Rotate", getSelection(), originalLocalTransforms, newLocalTransforms);
-            getController().executeOperation(operation);
+            originalLocalTransforms.get(i).get(rotation);
+            rotation.mul(localDelta, rotation);
+            node.setRotation(rotation);
         }
+    }
+
+    @Override
+    public void mouseDown(MouseEvent e) {
+        this.originalRotation = getRotation();
     }
 
 }
