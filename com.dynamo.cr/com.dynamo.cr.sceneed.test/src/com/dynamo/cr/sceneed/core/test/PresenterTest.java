@@ -2,6 +2,7 @@ package com.dynamo.cr.sceneed.core.test;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Mockito.doAnswer;
@@ -185,6 +186,7 @@ public class PresenterTest extends AbstractPresenterTest {
 
         assertThat(node.getChildren().size(), is(4));
         DummyChild child3 = (DummyChild)node.getChildren().get(2);
+        assertTrue(child3.isVisible());
         assertThat(child3.getIntVal(), is(1));
         assertThat(child3.getModel(), is(this.model));
         List<Node> grandChildren = child3.getChildren();

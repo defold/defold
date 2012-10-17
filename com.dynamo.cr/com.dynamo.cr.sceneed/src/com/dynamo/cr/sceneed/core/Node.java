@@ -41,12 +41,12 @@ public abstract class Node implements IAdaptable, Serializable {
         TRANSFORMABLE,
         LOCKED,
         NO_INHERIT_TRANSFORM,
+        INVISIBLE
     }
 
     private transient ISceneModel model;
     private transient List<Node> children = new ArrayList<Node>();
     private transient Node parent;
-    private transient boolean visible = true;
     private EnumSet<Flags> flags = EnumSet.noneOf(Flags.class);
 
     private AABB aabb = new AABB();
@@ -79,20 +79,23 @@ public abstract class Node implements IAdaptable, Serializable {
     }
 
     public boolean isVisible() {
-        return visible;
+        return !flags.contains(Flags.INVISIBLE);
     }
 
     public void setVisible(boolean visible) {
-        this.visible = visible;
+        if (visible) {
+            flags.remove(Flags.INVISIBLE);
+        } else {
+            flags.add(Flags.INVISIBLE);
+        }
     }
 
-    private void setDirty() {
+    private void setAABBDirty() {
         Node p = this;
         while (p != null) {
             p.worldAABBDirty = true;
             p = p.getParent();
         }
-        transformChanged();
     }
 
     protected void transformChanged() {
@@ -135,7 +138,7 @@ public abstract class Node implements IAdaptable, Serializable {
 
     protected final void setAABB(AABB aabb) {
         this.aabb.set(aabb);
-        setDirty();
+        setAABBDirty();
     }
 
     private static void getAABBRecursively(AABB aabb, Node node)
@@ -177,7 +180,8 @@ public abstract class Node implements IAdaptable, Serializable {
 
     public void setTranslation(Point3d translation) {
         this.translation.set(translation);
-        setDirty();
+        setAABBDirty();
+        transformChanged();
     }
 
     public Point3d getTranslation() {
@@ -188,7 +192,8 @@ public abstract class Node implements IAdaptable, Serializable {
         this.rotation.set(rotation);
         this.rotation.normalize();
         quatToEuler(this.rotation, euler);
-        setDirty();
+        setAABBDirty();
+        transformChanged();
     }
 
     public Quat4d getRotation() {
@@ -198,7 +203,8 @@ public abstract class Node implements IAdaptable, Serializable {
     public void setEuler(Vector3d euler) {
         this.euler = new Vector3d(euler);
         eulerToQuat(euler, rotation);
-        setDirty();
+        setAABBDirty();
+        transformChanged();
     }
 
     public Vector3d getEuler() {
@@ -317,8 +323,8 @@ public abstract class Node implements IAdaptable, Serializable {
             }
             child.setParent(this);
             childAdded(child);
+            setAABBDirty();
         }
-        setDirty();
     }
 
     protected void childAdded(Node child) {
@@ -331,7 +337,7 @@ public abstract class Node implements IAdaptable, Serializable {
             children.remove(child);
             child.setParent(null);
             childRemoved(child);
-            setDirty();
+            setAABBDirty();
         }
     }
 
@@ -505,7 +511,8 @@ public abstract class Node implements IAdaptable, Serializable {
         this.translation.set(translation);
         rotation.set(transform);
         quatToEuler(this.rotation, euler);
-        setDirty();
+        setAABBDirty();
+        transformChanged();
     }
 
     private void writeObject(ObjectOutputStream out) throws IOException {
