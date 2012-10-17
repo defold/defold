@@ -25,6 +25,7 @@ import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.swt.graphics.Image;
+import org.eclipse.swt.widgets.Display;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,6 +50,7 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
     private final ILoaderContext loaderContext;
     private final IImageProvider imageProvider;
     private ProjectProperties projectProperties;
+    private DelayedUpdateStatus delayedUpdateStatus = new DelayedUpdateStatus();
 
     private Node root;
     private IStructuredSelection selection;
@@ -62,6 +64,28 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
     private final Map<String, TextureHandle> textureCache = new HashMap<String, TextureHandle>();
 
     private static PropertyIntrospector<SceneModel, SceneModel> introspector = new PropertyIntrospector<SceneModel, SceneModel>(SceneModel.class);
+
+    private class DelayedUpdateStatus implements Runnable {
+
+        final static int DELAY = 1000;
+        long start = 0;
+
+        @Override
+        public void run() {
+            long now = System.currentTimeMillis();
+            if (now - start > DELAY) {
+                root.updateStatus();
+            } else {
+                Display.getCurrent().timerExec(50, this);
+            }
+        }
+
+        public void update() {
+            // Update is constantly postponed when update() is invoked
+            start = System.currentTimeMillis();
+            Display.getCurrent().timerExec(50, this);
+        }
+    }
 
     @Inject
     public SceneModel(IModelListener listener, IOperationHistory history, IUndoContext undoContext, IContainer contentRoot, ILoaderContext loaderContext, IImageProvider imageProvider) {
@@ -137,7 +161,7 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
     }
 
     private void notifyChange() {
-        this.root.updateStatus();
+        this.delayedUpdateStatus.update();
         this.listener.stateChanged(this.selection, isDirty());
     }
 
@@ -209,6 +233,9 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
             if (!(event.getOperation() instanceof SelectOperation)) {
                 --this.undoRedoCounter;
             }
+            break;
+        case OperationHistoryEvent.OPERATION_CHANGED:
+            change = true;
             break;
         }
         if (change && this.root != null) {

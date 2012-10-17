@@ -11,6 +11,8 @@ import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.Listener;
 
+import com.dynamo.cr.editor.core.operations.IMergeableOperation;
+import com.dynamo.cr.editor.core.operations.IMergeableOperation.Type;
 import com.dynamo.cr.properties.IPropertyEditor;
 import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.properties.IPropertyObjectWorld;
@@ -120,12 +122,14 @@ public class ArrayPropertyEditor<V, T, U extends IPropertyObjectWorld> implement
         }
 
         boolean updateValue = false;
+        IMergeableOperation.Type type = Type.OPEN;
         if (event.type == SWT.KeyDown && (event.character == '\r' || event.character == '\n')) {
             updateValue = true;
         } else if (event.type == SWT.FocusOut && !Arrays.equals(newStringValue, oldValue)) {
             updateValue = true;
-        } else if (event.type == SWT.DefaultSelection && (event.detail & SWT.DRAG) == 0) {
+        } else if (event.type == SWT.DefaultSelection) {
             updateValue = true;
+            type = Type.INTERMEDIATE;
         }
 
         if (updateValue) {
@@ -137,7 +141,7 @@ public class ArrayPropertyEditor<V, T, U extends IPropertyObjectWorld> implement
                 }
             }
 
-            IUndoableOperation combinedOperation = PropertyUtil.setProperty(models, propertyDesc.getId(), diff);
+            IUndoableOperation combinedOperation = PropertyUtil.setProperty(models, propertyDesc.getId(), diff, type);
             if (combinedOperation != null)
                 models[0].getCommandFactory().execute(combinedOperation, models[0].getWorld());
         }

@@ -34,6 +34,7 @@ import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.core.ProjectProperties;
+import com.dynamo.cr.editor.core.operations.MergeableDelegatingOperationHistory;
 
 public abstract class AbstractDefoldEditor extends EditorPart {
 
@@ -90,8 +91,7 @@ public abstract class AbstractDefoldEditor extends EditorPart {
         this.resourceChangeListener = new ResourceChangedListener();
 
         this.undoContext = new UndoContext();
-        this.history = PlatformUI.getWorkbench().getOperationSupport()
-                .getOperationHistory();
+        this.history = new MergeableDelegatingOperationHistory(PlatformUI.getWorkbench().getOperationSupport().getOperationHistory());
         this.history.setLimit(this.undoContext, UNDO_LIMIT);
 
         approver = new LinearUndoViolationUserApprover(this.undoContext, this);

@@ -46,6 +46,9 @@ import org.eclipse.ui.part.EditorPart;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.dynamo.cr.editor.core.operations.IMergeableOperation;
+import com.dynamo.cr.editor.core.operations.MergeableDelegatingOperationHistory;
+import com.dynamo.cr.editor.core.operations.IMergeableOperation.Type;
 import com.dynamo.cr.parted.curve.CurveEditor;
 import com.dynamo.cr.parted.curve.HermiteSpline;
 import com.dynamo.cr.parted.curve.ICurveProvider;
@@ -104,12 +107,20 @@ public class ParticleFXCurveEditorPage implements ICurveEditorPage, ISelectionLi
 
         @SuppressWarnings("unchecked")
         @Override
-        public void setSpline(HermiteSpline spline, int i) {
+        public void setSpline(HermiteSpline spline, int i, boolean intermediate) {
             IPropertyDesc<Node, IPropertyObjectWorld> pd = (IPropertyDesc<Node, IPropertyObjectWorld>) input[i];
             IPropertyModel<Node, IPropertyObjectWorld> propertyModel = ((IPropertyModel<Node, IPropertyObjectWorld>) selectedNode.getAdapter(IPropertyModel.class));
             ValueSpread vs = (ValueSpread) propertyModel.getPropertyValue(pd.getId());
             vs.setCurve(spline);
-            IUndoableOperation operation = propertyModel.setPropertyValue(pd.getId(), vs);
+            boolean force = intermediate == false;
+            IUndoableOperation operation = propertyModel.setPropertyValue(pd.getId(), vs, force);
+            if (operation instanceof IMergeableOperation) {
+                IMergeableOperation mo = (IMergeableOperation) operation;
+                if (intermediate)
+                    mo.setType(Type.INTERMEDIATE);
+                else
+                    mo.setType(Type.CLOSE);
+            }
 
             operation.addContext(undoContext);
             IStatus status = null;
@@ -194,7 +205,7 @@ public class ParticleFXCurveEditorPage implements ICurveEditorPage, ISelectionLi
         list.setContentProvider(new ArrayContentProvider());
         list.setLabelProvider(new ColorLabelProvider());
 
-        history = PlatformUI.getWorkbench().getOperationSupport().getOperationHistory();
+        history = new MergeableDelegatingOperationHistory(PlatformUI.getWorkbench().getOperationSupport().getOperationHistory());
         history.addOperationHistoryListener(this);
         curveEditor = new CurveEditor(composite, SWT.NONE, JFaceResources.getColorRegistry());
         curveEditor.setLayoutData(new GridData(GridData.FILL_BOTH));

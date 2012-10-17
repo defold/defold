@@ -11,9 +11,9 @@ ICommandFactory<Object, GridModel> {
     @Override
     public IUndoableOperation create(Object node, String property,
             IPropertyAccessor<Object, GridModel> accessor, Object oldValue,
-            Object newValue, boolean overridden, GridModel model) {
+            Object newValue, boolean overridden, GridModel model, boolean force) {
 
-        if (!newValue.equals(oldValue)) {
+        if (force || !newValue.equals(oldValue)) {
             SetPropertiesOperation<Object, GridModel> operation = new SetPropertiesOperation<Object, GridModel>(node,
                     property, accessor, oldValue,
                     newValue, model);

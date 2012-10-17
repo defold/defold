@@ -43,7 +43,7 @@ public class CurveEditorDemo {
         ce.setProvider(new ICurveProvider() {
 
             @Override
-            public void setSpline(HermiteSpline spline, int i) {
+            public void setSpline(HermiteSpline spline, int i, boolean intermediate) {
 
                 AlterSplineOperation operation = new AlterSplineOperation("Edit Spline", input, i, (HermiteSpline) input[i], spline);
                 operation.addContext(context);

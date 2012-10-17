@@ -18,6 +18,8 @@ import org.eclipse.swt.widgets.Listener;
 import org.eclipse.swt.widgets.Text;
 import org.eclipse.ui.forms.widgets.FormToolkit;
 
+import com.dynamo.cr.editor.core.operations.IMergeableOperation;
+import com.dynamo.cr.editor.core.operations.IMergeableOperation.Type;
 import com.dynamo.cr.properties.IPropertyEditor;
 import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.properties.IPropertyObjectWorld;
@@ -190,15 +192,18 @@ public abstract class ScalarPropertyDesc<S, T, U extends IPropertyObjectWorld> e
                 value = fromString("0");
 
             boolean updateValue = false;
+            IMergeableOperation.Type type = Type.OPEN;
             if (event.type == SWT.KeyDown && (event.character == '\r' || event.character == '\n')) {
                 updateValue = true;
             } else if (event.type == SWT.FocusOut && !value.equals(oldValue)) {
                 updateValue = true;
-            } else if (event.type == SWT.DefaultSelection && !value.equals(oldValue) && (event.detail & SWT.DRAG) == 0) {
+            } else if (event.type == SWT.DefaultSelection && !value.equals(oldValue)) {
                 updateValue = true;
+                type = Type.INTERMEDIATE;
             }
+
             if (updateValue) {
-                IUndoableOperation combinedOperation = PropertyUtil.setProperty(models, getId(), value);
+                IUndoableOperation combinedOperation = PropertyUtil.setProperty(models, getId(), value, type);
                 if (combinedOperation != null)
                     models[0].getCommandFactory().execute(combinedOperation, models[0].getWorld());
 

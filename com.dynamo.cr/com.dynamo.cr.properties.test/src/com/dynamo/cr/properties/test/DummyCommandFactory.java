@@ -10,7 +10,7 @@ public class DummyCommandFactory implements ICommandFactory<Object, DummyWorld> 
     @Override
     public IUndoableOperation create(Object obj, String property,
             IPropertyAccessor<Object, DummyWorld> accessor,
-            Object oldValue, Object newValue, boolean overridden, DummyWorld world) {
+            Object oldValue, Object newValue, boolean overridden, DummyWorld world, boolean force) {
 
         // Increase total number of commands created
         ++world.totalCommands;

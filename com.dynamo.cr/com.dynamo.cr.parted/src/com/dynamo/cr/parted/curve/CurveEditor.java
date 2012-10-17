@@ -112,8 +112,8 @@ public class CurveEditor extends Canvas implements PaintListener,
         super.dispose();
     }
 
-    private void splineChanged(String label, int index, HermiteSpline oldSpline, HermiteSpline newSpline) {
-        provider.setSpline(newSpline, index);
+    private void splineChanged(String label, int index, HermiteSpline oldSpline, HermiteSpline newSpline, boolean intermediate) {
+        provider.setSpline(newSpline, index, intermediate);
     }
 
     double toScreenX(double xValue) {
@@ -360,6 +360,8 @@ public class CurveEditor extends Canvas implements PaintListener,
                 double newX = fromScreenX(e.x - hit.mouseDX) ;
                 double newY = fromScreenY(e.y - hit.mouseDY);
                 activeSpline = activeSpline.setPosition(hit.index, newX, newY);
+                HermiteSpline oldSpline = activeSpline.setPosition(hit.index, hit.point.getX(), hit.point.getY());
+                splineChanged("Move point", activeIndex, oldSpline, activeSpline, true);
                 redraw();
             } else if (hit.handle == Handle.TANGENT_CONTROL1
                     || hit.handle == Handle.TANGENT_CONTROL2) {
@@ -378,6 +380,9 @@ public class CurveEditor extends Canvas implements PaintListener,
                 }
 
                 activeSpline = activeSpline.setTangent(hit.index, tx, ty);
+                HermiteSpline oldSpline = activeSpline.setTangent(hit.index, hit.point.getTx(), hit.point.getTy());
+                splineChanged("Set tangent", activeIndex, oldSpline, activeSpline, true);
+
                 redraw();
             }
         }
@@ -444,9 +449,9 @@ public class CurveEditor extends Canvas implements PaintListener,
 
         Hit hit = hitTest(e, spline);
         if (hit != null && hit.handle == Handle.CONTROL) {
-            splineChanged("Remove point", index, spline, spline.removePoint(hit.index));
+            splineChanged("Remove point", index, spline, spline.removePoint(hit.index), false);
         } else {
-            splineChanged("Insert point", index, spline, spline.insertPoint(x, y));
+            splineChanged("Insert point", index, spline, spline.insertPoint(x, y), false);
         }
         redraw();
     }
@@ -484,13 +489,13 @@ public class CurveEditor extends Canvas implements PaintListener,
         if (mode == Mode.MOVE) {
             if (hit.handle == Handle.CONTROL) {
                 HermiteSpline oldSpline = s.setPosition(hit.index, hit.point.getX(), hit.point.getY());
-                splineChanged("Move point", i, oldSpline, s);
+                splineChanged("Move point", i, oldSpline, s, false);
                 redraw();
             } else if (hit.handle == Handle.TANGENT_CONTROL1
                     || hit.handle == Handle.TANGENT_CONTROL2) {
 
                 HermiteSpline oldSpline = s.setTangent(hit.index, hit.point.getTx(), hit.point.getTy());
-                splineChanged("Set tangent", i, oldSpline, s);
+                splineChanged("Set tangent", i, oldSpline, s, false);
                 redraw();
             }
         }

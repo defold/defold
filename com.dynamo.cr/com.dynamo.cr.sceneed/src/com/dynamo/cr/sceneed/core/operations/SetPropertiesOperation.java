@@ -1,8 +1,5 @@
 package com.dynamo.cr.sceneed.core.operations;
 
-import java.util.Arrays;
-import java.util.List;
-
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.AbstractOperation;
 import org.eclipse.core.runtime.IAdaptable;
@@ -10,60 +7,40 @@ import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 
+import com.dynamo.cr.editor.core.operations.IMergeableOperation;
 import com.dynamo.cr.properties.IPropertyAccessor;
 import com.dynamo.cr.properties.IPropertyObjectWorld;
 
-public class SetPropertiesOperation<T, U extends IPropertyObjectWorld> extends AbstractOperation {
+public class SetPropertiesOperation<T, U extends IPropertyObjectWorld> extends AbstractOperation implements IMergeableOperation {
 
     private IPropertyAccessor<Object, U> accessor;
     private U model;
     private String property;
-    private List<T> oldValues;
-    private List<T> newValues;
-    private List<Object> nodes;
-    private List<Boolean> overrides;
-    private boolean[] resets;
+    private T oldValue;
+    private T newValue;
+    private Object node;
+    private boolean overrides;
+    private boolean resets;
+    private Type type = Type.OPEN;
 
-    public SetPropertiesOperation(List<Object> nodes, String property, IPropertyAccessor<Object, U> accessor, List<T> oldValues, List<T> newValues, List<Boolean> overrides, U model) {
+    public SetPropertiesOperation(Object node, String property, IPropertyAccessor<Object, U> accessor, T oldValue, T newValue, boolean overridden, U scene) {
         super("Set " + property);
         this.property = property;
-        this.nodes = nodes;
+        this.node = node;
         this.accessor = accessor;
-        this.oldValues = oldValues;
-        this.newValues = newValues;
-        this.model = model;
-        this.overrides = overrides;
-        this.resets = new boolean[overrides.size()];
-    }
-
-    public List<Object> getNodes() {
-        return this.nodes;
+        this.oldValue = oldValue;
+        this.newValue = newValue;
+        this.model = scene;
+        this.overrides = overridden;
     }
 
     public String getProperty() {
         return this.property;
     }
 
-    public List<T> getOldValues() {
-        return this.oldValues;
-    }
-
-    public List<T> getNewValues() {
-        return this.newValues;
-    }
-
-    @SuppressWarnings("unchecked")
-    public SetPropertiesOperation(Object node, String property, IPropertyAccessor<Object, U> accessor, T oldValue, T newValue, boolean overridden, U scene) {
-        this(Arrays.asList(node), property, accessor, Arrays.asList(oldValue), Arrays.asList(newValue), Arrays.asList(overridden), scene);
-    }
-
     private void set() throws ExecutionException {
         try {
-            int i = 0;
-            for (Object node : nodes) {
-                accessor.setValue(node, property, newValues.get(i), model);
-                ++i;
-            }
+            accessor.setValue(node, property, newValue, model);
         } catch (Throwable e) {
             throw new ExecutionException("Failed to set property " + property, e);
         }
@@ -73,12 +50,8 @@ public class SetPropertiesOperation<T, U extends IPropertyObjectWorld> extends A
     public IStatus execute(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
         set();
-        int i = 0;
-        for (Object node : nodes) {
-            if (!this.overrides.get(i) && accessor.isOverridden(node, property, model)) {
-                this.resets[i] = true;
-            }
-            ++i;
+        if (!this.overrides && accessor.isOverridden(node, property, model)) {
+            this.resets = true;
         }
         return Status.OK_STATUS;
     }
@@ -94,19 +67,43 @@ public class SetPropertiesOperation<T, U extends IPropertyObjectWorld> extends A
     public IStatus undo(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
         try {
-            int i = 0;
-            for (Object node : nodes) {
-                if (this.resets[i]) {
-                    accessor.resetValue(node, property, model);
-                } else {
-                    accessor.setValue(node, property, oldValues.get(i), model);
-                }
-                ++i;
+            if (this.resets) {
+                accessor.resetValue(node, property, model);
+            } else {
+                accessor.setValue(node, property, oldValue, model);
             }
         } catch (Throwable e) {
             throw new ExecutionException("Failed to set property " + property, e);
         }
         return Status.OK_STATUS;
+    }
+
+    @Override
+    public void setType(Type type) {
+        this.type = type;
+    }
+
+    @Override
+    public Type getType() {
+        return type;
+    }
+
+    @Override
+    public boolean canMerge(IMergeableOperation operation) {
+        if (operation instanceof SetPropertiesOperation<?, ?>) {
+            SetPropertiesOperation<?, ?> o = (SetPropertiesOperation<?, ?>) operation;
+            return o.node == node &&
+                   o.property.equals(property) &&
+                   o.newValue.getClass() == newValue.getClass();
+        }
+        return false;
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public void mergeWith(IMergeableOperation operation) {
+        SetPropertiesOperation<?, ?> o = (SetPropertiesOperation<?, ?>) operation;
+        this.newValue = (T) o.newValue;
     }
 
 }

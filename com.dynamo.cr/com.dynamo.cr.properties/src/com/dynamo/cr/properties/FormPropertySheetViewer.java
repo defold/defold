@@ -63,6 +63,9 @@ public class FormPropertySheetViewer extends Viewer {
     public FormPropertySheetViewer(Composite parent, IContainer contentRoot) {
         this.contentRoot = contentRoot;
         toolkit = new FormToolkit(parent.getDisplay());
+
+        // NOTE: All MouseVerticalWheel are consumed by SpinnerText if
+        // MOD1 is pressed. See SpinnerText for more information
         this.form = toolkit.createScrolledForm(parent);
         this.form.setText("Properties"); //$NON-NLS-1$
         form.getBody().setLayout(new GridLayout());

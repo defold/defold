@@ -11,9 +11,9 @@ public class UndoableCommandFactory implements
     @Override
     public IUndoableOperation create(Object node, String property,
             IPropertyAccessor<Object, GuiScene> accessor, Object oldValue,
-            Object newValue, boolean overridden, GuiScene scene) {
+            Object newValue, boolean overridden, GuiScene scene, boolean force) {
 
-        if (!newValue.equals(oldValue)) {
+        if (force || !newValue.equals(oldValue)) {
             SetPropertiesOperation<Object> operation = new SetPropertiesOperation<Object>(node,
                     property, accessor, oldValue,
                     newValue, scene);
