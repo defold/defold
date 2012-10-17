@@ -38,24 +38,30 @@ public class AccelerationRenderer implements INodeRenderer<AccelerationNode> {
         float[] color = renderContext.selectColor(node, AccelerationRenderer.color);
         gl.glColor4fv(color, 0);
 
-        gl.glPushMatrix();
-        int n = 3;
-        double dy = (ManipulatorRendererUtil.BASE_LENGTH / factor) / n;
-        double y = -dy * (n+1) / 2.0;
-        gl.glTranslated(0, y, 0);
-        for (int i = 0; i < n; ++i) {
-            gl.glTranslated(0, dy, 0);
-            drawArrow(gl, factor);
+        double sign = Math.signum(node.getMagnitude().getValue());
+        if (sign == 0) {
+            sign = 1.0;
         }
-        gl.glPopMatrix();
+
+        int n = 5;
+        double dy = 1.5 * (ManipulatorRendererUtil.BASE_LENGTH / factor) / n;
+        double y = -dy * (n-1) / 2.0;
+        for (int i = 0; i < n; ++i) {
+            gl.glPushMatrix();
+            gl.glRotated(sign * 90.0, 0, 0, 1);
+            gl.glTranslated(0, y + dy * i, 0);
+            gl.glTranslated( -Math.abs((n / 2 - i)) *  dy * 0.3, 0, 0);
+            drawArrow(gl, factor);
+            gl.glPopMatrix();
+        }
 
     }
 
     private void drawArrow(GL gl, double factor) {
-        RenderUtil.drawArrow(gl, ManipulatorRendererUtil.BASE_LENGTH / factor,
-                                 2.3 * ManipulatorRendererUtil.BASE_HEAD_RADIUS / factor,
+        RenderUtil.drawArrow(gl, 0.6 * ManipulatorRendererUtil.BASE_LENGTH / factor,
+                                 1.3 * ManipulatorRendererUtil.BASE_HEAD_RADIUS / factor,
                                  0.2 * ManipulatorRendererUtil.BASE_THICKNESS / factor,
-                                 ManipulatorRendererUtil.BASE_HEAD_RADIUS / factor);
+                                 0.5 * ManipulatorRendererUtil.BASE_HEAD_RADIUS / factor);
     }
 
 }

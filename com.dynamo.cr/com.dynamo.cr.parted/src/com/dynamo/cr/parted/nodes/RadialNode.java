@@ -3,6 +3,7 @@ package com.dynamo.cr.parted.nodes;
 import com.dynamo.cr.parted.curve.HermiteSpline;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.types.ValueSpread;
+import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.particle.proto.Particle.Modifier;
 import com.dynamo.particle.proto.Particle.Modifier.Builder;
 import com.dynamo.particle.proto.Particle.ModifierKey;
@@ -14,6 +15,9 @@ public class RadialNode extends AbstractModifierNode {
 
     @Property
     protected ValueSpread attenuation = new ValueSpread(new HermiteSpline());
+
+    @Property
+    protected double maxDistance = 10.0f;
 
     public RadialNode(Modifier modifier) {
         super(modifier);
@@ -28,6 +32,18 @@ public class RadialNode extends AbstractModifierNode {
                 break;
             }
         }
+        updateAABB();
+    }
+
+    @Override
+    protected void updateAABB() {
+        AABB aabb = new AABB();
+        double r = getMaxDistance();
+        if (Math.abs(r) > 0.0001) {
+            aabb.union(-r, -r, -r);
+            aabb.union(r, r, r);
+        }
+        setAABB(aabb);
     }
 
     public ValueSpread getAttenuation() {
@@ -37,6 +53,15 @@ public class RadialNode extends AbstractModifierNode {
     public void setAttenuation(ValueSpread attenuation) {
         this.attenuation.set(attenuation);
         reloadSystem();
+    }
+
+    public double getMaxDistance() {
+        return maxDistance;
+    }
+
+    public void setMaxDistance(double maxDistance) {
+        this.maxDistance = maxDistance;
+        updateAABB();
     }
 
     @Override
@@ -56,5 +81,6 @@ public class RadialNode extends AbstractModifierNode {
     public String toString() {
         return "Radial";
     }
+
 
 }

@@ -30,8 +30,8 @@ public class DragRenderer implements INodeRenderer<DragNode> {
 
         float rotation = (float) (Math.PI * 4);
         float length = 60;
-        float ra = 50;
-        float rb = 8;
+        float ra = 8;
+        float rb = 50;
         for (int j = 0; j < circles; ++j) {
             float x = length * j / (circles - 1.0f);
 

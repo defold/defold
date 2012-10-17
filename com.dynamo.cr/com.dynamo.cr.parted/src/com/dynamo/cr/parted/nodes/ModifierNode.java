@@ -16,7 +16,7 @@ public abstract class ModifierNode extends Node {
         updateAABB();
     }
 
-    private void updateAABB() {
+    protected void updateAABB() {
         AABB aabb = new AABB();
         // NOTE: This is arbitrary as modifiers are rendered with constant screen-space size.
         int s = 10;

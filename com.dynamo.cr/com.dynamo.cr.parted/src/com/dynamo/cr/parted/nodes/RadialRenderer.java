@@ -1,9 +1,9 @@
 package com.dynamo.cr.parted.nodes;
 
+import java.nio.FloatBuffer;
 import java.util.EnumSet;
 
 import javax.media.opengl.GL;
-import javax.vecmath.Matrix4d;
 import javax.vecmath.Point3d;
 
 import com.dynamo.cr.sceneed.core.INodeRenderer;
@@ -17,6 +17,11 @@ public class RadialRenderer implements INodeRenderer<RadialNode> {
 
     private static final float[] color = new float[] { 1, 1, 1, 1 };
     private static final EnumSet<Pass> passes = EnumSet.of(Pass.OUTLINE, Pass.SELECTION);
+    private FloatBuffer circle;
+
+    public RadialRenderer() {
+        circle = RenderUtil.createDashedCircle(64);
+    }
 
     @Override
     public void dispose() {
@@ -26,6 +31,9 @@ public class RadialRenderer implements INodeRenderer<RadialNode> {
     public void setup(RenderContext renderContext, RadialNode node) {
         if (passes.contains(renderContext.getPass())) {
             renderContext.add(this, node, new Point3d(), null);
+            if (renderContext.isSelected(node)) {
+                renderContext.add(this, node, new Point3d(), circle);
+            }
         }
     }
 
@@ -37,56 +45,43 @@ public class RadialRenderer implements INodeRenderer<RadialNode> {
         double factor = ManipulatorRendererUtil.getScaleFactor(node, renderContext.getRenderView());
         float[] color = renderContext.selectColor(node, RadialRenderer.color);
         gl.glColor4fv(color, 0);
-        boolean positive = node.getMagnitude().getValue() > 0.0;
+        double magnitude = node.getMagnitude().getValue();
 
-//        gl.glPushMatrix();
-        Matrix4d w = new Matrix4d();
-        node.getWorldTransform(w);
-//        RenderUtil.loadMatrix(gl, w);
-        double length = ManipulatorRendererUtil.BASE_LENGTH / factor;
-        Matrix4d dim = new Matrix4d();
-        Matrix4d scale = new Matrix4d();
-        int n = 3;
-        for (int i = 0; i < n; ++i) {
-            dim.setIdentity();
-            dim.setElement(0, 0, 0.0);
-            dim.setElement(i, i, 0.0);
-            dim.setElement(i, 0, 1.0);
-            dim.setElement(0, i, 1.0);
-            gl.glPushMatrix();
-            RenderUtil.multMatrix(gl, dim);
-            scale.setIdentity();
-            scale.setElement(0, 0, -1.0);
-            gl.glPushMatrix();
-            double gap = 0.2;
-            if (positive) {
-                gl.glTranslated(length * gap, 0, 0);
-            } else {
-                gl.glTranslated(length * (1.0 + gap), 0, 0);
-                RenderUtil.multMatrix(gl, scale);
+        if (renderData.getUserData() == null) {
+            int n = 8;
+            for (int i = 0; i < n; ++i) {
+                gl.glPushMatrix();
+                double a = 360.0 * i / (double) n;
+
+                gl.glRotated(a, 0, 0, 1);
+
+                if (magnitude < 0) {
+                    gl.glTranslated(30 / factor, 0, 0);
+                    gl.glRotated(180, 0, 0, 1);
+                    gl.glTranslated(-30 / factor, 0, 0);
+                }
+
+                gl.glTranslated(5.0 / factor, 0, 0);
+                drawArrow(gl, factor);
+                gl.glPopMatrix();
             }
-            drawArrow(gl, factor);
-            gl.glPopMatrix();
-            RenderUtil.multMatrix(gl, scale);
+        } else {
+            double r = node.getMaxDistance();
             gl.glPushMatrix();
-            if (positive) {
-                gl.glTranslated(length * gap, 0, 0);
-            } else {
-                gl.glTranslated(length * (1.0 + gap), 0, 0);
-                RenderUtil.multMatrix(gl, scale);
-            }
-            drawArrow(gl, factor);
-            gl.glPopMatrix();
+            gl.glScaled(r, r, 1.0);
+            gl.glEnableClientState(GL.GL_VERTEX_ARRAY);
+            gl.glVertexPointer(3, GL.GL_FLOAT, 0, circle);
+            gl.glDrawArrays(GL.GL_LINES, 0, circle.limit() / 3);
+            gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
             gl.glPopMatrix();
         }
-
     }
 
     private void drawArrow(GL gl, double factor) {
-        RenderUtil.drawArrow(gl, ManipulatorRendererUtil.BASE_LENGTH / factor,
-                                 2.3 * ManipulatorRendererUtil.BASE_HEAD_RADIUS / factor,
+        RenderUtil.drawArrow(gl, 0.4 * ManipulatorRendererUtil.BASE_LENGTH / factor,
+                                 1.3 * ManipulatorRendererUtil.BASE_HEAD_RADIUS / factor,
                                  0.2 * ManipulatorRendererUtil.BASE_THICKNESS / factor,
-                                 ManipulatorRendererUtil.BASE_HEAD_RADIUS / factor);
+                                 0.5 * ManipulatorRendererUtil.BASE_HEAD_RADIUS / factor);
     }
 
 

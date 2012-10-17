@@ -1,5 +1,6 @@
 package com.dynamo.cr.parted.nodes;
 
+import java.nio.FloatBuffer;
 import java.util.EnumSet;
 
 import javax.media.opengl.GL;
@@ -16,6 +17,13 @@ public class VortexRenderer implements INodeRenderer<VortexNode> {
 
     private static final float[] color = new float[] { 1, 1, 1, 1 };
     private static final EnumSet<Pass> passes = EnumSet.of(Pass.OUTLINE, Pass.SELECTION);
+    private FloatBuffer spiral;
+    private FloatBuffer circle;
+
+    public VortexRenderer() {
+        spiral = RenderUtil.createSpiral();
+        circle = RenderUtil.createDashedCircle(64);
+    }
 
     @Override
     public void dispose() {
@@ -24,41 +32,44 @@ public class VortexRenderer implements INodeRenderer<VortexNode> {
     @Override
     public void setup(RenderContext renderContext, VortexNode node) {
         if (passes.contains(renderContext.getPass())) {
-            renderContext.add(this, node, new Point3d(), null);
+            renderContext.add(this, node, new Point3d(), spiral);
+            if (renderContext.isSelected(node)) {
+                renderContext.add(this, node, new Point3d(), circle);
+            }
         }
     }
 
     @Override
-    public void render(RenderContext renderContext, VortexNode node,
-            RenderData<VortexNode> renderData) {
+    public void render(RenderContext renderContext, VortexNode node, RenderData<VortexNode> renderData) {
 
         GL gl = renderContext.getGL();
         double factor = ManipulatorRendererUtil.getScaleFactor(node, renderContext.getRenderView());
+        double factorRecip = 50.0 / factor;
+
         float[] color = renderContext.selectColor(node, VortexRenderer.color);
         gl.glColor4fv(color, 0);
         boolean positive = node.getMagnitude().getValue() > 0.0;
 
-        double length = ManipulatorRendererUtil.BASE_LENGTH / factor;
-
-        for (int i = 0; i < 4; ++i) {
-            gl.glPushMatrix();
-            gl.glRotated(90.0 * i + 45.0, 0.0, 1.0, 0.0);
-            gl.glTranslated(0.0, 0.0, length);
+        gl.glPushMatrix();
+        if (renderData.getUserData() == spiral) {
             if (!positive) {
                 gl.glScaled(-1.0, 1.0, 1.0);
             }
-            gl.glTranslated(-0.5 * length, 0.0, 0.0);
-            drawArrow(gl, factor);
-            gl.glPopMatrix();
+            gl.glScaled(factorRecip, factorRecip, 1.0);
+            gl.glEnableClientState(GL.GL_VERTEX_ARRAY);
+            gl.glVertexPointer(3, GL.GL_FLOAT, 0, spiral);
+            gl.glDrawArrays(GL.GL_LINE_STRIP, 0, spiral.limit() / 3);
+            gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
+        } else {
+            double r = node.getMaxDistance();
+            gl.glScaled(r, r, 1.0);
+            gl.glEnableClientState(GL.GL_VERTEX_ARRAY);
+            gl.glVertexPointer(3, GL.GL_FLOAT, 0, circle);
+            gl.glDrawArrays(GL.GL_LINES, 0, circle.limit() / 3);
+            gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
         }
+        gl.glPopMatrix();
 
-    }
-
-    private void drawArrow(GL gl, double factor) {
-        RenderUtil.drawArrow(gl, ManipulatorRendererUtil.BASE_LENGTH / factor,
-                                 2.3 * ManipulatorRendererUtil.BASE_HEAD_RADIUS / factor,
-                                 0.2 * ManipulatorRendererUtil.BASE_THICKNESS / factor,
-                                 ManipulatorRendererUtil.BASE_HEAD_RADIUS / factor);
     }
 
 }

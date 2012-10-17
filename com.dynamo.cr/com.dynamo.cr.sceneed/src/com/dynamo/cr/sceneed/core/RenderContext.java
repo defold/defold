@@ -185,6 +185,14 @@ public class RenderContext {
     private static float OBJECT_COLOR[] = new float[] { 43.0f/255, 25.0f/255, 116.0f/255 };
     private static float SELECTED_COLOR[] = new float[] { 69.0f/255, 255.0f/255, 162.0f/255 };
 
+    public boolean isSelected(Node node) {
+        Node n = node;
+        while (n != null && n.getParent() != null && !selectedNodes.contains(n)) {
+            n = n.getParent();
+        }
+        return  (n != null && n.getParent() != null);
+    }
+
     /**
      * Select color based on pass. If not default color is selected objectColor is returned
      * @param node node to render
@@ -197,11 +205,7 @@ public class RenderContext {
             return objectColor;
         case ICON_OUTLINE:
         case OUTLINE:
-            Node n = node;
-            while (n != null && n.getParent() != null && !selectedNodes.contains(n)) {
-                n = n.getParent();
-            }
-            if (n != null && n.getParent() != null) {
+            if (isSelected(node)) {
                 return SELECTED_COLOR;
             } else {
                 return OBJECT_COLOR;

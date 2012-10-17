@@ -369,4 +369,41 @@ public class RenderUtil {
 
         gl.glMultMatrixd(a, 0);
     }
+
+    public static FloatBuffer createDashedCircle(int count) {
+        FloatBuffer v = BufferUtil.newFloatBuffer(count * 3);
+
+        for (int i = 0; i < count; ++i) {
+            double x = i / (double) (count);
+            double a = Math.PI * 2.0 * x;
+
+            v.put((float) Math.cos(a));
+            v.put((float) Math.sin(a));
+            v.put(0);
+        }
+
+        v.rewind();
+        return v;
+    }
+
+    public static FloatBuffer createSpiral() {
+        double totalAngle = 2 * Math.PI * 3.0;
+        int segments = 64;
+        FloatBuffer v = BufferUtil.newFloatBuffer(segments * 3);
+
+        double r0 = 0;
+        double r1 = 1.0;
+        for (int i = 0; i < segments; ++i) {
+            double x = i / (double) (segments - 1.0);
+            double a = totalAngle * x;
+            double r = r0 * x + (1 - x) * r1;
+
+            v.put((float) (r * Math.cos(a)));
+            v.put((float) (r * Math.sin(a)));
+            v.put(0);
+        }
+
+        v.rewind();
+        return v;
+    }
 }

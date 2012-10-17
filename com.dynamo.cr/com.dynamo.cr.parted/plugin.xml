@@ -138,7 +138,7 @@
             id="com.dynamo.cr.parted.resourcetypes.acceleration"
             name="Acceleration"
             proto-message-class="com.dynamo.particle.proto.Particle$Modifier"
-            template-data="type: MODIFIER_TYPE_ACCELERATION use_direction: 0 position { x: 0.0 y: 0.0 z: 0.0 } rotation { x: 0.0 y: 0.0 z: -0.70710677 w: 0.70710677 } properties { key: MODIFIER_KEY_MAGNITUDE points { x: 0.0 y: 90.0 t_x: 1.0 t_y: 0.0 } }">
+            template-data="type: MODIFIER_TYPE_ACCELERATION use_direction: 0 position { x: 0.0 y: 0.0 z: 0.0 } rotation { x: 0.0 y: 0.0 z: 0.0 w: 1.0 } properties { key: MODIFIER_KEY_MAGNITUDE points { x: 0.0 y: 90.0 t_x: 1.0 t_y: 0.0 } }">
       </resource-type>
       <resource-type
             file-extension="drag"
@@ -159,7 +159,7 @@
             id="com.dynamo.cr.parted.resourcetypes.vortex"
             name="Vortex"
             proto-message-class="com.dynamo.particle.proto.Particle$Modifier"
-            template-data="type: MODIFIER_TYPE_VORTEX use_direction: 0 position { x: 0.0 y: 0.0 z: 0.0 } rotation { x: 0.70710677 y: 0.0 z: 0.0 w: 0.70710677 } properties { key: MODIFIER_KEY_MAGNITUDE points { x: 0.0 y: 10.0 t_x: 1.0 t_y: 0.0 } } properties { key: MODIFIER_KEY_ATTENUATION points { x: 0.0 y: 0.0 t_x: 1.0 t_y: 0.0 } }">
+            template-data="type: MODIFIER_TYPE_VORTEX use_direction: 0 position { x: 0.0 y: 0.0 z: 0.0 } rotation { x: 0.0 y: 0.0 z: 0.0 w: 1.0 } properties { key: MODIFIER_KEY_MAGNITUDE points { x: 0.0 y: 10.0 t_x: 1.0 t_y: 0.0 } } properties { key: MODIFIER_KEY_ATTENUATION points { x: 0.0 y: 0.0 t_x: 1.0 t_y: 0.0 } }">
       </resource-type>
    </extension>
    <extension
