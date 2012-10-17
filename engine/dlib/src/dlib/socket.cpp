@@ -477,7 +477,13 @@ namespace dmSocket
             return r;
 
         r = dmSocket::GetHostByName(hostname, address);
-        return r;
+        if (r != RESULT_OK)
+        {
+            *address = AddressFromIPString("127.0.0.1");
+            dmLogWarning("No IP found for local hostname %s. Fallbacks to 127.0.0.1", hostname);
+        }
+
+        return RESULT_OK;
     }
 #endif
 
