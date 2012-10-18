@@ -84,7 +84,7 @@
       </node-type>
       <node-type
             id="com.dynamo.cr.parted.accelerationManipulator"
-            node="com.dynamo.cr.parted.manipulators.AccelerationManipulator">
+            node="com.dynamo.cr.parted.manipulators.MagnitudeManipulator">
       </node-type>
    </extension>
    <extension
