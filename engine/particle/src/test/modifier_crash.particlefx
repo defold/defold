@@ -20,7 +20,7 @@ emitters {
   max_particle_count: 4096
   type: EMITTER_TYPE_SPHERE
   properties {
-    key: EMITTER_KEY_SPAWN_DELAY
+    key: EMITTER_KEY_SPAWN_RATE
     points {
       x: 0.0
       y: 0.0010

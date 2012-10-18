@@ -35,7 +35,7 @@ message SplinePoint
 
 enum EmitterKey
 {
-    EMITTER_KEY_SPAWN_DELAY         = 0 [(displayName) = "Spawn Delay"];
+    EMITTER_KEY_SPAWN_RATE          = 0 [(displayName) = "Spawn Rate"];
     EMITTER_KEY_SIZE_X              = 1 [(displayName) = "Size X"];
     EMITTER_KEY_SIZE_Y              = 2 [(displayName) = "Size Y"];
     EMITTER_KEY_SIZE_Z              = 3 [(displayName) = "Size Z"];

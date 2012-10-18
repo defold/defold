@@ -1,5 +1,6 @@
 #include <string.h>
 #include <stdint.h>
+#include <float.h>
 #include <algorithm>
 #include <dlib/hash.h>
 #include <dlib/log.h>
@@ -542,6 +543,26 @@ namespace dmParticle
         Simulate(instance, emitter, emitter_prototype, emitter_ddf, dt);
     }
 
+    static void UpdateEmitterVelocity(Instance* instance, Emitter* emitter, dmParticleDDF::Emitter* emitter_ddf, float dt)
+    {
+        // Update emitter velocity (1-frame estimate)
+
+        Point3 world_position = instance->m_Position + rotate(instance->m_Rotation, Vector3(emitter_ddf->m_Position));
+        if (emitter->m_LastPositionSet)
+        {
+            if (dt > 0.0f)
+            {
+                Vector3 diff = world_position - emitter->m_LastPosition;
+                emitter->m_Velocity = diff * (1.0f/dt);
+            }
+        }
+        else
+        {
+            emitter->m_LastPositionSet = 1;
+        }
+        emitter->m_LastPosition = world_position;
+    }
+
     void Update(HContext context, float dt, float* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size, FetchAnimationCallback fetch_animation_callback)
     {
         DM_PROFILE(Particle, "Update");
@@ -565,11 +586,14 @@ namespace dmParticle
                     DestroyInstance(context, instance->m_VersionNumber << 16 | i);
                 else
                 {
-                    // don't render
+                    // update velocity and clear vertex count (don't render)
                     uint32_t emitter_count = instance->m_Emitters.Size();
                     for (uint32_t emitter_i = 0; emitter_i < emitter_count; ++emitter_i)
                     {
-                        instance->m_Emitters[emitter_i].m_VertexCount = 0;
+                        Emitter* emitter = &instance->m_Emitters[emitter_i];
+                        emitter->m_VertexCount = 0;
+                        dmParticleDDF::Emitter* emitter_ddf = &instance->m_Prototype->m_DDF->m_Emitters[emitter_i];
+                        UpdateEmitterVelocity(instance, emitter, emitter_ddf, dt);
                     }
                 }
                 continue;
@@ -583,6 +607,7 @@ namespace dmParticle
                 EmitterPrototype* emitter_prototype = &prototype->m_Emitters[emitter_i];
                 dmParticleDDF::Emitter* emitter_ddf = &prototype->m_DDF->m_Emitters[emitter_i];
 
+                UpdateEmitterVelocity(instance, emitter, emitter_ddf, dt);
                 UpdateEmitter(prototype, instance, emitter_prototype, emitter, emitter_ddf, dt);
 
                 FetchAnimation(emitter, emitter_prototype, fetch_animation_callback);
@@ -666,21 +691,6 @@ namespace dmParticle
                 emitter->m_Seed = SEED;
             }
         }
-        // Update emitter velocity (1-frame estimate)
-        Point3 world_position = instance->m_Position + rotate(instance->m_Rotation, Vector3(emitter_ddf->m_Position));
-        if (emitter->m_LastPositionSet)
-        {
-            if (dt > 0.0f)
-            {
-                Vector3 diff = world_position - emitter->m_LastPosition;
-                emitter->m_Velocity = diff * (1.0f/dt);
-            }
-        }
-        else
-        {
-            emitter->m_LastPositionSet = 1;
-        }
-        emitter->m_LastPosition = world_position;
     }
 
     static void SpawnParticles(Instance* instance, Emitter* emitter, EmitterPrototype* prototype, dmParticleDDF::Emitter* ddf, float dt)
@@ -703,7 +713,8 @@ namespace dmParticle
                 memset(emitter_properties, 0, sizeof(emitter_properties));
                 EvaluateEmitterProperties(emitter, prototype->m_Properties, ddf->m_Duration, emitter_properties);
 
-                emitter->m_SpawnDelay = emitter_properties[EMITTER_KEY_SPAWN_DELAY];
+                float spawn_rate = dmMath::Max(FLT_MIN, emitter_properties[EMITTER_KEY_SPAWN_RATE]);
+                emitter->m_SpawnDelay = 1.0f / spawn_rate;
                 particle->SetMaxLifeTime(emitter_properties[EMITTER_KEY_PARTICLE_LIFE_TIME]);
                 particle->SetooMaxLifeTime(1.0f / particle->GetMaxLifeTime());
                 // Include dt since already existing particles have already been advanced

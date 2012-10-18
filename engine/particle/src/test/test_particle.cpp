@@ -1218,28 +1218,16 @@ TEST_F(ParticleTest, InheritVelocity)
     dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype);
     uint16_t index = instance & 0xffff;
     dmParticle::Instance* i = m_Context->m_Instances[index];
-    dmParticle::Emitter* e = &i->m_Emitters[0];
+    dmParticle::Emitter* e1 = &i->m_Emitters[0];
+    dmParticle::Emitter* e2 = &i->m_Emitters[1];
 
-    dmParticle::StartInstance(m_Context, instance);
     dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
-
-    dmParticle::Particle* p = &e->m_Particles[0];
-    ASSERT_EQ(0u, lengthSqr(p->GetVelocity()));
-
-    dmParticle::ResetInstance(m_Context, instance);
     dmParticle::StartInstance(m_Context, instance);
-    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
-    ASSERT_EQ(1u, e->m_Particles.Size());
     dmParticle::SetPosition(m_Context, instance, Point3(10, 0, 0));
     dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
-    ASSERT_NE(0.0f, lengthSqr(e->m_Velocity));
-    ASSERT_EQ(2u, e->m_Particles.Size());
 
-    // New particle is at index 0 because of sorting
-    p = &i->m_Emitters[0].m_Particles[0];
-    ASSERT_NE(0u, lengthSqr(p->GetVelocity()));
-    p = &i->m_Emitters[0].m_Particles[1];
-    ASSERT_EQ(0u, lengthSqr(p->GetVelocity()));
+    ASSERT_EQ(0.0f, lengthSqr(e1->m_Particles[0].GetVelocity()));
+    ASSERT_NE(0.0f, lengthSqr(e2->m_Particles[0].GetVelocity()));
 
     dmParticle::DestroyInstance(m_Context, instance);
 }
