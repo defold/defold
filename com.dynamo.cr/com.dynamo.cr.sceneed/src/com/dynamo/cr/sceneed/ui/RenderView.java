@@ -1,5 +1,6 @@
 package com.dynamo.cr.sceneed.ui;
 
+import java.awt.Font;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.IntBuffer;
@@ -57,6 +58,7 @@ import com.dynamo.cr.sceneed.core.RenderContext.Pass;
 import com.dynamo.cr.sceneed.core.RenderData;
 import com.dynamo.cr.sceneed.core.SceneGrid;
 import com.dynamo.cr.sceneed.ui.RenderView.SelectResult.Pair;
+import com.sun.opengl.util.j2d.TextRenderer;
 
 public class RenderView implements
 MouseListener,
@@ -93,6 +95,7 @@ IRenderView {
 
     private SceneGrid grid;
     private boolean simulating = false;
+    private TextRenderer smallTextRenderer;
 
     @Inject
     public RenderView(INodeTypeRegistry manager) {
@@ -123,6 +126,10 @@ IRenderView {
         GL gl = this.context.getGL();
         gl.glPolygonMode(GL.GL_FRONT, GL.GL_FILL);
 
+        String fontName = Font.SANS_SERIF;
+        Font debugFont = new Font(fontName, Font.BOLD, 12);
+        this.smallTextRenderer = new TextRenderer(debugFont, true, true);
+
         this.context.release();
 
         this.canvas.addListener(SWT.Resize, this);
@@ -142,6 +149,10 @@ IRenderView {
                 if (r != null) {
                     r.dispose();
                 }
+            }
+
+            if (this.smallTextRenderer != null) {
+                this.smallTextRenderer.dispose();
             }
 
             this.context.release();
@@ -592,7 +603,8 @@ IRenderView {
         if (simulating) {
             dt = 1.0 / 60.0;
         }
-        RenderContext renderContext = new RenderContext(this, dt, gl, glu, textureRegistry, this.selection);
+
+        RenderContext renderContext = new RenderContext(this, dt, gl, glu, textureRegistry, this.selection, this.smallTextRenderer);
 
         for (IRenderViewProvider provider : providers) {
             for (Pass pass : passes) {

@@ -78,6 +78,14 @@
             renderer="com.dynamo.cr.parted.nodes.VortexRenderer"
             resource-type="com.dynamo.cr.parted.resourcetypes.vortex">
       </node-type>
+      <node-type
+            id="com.dynamo.cr.parted.positionalManipulator"
+            node="com.dynamo.cr.parted.manipulators.PositionalManipulator">
+      </node-type>
+      <node-type
+            id="com.dynamo.cr.parted.accelerationManipulator"
+            node="com.dynamo.cr.parted.manipulators.AccelerationManipulator">
+      </node-type>
    </extension>
    <extension
          point="org.eclipse.ui.editors">
@@ -341,6 +349,16 @@
             mode="com.dynamo.cr.sceneed.core.manipulators.scale-mode"
             name="com.dynamo.cr.parted.manipulators.emitterManipulator"
             node-type="com.dynamo.cr.parted.emitterManipulator">
+      </manipulator>
+      <manipulator
+            mode="com.dynamo.cr.sceneed.core.manipulators.scale-mode"
+            name="com.dynamo.cr.parted.manipulators.positionalModifierManipulator"
+            node-type="com.dynamo.cr.parted.positionalManipulator">
+      </manipulator>
+      <manipulator
+            mode="com.dynamo.cr.sceneed.core.manipulators.scale-mode"
+            name="com.dynamo.cr.parted.manipulators.accelerationlModifierManipulator"
+            node-type="com.dynamo.cr.parted.accelerationManipulator">
       </manipulator>
    </extension>
    <extension
