@@ -924,11 +924,40 @@ TEST_F(ParticleTest, ReloadInstanceLoop)
     dmParticle::DestroyInstance(m_Context, instance);
 }
 
-TEST_F(ParticleTest, Acceleration)
+TEST_F(ParticleTest, AccelerationWorld)
 {
     float dt = 1.0f;
 
-    ASSERT_TRUE(LoadPrototype("mod_acc.particlefxc", &m_Prototype));
+    ASSERT_TRUE(LoadPrototype("mod_acc_world.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype);
+    uint16_t index = instance & 0xffff;
+    dmParticle::Instance* i = m_Context->m_Instances[index];
+
+    dmParticle::StartInstance(m_Context, instance);
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    dmParticle::Particle* particle = &i->m_Emitters[0].m_Particles[0];
+    ASSERT_EQ(0.0f, particle->GetVelocity().getX());
+    ASSERT_EQ(1.0f, particle->GetVelocity().getY());
+    ASSERT_EQ(0.0f, particle->GetVelocity().getZ());
+
+    dmParticle::SetRotation(m_Context, instance, Quat::rotationZ(M_PI));
+    dmParticle::ResetInstance(m_Context, instance);
+    dmParticle::StartInstance(m_Context, instance);
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    particle = &i->m_Emitters[0].m_Particles[0];
+    ASSERT_NEAR(0.0f, particle->GetVelocity().getX(), EPSILON);
+    // velocity is still in emitter space
+    ASSERT_EQ(-1.0f, particle->GetVelocity().getY());
+    ASSERT_EQ(0.0f, particle->GetVelocity().getZ());
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
+TEST_F(ParticleTest, AccelerationEmitter)
+{
+    float dt = 1.0f;
+
+    ASSERT_TRUE(LoadPrototype("mod_acc_em.particlefxc", &m_Prototype));
     dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype);
     uint16_t index = instance & 0xffff;
     dmParticle::Instance* i = m_Context->m_Instances[index];
@@ -937,7 +966,18 @@ TEST_F(ParticleTest, Acceleration)
 
     dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
     dmParticle::Particle* particle = &i->m_Emitters[0].m_Particles[0];
-    ASSERT_EQ(1.0f, lengthSqr(particle->GetVelocity()));
+    ASSERT_EQ(0.0f, particle->GetVelocity().getX());
+    ASSERT_NEAR(1.0f, particle->GetVelocity().getY(), EPSILON);
+    ASSERT_EQ(0.0f, particle->GetVelocity().getZ());
+
+    dmParticle::SetRotation(m_Context, instance, Quat::rotationZ(M_PI));
+    dmParticle::ResetInstance(m_Context, instance);
+    dmParticle::StartInstance(m_Context, instance);
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    particle = &i->m_Emitters[0].m_Particles[0];
+    ASSERT_EQ(0.0f, particle->GetVelocity().getX());
+    ASSERT_NEAR(1.0f, particle->GetVelocity().getY(), EPSILON);
+    ASSERT_EQ(0.0f, particle->GetVelocity().getZ());
 
     dmParticle::DestroyInstance(m_Context, instance);
 }

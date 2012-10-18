@@ -1139,21 +1139,20 @@ namespace dmParticle
 
     static Point3 CalculateModifierPosition(Instance* instance, dmParticleDDF::Emitter* emitter_ddf, dmParticleDDF::Modifier* modifier_ddf)
     {
-        Point3 position = modifier_ddf->m_Position;
+        Point3 position(modifier_ddf->m_Position);
+        position = emitter_ddf->m_Position + rotate(emitter_ddf->m_Rotation, Vector3(position));
         if (emitter_ddf->m_Space == EMISSION_SPACE_WORLD)
         {
-            position = emitter_ddf->m_Position + rotate(emitter_ddf->m_Rotation, Vector3(position));
             position = instance->m_Position + rotate(instance->m_Rotation, Vector3(position));
         }
-        return position;
+        return Point3(position);
     }
 
     static Quat CalculateModifierRotation(Instance* instance, dmParticleDDF::Emitter* emitter_ddf, dmParticleDDF::Modifier* modifier_ddf)
     {
-        Quat rotation = modifier_ddf->m_Rotation;
+        Quat rotation = emitter_ddf->m_Rotation * modifier_ddf->m_Rotation;
         if (emitter_ddf->m_Space == EMISSION_SPACE_WORLD)
         {
-            rotation = emitter_ddf->m_Rotation * rotation;
             rotation = instance->m_Rotation * rotation;
         }
         return rotation;
@@ -1174,7 +1173,10 @@ namespace dmParticle
             switch (modifier_ddf->m_Type)
             {
             case dmParticleDDF::MODIFIER_TYPE_ACCELERATION:
-                ApplyAcceleration(particles, modifier->m_Properties, modifier_ddf->m_Rotation, dt);
+                {
+                    Quat rotation = CalculateModifierRotation(instance, ddf, modifier_ddf);
+                    ApplyAcceleration(particles, modifier->m_Properties, rotation, dt);
+                }
                 break;
             case dmParticleDDF::MODIFIER_TYPE_DRAG:
                 {
