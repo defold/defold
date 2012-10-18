@@ -86,9 +86,9 @@ public class EmitterRenderer implements INodeRenderer<EmitterNode> {
             scaleY = getScale(node, EmitterKey.EMITTER_KEY_SIZE_Y);
             break;
         case EMITTER_TYPE_BOX:
-            scaleX = getScale(node, EmitterKey.EMITTER_KEY_SIZE_X);
-            scaleY = getScale(node, EmitterKey.EMITTER_KEY_SIZE_Y);
-            scaleZ = getScale(node, EmitterKey.EMITTER_KEY_SIZE_Z);
+            scaleX = 0.5 * getScale(node, EmitterKey.EMITTER_KEY_SIZE_X);
+            scaleY = 0.5 * getScale(node, EmitterKey.EMITTER_KEY_SIZE_Y);
+            scaleZ = 0.5 * getScale(node, EmitterKey.EMITTER_KEY_SIZE_Z);
             break;
         }
 
