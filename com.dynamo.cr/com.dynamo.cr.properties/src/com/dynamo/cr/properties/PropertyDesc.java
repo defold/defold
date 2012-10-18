@@ -15,6 +15,11 @@ public class PropertyDesc<T, U extends IPropertyObjectWorld> implements IPropert
     public PropertyDesc(String id, String name, String category) {
         this.id = id;
         this.name = name;
+
+        if (category == null) {
+            throw new IllegalArgumentException("Category must not be null");
+        }
+
         this.category = category;
     }
 
