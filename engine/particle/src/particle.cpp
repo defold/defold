@@ -14,6 +14,13 @@ namespace dmParticle
     using namespace dmParticleDDF;
     using namespace Vectormath::Aos;
 
+    const static Vector3 PARTICLE_LOCAL_BASE_DIR = Vector3::yAxis();
+    const static Vector3 ACCELERATION_LOCAL_DIR = Vector3::yAxis();
+    const static Vector3 DRAG_LOCAL_DIR = Vector3::xAxis();
+    const static Vector3 VORTEX_LOCAL_AXIS = Vector3::zAxis();
+    // Should be set to positive rotation around VORTEX_LOCAL_AXIS
+    const static Vector3 VORTEX_LOCAL_START_DIR = -Vector3::xAxis();
+
     struct Vertex
     {
         float m_UV[2];
@@ -1028,81 +1035,72 @@ namespace dmParticle
         }
     }
 
-    void ApplyAcceleration(dmArray<Particle>& particles, Property* modifier_properties, Vector3 direction, float dt)
+    void ApplyAcceleration(dmArray<Particle>& particles, Property* modifier_properties, Quat rotation, float dt)
     {
         uint32_t particle_count = particles.Size();
-        Vector3 unit_acc = direction * dt;
+        Vector3 acc_step = rotate(rotation, ACCELERATION_LOCAL_DIR) * dt;
         const Property& magnitude_property = modifier_properties[MODIFIER_KEY_MAGNITUDE];
+        // We temporarily only sample the first frame until we have decided what to animate over
+        float magnitude = magnitude_property.m_Segments[0].m_Y;
         for (uint32_t i = 0; i < particle_count; ++i)
         {
             Particle* particle = &particles[i];
-            float x = dmMath::Select(-particle->GetMaxLifeTime(), 0.0f, 1.0f - particle->GetTimeLeft() * particle->GetooMaxLifeTime());
-            uint32_t segment_index = dmMath::Min((uint32_t)(x * PROPERTY_SAMPLE_COUNT), PROPERTY_SAMPLE_COUNT - 1);
-
-            float magnitude;
-            SAMPLE_PROP(magnitude_property.m_Segments[segment_index], x, magnitude)
-            magnitude += particle->GetSpreadFactor() * magnitude_property.m_Spread;
-
-            particle->SetVelocity(particle->GetVelocity() + unit_acc * magnitude);
+            particle->SetVelocity(particle->GetVelocity() + acc_step * magnitude);
         }
     }
 
-    static float CalcAcceleration(float magnitude, float attenuation, float sq_distance)
-    {
-        return magnitude / (1.0f + attenuation * attenuation * sq_distance);
-    }
-
-    void ApplyDrag(dmArray<Particle>& particles, Property* modifier_properties, dmParticleDDF::Modifier* modifier_ddf, Point3 position, Vector3 direction, float dt)
+    void ApplyDrag(dmArray<Particle>& particles, Property* modifier_properties, dmParticleDDF::Modifier* modifier_ddf, Quat rotation, float dt)
     {
         uint32_t particle_count = particles.Size();
+        Vector3 direction = rotate(rotation, DRAG_LOCAL_DIR);
         const Property& magnitude_property = modifier_properties[MODIFIER_KEY_MAGNITUDE];
-        const Property& attenuation_property = modifier_properties[MODIFIER_KEY_ATTENUATION];
+        // We temporarily only sample the first frame until we have decided what to animate over
+        float magnitude = magnitude_property.m_Segments[0].m_Y;
         for (uint32_t i = 0; i < particle_count; ++i)
         {
             Particle* particle = &particles[i];
-            float x = dmMath::Select(-particle->GetMaxLifeTime(), 0.0f, 1.0f - particle->GetTimeLeft() * particle->GetooMaxLifeTime());
-            uint32_t segment_index = dmMath::Min((uint32_t)(x * PROPERTY_SAMPLE_COUNT), PROPERTY_SAMPLE_COUNT - 1);
-
-            float magnitude;
-            SAMPLE_PROP(magnitude_property.m_Segments[segment_index], x, magnitude)
-            magnitude += particle->GetSpreadFactor() * magnitude_property.m_Spread;
-            float attenuation;
-            SAMPLE_PROP(attenuation_property.m_Segments[segment_index], x, attenuation)
-            attenuation += particle->GetSpreadFactor() * attenuation_property.m_Spread;
-
-            float c = CalcAcceleration(magnitude, attenuation, distSqr(particle->GetPosition(), position));
             Vector3 v = particle->GetVelocity();
             if (modifier_ddf->m_UseDirection)
                 v = projection(Point3(particle->GetVelocity()), direction) * direction;
             // Applied drag > 1 means the particle would travel in the reverse direction
-            float applied_drag = dmMath::Min(c * dt, 1.0f);
+            float applied_drag = dmMath::Min(magnitude * dt, 1.0f);
             particle->SetVelocity(particle->GetVelocity() - v * applied_drag);
         }
+    }
+
+    static Vector3 GetParticleDir(Particle* particle)
+    {
+        return rotate(particle->GetRotation(), PARTICLE_LOCAL_BASE_DIR);
+    }
+
+    static Vector3 NonZeroVector3(Vector3 v, float sq_length, Vector3 fallback)
+    {
+        Vector3 result;
+        float neg_sq_length = -sq_length;
+        result.setX(dmMath::Select(neg_sq_length, fallback.getX(), v.getX()));
+        result.setY(dmMath::Select(neg_sq_length, fallback.getY(), v.getY()));
+        result.setZ(dmMath::Select(neg_sq_length, fallback.getZ(), v.getZ()));
+        return result;
     }
 
     void ApplyRadial(dmArray<Particle>& particles, Property* modifier_properties, Point3 position, float dt)
     {
         uint32_t particle_count = particles.Size();
         const Property& magnitude_property = modifier_properties[MODIFIER_KEY_MAGNITUDE];
-        const Property& attenuation_property = modifier_properties[MODIFIER_KEY_ATTENUATION];
+        const Property& max_distance_property = modifier_properties[MODIFIER_KEY_MAX_DISTANCE];
+        // We temporarily only sample the first frame until we have decided what to animate over
+        float magnitude = magnitude_property.m_Segments[0].m_Y;
+        float max_distance = max_distance_property.m_Segments[0].m_Y;
+        float max_sq_distance = max_distance * max_distance;
         for (uint32_t i = 0; i < particle_count; ++i)
         {
             Particle* particle = &particles[i];
-            float x = dmMath::Select(-particle->GetMaxLifeTime(), 0.0f, 1.0f - particle->GetTimeLeft() * particle->GetooMaxLifeTime());
-            uint32_t segment_index = dmMath::Min((uint32_t)(x * PROPERTY_SAMPLE_COUNT), PROPERTY_SAMPLE_COUNT - 1);
-
-            float magnitude;
-            SAMPLE_PROP(magnitude_property.m_Segments[segment_index], x, magnitude)
-            magnitude += particle->GetSpreadFactor() * magnitude_property.m_Spread;
-            float attenuation;
-            SAMPLE_PROP(attenuation_property.m_Segments[segment_index], x, attenuation)
-            attenuation += particle->GetSpreadFactor() * attenuation_property.m_Spread;
             Vector3 delta = particle->GetPosition() - position;
             float delta_sq_len = lengthSqr(delta);
-            float a = CalcAcceleration(magnitude, attenuation, delta_sq_len);
-            // TODO can we get rid of sqrt and flt div here?
-            delta *= 1.0f / dmMath::Select(-delta_sq_len, 1.0f, sqrt(delta_sq_len));
-            particle->SetVelocity(particle->GetVelocity() + delta * a * dt);
+            // 0 acc delta lies outside max dist
+            float a = dmMath::Select(max_sq_distance - delta_sq_len, magnitude, 0.0f);
+            Vector3 dir = normalize(NonZeroVector3(delta, delta_sq_len, GetParticleDir(particle)));
+            particle->SetVelocity(particle->GetVelocity() + dir * a * dt);
         }
     }
 
@@ -1110,33 +1108,30 @@ namespace dmParticle
     {
         uint32_t particle_count = particles.Size();
         const Property& magnitude_property = modifier_properties[MODIFIER_KEY_MAGNITUDE];
-        const Property& attenuation_property = modifier_properties[MODIFIER_KEY_ATTENUATION];
-        Vector3 axis = rotate(rotation, Vector3::yAxis());
-        Vector3 start = rotate(rotation, Vector3::xAxis());
+        const Property& max_distance_property = modifier_properties[MODIFIER_KEY_MAX_DISTANCE];
+        // We temporarily only sample the first frame until we have decided what to animate over
+        float magnitude = magnitude_property.m_Segments[0].m_Y;
+        float max_distance = max_distance_property.m_Segments[0].m_Y;
+        float max_sq_distance = max_distance * max_distance;
+        Vector3 axis = rotate(rotation, VORTEX_LOCAL_AXIS);
+        Vector3 start = rotate(rotation, VORTEX_LOCAL_START_DIR);
         for (uint32_t i = 0; i < particle_count; ++i)
         {
             Particle* particle = &particles[i];
-            float x = dmMath::Select(-particle->GetMaxLifeTime(), 0.0f, 1.0f - particle->GetTimeLeft() * particle->GetooMaxLifeTime());
-            uint32_t segment_index = dmMath::Min((uint32_t)(x * PROPERTY_SAMPLE_COUNT), PROPERTY_SAMPLE_COUNT - 1);
-
-            float magnitude;
-            SAMPLE_PROP(magnitude_property.m_Segments[segment_index], x, magnitude)
-            magnitude += particle->GetSpreadFactor() * magnitude_property.m_Spread;
-            float attenuation;
-            SAMPLE_PROP(attenuation_property.m_Segments[segment_index], x, attenuation)
-            attenuation += particle->GetSpreadFactor() * attenuation_property.m_Spread;
-
+            // delta from vortex position
             Vector3 delta = particle->GetPosition() - position;
-            Vector3 v = delta - projection(Point3(delta), axis) * axis;
-            Vector3 f = cross(axis, v);
-            float sq_len = lengthSqr(f);
-            // In case we are dealing with a 0-vector, give the particle a start
-            f.setX(dmMath::Select(-sq_len, start.getX(), f.getX()));
-            f.setY(dmMath::Select(-sq_len, start.getY(), f.getY()));
-            f.setZ(dmMath::Select(-sq_len, start.getZ(), f.getZ()));
-            f = normalize(f);
-            float a = CalcAcceleration(magnitude, attenuation, sq_len);
-            particle->SetVelocity(particle->GetVelocity() + f * a * dt);
+            // normal from vortex axis (non-unit)
+            Vector3 normal = delta - projection(Point3(delta), axis) * axis;
+            // tangent is the direction of the vortex acceleration
+            Vector3 tangent = cross(axis, normal);
+            // In case the particle is directed along the axis, give it a guaranteed orthogonal start
+            tangent = NonZeroVector3(tangent, lengthSqr(tangent), start);
+            // tangent is now guaranteed to be non-zero
+            tangent = normalize(tangent);
+            // use normal for max distance test
+            float normal_sq_len = lengthSqr(normal);
+            float acceleration = dmMath::Select(max_sq_distance - normal_sq_len, magnitude, 0.0f);
+            particle->SetVelocity(particle->GetVelocity() + tangent * acceleration * dt);
         }
     }
 
@@ -1179,13 +1174,12 @@ namespace dmParticle
             switch (modifier_ddf->m_Type)
             {
             case dmParticleDDF::MODIFIER_TYPE_ACCELERATION:
-                ApplyAcceleration(particles, modifier->m_Properties, rotate(modifier_ddf->m_Rotation, Vector3::xAxis()), dt);
+                ApplyAcceleration(particles, modifier->m_Properties, modifier_ddf->m_Rotation, dt);
                 break;
             case dmParticleDDF::MODIFIER_TYPE_DRAG:
                 {
-                    Point3 position = CalculateModifierPosition(instance, ddf, modifier_ddf);
-                    Vector3 direction = rotate(ddf->m_Rotation * modifier_ddf->m_Rotation, Vector3::xAxis());
-                    ApplyDrag(particles, modifier->m_Properties, modifier_ddf, position, direction, dt);
+                    Quat rotation = CalculateModifierRotation(instance, ddf, modifier_ddf);
+                    ApplyDrag(particles, modifier->m_Properties, modifier_ddf, rotation, dt);
                 }
                 break;
             case dmParticleDDF::MODIFIER_TYPE_RADIAL:

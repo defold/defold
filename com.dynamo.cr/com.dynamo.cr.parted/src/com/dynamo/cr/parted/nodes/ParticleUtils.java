@@ -68,17 +68,21 @@ public class ParticleUtils {
             }
             return lst;
         } else {
-            return Arrays.asList(SplinePoint.newBuilder()
-                    .setX(0)
-                    .setY((float) valueSpread.getValue())
-                    .setTX(1)
-                    .setTY(0)
-                    .build());
+            return toSplinePointList(valueSpread.getValue());
 
         }
     }
 
-    public static ModifierNode createModifierNode(Modifier m) {
+    public static List<SplinePoint> toSplinePointList(double value) {
+        return Arrays.asList(SplinePoint.newBuilder()
+                .setX(0)
+                .setY((float)value)
+                .setTX(1)
+                .setTY(0)
+                .build());
+    }
+
+    public static AbstractModifierNode createModifierNode(Modifier m) {
         switch (m.getType()) {
         case MODIFIER_TYPE_ACCELERATION:
             return new AccelerationNode(m);

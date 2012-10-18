@@ -38,7 +38,7 @@ public class AccelerationRenderer implements INodeRenderer<AccelerationNode> {
         float[] color = renderContext.selectColor(node, AccelerationRenderer.color);
         gl.glColor4fv(color, 0);
 
-        double sign = Math.signum(node.getMagnitude().getValue());
+        double sign = Math.signum(node.getMagnitude());
         if (sign == 0) {
             sign = 1.0;
         }

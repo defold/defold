@@ -70,7 +70,7 @@ enum ModifierType
 enum ModifierKey
 {
     MODIFIER_KEY_MAGNITUDE      = 0 [(displayName) = "Magnitude"];
-    MODIFIER_KEY_ATTENUATION    = 1 [(displayName) = "Attenuation"];
+    MODIFIER_KEY_MAX_DISTANCE   = 1 [(displayName) = "Max Distance"];
     MODIFIER_KEY_COUNT          = 2;
 }
 

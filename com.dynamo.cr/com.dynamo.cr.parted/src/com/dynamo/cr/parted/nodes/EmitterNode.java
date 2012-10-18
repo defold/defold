@@ -501,8 +501,8 @@ public class EmitterNode extends Node {
         }
 
         for (Node c : getChildren()) {
-            if (c instanceof ModifierNode) {
-                ModifierNode m = (ModifierNode) c;
+            if (c instanceof AbstractModifierNode) {
+                AbstractModifierNode m = (AbstractModifierNode) c;
                 b.addModifiers(m.buildMessage());
             }
         }

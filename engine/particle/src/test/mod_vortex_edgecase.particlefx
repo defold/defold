@@ -1,6 +1,6 @@
 emitters: {
     mode:               PLAY_MODE_ONCE
-    duration:           1
+    duration:           2
     space:              EMISSION_SPACE_WORLD
     position:           { x: 0 y: 0 z: 0 }
     rotation:           { x: 0 y: 0 z: 0 w: 1 }
@@ -13,20 +13,17 @@ emitters: {
 
     type:               EMITTER_TYPE_SPHERE
 
-    properties:         { key: EMITTER_KEY_SPAWN_DELAY
-        points: { x: 0 y: 0 t_x: 1 t_y: 0 }
-    }
     properties:         { key: EMITTER_KEY_PARTICLE_LIFE_TIME
-        points: { x: 0 y: 1 t_x: 1 t_y: 0 }
+        points: { x: 0 y: 2 t_x: 1 t_y: 0 }
     }
     modifiers:          { type: MODIFIER_TYPE_VORTEX
-        position: { x: 1 y: 2 z: 0 }
+        position: { x: 0 y: 0 z: 2 }
         properties:     {
             key: MODIFIER_KEY_MAGNITUDE
             points: { x: 0 y: 1 t_x: 1 t_y: 0 }
         }
         properties:     {
-            key: MODIFIER_KEY_ATTENUATION
+            key: MODIFIER_KEY_MAX_DISTANCE
             points: { x: 0 y: 1 t_x: 1 t_y: 0 }
         }
     }

@@ -48,11 +48,11 @@ public class VortexRenderer implements INodeRenderer<VortexNode> {
 
         float[] color = renderContext.selectColor(node, VortexRenderer.color);
         gl.glColor4fv(color, 0);
-        boolean positive = node.getMagnitude().getValue() > 0.0;
+        boolean positive = node.getMagnitude() > 0.0;
 
         gl.glPushMatrix();
         if (renderData.getUserData() == spiral) {
-            if (!positive) {
+            if (positive) {
                 gl.glScaled(-1.0, 1.0, 1.0);
             }
             gl.glScaled(factorRecip, factorRecip, 1.0);

@@ -53,7 +53,7 @@ public class ParticleFXLoader implements INodeLoader<ParticleFXNode> {
                 Emitter.Builder eb = e.buildMessage();
                 b.addEmitters(eb);
             } else {
-                ModifierNode m = (ModifierNode) n;
+                AbstractModifierNode m = (AbstractModifierNode) n;
                 b.addModifiers(m.buildMessage());
             }
         }

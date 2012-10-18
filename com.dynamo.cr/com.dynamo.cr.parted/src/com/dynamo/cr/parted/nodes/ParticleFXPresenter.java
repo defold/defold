@@ -87,7 +87,7 @@ public class ParticleFXPresenter implements ISceneView.INodePresenter<ParticleFX
         INodeType emitterType = (INodeType) presenterContext.selectFromArray("Add Modifier", "Select a emitter type:", emitterTypes, labelProvider);
         if (emitterType != null) {
             try {
-                ModifierNode child = (ModifierNode) loaderContext.loadNodeFromTemplate(emitterType.getExtension());
+                Node child = loaderContext.loadNodeFromTemplate(emitterType.getExtension());
                 presenterContext.executeOperation(new AddModifierOperation(parent, child, presenterContext));
             } catch (Exception e) {
                 throw new RuntimeException("Failed to add modifier", e);
