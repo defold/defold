@@ -6,6 +6,7 @@ import java.util.EnumSet;
 import javax.media.opengl.GL;
 import javax.vecmath.Point3d;
 
+import com.dynamo.cr.parted.manipulators.ParticleManipulatorUtil;
 import com.dynamo.cr.sceneed.core.INodeRenderer;
 import com.dynamo.cr.sceneed.core.RenderContext;
 import com.dynamo.cr.sceneed.core.RenderContext.Pass;
@@ -16,7 +17,7 @@ import com.dynamo.cr.sceneed.ui.RenderUtil;
 public class RadialRenderer implements INodeRenderer<RadialNode> {
 
     private static final float[] color = new float[] { 1, 1, 1, 1 };
-    private static final EnumSet<Pass> passes = EnumSet.of(Pass.OUTLINE, Pass.SELECTION);
+    private static final EnumSet<Pass> passes = EnumSet.of(Pass.OUTLINE, Pass.SELECTION, Pass.OVERLAY);
     private FloatBuffer circle;
 
     public RadialRenderer() {
@@ -30,9 +31,18 @@ public class RadialRenderer implements INodeRenderer<RadialNode> {
     @Override
     public void setup(RenderContext renderContext, RadialNode node) {
         if (passes.contains(renderContext.getPass())) {
-            renderContext.add(this, node, new Point3d(), null);
+
+            if (renderContext.getPass() != Pass.OVERLAY) {
+                renderContext.add(this, node, new Point3d(), null);
+            }
+
             if (renderContext.isSelected(node)) {
-                renderContext.add(this, node, new Point3d(), circle);
+                if (renderContext.getPass() == Pass.OUTLINE) {
+                    renderContext.add(this, node, new Point3d(), circle);
+                }
+                if (renderContext.getPass() == Pass.OVERLAY) {
+                    renderContext.add(this, node, new Point3d(), node.getMagnitude());
+                }
             }
         }
     }
@@ -65,7 +75,7 @@ public class RadialRenderer implements INodeRenderer<RadialNode> {
                 drawArrow(gl, factor);
                 gl.glPopMatrix();
             }
-        } else {
+        } else if (renderData.getUserData() == circle) {
             double r = node.getMaxDistance();
             gl.glPushMatrix();
             gl.glScaled(r, r, 1.0);
@@ -74,6 +84,8 @@ public class RadialRenderer implements INodeRenderer<RadialNode> {
             gl.glDrawArrays(GL.GL_LINES, 0, circle.limit() / 3);
             gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
             gl.glPopMatrix();
+        } else if (renderData.getUserData() instanceof Double) {
+            ParticleManipulatorUtil.drawNumber(renderContext, node, node.getMagnitude());
         }
     }
 

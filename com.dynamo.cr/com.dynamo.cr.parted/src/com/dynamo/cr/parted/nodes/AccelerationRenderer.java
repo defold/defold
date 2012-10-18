@@ -5,6 +5,7 @@ import java.util.EnumSet;
 import javax.media.opengl.GL;
 import javax.vecmath.Point3d;
 
+import com.dynamo.cr.parted.manipulators.ParticleManipulatorUtil;
 import com.dynamo.cr.sceneed.core.INodeRenderer;
 import com.dynamo.cr.sceneed.core.RenderContext;
 import com.dynamo.cr.sceneed.core.RenderContext.Pass;
@@ -15,7 +16,7 @@ import com.dynamo.cr.sceneed.ui.RenderUtil;
 public class AccelerationRenderer implements INodeRenderer<AccelerationNode> {
 
     private static final float[] color = new float[] { 1, 1, 1, 1 };
-    private static final EnumSet<Pass> passes = EnumSet.of(Pass.OUTLINE, Pass.SELECTION);
+    private static final EnumSet<Pass> passes = EnumSet.of(Pass.OUTLINE, Pass.SELECTION, Pass.OVERLAY);
 
     @Override
     public void dispose() {
@@ -24,9 +25,16 @@ public class AccelerationRenderer implements INodeRenderer<AccelerationNode> {
     @Override
     public void setup(RenderContext renderContext, AccelerationNode node) {
         if (passes.contains(renderContext.getPass())) {
-            renderContext.add(this, node, new Point3d(), null);
-        }
+            if (renderContext.getPass() != Pass.OVERLAY) {
+                renderContext.add(this, node, new Point3d(), null);
+            }
 
+            if (renderContext.isSelected(node)) {
+                if (renderContext.getPass() == Pass.OVERLAY) {
+                    renderContext.add(this, node, new Point3d(), node.getMagnitude());
+                }
+            }
+        }
     }
 
     @Override
@@ -38,21 +46,25 @@ public class AccelerationRenderer implements INodeRenderer<AccelerationNode> {
         float[] color = renderContext.selectColor(node, AccelerationRenderer.color);
         gl.glColor4fv(color, 0);
 
-        double sign = Math.signum(node.getMagnitude());
-        if (sign == 0) {
-            sign = 1.0;
-        }
+        if (renderData.getUserData() == null) {
+            double sign = Math.signum(node.getMagnitude());
+            if (sign == 0) {
+                sign = 1.0;
+            }
 
-        int n = 5;
-        double dy = 1.5 * (ManipulatorRendererUtil.BASE_LENGTH / factor) / n;
-        double y = -dy * (n-1) / 2.0;
-        for (int i = 0; i < n; ++i) {
-            gl.glPushMatrix();
-            gl.glRotated(sign * 90.0, 0, 0, 1);
-            gl.glTranslated(0, y + dy * i, 0);
-            gl.glTranslated( -Math.abs((n / 2 - i)) *  dy * 0.3, 0, 0);
-            drawArrow(gl, factor);
-            gl.glPopMatrix();
+            int n = 5;
+            double dy = 1.5 * (ManipulatorRendererUtil.BASE_LENGTH / factor) / n;
+            double y = -dy * (n-1) / 2.0;
+            for (int i = 0; i < n; ++i) {
+                gl.glPushMatrix();
+                gl.glRotated(sign * 90.0, 0, 0, 1);
+                gl.glTranslated(0, y + dy * i, 0);
+                gl.glTranslated( -Math.abs((n / 2 - i)) *  dy * 0.3, 0, 0);
+                drawArrow(gl, factor);
+                gl.glPopMatrix();
+            }
+        } else {
+            ParticleManipulatorUtil.drawNumber(renderContext, node, node.getMagnitude());
         }
 
     }

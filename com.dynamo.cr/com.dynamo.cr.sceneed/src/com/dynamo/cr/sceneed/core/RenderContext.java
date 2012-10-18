@@ -16,6 +16,7 @@ import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.IStructuredSelection;
 
 import com.dynamo.cr.sceneed.ui.TextureRegistry;
+import com.sun.opengl.util.j2d.TextRenderer;
 
 public class RenderContext {
     private GL gl;
@@ -26,6 +27,7 @@ public class RenderContext {
     private IRenderView renderView;
     private TextureRegistry textureRegistry;
     private double dt;
+    private TextRenderer smallTextRenderer;
 
     public enum Pass {
         /**
@@ -121,12 +123,13 @@ public class RenderContext {
     }
 
     @SuppressWarnings("unchecked")
-    public RenderContext(IRenderView renderView, double dt, GL gl, GLU glu, TextureRegistry textureRegistry, ISelection selection) {
+    public RenderContext(IRenderView renderView, double dt, GL gl, GLU glu, TextureRegistry textureRegistry, ISelection selection, TextRenderer smallTextRenderer) {
         this.renderView = renderView;
         this.dt = dt;
         this.gl = gl;
         this.glu = glu;
         this.textureRegistry = textureRegistry;
+        this.smallTextRenderer = smallTextRenderer;
         this.renderDataList = new ArrayList<RenderData<? extends Node>>(1024);
         if (selection instanceof IStructuredSelection) {
             IStructuredSelection structSel = (IStructuredSelection) selection;
@@ -219,6 +222,10 @@ public class RenderContext {
 
     public double getDt() {
         return dt;
+    }
+
+    public TextRenderer getSmallTextRenderer() {
+        return smallTextRenderer;
     }
 
 }

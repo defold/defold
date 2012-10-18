@@ -22,6 +22,7 @@ public abstract class PositionalModifierNode extends AbstractModifierNode {
                 break;
             }
         }
+        updateAABB();
     }
 
     @Override
