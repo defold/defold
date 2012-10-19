@@ -1,5 +1,45 @@
 :max-width: 45em
 
+Fixed immediate game termination (Release 1.2.6)
+------------------------------------------------
+_October 19, 2012_
+
+In this release we have fixed a critical bug that occurred for some users with specific network setups.
+The engine would terminate immediately when launching the game.
+The reason was that we retrieve the hostname at startup for connecting other devices to the editor, in some cases that code would fail and terminate the engine silently.
+We have now added fallbacks and logging to enable the engine to start even when this fails.
+
+Optimized Tile Map Rendering
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Tile maps are now faster to render by the use of batches and pre-calculated UV sets.
+If you had plenty of tile maps and your game ran slow, you should hopefully see a much better performance now.
+
+Selection as an Operation
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Selecting objects in the Scene Editor is now handled as a proper operation, which means it can be undone and redone.
+This has been a long requested feature and should make the workflow a bit more convenient, especially when accidentally deselecting things.
+
+Fixes
+~~~~~
+
+* The move and rotate manipulators used incorrect transforms when manipulating children of rotated parents.
+* Different bugs regarding interacting with manipulators, the camera and selections.
+  We have now cleaned up the handling of these things and it should be more stable now.
+* Collision filters were not updated when posting set_tile to tile maps
+
+In Progress: Geometry Wars!
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+We are currently working on the new particle system, which will be released in 1.2.7 (approx. 2 more weeks).
+We are also working on a graphics demo to showcase the visual capabilities of Defold.
+It is heavily influenced by Geometry Wars 2 Retro Evolved made by Bizarre Creations (amazing game!).
+It means heavy use of particles, custom render pipe and post fx (glow and compositing).
+The plan is to use that demo in a series of articles explaining things like visual FX and AI, to come later.
+
+That's all for this time, stay tuned for 1.2.7!
+
 Improved Sprite Rendering (Release 1.2.5)
 -----------------------------------------
 _September 21, 2012_
