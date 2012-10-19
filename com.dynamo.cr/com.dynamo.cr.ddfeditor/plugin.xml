@@ -241,6 +241,7 @@
    <extension
          point="com.dynamo.cr.resourcetypes">
       <resource-type
+            embeddable="true"
             file-extension="model"
             id="com.dynamo.cr.ddfeditor.resourcetypes.Model"
             name="Model"
@@ -399,14 +400,6 @@
             template-data="  ">
       </resource-type>
       <resource-type
-            file-extension="emitter"
-            id="com.dynamo.cr.ddfeditor.resourcetypes.Emitter"
-            name="Emitter"
-            proto-message-class="com.dynamo.particle.proto.Particle$Emitter"
-            template-data="mode: PLAY_MODE_ONCE duration: 0.2 space: EMISSION_SPACE_WORLD rotation { x: 0.0 y: 0.0 z: 0.0 w: 1.0 } texture { name: &apos;unnamed&apos; t_x: 1 t_y: 1 } material: &apos;unnamed&apos; max_particle_count: 8 type: EMITTER_TYPE_CONE"
-            type-class="component">
-      </resource-type>
-      <resource-type
             file-extension="convexshape"
             id="com.dynamo.cr.ddfeditor.resourcetypes.ConvexShape"
             name="Convex Shape"
@@ -430,8 +423,18 @@
       </resource-type>
       <resource-type
             file-extension="wav"
+            id="com.dynamo.cr.ddfeditor.resourcetypes.WavSound"
+            name="Wav sound"
+            type-class="component">
+      </resource-type>
+      <resource-type
+            embeddable="true"
+            file-extension="sound"
             id="com.dynamo.cr.ddfeditor.resourcetypes.Sound"
             name="Sound"
+            proto-message-class="com.dynamo.sound.proto.Sound$SoundDesc"
+            resource-refactor-participant-class="com.dynamo.cr.ddfeditor.refactoring.SoundRefactorParticipant"
+            template-data="sound: &quot;&quot; "
             type-class="component">
       </resource-type>
       <resource-type
@@ -525,12 +528,6 @@
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Camera">
       </node-type>
       <node-type
-            id="com.dynamo.cr.ddfeditor.scene.emitterNode"
-            loader="com.dynamo.cr.ddfeditor.scene.EmitterLoader"
-            node="com.dynamo.cr.ddfeditor.scene.EmitterNode"
-            resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Emitter">
-      </node-type>
-      <node-type
             id="com.dynamo.cr.ddfeditor.scene.lightNode"
             loader="com.dynamo.cr.ddfeditor.scene.LightLoader"
             node="com.dynamo.cr.ddfeditor.scene.LightNode"
@@ -548,6 +545,7 @@
             id="com.dynamo.cr.ddfeditor.scene.modelNode"
             loader="com.dynamo.cr.ddfeditor.scene.ModelLoader"
             node="com.dynamo.cr.ddfeditor.scene.ModelNode"
+            renderer="com.dynamo.cr.ddfeditor.scene.ModelRenderer"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Model">
       </node-type>
       <node-type
@@ -582,8 +580,14 @@
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Sound">
       </node-type>
       <node-type
+            id="com.dynamo.cr.ddfeditor.scene.wavSoundNode"
+            loader="com.dynamo.cr.ddfeditor.scene.WavSoundLoader"
+            node="com.dynamo.cr.ddfeditor.scene.WavSoundNode"
+            resource-type="com.dynamo.cr.ddfeditor.resourcetypes.WavSound">
+      </node-type>
+      <node-type
             id="com.dynamo.cr.ddfeditor.manipulators.sphereRadiusManipulator"
-            node="com.dynamo.cr.ddfeditor.manipulators.SphereRadiusManipulator">
+            node="com.dynamo.cr.ddfeditor.manipulators.SphereSizeManipulator">
       </node-type>
       <node-type
             id="com.dynamo.cr.ddfeditor.manipulators.boxSizeManipulator"
@@ -596,6 +600,12 @@
       <node-type
             id="com.dynamo.cr.ddfeditor.scene.collisionShape"
             node="com.dynamo.cr.ddfeditor.scene.CollisionShapeNode">
+      </node-type>
+      <node-type
+            id="com.dynamo.cr.ddfeditor.scene.meshNode"
+            loader="com.dynamo.cr.ddfeditor.scene.MeshLoader"
+            node="com.dynamo.cr.ddfeditor.scene.MeshNode"
+            resource-type="com.dynamo.cr.ddfeditor.resourcetype.Mesh">
       </node-type>
    </extension>
    <extension

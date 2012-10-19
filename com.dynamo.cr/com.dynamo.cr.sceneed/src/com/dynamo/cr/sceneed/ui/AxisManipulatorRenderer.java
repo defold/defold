@@ -14,6 +14,9 @@ public class AxisManipulatorRenderer implements INodeRenderer<AxisManipulator> {
     }
 
     @Override
+    public void dispose() { }
+
+    @Override
     public void setup(RenderContext renderContext, AxisManipulator node) {
         Pass pass = renderContext.getPass();
         if (pass == Pass.MANIPULATOR || pass == Pass.SELECTION) {

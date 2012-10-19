@@ -1081,7 +1081,10 @@ static void LogFrameBufferError(GLenum status)
     {
         glDeleteFramebuffers(1, &render_target->m_Id);
         for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
-            DeleteTexture(render_target->m_BufferTextures[i]);
+        {
+            if (render_target->m_BufferTextures[i])
+                DeleteTexture(render_target->m_BufferTextures[i]);
+        }
         delete render_target;
     }
 

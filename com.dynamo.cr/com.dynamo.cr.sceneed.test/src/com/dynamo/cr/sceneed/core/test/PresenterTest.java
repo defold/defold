@@ -2,6 +2,7 @@ package com.dynamo.cr.sceneed.core.test;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Mockito.doAnswer;
@@ -13,6 +14,8 @@ import java.io.ObjectOutputStream;
 import java.util.ArrayList;
 import java.util.List;
 
+import javax.inject.Singleton;
+
 import org.apache.commons.io.output.ByteArrayOutputStream;
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.DefaultOperationHistory;
@@ -20,13 +23,16 @@ import org.eclipse.core.commands.operations.IOperationHistory;
 import org.eclipse.core.commands.operations.IUndoContext;
 import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.core.commands.operations.UndoContext;
+import org.eclipse.core.resources.IContainer;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
 import com.dynamo.cr.sceneed.Activator;
+import com.dynamo.cr.sceneed.core.IClipboard;
 import com.dynamo.cr.sceneed.core.ILoaderContext;
+import com.dynamo.cr.sceneed.core.IModelListener;
 import com.dynamo.cr.sceneed.core.INodeLoader;
 import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
@@ -35,14 +41,36 @@ import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.ScenePresenter;
 import com.dynamo.cr.sceneed.ui.LoaderContext;
+import com.google.inject.AbstractModule;
+import com.google.inject.Guice;
+import com.google.inject.Injector;
 
 public class PresenterTest extends AbstractPresenterTest {
 
     private ScenePresenter presenter;
     private ISceneView view;
-    private ISceneModel model;
     private IOperationHistory history;
     private IUndoContext undoContext;
+    private INodeTypeRegistry nodeTypeRegistry;
+    private IContainer contentRoot;
+
+    class Module extends AbstractModule {
+        @Override
+        protected void configure() {
+            bind(ISceneView.IPresenter.class).to(ScenePresenter.class).in(Singleton.class);
+            bind(IModelListener.class).to(ScenePresenter.class).in(Singleton.class);
+            bind(ISceneView.class).toInstance(view);
+            bind(ISceneModel.class).toInstance(model);
+            bind(INodeTypeRegistry.class).toInstance(nodeTypeRegistry);
+            bind(ILoaderContext.class).to(LoaderContext.class).in(Singleton.class);
+            bind(IClipboard.class).to(DummyClipboard.class).in(Singleton.class);
+
+            bind(IOperationHistory.class).toInstance(history);
+            bind(IUndoContext.class).toInstance(undoContext);
+
+            bind(IContainer.class).toInstance(contentRoot);
+        }
+    }
 
     @SuppressWarnings("unchecked")
     @Override
@@ -51,10 +79,9 @@ public class PresenterTest extends AbstractPresenterTest {
         super.setup();
 
         this.view = mock(ISceneView.class);
-        this.model = mock(ISceneModel.class);
-        INodeTypeRegistry registry = Activator.getDefault().getNodeTypeRegistry();
-        ILoaderContext loaderContext = new LoaderContext(null, Activator.getDefault().getNodeTypeRegistry());
-        this.presenter = new ScenePresenter(getModel(), this.view, registry, loaderContext, new DummyClipboard());
+        this.contentRoot = mock(IContainer.class);
+        this.nodeTypeRegistry = Activator.getDefault().getNodeTypeRegistry();
+
         this.history = new DefaultOperationHistory();
         this.undoContext = new UndoContext();
         doAnswer(new Answer<Void>() {
@@ -79,6 +106,11 @@ public class PresenterTest extends AbstractPresenterTest {
                 return Activator.getDefault().getNodeTypeRegistry().getNodeTypeClass((Class<Node>)invocation.getArguments()[0]).getLoader();
             }
         }).when(this.model).getNodeLoader((Class<Node>)anyObject());
+
+        Injector injector = Guice.createInjector(new Module());
+
+        this.presenter = (ScenePresenter)injector.getInstance(ISceneView.IPresenter.class);
+        ILoaderContext loaderContext = injector.getInstance(ILoaderContext.class);
         setLoaderContext(loaderContext);
     }
 
@@ -154,6 +186,7 @@ public class PresenterTest extends AbstractPresenterTest {
 
         assertThat(node.getChildren().size(), is(4));
         DummyChild child3 = (DummyChild)node.getChildren().get(2);
+        assertTrue(child3.isVisible());
         assertThat(child3.getIntVal(), is(1));
         assertThat(child3.getModel(), is(this.model));
         List<Node> grandChildren = child3.getChildren();

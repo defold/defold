@@ -8,12 +8,24 @@
 
 namespace dmParticle
 {
-    /// Number of float fields that define a vertex; 3 position, 2 uv, 1 alpha.
-    static const uint32_t VERTEX_FIELD_COUNT        = 6;
-    /// Byte size of a vertex.
-    static const uint32_t VERTEX_SIZE               = sizeof(float) * VERTEX_FIELD_COUNT;
     /// Number of samples per property (spline => linear segments)
     static const uint32_t PROPERTY_SAMPLE_COUNT     = 64;
+
+    struct EmitterPrototype;
+    struct Prototype;
+
+    /**
+     * Key when sorting particles, based on life time with additional index for stable sort
+     */
+    union SortKey
+    {
+        struct
+        {
+            uint32_t m_Index : 16;  // Index is used to ensure stable sort
+            uint32_t m_LifeTime : 16; // Quantified relative life time
+        };
+        uint32_t     m_Key;
+    };
 
     /**
      * Representation of a particle.
@@ -22,36 +34,47 @@ namespace dmParticle
      */
     struct Particle
     {
+#define GET_SET(property, type)\
+        inline type Get##property() const { return m_##property; }\
+        inline void Set##property(type v) { m_##property = v; }\
+
+        GET_SET(Position, Point3)
+        GET_SET(Rotation, Quat)
+        GET_SET(Velocity, Vector3)
+        GET_SET(TimeLeft, float)
+        GET_SET(MaxLifeTime, float)
+        GET_SET(ooMaxLifeTime, float)
+        GET_SET(SpreadFactor, float)
+        GET_SET(SourceSize, float)
+        GET_SET(Size, float)
+        GET_SET(SourceColor, Vector4)
+        GET_SET(Color, Vector4)
+        GET_SET(SortKey, SortKey)
+#undef GET_SET
+
+    private:
         /// Position, which is defined in emitter space or world space depending on how the emitter which spawned the particles is tweaked.
-        Vectormath::Aos::Point3 m_Position;
+        Point3 m_Position;
         /// Rotation, which is defined in emitter space or world space depending on how the emitter which spawned the particles is tweaked.
-        Vectormath::Aos::Quat m_Rotation;
+        Quat m_Rotation;
         /// Velocity of the particle
-        Vectormath::Aos::Vector3 m_Velocity;
+        Vector3 m_Velocity;
         /// Time left before the particle dies.
         float       m_TimeLeft;
         /// The duration of this particle.
         float       m_MaxLifeTime;
         /// Inverted duration.
         float       m_ooMaxLifeTime;
+        /// Factor used for spread
+        float       m_SpreadFactor;
         /// Particle size
         float       m_SourceSize;
         float       m_Size;
-        /// Particle alpha
-        float       m_SourceAlpha;
-        float       m_Alpha;
-    };
-
-    struct LinearSegment
-    {
-        float x;
-        float y;
-        float k;
-    };
-
-    struct Property
-    {
-        LinearSegment m_Segments[PROPERTY_SAMPLE_COUNT];
+        // Particle color
+        Vector4     m_SourceColor;
+        Vector4     m_Color;
+        // Sorting
+        SortKey     m_SortKey;
     };
 
     /**
@@ -60,36 +83,17 @@ namespace dmParticle
     struct Emitter
     {
         Emitter()
-        : m_Prototype(0x0)
-        , m_Position(0.0f, 0.0f, 0.0f)
-        , m_Rotation(0.0f, 0.0f, 0.0f, 1.0f)
-        , m_VertexIndex(0)
-        , m_VertexCount(0)
-        , m_Timer(0.0f)
-        , m_SpawnTimer(0.0f)
-        , m_SpawnDelay(0.0f)
-        , m_ParticleTimeLeft(0.0f)
-        , m_Gain(1.0f)
-        , m_VersionNumber(0)
-        , m_IsSpawning(0)
-        , m_Dangling(0)
-        , m_RenderWarning(0)
-        , m_ResizeWarning(0)
         {
-
+            memset(this, 0, sizeof(Emitter));
         }
 
-        // TODO Only store animated properties
-        Property                m_Properties[dmParticleDDF::EMITTER_KEY_COUNT];
-        Property                m_ParticleProperties[dmParticleDDF::PARTICLE_KEY_COUNT];
-        /// Emitter resource.
-        Prototype*              m_Prototype;
-        /// World position of the emitter.
-        Vectormath::Aos::Point3 m_Position;
-        /// World rotation of the emitter.
-        Vectormath::Aos::Quat   m_Rotation;
+        AnimationData           m_AnimationData;
         /// Particle buffer.
         dmArray<Particle>       m_Particles;
+        dmArray<RenderConstant> m_RenderConstants;
+        Vector3                 m_Velocity;
+        Point3                  m_LastPosition;
+        dmhash_t                m_Id;
         /// Vertex index of the render data for the particles spawned by this emitter.
         uint32_t                m_VertexIndex;
         /// Number of vertices of the render data for the particles spawned by this emitter.
@@ -102,18 +106,45 @@ namespace dmParticle
         float                   m_SpawnDelay;
         /// The time left before the particle dies which has the longest time left to live.
         float                   m_ParticleTimeLeft;
-        /// Gain signal to control the modification of the different emitter properties.
-        float                   m_Gain;
-        /// Version number used to check that the handle is still valid.
-        uint16_t                m_VersionNumber;
+        /// Seed used to ensure a deterministic simulation
+        uint32_t                m_Seed;
         /// If the emitter is still spawning particles.
         uint16_t                m_IsSpawning : 1;
-        /// True for emitters who are create through FireAndForget.
-        uint16_t                m_Dangling : 1;
         /// If the user has been warned that all particles cannot be rendered.
         uint16_t                m_RenderWarning : 1;
-        /// If the user has been warned that the emitters particle buffer could not be resized as a result from a reload.
-        uint16_t                m_ResizeWarning : 1;
+        /// If the user has been warned that the emitters animation could not be fetched
+        uint16_t                m_FetchAnimWarning : 1;
+        uint16_t                m_LastPositionSet : 1;
+    };
+
+    struct Instance
+    {
+        Instance()
+        : m_Emitters()
+        , m_Position(0.0f, 0.0f, 0.0f)
+        , m_Rotation(0.0f, 0.0f, 0.0f, 1.0f)
+        , m_Prototype(0x0)
+        , m_PlayTime(0.0f)
+        , m_VersionNumber(0)
+        , m_Dangling(0)
+        {
+
+        }
+
+        // Emitter buffer
+        dmArray<Emitter>        m_Emitters;
+        /// World position of the emitter.
+        Vectormath::Aos::Point3 m_Position;
+        /// World rotation of the emitter.
+        Vectormath::Aos::Quat   m_Rotation;
+        /// DDF resource.
+        Prototype*              m_Prototype;
+        /// Used when reloading to fast forward new emitters
+        float                   m_PlayTime;
+        /// Version number used to check that the handle is still valid.
+        uint16_t                m_VersionNumber;
+        /// True for instances who are create through FireAndForget.
+        uint16_t                m_Dangling : 1;
     };
 
     /**
@@ -121,18 +152,18 @@ namespace dmParticle
      */
     struct Context
     {
-        Context(uint32_t max_emitter_count, uint32_t max_particle_count)
-        : m_NextVersionNumber(1)
+        Context(uint32_t max_instance_count, uint32_t max_particle_count)
+        : m_MaxParticleCount(max_particle_count)
+        , m_NextVersionNumber(1)
         {
-            m_Emitters.SetCapacity(max_emitter_count);
-            m_Emitters.SetSize(max_emitter_count);
-            for (uint32_t i = 0; i < m_Emitters.Size(); ++i)
+            memset(&m_Stats, 0, sizeof(m_Stats));
+            m_Instances.SetCapacity(max_instance_count);
+            m_Instances.SetSize(max_instance_count);
+            if (max_instance_count > 0)
             {
-                m_Emitters[i] = 0;
+                memset(&m_Instances.Front(), 0, max_instance_count * sizeof(Instance*));
             }
-            m_EmitterIndexPool.SetCapacity(max_emitter_count);
-
-            m_MaxParticleCount = max_particle_count;
+            m_InstanceIndexPool.SetCapacity(max_instance_count);
         }
 
         ~Context()
@@ -140,15 +171,83 @@ namespace dmParticle
 
         }
 
-        /// Emitter buffer.
-        dmArray<Emitter*>   m_Emitters;
-        /// Index pool used to index the emitter buffer.
-        dmIndexPool16       m_EmitterIndexPool;
+        /// Instance buffer.
+        dmArray<Instance*>  m_Instances;
+        /// Index pool used to index the instance buffer.
+        dmIndexPool16       m_InstanceIndexPool;
         /// Maximum number of particles allowed
         uint32_t            m_MaxParticleCount;
         /// Version number used to create new handles.
         uint16_t            m_NextVersionNumber;
+        /// Stats
+        Stats               m_Stats;
     };
+
+    struct LinearSegment
+    {
+        float m_X;
+        float m_Y;
+        float m_K;
+    };
+
+    struct Property
+    {
+        LinearSegment m_Segments[PROPERTY_SAMPLE_COUNT];
+        float m_Spread;
+    };
+
+    struct ModifierPrototype
+    {
+        Property m_Properties[dmParticleDDF::MODIFIER_KEY_COUNT];
+    };
+
+    /**
+     * Representation of an emitter resource.
+     *
+     * NOTE The size of the properties-arrays is roughly 10 kB.
+     */
+    struct EmitterPrototype
+    {
+        EmitterPrototype()
+        : m_TileSource(0)
+        , m_Material(0)
+        {
+
+        }
+
+        /// Emitter properties
+        Property                    m_Properties[dmParticleDDF::EMITTER_KEY_COUNT];
+        /// Particle properties
+        Property                    m_ParticleProperties[dmParticleDDF::PARTICLE_KEY_COUNT];
+        dmArray<ModifierPrototype>  m_Modifiers;
+        dmhash_t                    m_Animation;
+        /// Tile source to use when rendering particles.
+        void*                       m_TileSource;
+        /// Material to use when rendering particles.
+        void*                       m_Material;
+        /// Blend mode
+        dmParticleDDF::BlendMode    m_BlendMode;
+        /// The max life time possible of a particle (used for quantizing particle life time when sorting)
+        float                   m_MaxParticleLifeTime;
+    };
+
+    /**
+     * Representation of an instance resource.
+     */
+    struct Prototype
+    {
+        Prototype()
+        : m_Emitters()
+        , m_DDF(0x0)
+        {
+        }
+
+        /// Emitter prototypes
+        dmArray<EmitterPrototype>   m_Emitters;
+        /// DDF structure read from the resource.
+        dmParticleDDF::ParticleFX*  m_DDF;
+    };
+
 }
 
 #endif // DM_PARTICLE_PRIVATE_H

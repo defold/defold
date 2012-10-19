@@ -295,6 +295,17 @@ TEST_P(GetResourceTest, GetTestResource)
     ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, e);
 }
 
+TEST_P(GetResourceTest, IncRef)
+{
+    dmResource::Result e;
+
+    TestResourceContainer* test_resource_cont = 0;
+    e = dmResource::Get(m_Factory, m_ResourceName, (void**) &test_resource_cont);
+    dmResource::IncRef(m_Factory, test_resource_cont);
+    dmResource::Release(m_Factory, test_resource_cont);
+    dmResource::Release(m_Factory, test_resource_cont);
+}
+
 TEST_P(GetResourceTest, SelfReferring)
 {
     dmResource::Result e;

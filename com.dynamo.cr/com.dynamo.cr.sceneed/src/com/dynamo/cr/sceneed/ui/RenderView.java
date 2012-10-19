@@ -1,5 +1,6 @@
 package com.dynamo.cr.sceneed.ui;
 
+import java.awt.Font;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.IntBuffer;
@@ -57,6 +58,7 @@ import com.dynamo.cr.sceneed.core.RenderContext.Pass;
 import com.dynamo.cr.sceneed.core.RenderData;
 import com.dynamo.cr.sceneed.core.SceneGrid;
 import com.dynamo.cr.sceneed.ui.RenderView.SelectResult.Pair;
+import com.sun.opengl.util.j2d.TextRenderer;
 
 public class RenderView implements
 MouseListener,
@@ -92,6 +94,8 @@ IRenderView {
     private Map<INodeType, INodeRenderer<Node>> renderers = new HashMap<INodeType, INodeRenderer<Node>>();
 
     private SceneGrid grid;
+    private boolean simulating = false;
+    private TextRenderer smallTextRenderer;
 
     @Inject
     public RenderView(INodeTypeRegistry manager) {
@@ -122,6 +126,10 @@ IRenderView {
         GL gl = this.context.getGL();
         gl.glPolygonMode(GL.GL_FRONT, GL.GL_FILL);
 
+        String fontName = Font.SANS_SERIF;
+        Font debugFont = new Font(fontName, Font.BOLD, 12);
+        this.smallTextRenderer = new TextRenderer(debugFont, true, true);
+
         this.context.release();
 
         this.canvas.addListener(SWT.Resize, this);
@@ -136,6 +144,17 @@ IRenderView {
     public void dispose() {
         if (this.context != null) {
             this.context.makeCurrent();
+
+            for (INodeRenderer<Node> r : this.renderers.values()) {
+                if (r != null) {
+                    r.dispose();
+                }
+            }
+
+            if (this.smallTextRenderer != null) {
+                this.smallTextRenderer.dispose();
+            }
+
             this.context.release();
             this.context.destroy();
         }
@@ -160,6 +179,10 @@ IRenderView {
     }
 
     @Override
+    public void setSimulating(boolean simulating) {
+        this.simulating  = simulating;
+    }
+
     public void setSelection(IStructuredSelection selection) {
         this.selection = selection;
     }
@@ -576,7 +599,12 @@ IRenderView {
     }
 
     private RenderContext renderNodes(GL gl, GLU glu, List<Pass> passes, boolean pick) {
-        RenderContext renderContext = new RenderContext(this, gl, glu, textureRegistry, this.selection);
+        double dt = 0;
+        if (simulating) {
+            dt = 1.0 / 60.0;
+        }
+
+        RenderContext renderContext = new RenderContext(this, dt, gl, glu, textureRegistry, this.selection, this.smallTextRenderer);
 
         for (IRenderViewProvider provider : providers) {
             for (Pass pass : passes) {
@@ -737,6 +765,10 @@ IRenderView {
 
     @Override
     public void setupNode(RenderContext renderContext, Node node) {
+        if (!node.isVisible()) {
+            return;
+        }
+
         Class<? extends Node> nodeClass = node.getClass();
         INodeType nodeType = this.nodeTypeRegistry.getNodeTypeClass(nodeClass);
         boolean abort = false;

@@ -43,6 +43,11 @@ namespace dmSound
         return RESULT_OK;
     }
 
+    void GetStats(Stats* stats)
+    {
+        memset(stats, 0, sizeof(*stats));
+    }
+
     Result NewSoundData(const void* sound_buffer, uint32_t sound_buffer_size, SoundDataType type, HSoundData* sound_data)
     {
         HSoundData sd = new SoundData();

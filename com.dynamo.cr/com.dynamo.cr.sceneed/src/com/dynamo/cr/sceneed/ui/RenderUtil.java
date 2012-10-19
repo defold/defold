@@ -14,6 +14,111 @@ import com.sun.opengl.util.BufferUtil;
 
 public class RenderUtil {
 
+    public static FloatBuffer createUnitLineBox() {
+        final int lineCount = 3 * 4;
+        final int vertexCount = lineCount * 4;
+        FloatBuffer v = BufferUtil.newFloatBuffer(vertexCount * 3);
+
+        // pos x-z
+        v.put(-1.0f); v.put( 1.0f); v.put(-1.0f);
+        v.put( 1.0f); v.put( 1.0f); v.put(-1.0f);
+        v.put( 1.0f); v.put( 1.0f); v.put(-1.0f);
+        v.put( 1.0f); v.put( 1.0f); v.put( 1.0f);
+        v.put( 1.0f); v.put( 1.0f); v.put( 1.0f);
+        v.put(-1.0f); v.put( 1.0f); v.put( 1.0f);
+        v.put(-1.0f); v.put( 1.0f); v.put( 1.0f);
+        v.put(-1.0f); v.put( 1.0f); v.put(-1.0f);
+
+        // neg x-z
+        v.put(-1.0f); v.put( -1.0f); v.put(-1.0f);
+        v.put( 1.0f); v.put( -1.0f); v.put(-1.0f);
+        v.put( 1.0f); v.put( -1.0f); v.put(-1.0f);
+        v.put( 1.0f); v.put( -1.0f); v.put( 1.0f);
+        v.put( 1.0f); v.put( -1.0f); v.put( 1.0f);
+        v.put(-1.0f); v.put( -1.0f); v.put( 1.0f);
+        v.put(-1.0f); v.put( -1.0f); v.put( 1.0f);
+        v.put(-1.0f); v.put( -1.0f); v.put(-1.0f);
+
+        // connect the "planes"
+        v.put(-1.0f); v.put(-1); v.put(-1.0f);
+        v.put(-1.0f); v.put(1); v.put(-1.0f);
+        v.put(-1.0f); v.put(-1); v.put(1.0f);
+        v.put(-1.0f); v.put(1); v.put(1.0f);
+        v.put(1.0f); v.put(-1); v.put(1.0f);
+        v.put(1.0f); v.put(1); v.put(1.0f);
+        v.put(1.0f); v.put(-1); v.put(-1.0f);
+        v.put(1.0f); v.put(1); v.put(-1.0f);
+
+        v.flip();
+        return v;
+    }
+
+    public static FloatBuffer createUnitLineSphere(int steps) {
+        final int lineCount = steps * 3;
+        final int vertexCount = lineCount * 2;
+        FloatBuffer v = BufferUtil.newFloatBuffer(vertexCount * 3);
+        float x0 = 1.0f;
+        float z0 = 0.0f;
+
+        for (int i = 1; i < steps + 1; ++i) {
+            final double sliceAngle = i * 2.0 * Math.PI / steps;
+
+            float x1 = (float)Math.cos(sliceAngle);
+            float z1 = (float)Math.sin(sliceAngle);
+
+            v.put(x0); v.put(0); v.put(z0);
+            v.put(x1); v.put(0); v.put(z1);
+
+            v.put(x0); v.put(z0); v.put(0);
+            v.put(x1); v.put(z1); v.put(0);
+
+            v.put(0); v.put(x0); v.put(z0);
+            v.put(0); v.put(x1); v.put(z1);
+
+            x0 = x1;
+            z0 = z1;
+        }
+        v.flip();
+        return v;
+    }
+
+    public static FloatBuffer createUnitLineCone(int steps) {
+        final int lineCount = steps +  4;
+        final int vertexCount = lineCount * 2;
+        FloatBuffer v = BufferUtil.newFloatBuffer(vertexCount * 3);
+        float x0 = 1.0f;
+        float z0 = 0.0f;
+
+        for (int i = 1; i < steps + 1; ++i) {
+            final double sliceAngle = i * 2.0 * Math.PI / steps;
+
+            float x1 = (float)Math.cos(sliceAngle);
+            float z1 = (float)Math.sin(sliceAngle);
+
+            v.put(x0); v.put(1); v.put(z0);
+            v.put(x1); v.put(1); v.put(z1);
+
+            x0 = x1;
+            z0 = z1;
+        }
+
+        v.put(0); v.put(0); v.put(0);
+        v.put(-1); v.put(1); v.put(0);
+
+        v.put(0); v.put(0); v.put(0);
+        v.put(0); v.put(1); v.put(-1);
+
+        v.put(0); v.put(0); v.put(0);
+        v.put(1); v.put(1); v.put(0);
+
+        v.put(0); v.put(0); v.put(0);
+        v.put(0); v.put(1); v.put(1);
+
+
+        v.flip();
+        return v;
+    }
+
     public static FloatBuffer createUnitSphereQuads(int slices, int stacks) {
         if (slices < 3 || stacks < 2) {
             return null;
@@ -263,5 +368,42 @@ public class RenderUtil {
         a[i++] = transform.m33;
 
         gl.glMultMatrixd(a, 0);
+    }
+
+    public static FloatBuffer createDashedCircle(int count) {
+        FloatBuffer v = BufferUtil.newFloatBuffer(count * 3);
+
+        for (int i = 0; i < count; ++i) {
+            double x = i / (double) (count);
+            double a = Math.PI * 2.0 * x;
+
+            v.put((float) Math.cos(a));
+            v.put((float) Math.sin(a));
+            v.put(0);
+        }
+
+        v.rewind();
+        return v;
+    }
+
+    public static FloatBuffer createSpiral() {
+        double totalAngle = 2 * Math.PI * 3.0;
+        int segments = 64;
+        FloatBuffer v = BufferUtil.newFloatBuffer(segments * 3);
+
+        double r0 = 0;
+        double r1 = 1.0;
+        for (int i = 0; i < segments; ++i) {
+            double x = i / (double) (segments - 1.0);
+            double a = totalAngle * x;
+            double r = r0 * x + (1 - x) * r1;
+
+            v.put((float) (r * Math.cos(a)));
+            v.put((float) (r * Math.sin(a)));
+            v.put(0);
+        }
+
+        v.rewind();
+        return v;
     }
 }

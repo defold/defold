@@ -62,6 +62,14 @@ TEST_F(EngineTest, GuiRenderCrash)
     ASSERT_GT(frame_count, 5u);
 }
 
+TEST_F(EngineTest, CrossScriptMessaging)
+{
+    uint32_t frame_count = 0;
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/cross_script_messaging/main.collectionc", "--config=bootstrap.render=/cross_script_messaging/default.renderc", "build/default/src/test/game.projectc"};
+    ASSERT_EQ(0, dmEngine::Launch(4, (char**)argv, 0, PostRunFrameCount, &frame_count));
+    ASSERT_EQ(frame_count, 1u);
+}
+
 struct HttpTestContext
 {
     HttpTestContext()

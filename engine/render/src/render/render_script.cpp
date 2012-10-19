@@ -684,6 +684,80 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
+    /*# retrieve a texture width from a render target
+     *
+     * @name render.get_texture_width
+     * @param render_target render target from which to retrieve the texture width
+     * @param buffer_type which buffer type to retrieve the texture width of
+     */
+    int RenderScript_GetTextureWidth(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        (void)i;
+        dmGraphics::HRenderTarget render_target = 0x0;
+
+        if (lua_islightuserdata(L, 1))
+        {
+            render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 1);
+        }
+        else
+        {
+            return luaL_error(L, "Expected render target as the second argument to %s.get_texture_width.", RENDER_SCRIPT_LIB_NAME);
+        }
+        uint32_t buffer_type = (uint32_t)luaL_checknumber(L, 2);
+        if (buffer_type - dmGraphics::BUFFER_TYPE_COLOR_BIT >= dmGraphics::MAX_BUFFER_TYPE_COUNT)
+        {
+            return luaL_error(L, "Unknown buffer type supplied to %s.get_texture_width.", RENDER_SCRIPT_LIB_NAME);
+        }
+        dmGraphics::HTexture texture = dmGraphics::GetRenderTargetTexture(render_target, (dmGraphics::BufferType)buffer_type);
+        if (texture != 0)
+        {
+            lua_pushnumber(L, dmGraphics::GetTextureWidth(texture));
+            return 1;
+        }
+        else
+        {
+            return luaL_error(L, "Render target does not have a texture for the specified buffer type.");
+        }
+    }
+
+    /*# retrieve a texture height from a render target
+     *
+     * @name render.get_texture_height
+     * @param render_target render target from which to retrieve the texture height
+     * @param buffer_type which buffer type to retrieve the texture height of
+     */
+    int RenderScript_GetTextureHeight(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        (void)i;
+        dmGraphics::HRenderTarget render_target = 0x0;
+
+        if (lua_islightuserdata(L, 1))
+        {
+            render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 1);
+        }
+        else
+        {
+            return luaL_error(L, "Expected render target as the second argument to %s.get_texture_height.", RENDER_SCRIPT_LIB_NAME);
+        }
+        uint32_t buffer_type = (uint32_t)luaL_checknumber(L, 2);
+        if (buffer_type - dmGraphics::BUFFER_TYPE_COLOR_BIT >= dmGraphics::MAX_BUFFER_TYPE_COUNT)
+        {
+            return luaL_error(L, "Unknown buffer type supplied to %s.get_texture_height.", RENDER_SCRIPT_LIB_NAME);
+        }
+        dmGraphics::HTexture texture = dmGraphics::GetRenderTargetTexture(render_target, (dmGraphics::BufferType)buffer_type);
+        if (texture != 0)
+        {
+            lua_pushnumber(L, dmGraphics::GetTextureHeight(texture));
+            return 1;
+        }
+        else
+        {
+            return luaL_error(L, "Render target does not have a texture for the specified buffer type.");
+        }
+    }
+
     /*#
      * @name render.BUFFER_COLOR_BIT
      * @variable
@@ -765,6 +839,7 @@ namespace dmRender
      *
      * @name render.draw
      * @param predicate predicate to draw for (predicate)
+     * @param constants constants to use while rendering (constants buffer)
      */
     int RenderScript_Draw(lua_State* L)
     {
@@ -1267,6 +1342,8 @@ namespace dmRender
         {"set_render_target_size",          RenderScript_SetRenderTargetSize},
         {"enable_texture",                  RenderScript_EnableTexture},
         {"disable_texture",                 RenderScript_DisableTexture},
+        {"get_texture_width",               RenderScript_GetTextureWidth},
+        {"get_texture_height",              RenderScript_GetTextureHeight},
         {"clear",                           RenderScript_Clear},
         {"set_viewport",                    RenderScript_SetViewport},
         {"set_view",                        RenderScript_SetView},
@@ -1755,7 +1832,7 @@ bail:
                     DrawTextParams params;
                     params.m_Text = text;
                     params.m_WorldTransform.setTranslation(Vectormath::Aos::Vector3(dt->m_Position));
-                    params.m_FaceColor = Vectormath::Aos::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
+                    params.m_FaceColor = dt->m_Color;
                     DrawText(instance->m_RenderContext, instance->m_RenderContext->m_SystemFontMap, params);
                 }
                 else

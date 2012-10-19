@@ -19,6 +19,9 @@ public class SphereCollisionShapeRenderer extends CollisionShapeRenderer impleme
     }
 
     @Override
+    public void dispose() { }
+
+    @Override
     public void setup(RenderContext renderContext, SphereCollisionShapeNode node) {
         if (passes.contains(renderContext.getPass())) {
             renderContext.add(this, node, new Point3d(), this.unitSphere);
@@ -32,7 +35,7 @@ public class SphereCollisionShapeRenderer extends CollisionShapeRenderer impleme
 
         GL gl = renderContext.getGL();
         gl.glColor4fv(renderContext.selectColor(node, COLOR), 0);
-        float sr = (float) node.getRadius();
+        float sr = 0.5f * (float) node.getDiameter();
 
         gl.glPushMatrix();
         gl.glScalef(sr, sr, sr);

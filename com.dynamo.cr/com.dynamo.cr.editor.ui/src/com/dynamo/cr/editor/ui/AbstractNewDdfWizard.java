@@ -79,6 +79,12 @@ public abstract class AbstractNewDdfWizard extends Wizard implements INewWizard 
         return true;
     }
 
+    protected Message createTemplateMessage() {
+        IResourceTypeRegistry registry = EditorCorePlugin.getDefault().getResourceTypeRegistry();
+        IResourceType resourceType = registry.getResourceTypeFromExtension(getExtension());
+        return resourceType.createTemplateMessage();
+    }
+
     /**
      * The worker method. It will find the container, create the
      * file if missing or just replace its contents, and open
@@ -100,9 +106,7 @@ public abstract class AbstractNewDdfWizard extends Wizard implements INewWizard 
         IContainer container = (IContainer) resource;
         final IFile file = container.getFile(new Path(fileName));
         try {
-            IResourceTypeRegistry registry = EditorCorePlugin.getDefault().getResourceTypeRegistry();
-            IResourceType resourceType = registry.getResourceTypeFromExtension(getExtension());
-            Message templateMessage = resourceType.createTemplateMessage();
+            Message templateMessage = createTemplateMessage();
             InputStream stream = new ByteArrayInputStream(TextFormat.printToString(templateMessage).getBytes());
             if (file.exists()) {
                 file.setContents(stream, true, true, monitor);

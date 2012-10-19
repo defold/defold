@@ -1,6 +1,7 @@
 package com.dynamo.cr.parted;
 
 import java.nio.Buffer;
+import java.nio.FloatBuffer;
 
 import com.sun.jna.Callback;
 import com.sun.jna.Native;
@@ -13,23 +14,86 @@ public class ParticleLibrary {
         Native.register("particle_shared");
     }
 
-    public interface RenderEmitterCallback extends Callback {
-        void invoke(Pointer userContext, Vector3 position, Pointer material, Pointer texture, int vertexIndex, int vertexCount);
+    public interface RenderInstanceCallback extends Callback {
+        void invoke(Pointer userContext, Pointer material, Pointer texture, int blendMode, int vertexIndex, int vertexCount, Pointer constants, int constantCount);
     }
 
-    public static native Pointer Particle_NewPrototype(Pointer context, Buffer emitter_data, int emitterDataSize);
-    public static native void Particle_DeletePrototype(Pointer context, Pointer prototype);
+    public interface FetchAnimationCallback extends Callback {
+        int invoke(Pointer tileSource, long hash, AnimationData outAnimationData);
+    }
+
+    public static native Pointer Particle_NewPrototype(Buffer buffer, int bufferSize);
+
+    public static native void Particle_DeletePrototype(Pointer prototype);
+
+    public static native boolean Particle_ReloadPrototype(Pointer prototype, Buffer buffer, int bufferSize);
+
     public static native Pointer Particle_CreateContext(int maxEmitterCount, int maxParticleCount);
+
     public static native Pointer Particle_DestroyContext(Pointer context);
-    public static native Pointer Particle_CreateEmitter(Pointer context, Pointer prototype);
-    public static native void Particle_DestroyEmitter(Pointer context, Pointer emitter);
-    public static native void Particle_StartEmitter(Pointer context, Pointer emitter);
-    public static native void Particle_StopEmitter(Pointer context, Pointer emitter);
-    public static native void Particle_RestartEmitter(Pointer context, Pointer emitter);
-    public static native void Particle_SetPosition(Pointer context, Pointer emitter, Vector3 position);
-    public static native void Particle_SetRotation(Pointer context, Pointer emitter, Quat rotation);
-    public static native void Particle_Update(Pointer context, float dt, Buffer vertexBuffer, int vertexBufferSize, IntByReference outVertexBufferSize);
-    public static native void Particle_Render(Pointer context, Pointer userContext, RenderEmitterCallback callback);
+
+    public static native int Particle_GetContextMaxParticleCount(Pointer context);
+
+    public static native void Particle_SetContextMaxParticleCount(Pointer context, int maxParticleCount);
+
+    public static native Pointer Particle_CreateInstance(Pointer context, Pointer prototype);
+
+    public static native void Particle_DestroyInstance(Pointer context, Pointer instance);
+
+    public static native void Particle_ReloadInstance(Pointer context, Pointer instance, boolean replayLooping);
+
+    public static native void Particle_StartInstance(Pointer context, Pointer instance);
+
+    public static native void Particle_StopInstance(Pointer context, Pointer instance);
+
+    public static native void Particle_RestartInstance(Pointer context, Pointer instance);
+
+    public static native void Particle_ResetInstance(Pointer context, Pointer instance);
+
+    public static native void Particle_SetPosition(Pointer context, Pointer instance, Vector3 position);
+
+    public static native void Particle_SetRotation(Pointer context, Pointer instance, Quat rotation);
+
+    public static native boolean Particle_IsSleeping(Pointer context, Pointer instance);
+
+    public static native void Particle_Update(Pointer context, float dt, FloatBuffer vertexBuffer,
+            int vertexBufferSize,
+            IntByReference outVertexBufferSize, FetchAnimationCallback callback);
+
+    public static native void Particle_Render(Pointer context, Pointer userContext, RenderInstanceCallback callback);
+
+    public static native void Particle_SetMaterial(Pointer prototype, int emitterIndex, Pointer material);
+
+    public static native void Particle_SetTileSource(Pointer prototype, int emitterIndex, Pointer tileSource);
+
+    public static native long Particle_Hash(String value);
+
+    public static native void Particle_GetStats(Pointer context, Stats stats);
+
+    public static native void Particle_GetInstanceStats(Pointer context, Pointer instance, InstanceStats stats);
+
+    public static native int Particle_GetVertexBufferSize(int particle_count);
+
+    public static class Stats extends Structure {
+
+        public Stats() {
+            structSize = size();
+        }
+
+        public int particles;
+        public int maxParticles;
+        public int structSize;
+    }
+
+    public static class InstanceStats extends Structure {
+
+        public InstanceStats() {
+            structSize = size();
+        }
+
+        public float time;
+        public int structSize;
+    }
 
     public static class Vector3 extends Structure {
 
@@ -70,4 +134,39 @@ public class ParticleLibrary {
         public float w;
     }
 
+    public static interface AnimPlayback {
+        public static final int ANIM_PLAYBACK_NONE = 0;
+        public static final int ANIM_PLAYBACK_ONCE_FORWARD = 1;
+        public static final int ANIM_PLAYBACK_ONCE_BACKWARD = 1;
+        public static final int ANIM_PLAYBACK_LOOP_FORWARD = 1;
+        public static final int ANIM_PLAYBACK_LOOP_BACKWARD = 1;
+        public static final int ANIM_PLAYBACK_LOOP_PINGPONG = 1;
+    }
+
+    public static interface FetchAnimationResult {
+        public static final int FETCH_ANIMATION_OK = 0;
+        public static final int FETCH_ANIMATION_NOT_FOUND = -1;
+        public static final int FETCH_ANIMATION_UNKNOWN_ERROR = -1000;
+    }
+
+    public static class AnimationData extends Structure {
+        public AnimationData() {
+            super();
+            setFieldOrder(new String[] { "texture", "texCoords", "playback", "tileWidth", "tileHeight", "startTile", "endTile", "fps", "hFlip",
+                    "vFlip", "structSize" });
+        }
+
+        public Pointer texture;
+        public FloatBuffer texCoords;
+        public int playback;
+        public int tileWidth;
+        public int tileHeight;
+        public int startTile;
+        public int endTile;
+        public int fps;
+        public int hFlip;
+        public int vFlip;
+        // Used to validate the struct size in particle.cpp
+        public int structSize;
+    }
 }

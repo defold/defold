@@ -5,6 +5,7 @@ import org.eclipse.core.resources.IFile;
 import com.dynamo.cr.properties.DynamicPropertyAccessor;
 import com.dynamo.cr.properties.IPropertyAccessor;
 import com.dynamo.cr.properties.Property;
+import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Node;
 
@@ -12,6 +13,15 @@ import com.dynamo.cr.sceneed.core.Node;
 public class DummyNode extends Node {
 
     public static String DYNAMIC_PROPERTY = "dynamicProperty";
+    public static final int AABB_EXTENTS = 1;
+
+    public DummyNode() {
+        AABB aabb = new AABB();
+        double c = AABB_EXTENTS;
+        aabb.union(-c, -c, -c);
+        aabb.union(c, c, c);
+        setAABB(aabb);
+    }
 
     @Property
     private int dummyProperty;

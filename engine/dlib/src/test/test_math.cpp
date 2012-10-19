@@ -102,7 +102,7 @@ void TestRand(float (*rand)(), float* out)
 
 TEST(dmMath, Rand)
 {
-    srand(0);
+    dmMath::SRand(0);
 
     float out[3];
 
@@ -121,6 +121,24 @@ TEST(dmMath, Rand)
     ASSERT_NEAR(-1.0f, out[0], 0.0005f);
     ASSERT_NEAR(1.0f, out[1], 0.0005f);
     ASSERT_NEAR(0.0f, out[2], 0.01f);
+}
+
+TEST(dmMath, RandSeed)
+{
+    dmMath::SRand(0);
+    uint32_t seed = dmMath::Rand();
+    ASSERT_NE(0u, seed);
+    dmMath::SRand(seed);
+    uint32_t r = dmMath::Rand();
+    ASSERT_NE(0u, r);
+    for (uint32_t i = 0; i < 10; ++i)
+    {
+        uint32_t tmp = dmMath::Rand();
+        ASSERT_NE(0u, tmp);
+        ASSERT_NE(r, tmp);
+    }
+    dmMath::SRand(seed);
+    ASSERT_EQ(r, dmMath::Rand());
 }
 
 int main(int argc, char **argv)

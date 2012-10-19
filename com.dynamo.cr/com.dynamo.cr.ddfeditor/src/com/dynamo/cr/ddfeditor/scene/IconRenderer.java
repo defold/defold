@@ -25,6 +25,10 @@ public abstract class IconRenderer<T extends Node> implements INodeRenderer<T> {
     }
 
     @Override
+    public void dispose() {
+    }
+
+    @Override
     public void setup(RenderContext renderContext, T node) {
         Pass pass = renderContext.getPass();
         if (pass == Pass.ICON_SELECTION || pass == Pass.ICON || pass == Pass.ICON_OUTLINE) {

@@ -3,8 +3,6 @@ package com.dynamo.cr.properties;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -28,6 +26,7 @@ import org.eclipse.ui.forms.events.HyperlinkEvent;
 import org.eclipse.ui.forms.widgets.FormToolkit;
 import org.eclipse.ui.forms.widgets.Hyperlink;
 import org.eclipse.ui.forms.widgets.ScrolledForm;
+import org.eclipse.ui.forms.widgets.Section;
 
 @SuppressWarnings({"rawtypes", "unchecked"})
 public class FormPropertySheetViewer extends Viewer {
@@ -64,6 +63,9 @@ public class FormPropertySheetViewer extends Viewer {
     public FormPropertySheetViewer(Composite parent, IContainer contentRoot) {
         this.contentRoot = contentRoot;
         toolkit = new FormToolkit(parent.getDisplay());
+
+        // NOTE: All MouseVerticalWheel are consumed by SpinnerText if
+        // MOD1 is pressed. See SpinnerText for more information
         this.form = toolkit.createScrolledForm(parent);
         this.form.setText("Properties"); //$NON-NLS-1$
         form.getBody().setLayout(new GridLayout());
@@ -215,24 +217,36 @@ public class FormPropertySheetViewer extends Viewer {
 
         if (!modelComposities.containsKey(hashString)) {
             Composite c = toolkit.createComposite(this.propertiesComposite);
+            Composite modelComposite = c;
 
             GridLayout layout = new GridLayout();
             layout.marginWidth = 0;
             c.setLayout(layout);
             layout.numColumns = 2;
 
-            // Sort properties lexicographically for display
-            Arrays.sort(descs, new Comparator<IPropertyDesc>() {
-                @Override
-                public int compare(IPropertyDesc arg0, IPropertyDesc arg1) {
-                    return arg0.getId().compareTo(arg1.getId());
-                }
-            });
-
+            String category = "";
             for (final IPropertyDesc desc : descs) {
 
                 if (!model.isPropertyVisible(desc.getId()))
                     continue;
+
+                if (!category.equals(desc.getCategory()) && !desc.getCategory().equals("")) {
+                    category = desc.getCategory();
+                    Section section = toolkit.createSection(modelComposite,  Section.TITLE_BAR| Section.TWISTIE|Section.EXPANDED);
+                    section.setText(category);
+                    GridData gd = new GridData(GridData.FILL_HORIZONTAL);
+                    gd.horizontalSpan = 2;
+                    section.setLayoutData(gd);
+
+                    Composite sectionClient = toolkit.createComposite(section);
+                    GridLayout sectionClientLayout = new GridLayout();
+                    sectionClientLayout.marginWidth = 0;
+                    sectionClient.setLayout(sectionClientLayout);
+                    sectionClientLayout.numColumns = 2;
+
+                    section.setClient(sectionClient);
+                    c = sectionClient;
+                }
 
                 String labelText = niceifyLabel(desc.getName());
                 final Composite labelComposite = toolkit.createComposite(c, SWT.NONE);
@@ -277,10 +291,10 @@ public class FormPropertySheetViewer extends Viewer {
                 gd.horizontalSpan = 1;
                 statusLabel.setLayoutData(gd);
                 Entry entry = new Entry(label, link, editor, statusLabel, dummyLabel);
-                c.setData(desc.getId(), entry);
+                modelComposite.setData(desc.getId(), entry);
             }
 
-            modelComposities.put(hashString, c);
+            modelComposities.put(hashString, modelComposite);
         }
 
         return modelComposities.get(hashString);
@@ -335,6 +349,7 @@ public class FormPropertySheetViewer extends Viewer {
         stackLayout.topControl = currentComposite;
 
         if (relayout) {
+            this.form.setOrigin(0, 0);
             propertiesComposite.layout();
             this.form.reflow(true);
         }

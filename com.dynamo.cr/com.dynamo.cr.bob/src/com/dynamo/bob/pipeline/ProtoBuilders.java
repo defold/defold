@@ -6,6 +6,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import javax.vecmath.Point3d;
+import javax.vecmath.Quat4d;
+
 import org.eclipse.osgi.util.NLS;
 
 import com.dynamo.bob.BuilderParams;
@@ -14,6 +17,7 @@ import com.dynamo.bob.IResource;
 import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.ProtoParams;
 import com.dynamo.camera.proto.Camera.CameraDesc;
+import com.dynamo.cr.common.util.MathUtil;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 import com.dynamo.gameobject.proto.GameObject.CollectionInstanceDesc;
 import com.dynamo.gameobject.proto.GameObject.InstanceDesc;
@@ -27,6 +31,9 @@ import com.dynamo.gui.proto.Gui.SceneDesc.TextureDesc;
 import com.dynamo.input.proto.Input.GamepadMaps;
 import com.dynamo.input.proto.Input.InputBinding;
 import com.dynamo.model.proto.Model.ModelDesc;
+import com.dynamo.particle.proto.Particle.Emitter;
+import com.dynamo.particle.proto.Particle.Modifier;
+import com.dynamo.particle.proto.Particle.ParticleFX;
 import com.dynamo.physics.proto.Physics.CollisionObjectDesc;
 import com.dynamo.physics.proto.Physics.CollisionShape;
 import com.dynamo.physics.proto.Physics.CollisionShape.Shape;
@@ -35,6 +42,7 @@ import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.render.proto.Material.MaterialDesc;
 import com.dynamo.render.proto.Render.RenderPrototypeDesc;
+import com.dynamo.sound.proto.Sound.SoundDesc;
 import com.dynamo.sprite.proto.Sprite.SpriteDesc;
 import com.dynamo.tile.proto.Tile.TileGrid;
 
@@ -259,6 +267,41 @@ public class ProtoBuilders {
         }
     }
 
+    @ProtoParams(messageClass = ParticleFX.class)
+    @BuilderParams(name="ParticleFX", inExts=".particlefx", outExt=".particlefxc")
+    public static class ParticleFXBuilder extends ProtoBuilder<ParticleFX.Builder> {
+        @Override
+        protected ParticleFX.Builder transform(IResource resource, ParticleFX.Builder messageBuilder)
+                throws IOException, CompileExceptionError {
+            int emitterCount = messageBuilder.getEmittersCount();
+            // Move modifiers to all emitters, clear the list at the end
+            List<Modifier> modifiers = messageBuilder.getModifiersList();
+            for (int i = 0; i < emitterCount; ++i) {
+                Emitter.Builder emitterBuilder = Emitter.newBuilder(messageBuilder.getEmitters(i));
+                BuilderUtil.checkFile(this.project, resource, "tile source", emitterBuilder.getTileSource());
+                BuilderUtil.checkFile(this.project, resource, "material", emitterBuilder.getMaterial());
+                emitterBuilder.setTileSource(BuilderUtil.replaceExt(emitterBuilder.getTileSource(), "tileset", "tilesetc"));
+                emitterBuilder.setTileSource(BuilderUtil.replaceExt(emitterBuilder.getTileSource(), "tilesource", "tilesetc"));
+                emitterBuilder.setMaterial(BuilderUtil.replaceExt(emitterBuilder.getMaterial(), "material", "materialc"));
+                Point3d ep = MathUtil.ddfToVecmath(emitterBuilder.getPosition());
+                Quat4d er = MathUtil.ddfToVecmath(emitterBuilder.getRotation());
+                for (Modifier modifier : modifiers) {
+                    Modifier.Builder mb = Modifier.newBuilder(modifier);
+                    Point3d p = MathUtil.ddfToVecmath(modifier.getPosition());
+                    Quat4d r = MathUtil.ddfToVecmath(modifier.getRotation());
+                    MathUtil.invTransform(ep, er, p);
+                    mb.setPosition(MathUtil.vecmathToDDF(p));
+                    MathUtil.invTransform(er, r);
+                    mb.setRotation(MathUtil.vecmathToDDF(r));
+                    emitterBuilder.addModifiers(mb.build());
+                }
+                messageBuilder.setEmitters(i, emitterBuilder.build());
+            }
+            messageBuilder.clearModifiers();
+            return messageBuilder;
+        }
+    }
+
     @ProtoParams(messageClass = MaterialDesc.class)
     @BuilderParams(name="Material", inExts=".material", outExt=".materialc")
     public static class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
@@ -272,5 +315,19 @@ public class ProtoBuilders {
             return messageBuilder;
         }
     }
+
+    @ProtoParams(messageClass = SoundDesc.class)
+    @BuilderParams(name="SoundDesc", inExts=".sound", outExt=".soundc")
+    public static class SoundDescBuilder extends ProtoBuilder<SoundDesc.Builder> {
+        @Override
+        protected SoundDesc.Builder transform(IResource resource, SoundDesc.Builder messageBuilder)
+                throws IOException, CompileExceptionError {
+            BuilderUtil.checkFile(this.project, resource, "sound", messageBuilder.getSound());
+            messageBuilder.setSound(BuilderUtil.replaceExt(messageBuilder.getSound(), "wav", "wavc"));
+            messageBuilder.setSound(BuilderUtil.replaceExt(messageBuilder.getSound(), "ogg", "oggc"));
+            return messageBuilder;
+        }
+    }
+
 
 }

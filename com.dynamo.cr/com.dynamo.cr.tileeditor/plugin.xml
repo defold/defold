@@ -249,11 +249,6 @@
          </state>
       </command>
       <command
-            description="Play/stop an animation"
-            id="com.dynamo.cr.tileeditor.commands.togglePlayback"
-            name="Play/Stop">
-      </command>
-      <command
             description="Select the eraser tool for tile maps"
             id="com.dynamo.cr.tileeditor.commands.selectEraser"
             name="Select Eraser">
@@ -504,12 +499,6 @@
          </parameter>
       </key>
       <key
-            commandId="com.dynamo.cr.tileeditor.commands.togglePlayback"
-            contextId="com.dynamo.cr.sceneed.ui.contexts.sceneEditor"
-            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
-            sequence="SPACE">
-      </key>
-      <key
             commandId="com.dynamo.cr.tileeditor.commands.selectEraser"
             contextId="com.dynamo.cr.tileeditor.contexts.GridEditor"
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
@@ -672,7 +661,7 @@
             </visibleWhen>
          </command>
          <command
-               commandId="com.dynamo.cr.tileeditor.commands.togglePlayback"
+               commandId="com.dynamo.cr.sceneed.commands.toggleSimulation"
                label="Play/Stop Animation"
                style="push">
             <visibleWhen
@@ -983,7 +972,7 @@
       </handler>
       <handler
             class="com.dynamo.cr.tileeditor.handlers.TogglePlaybackHandler"
-            commandId="com.dynamo.cr.tileeditor.commands.togglePlayback">
+            commandId="com.dynamo.cr.sceneed.commands.toggleSimulation">
          <activeWhen>
             <and>
                <reference

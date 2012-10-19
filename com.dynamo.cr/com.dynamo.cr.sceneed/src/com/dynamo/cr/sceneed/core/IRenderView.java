@@ -23,8 +23,10 @@ public interface IRenderView  {
     void setFocus();
     void createControls(Composite parent);
     void refresh();
+    void setSimulating(boolean simulating);
 
     List<Node> findNodesBySelection(Point2i start, Point2i end);
+
     void setSelection(IStructuredSelection selection);
     void viewToWorld(int x, int y, Vector4d clickPos, Vector4d clickDir);
     double[] worldToView(Point3d point);

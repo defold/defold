@@ -2,6 +2,7 @@ function init(self)
     self.tile_pred = render.predicate({"tile"})
     self.gui_pred = render.predicate({"gui"})
     self.text_pred = render.predicate({"text"})
+    self.particle_pred = render.predicate({"particle"})
 
     self.clear_color = vmath.vector4(0, 0, 0, 0)
     self.clear_color.x = sys.get_config("render.clear_color_red", 0)
@@ -27,6 +28,7 @@ function update(self)
     render.set_projection(vmath.matrix4_orthographic(0, render.get_width(), 0, render.get_height(), -1, 1))
 
     render.draw(self.tile_pred)
+    render.draw(self.particle_pred)
     render.draw_debug3d()
 
     render.set_view(vmath.matrix4())

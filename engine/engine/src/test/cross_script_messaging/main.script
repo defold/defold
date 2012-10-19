@@ -1,0 +1,17 @@
+function init(self)
+    self.render = msg.url("@render:")
+    self.gui = msg.url("#gui")
+    msg.post(self.render, "test_message", {data = 1})
+end
+
+function update(self)
+    msg.post("@system:", "exit", { code = 1 })
+end
+
+function on_message(self, message_id, message, sender)
+    if sender == self.render then
+        msg.post(self.gui, message_id, message)
+    elseif sender == self.gui and message_id == hash("test_message") and message.data == 1 then
+        msg.post("@system:", "exit", { code = 0 })
+    end
+end

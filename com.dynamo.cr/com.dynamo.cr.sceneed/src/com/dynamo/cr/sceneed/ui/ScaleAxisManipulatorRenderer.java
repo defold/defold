@@ -14,6 +14,9 @@ public class ScaleAxisManipulatorRenderer implements INodeRenderer<ScaleAxisMani
     }
 
     @Override
+    public void dispose() { }
+
+    @Override
     public void setup(RenderContext renderContext, ScaleAxisManipulator node) {
         Pass pass = renderContext.getPass();
         if (pass == Pass.MANIPULATOR || pass == Pass.SELECTION) {

@@ -10,23 +10,18 @@ import com.dynamo.cr.sceneed.core.Manipulator;
 public class ScaleAxisManipulator extends Manipulator {
 
     private RootManipulator rootManipulator;
-    private float[] color;
     private Vector4d startPoint;
     private boolean moving = false;
     private double distance = 1;
 
     public ScaleAxisManipulator(RootManipulator rootManipulator, float[] color) {
+        super(color);
         this.rootManipulator = rootManipulator;
-        this.color = color;
     }
 
     @Override
     public boolean match(Object[] selection) {
         return false;
-    }
-
-    public float[] getColor() {
-        return color;
     }
 
     public double getDistance() {
@@ -35,7 +30,7 @@ public class ScaleAxisManipulator extends Manipulator {
 
     @Override
     public void mouseDown(MouseEvent e) {
-        if (getController().isManipulatorSelected(this)) {
+        if (isEnabled() && getController().isManipulatorSelected(this)) {
             this.startPoint = ManipulatorUtil.closestPoint(this, getController().getRenderView(), e);
             moving = true;
         }

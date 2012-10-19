@@ -57,6 +57,7 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
     private static Logger logger = LoggerFactory.getLogger(SceneOutlinePage.class);
     private static final String MENU_ID = "com.dynamo.cr.sceneed.menus.sceneOutlineContext";
 
+    private final SceneEditor scenedEditor;
     private final ISceneView.IPresenter presenter;
     private final ISceneView.IPresenterContext presenterContext;
     private final UndoActionHandler undoHandler;
@@ -65,7 +66,8 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
     private final OutlineLabelProvider labelProvider;
 
     @Inject
-    public SceneOutlinePage(ISceneView.IPresenter presenter, ISceneView.IPresenterContext presenterContext, UndoActionHandler undoHandler, RedoActionHandler redoHandler) {
+    public SceneOutlinePage(SceneEditor sceneEditor, ISceneView.IPresenter presenter, ISceneView.IPresenterContext presenterContext, UndoActionHandler undoHandler, RedoActionHandler redoHandler) {
+        this.scenedEditor = sceneEditor;
         this.presenter = presenter;
         this.presenterContext = presenterContext;
         this.undoHandler = undoHandler;
@@ -285,7 +287,7 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
         // This makes sure the context will be active while this component is
         IContextService contextService = (IContextService) getSite()
                 .getService(IContextService.class);
-        contextService.activateContext(Activator.SCENEED_CONTEXT_ID);
+        contextService.activateContext(scenedEditor.getContextID());
 
         viewer.getTree().addMouseListener(new MouseAdapter() {
             @Override

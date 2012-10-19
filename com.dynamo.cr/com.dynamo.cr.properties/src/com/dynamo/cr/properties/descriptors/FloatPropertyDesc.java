@@ -5,8 +5,8 @@ import com.dynamo.cr.properties.Property.EditorType;
 
 public class FloatPropertyDesc<T, U extends IPropertyObjectWorld> extends ScalarPropertyDesc<Float, T, U> {
 
-    public FloatPropertyDesc(String id, String name, EditorType editorType) {
-        super(id, name, editorType);
+    public FloatPropertyDesc(String id, String name, String catgory, EditorType editorType) {
+        super(id, name, catgory, editorType);
     }
 
     @Override
@@ -17,4 +17,10 @@ public class FloatPropertyDesc<T, U extends IPropertyObjectWorld> extends Scalar
             return null;
         }
     }
+
+    @Override
+    public Class<?> getTypeClass() {
+        return Float.class;
+    }
+
 }

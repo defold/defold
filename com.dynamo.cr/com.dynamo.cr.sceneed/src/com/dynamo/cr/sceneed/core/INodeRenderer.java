@@ -11,6 +11,7 @@ package com.dynamo.cr.sceneed.core;
  * @param <T>
  */
 public interface INodeRenderer<T extends Node> {
+    void dispose();
     void setup(RenderContext renderContext, T node);
     void render(RenderContext renderContext, T node, RenderData<T> renderData);
 }

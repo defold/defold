@@ -8,8 +8,8 @@ public class RangeValidator implements IValidator<Number, Range, IPropertyObject
     @Override
     public IStatus validate(Range validationParameters, Object object, String property, Number value, IPropertyObjectWorld world) {
         double doubleValue = value.doubleValue();
-        int min = validationParameters.min();
-        int max = validationParameters.max();
+        double min = validationParameters.min();
+        double max = validationParameters.max();
         if (doubleValue >= min && doubleValue <= max) {
             return Status.OK_STATUS;
         } else {

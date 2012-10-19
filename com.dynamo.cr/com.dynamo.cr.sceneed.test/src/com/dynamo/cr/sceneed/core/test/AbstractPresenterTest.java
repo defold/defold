@@ -20,7 +20,7 @@ public class AbstractPresenterTest {
 
     private IPresenterContext presenterContext;
     private ILoaderContext loaderContext;
-    private ISceneModel model;
+    protected ISceneModel model;
 
     private int refreshCounter;
     private int refreshRenderViewCounter;

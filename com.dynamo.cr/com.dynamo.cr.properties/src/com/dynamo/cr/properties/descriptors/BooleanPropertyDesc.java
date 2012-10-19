@@ -18,8 +18,8 @@ import com.dynamo.cr.properties.PropertyUtil;
 
 public class BooleanPropertyDesc<T, U extends IPropertyObjectWorld> extends PropertyDesc<T, U>  {
 
-    public BooleanPropertyDesc(String id, String name) {
-        super(id, name);
+    public BooleanPropertyDesc(String id, String name, String catgory) {
+        super(id, name, catgory);
     }
 
     private class Editor implements IPropertyEditor<T, U>, Listener {

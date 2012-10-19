@@ -19,6 +19,7 @@
 #include "resources/res_material.h"
 #include "resources/res_gui.h"
 #include "resources/res_sound_data.h"
+#include "resources/res_sound.h"
 #include "resources/res_camera.h"
 #include "resources/res_input_binding.h"
 #include "resources/res_gamepad_map.h"
@@ -87,6 +88,8 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("guic", gui_context, ResCreateSceneDesc, ResDestroySceneDesc, ResRecreateSceneDesc);
         REGISTER_RESOURCE_TYPE("gui_scriptc", gui_context, ResCreateGuiScript, ResDestroyGuiScript, ResRecreateGuiScript);
         REGISTER_RESOURCE_TYPE("wavc", 0, ResSoundDataCreate, ResSoundDataDestroy, ResSoundDataRecreate);
+        REGISTER_RESOURCE_TYPE("oggc", 0, ResSoundDataCreate, ResSoundDataDestroy, ResSoundDataRecreate);
+        REGISTER_RESOURCE_TYPE("soundc", 0, ResSoundCreate, ResSoundDestroy, ResSoundRecreate);
         REGISTER_RESOURCE_TYPE("camerac", 0, ResCameraCreate, ResCameraDestroy, ResCameraRecreate);
         REGISTER_RESOURCE_TYPE("input_bindingc", input_context, ResInputBindingCreate, ResInputBindingDestroy, ResInputBindingRecreate);
         REGISTER_RESOURCE_TYPE("gamepadsc", 0, ResGamepadMapCreate, ResGamepadMapDestroy, ResGamepadMapRecreate);
@@ -173,7 +176,7 @@ namespace dmGameSystem
                 &CompCameraCreate, &CompCameraDestroy, 0, 0,
                 &CompCameraUpdate, 0, &CompCameraOnMessage, 0, &CompCameraOnReload);
 
-        REGISTER_COMPONENT_TYPE("wavc", 600, 0x0,
+        REGISTER_COMPONENT_TYPE("soundc", 600, 0x0,
                 CompSoundNewWorld, CompSoundDeleteWorld,
                 CompSoundCreate, CompSoundDestroy, 0, 0,
                 CompSoundUpdate, 0, CompSoundOnMessage, 0, 0);

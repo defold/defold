@@ -18,7 +18,9 @@ import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.swt.dnd.Transfer;
+import org.eclipse.swt.widgets.Display;
 
+import com.dynamo.cr.editor.core.ProjectProperties;
 import com.dynamo.cr.sceneed.Activator;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenter;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
@@ -32,22 +34,26 @@ import com.google.protobuf.Message;
 
 public class ScenePresenter implements IPresenter, IModelListener {
 
-    private final ISceneModel model;
-    private final ISceneView view;
-    private final INodeTypeRegistry nodeTypeRegistry;
-    private final ILoaderContext loaderContext;
-    private final IClipboard clipboard;
+    @Inject private ISceneModel model;
+    @Inject private ISceneView view;
+    @Inject private INodeTypeRegistry nodeTypeRegistry;
+    @Inject private ILoaderContext loaderContext;
+    @Inject private IClipboard clipboard;
+
+    private boolean simulating = false;
+    private final Animator animator = new Animator();
+
+    private class Animator implements Runnable {
+        @Override
+        public void run() {
+            if (simulating) {
+                view.refreshRenderView();
+                Display.getCurrent().timerExec(16, this);
+            }
+        }
+    }
 
     private IStructuredSelection currentSelection;
-
-    @Inject
-    public ScenePresenter(ISceneModel model, ISceneView view, INodeTypeRegistry manager, ILoaderContext loaderContext, IClipboard clipboard) {
-        this.model = model;
-        this.view = view;
-        this.nodeTypeRegistry = manager;
-        this.loaderContext = loaderContext;
-        this.clipboard = clipboard;
-    }
 
     private void setSelection(IPresenterContext presenterContext, IStructuredSelection selection) {
         if (!sameSelection(this.currentSelection, selection)) {
@@ -99,6 +105,11 @@ public class ScenePresenter implements IPresenter, IModelListener {
     @Override
     public void onResourceChanged(IResourceChangeEvent event) throws CoreException {
         this.model.handleResourceChanged(event);
+    }
+
+    @Override
+    public void onProjectPropertiesChanged(ProjectProperties properties) throws CoreException {
+
     }
 
     @Override
@@ -189,6 +200,17 @@ public class ScenePresenter implements IPresenter, IModelListener {
             nodes.add((Node)object);
         }
         return nodes;
+    }
+
+    @Override
+    public void toogleSimulation() {
+        simulating = !simulating;
+        if (simulating) {
+            Display.getCurrent().asyncExec(animator);
+        } else {
+            view.refreshRenderView();
+        }
+        view.setSimulating(simulating);
     }
 
     private boolean sameSelection(ISelection selectionA, ISelection selectionB) {

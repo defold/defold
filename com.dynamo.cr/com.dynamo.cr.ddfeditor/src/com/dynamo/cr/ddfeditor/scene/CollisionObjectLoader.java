@@ -112,14 +112,14 @@ public class CollisionObjectLoader implements INodeLoader<CollisionObjectNode> {
             b.setShapeType(CollisionShape.Type.TYPE_CAPSULE);
             b.setCount(2);
             b.setIndex(collisionShapeBuilder.getDataCount());
-            collisionShapeBuilder.addData((float) capsuleShapeNode.getRadius());
+            collisionShapeBuilder.addData((float) (0.5 * capsuleShapeNode.getDiameter()));
             collisionShapeBuilder.addData((float) capsuleShapeNode.getHeight());
         } else if (shapeNode instanceof SphereCollisionShapeNode) {
             SphereCollisionShapeNode sphereShapeNode = (SphereCollisionShapeNode) shapeNode;
             b.setShapeType(CollisionShape.Type.TYPE_SPHERE);
             b.setCount(1);
             b.setIndex(collisionShapeBuilder.getDataCount());
-            collisionShapeBuilder.addData((float) sphereShapeNode.getRadius());
+            collisionShapeBuilder.addData((float) (0.5 * sphereShapeNode.getDiameter()));
         } else {
             throw new RuntimeException("Unsupported shape node" + shapeNode);
         }

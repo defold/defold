@@ -8,10 +8,19 @@ public class PropertyDesc<T, U extends IPropertyObjectWorld> implements IPropert
 
     private String id;
     private String name;
+    private String category;
+    private Double min = -Double.MAX_VALUE;
+    private Double max = Double.MAX_VALUE;
 
-    public PropertyDesc(String id, String name) {
+    public PropertyDesc(String id, String name, String category) {
         this.id = id;
         this.name = name;
+
+        if (category == null) {
+            throw new IllegalArgumentException("Category must not be null");
+        }
+
+        this.category = category;
     }
 
     @Override
@@ -21,7 +30,7 @@ public class PropertyDesc<T, U extends IPropertyObjectWorld> implements IPropert
 
     @Override
     public String getCategory() {
-        return null;
+        return category;
     }
 
     @Override
@@ -37,6 +46,26 @@ public class PropertyDesc<T, U extends IPropertyObjectWorld> implements IPropert
     @Override
     public String getId() {
         return id;
+    }
+
+    @Override
+    public double getMin() {
+        return min;
+    }
+
+    @Override
+    public void setMin(double min) {
+        this.min = min;
+    }
+
+    @Override
+    public double getMax() {
+        return max;
+    }
+
+    @Override
+    public void setMax(double max) {
+        this.max = max;
     }
 
 }

@@ -44,6 +44,13 @@ public @interface Property {
     String displayName() default "";
 
     /**
+     * Property category for display purposes. Properties inherits "parent" category.
+     * Hence, it's only necessary to set the value when to change category
+     * @return category
+     */
+    String category() default "";
+
+    /**
      * Editor type. Default editor-type is based on the type of the field.
      * Set to DROP_DOWN/RESOURE, etc for specific editor controls
      * @return editor type

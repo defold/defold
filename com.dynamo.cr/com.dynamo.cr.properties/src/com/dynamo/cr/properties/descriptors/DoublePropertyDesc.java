@@ -5,8 +5,8 @@ import com.dynamo.cr.properties.Property.EditorType;
 
 public class DoublePropertyDesc<T, U extends IPropertyObjectWorld> extends ScalarPropertyDesc<Double, T, U> {
 
-    public DoublePropertyDesc(String id, String name, EditorType editorType) {
-        super(id, name, editorType);
+    public DoublePropertyDesc(String id, String name, String catgory, EditorType editorType) {
+        super(id, name, catgory, editorType);
     }
 
     @Override
@@ -16,5 +16,10 @@ public class DoublePropertyDesc<T, U extends IPropertyObjectWorld> extends Scala
         } catch (NumberFormatException e) {
             return null;
         }
+    }
+
+    @Override
+    public Class<?> getTypeClass() {
+        return Double.class;
     }
 }

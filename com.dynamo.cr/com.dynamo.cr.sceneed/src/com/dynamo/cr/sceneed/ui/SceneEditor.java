@@ -48,6 +48,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.editor.core.EditorUtil;
+import com.dynamo.cr.editor.core.ProjectProperties;
 import com.dynamo.cr.editor.core.inject.LifecycleModule;
 import com.dynamo.cr.editor.ui.AbstractDefoldEditor;
 import com.dynamo.cr.editor.ui.IImageProvider;
@@ -76,6 +77,7 @@ import com.dynamo.cr.sceneed.ui.preferences.PreferenceConstants;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
+import com.google.inject.util.Modules;
 
 public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, IPropertyChangeListener, IPartListener {
 
@@ -138,7 +140,6 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
             bind(RedoActionHandler.class).toInstance(redoHandler);
 
             bind(IContainer.class).toInstance(contentRoot);
-
         }
     }
 
@@ -160,7 +161,7 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
         this.nodeTypeRegistry = Activator.getDefault().getNodeTypeRegistry();
         this.manipulatorRegistry = Activator.getDefault().getManipulatorRegistry();
 
-        this.module = new LifecycleModule(new Module());
+        this.module = new LifecycleModule(Modules.override(new Module()).with(createOverrideModule()));
         Injector injector = Guice.createInjector(module);
 
         final String undoId = ActionFactory.UNDO.getId();
@@ -186,6 +187,21 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
         manipulatorController.setManipulatorMode(selectMode);
 
         this.presenter = injector.getInstance(ISceneView.IPresenter.class);
+        // Provide presenter with project properties
+        IFile gameProject = EditorUtil.findGameProjectFile(this.contentRoot);
+        if (gameProject != null && gameProject.exists()) {
+            ProjectProperties projectProperties = new ProjectProperties();
+            try {
+                projectProperties.load(gameProject.getContents());
+                try {
+                    this.presenter.onProjectPropertiesChanged(projectProperties);
+                } catch (CoreException e) {
+                    throw new PartInitException(e.getMessage(), e);
+                }
+            } catch (Exception e) {
+                // Ignore errors related to game project loading
+            }
+        }
         this.presenterContext = injector.getInstance(ISceneView.IPresenterContext.class);
         this.loaderContext = injector.getInstance(ILoaderContext.class);
 
@@ -213,6 +229,13 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
         } catch (Throwable e) {
             throw new PartInitException(e.getMessage(), e);
         }
+    }
+
+    protected com.google.inject.Module createOverrideModule() {
+        return new AbstractModule() {
+            @Override
+            protected void configure() {}
+        };
     }
 
     public ManipulatorController getManipulatorController() {
@@ -282,6 +305,15 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
     }
 
     @Override
+    protected void handleProjectPropertiesChanged(final ProjectProperties properties) {
+        try {
+            presenter.onProjectPropertiesChanged(properties);
+        } catch (CoreException e) {
+            logger.error("Error occurred while handling project properties", e);
+        }
+    }
+
+    @Override
     public void doSave(IProgressMonitor monitor) {
         IFileEditorInput input = (IFileEditorInput) getEditorInput();
         IFile file = input.getFile();
@@ -344,6 +376,10 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
         return true;
     }
 
+    public String getContextID() {
+        return Activator.SCENEED_CONTEXT_ID;
+    }
+
     @Override
     public void createPartControl(Composite parent) {
         this.renderView.createControls(parent);
@@ -351,7 +387,7 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
         // This makes sure the context will be active while this component is
         IContextService contextService = (IContextService) getSite()
                 .getService(IContextService.class);
-        contextService.activateContext(Activator.SCENEED_CONTEXT_ID);
+        contextService.activateContext(getContextID());
 
         // Set the render view as selection provider
         getSite().setSelectionProvider(this.sceneRenderViewProvider);
@@ -371,6 +407,8 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
             return this.propertySheetPage;
         } else if (adapter == IContentOutlinePage.class) {
             return this.outlinePage;
+        } else if (adapter == IUndoContext.class) {
+            return undoContext;
         } else {
             return super.getAdapter(adapter);
         }

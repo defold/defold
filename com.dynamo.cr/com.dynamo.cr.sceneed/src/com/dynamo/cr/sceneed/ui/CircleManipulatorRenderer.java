@@ -14,6 +14,9 @@ public class CircleManipulatorRenderer implements INodeRenderer<CircleManipulato
     }
 
     @Override
+    public void dispose() { }
+
+    @Override
     public void setup(RenderContext renderContext, CircleManipulator node) {
         Pass pass = renderContext.getPass();
         if (pass == Pass.MANIPULATOR || pass == Pass.SELECTION) {

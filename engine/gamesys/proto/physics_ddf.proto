@@ -131,6 +131,7 @@ message ApplyForce
  * @message
  * @name collision_response
  * @param other_id the id of the instance the collision object collided with (hash)
+ * @param other_position the world position of the instance the collision object collided with (vec3)
  * @param group the collision group of the other collision object (hash)
  * @examples
  * <p>
@@ -147,8 +148,9 @@ message ApplyForce
  */
 message CollisionResponse
 {
-    required uint64 other_id    = 1;
-    required uint64 group       = 2;
+    required uint64 other_id                = 1;
+    required uint64 group                   = 2;
+    required dmMath.Point3 other_position   = 3;
 }
 
 /*# reports a contact point between two collision objects

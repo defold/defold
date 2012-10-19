@@ -1,7 +1,9 @@
 package com.dynamo.cr.sceneed.core.test;
 
+import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -9,6 +11,7 @@ import static org.mockito.Mockito.when;
 import java.io.IOException;
 
 import javax.vecmath.Matrix4d;
+import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
 import javax.vecmath.Vector3d;
 import javax.vecmath.Vector4d;
@@ -20,6 +23,8 @@ import org.junit.Test;
 
 import com.dynamo.cr.editor.core.IResourceType;
 import com.dynamo.cr.editor.core.IResourceTypeRegistry;
+import com.dynamo.cr.sceneed.core.AABB;
+import com.dynamo.cr.sceneed.core.Node;
 
 public class NodeTest extends AbstractNodeTest {
 
@@ -75,6 +80,79 @@ public class NodeTest extends AbstractNodeTest {
         transform.set(new Quat4d(0, 1, 0, 0));
         node.setLocalTransform(transform);
         assertEquals(new Vector3d(0, 180, 0), node.getEuler());
+    }
+
+    void assertWorld(Node node, Point3d translation, Quat4d rotation) {
+        Matrix4d world = new Matrix4d();
+        node.getWorldTransform(world);
+        Vector4d t = new Vector4d();
+        world.getColumn(3, t);
+        Quat4d r = new Quat4d();
+        r.set(world);
+        assertThat(new Point3d(t.x, t.y, t.z), is(translation));
+        assertThat(r, is(rotation));
+    }
+
+    @Test
+    public void testNoInheritTransform() throws Exception {
+        DummyNode parent = new DummyNode();
+        DummyNoInheritTransform child = new DummyNoInheritTransform();
+        parent.addChild(child);
+
+        parent.setTranslation(new Point3d(10, 0, 0));
+        parent.setRotation(new Quat4d(Math.sqrt(2), 0, 0, Math.sqrt(2)));
+
+        Point3d translation = new Point3d(1, 2, 3);
+        child.setTranslation(translation);
+
+        Quat4d rotation = new Quat4d(-0.5, -0.5, 0.5, 0.5);
+        child.setRotation(rotation);
+
+        assertThat(child.getTranslation(), is(translation));
+        assertThat(child.getRotation(), is(rotation));
+
+        assertWorld(child, translation, rotation);
+
+        Matrix4d world = new Matrix4d();
+        world.setIdentity();
+        world.set(rotation);
+        world.setColumn(3, new Vector4d(translation.x, translation.y, translation.z, 0));
+        child.setWorldTransform(world);
+
+        assertWorld(child, translation, rotation);
+    }
+
+
+    void assertAABBCenterX(Node node, double x) {
+        AABB aabb = new AABB();
+        node.getWorldAABB(aabb);
+        double cx = (aabb.getMin().x + aabb.getMax().x) * 0.5;
+        assertEquals(x, cx, 0.001);
+    }
+
+    @Test
+    public void testAABB() throws ExecutionException {
+        int c = DummyNode.AABB_EXTENTS;
+        int rootX = 10;
+
+        DummyNode r = new DummyNode();
+        r.setTranslation(new Point3d(-5, 0, 0));
+        assertAABBCenterX(r, -5);
+        r.setTranslation(new Point3d(-rootX, 0, 0));
+        assertAABBCenterX(r, -rootX);
+
+        DummyNode c1 = new DummyNode();
+        c1.setTranslation(new Point3d(1, 0, 0));
+        r.addChild(c1);
+        assertAABBCenterX(r, ((-rootX - c) + (-rootX + c + c)) * 0.5);
+
+        c1.setTranslation(new Point3d(0, 0, 0));
+        assertAABBCenterX(r, -rootX);
+
+        c1.setTranslation(new Point3d(1, 0, 0));
+        assertAABBCenterX(r, ((-rootX - c) + (-rootX + c + c)) * 0.5);
+        r.removeChild(c1);
+        assertAABBCenterX(r, -rootX);
     }
 
 }

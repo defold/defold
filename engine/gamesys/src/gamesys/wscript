@@ -16,7 +16,7 @@ def build(bld):
                                 ddf_jar = 'gamesys.jar',
                                 embed_source='../../content/materials/gui.vpc ../../content/materials/gui.fpc ../../content/materials/tile_map.vpc ../../content/materials/tile_map.fpc')
 
-    resource.find_sources_in_dirs(['.', 'resources', 'components', '../../proto'])
+    resource.find_sources_in_dirs(['.', 'resources', 'components', 'scripts', '../../proto'])
     bld.add_group()
 
     classpath = [bld.env['DYNAMO_HOME'] + '/ext/share/java/protobuf-java-2.3.0.jar',
@@ -35,19 +35,14 @@ def build(bld):
                      destfile='tile.jar')
     bld.install_files('${PREFIX}/share/java', 'tile.jar')
 
-    doc_files = ['../../proto/gamesys_ddf.proto',
-        '../../proto/physics_ddf.proto',
-        '../../proto/camera_ddf.proto',
-        '../../proto/sprite_ddf.proto',
-        '../../proto/tile_ddf.proto',
-        'gamesys_script.cpp']
-    bld.new_task_gen(source = ' '.join(doc_files),
-                     target = 'gamesys_doc.sdoc',
+    doc_dirs = ['.', '../../proto', 'scripts']
+    doc_task = bld.new_task_gen(target = 'gamesys_doc.sdoc',
                      rule = '${SCRIPT_DOC} ${SRC} ${TGT}')
+    doc_task.find_sources_in_dirs(doc_dirs)
 
-    bld.new_task_gen(source = ' '.join(doc_files),
-                     target = 'gamesys_doc.json',
+    doc_task = bld.new_task_gen(target = 'gamesys_doc.json',
                      rule = '${SCRIPT_DOC} -t json ${SRC} ${TGT}')
+    doc_task.find_sources_in_dirs(doc_dirs)
 
     bld.add_group()
     bld.add_subdirs('test')

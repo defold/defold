@@ -32,8 +32,10 @@ import com.dynamo.cr.properties.descriptors.Quat4PropertyDesc;
 import com.dynamo.cr.properties.descriptors.RGBPropertyDesc;
 import com.dynamo.cr.properties.descriptors.ResourcePropertyDesc;
 import com.dynamo.cr.properties.descriptors.TextPropertyDesc;
+import com.dynamo.cr.properties.descriptors.ValueSpreadPropertyDesc;
 import com.dynamo.cr.properties.descriptors.Vector3PropertyDesc;
 import com.dynamo.cr.properties.descriptors.Vector4PropertyDesc;
+import com.dynamo.cr.properties.types.ValueSpread;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 import com.google.protobuf.ProtocolMessageEnum;
@@ -93,34 +95,38 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
                             propertyDisplayName = property.displayName();
                         }
 
+                        String category = property.category();
+
                         IPropertyDesc<T, U> descriptor;
                         if (field.getType() == String.class) {
                             if (property.editorType() == EditorType.RESOURCE)
-                                descriptor = new ResourcePropertyDesc<T, U>(propertyId, propertyDisplayName, property.extensions());
+                                descriptor = new ResourcePropertyDesc<T, U>(propertyId, propertyDisplayName, category, property.extensions());
                             else
-                                descriptor = new TextPropertyDesc<T, U>(propertyId, propertyDisplayName, property.editorType());
+                                descriptor = new TextPropertyDesc<T, U>(propertyId, propertyDisplayName, category, property.editorType());
                         } else if (field.getType() == Vector4d.class) {
-                            descriptor = new Vector4PropertyDesc<T, U>(propertyId, propertyDisplayName);
+                            descriptor = new Vector4PropertyDesc<T, U>(propertyId, propertyDisplayName, category);
                         } else if (field.getType() == Quat4d.class) {
-                            descriptor = new Quat4PropertyDesc<T, U>(propertyId, propertyDisplayName);
+                            descriptor = new Quat4PropertyDesc<T, U>(propertyId, propertyDisplayName, category);
                         } else if (field.getType() == Vector3d.class) {
-                            descriptor = new Vector3PropertyDesc<T, U>(propertyId, propertyDisplayName);
+                            descriptor = new Vector3PropertyDesc<T, U>(propertyId, propertyDisplayName, category);
                         } else if (field.getType() == Point3d.class) {
-                            descriptor = new Point3PropertyDesc<T, U>(propertyId, propertyDisplayName);
+                            descriptor = new Point3PropertyDesc<T, U>(propertyId, propertyDisplayName, category);
+                        } else if (field.getType() == ValueSpread.class) {
+                            descriptor = new ValueSpreadPropertyDesc<T, U>(propertyId, propertyDisplayName, category);
                         } else if (field.getType() == RGB.class) {
-                            descriptor = new RGBPropertyDesc<T, U>(propertyId, propertyDisplayName);
+                            descriptor = new RGBPropertyDesc<T, U>(propertyId, propertyDisplayName, category);
                         } else if (field.getType() == Double.TYPE) {
-                            descriptor = new DoublePropertyDesc<T, U>(propertyId, propertyDisplayName, property.editorType());
+                            descriptor = new DoublePropertyDesc<T, U>(propertyId, propertyDisplayName, category, property.editorType());
                         } else if (field.getType() == Float.TYPE) {
-                            descriptor = new FloatPropertyDesc<T, U>(propertyId, propertyDisplayName, property.editorType());
+                            descriptor = new FloatPropertyDesc<T, U>(propertyId, propertyDisplayName, category, property.editorType());
                         } else if (field.getType() == Integer.TYPE) {
-                            descriptor = new IntegerPropertyDesc<T, U>(propertyId, propertyDisplayName, property.editorType());
+                            descriptor = new IntegerPropertyDesc<T, U>(propertyId, propertyDisplayName, category, property.editorType());
                         } else if (field.getType() == Boolean.TYPE) {
-                            descriptor = new BooleanPropertyDesc<T, U>(propertyId, propertyDisplayName);
+                            descriptor = new BooleanPropertyDesc<T, U>(propertyId, propertyDisplayName, category);
                         } else if (ProtocolMessageEnum.class.isAssignableFrom(field.getType())) {
-                            descriptor = new ProtoEnumDesc<T, U>((Class<? extends ProtocolMessageEnum>) field.getType(), propertyId, propertyDisplayName);
+                            descriptor = new ProtoEnumDesc<T, U>((Class<? extends ProtocolMessageEnum>) field.getType(), propertyId, propertyDisplayName, category);
                         } else {
-                            descriptor = new PropertyDesc<T, U>(propertyId, propertyDisplayName);
+                            descriptor = new PropertyDesc<T, U>(propertyId, propertyDisplayName, null);
                         }
 
                         descriptors.add(descriptor);
@@ -143,6 +149,18 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
         }
 
         accessor = accessorClass.newInstance();
+        /*
+         * Extract min/max value from @Range annotation
+         */
+        for (IPropertyDesc<T, U> pd : descriptors) {
+            for (Annotation v : this.validators.get(pd.getId())) {
+                if (v instanceof Range) {
+                    Range range = (Range) v;
+                    pd.setMin(range.min());
+                    pd.setMax(range.max());
+                }
+            }
+        }
 
         this.descriptors = descriptors.toArray(new IPropertyDesc[descriptors.size()]);
         // Make sure the set is unmodifiable

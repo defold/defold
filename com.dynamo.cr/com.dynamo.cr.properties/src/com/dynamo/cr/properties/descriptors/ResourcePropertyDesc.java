@@ -29,8 +29,8 @@ public class ResourcePropertyDesc<T, U extends IPropertyObjectWorld> extends Pro
     private IContainer contentRoot;
     String[] extensions;
 
-    public ResourcePropertyDesc(String id, String name, String[] extensions) {
-        super(id, name);
+    public ResourcePropertyDesc(String id, String name, String catgory, String[] extensions) {
+        super(id, name, catgory);
         this.extensions = extensions;
     }
 

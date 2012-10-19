@@ -5,16 +5,21 @@ import java.util.List;
 
 import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.core.resources.IContainer;
+import org.eclipse.jface.resource.ColorRegistry;
+import org.eclipse.jface.resource.JFaceResources;
 import org.eclipse.swt.SWT;
-import org.eclipse.swt.graphics.Color;
+import org.eclipse.swt.graphics.RGB;
 import org.eclipse.swt.widgets.Combo;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
+import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.Listener;
 import org.eclipse.swt.widgets.Text;
 import org.eclipse.ui.forms.widgets.FormToolkit;
 
+import com.dynamo.cr.editor.core.operations.IMergeableOperation;
+import com.dynamo.cr.editor.core.operations.IMergeableOperation.Type;
 import com.dynamo.cr.properties.IPropertyEditor;
 import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.properties.IPropertyObjectWorld;
@@ -26,12 +31,29 @@ public abstract class ScalarPropertyDesc<S, T, U extends IPropertyObjectWorld> e
 
     private EditorType editorType;
 
-    public ScalarPropertyDesc(String id, String name, EditorType editorType) {
-        super(id, name);
+    public static final String BACKGROUND_COLOR_KEY = "com.dynamo.cr.properties.BACKGROUND_COLOR";
+    public static final String OVERRIDDEN_COLOR_KEY = "com.dynamo.cr.properties.OVERRIDDEN_COLOR";
+
+    public ScalarPropertyDesc(String id, String name, String catgory, EditorType editorType) {
+        super(id, name, catgory);
         this.editorType = editorType;
+
+        // NOTE: A temporary solution in order to avoid memory leaks (Color)
+        // A ColorRegistry should probably be passed in the constructor or similar for theming support
+        if (Display.getCurrent() != null) {
+            // Only create colors if a display is present (i.e. not in unit-test)
+            ColorRegistry r = JFaceResources.getColorRegistry();
+
+            if (!r.hasValueFor(BACKGROUND_COLOR_KEY))
+                r.put(BACKGROUND_COLOR_KEY, new RGB(255, 255, 255));
+
+            if (!r.hasValueFor(OVERRIDDEN_COLOR_KEY))
+                r.put(OVERRIDDEN_COLOR_KEY, new RGB(214, 230, 255));
+        }
     }
 
     public abstract S fromString(String text);
+    public abstract Class<?> getTypeClass();
 
     /**
      * Widet abstraction classs for Text/Combo-box
@@ -39,13 +61,24 @@ public abstract class ScalarPropertyDesc<S, T, U extends IPropertyObjectWorld> e
      */
     private class EditorWidget {
         private Text text;
+        private SpinnerText spinnerText;
         private Combo combo;
+        private Control control;
 
         public EditorWidget(Composite parent) {
             if (editorType == EditorType.DEFAULT) {
-                text = new Text(parent, SWT.BORDER);
+                Class<?> typeClass = getTypeClass();
+                if (Number.class.isAssignableFrom(typeClass)) {
+                    boolean floatOrDouble = typeClass == Float.class || typeClass == Double.class;
+                    control = spinnerText = new SpinnerText(parent, SWT.BORDER, !floatOrDouble);
+                    spinnerText.setMin(getMin());
+                    spinnerText.setMax(getMax());
+                    text = spinnerText.getText();
+                } else {
+                    control = text = new Text(parent, SWT.BORDER);
+                }
             } else {
-                combo = new Combo(parent, SWT.DROP_DOWN);
+                control = combo = new Combo(parent, SWT.DROP_DOWN);
             }
         }
 
@@ -64,10 +97,7 @@ public abstract class ScalarPropertyDesc<S, T, U extends IPropertyObjectWorld> e
         }
 
         public Control getControl() {
-            if (editorType == EditorType.DEFAULT)
-                return this.text;
-            else
-                return this.combo;
+            return control;
         }
 
         private void updateOptions(IPropertyModel<T, U>[] models) {
@@ -106,7 +136,7 @@ public abstract class ScalarPropertyDesc<S, T, U extends IPropertyObjectWorld> e
             widget = new EditorWidget(parent);
             widget.addListener(SWT.KeyDown, this);
             widget.addListener(SWT.FocusOut, this);
-            widget.addListener(SWT.Selection, this);
+            widget.addListener(SWT.DefaultSelection, this);
         }
 
         @Override
@@ -126,6 +156,9 @@ public abstract class ScalarPropertyDesc<S, T, U extends IPropertyObjectWorld> e
             getControl().setEnabled(editable);
             S firstValue = (S) models[0].getPropertyValue(getId());
             boolean overridden = models[0].isPropertyOverridden(getId());
+
+            ColorRegistry colorRegistry = JFaceResources.getColorRegistry();
+
             for (int i = 1; i < models.length; ++i) {
                 if (models[i].isPropertyOverridden(getId())) {
                     overridden = true;
@@ -133,16 +166,16 @@ public abstract class ScalarPropertyDesc<S, T, U extends IPropertyObjectWorld> e
                 S value = (S) models[i].getPropertyValue(getId());
                 if (!firstValue.equals(value)) {
                     widget.setText("");
-                    widget.getControl().setBackground(new Color(getControl().getDisplay(), 255, 255, 255));
+                    widget.getControl().setBackground(colorRegistry.get(BACKGROUND_COLOR_KEY));
                     oldValue = "";
                     return;
                 }
             }
             widget.setText(firstValue.toString());
             if (overridden) {
-                widget.getControl().setBackground(new Color(getControl().getDisplay(), 214, 230, 255));
+                widget.getControl().setBackground(colorRegistry.get(OVERRIDDEN_COLOR_KEY));
             } else {
-                widget.getControl().setBackground(new Color(getControl().getDisplay(), 255, 255, 255));
+                widget.getControl().setBackground(colorRegistry.get(BACKGROUND_COLOR_KEY));
             }
             oldValue = firstValue.toString();
         }
@@ -159,15 +192,18 @@ public abstract class ScalarPropertyDesc<S, T, U extends IPropertyObjectWorld> e
                 value = fromString("0");
 
             boolean updateValue = false;
+            IMergeableOperation.Type type = Type.OPEN;
             if (event.type == SWT.KeyDown && (event.character == '\r' || event.character == '\n')) {
                 updateValue = true;
             } else if (event.type == SWT.FocusOut && !value.equals(oldValue)) {
                 updateValue = true;
-            } else if (event.type == SWT.Selection && !value.equals(oldValue)) {
+            } else if (event.type == SWT.DefaultSelection && !value.equals(oldValue)) {
                 updateValue = true;
+                type = Type.INTERMEDIATE;
             }
+
             if (updateValue) {
-                IUndoableOperation combinedOperation = PropertyUtil.setProperty(models, getId(), value);
+                IUndoableOperation combinedOperation = PropertyUtil.setProperty(models, getId(), value, type);
                 if (combinedOperation != null)
                     models[0].getCommandFactory().execute(combinedOperation, models[0].getWorld());
 

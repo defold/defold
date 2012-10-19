@@ -6,6 +6,6 @@ import java.lang.annotation.RetentionPolicy;
 @Validator(validator=RangeValidator.class)
 @Retention(RetentionPolicy.RUNTIME)
 public @interface Range {
-    int min() default Integer.MIN_VALUE;
-    int max() default Integer.MAX_VALUE;
+    double min() default -Double.MAX_VALUE;
+    double max() default Double.MAX_VALUE;
 }

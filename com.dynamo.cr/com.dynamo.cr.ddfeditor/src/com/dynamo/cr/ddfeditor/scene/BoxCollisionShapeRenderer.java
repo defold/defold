@@ -19,6 +19,9 @@ public class BoxCollisionShapeRenderer extends CollisionShapeRenderer implements
     }
 
     @Override
+    public void dispose() { }
+
+    @Override
     public void setup(RenderContext renderContext, BoxCollisionShapeNode node) {
         if (passes.contains(renderContext.getPass())) {
             renderContext.add(this, node, new Point3d(), unitBox);

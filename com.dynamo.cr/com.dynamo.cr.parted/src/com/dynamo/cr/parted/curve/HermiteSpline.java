@@ -1,5 +1,6 @@
 package com.dynamo.cr.parted.curve;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -36,15 +37,25 @@ import java.util.List;
  * @author chmu
  *
  */
-public class HermiteSpline {
+public class HermiteSpline implements Serializable {
 
-    static final double MAX_TANGENT_ANGLE = Math.PI / 2 - 0.0001;
+    private static final long serialVersionUID = 1L;
 
     private List<SplinePoint> points = new ArrayList<SplinePoint>(32);
 
     public HermiteSpline() {
         points.add(new SplinePoint(0, 0, 0.5, 0.5));
         points.add(new SplinePoint(1, 1, 0.5, 0.5));
+    }
+
+    public HermiteSpline(float[] data) {
+        for (int i = 0; i < data.length; i+=4) {
+            points.add(new SplinePoint(data[i], data[i+1], data[i+2], data[i+3]));
+        }
+    }
+
+    private HermiteSpline(HermiteSpline spline, ArrayList<SplinePoint> l) {
+        this.points = l;
     }
 
     private static double hermite(double x0, double x1, double t0, double t1, double t) {
@@ -73,14 +84,14 @@ public class HermiteSpline {
         SplinePoint p0 = getPoint(segment);
         SplinePoint p1 = getPoint(segment + 1);
         double segT = t;
-        double dx = p1.x - p0.x;
+        double dx = p1.getX() - p0.getX();
 
-        double py0 = p0.y;
-        double py1 = p1.y;
-        double pt0 = dx * p0.ty / p0.tx;
-        double pt1 = dx * p1.ty / p1.tx;
+        double py0 = p0.getY();
+        double py1 = p1.getY();
+        double pt0 = dx * p0.getTy() / p0.getTx();
+        double pt1 = dx * p1.getTy() / p1.getTx();
 
-        double x = p0.x * (1 - segT) + p1.x * segT;
+        double x = p0.getX() * (1 - segT) + p1.getX() * segT;
         double y = hermite(py0, py1, pt0, pt1, segT);
 
         value[0] = x;
@@ -94,8 +105,8 @@ public class HermiteSpline {
         for (int s = 0; s < segmentCount; ++s) {
             SplinePoint p0 = getPoint(s);
             SplinePoint p1 = getPoint(s + 1);
-            if (x >= p0.x && x < p1.x) {
-                t = (x - p0.x) / (p1.x - p0.x);
+            if (x >= p0.getX() && x < p1.getX()) {
+                t = (x - p0.getX()) / (p1.getX() - p0.getX());
                 segment = s;
                 break;
             }
@@ -106,16 +117,75 @@ public class HermiteSpline {
         return value[1];
     }
 
+    public void getExtremValues(double[] v) {
+        int segmentCount = getSegmentCount();
+        double min = Double.MAX_VALUE;
+        double max = -Double.MAX_VALUE;
+
+        for (int s = 0; s < segmentCount; ++s) {
+            SplinePoint p0 = getPoint(s);
+            SplinePoint p1 = getPoint(s + 1);
+
+            double dx = p1.getX() - p0.getX();
+
+            double py0 = p0.getY();
+            double py1 = p1.getY();
+            double pt0 = dx * p0.getTy() / p0.getTx();
+            double pt1 = dx * p1.getTy() / p1.getTx();
+
+            //double x = p0.getX() * (1 - segT) + p1.getX() * segT;
+            //double y = hermite(py0, py1, pt0, pt1, segT);
+
+            /*
+             * A, B and C are the coefficent to the differntitated hermite spline
+             * in power form, i.e. A * t^3 + B * t^2 ...
+             */
+            double A = 3 * (2 * py0  - 2 * py1 + pt0 + pt1);
+            double B = 2 * (-3 * py0 + 3 * py1 - 2 * pt0 - pt1);
+            double C = pt0;
+
+            double t0, t1;
+            // Solve the equation for extreme points
+
+            // Solution to the equation? (A straight line donsn't have a solution)
+            if (Math.abs(A) > 0.0001) {
+                double Q0 = B / (2 * A);
+                double Q1 = B * B / (4 * A * A) - C / A;
+                if (Q1 > 0) {
+                    t0 = -Q0 + Math.sqrt(Q1);
+                    t1 = -Q0 - Math.sqrt(Q1);
+                } else {
+                    // No solution the equation
+                    t0 = 0;
+                    t1 = 1;
+                }
+            } else {
+                t0 = 0;
+                t1 = 1;
+            }
+
+            double y0 = hermite(py0, py1, pt0, pt1, t0);
+            double y1 = hermite(py0, py1, pt0, pt1, t1);
+
+            min = Math.min(min, Math.min(y0, y1));
+            max = Math.max(max, Math.max(y0, y1));
+        }
+
+        v[0] = min;
+        v[1] = max;
+    }
+
+
     public void getTangent(int segment, double t, double[] value) {
         SplinePoint p0 = getPoint(segment);
         SplinePoint p1 = getPoint(segment + 1);
         double segT = t;
-        double dx = p1.x - p0.x;
+        double dx = p1.getX() - p0.getX();
 
-        double py0 = p0.y;
-        double py1 = p1.y;
-        double pt0 = dx * p0.ty / p0.tx;
-        double pt1 = dx * p1.ty / p1.tx;
+        double py0 = p0.getY();
+        double py1 = p1.getY();
+        double pt0 = dx * p0.getTy() / p0.getTx();
+        double pt1 = dx * p1.getTy() / p1.getTx();
 
         double d = hermiteD(py0, py1, pt0, pt1, segT) / dx;
         double x = 1;
@@ -126,7 +196,13 @@ public class HermiteSpline {
         value[1] = y / l;
     }
 
-    public void setPosition(int i, double newX, double newY) {
+    private HermiteSpline alterPoint(int i, double x, double y, double tx, double ty) {
+        ArrayList<SplinePoint> l = new ArrayList<SplinePoint>(points);
+        l.set(i, new SplinePoint(x, y, tx, ty));
+        return new HermiteSpline(this, l);
+    }
+
+    public HermiteSpline setPosition(int i, double newX, double newY) {
         SplinePoint p = this.points.get(i);
 
         if (i == 0) {
@@ -135,56 +211,56 @@ public class HermiteSpline {
             newX = 1;
         }
 
-        p.x = newX;
-        p.y = newY;
-
         double minMargin = 0.01;
         if (i > 0) {
-            p.x = Math.max(getPoint(i - 1).x + minMargin, p.x);
+            newX = Math.max(getPoint(i - 1).getX() + minMargin, newX);
         }
         if (i < getCount() - 1) {
-            p.x = Math.min(getPoint(i + 1).x - minMargin, p.x);
+            newX = Math.min(getPoint(i + 1).getX() - minMargin, newX);
         }
 
+        return alterPoint(i, newX, newY, p.getTx(), p.getTy());
     }
 
-    public void setTangent(int i, double tx, double ty) {
+    public HermiteSpline setTangent(int i, double tx, double ty) {
         SplinePoint p = this.points.get(i);
         tx = Math.max(tx, 0);
-        double l = Math.sqrt((tx * tx + ty * ty));
-        p.tx = tx / l;
-        p.ty = ty / l;
+
+        return alterPoint(i, p.getX(), p.getY(), tx, ty);
     }
 
     public int getSegmentCount() {
         return getCount() - 1;
     }
 
-    public int insertPoint(double x, double y) {
+    public HermiteSpline insertPoint(double x, double y) {
         int segmentCount = getSegmentCount();
         for (int s = 0; s < segmentCount; ++s) {
             SplinePoint p0 = getPoint(s);
             SplinePoint p1 = getPoint(s + 1);
-            if (x >= p0.x && x < p1.x) {
+            if (x >= p0.getX() && x < p1.getX()) {
                 double[] pos = new double[2];
                 double[] tan = new double[2];
-                double t = (x - p0.x) / (p1.x - p0.x);
+                double t = (x - p0.getX()) / (p1.getX() - p0.getX());
                 getValue(s, t, pos);
                 getTangent(s, t, tan);
-                this.points.add(s + 1, new SplinePoint(pos[0], pos[1], tan[0], tan[1]));
-                return s + 1;
+
+                ArrayList<SplinePoint> l = new ArrayList<SplinePoint>(points);
+                l.add(s + 1, new SplinePoint(pos[0], pos[1], tan[0], tan[1]));
+                return new HermiteSpline(this, l);
             }
         }
-        return -1;
+        return null;
     }
 
-    public void removePoint(int index) {
+    public HermiteSpline removePoint(int index) {
         if (index > 0 && index < getCount() - 1) {
-            this.points.remove(index);
+            ArrayList<SplinePoint> l = new ArrayList<SplinePoint>(points);
+            l.remove(index);
+            return new HermiteSpline(this, l);
+        } else {
+            return this;
         }
     }
 
-    public void clear() {
-        this.points.clear();
-    }
 }

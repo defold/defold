@@ -65,10 +65,16 @@ public class PropertyIntrospectorModel<T, U extends IPropertyObjectWorld> implem
 
     @Override
     public IUndoableOperation setPropertyValue(Object id, Object value) {
+        return setPropertyValue(id, value, false);
+    }
+
+    @Override
+    public IUndoableOperation setPropertyValue(Object id, Object value,
+            boolean force) {
         IPropertyAccessor<T, U> accessor = getPropertyAccessor(id);
         Object oldValue = getPropertyValue(id);
         boolean overridden = isPropertyOverridden(id);
-        IUndoableOperation operation = staticIntrospector.getCommandFactory().create(object, (String) id, accessor, oldValue, value, overridden, world);
+        IUndoableOperation operation = staticIntrospector.getCommandFactory().create(object, (String) id, accessor, oldValue, value, overridden, world, force);
         return operation;
     }
 
@@ -122,7 +128,7 @@ public class PropertyIntrospectorModel<T, U extends IPropertyObjectWorld> implem
 
     @Override
     public Object[] getPropertyOptions(String id) {
-        // NOTE: Options is not suppored for dynamic properties - yet..
+        // NOTE: Options is not supported for dynamic properties - yet..
         if (staticIntrospector.hasProperty(id))
             return staticIntrospector.getPropertyOptions(object, world, id);
         else

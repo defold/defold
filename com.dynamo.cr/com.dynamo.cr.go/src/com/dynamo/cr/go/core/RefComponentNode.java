@@ -33,7 +33,7 @@ import com.dynamo.cr.sceneed.core.ISceneModel;
 public class RefComponentNode extends ComponentNode {
 
     @Property(editorType=EditorType.RESOURCE, extensions = {
-            "camera", "collectionproxy", "collisionobject", "emitter", "factory", "gui", "light", "model", "script", "sprite", "tilegrid", "tilemap", "wav"
+            "camera", "collectionproxy", "collisionobject", "factory", "gui", "light", "model", "particlefx", "script", "sprite", "tilegrid", "tilemap", "wav"
     })
     @Resource
     @NotEmpty
@@ -220,7 +220,7 @@ public class RefComponentNode extends ComponentNode {
                 for (int j = 1; j < tokenCount; ++j) {
                     name += tokens[j].substring(0, 1).toUpperCase() + tokens[j].substring(1);
                 }
-                descs[i] = new TextPropertyDesc<RefComponentNode, ISceneModel>(defProp.getName(), name, EditorType.DEFAULT);
+                descs[i] = new TextPropertyDesc<RefComponentNode, ISceneModel>(defProp.getName(), name, "", EditorType.DEFAULT);
             }
             ++i;
         }

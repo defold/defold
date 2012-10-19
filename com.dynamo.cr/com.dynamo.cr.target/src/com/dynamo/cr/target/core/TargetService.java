@@ -205,6 +205,8 @@ public class TargetService implements ITargetService, Runnable {
                 }
             } catch (JDOMParseException e) {
                 logger.error("Failed to parse UPNP response", e);
+            } catch (IOException e) {
+                // Do not log IOException. This happens...
             } catch (Throwable e) {
                 logger.error("Unexpected error", e);
             }

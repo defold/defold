@@ -151,6 +151,22 @@ namespace dmMath
     {
         return 2.0f * Rand01() - 1.0f;
     }
+
+    /**
+     * Return a random number in the interval [0,RAND_MAX] (stdlib).
+     */
+    inline uint32_t Rand()
+    {
+        return rand();
+    }
+
+    /**
+     * Seed all rand functions.
+     */
+    inline void SRand(uint32_t seed)
+    {
+        srand(seed);
+    }
 }
 
 #endif

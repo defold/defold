@@ -14,6 +14,11 @@ def transform_texture_name(task, name):
     name = name.replace('.jpg', '.texturec')
     return name
 
+def transform_tilesource_name(name):
+    name = name.replace('.tileset', '.tilesetc')
+    name = name.replace('.tilesource', '.tilesetc')
+    return name
+
 def transform_collection(task, msg):
     for i in msg.instances:
         i.prototype = i.prototype.replace('.go', '.goc')
@@ -58,8 +63,9 @@ def transform_collisionobject(task, msg):
     return msg
 
 def transform_particlefx(task, msg):
-    msg.material = msg.material.replace('.material', '.materialc')
-    msg.texture.name = transform_texture_name(task, msg.texture.name)
+    for emitter in msg.emitters:
+        emitter.material = emitter.material.replace('.material', '.materialc')
+        emitter.tile_source = transform_tilesource_name(emitter.tile_source)
     return msg
 
 def transform_gameobject(task, msg):
@@ -72,7 +78,7 @@ def transform_gameobject(task, msg):
         c.component = c.component.replace('.gui', '.guic')
         c.component = c.component.replace('.model', '.modelc')
         c.component = c.component.replace('.script', '.scriptc')
-        c.component = c.component.replace('.wav', '.wavc')
+        c.component = c.component.replace('.sound', '.soundc')
         c.component = c.component.replace('.factory', '.factoryc')
         c.component = c.component.replace('.light', '.lightc')
         c.component = c.component.replace('.sprite', '.spritec')
@@ -125,8 +131,12 @@ def transform_sprite(task, msg):
     return msg
 
 def transform_tilegrid(task, msg):
-    msg.tile_set = msg.tile_set.replace('.tileset', '.tilesetc')
-    msg.tile_set = msg.tile_set.replace('.tilesource', '.tilesetc')
+    msg.tile_set = transform_tilesource_name(msg.tile_set)
+    return msg
+
+def transform_sound(task, msg):
+    msg.sound = msg.sound.replace('.wav', '.wavc')
+    msg.sound = msg.sound.replace('.ogg', '.oggc')
     return msg
 
 def write_embedded(task):
@@ -243,7 +253,7 @@ def gofile(self, node):
 
 proto_compile_task('collection', 'gameobject_ddf_pb2', 'CollectionDesc', '.collection', '.collectionc', transform_collection)
 proto_compile_task('collectionproxy', 'gamesys_ddf_pb2', 'CollectionProxyDesc', '.collectionproxy', '.collectionproxyc', transform_collectionproxy)
-proto_compile_task('particlefx', 'particle.particle_ddf_pb2', 'particle_ddf_pb2.Emitter', '.particlefx', '.particlefxc', transform_particlefx)
+proto_compile_task('particlefx', 'particle.particle_ddf_pb2', 'particle_ddf_pb2.ParticleFX', '.particlefx', '.particlefxc', transform_particlefx)
 proto_compile_task('model', 'model_ddf_pb2', 'ModelDesc', '.model', '.modelc', transform_model)
 proto_compile_task('convexshape',  'physics_ddf_pb2', 'ConvexShape', '.convexshape', '.convexshapec')
 proto_compile_task('collisionobject',  'physics_ddf_pb2', 'CollisionObjectDesc', '.collisionobject', '.collisionobjectc', transform_collisionobject)
@@ -257,6 +267,7 @@ proto_compile_task('render', 'render.render_ddf_pb2', 'render_ddf_pb2.RenderProt
 proto_compile_task('sprite', 'sprite_ddf_pb2', 'SpriteDesc', '.sprite', '.spritec', transform_sprite)
 proto_compile_task('tilegrid', 'tile_ddf_pb2', 'TileGrid', '.tilegrid', '.tilegridc', transform_tilegrid)
 proto_compile_task('tilemap', 'tile_ddf_pb2', 'TileGrid', '.tilemap', '.tilegridc', transform_tilegrid)
+proto_compile_task('sound', 'sound_ddf_pb2', 'SoundDesc', '.sound', '.soundc', transform_sound)
 
 new_copy_task('project', '.project', '.projectc')
 new_copy_task('emitter', '.emitter', '.emitterc')
@@ -341,6 +352,7 @@ def script_file(self, node):
 
 new_copy_task('render_script', '.render_script', '.render_scriptc')
 new_copy_task('wav', '.wav', '.wavc')
+new_copy_task('ogg', '.ogg', '.oggc')
 
 Task.simple_task_type('mesh', 'python ${MESHC} ${SRC} -o ${TGT}',
                       color='PINK',

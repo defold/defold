@@ -362,6 +362,7 @@ namespace dmGameSystem
             // Broadcast to A components
             ddf.m_Group = GetLSBGroupHash(cud->m_World, group_b);
             ddf.m_OtherId = instance_b_id;
+            ddf.m_OtherPosition = dmGameObject::GetWorldPosition(instance_b);
             receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance_a));
             receiver.m_Path = instance_a_id;
             // sender is the same as receiver, but with the specific collision object as fragment
@@ -380,6 +381,7 @@ namespace dmGameSystem
             // Broadcast to B components
             ddf.m_Group = GetLSBGroupHash(cud->m_World, group_a);
             ddf.m_OtherId = dmGameObject::GetIdentifier(instance_a);
+            ddf.m_OtherPosition = dmGameObject::GetWorldPosition(instance_a);
             receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance_b));
             receiver.m_Path = instance_b_id;
             // sender is the same as receiver, but with the specific collision object as fragment

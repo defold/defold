@@ -43,6 +43,11 @@ public class TileSetSceneView extends AbstractSceneView {
     }
 
     @Override
+    public void setSimulating(boolean simulating) {
+        // Not supported
+    }
+
+    @Override
     public void refreshRenderView() {
         this.renderer.requestPaint();
     }

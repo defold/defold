@@ -6,7 +6,7 @@ public interface ICommandFactory<T, U extends IPropertyObjectWorld> {
 
     public IUndoableOperation create(T obj, String property,
             IPropertyAccessor<T, U> accessor,
-            Object oldValue, Object newValue, boolean overridden, U world);
+            Object oldValue, Object newValue, boolean overridden, U world, boolean force);
 
     public IUndoableOperation createReset(T obj, String property,
             IPropertyAccessor<T, U> accessor,

@@ -3,16 +3,24 @@ package com.dynamo.cr.parted;
 import java.net.URL;
 
 import org.eclipse.core.runtime.FileLocator;
-import org.eclipse.ui.plugin.AbstractUIPlugin;
+import org.eclipse.jface.resource.ImageDescriptor;
+import org.eclipse.jface.resource.ImageRegistry;
 import org.osgi.framework.BundleContext;
+
+import com.dynamo.cr.editor.ui.AbstractDefoldPlugin;
 
 /**
  * The activator class controls the plug-in life cycle
  */
-public class ParticleEditorPlugin extends AbstractUIPlugin {
+public class ParticleEditorPlugin extends AbstractDefoldPlugin {
 
 	// The plug-in ID
 	public static final String PLUGIN_ID = "com.dynamo.cr.parted"; //$NON-NLS-1$
+
+    public static final String EMITTER_IMAGE_ID = "EMITTER"; //$NON-NLS-1$
+    public static final String MODIFIER_IMAGE_ID = "MODIFIER"; //$NON-NLS-1$
+
+    public static final String PARTED_CONTEXT_ID = "com.dynamo.cr.parted.contexts.partEditor";
 
 	// The shared instance
 	private static ParticleEditorPlugin plugin;
@@ -47,6 +55,20 @@ public class ParticleEditorPlugin extends AbstractUIPlugin {
 		plugin = null;
 		super.stop(context);
 	}
+
+	@Override
+	protected void initializeImageRegistry(ImageRegistry reg) {
+	    super.initializeImageRegistry(reg);
+        registerImage(reg, EMITTER_IMAGE_ID, "icons/drop.png");
+        registerImage(reg, MODIFIER_IMAGE_ID, "icons/tornado.png");
+	}
+
+    private void registerImage(ImageRegistry registry, String key,
+            String fileName) {
+
+        ImageDescriptor id = imageDescriptorFromPlugin(PLUGIN_ID, fileName);
+        registry.put(key, id);
+    }
 
 	/**
 	 * Returns the shared instance

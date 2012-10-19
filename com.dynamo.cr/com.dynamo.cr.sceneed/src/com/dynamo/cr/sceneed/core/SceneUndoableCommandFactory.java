@@ -12,9 +12,9 @@ ICommandFactory<Object, ISceneModel> {
     @Override
     public IUndoableOperation create(Object object, String property,
             IPropertyAccessor<Object, ISceneModel> accessor, Object oldValue,
-            Object newValue, boolean overridden, ISceneModel model) {
+            Object newValue, boolean overridden, ISceneModel model, boolean force) {
 
-        if (!newValue.equals(oldValue)) {
+        if (force || !newValue.equals(oldValue)) {
             SetPropertiesOperation<Object, ISceneModel> operation = new SetPropertiesOperation<Object, ISceneModel>(object,
                     property, accessor, oldValue,
                     newValue, overridden, model);

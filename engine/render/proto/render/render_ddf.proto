@@ -25,15 +25,17 @@ message RenderPrototypeDesc
  * @name draw_text
  * @param position Position of the text
  * @param text The text to draw
+ * @param color Face color of the text
  * @examples
  * <pre>
- * msg.post("@render:", "draw_text", { text = "Hello world!", position = vmath.vector3(200, 200, 0) } )
+ * msg.post("@render:", "draw_text", { text = "Hello world!", position = vmath.vector3(200, 200, 0), color = vmath.vector4(1, 1, 1, 1) } )
  * </pre>
  */
 message DrawText
 {
     required dmMath.Point3 position = 1;
     required string text = 2;
+    optional dmMath.Vector4 color = 3;
 }
 
 /*# draw a line on the screen

@@ -16,6 +16,7 @@ import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.IStructuredSelection;
 
 import com.dynamo.cr.sceneed.ui.TextureRegistry;
+import com.sun.opengl.util.j2d.TextRenderer;
 
 public class RenderContext {
     private GL gl;
@@ -25,6 +26,8 @@ public class RenderContext {
     private Set<Node> selectedNodes = new HashSet<Node>();
     private IRenderView renderView;
     private TextureRegistry textureRegistry;
+    private double dt;
+    private TextRenderer smallTextRenderer;
 
     public enum Pass {
         /**
@@ -120,11 +123,13 @@ public class RenderContext {
     }
 
     @SuppressWarnings("unchecked")
-    public RenderContext(IRenderView renderView, GL gl, GLU glu, TextureRegistry textureRegistry, ISelection selection) {
+    public RenderContext(IRenderView renderView, double dt, GL gl, GLU glu, TextureRegistry textureRegistry, ISelection selection, TextRenderer smallTextRenderer) {
         this.renderView = renderView;
+        this.dt = dt;
         this.gl = gl;
         this.glu = glu;
         this.textureRegistry = textureRegistry;
+        this.smallTextRenderer = smallTextRenderer;
         this.renderDataList = new ArrayList<RenderData<? extends Node>>(1024);
         if (selection instanceof IStructuredSelection) {
             IStructuredSelection structSel = (IStructuredSelection) selection;
@@ -183,6 +188,14 @@ public class RenderContext {
     private static float OBJECT_COLOR[] = new float[] { 43.0f/255, 25.0f/255, 116.0f/255 };
     private static float SELECTED_COLOR[] = new float[] { 69.0f/255, 255.0f/255, 162.0f/255 };
 
+    public boolean isSelected(Node node) {
+        Node n = node;
+        while (n != null && n.getParent() != null && !selectedNodes.contains(n)) {
+            n = n.getParent();
+        }
+        return  (n != null && n.getParent() != null);
+    }
+
     /**
      * Select color based on pass. If not default color is selected objectColor is returned
      * @param node node to render
@@ -195,11 +208,7 @@ public class RenderContext {
             return objectColor;
         case ICON_OUTLINE:
         case OUTLINE:
-            Node n = node;
-            while (n != null && n.getParent() != null && !selectedNodes.contains(n)) {
-                n = n.getParent();
-            }
-            if (n != null && n.getParent() != null) {
+            if (isSelected(node)) {
                 return SELECTED_COLOR;
             } else {
                 return OBJECT_COLOR;
@@ -209,6 +218,14 @@ public class RenderContext {
         }
 
         return objectColor;
+    }
+
+    public double getDt() {
+        return dt;
+    }
+
+    public TextRenderer getSmallTextRenderer() {
+        return smallTextRenderer;
     }
 
 }

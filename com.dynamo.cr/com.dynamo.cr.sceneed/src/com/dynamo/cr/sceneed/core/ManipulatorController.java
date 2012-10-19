@@ -75,6 +75,7 @@ public class ManipulatorController implements IRenderViewProvider, IRenderViewCo
             if (rootManipulator != null) {
                 rootManipulator.setController(this);
                 rootManipulator.setSelection(Collections.unmodifiableList(selectionList));
+                rootManipulator.refresh();
             }
         } else {
             rootManipulator = null;

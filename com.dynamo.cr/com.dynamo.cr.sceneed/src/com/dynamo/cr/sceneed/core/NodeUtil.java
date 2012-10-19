@@ -12,7 +12,10 @@ public class NodeUtil {
     public static <T extends Node> String getUniqueId(List<T> nodes, String baseId, IdFetcher<T> idFetcher) {
         List<String> ids = new ArrayList<String>(nodes.size());
         for (T node: nodes) {
-            ids.add(idFetcher.getId(node));
+            String nodeId = idFetcher.getId(node);
+            if (nodeId != null) {
+                ids.add(nodeId);
+            }
         }
         String id = baseId;
         String format = "%s%d";
