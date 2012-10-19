@@ -76,7 +76,7 @@ public class ParticleFXNodeTest extends AbstractNodeTest {
     public void testScalarProperty() throws Exception {
         Emitter.Builder eb = emitterBuilder();
 
-        EmitterKey key = EmitterKey.EMITTER_KEY_SPAWN_DELAY;
+        EmitterKey key = EmitterKey.EMITTER_KEY_SPAWN_RATE;
         eb.addProperties(Emitter.Property.newBuilder().setKey(key).addPoints(newPoint(0, 0.0f)));
         EmitterNode emitter = (EmitterNode) new EmitterNode(eb.build());
 
@@ -100,7 +100,7 @@ public class ParticleFXNodeTest extends AbstractNodeTest {
     public void testSplineProperty() throws Exception {
         Emitter.Builder eb = emitterBuilder();
 
-        EmitterKey key = EmitterKey.EMITTER_KEY_SPAWN_DELAY;
+        EmitterKey key = EmitterKey.EMITTER_KEY_SPAWN_RATE;
         eb.addProperties(Emitter.Property.newBuilder().setKey(key).addPoints(newPoint(0, 0.6f)).addPoints(newPoint(1, 1)) );
         EmitterNode emitter = (EmitterNode) new EmitterNode(eb.build());
 
