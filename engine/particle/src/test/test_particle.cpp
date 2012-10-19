@@ -23,7 +23,7 @@ protected:
     {
         m_Context = dmParticle::CreateContext(64, 1024);
         assert(m_Context != 0);
-        m_VertexBufferSize = 1024 * 4 * 6 * sizeof(float);
+        m_VertexBufferSize = dmParticle::GetVertexBufferSize(1024);
         m_VertexBuffer = new float[m_VertexBufferSize];
         m_Prototype = 0x0;
     }
@@ -1228,6 +1228,30 @@ TEST_F(ParticleTest, InheritVelocity)
 
     ASSERT_EQ(0.0f, lengthSqr(e1->m_Particles[0].GetVelocity()));
     ASSERT_NE(0.0f, lengthSqr(e2->m_Particles[0].GetVelocity()));
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
+TEST_F(ParticleTest, Stats)
+{
+    float dt = 1.0f / 60.0f;
+
+    ASSERT_TRUE(LoadPrototype("stats.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype);
+
+    dmParticle::StartInstance(m_Context, instance);
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+
+    dmParticle::Stats stats;
+    dmParticle::InstanceStats instance_stats;
+
+    dmParticle::GetStats(m_Context, &stats);
+    dmParticle::GetInstanceStats(m_Context, instance, &instance_stats);
+
+    ASSERT_EQ(1024U, stats.m_Particles);
+    ASSERT_EQ(1024U, stats.m_MaxParticles);
+    ASSERT_NEAR(instance_stats.m_Time, 2 * dt, 0.001f);
 
     dmParticle::DestroyInstance(m_Context, instance);
 }

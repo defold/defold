@@ -416,7 +416,7 @@ namespace dmParticle
         }
     }
 
-    void FireAndForget(HContext context, Prototype* prototype, Point3 position, Quat rotation)
+    void FireAndForget(HContext context, Prototype* prototype, const Point3& position, const Quat& rotation)
     {
         if (prototype == 0x0)
             return;
@@ -444,14 +444,14 @@ namespace dmParticle
         }
     }
 
-    void SetPosition(HContext context, HInstance instance, Point3 position)
+    void SetPosition(HContext context, HInstance instance, const Point3& position)
     {
         Instance* i = GetInstance(context, instance);
         if (!i) return;
         i->m_Position = position;
     }
 
-    void SetRotation(HContext context, HInstance instance, Quat rotation)
+    void SetRotation(HContext context, HInstance instance, const Quat& rotation)
     {
         Instance* i = GetInstance(context, instance);
         if (!i) return;
@@ -617,6 +617,8 @@ namespace dmParticle
                     vertex_index += UpdateRenderData(context, instance, emitter, emitter_ddf, vertex_index, vertex_buffer, vertex_buffer_size);
             }
         }
+
+        context->m_Stats.m_Particles = vertex_index / 6;
         if (out_vertex_buffer_size != 0x0)
         {
             *out_vertex_buffer_size = vertex_index * sizeof(Vertex);
@@ -1046,7 +1048,7 @@ namespace dmParticle
         }
     }
 
-    void ApplyAcceleration(dmArray<Particle>& particles, Property* modifier_properties, Quat rotation, float dt)
+    void ApplyAcceleration(dmArray<Particle>& particles, Property* modifier_properties, const Quat& rotation, float dt)
     {
         uint32_t particle_count = particles.Size();
         Vector3 acc_step = rotate(rotation, ACCELERATION_LOCAL_DIR) * dt;
@@ -1060,7 +1062,7 @@ namespace dmParticle
         }
     }
 
-    void ApplyDrag(dmArray<Particle>& particles, Property* modifier_properties, dmParticleDDF::Modifier* modifier_ddf, Quat rotation, float dt)
+    void ApplyDrag(dmArray<Particle>& particles, Property* modifier_properties, dmParticleDDF::Modifier* modifier_ddf, const Quat& rotation, float dt)
     {
         uint32_t particle_count = particles.Size();
         Vector3 direction = rotate(rotation, DRAG_LOCAL_DIR);
@@ -1094,7 +1096,7 @@ namespace dmParticle
         return result;
     }
 
-    void ApplyRadial(dmArray<Particle>& particles, Property* modifier_properties, Point3 position, float dt)
+    void ApplyRadial(dmArray<Particle>& particles, Property* modifier_properties, const Point3& position, float dt)
     {
         uint32_t particle_count = particles.Size();
         const Property& magnitude_property = modifier_properties[MODIFIER_KEY_MAGNITUDE];
@@ -1115,7 +1117,7 @@ namespace dmParticle
         }
     }
 
-    void ApplyVortex(dmArray<Particle>& particles, Property* modifier_properties, Point3 position, Quat rotation, float dt)
+    void ApplyVortex(dmArray<Particle>& particles, Property* modifier_properties, const Point3& position, const Quat& rotation, float dt)
     {
         uint32_t particle_count = particles.Size();
         const Property& magnitude_property = modifier_properties[MODIFIER_KEY_MAGNITUDE];
@@ -1574,6 +1576,26 @@ namespace dmParticle
         }
     }
 
+    void GetStats(HContext context, Stats* stats)
+    {
+        assert(stats->m_StructSize == sizeof(*stats));
+        *stats = context->m_Stats;
+        stats->m_MaxParticles = context->m_MaxParticleCount;
+    }
+
+    void GetInstanceStats(HContext context, HInstance instance, InstanceStats* stats)
+    {
+        assert(stats->m_StructSize == sizeof(*stats));
+        Instance* i = GetInstance(context, instance);
+        stats->m_Time = i->m_PlayTime;
+    }
+
+    uint32_t GetVertexBufferSize(uint32_t particle_count)
+    {
+        return particle_count * 6 * sizeof(Vertex);
+    }
+
+
 #define DM_PARTICLE_TRAMPOLINE1(ret, name, t1) \
     ret Particle_##name(t1 a1)\
     {\
@@ -1623,8 +1645,8 @@ namespace dmParticle
     DM_PARTICLE_TRAMPOLINE2(void, StopInstance, HContext, HInstance);
     DM_PARTICLE_TRAMPOLINE2(void, RestartInstance, HContext, HInstance);
     DM_PARTICLE_TRAMPOLINE2(void, ResetInstance, HContext, HInstance);
-    DM_PARTICLE_TRAMPOLINE3(void, SetPosition, HContext, HInstance, Point3);
-    DM_PARTICLE_TRAMPOLINE3(void, SetRotation, HContext, HInstance, Quat);
+    DM_PARTICLE_TRAMPOLINE3(void, SetPosition, HContext, HInstance, const Point3&);
+    DM_PARTICLE_TRAMPOLINE3(void, SetRotation, HContext, HInstance, const Quat&);
 
     DM_PARTICLE_TRAMPOLINE2(bool, IsSpawning, HContext, HInstance);
     DM_PARTICLE_TRAMPOLINE2(bool, IsSleeping, HContext, HInstance);
@@ -1645,6 +1667,11 @@ namespace dmParticle
 
     DM_PARTICLE_TRAMPOLINE5(void, SetRenderConstant, HContext, HInstance, dmhash_t, dmhash_t, Vector4);
     DM_PARTICLE_TRAMPOLINE4(void, ResetRenderConstant, HContext, HInstance, dmhash_t, dmhash_t);
+
+    DM_PARTICLE_TRAMPOLINE2(void, GetStats, HContext, Stats*);
+    DM_PARTICLE_TRAMPOLINE3(void, GetInstanceStats, HContext, HInstance, InstanceStats*);
+
+    DM_PARTICLE_TRAMPOLINE1(uint32_t, GetVertexBufferSize, uint32_t);
 
     dmhash_t Particle_Hash(const char* value)
     {

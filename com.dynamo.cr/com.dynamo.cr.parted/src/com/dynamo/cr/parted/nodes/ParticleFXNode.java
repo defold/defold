@@ -36,7 +36,6 @@ import com.sun.opengl.util.BufferUtil;
 
 public class ParticleFXNode extends ComponentTypeNode {
     public static final int VERTEX_COMPONENT_COUNT = 9;
-    public static final int PARTICLE_VERTEX_COUNT = 6;
 
     private static Logger logger = LoggerFactory.getLogger(ParticleFXNode.class);
 
@@ -147,6 +146,10 @@ public class ParticleFXNode extends ComponentTypeNode {
         return this.context;
     }
 
+    public Pointer getInstance() {
+        return instance;
+    }
+
     public FloatBuffer getVertexBuffer() {
         return this.vertexBuffer;
     }
@@ -242,7 +245,7 @@ public class ParticleFXNode extends ComponentTypeNode {
         int maxParticleCount = ParticleLibrary.Particle_GetContextMaxParticleCount(this.context);
         if (maxParticleCount != this.maxParticleCount) {
             this.maxParticleCount = maxParticleCount;
-            this.vertexBuffer = BufferUtil.newFloatBuffer(this.maxParticleCount * VERTEX_COMPONENT_COUNT * PARTICLE_VERTEX_COUNT);
+            this.vertexBuffer = BufferUtil.newFloatBuffer(ParticleLibrary.Particle_GetVertexBufferSize(this.maxParticleCount));
         }
 
         boolean running = dt > 0.0;

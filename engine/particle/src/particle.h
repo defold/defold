@@ -61,7 +61,7 @@ namespace dmParticle
     /**
      * Callback to handle rendering of lines for debug purposes
      */
-    typedef void (*RenderLineCallback)(void* usercontext, Vectormath::Aos::Point3 start, Vectormath::Aos::Point3 end, Vectormath::Aos::Vector4 color);
+    typedef void (*RenderLineCallback)(void* usercontext, const Vectormath::Aos::Point3& start, const Vectormath::Aos::Point3& end, const Vectormath::Aos::Vector4& color);
 
     enum AnimPlayback
     {
@@ -102,6 +102,36 @@ namespace dmParticle
      * Callback to fetch the animation from a tile source
      */
     typedef FetchAnimationResult (*FetchAnimationCallback)(void* tile_source, dmhash_t animation, AnimationData* out_data);
+
+    /**
+     * Particle statistics
+     */
+    struct Stats
+    {
+        Stats()
+        {
+            m_StructSize = sizeof(*this);
+        }
+
+        uint32_t m_Particles;
+        uint32_t m_MaxParticles;
+        uint32_t m_StructSize;
+    };
+
+    /**
+     * Particle instance statistics
+     */
+    struct InstanceStats
+    {
+        InstanceStats()
+        {
+            m_StructSize = sizeof(*this);
+        }
+
+        float m_Time;
+        uint32_t m_StructSize;
+    };
+
 
 #define DM_PARTICLE_PROTO(ret, name,  ...) \
     \
@@ -191,7 +221,7 @@ namespace dmParticle
      * @param position Position of the created instance.
      * @param rotation Rotation of the created instance.
      */
-    DM_PARTICLE_PROTO(void, FireAndForget, HContext context, HPrototype prototype, Point3 position, Quat rotation);
+    DM_PARTICLE_PROTO(void, FireAndForget, HContext context, HPrototype prototype, const Point3& position, const Quat& rotation);
 
     /**
      * Set the position of the specified instance.
@@ -199,14 +229,14 @@ namespace dmParticle
      * @param instance Instance to set position for.
      * @param position Position in world space.
      */
-    DM_PARTICLE_PROTO(void, SetPosition, HContext context, HInstance instance, Point3 position);
+    DM_PARTICLE_PROTO(void, SetPosition, HContext context, HInstance instance, const Point3& position);
     /**
      * Set the position of the specified instance.
      * @param context Context in which the instance exists.
      * @param instance Instance to set rotation for.
      * @param rotation Rotation in world space.
      */
-    DM_PARTICLE_PROTO(void, SetRotation, HContext context, HInstance instance, Quat rotation);
+    DM_PARTICLE_PROTO(void, SetRotation, HContext context, HInstance instance, const Quat& rotation);
 
     /**
      * Returns if the specified instance is spawning particles or not.
@@ -325,6 +355,28 @@ namespace dmParticle
      * @param name_hash Hashed name of the constant to reset
      */
     DM_PARTICLE_PROTO(void, ResetRenderConstant, HContext context, HInstance instance, dmhash_t emitter_id, dmhash_t name_hash);
+
+    /**
+     * Get statistics
+     * @param context Particle context
+     * @param stats Pointer to stats structure
+     */
+    DM_PARTICLE_PROTO(void, GetStats, HContext context, Stats* stats);
+
+    /**
+     * Get instance statistics
+     * @param context Particle context
+     * @param instance Instance to get stats for
+     * @param stats Pointer to instance stats structure
+     */
+    DM_PARTICLE_PROTO(void, GetInstanceStats, HContext context, HInstance instance, InstanceStats* stats);
+
+    /**
+     * Get required vertex buffer size
+     * @param particle_count number of particles in vertex buffer
+     * @return Required vertex buffer size in bytes
+     */
+    DM_PARTICLE_PROTO(uint32_t, GetVertexBufferSize, uint32_t particle_count);
 
     /**
      * Wrapper for dmHashString64

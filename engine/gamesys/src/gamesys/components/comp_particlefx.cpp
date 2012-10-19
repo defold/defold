@@ -42,23 +42,18 @@ namespace dmGameSystem
         uint32_t m_VertexCount;
     };
 
-    struct ParticleVertex
-    {
-        float m_Position[3];
-        float m_UV[2];
-        float m_Red, m_Green, m_Blue, m_Alpha;
-    };
-
     dmGameObject::CreateResult CompParticleFXNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
         assert(params.m_Context);
+        assert(dmParticle::GetVertexBufferSize(1) == 6 * 36);
+
         ParticleFXContext* ctx = (ParticleFXContext*)params.m_Context;
         ParticleFXWorld* world = new ParticleFXWorld();
         world->m_Context = ctx;
         world->m_ParticleContext = dmParticle::CreateContext(ctx->m_MaxParticleFXCount, ctx->m_MaxParticleCount);
         world->m_Components.SetCapacity(ctx->m_MaxParticleFXCount);
         world->m_RenderObjects.SetCapacity(ctx->m_MaxParticleFXCount);
-        uint32_t buffer_size = ctx->m_MaxParticleCount * 6 * sizeof(ParticleVertex);
+        uint32_t buffer_size = dmParticle::GetVertexBufferSize(ctx->m_MaxParticleCount);
         world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(ctx->m_RenderContext), buffer_size, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         world->m_ClientBuffer = new char[buffer_size];
         dmGraphics::VertexElement ve[] =
@@ -140,7 +135,7 @@ namespace dmGameSystem
         w->m_RenderObjects.SetSize(0);
 
         float* vertex_buffer = (float*)w->m_ClientBuffer;
-        uint32_t max_vertex_buffer_size = ctx->m_MaxParticleCount * 6 * sizeof(ParticleVertex);
+        uint32_t max_vertex_buffer_size =  dmParticle::GetVertexBufferSize(ctx->m_MaxParticleCount);
         uint32_t vertex_buffer_size;
         dmParticle::Update(particle_context, params.m_UpdateContext->m_DT, vertex_buffer, max_vertex_buffer_size, &vertex_buffer_size, FetchAnimationCallback);
         dmParticle::Render(particle_context, w, RenderInstanceCallback);
