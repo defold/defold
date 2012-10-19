@@ -68,6 +68,33 @@ public class ParticleLibrary {
 
     public static native long Particle_Hash(String value);
 
+    public static native void Particle_GetStats(Pointer context, Stats stats);
+
+    public static native void Particle_GetInstanceStats(Pointer context, Pointer instance, InstanceStats stats);
+
+    public static native int Particle_GetVertexBufferSize(int particle_count);
+
+    public static class Stats extends Structure {
+
+        public Stats() {
+            structSize = size();
+        }
+
+        public int particles;
+        public int maxParticles;
+        public int structSize;
+    }
+
+    public static class InstanceStats extends Structure {
+
+        public InstanceStats() {
+            structSize = size();
+        }
+
+        public float time;
+        public int structSize;
+    }
+
     public static class Vector3 extends Structure {
 
         public Vector3() {
@@ -120,7 +147,7 @@ public class ParticleLibrary {
         public static final int FETCH_ANIMATION_OK = 0;
         public static final int FETCH_ANIMATION_NOT_FOUND = -1;
         public static final int FETCH_ANIMATION_UNKNOWN_ERROR = -1000;
-    };
+    }
 
     public static class AnimationData extends Structure {
         public AnimationData() {

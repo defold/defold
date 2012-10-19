@@ -1,6 +1,6 @@
 package com.dynamo.cr.parted.nodes;
 
-import java.awt.Font;
+import java.awt.geom.Rectangle2D;
 import java.nio.FloatBuffer;
 import java.util.EnumSet;
 
@@ -8,7 +8,9 @@ import javax.media.opengl.GL;
 import javax.vecmath.Point3d;
 
 import com.dynamo.cr.parted.ParticleLibrary;
+import com.dynamo.cr.parted.ParticleLibrary.InstanceStats;
 import com.dynamo.cr.parted.ParticleLibrary.RenderInstanceCallback;
+import com.dynamo.cr.parted.ParticleLibrary.Stats;
 import com.dynamo.cr.sceneed.core.INodeRenderer;
 import com.dynamo.cr.sceneed.core.RenderContext;
 import com.dynamo.cr.sceneed.core.RenderContext.Pass;
@@ -23,7 +25,6 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
     private static final EnumSet<Pass> passes = EnumSet.of(Pass.TRANSPARENT, Pass.OVERLAY);
 
     private Callback callBack = new Callback();
-    private TextRenderer textRenderer;
 
     private class Callback implements RenderInstanceCallback {
         GL gl;
@@ -82,9 +83,6 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
 
     @Override
     public void dispose() {
-        if (textRenderer != null) {
-            textRenderer.dispose();
-        }
     }
 
     @Override
@@ -106,18 +104,36 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
         if (renderData.getPass() == Pass.OVERLAY) {
             // Special case for background pass. Render simulation time feedback
 
-            if (textRenderer == null) {
-                String fontName = Font.SANS_SERIF;
-                Font debugFont = new Font(fontName, Font.BOLD, 20);
-                textRenderer = new TextRenderer(debugFont, true, true);
-            }
+            TextRenderer textRenderer = renderContext.getSmallTextRenderer();
 
             gl.glPushMatrix();
             gl.glScaled(1, -1, 1);
             textRenderer.setColor(1, 1, 1, 1);
             textRenderer.begin3DRendering();
-            String text = String.format("%.1f", node.getElapsedTime());
-            textRenderer.draw3D(text, (float) 10, (float) -26, 1, 1);
+
+            Pointer context = node.getContext();
+            Pointer instance = node.getInstance();
+
+            Stats stats = new Stats();
+            ParticleLibrary.Particle_GetStats(context, stats);
+            InstanceStats instanceStats = new InstanceStats();
+            ParticleLibrary.Particle_GetInstanceStats(context, instance, instanceStats);
+
+            String text1 = String.format("Time: %.1f", instanceStats.time);
+            String text2 = "Particles:";
+            String text3 = String.format("%d/%d", stats.particles, stats.maxParticles);
+            Rectangle2D bounds = textRenderer.getBounds(text2);
+
+            float x0 = 12;
+            float y0 = -22;
+            float dy = (float) bounds.getHeight();
+            textRenderer.draw3D(text1, x0, y0, 1, 1);
+            textRenderer.draw3D(text2, x0, y0 - dy * 2, 1, 1);
+            if (stats.particles >= stats.maxParticles) {
+                textRenderer.setColor(1, 0, 0, 1);
+            }
+            textRenderer.draw3D(text3, (x0 + 4 + (float) bounds.getWidth()), y0 - 2 * dy, 1, 1);
+
             textRenderer.end3DRendering();
             gl.glPopMatrix();
 

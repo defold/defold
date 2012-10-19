@@ -156,6 +156,7 @@ namespace dmParticle
         : m_MaxParticleCount(max_particle_count)
         , m_NextVersionNumber(1)
         {
+            memset(&m_Stats, 0, sizeof(m_Stats));
             m_Instances.SetCapacity(max_instance_count);
             m_Instances.SetSize(max_instance_count);
             if (max_instance_count > 0)
@@ -178,6 +179,8 @@ namespace dmParticle
         uint32_t            m_MaxParticleCount;
         /// Version number used to create new handles.
         uint16_t            m_NextVersionNumber;
+        /// Stats
+        Stats               m_Stats;
     };
 
     struct LinearSegment

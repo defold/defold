@@ -16,8 +16,10 @@ import org.junit.Test;
 import com.dynamo.cr.parted.ParticleLibrary;
 import com.dynamo.cr.parted.ParticleLibrary.AnimationData;
 import com.dynamo.cr.parted.ParticleLibrary.FetchAnimationCallback;
+import com.dynamo.cr.parted.ParticleLibrary.InstanceStats;
 import com.dynamo.cr.parted.ParticleLibrary.Quat;
 import com.dynamo.cr.parted.ParticleLibrary.RenderInstanceCallback;
+import com.dynamo.cr.parted.ParticleLibrary.Stats;
 import com.dynamo.cr.parted.ParticleLibrary.Vector3;
 import com.dynamo.particle.proto.Particle.BlendMode;
 import com.dynamo.particle.proto.Particle.EmissionSpace;
@@ -155,6 +157,15 @@ public class ParticleSystemTest {
             assertTrue(0.0f == vertexBuffer.get());
             assertTrue(0.0f == vertexBuffer.get());
         }
+
+        Stats stats = new Stats();
+        InstanceStats instanceStats = new InstanceStats();
+        ParticleLibrary.Particle_GetStats(context, stats);
+        ParticleLibrary.Particle_GetInstanceStats(context, instance, instanceStats);
+
+        assertEquals(1, stats.particles);
+        assertEquals(1024, stats.maxParticles);
+        assertEquals(1.0f / 60.0f, instanceStats.time, 0.0001f);
 
         final boolean rendered[] = new boolean[] { false };
         ParticleLibrary.Particle_Render(context, new Pointer(1122), new RenderInstanceCallback() {

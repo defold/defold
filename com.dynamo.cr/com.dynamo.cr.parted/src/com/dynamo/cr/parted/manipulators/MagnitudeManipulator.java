@@ -3,7 +3,8 @@ package com.dynamo.cr.parted.manipulators;
 import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.swt.events.MouseEvent;
 
-import com.dynamo.cr.parted.nodes.AccelerationNode;
+import com.dynamo.cr.parted.nodes.AbstractModifierNode;
+import com.dynamo.cr.parted.nodes.DragNode;
 import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Manipulator;
@@ -12,21 +13,21 @@ import com.dynamo.cr.sceneed.ui.RootManipulator;
 import com.dynamo.cr.sceneed.ui.ScaleAxisManipulator;
 
 @SuppressWarnings("serial")
-public class AccelerationManipulator extends RootManipulator {
+public class MagnitudeManipulator extends RootManipulator {
 
     private ScaleAxisManipulator xScaleManipulator;
     private boolean sizeChanged = false;
     private double magnitude;
     private double originalMagnitude;
 
-    public AccelerationManipulator() {
+    public MagnitudeManipulator() {
         xScaleManipulator = new ScaleAxisManipulator(this, new float[] {1, 0, 0, 1});
         addChild(xScaleManipulator);
     }
 
     @Override
     public boolean match(Object[] selection) {
-        if (selection.length > 0 && selection[0] instanceof AccelerationNode) {
+        if (selection.length > 0 && selection[0] instanceof AbstractModifierNode || selection[0] instanceof DragNode) {
             return true;
         }
         return false;
@@ -41,8 +42,8 @@ public class AccelerationManipulator extends RootManipulator {
         sizeChanged = true;
         double factor = 2.0;
         for (Node node : getSelection()) {
-            if (node instanceof AccelerationNode) {
-                AccelerationNode modifier = (AccelerationNode) node;
+            if (node instanceof AbstractModifierNode) {
+                AbstractModifierNode modifier = (AbstractModifierNode) node;
                 if (manipulator == xScaleManipulator) {
                     magnitude = originalMagnitude + xScaleManipulator.getDistance() * factor;
                     modifier.setMagnitude(magnitude);
@@ -53,7 +54,7 @@ public class AccelerationManipulator extends RootManipulator {
 
     @Override
     protected void selectionChanged() {
-        AccelerationNode modifier = (AccelerationNode) getSelection().get(0);
+        AbstractModifierNode modifier = (AbstractModifierNode) getSelection().get(0);
         magnitude = originalMagnitude = modifier.getMagnitude();
         setTranslation(modifier.getTranslation());
         setRotation(modifier.getRotation());
@@ -68,7 +69,7 @@ public class AccelerationManipulator extends RootManipulator {
     public void mouseUp(MouseEvent e) {
         if (sizeChanged) {
             Node node = getSelection().get(0);
-            AccelerationNode modifier = (AccelerationNode) node;
+            AbstractModifierNode modifier = (AbstractModifierNode) node;
             // We must reset. Otherwise setPropertyValue will detect no change and return null operation
             modifier.setMagnitude(originalMagnitude);
 
