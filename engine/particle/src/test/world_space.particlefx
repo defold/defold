@@ -6,23 +6,16 @@ emitters: {
     rotation:           { x: 0 y: 0 z: 0 w: 1 }
 
     tile_source:        "particle.tilesource"
-    animation:          "anim"
+    animation:          ""
     material:           "particle.material"
 
-    max_particle_count: 1
+    max_particle_count:   1
 
     type:               EMITTER_TYPE_CONE
-
     properties:         { key: EMITTER_KEY_SPAWN_RATE
-        points: { x: 0 y: 5 t_x: 1 t_y: 0 }
+        points: { x: 0 y: 1 t_x: 1 t_y: 0 }
     }
     properties:         { key: EMITTER_KEY_PARTICLE_LIFE_TIME
-        points: { x: 0 y: 1 t_x: 1 t_y: 0 }
-    }
-    properties:         { key: EMITTER_KEY_PARTICLE_SIZE
-        points: { x: 0 y: 1 t_x: 1 t_y: 0 }
-    }
-    particle_properties:         { key: PARTICLE_KEY_SCALE
         points: { x: 0 y: 1 t_x: 1 t_y: 0 }
     }
 }

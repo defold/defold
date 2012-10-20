@@ -179,7 +179,6 @@ namespace dmParticle
     DM_PARTICLE_PROTO(void, DestroyInstance, HContext context, HInstance instance);
     /**
      * Reload instance in the specified context based on its prototype.
-     * If the number of emitters has changed, the instance will be reset, and restarted if currently playing.
      * @param context Context handle, must be valid.
      * @param instance Instance to reload, can be invalid.
      * @param reload_looping if looping emitters should be replayed
@@ -199,29 +198,12 @@ namespace dmParticle
      */
     DM_PARTICLE_PROTO(void, StopInstance, HContext context, HInstance instance);
     /**
-     * Restart the specified instance, which means it will start spawning particles again.
-     * Any already living particles will remain after this call.
-     * @param context Context in which the instance exists.
-     * @param instance Instance to restart, can be invalid.
-     */
-    DM_PARTICLE_PROTO(void, RestartInstance, HContext context, HInstance instance);
-    /**
      * Reset the specified instance, which means its state will be like when first created.
      * Any already living particles will be annihilated.
      * @param context Context in which the instance exists.
      * @param instance Instance to reset, can be invalid.
      */
     DM_PARTICLE_PROTO(void, ResetInstance, HContext context, HInstance instance);
-    /**
-     * Create and start a new instance. Once the instance is sleeping (@see IsSleeping), the particle system will automatically destroy it.
-     * Instances with looping emitters can not be created this way since they would never be destroyed in that case.
-     * @param context Context in which the instance exists.
-     * @param prototype Prototype of the instance to be created.
-     * @param path Path of the instance resource.
-     * @param position Position of the created instance.
-     * @param rotation Rotation of the created instance.
-     */
-    DM_PARTICLE_PROTO(void, FireAndForget, HContext context, HPrototype prototype, const Point3& position, const Quat& rotation);
 
     /**
      * Set the position of the specified instance.
@@ -238,11 +220,6 @@ namespace dmParticle
      */
     DM_PARTICLE_PROTO(void, SetRotation, HContext context, HInstance instance, const Quat& rotation);
 
-    /**
-     * Returns if the specified instance is spawning particles or not.
-     * A looping instance is spawning particles until stopped, other instances are spawning until stopped or their duration has elapsed.
-     */
-    DM_PARTICLE_PROTO(bool, IsSpawning, HContext context, HInstance instances);
     /**
      * Returns if the specified instance is spawning particles or not.
      * Instances are sleeping when they are not spawning and have no remaining living particles.

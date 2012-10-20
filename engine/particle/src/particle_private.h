@@ -77,6 +77,14 @@ namespace dmParticle
         SortKey     m_SortKey;
     };
 
+    enum EmitterState
+    {
+        EMITTER_STATE_SLEEPING = 0,
+        EMITTER_STATE_PRESPAWN = 1,
+        EMITTER_STATE_SPAWNING = 2,
+        EMITTER_STATE_POSTSPAWN = 3,
+    };
+
     /**
      * Representation of an emitter.
      */
@@ -100,16 +108,12 @@ namespace dmParticle
         uint32_t                m_VertexCount;
         /// Used to see when the emitter should stop spawning particles.
         float                   m_Timer;
-        /// Used to see when the emitter should spawn a new particle.
-        float                   m_SpawnTimer;
-        /// How long to wait before the next particle spawns. This value might change for each particle spawned.
-        float                   m_SpawnDelay;
-        /// The time left before the particle dies which has the longest time left to live.
-        float                   m_ParticleTimeLeft;
+        /// The amount of particles to spawn. It is accumulated over frames to handle spawn rates below the timestep.
+        float                   m_ParticlesToSpawn;
         /// Seed used to ensure a deterministic simulation
         uint32_t                m_Seed;
-        /// If the emitter is still spawning particles.
-        uint16_t                m_IsSpawning : 1;
+        /// Which state the emitter is currently in
+        EmitterState            m_State;
         /// If the user has been warned that all particles cannot be rendered.
         uint16_t                m_RenderWarning : 1;
         /// If the user has been warned that the emitters animation could not be fetched
@@ -126,7 +130,6 @@ namespace dmParticle
         , m_Prototype(0x0)
         , m_PlayTime(0.0f)
         , m_VersionNumber(0)
-        , m_Dangling(0)
         {
 
         }
@@ -143,8 +146,6 @@ namespace dmParticle
         float                   m_PlayTime;
         /// Version number used to check that the handle is still valid.
         uint16_t                m_VersionNumber;
-        /// True for instances who are create through FireAndForget.
-        uint16_t                m_Dangling : 1;
     };
 
     /**

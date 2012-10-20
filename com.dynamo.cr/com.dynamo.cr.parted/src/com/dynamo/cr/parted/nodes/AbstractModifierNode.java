@@ -84,10 +84,10 @@ public abstract class AbstractModifierNode extends Node {
         if (parent != null) {
             if (parent instanceof EmitterNode) {
                 EmitterNode e = (EmitterNode)parent;
-                e.reloadSystem();
+                e.reloadSystem(false);
             } else {
                 ParticleFXNode p = (ParticleFXNode) parent;
-                p.reload();
+                p.reload(false);
             }
         }
     }
