@@ -100,6 +100,7 @@ public class ParticleFXNode extends ComponentTypeNode {
     private transient Pointer context;
     private transient FetchAnimCallback animCallback = new FetchAnimCallback();
     private transient boolean reload = false;
+    private transient boolean replayLooping = false;
     private transient FloatBuffer vertexBuffer;
     private transient int maxParticleCount = 0;
     private transient double elapsedTime = 0.0f;
@@ -161,13 +162,13 @@ public class ParticleFXNode extends ComponentTypeNode {
     @Override
     protected void childAdded(Node child) {
         super.childAdded(child);
-        reload();
+        reload(true);
     }
 
     @Override
     protected void childRemoved(Node child) {
         super.childRemoved(child);
-        reload();
+        reload(true);
     }
 
     private byte[] toByteArray() {
@@ -225,17 +226,18 @@ public class ParticleFXNode extends ComponentTypeNode {
         }
     }
 
-    private void doReload(boolean replayLooping) {
+    private void doReload(boolean running) {
         if (context == null || prototype == null || !reload) {
             return;
         }
-        reload = false;
         byte[] data = toByteArray();
         if (data != null) {
             ParticleLibrary.Particle_ReloadPrototype(prototype, ByteBuffer.wrap(data), data.length);
             updateTileSources();
-            ParticleLibrary.Particle_ReloadInstance(this.context, this.instance, replayLooping);
+            ParticleLibrary.Particle_ReloadInstance(this.context, this.instance, this.replayLooping || !running);
         }
+        this.reload = false;
+        this.replayLooping = false;
     }
 
     public void simulate(double dt) {
@@ -253,7 +255,7 @@ public class ParticleFXNode extends ComponentTypeNode {
             reset();
         }
         this.running = running;
-        doReload(!running);
+        doReload(this.running);
         IntByReference outSize = new IntByReference(0);
 
         if (ParticleLibrary.Particle_IsSleeping(context, this.instance)) {
@@ -270,8 +272,9 @@ public class ParticleFXNode extends ComponentTypeNode {
         ParticleLibrary.Particle_ResetInstance(context, instance);
     }
 
-    public void reload() {
+    public void reload(boolean replayLooping) {
         this.reload = true;
+        this.replayLooping = replayLooping;
     }
 
 }

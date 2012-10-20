@@ -15,8 +15,7 @@ emitters: {
     type:               EMITTER_TYPE_CONE
 
     properties:         { key: EMITTER_KEY_SPAWN_RATE
-        points: { x: 0 y: 0.0334 t_x: 1 t_y: 0 }
-        points: { x: 1 y: 0.0334 t_x: 1 t_y: 0 }
+        points: { x: 0 y: 60 t_x: 1 t_y: 0 }
     }
     properties:         { key: EMITTER_KEY_PARTICLE_LIFE_TIME
         points: { x: 0 y: 0.0167 t_x: 1 t_y: 0 }

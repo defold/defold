@@ -66,6 +66,10 @@ public class EmitterNode extends Node {
     @Range(min = 0.0)
     private float duration;
 
+    @Property
+    @Range(min = 0.0)
+    private float startDelay;
+
     @Property(editorType = EditorType.RESOURCE, extensions = { "tilesource", "tileset" })
     private String tileSource = "";
 
@@ -105,6 +109,7 @@ public class EmitterNode extends Node {
         setId(emitter.getId());
         setPlayMode(emitter.getMode());
         setDuration(emitter.getDuration());
+        setStartDelay(emitter.getStartDelay());
         setEmissionSpace(emitter.getSpace());
         setTileSource(emitter.getTileSource());
         setAnimation(emitter.getAnimation());
@@ -204,7 +209,7 @@ public class EmitterNode extends Node {
         } else {
             particleProperties.get(ParticleKey.valueOf(key)).set(value);
         }
-        reloadSystem();
+        reloadSystem(false);
     }
 
     public ValueSpread getProperty(String key) {
@@ -275,23 +280,23 @@ public class EmitterNode extends Node {
 
     @Override
     protected void transformChanged() {
-        reloadSystem();
+        reloadSystem(false);
     }
 
     @Override
     protected void childAdded(Node child) {
-        reloadSystem();
+        reloadSystem(true);
     }
 
     @Override
     protected void childRemoved(Node child) {
-        reloadSystem();
+        reloadSystem(true);
     }
 
-    protected void reloadSystem() {
+    protected void reloadSystem(boolean replayLooping) {
         ParticleFXNode parent = (ParticleFXNode) getParent();
         if (parent != null) {
-            parent.reload();
+            parent.reload(replayLooping);
         }
     }
 
@@ -323,7 +328,7 @@ public class EmitterNode extends Node {
 
     public void setPlayMode(PlayMode playMode) {
         this.playMode = playMode;
-        reloadSystem();
+        reloadSystem(false);
     }
 
     public EmissionSpace getEmissionSpace() {
@@ -332,7 +337,7 @@ public class EmitterNode extends Node {
 
     public void setEmissionSpace(EmissionSpace emissionSpace) {
         this.emissionSpace = emissionSpace;
-        reloadSystem();
+        reloadSystem(false);
     }
 
     public float getDuration() {
@@ -341,7 +346,16 @@ public class EmitterNode extends Node {
 
     public void setDuration(float duration) {
         this.duration = duration;
-        reloadSystem();
+        reloadSystem(false);
+    }
+
+    public float getStartDelay() {
+        return startDelay;
+    }
+
+    public void setStartDelay(float startDelay) {
+        this.startDelay = startDelay;
+        reloadSystem(false);
     }
 
     public String getTileSource() {
@@ -352,7 +366,7 @@ public class EmitterNode extends Node {
         if (!this.tileSource.equals(tileSource)) {
             this.tileSource = tileSource;
             reloadTileSource();
-            reloadSystem();
+            reloadSystem(false);
         }
     }
 
@@ -377,7 +391,7 @@ public class EmitterNode extends Node {
 
     public void setAnimation(String animation) {
         this.animation = animation;
-        reloadSystem();
+        reloadSystem(false);
     }
 
     public IStatus validateAnimation() {
@@ -405,7 +419,7 @@ public class EmitterNode extends Node {
 
     public void setMaterial(String material) {
         this.material = material;
-        reloadSystem();
+        reloadSystem(false);
     }
 
     public BlendMode getBlendMode() {
@@ -414,7 +428,7 @@ public class EmitterNode extends Node {
 
     public void setBlendMode(BlendMode blendMode) {
         this.blendMode = blendMode;
-        reloadSystem();
+        reloadSystem(false);
     }
 
     public int getMaxParticleCount() {
@@ -423,7 +437,7 @@ public class EmitterNode extends Node {
 
     public void setMaxParticleCount(int maxParticleCount) {
         this.maxParticleCount = maxParticleCount;
-        reloadSystem();
+        reloadSystem(false);
     }
 
     public EmitterType getEmitterType() {
@@ -433,7 +447,7 @@ public class EmitterNode extends Node {
     public void setEmitterType(EmitterType emitterType) {
         this.emitterType = emitterType;
         updateAABB();
-        reloadSystem();
+        reloadSystem(false);
     }
 
     public ParticleDirection getParticleDirection() {
@@ -442,7 +456,7 @@ public class EmitterNode extends Node {
 
     public void setParticleDirection(ParticleDirection particleDirection) {
         this.particleDirection = particleDirection;
-        reloadSystem();
+        reloadSystem(false);
     }
 
     public double getInheritVelocity() {
@@ -451,7 +465,7 @@ public class EmitterNode extends Node {
 
     public void setInheritVelocity(double inheritVelocity) {
         this.inheritVelocity = inheritVelocity;
-        reloadSystem();
+        reloadSystem(false);
     }
 
     public boolean isInheritVelocityEditable() {
@@ -472,6 +486,7 @@ public class EmitterNode extends Node {
             .setId(getId())
             .setMode(getPlayMode())
             .setDuration(getDuration())
+            .setStartDelay(getStartDelay())
             .setSpace(getEmissionSpace())
             .setTileSource(getTileSource())
             .setAnimation(getAnimation())

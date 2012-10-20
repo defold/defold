@@ -14,7 +14,7 @@ emitters: {
     type:               EMITTER_TYPE_SPHERE
 
     properties:         { key: EMITTER_KEY_SPAWN_RATE
-        points: { x: 0 y: 1 t_x: 1 t_y: 0 }
+        points: { x: 0 y: 60 t_x: 1 t_y: 0 }
     }
     properties:         { key: EMITTER_KEY_SIZE_X
         points: { x: 0 y: 1 t_x: 1 t_y: 0 }
@@ -41,7 +41,7 @@ emitters: {
     type:               EMITTER_TYPE_SPHERE
 
     properties:         { key: EMITTER_KEY_SPAWN_RATE
-        points: { x: 0 y: 1 t_x: 1 t_y: 0 }
+        points: { x: 0 y: 60 t_x: 1 t_y: 0 }
     }
     properties:         { key: EMITTER_KEY_SIZE_X
         points: { x: 0 y: 1 t_x: 1 t_y: 0 }

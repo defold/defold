@@ -15,16 +15,10 @@ emitters: {
 
     properties {
         key: EMITTER_KEY_SPAWN_RATE
-        points { x: 0.0 y: 4.0 t_x: 1 t_y: 0 }
-    }
-    properties {
-        key: EMITTER_KEY_PARTICLE_SIZE
-        points { x: 0.0 y: 0.0 t_x: 0.70710677 t_y: 0.70710677 }
-        points { x: 1.0 y: 1.0 t_x: 0.70710677 t_y: 0.70710677 }
+        points { x: 0.0 y: 1.0 t_x: 1 t_y: 0 }
     }
     properties {
         key: EMITTER_KEY_PARTICLE_LIFE_TIME
-        points { x: 0.0 y: 0.25 t_x: 1 t_y: 0 }
-        points { x: 1.0 y: 0.25 t_x: 1 t_y: 0 }
+        points { x: 0.0 y: 1 t_x: 1 t_y: 0 }
     }
 }

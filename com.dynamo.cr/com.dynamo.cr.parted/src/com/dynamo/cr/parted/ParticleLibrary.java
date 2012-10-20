@@ -46,8 +46,6 @@ public class ParticleLibrary {
 
     public static native void Particle_StopInstance(Pointer context, Pointer instance);
 
-    public static native void Particle_RestartInstance(Pointer context, Pointer instance);
-
     public static native void Particle_ResetInstance(Pointer context, Pointer instance);
 
     public static native void Particle_SetPosition(Pointer context, Pointer instance, Vector3 position);
