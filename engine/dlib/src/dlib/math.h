@@ -16,7 +16,8 @@
  */
 namespace dmMath
 {
-    static const float RAND_MAX_RECIP = 1.0f / RAND_MAX;
+#define DM_RAND_MAX (0x7fff)
+#define DM_RAND_MAX_RECIP (0.000030518509476f)
 
     /**
      * Min function
@@ -128,45 +129,41 @@ namespace dmMath
     }
 
     /**
-     * Return a random number in the interval [0,1], with a granularity of a millionth.
+     * Return a random number in the interval [0,DM_RAND_MAX].
      */
-    inline float Rand01()
+    inline uint32_t Rand(uint32_t* seed)
     {
-        uint32_t r = rand();
-        return (float)(r%((uint32_t)RAND_MAX + 1)) * RAND_MAX_RECIP;
+        *seed = (214013 * *seed + 2531011);
+        *seed = (*seed >> 16) & DM_RAND_MAX;
+        return *seed;
     }
 
     /**
-     * Return a random number in the interval [0,1), with a granularity of a millionth.
+     * Return a random number in the interval [0,1].
      */
-    inline float RandOpen01()
+    inline float Rand01(uint32_t* seed)
     {
-        return (float)(rand()%RAND_MAX) * RAND_MAX_RECIP;
+        Rand(seed);
+        return (float)(*seed%((uint32_t)DM_RAND_MAX + 1)) * DM_RAND_MAX_RECIP;
     }
 
     /**
-     * Return a random number in the interval [-1,1], with a granularity of a millionth.
+     * Return a random number in the interval [0,1).
      */
-    inline float Rand11()
+    inline float RandOpen01(uint32_t* seed)
     {
-        return 2.0f * Rand01() - 1.0f;
+        Rand(seed);
+        return (float)(*seed%DM_RAND_MAX) * DM_RAND_MAX_RECIP;
     }
 
     /**
-     * Return a random number in the interval [0,RAND_MAX] (stdlib).
+     * Return a random number in the interval [-1,1].
      */
-    inline uint32_t Rand()
+    inline float Rand11(uint32_t* seed)
     {
-        return rand();
+        return 2.0f * Rand01(seed) - 1.0f;
     }
 
-    /**
-     * Seed all rand functions.
-     */
-    inline void SRand(uint32_t seed)
-    {
-        srand(seed);
-    }
 }
 
 #endif
