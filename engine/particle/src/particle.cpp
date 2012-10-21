@@ -243,7 +243,7 @@ namespace dmParticle
         if (play_time > duration + max_particle_life_time + start_delay)
         {
             float inv_duration = 1.0f / duration;
-            float emitter_time = play_time * inv_duration;
+            float emitter_time = (play_time - start_delay) * inv_duration;
             float frac = emitter_time - (uint32_t)emitter_time;
             uint32_t iterations = 1 + (uint32_t)(max_particle_life_time * inv_duration);
             time = start_delay + duration * (iterations + frac);
