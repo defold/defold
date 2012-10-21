@@ -6,6 +6,7 @@
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/profile.h>
+#include <dlib/time.h>
 
 #include "particle.h"
 #include "particle_private.h"
@@ -177,11 +178,12 @@ namespace dmParticle
         instance->m_Emitters.SetCapacity(emitter_count);
         instance->m_Emitters.SetSize(emitter_count);
 
+        uint32_t seed_base = (uint32_t)dmTime::GetTime();
         memset(instance->m_Emitters.Begin(), 0, emitter_count * sizeof(Emitter));
         for (uint32_t i = 0; i < emitter_count; ++i)
         {
             Emitter* emitter = &instance->m_Emitters[i];
-            uint32_t original_seed = (uint32_t)emitter;
+            uint32_t original_seed = seed_base + i;
             InitEmitter(emitter, &ddf->m_Emitters[i], original_seed);
             emitter->m_Seed = original_seed;
         }
@@ -280,10 +282,11 @@ namespace dmParticle
             {
                 memset(&emitters[emitter_count], 0, (prototype_emitter_count - emitter_count) * sizeof(Emitter));
                 // Set seeds
+                uint32_t seed_base = (uint32_t)dmTime::GetTime();
                 for (uint32_t emitter_i = emitter_count; emitter_i < prototype_emitter_count; ++emitter_i)
                 {
                     Emitter* emitter = &emitters[emitter_i];
-                    uint32_t original_seed = (uint32_t)emitter;
+                    uint32_t original_seed = seed_base + emitter_i;
                     InitEmitter(emitter, &ddf->m_Emitters[emitter_i], original_seed);
                     emitter->m_Seed = original_seed;
                 }
