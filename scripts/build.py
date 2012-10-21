@@ -122,7 +122,7 @@ class Configuration(object):
         return sha1
 
     def is_cross_platform(self):
-        return self.target_platform in ['armv6-darwin']
+        return self.host != self.target_platform
 
     def archive_engine(self):
         exe_ext = '.exe' if self.target_platform == 'win32' else ''
@@ -146,11 +146,9 @@ class Configuration(object):
             dynamo_home = dynamo_home.replace("\\", "/")
             dynamo_home = "/" + dynamo_home[:1] + dynamo_home[2:]
 
-        if self.host != self.target_platform:
+        if self.is_cross_platform():
             # When cross compiling or when compiling for 64-bit the engine is located
             # under PREFIX/bin/platform/...
-            # NOTE: Do not use is_cross_platform() here as is_cross_platform only returns true
-            # for actual cross compilation, e.g. to arm
 
             bin_dir = self.target_platform
             lib_dir = self.target_platform
