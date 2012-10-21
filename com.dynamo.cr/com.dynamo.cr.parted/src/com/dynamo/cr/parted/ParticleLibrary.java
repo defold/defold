@@ -40,7 +40,7 @@ public class ParticleLibrary {
 
     public static native void Particle_DestroyInstance(Pointer context, Pointer instance);
 
-    public static native void Particle_ReloadInstance(Pointer context, Pointer instance, boolean replayLooping);
+    public static native void Particle_ReloadInstance(Pointer context, Pointer instance, boolean replay);
 
     public static native void Particle_StartInstance(Pointer context, Pointer instance);
 

@@ -223,11 +223,8 @@ namespace dmParticle
         emitter->m_State = EMITTER_STATE_POSTSPAWN;
     }
 
-    static void ReplayEmitter(Prototype* prototype, Instance* instance, EmitterPrototype* emitter_prototype, Emitter* emitter, dmParticleDDF::Emitter* emitter_ddf, float time)
+    static void FastForwardEmitter(Prototype* prototype, Instance* instance, EmitterPrototype* emitter_prototype, Emitter* emitter, dmParticleDDF::Emitter* emitter_ddf, float time)
     {
-        instance->m_PlayTime = dmMath::Max(instance->m_PlayTime, time);
-
-        ResetEmitter(emitter);
         StartEmitter(emitter);
         float timer = 0.0f;
         // Hard coded for now
@@ -248,13 +245,13 @@ namespace dmParticle
             float inv_duration = 1.0f / duration;
             float emitter_time = play_time * inv_duration;
             float frac = emitter_time - (uint32_t)emitter_time;
-            uint32_t iterations = 1 + (uint32_t)max_particle_life_time * inv_duration;
-            time = duration * (iterations + frac) + start_delay;
+            uint32_t iterations = 1 + (uint32_t)(max_particle_life_time * inv_duration);
+            time = start_delay + duration * (iterations + frac);
         }
         return time;
     }
 
-    void ReloadInstance(HContext context, HInstance instance, bool replay_looping)
+    void ReloadInstance(HContext context, HInstance instance, bool replay)
     {
         if (instance == INVALID_INSTANCE) return;
         Instance* i = GetInstance(context, instance);
@@ -298,21 +295,26 @@ namespace dmParticle
             Emitter* emitter = &emitters[emitter_i];
             InitEmitter(emitter, &ddf->m_Emitters[emitter_i], emitter->m_OriginalSeed);
         }
-        float play_time = i->m_PlayTime;
-        i->m_PlayTime = 0.0f;
+        if (replay)
         {
+            float max_play_time = 0.0f;
             // Reload id and replay emitters
             uint32_t count = i->m_Emitters.Size();
             for (uint32_t emitter_i = 0; emitter_i < count; ++emitter_i)
             {
+                EmitterPrototype* emitter_prototype = &prototype->m_Emitters[emitter_i];
                 dmParticleDDF::Emitter* emitter_ddf = &prototype->m_DDF->m_Emitters[emitter_i];
-                if (replay_looping || emitter_ddf->m_Mode == dmParticleDDF::PLAY_MODE_ONCE)
-                {
-                    Emitter* emitter = &emitters[emitter_i];
-                    EmitterPrototype* emitter_prototype = &prototype->m_Emitters[emitter_i];
-                    float time = CalculateReplayTime(emitter_ddf->m_Duration, emitter_ddf->m_StartDelay, emitter_prototype->m_MaxParticleLifeTime, play_time);
-                    ReplayEmitter(prototype, i, emitter_prototype, emitter, emitter_ddf, time);
-                }
+                float time = CalculateReplayTime(emitter_ddf->m_Duration, emitter_ddf->m_StartDelay, emitter_prototype->m_MaxParticleLifeTime, i->m_PlayTime);
+                max_play_time = dmMath::Max(max_play_time, time);
+            }
+            i->m_PlayTime = max_play_time;
+            for (uint32_t emitter_i = 0; emitter_i < count; ++emitter_i)
+            {
+                Emitter* emitter = &emitters[emitter_i];
+                EmitterPrototype* emitter_prototype = &prototype->m_Emitters[emitter_i];
+                dmParticleDDF::Emitter* emitter_ddf = &prototype->m_DDF->m_Emitters[emitter_i];
+                ResetEmitter(emitter);
+                FastForwardEmitter(prototype, i, emitter_prototype, emitter, emitter_ddf, i->m_PlayTime);
             }
         }
     }

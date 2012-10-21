@@ -933,19 +933,19 @@ TEST_F(ParticleTest, ReloadInstance)
     float timer = e->m_Timer;
 
     ASSERT_TRUE(ReloadPrototype("reload2.particlefxc", m_Prototype));
-    dmParticle::ReloadInstance(m_Context, instance, false);
+    dmParticle::ReloadInstance(m_Context, instance, true);
     e = GetEmitter(m_Context, instance, 0);
     ASSERT_EQ(timer, e->m_Timer);
     ASSERT_EQ(seed, e->m_Seed);
-    dmParticle::Emitter* e1 = GetEmitter(m_Context, instance, 1);
-
     ASSERT_EQ(1u, e->m_Particles.Size());
     dmParticle::Particle* particle = &e->m_Particles[0];
     ASSERT_EQ(0, memcmp(&original_particle, particle, sizeof(dmParticle::Particle)));
+
+    dmParticle::Emitter* e1 = GetEmitter(m_Context, instance, 1);
     ASSERT_EQ(1u, e1->m_Particles.Size());
 
     ASSERT_TRUE(ReloadPrototype("reload1.particlefxc", m_Prototype));
-    dmParticle::ReloadInstance(m_Context, instance, false);
+    dmParticle::ReloadInstance(m_Context, instance, true);
     e = GetEmitter(m_Context, instance, 0);
 
     ASSERT_EQ(1u, e->m_Particles.Size());
@@ -954,7 +954,7 @@ TEST_F(ParticleTest, ReloadInstance)
 
     // Test reload with max_particle_count changed
     ASSERT_TRUE(ReloadPrototype("reload3.particlefxc", m_Prototype));
-    dmParticle::ReloadInstance(m_Context, instance, false);
+    dmParticle::ReloadInstance(m_Context, instance, true);
     e = GetEmitter(m_Context, instance, 0);
 
     ASSERT_EQ(2u, e->m_Particles.Size());
@@ -998,6 +998,47 @@ TEST_F(ParticleTest, ReloadInstanceLoop)
     ASSERT_EQ(1u, e->m_Particles.Size());
     dmParticle::Particle* particle = &e->m_Particles[0];
     ASSERT_EQ(0, memcmp(&original_particle, particle, sizeof(dmParticle::Particle)));
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
+/**
+ * Verify that multiple emitters have the same time each time they are replayed, even when starting from a large play time.
+ */
+TEST_F(ParticleTest, ReplayLoopLargePlayTime)
+{
+    float dt = 1.0f / 60.0f;
+
+    const uint32_t emitter_count = 3;
+    float times[emitter_count];
+    ASSERT_TRUE(LoadPrototype("reload_loop_multi.particlefxc", &m_Prototype));
+
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype);
+
+    dmParticle::StartInstance(m_Context, instance);
+
+    const float time = 1.1f;
+    float timer = 0.0f;
+    while (timer < time)
+    {
+        dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+        timer += dt;
+    }
+    dmParticle::ReloadInstance(m_Context, instance, true);
+    for (uint32_t i = 0; i < emitter_count; ++i)
+    {
+        dmParticle::Emitter* e = GetEmitter(m_Context, instance, i);
+        times[i] = e->m_Timer;
+    }
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        dmParticle::ReloadInstance(m_Context, instance, true);
+        for (uint32_t emitter_i = 0; emitter_i < emitter_count; ++emitter_i)
+        {
+            dmParticle::Emitter* e = GetEmitter(m_Context, instance, i);
+            ASSERT_EQ(times[i], e->m_Timer);
+        }
+    }
 
     dmParticle::DestroyInstance(m_Context, instance);
 }
