@@ -136,7 +136,7 @@ class Configuration(object):
         else:
             lib_ext = '.so'
 
-        full_archive_path = join(self.archive_path, self.target_platform)
+        full_archive_path = join(self.archive_path, self.target_platform).replace('\\', '/')
         host, path = full_archive_path.split(':', 1)
         sha1 = self._git_sha1()
         self.exec_command(['ssh', host, 'mkdir -p %s' % path])
@@ -157,8 +157,8 @@ class Configuration(object):
             lib_dir = ''
 
         engine = join(dynamo_home, 'bin', bin_dir, 'dmengine' + exe_ext)
-        if os.path.exists(engine):
-            # NOTE: Existence check is temporary as we don't build the entire engine to 64-bit
+        if self.target_platform != 'x86_64-darwin':
+            # NOTE: Temporary check as we don't build the entire engine to 64-bit
             self.exec_command(['scp', engine,
                                '%s/dmengine%s.%s' % (full_archive_path, exe_ext, sha1)])
 
