@@ -60,7 +60,7 @@ public class ParticleSystemTest {
 
     @Test
     public void smokeTest() throws IOException {
-        Emitter.Property.Builder pb = Emitter.Property.newBuilder()
+        Emitter.Property.Builder pb_life_time = Emitter.Property.newBuilder()
                 .setKey(EmitterKey.EMITTER_KEY_PARTICLE_LIFE_TIME)
                 .addPoints(SplinePoint.newBuilder()
                         .setX(0.0f)
@@ -70,6 +70,13 @@ public class ParticleSystemTest {
                 .addPoints(SplinePoint.newBuilder()
                         .setX(1.0f)
                         .setY(1.0f)
+                        .setTX(1.0f)
+                        .setTY(0.0f));
+        Emitter.Property.Builder pb_spawn_rate = Emitter.Property.newBuilder()
+                .setKey(EmitterKey.EMITTER_KEY_SPAWN_RATE)
+                .addPoints(SplinePoint.newBuilder()
+                        .setX(0.0f)
+                        .setY(60.0f)
                         .setTX(1.0f)
                         .setTY(0.0f));
         Emitter.Builder eb = Emitter.newBuilder()
@@ -84,7 +91,8 @@ public class ParticleSystemTest {
                 .setMaxParticleCount(1)
                 .setDuration(1.0f)
                 .setType(EmitterType.EMITTER_TYPE_SPHERE)
-                .addProperties(pb);
+                .addProperties(pb_life_time)
+                .addProperties(pb_spawn_rate);
         ParticleFX.Builder pfxb = ParticleFX.newBuilder()
                 .addEmitters(eb);
 
@@ -182,7 +190,6 @@ public class ParticleSystemTest {
         assertTrue(rendered[0]);
 
         ParticleLibrary.Particle_StopInstance(context, instance);
-        ParticleLibrary.Particle_RestartInstance(context, instance);
         ParticleLibrary.Particle_DestroyInstance(context, instance);
         ParticleLibrary.Particle_DeletePrototype(prototype);
     }

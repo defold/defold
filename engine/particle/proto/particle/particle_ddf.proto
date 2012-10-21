@@ -125,6 +125,7 @@ message Emitter
     required uint32             max_particle_count  = 13;
 
     required EmitterType        type                = 14;
+    optional float              start_delay         = 15 [default = 0.0];
 
     message Property
     {
@@ -132,16 +133,16 @@ message Emitter
         repeated SplinePoint        points  = 2;
         optional float              spread  = 3 [default = 0.0];
     }
-    repeated Property           properties          = 15;
+    repeated Property           properties          = 16;
 
     message ParticleProperty
     {
         required ParticleKey    key     = 1;
         repeated SplinePoint    points  = 2;
     }
-    repeated ParticleProperty   particle_properties = 16;
+    repeated ParticleProperty   particle_properties = 17;
 
-    repeated Modifier           modifiers           = 17;
+    repeated Modifier           modifiers           = 18;
 }
 
 message ParticleFX
