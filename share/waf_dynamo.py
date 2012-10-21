@@ -87,6 +87,14 @@ def default_flags(self):
 def default_install_staticlib(self):
     self.default_install_path = self.env.LIBDIR
 
+@feature('cshlib')
+@after('default_cc')
+@before('apply_core')
+def default_install_shlib(self):
+    # Force installation dir to LIBDIR.
+    # Default on windows is BINDIR
+    self.default_install_path = self.env.LIBDIR
+
 # objective-c++ support
 if sys.platform == "darwin":
     EXT_OBJCXX = ['.mm']
