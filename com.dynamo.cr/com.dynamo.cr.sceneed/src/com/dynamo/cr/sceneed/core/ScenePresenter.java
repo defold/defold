@@ -48,7 +48,9 @@ public class ScenePresenter implements IPresenter, IModelListener {
         public void run() {
             if (simulating) {
                 view.refreshRenderView();
-                Display.getCurrent().timerExec(10, this);
+                // NOTE: This value is related to timerExec in
+                // RenderView#requestPaint
+                Display.getCurrent().timerExec(5, this);
             }
         }
     }
