@@ -544,7 +544,7 @@ IRenderView {
 
         // NOTE: This value is related to timerExec in
         // ScenePresenter#Animator
-        Display.getCurrent().timerExec(5, new Runnable() {
+        Display.getCurrent().timerExec(1, new Runnable() {
 
             @Override
             public void run() {

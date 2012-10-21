@@ -25,6 +25,9 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
     private static final EnumSet<Pass> passes = EnumSet.of(Pass.TRANSPARENT, Pass.OVERLAY);
 
     private Callback callBack = new Callback();
+    private long prevTime = 0;
+    private double fps;
+    private int frameCounter = 0;
 
     private class Callback implements RenderInstanceCallback {
         GL gl;
@@ -92,6 +95,25 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
         if (context != null && passes.contains(renderContext.getPass())) {
             renderContext.add(this, node, new Point3d(), null);
         }
+
+        if (renderContext.getPass() == Pass.TRANSPARENT) {
+            if (renderContext.getDt() > 0) {
+                int averageCount = 10;
+                if (frameCounter % averageCount == 0) {
+                    long now = System.currentTimeMillis();
+                    double diff = (now - prevTime) / 1000.0;
+                    diff /= averageCount;
+                    prevTime = now;
+
+                    if (diff > 0) {
+                        fps = Math.round(1.0 / diff);
+                    }
+                }
+            } else {
+                fps = 0;
+            }
+            ++frameCounter;
+        }
     }
 
     @Override
@@ -122,6 +144,7 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
             String text1 = String.format("Time: %.1f", instanceStats.time);
             String text2 = "Particles:";
             String text3 = String.format("%d/%d", stats.particles, stats.maxParticles);
+            String text4 = String.format("FPS: %.0f", fps);
             Rectangle2D bounds = textRenderer.getBounds(text2);
 
             float x0 = 12;
@@ -133,6 +156,7 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
                 textRenderer.setColor(1, 0, 0, 1);
             }
             textRenderer.draw3D(text3, (x0 + 4 + (float) bounds.getWidth()), y0 - 2 * dy, 1, 1);
+            textRenderer.draw3D(text4, x0, y0 - dy * 4, 1, 1);
 
             textRenderer.end3DRendering();
             gl.glPopMatrix();
