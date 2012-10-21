@@ -8,7 +8,7 @@ elif sys.platform == "linux2":
     libdir = "lib"
 elif sys.platform == "win32":
     libname = "dlib_shared.dll"
-    libdir = "bin"
+    libdir = "lib"
 
 dlib = None
 try:
