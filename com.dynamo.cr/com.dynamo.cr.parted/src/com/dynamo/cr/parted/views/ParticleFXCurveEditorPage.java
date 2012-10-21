@@ -25,6 +25,8 @@ import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.ITableColorProvider;
 import org.eclipse.jface.viewers.LabelProvider;
 import org.eclipse.swt.SWT;
+import org.eclipse.swt.events.ControlEvent;
+import org.eclipse.swt.events.ControlListener;
 import org.eclipse.swt.graphics.Color;
 import org.eclipse.swt.graphics.RGB;
 import org.eclipse.swt.layout.GridData;
@@ -47,8 +49,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.editor.core.operations.IMergeableOperation;
-import com.dynamo.cr.editor.core.operations.MergeableDelegatingOperationHistory;
 import com.dynamo.cr.editor.core.operations.IMergeableOperation.Type;
+import com.dynamo.cr.editor.core.operations.MergeableDelegatingOperationHistory;
 import com.dynamo.cr.parted.curve.CurveEditor;
 import com.dynamo.cr.parted.curve.HermiteSpline;
 import com.dynamo.cr.parted.curve.ICurveProvider;
@@ -210,6 +212,17 @@ public class ParticleFXCurveEditorPage implements ICurveEditorPage, ISelectionLi
         curveEditor = new CurveEditor(composite, SWT.NONE, JFaceResources.getColorRegistry());
         curveEditor.setLayoutData(new GridData(GridData.FILL_BOTH));
         curveEditor.setProvider(new Provider());
+        curveEditor.addControlListener(new ControlListener() {
+            @Override
+            public void controlResized(ControlEvent e) {
+                refresh();
+            }
+
+            @Override
+            public void controlMoved(ControlEvent e) {
+            }
+        });
+        setSelection(site.getPage().getSelection());
     }
 
     @Override
@@ -283,33 +296,13 @@ public class ParticleFXCurveEditorPage implements ICurveEditorPage, ISelectionLi
 
     @Override
     public void selectionChanged(IWorkbenchPart part, ISelection selection) {
-        Node newNode = null;
-
         String id = part.getSite().getId();
         if (!(id.equals("org.eclipse.ui.views.ContentOutline") || part instanceof EditorPart)) {
             // Filter out not interesting selections
             return;
         }
 
-        if (selection instanceof IStructuredSelection && !selection.isEmpty()) {
-            IStructuredSelection structSelect = (IStructuredSelection) selection;
-            Object first = structSelect.getFirstElement();
-            if (first instanceof Node) {
-                newNode = (Node) first;
-            }
-
-            IEditorPart editor = site.getPage().getActiveEditor();
-            undoContext = (IUndoContext) editor.getAdapter(IUndoContext.class);
-        }
-
-        if (newNode != null && undoContext != null) {
-            curveEditor.setEnabled(true);
-            selectedNode = newNode;
-        } else {
-            curveEditor.setEnabled(false);
-            selectedNode = null;
-        }
-
+        setSelection(selection);
         refresh();
     }
 
@@ -340,6 +333,29 @@ public class ParticleFXCurveEditorPage implements ICurveEditorPage, ISelectionLi
     public void frame() {
         this.curveEditor.fit(1.1);
         this.curveEditor.redraw();
+    }
+
+    private void setSelection(ISelection selection) {
+        Node newNode = null;
+
+        if (selection instanceof IStructuredSelection && !selection.isEmpty()) {
+            IStructuredSelection structSelect = (IStructuredSelection) selection;
+            Object first = structSelect.getFirstElement();
+            if (first instanceof Node) {
+                newNode = (Node) first;
+            }
+
+            IEditorPart editor = site.getPage().getActiveEditor();
+            undoContext = (IUndoContext) editor.getAdapter(IUndoContext.class);
+        }
+
+        if (newNode != null && undoContext != null) {
+            curveEditor.setEnabled(true);
+            selectedNode = newNode;
+        } else {
+            curveEditor.setEnabled(false);
+            selectedNode = null;
+        }
     }
 }
 
