@@ -1,0 +1,3 @@
+/lib/libparticle_shared*
+/lib/*/libparticle_shared*
+

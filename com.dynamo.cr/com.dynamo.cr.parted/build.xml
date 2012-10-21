@@ -1,0 +1,15 @@
+<project default="compile">
+    <property environment="env"/>
+
+    <target name="clean">
+        <delete dir="generated"/>
+    </target>
+
+    <target name="compile">
+    	<copy todir="lib">
+    	   <fileset dir="${env.DYNAMO_HOME}/lib">
+    	   	<include name="**/libparticle_shared*"/>
+    	   </fileset>
+    	</copy>
+    </target>
+</project>

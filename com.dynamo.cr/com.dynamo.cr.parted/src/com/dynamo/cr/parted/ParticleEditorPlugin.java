@@ -7,6 +7,7 @@ import org.eclipse.jface.resource.ImageDescriptor;
 import org.eclipse.jface.resource.ImageRegistry;
 import org.osgi.framework.BundleContext;
 
+import com.dynamo.cr.editor.core.EditorCorePlugin;
 import com.dynamo.cr.editor.ui.AbstractDefoldPlugin;
 
 /**
@@ -35,15 +36,14 @@ public class ParticleEditorPlugin extends AbstractDefoldPlugin {
 		super.start(context);
 
 		URL bundleUrl;
-		if (System.getProperty("os.name").toLowerCase().indexOf("mac") != -1) {
-		    // The editor is 64-bit only on Mac OS X and shared libraries are
-		    // loaded from platform directory
-	        bundleUrl = getBundle().getEntry("/DYNAMO_HOME/lib/x86_64-darwin");
-		} else {
-		    // On other platforms shared libraries are loaded from default location
-		    // We should perhaps always use qualifed directories?
-            bundleUrl = getBundle().getEntry("/DYNAMO_HOME/lib");
+
+		String platform = EditorCorePlugin.getPlatform();
+		if (platform.equals("darwin")) {
+            // The editor is 64-bit only on Mac OS X and shared libraries are
+            // loaded from platform directory
+		    platform = "x86_64-darwin";
 		}
+        bundleUrl = getBundle().getEntry("/lib/" + platform);
 
         URL fileUrl = FileLocator.toFileURL(bundleUrl);
         System.setProperty("jna.library.path", fileUrl.getPath());
