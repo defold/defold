@@ -929,9 +929,14 @@ TEST_F(ParticleTest, ReloadInstance)
     dmParticle::Particle original_particle;
     memcpy(&original_particle, &e->m_Particles[0], sizeof(dmParticle::Particle));
 
+    uint32_t seed = e->m_Seed;
+    float timer = e->m_Timer;
+
     ASSERT_TRUE(ReloadPrototype("reload2.particlefxc", m_Prototype));
     dmParticle::ReloadInstance(m_Context, instance, false);
     e = GetEmitter(m_Context, instance, 0);
+    ASSERT_EQ(timer, e->m_Timer);
+    ASSERT_EQ(seed, e->m_Seed);
     dmParticle::Emitter* e1 = GetEmitter(m_Context, instance, 1);
 
     ASSERT_EQ(1u, e->m_Particles.Size());
