@@ -100,7 +100,7 @@ public class ParticleFXNode extends ComponentTypeNode {
     private transient Pointer context;
     private transient FetchAnimCallback animCallback = new FetchAnimCallback();
     private transient boolean reload = false;
-    private transient boolean replayLooping = false;
+    private transient boolean forceReplay = false;
     private transient FloatBuffer vertexBuffer;
     private transient int maxParticleCount = 0;
     private transient double elapsedTime = 0.0f;
@@ -234,10 +234,11 @@ public class ParticleFXNode extends ComponentTypeNode {
         if (data != null) {
             ParticleLibrary.Particle_ReloadPrototype(prototype, ByteBuffer.wrap(data), data.length);
             updateTileSources();
-            ParticleLibrary.Particle_ReloadInstance(this.context, this.instance, this.replayLooping || !running);
+            boolean replay = this.forceReplay || !running;
+            ParticleLibrary.Particle_ReloadInstance(this.context, this.instance, replay);
         }
         this.reload = false;
-        this.replayLooping = false;
+        this.forceReplay = false;
     }
 
     public void simulate(double dt) {
@@ -272,9 +273,9 @@ public class ParticleFXNode extends ComponentTypeNode {
         ParticleLibrary.Particle_ResetInstance(context, instance);
     }
 
-    public void reload(boolean replayLooping) {
+    public void reload(boolean forceReplay) {
         this.reload = true;
-        this.replayLooping = replayLooping;
+        this.forceReplay = forceReplay;
     }
 
 }

@@ -8,6 +8,7 @@ import org.eclipse.jface.resource.ImageRegistry;
 import org.osgi.framework.BundleContext;
 
 import com.dynamo.cr.editor.core.EditorCorePlugin;
+import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.ui.AbstractDefoldPlugin;
 
 /**
@@ -42,6 +43,10 @@ public class ParticleEditorPlugin extends AbstractDefoldPlugin {
             // The editor is 64-bit only on Mac OS X and shared libraries are
             // loaded from platform directory
 		    platform = "x86_64-darwin";
+		}
+		if (EditorUtil.isDev() && !EditorUtil.isMac()) {
+		    // No platform-qualified path in dev mode (waf install)
+		    platform = "";
 		}
         bundleUrl = getBundle().getEntry("/lib/" + platform);
 

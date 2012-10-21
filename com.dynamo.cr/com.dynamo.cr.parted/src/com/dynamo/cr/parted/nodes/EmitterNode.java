@@ -293,10 +293,10 @@ public class EmitterNode extends Node {
         reloadSystem(true);
     }
 
-    protected void reloadSystem(boolean replayLooping) {
+    protected void reloadSystem(boolean forceReplay) {
         ParticleFXNode parent = (ParticleFXNode) getParent();
         if (parent != null) {
-            parent.reload(replayLooping);
+            parent.reload(forceReplay);
         }
     }
 
