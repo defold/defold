@@ -166,9 +166,17 @@ public class RLogListener implements ILogListener, Runnable {
         if (e != null) {
             RLog.StackTrace.Builder stb = RLog.StackTrace.newBuilder();
             for (StackTraceElement ste : e.getStackTrace()) {
+                String fileName = ste.getFileName();
+                if (fileName == null) {
+                    fileName = "unknown";
+                }
+                String className = ste.getClassName();
+                if (className == null) {
+                    className = "unknown";
+                }
                 stb.addElement(RLog.StackTraceElement.newBuilder()
-                        .setFile(ste.getFileName())
-                        .setJavaClass(ste.getClassName())
+                        .setFile(fileName)
+                        .setJavaClass(className)
                         .setLine(ste.getLineNumber())
                         .setMethod(ste.getMethodName()));
             }
