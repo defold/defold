@@ -126,11 +126,13 @@ class Configuration(object):
 
     def archive_engine(self):
         exe_ext = '.exe' if self.target_platform == 'win32' else ''
-        lib_ext = ""
+        lib_ext = ''
+        lib_prefix = 'lib'
         if 'darwin' in self.target_platform:
             lib_ext = '.dylib'
         elif 'win32' in self.target_platform:
             lib_ext = '.dll'
+            lib_prefix = ''
         else:
             lib_ext = '.so'
 
@@ -162,9 +164,9 @@ class Configuration(object):
             self.exec_command(['scp', engine,
                                '%s/dmengine%s.%s' % (full_archive_path, exe_ext, sha1)])
 
-        libparticle = join(dynamo_home, 'lib', lib_dir, 'libparticle_shared' + lib_ext)
+        libparticle = join(dynamo_home, 'lib', lib_dir, '%sparticle_shared%s' % (lib_prefix, lib_ext))
         self.exec_command(['scp', libparticle,
-                           '%s/libparticle_shared%s.%s' % (full_archive_path, lib_ext, sha1)])
+                           '%s/%sparticle_shared%s.%s' % (full_archive_path, lib_prefix, lib_ext, sha1)])
 
     def build_engine(self):
         skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
