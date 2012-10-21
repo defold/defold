@@ -57,6 +57,11 @@
               <arg value="scripts/copy_dmengine.sh"/>
         </exec>
 
+        <exec dir="${buildDirectory}/plugins/com.dynamo.cr.parted"
+              executable="sh" failonerror="true">
+              <arg value="scripts/copy_libparticle.sh"/>
+        </exec>
+
 	<ant dir="${buildDirectory}/plugins/com.dynamo.cr.rlog" antfile="build_proto.xml">
 	</ant>
 

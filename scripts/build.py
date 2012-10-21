@@ -17,6 +17,9 @@ PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6
 PACKAGES_IOS="protobuf-2.3.0 gtest-1.5.0".split()
 PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0".split()
 
+def get_host_platform():
+    return 'linux' if sys.platform == 'linux2' else sys.platform
+
 class Configuration(object):
     def __init__(self, dynamo_home = None,
                  target_platform = None,
@@ -36,8 +39,8 @@ class Configuration(object):
         self.dynamo_home = dynamo_home if dynamo_home else join(os.getcwd(), 'tmp', 'dynamo_home')
         self.eclipse_home = eclipse_home if eclipse_home else join(home, 'eclipse')
         self.defold_root = os.getcwd()
-        self.host = 'linux' if sys.platform == 'linux2' else sys.platform
-        self.target_platform = target_platform if target_platform else self.host
+        self.host = get_host_platform()
+        self.target_platform = target_platform
         self.skip_tests = skip_tests
         self.skip_codesign = skip_codesign
         self.no_colors = no_colors
@@ -123,7 +126,16 @@ class Configuration(object):
 
     def archive_engine(self):
         exe_ext = '.exe' if self.target_platform == 'win32' else ''
-        host, path = self.archive_path.split(':', 1)
+        lib_ext = ""
+        if 'darwin' in self.target_platform:
+            lib_ext = '.dylib'
+        elif 'win32' in self.target_platform:
+            lib_ext = '.dll'
+        else:
+            lib_ext = '.so'
+
+        full_archive_path = join(self.archive_path, self.target_platform)
+        host, path = full_archive_path.split(':', 1)
         sha1 = self._git_sha1()
         self.exec_command(['ssh', host, 'mkdir -p %s' % path])
         dynamo_home = self.dynamo_home
@@ -132,17 +144,27 @@ class Configuration(object):
             dynamo_home = dynamo_home.replace("\\", "/")
             dynamo_home = "/" + dynamo_home[:1] + dynamo_home[2:]
 
-        if self.is_cross_platform():
-            # When cross compiling the engine is located
+        if self.host != self.target_platform:
+            # When cross compiling or when compiling for 64-bit the engine is located
             # under PREFIX/bin/platform/...
+            # NOTE: Do not use is_cross_platform() here as is_cross_platform only returns true
+            # for actual cross compilation, e.g. to arm
+
             bin_dir = self.target_platform
+            lib_dir = self.target_platform
         else:
             bin_dir = ''
+            lib_dir = ''
 
-        self.exec_command(['scp', join(dynamo_home, 'bin', bin_dir, 'dmengine' + exe_ext),
-                           '%s/dmengine%s.%s' % (self.archive_path, exe_ext, sha1)])
-        self.exec_command(['ssh', host,
-                           'ln -sfn dmengine%s.%s %s/dmengine%s' % (exe_ext, sha1, path, exe_ext)])
+        engine = join(dynamo_home, 'bin', bin_dir, 'dmengine' + exe_ext)
+        if os.path.exists(engine):
+            # NOTE: Existence check is temporary as we don't build the entire engine to 64-bit
+            self.exec_command(['scp', engine,
+                               '%s/dmengine%s.%s' % (full_archive_path, exe_ext, sha1)])
+
+        libparticle = join(dynamo_home, 'lib', lib_dir, 'libparticle_shared' + lib_ext)
+        self.exec_command(['scp', libparticle,
+                           '%s/libparticle_shared%s.%s' % (full_archive_path, lib_ext, sha1)])
 
     def build_engine(self):
         skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
@@ -156,16 +178,16 @@ class Configuration(object):
             libs="dlib ddf particle glfw graphics hid input physics resource lua script render gameobject gui sound gamesys tools record engine".split()
 
         # NOTE: We run waf using python <PATH_TO_WAF>/waf as windows don't understand that waf is an executable
-        if self.target_platform != self.host:
+        if self.is_cross_platform():
             self._log('Building dlib for host platform')
             cwd = join(self.defold_root, 'engine/dlib')
-            cmd = 'python %s/ext/bin/waf configure --prefix=%s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, skip_tests, skip_codesign, eclipse)
+            cmd = 'python %s/ext/bin/waf --prefix=%s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, skip_tests, skip_codesign, eclipse)
             self.exec_command(cmd.split(), cwd = cwd)
 
         for lib in libs:
             self._log('Building %s' % lib)
             cwd = join(self.defold_root, 'engine/%s' % lib)
-            cmd = 'python %s/ext/bin/waf configure --prefix=%s --platform=%s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, self.target_platform, skip_tests, skip_codesign, eclipse)
+            cmd = 'python %s/ext/bin/waf --prefix=%s --platform=%s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, self.target_platform, skip_tests, skip_codesign, eclipse)
             self.exec_command(cmd.split(), cwd = cwd)
 
     def build_docs(self):
@@ -412,18 +434,27 @@ Multiple commands can be specified'''
     if len(args) == 0:
         parser.error('No command specified')
 
-    c = Configuration(dynamo_home = os.environ.get('DYNAMO_HOME', None),
-                      target_platform = options.target_platform,
-                      eclipse_home = options.eclipse_home,
-                      skip_tests = options.skip_tests,
-                      skip_codesign = options.skip_codesign,
-                      no_colors = options.no_colors,
-                      archive_path = options.archive_path,
-                      set_version = options.set_version,
-                      eclipse = options.eclipse)
+    target_platform = options.target_platform if options.target_platform else get_host_platform()
+    if target_platform == 'darwin':
+        # NOTE: Darwin is currently mixed 32 and 64-bit.
+        # That's why we have this temporary hack
+        target_platforms = ['x86_64-%s' % target_platform, target_platform]
+    else:
+        target_platforms = [target_platform]
 
-    for cmd in args:
-        f = getattr(c, cmd, None)
-        if not f:
-            parser.error('Unknown command %s' % cmd)
-        f()
+    for target_platform in target_platforms:
+        c = Configuration(dynamo_home = os.environ.get('DYNAMO_HOME', None),
+                          target_platform = target_platform,
+                          eclipse_home = options.eclipse_home,
+                          skip_tests = options.skip_tests,
+                          skip_codesign = options.skip_codesign,
+                          no_colors = options.no_colors,
+                          archive_path = options.archive_path,
+                          set_version = options.set_version,
+                          eclipse = options.eclipse)
+
+        for cmd in args:
+            f = getattr(c, cmd, None)
+            if not f:
+                parser.error('Unknown command %s' % cmd)
+            f()
