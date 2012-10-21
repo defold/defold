@@ -97,17 +97,20 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
         }
 
         if (renderContext.getPass() == Pass.TRANSPARENT) {
-            int averageCount = 10;
-            if (frameCounter % averageCount == 0) {
-                long now = System.currentTimeMillis();
-                double diff = (now - prevTime) / 1000.0;
-                diff /= averageCount;
-                prevTime = now;
+            if (renderContext.getDt() > 0) {
+                int averageCount = 10;
+                if (frameCounter % averageCount == 0) {
+                    long now = System.currentTimeMillis();
+                    double diff = (now - prevTime) / 1000.0;
+                    diff /= averageCount;
+                    prevTime = now;
 
-                fps = 0.0;
-                if (diff > 0) {
-                    fps = Math.round(1.0 / diff);
+                    if (diff > 0) {
+                        fps = Math.round(1.0 / diff);
+                    }
                 }
+            } else {
+                fps = 0;
             }
             ++frameCounter;
         }
@@ -141,7 +144,7 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
             String text1 = String.format("Time: %.1f", instanceStats.time);
             String text2 = "Particles:";
             String text3 = String.format("%d/%d", stats.particles, stats.maxParticles);
-            String text4 = String.format("FPS: %.2f", fps);
+            String text4 = String.format("FPS: %.0f", fps);
             Rectangle2D bounds = textRenderer.getBounds(text2);
 
             float x0 = 12;
