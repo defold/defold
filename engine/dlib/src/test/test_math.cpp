@@ -80,15 +80,15 @@ TEST(dmMath, Abs)
 }
 
 // out is [min, max, mean]
-void TestRand(float (*rand)(), float* out)
+void TestRand(float (*rand)(uint32_t* seed), uint32_t* seed, float* out)
 {
-    uint32_t iterations = 100000;
-    float min = 0.5f;
-    float max = 0.5f;
+    uint32_t iterations = 1000000;
+    float min = 1.0f;
+    float max = -1.0f;
     float sum = 0.0f;
     for (uint32_t i = 0; i < iterations; ++i)
     {
-        float r = rand();
+        float r = rand(seed);
         if (min > r)
             min = r;
         if (max < r)
@@ -102,43 +102,26 @@ void TestRand(float (*rand)(), float* out)
 
 TEST(dmMath, Rand)
 {
-    dmMath::SRand(0);
+    uint32_t seed = 0;
 
     float out[3];
+    float epsilon = 0.02f;
 
-    TestRand(dmMath::Rand01, out);
-    ASSERT_NEAR(0.0f, out[0], 0.0001f);
-    ASSERT_NEAR(1.0f, out[1], 0.0001f);
-    ASSERT_NEAR(0.5f, out[2], 0.001f);
+    TestRand(dmMath::Rand01, &seed, out);
+    ASSERT_NEAR(0.0f, out[0], epsilon);
+    ASSERT_NEAR(1.0f, out[1], epsilon);
+    ASSERT_NEAR(0.5f, out[2], epsilon * 10);
 
-    TestRand(dmMath::RandOpen01, out);
-    ASSERT_NEAR(0.0f, out[0], 0.0001f);
-    ASSERT_NEAR(1.0f, out[1], 0.0001f);
+    TestRand(dmMath::RandOpen01, &seed, out);
+    ASSERT_NEAR(0.0f, out[0], epsilon);
+    ASSERT_NEAR(1.0f, out[1], epsilon);
     ASSERT_GT(1.0f, out[1]);
-    ASSERT_NEAR(0.5f, out[2], 0.001f);
+    ASSERT_NEAR(0.5f, out[2], epsilon * 10);
 
-    TestRand(dmMath::Rand11, out);
-    ASSERT_NEAR(-1.0f, out[0], 0.0005f);
-    ASSERT_NEAR(1.0f, out[1], 0.0005f);
-    ASSERT_NEAR(0.0f, out[2], 0.01f);
-}
-
-TEST(dmMath, RandSeed)
-{
-    dmMath::SRand(0);
-    uint32_t seed = dmMath::Rand();
-    ASSERT_NE(0u, seed);
-    dmMath::SRand(seed);
-    uint32_t r = dmMath::Rand();
-    ASSERT_NE(0u, r);
-    for (uint32_t i = 0; i < 10; ++i)
-    {
-        uint32_t tmp = dmMath::Rand();
-        ASSERT_NE(0u, tmp);
-        ASSERT_NE(r, tmp);
-    }
-    dmMath::SRand(seed);
-    ASSERT_EQ(r, dmMath::Rand());
+    TestRand(dmMath::Rand11, &seed, out);
+    ASSERT_NEAR(-1.0f, out[0], epsilon);
+    ASSERT_NEAR(1.0f, out[1], epsilon);
+    ASSERT_NEAR(0.0f, out[2], epsilon * 10);
 }
 
 int main(int argc, char **argv)

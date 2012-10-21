@@ -33,7 +33,6 @@ namespace dmParticle
     const char* MAX_INSTANCE_COUNT_KEY          = "particle_fx.max_count";
     /// Config key to use for tweaking the total maximum number of particles in a context.
     const char* MAX_PARTICLE_COUNT_KEY          = "particle_fx.max_particle_count";
-    static const uint32_t SEED                  = 1234u;
 
     AnimationData::AnimationData()
     {
@@ -146,13 +145,15 @@ namespace dmParticle
         }
     }
 
-    static void InitEmitter(Emitter* emitter, dmParticleDDF::Emitter* emitter_ddf)
+    static void InitEmitter(Emitter* emitter, dmParticleDDF::Emitter* emitter_ddf, uint32_t original_seed)
     {
         emitter->m_Id = dmHashString64(emitter_ddf->m_Id);
         uint32_t particle_count = emitter_ddf->m_MaxParticleCount;
         emitter->m_Particles.SetCapacity(particle_count);
-        emitter->m_Seed = SEED;
+        emitter->m_OriginalSeed = original_seed;
     }
+
+    static void ResetEmitter(Emitter* emitter);
 
     HInstance CreateInstance(HContext context, HPrototype prototype)
     {
@@ -179,7 +180,10 @@ namespace dmParticle
         memset(instance->m_Emitters.Begin(), 0, emitter_count * sizeof(Emitter));
         for (uint32_t i = 0; i < emitter_count; ++i)
         {
-            InitEmitter(&instance->m_Emitters[i], &ddf->m_Emitters[i]);
+            Emitter* emitter = &instance->m_Emitters[i];
+            uint32_t original_seed = (uint32_t)emitter;
+            InitEmitter(emitter, &ddf->m_Emitters[i], original_seed);
+            emitter->m_Seed = original_seed;
         }
 
         return instance->m_VersionNumber << 16 | index;
@@ -204,7 +208,6 @@ namespace dmParticle
     }
 
     static bool IsSleeping(Emitter* emitter);
-    static void ResetEmitter(Emitter* emitter);
     static void UpdateEmitter(Prototype* prototype, Instance* instance, EmitterPrototype* emitter_prototype, Emitter* emitter, dmParticleDDF::Emitter* emitter_ddf, float dt);
 
     static void StartEmitter(Emitter* emitter)
@@ -275,12 +278,22 @@ namespace dmParticle
             // memset new emitters if we have grown
             if (emitter_count < prototype_emitter_count)
             {
-                memset(&emitters.Begin()[emitter_count], 0, (prototype_emitter_count - emitter_count) * sizeof(Emitter));
+                memset(&emitters[emitter_count], 0, (prototype_emitter_count - emitter_count) * sizeof(Emitter));
+                // Set seeds
+                for (uint32_t emitter_i = emitter_count; emitter_i < prototype_emitter_count; ++emitter_i)
+                {
+                    Emitter* emitter = &emitters[emitter_i];
+                    uint32_t original_seed = (uint32_t)emitter;
+                    InitEmitter(emitter, &ddf->m_Emitters[emitter_i], original_seed);
+                    emitter->m_Seed = original_seed;
+                }
             }
         }
-        for (uint32_t emitter_i = 0; emitter_i < prototype_emitter_count; ++emitter_i)
+        uint32_t old_emitter_count = dmMath::Min(emitter_count, prototype_emitter_count);
+        for (uint32_t emitter_i = 0; emitter_i < old_emitter_count; ++emitter_i)
         {
-            InitEmitter(&emitters[emitter_i], &ddf->m_Emitters[emitter_i]);
+            Emitter* emitter = &emitters[emitter_i];
+            InitEmitter(emitter, &ddf->m_Emitters[emitter_i], emitter->m_OriginalSeed);
         }
         float play_time = i->m_PlayTime;
         i->m_PlayTime = 0.0f;
@@ -334,6 +347,7 @@ namespace dmParticle
         dmArray<Particle> tmp;
         tmp.Swap(emitter->m_Particles);
         dmhash_t id = emitter->m_Id;
+        uint32_t original_seed = emitter->m_OriginalSeed;
         // Clear emitter
         memset(emitter, 0, sizeof(Emitter));
         // Restore particles and id
@@ -341,7 +355,8 @@ namespace dmParticle
         emitter->m_Id = id;
         // Remove living particles
         emitter->m_Particles.SetSize(0);
-        emitter->m_Seed = SEED;
+        emitter->m_OriginalSeed = original_seed;
+        emitter->m_Seed = original_seed;
     }
 
     void ResetInstance(HContext context, HInstance instance)
@@ -416,9 +431,6 @@ namespace dmParticle
         // Don't update emitter if time is standing still
         if (IsSleeping(emitter) || dt <= 0.0f)
             return;
-
-        dmMath::SRand(emitter->m_Seed);
-        emitter->m_Seed = dmMath::Rand();
 
         UpdateParticles(instance, emitter, emitter_ddf, dt);
 
@@ -553,7 +565,7 @@ namespace dmParticle
         }
     }
 
-    static void SpawnParticle(dmArray<Particle>& particles, dmParticleDDF::Emitter* ddf, Point3 emitter_position, Quat emitter_rotation, Vector3 emitter_velocity, float emitter_properties[EMITTER_KEY_COUNT], float dt);
+    static void SpawnParticle(dmArray<Particle>& particles, uint32_t* seed, dmParticleDDF::Emitter* ddf, Point3 emitter_position, Quat emitter_rotation, Vector3 emitter_velocity, float emitter_properties[EMITTER_KEY_COUNT], float dt);
     void EvaluateEmitterProperties(Emitter* emitter, Property* emitter_properties, float duration, float properties[EMITTER_KEY_COUNT]);
 
     static void UpdateEmitterState(Instance* instance, Emitter* emitter, EmitterPrototype* emitter_prototype, dmParticleDDF::Emitter* emitter_ddf, float dt)
@@ -602,12 +614,12 @@ namespace dmParticle
             for (uint32_t i = 0; i < count; ++i)
             {
                 // Apply spread per particle
-                float r = dmMath::Rand11();
+                float r = dmMath::Rand11(&emitter->m_Seed);
                 for (uint32_t i = 0; i < EMITTER_KEY_COUNT; ++i)
                 {
                     emitter_properties[i] = original_emitter_properties[i] + r * emitter_prototype->m_Properties[i].m_Spread;
                 }
-                SpawnParticle(emitter->m_Particles, emitter_ddf, emitter_position, emitter_rotation, emitter_velocity, emitter_properties, dt);
+                SpawnParticle(emitter->m_Particles, &emitter->m_Seed, emitter_ddf, emitter_position, emitter_rotation, emitter_velocity, emitter_properties, dt);
             }
 
             if (emitter_ddf->m_Mode == PLAY_MODE_ONCE && emitter->m_Timer >= emitter_ddf->m_Duration)
@@ -620,7 +632,7 @@ namespace dmParticle
         }
     }
 
-    static void SpawnParticle(dmArray<Particle>& particles, dmParticleDDF::Emitter* ddf, Point3 emitter_position, Quat emitter_rotation, Vector3 emitter_velocity, float emitter_properties[EMITTER_KEY_COUNT], float dt)
+    static void SpawnParticle(dmArray<Particle>& particles, uint32_t* seed, dmParticleDDF::Emitter* ddf, Point3 emitter_position, Quat emitter_rotation, Vector3 emitter_velocity, float emitter_properties[EMITTER_KEY_COUNT], float dt)
     {
         DM_PROFILE(Particle, "Spawn");
 
@@ -635,7 +647,7 @@ namespace dmParticle
         particle->SetooMaxLifeTime(1.0f / particle->GetMaxLifeTime());
         // Include dt since already existing particles have already been advanced
         particle->SetTimeLeft(particle->GetMaxLifeTime() - dt);
-        particle->SetSpreadFactor(dmMath::Rand11());
+        particle->SetSpreadFactor(dmMath::Rand11(seed));
         particle->SetSourceSize(emitter_properties[EMITTER_KEY_PARTICLE_SIZE]);
         particle->SetSourceColor(Vector4(
                 emitter_properties[EMITTER_KEY_PARTICLE_RED],
@@ -651,11 +663,11 @@ namespace dmParticle
             case EMITTER_TYPE_SPHERE:
             {
                 while (lengthSqr(dir) == 0.0f)
-                    dir = Vector3(dmMath::Rand11(), dmMath::Rand11(), dmMath::Rand11());
+                    dir = Vector3(dmMath::Rand11(seed), dmMath::Rand11(seed), dmMath::Rand11(seed));
                 dir = normalize(dir);
 
                 float radius = 0.5f * emitter_properties[EMITTER_KEY_SIZE_X];
-                local_position = dir * dmMath::Rand01() * radius;
+                local_position = dir * dmMath::Rand01(seed) * radius;
 
                 break;
             }
@@ -667,10 +679,10 @@ namespace dmParticle
                 float radius = 0.5f * emitter_properties[EMITTER_KEY_SIZE_X];
                 float height = emitter_properties[EMITTER_KEY_SIZE_Y];
 
-                float angle = 2.0f * ((float) M_PI) * dmMath::RandOpen01();
+                float angle = 2.0f * ((float) M_PI) * dmMath::RandOpen01(seed);
 
-                float rh = dmMath::Select(-height, 1.0f, dmMath::Rand01());
-                radius *= dmMath::Rand01();
+                float rh = dmMath::Select(-height, 1.0f, dmMath::Rand01(seed));
+                radius *= dmMath::Rand01(seed);
                 local_position = Vector3(cosf(angle) * radius * rh, rh * height, sinf(angle) * radius * rh);
 
                 if (lengthSqr(local_position) > 0.0f)
@@ -680,9 +692,9 @@ namespace dmParticle
 
             case EMITTER_TYPE_BOX:
             {
-                Vector3 p(dmMath::Rand11(), dmMath::Rand11(), dmMath::Rand11());
+                Vector3 p(dmMath::Rand11(seed), dmMath::Rand11(seed), dmMath::Rand11(seed));
                 while (lengthSqr(p) == 0.0f)
-                    p = Vector3(dmMath::Rand11(), dmMath::Rand11(), dmMath::Rand11());
+                    p = Vector3(dmMath::Rand11(seed), dmMath::Rand11(seed), dmMath::Rand11(seed));
                 dir = normalize(p);
 
                 Vector3 extent(0.5f * emitter_properties[EMITTER_KEY_SIZE_X],
@@ -913,7 +925,7 @@ namespace dmParticle
     void EvaluateEmitterProperties(Emitter* emitter, Property* emitter_properties, float duration, float properties[EMITTER_KEY_COUNT])
     {
         float x = dmMath::Select(-duration, 0.0f, emitter->m_Timer / duration);
-        float r = dmMath::Rand11();
+        float r = dmMath::Rand11(&emitter->m_Seed);
         uint32_t segment_index = dmMath::Min((uint32_t)(x * PROPERTY_SAMPLE_COUNT), PROPERTY_SAMPLE_COUNT - 1);
         for (uint32_t i = 0; i < EMITTER_KEY_COUNT; ++i)
         {

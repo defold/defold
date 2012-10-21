@@ -1,3 +1,4 @@
+
 #ifndef DM_PARTICLE_PRIVATE_H
 #define DM_PARTICLE_PRIVATE_H
 
@@ -111,6 +112,7 @@ namespace dmParticle
         /// The amount of particles to spawn. It is accumulated over frames to handle spawn rates below the timestep.
         float                   m_ParticlesToSpawn;
         /// Seed used to ensure a deterministic simulation
+        uint32_t                m_OriginalSeed;
         uint32_t                m_Seed;
         /// Which state the emitter is currently in
         EmitterState            m_State;
