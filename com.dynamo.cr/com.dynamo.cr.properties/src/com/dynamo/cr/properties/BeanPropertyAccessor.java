@@ -174,10 +174,13 @@ public class BeanPropertyAccessor implements IPropertyAccessor<Object, IProperty
 
     private void mergeValueSpread(Methods methods, Object obj,
             ValueSpread oldValue, Double[] delta) throws IllegalArgumentException, IllegalAccessException, InvocationTargetException {
-        ValueSpread toSet = new ValueSpread();
-
-        toSet.setValue(delta[0] != null ? delta[0] : oldValue.getValue());
-        toSet.setSpread(delta[1] != null ? delta[1] : oldValue.getSpread());
+        ValueSpread toSet = new ValueSpread(oldValue);
+        if (delta[0] != null) {
+            toSet.setValue(delta[0]);
+        }
+        if (delta[1] != null) {
+            toSet.setSpread(delta[1]);
+        }
 
         methods.propertyDescriptor.getWriteMethod().invoke(obj, toSet);
     }
