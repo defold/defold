@@ -86,6 +86,10 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
             Display display = Display.getCurrent();
             if (display != null) {
                 display.timerExec(50, this);
+            } else {
+                // Fallback to immediate update when there is no display (like in tests)
+                start -= DELAY + 1;
+                run();
             }
         }
     }

@@ -119,7 +119,7 @@ public class GameObjectPresenter implements ISceneView.INodePresenter<GameObject
 
     private String selectComponentFromFile(IPresenterContext context) {
         return context.selectFile(Messages.GameObjectPresenter_ADD_COMPONENT_FROM_FILE,
-                new String[] {"camera", "collectionproxy", "collisionobject", "factory", "gui", "light", "model", "particlefx", "script", "sprite", "tilegrid", "tilemap", "wav"});
+                new String[] {"camera", "collectionproxy", "collisionobject", "factory", "gui", "light", "model", "particlefx", "script", "sound", "sprite", "tilegrid", "tilemap", "wav"});
     }
 
 }
