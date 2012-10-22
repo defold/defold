@@ -20,6 +20,7 @@ import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.dynamo.cr.target.core.TargetPlugin;
 import com.google.common.io.Files;
 
 public class Signer {
@@ -66,6 +67,7 @@ public class Signer {
                                              "--resource-rules=" + resourceRulesOutFile.getAbsolutePath(),
                                              appDir.getAbsolutePath());
         processBuilder.environment().put("EMBEDDED_PROFILE_NAME", "embedded.mobileprovision");
+        processBuilder.environment().put("CODESIGN_ALLOCATE", TargetPlugin.getDefault().getCodeSignAllocatePath());
 
         Process process = processBuilder.start();
 

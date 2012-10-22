@@ -17,6 +17,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.editor.core.ProjectProperties;
+import com.dynamo.cr.target.core.TargetPlugin;
 
 public class IOSBundler {
     private static Logger logger = LoggerFactory.getLogger(IOSBundler.class);
@@ -164,6 +165,7 @@ public class IOSBundler {
                     appDir.getAbsolutePath());
             processBuilder.environment().put("EMBEDDED_PROFILE_NAME",
                     "embedded.mobileprovision");
+            processBuilder.environment().put("CODESIGN_ALLOCATE", TargetPlugin.getDefault().getCodeSignAllocatePath());
 
             Process process = processBuilder.start();
 
