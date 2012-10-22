@@ -67,86 +67,102 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
         return properties;
     }
 
+    /**
+     * Recursively find all descriptors from the root base class and up through the sub classes
+     * @param klass
+     * @param descriptors
+     * @throws IllegalAccessException
+     * @throws InstantiationException
+     */
     @SuppressWarnings("unchecked")
-    private void introspect() throws InstantiationException, IllegalAccessException, IllegalArgumentException, SecurityException, InvocationTargetException, NoSuchMethodException {
-        List<IPropertyDesc<T, U>> descriptors = new ArrayList<IPropertyDesc<T, U>>();
-        Class<? extends IPropertyAccessor<T, U>> accessorClass = null;
+    private Class<? extends IPropertyAccessor<T, U>> introspect(Class<?> klass, List<IPropertyDesc<T, U>> descriptors) throws InstantiationException, IllegalAccessException {
+        // Terminating condition
+        if (klass == null) {
+            return null;
+        }
+        // Recurse towards base class first
+        Class<? extends IPropertyAccessor<T, U>> accessorClass = introspect(klass.getSuperclass(), descriptors);
 
-        while (klass != null) {
-
+        if (accessorClass == null) {
             Entity entityAnnotation = klass.getAnnotation(Entity.class);
             if (entityAnnotation != null) {
                 this.commandFactory = (ICommandFactory<T, U>) entityAnnotation.commandFactory().newInstance();
                 accessorClass = (Class<? extends IPropertyAccessor<T, U>>) entityAnnotation.accessor();
             }
+        }
 
-            Field[] fields = klass.getDeclaredFields();
-            for (Field field : fields) {
-                Annotation[] annotations = field.getAnnotations();
-                for (Annotation annotation : annotations) {
-                    String propertyId = field.getName();
-                    if (annotation.annotationType() == Property.class) {
-                        field.setAccessible(true);
-                        Property property = (Property) annotation;
-                        properties.add(propertyId);
+        Field[] fields = klass.getDeclaredFields();
+        for (Field field : fields) {
+            Annotation[] annotations = field.getAnnotations();
+            for (Annotation annotation : annotations) {
+                String propertyId = field.getName();
+                if (annotation.annotationType() == Property.class) {
+                    field.setAccessible(true);
+                    Property property = (Property) annotation;
+                    properties.add(propertyId);
 
-                        String propertyDisplayName = propertyId;
-                        if (!property.displayName().equals("")) {
-                            propertyDisplayName = property.displayName();
-                        }
-
-                        String category = property.category();
-
-                        IPropertyDesc<T, U> descriptor;
-                        if (field.getType() == String.class) {
-                            if (property.editorType() == EditorType.RESOURCE)
-                                descriptor = new ResourcePropertyDesc<T, U>(propertyId, propertyDisplayName, category, property.extensions());
-                            else
-                                descriptor = new TextPropertyDesc<T, U>(propertyId, propertyDisplayName, category, property.editorType());
-                        } else if (field.getType() == Vector4d.class) {
-                            descriptor = new Vector4PropertyDesc<T, U>(propertyId, propertyDisplayName, category);
-                        } else if (field.getType() == Quat4d.class) {
-                            descriptor = new Quat4PropertyDesc<T, U>(propertyId, propertyDisplayName, category);
-                        } else if (field.getType() == Vector3d.class) {
-                            descriptor = new Vector3PropertyDesc<T, U>(propertyId, propertyDisplayName, category);
-                        } else if (field.getType() == Point3d.class) {
-                            descriptor = new Point3PropertyDesc<T, U>(propertyId, propertyDisplayName, category);
-                        } else if (field.getType() == ValueSpread.class) {
-                            descriptor = new ValueSpreadPropertyDesc<T, U>(propertyId, propertyDisplayName, category);
-                        } else if (field.getType() == RGB.class) {
-                            descriptor = new RGBPropertyDesc<T, U>(propertyId, propertyDisplayName, category);
-                        } else if (field.getType() == Double.TYPE) {
-                            descriptor = new DoublePropertyDesc<T, U>(propertyId, propertyDisplayName, category, property.editorType());
-                        } else if (field.getType() == Float.TYPE) {
-                            descriptor = new FloatPropertyDesc<T, U>(propertyId, propertyDisplayName, category, property.editorType());
-                        } else if (field.getType() == Integer.TYPE) {
-                            descriptor = new IntegerPropertyDesc<T, U>(propertyId, propertyDisplayName, category, property.editorType());
-                        } else if (field.getType() == Boolean.TYPE) {
-                            descriptor = new BooleanPropertyDesc<T, U>(propertyId, propertyDisplayName, category);
-                        } else if (ProtocolMessageEnum.class.isAssignableFrom(field.getType())) {
-                            descriptor = new ProtoEnumDesc<T, U>((Class<? extends ProtocolMessageEnum>) field.getType(), propertyId, propertyDisplayName, category);
-                        } else {
-                            descriptor = new PropertyDesc<T, U>(propertyId, propertyDisplayName, null);
-                        }
-
-                        descriptors.add(descriptor);
-
-                        try {
-                            Method validatorMethod = klass.getDeclaredMethod(String.format("validate%c%s", Character.toUpperCase(propertyId.charAt(0)), propertyId.substring(1)));
-                            validatorMethod.setAccessible(true);
-                            methodValidators.put(propertyId, validatorMethod);
-                        } catch (NoSuchMethodException e) {
-                            // Pass
-                        }
-
-                    } else if (annotation.annotationType().isAnnotationPresent(Validator.class)) {
-                        this.validators.put(propertyId, annotation);
+                    String propertyDisplayName = propertyId;
+                    if (!property.displayName().equals("")) {
+                        propertyDisplayName = property.displayName();
                     }
+
+                    String category = property.category();
+
+                    IPropertyDesc<T, U> descriptor;
+                    if (field.getType() == String.class) {
+                        if (property.editorType() == EditorType.RESOURCE)
+                            descriptor = new ResourcePropertyDesc<T, U>(propertyId, propertyDisplayName, category, property.extensions());
+                        else
+                            descriptor = new TextPropertyDesc<T, U>(propertyId, propertyDisplayName, category, property.editorType());
+                    } else if (field.getType() == Vector4d.class) {
+                        descriptor = new Vector4PropertyDesc<T, U>(propertyId, propertyDisplayName, category);
+                    } else if (field.getType() == Quat4d.class) {
+                        descriptor = new Quat4PropertyDesc<T, U>(propertyId, propertyDisplayName, category);
+                    } else if (field.getType() == Vector3d.class) {
+                        descriptor = new Vector3PropertyDesc<T, U>(propertyId, propertyDisplayName, category);
+                    } else if (field.getType() == Point3d.class) {
+                        descriptor = new Point3PropertyDesc<T, U>(propertyId, propertyDisplayName, category);
+                    } else if (field.getType() == ValueSpread.class) {
+                        descriptor = new ValueSpreadPropertyDesc<T, U>(propertyId, propertyDisplayName, category);
+                    } else if (field.getType() == RGB.class) {
+                        descriptor = new RGBPropertyDesc<T, U>(propertyId, propertyDisplayName, category);
+                    } else if (field.getType() == Double.TYPE) {
+                        descriptor = new DoublePropertyDesc<T, U>(propertyId, propertyDisplayName, category, property.editorType());
+                    } else if (field.getType() == Float.TYPE) {
+                        descriptor = new FloatPropertyDesc<T, U>(propertyId, propertyDisplayName, category, property.editorType());
+                    } else if (field.getType() == Integer.TYPE) {
+                        descriptor = new IntegerPropertyDesc<T, U>(propertyId, propertyDisplayName, category, property.editorType());
+                    } else if (field.getType() == Boolean.TYPE) {
+                        descriptor = new BooleanPropertyDesc<T, U>(propertyId, propertyDisplayName, category);
+                    } else if (ProtocolMessageEnum.class.isAssignableFrom(field.getType())) {
+                        descriptor = new ProtoEnumDesc<T, U>((Class<? extends ProtocolMessageEnum>) field.getType(), propertyId, propertyDisplayName, category);
+                    } else {
+                        descriptor = new PropertyDesc<T, U>(propertyId, propertyDisplayName, null);
+                    }
+
+                    descriptors.add(descriptor);
+
+                    try {
+                        Method validatorMethod = klass.getDeclaredMethod(String.format("validate%c%s", Character.toUpperCase(propertyId.charAt(0)), propertyId.substring(1)));
+                        validatorMethod.setAccessible(true);
+                        methodValidators.put(propertyId, validatorMethod);
+                    } catch (NoSuchMethodException e) {
+                        // Pass
+                    }
+
+                } else if (annotation.annotationType().isAnnotationPresent(Validator.class)) {
+                    this.validators.put(propertyId, annotation);
                 }
             }
-
-            klass = klass.getSuperclass();
         }
+        return accessorClass;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void introspect() throws InstantiationException, IllegalAccessException, IllegalArgumentException, SecurityException, InvocationTargetException, NoSuchMethodException {
+        List<IPropertyDesc<T, U>> descriptors = new ArrayList<IPropertyDesc<T, U>>();
+
+        Class<? extends IPropertyAccessor<T, U>> accessorClass = introspect(klass, descriptors);
 
         accessor = accessorClass.newInstance();
         /*
