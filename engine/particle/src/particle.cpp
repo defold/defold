@@ -966,27 +966,31 @@ namespace dmParticle
         }
     }
 
-    void ApplyAcceleration(dmArray<Particle>& particles, Property* modifier_properties, const Quat& rotation, float dt)
+    void ApplyAcceleration(dmArray<Particle>& particles, Property* modifier_properties, const Quat& rotation, float emitter_t, float dt)
     {
         uint32_t particle_count = particles.Size();
         Vector3 acc_step = rotate(rotation, ACCELERATION_LOCAL_DIR) * dt;
         const Property& magnitude_property = modifier_properties[MODIFIER_KEY_MAGNITUDE];
-        // We temporarily only sample the first frame until we have decided what to animate over
-        float magnitude = magnitude_property.m_Segments[0].m_Y;
+        uint32_t segment_index = dmMath::Min((uint32_t)(emitter_t * PROPERTY_SAMPLE_COUNT), PROPERTY_SAMPLE_COUNT - 1);
+        float magnitude;
+        SAMPLE_PROP(magnitude_property.m_Segments[segment_index], emitter_t, magnitude)
+        float mag_spread = magnitude_property.m_Spread;
         for (uint32_t i = 0; i < particle_count; ++i)
         {
             Particle* particle = &particles[i];
-            particle->SetVelocity(particle->GetVelocity() + acc_step * magnitude);
+            particle->SetVelocity(particle->GetVelocity() + acc_step * (magnitude + mag_spread * particle->GetSpreadFactor()));
         }
     }
 
-    void ApplyDrag(dmArray<Particle>& particles, Property* modifier_properties, dmParticleDDF::Modifier* modifier_ddf, const Quat& rotation, float dt)
+    void ApplyDrag(dmArray<Particle>& particles, Property* modifier_properties, dmParticleDDF::Modifier* modifier_ddf, const Quat& rotation, float emitter_t, float dt)
     {
         uint32_t particle_count = particles.Size();
         Vector3 direction = rotate(rotation, DRAG_LOCAL_DIR);
         const Property& magnitude_property = modifier_properties[MODIFIER_KEY_MAGNITUDE];
-        // We temporarily only sample the first frame until we have decided what to animate over
-        float magnitude = magnitude_property.m_Segments[0].m_Y;
+        uint32_t segment_index = dmMath::Min((uint32_t)(emitter_t * PROPERTY_SAMPLE_COUNT), PROPERTY_SAMPLE_COUNT - 1);
+        float magnitude;
+        SAMPLE_PROP(magnitude_property.m_Segments[segment_index], emitter_t, magnitude)
+        float mag_spread = magnitude_property.m_Spread;
         for (uint32_t i = 0; i < particle_count; ++i)
         {
             Particle* particle = &particles[i];
@@ -994,7 +998,7 @@ namespace dmParticle
             if (modifier_ddf->m_UseDirection)
                 v = projection(Point3(particle->GetVelocity()), direction) * direction;
             // Applied drag > 1 means the particle would travel in the reverse direction
-            float applied_drag = dmMath::Min(magnitude * dt, 1.0f);
+            float applied_drag = dmMath::Min((magnitude + mag_spread * particle->GetSpreadFactor()) * dt, 1.0f);
             particle->SetVelocity(particle->GetVelocity() - v * applied_drag);
         }
     }
@@ -1014,13 +1018,16 @@ namespace dmParticle
         return result;
     }
 
-    void ApplyRadial(dmArray<Particle>& particles, Property* modifier_properties, const Point3& position, float dt)
+    void ApplyRadial(dmArray<Particle>& particles, Property* modifier_properties, const Point3& position, float emitter_t, float dt)
     {
         uint32_t particle_count = particles.Size();
         const Property& magnitude_property = modifier_properties[MODIFIER_KEY_MAGNITUDE];
         const Property& max_distance_property = modifier_properties[MODIFIER_KEY_MAX_DISTANCE];
+        uint32_t segment_index = dmMath::Min((uint32_t)(emitter_t * PROPERTY_SAMPLE_COUNT), PROPERTY_SAMPLE_COUNT - 1);
+        float magnitude;
+        SAMPLE_PROP(magnitude_property.m_Segments[segment_index], emitter_t, magnitude)
+        float mag_spread = magnitude_property.m_Spread;
         // We temporarily only sample the first frame until we have decided what to animate over
-        float magnitude = magnitude_property.m_Segments[0].m_Y;
         float max_distance = max_distance_property.m_Segments[0].m_Y;
         float max_sq_distance = max_distance * max_distance;
         for (uint32_t i = 0; i < particle_count; ++i)
@@ -1028,20 +1035,24 @@ namespace dmParticle
             Particle* particle = &particles[i];
             Vector3 delta = particle->GetPosition() - position;
             float delta_sq_len = lengthSqr(delta);
+            float applied_magnitude = magnitude + mag_spread * particle->GetSpreadFactor();
             // 0 acc delta lies outside max dist
-            float a = dmMath::Select(max_sq_distance - delta_sq_len, magnitude, 0.0f);
+            float a = dmMath::Select(max_sq_distance - delta_sq_len, applied_magnitude, 0.0f);
             Vector3 dir = normalize(NonZeroVector3(delta, delta_sq_len, GetParticleDir(particle)));
             particle->SetVelocity(particle->GetVelocity() + dir * a * dt);
         }
     }
 
-    void ApplyVortex(dmArray<Particle>& particles, Property* modifier_properties, const Point3& position, const Quat& rotation, float dt)
+    void ApplyVortex(dmArray<Particle>& particles, Property* modifier_properties, const Point3& position, const Quat& rotation, float emitter_t, float dt)
     {
         uint32_t particle_count = particles.Size();
         const Property& magnitude_property = modifier_properties[MODIFIER_KEY_MAGNITUDE];
         const Property& max_distance_property = modifier_properties[MODIFIER_KEY_MAX_DISTANCE];
+        uint32_t segment_index = dmMath::Min((uint32_t)(emitter_t * PROPERTY_SAMPLE_COUNT), PROPERTY_SAMPLE_COUNT - 1);
+        float magnitude;
+        SAMPLE_PROP(magnitude_property.m_Segments[segment_index], emitter_t, magnitude)
+        float mag_spread = magnitude_property.m_Spread;
         // We temporarily only sample the first frame until we have decided what to animate over
-        float magnitude = magnitude_property.m_Segments[0].m_Y;
         float max_distance = max_distance_property.m_Segments[0].m_Y;
         float max_sq_distance = max_distance * max_distance;
         Vector3 axis = rotate(rotation, VORTEX_LOCAL_AXIS);
@@ -1061,7 +1072,7 @@ namespace dmParticle
             tangent = normalize(tangent);
             // use normal for max distance test
             float normal_sq_len = lengthSqr(normal);
-            float acceleration = dmMath::Select(max_sq_distance - normal_sq_len, magnitude, 0.0f);
+            float acceleration = dmMath::Select(max_sq_distance - normal_sq_len, magnitude + mag_spread * particle->GetSpreadFactor(), 0.0f);
             particle->SetVelocity(particle->GetVelocity() + tangent * acceleration * dt);
         }
     }
@@ -1095,6 +1106,7 @@ namespace dmParticle
 
         dmArray<Particle>& particles = emitter->m_Particles;
         EvaluateParticleProperties(emitter, prototype->m_ParticleProperties);
+        float emitter_t = dmMath::Select(-ddf->m_Duration, 0.0f, emitter->m_Timer / ddf->m_Duration);
         // Apply modifiers
         uint32_t modifier_count = prototype->m_Modifiers.Size();
         for (uint32_t i = 0; i < modifier_count; ++i)
@@ -1106,26 +1118,26 @@ namespace dmParticle
             case dmParticleDDF::MODIFIER_TYPE_ACCELERATION:
                 {
                     Quat rotation = CalculateModifierRotation(instance, ddf, modifier_ddf);
-                    ApplyAcceleration(particles, modifier->m_Properties, rotation, dt);
+                    ApplyAcceleration(particles, modifier->m_Properties, rotation, emitter_t, dt);
                 }
                 break;
             case dmParticleDDF::MODIFIER_TYPE_DRAG:
                 {
                     Quat rotation = CalculateModifierRotation(instance, ddf, modifier_ddf);
-                    ApplyDrag(particles, modifier->m_Properties, modifier_ddf, rotation, dt);
+                    ApplyDrag(particles, modifier->m_Properties, modifier_ddf, rotation, emitter_t, dt);
                 }
                 break;
             case dmParticleDDF::MODIFIER_TYPE_RADIAL:
                 {
                     Point3 position = CalculateModifierPosition(instance, ddf, modifier_ddf);
-                    ApplyRadial(particles, modifier->m_Properties, position, dt);
+                    ApplyRadial(particles, modifier->m_Properties, position, emitter_t, dt);
                 }
                 break;
             case dmParticleDDF::MODIFIER_TYPE_VORTEX:
                 {
                     Point3 position = CalculateModifierPosition(instance, ddf, modifier_ddf);
                     Quat rotation = CalculateModifierRotation(instance, ddf, modifier_ddf);
-                    ApplyVortex(particles, modifier->m_Properties, position, rotation, dt);
+                    ApplyVortex(particles, modifier->m_Properties, position, rotation, emitter_t, dt);
                 }
                 break;
             }

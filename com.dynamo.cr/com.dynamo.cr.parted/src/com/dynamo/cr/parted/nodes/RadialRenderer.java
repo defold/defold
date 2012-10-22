@@ -40,8 +40,8 @@ public class RadialRenderer implements INodeRenderer<RadialNode> {
                 if (renderContext.getPass() == Pass.OUTLINE) {
                     renderContext.add(this, node, new Point3d(), circle);
                 }
-                if (renderContext.getPass() == Pass.OVERLAY) {
-                    renderContext.add(this, node, new Point3d(), node.getMagnitude());
+                if (renderContext.getPass() == Pass.OVERLAY && !node.getMagnitude().isAnimated()) {
+                    renderContext.add(this, node, new Point3d(), node.getMagnitude().getValue());
                 }
             }
         }
@@ -55,7 +55,7 @@ public class RadialRenderer implements INodeRenderer<RadialNode> {
         double factor = ManipulatorRendererUtil.getScaleFactor(node, renderContext.getRenderView());
         float[] color = renderContext.selectColor(node, RadialRenderer.color);
         gl.glColor4fv(color, 0);
-        double magnitude = node.getMagnitude();
+        double magnitude = node.getMagnitude().getValue();
 
         if (renderData.getUserData() == null) {
             int n = 8;
@@ -85,7 +85,7 @@ public class RadialRenderer implements INodeRenderer<RadialNode> {
             gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
             gl.glPopMatrix();
         } else if (renderData.getUserData() instanceof Double) {
-            ParticleManipulatorUtil.drawNumber(renderContext, node, node.getMagnitude());
+            ParticleManipulatorUtil.drawNumber(renderContext, node, (Double)renderData.getUserData());
         }
     }
 

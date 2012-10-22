@@ -30,8 +30,8 @@ public class AccelerationRenderer implements INodeRenderer<AccelerationNode> {
             }
 
             if (renderContext.isSelected(node)) {
-                if (renderContext.getPass() == Pass.OVERLAY) {
-                    renderContext.add(this, node, new Point3d(), node.getMagnitude());
+                if (renderContext.getPass() == Pass.OVERLAY && !node.getMagnitude().isAnimated()) {
+                    renderContext.add(this, node, new Point3d(), node.getMagnitude().getValue());
                 }
             }
         }
@@ -47,7 +47,7 @@ public class AccelerationRenderer implements INodeRenderer<AccelerationNode> {
         gl.glColor4fv(color, 0);
 
         if (renderData.getUserData() == null) {
-            double sign = Math.signum(node.getMagnitude());
+            double sign = Math.signum(node.getMagnitude().getValue());
             if (sign == 0) {
                 sign = 1.0;
             }
@@ -63,8 +63,8 @@ public class AccelerationRenderer implements INodeRenderer<AccelerationNode> {
                 drawArrow(gl, factor);
                 gl.glPopMatrix();
             }
-        } else {
-            ParticleManipulatorUtil.drawNumber(renderContext, node, node.getMagnitude());
+        } else if (renderData.getUserData() instanceof Double) {
+            ParticleManipulatorUtil.drawNumber(renderContext, node, (Double)renderData.getUserData());
         }
 
     }

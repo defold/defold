@@ -42,8 +42,8 @@ public class VortexRenderer implements INodeRenderer<VortexNode> {
                 if (renderContext.getPass() == Pass.OUTLINE) {
                     renderContext.add(this, node, new Point3d(), circle);
                 }
-                if (renderContext.getPass() == Pass.OVERLAY) {
-                    renderContext.add(this, node, new Point3d(), node.getMagnitude());
+                if (renderContext.getPass() == Pass.OVERLAY && !node.getMagnitude().isAnimated()) {
+                    renderContext.add(this, node, new Point3d(), node.getMagnitude().getValue());
                 }
             }
         }
@@ -58,7 +58,7 @@ public class VortexRenderer implements INodeRenderer<VortexNode> {
 
         float[] color = renderContext.selectColor(node, VortexRenderer.color);
         gl.glColor4fv(color, 0);
-        boolean positive = node.getMagnitude() > 0.0;
+        boolean positive = node.getMagnitude().getValue() > 0.0;
 
         gl.glPushMatrix();
         if (renderData.getUserData() == spiral) {
@@ -78,7 +78,7 @@ public class VortexRenderer implements INodeRenderer<VortexNode> {
             gl.glDrawArrays(GL.GL_LINES, 0, circle.limit() / 3);
             gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
         } else if (renderData.getUserData() instanceof Double) {
-            ParticleManipulatorUtil.drawNumber(renderContext, node, node.getMagnitude());
+            ParticleManipulatorUtil.drawNumber(renderContext, node, (Double)renderData.getUserData());
         }
         gl.glPopMatrix();
 

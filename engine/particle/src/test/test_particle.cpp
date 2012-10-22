@@ -1101,6 +1101,37 @@ TEST_F(ParticleTest, AccelerationEmitter)
     dmParticle::DestroyInstance(m_Context, instance);
 }
 
+TEST_F(ParticleTest, AccelerationAnimated)
+{
+    float dt = 0.25f;
+
+    ASSERT_TRUE(LoadPrototype("mod_acc_anim.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype);
+    dmParticle::Emitter* emitter = GetEmitter(m_Context, instance, 0);
+
+    dmParticle::StartInstance(m_Context, instance);
+
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    dmParticle::Particle* particle = &emitter->m_Particles[0];
+    ASSERT_EQ(0.0f, particle->GetVelocity().getX());
+    ASSERT_LT(0.0f, particle->GetVelocity().getY());
+    ASSERT_EQ(0.0f, particle->GetVelocity().getZ());
+
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    // New particle at 0 because of sorting
+    particle = &emitter->m_Particles[0];
+    ASSERT_EQ(0.0f, lengthSqr(particle->GetVelocity()));
+
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    // New particle at 0 because of sorting
+    particle = &emitter->m_Particles[0];
+    ASSERT_EQ(0.0f, particle->GetVelocity().getX());
+    ASSERT_GT(0.0f, particle->GetVelocity().getY());
+    ASSERT_EQ(0.0f, particle->GetVelocity().getZ());
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
 TEST_F(ParticleTest, DragNoDir)
 {
     float dt = 1.0f;

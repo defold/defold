@@ -68,8 +68,8 @@ public class DragRenderer implements INodeRenderer<DragNode> {
             }
 
             if (renderContext.isSelected(node)) {
-                if (renderContext.getPass() == Pass.OVERLAY) {
-                    renderContext.add(this, node, new Point3d(), node.getMagnitude());
+                if (renderContext.getPass() == Pass.OVERLAY && !node.getMagnitude().isAnimated()) {
+                    renderContext.add(this, node, new Point3d(), node.getMagnitude().getValue());
                 }
             }
         }
@@ -99,8 +99,8 @@ public class DragRenderer implements INodeRenderer<DragNode> {
             gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
 
             gl.glPopMatrix();
-        } else {
-            ParticleManipulatorUtil.drawNumber(renderContext, node, node.getMagnitude());
+        } else if (renderData.getUserData() instanceof Double) {
+            ParticleManipulatorUtil.drawNumber(renderContext, node, (Double)renderData.getUserData());
         }
     }
 }
