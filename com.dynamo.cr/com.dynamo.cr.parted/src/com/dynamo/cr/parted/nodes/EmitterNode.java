@@ -39,8 +39,8 @@ import com.dynamo.particle.proto.Particle.Emitter.Property.Builder;
 import com.dynamo.particle.proto.Particle.EmitterKey;
 import com.dynamo.particle.proto.Particle.EmitterType;
 import com.dynamo.particle.proto.Particle.Modifier;
-import com.dynamo.particle.proto.Particle.ParticleDirection;
 import com.dynamo.particle.proto.Particle.ParticleKey;
+import com.dynamo.particle.proto.Particle.ParticleOrientation;
 import com.dynamo.particle.proto.Particle.PlayMode;
 import com.dynamo.proto.DdfExtensions;
 
@@ -92,7 +92,7 @@ public class EmitterNode extends Node {
     private EmitterType emitterType;
 
     @Property
-    private ParticleDirection particleDirection;
+    private ParticleOrientation particleOrientation;
 
     @Property
     private double inheritVelocity;
@@ -117,7 +117,7 @@ public class EmitterNode extends Node {
         setBlendMode(emitter.getBlendMode());
         setMaxParticleCount(emitter.getMaxParticleCount());
         setEmitterType(emitter.getType());
-        setParticleDirection(emitter.getParticleDirection());
+        setParticleOrientation(emitter.getParticleOrientation());
         setInheritVelocity(emitter.getInheritVelocity());
 
         setProperties(emitter.getPropertiesList());
@@ -450,12 +450,12 @@ public class EmitterNode extends Node {
         reloadSystem(false);
     }
 
-    public ParticleDirection getParticleDirection() {
-        return particleDirection;
+    public ParticleOrientation getParticleOrientation() {
+        return particleOrientation;
     }
 
-    public void setParticleDirection(ParticleDirection particleDirection) {
-        this.particleDirection = particleDirection;
+    public void setParticleOrientation(ParticleOrientation particleOrientation) {
+        this.particleOrientation = particleOrientation;
         reloadSystem(false);
     }
 
@@ -494,7 +494,7 @@ public class EmitterNode extends Node {
             .setBlendMode(getBlendMode())
             .setMaxParticleCount(getMaxParticleCount())
             .setType(getEmitterType())
-            .setParticleDirection(getParticleDirection())
+            .setParticleOrientation(getParticleOrientation())
             .setInheritVelocity((float)getInheritVelocity())
             .setPosition(LoaderUtil.toPoint3(getTranslation()))
             .setRotation(LoaderUtil.toQuat(getRotation()));

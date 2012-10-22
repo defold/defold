@@ -718,12 +718,12 @@ namespace dmParticle
 
         Vector3 velocity = dir * emitter_properties[EMITTER_KEY_PARTICLE_SPEED];
         Quat rotation;
-        switch (ddf->m_ParticleDirection)
+        switch (ddf->m_ParticleOrientation)
         {
-        case PARTICLE_DIRECTION_NONE:
+        case PARTICLE_ORIENTATION_DEFAULT:
             rotation = Quat::identity();
             break;
-        case PARTICLE_DIRECTION_INITIAL_DIRECTION:
+        case PARTICLE_ORIENTATION_INITIAL_DIRECTION:
             rotation = Quat::rotation(Vector3::yAxis(), dir);
             break;
         }
