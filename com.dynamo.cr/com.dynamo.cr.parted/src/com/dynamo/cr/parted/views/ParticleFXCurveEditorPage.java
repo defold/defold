@@ -28,6 +28,7 @@ import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.ControlEvent;
 import org.eclipse.swt.events.ControlListener;
 import org.eclipse.swt.graphics.Color;
+import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.graphics.RGB;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
@@ -37,14 +38,13 @@ import org.eclipse.swt.widgets.Display;
 import org.eclipse.ui.IActionBars;
 import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.ISelectionListener;
-import org.eclipse.ui.IViewSite;
 import org.eclipse.ui.IWorkbenchPart;
-import org.eclipse.ui.IWorkbenchPartSite;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.actions.ActionFactory;
 import org.eclipse.ui.operations.RedoActionHandler;
 import org.eclipse.ui.operations.UndoActionHandler;
 import org.eclipse.ui.part.EditorPart;
+import org.eclipse.ui.part.IPageSite;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -65,7 +65,7 @@ public class ParticleFXCurveEditorPage implements ICurveEditorPage, ISelectionLi
     private static Logger logger = LoggerFactory
             .getLogger(ParticleFXCurveEditorPage.class);
     private CurveEditor curveEditor;
-    private IWorkbenchPartSite site;
+    private IPageSite site;
     private IUndoContext undoContext;
     private Node selectedNode;
     private Composite composite;
@@ -184,6 +184,17 @@ public class ParticleFXCurveEditorPage implements ICurveEditorPage, ISelectionLi
     }
 
     @Override
+    public void init(IPageSite site) {
+        this.site = site;
+        site.getPage().addSelectionListener(this);
+    }
+
+    @Override
+    public IPageSite getSite() {
+        return this.site;
+    }
+
+    @Override
     public void createControl(Composite parent) {
 
         Display display = parent.getDisplay();
@@ -213,6 +224,7 @@ public class ParticleFXCurveEditorPage implements ICurveEditorPage, ISelectionLi
         curveEditor.setLayoutData(new GridData(GridData.FILL_BOTH));
         curveEditor.setProvider(new Provider());
         curveEditor.addControlListener(new ControlListener() {
+
             @Override
             public void controlResized(ControlEvent e) {
                 refresh();
@@ -222,16 +234,6 @@ public class ParticleFXCurveEditorPage implements ICurveEditorPage, ISelectionLi
             public void controlMoved(ControlEvent e) {
             }
         });
-        setSelection(site.getPage().getSelection());
-    }
-
-    @Override
-    public void init(IViewSite site) {
-        this.site = site;
-        site.getPage().addSelectionListener(this);
-        IActionBars actionBars = site.getActionBars();
-        actionBars.setGlobalActionHandler(ActionFactory.UNDO.getId(), this.undoHandler);
-        actionBars.setGlobalActionHandler(ActionFactory.REDO.getId(), this.redoHandler);
     }
 
     @Override
@@ -257,6 +259,8 @@ public class ParticleFXCurveEditorPage implements ICurveEditorPage, ISelectionLi
 
     @Override
     public void setActionBars(IActionBars actionBars) {
+        actionBars.setGlobalActionHandler(ActionFactory.UNDO.getId(), this.undoHandler);
+        actionBars.setGlobalActionHandler(ActionFactory.REDO.getId(), this.redoHandler);
     }
 
     @Override
@@ -266,6 +270,12 @@ public class ParticleFXCurveEditorPage implements ICurveEditorPage, ISelectionLi
 
     @SuppressWarnings({ "unchecked" })
     public void refresh() {
+        // HACK wait for proper size to frame properly below
+        // TODO could probably be solved better
+        Point size = this.curveEditor.getSize();
+        if (size.x == 0 && size.y == 0) {
+            return;
+        }
         List<IPropertyDesc<Node, IPropertyObjectWorld>> lst = new ArrayList<IPropertyDesc<Node,IPropertyObjectWorld>>();
         if (selectedNode != null) {
             IPropertyModel<Node, IPropertyObjectWorld> propertyModel = (IPropertyModel<Node, IPropertyObjectWorld>) selectedNode.getAdapter(IPropertyModel.class);
@@ -303,7 +313,6 @@ public class ParticleFXCurveEditorPage implements ICurveEditorPage, ISelectionLi
         }
 
         setSelection(selection);
-        refresh();
     }
 
     @Override
@@ -335,7 +344,8 @@ public class ParticleFXCurveEditorPage implements ICurveEditorPage, ISelectionLi
         this.curveEditor.redraw();
     }
 
-    private void setSelection(ISelection selection) {
+    @Override
+    public void setSelection(ISelection selection) {
         Node newNode = null;
 
         if (selection instanceof IStructuredSelection && !selection.isEmpty()) {
@@ -356,6 +366,7 @@ public class ParticleFXCurveEditorPage implements ICurveEditorPage, ISelectionLi
             curveEditor.setEnabled(false);
             selectedNode = null;
         }
+        refresh();
     }
 }
 
