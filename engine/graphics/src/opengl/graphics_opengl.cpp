@@ -1199,11 +1199,6 @@ static void LogFrameBufferError(GLenum status)
         glBindTexture(GL_TEXTURE_2D, texture->m_Texture);
         CHECK_GL_ERROR
 
-#ifndef GL_ES_VERSION_2_0
-        glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP, GL_FALSE );
-        CHECK_GL_ERROR
-#endif
-
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, params.m_MinFilter);
         CHECK_GL_ERROR
 

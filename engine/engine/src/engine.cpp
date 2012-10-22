@@ -222,7 +222,19 @@ namespace dmEngine
         delete engine;
     }
 
-    dmGraphics::TextureFilter ConvertTextureFilter(const char* filter)
+    dmGraphics::TextureFilter ConvertMinTextureFilter(const char* filter)
+    {
+        if (strcmp(filter, "linear") == 0)
+        {
+            return dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
+        }
+        else
+        {
+            return dmGraphics::TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST;
+        }
+    }
+
+    dmGraphics::TextureFilter ConvertMagTextureFilter(const char* filter)
     {
         if (strcmp(filter, "linear") == 0)
         {
@@ -339,8 +351,8 @@ namespace dmEngine
         DM_PROFILE(Engine, "Init");
 
         dmGraphics::ContextParams graphics_context_params;
-        graphics_context_params.m_DefaultTextureMinFilter = ConvertTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_min_filter", "linear"));
-        graphics_context_params.m_DefaultTextureMagFilter = ConvertTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_mag_filter", "linear"));
+        graphics_context_params.m_DefaultTextureMinFilter = ConvertMinTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_min_filter", "linear"));
+        graphics_context_params.m_DefaultTextureMagFilter = ConvertMagTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_mag_filter", "linear"));
         engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
         if (engine->m_GraphicsContext == 0x0)
         {

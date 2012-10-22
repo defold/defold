@@ -141,7 +141,7 @@ TEST_F(dmGraphicsTest, TestDefaultTextureFilters)
     dmGraphics::TextureFilter min_filter;
     dmGraphics::TextureFilter mag_filter;
     dmGraphics::GetDefaultTextureFilters(m_Context, min_filter, mag_filter);
-    ASSERT_EQ(dmGraphics::TEXTURE_FILTER_LINEAR, min_filter);
+    ASSERT_EQ(dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST, min_filter);
     ASSERT_EQ(dmGraphics::TEXTURE_FILTER_LINEAR, mag_filter);
 }
 TEST_F(dmGraphicsTest, Flip)
