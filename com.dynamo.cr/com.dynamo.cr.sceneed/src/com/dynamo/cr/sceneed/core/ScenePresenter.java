@@ -18,7 +18,6 @@ import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.swt.dnd.Transfer;
-import org.eclipse.swt.widgets.Display;
 
 import com.dynamo.cr.editor.core.ProjectProperties;
 import com.dynamo.cr.sceneed.Activator;
@@ -41,22 +40,6 @@ public class ScenePresenter implements IPresenter, IModelListener {
     @Inject private IClipboard clipboard;
 
     private boolean simulating = false;
-    private final Animator animator = new Animator();
-
-    private class Animator implements Runnable {
-        @Override
-        public void run() {
-            if (simulating) {
-                view.refreshRenderView();
-                // NOTE: This value is related to timerExec in
-                // RenderView#requestPaint
-                // NOTE: We can't use timerExec here as on windows the minimum sleep delay
-                // is 15ms so this + timerExec in RenderView would sum up to a total delay
-                // of 32ms
-                Display.getCurrent().asyncExec(this);
-            }
-        }
-    }
 
     private IStructuredSelection currentSelection;
 
@@ -210,12 +193,8 @@ public class ScenePresenter implements IPresenter, IModelListener {
     @Override
     public void toogleSimulation() {
         simulating = !simulating;
-        if (simulating) {
-            Display.getCurrent().asyncExec(animator);
-        } else {
-            view.refreshRenderView();
-        }
         view.setSimulating(simulating);
+        view.refreshRenderView();
     }
 
     private boolean sameSelection(ISelection selectionA, ISelection selectionB) {

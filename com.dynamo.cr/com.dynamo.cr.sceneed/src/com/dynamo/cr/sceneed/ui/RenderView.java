@@ -542,13 +542,14 @@ IRenderView {
 
         this.paintRequested = true;
 
-        // NOTE: This value is related to timerExec in
-        // ScenePresenter#Animator
         Display.getCurrent().timerExec(15, new Runnable() {
 
             @Override
             public void run() {
                 paintRequested = false;
+                if (simulating) {
+                    requestPaint();
+                }
                 paint();
             }
         });
