@@ -105,7 +105,7 @@ TEST(dmMath, Rand)
     uint32_t seed = 0;
 
     float out[3];
-    float epsilon = 0.02f;
+    float epsilon = 0.0001f;
 
     TestRand(dmMath::Rand01, &seed, out);
     ASSERT_NEAR(0.0f, out[0], epsilon);
@@ -121,7 +121,7 @@ TEST(dmMath, Rand)
     TestRand(dmMath::Rand11, &seed, out);
     ASSERT_NEAR(-1.0f, out[0], epsilon);
     ASSERT_NEAR(1.0f, out[1], epsilon);
-    ASSERT_NEAR(0.0f, out[2], epsilon * 10);
+    ASSERT_NEAR(0.0f, out[2], epsilon * 20);
 }
 
 int main(int argc, char **argv)

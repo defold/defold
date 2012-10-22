@@ -134,8 +134,7 @@ namespace dmMath
     inline uint32_t Rand(uint32_t* seed)
     {
         *seed = (214013 * *seed + 2531011);
-        *seed = (*seed >> 16) & DM_RAND_MAX;
-        return *seed;
+        return (*seed >> 16) & DM_RAND_MAX;
     }
 
     /**
@@ -143,8 +142,7 @@ namespace dmMath
      */
     inline float Rand01(uint32_t* seed)
     {
-        Rand(seed);
-        return (float)(*seed%((uint32_t)DM_RAND_MAX + 1)) * DM_RAND_MAX_RECIP;
+        return Rand(seed) * DM_RAND_MAX_RECIP;
     }
 
     /**
@@ -152,8 +150,7 @@ namespace dmMath
      */
     inline float RandOpen01(uint32_t* seed)
     {
-        Rand(seed);
-        return (float)(*seed%DM_RAND_MAX) * DM_RAND_MAX_RECIP;
+        return (Rand(seed)%DM_RAND_MAX) * DM_RAND_MAX_RECIP;
     }
 
     /**
