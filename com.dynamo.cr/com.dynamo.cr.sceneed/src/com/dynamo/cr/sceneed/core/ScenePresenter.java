@@ -50,7 +50,10 @@ public class ScenePresenter implements IPresenter, IModelListener {
                 view.refreshRenderView();
                 // NOTE: This value is related to timerExec in
                 // RenderView#requestPaint
-                Display.getCurrent().timerExec(1, this);
+                // NOTE: We can't use timerExec here as on windows the minimum sleep delay
+                // is 15ms so this + timerExec in RenderView would sum up to a total delay
+                // of 32ms
+                Display.getCurrent().asyncExec(this);
             }
         }
     }
