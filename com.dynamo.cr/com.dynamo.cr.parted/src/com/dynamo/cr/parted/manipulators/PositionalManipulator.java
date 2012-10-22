@@ -7,6 +7,7 @@ import org.eclipse.swt.events.MouseEvent;
 
 import com.dynamo.cr.parted.nodes.PositionalModifierNode;
 import com.dynamo.cr.properties.IPropertyModel;
+import com.dynamo.cr.properties.types.ValueSpread;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Manipulator;
 import com.dynamo.cr.sceneed.core.Node;
@@ -53,7 +54,9 @@ public class PositionalManipulator extends RootManipulator {
                 PositionalModifierNode modifier = (PositionalModifierNode) node;
                 if (manipulator == xScaleManipulator) {
                     magnitude = originalMagnitude + xScaleManipulator.getDistance() * factor;
-                    modifier.setMagnitude(magnitude);
+                    ValueSpread magnitudeVS = modifier.getMagnitude();
+                    magnitudeVS.setValue(magnitude);
+                    modifier.setMagnitude(magnitudeVS);
                 } else if (manipulator == yScaleManipulator) {
                     maxDistance = originalMaxDistance + yScaleManipulator.getDistance() * factor;
                     maxDistance = Math.max(0, maxDistance);
@@ -66,7 +69,7 @@ public class PositionalManipulator extends RootManipulator {
     @Override
     protected void selectionChanged() {
         PositionalModifierNode modifier = (PositionalModifierNode) getSelection().get(0);
-        magnitude = originalMagnitude = modifier.getMagnitude();
+        magnitude = originalMagnitude = modifier.getMagnitude().getValue();
         maxDistance = originalMaxDistance = modifier.getMaxDistance();
         setTranslation(modifier.getTranslation());
         setRotation(modifier.getRotation());
@@ -74,6 +77,10 @@ public class PositionalManipulator extends RootManipulator {
 
     @Override
     public void refresh() {
+        PositionalModifierNode node = (PositionalModifierNode) getSelection().get(0);
+        ValueSpread vs = node.getMagnitude();
+        this.xScaleManipulator.setEnabled(!vs.isAnimated());
+
         selectionChanged();
     }
 
@@ -83,7 +90,9 @@ public class PositionalManipulator extends RootManipulator {
             Node node = getSelection().get(0);
             PositionalModifierNode modifier = (PositionalModifierNode) node;
             // We must reset. Otherwise setPropertyValue will detect no change and return null operation
-            modifier.setMagnitude(originalMagnitude);
+            ValueSpread magnitudeVS = modifier.getMagnitude();
+            magnitudeVS.setValue(originalMagnitude);
+            modifier.setMagnitude(magnitudeVS);
             modifier.setMaxDistance(originalMaxDistance);
 
             @SuppressWarnings("unchecked")
@@ -91,7 +100,8 @@ public class PositionalManipulator extends RootManipulator {
 
             IUndoableOperation operation = null;
             if (magnitude != originalMagnitude) {
-                operation = propertyModel.setPropertyValue("magnitude", magnitude);
+                magnitudeVS.setValue(magnitude);
+                operation = propertyModel.setPropertyValue("magnitude", magnitudeVS);
             } else if (maxDistance != originalMaxDistance) {
                 operation = propertyModel.setPropertyValue("maxDistance", maxDistance);
             }

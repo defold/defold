@@ -99,33 +99,33 @@ enum BlendMode
     BLEND_MODE_MULT      = 3 [(displayName) = "Multiply"];
 }
 
-enum ParticleDirection
+enum ParticleOrientation
 {
-    PARTICLE_DIRECTION_NONE = 0 [(displayName) = "None"];
-    PARTICLE_DIRECTION_INITIAL_DIRECTION = 1 [(displayName) = "Initial Direction"];
+    PARTICLE_ORIENTATION_DEFAULT = 0 [(displayName) = "Default"];
+    PARTICLE_ORIENTATION_INITIAL_DIRECTION = 1 [(displayName) = "Initial Direction"];
 }
 
 message Emitter
 {
-    optional string             id                  = 1 [default = "emitter"];
-    required PlayMode           mode                = 2;
-    optional float              duration            = 3 [default = 0];
+    optional string                 id                      = 1 [default = "emitter"];
+    required PlayMode               mode                    = 2;
+    optional float                  duration                = 3 [default = 0];
 
-    required EmissionSpace      space               = 4;
-    required dmMath.Point3      position            = 5;
-    required dmMath.Quat        rotation            = 6;
+    required EmissionSpace          space                   = 4;
+    required dmMath.Point3          position                = 5;
+    required dmMath.Quat            rotation                = 6;
 
-    required string             tile_source         = 7 [(resource)=true];
-    required string             animation           = 8;
-    required string             material            = 9 [(resource)=true];
-    optional BlendMode          blend_mode          = 10 [default = BLEND_MODE_ALPHA];
-    optional ParticleDirection  particle_direction  = 11 [default = PARTICLE_DIRECTION_NONE];
-    optional float              inherit_velocity    = 12 [default = 0.0];
+    required string                 tile_source             = 7 [(resource)=true];
+    required string                 animation               = 8;
+    required string                 material                = 9 [(resource)=true];
+    optional BlendMode              blend_mode              = 10 [default = BLEND_MODE_ALPHA];
+    optional ParticleOrientation    particle_orientation    = 11 [default = PARTICLE_ORIENTATION_DEFAULT];
+    optional float                  inherit_velocity        = 12 [default = 0.0];
 
-    required uint32             max_particle_count  = 13;
+    required uint32                 max_particle_count      = 13;
 
-    required EmitterType        type                = 14;
-    optional float              start_delay         = 15 [default = 0.0];
+    required EmitterType            type                    = 14;
+    optional float                  start_delay             = 15 [default = 0.0];
 
     message Property
     {
@@ -133,16 +133,16 @@ message Emitter
         repeated SplinePoint        points  = 2;
         optional float              spread  = 3 [default = 0.0];
     }
-    repeated Property           properties          = 16;
+    repeated Property               properties              = 16;
 
     message ParticleProperty
     {
         required ParticleKey    key     = 1;
         repeated SplinePoint    points  = 2;
     }
-    repeated ParticleProperty   particle_properties = 17;
+    repeated ParticleProperty       particle_properties     = 17;
 
-    repeated Modifier           modifiers           = 18;
+    repeated Modifier               modifiers               = 18;
 }
 
 message ParticleFX

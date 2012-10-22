@@ -3,7 +3,9 @@ package com.dynamo.cr.parted.nodes;
 import org.eclipse.swt.graphics.Image;
 
 import com.dynamo.cr.parted.ParticleEditorPlugin;
+import com.dynamo.cr.parted.curve.HermiteSpline;
 import com.dynamo.cr.properties.Property;
+import com.dynamo.cr.properties.types.ValueSpread;
 import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.util.LoaderUtil;
@@ -17,7 +19,7 @@ public abstract class AbstractModifierNode extends Node {
     private static final long serialVersionUID = 1L;
 
     @Property
-    protected double magnitude = 0.0f;
+    protected ValueSpread magnitude = new ValueSpread(new HermiteSpline());
 
     public AbstractModifierNode(Modifier modifier) {
         super();
@@ -29,7 +31,7 @@ public abstract class AbstractModifierNode extends Node {
         for (Modifier.Property p : modifier.getPropertiesList()) {
             switch (p.getKey()) {
             case MODIFIER_KEY_MAGNITUDE:
-                magnitude = p.getPointsList().get(0).getY();
+                magnitude = ParticleUtils.toValueSpread(p.getPointsList(), p.getSpread());
                 break;
             }
         }
@@ -44,12 +46,12 @@ public abstract class AbstractModifierNode extends Node {
         setAABB(aabb);
     }
 
-    public double getMagnitude() {
-        return magnitude;
+    public ValueSpread getMagnitude() {
+        return new ValueSpread(magnitude);
     }
 
-    public void setMagnitude(double magnitude) {
-        this.magnitude = magnitude;
+    public void setMagnitude(ValueSpread magnitude) {
+        this.magnitude.set(magnitude);
         reloadSystem();
     }
 
@@ -69,7 +71,8 @@ public abstract class AbstractModifierNode extends Node {
             .setRotation(LoaderUtil.toQuat(getRotation()))
             .addProperties(Modifier.Property.newBuilder()
                     .setKey(ModifierKey.MODIFIER_KEY_MAGNITUDE)
-                    .addAllPoints(ParticleUtils.toSplinePointList(magnitude)));
+                    .addAllPoints(ParticleUtils.toSplinePointList(magnitude))
+                    .setSpread((float)magnitude.getSpread()));
         buildProperties(b);
         return b.build();
     }
