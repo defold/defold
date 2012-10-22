@@ -83,7 +83,10 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
         public void update() {
             // Update is constantly postponed when update() is invoked
             start = System.currentTimeMillis();
-            Display.getCurrent().timerExec(50, this);
+            Display display = Display.getCurrent();
+            if (display != null) {
+                display.timerExec(50, this);
+            }
         }
     }
 
