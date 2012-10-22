@@ -63,7 +63,7 @@ public class CurveEditor extends Canvas implements PaintListener,
     }
 
     public CurveEditor(Composite parent, int style, ColorRegistry colorRegistry) {
-        super(parent, style);
+        super(parent, style | SWT.DOUBLE_BUFFERED);
         addPaintListener(this);
         addMouseWheelListener(this);
         addMouseMoveListener(this);
