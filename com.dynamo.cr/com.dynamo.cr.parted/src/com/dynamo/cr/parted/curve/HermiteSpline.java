@@ -130,6 +130,8 @@ public class HermiteSpline implements Serializable {
 
             double py0 = p0.getY();
             double py1 = p1.getY();
+            min = Math.min(min, Math.min(py0, py1));
+            max = Math.max(max, Math.max(py0, py1));
             double pt0 = dx * p0.getTy() / p0.getTx();
             double pt1 = dx * p1.getTy() / p1.getTx();
 
@@ -137,38 +139,30 @@ public class HermiteSpline implements Serializable {
             //double y = hermite(py0, py1, pt0, pt1, segT);
 
             /*
-             * A, B and C are the coefficent to the differntitated hermite spline
+             * A, B and C are the coefficents of the derivative of the hermite spline
              * in power form, i.e. A * t^3 + B * t^2 ...
              */
             double A = 3 * (2 * py0  - 2 * py1 + pt0 + pt1);
             double B = 2 * (-3 * py0 + 3 * py1 - 2 * pt0 - pt1);
             double C = pt0;
 
-            double t0, t1;
             // Solve the equation for extreme points
 
             // Solution to the equation? (A straight line donsn't have a solution)
             if (Math.abs(A) > 0.0001) {
                 double Q0 = B / (2 * A);
                 double Q1 = B * B / (4 * A * A) - C / A;
-                if (Q1 > 0) {
-                    t0 = -Q0 + Math.sqrt(Q1);
-                    t1 = -Q0 - Math.sqrt(Q1);
-                } else {
-                    // No solution the equation
-                    t0 = 0;
-                    t1 = 1;
+                if (Q1 >= 0) {
+                    double[] ts = new double[] {-Q0 + Math.sqrt(Q1), -Q0 - Math.sqrt(Q1)};
+                    for (double t : ts) {
+                        if (0.0 <= t && t <= 1) {
+                            double y = hermite(py0, py1, pt0, pt1, t);
+                            min = Math.min(min, y);
+                            max = Math.max(max, y);
+                        }
+                    }
                 }
-            } else {
-                t0 = 0;
-                t1 = 1;
             }
-
-            double y0 = hermite(py0, py1, pt0, pt1, t0);
-            double y1 = hermite(py0, py1, pt0, pt1, t1);
-
-            min = Math.min(min, Math.min(y0, y1));
-            max = Math.max(max, Math.max(y0, y1));
         }
 
         v[0] = min;

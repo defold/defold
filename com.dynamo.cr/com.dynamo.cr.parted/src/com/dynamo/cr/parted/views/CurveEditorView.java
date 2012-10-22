@@ -70,6 +70,7 @@ public class CurveEditorView extends ViewPart implements IPartListener {
         if (page != null) {
             page.init((IViewSite) getSite());
             page.createControl(parent);
+            parent.layout();
             trackingPart = part;
         }
     }
