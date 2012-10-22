@@ -1,6 +1,7 @@
 package com.dynamo.cr.parted.curve.test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
@@ -102,6 +103,26 @@ public class HermiteSplineTest {
         spline.getExtremValues(v);
         assertEquals(0, v[0], EPSILON);
         assertEquals(0, v[1], EPSILON);
+    }
+
+    @Test
+    public void testExtremValues4() {
+        HermiteSpline spline = new HermiteSpline();
+        spline = spline.insertPoint(0.5, 1);
+
+        spline = spline.setPosition(0, 0, 0);
+        spline = spline.setTangent(0, 0.9999974, 0.002293415);
+
+        spline = spline.setPosition(1, 0.790099, 0.87162215);
+        spline = spline.setTangent(1, 0.25862634, 0.96597743);
+
+        spline = spline.setPosition(2, 1, 0);
+        spline = spline.setTangent(2, 0.09647936, -0.995335);
+
+        double[] v = new double[2];
+        spline.getExtremValues(v);
+        assertEquals(0.0, v[0], 0.01);
+        assertTrue(v[1] < 1);
     }
 
 }
