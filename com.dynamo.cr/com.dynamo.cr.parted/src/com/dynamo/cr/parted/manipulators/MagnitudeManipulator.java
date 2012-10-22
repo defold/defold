@@ -28,7 +28,7 @@ public class MagnitudeManipulator extends RootManipulator {
 
     @Override
     public boolean match(Object[] selection) {
-        if (selection.length > 0 && selection[0] instanceof AbstractModifierNode || selection[0] instanceof DragNode) {
+        if (selection.length > 0 && (selection[0] instanceof AbstractModifierNode || selection[0] instanceof DragNode)) {
             return true;
         }
         return false;
