@@ -77,6 +77,9 @@ namespace dmRender
         tex_params.m_DataSize = params.m_TextureDataSize;
         tex_params.m_Width = params.m_TextureWidth;
         tex_params.m_Height = params.m_TextureHeight;
+        // NOTE: No mipmap support in fonts yet therefore TEXTURE_FILTER_LINEAR
+        tex_params.m_MinFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
+        tex_params.m_MagFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
         font_map->m_Texture = dmGraphics::NewTexture(graphics_context, tex_params);
 
         return font_map;

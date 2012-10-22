@@ -16,11 +16,22 @@ def compile_uncompressed(source_name, source_image, texture_image):
                      'RGBA' : graphics_ddf_pb2.TextureImage.TEXTURE_FORMAT_RGBA
                     }
 
-    data = source_image.tostring()
+    mip_maps = ""
+    w, h = image.width, image.height
+    current = source_image
+    while not (w == 0 and h == 0):
+        w = max(1, w)
+        h = max(1, h)
+        current = current.resize((w, h), Image.ANTIALIAS)
+        data = current.tostring()
+        image.mip_map_offset.append(len(mip_maps))
+        image.mip_map_size.append(len(data))
+        mip_maps += data
+        w >>= 1
+        h >>= 1
+
     image.format = format_table[source_image.mode]
-    image.mip_map_offset.append(0)
-    image.mip_map_size.append(len(data))
-    image.data = data
+    image.data = mip_maps
 
 def compile_dds(source_name, source_image, texture_image):
     dds_file_no, dds_file = tempfile.mkstemp('.dds')
