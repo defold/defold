@@ -355,22 +355,19 @@
          </menu>
       </menuContribution>
       <menuContribution
-            locationURI="menu:com.dynamo.cr.editor.menus.tools">
-         <menu
-               label="Tools"
-               mnemonic="T">
-            <command
-                  commandId="com.dynamo.cr.sceneed.commands.toggleScreenRecord"
-                  label="Screen Record"
-                  style="push">
-               <visibleWhen
-                     checkEnabled="false">
-                  <test
-                        property="com.dynamo.cr.editor.is_dev">
-                  </test>
-               </visibleWhen>
-            </command>
-         </menu>
+            allPopups="false"
+            locationURI="menu:edit">
+         <command
+               commandId="com.dynamo.cr.sceneed.commands.toggleScreenRecord"
+               label="Screen Record"
+               style="push">
+            <visibleWhen
+                  checkEnabled="false">
+               <test
+                     property="com.dynamo.cr.editor.is_dev">
+               </test>
+            </visibleWhen>
+         </command>
       </menuContribution>
    </extension>
    <extension
