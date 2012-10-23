@@ -702,8 +702,11 @@ namespace dmGraphics
         if (texture->m_Data != 0x0)
             delete [] (char*)texture->m_Data;
         texture->m_Format = params.m_Format;
-        texture->m_Width = params.m_Width;
-        texture->m_Height = params.m_Height;
+        if (params.m_MipMap == 0)
+        {
+            texture->m_Width = params.m_Width;
+            texture->m_Height = params.m_Height;
+        }
         if (params.m_DataSize > 0)
         {
             texture->m_Data = new char[params.m_DataSize];
