@@ -18,19 +18,14 @@ import org.eclipse.swt.events.MouseEvent;
 import org.eclipse.ui.ISelectionService;
 
 import com.dynamo.cr.sceneed.core.SceneUtil.MouseType;
+import com.dynamo.cr.sceneed.core.util.CameraUtil;
+import com.dynamo.cr.sceneed.core.util.CameraUtil.Movement;
 
 public class CameraController implements IRenderViewController {
 
-    private static enum State {
-        IDLE,
-        ROTATE,
-        TRACK,
-        DOLLY,
-    }
-
     private int lastX;
     private int lastY;
-    private State state = State.IDLE;
+    private CameraUtil.Movement movement = Movement.IDLE;
     private IRenderView renderView;
     private Camera camera = new Camera(Camera.Type.ORTHOGRAPHIC);
     private Vector4d focusPoint = new Vector4d(0.0, 0.0, 0.0, 1.0);
@@ -63,31 +58,30 @@ public class CameraController implements IRenderViewController {
     public void mouseDown(MouseEvent event) {
         lastX = event.x;
         lastY = event.y;
-        state = State.IDLE;
-        MouseType mouseType = SceneUtil.getMouseType();
-        switch (mouseType) {
-        case ONE_BUTTON:
-            if (event.button == 1) {
-                if (event.stateMask == (SWT.ALT | SWT.CTRL)) {
-                    state = State.TRACK;
-                } else if (event.stateMask == SWT.ALT) {
-                    state = State.ROTATE;
-                } else if (event.stateMask == SWT.CTRL) {
-                    state = State.DOLLY;
-                }
-            }
-            break;
-        case THREE_BUTTON:
-            if (event.stateMask == SWT.ALT) {
-                if (event.button == 2) {
-                    state = State.TRACK;
-                } else if (event.button == 1) {
-                    state = State.ROTATE;
-                } else if (event.button == 3) {
-                    state = State.DOLLY;
-                }
-            }
-            break;
+        movement = CameraUtil.getMovement(event);
+    }
+
+    private void dolly(double amount) {
+        Vector4d focusDelta = new Vector4d(camera.getPosition());
+        focusDelta.sub(focusPoint);
+        double focusDistance = focusDelta.length();
+        if (camera.getType() == Camera.Type.ORTHOGRAPHIC) {
+            double fov = camera.getFov();
+            fov += amount * fov;
+            fov = Math.max(0.01, fov);
+            camera.setFov(fov);
+        } else {
+            Quat4d r = new Quat4d();
+            camera.getRotation(r);
+            Matrix4d m = new Matrix4d();
+            m.setIdentity();
+            m.set(r);
+
+            Vector4d delta = new Vector4d();
+
+            m.getColumn(2, delta);
+            delta.scale(amount * focusDistance);
+            camera.move(delta.x, delta.y, delta.z);
         }
     }
 
@@ -96,11 +90,7 @@ public class CameraController implements IRenderViewController {
         int dx = lastX - e.x;
         int dy = lastY - e.y;
 
-        Vector4d focusDelta = new Vector4d(camera.getPosition());
-        focusDelta.sub(focusPoint);
-        double focusDistance = focusDelta.length();
-
-        if (state == State.ROTATE && camera.getType() == Camera.Type.PERSPECTIVE) {
+        if (movement == Movement.ROTATE && camera.getType() == Camera.Type.PERSPECTIVE) {
             Vector4d delta = new Vector4d(camera.getPosition());
             delta.sub(focusPoint);
             Quat4d q_delta = new Quat4d();
@@ -138,7 +128,7 @@ public class CameraController implements IRenderViewController {
             delta.set(q_delta);
             delta.add(focusPoint);
             camera.setPosition(delta.x, delta.y, delta.z);
-        } else if (state == State.TRACK) {
+        } else if (movement == Movement.TRACK) {
             Point3d point = camera.project(this.focusPoint.x,
                     this.focusPoint.y, this.focusPoint.z);
             Vector4d world = camera.unProject(e.x, e.y, point.z);
@@ -146,26 +136,8 @@ public class CameraController implements IRenderViewController {
             delta.sub(world);
             camera.move(delta.x, delta.y, delta.z);
             this.focusPoint.add(delta);
-        } else if (state == State.DOLLY) {
-
-            if (camera.getType() == Camera.Type.ORTHOGRAPHIC) {
-                double fov = camera.getFov();
-                fov += -dy * fov * 0.002;
-                fov = Math.max(0.01, fov);
-                camera.setFov(fov);
-            } else {
-                Quat4d r = new Quat4d();
-                camera.getRotation(r);
-                Matrix4d m = new Matrix4d();
-                m.setIdentity();
-                m.set(r);
-
-                Vector4d delta = new Vector4d();
-
-                m.getColumn(2, delta);
-                delta.scale(-dy * focusDistance * 0.001);
-                camera.move(delta.x, delta.y, delta.z);
-            }
+        } else if (movement == Movement.DOLLY) {
+            dolly(-dy * 0.002);
         }
 
         lastX = e.x;
@@ -176,16 +148,21 @@ public class CameraController implements IRenderViewController {
 
     @Override
     public void mouseUp(MouseEvent e) {
-        state = State.IDLE;
+        movement = Movement.IDLE;
     }
 
     @Override
     public void mouseDoubleClick(MouseEvent e) {
     }
 
+    @Override
+    public void mouseScrolled(MouseEvent e) {
+        dolly(-e.count * 0.02);
+        renderView.refresh();
+    }
+
     private static boolean hasCameraControlModifiers(MouseEvent event) {
         MouseType type = SceneUtil.getMouseType();
-
         return (type == MouseType.THREE_BUTTON && (event.stateMask & SWT.ALT) != 0)
                 || (type == MouseType.ONE_BUTTON && (event.stateMask & (SWT.CTRL|SWT.ALT)) != 0);
     }
@@ -334,7 +311,8 @@ public class CameraController implements IRenderViewController {
 
     @Override
     public IRenderViewController.FocusType getFocusType(List<Node> nodes, MouseEvent event) {
-        if (hasCameraControlModifiers(event)) {
+        boolean scroll = event.count != 0 && event.button == 0;
+        if (scroll || hasCameraControlModifiers(event)) {
             return FocusType.CAMERA;
         } else {
             return FocusType.NONE;

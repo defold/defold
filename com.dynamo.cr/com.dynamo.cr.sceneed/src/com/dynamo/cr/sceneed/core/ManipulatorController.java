@@ -149,6 +149,10 @@ public class ManipulatorController implements IRenderViewProvider, IRenderViewCo
         this.renderView.refresh();
     }
 
+    @Override
+    public void mouseScrolled(MouseEvent e) {
+    }
+
     public void executeOperation(IUndoableOperation operation) {
         operation.addContext(this.undoContext);
         IStatus status = null;

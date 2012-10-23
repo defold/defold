@@ -176,6 +176,10 @@ public class SceneRenderViewProvider implements IRenderViewProvider, ISelectionP
         this.presenterContext.refreshView();
     }
 
+    @Override
+    public void mouseScrolled(MouseEvent e) {
+    }
+
     private IStructuredSelection boxSelect(MouseEvent event) {
         this.selectionBoxNode.setCurrent(event.x, event.y);
         return boxSelect(event.stateMask);

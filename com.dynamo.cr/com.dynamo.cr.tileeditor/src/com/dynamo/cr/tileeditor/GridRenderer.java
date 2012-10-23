@@ -23,6 +23,7 @@ import org.eclipse.swt.events.MouseEvent;
 import org.eclipse.swt.events.MouseListener;
 import org.eclipse.swt.events.MouseMoveListener;
 import org.eclipse.swt.events.MouseTrackAdapter;
+import org.eclipse.swt.events.MouseWheelListener;
 import org.eclipse.swt.graphics.Cursor;
 import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.graphics.Rectangle;
@@ -42,6 +43,8 @@ import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.sceneed.core.SceneUtil;
 import com.dynamo.cr.sceneed.core.SceneUtil.MouseType;
+import com.dynamo.cr.sceneed.core.util.CameraUtil;
+import com.dynamo.cr.sceneed.core.util.CameraUtil.Movement;
 import com.dynamo.cr.sceneed.ui.RenderUtil;
 import com.dynamo.cr.tileeditor.core.IGridView;
 import com.dynamo.cr.tileeditor.core.Layer;
@@ -56,11 +59,9 @@ public class GridRenderer implements
 IDisposable,
 MouseListener,
 MouseMoveListener,
+MouseWheelListener,
 Listener {
 
-    private final static int CAMERA_MODE_NONE = 0;
-    private final static int CAMERA_MODE_PAN = 1;
-    private final static int CAMERA_MODE_ZOOM = 2;
     private final static float BORDER_SIZE = 1.0f;
 
     private static Logger logger = LoggerFactory.getLogger(GridRenderer.class);
@@ -89,7 +90,7 @@ Listener {
     private MapBrush brush = new MapBrush();
 
     // Camera data
-    private int cameraMode = CAMERA_MODE_NONE;
+    private Movement cameraMovement = Movement.IDLE;
     private int lastX;
     private int lastY;
     private final Point2f position = new Point2f(0.0f, 0.0f);
@@ -145,6 +146,7 @@ Listener {
         this.canvas.addListener(SWT.KeyUp, this);
         this.canvas.addMouseListener(this);
         this.canvas.addMouseMoveListener(this);
+        this.canvas.addMouseWheelListener(this);
         this.canvas.addMouseTrackListener(new MouseTrackAdapter() {
             @Override
             public void mouseEnter(MouseEvent e) {
@@ -332,6 +334,10 @@ Listener {
         }
     }
 
+    private void dolly(double amount) {
+        this.presenter.onPreviewZoom(amount);
+    }
+
     // MouseMoveListener
 
     @Override
@@ -346,16 +352,16 @@ Listener {
             }
         } else {
             Point2i activeCell = pickCell(e.x, e.y);
-            switch (this.cameraMode) {
-            case CAMERA_MODE_PAN:
+            switch (this.cameraMovement) {
+            case TRACK:
                 activeCell = null;
                 this.presenter.onPreviewPan(dx, dy);
                 break;
-            case CAMERA_MODE_ZOOM:
+            case DOLLY:
                 activeCell = null;
-                this.presenter.onPreviewZoom(dy);
+                dolly(-dy * 0.005);
                 break;
-            case CAMERA_MODE_NONE:
+            case IDLE:
                 if ((e.stateMask & SWT.BUTTON1) == SWT.BUTTON1) {
                     if (activeCell != null && this.startActiveCell == null) {
                         this.presenter.onPaint(activeCell.getX(), activeCell.getY());
@@ -440,30 +446,10 @@ Listener {
                 }
             }
         } else {
-            this.cameraMode = CAMERA_MODE_NONE;
-            MouseType mouseType = SceneUtil.getMouseType();
-            switch (mouseType) {
-            case ONE_BUTTON:
-                if (event.button == 1) {
-                    if (event.stateMask == (SWT.ALT | SWT.CTRL)) {
-                        this.cameraMode = CAMERA_MODE_PAN;
-                    } else if (event.stateMask == SWT.CTRL) {
-                        this.cameraMode = CAMERA_MODE_ZOOM;
-                    }
-                }
-                break;
-            case THREE_BUTTON:
-                if (event.stateMask == SWT.ALT) {
-                    if (event.button == 2) {
-                        this.cameraMode = CAMERA_MODE_PAN;
-                    } else if (event.button == 3) {
-                        this.cameraMode = CAMERA_MODE_ZOOM;
-                    }
-                }
-                break;
-            }
-            if (this.cameraMode == CAMERA_MODE_NONE && this.activeCell != null) {
+            this.cameraMovement = CameraUtil.getMovement(event);
+            if (this.cameraMovement == Movement.IDLE && this.activeCell != null) {
                 // Block brush selection
+                MouseType mouseType = SceneUtil.getMouseType();
                 if ((mouseType == MouseType.ONE_BUTTON && event.button == 1 && event.stateMask == SWT.SHIFT)
                         || (mouseType == MouseType.THREE_BUTTON && event.button == 3))
                 {
@@ -480,8 +466,8 @@ Listener {
 
     @Override
     public void mouseUp(MouseEvent e) {
-        if (this.cameraMode != CAMERA_MODE_NONE) {
-            this.cameraMode = CAMERA_MODE_NONE;
+        if (this.cameraMovement != Movement.IDLE) {
+            this.cameraMovement = Movement.IDLE;
             Point2i activeCell = pickCell(e.x, e.y);
             if ((this.activeCell == null && activeCell != null) || (this.activeCell != null && !this.activeCell.equals(activeCell))) {
                 this.activeCell = activeCell;
@@ -497,6 +483,11 @@ Listener {
             }
         }
         updateCursor();
+    }
+
+    @Override
+    public void mouseScrolled(MouseEvent e) {
+        dolly(e.count * 0.02);
     }
 
     public boolean isEnabled() {

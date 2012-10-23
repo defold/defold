@@ -560,9 +560,9 @@ public class GridTest implements IResourceChangeListener {
         this.presenter.onPreviewPan(10, 10);
         verify(this.view, times(1)).setPreview(eq(new Point2f(-10.0f, 10.0f)), eq(1.0f));
 
-        int d = -10;
+        double d = -0.05;
         this.presenter.onPreviewZoom(d);
-        float scale = 1.0f - d * GridPresenter.ZOOM_FACTOR;
+        float scale = 1.0f + (float)d;
         verify(this.view, times(1)).setPreview(eq(new Point2f(-10.0f, 10.0f)), eq(scale, 0.001f));
 
     }

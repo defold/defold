@@ -16,6 +16,9 @@ import org.eclipse.swt.graphics.RGB;
 import org.eclipse.swt.widgets.Canvas;
 import org.eclipse.swt.widgets.Composite;
 
+import com.dynamo.cr.sceneed.core.util.CameraUtil;
+import com.dynamo.cr.sceneed.core.util.CameraUtil.Movement;
+
 /**
  * Curve Editor
  * @author chmu
@@ -42,7 +45,8 @@ public class CurveEditor extends Canvas implements PaintListener,
     private double offsetY = 0;
     private double zoomY = 100;
     private int prevY = -1;
-    private Mode mode = Mode.IDLE;
+    private Movement cameraMovement = Movement.IDLE;
+    private boolean movingCurve = false;
     private Hit hit;
     private Font font;
 
@@ -53,10 +57,6 @@ public class CurveEditor extends Canvas implements PaintListener,
     private HermiteSpline activeSpline = null;
 
     private ColorRegistry colorsRegistry;
-
-    private enum Mode {
-        IDLE, PANNING, MOVE,
-    }
 
     private Color getColor(String key) {
         return colorsRegistry.get(key);
@@ -345,45 +345,65 @@ public class CurveEditor extends Canvas implements PaintListener,
         return null;
     }
 
+    private void dolly(double amount) {
+        Point size = getSize();
+
+        double center = (fromScreenY(0) + fromScreenY(size.y)) * 0.5;
+        double screenCenter0 = toScreenY(center);
+
+        zoomY += amount * zoomY;
+        zoomY = Math.max(0.01, zoomY);
+        double screenCenter1 = toScreenY(center);
+        offsetY += (screenCenter0 - screenCenter1);
+    }
+
     @Override
     public void mouseMove(MouseEvent e) {
         if (provider == null)
             return;
 
         int dy = e.y - prevY;
-        if (mode == Mode.PANNING) {
+        switch (cameraMovement) {
+        case TRACK:
             offsetY += dy;
             redraw();
-        } else if (mode == Mode.MOVE && activeSpline != null) {
+            break;
+        case DOLLY:
+            dolly(-dy * 0.005);
+            redraw();
+            break;
+        default:
+            if (movingCurve && activeSpline != null) {
 
-            if (hit.handle == Handle.CONTROL) {
-                double newX = fromScreenX(e.x - hit.mouseDX) ;
-                double newY = fromScreenY(e.y - hit.mouseDY);
-                activeSpline = activeSpline.setPosition(hit.index, newX, newY);
-                HermiteSpline oldSpline = activeSpline.setPosition(hit.index, hit.point.getX(), hit.point.getY());
-                splineChanged("Move point", activeIndex, oldSpline, activeSpline, true);
-                redraw();
-            } else if (hit.handle == Handle.TANGENT_CONTROL1
-                    || hit.handle == Handle.TANGENT_CONTROL2) {
-                double tx = hit.point.getX() - fromScreenX(e.x - hit.mouseDX);
-                double ty = hit.point.getY() - fromScreenY(e.y - hit.mouseDY);
-                if (hit.handle == Handle.TANGENT_CONTROL2) {
-                    tx *= -1;
-                    ty *= -1;
+                if (hit.handle == Handle.CONTROL) {
+                    double newX = fromScreenX(e.x - hit.mouseDX) ;
+                    double newY = fromScreenY(e.y - hit.mouseDY);
+                    activeSpline = activeSpline.setPosition(hit.index, newX, newY);
+                    HermiteSpline oldSpline = activeSpline.setPosition(hit.index, hit.point.getX(), hit.point.getY());
+                    splineChanged("Move point", activeIndex, oldSpline, activeSpline, true);
+                    redraw();
+                } else if (hit.handle == Handle.TANGENT_CONTROL1
+                        || hit.handle == Handle.TANGENT_CONTROL2) {
+                    double tx = hit.point.getX() - fromScreenX(e.x - hit.mouseDX);
+                    double ty = hit.point.getY() - fromScreenY(e.y - hit.mouseDY);
+                    if (hit.handle == Handle.TANGENT_CONTROL2) {
+                        tx *= -1;
+                        ty *= -1;
+                    }
+
+                    double MIN_TX = 0.001;
+                    if (hit.handle == Handle.TANGENT_CONTROL1) {
+                        tx = Math.max(tx, MIN_TX);
+                    } else {
+                        tx = Math.max(tx, MIN_TX);
+                    }
+
+                    activeSpline = activeSpline.setTangent(hit.index, tx, ty);
+                    HermiteSpline oldSpline = activeSpline.setTangent(hit.index, hit.point.getTx(), hit.point.getTy());
+                    splineChanged("Set tangent", activeIndex, oldSpline, activeSpline, true);
+
+                    redraw();
                 }
-
-                double MIN_TX = 0.001;
-                if (hit.handle == Handle.TANGENT_CONTROL1) {
-                    tx = Math.max(tx, MIN_TX);
-                } else {
-                    tx = Math.max(tx, MIN_TX);
-                }
-
-                activeSpline = activeSpline.setTangent(hit.index, tx, ty);
-                HermiteSpline oldSpline = activeSpline.setTangent(hit.index, hit.point.getTx(), hit.point.getTy());
-                splineChanged("Set tangent", activeIndex, oldSpline, activeSpline, true);
-
-                redraw();
             }
         }
 
@@ -395,16 +415,7 @@ public class CurveEditor extends Canvas implements PaintListener,
         if (provider == null)
             return;
 
-        Point size = getSize();
-
-        double center = (fromScreenY(0) + fromScreenY(size.y)) * 0.5;
-        double screenCenter0 = toScreenY(center);
-
-        zoomY += 0.01 * e.count * zoomY;
-        zoomY = Math.max(0.01, zoomY);
-        double screenCenter1 = toScreenY(center);
-        offsetY += (screenCenter0 - screenCenter1);
-
+        dolly(e.count * 0.01);
         redraw();
     }
 
@@ -440,7 +451,8 @@ public class CurveEditor extends Canvas implements PaintListener,
         }
 
         HermiteSpline spline = provider.getSpline(index);
-        mode = Mode.IDLE;
+        cameraMovement = Movement.IDLE;
+        movingCurve = false;
         double x = fromScreenX(e.x);
         double y = spline.getY(x);
 
@@ -461,20 +473,23 @@ public class CurveEditor extends Canvas implements PaintListener,
         activeIndex = -1;
         activeSpline = null;
 
-        for (int i = 0; i < input.length; ++i) {
-            if (!provider.isEnabled(i))
-                continue;
+        movingCurve = false;
+        cameraMovement = CameraUtil.getMovement(e);
+        if (cameraMovement == Movement.IDLE) {
+            for (int i = 0; i < input.length; ++i) {
+                if (!provider.isEnabled(i))
+                    continue;
 
-            HermiteSpline spline = provider.getSpline(i);
-            hit = hitTest(e, spline);
-            if (hit != null) {
-                mode = Mode.MOVE;
-                activeIndex = i;
-                activeSpline = spline;
-                return;
+                HermiteSpline spline = provider.getSpline(i);
+                hit = hitTest(e, spline);
+                if (hit != null) {
+                    movingCurve = true;
+                    activeIndex = i;
+                    activeSpline = spline;
+                    return;
+                }
             }
         }
-        mode = Mode.PANNING;
         prevY = e.y;
     }
 
@@ -486,7 +501,7 @@ public class CurveEditor extends Canvas implements PaintListener,
         activeIndex = -1;
         activeSpline = null;
 
-        if (mode == Mode.MOVE) {
+        if (movingCurve) {
             if (hit.handle == Handle.CONTROL) {
                 HermiteSpline oldSpline = s.setPosition(hit.index, hit.point.getX(), hit.point.getY());
                 splineChanged("Move point", i, oldSpline, s, false);
@@ -500,7 +515,8 @@ public class CurveEditor extends Canvas implements PaintListener,
             }
         }
 
-        mode = Mode.IDLE;
+        cameraMovement = Movement.IDLE;
+        movingCurve = false;
     }
 
     /**

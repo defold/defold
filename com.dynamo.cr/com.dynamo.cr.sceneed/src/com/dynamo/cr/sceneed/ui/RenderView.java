@@ -33,6 +33,7 @@ import org.eclipse.swt.events.KeyListener;
 import org.eclipse.swt.events.MouseEvent;
 import org.eclipse.swt.events.MouseListener;
 import org.eclipse.swt.events.MouseMoveListener;
+import org.eclipse.swt.events.MouseWheelListener;
 import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.graphics.Rectangle;
 import org.eclipse.swt.layout.GridData;
@@ -66,6 +67,7 @@ import com.sun.opengl.util.j2d.TextRenderer;
 public class RenderView implements
 MouseListener,
 MouseMoveListener,
+MouseWheelListener,
 KeyListener,
 Listener,
 IRenderView {
@@ -142,6 +144,7 @@ IRenderView {
         this.canvas.addListener(SWT.MouseExit, this);
         this.canvas.addMouseListener(this);
         this.canvas.addMouseMoveListener(this);
+        this.canvas.addMouseWheelListener(this);
         this.canvas.addKeyListener(this);
     }
 
@@ -309,13 +312,9 @@ IRenderView {
         }
     }
 
-    @Override
-    public void mouseDown(MouseEvent e) {
-        if (this.focusController != null) {
-            this.focusController.finalControl();
-            requestPaint();
-        }
-        this.focusController = null;
+    private void initFocusController(MouseEvent e) {
+        finalFocusController();
+
         List<Node> nodes = findNodesBySelection(new Point2i(e.x, e.y));
         FocusType topFocus = FocusType.NONE;
         for (IRenderViewController controller : this.controllers) {
@@ -327,6 +326,22 @@ IRenderView {
         }
         if (this.focusController != null) {
             this.focusController.initControl(nodes);
+            requestPaint();
+        }
+    }
+
+    private void finalFocusController() {
+        if (this.focusController != null) {
+            this.focusController.finalControl();
+            this.focusController = null;
+            requestPaint();
+        }
+    }
+
+    @Override
+    public void mouseDown(MouseEvent e) {
+        initFocusController(e);
+        if (this.focusController != null) {
             this.focusController.mouseDown(e);
             requestPaint();
         }
@@ -336,10 +351,17 @@ IRenderView {
     public void mouseUp(MouseEvent e) {
         if (this.focusController != null) {
             this.focusController.mouseUp(e);
-            this.focusController.finalControl();
-            this.focusController = null;
-            requestPaint();
         }
+        finalFocusController();
+    }
+
+    @Override
+    public void mouseScrolled(MouseEvent e) {
+        initFocusController(e);
+        if (this.focusController != null) {
+            this.focusController.mouseScrolled(e);
+        }
+        finalFocusController();
     }
 
     public List<Node> findNodesBySelection(Point2i p) {

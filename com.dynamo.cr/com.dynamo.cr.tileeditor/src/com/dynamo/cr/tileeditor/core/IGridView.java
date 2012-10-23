@@ -36,7 +36,7 @@ public interface IGridView {
         void onSave(OutputStream os, IProgressMonitor monitor) throws IOException;
 
         void onPreviewPan(int dx, int dy);
-        void onPreviewZoom(int delta);
+        void onPreviewZoom(double amount);
         void onPreviewFrame();
         void onPreviewResetZoom();
 

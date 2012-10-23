@@ -19,6 +19,7 @@ import org.eclipse.swt.events.KeyListener;
 import org.eclipse.swt.events.MouseEvent;
 import org.eclipse.swt.events.MouseListener;
 import org.eclipse.swt.events.MouseMoveListener;
+import org.eclipse.swt.events.MouseWheelListener;
 import org.eclipse.swt.graphics.Rectangle;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.opengl.GLCanvas;
@@ -30,8 +31,10 @@ import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.Listener;
 import org.eclipse.ui.services.IDisposable;
 
-import com.dynamo.cr.sceneed.core.TextureHandle;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
+import com.dynamo.cr.sceneed.core.TextureHandle;
+import com.dynamo.cr.sceneed.core.util.CameraUtil;
+import com.dynamo.cr.sceneed.core.util.CameraUtil.Movement;
 import com.dynamo.cr.tileeditor.scene.AnimationNode;
 import com.dynamo.cr.tileeditor.scene.CollisionGroupNode;
 import com.dynamo.cr.tileeditor.scene.TileSetNode;
@@ -46,12 +49,10 @@ public class TileSetRenderer2 implements
 IDisposable,
 MouseListener,
 MouseMoveListener,
+MouseWheelListener,
 Listener,
 KeyListener {
 
-    private final static int CAMERA_MODE_NONE = 0;
-    private final static int CAMERA_MODE_TRACK = 1;
-    private final static int CAMERA_MODE_DOLLY = 2;
     private static final float BORDER_SIZE = 3.0f;
 
     private TileSetNodePresenter presenter;
@@ -61,7 +62,6 @@ KeyListener {
     private GLContext context;
     private final IntBuffer viewPort = BufferUtil.newIntBuffer(4);
     private boolean paintRequested = false;
-    private boolean mac = false;
     private float scale = 1.0f;
     private boolean enabled = true;
     private boolean resetView = true;
@@ -71,7 +71,7 @@ KeyListener {
     private AnimationNode selectedAnimation;
 
     // Camera data
-    private int cameraMode = CAMERA_MODE_NONE;
+    private Movement cameraMovement = Movement.IDLE;
     private int lastX;
     private int lastY;
     private final float[] offset = new float[2];
@@ -86,7 +86,6 @@ KeyListener {
     private Texture transparentTexture;
 
     public TileSetRenderer2() {
-        this.mac = System.getProperty("os.name").equals("Mac OS X");
         this.tileSetTexture = new TextureHandle();
     }
 
@@ -138,6 +137,7 @@ KeyListener {
         this.canvas.addListener(SWT.Paint, this);
         this.canvas.addMouseListener(this);
         this.canvas.addMouseMoveListener(this);
+        this.canvas.addMouseWheelListener(this);
         this.canvas.addKeyListener(this);
     }
 
@@ -286,6 +286,12 @@ KeyListener {
 
     }
 
+    private void dolly(double amount) {
+        this.scale += amount * this.scale;
+        this.scale = Math.max(0.1f, this.scale);
+        activeTile = -1;
+    }
+
     // MouseMoveListener
 
     @Override
@@ -293,22 +299,20 @@ KeyListener {
         int dx = e.x - this.lastX;
         int dy = e.y - this.lastY;
         int activeTile = pickTile(e.x, e.y);
-        switch (this.cameraMode) {
-        case CAMERA_MODE_TRACK:
+        switch (this.cameraMovement) {
+        case TRACK:
             float recipScale = 1.0f / this.scale;
             this.offset[0] += dx * recipScale;
             this.offset[1] -= dy * recipScale;
             activeTile = -1;
             requestPaint();
             break;
-        case CAMERA_MODE_DOLLY:
+        case DOLLY:
             float ds = -dy * 0.005f;
-            this.scale += (this.scale > 1.0f) ? ds * this.scale : ds;
-            this.scale = Math.max(0.1f, this.scale);
-            activeTile = -1;
+            dolly(ds);
             requestPaint();
             break;
-        case CAMERA_MODE_NONE:
+        case IDLE:
             if ((e.stateMask & SWT.BUTTON1) == SWT.BUTTON1) {
                 paintTile();
             }
@@ -356,29 +360,22 @@ KeyListener {
         this.lastX = event.x;
         this.lastY = event.y;
 
-        if ((this.mac && event.stateMask == (SWT.ALT | SWT.CTRL))
-                || (!this.mac && event.button == 2 && event.stateMask == SWT.ALT)) {
-            this.cameraMode = CAMERA_MODE_TRACK;
-            this.activeTile = -1;
-            requestPaint();
-        } else if ((this.mac && event.stateMask == (SWT.CTRL))
-                || (!this.mac && event.button == 3 && event.stateMask == SWT.ALT)) {
-            this.cameraMode = CAMERA_MODE_DOLLY;
-            this.activeTile = -1;
-            requestPaint();
-        } else {
-            this.cameraMode = CAMERA_MODE_NONE;
+        this.cameraMovement = CameraUtil.getMovement(event);
+        if (this.cameraMovement == Movement.IDLE) {
             if (event.button == 1) {
                 beginPainting();
                 paintTile();
             }
+        } else {
+            this.activeTile = -1;
+            requestPaint();
         }
     }
 
     @Override
     public void mouseUp(MouseEvent e) {
-        if (this.cameraMode != CAMERA_MODE_NONE) {
-            this.cameraMode = CAMERA_MODE_NONE;
+        if (this.cameraMovement != Movement.IDLE) {
+            this.cameraMovement = Movement.IDLE;
             int activeTile = pickTile(e.x, e.y);
             if (activeTile != this.activeTile) {
                 this.activeTile = activeTile;
@@ -387,6 +384,12 @@ KeyListener {
         } else if (e.button == 1) {
             endPainting();
         }
+    }
+
+    @Override
+    public void mouseScrolled(MouseEvent e) {
+        dolly(e.count * 0.02);
+        requestPaint();
     }
 
     private void beginPainting() {

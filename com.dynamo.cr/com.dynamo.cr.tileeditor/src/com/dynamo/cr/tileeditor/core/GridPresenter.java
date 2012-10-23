@@ -31,8 +31,6 @@ import com.dynamo.cr.tileeditor.operations.SetCellsOperation;
 
 public class GridPresenter implements IGridView.Presenter, PropertyChangeListener, IOperationHistoryListener {
 
-    public static final float ZOOM_FACTOR = 0.005f;
-
     @Inject private IOperationHistory undoHistory;
     @Inject private IUndoContext undoContext;
 
@@ -220,9 +218,8 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
     }
 
     @Override
-    public void onPreviewZoom(int delta) {
-        float dz = -delta * ZOOM_FACTOR;
-        this.previewZoom += (this.previewZoom > 1.0f) ? dz * this.previewZoom : dz;
+    public void onPreviewZoom(double amount) {
+        this.previewZoom += amount * this.previewZoom;
         this.previewZoom = Math.max(0.01f, this.previewZoom);
         this.view.setPreview(this.previewPosition, this.previewZoom);
     }
