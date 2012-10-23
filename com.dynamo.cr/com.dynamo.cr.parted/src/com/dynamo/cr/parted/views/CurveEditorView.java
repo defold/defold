@@ -54,6 +54,13 @@ public class CurveEditorView extends PageBookView {
         partActivated(part);
     }
 
+    protected void partHidden(IWorkbenchPart part) {
+        // Ignore if part is hidden, else let base class handle it
+        if (part != getCurrentContributingPart()) {
+            super.partHidden(part);
+        }
+    }
+
     public void frame() {
         IPage page = getCurrentPage();
         if (page != null) {
