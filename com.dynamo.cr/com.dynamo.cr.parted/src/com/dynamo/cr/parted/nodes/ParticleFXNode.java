@@ -118,10 +118,8 @@ public class ParticleFXNode extends ComponentTypeNode {
     @Override
     public void dispose() {
        super.dispose();
-       if (instance != null) {
+       if (this.context != null) {
            ParticleLibrary.Particle_DestroyInstance(context, instance);
-       }
-       if (prototype != null) {
            ParticleLibrary.Particle_DeletePrototype(prototype);
        }
     }
@@ -136,11 +134,33 @@ public class ParticleFXNode extends ComponentTypeNode {
             return;
         }
         prototype = ParticleLibrary.Particle_NewPrototype(ByteBuffer.wrap(data), data.length);
+        if (Pointer.nativeValue(prototype) == 0) {
+            unbindContext();
+            logger.error("Could not create a particle FX prototype.");
+            return;
+        }
         updateTileSources();
 
         instance = ParticleLibrary.Particle_CreateInstance(context, prototype);
+        if (Pointer.nativeValue(instance) == 0) {
+            unbindContext();
+            logger.error("Could not create a particle FX instance.");
+            return;
+        }
         ParticleLibrary.Particle_SetPosition(context, instance, new Vector3(0, 0, 0));
         ParticleLibrary.Particle_SetRotation(context, instance, new Quat(0, 0, 0, 1));
+    }
+
+    public void unbindContext() {
+        if (instance != null) {
+            ParticleLibrary.Particle_DestroyInstance(context, instance);
+            instance = null;
+        }
+        if (prototype != null) {
+            ParticleLibrary.Particle_DeletePrototype(prototype);
+            prototype = null;
+        }
+        this.context = null;
     }
 
     public Pointer getContext() {
@@ -227,7 +247,7 @@ public class ParticleFXNode extends ComponentTypeNode {
     }
 
     private void doReload(boolean running) {
-        if (context == null || prototype == null || !reload) {
+        if (context == null || !reload) {
             return;
         }
         byte[] data = toByteArray();
