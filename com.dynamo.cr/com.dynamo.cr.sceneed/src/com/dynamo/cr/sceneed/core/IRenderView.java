@@ -43,4 +43,5 @@ public interface IRenderView  {
     void setNodeTypeVisible(INodeType nodeType, boolean visible);
 
     SceneGrid getGrid();
+    void toggleRecord();
 }
