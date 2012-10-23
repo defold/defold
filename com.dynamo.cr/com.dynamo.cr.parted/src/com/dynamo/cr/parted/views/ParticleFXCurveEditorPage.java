@@ -68,6 +68,7 @@ public class ParticleFXCurveEditorPage implements ICurveEditorPage, ISelectionLi
     private IPageSite site;
     private IUndoContext undoContext;
     private Node selectedNode;
+    private Node oldSelectedNode;
     private Composite composite;
     private Set<Object> hidden = new HashSet<Object>();
     private CheckboxTableViewer list;
@@ -293,7 +294,7 @@ public class ParticleFXCurveEditorPage implements ICurveEditorPage, ISelectionLi
 
         input = (IPropertyDesc<Node, IPropertyObjectWorld>[]) lst.toArray(new IPropertyDesc<?, ?>[lst.size()]);
 
-        if (!Arrays.equals(input, oldInput)) {
+        if (selectedNode != oldSelectedNode || !Arrays.equals(input, oldInput)) {
             list.setInput(input);
             curveEditor.setInput(input);
             curveEditor.fit(1.1);
@@ -301,6 +302,7 @@ public class ParticleFXCurveEditorPage implements ICurveEditorPage, ISelectionLi
 
         oldInput = input;
         list.refresh();
+        oldSelectedNode = selectedNode;
         curveEditor.redraw();
     }
 

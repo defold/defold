@@ -13,6 +13,8 @@ import com.sun.jna.Pointer;
 public class ParticleFXEditorPresenter extends ScenePresenter {
 
     private Pointer context;
+    /// Only set when there is a particle FX node as root
+    private ParticleFXNode root;
 
     private static final String PARTICLE_FX_CATEGORY = "particle_fx";
     private static final String MAX_PARTICLE_COUNT_KEY = "max_particle_count";
@@ -42,8 +44,12 @@ public class ParticleFXEditorPresenter extends ScenePresenter {
 
     @Override
     public void rootChanged(Node root) {
+        if (this.root != null) {
+            this.root.unbindContext();
+        }
         ParticleFXNode particleFX = (ParticleFXNode)root;
         particleFX.bindContext(this.context);
+        this.root = particleFX;
 
         super.rootChanged(root);
     }
