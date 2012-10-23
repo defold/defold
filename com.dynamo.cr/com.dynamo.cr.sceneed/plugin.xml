@@ -65,6 +65,11 @@
             id="com.dynamo.cr.sceneed.commands.toggleSimulation"
             name="Toogle Simulation">
       </command>
+      <command
+            defaultHandler="com.dynamo.cr.sceneed.handlers.RecordHandler"
+            id="com.dynamo.cr.sceneed.commands.toggleScreenRecord"
+            name="Screen Record">
+      </command>
    </extension>
    <extension
          point="org.eclipse.ui.bindings">
@@ -137,6 +142,12 @@
             contextId="com.dynamo.cr.sceneed.ui.contexts.sceneEditor"
             schemeId="com.dynamo.cr.editor.ui.defoldScheme"
             sequence="SPACE">
+      </key>
+      <key
+            commandId="com.dynamo.cr.sceneed.commands.toggleScreenRecord"
+            contextId="org.eclipse.ui.contexts.window"
+            schemeId="com.dynamo.cr.editor.ui.defoldScheme"
+            sequence="M1+CTRL+SHIFT+ENTER">
       </key>
    </extension>
    <extension
@@ -341,6 +352,24 @@
                      id="com.dynamo.cr.sceneed.dynamics.showMenu">
                </dynamic>
             </menu>
+         </menu>
+      </menuContribution>
+      <menuContribution
+            locationURI="menu:com.dynamo.cr.editor.menus.tools">
+         <menu
+               label="Tools"
+               mnemonic="T">
+            <command
+                  commandId="com.dynamo.cr.sceneed.commands.toggleScreenRecord"
+                  label="Screen Record"
+                  style="push">
+               <visibleWhen
+                     checkEnabled="false">
+                  <test
+                        property="com.dynamo.cr.editor.is_dev">
+                  </test>
+               </visibleWhen>
+            </command>
          </menu>
       </menuContribution>
    </extension>

@@ -23,6 +23,8 @@ import javax.vecmath.Point2i;
 import javax.vecmath.Point3d;
 import javax.vecmath.Vector4d;
 
+import org.eclipse.jface.dialogs.Dialog;
+import org.eclipse.jface.dialogs.InputDialog;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.swt.SWT;
@@ -57,6 +59,7 @@ import com.dynamo.cr.sceneed.core.RenderContext;
 import com.dynamo.cr.sceneed.core.RenderContext.Pass;
 import com.dynamo.cr.sceneed.core.RenderData;
 import com.dynamo.cr.sceneed.core.SceneGrid;
+import com.dynamo.cr.sceneed.screenrecord.ScreenRecorder;
 import com.dynamo.cr.sceneed.ui.RenderView.SelectResult.Pair;
 import com.sun.opengl.util.j2d.TextRenderer;
 
@@ -96,6 +99,8 @@ IRenderView {
     private SceneGrid grid;
     private boolean simulating = false;
     private TextRenderer smallTextRenderer;
+
+    private ScreenRecorder screenRecorder = null;
 
     @Inject
     public RenderView(INodeTypeRegistry manager) {
@@ -547,13 +552,14 @@ IRenderView {
             @Override
             public void run() {
                 paintRequested = false;
-                if (simulating) {
+                if (simulating || screenRecorder != null) {
                     requestPaint();
                 }
                 paint();
             }
         });
     }
+
 
     private void paint() {
         if (!this.canvas.isDisposed()) {
@@ -578,6 +584,10 @@ IRenderView {
             } finally {
                 canvas.swapBuffers();
                 context.release();
+
+                if (screenRecorder != null) {
+                    screenRecorder.captureScreen();
+                }
             }
         }
     }
@@ -844,6 +854,22 @@ IRenderView {
     @Override
     public SceneGrid getGrid() {
         return this.grid;
+    }
+
+    @Override
+    public void toggleRecord() {
+        if (screenRecorder == null) {
+
+            InputDialog dialog = new InputDialog(null, "Screen Capture Path", "Specifiy capture path", "/tmp/c", null);
+            if (dialog.open() == Dialog.OK) {
+                screenRecorder = new ScreenRecorder(dialog.getValue());
+                screenRecorder.start();
+            }
+
+        } else {
+            screenRecorder.stop();
+            screenRecorder = null;
+        }
     }
 
 }

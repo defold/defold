@@ -502,4 +502,8 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
     @Override
     public void partOpened(IWorkbenchPart part) {}
 
+    public void toggleRecord() {
+        renderView.toggleRecord();
+    }
+
 }
