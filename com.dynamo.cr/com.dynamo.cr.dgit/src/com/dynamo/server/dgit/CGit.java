@@ -16,6 +16,7 @@ import java.util.StringTokenizer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -260,8 +261,10 @@ public class CGit implements IGit {
         if (getState(directory) == GitState.MERGE) {
             throw new GitException("commitAll is not permited when repository is in merge state. Resolve conflicts and use commit() instead.");
         }
-
-        CommandUtil.Result r = execGitCommand(directory, "git", "commit", "-a", "-m", message);
+        File f = File.createTempFile("commitAll", "message", new File(directory));
+        FileUtils.write(f, message);
+        CommandUtil.Result r = execGitCommand(directory, "git", "commit", "-a", "-F", f.getName());
+        f.delete();
         checkResult(r);
         Log log = log(directory, 1);
         return log.getCommits(0);
@@ -269,7 +272,10 @@ public class CGit implements IGit {
 
     @Override
     public CommitDesc commit(String directory, String message) throws IOException {
-        CommandUtil.Result r = execGitCommand(directory, "git", "commit", "-m", message);
+        File f = File.createTempFile("commit", "message", new File(directory));
+        FileUtils.write(f, message);
+        CommandUtil.Result r = execGitCommand(directory, "git", "commit", "-F", f.getName());
+        f.delete();
         checkResult(r);
         Log log = log(directory, 1);
         return log.getCommits(0);

@@ -355,6 +355,45 @@ public class GitTest {
         assertEquals(commit.getId(), log.getCommits(0).getId());
     }
 
+    @Test
+    public void commitAllQuotedMessage() throws IOException {
+        File repo = cloneInitial();
+        GitState state = git.getState(repo.getPath());
+        assertEquals(GitState.CLEAN, state);
+
+        FileWriter fw = new FileWriter(new File(repo, "main.cpp"));
+        fw.write("testing\n");
+        fw.close();
+        state = git.getState(repo.getPath());
+        assertEquals(GitState.DIRTY, state);
+
+        String message = "test commit \"with quotes\"";
+        CommitDesc commit = git.commitAll(repo.getPath(), message);
+        state = git.getState(repo.getPath());
+        assertEquals(GitState.CLEAN, state);
+        assertEquals(commit.getMessage(), message);
+    }
+
+    @Test
+    public void commitQuotedMessage() throws IOException {
+        File repo = cloneInitial();
+        GitState state = git.getState(repo.getPath());
+        assertEquals(GitState.CLEAN, state);
+
+        FileWriter fw = new FileWriter(new File(repo, "main.cpp"));
+        fw.write("testing\n");
+        fw.close();
+        state = git.getState(repo.getPath());
+        assertEquals(GitState.DIRTY, state);
+
+        String message = "test commit \"with quotes\"";
+        git.add(repo.getPath(), "main.cpp");
+        CommitDesc commit = git.commit(repo.getPath(), message);
+        state = git.getState(repo.getPath());
+        assertEquals(GitState.CLEAN, state);
+        assertEquals(commit.getMessage(), message);
+    }
+
     @Test(expected = GitException.class)
     public void pullWithDirtyState() throws IOException {
         File repo = cloneInitial();
