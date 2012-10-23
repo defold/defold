@@ -760,6 +760,8 @@ namespace dmParticle
         {
             width_factor = anim_data.m_TileWidth / (float)anim_data.m_TileHeight;
         }
+        bool hFlip = anim_data.m_HFlip != 0;
+        bool vFlip = anim_data.m_VFlip != 0;
         // Extent for each vertex, scale by half
         width_factor *= 0.5f;
         height_factor *= 0.5f;
@@ -815,6 +817,18 @@ namespace dmParticle
             float v0 = tex_coord[1];
             float u1 = tex_coord[2];
             float v1 = tex_coord[3];
+            if (hFlip)
+            {
+                float tmp = u0;
+                u0 = u1;
+                u1 = tmp;
+            }
+            if (vFlip)
+            {
+                float tmp = v0;
+                v0 = v1;
+                v1 = tmp;
+            }
 
             // store values in the buffer
             uint32_t field_index = vertex_index * vertex_field_count;

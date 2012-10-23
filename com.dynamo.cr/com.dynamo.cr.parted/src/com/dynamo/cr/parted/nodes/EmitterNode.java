@@ -546,11 +546,13 @@ public class EmitterNode extends Node {
             if (tileSetFile.exists() && tileSetFile.equals(file)) {
                 if (reloadTileSource()) {
                     reloaded = true;
+                    reloadSystem(false);
                 }
             }
             if (this.tileSetNode != null) {
                 if (this.tileSetNode.handleReload(file)) {
                     reloaded = true;
+                    reloadSystem(false);
                 }
             }
         }
