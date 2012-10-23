@@ -535,7 +535,7 @@ TEST_F(dmRenderScriptTest, TestDrawText)
 {
     const char* script =
         "function init(self)\n"
-        "    msg.post(nil, \"draw_text\", {position = vmath.vector3(0, 0, 0), text = \"Hello world!\", color = vmath.vector4(1, 1, 1, 1)})\n"
+        "    msg.post(nil, \"draw_text\", {position = vmath.vector3(0, 0, 0), text = \"Hello world!\"})\n"
         "end\n";
 
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, script, strlen(script), "none");
