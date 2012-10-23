@@ -571,7 +571,6 @@ namespace dmParticle
     }
 
     static void SpawnParticle(dmArray<Particle>& particles, uint32_t* seed, dmParticleDDF::Emitter* ddf, Point3 emitter_position, Quat emitter_rotation, Vector3 emitter_velocity, float emitter_properties[EMITTER_KEY_COUNT], float dt);
-    void EvaluateEmitterProperties(Emitter* emitter, Property* emitter_properties, float duration, float properties[EMITTER_KEY_COUNT]);
 
     static void UpdateEmitterState(Instance* instance, Emitter* emitter, EmitterPrototype* emitter_prototype, dmParticleDDF::Emitter* emitter_ddf, float dt)
     {
@@ -930,12 +929,10 @@ namespace dmParticle
     void EvaluateEmitterProperties(Emitter* emitter, Property* emitter_properties, float duration, float properties[EMITTER_KEY_COUNT])
     {
         float x = dmMath::Select(-duration, 0.0f, emitter->m_Timer / duration);
-        float r = dmMath::Rand11(&emitter->m_Seed);
         uint32_t segment_index = dmMath::Min((uint32_t)(x * PROPERTY_SAMPLE_COUNT), PROPERTY_SAMPLE_COUNT - 1);
         for (uint32_t i = 0; i < EMITTER_KEY_COUNT; ++i)
         {
             SAMPLE_PROP(emitter_properties[i].m_Segments[segment_index], x, properties[i])
-            properties[i] += r * emitter_properties[i].m_Spread;
         }
     }
 
