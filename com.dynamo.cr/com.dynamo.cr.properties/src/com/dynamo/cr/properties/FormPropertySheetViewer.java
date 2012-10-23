@@ -74,6 +74,7 @@ public class FormPropertySheetViewer extends Viewer {
         propertiesComposite.setLayout(stackLayout);
         noSelectionComposite = toolkit.createComposite(this.propertiesComposite);
         noSelectionComposite.setLayout(new GridLayout());
+        toolkit.createText(noSelectionComposite, Messages.FormPropertySheetViewer_NO_PROPERTIES);
 
         stackLayout.topControl = noSelectionComposite;
         propertiesComposite.layout();
@@ -321,16 +322,14 @@ public class FormPropertySheetViewer extends Viewer {
                 } else {
                     IPropertyDesc[] lhs = m.getPropertyDescs();
                     IPropertyDesc[] rhs = modelList.get(0).getPropertyDescs();
-                    boolean equal = true;
+                    // All models must have access to the exact same set of descriptors (class + id) for the properties view to display the input
                     for (int i = 0; i < lhs.length; ++i) {
-                        if (!lhs[i].getClass().equals(rhs[i].getClass())) {
-                            equal = false;
-                            break;
+                        IPropertyDesc lhsDesc = lhs[i];
+                        IPropertyDesc rhsDesc = rhs[i];
+                        if (!lhsDesc.getClass().equals(rhs[i].getClass()) || !lhsDesc.getId().equals(rhsDesc.getId())) {
+                            setNoSelection();
+                            return;
                         }
-                    }
-                    if (equal) {
-                        // Only keep selected with same property-descs as the first found
-                        modelList.add(m);
                     }
                 }
             }

@@ -6,6 +6,7 @@ public class Messages extends NLS {
     private static final String BUNDLE_NAME = "com.dynamo.cr.properties.messages"; //$NON-NLS-1$
 
     public static String FormPropertySheetViewer_RESET_VALUE;
+    public static String FormPropertySheetViewer_NO_PROPERTIES;
 
     public static String NotEmptyValidator_EMPTY;
     public static String RangeValidator_OUTSIDE_RANGE;
