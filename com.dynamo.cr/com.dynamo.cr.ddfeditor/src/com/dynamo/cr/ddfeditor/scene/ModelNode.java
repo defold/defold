@@ -9,8 +9,8 @@ import org.eclipse.core.runtime.Status;
 import com.dynamo.cr.go.core.ComponentTypeNode;
 import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
-import com.dynamo.cr.properties.Resource;
 import com.dynamo.cr.properties.Property.EditorType;
+import com.dynamo.cr.properties.Resource;
 import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.model.proto.Model.ModelDesc;
@@ -20,7 +20,7 @@ import com.google.protobuf.Message;
 @SuppressWarnings("serial")
 public class ModelNode extends ComponentTypeNode {
 
-    private MeshNode meshNode;
+    private transient MeshNode meshNode;
 
     @Property(editorType=EditorType.RESOURCE, extensions={"dae"})
     @Resource
@@ -63,8 +63,8 @@ public class ModelNode extends ComponentTypeNode {
 
     @Override
     public boolean handleReload(IFile file) {
-        IFile tileSetFile = getModel().getFile(this.mesh);
-        if (tileSetFile.exists() && tileSetFile.equals(file)) {
+        IFile meshFile = getModel().getFile(this.mesh);
+        if (meshFile.exists() && meshFile.equals(file)) {
             reload();
             return true;
         }

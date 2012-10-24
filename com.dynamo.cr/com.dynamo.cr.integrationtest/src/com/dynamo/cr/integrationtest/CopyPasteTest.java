@@ -5,6 +5,7 @@ import org.junit.Test;
 import com.dynamo.cr.ddfeditor.scene.CollectionProxyNode;
 import com.dynamo.cr.ddfeditor.scene.CollisionObjectNode;
 import com.dynamo.cr.ddfeditor.scene.ConvexShapeNode;
+import com.dynamo.cr.ddfeditor.scene.ModelNode;
 import com.dynamo.cr.go.core.CollectionNode;
 import com.dynamo.cr.go.core.GameObjectInstanceNode;
 import com.dynamo.cr.go.core.GameObjectNode;
@@ -16,6 +17,7 @@ import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.tileeditor.scene.AnimationNode;
 import com.dynamo.cr.tileeditor.scene.CollisionGroupNode;
 import com.dynamo.cr.tileeditor.scene.TileSetNode;
+import com.dynamo.model.proto.Model.ModelDesc;
 import com.dynamo.particle.proto.Particle.EmissionSpace;
 import com.dynamo.particle.proto.Particle.Emitter;
 import com.dynamo.particle.proto.Particle.Emitter.ParticleProperty;
@@ -104,7 +106,19 @@ public class CopyPasteTest extends AbstractSceneTest {
         testCopyPaste(node, emitter);
     }
 
+    @Test
+    public void testModel() throws Exception {
+        GameObjectNode go = new GameObjectNode();
+        ModelDesc.Builder b = ModelDesc.newBuilder();
+        b.setMaterial("/material/test.material");
+        b.setMesh("/mesh/test.dae");
+        ModelNode model = new ModelNode(b.build());
+
+        testCopyPaste(go, model);
+    }
+
     private void testCopyPaste(Node parent, Node child) throws Exception {
+        parent.setModel(getModel());
         parent.addChild(child);
 
         select(child);
