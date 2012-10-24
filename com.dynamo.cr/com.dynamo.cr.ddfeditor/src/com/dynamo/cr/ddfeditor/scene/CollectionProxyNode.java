@@ -74,10 +74,12 @@ public class CollectionProxyNode extends ComponentTypeNode {
 
     @Override
     public boolean handleReload(IFile file) {
-        IFile collectionFile = getModel().getFile(this.collection);
-        if (collectionFile.exists() && collectionFile.equals(file)) {
-            if (reloadCollection()) {
-                return true;
+        if (!this.collection.isEmpty()) {
+            IFile collectionFile = getModel().getFile(this.collection);
+            if (collectionFile.exists() && collectionFile.equals(file)) {
+                if (reloadCollection()) {
+                    return true;
+                }
             }
         }
         return false;

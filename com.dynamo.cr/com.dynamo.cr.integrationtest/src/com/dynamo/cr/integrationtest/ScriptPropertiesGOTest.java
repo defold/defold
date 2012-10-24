@@ -171,6 +171,7 @@ public class ScriptPropertiesGOTest extends AbstractSceneTest {
         // Set value
         setNodeProperty(component, "number", "2");
         assertEquals("2", getNodeProperty(component, "number"));
+        verifyExcecution();
 
         testCopyPaste(gameObject, component);
     }

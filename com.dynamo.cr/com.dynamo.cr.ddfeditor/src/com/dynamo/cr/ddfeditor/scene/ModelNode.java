@@ -63,10 +63,12 @@ public class ModelNode extends ComponentTypeNode {
 
     @Override
     public boolean handleReload(IFile file) {
-        IFile meshFile = getModel().getFile(this.mesh);
-        if (meshFile.exists() && meshFile.equals(file)) {
-            reload();
-            return true;
+        if (!this.mesh.isEmpty()) {
+            IFile meshFile = getModel().getFile(this.mesh);
+            if (meshFile.exists() && meshFile.equals(file)) {
+                reload();
+                return true;
+            }
         }
 
         return false;

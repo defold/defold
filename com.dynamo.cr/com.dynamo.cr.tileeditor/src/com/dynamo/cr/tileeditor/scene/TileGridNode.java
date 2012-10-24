@@ -104,10 +104,12 @@ public class TileGridNode extends ComponentTypeNode {
     @Override
     public boolean handleReload(IFile file) {
         boolean reloaded = false;
-        IFile tileSetFile = getModel().getFile(this.tileSource);
-        if (tileSetFile.exists() && tileSetFile.equals(file)) {
-            if (reloadTileSource()) {
-                reloaded = true;
+        if (!this.tileSource.isEmpty()) {
+            IFile tileSetFile = getModel().getFile(this.tileSource);
+            if (tileSetFile.exists() && tileSetFile.equals(file)) {
+                if (reloadTileSource()) {
+                    reloaded = true;
+                }
             }
         }
         if (this.tileSetNode != null) {

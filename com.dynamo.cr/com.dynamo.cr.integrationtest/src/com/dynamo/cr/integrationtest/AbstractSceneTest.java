@@ -1,11 +1,9 @@
 package com.dynamo.cr.integrationtest;
 
+import static org.hamcrest.CoreMatchers.is;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -16,7 +14,6 @@ import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.DefaultOperationHistory;
 import org.eclipse.core.commands.operations.IOperationHistory;
 import org.eclipse.core.commands.operations.IUndoContext;
-import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.core.commands.operations.UndoContext;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
@@ -31,12 +28,9 @@ import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Platform;
-import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.ui.ISelectionService;
 import org.junit.Before;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
 import org.osgi.framework.Bundle;
 
 import com.dynamo.cr.editor.core.EditorUtil;
@@ -47,7 +41,6 @@ import com.dynamo.cr.sceneed.core.IClipboard;
 import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.IManipulatorRegistry;
 import com.dynamo.cr.sceneed.core.IModelListener;
-import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
 import com.dynamo.cr.sceneed.core.IRenderView;
 import com.dynamo.cr.sceneed.core.ISceneModel;
@@ -59,6 +52,7 @@ import com.dynamo.cr.sceneed.core.SceneModel;
 import com.dynamo.cr.sceneed.core.ScenePresenter;
 import com.dynamo.cr.sceneed.core.test.DummyClipboard;
 import com.dynamo.cr.sceneed.ui.LoaderContext;
+import com.dynamo.cr.sceneed.ui.PresenterContext;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
@@ -76,7 +70,6 @@ public abstract class AbstractSceneTest {
     private IImageProvider imageProvider;
     private IPresenterContext presenterContext;
     private ILoaderContext loaderContext;
-    private ISelection selection;
 
     private int executionCount;
 
@@ -88,7 +81,7 @@ public abstract class AbstractSceneTest {
             bind(ISceneView.IPresenter.class).to(ScenePresenter.class).in(Singleton.class);
             bind(IModelListener.class).to(ScenePresenter.class).in(Singleton.class);
             bind(ILoaderContext.class).to(LoaderContext.class).in(Singleton.class);
-            bind(ISceneView.IPresenterContext.class).toInstance(presenterContext);
+            bind(ISceneView.IPresenterContext.class).to(PresenterContext.class).in(Singleton.class);
             bind(IOperationHistory.class).to(DefaultOperationHistory.class).in(Singleton.class);
             bind(IUndoContext.class).to(UndoContext.class).in(Singleton.class);
             bind(IContainer.class).toInstance(contentRoot);
@@ -102,7 +95,6 @@ public abstract class AbstractSceneTest {
         }
     }
 
-    @SuppressWarnings("unchecked")
     @Before
     public void setup() throws CoreException, IOException {
         System.setProperty("java.awt.headless", "true");
@@ -140,26 +132,12 @@ public abstract class AbstractSceneTest {
 
         this.nodeTypeRegistry = Activator.getDefault().getNodeTypeRegistry();
 
-        this.presenterContext = mock(IPresenterContext.class);
-        doAnswer(new Answer<ISelection>() {
-            @Override
-            public ISelection answer(InvocationOnMock invocation) throws Throwable {
-                return selection;
-            }
-        }).when(this.presenterContext).getSelection();
-        doAnswer(new Answer<INodeType>() {
-            @Override
-            public INodeType answer(InvocationOnMock invocation) throws Throwable {
-                Class<? extends Node> nodeClass = (Class<? extends Node>)invocation.getArguments()[0];
-                return nodeTypeRegistry.getNodeTypeClass(nodeClass);
-            }
-        }).when(getPresenterContext()).getNodeType(any(Class.class));
-        this.selection = new StructuredSelection();
         this.imageProvider = mock(IImageProvider.class);
 
         Injector injector = Guice.createInjector(new TestModule());
         this.model = injector.getInstance(ISceneModel.class);
         this.presenter = injector.getInstance(ISceneView.IPresenter.class);
+        this.presenterContext = injector.getInstance(ISceneView.IPresenterContext.class);
         this.history = injector.getInstance(IOperationHistory.class);
         this.undoContext = injector.getInstance(IUndoContext.class);
         this.loaderContext = injector.getInstance(ILoaderContext.class);
@@ -219,7 +197,7 @@ public abstract class AbstractSceneTest {
     }
 
     protected void select(Node node) {
-        this.selection = new StructuredSelection(node);
+        this.presenterContext.setSelection(new StructuredSelection(node));
     }
 
     protected Object getNodeProperty(Node node, Object id) throws ExecutionException {
@@ -266,6 +244,6 @@ public abstract class AbstractSceneTest {
 
     protected void verifyExcecution() {
         ++this.executionCount;
-        verify(this.presenterContext, times(this.executionCount)).executeOperation(any(IUndoableOperation.class));
+        assertThat(this.history.getUndoHistory(this.undoContext).length, is(this.executionCount));
     }
 }

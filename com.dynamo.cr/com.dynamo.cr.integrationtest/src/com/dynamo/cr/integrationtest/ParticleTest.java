@@ -21,7 +21,6 @@ import com.dynamo.cr.parted.nodes.DragNode;
 import com.dynamo.cr.parted.nodes.EmitterNode;
 import com.dynamo.cr.parted.nodes.ParticleFXNode;
 import com.dynamo.cr.parted.nodes.ParticleFXPresenter;
-import com.dynamo.cr.parted.operations.AddModifierOperation;
 import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.Node;
 
@@ -58,7 +57,6 @@ public class ParticleTest extends AbstractSceneTest {
 
         INodeType[] nodeTypes = new INodeType[] { getNodeTypeRegistry().getNodeTypeClass(AccelerationNode.class),
                                                   getNodeTypeRegistry().getNodeTypeClass(DragNode.class)};
-        int count = 1;
         for (INodeType nodeType : nodeTypes) {
             assertNotNull(nodeType.getResourceType());
             // Setup picking of the type from gui
@@ -66,7 +64,7 @@ public class ParticleTest extends AbstractSceneTest {
 
             // Perform operation
             presenter.onAddModifier(getPresenterContext(), getLoaderContext());
-            verify(getPresenterContext(), times(count++)).executeOperation(any(AddModifierOperation.class));
+            verifyExcecution();
         }
     }
 }

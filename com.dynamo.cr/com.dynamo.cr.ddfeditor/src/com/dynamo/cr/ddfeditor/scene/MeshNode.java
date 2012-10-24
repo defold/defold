@@ -2,8 +2,6 @@ package com.dynamo.cr.ddfeditor.scene;
 
 import java.nio.FloatBuffer;
 
-import javax.xml.stream.XMLStreamException;
-
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 

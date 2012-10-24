@@ -16,7 +16,6 @@ import org.eclipse.core.resources.IFolder;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.jface.viewers.ILabelProvider;
-import org.eclipse.jface.viewers.IStructuredSelection;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.invocation.InvocationOnMock;
@@ -26,7 +25,6 @@ import com.dynamo.cr.editor.core.IResourceType;
 import com.dynamo.cr.go.core.ComponentTypeNode;
 import com.dynamo.cr.go.core.GameObjectNode;
 import com.dynamo.cr.go.core.GameObjectPresenter;
-import com.dynamo.cr.go.core.operations.AddComponentOperation;
 import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.Node;
 
@@ -35,15 +33,7 @@ public class ComponentsTest extends AbstractSceneTest {
     @Override
     @Before
     public void setup() throws CoreException, IOException {
-
         super.setup();
-
-        when(getPresenterContext().getSelection()).thenAnswer(new Answer<IStructuredSelection>() {
-            @Override
-            public IStructuredSelection answer(InvocationOnMock invocation) throws Throwable {
-                return getModel().getSelection();
-            }
-        });
     }
 
     // Tests
@@ -75,7 +65,6 @@ public class ComponentsTest extends AbstractSceneTest {
         GameObjectPresenter presenter = (GameObjectPresenter)goNodeType.getPresenter();
 
         INodeType[] nodeTypes = getNodeTypeRegistry().getNodeTypes();
-        int count = 1;
         for (INodeType nodeType : nodeTypes) {
             boolean isComponentType = false;
             Class<?> nodeClass = nodeType.getNodeClass();
@@ -97,7 +86,7 @@ public class ComponentsTest extends AbstractSceneTest {
 
                     // Perform operation
                     presenter.onAddComponent(getPresenterContext(), getLoaderContext());
-                    verify(getPresenterContext(), times(count++)).executeOperation(any(AddComponentOperation.class));
+                    verifyExcecution();
                 }
 
                 final String path = String.format("tmp/test.%s", resourceType.getFileExtension());
@@ -121,11 +110,11 @@ public class ComponentsTest extends AbstractSceneTest {
                         return null;
                     }
 
-                }).when(getPresenterContext()).selectFile(anyString(), any(String[].class));
+                }).when(getView()).selectFile(anyString(), any(String[].class));
 
                 // Perform operation
                 presenter.onAddComponentFromFile(getPresenterContext(), getLoaderContext());
-                verify(getPresenterContext(), times(count++)).executeOperation(any(AddComponentOperation.class));
+                verifyExcecution();
             }
         }
 
