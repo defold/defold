@@ -107,8 +107,14 @@ public class ScenePresenter implements IPresenter, IModelListener {
     }
 
     @Override
+    public void stateChanging(IStructuredSelection selection) {
+        this.currentSelection = selection;
+        this.view.refreshRenderView();
+    }
+
+    @Override
     public void stateChanged(IStructuredSelection selection, boolean dirty) {
-        this.currentSelection = this.model.getSelection();
+        this.currentSelection = selection;
         this.view.refresh(selection, dirty);
     }
 

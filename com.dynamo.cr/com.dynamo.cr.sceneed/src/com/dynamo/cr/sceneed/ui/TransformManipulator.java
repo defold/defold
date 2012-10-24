@@ -37,15 +37,6 @@ public abstract class TransformManipulator extends RootManipulator {
             node.getLocalTransform(transform);
             this.originalLocalTransforms.add(transform);
         }
-
-        if (!sel.isEmpty()) {
-            Node n = sel.get(0);
-            Matrix4d world = new Matrix4d();
-            n.getWorldTransform(world);
-            Vector3d translation = new Vector3d();
-            world.get(translation);
-            this.translation.set(translation);
-        }
     }
 
     @Override
@@ -54,7 +45,15 @@ public abstract class TransformManipulator extends RootManipulator {
 
     @Override
     public void refresh() {
-        selectionChanged();
+        List<Node> sel = getSelection();
+        if (!sel.isEmpty()) {
+            Node n = sel.get(0);
+            Matrix4d world = new Matrix4d();
+            n.getWorldTransform(world);
+            Vector3d translation = new Vector3d();
+            world.get(translation);
+            this.translation.set(translation);
+        }
     }
 
     @Override

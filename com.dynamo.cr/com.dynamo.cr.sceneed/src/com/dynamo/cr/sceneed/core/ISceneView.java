@@ -48,7 +48,6 @@ public interface ISceneView extends ISelectionListener {
         void executeOperation(IUndoableOperation operation);
 
         // View interface
-        void refreshView();
         void refreshRenderView();
         void asyncExec(Runnable runnable);
         String selectFromList(String title, String message, String... lst);
@@ -61,8 +60,8 @@ public interface ISceneView extends ISelectionListener {
     public interface INodePresenter<T extends Node> {}
 
     void setRoot(Node root);
-    void refresh(IStructuredSelection selection, boolean dirty);
     void refreshRenderView();
+    void refresh(IStructuredSelection selection, boolean dirty);
     void setSimulating(boolean simulating);
     void asyncExec(Runnable runnable);
 

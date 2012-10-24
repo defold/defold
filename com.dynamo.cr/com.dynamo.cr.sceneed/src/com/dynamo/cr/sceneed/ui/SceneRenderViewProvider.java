@@ -102,7 +102,7 @@ public class SceneRenderViewProvider implements IRenderViewProvider, ISelectionP
     }
 
     private void fireSelectionChanged(ISelection selection) {
-        SelectionChangedEvent event = new SelectionChangedEvent(this, this.selection);
+        SelectionChangedEvent event = new SelectionChangedEvent(this, selection);
         for (ISelectionChangedListener listener : this.selectionListeners) {
             listener.selectionChanged(event);
         }
@@ -132,8 +132,7 @@ public class SceneRenderViewProvider implements IRenderViewProvider, ISelectionP
         this.selecting = false;
         this.dragSelect = false;
         this.originalSelection.clear();
-        this.presenterContext.setSelection(this.selection);
-        this.presenterContext.refreshView();
+        this.renderView.setSelection(this.selection);
     }
 
     @Override
@@ -145,15 +144,14 @@ public class SceneRenderViewProvider implements IRenderViewProvider, ISelectionP
         this.selectionBoxNode.set(e.x, e.y);
         this.dragSelect = false;
         IStructuredSelection selection = boxSelect(e);
-        this.presenterContext.setSelection(selection);
-        this.presenterContext.refreshView();
+        this.renderView.setSelection(selection);
     }
 
     @Override
     public void mouseUp(MouseEvent e) {
         IStructuredSelection selection = boxSelect(e);
         this.selecting = false;
-        setSelection(selection);
+        this.selection = selection;
         fireSelectionChanged(selection);
     }
 
@@ -172,8 +170,7 @@ public class SceneRenderViewProvider implements IRenderViewProvider, ISelectionP
             }
         }
         IStructuredSelection selection = boxSelect(e);
-        this.presenterContext.setSelection(selection);
-        this.presenterContext.refreshView();
+        this.renderView.setSelection(selection);
     }
 
     @Override
@@ -245,6 +242,12 @@ public class SceneRenderViewProvider implements IRenderViewProvider, ISelectionP
 
     @Override
     public void keyReleased(KeyEvent e) {
+
+    }
+
+    @Override
+    public void refresh() {
+        // TODO Auto-generated method stub
 
     }
 }

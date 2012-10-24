@@ -25,11 +25,6 @@ com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext {
     }
 
     @Override
-    public void refreshView() {
-        this.view.refresh(this.model.getSelection(), this.model.isDirty());
-    }
-
-    @Override
     public void refreshRenderView() {
         this.view.refreshRenderView();
     }

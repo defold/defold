@@ -136,8 +136,6 @@ public class EmitterManipulator extends RootManipulator {
             break;
 
         }
-
-        selectionChanged();
     }
 
     @Override

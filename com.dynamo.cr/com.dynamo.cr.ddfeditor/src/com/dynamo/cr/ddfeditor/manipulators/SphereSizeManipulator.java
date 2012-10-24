@@ -59,7 +59,6 @@ public class SphereSizeManipulator extends RootManipulator {
 
     @Override
     public void refresh() {
-        selectionChanged();
     }
 
     @Override

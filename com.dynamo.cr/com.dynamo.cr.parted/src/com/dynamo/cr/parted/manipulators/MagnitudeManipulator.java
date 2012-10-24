@@ -68,8 +68,6 @@ public class MagnitudeManipulator extends RootManipulator {
         AbstractModifierNode node = (AbstractModifierNode) getSelection().get(0);
         ValueSpread vs = node.getMagnitude();
         this.xScaleManipulator.setEnabled(!vs.isAnimated());
-
-        selectionChanged();
     }
 
     @Override

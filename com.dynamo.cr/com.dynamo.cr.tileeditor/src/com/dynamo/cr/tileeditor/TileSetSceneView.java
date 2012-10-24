@@ -31,8 +31,12 @@ public class TileSetSceneView extends AbstractSceneView {
     }
 
     @Override
+    public void refreshRenderView() {
+        this.renderer.requestPaint();
+    }
+
+    @Override
     public void refresh(IStructuredSelection selection, boolean dirty) {
-        setSelection(selection);
         this.outline.refresh();
         this.outline.setSelection(selection);
         this.propertySheetPage.setSelection(selection);
@@ -45,11 +49,6 @@ public class TileSetSceneView extends AbstractSceneView {
     @Override
     public void setSimulating(boolean simulating) {
         // Not supported
-    }
-
-    @Override
-    public void refreshRenderView() {
-        this.renderer.requestPaint();
     }
 
     @Override

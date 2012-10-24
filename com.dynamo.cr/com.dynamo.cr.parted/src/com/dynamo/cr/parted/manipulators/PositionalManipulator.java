@@ -80,8 +80,6 @@ public class PositionalManipulator extends RootManipulator {
         PositionalModifierNode node = (PositionalModifierNode) getSelection().get(0);
         ValueSpread vs = node.getMagnitude();
         this.xScaleManipulator.setEnabled(!vs.isAnimated());
-
-        selectionChanged();
     }
 
     @Override

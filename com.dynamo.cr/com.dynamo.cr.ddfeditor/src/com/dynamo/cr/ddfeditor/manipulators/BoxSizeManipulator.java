@@ -84,7 +84,6 @@ public class BoxSizeManipulator extends RootManipulator {
 
     @Override
     public void refresh() {
-        selectionChanged();
     }
 
     @Override

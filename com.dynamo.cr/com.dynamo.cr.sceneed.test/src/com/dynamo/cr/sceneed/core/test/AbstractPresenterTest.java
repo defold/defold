@@ -22,7 +22,6 @@ public class AbstractPresenterTest {
     private ILoaderContext loaderContext;
     protected ISceneModel model;
 
-    private int refreshCounter;
     private int refreshRenderViewCounter;
     private int selectionCounter;
     private int executionCounter;
@@ -30,7 +29,6 @@ public class AbstractPresenterTest {
     public AbstractPresenterTest() {
         super();
 
-        this.refreshCounter = 0;
         this.refreshRenderViewCounter = 0;
         this.selectionCounter = 0;
         this.executionCounter = 0;
@@ -69,11 +67,6 @@ public class AbstractPresenterTest {
 
     protected void select(Node[] nodes) {
         when(getPresenterContext().getSelection()).thenReturn(new StructuredSelection(nodes));
-    }
-
-    protected void verifyRefresh() {
-        ++this.refreshCounter;
-        verify(this.presenterContext, times(this.refreshCounter)).refreshView();
     }
 
     protected void verifyRefreshRenderView() {

@@ -15,16 +15,7 @@ public abstract class AbstractSceneView implements ISceneView {
     @Inject
     private ISceneView.IPresenterContext presenterContext;
 
-    private ISelection selection;
     private boolean ignoreOutlineSelection = false;
-
-    public ISelection getSelection() {
-        return this.selection;
-    }
-
-    public void setSelection(ISelection selection) {
-        this.selection = selection;
-    }
 
     public void setIgnoreOutlineSelection(boolean ignoreOutlineSelection) {
         this.ignoreOutlineSelection = ignoreOutlineSelection;

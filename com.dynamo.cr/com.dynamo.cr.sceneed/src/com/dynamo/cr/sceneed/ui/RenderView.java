@@ -183,6 +183,9 @@ IRenderView {
     @Override
     public void refresh() {
         this.grid.updateGrids(getViewTransform(), getProjectionTransform());
+        for (IRenderViewController controller : this.controllers) {
+            controller.refresh();
+        }
         requestPaint();
     }
 
@@ -193,6 +196,9 @@ IRenderView {
 
     public void setSelection(IStructuredSelection selection) {
         this.selection = selection;
+        for (IRenderViewController controller : this.controllers) {
+            controller.setSelection(selection);
+        }
     }
 
     public Rectangle getViewRect() {

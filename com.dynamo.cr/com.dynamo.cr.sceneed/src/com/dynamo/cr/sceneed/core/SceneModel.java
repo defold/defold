@@ -67,29 +67,37 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
 
     private class DelayedUpdateStatus implements Runnable {
 
-        final static int DELAY = 1000;
+        final static int DELAY = 100;
         long start = 0;
+        boolean delay = false;
+        boolean updateRequested = false;
 
         @Override
         public void run() {
             long now = System.currentTimeMillis();
-            if (now - start > DELAY) {
+            if (!delay || now - start > DELAY) {
+                updateRequested = false;
                 root.updateStatus();
+                listener.stateChanged(selection, isDirty());
             } else {
-                Display.getCurrent().timerExec(50, this);
+                Display.getCurrent().asyncExec(this);
             }
         }
 
-        public void update() {
-            // Update is constantly postponed when update() is invoked
-            start = System.currentTimeMillis();
-            Display display = Display.getCurrent();
-            if (display != null) {
-                display.timerExec(50, this);
-            } else {
-                // Fallback to immediate update when there is no display (like in tests)
-                start -= DELAY + 1;
-                run();
+        public void update(boolean delay) {
+            // Update is constantly postponed when update(true) is invoked
+            this.start = System.currentTimeMillis();
+            this.delay = delay;
+            if (!updateRequested) {
+                updateRequested = true;
+                Display display = Display.getCurrent();
+                if (display != null) {
+                    display.asyncExec(this);
+                } else {
+                    // Fallback to immediate update when there is no display (like in tests)
+                    start -= DELAY + 1;
+                    run();
+                }
             }
         }
     }
@@ -165,11 +173,12 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
     @Override
     public void setSelection(IStructuredSelection selection) {
         this.selection = selection;
+        this.listener.stateChanging(selection);
     }
 
-    private void notifyChange() {
-        this.delayedUpdateStatus.update();
-        this.listener.stateChanged(this.selection, isDirty());
+    private void notifyChange(boolean delay) {
+        this.listener.stateChanging(this.selection);
+        this.delayedUpdateStatus.update(delay);
     }
 
     /* (non-Javadoc)
@@ -215,7 +224,7 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
     public void clearDirty() {
         if (this.undoRedoCounter != 0) {
             this.undoRedoCounter = 0;
-            notifyChange();
+            notifyChange(false);
         }
     }
 
@@ -227,6 +236,7 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
         }
         boolean change = false;
         int type = event.getEventType();
+        boolean delay = false;
         switch (type) {
         case OperationHistoryEvent.DONE:
         case OperationHistoryEvent.REDONE:
@@ -243,10 +253,11 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
             break;
         case OperationHistoryEvent.OPERATION_CHANGED:
             change = true;
+            delay = true;
             break;
         }
         if (change && this.root != null) {
-            notifyChange();
+            notifyChange(delay);
         }
     }
 
@@ -307,7 +318,7 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
             ResourceDeltaVisitor visitor = new ResourceDeltaVisitor();
             event.getDelta().accept(visitor);
             if (visitor.isReloaded()) {
-                notifyChange();
+                notifyChange(false);
             }
         }
     }

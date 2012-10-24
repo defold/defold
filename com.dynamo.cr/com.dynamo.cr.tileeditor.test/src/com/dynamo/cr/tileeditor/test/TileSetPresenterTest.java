@@ -56,24 +56,18 @@ public class TileSetPresenterTest extends AbstractPresenterTest {
 
         select(collisionGroup);
         this.presenter.onSelectCollisionGroup(getPresenterContext(), -1);
-        verifyRefresh();
-        verifySelection();
-        verifyNoExecution();
+        verifyExecution();
 
         select(tileSet);
         this.presenter.onSelectCollisionGroup(getPresenterContext(), -1);
-        verifyNoSelection();
         verifyNoExecution();
 
         select(tileSet);
         this.presenter.onSelectCollisionGroup(getPresenterContext(), 0);
-        verifyRefresh();
-        verifySelection();
-        verifyNoExecution();
+        verifyExecution();
 
         select(collisionGroup);
         this.presenter.onSelectCollisionGroup(getPresenterContext(), 0);
-        verifyNoSelection();
         verifyNoExecution();
     }
 
@@ -95,10 +89,10 @@ public class TileSetPresenterTest extends AbstractPresenterTest {
         // Simulate painting
         this.presenter.onBeginPaintTile(getPresenterContext());
         this.presenter.onPaintTile(getPresenterContext(), 1);
-        verifyRefresh();
+        verifyRefreshRenderView();
         this.presenter.onPaintTile(getPresenterContext(), 1);
         this.presenter.onPaintTile(getPresenterContext(), 2);
-        verifyRefresh();
+        verifyRefreshRenderView();
         this.presenter.onPaintTile(getPresenterContext(), 2);
         this.presenter.onEndPaintTile(getPresenterContext());
         verifyExecution();
@@ -108,7 +102,7 @@ public class TileSetPresenterTest extends AbstractPresenterTest {
         select(tileSet);
         this.presenter.onBeginPaintTile(getPresenterContext());
         this.presenter.onPaintTile(getPresenterContext(), 1);
-        verifyRefresh();
+        verifyRefreshRenderView();
         this.presenter.onEndPaintTile(getPresenterContext());
         verifyExecution();
     }

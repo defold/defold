@@ -2,6 +2,7 @@ package com.dynamo.cr.sceneed.core;
 
 import java.util.List;
 
+import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.swt.events.KeyListener;
 import org.eclipse.swt.events.MouseEvent;
 import org.eclipse.swt.events.MouseListener;
@@ -20,4 +21,7 @@ public interface IRenderViewController extends MouseListener, MouseMoveListener,
 
     void initControl(List<Node> nodes);
     void finalControl();
+
+    void setSelection(ISelection selection);
+    void refresh();
 }

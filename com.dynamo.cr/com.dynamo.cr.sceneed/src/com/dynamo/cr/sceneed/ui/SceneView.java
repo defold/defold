@@ -9,7 +9,6 @@ import org.eclipse.core.resources.IResource;
 import org.eclipse.jface.dialogs.Dialog;
 import org.eclipse.jface.viewers.ArrayContentProvider;
 import org.eclipse.jface.viewers.ILabelProvider;
-import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.LabelProvider;
 import org.eclipse.swt.widgets.Display;
@@ -22,12 +21,9 @@ import com.dynamo.cr.editor.ui.FilteredResourceListSelectionDialog;
 import com.dynamo.cr.properties.IFormPropertySheetPage;
 import com.dynamo.cr.sceneed.core.AbstractSceneView;
 import com.dynamo.cr.sceneed.core.IRenderView;
-import com.dynamo.cr.sceneed.core.ManipulatorController;
 import com.dynamo.cr.sceneed.core.Node;
 
 public class SceneView extends AbstractSceneView {
-
-    private static final int REFRESH_DELAY = 100;
 
     @Inject private ISceneOutlinePage outline;
     @Inject private IFormPropertySheetPage propertySheetPage;
@@ -35,9 +31,6 @@ public class SceneView extends AbstractSceneView {
     @Inject private SceneEditor editor;
     @Inject private IContainer contentRoot;
     @Inject private SceneRenderViewProvider sceneRenderViewProvider;
-    @Inject private ManipulatorController manipulatorController;
-
-    private boolean refreshRequested;
 
     @Override
     public void setRoot(Node root) {
@@ -46,56 +39,21 @@ public class SceneView extends AbstractSceneView {
     }
 
     @Override
-    public void refresh(IStructuredSelection selection, boolean dirty) {
-        editor.setDirty(dirty);
-
-        setSelection(selection);
-        sceneRenderViewProvider.setSelection(selection);
-        manipulatorController.setSelection(selection);
-        manipulatorController.refresh();
-        renderView.setSelection(selection);
-        renderView.refresh();
-
-        // The rest is expensive, so force a low frequency
-        if (this.refreshRequested) {
-            return;
-        }
-        this.refreshRequested = true;
-
-        Display.getDefault().timerExec(60, new Refresher(selection));
-    }
-
-    private class Refresher implements Runnable {
-        private ISelection selection;
-
-        public Refresher(ISelection selection) {
-            this.selection = selection;
-        }
-
-        @Override
-        public void run() {
-            if (refreshRequested) {
-                ISelection selection = getSelection();
-                if (this.selection != selection) {
-                    // Keep delaying as long as the selection is changing
-                    Display.getDefault().timerExec(REFRESH_DELAY, this);
-                    this.selection = selection;
-                } else {
-                    refreshRequested = false;
-                    setIgnoreOutlineSelection(true);
-                    outline.refresh();
-                    outline.setSelection(selection);
-                    setIgnoreOutlineSelection(false);
-                    propertySheetPage.setSelection(selection);
-                    propertySheetPage.refresh();
-                }
-            }
-        }
+    public void refreshRenderView() {
+        this.renderView.refresh();
     }
 
     @Override
-    public void refreshRenderView() {
+    public void refresh(IStructuredSelection selection, boolean dirty) {
+        this.renderView.setSelection(selection);
         this.renderView.refresh();
+        editor.setDirty(dirty);
+        setIgnoreOutlineSelection(true);
+        outline.refresh();
+        outline.setSelection(selection);
+        setIgnoreOutlineSelection(false);
+        propertySheetPage.setSelection(selection);
+        propertySheetPage.refresh();
     }
 
     @Override

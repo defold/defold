@@ -12,10 +12,10 @@ import javax.vecmath.Vector4d;
 
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.IStructuredSelection;
+import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.KeyEvent;
 import org.eclipse.swt.events.MouseEvent;
-import org.eclipse.ui.ISelectionService;
 
 import com.dynamo.cr.sceneed.core.SceneUtil.MouseType;
 import com.dynamo.cr.sceneed.core.util.CameraUtil;
@@ -29,13 +29,12 @@ public class CameraController implements IRenderViewController {
     private IRenderView renderView;
     private Camera camera = new Camera(Camera.Type.ORTHOGRAPHIC);
     private Vector4d focusPoint = new Vector4d(0.0, 0.0, 0.0, 1.0);
-    private ISelectionService selectionService;
+    private ISelection selection = new StructuredSelection();
     private ISceneModel sceneModel;
 
     @Inject
-    public CameraController(IRenderView renderView, ISceneModel sceneModel, ISelectionService selectionService) {
+    public CameraController(IRenderView renderView, ISceneModel sceneModel) {
         this.renderView = renderView;
-        this.selectionService = selectionService;
         this.sceneModel = sceneModel;
         this.renderView.addRenderController(this);
         this.renderView.setCamera(camera);
@@ -170,7 +169,6 @@ public class CameraController implements IRenderViewController {
     public void frameObjects() {
         AABB aabb = new AABB();
 
-        ISelection selection = selectionService.getSelection();
         if (selection.isEmpty()) {
             Node root = sceneModel.getRoot();
             root.getWorldAABB(aabb);
@@ -337,6 +335,15 @@ public class CameraController implements IRenderViewController {
     public void keyReleased(KeyEvent e) {
         // TODO Auto-generated method stub
 
+    }
+
+    @Override
+    public void setSelection(ISelection selection) {
+        this.selection = selection;
+    }
+
+    @Override
+    public void refresh() {
     }
 
 }

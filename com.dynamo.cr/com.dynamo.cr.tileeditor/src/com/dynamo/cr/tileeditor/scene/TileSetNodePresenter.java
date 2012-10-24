@@ -10,6 +10,7 @@ import com.dynamo.cr.sceneed.core.ISceneView.INodePresenter;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.operations.RemoveChildrenOperation;
+import com.dynamo.cr.sceneed.core.operations.SelectOperation;
 import com.dynamo.cr.tileeditor.operations.AddAnimationNodeOperation;
 import com.dynamo.cr.tileeditor.operations.AddCollisionGroupNodeOperation;
 import com.dynamo.cr.tileeditor.operations.SetTileCollisionGroupsOperation;
@@ -59,7 +60,7 @@ public class TileSetNodePresenter implements INodePresenter<TileSetNode> {
         if (this.newTileCollisionGroups.get(index) != this.currentCollisionGroup) {
             this.newTileCollisionGroups.set(index, this.currentCollisionGroup);
             tileSet.setTileCollisionGroups(this.newTileCollisionGroups);
-            presenterContext.refreshView();
+            presenterContext.refreshRenderView();
         }
     }
 
@@ -78,8 +79,7 @@ public class TileSetNodePresenter implements INodePresenter<TileSetNode> {
             }
             IStructuredSelection selection = new StructuredSelection(selected);
             if (!selection.equals(presenterContext.getSelection())) {
-                presenterContext.setSelection(selection);
-                presenterContext.refreshView();
+                presenterContext.executeOperation(new SelectOperation(presenterContext.getSelection(), selection, presenterContext));
             }
         }
     }

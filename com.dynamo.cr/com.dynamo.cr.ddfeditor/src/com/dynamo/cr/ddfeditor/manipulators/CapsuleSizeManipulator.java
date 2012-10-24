@@ -75,7 +75,6 @@ public class CapsuleSizeManipulator extends RootManipulator {
 
     @Override
     public void refresh() {
-        selectionChanged();
     }
 
     @Override
