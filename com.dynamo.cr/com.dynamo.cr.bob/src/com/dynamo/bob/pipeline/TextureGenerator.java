@@ -130,6 +130,7 @@ public class TextureGenerator {
 
     static TextureImage generate(InputStream inputStream) throws TextureGeneratorException, IOException {
         BufferedImage origImage = ImageIO.read(inputStream);
+
         inputStream.close();
         BufferedImage image;
         if (origImage.getType() == BufferedImage.TYPE_BYTE_INDEXED) {
@@ -163,6 +164,13 @@ public class TextureGenerator {
             }
         }
 
+        // Scale image to closest power of two if necessary
+        int widthPowerTwo = closestPowerTwo(image.getWidth());
+        int heightPowerTwo = closestPowerTwo(image.getHeight());
+        if (image.getWidth() != widthPowerTwo || image.getHeight() != heightPowerTwo) {
+            image = scaleImage(image, widthPowerTwo, heightPowerTwo, image.getType());
+        }
+
         TextureImage.Builder textureBuilder = TextureImage.newBuilder();
 
         ColorModel colorModel = image.getColorModel();
@@ -186,7 +194,9 @@ public class TextureGenerator {
         TextureImage.Image.Builder uncompressed = TextureImage.Image
                 .newBuilder()
                 .setWidth(width)
-                .setHeight(height);
+                .setHeight(height)
+                .setOriginalWidth(origImage.getWidth())
+                .setOriginalHeight(origImage.getHeight());
 
         int w = width;
         int h = height;
@@ -230,6 +240,22 @@ public class TextureGenerator {
         textureBuilder.addAlternatives(uncompressed);
         TextureImage texture = textureBuilder.build();
         return texture;
+    }
+
+    public static int closestPowerTwo(int i) {
+        int nextPow2 = 1;
+        while (nextPow2 < i) {
+            nextPow2 *= 2;
+        }
+        int prevPower2 = Math.max(1, nextPow2 / 2);
+
+        int nextDistance = nextPow2 - i;
+        int prevDistance = i - prevPower2;
+
+        if (nextDistance <= prevDistance)
+            return nextPow2;
+        else
+            return prevPower2;
     }
 
 }

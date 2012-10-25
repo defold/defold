@@ -1194,6 +1194,14 @@ static void LogFrameBufferError(GLenum status)
         {
             texture->m_Width = params.m_Width;
             texture->m_Height = params.m_Height;
+
+            if (params.m_OriginalWidth == 0) {
+                texture->m_OriginalWidth = params.m_Width;
+                texture->m_OriginalHeight = params.m_Height;
+            } else {
+                texture->m_OriginalWidth = params.m_OriginalWidth;
+                texture->m_OriginalHeight = params.m_OriginalHeight;
+            }
         }
 
         glBindTexture(GL_TEXTURE_2D, texture->m_Texture);
@@ -1306,6 +1314,16 @@ static void LogFrameBufferError(GLenum status)
     uint16_t GetTextureHeight(HTexture texture)
     {
         return texture->m_Height;
+    }
+
+    uint16_t GetOriginalTextureWidth(HTexture texture)
+    {
+        return texture->m_OriginalWidth;
+    }
+
+    uint16_t GetOriginalTextureHeight(HTexture texture)
+    {
+        return texture->m_OriginalHeight;
     }
 
     void EnableTexture(HContext context, uint32_t unit, HTexture texture)

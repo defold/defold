@@ -9,6 +9,8 @@ namespace dmGraphics
         TextureFormat m_Format;
         uint32_t m_Width;
         uint32_t m_Height;
+        uint32_t m_OriginalWidth;
+        uint32_t m_OriginalHeight;
     };
 
     struct VertexStream

@@ -287,8 +287,8 @@ namespace dmGameSystem
         dmGameSystemDDF::TileSet* tile_set_ddf = tile_set->m_TileSet;
         dmGraphics::HTexture texture = tile_set->m_Texture;
 
-        uint16_t texture_width = dmGraphics::GetTextureWidth(texture);
-        uint16_t texture_height = dmGraphics::GetTextureHeight(texture);
+        uint16_t texture_width = dmGraphics::GetOriginalTextureWidth(texture);
+        uint16_t texture_height = dmGraphics::GetOriginalTextureHeight(texture);
         float texture_width_recip = 1.0f / texture_width;
         float texture_height_recip = 1.0f / texture_height;
         uint32_t tiles_per_row = CalculateTileCount(tile_set_ddf->m_TileWidth, texture_width, tile_set_ddf->m_TileMargin, tile_set_ddf->m_TileSpacing);

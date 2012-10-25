@@ -706,6 +706,14 @@ namespace dmGraphics
         {
             texture->m_Width = params.m_Width;
             texture->m_Height = params.m_Height;
+
+            if (params.m_OriginalWidth == 0) {
+                texture->m_OriginalWidth = params.m_Width;
+                texture->m_OriginalHeight = params.m_Height;
+            } else {
+                texture->m_OriginalWidth = params.m_OriginalWidth;
+                texture->m_OriginalHeight = params.m_OriginalHeight;
+            }
         }
         if (params.m_DataSize > 0)
         {
@@ -722,6 +730,16 @@ namespace dmGraphics
     uint16_t GetTextureHeight(HTexture texture)
     {
         return texture->m_Height;
+    }
+
+    uint16_t GetOriginalTextureWidth(HTexture texture)
+    {
+        return texture->m_OriginalWidth;
+    }
+
+    uint16_t GetOriginalTextureHeight(HTexture texture)
+    {
+        return texture->m_OriginalHeight;
     }
 
     void EnableTexture(HContext context, uint32_t unit, HTexture texture)

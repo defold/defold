@@ -64,6 +64,8 @@ namespace dmGameSystem
             params.m_Format = format;
             params.m_Width = image->m_Width;
             params.m_Height = image->m_Height;
+            params.m_OriginalWidth = image->m_OriginalWidth;
+            params.m_OriginalHeight = image->m_OriginalHeight;
             if (!texture)
                 texture = dmGraphics::NewTexture(context, params);
 
