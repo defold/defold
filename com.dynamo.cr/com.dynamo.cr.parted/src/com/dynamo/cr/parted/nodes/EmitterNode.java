@@ -478,7 +478,7 @@ public class EmitterNode extends Node {
 
     @Override
     public String toString() {
-        return "Emitter";
+        return this.id;
     }
 
     public Emitter.Builder buildMessage() {
