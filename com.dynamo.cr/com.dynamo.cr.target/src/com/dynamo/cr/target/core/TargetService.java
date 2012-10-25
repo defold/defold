@@ -8,12 +8,15 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.net.URL;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import javax.inject.Inject;
 
@@ -163,9 +166,25 @@ public class TargetService implements ITargetService, Runnable {
             logger.error("Failed to get local address", e);
         }
 
+        // A single host might advertise multiple devices.
+        // We temporarily blacklist non-reachable devices (socket timeout)
+        Set<String> blackList = new HashSet<String>();
+
         boolean localTargetFound = false;
         for (DeviceInfo deviceInfo : devices) {
             String location = deviceInfo.headers.get("LOCATION");
+            URL locationURL = null;
+            try {
+                locationURL = new URL(location);
+            } catch (MalformedURLException e2) {
+                continue;
+            }
+
+            if (blackList.contains(locationURL.getHost())) {
+                // NOTE: Do not log here
+                continue;
+            }
+
             String description = null;
             try {
                 if (descriptionCache.containsKey(location)) {
@@ -207,6 +226,9 @@ public class TargetService implements ITargetService, Runnable {
                 logger.error("Failed to parse UPNP response", e);
             } catch (IOException e) {
                 // Do not log IOException. This happens...
+                if (e instanceof SocketTimeoutException) {
+                    blackList.add(locationURL.getHost());
+                }
             } catch (Throwable e) {
                 logger.error("Unexpected error", e);
             }

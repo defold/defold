@@ -14,12 +14,12 @@ import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.Map;
 
 import javax.inject.Singleton;
 
@@ -138,7 +138,7 @@ public class TargetsTest implements ITargetListener {
          */
         String localAddress = InetAddress.getLocalHost().getHostAddress();
         when(urlFetcher.fetch(anyString())).thenReturn(DEVICE_DESC);
-        when(ssdp.getDevices()).thenReturn(new DeviceInfo[] { new DeviceInfo(System.currentTimeMillis() + 1000, new HashMap<String, String>(), localAddress) } );
+        when(ssdp.getDevices()).thenReturn(new DeviceInfo[] { newDeviceInfo(localAddress) } );
         when(ssdp.update(true)).thenReturn(true);
         startTargetService();
         Thread.sleep(100);
@@ -165,13 +165,48 @@ public class TargetsTest implements ITargetListener {
         }
     }
 
+    private DeviceInfo newDeviceInfo(String localAddress) {
+        HashMap<String, String> headers = new HashMap<String, String>();
+        headers.put("LOCATION", "http://localhost");
+        return new DeviceInfo(System.currentTimeMillis() + 1000, headers, localAddress);
+    }
+
+    @Test
+    public void testBlackList() throws Exception {
+        String localAddress = InetAddress.getLocalHost().getHostAddress();
+        when(urlFetcher.fetch(anyString())).thenThrow(new SocketTimeoutException());
+        when(ssdp.getDevices()).thenReturn(new DeviceInfo[] { newDeviceInfo(localAddress), newDeviceInfo(localAddress) } );
+        when(ssdp.update(true)).thenReturn(true);
+        startTargetService();
+        Thread.sleep(100);
+        synchronized (this) {
+            assertThat(events.size(), is(0));
+            ITarget[] targets = targetService.getTargets();
+            assertThat(targets.length, is(1));
+        }
+
+        Thread.sleep(1100);
+        verify(ssdp, atLeast(1)).update(false);
+        // One initial and one due to timeout
+        verify(ssdp, times(2)).update(true);
+
+        // Check that blacklisted (socket timeout) is fetched only once per update
+        verify(urlFetcher, times(2)).fetch(anyString());
+
+        synchronized (this) {
+            assertThat(events.size(), is(2));
+            ITarget[] targets = targetService.getTargets();
+            assertThat(targets.length, is(1));
+        }
+    }
+
     @Test
     public void testSearchNetwork() throws Exception {
         /*
          * Search for network target. Expected device count is two. The network target and the local psuedo-target
          */
         when(urlFetcher.fetch(anyString())).thenReturn(DEVICE_DESC);
-        when(ssdp.getDevices()).thenReturn(new DeviceInfo[] { new DeviceInfo(System.currentTimeMillis() + 1000, new HashMap<String, String>(), "127.0.0.1") } );
+        when(ssdp.getDevices()).thenReturn(new DeviceInfo[] { newDeviceInfo("127.0.0.1") });
         when(ssdp.update(true)).thenReturn(true);
         startTargetService();
         Thread.sleep(100);
@@ -250,11 +285,8 @@ public class TargetsTest implements ITargetListener {
         ByteArrayOutputStream consoleOut = new ByteArrayOutputStream();
         when(console.createOutputStream()).thenReturn(consoleOut);
         when(consoleFactory.getConsole(anyString())).thenReturn(console);
-        Map<String, String> headers = new HashMap<String, String>();
-        headers.put("LOCATION", "localhost");
         when(ssdp.getDevices()).thenReturn(
-                new DeviceInfo[] { new DeviceInfo(System.currentTimeMillis() + 1000, headers,
-                        "127.0.0.1") });
+                new DeviceInfo[] { newDeviceInfo("127.0.0.1") });
         when(ssdp.update(true)).thenReturn(true);
         startTargetService();
         while (targetService.getTargets().length == 1) {
