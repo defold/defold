@@ -426,7 +426,7 @@ namespace dmParticle
     static void UpdateEmitterState(Instance* instance, Emitter* emitter, EmitterPrototype* emitter_prototype, dmParticleDDF::Emitter* emitter_ddf, float dt);
     static void EvaluateEmitterProperties(Emitter* emitter, Property* emitter_properties, float duration, float properties[EMITTER_KEY_COUNT]);
     static void EvaluateParticleProperties(Emitter* emitter, Property* particle_properties);
-    static uint32_t UpdateRenderData(HContext context, Instance* instance, Emitter* emitter, dmParticleDDF::Emitter* ddf, uint32_t vertex_index, float* vertex_buffer, uint32_t vertex_buffer_size);
+    static uint32_t UpdateRenderData(HContext context, Instance* instance, Emitter* emitter, dmParticleDDF::Emitter* ddf, uint32_t vertex_index, float* vertex_buffer, uint32_t vertex_buffer_size, float dt);
     static void GenerateKeys(Emitter* emitter, float max_particle_life_time);
     static void SortParticles(Emitter* emitter);
     static void Simulate(Instance* instance, Emitter* emitter, EmitterPrototype* prototype, dmParticleDDF::Emitter* ddf, float dt);
@@ -511,7 +511,7 @@ namespace dmParticle
 
                 // Render data
                 if (vertex_buffer != 0x0 && vertex_buffer_size > 0)
-                    vertex_index += UpdateRenderData(context, instance, emitter, emitter_ddf, vertex_index, vertex_buffer, vertex_buffer_size);
+                    vertex_index += UpdateRenderData(context, instance, emitter, emitter_ddf, vertex_index, vertex_buffer, vertex_buffer_size, dt);
             }
         }
 
@@ -737,7 +737,7 @@ namespace dmParticle
             0.0f, 0.0f, 1.0f, 1.0f
     };
 
-    static uint32_t UpdateRenderData(HContext context, Instance* instance, Emitter* emitter, dmParticleDDF::Emitter* ddf, uint32_t vertex_index, float* vertex_buffer, uint32_t vertex_buffer_size)
+    static uint32_t UpdateRenderData(HContext context, Instance* instance, Emitter* emitter, dmParticleDDF::Emitter* ddf, uint32_t vertex_index, float* vertex_buffer, uint32_t vertex_buffer_size, float dt)
     {
         DM_PROFILE(Particle, "UpdateRenderData");
 
@@ -749,6 +749,7 @@ namespace dmParticle
         uint32_t start_tile = anim_data.m_StartTile - 1;
         uint32_t end_tile = anim_data.m_EndTile - 1;
         uint32_t tile_count = end_tile - start_tile + 1;
+        float inv_anim_length = anim_data.m_FPS / (float)tile_count;
         float* tex_coords = anim_data.m_TexCoords;
         float width_factor = 1.0f;
         float height_factor = 1.0f;
@@ -762,9 +763,16 @@ namespace dmParticle
         }
         bool hFlip = anim_data.m_HFlip != 0;
         bool vFlip = anim_data.m_VFlip != 0;
+        AnimPlayback playback = anim_data.m_Playback;
+        bool anim_playing = playback != ANIM_PLAYBACK_NONE && tile_count > 1;
+        bool anim_once = playback == ANIM_PLAYBACK_ONCE_FORWARD || playback == ANIM_PLAYBACK_ONCE_BACKWARD;
+        bool anim_bwd = playback == ANIM_PLAYBACK_ONCE_BACKWARD || playback == ANIM_PLAYBACK_LOOP_BACKWARD;
+        bool anim_ping_pong = playback == ANIM_PLAYBACK_LOOP_PINGPONG;
         // Extent for each vertex, scale by half
         width_factor *= 0.5f;
         height_factor *= 0.5f;
+        // Used to sample anim tiles in the "frame center"
+        float half_dt = dt * 0.5f;
 
         if (tex_coords == 0x0)
         {
@@ -804,13 +812,37 @@ namespace dmParticle
             Vector3 p2 = x - y + particle_position;
             Vector3 p3 = x + y + particle_position;
 
-            // avoid wrapping for dead particles
-            float time_left = dmMath::Select(particle->GetTimeLeft(), particle->GetTimeLeft(), 0.0f);
-            float t = (1.0f - time_left * particle->GetooMaxLifeTime());
-            uint32_t tile = (uint32_t)(tile_count * t);
-            // TODO only for once
-            if (tile == tile_count)
-                --tile;
+            // Evaluate anim frame
+            uint32_t tile = 0;
+            bool play_bwd = anim_bwd;
+            if (anim_playing)
+            {
+                float anim_cursor = particle->GetMaxLifeTime() - particle->GetTimeLeft() - half_dt;
+                if (anim_once) // stretch over particle life
+                {
+                    float anim_t = anim_cursor * particle->GetooMaxLifeTime();
+                    tile = (uint32_t)(tile_count * anim_t);
+                }
+                else // use anim FPS
+                {
+                    float anim_t = anim_cursor * inv_anim_length;
+                    tile = (uint32_t)(tile_count * anim_t);
+                    if (anim_ping_pong)
+                    {
+                        uint32_t it = tile / (tile_count - 1);
+                        // check backwards iteration
+                        if (it % 2 == 1)
+                            play_bwd = true;
+                        tile = tile % (tile_count - 1);
+                    }
+                    else
+                    {
+                        tile = tile % tile_count;
+                    }
+                }
+                if (play_bwd)
+                    tile = tile_count - tile - 1;
+            }
             tile += start_tile;
             float* tex_coord = &tex_coords[tile * 4];
             float u0 = tex_coord[0];

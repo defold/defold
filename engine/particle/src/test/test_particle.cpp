@@ -55,6 +55,7 @@ struct ParticleVertex
     float m_Red, m_Green, m_Blue, m_Alpha;
 };
 
+// tile is 0-based
 void ParticleTest::VerifyVertexTexCoords(ParticleVertex* vertex_buffer, float* tex_coords, uint32_t tile)
 {
     uint32_t u0 = 0;
@@ -679,7 +680,7 @@ TEST_F(ParticleTest, EvaluateEmitterPropertySpread)
         dmParticle::Particle* particle = &emitter->m_Particles[0];
         // NOTE size could potentially be 0, but not likely
         ASSERT_NE(0.0f, particle->GetSize());
-        ASSERT_GT(1.0f, dmMath::Abs(particle->GetSize()));
+        ASSERT_GE(1.0f, dmMath::Abs(particle->GetSize()));
 
         dmParticle::DestroyInstance(m_Context, instance);
     }
@@ -782,68 +783,76 @@ dmParticle::FetchAnimationResult FetchAnimationCallback(void* tile_source, dmhas
     TileSource* ts = (TileSource*)tile_source;
     out_data->m_Texture = ts->m_Texture;
     out_data->m_TexCoords = ts->m_TexCoords;
-    if (animation == dmHashString64("once"))
-    {
-        out_data->m_Playback = dmParticle::ANIM_PLAYBACK_ONCE_FORWARD;
-        out_data->m_TileWidth = 2;
-        out_data->m_TileHeight = 3;
-        out_data->m_StartTile = 1;
-        out_data->m_EndTile = 5;
-        out_data->m_FPS = 30;
-    }
-    else
-    {
-        return dmParticle::FETCH_ANIMATION_NOT_FOUND;
-    }
+    out_data->m_TileWidth = 2;
+    out_data->m_TileHeight = 3;
+    out_data->m_StartTile = 1;
+    out_data->m_EndTile = 5;
+    out_data->m_FPS = 4;
     out_data->m_Texture = (void*)0xBAADF00D;
     out_data->m_StructSize = sizeof(dmParticle::AnimationData);
+    if (animation == dmHashString64("none"))
+        out_data->m_Playback = dmParticle::ANIM_PLAYBACK_NONE;
+    else if (animation == dmHashString64("once_fwd"))
+        out_data->m_Playback = dmParticle::ANIM_PLAYBACK_ONCE_FORWARD;
+    else if (animation == dmHashString64("once_bwd"))
+        out_data->m_Playback = dmParticle::ANIM_PLAYBACK_ONCE_BACKWARD;
+    else if (animation == dmHashString64("loop_fwd"))
+        out_data->m_Playback = dmParticle::ANIM_PLAYBACK_LOOP_FORWARD;
+    else if (animation == dmHashString64("loop_bwd"))
+        out_data->m_Playback = dmParticle::ANIM_PLAYBACK_LOOP_BACKWARD;
+    else if (animation == dmHashString64("pingpong"))
+        out_data->m_Playback = dmParticle::ANIM_PLAYBACK_LOOP_PINGPONG;
+    else
+        return dmParticle::FETCH_ANIMATION_NOT_FOUND;
     return dmParticle::FETCH_ANIMATION_OK;
 }
 
 TEST_F(ParticleTest, Animation)
 {
-    float dt = 0.2f;
+    float dt = 0.25f;
 
     ASSERT_TRUE(LoadPrototype("anim.particlefxc", &m_Prototype));
 
     dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype);
-    dmParticle::Emitter* emitter = GetEmitter(m_Context, instance, 0);
+
+    // 2 types
+    const uint32_t type_count = 6;
 
     TileSource tile_source;
-    dmParticle::SetTileSource(m_Prototype, 0, &tile_source);
+    for (uint32_t emitter_i = 0; emitter_i < type_count; ++emitter_i)
+        dmParticle::SetTileSource(m_Prototype, emitter_i, &tile_source);
+
+    // 8 time steps
+    const uint32_t it_count = 8;
+    uint32_t tiles[type_count][it_count] = {
+            {1, 1, 1, 1, 1, 0, 0, 0}, // none, 5-frame particle
+            {1, 2, 3, 4, 5, 0, 0, 0}, // once fwd, 5-frame particle
+            {5, 4, 3, 2, 1, 0, 0, 0}, // once bwd, 5-frame particle
+            {1, 2, 3, 4, 5, 1, 2, 3}, // loop fwd, 8-frame particle
+            {5, 4, 3, 2, 1, 5, 4, 3}, // loop bwd, 8-frame particle
+            {1, 2, 3, 4, 5, 4, 3, 2}, // loop pingpong, 8-frame particle
+    };
+    ParticleVertex vertex_buffer[6 * type_count];
+    uint32_t vertex_buffer_size;
 
     dmParticle::StartInstance(m_Context, instance);
 
-    ParticleVertex vertex_buffer[6];
-    uint32_t vertex_buffer_size;
-
-    // Test once anim
-    m_Prototype->m_Emitters[0].m_Animation = dmHashString64("once");
-
-    // 5 tiles
-    for (uint32_t i = 0; i < 5; ++i)
+    for (uint32_t it = 0; it < it_count; ++it)
     {
         dmParticle::Update(m_Context, dt, (float*)vertex_buffer, sizeof(vertex_buffer), &vertex_buffer_size, FetchAnimationCallback);
-        VerifyVertexTexCoords(vertex_buffer, g_TexCoords, i);
-        VerifyVertexDims(vertex_buffer, 1, 1.0f, 2, 3);
+        ParticleVertex* vb = vertex_buffer;
+        for (uint32_t type = 0; type < type_count; ++type)
+        {
+            uint32_t tile = tiles[type][it];
+            if (tile > 0)
+            {
+                VerifyVertexTexCoords(vb, g_TexCoords, tile - 1);
+                VerifyVertexDims(vb, 1, 1.0f, 2, 3);
+                vb += 6;
+            }
+        }
+        ASSERT_EQ((vb - vertex_buffer) * sizeof(ParticleVertex), vertex_buffer_size);
     }
-
-    ASSERT_EQ(sizeof(vertex_buffer), vertex_buffer_size);
-    dmParticle::Particle* particle = emitter->m_Particles.Begin();
-    ASSERT_LT(0.0f, particle->GetTimeLeft());
-
-    // Test rendering of last frame
-    RenderData data;
-    dmParticle::Render(m_Context, &data, RenderInstanceCallback);
-    ASSERT_EQ(m_Prototype->m_Emitters[0].m_Material, data.m_Material);
-    ASSERT_EQ(tile_source.m_Texture, data.m_Texture);
-    ASSERT_EQ(0u, data.m_VertexIndex);
-    ASSERT_EQ(6u, data.m_VertexCount);
-
-    // Particle dead
-    dmParticle::Update(m_Context, dt, (float*)vertex_buffer, sizeof(vertex_buffer), &vertex_buffer_size, FetchAnimationCallback);
-    ASSERT_EQ(0u, vertex_buffer_size);
-    ASSERT_GT(0.0f, particle->GetTimeLeft());
 
     dmParticle::DestroyInstance(m_Context, instance);
 }
