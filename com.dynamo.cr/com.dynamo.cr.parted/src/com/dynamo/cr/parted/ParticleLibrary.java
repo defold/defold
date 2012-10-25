@@ -135,10 +135,10 @@ public class ParticleLibrary {
     public static interface AnimPlayback {
         public static final int ANIM_PLAYBACK_NONE = 0;
         public static final int ANIM_PLAYBACK_ONCE_FORWARD = 1;
-        public static final int ANIM_PLAYBACK_ONCE_BACKWARD = 1;
-        public static final int ANIM_PLAYBACK_LOOP_FORWARD = 1;
-        public static final int ANIM_PLAYBACK_LOOP_BACKWARD = 1;
-        public static final int ANIM_PLAYBACK_LOOP_PINGPONG = 1;
+        public static final int ANIM_PLAYBACK_ONCE_BACKWARD = 2;
+        public static final int ANIM_PLAYBACK_LOOP_FORWARD = 3;
+        public static final int ANIM_PLAYBACK_LOOP_BACKWARD = 4;
+        public static final int ANIM_PLAYBACK_LOOP_PINGPONG = 5;
     }
 
     public static interface FetchAnimationResult {

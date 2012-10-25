@@ -418,7 +418,7 @@ namespace dmEngine
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
         if (http_cache)
             params.m_Flags |= RESOURCE_FACTORY_FLAGS_HTTP_CACHE;
-        params.m_StreamBufferSize = 8 * 1024 * 1024; // We have some *large* textures...!
+        params.m_StreamBufferSize = 16 * 1024 * 1024; // We have some *large* textures...!
         params.m_BuiltinsArchive = (const void*) BUILTINS_ARC;
         params.m_BuiltinsArchiveSize = BUILTINS_ARC_SIZE;
 
