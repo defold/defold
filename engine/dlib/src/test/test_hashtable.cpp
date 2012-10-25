@@ -435,10 +435,10 @@ TEST(dmHashTable, Clear)
                 ASSERT_EQ(map.size(), ht.Size());
             }
 
-            std::map<uint32_t, int>::iterator iter = map.begin();
-            for (iter = map.begin(); iter != map.end(); ++iter)
+            std::map<uint32_t, int>::iterator iter2 = map.begin();
+            for (iter2 = map.begin(); iter2 != map.end(); ++iter)
             {
-                uint32_t key = iter->first;
+                uint32_t key = iter2->first;
                 ASSERT_EQ(map[key], *ht.Get(key));
             }
 

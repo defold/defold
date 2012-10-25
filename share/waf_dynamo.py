@@ -24,13 +24,14 @@ def new_copy_task(name, input_ext, output_ext):
         out = node.change_ext(output_ext)
         task.set_outputs(out)
 
+IOS_TOOLCHAIN_ROOT='/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain'
 ARM_DARWIN_ROOT='/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer'
-IOS_SDK_VERSION="5.1"
+IOS_SDK_VERSION="6.0"
 MIN_IOS_SDK_VERSION=IOS_SDK_VERSION
 
 @feature('cc', 'cxx')
 # We must apply this before the objc_hook below
-# Otherwise will .mm-files not be compiled with -arch armv6 etc.
+# Otherwise will .mm-files not be compiled with -arch armv7 etc.
 # I don't know if this is entirely correct
 @before('apply_core')
 def default_flags(self):
@@ -58,10 +59,10 @@ def default_flags(self):
         elif platform == "linux":
             # Linux only
             pass
-    elif platform == "armv6-darwin":
+    elif platform == "armv7-darwin":
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-g', '-O2', '-gdwarf-2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-arch', 'armv6', '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION)])
-        self.env.append_value('LINKFLAGS', [ '-arch', 'armv6', '-lobjc', '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION), '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION])
+            self.env.append_value(f, ['-g', '-O2', '-gdwarf-2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-arch', 'armv7', '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION)])
+        self.env.append_value('LINKFLAGS', [ '-arch', 'armv7', '-lobjc', '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION), '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION])
     else:
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS'])
@@ -431,16 +432,16 @@ def detect(conf):
     conf.env['PLATFORM'] = platform
     conf.env['BUILD_PLATFORM'] = build_platform
 
-    if platform == "armv6-darwin":
+    if platform == "armv7-darwin":
         conf.env['GCC-OBJCXX'] = '-xobjective-c++'
         conf.env['GCC-OBJCLINK'] = '-lobjc'
-        conf.env['CC'] = '%s/usr/bin/llvm-gcc-4.2' % (ARM_DARWIN_ROOT)
-        conf.env['CXX'] = '%s/usr/bin/llvm-g++-4.2' % (ARM_DARWIN_ROOT)
-        conf.env['LINK_CXX'] = '%s/usr/bin/llvm-g++-4.2' % (ARM_DARWIN_ROOT)
-        conf.env['CPP'] = '%s/usr/bin/cpp-4.2' % (ARM_DARWIN_ROOT)
-        conf.env['AR'] = '%s/usr/bin/ar' % (ARM_DARWIN_ROOT)
-        conf.env['RANLIB'] = '%s/usr/bin/ranlib' % (ARM_DARWIN_ROOT)
-        conf.env['LD'] = '%s/usr/bin/ld' % (ARM_DARWIN_ROOT)
+        conf.env['CC'] = '%s/usr/bin/clang' % (IOS_TOOLCHAIN_ROOT)
+        conf.env['CXX'] = '%s/usr/bin/clang++' % (IOS_TOOLCHAIN_ROOT)
+        conf.env['LINK_CXX'] = '%s/usr/bin/clang++' % (IOS_TOOLCHAIN_ROOT)
+        conf.env['CPP'] = '%s/usr/bin/clang -E' % (IOS_TOOLCHAIN_ROOT)
+        conf.env['AR'] = '%s/usr/bin/ar' % (IOS_TOOLCHAIN_ROOT)
+        conf.env['RANLIB'] = '%s/usr/bin/ranlib' % (IOS_TOOLCHAIN_ROOT)
+        conf.env['LD'] = '%s/usr/bin/ld' % (IOS_TOOLCHAIN_ROOT)
 
     conf.check_tool('compiler_cc')
     conf.check_tool('compiler_cxx')
@@ -490,6 +491,6 @@ def set_options(opt):
     opt.tool_options('compiler_cxx')
 
     opt.add_option('--eclipse', action='store_true', default=False, dest='eclipse', help='print eclipse friendly command-line')
-    opt.add_option('--platform', default='', dest='platform', help='target platform, eg armv6-darwin')
+    opt.add_option('--platform', default='', dest='platform', help='target platform, eg armv7-darwin')
     opt.add_option('--skip-tests', action='store_true', default=False, dest='skip_tests', help='skip unit tests')
     opt.add_option('--skip-codesign', action="store_true", default=False, dest='skip_codesign', help='skip code signing')

@@ -95,7 +95,7 @@ class Configuration(object):
             self._extract_tgz(make_path(self.host), ext)
 
         for p in PACKAGES_IOS:
-            self._extract_tgz(make_path('armv6-darwin'), ext)
+            self._extract_tgz(make_path('armv7-darwin'), ext)
 
         if self.host == 'darwin':
             for p in PACKAGES_DARWIN_64:
@@ -400,7 +400,7 @@ Multiple commands can be specified'''
 
     parser.add_option('--platform', dest='target_platform',
                       default = None,
-                      choices = ['linux', 'darwin', 'x86_64-darwin', 'win32', 'armv6-darwin'],
+                      choices = ['linux', 'darwin', 'x86_64-darwin', 'win32', 'armv7-darwin'],
                       help = 'Target platform')
 
     parser.add_option('--skip-tests', dest='skip_tests',
