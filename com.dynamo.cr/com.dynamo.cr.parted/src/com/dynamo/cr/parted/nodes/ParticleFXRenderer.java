@@ -23,13 +23,14 @@ import com.sun.opengl.util.texture.Texture;
 public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
 
     private static final EnumSet<Pass> passes = EnumSet.of(Pass.TRANSPARENT, Pass.OVERLAY);
+    // Static since there seems to be a crash-bug in JNA when the callback is GC'd
+    private static final Callback callBack = new Callback();
 
-    private Callback callBack = new Callback();
     private long prevTime = 0;
     private double fps;
     private int frameCounter = 0;
 
-    private class Callback implements RenderInstanceCallback {
+    private static class Callback implements RenderInstanceCallback {
         GL gl;
         ParticleFXNode currentNode;
 
@@ -187,9 +188,6 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
             callBack.gl = gl;
             callBack.currentNode = node;
 
-            // TODO: Creating a new callback here instead of the allocated one above
-            // jna will crash in com.sun.jna.Native.freeNativeCallback when finalizers are run (during gc)
-            // WHY!? Bug in JNA?
             ParticleLibrary.Particle_Render(context, new Pointer(0), callBack);
 
             gl.glDisableClientState(GL.GL_TEXTURE_COORD_ARRAY);

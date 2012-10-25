@@ -41,7 +41,11 @@ public class ParticleFXNode extends ComponentTypeNode {
 
     private static final long serialVersionUID = 1L;
 
-    private class FetchAnimCallback implements FetchAnimationCallback {
+    private static final FetchAnimCallback animCallback = new FetchAnimCallback();
+
+    private static class FetchAnimCallback implements FetchAnimationCallback {
+        private List<Node> children;
+
         @Override
         public int invoke(Pointer tileSource, long hash, AnimationData data) {
             int emitterIndex = (int)Pointer.nativeValue(tileSource);
@@ -50,7 +54,7 @@ public class ParticleFXNode extends ComponentTypeNode {
                 return ParticleLibrary.FetchAnimationResult.FETCH_ANIMATION_NOT_FOUND;
             }
             --emitterIndex;
-            EmitterNode emitterNode = (EmitterNode)getChildren().get(emitterIndex);
+            EmitterNode emitterNode = (EmitterNode)children.get(emitterIndex);
             TileSetNode tileSetNode = emitterNode.getTileSetNode();
             if (tileSetNode == null) {
                 return ParticleLibrary.FetchAnimationResult.FETCH_ANIMATION_NOT_FOUND;
@@ -98,7 +102,6 @@ public class ParticleFXNode extends ComponentTypeNode {
     private transient Pointer prototype;
     private transient Pointer instance;
     private transient Pointer context;
-    private transient FetchAnimCallback animCallback = new FetchAnimCallback();
     private transient boolean reload = false;
     private transient boolean forceReplay = false;
     private transient FloatBuffer vertexBuffer;
@@ -283,6 +286,7 @@ public class ParticleFXNode extends ComponentTypeNode {
             reset();
             ParticleLibrary.Particle_StartInstance(context, this.instance);
         }
+        animCallback.children = getChildren();
         ParticleLibrary.Particle_Update(context, (float) dt, this.vertexBuffer, this.vertexBuffer.capacity(), outSize,
                 animCallback);
         this.elapsedTime += dt;
