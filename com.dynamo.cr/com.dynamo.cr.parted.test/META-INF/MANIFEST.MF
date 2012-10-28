@@ -7,4 +7,5 @@ Bundle-Vendor: DYNAMO
 Fragment-Host: com.dynamo.cr.parted;bundle-version="1.0.0"
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
 Require-Bundle: org.junit,
- com.dynamo.cr.sceneed.test;bundle-version="1.0.0"
+ com.dynamo.cr.sceneed.test;bundle-version="1.0.0",
+ org.mockito;bundle-version="1.8.5"
