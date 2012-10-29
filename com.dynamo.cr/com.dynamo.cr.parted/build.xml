@@ -1,3 +1,8 @@
+<!--
+NOTE: This script is only used for development.
+The corresponding file for CI is copy_libparticle.sh
+ -->
+
 <project default="compile">
     <property environment="env"/>
 

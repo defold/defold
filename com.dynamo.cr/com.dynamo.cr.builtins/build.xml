@@ -1,0 +1,16 @@
+<project default="compile">
+    <property environment="env"/>
+
+    <target name="clean">
+        <delete dir="generated"/>
+    </target>
+
+    <target name="compile">
+        <mkdir dir="builtins"/>
+    	<copy todir="builtins">
+    	   <fileset dir="${env.DYNAMO_HOME}/content/builtins">
+    	   	<include name="**"/>
+    	   </fileset>
+    	</copy>
+    </target>
+</project>

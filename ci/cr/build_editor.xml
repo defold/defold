@@ -24,34 +24,6 @@
               <arg value="scripts/build_proto.sh"/>
         </exec>
 
-        <exec dir="${buildDirectory}/plugins/com.dynamo.cr.common"
-              executable="ln" failonerror="true">
-              <arg value="-s"/>
-              <arg value="${env.DYNAMO_HOME}"/>
-              <arg value="DYNAMO_HOME"/>
-        </exec>
-
-        <exec dir="${buildDirectory}/plugins/com.dynamo.cr.luaeditor"
-              executable="ln" failonerror="true">
-              <arg value="-s"/>
-              <arg value="${env.DYNAMO_HOME}"/>
-              <arg value="DYNAMO_HOME"/>
-        </exec>
-
-        <exec dir="${buildDirectory}/plugins/com.dynamo.cr.builtins"
-              executable="ln" failonerror="true">
-              <arg value="-s"/>
-              <arg value="${env.DYNAMO_HOME}"/>
-              <arg value="DYNAMO_HOME"/>
-        </exec>
-
-        <exec dir="${buildDirectory}/plugins/com.dynamo.cr.parted"
-              executable="ln" failonerror="true">
-              <arg value="-s"/>
-              <arg value="${env.DYNAMO_HOME}"/>
-              <arg value="DYNAMO_HOME"/>
-        </exec>
-
         <exec dir="${buildDirectory}/plugins/com.dynamo.cr.engine"
               executable="sh" failonerror="true">
               <arg value="scripts/copy_dmengine.sh"/>
@@ -62,8 +34,10 @@
               <arg value="scripts/copy_libparticle.sh"/>
         </exec>
 
-	<ant dir="${buildDirectory}/plugins/com.dynamo.cr.rlog" antfile="build_proto.xml">
-	</ant>
+        <ant dir="${buildDirectory}/plugins/com.dynamo.cr.rlog" antfile="build_proto.xml"/>
+        <ant dir="${buildDirectory}/plugins/com.dynamo.cr.common" antfile="build.xml"/>
+        <ant dir="${buildDirectory}/plugins/com.dynamo.cr.builtins" antfile="build.xml"/>
+        <ant dir="${buildDirectory}/plugins/com.dynamo.cr.luaeditor" antfile="build.xml"/>
 
     </target>
 

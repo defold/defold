@@ -1,0 +1,16 @@
+<project default="compile">
+    <property environment="env"/>
+
+    <target name="clean">
+        <delete dir="generated"/>
+    </target>
+
+    <target name="compile">
+        <mkdir dir="doc"/>
+    	<copy todir="doc">
+    	   <fileset dir="${env.DYNAMO_HOME}/share/doc">
+    	   	<include name="*.sdoc"/>
+    	   </fileset>
+    	</copy>
+    </target>
+</project>

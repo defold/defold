@@ -29,7 +29,7 @@ public class Builtins extends Plugin {
     }
 
     public String getBuiltins() {
-        URL bundleUrl = getBundle().getEntry("/DYNAMO_HOME/content/builtins");
+        URL bundleUrl = getBundle().getEntry("/builtins");
         URL fileUrl;
         try {
             fileUrl = FileLocator.toFileURL(bundleUrl);

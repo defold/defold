@@ -1,0 +1,60 @@
+
+<project default="compile">
+    <property environment="env"/>
+
+    <macrodef name="proto">
+        <attribute name="dir"/>
+        <attribute name="file"/>
+
+        <sequential>
+            <mkdir dir="generated"/>
+            <exec executable="protoc" failonerror="true">
+                <arg value="--java_out=generated"/>
+                <arg value="-I@{dir}"/>
+                <arg value="-I${env.DYNAMO_HOME}/ext/include"/>
+                <arg value="-I../../engine/ddf/src"/>
+                <arg value="@{dir}/@{file}"/>
+            </exec>
+        </sequential>
+    </macrodef>
+
+    <target name="clean">
+        <delete dir="generated"/>
+    </target>
+
+    <target name="compile">
+        <mkdir dir="ext_generated"/>
+        <copy file="${env.DYNAMO_HOME}/share/java/upnp.jar" todir="ext_generated"/>
+        <copy file="${env.DYNAMO_HOME}/share/java/gamesys.jar" todir="ext_generated"/>
+        <copy file="${env.DYNAMO_HOME}/share/java/resource_archive.jar" todir="ext_generated"/>
+        <copy file="${env.DYNAMO_HOME}/share/java/render.jar" todir="ext_generated"/>
+        <copy file="${env.DYNAMO_HOME}/share/java/tile.jar" todir="ext_generated"/>
+        <copy file="${env.DYNAMO_HOME}/share/java/fontc.jar" todir="ext_generated"/>
+
+        <proto dir="proto" file="cr_ddf.proto"/>
+        <proto dir="proto" file="cr_protocol_ddf.proto"/>
+        <proto dir="../../engine/ddf/src" file="ddf/ddf_extensions.proto"/>
+        <proto dir="../../engine/ddf/src" file="ddf/ddf_math.proto"/>
+        <proto dir="../../engine/engine/proto" file="engine_ddf.proto"/>
+        <proto dir="../../engine/gameobject/proto" file="gameobject_ddf.proto"/>
+        <proto dir="../../engine/gameobject/proto" file="lua_ddf.proto"/>
+        <proto dir="../../engine/gamesys/proto/" file="camera_ddf.proto"/>
+        <proto dir="../../engine/gamesys/proto/" file="gamesys_ddf.proto"/>
+        <proto dir="../../engine/gamesys/proto/" file="gui_ddf.proto"/>
+        <proto dir="../../engine/gamesys/proto/" file="mesh_ddf.proto"/>
+        <proto dir="../../engine/gamesys/proto/" file="model_ddf.proto"/>
+        <proto dir="../../engine/gamesys/proto/" file="physics_ddf.proto"/>
+        <proto dir="../../engine/gamesys/proto/" file="sound_ddf.proto"/>
+        <proto dir="../../engine/gamesys/proto/" file="sprite_ddf.proto"/>
+        <proto dir="../../engine/gamesys/proto/" file="tile_ddf.proto"/>
+        <proto dir="../../engine/graphics/proto" file="graphics_ddf.proto"/>
+        <proto dir="../../engine/input/proto" file="input_ddf.proto"/>
+        <proto dir="../../engine/particle/proto/particle" file="particle_ddf.proto"/>
+        <proto dir="../../engine/render/proto/render" file="font_ddf.proto"/>
+        <proto dir="../../engine/render/proto/render" file="material_ddf.proto"/>
+        <proto dir="../../engine/render/proto/render" file="render_ddf.proto"/>
+        <proto dir="../../engine/resource/proto" file="resource_ddf.proto"/>
+        <proto dir="../../engine/script/proto" file="script_doc_ddf.proto"/>
+        <proto dir="../../engine/vscript/proto" file="vscript_ddf.proto"/>
+    </target>
+</project>
