@@ -36,6 +36,6 @@ public class DummyNode extends Node {
     }
 
     public void setVal2(ValueSpread val2) {
-        this.val1.set(val2);
+        this.val2.set(val2);
     }
 }

@@ -241,6 +241,19 @@ public class CurvePresenterTest {
     }
 
     @Test
+    public void testMovePointsMultipleCurves() {
+        select(new int[][] {{0, 0}, {1, 0}});
+        this.presenter.onStartDrag(new Point2d(0.0, 0.0), SCREEN_SCALE, SCREEN_DRAG_PADDING, SCREEN_HIT_PADDING, SCREEN_TANGENT_LENGTH);
+        verifyNoExecution();
+        this.presenter.onDrag(new Point2d(0.0, 1.0));
+        verifyCommandDone(MovePointsOperation.class);
+        this.presenter.onEndDrag();
+        verifyCommandChanged(MovePointsOperation.class);
+        assertThat(getCurve(0).getPoint(0).getY(), is(1.0));
+        assertThat(getCurve(1).getPoint(0).getY(), is(2.5));
+    }
+
+    @Test
     public void testMoveTangent() {
         selectCurve(0);
         select(new int[][] {{0, 0}});

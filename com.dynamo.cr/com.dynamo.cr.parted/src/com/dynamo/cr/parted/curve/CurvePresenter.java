@@ -208,6 +208,7 @@ public class CurvePresenter implements IPresenter {
             ValueSpread vs = (ValueSpread)this.propertyModel.getPropertyValue(id);
             vs.setCurve(entry.getValue());
             values[index] = vs;
+            ++index;
         }
         return PropertyUtil.setProperties(this.propertyModel, ids, values, force);
     }
