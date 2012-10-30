@@ -30,7 +30,7 @@ public class SpinnerText extends Composite implements MouseWheelListener {
 
     /**
      * Global event filter. The filter consumes all MouseVerticalWheel if
-     * MOD1 is pressed to {@link Text} widgets children of {@link SpinnerText}. Otherwise
+     * ALT is pressed to {@link Text} widgets children of {@link SpinnerText}. Otherwise
      * the parent {@link ScrolledComposite} will get the events and scroll the properties view
      * TOOD: Better solution?
      */
@@ -40,7 +40,7 @@ public class SpinnerText extends Composite implements MouseWheelListener {
         public void handleEvent(Event event) {
             if (event.widget instanceof Control) {
                 if (((Control) event.widget).getParent() instanceof SpinnerText) {
-                    if ((event.stateMask & SWT.MOD1) != 0) {
+                    if ((event.stateMask & SWT.ALT) != 0) {
                         event.doit = false;
                     }
                 }
@@ -104,7 +104,7 @@ public class SpinnerText extends Composite implements MouseWheelListener {
 
     @Override
     public void mouseScrolled(MouseEvent e) {
-        if ((e.stateMask & SWT.MOD1) == 0) {
+        if ((e.stateMask & SWT.ALT) == 0) {
             return;
         }
 
@@ -121,7 +121,7 @@ public class SpinnerText extends Composite implements MouseWheelListener {
             } else {
             }
 
-            if ((e.stateMask & SWT.ALT) != 0) {
+            if ((e.stateMask & SWT.CTRL) != 0) {
                 step *= 10;
             }
 

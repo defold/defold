@@ -341,6 +341,10 @@ root.linux.gtk.x86.permissions.755=jre/'''
         print 'Bumping engine version from %s to %s' % (current, new_version)
         print 'Review changes and commit'
 
+    def shell(self):
+        print 'Setting up shell with DYNAMOH_HOME, PATH and LD_LIBRARY_PATH/DYLD_LIRARY_PATH (where applicable) set'
+        self.exec_command(['sh', '-l'])
+
     def exec_command(self, arg_list, **kwargs):
         env = dict(os.environ)
 
@@ -389,6 +393,7 @@ archive_editor  - Archive editor to path specified with --archive-path
 archive_server  - Archive server to path specified with --archive-path
 build_docs      - Build documentation
 bump            - Bump version number
+shell           - Start development shell
 
 Multiple commands can be specified'''
 
