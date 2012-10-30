@@ -26,9 +26,15 @@ import org.eclipse.jface.viewers.ICheckStateListener;
 import org.eclipse.jface.viewers.ICheckStateProvider;
 import org.eclipse.jface.viewers.IColorProvider;
 import org.eclipse.jface.viewers.ISelection;
+import org.eclipse.jface.viewers.ISelectionChangedListener;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.ITableColorProvider;
+import org.eclipse.jface.viewers.ITreeSelection;
 import org.eclipse.jface.viewers.LabelProvider;
+import org.eclipse.jface.viewers.SelectionChangedEvent;
+import org.eclipse.jface.viewers.StructuredSelection;
+import org.eclipse.jface.viewers.TreePath;
+import org.eclipse.jface.viewers.TreeSelection;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.ControlEvent;
 import org.eclipse.swt.events.ControlListener;
@@ -71,7 +77,7 @@ import com.dynamo.cr.properties.types.ValueSpread;
 import com.dynamo.cr.sceneed.core.Node;
 import com.google.inject.Inject;
 
-public class ParticleFXCurveEditorPage implements ICurveView, IPageBookViewPage, ISelectionListener, IOperationHistoryListener, ICheckStateListener {
+public class ParticleFXCurveEditorPage implements ICurveView, IPageBookViewPage, ISelectionListener, IOperationHistoryListener, ICheckStateListener, ISelectionChangedListener {
 
     private static final String MENU_ID = "com.dynamo.cr.parted.menus.curveEditor";
 
@@ -85,6 +91,7 @@ public class ParticleFXCurveEditorPage implements ICurveView, IPageBookViewPage,
     private Composite composite;
     private Set<Object> hidden = new HashSet<Object>();
     private CheckboxTableViewer list;
+    private boolean settingListSelection = false;
     private IOperationHistory history;
     @SuppressWarnings("unchecked")
     private IPropertyDesc<Node, ? extends IPropertyObjectWorld>[] input = new IPropertyDesc[0];
@@ -236,7 +243,7 @@ public class ParticleFXCurveEditorPage implements ICurveView, IPageBookViewPage,
         layout.marginWidth = layout.marginHeight = 0;
         composite.setLayout(layout);
 
-        list = CheckboxTableViewer.newCheckList(composite, SWT.SINGLE);
+        list = CheckboxTableViewer.newCheckList(composite, SWT.MULTI);
         list.setCheckStateProvider(new CheckStateProvider());
         list.addCheckStateListener(this);
         GridData gd = new GridData(GridData.FILL_VERTICAL);
@@ -244,6 +251,7 @@ public class ParticleFXCurveEditorPage implements ICurveView, IPageBookViewPage,
         list.getControl().setLayoutData(gd);
         list.setContentProvider(new ArrayContentProvider());
         list.setLabelProvider(new ColorLabelProvider());
+        list.addSelectionChangedListener(this);
 
         history = new MergeableDelegatingOperationHistory(PlatformUI.getWorkbench().getOperationSupport().getOperationHistory());
         history.addOperationHistoryListener(this);
@@ -414,6 +422,19 @@ public class ParticleFXCurveEditorPage implements ICurveView, IPageBookViewPage,
     @Override
     public void setSelection(ISelection selection) {
         this.curveEditor.setSelection(selection);
+        if (selection instanceof ITreeSelection) {
+            ITreeSelection treeSelection = (ITreeSelection)selection;
+            Set<Object> curves = new HashSet<Object>();
+            for (TreePath path : treeSelection.getPaths()) {
+                Object segment = path.getFirstSegment();
+                if (segment instanceof Integer) {
+                    curves.add(this.input[(Integer)segment]);
+                }
+            }
+            this.settingListSelection = true;
+            this.list.setSelection(new StructuredSelection(curves.toArray()));
+            this.settingListSelection = false;
+        }
     }
 
     @Override
@@ -424,6 +445,26 @@ public class ParticleFXCurveEditorPage implements ICurveView, IPageBookViewPage,
     @Override
     public void refresh() {
         this.curveEditor.redraw();
+    }
+
+    @Override
+    public void selectionChanged(SelectionChangedEvent event) {
+        if (event.getSource().equals(this.list) && !this.settingListSelection) {
+            List<TreePath> paths = new ArrayList<TreePath>();
+            IStructuredSelection selection = (IStructuredSelection)event.getSelection();
+            for (Object element : selection.toArray()) {
+                for (int i = 0; i < this.input.length; ++i) {
+                    if (element == this.input[i]) {
+                        paths.add(new TreePath(new Integer[] {i}));
+                        break;
+                    }
+                }
+            }
+            ITreeSelection treeSelection = new TreeSelection(paths.toArray(new TreePath[paths.size()]));
+            this.presenter.setSelection(treeSelection);
+            this.curveEditor.setSelection(treeSelection);
+            this.curveEditor.redraw();
+        }
     }
 }
 
