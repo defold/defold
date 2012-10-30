@@ -227,6 +227,14 @@
             </visibleWhen>
          </command>
       </menuContribution>
+      <menuContribution
+            allPopups="false"
+            locationURI="popup:com.dynamo.cr.parted.menus.curveEditor">
+         <command
+               commandId="org.eclipse.ui.edit.delete"
+               style="push">
+         </command>
+      </menuContribution>
    </extension>
    <extension
          point="org.eclipse.ui.commands">
@@ -287,6 +295,15 @@
                      definitionId="com.dynamo.cr.sceneed.definitions.sceneEditorActive">
                </reference>
             </and>
+         </activeWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.parted.handlers.DeletePointsHandler"
+            commandId="org.eclipse.ui.edit.delete">
+         <activeWhen>
+            <reference
+                  definitionId="com.dynamo.cr.parted.definitions.particleEditorActive">
+            </reference>
          </activeWhen>
       </handler>
    </extension>

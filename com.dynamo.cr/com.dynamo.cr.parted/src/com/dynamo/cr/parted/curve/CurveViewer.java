@@ -11,6 +11,8 @@ import javax.vecmath.Vector2d;
 import org.eclipse.jface.resource.ColorRegistry;
 import org.eclipse.jface.viewers.IColorProvider;
 import org.eclipse.jface.viewers.ISelection;
+import org.eclipse.jface.viewers.ISelectionChangedListener;
+import org.eclipse.jface.viewers.ISelectionProvider;
 import org.eclipse.jface.viewers.IStructuredContentProvider;
 import org.eclipse.jface.viewers.ITreeSelection;
 import org.eclipse.jface.viewers.StructuredSelection;
@@ -43,7 +45,7 @@ import com.dynamo.cr.sceneed.ui.preferences.PreferenceConstants;
  */
 
 public class CurveViewer extends Canvas implements PaintListener,
-        MouseWheelListener, MouseMoveListener, MouseListener {
+        MouseWheelListener, MouseMoveListener, MouseListener, ISelectionProvider {
 
     public static final String BACKGROUND_COLOR_KEY = "com.dynamo.cr.parted.curve.BACKGROUND_COLOR";
     public static final String AXIS_COLOR_KEY = "com.dynamo.cr.parted.curve.AXIS_COLOR";
@@ -550,6 +552,23 @@ public class CurveViewer extends Canvas implements PaintListener,
 
             offsetY = min * zoomY;
         }
+
+    }
+
+    @Override
+    public ISelection getSelection() {
+        return this.selection;
+    }
+
+    @Override
+    public void addSelectionChangedListener(ISelectionChangedListener listener) {
+        // TODO Auto-generated method stub
+
+    }
+
+    @Override
+    public void removeSelectionChangedListener(ISelectionChangedListener listener) {
+        // TODO Auto-generated method stub
 
     }
 

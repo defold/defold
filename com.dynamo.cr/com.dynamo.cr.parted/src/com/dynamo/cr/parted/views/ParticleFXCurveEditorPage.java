@@ -16,6 +16,8 @@ import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.core.commands.operations.OperationHistoryEvent;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
+import org.eclipse.jface.action.MenuManager;
+import org.eclipse.jface.action.Separator;
 import org.eclipse.jface.resource.JFaceResources;
 import org.eclipse.jface.viewers.ArrayContentProvider;
 import org.eclipse.jface.viewers.CheckStateChangedEvent;
@@ -38,9 +40,11 @@ import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Display;
+import org.eclipse.swt.widgets.Menu;
 import org.eclipse.ui.IActionBars;
 import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.ISelectionListener;
+import org.eclipse.ui.IWorkbenchActionConstants;
 import org.eclipse.ui.IWorkbenchPart;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.actions.ActionFactory;
@@ -68,6 +72,8 @@ import com.dynamo.cr.sceneed.core.Node;
 import com.google.inject.Inject;
 
 public class ParticleFXCurveEditorPage implements ICurveView, IPageBookViewPage, ISelectionListener, IOperationHistoryListener, ICheckStateListener {
+
+    private static final String MENU_ID = "com.dynamo.cr.parted.menus.curveEditor";
 
     private static Logger logger = LoggerFactory
             .getLogger(ParticleFXCurveEditorPage.class);
@@ -211,6 +217,10 @@ public class ParticleFXCurveEditorPage implements ICurveView, IPageBookViewPage,
         return this.site;
     }
 
+    public CurvePresenter getPresenter() {
+        return this.presenter;
+    }
+
     @Override
     public void createControl(Composite parent) {
 
@@ -243,6 +253,12 @@ public class ParticleFXCurveEditorPage implements ICurveView, IPageBookViewPage,
         curveEditor.setContentProvider(new ArrayContentProvider());
         curveEditor.setColorProvider(new ColorProvider());
         curveEditor.setPresenter(this.presenter);
+        // Pop-up context menu
+        MenuManager menuManager = new MenuManager();
+        menuManager.add(new Separator(IWorkbenchActionConstants.MB_ADDITIONS));
+        Menu menu = menuManager.createContextMenu(curveEditor);
+        curveEditor.setMenu(menu);
+        getSite().registerContextMenu(MENU_ID, menuManager, curveEditor);
         curveEditor.addControlListener(new ControlListener() {
 
             @Override
