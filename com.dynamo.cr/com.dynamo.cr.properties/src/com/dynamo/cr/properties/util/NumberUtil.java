@@ -9,7 +9,7 @@ public class NumberUtil {
      * @return formatted value
      */
     public static String formatDouble(double value) {
-        String s = String.format("%.5f", value);
+        String s = String.format("%.5f", value).replace(',', '.');
 
         int i = s.indexOf('.');
         if (i != -1) {
