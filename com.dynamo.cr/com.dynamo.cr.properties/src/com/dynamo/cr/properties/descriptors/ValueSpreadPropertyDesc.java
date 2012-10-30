@@ -30,6 +30,7 @@ import com.dynamo.cr.properties.IPropertyObjectWorld;
 import com.dynamo.cr.properties.PropertyDesc;
 import com.dynamo.cr.properties.PropertyUtil;
 import com.dynamo.cr.properties.types.ValueSpread;
+import com.dynamo.cr.properties.util.NumberUtil;
 
 public class ValueSpreadPropertyDesc<T, U extends IPropertyObjectWorld> extends PropertyDesc<T, U> {
 
@@ -163,7 +164,7 @@ public class ValueSpreadPropertyDesc<T, U extends IPropertyObjectWorld> extends 
             for (int i = 0; i < 2; ++i) {
                 String s;
                 if (equal[i]) {
-                    s = Double.toString(array[i]);
+                    s = NumberUtil.formatDouble(array[i]);
                 } else {
                     s = "";
                 }
@@ -191,7 +192,7 @@ public class ValueSpreadPropertyDesc<T, U extends IPropertyObjectWorld> extends 
                     newStringValue[i] = s;
                     // NOTE: Treat "" as 0
                     if (s.length() != 0) {
-                        newValue[i] = Double.parseDouble(s);
+                        newValue[i] = NumberUtil.parseDouble(s);
                     }
                 }
             } catch (NumberFormatException e) {

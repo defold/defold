@@ -17,6 +17,7 @@ import com.dynamo.cr.properties.IPropertyEditor;
 import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.properties.IPropertyObjectWorld;
 import com.dynamo.cr.properties.PropertyUtil;
+import com.dynamo.cr.properties.util.NumberUtil;
 
 public class ArrayPropertyEditor<V, T, U extends IPropertyObjectWorld> implements IPropertyEditor<T, U>, Listener {
 
@@ -89,7 +90,7 @@ public class ArrayPropertyEditor<V, T, U extends IPropertyObjectWorld> implement
         for (int i = 0; i < count; ++i) {
             String s;
             if (equal[i]) {
-                s = Double.toString(array[i]);
+                s = NumberUtil.formatDouble(array[i]);
             } else {
                 s = "";
             }
@@ -114,7 +115,7 @@ public class ArrayPropertyEditor<V, T, U extends IPropertyObjectWorld> implement
                 newStringValue[i] = s;
                 // NOTE: Treat "" as 0
                 if (s.length() != 0) {
-                    newValue[i] = Double.parseDouble(s);
+                    newValue[i] = NumberUtil.parseDouble(s);
                 }
             }
         } catch (NumberFormatException e) {

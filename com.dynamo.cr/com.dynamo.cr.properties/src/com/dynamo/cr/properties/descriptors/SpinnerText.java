@@ -1,7 +1,5 @@
 package com.dynamo.cr.properties.descriptors;
 
-import java.text.DecimalFormat;
-
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.custom.ScrolledComposite;
 import org.eclipse.swt.events.MouseEvent;
@@ -14,6 +12,8 @@ import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.Listener;
 import org.eclipse.swt.widgets.Text;
 
+import com.dynamo.cr.properties.util.NumberUtil;
+
 /**
  * Spinner like control
  * @author chmu
@@ -25,14 +25,12 @@ public class SpinnerText extends Composite implements MouseWheelListener {
 
     private Text text;
     private boolean integer = false;
-    private DecimalFormat doubleFormat = new DecimalFormat("#.####");
-    private DecimalFormat integerFormat = new DecimalFormat("#");
     private double min = -Double.MAX_VALUE;
     private double max = Double.MAX_VALUE;
 
     /**
      * Global event filter. The filter consumes all MouseVerticalWheel if
-     * MOD1 is pressed to {@link Text} widgets children of {@link SpinnerText}. Otherwise
+     * ALT is pressed to {@link Text} widgets children of {@link SpinnerText}. Otherwise
      * the parent {@link ScrolledComposite} will get the events and scroll the properties view
      * TOOD: Better solution?
      */
@@ -42,7 +40,7 @@ public class SpinnerText extends Composite implements MouseWheelListener {
         public void handleEvent(Event event) {
             if (event.widget instanceof Control) {
                 if (((Control) event.widget).getParent() instanceof SpinnerText) {
-                    if ((event.stateMask & SWT.MOD1) != 0) {
+                    if ((event.stateMask & SWT.ALT) != 0) {
                         event.doit = false;
                     }
                 }
@@ -106,34 +104,31 @@ public class SpinnerText extends Composite implements MouseWheelListener {
 
     @Override
     public void mouseScrolled(MouseEvent e) {
-        if ((e.stateMask & SWT.MOD1) == 0) {
+        if ((e.stateMask & SWT.ALT) == 0) {
             return;
         }
 
         int dx = e.count;
         Double currentValue = null;
         try {
-            currentValue = Double.parseDouble(text.getText());
+            currentValue = NumberUtil.parseDouble(text.getText());
         } catch (NumberFormatException ex) {}
 
         if (currentValue != null) {
             double step = 0.1;
-            DecimalFormat format;
             if (integer) {
-                format = integerFormat;
                 step *= 10;
             } else {
-                format = doubleFormat;
             }
 
-            if ((e.stateMask & SWT.ALT) != 0) {
+            if ((e.stateMask & SWT.CTRL) != 0) {
                 step *= 10;
             }
 
             currentValue += dx * step;
             currentValue = Math.max(currentValue, min);
             currentValue = Math.min(currentValue, max);
-            String stringValue = format.format(currentValue);
+            String stringValue = NumberUtil.formatDouble(currentValue);
             text.setText(stringValue);
             sendSelectionEvent();
         }

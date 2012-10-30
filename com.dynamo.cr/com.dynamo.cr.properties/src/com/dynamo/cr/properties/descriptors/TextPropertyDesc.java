@@ -15,7 +15,13 @@ public class TextPropertyDesc<T, U extends IPropertyObjectWorld> extends ScalarP
     }
 
     @Override
+    public String scalarToString(String value) {
+        return value;
+    }
+
+    @Override
     public Class<?> getTypeClass() {
         return String.class;
     }
+
 }
