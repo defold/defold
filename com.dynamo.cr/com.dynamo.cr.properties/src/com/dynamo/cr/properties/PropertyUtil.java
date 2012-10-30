@@ -129,4 +129,32 @@ public class PropertyUtil {
         return setProperty(models, id, value, Type.OPEN);
     }
 
+    public static <T, U extends IPropertyObjectWorld> IUndoableOperation setProperties(IPropertyModel<T, U> model, Object[] ids, Object[] values, boolean force, Type mergeType) {
+        ArrayList<IUndoableOperation> operations = new ArrayList<IUndoableOperation>();
+        if (ids.length != values.length) {
+            throw new IllegalArgumentException("ids and values must have the same lengths");
+        }
+        int idCount = ids.length;
+        for (int i = 0; i < idCount; ++i) {
+            Object id = ids[i];
+            Object value = values[i];
+            IUndoableOperation operation = model.setPropertyValue(id, value, force);
+            if (operation != null) {
+                operations.add(operation);
+            }
+        }
+        if (operations.size() == 0)
+            return null;
+        else
+            return new CompositeOperation(operations.toArray(new IUndoableOperation[operations.size()]), mergeType);
+    }
+
+    public static <T, U extends IPropertyObjectWorld> IUndoableOperation setProperties(IPropertyModel<T, U> model, Object[] ids, Object[] values, boolean force) {
+        Type type = Type.OPEN;
+        if (force) {
+            type = Type.CLOSE;
+        }
+        return setProperties(model, ids, values, force, type);
+    }
+
 }

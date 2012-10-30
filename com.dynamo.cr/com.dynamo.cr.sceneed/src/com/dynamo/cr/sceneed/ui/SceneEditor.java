@@ -93,6 +93,7 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
 
     private IContainer contentRoot;
     private LifecycleModule module;
+    private Injector injector;
     private ISceneView.IPresenter presenter;
     private ISceneView.IPresenterContext presenterContext;
     private ILoaderContext loaderContext;
@@ -162,7 +163,7 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
         this.manipulatorRegistry = Activator.getDefault().getManipulatorRegistry();
 
         this.module = new LifecycleModule(Modules.override(new Module()).with(createOverrideModule()));
-        Injector injector = Guice.createInjector(module);
+        this.injector = Guice.createInjector(module);
 
         final String undoId = ActionFactory.UNDO.getId();
         final String redoId = ActionFactory.REDO.getId();
@@ -171,22 +172,22 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
         actionBars.setGlobalActionHandler(undoId, undoHandler);
         actionBars.setGlobalActionHandler(redoId, redoHandler);
 
-        this.outlinePage = injector.getInstance(ISceneOutlinePage.class);
-        this.propertySheetPage = injector.getInstance(IFormPropertySheetPage.class);
-        this.renderView = injector.getInstance(IRenderView.class);
-        this.backgroundRenderViewProvider = injector.getInstance(BackgroundRenderViewProvider.class);
-        this.gridRenderViewProvider = injector.getInstance(GridRenderViewProvider.class);
-        this.sceneRenderViewProvider = injector.getInstance(SceneRenderViewProvider.class);
+        this.outlinePage = this.injector.getInstance(ISceneOutlinePage.class);
+        this.propertySheetPage = this.injector.getInstance(IFormPropertySheetPage.class);
+        this.renderView = this.injector.getInstance(IRenderView.class);
+        this.backgroundRenderViewProvider = this.injector.getInstance(BackgroundRenderViewProvider.class);
+        this.gridRenderViewProvider = this.injector.getInstance(GridRenderViewProvider.class);
+        this.sceneRenderViewProvider = this.injector.getInstance(SceneRenderViewProvider.class);
 
-        this.cameraController = injector.getInstance(CameraController.class);
+        this.cameraController = this.injector.getInstance(CameraController.class);
 
         updateSceneGrid();
 
-        this.manipulatorController = injector.getInstance(ManipulatorController.class);
+        this.manipulatorController = this.injector.getInstance(ManipulatorController.class);
         IManipulatorMode selectMode = manipulatorRegistry.getMode(Activator.SELECT_MODE_ID);
         manipulatorController.setManipulatorMode(selectMode);
 
-        this.presenter = injector.getInstance(ISceneView.IPresenter.class);
+        this.presenter = this.injector.getInstance(ISceneView.IPresenter.class);
         // Provide presenter with project properties
         IFile gameProject = EditorUtil.findGameProjectFile(this.contentRoot);
         if (gameProject != null && gameProject.exists()) {
@@ -202,11 +203,11 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
                 // Ignore errors related to game project loading
             }
         }
-        this.presenterContext = injector.getInstance(ISceneView.IPresenterContext.class);
-        this.loaderContext = injector.getInstance(ILoaderContext.class);
+        this.presenterContext = this.injector.getInstance(ISceneView.IPresenterContext.class);
+        this.loaderContext = this.injector.getInstance(ILoaderContext.class);
 
-        this.sceneModel = injector.getInstance(ISceneModel.class);
-        this.sceneView = injector.getInstance(ISceneView.class);
+        this.sceneModel = this.injector.getInstance(ISceneModel.class);
+        this.sceneView = this.injector.getInstance(ISceneView.class);
 
         IPreferenceStore store = Activator.getDefault().getPreferenceStore();
         store.addPropertyChangeListener(this);
@@ -504,6 +505,10 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
 
     public void toggleRecord() {
         renderView.toggleRecord();
+    }
+
+    protected Injector getInjector() {
+        return this.injector;
     }
 
 }

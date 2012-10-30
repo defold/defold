@@ -1,30 +1,26 @@
 package com.dynamo.cr.parted.curve;
 
 import javax.vecmath.Point2d;
+import javax.vecmath.Vector2d;
+
+import org.eclipse.jface.viewers.ISelection;
 
 public interface ICurveView {
     public interface IPresenter {
         void onAddPoint(Point2d p);
         void onRemove();
 
-        void onStartMove(Point2d start);
-        void onMove(Point2d position);
-        void onEndMove();
-        void onCancelMove();
-
-        void onStartMoveTangent(Point2d start);
-        void onMoveTangent(Point2d position);
-        void onEndMoveTangent();
-        void onCancelMoveTangent();
-
-        void onStartSelect(Point2d start, double padding);
-        void onSelect(Point2d position);
-        void onEndSelect();
-        void onCancelSelect();
+        void onStartDrag(Point2d start, Vector2d screenScale, double screenDragPadding, double screenHitPadding, double screenTangentLength);
+        void onDrag(Point2d position);
+        void onEndDrag();
 
         void onSelectAll();
+        void onDeselectAll();
     }
 
-    void setInput(Object object);
+    void setInput(Object input);
+    void setSelection(ISelection selection);
+    void setSelectionBox(Point2d boxMin, Point2d boxMax);
     void refresh();
+    void frame();
 }

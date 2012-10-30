@@ -4,30 +4,28 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
-import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import javax.vecmath.Point2d;
+import javax.vecmath.Vector2d;
 
 import org.eclipse.core.commands.operations.DefaultOperationHistory;
 import org.eclipse.core.commands.operations.IOperationHistory;
+import org.eclipse.core.commands.operations.IOperationHistoryListener;
 import org.eclipse.core.commands.operations.IUndoContext;
 import org.eclipse.core.commands.operations.IUndoableOperation;
+import org.eclipse.core.commands.operations.OperationHistoryEvent;
 import org.eclipse.core.commands.operations.UndoContext;
 import org.eclipse.jface.viewers.ISelection;
-import org.eclipse.jface.viewers.ISelectionProvider;
 import org.eclipse.jface.viewers.TreePath;
 import org.eclipse.jface.viewers.TreeSelection;
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
 
+import com.dynamo.cr.editor.core.operations.MergeableDelegatingOperationHistory;
 import com.dynamo.cr.parted.curve.CurvePresenter;
 import com.dynamo.cr.parted.curve.HermiteSpline;
 import com.dynamo.cr.parted.curve.ICurveView;
@@ -46,16 +44,36 @@ import com.google.inject.Singleton;
 
 public class CurvePresenterTest {
 
-    private double PADDING = 0.1;
+    private static final Vector2d SCREEN_SCALE = new Vector2d(500.0, -200.0);
+    private static final double SCREEN_DRAG_PADDING = 2;
+    private static final double SCREEN_HIT_PADDING = 4;
+    private static final double SCREEN_TANGENT_LENGTH = 50;
+
+    private class HistoryListener implements IOperationHistoryListener {
+        public int doneCount = 0;
+        public int changedCount = 0;
+        @Override
+        public void historyNotification(OperationHistoryEvent event) {
+            switch (event.getEventType()) {
+            case OperationHistoryEvent.OPERATION_CHANGED:
+                ++changedCount;
+                break;
+            case OperationHistoryEvent.DONE:
+                ++doneCount;
+                break;
+            }
+        }
+    }
 
     private ICurveView view;
-    private ISelectionProvider selectionProvider;
     private CurvePresenter presenter;
     private DummyNode node;
     private IPropertyModel<Node, IPropertyObjectWorld> model;
     private IOperationHistory history;
+    private HistoryListener historyListener;
     private IUndoContext undoContext;
-    private int executionCount;
+    private int commandDoneCount;
+    private int commandChangedCount;
 
     class Module extends AbstractModule {
         @Override
@@ -71,27 +89,19 @@ public class CurvePresenterTest {
     @Before
     public void setup() {
         this.view = mock(ICurveView.class);
-        this.selectionProvider = mock(ISelectionProvider.class);
-        this.history = new DefaultOperationHistory();
+        this.history = new MergeableDelegatingOperationHistory(new DefaultOperationHistory());
         this.undoContext = new UndoContext();
+        this.historyListener = new HistoryListener();
+        this.history.addOperationHistoryListener(this.historyListener);
 
         Injector injector = Guice.createInjector(new Module());
 
         this.presenter = (CurvePresenter)injector.getInstance(ICurveView.IPresenter.class);
-        this.presenter.setSelectionProvider(this.selectionProvider);
         this.node = new DummyNode();
         this.model = (IPropertyModel<Node, IPropertyObjectWorld>)this.node.getAdapter(IPropertyModel.class);
         this.presenter.setModel(model);
-        this.executionCount = 0;
-
-        when(this.selectionProvider.getSelection()).thenReturn(new TreeSelection());
-        doAnswer(new Answer<Void>() {
-            @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                when(selectionProvider.getSelection()).thenReturn((ISelection)invocation.getArguments()[0]);
-                return null;
-            }
-        }).when(this.selectionProvider).setSelection(any(ISelection.class));
+        this.commandDoneCount = 0;
+        this.commandChangedCount = 0;
     }
 
     private HermiteSpline getCurve(int curveIndex) {
@@ -108,7 +118,7 @@ public class CurvePresenterTest {
             }
             paths.add(new TreePath(path));
         }
-        this.selectionProvider.setSelection(new TreeSelection(paths.toArray(new TreePath[points.length])));
+        this.presenter.setSelection(new TreeSelection(paths.toArray(new TreePath[points.length])));
     }
 
     private void selectCurve(int curveIndex) {
@@ -125,25 +135,35 @@ public class CurvePresenterTest {
         select(points);
     }
 
-    private void verifyExecution(Class<? extends IUndoableOperation> operationClass) {
-        ++this.executionCount;
-        IUndoableOperation[] undoHistory = this.history.getUndoHistory(this.undoContext);
-        assertThat(undoHistory.length, is(this.executionCount));
-        assertThat(undoHistory[this.executionCount-1], instanceOf(operationClass));
+    private void verifyCommandDone(Class<? extends IUndoableOperation> operationClass) {
+        ++this.commandDoneCount;
+        assertThat(this.historyListener.doneCount, is(this.commandDoneCount));
+        assertThat(this.history.getUndoOperation(this.undoContext), instanceOf(operationClass));
+    }
+
+    private void verifyCommandChanged(Class<? extends IUndoableOperation> operationClass) {
+        ++this.commandChangedCount;
+        assertThat(this.historyListener.changedCount, is(this.commandChangedCount));
+        assertThat(this.history.getUndoOperation(this.undoContext), instanceOf(operationClass));
     }
 
     private void verifyNoExecution() {
-        IUndoableOperation[] undoHistory = this.history.getUndoHistory(this.undoContext);
-        assertThat(undoHistory.length, is(this.executionCount));
+        assertThat(this.historyListener.doneCount, is(this.commandDoneCount));
+        assertThat(this.historyListener.changedCount, is(this.commandChangedCount));
     }
 
-    private void verifySelection(int[][] points) {
-        List<TreePath> selectedPoints = new ArrayList<TreePath>(points.length);
-        for (int i = 0; i < points.length; ++i) {
-            selectedPoints.add(new TreePath(new Integer[] {points[i][0], points[i][1]}));
+    private void verifySelection(int[][] selectedIndices) {
+        List<TreePath> selectedPaths = new ArrayList<TreePath>(selectedIndices.length);
+        for (int i = 0; i < selectedIndices.length; ++i) {
+            int[] indices = selectedIndices[i];
+            Integer[] intIndices = new Integer[indices.length];
+            for (int j = 0; j < indices.length; ++j) {
+                intIndices[j] = indices[j];
+            }
+            selectedPaths.add(new TreePath(intIndices));
         }
-        ISelection selection = new TreeSelection(selectedPoints.toArray(new TreePath[points.length]));
-        assertThat(this.selectionProvider.getSelection(), equalTo(selection));
+        ISelection selection = new TreeSelection(selectedPaths.toArray(new TreePath[selectedIndices.length]));
+        assertThat(this.presenter.getSelection(), equalTo(selection));
     }
 
     private void verifyNoSelection() {
@@ -155,7 +175,7 @@ public class CurvePresenterTest {
         selectCurve(0);
         Point2d p = new Point2d(0.5, 0.5);
         this.presenter.onAddPoint(p);
-        verifyExecution(InsertPointOperation.class);
+        verifyCommandDone(InsertPointOperation.class);
         verifySelection(new int[][] {{0, 1}});
     }
 
@@ -164,9 +184,9 @@ public class CurvePresenterTest {
         selectCurve(0);
         Point2d p = new Point2d(0.5, 0.5);
         this.presenter.onAddPoint(p);
-        verifyExecution(InsertPointOperation.class);
+        verifyCommandDone(InsertPointOperation.class);
         this.presenter.onRemove();
-        verifyExecution(RemovePointsOperation.class);
+        verifyCommandDone(RemovePointsOperation.class);
         verifySelection(new int[][] {});
     }
 
@@ -175,54 +195,48 @@ public class CurvePresenterTest {
         selectCurve(0);
         Point2d p = new Point2d(0.5, 0.5);
         this.presenter.onAddPoint(p);
-        verifyExecution(InsertPointOperation.class);
+        verifyCommandDone(InsertPointOperation.class);
         select(new int[][] {{0, 0}, {0, 1}, {0, 2}});
         this.presenter.onRemove();
-        verifyExecution(RemovePointsOperation.class);
+        verifyCommandDone(RemovePointsOperation.class);
         verifySelection(new int[][] {{0, 0}, {0, 1}});
     }
 
     @Test
     public void testMovePoints() {
         selectCurveAllPoints(0);
-        this.presenter.onStartMove(new Point2d(0.0, 0.0));
-        this.presenter.onMove(new Point2d(0.0, 1.0));
+        this.presenter.onStartDrag(new Point2d(0.0, 0.0), SCREEN_SCALE, SCREEN_DRAG_PADDING, SCREEN_HIT_PADDING, SCREEN_TANGENT_LENGTH);
         verifyNoExecution();
-        this.presenter.onMove(new Point2d(0.0, 1.0));
-        verifyNoExecution();
-        this.presenter.onEndMove();
-        verifyExecution(MovePointsOperation.class);
+        this.presenter.onDrag(new Point2d(0.0, 1.0));
+        verifyCommandDone(MovePointsOperation.class);
+        this.presenter.onDrag(new Point2d(0.0, 2.0));
+        verifyCommandChanged(MovePointsOperation.class);
+        this.presenter.onEndDrag();
+        verifyCommandChanged(MovePointsOperation.class);
+        HermiteSpline spline = getCurve(0);
+        assertThat(spline.getPoint(0).getY(), is(2.0));
+        assertThat(spline.getPoint(1).getY(), is(3.0));
     }
 
     @Test
     public void testEmptyMovePoints() {
         selectCurveAllPoints(0);
-        this.presenter.onStartMove(new Point2d(0.0, 0.0));
-        this.presenter.onMove(new Point2d(0.0, 0.0));
+        this.presenter.onStartDrag(new Point2d(0.0, 0.0), SCREEN_SCALE, SCREEN_DRAG_PADDING, SCREEN_HIT_PADDING, SCREEN_TANGENT_LENGTH);
         verifyNoExecution();
-        this.presenter.onEndMove();
+        this.presenter.onDrag(new Point2d(0.0, 0.0));
         verifyNoExecution();
-    }
-
-    @Test
-    public void testCancelMovePoints() {
-        selectCurveAllPoints(0);
-        this.presenter.onStartMove(new Point2d(0.0, 0.0));
-        this.presenter.onMove(new Point2d(0.0, 1.0));
-        verifyNoExecution();
-        this.presenter.onCancelMove();
+        this.presenter.onEndDrag();
         verifyNoExecution();
     }
 
     @Test
     public void testMoveNoPoints() {
         selectCurve(0);
-        this.presenter.onStartMove(new Point2d(0.0, 0.0));
-        this.presenter.onMove(new Point2d(0.0, 1.0));
+        this.presenter.onStartDrag(new Point2d(0.0, 0.5), SCREEN_SCALE, SCREEN_DRAG_PADDING, SCREEN_HIT_PADDING, SCREEN_TANGENT_LENGTH);
         verifyNoExecution();
-        this.presenter.onMove(new Point2d(0.0, 1.0));
+        this.presenter.onDrag(new Point2d(0.0, 1.0));
         verifyNoExecution();
-        this.presenter.onEndMove();
+        this.presenter.onEndDrag();
         verifyNoExecution();
     }
 
@@ -230,60 +244,71 @@ public class CurvePresenterTest {
     public void testMoveTangent() {
         selectCurve(0);
         select(new int[][] {{0, 0}});
-        this.presenter.onStartMoveTangent(new Point2d(0.0, 0.0));
-        this.presenter.onMoveTangent(new Point2d(1.0, 1.0));
+        Vector2d tangent = new Vector2d(1.0, 1.0);
+        tangent.normalize();
+        tangent.set(tangent.getX() * SCREEN_SCALE.getX(), tangent.getY() * SCREEN_SCALE.getY());
+        tangent.normalize();
+        tangent.scale(SCREEN_TANGENT_LENGTH);
+        tangent.set(tangent.getX() / SCREEN_SCALE.getX(), tangent.getY() / SCREEN_SCALE.getY());
+        this.presenter.onStartDrag(new Point2d(tangent), SCREEN_SCALE, SCREEN_DRAG_PADDING, SCREEN_HIT_PADDING, SCREEN_TANGENT_LENGTH);
         verifyNoExecution();
-        this.presenter.onMoveTangent(new Point2d(1.0, 0.0));
-        verifyNoExecution();
-        this.presenter.onEndMoveTangent();
-        verifyExecution(SetTangentOperation.class);
+        this.presenter.onDrag(new Point2d(1.0, 1.0));
+        verifyCommandDone(SetTangentOperation.class);
+        this.presenter.onDrag(new Point2d(1.0, 0.0));
+        verifyCommandChanged(SetTangentOperation.class);
+        this.presenter.onEndDrag();
+        verifyCommandChanged(SetTangentOperation.class);
     }
 
     @Test
     public void testEmptyMoveTangent() {
         selectCurve(0);
         select(new int[][] {{0, 0}});
-        this.presenter.onStartMoveTangent(new Point2d(0.0, 0.0));
-        this.presenter.onMoveTangent(new Point2d(0.0, 0.0));
+        Vector2d tangent = new Vector2d(1.0, 1.0);
+        tangent.normalize();
+        tangent.set(tangent.getX() * SCREEN_SCALE.getX(), tangent.getY() * SCREEN_SCALE.getY());
+        tangent.normalize();
+        tangent.scale(SCREEN_TANGENT_LENGTH);
+        tangent.set(tangent.getX() / SCREEN_SCALE.getX(), tangent.getY() / SCREEN_SCALE.getY());
+        this.presenter.onStartDrag(new Point2d(tangent), SCREEN_SCALE, SCREEN_DRAG_PADDING, SCREEN_HIT_PADDING, SCREEN_TANGENT_LENGTH);
         verifyNoExecution();
-        this.presenter.onEndMoveTangent();
+        this.presenter.onDrag(new Point2d(tangent));
         verifyNoExecution();
-    }
-
-    @Test
-    public void testCancelMoveTangent() {
-        selectCurve(0);
-        select(new int[][] {{0, 0}});
-        this.presenter.onStartMoveTangent(new Point2d(0.0, 0.0));
-        this.presenter.onMoveTangent(new Point2d(0.0, 1.0));
-        verifyNoExecution();
-        this.presenter.onCancelMoveTangent();
+        this.presenter.onEndDrag();
         verifyNoExecution();
     }
 
     @Test
     public void testSelectClick() {
-        this.presenter.onStartSelect(new Point2d(0.0, 0.0), PADDING);
+        this.presenter.onStartDrag(new Point2d(0.0, 0.0), SCREEN_SCALE, SCREEN_DRAG_PADDING, SCREEN_HIT_PADDING, SCREEN_TANGENT_LENGTH);
         verifySelection(new int[][] {{0, 0}});
-        this.presenter.onEndSelect();
+        this.presenter.onEndDrag();
         verifySelection(new int[][] {{0, 0}});
     }
 
     @Test
+    public void testSelectClickSecond() {
+        this.presenter.onStartDrag(new Point2d(0.0, 1.5), SCREEN_SCALE, SCREEN_DRAG_PADDING, SCREEN_HIT_PADDING, SCREEN_TANGENT_LENGTH);
+        verifySelection(new int[][] {{1, 0}});
+        this.presenter.onEndDrag();
+        verifySelection(new int[][] {{1, 0}});
+    }
+
+    @Test
     public void testSelectBox() {
-        this.presenter.onStartSelect(new Point2d(0.0, 0.0), PADDING);
-        verifySelection(new int[][] {{0, 0}});
-        this.presenter.onSelect(new Point2d(1.0, 1.0));
+        this.presenter.onStartDrag(new Point2d(-1.0, -1.0), SCREEN_SCALE, SCREEN_DRAG_PADDING, SCREEN_HIT_PADDING, SCREEN_TANGENT_LENGTH);
+        verifyNoSelection();
+        this.presenter.onDrag(new Point2d(1.0, 1.0));
         verifySelection(new int[][] {{0, 0}, {0, 1}});
-        this.presenter.onEndSelect();
+        this.presenter.onEndDrag();
         verifySelection(new int[][] {{0, 0}, {0, 1}});
     }
 
     @Test
     public void testEmptySelection() {
-        this.presenter.onStartSelect(new Point2d(0.0, 1.0), PADDING);
+        this.presenter.onStartDrag(new Point2d(0.0, 1.0), SCREEN_SCALE, SCREEN_DRAG_PADDING, SCREEN_HIT_PADDING, SCREEN_TANGENT_LENGTH);
         verifyNoSelection();
-        this.presenter.onEndSelect();
+        this.presenter.onEndDrag();
         verifyNoSelection();
     }
 
@@ -292,7 +317,7 @@ public class CurvePresenterTest {
         selectCurve(0);
         Point2d p = new Point2d(0.5, 0.5);
         this.presenter.onAddPoint(p);
-        verifyExecution(InsertPointOperation.class);
+        verifyCommandDone(InsertPointOperation.class);
         this.presenter.onSelectAll();
         verifySelection(new int[][] {{0, 0}, {0, 1}, {0, 2}, {1, 0}, {1, 1}});
     }
@@ -301,18 +326,27 @@ public class CurvePresenterTest {
     public void testSelectionOverlayedPoints() {
         // Move first point on top of first point of second curve
         select(new int[][] {{0, 0}});
-        this.presenter.onStartMove(new Point2d(0.0, 0.0));
-        this.presenter.onMove(new Point2d(0.0, 1.5));
-        this.presenter.onEndMove();
+        this.presenter.onStartDrag(new Point2d(0.0, 0.0), SCREEN_SCALE, SCREEN_DRAG_PADDING, SCREEN_HIT_PADDING, SCREEN_TANGENT_LENGTH);
+        this.presenter.onDrag(new Point2d(0.0, 1.5));
+        this.presenter.onEndDrag();
 
         // Select second curve
         selectCurve(1);
 
         // Click first point of second curve
-        this.presenter.onStartSelect(new Point2d(0.0, 1.5), PADDING);
-        this.presenter.onEndSelect();
+        this.presenter.onStartDrag(new Point2d(0.0, 1.5), SCREEN_SCALE, SCREEN_DRAG_PADDING, SCREEN_HIT_PADDING, SCREEN_TANGENT_LENGTH);
+        this.presenter.onEndDrag();
 
         verifySelection(new int[][] {{1, 0}});
+    }
+
+    @Test
+    public void testSelectCurve() {
+        this.presenter.onStartDrag(new Point2d(0.2, 0.2), SCREEN_SCALE, SCREEN_DRAG_PADDING, SCREEN_HIT_PADDING, SCREEN_TANGENT_LENGTH);
+        // Curves are only selected on mouse up
+        verifyNoSelection();
+        this.presenter.onEndDrag();
+        verifySelection(new int[][] {{0}});
     }
 
 }

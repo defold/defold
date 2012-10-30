@@ -6,6 +6,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import javax.vecmath.Point2d;
+
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.IOperationHistory;
 import org.eclipse.core.commands.operations.IOperationHistoryListener;
@@ -20,6 +22,7 @@ import org.eclipse.jface.viewers.CheckStateChangedEvent;
 import org.eclipse.jface.viewers.CheckboxTableViewer;
 import org.eclipse.jface.viewers.ICheckStateListener;
 import org.eclipse.jface.viewers.ICheckStateProvider;
+import org.eclipse.jface.viewers.IColorProvider;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.ITableColorProvider;
@@ -44,6 +47,7 @@ import org.eclipse.ui.actions.ActionFactory;
 import org.eclipse.ui.operations.RedoActionHandler;
 import org.eclipse.ui.operations.UndoActionHandler;
 import org.eclipse.ui.part.EditorPart;
+import org.eclipse.ui.part.IPageBookViewPage;
 import org.eclipse.ui.part.IPageSite;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -51,20 +55,23 @@ import org.slf4j.LoggerFactory;
 import com.dynamo.cr.editor.core.operations.IMergeableOperation;
 import com.dynamo.cr.editor.core.operations.IMergeableOperation.Type;
 import com.dynamo.cr.editor.core.operations.MergeableDelegatingOperationHistory;
-import com.dynamo.cr.parted.curve.CurveEditor;
+import com.dynamo.cr.parted.curve.CurvePresenter;
+import com.dynamo.cr.parted.curve.CurveViewer;
 import com.dynamo.cr.parted.curve.HermiteSpline;
 import com.dynamo.cr.parted.curve.ICurveProvider;
+import com.dynamo.cr.parted.curve.ICurveView;
 import com.dynamo.cr.properties.IPropertyDesc;
 import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.properties.IPropertyObjectWorld;
 import com.dynamo.cr.properties.types.ValueSpread;
 import com.dynamo.cr.sceneed.core.Node;
+import com.google.inject.Inject;
 
-public class ParticleFXCurveEditorPage implements ICurveEditorPage, ISelectionListener, IOperationHistoryListener, ICheckStateListener {
+public class ParticleFXCurveEditorPage implements ICurveView, IPageBookViewPage, ISelectionListener, IOperationHistoryListener, ICheckStateListener {
 
     private static Logger logger = LoggerFactory
             .getLogger(ParticleFXCurveEditorPage.class);
-    private CurveEditor curveEditor;
+    private CurveViewer curveEditor;
     private IPageSite site;
     private IUndoContext undoContext;
     private Node selectedNode;
@@ -77,14 +84,14 @@ public class ParticleFXCurveEditorPage implements ICurveEditorPage, ISelectionLi
     private IPropertyDesc<Node, ? extends IPropertyObjectWorld>[] input = new IPropertyDesc[0];
     @SuppressWarnings("unchecked")
     private IPropertyDesc<Node, ? extends IPropertyObjectWorld>[] oldInput = new IPropertyDesc[0];
-    private UndoActionHandler undoHandler;
-    private RedoActionHandler redoHandler;
     private Color[] colors = new Color[24];
 
-    public ParticleFXCurveEditorPage(UndoActionHandler undoHandler, RedoActionHandler redoHandler) {
-        this.undoHandler = undoHandler;
-        this.redoHandler = redoHandler;
-    }
+    @Inject
+    private CurvePresenter presenter;
+    @Inject
+    private UndoActionHandler undoHandler;
+    @Inject
+    private RedoActionHandler redoHandler;
 
     private Color getColor(Object element) {
         for (int i = 0; i < input.length; ++i) {
@@ -142,11 +149,6 @@ public class ParticleFXCurveEditorPage implements ICurveEditorPage, ISelectionLi
         public boolean isEnabled(int i) {
             return list.getChecked(input[i]);
         }
-
-        @Override
-        public Color getColor(int i) {
-            return ParticleFXCurveEditorPage.this.getColor(input[i]);
-        }
     }
 
     class CheckStateProvider implements ICheckStateProvider {
@@ -182,6 +184,20 @@ public class ParticleFXCurveEditorPage implements ICurveEditorPage, ISelectionLi
         public Color getBackground(Object element, int columnIndex) {
             return null;
         }
+    }
+
+    public class ColorProvider implements IColorProvider {
+
+        @Override
+        public Color getForeground(Object element) {
+            return getColor(element);
+        }
+
+        @Override
+        public Color getBackground(Object element) {
+            return null;
+        }
+
     }
 
     @Override
@@ -221,14 +237,17 @@ public class ParticleFXCurveEditorPage implements ICurveEditorPage, ISelectionLi
 
         history = new MergeableDelegatingOperationHistory(PlatformUI.getWorkbench().getOperationSupport().getOperationHistory());
         history.addOperationHistoryListener(this);
-        curveEditor = new CurveEditor(composite, SWT.NONE, JFaceResources.getColorRegistry());
+        curveEditor = new CurveViewer(composite, SWT.NONE, JFaceResources.getColorRegistry());
         curveEditor.setLayoutData(new GridData(GridData.FILL_BOTH));
         curveEditor.setProvider(new Provider());
+        curveEditor.setContentProvider(new ArrayContentProvider());
+        curveEditor.setColorProvider(new ColorProvider());
+        curveEditor.setPresenter(this.presenter);
         curveEditor.addControlListener(new ControlListener() {
 
             @Override
             public void controlResized(ControlEvent e) {
-                refresh();
+                updateInput();
             }
 
             @Override
@@ -250,7 +269,12 @@ public class ParticleFXCurveEditorPage implements ICurveEditorPage, ISelectionLi
                 c.dispose();
             }
         }
+    }
 
+    @Override
+    public void setInput(Object input) {
+        this.list.setInput(input);
+        this.curveEditor.setInput(input);
     }
 
     @Override
@@ -270,7 +294,7 @@ public class ParticleFXCurveEditorPage implements ICurveEditorPage, ISelectionLi
     }
 
     @SuppressWarnings({ "unchecked" })
-    public void refresh() {
+    public void updateInput() {
         // HACK wait for proper size to frame properly below
         // TODO could probably be solved better
         Point size = this.curveEditor.getSize();
@@ -303,6 +327,7 @@ public class ParticleFXCurveEditorPage implements ICurveEditorPage, ISelectionLi
         oldInput = input;
         list.refresh();
         oldSelectedNode = selectedNode;
+        this.presenter.updateInput();
         curveEditor.redraw();
     }
 
@@ -314,7 +339,31 @@ public class ParticleFXCurveEditorPage implements ICurveEditorPage, ISelectionLi
             return;
         }
 
-        setSelection(selection);
+        Node newNode = null;
+
+        if (selection instanceof IStructuredSelection && !selection.isEmpty()) {
+            IStructuredSelection structSelect = (IStructuredSelection) selection;
+            Object first = structSelect.getFirstElement();
+            if (first instanceof Node) {
+                newNode = (Node) first;
+            }
+
+            IEditorPart editor = site.getPage().getActiveEditor();
+            undoContext = (IUndoContext) editor.getAdapter(IUndoContext.class);
+        }
+
+        if (newNode != null && undoContext != null) {
+            curveEditor.setEnabled(true);
+            selectedNode = newNode;
+            @SuppressWarnings("unchecked")
+            IPropertyModel<Node, IPropertyObjectWorld> propertyModel = (IPropertyModel<Node, IPropertyObjectWorld>) selectedNode.getAdapter(IPropertyModel.class);
+            this.presenter.setModel(propertyModel);
+        } else {
+            curveEditor.setEnabled(false);
+            selectedNode = null;
+            this.presenter.setModel(null);
+        }
+        updateInput();
     }
 
     @Override
@@ -324,7 +373,7 @@ public class ParticleFXCurveEditorPage implements ICurveEditorPage, ISelectionLi
         case OperationHistoryEvent.UNDONE:
         case OperationHistoryEvent.REDONE:
             if (event.getOperation().hasContext(undoContext)) {
-                refresh();
+                updateInput();
             }
         }
     }
@@ -348,27 +397,17 @@ public class ParticleFXCurveEditorPage implements ICurveEditorPage, ISelectionLi
 
     @Override
     public void setSelection(ISelection selection) {
-        Node newNode = null;
+        this.curveEditor.setSelection(selection);
+    }
 
-        if (selection instanceof IStructuredSelection && !selection.isEmpty()) {
-            IStructuredSelection structSelect = (IStructuredSelection) selection;
-            Object first = structSelect.getFirstElement();
-            if (first instanceof Node) {
-                newNode = (Node) first;
-            }
+    @Override
+    public void setSelectionBox(Point2d boxMin, Point2d boxMax) {
+        this.curveEditor.setSelectionBox(boxMin, boxMax);
+    }
 
-            IEditorPart editor = site.getPage().getActiveEditor();
-            undoContext = (IUndoContext) editor.getAdapter(IUndoContext.class);
-        }
-
-        if (newNode != null && undoContext != null) {
-            curveEditor.setEnabled(true);
-            selectedNode = newNode;
-        } else {
-            curveEditor.setEnabled(false);
-            selectedNode = null;
-        }
-        refresh();
+    @Override
+    public void refresh() {
+        this.curveEditor.redraw();
     }
 }
 

@@ -5,8 +5,7 @@ import org.eclipse.core.commands.operations.IUndoableOperation;
 
 public class InsertPointOperation extends SetCurvesOperation {
 
-    public InsertPointOperation(IUndoableOperation operation) {
-        super(Messages.InsertPointOperation_LABEL);
-        add(operation);
+    public InsertPointOperation(IUndoableOperation internalOperation) {
+        super(Messages.InsertPointOperation_LABEL, internalOperation);
     }
 }

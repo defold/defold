@@ -8,6 +8,7 @@ import org.eclipse.ui.IWorkbenchPart;
 import org.eclipse.ui.contexts.IContextService;
 import org.eclipse.ui.part.IContributedContentsView;
 import org.eclipse.ui.part.IPage;
+import org.eclipse.ui.part.IPageBookViewPage;
 import org.eclipse.ui.part.MessagePage;
 import org.eclipse.ui.part.PageBook;
 import org.eclipse.ui.part.PageBookView;
@@ -61,13 +62,6 @@ public class CurveEditorView extends PageBookView {
         }
     }
 
-    public void frame() {
-        IPage page = getCurrentPage();
-        if (page != null) {
-            ((ICurveEditorPage)page).frame();
-        }
-    }
-
     @Override
     protected IPage createDefaultPage(PageBook book) {
         MessagePage page = new MessagePage();
@@ -80,13 +74,16 @@ public class CurveEditorView extends PageBookView {
     @Override
     protected PageRec doCreatePage(IWorkbenchPart part) {
         // Try to get a curve page.
-        Object obj = part.getAdapter(ICurveEditorPage.class);
-        if (obj instanceof ICurveEditorPage) {
-            ICurveEditorPage page = (ICurveEditorPage) obj;
+        Object obj = part.getAdapter(IPageBookViewPage.class);
+        if (obj instanceof IPageBookViewPage) {
+            IPageBookViewPage page = (IPageBookViewPage) obj;
             initPage(page);
             page.createControl(getPageBook());
-            ISelection selection = part.getSite().getSelectionProvider().getSelection();
-            page.setSelection(selection);
+            if (obj instanceof ParticleFXCurveEditorPage) {
+                ParticleFXCurveEditorPage editorPage = (ParticleFXCurveEditorPage)page;
+                ISelection selection = part.getSite().getSelectionProvider().getSelection();
+                editorPage.selectionChanged(part, selection);
+            }
             return new PageRec(part, page);
         }
         // There is no content outline
@@ -95,7 +92,7 @@ public class CurveEditorView extends PageBookView {
 
     @Override
     protected void doDestroyPage(IWorkbenchPart part, PageRec pageRecord) {
-        ICurveEditorPage page = (ICurveEditorPage) pageRecord.page;
+        IPage page = (IPage) pageRecord.page;
         page.dispose();
         pageRecord.dispose();
     }

@@ -17,12 +17,13 @@ import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.viewers.ISelection;
-import org.eclipse.jface.viewers.ISelectionProvider;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.ITreeSelection;
 import org.eclipse.jface.viewers.TreePath;
 import org.eclipse.jface.viewers.TreeSelection;
 
+import com.dynamo.cr.editor.core.operations.IMergeableOperation;
+import com.dynamo.cr.editor.core.operations.IMergeableOperation.Type;
 import com.dynamo.cr.parted.curve.ICurveView.IPresenter;
 import com.dynamo.cr.parted.operations.InsertPointOperation;
 import com.dynamo.cr.parted.operations.MovePointsOperation;
@@ -31,6 +32,7 @@ import com.dynamo.cr.parted.operations.SetTangentOperation;
 import com.dynamo.cr.properties.IPropertyDesc;
 import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.properties.IPropertyObjectWorld;
+import com.dynamo.cr.properties.PropertyUtil;
 import com.dynamo.cr.properties.types.ValueSpread;
 import com.dynamo.cr.sceneed.core.Node;
 import com.google.inject.Inject;
@@ -44,29 +46,41 @@ public class CurvePresenter implements IPresenter {
     @Inject
     private IUndoContext undoContext;
 
-    private ISelectionProvider selectionProvider;
     IPropertyModel<Node, IPropertyObjectWorld> propertyModel;
     @SuppressWarnings("unchecked")
     private IPropertyDesc<Node, ? extends IPropertyObjectWorld>[] input = new IPropertyDesc[0];
     @SuppressWarnings("unchecked")
     private IPropertyDesc<Node, ? extends IPropertyObjectWorld>[] oldInput = new IPropertyDesc[0];
-    private MovePointsOperation moveOperation;
-    private Point2d start = new Point2d();
-    private SetTangentOperation setTangentOperation;
-    private ISelection originalSelection;
-    private double selectionPadding;
 
-    public void setSelectionProvider(ISelectionProvider selectionProvider) {
-        this.selectionProvider = selectionProvider;
-    }
+    private enum DragMode {
+        SELECT,
+        MOVE_POINTS,
+        SET_TANGENT,
+    };
+    private DragMode dragMode = DragMode.SELECT;
+    private List<Point2d> originalPositions = new ArrayList<Point2d>();
+    private ISelection originalSelection = new TreeSelection();
+    private ISelection selection = new TreeSelection();
+    private Point2d dragStart = new Point2d();
+    private Vector2d minDragExtents = new Vector2d();
+    private Vector2d hitBoxExtents = new Vector2d();
+    private boolean dragging = false;
 
     public void setModel(IPropertyModel<Node, IPropertyObjectWorld> model) {
         this.propertyModel = model;
-        refresh();
+        updateInput();
+    }
+
+    public ISelection getSelection() {
+        return this.selection;
+    }
+
+    public void setSelection(ISelection selection) {
+        this.selection = selection;
     }
 
     @SuppressWarnings("unchecked")
-    public void refresh() {
+    public void updateInput() {
         List<IPropertyDesc<Node, IPropertyObjectWorld>> lst = new ArrayList<IPropertyDesc<Node,IPropertyObjectWorld>>();
         if (this.propertyModel != null) {
             IPropertyDesc<Node, IPropertyObjectWorld>[] descs = this.propertyModel.getPropertyDescs();
@@ -101,7 +115,6 @@ public class CurvePresenter implements IPresenter {
     }
 
     private int getSingleCurveIndexFromSelection() {
-        ISelection selection = this.selectionProvider.getSelection();
         if (!selection.isEmpty() && selection instanceof IStructuredSelection) {
             int index = -1;
             if (selection instanceof ITreeSelection) {
@@ -121,7 +134,6 @@ public class CurvePresenter implements IPresenter {
     }
 
     private int[] getSinglePointIndexFromSelection() {
-        ISelection selection = this.selectionProvider.getSelection();
         if (!selection.isEmpty() && selection instanceof IStructuredSelection) {
             if (selection instanceof ITreeSelection) {
                 ITreeSelection tree = (ITreeSelection)selection;
@@ -134,9 +146,8 @@ public class CurvePresenter implements IPresenter {
         return null;
     }
 
-    private Map<Integer, List<Integer>> getPointsFromSelection() {
+    private Map<Integer, List<Integer>> getPointsMapFromSelection() {
         Map<Integer, List<Integer>> points = new HashMap<Integer, List<Integer>>();
-        ISelection selection = this.selectionProvider.getSelection();
         if (!selection.isEmpty() && selection instanceof IStructuredSelection) {
             if (selection instanceof ITreeSelection) {
                 ITreeSelection tree = (ITreeSelection)selection;
@@ -162,11 +173,43 @@ public class CurvePresenter implements IPresenter {
         return points;
     }
 
+    private int[][] getPointsListFromSelection() {
+        List<int[]> points = new ArrayList<int[]>();
+        if (!selection.isEmpty() && selection instanceof IStructuredSelection) {
+            if (selection instanceof ITreeSelection) {
+                ITreeSelection tree = (ITreeSelection)selection;
+                for (TreePath path : tree.getPaths()) {
+                    if (path.getSegmentCount() > 1) {
+                        int curveIndex = (Integer)path.getSegment(0);
+                        int pointIndex = (Integer)path.getSegment(1);
+                        points.add(new int[] {curveIndex, pointIndex});
+                    }
+                }
+            }
+        }
+        return points.toArray(new int[points.size()][]);
+    }
+
     private IUndoableOperation setCurve(int index, HermiteSpline spline) {
         String id = this.input[index].getId();
         ValueSpread vs = (ValueSpread)this.propertyModel.getPropertyValue(id);
         vs.setCurve(spline);
         return this.propertyModel.setPropertyValue(this.input[index].getId(), vs, true);
+    }
+
+    private IUndoableOperation setCurves(Map<Integer, HermiteSpline> curves, boolean force) {
+        int curveCount = curves.size();
+        Object[] ids = new Object[curveCount];
+        Object[] values = new Object[curveCount];
+        int index = 0;
+        for (Map.Entry<Integer, HermiteSpline> entry : curves.entrySet()) {
+            String id = this.input[entry.getKey()].getId();
+            ids[index] = id;
+            ValueSpread vs = (ValueSpread)this.propertyModel.getPropertyValue(id);
+            vs.setCurve(entry.getValue());
+            values[index] = vs;
+        }
+        return PropertyUtil.setProperties(this.propertyModel, ids, values, force);
     }
 
     private void execute(IUndoableOperation operation) {
@@ -208,7 +251,40 @@ public class CurvePresenter implements IPresenter {
             }
             selection.add(new TreePath(value));
         }
-        this.selectionProvider.setSelection(new TreeSelection(selection.toArray(new TreePath[points.length])));
+        this.selection = new TreeSelection(selection.toArray(new TreePath[points.length]));
+        this.view.setSelection(this.selection);
+    }
+
+    private boolean hitPosition(Point2d position, Point2d hitPosition, Vector2d hitBoxExtents) {
+        Vector2d delta = new Vector2d();
+        delta.sub(position, hitPosition);
+        return Math.abs(delta.getX()) <= hitBoxExtents.getX()
+                && Math.abs(delta.getY()) <= hitBoxExtents.getY();
+    }
+
+    private boolean hitTangent(Point2d position, SplinePoint point, Vector2d hitBoxExtents, Vector2d screenScale, double screenTangentLength) {
+        Point2d pointPosition = new Point2d(point.getX(), point.getY());
+        Vector2d screenTangent = new Vector2d(point.getTx() * screenScale.getX(), point.getTy() * screenScale.getY());
+        screenTangent.normalize();
+        screenTangent.scale(screenTangentLength);
+        Vector2d tangent = new Vector2d(screenTangent.getX() / screenScale.getX(), screenTangent.getY() / screenScale.getY());
+        Point2d t0 = new Point2d(tangent);
+        Point2d t1 = new Point2d(tangent);
+        t0.scaleAdd(1.0, pointPosition);
+        t1.scaleAdd(-1.0, pointPosition);
+        return hitPosition(position, t0, hitBoxExtents)
+                || hitPosition(position, t1, hitBoxExtents);
+    }
+
+    private void startMoveSelection() {
+        this.originalPositions.clear();
+        int[][] selectedPoints = getPointsListFromSelection();
+        for (int[] indices : selectedPoints) {
+            HermiteSpline spline = getCurve(indices[0]);
+            SplinePoint point = spline.getPoint(indices[1]);
+            this.originalPositions.add(new Point2d(point.getX(), point.getY()));
+        }
+        this.dragMode = DragMode.MOVE_POINTS;
     }
 
     @Override
@@ -231,10 +307,10 @@ public class CurvePresenter implements IPresenter {
 
     @Override
     public void onRemove() {
-        Map<Integer, List<Integer>> selectedPoints = getPointsFromSelection();
+        Map<Integer, List<Integer>> selectedPoints = getPointsMapFromSelection();
+        Map<Integer, HermiteSpline> curves = new HashMap<Integer, HermiteSpline>();
         if (!selectedPoints.isEmpty()) {
             List<int[]> newSelectedPoints = new ArrayList<int[]>();
-            RemovePointsOperation removeOperation = new RemovePointsOperation();
             for (Map.Entry<Integer, List<Integer>> entry : selectedPoints.entrySet()) {
                 int curveIndex = entry.getKey();
                 HermiteSpline spline = getCurve(curveIndex);
@@ -252,163 +328,227 @@ public class CurvePresenter implements IPresenter {
                         ++removeCount;
                     }
                 }
-                removeOperation.add(setCurve(curveIndex, spline));
+                curves.put(curveIndex, spline);
             }
-            execute(removeOperation);
+            execute(new RemovePointsOperation(setCurves(curves, true)));
             select(newSelectedPoints.toArray(new int[newSelectedPoints.size()][]));
         }
     }
 
     @Override
-    public void onStartMove(Point2d start) {
-        this.moveOperation = new MovePointsOperation(this.history);
-        this.moveOperation.addContext(this.undoContext);
-        this.moveOperation.begin();
-        this.start.set(start);
-    }
+    public void onStartDrag(Point2d start, Vector2d screenScale, double screenDragPadding, double screenHitPadding, double screenTangentLength) {
+        Vector2d invScreenScale = new Vector2d(1.0 / screenScale.getX(), 1.0 / screenScale.getY());
+        invScreenScale.absolute();
+        this.dragStart.set(start);
+        this.dragMode = DragMode.SELECT;
+        this.originalSelection = this.selection;
+        this.minDragExtents.scale(screenDragPadding, invScreenScale);
+        this.hitBoxExtents.scale(screenHitPadding, invScreenScale);
+        this.dragging = false;
 
-    @Override
-    public void onMove(Point2d position) {
-        Vector2d delta = new Vector2d();
-        delta.sub(position, this.start);
-        if (delta.lengthSquared() > 0.0) {
-            if (this.moveOperation != null) {
-                Map<Integer, List<Integer>> selectedPoints = getPointsFromSelection();
-                for (Map.Entry<Integer, List<Integer>> entry : selectedPoints.entrySet()) {
-                    HermiteSpline spline = getCurve(entry.getKey());
-                    List<Integer> points = entry.getValue();
-                    for (int pointIndex : points) {
-                        SplinePoint point = spline.getPoint(pointIndex);
-                        spline = spline.setPosition(pointIndex, point.getX() + delta.getX(), point.getY() + delta.getY());
-                    }
-                    execute(setCurve(entry.getKey(), spline));
-                }
-            } else {
-                throw new IllegalStateException("No move has been started.");
-            }
-        }
-    }
-
-    @Override
-    public void onEndMove() {
-        if (this.moveOperation != null) {
-            this.moveOperation.end(true);
-        } else {
-            throw new IllegalStateException("No move has been started.");
-        }
-    }
-
-    @Override
-    public void onCancelMove() {
-        if (this.moveOperation != null) {
-            this.moveOperation.end(false);
-        } else {
-            throw new IllegalStateException("No move has been started.");
-        }
-    }
-
-    @Override
-    public void onStartMoveTangent(Point2d start) {
-        this.setTangentOperation = new SetTangentOperation(this.history);
-        this.setTangentOperation.addContext(this.undoContext);
-        this.setTangentOperation.begin();
-    }
-
-    @Override
-    public void onMoveTangent(Point2d position) {
-        int[] indices = getSinglePointIndexFromSelection();
-        if (indices != null) {
-            int curveIndex = indices[0];
-            int pointIndex = indices[1];
-            HermiteSpline spline = getCurve(curveIndex);
-            SplinePoint point = spline.getPoint(pointIndex);
-            Vector2d tangent = new Vector2d(point.getX(), point.getY());
-            tangent.sub(position);
-            if (tangent.lengthSquared() > 0.0) {
-                if (tangent.getX() < 0.0) {
-                    tangent.negate();
-                }
-                tangent.normalize();
-                spline.setTangent(pointIndex, tangent.x, tangent.y);
-                execute(setCurve(curveIndex, spline));
-            }
-        } else {
-            throw new IllegalStateException("No single point selected.");
-        }
-    }
-
-    @Override
-    public void onEndMoveTangent() {
-        if (this.setTangentOperation != null) {
-            this.setTangentOperation.end(true);
-        } else {
-            throw new IllegalStateException("No move has been started.");
-        }
-    }
-
-    @Override
-    public void onCancelMoveTangent() {
-        if (this.setTangentOperation != null) {
-            this.setTangentOperation.end(false);
-        } else {
-            throw new IllegalStateException("No move has been started.");
-        }
-    }
-
-    @Override
-    public void onStartSelect(Point2d start, double padding) {
-        this.start.set(start);
-        this.originalSelection = this.selectionProvider.getSelection();
-        this.selectionPadding = padding;
-        Point2d min = new Point2d(-padding, -padding);
+        Point2d min = new Point2d(hitBoxExtents);
+        min.negate();
         min.add(start);
-        Point2d max = new Point2d(padding, padding);
+        Point2d max = new Point2d(hitBoxExtents);
         max.add(start);
         int[][] points = findPoints(min, max);
-        int curveIndex = getSingleCurveIndexFromSelection();
-        if (curveIndex >= 0) {
-            for (int i = 0; i < points.length; ++i) {
-                if (points[i][0] == curveIndex) {
-                    select(new int[][] {points[i]});
+        if (!selection.isEmpty()) {
+            int[] indices = getSinglePointIndexFromSelection();
+            // Check for normals hit
+            if (indices != null) {
+                HermiteSpline spline = getCurve(indices[0]);
+                SplinePoint point = spline.getPoint(indices[1]);
+                if (hitTangent(start, point, hitBoxExtents, screenScale, screenTangentLength)) {
+                    this.dragMode = DragMode.SET_TANGENT;
+                    return;
                 }
             }
+            // Check for points to move
+            ITreeSelection treeSelection = (ITreeSelection)selection;
+            TreePath[] paths = treeSelection.getPaths();
+            for (int i = 0; i < paths.length; ++i) {
+                TreePath path = paths[i];
+                if (path.getSegmentCount() > 1) {
+                    int curveIndex = (Integer)path.getSegment(0);
+                    HermiteSpline spline = getCurve(curveIndex);
+                    int pointIndex = (Integer)path.getSegment(1);
+                    SplinePoint point = spline.getPoint(pointIndex);
+                    Point2d pointPosition = new Point2d(point.getX(), point.getY());
+                    if (hitPosition(start, pointPosition, hitBoxExtents)) {
+                        startMoveSelection();
+                        return;
+                    }
+                }
+            }
+        }
+        // Select and move hit points
+        if (points.length > 0) {
+            int curveIndex = getSingleCurveIndexFromSelection();
+            // Prioritize points from selected curve
+            if (curveIndex >= 0) {
+                for (int i = 0; i < points.length; ++i) {
+                    if (points[i][0] == curveIndex) {
+                        select(new int[][] {points[i]});
+                    }
+                }
+            } else {
+                select(points);
+            }
+            startMoveSelection();
         } else {
-            select(points);
+            select(new int[][] {});
+        }
+        this.view.refresh();
+    }
+
+    @Override
+    public void onDrag(Point2d position) {
+        Vector2d delta = new Vector2d();
+        delta.sub(position, this.dragStart);
+        if (this.dragging || (Math.abs(delta.getX()) >= this.minDragExtents.getX() || Math.abs(delta.getY()) >= this.minDragExtents.getY())) {
+            boolean initialDrag = !this.dragging;
+            this.dragging = true;
+            switch (this.dragMode) {
+            case MOVE_POINTS:
+                int[][] selectedPoints = getPointsListFromSelection();
+                int pointCount = selectedPoints.length;
+                Point2d p = new Point2d();
+                Map<Integer, HermiteSpline> curves = new HashMap<Integer, HermiteSpline>();
+                for (int i = 0; i < pointCount; ++i) {
+                    int[] indices = selectedPoints[i];
+                    int curveIndex = indices[0];
+                    int pointIndex = indices[1];
+                    HermiteSpline spline = curves.get(curveIndex);
+                    if (spline == null) {
+                        spline = getCurve(curveIndex);
+                    }
+                    p.set(this.originalPositions.get(i));
+                    p.add(delta);
+                    spline = spline.setPosition(pointIndex, p.getX(), p.getY());
+                    curves.put(curveIndex, spline);
+                }
+                IUndoableOperation op = setCurves(curves, true);
+                if (initialDrag) {
+                    MovePointsOperation moveOp = new MovePointsOperation(op);
+                    moveOp.setType(Type.OPEN);
+                    execute(moveOp);
+                } else {
+                    ((IMergeableOperation)op).setType(Type.INTERMEDIATE);
+                    execute(op);
+                }
+                break;
+            case SET_TANGENT:
+                int[] indices = getSinglePointIndexFromSelection();
+                if (indices != null) {
+                    int curveIndex = indices[0];
+                    int pointIndex = indices[1];
+                    HermiteSpline spline = getCurve(curveIndex);
+                    SplinePoint point = spline.getPoint(pointIndex);
+                    Vector2d tangent = new Vector2d(point.getX(), point.getY());
+                    tangent.sub(position);
+                    if (tangent.lengthSquared() > 0.0) {
+                        if (tangent.getX() < 0.0) {
+                            tangent.negate();
+                        }
+                        tangent.normalize();
+                        spline = spline.setTangent(pointIndex, tangent.x, tangent.y);
+                        IUndoableOperation tangentOp = setCurve(curveIndex, spline);
+                        if (initialDrag) {
+                            SetTangentOperation setTangentOp = new SetTangentOperation(tangentOp);
+                            setTangentOp.setType(Type.OPEN);
+                            execute(setTangentOp);
+                        } else {
+                            ((IMergeableOperation)tangentOp).setType(Type.INTERMEDIATE);
+                            execute(tangentOp);
+                        }
+                    }
+                } else {
+                    throw new IllegalStateException("No single point selected.");
+                }
+                break;
+            case SELECT:
+                Point2d min = new Point2d(Math.min(this.dragStart.x, position.x), Math.min(this.dragStart.y, position.y));
+                Point2d max = new Point2d(Math.max(this.dragStart.x, position.x), Math.max(this.dragStart.y, position.y));
+                this.view.setSelectionBox(min, max);
+                min.sub(this.hitBoxExtents);
+                max.add(this.hitBoxExtents);
+                int[][] points = findPoints(min, max);
+                select(points);
+                break;
+            }
+            this.view.refresh();
         }
     }
 
     @Override
-    public void onSelect(Point2d position) {
-        if (this.originalSelection != null) {
-            Vector2d padding = new Vector2d(this.selectionPadding, this.selectionPadding);
-            Point2d min = new Point2d(Math.min(this.start.x, position.x), Math.min(this.start.y, position.y));
-            min.sub(padding);
-            Point2d max = new Point2d(Math.max(this.start.x, position.x), Math.max(this.start.y, position.y));
-            max.add(padding);
-            int[][] points = findPoints(min, max);
-            select(points);
-        } else {
-            throw new IllegalStateException("No selection has been started.");
-        }
-    }
-
-    @Override
-    public void onEndSelect() {
-        if (this.originalSelection != null) {
+    public void onEndDrag() {
+        if (this.dragging) {
+            switch (this.dragMode) {
+            case MOVE_POINTS:
+                int[][] selectedPoints = getPointsListFromSelection();
+                int pointCount = selectedPoints.length;
+                Map<Integer, HermiteSpline> curves = new HashMap<Integer, HermiteSpline>();
+                for (int i = 0; i < pointCount; ++i) {
+                    int[] indices = selectedPoints[i];
+                    int curveIndex = indices[0];
+                    HermiteSpline spline = getCurve(curveIndex);
+                    curves.put(curveIndex, spline);
+                }
+                IUndoableOperation op = setCurves(curves, true);
+                execute(op);
+                break;
+            case SET_TANGENT:
+                int[] indices = getSinglePointIndexFromSelection();
+                if (indices != null) {
+                    int curveIndex = indices[0];
+                    HermiteSpline spline = getCurve(curveIndex);
+                    IUndoableOperation tangentOp = setCurve(curveIndex, spline);
+                    ((IMergeableOperation)tangentOp).setType(Type.CLOSE);
+                    execute(tangentOp);
+                }
+                break;
+            case SELECT:
+                this.view.setSelectionBox(new Point2d(), new Point2d());
+                break;
+            }
             this.originalSelection = null;
         } else {
-            throw new IllegalStateException("No selection has been started.");
+            switch (this.dragMode) {
+            case SELECT:
+                // Click
+                if (this.selection.isEmpty()) {
+                    int closestIndex = -1;
+                    double closestDistance = Double.MAX_VALUE;
+                    for (int i = 0; i < this.input.length; ++i) {
+                        HermiteSpline spline = getCurve(i);
+                        Point2d min = new Point2d(this.dragStart);
+                        min.sub(this.hitBoxExtents);
+                        Point2d max = new Point2d(this.dragStart);
+                        max.add(this.hitBoxExtents);
+                        Point2d p0 = new Point2d(min.getX(), spline.getY(min.getX()));
+                        Vector2d dir = new Vector2d(max.getX(), spline.getY(max.getX()));
+                        dir.sub(p0);
+                        dir.normalize();
+                        Vector2d hitDelta = new Vector2d(this.dragStart);
+                        hitDelta.sub(p0);
+                        hitDelta.scale(hitDelta.dot(dir), dir);
+                        Point2d closestCurvePosition = new Point2d(hitDelta);
+                        closestCurvePosition.add(p0);
+                        if (hitPosition(this.dragStart, closestCurvePosition, this.hitBoxExtents)) {
+                            double distance = closestCurvePosition.distance(this.dragStart);
+                            if (distance < closestDistance) {
+                                closestIndex = i;
+                            }
+                        }
+                    }
+                    if (closestIndex >= 0) {
+                        select(new int[][] {{closestIndex}});
+                    }
+                }
+                break;
+            }
         }
-    }
-
-    @Override
-    public void onCancelSelect() {
-        if (this.originalSelection != null) {
-            this.selectionProvider.setSelection(this.originalSelection);
-            this.originalSelection = null;
-        } else {
-            throw new IllegalStateException("No selection has been started.");
-        }
+        this.view.refresh();
     }
 
     @Override
@@ -424,4 +564,10 @@ public class CurvePresenter implements IPresenter {
         }
         select(points.toArray(new int[points.size()][]));
     }
+
+    @Override
+    public void onDeselectAll() {
+        select(new int[][] {});
+    }
+
 }

@@ -1,73 +1,70 @@
 package com.dynamo.cr.parted.operations;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.AbstractOperation;
-import org.eclipse.core.commands.operations.ICompositeOperation;
 import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.core.runtime.IAdaptable;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
-import org.eclipse.core.runtime.Status;
 
-public class SetCurvesOperation extends AbstractOperation implements ICompositeOperation {
+import com.dynamo.cr.editor.core.operations.IMergeableOperation;
 
-    private List<IUndoableOperation> children = new ArrayList<IUndoableOperation>();
+public class SetCurvesOperation extends AbstractOperation implements IMergeableOperation {
 
-    public SetCurvesOperation(String label) {
+    IUndoableOperation internalOperation;
+
+    public SetCurvesOperation(String label, IUndoableOperation internalOperation) {
         super(label);
-    }
-
-    protected boolean hasChildren() {
-        return !children.isEmpty();
+        this.internalOperation = internalOperation;
     }
 
     @Override
     public IStatus execute(IProgressMonitor monitor, IAdaptable info) throws ExecutionException {
-        for (IUndoableOperation op : children) {
-            IStatus status = op.execute(monitor, info);
-            if (!status.isOK()) {
-                return status;
-            }
-        }
-        return Status.OK_STATUS;
+        return this.internalOperation.execute(monitor, info);
     }
 
     @Override
     public IStatus redo(IProgressMonitor monitor, IAdaptable info) throws ExecutionException {
-        for (IUndoableOperation op : children) {
-            IStatus status = op.redo(monitor, info);
-            if (!status.isOK()) {
-                return status;
-            }
-        }
-        return Status.OK_STATUS;
+        return this.internalOperation.redo(monitor, info);
     }
 
     @Override
     public IStatus undo(IProgressMonitor monitor, IAdaptable info) throws ExecutionException {
-        List<IUndoableOperation> revChildren = new ArrayList<IUndoableOperation>(this.children);
-        Collections.reverse(revChildren);
-        for (IUndoableOperation op : revChildren) {
-            IStatus status = op.undo(monitor, info);
-            if (!status.isOK()) {
-                return status;
-            }
+        return this.internalOperation.undo(monitor, info);
+    }
+
+    @Override
+    public void setType(Type type) {
+        if (this.internalOperation instanceof IMergeableOperation) {
+            IMergeableOperation mop = (IMergeableOperation)this.internalOperation;
+            mop.setType(type);
         }
-        return Status.OK_STATUS;
     }
 
     @Override
-    public void add(IUndoableOperation operation) {
-        children.add(operation);
+    public Type getType() {
+        if (this.internalOperation instanceof IMergeableOperation) {
+            IMergeableOperation mop = (IMergeableOperation)this.internalOperation;
+            return mop.getType();
+        }
+        return IMergeableOperation.Type.CLOSE;
     }
 
     @Override
-    public void remove(IUndoableOperation operation) {
-        children.remove(operation);
+    public boolean canMerge(IMergeableOperation operation) {
+        if (this.internalOperation instanceof IMergeableOperation) {
+            IMergeableOperation mop = (IMergeableOperation)this.internalOperation;
+            return mop.canMerge(operation);
+        }
+        return false;
+    }
+
+    @Override
+    public void mergeWith(IMergeableOperation operation) {
+        if (this.internalOperation instanceof IMergeableOperation) {
+            IMergeableOperation mop = (IMergeableOperation)this.internalOperation;
+            mop.mergeWith(operation);
+        }
     }
 
 }
