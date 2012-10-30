@@ -1,7 +1,5 @@
 package com.dynamo.cr.properties.descriptors;
 
-import java.text.DecimalFormat;
-
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.custom.ScrolledComposite;
 import org.eclipse.swt.events.MouseEvent;
@@ -14,6 +12,8 @@ import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.Listener;
 import org.eclipse.swt.widgets.Text;
 
+import com.dynamo.cr.properties.util.NumberUtil;
+
 /**
  * Spinner like control
  * @author chmu
@@ -25,8 +25,6 @@ public class SpinnerText extends Composite implements MouseWheelListener {
 
     private Text text;
     private boolean integer = false;
-    private DecimalFormat doubleFormat = new DecimalFormat("#.####");
-    private DecimalFormat integerFormat = new DecimalFormat("#");
     private double min = -Double.MAX_VALUE;
     private double max = Double.MAX_VALUE;
 
@@ -113,17 +111,14 @@ public class SpinnerText extends Composite implements MouseWheelListener {
         int dx = e.count;
         Double currentValue = null;
         try {
-            currentValue = Double.parseDouble(text.getText());
+            currentValue = NumberUtil.parseDouble(text.getText());
         } catch (NumberFormatException ex) {}
 
         if (currentValue != null) {
             double step = 0.1;
-            DecimalFormat format;
             if (integer) {
-                format = integerFormat;
                 step *= 10;
             } else {
-                format = doubleFormat;
             }
 
             if ((e.stateMask & SWT.ALT) != 0) {
@@ -133,7 +128,7 @@ public class SpinnerText extends Composite implements MouseWheelListener {
             currentValue += dx * step;
             currentValue = Math.max(currentValue, min);
             currentValue = Math.min(currentValue, max);
-            String stringValue = format.format(currentValue);
+            String stringValue = NumberUtil.formatDouble(currentValue);
             text.setText(stringValue);
             sendSelectionEvent();
         }
