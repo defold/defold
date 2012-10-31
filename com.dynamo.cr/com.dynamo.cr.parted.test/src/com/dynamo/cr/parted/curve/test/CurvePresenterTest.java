@@ -428,4 +428,13 @@ public class CurvePresenterTest {
         verifySelection(new int[][] {{0}});
     }
 
+    @Test
+    public void testSelectPointFromUnselected() {
+        selectCurve(1);
+        this.presenter.onStartDrag(new Point2d(0.0, 0.0), SCREEN_SCALE, SCREEN_DRAG_PADDING, SCREEN_HIT_PADDING, SCREEN_TANGENT_LENGTH);
+        verifySelection(new int[][] {{0, 0}});
+        this.presenter.onEndDrag();
+        verifySelection(new int[][] {{0, 0}});
+    }
+
 }

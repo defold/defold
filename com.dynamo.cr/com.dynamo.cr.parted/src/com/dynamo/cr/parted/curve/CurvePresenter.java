@@ -441,13 +441,17 @@ public class CurvePresenter implements IPresenter {
         if (points.length > 0) {
             int curveIndex = getSingleCurveIndexFromSelection();
             // Prioritize points from selected curve
+            boolean foundPoint = false;
             if (curveIndex >= 0) {
                 for (int i = 0; i < points.length; ++i) {
                     if (points[i][0] == curveIndex) {
                         setSelection(select(new int[][] {points[i]}));
+                        foundPoint = true;
+                        break;
                     }
                 }
-            } else {
+            }
+            if (!foundPoint) {
                 setSelection(select(points));
             }
             startMoveSelection();
