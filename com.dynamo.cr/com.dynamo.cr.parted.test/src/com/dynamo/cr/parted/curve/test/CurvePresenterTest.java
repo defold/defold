@@ -4,6 +4,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
 import java.util.ArrayList;
@@ -30,6 +31,7 @@ import com.dynamo.cr.editor.core.operations.MergeableDelegatingOperationHistory;
 import com.dynamo.cr.parted.curve.CurvePresenter;
 import com.dynamo.cr.parted.curve.HermiteSpline;
 import com.dynamo.cr.parted.curve.ICurveView;
+import com.dynamo.cr.parted.curve.SplinePoint;
 import com.dynamo.cr.parted.operations.InsertPointOperation;
 import com.dynamo.cr.parted.operations.MovePointsOperation;
 import com.dynamo.cr.parted.operations.RemovePointsOperation;
@@ -354,6 +356,27 @@ public class CurvePresenterTest {
         verifyNoExecution();
         this.presenter.onEndDrag();
         verifyNoExecution();
+    }
+
+    @Test
+    public void testMoveTangentLimit() {
+        selectCurve(0);
+        Vector2d tangent = new Vector2d(1.0, 1.0);
+        tangent.normalize();
+        tangent.set(tangent.getX() * SCREEN_SCALE.getX(), tangent.getY() * SCREEN_SCALE.getY());
+        tangent.normalize();
+        tangent.scale(SCREEN_TANGENT_LENGTH);
+        tangent.set(tangent.getX() / SCREEN_SCALE.getX(), tangent.getY() / SCREEN_SCALE.getY());
+        this.presenter.onStartDrag(new Point2d(tangent), SCREEN_SCALE, SCREEN_DRAG_PADDING, SCREEN_HIT_PADDING, SCREEN_TANGENT_LENGTH);
+        verifyNoExecution();
+        this.presenter.onDrag(new Point2d(0.0, 1.0));
+        verifyCommandDone(SetTangentOperation.class);
+        this.presenter.onEndDrag();
+        verifyCommandChanged(SetTangentOperation.class);
+        HermiteSpline spline = getCurve(0);
+        SplinePoint point = spline.getPoint(0);
+        assertTrue(point.getTx() > 0.0);
+        assertTrue(Math.abs(point.getTy()) < 1.0);
     }
 
     @Test

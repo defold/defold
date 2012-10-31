@@ -40,6 +40,8 @@ import com.google.inject.Inject;
 
 public class CurvePresenter implements IPresenter {
 
+    private static final double MAX_COS_TANGENT_ANGLE = Math.cos(0.2 / 180.0 * Math.PI);
+
     @Inject
     private ICurveView view;
     @Inject
@@ -522,6 +524,12 @@ public class CurvePresenter implements IPresenter {
                         tangent.negate();
                     }
                     tangent.normalize();
+                    double ty = tangent.getY();
+                    if (Math.abs(ty) > MAX_COS_TANGENT_ANGLE) {
+                        ty = MAX_COS_TANGENT_ANGLE * Math.signum(ty);
+                        tangent.setX(Math.sqrt(1.0 - ty * ty));
+                        tangent.setY(ty);
+                    }
                     spline = spline.setTangent(pointIndex, tangent.x, tangent.y);
                     IUndoableOperation tangentOp = setCurve(curveIndex, spline);
                     if (initialDrag) {
