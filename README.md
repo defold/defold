@@ -35,8 +35,8 @@ Folder Structure
 iOS Debugging
 -------------
 
-* Create a new empty project
-* Project>Edit Scheme...
-* Select app-bundle
+* Create a new empty iOS project (Other/Empty)
+* Create a new scheme with Project>New Scheme...
+* Select executable
 * Make sure that debugger is lldb. Otherwise debuginfo is not found for static libraries when compiled with clang for unknown reason
 
