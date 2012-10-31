@@ -466,6 +466,16 @@ public class CurveViewer extends Canvas implements PaintListener,
         if (this.presenter == null)
             return;
 
+        // Check for single selection
+        Map<Integer, List<Integer>> points = getSelectedPoints();
+        if (points.size() == 1) {
+            for (Map.Entry<Integer, List<Integer>> entry : points.entrySet()) {
+                if (entry.getValue().size() == 1) {
+                    this.presenter.onRemove();
+                    return;
+                }
+            }
+        }
         this.presenter.onAddPoint(fromScreen(new Point(e.x, e.y)));
     }
 

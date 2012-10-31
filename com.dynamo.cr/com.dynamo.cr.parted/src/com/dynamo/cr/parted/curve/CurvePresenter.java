@@ -243,6 +243,33 @@ public class CurvePresenter implements IPresenter {
         return points.toArray(new int[points.size()][]);
     }
 
+    /**
+     * NOTE this function only works for relatively small boxes
+     */
+    private int findClosestCurve(Point2d min, Point2d max) {
+        int closestIndex = -1;
+        double closestDistance = Double.MAX_VALUE;
+        for (int i = 0; i < this.input.length; ++i) {
+            HermiteSpline spline = getCurve(i);
+            Point2d p0 = new Point2d(min.getX(), spline.getY(min.getX()));
+            Vector2d dir = new Vector2d(max.getX(), spline.getY(max.getX()));
+            dir.sub(p0);
+            dir.normalize();
+            Vector2d hitDelta = new Vector2d(this.dragStart);
+            hitDelta.sub(p0);
+            hitDelta.scale(hitDelta.dot(dir), dir);
+            Point2d closestCurvePosition = new Point2d(hitDelta);
+            closestCurvePosition.add(p0);
+            if (hitPosition(this.dragStart, closestCurvePosition, this.hitBoxExtents)) {
+                double distance = closestCurvePosition.distance(this.dragStart);
+                if (distance < closestDistance) {
+                    closestIndex = i;
+                }
+            }
+        }
+        return closestIndex;
+    }
+
     private void select(int[][] points) {
         List<TreePath> selection = new ArrayList<TreePath>(points.length);
         for (int i = 0; i < points.length; ++i) {
@@ -252,8 +279,11 @@ public class CurvePresenter implements IPresenter {
             }
             selection.add(new TreePath(value));
         }
-        this.selection = new TreeSelection(selection.toArray(new TreePath[points.length]));
-        this.view.setSelection(this.selection);
+        TreeSelection treeSelection = new TreeSelection(selection.toArray(new TreePath[points.length]));
+        if (!treeSelection.equals(this.selection)) {
+            this.selection = treeSelection;
+            this.view.setSelection(this.selection);
+        }
     }
 
     private boolean hitPosition(Point2d position, Point2d hitPosition, Vector2d hitBoxExtents) {
@@ -397,7 +427,12 @@ public class CurvePresenter implements IPresenter {
             }
             startMoveSelection();
         } else {
-            select(new int[][] {});
+            int curveIndex = findClosestCurve(min, max);
+            if (curveIndex >= 0) {
+                select(new int[][] {{curveIndex}});
+            } else {
+                select(new int[][] {});
+            }
         }
         this.view.refresh();
     }
@@ -513,41 +548,6 @@ public class CurvePresenter implements IPresenter {
                 break;
             }
             this.originalSelection = null;
-        } else {
-            switch (this.dragMode) {
-            case SELECT:
-                // Click
-                if (this.selection.isEmpty()) {
-                    int closestIndex = -1;
-                    double closestDistance = Double.MAX_VALUE;
-                    for (int i = 0; i < this.input.length; ++i) {
-                        HermiteSpline spline = getCurve(i);
-                        Point2d min = new Point2d(this.dragStart);
-                        min.sub(this.hitBoxExtents);
-                        Point2d max = new Point2d(this.dragStart);
-                        max.add(this.hitBoxExtents);
-                        Point2d p0 = new Point2d(min.getX(), spline.getY(min.getX()));
-                        Vector2d dir = new Vector2d(max.getX(), spline.getY(max.getX()));
-                        dir.sub(p0);
-                        dir.normalize();
-                        Vector2d hitDelta = new Vector2d(this.dragStart);
-                        hitDelta.sub(p0);
-                        hitDelta.scale(hitDelta.dot(dir), dir);
-                        Point2d closestCurvePosition = new Point2d(hitDelta);
-                        closestCurvePosition.add(p0);
-                        if (hitPosition(this.dragStart, closestCurvePosition, this.hitBoxExtents)) {
-                            double distance = closestCurvePosition.distance(this.dragStart);
-                            if (distance < closestDistance) {
-                                closestIndex = i;
-                            }
-                        }
-                    }
-                    if (closestIndex >= 0) {
-                        select(new int[][] {{closestIndex}});
-                    }
-                }
-                break;
-            }
         }
         this.view.refresh();
     }

@@ -171,12 +171,24 @@ public class CurvePresenterTest {
     }
 
     @Test
-    public void testInsertPoint() {
+    public void testAddPoint() {
         selectCurve(0);
         Point2d p = new Point2d(0.5, 0.5);
         this.presenter.onAddPoint(p);
         verifyCommandDone(InsertPointOperation.class);
         verifySelection(new int[][] {{0, 1}});
+    }
+
+    @Test
+    public void testAddPointDoubleClick() {
+        // Simulate double click
+        Point2d p = new Point2d(0.1, 0.1);
+        this.presenter.onStartDrag(p, SCREEN_SCALE, SCREEN_DRAG_PADDING, SCREEN_HIT_PADDING, SCREEN_TANGENT_LENGTH);
+        this.presenter.onEndDrag();
+        this.presenter.onStartDrag(p, SCREEN_SCALE, SCREEN_DRAG_PADDING, SCREEN_HIT_PADDING, SCREEN_TANGENT_LENGTH);
+        verifySelection(new int[][] {{0}});
+        this.presenter.onAddPoint(p);
+        verifyCommandDone(InsertPointOperation.class);
     }
 
     @Test
@@ -200,6 +212,21 @@ public class CurvePresenterTest {
         this.presenter.onRemove();
         verifyCommandDone(RemovePointsOperation.class);
         verifySelection(new int[][] {{0, 0}, {0, 1}});
+    }
+
+    @Test
+    public void testRemovePointDoubleClick() {
+        selectCurve(0);
+        Point2d p = new Point2d(0.1, 0.1);
+        this.presenter.onAddPoint(p);
+        verifyCommandDone(InsertPointOperation.class);
+        // Simulate double click
+        this.presenter.onStartDrag(p, SCREEN_SCALE, SCREEN_DRAG_PADDING, SCREEN_HIT_PADDING, SCREEN_TANGENT_LENGTH);
+        this.presenter.onEndDrag();
+        this.presenter.onStartDrag(p, SCREEN_SCALE, SCREEN_DRAG_PADDING, SCREEN_HIT_PADDING, SCREEN_TANGENT_LENGTH);
+        verifySelection(new int[][] {{0, 1}});
+        this.presenter.onRemove();
+        verifyCommandDone(RemovePointsOperation.class);
     }
 
     @Test
@@ -356,8 +383,7 @@ public class CurvePresenterTest {
     @Test
     public void testSelectCurve() {
         this.presenter.onStartDrag(new Point2d(0.2, 0.2), SCREEN_SCALE, SCREEN_DRAG_PADDING, SCREEN_HIT_PADDING, SCREEN_TANGENT_LENGTH);
-        // Curves are only selected on mouse up
-        verifyNoSelection();
+        verifySelection(new int[][] {{0}});
         this.presenter.onEndDrag();
         verifySelection(new int[][] {{0}});
     }
