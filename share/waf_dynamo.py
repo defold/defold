@@ -1,4 +1,4 @@
-import os, sys, subprocess, shutil, re
+import os, sys, subprocess, shutil, re, stat
 import Build, Options, Utils, Task
 from Configure import conf
 from TaskGen import extension, taskgen, feature, after, before
@@ -399,6 +399,23 @@ def link_flags(self):
     if platform == 'linux':
         self.link_task.env.append_value('LINKFLAGS', ['-lpthread', '-lm'])
 
+def create_clang_wrapper(conf, exe):
+    clang_wrapper_path = os.path.join(conf.env['DYNAMO_HOME'], 'bin', '%s-wrapper.sh' % exe)
+
+    s = '#!/bin/sh\n'
+    s += "%s $@\n" % os.path.join(IOS_TOOLCHAIN_ROOT, 'usr/bin/%s' % exe)
+    if os.path.exists(clang_wrapper_path):
+        # Keep existing script if equal
+        # The cache in ccache consistency control relies on the timestamp
+        with open(clang_wrapper_path, 'rb') as f:
+            if f.read() == s:
+                return clang_wrapper_path
+
+    with open(clang_wrapper_path, 'wb') as f:
+        f.write(s)
+    os.chmod(clang_wrapper_path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
+    return clang_wrapper_path
+
 def detect(conf):
     conf.find_program('valgrind', var='VALGRIND', mandatory = False)
     conf.find_program('ccache', var='CCACHE', mandatory = False)
@@ -435,10 +452,19 @@ def detect(conf):
     conf.env['BUILD_PLATFORM'] = build_platform
 
     if platform == "armv7-darwin":
+        # Wrap clang in a bash-script due to a bug in clang related to cwd
+        # waf change directory from ROOT to ROOT/build when building.
+        # clang "thinks" however that cwd is ROOT instead of ROOT/build
+        # This bug is at least prevalent in "Apple clang version 3.0 (tags/Apple/clang-211.12) (based on LLVM 3.0svn)"
+
+        # NOTE: If we are to use clang for OSX-builds the wrapper script must be qualifed, e.g. clang-ios.sh or similar
+        clang_wrapper = create_clang_wrapper(conf, 'clang')
+        clangxx_wrapper = create_clang_wrapper(conf, 'clang++')
+
         conf.env['GCC-OBJCXX'] = '-xobjective-c++'
         conf.env['GCC-OBJCLINK'] = '-lobjc'
-        conf.env['CC'] = '%s/usr/bin/clang' % (IOS_TOOLCHAIN_ROOT)
-        conf.env['CXX'] = '%s/usr/bin/clang++' % (IOS_TOOLCHAIN_ROOT)
+        conf.env['CC'] = clang_wrapper
+        conf.env['CXX'] = clangxx_wrapper
         conf.env['LINK_CXX'] = '%s/usr/bin/clang++' % (IOS_TOOLCHAIN_ROOT)
         conf.env['CPP'] = '%s/usr/bin/clang -E' % (IOS_TOOLCHAIN_ROOT)
         conf.env['AR'] = '%s/usr/bin/ar' % (IOS_TOOLCHAIN_ROOT)

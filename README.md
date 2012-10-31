@@ -10,7 +10,7 @@ Tagging
 New tag
 
     # git tag -a MAJOR.MINOR [SHA1]
-    SHA1 is optional 
+    SHA1 is optional
 
 Push tags
 
@@ -30,7 +30,13 @@ Folder Structure
 
 **scripts** - Build and utility scripts
 
-**share** - Misc shared stuff used by other tools. Waf build-scripts, valgrind suppression files, etc. 
+**share** - Misc shared stuff used by other tools. Waf build-scripts, valgrind suppression files, etc.
 
+iOS Debugging
+-------------
 
+* Create a new empty project
+* Project>Edit Scheme...
+* Select app-bundle
+* Make sure that debugger is lldb. Otherwise debuginfo is not found for static libraries when compiled with clang for unknown reason
 
