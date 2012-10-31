@@ -17,7 +17,7 @@ public class PropertyDesc<T, U extends IPropertyObjectWorld> implements IPropert
         this.name = name;
 
         if (category == null) {
-            throw new IllegalArgumentException("Category must not be null");
+            throw new IllegalArgumentException(String.format("Category must not be null (id: '%s')", id));
         }
 
         this.category = category;

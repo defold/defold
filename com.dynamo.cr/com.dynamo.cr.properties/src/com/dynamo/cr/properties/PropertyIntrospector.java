@@ -137,7 +137,7 @@ public class PropertyIntrospector<T, U extends IPropertyObjectWorld> {
                     } else if (ProtocolMessageEnum.class.isAssignableFrom(field.getType())) {
                         descriptor = new ProtoEnumDesc<T, U>((Class<? extends ProtocolMessageEnum>) field.getType(), propertyId, propertyDisplayName, category);
                     } else {
-                        descriptor = new PropertyDesc<T, U>(propertyId, propertyDisplayName, null);
+                        descriptor = new PropertyDesc<T, U>(propertyId, propertyDisplayName, category);
                     }
 
                     descriptors.add(descriptor);

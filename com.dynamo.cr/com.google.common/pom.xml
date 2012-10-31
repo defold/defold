@@ -12,7 +12,7 @@
 
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.dynamo.cr</groupId>
-    <artifactId>com.google.commons</artifactId>
+    <artifactId>com.google.common</artifactId>
     <version>0.0.9-SNAPSHOT</version>
     <packaging>eclipse-plugin</packaging>
 </project>
