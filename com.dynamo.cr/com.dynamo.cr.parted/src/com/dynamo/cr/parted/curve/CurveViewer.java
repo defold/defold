@@ -114,10 +114,12 @@ public class CurveViewer extends Canvas implements PaintListener,
 
     public void setSelection(ISelection selection) {
         this.selection = selection;
+        redraw();
     }
 
     public void setSelectionBox(Point2d min, Point2d max) {
         this.selectionBox = toScreenRect(min, max);
+        redraw();
     }
 
     public void setContentProvider(IStructuredContentProvider contentProvider) {
@@ -483,13 +485,16 @@ public class CurveViewer extends Canvas implements PaintListener,
     public void mouseDown(MouseEvent e) {
         cameraMovement = CameraUtil.getMovement(e);
         if (cameraMovement == Movement.IDLE) {
+            Point2d position = fromScreen(new Point(e.x, e.y));
+            Vector2d screenScale = new Vector2d(getPlotWidth(), -zoomY);
             if (SceneUtil.showContextMenu(e)) {
+                this.presenter.onPickSelect(position, screenScale, SCREEN_HIT_PADDING);
                 this.contextMenu.setVisible(true);
             } else if (e.button == 1) {
                 this.dragging = true;
                 this.presenter.onStartDrag(
-                        fromScreen(new Point(e.x, e.y)),
-                        new Vector2d(getPlotWidth(), -zoomY),
+                        position,
+                        screenScale,
                         SCREEN_DRAG_PADDING,
                         SCREEN_HIT_PADDING,
                         SCREEN_TANGENT_LENGTH);

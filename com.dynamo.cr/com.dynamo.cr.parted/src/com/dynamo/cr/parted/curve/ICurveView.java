@@ -16,6 +16,7 @@ public interface ICurveView {
 
         void onSelectAll();
         void onDeselectAll();
+        void onPickSelect(Point2d start, Vector2d screenScale, double screenHitPadding);
     }
 
     void setInput(Object input);

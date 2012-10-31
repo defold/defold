@@ -458,4 +458,38 @@ public class CurvePresenterTest {
         verifySelection(new int[][] {{0, 0}});
     }
 
+    @Test
+    public void testPickRetainSelectionPoint() {
+        selectCurveAllPoints(0);
+        this.presenter.onPickSelect(new Point2d(0.0, 0.0), SCREEN_SCALE, SCREEN_HIT_PADDING);
+        verifySelection(new int[][] {{0, 0}, {0, 1}});
+    }
+
+    @Test
+    public void testPickRetainSelectionCurve() {
+        selectCurveAllPoints(0);
+        this.presenter.onPickSelect(new Point2d(0.5, 0.5), SCREEN_SCALE, SCREEN_HIT_PADDING);
+        verifySelection(new int[][] {{0, 0}, {0, 1}});
+    }
+
+    @Test
+    public void testPickRetainSelectionEmpty() {
+        selectCurveAllPoints(0);
+        this.presenter.onPickSelect(new Point2d(0.0, 0.5), SCREEN_SCALE, SCREEN_HIT_PADDING);
+        verifySelection(new int[][] {{0, 0}, {0, 1}});
+    }
+
+    @Test
+    public void testPickPoint() {
+        select(new int[][] {{0, 1}});
+        this.presenter.onPickSelect(new Point2d(0.0, 0.0), SCREEN_SCALE, SCREEN_HIT_PADDING);
+        verifySelection(new int[][] {{0, 0}});
+    }
+
+    @Test
+    public void testPickCurve() {
+        selectCurveAllPoints(1);
+        this.presenter.onPickSelect(new Point2d(0.2, 0.2), SCREEN_SCALE, SCREEN_HIT_PADDING);
+        verifySelection(new int[][] {{0}});
+    }
 }

@@ -621,4 +621,50 @@ public class CurvePresenter implements IPresenter {
         setSelection(select(new int[][] {}));
     }
 
+    private int[] getClosestPoint(Point2d position, int[][] points) {
+        double minDistance = Double.MAX_VALUE;
+        int minIndex = -1;
+        for (int i = 0; i < points.length; ++i) {
+            HermiteSpline spline = getCurve(points[i][0]);
+            SplinePoint point = spline.getPoint(points[i][1]);
+            Point2d p = new Point2d(point.getX(), point.getY());
+            double distance = position.distanceSquared(p);
+            if (distance < minDistance) {
+                minDistance = distance;
+                minIndex = i;
+            }
+        }
+        if (minIndex >= 0) {
+            return points[minIndex];
+        } else {
+            return null;
+        }
+    }
+
+    @Override
+    public void onPickSelect(Point2d start, Vector2d screenScale, double screenHitPadding) {
+        Vector2d hitBoxExtents = new Vector2d(1.0 / screenScale.getX(), 1.0 / screenScale.getY());
+        hitBoxExtents.absolute();
+        hitBoxExtents.scale(screenHitPadding);
+
+        Point2d min = new Point2d(hitBoxExtents);
+        min.negate();
+        min.add(start);
+        Point2d max = new Point2d(hitBoxExtents);
+        max.add(start);
+        Map<Integer, List<Integer>> selection = getPointsMapFromSelection();
+        int[][] points = findPoints(min, max);
+        if (points.length > 0) {
+            int[] closest = getClosestPoint(start, points);
+            List<Integer> selectedPoints = selection.get(closest[0]);
+            if (selectedPoints == null || !selectedPoints.contains(closest[1])) {
+                setSelection(select(new int[][] {closest}));
+            }
+        } else {
+            int curveIndex = findClosestCurve(min, max);
+            if (curveIndex >= 0 && !selection.containsKey(curveIndex)) {
+                setSelection(select(new int[][] {{curveIndex}}));
+            }
+        }
+    }
 }
