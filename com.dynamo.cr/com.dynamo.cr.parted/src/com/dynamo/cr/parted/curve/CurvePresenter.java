@@ -12,14 +12,18 @@ import javax.vecmath.Point2d;
 import javax.vecmath.Vector2d;
 
 import org.eclipse.core.commands.ExecutionException;
+import org.eclipse.core.commands.common.EventManager;
 import org.eclipse.core.commands.operations.IOperationHistory;
 import org.eclipse.core.commands.operations.IUndoContext;
 import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.viewers.ISelection;
+import org.eclipse.jface.viewers.ISelectionChangedListener;
+import org.eclipse.jface.viewers.ISelectionProvider;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.ITreeSelection;
+import org.eclipse.jface.viewers.SelectionChangedEvent;
 import org.eclipse.jface.viewers.TreePath;
 import org.eclipse.jface.viewers.TreeSelection;
 
@@ -38,7 +42,7 @@ import com.dynamo.cr.properties.types.ValueSpread;
 import com.dynamo.cr.sceneed.core.Node;
 import com.google.inject.Inject;
 
-public class CurvePresenter implements IPresenter {
+public class CurvePresenter extends EventManager implements IPresenter, ISelectionProvider {
 
     private static final double MAX_COS_TANGENT_ANGLE = Math.cos(0.2 / 180.0 * Math.PI);
 
@@ -75,14 +79,17 @@ public class CurvePresenter implements IPresenter {
         updateInput();
     }
 
+    @Override
     public ISelection getSelection() {
         return this.selection;
     }
 
+    @Override
     public void setSelection(ISelection selection) {
         if (!selection.equals(this.selection)) {
             this.selection = selection;
             this.view.setSelection(this.selection);
+            fireSelectionChanged(new SelectionChangedEvent(this, selection));
         }
     }
 
@@ -666,5 +673,56 @@ public class CurvePresenter implements IPresenter {
                 setSelection(select(new int[][] {{curveIndex}}));
             }
         }
+    }
+
+    @Override
+    public void addSelectionChangedListener(ISelectionChangedListener listener) {
+        addListenerObject(listener);
+    }
+
+    @Override
+    public void removeSelectionChangedListener(ISelectionChangedListener listener) {
+        removeListenerObject(listener);
+    }
+
+    private void fireSelectionChanged(SelectionChangedEvent event) {
+        Object[] listeners = getListeners();
+        for (Object listener : listeners) {
+            if (listener instanceof ISelectionChangedListener) {
+                ((ISelectionChangedListener)listener).selectionChanged(event);
+            }
+        }
+    }
+
+    // TODO
+    // These two methods are used by the add/remove point handlers
+    // They could be implemented using core expressions, ISourceProvider and IEvaluationService#requestReeval instead
+
+    public boolean hasRemovablePoints() {
+        Map<Integer, List<Integer>> selection = getPointsMapFromSelection();
+        for (Map.Entry<Integer, List<Integer>> entry : selection.entrySet()) {
+            HermiteSpline spline = getCurve(entry.getKey());
+            for (int i : entry.getValue()) {
+                if (0 < i && i < spline.getCount() - 1) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    public boolean hasSingleSelectedCurve() {
+        ITreeSelection treeSelection = (ITreeSelection)this.selection;
+        int curveIndex = -1;
+        for (TreePath path : treeSelection.getPaths()) {
+            if (path.getSegmentCount() > 0) {
+                if (curveIndex < 0) {
+                    curveIndex = (Integer)path.getSegment(0);
+                } else if (curveIndex != (Integer)path.getSegment(0)) {
+                    return false;
+                }
+            }
+        }
+        return curveIndex >= 0;
     }
 }

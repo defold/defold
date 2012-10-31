@@ -2,8 +2,10 @@ package com.dynamo.cr.parted.views;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import javax.vecmath.Point2d;
@@ -54,11 +56,13 @@ import org.eclipse.ui.IWorkbenchActionConstants;
 import org.eclipse.ui.IWorkbenchPart;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.actions.ActionFactory;
+import org.eclipse.ui.commands.ICommandService;
 import org.eclipse.ui.operations.RedoActionHandler;
 import org.eclipse.ui.operations.UndoActionHandler;
 import org.eclipse.ui.part.EditorPart;
 import org.eclipse.ui.part.IPageBookViewPage;
 import org.eclipse.ui.part.IPageSite;
+import org.eclipse.ui.services.IServiceScopes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -70,6 +74,8 @@ import com.dynamo.cr.parted.curve.CurveViewer;
 import com.dynamo.cr.parted.curve.HermiteSpline;
 import com.dynamo.cr.parted.curve.ICurveProvider;
 import com.dynamo.cr.parted.curve.ICurveView;
+import com.dynamo.cr.parted.handlers.AddPointHandler;
+import com.dynamo.cr.parted.handlers.DeletePointsHandler;
 import com.dynamo.cr.properties.IPropertyDesc;
 import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.properties.IPropertyObjectWorld;
@@ -270,7 +276,7 @@ public class ParticleFXCurveEditorPage implements ICurveView, IPageBookViewPage,
         menuManager.add(new Separator(IWorkbenchActionConstants.MB_ADDITIONS));
         final Menu menu = menuManager.createContextMenu(curveEditor);
         curveEditor.setContextMenu(menu);
-        getSite().registerContextMenu(MENU_ID, menuManager, curveEditor);
+        getSite().registerContextMenu(MENU_ID, menuManager, this.presenter);
         curveEditor.addControlListener(new ControlListener() {
 
             @Override
@@ -423,6 +429,7 @@ public class ParticleFXCurveEditorPage implements ICurveView, IPageBookViewPage,
         this.curveEditor.redraw();
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public void setSelection(ISelection selection) {
         this.curveEditor.setSelection(selection);
@@ -439,6 +446,13 @@ public class ParticleFXCurveEditorPage implements ICurveView, IPageBookViewPage,
             this.list.setSelection(new StructuredSelection(curves.toArray()));
             this.settingListSelection = false;
         }
+        // Update commands
+        ICommandService commandService = (ICommandService) getSite().getService(ICommandService.class);
+        @SuppressWarnings("rawtypes")
+        Map filter = new HashMap();
+        filter.put(IServiceScopes.WINDOW_SCOPE, getSite().getWorkbenchWindow());
+        commandService.refreshElements(AddPointHandler.COMMAND_ID, filter);
+        commandService.refreshElements(DeletePointsHandler.COMMAND_ID, filter);
     }
 
     @Override
