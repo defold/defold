@@ -24,6 +24,8 @@ public class ParticleEditorPlugin extends AbstractDefoldPlugin {
 
     public static final String PARTED_CONTEXT_ID = "com.dynamo.cr.parted.contexts.partEditor";
 
+    public static final String CURVE_EDITOR_VIEW_ID = "com.dynamo.cr.parted.curveEditorView";
+
 	// The shared instance
 	private static ParticleEditorPlugin plugin;
 
