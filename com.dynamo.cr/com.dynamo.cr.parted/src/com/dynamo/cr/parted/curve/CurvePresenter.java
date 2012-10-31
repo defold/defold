@@ -76,7 +76,10 @@ public class CurvePresenter implements IPresenter {
     }
 
     public void setSelection(ISelection selection) {
-        this.selection = selection;
+        if (!selection.equals(this.selection)) {
+            this.selection = selection;
+            this.view.setSelection(this.selection);
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -153,15 +156,14 @@ public class CurvePresenter implements IPresenter {
                 ITreeSelection tree = (ITreeSelection)selection;
                 for (TreePath path : tree.getPaths()) {
                     int curveIndex = (Integer)path.getSegment(0);
+                    List<Integer> list = points.get(curveIndex);
+                    if (list == null) {
+                        list = new ArrayList<Integer>();
+                        points.put(curveIndex, list);
+                    }
                     if (path.getSegmentCount() > 1) {
                         int pointIndex = (Integer)path.getSegment(1);
-                        if (points.containsKey(curveIndex)) {
-                            points.get(curveIndex).add(pointIndex);
-                        } else {
-                            List<Integer> list = new ArrayList<Integer>();
-                            list.add(pointIndex);
-                            points.put(curveIndex, list);
-                        }
+                        points.get(curveIndex).add(pointIndex);
                     }
                 }
                 // Sort point indices
@@ -270,7 +272,7 @@ public class CurvePresenter implements IPresenter {
         return closestIndex;
     }
 
-    private void select(int[][] points) {
+    private TreeSelection select(int[][] points) {
         List<TreePath> selection = new ArrayList<TreePath>(points.length);
         for (int i = 0; i < points.length; ++i) {
             Integer[] value = new Integer[points[i].length];
@@ -279,11 +281,7 @@ public class CurvePresenter implements IPresenter {
             }
             selection.add(new TreePath(value));
         }
-        TreeSelection treeSelection = new TreeSelection(selection.toArray(new TreePath[points.length]));
-        if (!treeSelection.equals(this.selection)) {
-            this.selection = treeSelection;
-            this.view.setSelection(this.selection);
-        }
+        return new TreeSelection(selection.toArray(new TreePath[points.length]));
     }
 
     private boolean hitPosition(Point2d position, Point2d hitPosition, Vector2d hitBoxExtents) {
@@ -325,14 +323,15 @@ public class CurvePresenter implements IPresenter {
             HermiteSpline spline = getCurve(index);
             double x = p.x;
             spline = spline.insertPoint(p.x, p.y);
-            execute(new InsertPointOperation(setCurve(index, spline)));
             int pointCount = spline.getCount();
+            ISelection newSelection = new TreeSelection();
             for (int i = 0; i < pointCount; ++i) {
                 if (spline.getPoint(i).getX() == x) {
-                    select(new int[][] {{index, i}});
+                    newSelection = select(new int[][] {{index, i}});
                     break;
                 }
             }
+            execute(new InsertPointOperation(setCurve(index, spline), this.selection, newSelection, this));
         }
     }
 
@@ -361,8 +360,18 @@ public class CurvePresenter implements IPresenter {
                 }
                 curves.put(curveIndex, spline);
             }
-            execute(new RemovePointsOperation(setCurves(curves, true)));
-            select(newSelectedPoints.toArray(new int[newSelectedPoints.size()][]));
+            int[][] selection = null;
+            if (!newSelectedPoints.isEmpty()) {
+                selection = newSelectedPoints.toArray(new int[newSelectedPoints.size()][]);
+            } else {
+                Integer[] selectedCurves = selectedPoints.keySet().toArray(new Integer[selectedPoints.size()]);
+                selection = new int[selectedCurves.length][];
+                for (int i = 0; i < selectedCurves.length; ++i) {
+                    selection[i] = new int[] {selectedCurves[i]};
+                }
+            }
+            ISelection newSelection = select(selection);
+            execute(new RemovePointsOperation(setCurves(curves, true), this.selection, newSelection, this));
         }
     }
 
@@ -419,19 +428,19 @@ public class CurvePresenter implements IPresenter {
             if (curveIndex >= 0) {
                 for (int i = 0; i < points.length; ++i) {
                     if (points[i][0] == curveIndex) {
-                        select(new int[][] {points[i]});
+                        setSelection(select(new int[][] {points[i]}));
                     }
                 }
             } else {
-                select(points);
+                setSelection(select(points));
             }
             startMoveSelection();
         } else {
             int curveIndex = findClosestCurve(min, max);
             if (curveIndex >= 0) {
-                select(new int[][] {{curveIndex}});
+                setSelection(select(new int[][] {{curveIndex}}));
             } else {
-                select(new int[][] {});
+                setSelection(select(new int[][] {}));
             }
         }
         this.view.refresh();
@@ -509,7 +518,7 @@ public class CurvePresenter implements IPresenter {
                 min.sub(this.hitBoxExtents);
                 max.add(this.hitBoxExtents);
                 int[][] points = findPoints(min, max);
-                select(points);
+                setSelection(select(points));
                 break;
             }
             this.view.refresh();
@@ -563,12 +572,12 @@ public class CurvePresenter implements IPresenter {
                 points.add(new int[] {i, j});
             }
         }
-        select(points.toArray(new int[points.size()][]));
+        setSelection(select(points.toArray(new int[points.size()][])));
     }
 
     @Override
     public void onDeselectAll() {
-        select(new int[][] {});
+        setSelection(select(new int[][] {}));
     }
 
 }

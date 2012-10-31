@@ -12,6 +12,7 @@ import java.util.List;
 import javax.vecmath.Point2d;
 import javax.vecmath.Vector2d;
 
+import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.DefaultOperationHistory;
 import org.eclipse.core.commands.operations.IOperationHistory;
 import org.eclipse.core.commands.operations.IOperationHistoryListener;
@@ -170,13 +171,19 @@ public class CurvePresenterTest {
         verifySelection(new int[][] {});
     }
 
+    private void undo() throws ExecutionException {
+        this.history.undo(this.undoContext, null, null);
+    }
+
     @Test
-    public void testAddPoint() {
+    public void testAddPoint() throws ExecutionException {
         selectCurve(0);
         Point2d p = new Point2d(0.5, 0.5);
         this.presenter.onAddPoint(p);
         verifyCommandDone(InsertPointOperation.class);
         verifySelection(new int[][] {{0, 1}});
+        undo();
+        verifySelection(new int[][] {{0}});
     }
 
     @Test
@@ -192,14 +199,16 @@ public class CurvePresenterTest {
     }
 
     @Test
-    public void testRemoveAddedPoint() {
+    public void testRemoveAddedPoint() throws ExecutionException {
         selectCurve(0);
         Point2d p = new Point2d(0.5, 0.5);
         this.presenter.onAddPoint(p);
         verifyCommandDone(InsertPointOperation.class);
         this.presenter.onRemove();
         verifyCommandDone(RemovePointsOperation.class);
-        verifySelection(new int[][] {});
+        verifySelection(new int[][] {{0}});
+        undo();
+        verifySelection(new int[][] {{0, 1}});
     }
 
     @Test
@@ -227,6 +236,7 @@ public class CurvePresenterTest {
         verifySelection(new int[][] {{0, 1}});
         this.presenter.onRemove();
         verifyCommandDone(RemovePointsOperation.class);
+        verifySelection(new int[][] {{0}});
     }
 
     @Test
