@@ -237,7 +237,9 @@ public class CurvePresenter implements IPresenter {
     }
 
     /**
-     * NOTE this function only works for relatively small boxes
+     * NOTE!
+     * This function only works for relatively small boxes.
+     * It approximates a part of the curve (intersection with min/max x) by a straight line and test for intersections against that.
      */
     private int findClosestCurve(Point2d min, Point2d max) {
         int closestIndex = -1;
@@ -245,20 +247,31 @@ public class CurvePresenter implements IPresenter {
         for (int i = 0; i < this.input.length; ++i) {
             HermiteSpline spline = getCurve(i);
             Point2d p0 = new Point2d(min.getX(), spline.getY(min.getX()));
-            Vector2d delta = new Vector2d(max.getX(), spline.getY(max.getX()));
-            delta.sub(p0);
-            Vector2d dir = new Vector2d(delta);
-            dir.normalize();
-            Vector2d hitDelta = new Vector2d(this.dragStart);
-            hitDelta.sub(p0);
-            double t = hitDelta.dot(dir);
-            t = Math.max(0.0, Math.min(t, delta.length()));
-            hitDelta.scale(t, dir);
-            Point2d closestCurvePosition = new Point2d(hitDelta);
-            closestCurvePosition.add(p0);
-            if (hitPosition(this.dragStart, closestCurvePosition, this.hitBoxExtents)) {
-                double distance = closestCurvePosition.distance(this.dragStart);
+            Point2d p1 = new Point2d(max.getX(), spline.getY(max.getX()));
+            // We now have three cases:
+            // * p0.y > max.y: hit iff p1.y < max.y
+            // * p0.y < min.y: hit iff p1.y > min.y
+            // * otherwise: hit!
+            boolean hit = false;
+            if (p0.getY() > max.getY()) {
+                hit = p1.getY() < max.getY();
+            } else if (p0.getY() < min.getY()) {
+                hit = p1.getY() > min.getY();
+            } else {
+                hit = true;
+            }
+            if (hit) {
+                // Project position against p0 -> p1 to find min distance
+                Vector2d dir = new Vector2d(p1);
+                dir.sub(p0);
+                dir.normalize();
+                Vector2d closestPosition = new Vector2d(this.dragStart);
+                closestPosition.sub(p0);
+                double t = closestPosition.dot(dir);
+                closestPosition.scaleAdd(t, dir, p0);
+                double distance = this.dragStart.distanceSquared(new Point2d(closestPosition));
                 if (distance < closestDistance) {
+                    closestDistance = distance;
                     closestIndex = i;
                 }
             }
