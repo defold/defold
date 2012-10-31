@@ -13,6 +13,8 @@ import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.jface.preference.IPreferenceStore;
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.events.MouseEvent;
 
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.sceneed.Activator;
@@ -65,5 +67,17 @@ public class SceneUtil {
             }
         }
         return image;
+    }
+
+    public static boolean showContextMenu(MouseEvent event) {
+        switch (getMouseType()) {
+        case ONE_BUTTON:
+            // TODO One button currently fallback to three button: https://defold.fogbugz.com/default.asp?1718
+            // Reason is that the line below conflicts with the camera movement (dolly on one-button)
+            // return event.button == 1 && (event.stateMask & SWT.CTRL) != 0;
+        case THREE_BUTTON:
+            return event.button == 3 && (event.stateMask & SWT.MODIFIER_MASK) == 0;
+        }
+        return false;
     }
 }

@@ -231,6 +231,10 @@
             allPopups="false"
             locationURI="popup:com.dynamo.cr.parted.menus.curveEditor">
          <command
+               commandId="com.dynamo.cr.sceneed.ui.commands.add"
+               style="push">
+         </command>
+         <command
                commandId="org.eclipse.ui.edit.delete"
                style="push">
          </command>
@@ -300,6 +304,15 @@
       <handler
             class="com.dynamo.cr.parted.handlers.DeletePointsHandler"
             commandId="org.eclipse.ui.edit.delete">
+         <activeWhen>
+            <reference
+                  definitionId="com.dynamo.cr.parted.definitions.particleEditorActive">
+            </reference>
+         </activeWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.parted.handlers.AddPointHandler"
+            commandId="com.dynamo.cr.sceneed.ui.commands.add">
          <activeWhen>
             <reference
                   definitionId="com.dynamo.cr.parted.definitions.particleEditorActive">

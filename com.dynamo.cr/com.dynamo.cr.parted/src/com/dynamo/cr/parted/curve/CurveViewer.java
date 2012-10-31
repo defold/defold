@@ -32,8 +32,10 @@ import org.eclipse.swt.graphics.RGB;
 import org.eclipse.swt.graphics.Rectangle;
 import org.eclipse.swt.widgets.Canvas;
 import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Menu;
 
 import com.dynamo.cr.parted.curve.ICurveView.IPresenter;
+import com.dynamo.cr.sceneed.core.SceneUtil;
 import com.dynamo.cr.sceneed.core.util.CameraUtil;
 import com.dynamo.cr.sceneed.core.util.CameraUtil.Movement;
 import com.dynamo.cr.sceneed.ui.RenderUtil;
@@ -74,6 +76,7 @@ public class CurveViewer extends Canvas implements PaintListener,
     private Movement cameraMovement = Movement.IDLE;
     private boolean dragging = false;
     private Font font;
+    private Menu contextMenu;
 
     private IStructuredContentProvider contentProvider;
     private ICurveProvider provider;
@@ -103,6 +106,7 @@ public class CurveViewer extends Canvas implements PaintListener,
         initColors();
 
         setBackground(getColor(BACKGROUND_COLOR_KEY));
+
     }
 
     public void setInput(Object input) {
@@ -133,10 +137,18 @@ public class CurveViewer extends Canvas implements PaintListener,
         this.presenter = presenter;
     }
 
+    public void setContextMenu(Menu contextMenu) {
+        this.contextMenu = contextMenu;
+    }
+
     private void putColor(String key, RGB rgb) {
         if (colorsRegistry.get(key) == null) {
             colorsRegistry.put(key, rgb);
         }
+    }
+
+    public void addPoint(Point position) {
+        this.presenter.onAddPoint(fromScreen(position));
     }
 
     private void initColors() {
@@ -461,7 +473,9 @@ public class CurveViewer extends Canvas implements PaintListener,
     public void mouseDown(MouseEvent e) {
         cameraMovement = CameraUtil.getMovement(e);
         if (cameraMovement == Movement.IDLE) {
-            if (e.button == 1) {
+            if (SceneUtil.showContextMenu(e)) {
+                this.contextMenu.setVisible(true);
+            } else if (e.button == 1) {
                 this.dragging = true;
                 this.presenter.onStartDrag(
                         fromScreen(new Point(e.x, e.y)),

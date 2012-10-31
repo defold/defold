@@ -228,6 +228,10 @@ public class ParticleFXCurveEditorPage implements ICurveView, IPageBookViewPage,
         return this.presenter;
     }
 
+    public CurveViewer getCurveViewer() {
+        return this.curveEditor;
+    }
+
     @Override
     public void createControl(Composite parent) {
 
@@ -264,8 +268,8 @@ public class ParticleFXCurveEditorPage implements ICurveView, IPageBookViewPage,
         // Pop-up context menu
         MenuManager menuManager = new MenuManager();
         menuManager.add(new Separator(IWorkbenchActionConstants.MB_ADDITIONS));
-        Menu menu = menuManager.createContextMenu(curveEditor);
-        curveEditor.setMenu(menu);
+        final Menu menu = menuManager.createContextMenu(curveEditor);
+        curveEditor.setContextMenu(menu);
         getSite().registerContextMenu(MENU_ID, menuManager, curveEditor);
         curveEditor.addControlListener(new ControlListener() {
 
