@@ -63,6 +63,11 @@ namespace dmHID
 
     void Update(HContext context)
     {
+        // NOTE: GLFW_AUTO_POLL_EVENTS might be enabled but an application shouldn't have rely on
+        // running glfwSwapBuffers for event queue polling
+        // Accessing OpenGL isn't permitted on iOS when the application is transitioning to resumed mode either
+        glfwPollEvents();
+
         // Update keyboard
         if (!context->m_IgnoreKeyboard)
         {

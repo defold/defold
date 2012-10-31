@@ -626,6 +626,15 @@ bail:
 
         while (engine->m_Alive)
         {
+            if (dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
+            {
+                // NOTE: Polling the event queue is crucial on iOS for life-cycle management
+                // NOTE: Also running graphics on iOS while transitioning is not permitted and will crash the application
+                dmHID::Update(engine->m_HidContext);
+                dmTime::Sleep(1000 * 100);
+                continue;
+            }
+
             dmProfile::HProfile profile = dmProfile::Begin();
             {
                 DM_PROFILE(Engine, "Frame");

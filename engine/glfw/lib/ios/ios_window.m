@@ -358,6 +358,10 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 - (void)applicationWillResignActive:(UIApplication *)application
 {
     // We should pause the update loop when this message is sent
+    _glfwWin.iconified = GL_TRUE;
+
+    // According to Apple glFinish() should be called here
+    glFinish();
 }
 
 - (void)applicationDidEnterBackground:(UIApplication *)application
@@ -370,6 +374,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 - (void)applicationDidBecomeActive:(UIApplication *)application
 {
+    _glfwWin.iconified = GL_FALSE;
 }
 
 - (void)applicationWillTerminate:(UIApplication *)application
