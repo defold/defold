@@ -56,7 +56,6 @@ public class CurveViewer extends Canvas implements PaintListener,
     public static final String TANGENT_COLOR_KEY = "com.dynamo.cr.parted.curve.TANGENT_COLOR";
     public static final String CONTROL_COLOR_KEY = "com.dynamo.cr.parted.curve.CONTROL_COLOR";
     public static final String SPLINE_COLOR_KEY = "com.dynamo.cr.parted.curve.SPLINE_COLOR";
-    public static final String SELECTION_COLOR_KEY = "com.dynamo.cr.parted.curve.SELECTION_COLOR";
     public static final String SELECTION_BOX_COLOR_KEY = "com.dynamo.cr.parted.curve.SELECTION_BOX_COLOR";
 
     private static final int SCREEN_DRAG_PADDING = 2;
@@ -159,7 +158,6 @@ public class CurveViewer extends Canvas implements PaintListener,
         putColor(TANGENT_COLOR_KEY, new RGB(0, 0x88, 0xcc));
         putColor(CONTROL_COLOR_KEY, new RGB(0xff, 0x24, 0x1e));
         putColor(SPLINE_COLOR_KEY, new RGB(0xcc, 0x00, 0x2f));
-        putColor(SELECTION_COLOR_KEY, new RGB(0xff, 0xff, 0x00));
         float[] selectionColor = RenderUtil.parseColor(PreferenceConstants.P_SELECTION_COLOR);
         putColor(SELECTION_BOX_COLOR_KEY, new RGB((int)(selectionColor[0] * 255.0f), (int)(selectionColor[1] * 255.0f), (int)(selectionColor[2] * 255.0f)));
     }
@@ -306,13 +304,18 @@ public class CurveViewer extends Canvas implements PaintListener,
         }
     }
 
-    private void drawSpline(GC gc, HermiteSpline spline, Color splineColor, List<Integer> selectedPoints, int selectedCurveCount) {
+    private void drawSpline(GC gc, HermiteSpline spline, Color splineColor, List<Integer> selectedPoints) {
         int segCount = spline.getSegmentCount();
+        boolean selectedCurve = selectedPoints != null;
         double[] value = new double[2];
         double[] prevValue = new double[2];
         gc.setForeground(splineColor);
-        int selectedPointCount = selectedPoints != null ? selectedPoints.size() : 0;
 
+        if (selectedCurve) {
+            gc.setAlpha(255);
+        } else {
+            gc.setAlpha(150);
+        }
         int[] points = new int[SUB_DIVISIONS * 2];
         for (int s = 0; s < segCount; s++) {
             spline.getValue(s, 0, prevValue);
@@ -337,7 +340,8 @@ public class CurveViewer extends Canvas implements PaintListener,
 
             int x = (int) toScreenX(p.getX());
             int y = (int) toScreenY(p.getY());
-            if (selectedCurveCount == 1 && selectedPointCount == 1 && selected) {
+            // Draw tangent
+            if (selectedCurve) {
                 Vector2d screenTangent = new Vector2d(p.getTx() * getPlotWidth(), p.getTy() * -zoomY);
                 screenTangent.normalize();
                 screenTangent.scale(SCREEN_TANGENT_LENGTH);
@@ -359,16 +363,19 @@ public class CurveViewer extends Canvas implements PaintListener,
                         / 2, TANGENT_CONTROL_SIZE, TANGENT_CONTROL_SIZE);
             }
 
+            // Draw control point
+            gc.setForeground(getColor(CONTROL_COLOR_KEY));
             if (selected) {
-                gc.setForeground(getColor(SELECTION_COLOR_KEY));
+                gc.setBackground(getColor(CONTROL_COLOR_KEY));
             } else {
-                gc.setForeground(getColor(CONTROL_COLOR_KEY));
+                gc.setBackground(getColor(BACKGROUND_COLOR_KEY));
             }
-            gc.setBackground(getColor(BACKGROUND_COLOR_KEY));
             gc.fillOval(x - CONTROL_SIZE / 2, y - CONTROL_SIZE / 2, CONTROL_SIZE,
                     CONTROL_SIZE);
-            gc.drawOval(x - CONTROL_SIZE / 2, y - CONTROL_SIZE / 2, CONTROL_SIZE,
-                    CONTROL_SIZE);
+            if (!selected) {
+                gc.drawOval(x - CONTROL_SIZE / 2, y - CONTROL_SIZE / 2, CONTROL_SIZE,
+                        CONTROL_SIZE);
+            }
 
         }
     }
@@ -393,24 +400,17 @@ public class CurveViewer extends Canvas implements PaintListener,
         GC gc = e.gc;
         drawGrid(gc);
         Map<Integer, List<Integer>> selectedPoints = getSelectedPoints();
-        int selectedCurveCount = selectedPoints.size();
         Object[] elements = this.contentProvider.getElements(input);
         for (int i = 0; i < elements.length; ++i) {
             if (!provider.isEnabled(i))
                 continue;
 
             HermiteSpline spline = (HermiteSpline)this.provider.getSpline(i);
-            Color color = null;
-            if (selectedPoints.containsKey(i)) {
-                color = getColor(SELECTION_COLOR_KEY);
-            }
-            if (color == null) {
-                color = this.colorProvider.getForeground(elements[i]);
-            }
+            Color color = this.colorProvider.getForeground(elements[i]);
             if (color == null) {
                 color = getColor(SPLINE_COLOR_KEY);
             }
-            drawSpline(gc, spline, color, selectedPoints.get(i), selectedCurveCount);
+            drawSpline(gc, spline, color, selectedPoints.get(i));
         }
         drawSelectionBox(gc);
     }

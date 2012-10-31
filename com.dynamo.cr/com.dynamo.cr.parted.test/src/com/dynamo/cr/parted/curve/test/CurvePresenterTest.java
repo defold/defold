@@ -323,7 +323,6 @@ public class CurvePresenterTest {
     @Test
     public void testMoveTangent() {
         selectCurve(0);
-        select(new int[][] {{0, 0}});
         Vector2d tangent = new Vector2d(1.0, 1.0);
         tangent.normalize();
         tangent.set(tangent.getX() * SCREEN_SCALE.getX(), tangent.getY() * SCREEN_SCALE.getY());
@@ -343,7 +342,6 @@ public class CurvePresenterTest {
     @Test
     public void testEmptyMoveTangent() {
         selectCurve(0);
-        select(new int[][] {{0, 0}});
         Vector2d tangent = new Vector2d(1.0, 1.0);
         tangent.normalize();
         tangent.set(tangent.getX() * SCREEN_SCALE.getX(), tangent.getY() * SCREEN_SCALE.getY());

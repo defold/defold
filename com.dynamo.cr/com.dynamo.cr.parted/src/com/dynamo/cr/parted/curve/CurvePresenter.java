@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import javax.vecmath.Point2d;
 import javax.vecmath.Vector2d;
@@ -65,6 +66,7 @@ public class CurvePresenter implements IPresenter {
     private Vector2d minDragExtents = new Vector2d();
     private Vector2d hitBoxExtents = new Vector2d();
     private boolean dragging = false;
+    private int[] tangentIndex = new int[] {-1, -1};
 
     public void setModel(IPropertyModel<Node, IPropertyObjectWorld> model) {
         this.propertyModel = model;
@@ -134,19 +136,6 @@ public class CurvePresenter implements IPresenter {
             return index;
         }
         return -1;
-    }
-
-    private int[] getSinglePointIndexFromSelection() {
-        if (!selection.isEmpty() && selection instanceof IStructuredSelection) {
-            if (selection instanceof ITreeSelection) {
-                ITreeSelection tree = (ITreeSelection)selection;
-                TreePath[] paths = tree.getPaths();
-                if (paths.length == 1 && paths[0].getSegmentCount() == 2) {
-                    return new int[] {(Integer)paths[0].getSegment(0), (Integer)paths[0].getSegment(1)};
-                }
-            }
-        }
-        return null;
     }
 
     private Map<Integer, List<Integer>> getPointsMapFromSelection() {
@@ -294,7 +283,7 @@ public class CurvePresenter implements IPresenter {
                 && Math.abs(delta.getY()) <= hitBoxExtents.getY();
     }
 
-    private boolean hitTangent(Point2d position, SplinePoint point, Vector2d hitBoxExtents, Vector2d screenScale, double screenTangentLength) {
+    private double hitTangent(Point2d position, SplinePoint point, Vector2d hitBoxExtents, Vector2d screenScale, double screenTangentLength) {
         Point2d pointPosition = new Point2d(point.getX(), point.getY());
         Vector2d screenTangent = new Vector2d(point.getTx() * screenScale.getX(), point.getTy() * screenScale.getY());
         screenTangent.normalize();
@@ -304,8 +293,13 @@ public class CurvePresenter implements IPresenter {
         Point2d t1 = new Point2d(tangent);
         t0.scaleAdd(1.0, pointPosition);
         t1.scaleAdd(-1.0, pointPosition);
-        return hitPosition(position, t0, hitBoxExtents)
-                || hitPosition(position, t1, hitBoxExtents);
+        if (hitPosition(position, t0, hitBoxExtents)) {
+            return position.distance(t0);
+        } else if (hitPosition(position, t1, hitBoxExtents)) {
+            return position.distance(t1);
+        } else {
+            return Double.POSITIVE_INFINITY;
+        }
     }
 
     private void startMoveSelection() {
@@ -409,12 +403,26 @@ public class CurvePresenter implements IPresenter {
         max.add(start);
         int[][] points = findPoints(min, max);
         if (!selection.isEmpty()) {
-            int[] indices = getSinglePointIndexFromSelection();
+            Map<Integer, List<Integer>> selectedPoints = getPointsMapFromSelection();
             // Check for normals hit
-            if (indices != null) {
-                HermiteSpline spline = getCurve(indices[0]);
-                SplinePoint point = spline.getPoint(indices[1]);
-                if (hitTangent(start, point, hitBoxExtents, screenScale, screenTangentLength)) {
+            if (!selectedPoints.isEmpty()) {
+                double minDistance = Double.MAX_VALUE;
+                this.tangentIndex = new int[] {-1, -1};
+                Set<Integer> selectedCurves = selectedPoints.keySet();
+                for (int curveIndex : selectedCurves) {
+                    HermiteSpline spline = getCurve(curveIndex);
+                    int pointCount = spline.getCount();
+                    for (int i = 0; i < pointCount; ++i) {
+                        SplinePoint point = spline.getPoint(i);
+                        double distance = hitTangent(start, point, hitBoxExtents, screenScale, screenTangentLength);
+                        if (distance < minDistance) {
+                            minDistance = distance;
+                            this.tangentIndex[0] = curveIndex;
+                            this.tangentIndex[1] = i;
+                        }
+                    }
+                }
+                if (this.tangentIndex[0] >= 0) {
                     this.dragMode = DragMode.SET_TANGENT;
                     return;
                 }
@@ -503,32 +511,27 @@ public class CurvePresenter implements IPresenter {
                 }
                 break;
             case SET_TANGENT:
-                int[] indices = getSinglePointIndexFromSelection();
-                if (indices != null) {
-                    int curveIndex = indices[0];
-                    int pointIndex = indices[1];
-                    HermiteSpline spline = getCurve(curveIndex);
-                    SplinePoint point = spline.getPoint(pointIndex);
-                    Vector2d tangent = new Vector2d(point.getX(), point.getY());
-                    tangent.sub(position);
-                    if (tangent.lengthSquared() > 0.0) {
-                        if (tangent.getX() < 0.0) {
-                            tangent.negate();
-                        }
-                        tangent.normalize();
-                        spline = spline.setTangent(pointIndex, tangent.x, tangent.y);
-                        IUndoableOperation tangentOp = setCurve(curveIndex, spline);
-                        if (initialDrag) {
-                            SetTangentOperation setTangentOp = new SetTangentOperation(tangentOp);
-                            setTangentOp.setType(Type.OPEN);
-                            execute(setTangentOp);
-                        } else {
-                            ((IMergeableOperation)tangentOp).setType(Type.INTERMEDIATE);
-                            execute(tangentOp);
-                        }
+                int curveIndex = this.tangentIndex[0];
+                int pointIndex = this.tangentIndex[1];
+                HermiteSpline spline = getCurve(curveIndex);
+                SplinePoint point = spline.getPoint(pointIndex);
+                Vector2d tangent = new Vector2d(point.getX(), point.getY());
+                tangent.sub(position);
+                if (tangent.lengthSquared() > 0.0) {
+                    if (tangent.getX() < 0.0) {
+                        tangent.negate();
                     }
-                } else {
-                    throw new IllegalStateException("No single point selected.");
+                    tangent.normalize();
+                    spline = spline.setTangent(pointIndex, tangent.x, tangent.y);
+                    IUndoableOperation tangentOp = setCurve(curveIndex, spline);
+                    if (initialDrag) {
+                        SetTangentOperation setTangentOp = new SetTangentOperation(tangentOp);
+                        setTangentOp.setType(Type.OPEN);
+                        execute(setTangentOp);
+                    } else {
+                        ((IMergeableOperation)tangentOp).setType(Type.INTERMEDIATE);
+                        execute(tangentOp);
+                    }
                 }
                 break;
             case SELECT:
@@ -563,14 +566,11 @@ public class CurvePresenter implements IPresenter {
                 execute(op);
                 break;
             case SET_TANGENT:
-                int[] indices = getSinglePointIndexFromSelection();
-                if (indices != null) {
-                    int curveIndex = indices[0];
-                    HermiteSpline spline = getCurve(curveIndex);
-                    IUndoableOperation tangentOp = setCurve(curveIndex, spline);
-                    ((IMergeableOperation)tangentOp).setType(Type.CLOSE);
-                    execute(tangentOp);
-                }
+                int curveIndex = this.tangentIndex[0];
+                HermiteSpline spline = getCurve(curveIndex);
+                IUndoableOperation tangentOp = setCurve(curveIndex, spline);
+                ((IMergeableOperation)tangentOp).setType(Type.CLOSE);
+                execute(tangentOp);
                 break;
             case SELECT:
                 this.view.setSelectionBox(new Point2d(), new Point2d());
