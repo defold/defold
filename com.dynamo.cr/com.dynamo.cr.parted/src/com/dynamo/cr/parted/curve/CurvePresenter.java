@@ -254,12 +254,15 @@ public class CurvePresenter implements IPresenter {
         for (int i = 0; i < this.input.length; ++i) {
             HermiteSpline spline = getCurve(i);
             Point2d p0 = new Point2d(min.getX(), spline.getY(min.getX()));
-            Vector2d dir = new Vector2d(max.getX(), spline.getY(max.getX()));
-            dir.sub(p0);
+            Vector2d delta = new Vector2d(max.getX(), spline.getY(max.getX()));
+            delta.sub(p0);
+            Vector2d dir = new Vector2d(delta);
             dir.normalize();
             Vector2d hitDelta = new Vector2d(this.dragStart);
             hitDelta.sub(p0);
-            hitDelta.scale(hitDelta.dot(dir), dir);
+            double t = hitDelta.dot(dir);
+            t = Math.max(0.0, Math.min(t, delta.length()));
+            hitDelta.scale(t, dir);
             Point2d closestCurvePosition = new Point2d(hitDelta);
             closestCurvePosition.add(p0);
             if (hitPosition(this.dragStart, closestCurvePosition, this.hitBoxExtents)) {
@@ -316,22 +319,35 @@ public class CurvePresenter implements IPresenter {
         this.dragMode = DragMode.MOVE_POINTS;
     }
 
+    private int findPoint(HermiteSpline spline, double x) {
+        int pointIndex = -1;
+        int pointCount = spline.getCount();
+        x = Math.max(0, Math.min(1, x));
+        for (int i = 0; i < pointCount; ++i) {
+            SplinePoint p = spline.getPoint(i);
+            if (Math.abs(p.getX() - x) < HermiteSpline.MIN_POINT_X_DISTANCE) {
+                return i;
+            }
+        }
+        return pointIndex;
+    }
+
     @Override
     public void onAddPoint(Point2d p) {
         int index = getSingleCurveIndexFromSelection();
         if (index >= 0) {
             HermiteSpline spline = getCurve(index);
-            double x = p.x;
-            spline = spline.insertPoint(p.x, p.y);
-            int pointCount = spline.getCount();
-            ISelection newSelection = new TreeSelection();
-            for (int i = 0; i < pointCount; ++i) {
-                if (spline.getPoint(i).getX() == x) {
-                    newSelection = select(new int[][] {{index, i}});
-                    break;
-                }
+            // Find existing points
+            int pointIndex = findPoint(spline, p.getX());
+            if (pointIndex >= 0) {
+                setSelection(select(new int[][] {{index, pointIndex}}));
+                this.view.refresh();
+            } else {
+                spline = spline.insertPoint(p.x, p.y);
+                pointIndex = findPoint(spline, p.getX());
+                ISelection newSelection = select(new int[][] {{index, pointIndex}});
+                execute(new InsertPointOperation(setCurve(index, spline), this.selection, newSelection, this));
             }
-            execute(new InsertPointOperation(setCurve(index, spline), this.selection, newSelection, this));
         }
     }
 

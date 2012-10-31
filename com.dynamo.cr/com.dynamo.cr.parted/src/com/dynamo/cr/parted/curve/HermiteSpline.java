@@ -41,6 +41,8 @@ public class HermiteSpline implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
+    public static final double MIN_POINT_X_DISTANCE = 0.01;
+
     private List<SplinePoint> points = new ArrayList<SplinePoint>(32);
 
     public HermiteSpline() {
@@ -205,12 +207,11 @@ public class HermiteSpline implements Serializable {
             newX = 1;
         }
 
-        double minMargin = 0.01;
         if (i > 0) {
-            newX = Math.max(getPoint(i - 1).getX() + minMargin, newX);
+            newX = Math.max(getPoint(i - 1).getX() + MIN_POINT_X_DISTANCE, newX);
         }
         if (i < getCount() - 1) {
-            newX = Math.min(getPoint(i + 1).getX() - minMargin, newX);
+            newX = Math.min(getPoint(i + 1).getX() - MIN_POINT_X_DISTANCE, newX);
         }
 
         return alterPoint(i, newX, newY, p.getTx(), p.getTy());

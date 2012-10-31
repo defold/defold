@@ -199,6 +199,36 @@ public class CurvePresenterTest {
     }
 
     @Test
+    public void testAddPointXSubZero() throws ExecutionException {
+        selectCurve(0);
+        Point2d p = new Point2d(-0.1, 0.5);
+        this.presenter.onAddPoint(p);
+        verifyNoExecution();
+        verifySelection(new int[][] {{0, 0}});
+    }
+
+    @Test
+    public void testAddPointXAboveOne() throws ExecutionException {
+        selectCurve(0);
+        Point2d p = new Point2d(1.1, 0.5);
+        this.presenter.onAddPoint(p);
+        verifyNoExecution();
+        verifySelection(new int[][] {{0, 1}});
+    }
+
+    @Test
+    public void testAddPointTwice() throws ExecutionException {
+        selectCurve(0);
+        Point2d p = new Point2d(0.5, 0.5);
+        this.presenter.onAddPoint(p);
+        verifyCommandDone(InsertPointOperation.class);
+        verifySelection(new int[][] {{0, 1}});
+        this.presenter.onAddPoint(p);
+        verifyNoExecution();
+        verifySelection(new int[][] {{0, 1}});
+    }
+
+    @Test
     public void testRemoveAddedPoint() throws ExecutionException {
         selectCurve(0);
         Point2d p = new Point2d(0.5, 0.5);
