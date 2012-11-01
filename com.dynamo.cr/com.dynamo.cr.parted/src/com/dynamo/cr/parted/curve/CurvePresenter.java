@@ -113,6 +113,7 @@ public class CurvePresenter extends EventManager implements IPresenter, ISelecti
 
         if (!Arrays.equals(input, oldInput)) {
             this.view.setInput(input);
+            setSelection(select(new int[][] {}));
         }
 
         oldInput = input;
