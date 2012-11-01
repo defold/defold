@@ -19,11 +19,6 @@
     </target>
 
     <target name="init">
-        <exec dir="${buildDirectory}/plugins/com.dynamo.cr.common"
-              executable="sh" failonerror="true">
-              <arg value="scripts/build_proto.sh"/>
-        </exec>
-
         <exec dir="${buildDirectory}/plugins/com.dynamo.cr.engine"
               executable="sh" failonerror="true">
               <arg value="scripts/copy_dmengine.sh"/>
