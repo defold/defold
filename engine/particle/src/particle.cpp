@@ -699,7 +699,7 @@ namespace dmParticle
                 Vector3 p(dmMath::Rand11(seed), dmMath::Rand11(seed), dmMath::Rand11(seed));
                 while (lengthSqr(p) == 0.0f)
                     p = Vector3(dmMath::Rand11(seed), dmMath::Rand11(seed), dmMath::Rand11(seed));
-                dir = normalize(p);
+                dir = Vector3::yAxis();
 
                 Vector3 extent(0.5f * emitter_properties[EMITTER_KEY_SIZE_X],
                         0.5f * emitter_properties[EMITTER_KEY_SIZE_Y],
