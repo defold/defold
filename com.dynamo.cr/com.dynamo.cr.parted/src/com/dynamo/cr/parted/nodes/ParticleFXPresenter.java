@@ -71,7 +71,7 @@ public class ParticleFXPresenter implements ISceneView.INodePresenter<ParticleFX
 
             @Override
             public Image getImage(Object element) {
-                return ParticleEditorPlugin.getDefault().getIconByExtension(((INodeType)element).getResourceType().getFileExtension());
+                return ParticleEditorPlugin.getDefault().getImageRegistry().get(ParticleEditorPlugin.MODIFIER_IMAGE_ID);
             }
 
             @Override

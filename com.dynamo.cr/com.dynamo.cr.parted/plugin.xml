@@ -194,7 +194,7 @@
             locationURI="popup:com.dynamo.cr.sceneed.menus.sceneOutlineContext?before=com.dynamo.cr.sceneed.genericSeparator">
          <command
                commandId="com.dynamo.cr.parted.command.addEmitter"
-               icon="icons/dynamite.png"
+               icon="icons/drop.png"
                label="Add Emitter"
                style="push">
             <visibleWhen
@@ -211,7 +211,7 @@
          </command>
          <command
                commandId="com.dynamo.cr.parted.command.addModifier"
-               icon="icons/dynamite.png"
+               icon="icons/tornado.png"
                label="Add Modifier"
                style="push">
             <visibleWhen
@@ -232,10 +232,14 @@
             locationURI="popup:com.dynamo.cr.parted.menus.curveEditor">
          <command
                commandId="com.dynamo.cr.sceneed.ui.commands.add"
+               icon="icons/add_key.png"
+               label="Insert Key"
                style="push">
          </command>
          <command
                commandId="org.eclipse.ui.edit.delete"
+               icon="icons/delete_key.png"
+               label="Delete Key(s)"
                style="push">
          </command>
       </menuContribution>
