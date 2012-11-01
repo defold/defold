@@ -343,11 +343,34 @@ TEST_F(dmGraphicsTest, TestTexture)
     params.m_Data = new char[params.m_DataSize];
     params.m_Width = WIDTH;
     params.m_Height = HEIGHT;
+    params.m_OriginalWidth = WIDTH;
+    params.m_OriginalHeight = HEIGHT;
     params.m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
     dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, params);
     delete [] (char*)params.m_Data;
     ASSERT_EQ(WIDTH, dmGraphics::GetTextureWidth(texture));
     ASSERT_EQ(HEIGHT, dmGraphics::GetTextureHeight(texture));
+    ASSERT_EQ(WIDTH, dmGraphics::GetOriginalTextureWidth(texture));
+    ASSERT_EQ(HEIGHT, dmGraphics::GetOriginalTextureHeight(texture));
+    dmGraphics::EnableTexture(m_Context, 0, texture);
+    dmGraphics::DisableTexture(m_Context, 0);
+    dmGraphics::DeleteTexture(texture);
+}
+
+TEST_F(dmGraphicsTest, TestTextureDefautlOriginalDimenaion)
+{
+    dmGraphics::TextureParams params;
+    params.m_DataSize = WIDTH * HEIGHT;
+    params.m_Data = new char[params.m_DataSize];
+    params.m_Width = WIDTH;
+    params.m_Height = HEIGHT;
+    params.m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
+    dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, params);
+    delete [] (char*)params.m_Data;
+    ASSERT_EQ(WIDTH, dmGraphics::GetTextureWidth(texture));
+    ASSERT_EQ(HEIGHT, dmGraphics::GetTextureHeight(texture));
+    ASSERT_EQ(WIDTH, dmGraphics::GetOriginalTextureWidth(texture));
+    ASSERT_EQ(HEIGHT, dmGraphics::GetOriginalTextureHeight(texture));
     dmGraphics::EnableTexture(m_Context, 0, texture);
     dmGraphics::DisableTexture(m_Context, 0);
     dmGraphics::DeleteTexture(texture);

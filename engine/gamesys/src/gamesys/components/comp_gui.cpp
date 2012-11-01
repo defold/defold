@@ -87,6 +87,8 @@ namespace dmGameSystem
         tex_params.m_DataSize = sizeof(white_texture);
         tex_params.m_Width = 2;
         tex_params.m_Height = 2;
+        tex_params.m_OriginalWidth = 2;
+        tex_params.m_OriginalHeight = 2;
         gui_world->m_WhiteTexture = dmGraphics::NewTexture(dmRender::GetGraphicsContext(gui_context->m_RenderContext), tex_params);
 
         // TODO: Configurable

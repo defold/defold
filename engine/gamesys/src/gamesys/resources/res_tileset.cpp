@@ -1,3 +1,4 @@
+#include <string.h>
 #include "res_tileset.h"
 
 #include <render/render_ddf.h>
@@ -24,8 +25,8 @@ namespace dmGameSystem
         dmGameSystemDDF::TileSet* tile_set_ddf = tile_set->m_TileSet;
 
         dmGraphics::HTexture texture = tile_set->m_Texture;
-        uint32_t texture_width = dmGraphics::GetTextureWidth(texture);
-        uint32_t texture_height = dmGraphics::GetTextureHeight(texture);
+        uint32_t texture_width = dmGraphics::GetOriginalTextureWidth(texture);
+        uint32_t texture_height = dmGraphics::GetOriginalTextureHeight(texture);
         float recip_tex_width = 1.0f / texture_width;
         float recip_tex_height = 1.0f / texture_height;
 
@@ -70,8 +71,8 @@ namespace dmGameSystem
         if (r == dmResource::RESULT_OK)
         {
             tile_set->m_TileSet = tile_set_ddf;
-            uint16_t width = dmGraphics::GetTextureWidth(tile_set->m_Texture);
-            uint16_t height = dmGraphics::GetTextureHeight(tile_set->m_Texture);
+            uint16_t width = dmGraphics::GetOriginalTextureWidth(tile_set->m_Texture);
+            uint16_t height = dmGraphics::GetOriginalTextureHeight(tile_set->m_Texture);
             // Check dimensions
             if (width < tile_set_ddf->m_TileWidth || height < tile_set_ddf->m_TileHeight)
             {

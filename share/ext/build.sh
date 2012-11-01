@@ -6,7 +6,7 @@ function usage() {
     echo " * darwin"
     echo " * x86_64-darwin"
     echo " * linux"
-    echo " * armv6-darwin"
+    echo " * armv7-darwin"
     echo " * i586-mingw32msvc"
     exit $1
 }

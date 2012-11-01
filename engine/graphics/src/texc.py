@@ -10,6 +10,7 @@ import graphics_ddf_pb2
 def compile_uncompressed(source_name, source_image, texture_image):
     image = texture_image.alternatives.add()
     image.width, image.height = source_image.size
+    image.original_width, image.original_height = source_image.size
 
     format_table = { 'L' : graphics_ddf_pb2.TextureImage.TEXTURE_FORMAT_LUMINANCE,
                      'RGB' : graphics_ddf_pb2.TextureImage.TEXTURE_FORMAT_RGB,

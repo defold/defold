@@ -1,3 +1,8 @@
+<!--
+NOTE: This script is only used for development.
+The corresponding file for CI is copy_libparticle.sh
+ -->
+
 <project default="compile">
     <property environment="env"/>
 
@@ -6,10 +11,12 @@
     </target>
 
     <target name="compile">
-    	<copy todir="lib">
-    	   <fileset dir="${env.DYNAMO_HOME}/lib">
-    	   	<include name="**/libparticle_shared*"/>
-    	   </fileset>
-    	</copy>
+        <copy todir="lib">
+            <fileset dir="${env.DYNAMO_HOME}/lib">
+                <include name="**/*particle_shared*"/>
+            </fileset>
+        </copy>
     </target>
 </project>
+
+

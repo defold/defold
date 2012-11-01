@@ -53,6 +53,7 @@ public abstract class ScalarPropertyDesc<S, T, U extends IPropertyObjectWorld> e
     }
 
     public abstract S fromString(String text);
+    public abstract String scalarToString(S value);
     public abstract Class<?> getTypeClass();
 
     /**
@@ -171,13 +172,13 @@ public abstract class ScalarPropertyDesc<S, T, U extends IPropertyObjectWorld> e
                     return;
                 }
             }
-            widget.setText(firstValue.toString());
+            widget.setText(scalarToString(firstValue));
             if (overridden) {
                 widget.getControl().setBackground(colorRegistry.get(OVERRIDDEN_COLOR_KEY));
             } else {
                 widget.getControl().setBackground(colorRegistry.get(BACKGROUND_COLOR_KEY));
             }
-            oldValue = firstValue.toString();
+            oldValue = scalarToString(firstValue);
         }
 
         @Override

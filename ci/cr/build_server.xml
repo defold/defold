@@ -24,13 +24,6 @@
               <arg value="scripts/build_proto.sh"/>
         </exec>
 
-        <exec dir="${buildDirectory}/plugins/com.dynamo.cr.common"
-              executable="ln" failonerror="true">
-              <arg value="-s"/>
-              <arg value="${env.DYNAMO_HOME}"/>
-              <arg value="DYNAMO_HOME"/>
-        </exec>
-
         <!-- pushd not availble in dash.
              That's the reason for expicit bash below -->
         <exec dir="${buildDirectory}/plugins/com.dynamo.cr.templates"

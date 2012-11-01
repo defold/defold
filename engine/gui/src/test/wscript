@@ -21,7 +21,7 @@ def build(bld):
 
     test_gui_script.install_path = None
 
-    if bld.env.PLATFORM != "armv6-darwin":
+    if bld.env.PLATFORM != "armv7-darwin":
         guidemo = bld.new_task_gen(features = 'cxx cprogram',
                                    includes = '../../../src',
                                    uselib = 'SCRIPT DDF DLIB PLATFORM_SOCKET LUA DMGLFW X',

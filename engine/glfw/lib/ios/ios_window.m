@@ -335,6 +335,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
     window = [[UIWindow alloc] initWithFrame:bounds];
     viewController = [[ViewController alloc] init];
+    window.rootViewController = viewController;
     [ window addSubview: viewController.view ];
     [window makeKeyAndVisible];
 

@@ -37,6 +37,8 @@ namespace dmGraphics
         GLuint      m_Texture;
         uint16_t    m_Width;
         uint16_t    m_Height;
+        uint16_t    m_OriginalWidth;
+        uint16_t    m_OriginalHeight;
     };
 
     struct VertexDeclaration

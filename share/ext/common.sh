@@ -1,7 +1,8 @@
 # config
 
+IOS_TOOLCHAIN_ROOT=/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain
 ARM_DARWIN_ROOT=/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer
-IOS_SDK_VERSION=5.1
+IOS_SDK_VERSION=6.0
 
 function download() {
     mkdir -p ../download
@@ -73,16 +74,19 @@ function cmi() {
     export PREFIX=`pwd`/build
 
 	case $1 in
-		armv6-darwin)
+		armv7-darwin)
             [ ! -e "$ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk" ] && echo "No SDK found at $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk" && exit 1
+            # NOTE: We set this PATH in order to use libtool from iOS SDK
+            # Otherwise we get the following error "malformed object (unknown load command 1)"
+            export PATH=$IOS_TOOLCHAIN_ROOT/usr/bin:$PATH
             export CFLAGS="-isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
-            export CPPFLAGS="-arch armv6 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
-            export CXXFLAGS="-arch armv6 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
+            export CPPFLAGS="-arch armv7 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
+            export CXXFLAGS="-arch armv7 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
             # NOTE: We use the gcc-compiler as preprocessor. The preprocessor seems to only work with x86-arch.
             # Wrong include-directories and defines are selected.
-            export CPP="$ARM_DARWIN_ROOT/usr/bin/llvm-gcc-4.2 -E"
-            export CC=$ARM_DARWIN_ROOT/usr/bin/llvm-gcc-4.2
-            export CXX=$ARM_DARWIN_ROOT/usr/bin/llvm-g++-4.2
+            export CPP="$IOS_TOOLCHAIN_ROOT/usr/bin/clang -E"
+            export CC=$IOS_TOOLCHAIN_ROOT/usr/bin/clang
+            export CXX=$IOS_TOOLCHAIN_ROOT/usr/bin/clang++
             export AR=$ARM_DARWIN_ROOT/usr/bin/ar
             export RANLIN=$ARM_DARWIN_ROOT/usr/bin/ranlib
             cmi_cross $1 arm-darwin

@@ -1,3 +1,6 @@
+# NOTE: This script is only used for CI
+# The corresponding file for development is build.xml
+
 set -e
 mkdir -p lib/linux
 mkdir -p lib/x86_64-darwin

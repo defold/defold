@@ -48,7 +48,7 @@ def configure(conf):
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon'])
         # In order to get accurate result from the memory profiler this is necessary
         conf.env.append_value('LINKFLAGS', [ '-flat_namespace' ])
-    elif platform == "armv6-darwin":
+    elif platform == "armv7-darwin":
         conf.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'OpenGLES', '-framework', 'QuartzCore', '-framework', 'CoreGraphics', '-framework', 'OpenAL', '-framework', 'IOKit'])
     elif platform == "linux":
         conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']

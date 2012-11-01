@@ -5,5 +5,5 @@ def configure(conf):
     pass
 
 def build(bld):
-    if bld.env.PLATFORM != "armv6-darwin":
+    if bld.env.PLATFORM != "armv7-darwin":
         bld.add_subdirs('gdc')

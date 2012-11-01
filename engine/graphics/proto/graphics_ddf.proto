@@ -24,10 +24,12 @@ message TextureImage
     {
         required uint32 width           = 1;
         required uint32 height          = 2;
-        required TextureFormat format   = 3;
-        repeated uint32 mip_map_offset  = 4;
-        repeated uint32 mip_map_size    = 5;
-        required bytes data             = 6;
+        required uint32 original_width  = 3;
+        required uint32 original_height = 4;
+        required TextureFormat format   = 5;
+        repeated uint32 mip_map_offset  = 6;
+        repeated uint32 mip_map_size    = 7;
+        required bytes data             = 8;
     }
 
     repeated Image alternatives = 1;

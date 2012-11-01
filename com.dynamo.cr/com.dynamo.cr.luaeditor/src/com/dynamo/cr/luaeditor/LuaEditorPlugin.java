@@ -72,12 +72,12 @@ public class LuaEditorPlugin extends AbstractUIPlugin {
     }
 
     private void loadDocumentation() {
-        loadDocumentation("DYNAMO_HOME/share/doc/script_doc.sdoc");
-        loadDocumentation("DYNAMO_HOME/share/doc/go_doc.sdoc");
-        loadDocumentation("DYNAMO_HOME/share/doc/render_doc.sdoc");
-        loadDocumentation("DYNAMO_HOME/share/doc/gui_doc.sdoc");
-        loadDocumentation("DYNAMO_HOME/share/doc/engine_doc.sdoc");
-        loadDocumentation("DYNAMO_HOME/share/doc/gamesys_doc.sdoc");
+        loadDocumentation("doc/script_doc.sdoc");
+        loadDocumentation("doc/go_doc.sdoc");
+        loadDocumentation("doc/render_doc.sdoc");
+        loadDocumentation("doc/gui_doc.sdoc");
+        loadDocumentation("doc/engine_doc.sdoc");
+        loadDocumentation("doc/gamesys_doc.sdoc");
 
         // Add all namespaces to the global namespace
         for (String ns : nameSpaceToElementList.keySet()) {

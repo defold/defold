@@ -95,7 +95,7 @@ class Configuration(object):
             self._extract_tgz(make_path(self.host), ext)
 
         for p in PACKAGES_IOS:
-            self._extract_tgz(make_path('armv6-darwin'), ext)
+            self._extract_tgz(make_path('armv7-darwin'), ext)
 
         if self.host == 'darwin':
             for p in PACKAGES_DARWIN_64:
@@ -200,11 +200,6 @@ class Configuration(object):
         self.exec_command(cmd.split(), cwd = cwd)
 
     def test_cr(self):
-        for plugin in ['common', 'luaeditor', 'builtins', 'parted']:
-            self.exec_command(['ln', '-sfn',
-                               self.dynamo_home,
-                               join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.%s/DYNAMO_HOME' % plugin)])
-
         cwd = join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.parent')
         self.exec_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'verify'],
                           cwd = cwd)
@@ -341,6 +336,10 @@ root.linux.gtk.x86.permissions.755=jre/'''
         print 'Bumping engine version from %s to %s' % (current, new_version)
         print 'Review changes and commit'
 
+    def shell(self):
+        print 'Setting up shell with DYNAMOH_HOME, PATH and LD_LIBRARY_PATH/DYLD_LIRARY_PATH (where applicable) set'
+        self.exec_command(['sh', '-l'])
+
     def exec_command(self, arg_list, **kwargs):
         env = dict(os.environ)
 
@@ -389,6 +388,7 @@ archive_editor  - Archive editor to path specified with --archive-path
 archive_server  - Archive server to path specified with --archive-path
 build_docs      - Build documentation
 bump            - Bump version number
+shell           - Start development shell
 
 Multiple commands can be specified'''
 
@@ -400,7 +400,7 @@ Multiple commands can be specified'''
 
     parser.add_option('--platform', dest='target_platform',
                       default = None,
-                      choices = ['linux', 'darwin', 'x86_64-darwin', 'win32', 'armv6-darwin'],
+                      choices = ['linux', 'darwin', 'x86_64-darwin', 'win32', 'armv7-darwin'],
                       help = 'Target platform')
 
     parser.add_option('--skip-tests', dest='skip_tests',
