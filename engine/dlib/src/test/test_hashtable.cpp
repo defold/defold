@@ -436,7 +436,7 @@ TEST(dmHashTable, Clear)
             }
 
             std::map<uint32_t, int>::iterator iter2 = map.begin();
-            for (iter2 = map.begin(); iter2 != map.end(); ++iter)
+            for (iter2 = map.begin(); iter2 != map.end(); ++iter2)
             {
                 uint32_t key = iter2->first;
                 ASSERT_EQ(map[key], *ht.Get(key));

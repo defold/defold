@@ -37,26 +37,24 @@ import java.util.List;
  * @author chmu
  *
  */
-public class HermiteSpline implements Serializable {
+public class HermiteSpline2 implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    public static final double MIN_POINT_X_DISTANCE = 0.01;
-
     private List<SplinePoint> points = new ArrayList<SplinePoint>(32);
 
-    public HermiteSpline() {
+    public HermiteSpline2() {
         points.add(new SplinePoint(0, 0, 0.5, 0.5));
         points.add(new SplinePoint(1, 1, 0.5, 0.5));
     }
 
-    public HermiteSpline(float[] data) {
+    public HermiteSpline2(float[] data) {
         for (int i = 0; i < data.length; i+=4) {
             points.add(new SplinePoint(data[i], data[i+1], data[i+2], data[i+3]));
         }
     }
 
-    private HermiteSpline(HermiteSpline spline, ArrayList<SplinePoint> l) {
+    private HermiteSpline2(ArrayList<SplinePoint> l) {
         this.points = l;
     }
 
@@ -192,13 +190,13 @@ public class HermiteSpline implements Serializable {
         value[1] = y / l;
     }
 
-    private HermiteSpline alterPoint(int i, double x, double y, double tx, double ty) {
+    private HermiteSpline2 alterPoint(int i, double x, double y, double tx, double ty) {
         ArrayList<SplinePoint> l = new ArrayList<SplinePoint>(points);
         l.set(i, new SplinePoint(x, y, tx, ty));
-        return new HermiteSpline(this, l);
+        return new HermiteSpline2(l);
     }
 
-    public HermiteSpline setPosition(int i, double newX, double newY) {
+    public HermiteSpline2 setPosition(int i, double newX, double newY) {
         SplinePoint p = this.points.get(i);
 
         if (i == 0) {
@@ -207,17 +205,18 @@ public class HermiteSpline implements Serializable {
             newX = 1;
         }
 
+        double minMargin = 0.01;
         if (i > 0) {
-            newX = Math.max(getPoint(i - 1).getX() + MIN_POINT_X_DISTANCE, newX);
+            newX = Math.max(getPoint(i - 1).getX() + minMargin, newX);
         }
         if (i < getCount() - 1) {
-            newX = Math.min(getPoint(i + 1).getX() - MIN_POINT_X_DISTANCE, newX);
+            newX = Math.min(getPoint(i + 1).getX() - minMargin, newX);
         }
 
         return alterPoint(i, newX, newY, p.getTx(), p.getTy());
     }
 
-    public HermiteSpline setTangent(int i, double tx, double ty) {
+    public HermiteSpline2 setTangent(int i, double tx, double ty) {
         SplinePoint p = this.points.get(i);
         tx = Math.max(tx, 0);
 
@@ -228,7 +227,7 @@ public class HermiteSpline implements Serializable {
         return getCount() - 1;
     }
 
-    public HermiteSpline insertPoint(double x, double y) {
+    public HermiteSpline2 insertPoint(double x, double y) {
         int segmentCount = getSegmentCount();
         for (int s = 0; s < segmentCount; ++s) {
             SplinePoint p0 = getPoint(s);
@@ -242,17 +241,17 @@ public class HermiteSpline implements Serializable {
 
                 ArrayList<SplinePoint> l = new ArrayList<SplinePoint>(points);
                 l.add(s + 1, new SplinePoint(pos[0], pos[1], tan[0], tan[1]));
-                return new HermiteSpline(this, l);
+                return new HermiteSpline2(l);
             }
         }
         return null;
     }
 
-    public HermiteSpline removePoint(int index) {
+    public HermiteSpline2 removePoint(int index) {
         if (index > 0 && index < getCount() - 1) {
             ArrayList<SplinePoint> l = new ArrayList<SplinePoint>(points);
             l.remove(index);
-            return new HermiteSpline(this, l);
+            return new HermiteSpline2(l);
         } else {
             return this;
         }

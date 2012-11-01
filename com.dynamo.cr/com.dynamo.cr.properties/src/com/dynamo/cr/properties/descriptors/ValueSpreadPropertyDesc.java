@@ -78,16 +78,16 @@ public class ValueSpreadPropertyDesc<T, U extends IPropertyObjectWorld> extends 
 
             menu = new Menu(parent);
             animated = new MenuItem(menu, SWT.CHECK);
-            animated.setText("Animated");
+            animated.setText("Curve");
             animated.addSelectionListener(this);
 
             textFields = new SpinnerText[2];
             for (int i = 0; i < 2; i++) {
                 SpinnerText t = createText(composite);
-                t.getText().setMenu(menu);
                 t.setLayoutData(gd);
                 textFields[i] = t;
             }
+            textFields[0].getText().setMenu(menu);
             textFields[0].setMin(propertyDesc.getMin());
             textFields[0].setMax(propertyDesc.getMax());
             textFields[1].setMin(0);
@@ -169,11 +169,12 @@ public class ValueSpreadPropertyDesc<T, U extends IPropertyObjectWorld> extends 
                     s = "";
                 }
                 textFields[i].getText().setText(s);
-                textFields[i].getText().setBackground(color);
                 oldValue[i] = s;
             }
 
-            textFields[0].getText().setEditable(!isAnyAnimated(models));
+            textFields[0].getText().setBackground(color);
+            boolean animated = isAnyAnimated(models);
+            textFields[0].getText().setEditable(!animated);
         }
 
         @Override

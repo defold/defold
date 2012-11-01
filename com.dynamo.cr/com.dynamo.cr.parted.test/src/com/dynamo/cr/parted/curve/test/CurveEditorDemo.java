@@ -20,7 +20,7 @@ import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Shell;
 
 import com.dynamo.cr.parted.curve.AlterSplineOperation;
-import com.dynamo.cr.parted.curve.CurveEditor;
+import com.dynamo.cr.parted.curve.CurveViewer;
 import com.dynamo.cr.parted.curve.HermiteSpline;
 import com.dynamo.cr.parted.curve.ICurveProvider;
 
@@ -37,7 +37,7 @@ public class CurveEditorDemo {
         GridLayout layout = new GridLayout(1, true);
         layout.marginBottom = layout.marginTop = layout.marginLeft = layout.marginRight = 16;
         shell.setLayout(layout);
-        final CurveEditor ce = new CurveEditor(shell, SWT.NONE, JFaceResources.getColorRegistry());
+        final CurveViewer ce = new CurveViewer(shell, SWT.NONE, JFaceResources.getColorRegistry());
         final Object[] input = Arrays.asList(new HermiteSpline(), new HermiteSpline()).toArray();
         ce.setInput(input);
         ce.setProvider(new ICurveProvider() {
@@ -66,11 +66,6 @@ public class CurveEditorDemo {
             @Override
             public HermiteSpline getSpline(int i) {
                 return (HermiteSpline) input[i];
-            }
-
-            @Override
-            public Color getColor(int i) {
-                return null;
             }
         });
         ce.setLayoutData(new GridData(GridData.FILL_BOTH));

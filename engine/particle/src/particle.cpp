@@ -666,31 +666,42 @@ namespace dmParticle
         {
             case EMITTER_TYPE_SPHERE:
             {
-                while (lengthSqr(dir) == 0.0f)
-                    dir = Vector3(dmMath::Rand11(seed), dmMath::Rand11(seed), dmMath::Rand11(seed));
-                dir = normalize(dir);
-
-                float radius = 0.5f * emitter_properties[EMITTER_KEY_SIZE_X];
-                local_position = dir * dmMath::Rand01(seed) * radius;
+                // Direction is sampled uniformly over the unit-sphere surface
+                // http://www.altdevblogaday.com/2012/05/03/generating-uniformly-distributed-points-on-sphere/
+                float z = dmMath::Rand11(seed);
+                float angle = 2.0f * ((float) M_PI) * dmMath::RandOpen01(seed);
+                float r = sqrtf(1.0f - z * z);
+                dir = Vector3(r * cosf(angle), r * sinf(angle), z);
+                // Pick radius to give uniform dist. over volume, surface area of sub-spheres grows quadratic wrt radius
+                float radius = sqrtf(dmMath::RandOpen01(seed));
+                radius *= 0.5f * emitter_properties[EMITTER_KEY_SIZE_X];
+                local_position = dir * radius;
 
                 break;
             }
 
             case EMITTER_TYPE_CONE:
             {
-                dir = Vector3::yAxis();
+                // Direction is sampled uniformly over the unit-circle (cone-top) surface
+                // http://stackoverflow.com/questions/5837572/generate-a-random-point-within-a-circle-uniformly
+                float angle = 2.0f * ((float) M_PI) * dmMath::RandOpen01(seed);
+                float u = dmMath::Rand01(seed) + dmMath::Rand01(seed);
+                float r = dmMath::Select(u - 1.0f, 2.0f - u, u);
 
-                float radius = 0.5f * emitter_properties[EMITTER_KEY_SIZE_X];
+                float radius = r * 0.5f * emitter_properties[EMITTER_KEY_SIZE_X];
                 float height = emitter_properties[EMITTER_KEY_SIZE_Y];
 
-                float angle = 2.0f * ((float) M_PI) * dmMath::RandOpen01(seed);
+                dir = Vector3(radius * cosf(angle), 1.0f, radius * sinf(angle));
 
-                float rh = dmMath::Select(-height, 1.0f, dmMath::Rand01(seed));
-                radius *= dmMath::Rand01(seed);
-                local_position = Vector3(cosf(angle) * radius * rh, rh * height, sinf(angle) * radius * rh);
+                // Pick height to give uniform dist. over volume, surface area of sub-circles grows quadratic wrt height
+                float h = sqrtf(dmMath::Rand01(seed));
 
-                if (lengthSqr(local_position) > 0.0f)
-                    dir = normalize(local_position);
+                // Scale both height and radius by h, also scale unit-height dir with correct height
+                local_position = Vector3(h * dir.getX(), h * height * dir.getY(), h * dir.getZ());
+
+                // Finally normalize dir
+                dir = normalize(dir);
+
                 break;
             }
 
@@ -699,7 +710,7 @@ namespace dmParticle
                 Vector3 p(dmMath::Rand11(seed), dmMath::Rand11(seed), dmMath::Rand11(seed));
                 while (lengthSqr(p) == 0.0f)
                     p = Vector3(dmMath::Rand11(seed), dmMath::Rand11(seed), dmMath::Rand11(seed));
-                dir = normalize(p);
+                dir = Vector3::yAxis();
 
                 Vector3 extent(0.5f * emitter_properties[EMITTER_KEY_SIZE_X],
                         0.5f * emitter_properties[EMITTER_KEY_SIZE_Y],
