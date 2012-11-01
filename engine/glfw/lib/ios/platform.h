@@ -99,6 +99,7 @@ struct _GLFWwin_struct {
     int       iconified;       // Window iconified flag
     int       width, height;   // Window width and heigth
     int       accelerated;     // GL_TRUE if window is HW accelerated
+    int       portrait;        // GL_TRUE if window is in portrait mode
 
     // Framebuffer attributes
     int       redBits;
