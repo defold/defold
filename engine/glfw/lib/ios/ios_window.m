@@ -135,8 +135,9 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     UITouch *touch = [touches anyObject];
     CGPoint touchLocation = [touch locationInView:self];
 
-    _glfwInput.MousePosX = touchLocation.x;
-    _glfwInput.MousePosY = touchLocation.y;
+    CGFloat scaleFactor = self.contentScaleFactor;
+    _glfwInput.MousePosX = touchLocation.x * scaleFactor;
+    _glfwInput.MousePosY = touchLocation.y * scaleFactor;
 
     if( _glfwWin.mousePosCallback )
     {
@@ -149,8 +150,9 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     UITouch *touch = [touches anyObject];
     CGPoint touchLocation = [touch locationInView:self];
 
-    _glfwInput.MousePosX = touchLocation.x;
-    _glfwInput.MousePosY = touchLocation.y;
+    CGFloat scaleFactor = self.contentScaleFactor;
+    _glfwInput.MousePosX = touchLocation.x * scaleFactor;
+    _glfwInput.MousePosY = touchLocation.y * scaleFactor;
 
     _glfwInputMouseClick( GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS );
 }
@@ -160,8 +162,9 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     UITouch *touch = [touches anyObject];
     CGPoint touchLocation = [touch locationInView:self];
 
-    _glfwInput.MousePosX = touchLocation.x;
-    _glfwInput.MousePosY = touchLocation.y;
+    CGFloat scaleFactor = self.contentScaleFactor;
+    _glfwInput.MousePosX = touchLocation.x * scaleFactor;
+    _glfwInput.MousePosY = touchLocation.y * scaleFactor;
 
     _glfwInputMouseClick( GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE );
 }
@@ -187,6 +190,14 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
     glGetRenderbufferParameteriv(GL_RENDERBUFFER, GL_RENDERBUFFER_WIDTH, &backingWidth);
     glGetRenderbufferParameteriv(GL_RENDERBUFFER, GL_RENDERBUFFER_HEIGHT, &backingHeight);
+
+    _glfwWin.width = backingWidth;
+    _glfwWin.height = backingHeight;
+
+    if (_glfwWin.windowSizeCallback)
+    {
+        _glfwWin.windowSizeCallback( backingWidth, backingHeight );
+    }
 
     // Setup depth buffers
     glGenRenderbuffers(1, &depthRenderbuffer);
@@ -219,11 +230,9 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 - (void)dealloc
 {
-    if ([EAGLContext currentContext] == context)
-    {
-        [EAGLContext setCurrentContext:nil];
-    }
-
+    [EAGLContext setCurrentContext:context];
+    [self destroyFramebuffer];
+    [EAGLContext setCurrentContext:nil];
     [context release];
     [super dealloc];
 }
@@ -244,7 +253,6 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     EAGLView *glView;
 }
 
-- (void)reinit;
 
 @property (nonatomic, retain) IBOutlet EAGLView *glView;
 
@@ -254,12 +262,6 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 @synthesize glView;
 
-- (void)dealloc
-{
-    [glView release];
-    [super dealloc];
-}
-
 - (void)viewDidLoad
 {
     [super viewDidLoad];
@@ -267,8 +269,19 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     self.view.autoresizesSubviews = YES;
     CGRect bounds = self.view.bounds;
 
-    glView = [[EAGLView alloc] initWithFrame: bounds];
+    CGFloat scaleFactor = [[UIScreen mainScreen] scale];
+    glView = [[[EAGLView alloc] initWithFrame: bounds] autorelease ];
+    glView.contentScaleFactor = scaleFactor;
+    glView.layer.contentsScale = scaleFactor;
     [ [self view] addSubview: glView ];
+}
+
+- (void)viewDidAppear:(BOOL)animated
+{
+    // NOTE: We rely on an active OpenGL-context as we have no concept of Begin/End rendering
+    // As we replace view-controller and view when re-opening the "window" we must ensure that we always
+    // have an active context (context is set to nil when view is deallocated)
+    [EAGLContext setCurrentContext: glView.context];
 }
 
 - (void)viewDidUnload
@@ -278,27 +291,37 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 - (BOOL)shouldAutorotateToInterfaceOrientation:(UIInterfaceOrientation)interfaceOrientation
 {
-    /*
-     * We accept all orientation changes for now
-     */
-    return YES;
+    if (_glfwWin.portrait)
+    {
+        return   interfaceOrientation == UIInterfaceOrientationPortrait
+              || interfaceOrientation == UIInterfaceOrientationPortraitUpsideDown;
+    }
+    else
+    {
+        return   interfaceOrientation == UIInterfaceOrientationLandscapeRight
+              || interfaceOrientation == UIInterfaceOrientationLandscapeLeft;
+    }
 }
 
 - (void)didRotateFromInterfaceOrientation:(UIInterfaceOrientation)fromInterfaceOrientation
 {
-    CGRect bounds = [self.view bounds];
+}
 
-    if( _glfwWin.windowSizeCallback )
+-(BOOL)shouldAutorotate{
+    return YES;
+}
+
+-(NSInteger)supportedInterfaceOrientations {
+    if (_glfwWin.portrait)
     {
-        _glfwWin.windowSizeCallback( bounds.size.width, bounds.size.height );
+        return UIInterfaceOrientationMaskPortrait | UIInterfaceOrientationMaskPortraitUpsideDown;
+    }
+    else
+    {
+        return UIInterfaceOrientationMaskLandscape;
     }
 }
 
-- (void)reinit
-{
-    // glfw runs a memset(0) on this struct when "closing" the window
-    _glfwWin.view = glView;
-}
 @end
 
 // Application delegate
@@ -310,7 +333,6 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 - (void)reinit:(UIApplication *)application;
 
-@property (nonatomic, retain) ViewController *viewController;
 @property (nonatomic, retain) IBOutlet UIWindow *window;
 
 @end
@@ -319,11 +341,24 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 @implementation AppDelegate
 
 @synthesize window;
-@synthesize viewController;
 
 - (void)reinit:(UIApplication *)application
 {
-    [ self.viewController reinit ];
+    // Recreation of view-controller and view. When a view-controller and view is associated with an window
+    // the orientation logic is triggered, supportedInterfaceOrientations, etc.
+    // Ideally we should not re-create view-controller and view but
+    // triggering that logic was difficult/impossible. We could use a private method in UIScreen to force orientation
+    // but that method is private and not documented. This is simple and works.
+
+    // NOTE: This code is *not* invoked from the built-in/traditional event-loop
+    // hence *no* NSAutoreleasePool is setup. Without a pool here
+    // the application would leak and specifcally the ViewController
+    NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
+
+    window.rootViewController = nil;
+    window.rootViewController = [[[ViewController alloc] init] autorelease];
+
+    [pool release];
 }
 
 - (void)applicationDidFinishLaunching:(UIApplication *)application
@@ -334,14 +369,8 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     CGRect bounds = [UIScreen mainScreen].bounds;
 
     window = [[UIWindow alloc] initWithFrame:bounds];
-    viewController = [[ViewController alloc] init];
-    window.rootViewController = viewController;
-    [ window addSubview: viewController.view ];
+    window.rootViewController = [[[ViewController alloc] init] autorelease];
     [window makeKeyAndVisible];
-
-    _glfwWin.width = bounds.size.width;
-    _glfwWin.height = bounds.size.height;
-
     [application setIdleTimerDisabled: YES];
 
     // We can't hijack the event loop here. We post-pone it to ensure that the application is
@@ -384,7 +413,6 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 - (void)dealloc
 {
     [window release];
-    [viewController release];
     [super dealloc];
 }
 
@@ -395,6 +423,9 @@ int  _glfwPlatformOpenWindow( int width, int height,
                               const _GLFWwndconfig *wndconfig,
                               const _GLFWfbconfig *fbconfig )
 {
+
+    _glfwWin.portrait = height > width ? GL_TRUE : GL_FALSE;
+
     /*
      * This is somewhat of a hack. We can't recreate the application here.
      * Instead we reinit the app and return and keep application and windows as is
@@ -513,7 +544,9 @@ void _glfwPlatformRefreshWindowParams( void )
 
 void _glfwPlatformPollEvents( void )
 {
+    NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
     CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0, TRUE);
+    [pool release];
 }
 
 //========================================================================
