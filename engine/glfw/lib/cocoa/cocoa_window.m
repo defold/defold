@@ -27,6 +27,8 @@
 //
 //========================================================================
 
+
+#import <CoreVideo/CVDisplayLink.h>
 #include "internal.h"
 
 //========================================================================
@@ -38,6 +40,11 @@
 @end
 
 @implementation GLFWWindowDelegate
+
+- (void)queueRender
+{
+    _glfwWin.countDown--;
+}
 
 - (BOOL)windowShouldClose:(id)window
 {
@@ -438,6 +445,20 @@ static int convertMacKeyCode( unsigned int macKeyCode )
 // created
 //========================================================================
 
+CVReturn DisplayLinkCallback (
+   CVDisplayLinkRef displayLink,
+   const CVTimeStamp *inNow,
+   const CVTimeStamp *inOutputTime,
+   CVOptionFlags flagsIn,
+   CVOptionFlags *flagsOut,
+   void *displayLinkContext
+   )
+
+{
+    [_glfwWin.delegate performSelectorOnMainThread:@selector(queueRender) withObject:nil waitUntilDone:NO ];
+    return kCVReturnSuccess;
+}
+
 int  _glfwPlatformOpenWindow( int width, int height,
                               const _GLFWwndconfig *wndconfig,
                               const _GLFWfbconfig *fbconfig )
@@ -448,6 +469,9 @@ int  _glfwPlatformOpenWindow( int width, int height,
     _glfwWin.window = nil;
     _glfwWin.context = nil;
     _glfwWin.delegate = nil;
+
+    _glfwWin.swapInterval = 1;
+    _glfwWin.countDown = 1;
 
     // Fail if OpenGL 3.0 or above was requested
     if( wndconfig->glMajor > 2 )
@@ -623,6 +647,15 @@ int  _glfwPlatformOpenWindow( int width, int height,
     _glfwInput.MousePosX = point.x;
     _glfwInput.MousePosY = point.y;
 
+    CVDisplayLinkRef displayLink;
+    CVDisplayLinkCreateWithActiveCGDisplays(&displayLink);
+    CVDisplayLinkSetOutputCallback(displayLink, &DisplayLinkCallback, 0);
+    CGLContextObj cglContext = [_glfwWin.context CGLContextObj];
+    CGLPixelFormatObj cglPixelFormat = [_glfwWin.pixelFormat CGLPixelFormatObj];
+    CVDisplayLinkSetCurrentCGDisplayFromOpenGLContext(displayLink, cglContext, cglPixelFormat);
+    CVDisplayLinkStart(displayLink);
+    _glfwWin.displayLink = (uintptr_t) displayLink;
+
     return GL_TRUE;
 }
 
@@ -632,6 +665,8 @@ int  _glfwPlatformOpenWindow( int width, int height,
 
 void _glfwPlatformCloseWindow( void )
 {
+    CVDisplayLinkRelease((CVDisplayLinkRef) _glfwWin.displayLink);
+
     [_glfwWin.window orderOut:nil];
 
     if( _glfwWin.fullscreen )
@@ -722,6 +757,17 @@ void _glfwPlatformRestoreWindow( void )
 
 void _glfwPlatformSwapBuffers( void )
 {
+    while (_glfwWin.countDown > 0)
+    {
+        // Skip frames.
+        // NOTE: We wait up to 1 second for event but in practice
+        // event will fire as soon as a frame is "ready"
+        // (performSelectorOnMainThread)
+
+        CFRunLoopRunInMode(kCFRunLoopDefaultMode, 1, TRUE);
+    }
+    _glfwWin.countDown = _glfwWin.swapInterval;
+
     // ARP appears to be unnecessary, but this is future-proof
     [_glfwWin.context flushBuffer];
 }
@@ -732,7 +778,9 @@ void _glfwPlatformSwapBuffers( void )
 
 void _glfwPlatformSwapInterval( int interval )
 {
-    GLint sync = interval;
+    _glfwWin.swapInterval = interval;
+    _glfwWin.countDown = interval;
+    GLint sync = interval > 1 ? 1 : interval;
     [_glfwWin.context setValues:&sync forParameter:NSOpenGLCPSwapInterval];
 }
 

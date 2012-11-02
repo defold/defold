@@ -288,6 +288,15 @@ namespace dmEngine
         return false;
     }
 
+    static void SetUpdateFrequency(HEngine engine, uint32_t frequency)
+    {
+        engine->m_UpdateFrequency = frequency;
+        engine->m_UpdateFrequency = dmMath::Max(1U, engine->m_UpdateFrequency);
+        engine->m_UpdateFrequency = dmMath::Min(60U, engine->m_UpdateFrequency);
+        uint32_t swap_interval = 60 / engine->m_UpdateFrequency;
+        swap_interval = dmMath::Max(1U, swap_interval);
+        dmGraphics::SetSwapInterval(engine->m_GraphicsContext, swap_interval);
+    }
 
     /*
      The game.projectc is located using the following scheme:
@@ -386,6 +395,8 @@ namespace dmEngine
         uint32_t physical_height = dmGraphics::GetWindowHeight(engine->m_GraphicsContext);
         engine->m_InvPhysicalWidth = 1.0f / physical_width;
         engine->m_InvPhysicalHeight = 1.0f / physical_height;
+
+        SetUpdateFrequency(engine, dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 60));
 
         engine->m_GOScriptContext = dmScript::NewContext(engine->m_Config);
         engine->m_RenderScriptContext = dmScript::NewContext(engine->m_Config);
@@ -618,7 +629,7 @@ bail:
 
     RunResult Run(HEngine engine)
     {
-        const float fps = 60.0f;
+        const float fps = engine->m_UpdateFrequency;
         float fixed_dt = 1.0f / fps;
 
         engine->m_Alive = true;

@@ -122,6 +122,7 @@ namespace dmEngine
 
         Stats                                       m_Stats;
 
+        uint32_t                                    m_UpdateFrequency;
         uint32_t                                    m_Width;
         uint32_t                                    m_Height;
         float                                       m_InvPhysicalWidth;

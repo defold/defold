@@ -125,6 +125,10 @@ struct _GLFWwin_struct {
     id	      context;
     id	      delegate;
     unsigned int modifierFlags;
+
+    int       swapInterval;
+    int       countDown;
+    uintptr_t displayLink;
 };
 
 GLFWGLOBAL _GLFWwin _glfwWin;

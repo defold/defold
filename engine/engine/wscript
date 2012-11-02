@@ -45,7 +45,7 @@ def configure(conf):
     platform = conf.env.PLATFORM
 
     if platform == "darwin":
-        conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon'])
+        conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo'])
         # In order to get accurate result from the memory profiler this is necessary
         conf.env.append_value('LINKFLAGS', [ '-flat_namespace' ])
     elif platform == "armv7-darwin":

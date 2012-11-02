@@ -359,6 +359,17 @@ namespace dmGraphics
     void Flip(HContext context);
 
     /**
+     * Set buffer swap interval.
+     * 1 for base frequency, eg every frame (60hz)
+     * 2 for every second frame
+     * etc
+     * @param context Graphics context
+     * @param swap_interval swap interval
+     *
+     */
+    void SetSwapInterval(HContext context, uint32_t swap_interval);
+
+    /**
      * Clear render target
      * @param context Graphics context
      * @param flags
