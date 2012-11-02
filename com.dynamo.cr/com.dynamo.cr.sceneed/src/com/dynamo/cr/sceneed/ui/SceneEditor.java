@@ -178,7 +178,7 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
         this.backgroundRenderViewProvider = this.injector.getInstance(BackgroundRenderViewProvider.class);
         this.gridRenderViewProvider = this.injector.getInstance(GridRenderViewProvider.class);
         this.sceneRenderViewProvider = this.injector.getInstance(SceneRenderViewProvider.class);
-
+        site.setSelectionProvider(this.sceneRenderViewProvider);
         this.cameraController = this.injector.getInstance(CameraController.class);
 
         updateSceneGrid();
@@ -208,6 +208,7 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
 
         this.sceneModel = this.injector.getInstance(ISceneModel.class);
         this.sceneView = this.injector.getInstance(ISceneView.class);
+        site.getPage().addSelectionListener(this.sceneView);
 
         IPreferenceStore store = Activator.getDefault().getPreferenceStore();
         store.addPropertyChangeListener(this);
@@ -389,10 +390,6 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
         IContextService contextService = (IContextService) getSite()
                 .getService(IContextService.class);
         contextService.activateContext(getContextID());
-
-        // Set the render view as selection provider
-        getSite().setSelectionProvider(this.sceneRenderViewProvider);
-        getSite().getPage().addSelectionListener(this.sceneView);
 
         this.presenter.onRefresh();
     }

@@ -684,13 +684,13 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
-    /*# retrieve a texture width from a render target
+    /*# retrieve a buffer width from a render target
      *
-     * @name render.get_texture_width
-     * @param render_target render target from which to retrieve the texture width
-     * @param buffer_type which buffer type to retrieve the texture width of
+     * @name render.get_render_target_width
+     * @param render_target render target from which to retrieve the buffer width
+     * @param buffer_type which type of buffer to retrieve the width from
      */
-    int RenderScript_GetTextureWidth(lua_State* L)
+    int RenderScript_GetRenderTargetWidth(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         (void)i;
@@ -702,7 +702,7 @@ namespace dmRender
         }
         else
         {
-            return luaL_error(L, "Expected render target as the second argument to %s.get_texture_width.", RENDER_SCRIPT_LIB_NAME);
+            return luaL_error(L, "Expected render target as the first argument to %s.get_texture_width.", RENDER_SCRIPT_LIB_NAME);
         }
         uint32_t buffer_type = (uint32_t)luaL_checknumber(L, 2);
         if (buffer_type - dmGraphics::BUFFER_TYPE_COLOR_BIT >= dmGraphics::MAX_BUFFER_TYPE_COUNT)
@@ -721,13 +721,13 @@ namespace dmRender
         }
     }
 
-    /*# retrieve a texture height from a render target
+    /*# retrieve a buffer height from a render target
      *
-     * @name render.get_texture_height
-     * @param render_target render target from which to retrieve the texture height
-     * @param buffer_type which buffer type to retrieve the texture height of
+     * @name render.get_render_target_height
+     * @param render_target render target from which to retrieve the buffer height
+     * @param buffer_type which type of buffer to retrieve the height from
      */
-    int RenderScript_GetTextureHeight(lua_State* L)
+    int RenderScript_GetRenderTargetHeight(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         (void)i;
@@ -739,7 +739,7 @@ namespace dmRender
         }
         else
         {
-            return luaL_error(L, "Expected render target as the second argument to %s.get_texture_height.", RENDER_SCRIPT_LIB_NAME);
+            return luaL_error(L, "Expected render target as the first argument to %s.get_texture_height.", RENDER_SCRIPT_LIB_NAME);
         }
         uint32_t buffer_type = (uint32_t)luaL_checknumber(L, 2);
         if (buffer_type - dmGraphics::BUFFER_TYPE_COLOR_BIT >= dmGraphics::MAX_BUFFER_TYPE_COUNT)
@@ -1342,8 +1342,8 @@ namespace dmRender
         {"set_render_target_size",          RenderScript_SetRenderTargetSize},
         {"enable_texture",                  RenderScript_EnableTexture},
         {"disable_texture",                 RenderScript_DisableTexture},
-        {"get_texture_width",               RenderScript_GetTextureWidth},
-        {"get_texture_height",              RenderScript_GetTextureHeight},
+        {"get_render_target_width",         RenderScript_GetRenderTargetWidth},
+        {"get_render_target_height",        RenderScript_GetRenderTargetHeight},
         {"clear",                           RenderScript_Clear},
         {"set_viewport",                    RenderScript_SetViewport},
         {"set_view",                        RenderScript_SetView},
