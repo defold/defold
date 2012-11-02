@@ -54,6 +54,7 @@ public class CurvePresenter extends EventManager implements IPresenter, ISelecti
     private IUndoContext undoContext;
 
     IPropertyModel<Node, IPropertyObjectWorld> propertyModel;
+    IPropertyModel<Node, IPropertyObjectWorld> oldPropertyModel;
     @SuppressWarnings("unchecked")
     private IPropertyDesc<Node, ? extends IPropertyObjectWorld>[] input = new IPropertyDesc[0];
     @SuppressWarnings("unchecked")
@@ -75,6 +76,7 @@ public class CurvePresenter extends EventManager implements IPresenter, ISelecti
     private int[] tangentIndex = new int[] {-1, -1};
 
     public void setModel(IPropertyModel<Node, IPropertyObjectWorld> model) {
+        this.oldPropertyModel = this.propertyModel;
         this.propertyModel = model;
         updateInput();
     }
@@ -111,12 +113,13 @@ public class CurvePresenter extends EventManager implements IPresenter, ISelecti
 
         input = (IPropertyDesc<Node, IPropertyObjectWorld>[]) lst.toArray(new IPropertyDesc<?, ?>[lst.size()]);
 
-        if (!Arrays.equals(input, oldInput)) {
+        if (this.propertyModel != this.oldPropertyModel || !Arrays.equals(input, oldInput)) {
             this.view.setInput(input);
             setSelection(select(new int[][] {}));
         }
 
         oldInput = input;
+        this.oldPropertyModel = this.propertyModel;
         this.view.refresh();
     }
 

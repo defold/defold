@@ -98,6 +98,7 @@ public class SceneRenderViewProvider implements IRenderViewProvider, ISelectionP
     public void setSelection(ISelection selection) {
         if (!this.selecting && this.selection != selection && selection instanceof IStructuredSelection) {
             this.selection = (IStructuredSelection)selection;
+            fireSelectionChanged(selection);
         }
     }
 
