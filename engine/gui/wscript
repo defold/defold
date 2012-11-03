@@ -41,7 +41,7 @@ def configure(conf):
         conf.env['LIB_PLATFORM_SOCKET'] = 'WS2_32'
 
     if platform == "darwin":
-        conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'AGL', '-framework', 'IOKit'])
+        conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'CoreVideo'])
     if platform == "linux":
         conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']
     if platform == "win32":
