@@ -447,7 +447,8 @@ Multiple commands can be specified'''
     if target_platform == 'darwin':
         # NOTE: Darwin is currently mixed 32 and 64-bit.
         # That's why we have this temporary hack
-        target_platforms = [target_platform, 'x86_64-%s' % target_platform]
+        # NOTE: Build 64-bit first as 32-bit is the current default
+        target_platforms = ['x86_64-%s' % target_platform, target_platform]
     else:
         target_platforms = [target_platform]
 
