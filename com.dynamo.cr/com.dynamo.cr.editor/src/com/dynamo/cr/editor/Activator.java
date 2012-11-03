@@ -36,6 +36,9 @@ import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.core.runtime.Status;
+import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.server.bio.SocketConnector;
+import org.eclipse.jetty.server.handler.HandlerList;
 import org.eclipse.jface.dialogs.Dialog;
 import org.eclipse.jface.operation.IRunnableWithProgress;
 import org.eclipse.jface.preference.IPreferenceStore;
@@ -52,9 +55,6 @@ import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.navigator.resources.ProjectExplorer;
 import org.eclipse.ui.progress.IProgressService;
 import org.eclipse.ui.statushandlers.StatusManager;
-import org.glassfish.grizzly.http.server.HttpHandler;
-import org.glassfish.grizzly.http.server.HttpServer;
-import org.glassfish.grizzly.http.server.NetworkListener;
 import org.osgi.framework.BundleContext;
 import org.osgi.util.tracker.ServiceTracker;
 import org.slf4j.Logger;
@@ -115,6 +115,8 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
 
     boolean branchListenerAdded = false;
 
+    public static final int SERVER_PORT = 8080;
+
     static BundleContext getContext() {
         return context;
     }
@@ -158,7 +160,7 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
 
     private IProject project;
 
-    private HttpServer httpServer;
+    private Server httpServer;
 
     public IProxyService getProxyService() {
         return (IProxyService) proxyTracker.getService();
@@ -415,7 +417,11 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
 
     public void disconnectFromBranch() throws RepositoryException {
         if (httpServer != null) {
-            httpServer.stop();
+            try {
+                httpServer.stop();
+            } catch (Exception e) {
+                logger.warn("Failed to stop http server", e);
+            }
             httpServer = null;
         }
 
@@ -440,6 +446,25 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
 
         this.branchClient = null;
         this.activeBranch = null;
+    }
+
+    private void initHttpServer(String branchLocation) throws IOException {
+        httpServer = new org.eclipse.jetty.server.Server();
+
+        SocketConnector connector = new SocketConnector();
+        connector.setPort(SERVER_PORT);
+        httpServer.addConnector(connector);
+        HandlerList handlerList = new HandlerList();
+        FileHandler fileHandler = new FileHandler();
+        fileHandler.setResourceBase(branchLocation);
+        handlerList.addHandler(fileHandler);
+        httpServer.setHandler(handlerList);
+
+        try {
+            httpServer.start();
+        } catch (Exception e) {
+            throw new IOException("Unable to start http server", e);
+        }
     }
 
     public void connectToBranch(IProjectClient projectClient, String branch) throws RepositoryException {
@@ -505,21 +530,8 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
             String builtinsDirectory = Builtins.getDefault().getBuiltins();
 
             // Start local http server
-            httpServer = HttpServer.createSimpleServer(branchLocation);
             try {
-                /*
-                 * NOTE: Disable caching due to this http://java.net/jira/browse/GRIZZLY-1216
-                 * It's probably a bug in grizzly
-                 */
-                for (NetworkListener listener : httpServer.getListeners()) {
-                    listener.getFileCache().setEnabled(false);
-                    // TODO This is a temp fix for a file-locking bug on windows
-                    // More details here:
-                    // https://defold.fogbugz.com/default.asp?1177
-                    listener.getFileCache().setMaxCacheEntries(0);
-                }
-                httpServer.start();
-                HttpHandler handler = httpServer.getHttpHandler();
+                initHttpServer(branchLocation);
             } catch (IOException e) {
                 showError("Unable to start http server", e);
             }
@@ -599,7 +611,7 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
             logException(e);
         }
 
-        int port = httpServer.getListeners().iterator().next().getPort();
+        int port = SERVER_PORT;
         try {
             return UriBuilder.fromPath("/").scheme("http").host(localAddress).port(port).build().toURL();
         } catch (Exception e) {

@@ -26,7 +26,7 @@ import org.apache.http.NameValuePair;
 import org.apache.http.client.utils.URLEncodedUtils;
 import org.eclipse.jetty.util.MultiMap;
 
-import com.dynamo.cr.server.LRUCache;
+import com.dynamo.cr.common.cache.LRUCache;
 
 public class OpenID {
 

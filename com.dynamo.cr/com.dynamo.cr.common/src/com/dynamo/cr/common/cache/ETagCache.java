@@ -1,4 +1,4 @@
-package com.dynamo.cr.server;
+package com.dynamo.cr.common.cache;
 
 import java.io.BufferedInputStream;
 import java.io.File;

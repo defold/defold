@@ -29,6 +29,7 @@ Bundle-ClassPath: .,
  ext_generated/tile.jar,
  ext_generated/fontc.jar
 Export-Package: com.dynamo.camera.proto,
+ com.dynamo.cr.common.cache,
  com.dynamo.cr.common.providers,
  com.dynamo.cr.common.util,
  com.dynamo.cr.proto,
@@ -140,4 +141,5 @@ Export-Package: com.dynamo.camera.proto,
  org.codehaus.jackson.node
 Import-Package: org.osgi.framework;version="1.5.0"
 Require-Bundle: javax.activation;bundle-version="1.1.0",
- javax.mail;bundle-version="1.4.0"
+ javax.mail;bundle-version="1.4.0",
+ org.glassfish.grizzly;bundle-version="2.1.2"

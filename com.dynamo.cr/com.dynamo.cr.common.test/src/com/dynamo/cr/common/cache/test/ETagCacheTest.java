@@ -1,4 +1,4 @@
-package com.dynamo.cr.server.test;
+package com.dynamo.cr.common.cache.test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -11,7 +11,7 @@ import java.io.StringReader;
 import org.apache.commons.io.IOUtils;
 import org.junit.Test;
 
-import com.dynamo.cr.server.ETagCache;
+import com.dynamo.cr.common.cache.ETagCache;
 
 public class ETagCacheTest {
 

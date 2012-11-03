@@ -22,7 +22,7 @@ namespace dmHttpCache
     // Magic file header for index file
     const uint32_t MAGIC = 0xCAAAAAAC;
     // Current index file version
-    const uint32_t VERSION = 3;
+    const uint32_t VERSION = 4;
 
     // Maximum number of cache entry creations in flight
     const uint32_t MAX_CACHE_CREATORS = 16;

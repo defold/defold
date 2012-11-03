@@ -33,7 +33,11 @@ public class TestHttpServer extends AbstractHandler
         Reader r = new FileReader(target.substring(1));
         char[] buf = new char[1024 * 128];
         int n = r.read(buf);
-        response.getWriter().print(new String(buf, 0, n));
+        if (n > 0) {
+            response.getWriter().print(new String(buf, 0, n));
+        }
+        // NOTE: We flush here to force chunked encoding
+        response.getWriter().flush();
         r.close();
     }
 

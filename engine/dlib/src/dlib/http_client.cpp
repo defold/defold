@@ -410,7 +410,7 @@ bail:
         return sock_res;
     }
 
-    static Result DoTransfer(HClient client, Response* response, int to_transfer, HttpContent http_content)
+    static Result DoTransfer(HClient client, Response* response, int to_transfer, HttpContent http_content, bool add_to_cache)
     {
         int total_transferred = 0;
 
@@ -419,7 +419,7 @@ bail:
             int n = dmMath::Min(to_transfer - total_transferred, response->m_TotalReceived - response->m_ContentOffset);
             http_content(client, client->m_Userdata, response->m_Status, client->m_Buffer + response->m_ContentOffset, n);
 
-            if (response->m_CacheCreator)
+            if (response->m_CacheCreator && add_to_cache)
             {
                 dmHttpCache::Add(client->m_HttpCache, response->m_CacheCreator, client->m_Buffer + response->m_ContentOffset, n);
             }
@@ -561,12 +561,13 @@ bail:
 
                     // Move content-offset after chunk termination, ie after "\r\n"
                     response->m_ContentOffset = chunk_size_end - client->m_Buffer;
-                    r = DoTransfer(client, response, chunk_size, client->m_HttpContent);
+                    r = DoTransfer(client, response, chunk_size, client->m_HttpContent, true);
                     if (r != RESULT_OK)
                         break;
 
                     // Consume \r\n"
-                    r = DoTransfer(client, response, 2, &HttpContentConsume);
+                    // NOTE: *not* added to cache
+                    r = DoTransfer(client, response, 2, &HttpContentConsume, false);
                     if (r != RESULT_OK)
                         break;
 
@@ -609,7 +610,7 @@ bail:
         {
             // "Regular" transfer, single chunk
             assert(response->m_ContentOffset != -1);
-            r = DoTransfer(client, response, response->m_ContentLength, client->m_HttpContent);
+            r = DoTransfer(client, response, response->m_ContentLength, client->m_HttpContent, true);
         }
 
         return r;

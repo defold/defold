@@ -8,7 +8,7 @@ import org.apache.commons.codec.binary.Hex;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.dynamo.cr.server.LRUCache;
+import com.dynamo.cr.common.cache.LRUCache;
 import com.dynamo.cr.server.openid.OpenID;
 import com.dynamo.cr.server.openid.OpenIDException;
 import com.dynamo.cr.server.openid.OpenIDIdentity;
