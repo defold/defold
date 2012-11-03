@@ -5,6 +5,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import org.apache.commons.configuration.ConfigurationException;
@@ -103,8 +104,10 @@ public class IOSBundler {
         FileUtils.deleteDirectory(appDir);
         appDir.mkdirs();
 
-        // Copy content
-        FileUtils.copyDirectory(new File(contentRoot), appDir);
+        // Copy archive and game.projectc
+        for (String name : Arrays.asList("game.projectc", "game.arc")) {
+            FileUtils.copyFile(new File(contentRoot, name), new File(appDir, name));
+        }
 
         // Create Info.plist
         InputStream infoIn = getClass().getResourceAsStream(

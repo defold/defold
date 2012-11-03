@@ -2,6 +2,7 @@ package com.dynamo.cr.target.bundle;
 
 import static org.apache.commons.io.FilenameUtils.concat;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import java.io.ByteArrayInputStream;
@@ -30,8 +31,8 @@ public class IOSBundlerTest {
         contentRoot = tempDir();
         outputDir = tempDir();
         projectProperties = new ProjectProperties();
-        createFile(contentRoot, "game.projectc", "");
-        createFile(contentRoot, "game.arc", "");
+        createFile(contentRoot, "game.projectc", "game.projectc data");
+        createFile(contentRoot, "game.arc", "game.arc data");
         provisioningProfile = createFile(contentRoot, "test.mobileprovision", "test provision");
     }
 
@@ -57,7 +58,9 @@ public class IOSBundlerTest {
         IOSBundler bundler = new IOSBundler(null, provisioningProfile, projectProperties, exe, contentRoot, contentRoot, outputDir);
         bundler.bundleApplication();
 
-        assertEquals("test_icon", readFile(concat(outputDir, "MyApp.app"), "test.png"));
+        assertFalse(new File(concat(outputDir, "MyApp.app/test.png")).exists());
+        assertEquals("game.projectc data", readFile(concat(outputDir, "MyApp.app"), "game.projectc"));
+        assertEquals("game.arc data", readFile(concat(outputDir, "MyApp.app"), "game.arc"));
         assertExe();
         assertPList();
     }
