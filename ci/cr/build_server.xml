@@ -19,10 +19,7 @@
     </target>
 
     <target name="init">
-        <exec dir="${buildDirectory}/plugins/com.dynamo.cr.common"
-              executable="sh" failonerror="true">
-              <arg value="scripts/build_proto.sh"/>
-        </exec>
+        <ant dir="${buildDirectory}/plugins/com.dynamo.cr.common" antfile="build.xml"/>
 
         <!-- pushd not availble in dash.
              That's the reason for expicit bash below -->

@@ -270,6 +270,13 @@ root.linux.gtk.x86.permissions.755=jre/'''
             shutil.rmtree(workspace)
         os.makedirs(workspace)
 
+        # copy engine
+        p = join(self.defold_root, 'engine')
+        dst = join(build_dir, basename(p))
+        self._log('Copying .../%s -> %s' % (basename(p), dst))
+        shutil.copytree(p, dst)
+
+        # copy plugins
         for p in glob(join(self.defold_root, 'com.dynamo.cr', '*')):
             dst = join(build_dir, 'plugins', basename(p))
             self._log('Copying .../%s -> %s' % (basename(p), dst))
