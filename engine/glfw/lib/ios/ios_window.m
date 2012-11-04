@@ -318,6 +318,16 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     glView.contentScaleFactor = scaleFactor;
     glView.layer.contentsScale = scaleFactor;
     [ [self view] addSubview: glView ];
+
+    float version = [[UIDevice currentDevice].systemVersion floatValue];
+
+    if (version < 6)
+    {
+        // NOTE: This is only required for older versions of iOS
+        // In iOS 6 new method was introduced for rotation logc, see AppDelegate
+        UIInterfaceOrientation orientation = _glfwWin.portrait ? UIInterfaceOrientationPortrait : UIInterfaceOrientationLandscapeRight;
+        [[UIApplication sharedApplication] setStatusBarOrientation: orientation animated: NO];
+    }
 }
 
 - (void)viewDidAppear:(BOOL)animated
@@ -335,6 +345,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 - (BOOL)shouldAutorotateToInterfaceOrientation:(UIInterfaceOrientation)interfaceOrientation
 {
+    // NOTE: For iOS < 6
     if (_glfwWin.portrait)
     {
         return   interfaceOrientation == UIInterfaceOrientationPortrait
@@ -352,10 +363,12 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 }
 
 -(BOOL)shouldAutorotate{
+    // NOTE: Only for iOS6
     return YES;
 }
 
 -(NSInteger)supportedInterfaceOrientations {
+    // NOTE: Only for iOS6
     if (_glfwWin.portrait)
     {
         return UIInterfaceOrientationMaskPortrait | UIInterfaceOrientationMaskPortraitUpsideDown;
