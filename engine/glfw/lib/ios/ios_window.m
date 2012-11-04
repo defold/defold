@@ -152,8 +152,13 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
     countDown = swapInterval;
 
-    glBindRenderbuffer(GL_RENDERBUFFER, viewRenderbuffer);
-    [context presentRenderbuffer:GL_RENDERBUFFER];
+    // NOTE: We poll events above and the application might be iconfied
+    // At least when running in frame-rates < 60
+    if (!_glfwWin.iconified)
+    {
+        glBindRenderbuffer(GL_RENDERBUFFER, viewRenderbuffer);
+        [context presentRenderbuffer:GL_RENDERBUFFER];
+    }
 }
 
 - (void)newFrame

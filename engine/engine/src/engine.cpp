@@ -663,6 +663,15 @@ bail:
                     dmResource::UpdateFactory(engine->m_Factory);
 
                     dmHID::Update(engine->m_HidContext);
+                    if (dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
+                    {
+                        // NOTE: This is a bit ugly but os event are polled in dmHID::Update and an iOS application
+                        // might have entered background at this point and OpenGL calls are not permitted and will
+                        // crash the application
+                        dmProfile::Release(profile);
+                        continue;
+                    }
+
                     dmSound::Update();
 
                     dmHID::KeyboardPacket keybdata;
