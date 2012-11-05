@@ -39,7 +39,6 @@ public class ParticleSystemTest {
 
     private static final int MAX_PARTICLE_COUNT = 1024;
 
-    private static final int VERTEX_COMPONENT_COUNT = 9;
     private static final int PARTICLE_VERTEX_COUNT = 6;
 
     @Before
@@ -112,11 +111,10 @@ public class ParticleSystemTest {
         ParticleLibrary.Particle_SetTileSource(prototype, 0, originalTileSource);
         final Pointer originalTexture = new Pointer(3);
         final FloatBuffer texCoords = BufferUtil.newFloatBuffer(4);
-        texCoords.put(1.0f).put(2.0f).put(3.0f).put(4.0f).flip();
+        texCoords.put(1.0f/255.0f).put(2.0f/255.0f).put(3.0f/255.0f).put(4.0f/255.0f).flip();
         IntByReference outSize = new IntByReference(1234);
-        final int elementCount = MAX_PARTICLE_COUNT * PARTICLE_VERTEX_COUNT * VERTEX_COMPONENT_COUNT;
-        final int vertexBufferSize = elementCount * 4;
-        final FloatBuffer vertexBuffer = BufferUtil.newFloatBuffer(elementCount);
+        final int vertexBufferSize = ParticleLibrary.Particle_GetVertexBufferSize(MAX_PARTICLE_COUNT);
+        final ByteBuffer vertexBuffer = BufferUtil.newByteBuffer(vertexBufferSize);
         final boolean fetchAnim[] = new boolean[] { false };
         ParticleLibrary.Particle_Update(context, 1.0f / 60.0f, vertexBuffer, vertexBufferSize, outSize,
                 new FetchAnimationCallback() {
@@ -141,7 +139,7 @@ public class ParticleSystemTest {
                 });
         assertTrue(fetchAnim[0]);
         int vertexSize = outSize.getValue();
-        assertTrue(VERTEX_COMPONENT_COUNT * PARTICLE_VERTEX_COUNT * 4 == vertexSize);
+        assertTrue(ParticleLibrary.Particle_GetVertexBufferSize(1) == vertexSize);
         int uvIdx[] = new int[] {
                 0, 3,
                 0, 1,
@@ -151,19 +149,24 @@ public class ParticleSystemTest {
                 2, 1
         };
         for (int i = 0; i < PARTICLE_VERTEX_COUNT; ++i) {
-            // u
-            assertTrue(texCoords.get(uvIdx[i * 2 + 0]) == vertexBuffer.get());
-            // v
-            assertTrue(texCoords.get(uvIdx[i * 2 + 1]) == vertexBuffer.get());
             // p
-            assertTrue(1.0f == vertexBuffer.get());
-            assertTrue(2.0f == vertexBuffer.get());
-            assertTrue(3.0f == vertexBuffer.get());
+            assertTrue(1.0f == vertexBuffer.getFloat());
+            assertTrue(2.0f == vertexBuffer.getFloat());
+            assertTrue(3.0f == vertexBuffer.getFloat());
             // rgba
-            assertTrue(0.0f == vertexBuffer.get());
-            assertTrue(0.0f == vertexBuffer.get());
-            assertTrue(0.0f == vertexBuffer.get());
-            assertTrue(0.0f == vertexBuffer.get());
+            assertTrue(0 == vertexBuffer.get());
+            assertTrue(0 == vertexBuffer.get());
+            assertTrue(0 == vertexBuffer.get());
+            assertTrue(0 == vertexBuffer.get());
+            // u
+            int u = 0xff & vertexBuffer.get();
+            assertTrue(texCoords.get(uvIdx[i * 2 + 0]) == ((float)u)/255.0f);
+            // v
+            int v = 0xff & vertexBuffer.get();
+            assertTrue(texCoords.get(uvIdx[i * 2 + 1]) == ((float)v)/255.0f);
+            // Padding
+            vertexBuffer.get();
+            vertexBuffer.get();
         }
 
         Stats stats = new Stats();

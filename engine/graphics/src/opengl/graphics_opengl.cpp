@@ -661,6 +661,7 @@ static void LogFrameBufferError(GLenum status)
             vd->m_Streams[i].m_PhysicalIndex = -1;
             vd->m_Streams[i].m_Size = element[i].m_Size;
             vd->m_Streams[i].m_Type = element[i].m_Type;
+            vd->m_Streams[i].m_Normalize = element[i].m_Normalize;
             vd->m_Streams[i].m_Offset = vd->m_Stride;
 
             vd->m_Stride += element[i].m_Size * GetTypeSize(element[i].m_Type);
@@ -692,7 +693,7 @@ static void LogFrameBufferError(GLenum status)
                     vertex_declaration->m_Streams[i].m_LogicalIndex,
                     vertex_declaration->m_Streams[i].m_Size,
                     vertex_declaration->m_Streams[i].m_Type,
-                    false,
+                    vertex_declaration->m_Streams[i].m_Normalize,
                     vertex_declaration->m_Stride,
             BUFFER_OFFSET(vertex_declaration->m_Streams[i].m_Offset) );   //The starting point of the VBO, for the vertices
 
@@ -754,7 +755,7 @@ static void LogFrameBufferError(GLenum status)
                         vertex_declaration->m_Streams[i].m_PhysicalIndex,
                         vertex_declaration->m_Streams[i].m_Size,
                         vertex_declaration->m_Streams[i].m_Type,
-                        false,
+                        vertex_declaration->m_Streams[i].m_Normalize,
                         vertex_declaration->m_Stride,
                 BUFFER_OFFSET(vertex_declaration->m_Streams[i].m_Offset) );   //The starting point of the VBO, for the vertices
 

@@ -2,7 +2,6 @@ package com.dynamo.cr.parted.nodes;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.FloatBuffer;
 import java.util.List;
 
 import javax.vecmath.Point3d;
@@ -104,7 +103,8 @@ public class ParticleFXNode extends ComponentTypeNode {
     private transient Pointer context;
     private transient boolean reload = false;
     private transient boolean forceReplay = false;
-    private transient FloatBuffer vertexBuffer;
+    private transient ByteBuffer vertexBuffer;
+    private transient int vertexBufferSize;
     private transient int maxParticleCount = 0;
     private transient double elapsedTime = 0.0f;
     private transient boolean running = false;
@@ -174,8 +174,12 @@ public class ParticleFXNode extends ComponentTypeNode {
         return instance;
     }
 
-    public FloatBuffer getVertexBuffer() {
+    public ByteBuffer getVertexBuffer() {
         return this.vertexBuffer;
+    }
+
+    public int getVertexBufferSize() {
+        return this.vertexBufferSize;
     }
 
     public double getElapsedTime() {
@@ -271,7 +275,7 @@ public class ParticleFXNode extends ComponentTypeNode {
         int maxParticleCount = ParticleLibrary.Particle_GetContextMaxParticleCount(this.context);
         if (maxParticleCount != this.maxParticleCount) {
             this.maxParticleCount = maxParticleCount;
-            this.vertexBuffer = BufferUtil.newFloatBuffer(ParticleLibrary.Particle_GetVertexBufferSize(this.maxParticleCount));
+            this.vertexBuffer = BufferUtil.newByteBuffer(ParticleLibrary.Particle_GetVertexBufferSize(this.maxParticleCount));
         }
 
         boolean running = dt > 0.0;
@@ -289,6 +293,8 @@ public class ParticleFXNode extends ComponentTypeNode {
         animCallback.children = getChildren();
         ParticleLibrary.Particle_Update(context, (float) dt, this.vertexBuffer, this.vertexBuffer.capacity(), outSize,
                 animCallback);
+        this.vertexBufferSize = outSize.getValue();
+
         this.elapsedTime += dt;
     }
 

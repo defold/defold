@@ -132,6 +132,21 @@ namespace dmParticle
         uint32_t m_StructSize;
     };
 
+    /**
+     * Particle vertex format
+     */
+    struct Vertex
+    {
+        // Offset 0
+        float m_X, m_Y, m_Z;
+        // Offset 12
+        uint8_t m_Red, m_Green, m_Blue, m_Alpha;
+        // Offset 16
+        uint8_t m_U, m_V;
+        uint8_t m_Padding[2];
+        // Offset 20
+    };
+
 
 #define DM_PARTICLE_PROTO(ret, name,  ...) \
     \
@@ -234,7 +249,7 @@ namespace dmParticle
      * @param vertex_buffer_size Size in bytes of the supplied vertex buffer.
      * @param out_vertex_buffer_size How many bytes was actually written to the vertex buffer, 0x0 is allowed.
      */
-    DM_PARTICLE_PROTO(void, Update, HContext context, float dt, float* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size, FetchAnimationCallback fetch_animation_callback);
+    DM_PARTICLE_PROTO(void, Update, HContext context, float dt, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size, FetchAnimationCallback fetch_animation_callback);
 
     /**
      * Render the instances within the specified context.

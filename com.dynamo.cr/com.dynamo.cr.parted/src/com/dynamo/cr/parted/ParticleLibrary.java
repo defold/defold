@@ -54,7 +54,7 @@ public class ParticleLibrary {
 
     public static native boolean Particle_IsSleeping(Pointer context, Pointer instance);
 
-    public static native void Particle_Update(Pointer context, float dt, FloatBuffer vertexBuffer,
+    public static native void Particle_Update(Pointer context, float dt, Buffer vertexBuffer,
             int vertexBufferSize,
             IntByReference outVertexBufferSize, FetchAnimationCallback callback);
 

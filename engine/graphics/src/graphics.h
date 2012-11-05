@@ -202,6 +202,7 @@ namespace dmGraphics
         uint32_t        m_Stream;
         uint32_t        m_Size;
         Type            m_Type;
+        bool            m_Normalize;
     };
 
     struct TextureParams
