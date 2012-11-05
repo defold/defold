@@ -695,19 +695,18 @@ namespace dmParticle
                 float u = dmMath::Rand01(seed) + dmMath::Rand01(seed);
                 float r = dmMath::Select(u - 1.0f, 2.0f - u, u);
 
-                float radius = r * 0.5f * emitter_properties[EMITTER_KEY_SIZE_X];
-                float height = emitter_properties[EMITTER_KEY_SIZE_Y];
-
-                dir = Vector3(radius * cosf(angle), 1.0f, radius * sinf(angle));
-
                 // Pick height to give uniform dist. over volume, surface area of sub-circles grows quadratic wrt height
                 float h = sqrtf(dmMath::Rand01(seed));
+                float height = h * emitter_properties[EMITTER_KEY_SIZE_Y];
+                float radius = h * r * 0.5f * emitter_properties[EMITTER_KEY_SIZE_X];
 
-                // Scale both height and radius by h, also scale unit-height dir with correct height
-                local_position = Vector3(h * dir.getX(), h * height * dir.getY(), h * dir.getZ());
+                local_position = Vector3(radius * cosf(angle), height, radius * sinf(angle));
 
                 // Finally normalize dir
-                dir = normalize(dir);
+                if (lengthSqr(local_position) != 0.0f)
+                    dir = normalize(local_position);
+                else
+                    dir = Vector3(0.0f, 1.0f, 0.0f);
 
                 break;
             }
@@ -739,7 +738,10 @@ namespace dmParticle
                 y = dmMath::Select(height - y, y, 2 * height - y);
 
                 local_position = Vector3(x, y, 0.0f);
-                dir = normalize(local_position);
+                if (lengthSqr(local_position) != 0.0f)
+                    dir = normalize(local_position);
+                else
+                    dir = Vector3(0.0f, 1.0f, 0.0f);
 
                 break;
             }
