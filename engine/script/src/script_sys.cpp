@@ -219,12 +219,29 @@ namespace dmScript
         return 1;
     }
 
+    /*# open url in default application
+     * Open URL in default application, typically a browser
+     *
+     * @name sys.open_url
+     * @param url url to open
+     * @return a boolean indicating if the url could be opened or not
+     */
+    int Sys_OpenURL(lua_State* L)
+    {
+        const char* url = luaL_checkstring(L, 1);
+
+        dmSys::Result r = dmSys::OpenURL(url);
+        lua_pushboolean(L, r == dmSys::RESULT_OK);
+        return 1;
+    }
+
     static const luaL_reg ScriptSys_methods[] =
     {
         {"save", Sys_Save},
         {"load", Sys_Load},
         {"get_save_file", Sys_GetSaveFile},
         {"get_config", Sys_GetConfig},
+        {"open_url", Sys_OpenURL},
         {0, 0}
     };
 

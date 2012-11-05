@@ -92,6 +92,14 @@ namespace dmSys
      * @return RESULT_OK on success
      */
     Result GetResourcesPath(int argc, char* argv[], char* path, uint32_t path_len);
+
+    /**
+     * Open URL in default application
+     * @param url url to open
+     * @return RESULT_OK on success
+     */
+    Result OpenURL(const char* url);
+
 }
 
 #endif

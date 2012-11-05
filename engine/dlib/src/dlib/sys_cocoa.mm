@@ -5,6 +5,13 @@
 #include "sys.h"
 #include "dstrings.h"
 
+#ifdef __arm__
+#import <UIKit/UIApplication.h>
+#import <UIKit/UIKit.h>
+#else
+#import <AppKit/NSWorkspace.h>
+#endif
+
 namespace dmSys
 {
 #ifdef __arm__
@@ -48,6 +55,36 @@ namespace dmSys
             return RESULT_UNKNOWN;
         }
     }
+
+    Result OpenURL(const char* url)
+    {
+        NSString* ns_url = [NSString stringWithUTF8String: url];
+        BOOL ret = [[UIApplication sharedApplication] openURL:[NSURL URLWithString: ns_url]];
+        if (ret == YES)
+        {
+            return RESULT_OK;
+        }
+        else
+        {
+            return RESULT_UNKNOWN;
+        }
+    }
+#else
+
+    Result OpenURL(const char* url)
+    {
+        NSString* ns_url = [NSString stringWithUTF8String: url];
+        BOOL ret = [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString: ns_url]];
+        if (ret == YES)
+        {
+            return RESULT_OK;
+        }
+        else
+        {
+            return RESULT_UNKNOWN;
+        }
+    }
+
 #endif
 }
 
