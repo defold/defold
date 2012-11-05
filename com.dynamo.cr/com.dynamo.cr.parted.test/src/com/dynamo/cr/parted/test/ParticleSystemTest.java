@@ -159,14 +159,11 @@ public class ParticleSystemTest {
             assertTrue(0 == vertexBuffer.get());
             assertTrue(0 == vertexBuffer.get());
             // u
-            int u = 0xff & vertexBuffer.get();
-            assertTrue(texCoords.get(uvIdx[i * 2 + 0]) == ((float)u)/255.0f);
+            int u = 0xffff & vertexBuffer.getShort();
+            assertTrue(texCoords.get(uvIdx[i * 2 + 0]) == ((float)u)/65535.0f);
             // v
-            int v = 0xff & vertexBuffer.get();
-            assertTrue(texCoords.get(uvIdx[i * 2 + 1]) == ((float)v)/255.0f);
-            // Padding
-            vertexBuffer.get();
-            vertexBuffer.get();
+            int v = 0xffff & vertexBuffer.getShort();
+            assertTrue(texCoords.get(uvIdx[i * 2 + 1]) == ((float)v)/65535.0f);
         }
 
         Stats stats = new Stats();

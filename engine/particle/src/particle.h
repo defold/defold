@@ -142,8 +142,7 @@ namespace dmParticle
         // Offset 12
         uint8_t m_Red, m_Green, m_Blue, m_Alpha;
         // Offset 16
-        uint8_t m_U, m_V;
-        uint8_t m_Padding[2];
+        uint16_t m_U, m_V;
         // Offset 20
     };
 

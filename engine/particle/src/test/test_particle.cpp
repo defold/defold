@@ -51,10 +51,10 @@ static const float EPSILON = 0.000001f;
 void ParticleTest::VerifyVertexTexCoords(dmParticle::Vertex* vertex_buffer, float* tex_coords, uint32_t tile)
 {
     float* tc = &tex_coords[tile * 4];
-    uint8_t u0 = tc[0] * 255.0f;
-    uint8_t v0 = tc[1] * 255.0f;
-    uint8_t u1 = tc[2] * 255.0f;
-    uint8_t v1 = tc[3] * 255.0f;
+    uint16_t u0 = tc[0] * 65535.0f;
+    uint16_t v0 = tc[1] * 65535.0f;
+    uint16_t u1 = tc[2] * 65535.0f;
+    uint16_t v1 = tc[3] * 65535.0f;
     // The particle vertices are ordered like an N, where the first triangle is the lower left, second is upper right
     ASSERT_EQ(u0, vertex_buffer[0].m_U);
     ASSERT_EQ(v1, vertex_buffer[0].m_V);

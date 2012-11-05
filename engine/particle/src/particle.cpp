@@ -918,6 +918,7 @@ namespace dmParticle
             Vector4 c = particle->GetColor();
 
 #define TO_BYTE(val) (uint8_t)(val * 255.0f)
+#define TO_SHORT(val) (uint16_t)(val * 65535.0f)
 
 #define SET_VERTEX(vertex, p, c, u, v)\
     vertex->m_X = p.getX();\
@@ -927,8 +928,8 @@ namespace dmParticle
     vertex->m_Green = TO_BYTE(c.getY());\
     vertex->m_Blue = TO_BYTE(c.getZ());\
     vertex->m_Alpha = TO_BYTE(c.getW());\
-    vertex->m_U = TO_BYTE(u);\
-    vertex->m_V = TO_BYTE(v);
+    vertex->m_U = TO_SHORT(u);\
+    vertex->m_V = TO_SHORT(v);
 
             SET_VERTEX(vertex, p0, c, u0, v1)
             ++vertex;

@@ -107,7 +107,7 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
         this.vertexFormat = new VertexFormat(
                 new AttributeFormat(VertexFormat.Attribute.POSITION, 3, GL.GL_FLOAT, false),
                 new AttributeFormat(VertexFormat.Attribute.COLOR, 4, GL.GL_UNSIGNED_BYTE, true),
-                new AttributeFormat(VertexFormat.Attribute.TEX_COORD, 4, GL.GL_UNSIGNED_BYTE, true));
+                new AttributeFormat(VertexFormat.Attribute.TEX_COORD, 2, GL.GL_UNSIGNED_SHORT, true));
     }
 
     @Override
