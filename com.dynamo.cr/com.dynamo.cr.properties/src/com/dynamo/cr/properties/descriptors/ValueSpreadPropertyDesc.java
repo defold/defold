@@ -142,6 +142,7 @@ public class ValueSpreadPropertyDesc<T, U extends IPropertyObjectWorld> extends 
 
             boolean[] equal = new boolean[] { true, true };
             ValueSpread firstValue = (ValueSpread) models[0].getPropertyValue(propertyDesc.getId());
+            textFields[1].getText().setVisible(!firstValue.hideSpread());
             for (int i = 1; i < models.length; ++i) {
                 ValueSpread value = (ValueSpread) models[i].getPropertyValue(propertyDesc.getId());
                 equal[0] = firstValue.getValue() == value.getValue();

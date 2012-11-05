@@ -7,6 +7,7 @@ public class ValueSpread implements Serializable {
     private static final long serialVersionUID = 1L;
     private double value;
     private double spread;
+    private boolean hideSpread;
     private boolean animated;
     private Object curve;
 
@@ -21,6 +22,7 @@ public class ValueSpread implements Serializable {
     public ValueSpread(ValueSpread vs) {
         this.value = vs.value;
         this.spread = vs.spread;
+        this.hideSpread = vs.hideSpread;
         this.animated = vs.animated;
         this.curve = vs.curve;
     }
@@ -39,6 +41,14 @@ public class ValueSpread implements Serializable {
 
     public void setSpread(double spread) {
         this.spread = spread;
+    }
+
+    public boolean hideSpread() {
+        return this.hideSpread;
+    }
+
+    public void setHideSpread(boolean hideSpread) {
+        this.hideSpread = hideSpread;
     }
 
     public boolean isAnimated() {
@@ -64,6 +74,7 @@ public class ValueSpread implements Serializable {
     public void set(ValueSpread vs) {
         this.value = vs.value;
         this.spread = vs.spread;
+        this.hideSpread = vs.hideSpread;
         this.animated = vs.animated;
         this.curve = vs.curve;
     }

@@ -10,7 +10,6 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.osgi.util.NLS;
 import org.eclipse.swt.graphics.Image;
-import org.eclipse.ui.actions.PartEventAction;
 
 import com.dynamo.cr.parted.Messages;
 import com.dynamo.cr.parted.ParticleEditorPlugin;
@@ -321,6 +320,7 @@ public class EmitterNode extends Node {
     private void setParticleProperties(List<Emitter.ParticleProperty> list) {
         for (ParticleProperty p : list) {
             ValueSpread vs = ParticleUtils.toValueSpread(p.getPointsList());
+            vs.setHideSpread(true);
             this.particleProperties.put(p.getKey(), vs);
         }
     }
