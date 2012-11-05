@@ -680,6 +680,20 @@ namespace dmParticle
                 break;
             }
 
+            case EMITTER_TYPE_CIRCLE:
+            {
+                // Direction is sampled uniformly over the unit-sphere surface
+                // http://www.altdevblogaday.com/2012/05/03/generating-uniformly-distributed-points-on-sphere/
+                float angle = 2.0f * ((float) M_PI) * dmMath::RandOpen01(seed);
+                dir = Vector3(cosf(angle), sinf(angle), 0);
+                // Pick radius to give uniform dist. over volume, surface area of sub-spheres grows quadratic wrt radius
+                float radius = sqrtf(dmMath::RandOpen01(seed));
+                radius *= 0.5f * emitter_properties[EMITTER_KEY_SIZE_X];
+                local_position = dir * radius;
+
+                break;
+            }
+
             case EMITTER_TYPE_CONE:
             {
                 // Direction is sampled uniformly over the unit-circle (cone-top) surface
@@ -701,6 +715,38 @@ namespace dmParticle
 
                 // Finally normalize dir
                 dir = normalize(dir);
+
+                break;
+            }
+
+            case EMITTER_TYPE_2DCONE:
+            {
+                float width = emitter_properties[EMITTER_KEY_SIZE_X];
+                float height = emitter_properties[EMITTER_KEY_SIZE_Y];
+
+                float u = dmMath::Rand01(seed);
+                float v = dmMath::Rand01(seed);
+
+                /*
+                 * Create samples in a parallelogram
+                 * See http://mathworld.wolfram.com/TrianglePointPicking.html
+                 * for more information
+                 * Effectively we get two triangles with total height 2 * height
+                 */
+
+                /*
+                 * The triangle is comprised of the vertices (0,0), v1 and v2
+                 *  p = (x, y) = v1 * u + v2 * v
+                 *
+                 *  p is a point in the parallelogram
+                 */
+                float x = -width * 0.5 * u + width * 0.5 * v;
+                float y = height * u + height * v;
+                // Mirror points outside triangle
+                y = dmMath::Select(height - y, y, 2 * height - y);
+
+                local_position = Vector3(x, y, 0.0f);
+                dir = normalize(local_position);
 
                 break;
             }

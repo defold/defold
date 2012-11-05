@@ -42,13 +42,16 @@ public class EmitterNodeAccessor implements IPropertyAccessor<EmitterNode, IScen
     @Override
     public boolean isEditable(EmitterNode obj, String property,
             ISceneModel world) {
+        EmitterType t = obj.getEmitterType();
 
-        if (property.equals("EMITTER_KEY_SPHERE_RADIUS")) {
-            return obj.getEmitterType() == EmitterType.EMITTER_TYPE_SPHERE;
-        } else if (property.startsWith("EMITTER_KEY_CONE_") ) {
-            return obj.getEmitterType() == EmitterType.EMITTER_TYPE_CONE;
-        } else if (property.startsWith("EMITTER_KEY_BOX")) {
-            return obj.getEmitterType() == EmitterType.EMITTER_TYPE_BOX;
+        if (property.equals("EMITTER_KEY_SIZE_X")) {
+            return true;
+        } else if (property.startsWith("EMITTER_KEY_SIZE_Y") ) {
+            return t == EmitterType.EMITTER_TYPE_CONE
+                || t == EmitterType.EMITTER_TYPE_2DCONE
+                || t == EmitterType.EMITTER_TYPE_BOX;
+        } else if (property.startsWith("EMITTER_KEY_SIZE_Z")) {
+            return t == EmitterType.EMITTER_TYPE_BOX;
         }
 
         return true;

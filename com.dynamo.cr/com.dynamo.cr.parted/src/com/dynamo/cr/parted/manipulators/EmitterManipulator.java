@@ -116,6 +116,19 @@ public class EmitterManipulator extends RootManipulator {
         this.zScaleManipulator.setVisible(true);
 
         switch (emitter.getEmitterType()) {
+        case EMITTER_TYPE_CIRCLE:
+            this.xScaleManipulator.setEnabled(!isAnimated(emitter, 0));
+            this.yScaleManipulator.setEnabled(false);
+            this.zScaleManipulator.setEnabled(false);
+            this.yScaleManipulator.setVisible(false);
+            this.zScaleManipulator.setVisible(false);
+            break;
+        case EMITTER_TYPE_2DCONE:
+            this.xScaleManipulator.setEnabled(!isAnimated(emitter, 0));
+            this.yScaleManipulator.setEnabled(!isAnimated(emitter, 1));
+            this.zScaleManipulator.setEnabled(false);
+            this.zScaleManipulator.setVisible(false);
+            break;
         case EMITTER_TYPE_SPHERE:
             this.xScaleManipulator.setEnabled(!isAnimated(emitter, 0));
             this.yScaleManipulator.setEnabled(false);

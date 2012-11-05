@@ -8,9 +8,11 @@ option java_outer_classname = "Particle";
 
 enum EmitterType
 {
-    EMITTER_TYPE_SPHERE = 0 [(displayName) = "Sphere"];
-    EMITTER_TYPE_CONE   = 1 [(displayName) = "Cone"];
+    EMITTER_TYPE_CIRCLE = 0 [(displayName) = "Circle"];
+    EMITTER_TYPE_2DCONE = 1 [(displayName) = "2D Cone"];
     EMITTER_TYPE_BOX    = 2 [(displayName) = "Box"];
+    EMITTER_TYPE_SPHERE = 3 [(displayName) = "Sphere"];
+    EMITTER_TYPE_CONE   = 4 [(displayName) = "Cone"];
 };
 
 enum PlayMode

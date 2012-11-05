@@ -40,6 +40,12 @@ public class EmitterRenderer implements INodeRenderer<EmitterNode> {
         if (passes.contains(renderContext.getPass())) {
             FloatBuffer v = null;
             switch (node.getEmitterType()) {
+            case EMITTER_TYPE_CIRCLE:
+                v = sphere;
+                break;
+            case EMITTER_TYPE_2DCONE:
+                v = cone;
+                break;
             case EMITTER_TYPE_SPHERE:
                  v = sphere;
                  break;
@@ -78,9 +84,11 @@ public class EmitterRenderer implements INodeRenderer<EmitterNode> {
         double scaleZ = 1;
 
         switch (node.getEmitterType()) {
+        case EMITTER_TYPE_CIRCLE:
         case EMITTER_TYPE_SPHERE:
             scaleX = scaleY = scaleZ = 0.5 * getScale(node, EmitterKey.EMITTER_KEY_SIZE_X);
             break;
+        case EMITTER_TYPE_2DCONE:
         case EMITTER_TYPE_CONE:
             scaleX = scaleZ = 0.5 * getScale(node, EmitterKey.EMITTER_KEY_SIZE_X);
             scaleY = getScale(node, EmitterKey.EMITTER_KEY_SIZE_Y);

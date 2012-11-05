@@ -13,7 +13,7 @@ public class Messages extends NLS {
     public static String EmitterNode_tileSource_CONTENT_ERROR;
     public static String EmitterNode_animation_EMPTY;
     public static String EmitterNode_animation_INVALID;
-
+    public static String EmitterNode_animation_3DEMITTER_INFO;
     static {
         // initialize resource bundle
         NLS.initializeMessages(BUNDLE_NAME, Messages.class);

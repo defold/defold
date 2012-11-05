@@ -10,6 +10,7 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.osgi.util.NLS;
 import org.eclipse.swt.graphics.Image;
+import org.eclipse.ui.actions.PartEventAction;
 
 import com.dynamo.cr.parted.Messages;
 import com.dynamo.cr.parted.ParticleEditorPlugin;
@@ -180,6 +181,11 @@ public class EmitterNode extends Node {
         double dExt = 1;
 
         switch (getEmitterType()) {
+        case EMITTER_TYPE_CIRCLE:
+            wExt = sizeX;
+            hExt = sizeX;
+            dExt = sizeX;
+            break;
         case EMITTER_TYPE_BOX:
             wExt = sizeX;
             hExt = sizeY;
@@ -191,6 +197,11 @@ public class EmitterNode extends Node {
             dExt = sizeX;
             break;
         case EMITTER_TYPE_CONE:
+            wExt = sizeX;
+            hExt = sizeY;
+            dExt = sizeX;
+            break;
+        case EMITTER_TYPE_2DCONE:
             wExt = sizeX;
             hExt = sizeY;
             dExt = sizeX;
@@ -448,6 +459,17 @@ public class EmitterNode extends Node {
         this.emitterType = emitterType;
         updateAABB();
         reloadSystem(false);
+    }
+
+
+    protected IStatus validateEmitterType() {
+        EmitterType t = getEmitterType();
+        if (t == EmitterType.EMITTER_TYPE_SPHERE || t == EmitterType.EMITTER_TYPE_CONE) {
+            return new Status(IStatus.INFO, ParticleEditorPlugin.PLUGIN_ID, Messages.EmitterNode_animation_3DEMITTER_INFO);
+        } else {
+            return Status.OK_STATUS;
+        }
+
     }
 
     public ParticleOrientation getParticleOrientation() {
