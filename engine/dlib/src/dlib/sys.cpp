@@ -10,6 +10,7 @@
 
 #ifdef _WIN32
 #include <Shlobj.h>
+#include <Shellapi.h>
 #include <io.h>
 #include <direct.h>
 #else
@@ -153,6 +154,20 @@ namespace dmSys
             return RESULT_UNKNOWN;
         }
     }
+
+    Result OpenURL(const char* url)
+    {
+        int ret = (int) ShellExecute(NULL, "open", url, NULL, NULL, SW_SHOWNORMAL);
+        if (ret == 32)
+        {
+            return RESULT_OK;
+        }
+        else
+        {
+            return RESULT_UNKNOWN;
+        }
+    }
+
 #elif defined(__linux__)
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
     {
@@ -171,6 +186,22 @@ namespace dmSys
         else
             return r;
     }
+
+    Result OpenURL(const char* url)
+    {
+        char buf[1024];
+        DM_SNPRINTF(buf, 1024, "xdg-open %s", url);
+        int ret = system(buf);
+        if (ret == 0)
+        {
+            return RESULT_OK;
+        }
+        else
+        {
+            return RESULT_UNKNOWN;
+        }
+    }
+
 #endif
 
     Result GetResourcesPath(int argc, char* argv[], char* path, uint32_t path_len)

@@ -47,6 +47,13 @@ def default_flags(self):
         # OSX and iOS
         self.env.append_value('LINKFLAGS', ['-framework', 'Foundation'])
 
+        if 'arm' in platform:
+            # iOS
+            self.env.append_value('LINKFLAGS', ['-framework', 'UIKit'])
+        else:
+            # OSX
+            self.env.append_value('LINKFLAGS', ['-framework', 'AppKit'])
+
     if platform == "linux" or platform == "darwin" or platform == "x86_64-darwin":
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall'])
