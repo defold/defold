@@ -645,11 +645,12 @@ TEST(RecreateTest, RecreateTestHttp)
     SendReloadDone = false;
     dmThread::Thread send_thread = dmThread::New(&SendReloadThread, 0x8000, 0);
 
-    while (!SendReloadDone)
+    do
     {
         dmTime::Sleep(1000 * 10);
         dmResource::UpdateFactory(factory);
-    }
+    } while (!SendReloadDone);
+
     dmThread::Join(send_thread);
 
     ASSERT_EQ(456, *resource);
@@ -658,12 +659,12 @@ TEST(RecreateTest, RecreateTestHttp)
 
     SendReloadDone = false;
     send_thread = dmThread::New(&SendReloadThread, 0x8000, 0);
-    SendReloadDone = false;
-    while (!SendReloadDone)
+
+    do
     {
         dmTime::Sleep(1000 * 10);
         dmResource::UpdateFactory(factory);
-    }
+    } while (!SendReloadDone);
     dmThread::Join(send_thread);
 
     dmResource::Result rr = dmResource::ReloadResource(factory, resource_name, 0);
