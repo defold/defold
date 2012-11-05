@@ -1,12 +1,17 @@
 package com.dynamo.cr.parted.nodes;
 
 import java.awt.geom.Rectangle2D;
-import java.nio.FloatBuffer;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.EnumMap;
 import java.util.EnumSet;
 
 import javax.media.opengl.GL;
+import javax.vecmath.Matrix4d;
 import javax.vecmath.Point3d;
+import javax.vecmath.Vector4f;
 
+import com.dynamo.cr.parted.ParticleEditorPlugin;
 import com.dynamo.cr.parted.ParticleLibrary;
 import com.dynamo.cr.parted.ParticleLibrary.InstanceStats;
 import com.dynamo.cr.parted.ParticleLibrary.RenderInstanceCallback;
@@ -15,6 +20,10 @@ import com.dynamo.cr.sceneed.core.INodeRenderer;
 import com.dynamo.cr.sceneed.core.RenderContext;
 import com.dynamo.cr.sceneed.core.RenderContext.Pass;
 import com.dynamo.cr.sceneed.core.RenderData;
+import com.dynamo.cr.sceneed.ui.util.Shader;
+import com.dynamo.cr.sceneed.ui.util.VertexBufferObject;
+import com.dynamo.cr.sceneed.ui.util.VertexFormat;
+import com.dynamo.cr.sceneed.ui.util.VertexFormat.AttributeFormat;
 import com.dynamo.particle.proto.Particle.BlendMode;
 import com.sun.jna.Pointer;
 import com.sun.opengl.util.j2d.TextRenderer;
@@ -23,12 +32,17 @@ import com.sun.opengl.util.texture.Texture;
 public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
 
     private static final EnumSet<Pass> passes = EnumSet.of(Pass.TRANSPARENT, Pass.OVERLAY);
+
     // Static since there seems to be a crash-bug in JNA when the callback is GC'd
     private static final Callback callBack = new Callback();
 
     private long prevTime = 0;
     private double fps;
     private int frameCounter = 0;
+    private Shader shader;
+    private VertexFormat vertexFormat;
+    private EnumMap<Shader.Uniform, Object> uniforms = new EnumMap<Shader.Uniform, Object>(Shader.Uniform.class);
+    private VertexBufferObject vbo;
 
     private static class Callback implements RenderInstanceCallback {
         GL gl;
@@ -83,17 +97,49 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
     }
 
     public ParticleFXRenderer() {
+        this.uniforms = new EnumMap<Shader.Uniform, Object>(Shader.Uniform.class);
+        Matrix4d viewProj = new Matrix4d();
+        viewProj.setIdentity();
+        this.uniforms.put(Shader.Uniform.VIEW_PROJ, viewProj);
+        this.uniforms.put(Shader.Uniform.DIFFUSE_TEXTURE, 0);
+        this.uniforms.put(Shader.Uniform.TINT, new Vector4f(1.0f, 1.0f, 1.0f, 1.0f));
+
+        this.vertexFormat = new VertexFormat(
+                new AttributeFormat(VertexFormat.Attribute.POSITION, 3, GL.GL_FLOAT, false),
+                new AttributeFormat(VertexFormat.Attribute.COLOR, 4, GL.GL_UNSIGNED_BYTE, true),
+                new AttributeFormat(VertexFormat.Attribute.TEX_COORD, 4, GL.GL_UNSIGNED_BYTE, true));
     }
 
     @Override
     public void dispose() {
+        if (this.shader != null) {
+            this.shader.dispose();
+        }
+        if (this.vbo != null) {
+            this.vbo.dispose();
+        }
     }
 
     @Override
     public void setup(RenderContext renderContext, ParticleFXNode node) {
         Pointer context = node.getContext();
 
-        if (context != null && passes.contains(renderContext.getPass())) {
+        GL gl = renderContext.getGL();
+        if (this.shader == null) {
+            this.shader = new Shader(gl);
+            try {
+                this.shader.load(ParticleEditorPlugin.getDefault().getBundle(), "/content/particlefx");
+            } catch (IOException e) {
+                this.shader.dispose();
+                this.shader = null;
+                throw new IllegalStateException(e);
+            }
+        }
+        if (this.vbo == null) {
+            this.vbo = new VertexBufferObject(gl);
+        }
+
+        if (context != null && this.shader != null && passes.contains(renderContext.getPass())) {
             renderContext.add(this, node, new Point3d(), null);
 
             if (renderContext.getPass() == Pass.TRANSPARENT) {
@@ -169,30 +215,24 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
 
             node.simulate(dt);
 
-            gl.glEnableClientState(GL.GL_TEXTURE_COORD_ARRAY);
-            gl.glEnableClientState(GL.GL_VERTEX_ARRAY);
-            gl.glEnableClientState(GL.GL_COLOR_ARRAY);
+            this.shader.enable();
 
-            final int stride = ParticleFXNode.VERTEX_COMPONENT_COUNT * 4;
-            FloatBuffer vertexBuffer = node.getVertexBuffer();
-            FloatBuffer texCoords = vertexBuffer.slice();
-            gl.glTexCoordPointer(2, GL.GL_FLOAT, stride, texCoords);
-            vertexBuffer.position(2);
-            FloatBuffer vertices = vertexBuffer.slice();
-            gl.glVertexPointer(3, GL.GL_FLOAT, stride, vertices);
-            vertexBuffer.position(5);
-            FloatBuffer colors = vertexBuffer.slice();
-            gl.glColorPointer(4, GL.GL_FLOAT, stride, colors);
-            vertexBuffer.position(0);
+            ByteBuffer vb = node.getVertexBuffer();
+            int vbSize = node.getVertexBufferSize();
+            this.vbo.enable(vb, vbSize);
+            this.vertexFormat.enable(gl, this.shader);
+
+            Matrix4d viewProj = (Matrix4d)this.uniforms.get(Shader.Uniform.VIEW_PROJ);
+            viewProj.mul(renderContext.getRenderView().getProjectionTransform(), renderContext.getRenderView().getViewTransform());
+            this.shader.setUniforms(this.uniforms);
 
             callBack.gl = gl;
             callBack.currentNode = node;
-
             ParticleLibrary.Particle_Render(context, new Pointer(0), callBack);
 
-            gl.glDisableClientState(GL.GL_TEXTURE_COORD_ARRAY);
-            gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
-            gl.glDisableClientState(GL.GL_COLOR_ARRAY);
+            this.vbo.disable();
+            this.shader.disable();
+            this.vertexFormat.disable(gl, this.shader);
 
             // Reset to default blend functions
             gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);

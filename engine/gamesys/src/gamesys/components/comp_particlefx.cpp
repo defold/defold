@@ -45,7 +45,6 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompParticleFXNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
         assert(params.m_Context);
-        assert(dmParticle::GetVertexBufferSize(1) == 6 * 36);
 
         ParticleFXContext* ctx = (ParticleFXContext*)params.m_Context;
         ParticleFXWorld* world = new ParticleFXWorld();
@@ -58,9 +57,9 @@ namespace dmGameSystem
         world->m_ClientBuffer = new char[buffer_size];
         dmGraphics::VertexElement ve[] =
         {
-            {"texcoord0", 0, 2, dmGraphics::TYPE_FLOAT},
-            {"position", 1, 3, dmGraphics::TYPE_FLOAT},
-            {"color", 2, 4, dmGraphics::TYPE_FLOAT}
+            {"position", 0, 3, dmGraphics::TYPE_FLOAT, false},
+            {"color", 1, 4, dmGraphics::TYPE_UNSIGNED_BYTE, true},
+            {"texcoord0", 2, 4, dmGraphics::TYPE_UNSIGNED_BYTE, true},
         };
         world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(ctx->m_RenderContext), ve, 3);
         *params.m_World = world;
@@ -134,10 +133,9 @@ namespace dmGameSystem
         // NOTE: Objects are added in RenderEmitterCallback
         w->m_RenderObjects.SetSize(0);
 
-        float* vertex_buffer = (float*)w->m_ClientBuffer;
         uint32_t max_vertex_buffer_size =  dmParticle::GetVertexBufferSize(ctx->m_MaxParticleCount);
         uint32_t vertex_buffer_size;
-        dmParticle::Update(particle_context, params.m_UpdateContext->m_DT, vertex_buffer, max_vertex_buffer_size, &vertex_buffer_size, FetchAnimationCallback);
+        dmParticle::Update(particle_context, params.m_UpdateContext->m_DT, w->m_ClientBuffer, max_vertex_buffer_size, &vertex_buffer_size, FetchAnimationCallback);
         dmParticle::Render(particle_context, w, RenderInstanceCallback);
         dmGraphics::SetVertexBufferData(w->m_VertexBuffer, 0, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         dmGraphics::SetVertexBufferData(w->m_VertexBuffer, vertex_buffer_size, w->m_ClientBuffer, dmGraphics::BUFFER_USAGE_STREAM_DRAW);

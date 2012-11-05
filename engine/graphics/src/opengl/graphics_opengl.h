@@ -51,6 +51,7 @@ namespace dmGraphics
             uint16_t    m_Size;
             uint16_t    m_Offset;
             Type        m_Type;
+            bool        m_Normalize;
         };
 
         Stream      m_Streams[8];

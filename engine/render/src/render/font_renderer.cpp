@@ -137,7 +137,7 @@ namespace dmRender
 
         dmGraphics::VertexElement ve[] =
         {
-                {"position", 0, 4, dmGraphics::TYPE_FLOAT }
+                {"position", 0, 4, dmGraphics::TYPE_FLOAT, false }
         };
 
         text_context.m_VertexDecl = dmGraphics::NewVertexDeclaration(render_context->m_GraphicsContext, ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));

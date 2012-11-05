@@ -23,13 +23,6 @@ namespace dmParticle
     // Should be set to positive rotation around VORTEX_LOCAL_AXIS
     const static Vector3 VORTEX_LOCAL_START_DIR = -Vector3::xAxis();
 
-    struct Vertex
-    {
-        float m_UV[2];
-        float m_Position[3];
-        float m_Red, m_Green, m_Blue, m_Alpha;
-    };
-
     /// Config key to use for tweaking maximum number of instances in a context.
     const char* MAX_INSTANCE_COUNT_KEY          = "particle_fx.max_count";
     /// Config key to use for tweaking the total maximum number of particles in a context.
@@ -426,7 +419,7 @@ namespace dmParticle
     static void UpdateEmitterState(Instance* instance, Emitter* emitter, EmitterPrototype* emitter_prototype, dmParticleDDF::Emitter* emitter_ddf, float dt);
     static void EvaluateEmitterProperties(Emitter* emitter, Property* emitter_properties, float duration, float properties[EMITTER_KEY_COUNT]);
     static void EvaluateParticleProperties(Emitter* emitter, Property* particle_properties);
-    static uint32_t UpdateRenderData(HContext context, Instance* instance, Emitter* emitter, dmParticleDDF::Emitter* ddf, uint32_t vertex_index, float* vertex_buffer, uint32_t vertex_buffer_size, float dt);
+    static uint32_t UpdateRenderData(HContext context, Instance* instance, Emitter* emitter, dmParticleDDF::Emitter* ddf, uint32_t vertex_index, void* vertex_buffer, uint32_t vertex_buffer_size, float dt);
     static void GenerateKeys(Emitter* emitter, float max_particle_life_time);
     static void SortParticles(Emitter* emitter);
     static void Simulate(Instance* instance, Emitter* emitter, EmitterPrototype* prototype, dmParticleDDF::Emitter* ddf, float dt);
@@ -467,7 +460,7 @@ namespace dmParticle
         emitter->m_LastPosition = world_position;
     }
 
-    void Update(HContext context, float dt, float* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size, FetchAnimationCallback fetch_animation_callback)
+    void Update(HContext context, float dt, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size, FetchAnimationCallback fetch_animation_callback)
     {
         DM_PROFILE(Particle, "Update");
 
@@ -794,7 +787,7 @@ namespace dmParticle
             0.0f, 0.0f, 1.0f, 1.0f
     };
 
-    static uint32_t UpdateRenderData(HContext context, Instance* instance, Emitter* emitter, dmParticleDDF::Emitter* ddf, uint32_t vertex_index, float* vertex_buffer, uint32_t vertex_buffer_size, float dt)
+    static uint32_t UpdateRenderData(HContext context, Instance* instance, Emitter* emitter, dmParticleDDF::Emitter* ddf, uint32_t vertex_index, void* vertex_buffer, uint32_t vertex_buffer_size, float dt)
     {
         DM_PROFILE(Particle, "UpdateRenderData");
 
@@ -848,7 +841,6 @@ namespace dmParticle
             emission_position = Vector3(instance->m_Position);
         }
 
-        const uint32_t vertex_field_count = sizeof(Vertex) / sizeof(float);
         uint32_t max_vertex_count = vertex_buffer_size / sizeof(Vertex);
         uint32_t particle_count = emitter->m_Particles.Size();
         uint32_t j;
@@ -919,56 +911,37 @@ namespace dmParticle
                 v1 = tmp;
             }
 
-            // store values in the buffer
-            uint32_t field_index = vertex_index * vertex_field_count;
+            Vertex* vertex = &((Vertex*)vertex_buffer)[vertex_index];
+
             Vector4 c = particle->GetColor();
 
-            vertex_buffer[field_index + 0] = u0;
-            vertex_buffer[field_index + 1] = v1;
-            vertex_buffer[field_index + 2] = p0.getX();
-            vertex_buffer[field_index + 3] = p0.getY();
-            vertex_buffer[field_index + 4] = p0.getZ();
-            memcpy(&vertex_buffer[field_index + 5], &c, sizeof(Vector4));
+#define TO_BYTE(f) (uint8_t)(f * 255.0f)
 
-            field_index += vertex_field_count;
-            vertex_buffer[field_index + 0] = u0;
-            vertex_buffer[field_index + 1] = v0;
-            vertex_buffer[field_index + 2] = p1.getX();
-            vertex_buffer[field_index + 3] = p1.getY();
-            vertex_buffer[field_index + 4] = p1.getZ();
-            memcpy(&vertex_buffer[field_index + 5], &c, sizeof(Vector4));
+#define SET_VERTEX(vertex, p, c, u, v)\
+    vertex->m_X = p.getX();\
+    vertex->m_Y = p.getY();\
+    vertex->m_Z = p.getZ();\
+    vertex->m_Red = TO_BYTE(c.getX());\
+    vertex->m_Green = TO_BYTE(c.getY());\
+    vertex->m_Blue = TO_BYTE(c.getZ());\
+    vertex->m_Alpha = TO_BYTE(c.getW());\
+    vertex->m_U = TO_BYTE(u);\
+    vertex->m_V = TO_BYTE(v);
 
-            field_index += vertex_field_count;
-            vertex_buffer[field_index + 0] = u1;
-            vertex_buffer[field_index + 1] = v1;
-            vertex_buffer[field_index + 2] = p2.getX();
-            vertex_buffer[field_index + 3] = p2.getY();
-            vertex_buffer[field_index + 4] = p2.getZ();
-            memcpy(&vertex_buffer[field_index + 5], &c, sizeof(Vector4));
+            SET_VERTEX(vertex, p0, c, u0, v1)
+            ++vertex;
+            SET_VERTEX(vertex, p1, c, u0, v0)
+            ++vertex;
+            SET_VERTEX(vertex, p2, c, u1, v1)
+            ++vertex;
+            SET_VERTEX(vertex, p2, c, u1, v1)
+            ++vertex;
+            SET_VERTEX(vertex, p1, c, u0, v0)
+            ++vertex;
+            SET_VERTEX(vertex, p3, c, u1, v0)
 
-            field_index += vertex_field_count;
-            vertex_buffer[field_index + 0] = u1;
-            vertex_buffer[field_index + 1] = v1;
-            vertex_buffer[field_index + 2] = p2.getX();
-            vertex_buffer[field_index + 3] = p2.getY();
-            vertex_buffer[field_index + 4] = p2.getZ();
-            memcpy(&vertex_buffer[field_index + 5], &c, sizeof(Vector4));
-
-            field_index += vertex_field_count;
-            vertex_buffer[field_index + 0] = u0;
-            vertex_buffer[field_index + 1] = v0;
-            vertex_buffer[field_index + 2] = p1.getX();
-            vertex_buffer[field_index + 3] = p1.getY();
-            vertex_buffer[field_index + 4] = p1.getZ();
-            memcpy(&vertex_buffer[field_index + 5], &c, sizeof(Vector4));
-
-            field_index += vertex_field_count;
-            vertex_buffer[field_index + 0] = u1;
-            vertex_buffer[field_index + 1] = v0;
-            vertex_buffer[field_index + 2] = p3.getX();
-            vertex_buffer[field_index + 3] = p3.getY();
-            vertex_buffer[field_index + 4] = p3.getZ();
-            memcpy(&vertex_buffer[field_index + 5], &c, sizeof(Vector4));
+#undef TO_BYTE
+#undef SET_VERTEX
 
             vertex_index += 6;
         }
@@ -1059,10 +1032,10 @@ namespace dmParticle
 
             Vector4 c = particle->GetSourceColor();
             particle->SetSize(particle->GetSourceSize() * properties[PARTICLE_KEY_SCALE]);
-            particle->SetColor(Vector4(c.getX() * properties[PARTICLE_KEY_RED],
-                    c.getY() * properties[PARTICLE_KEY_GREEN],
-                    c.getZ() * properties[PARTICLE_KEY_BLUE],
-                    c.getW() * properties[PARTICLE_KEY_ALPHA]));
+            particle->SetColor(Vector4(dmMath::Clamp(c.getX() * properties[PARTICLE_KEY_RED], 0.0f, 1.0f),
+                    dmMath::Clamp(c.getY() * properties[PARTICLE_KEY_GREEN], 0.0f, 1.0f),
+                    dmMath::Clamp(c.getZ() * properties[PARTICLE_KEY_BLUE], 0.0f, 1.0f),
+                    dmMath::Clamp(c.getW() * properties[PARTICLE_KEY_ALPHA], 0.0f, 1.0f)));
         }
     }
 
@@ -1678,7 +1651,7 @@ namespace dmParticle
     DM_PARTICLE_TRAMPOLINE3(void, SetRotation, HContext, HInstance, const Quat&);
 
     DM_PARTICLE_TRAMPOLINE2(bool, IsSleeping, HContext, HInstance);
-    DM_PARTICLE_TRAMPOLINE6(void, Update, HContext, float, float*, uint32_t, uint32_t*, FetchAnimationCallback);
+    DM_PARTICLE_TRAMPOLINE6(void, Update, HContext, float, void*, uint32_t, uint32_t*, FetchAnimationCallback);
     DM_PARTICLE_TRAMPOLINE3(void, Render, HContext, void*, RenderInstanceCallback);
 
     DM_PARTICLE_TRAMPOLINE2(HPrototype, NewPrototype, const void*, uint32_t);

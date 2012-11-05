@@ -12,8 +12,6 @@
 #include "../particle.h"
 #include "../particle_private.h"
 
-struct ParticleVertex;
-
 using namespace Vectormath::Aos;
 
 class ParticleTest : public ::testing::Test
@@ -24,7 +22,7 @@ protected:
         m_Context = dmParticle::CreateContext(64, 1024);
         assert(m_Context != 0);
         m_VertexBufferSize = dmParticle::GetVertexBufferSize(1024);
-        m_VertexBuffer = new float[m_VertexBufferSize];
+        m_VertexBuffer = new uint8_t[m_VertexBufferSize];
         m_Prototype = 0x0;
     }
 
@@ -38,47 +36,41 @@ protected:
         delete [] m_VertexBuffer;
     }
 
-    void VerifyVertexTexCoords(ParticleVertex* vertex_buffer, float* tex_coords, uint32_t tile);
-    void VerifyVertexDims(ParticleVertex* vertex_buffer, uint32_t particle_count, float size, uint32_t tile_width, uint32_t tile_height);
+    void VerifyVertexTexCoords(dmParticle::Vertex* vertex_buffer, float* tex_coords, uint32_t tile);
+    void VerifyVertexDims(dmParticle::Vertex* vertex_buffer, uint32_t particle_count, float size, uint32_t tile_width, uint32_t tile_height);
 
     dmParticle::HContext m_Context;
     dmParticle::HPrototype m_Prototype;
-    float* m_VertexBuffer;
+    uint8_t* m_VertexBuffer;
     uint32_t m_VertexBufferSize;
 };
 
 static const float EPSILON = 0.000001f;
-struct ParticleVertex
-{
-    float m_U, m_V;
-    float m_X, m_Y, m_Z;
-    float m_Red, m_Green, m_Blue, m_Alpha;
-};
 
 // tile is 0-based
-void ParticleTest::VerifyVertexTexCoords(ParticleVertex* vertex_buffer, float* tex_coords, uint32_t tile)
+void ParticleTest::VerifyVertexTexCoords(dmParticle::Vertex* vertex_buffer, float* tex_coords, uint32_t tile)
 {
-    uint32_t u0 = 0;
-    uint32_t v0 = 1;
-    uint32_t u1 = 2;
-    uint32_t v1 = 3;
     float* tc = &tex_coords[tile * 4];
+    uint8_t u0 = tc[0] * 255.0f;
+    uint8_t v0 = tc[1] * 255.0f;
+    uint8_t u1 = tc[2] * 255.0f;
+    uint8_t v1 = tc[3] * 255.0f;
     // The particle vertices are ordered like an N, where the first triangle is the lower left, second is upper right
-    ASSERT_FLOAT_EQ(tc[u0], vertex_buffer[0].m_U);
-    ASSERT_FLOAT_EQ(tc[v1], vertex_buffer[0].m_V);
-    ASSERT_FLOAT_EQ(tc[u0], vertex_buffer[1].m_U);
-    ASSERT_FLOAT_EQ(tc[v0], vertex_buffer[1].m_V);
-    ASSERT_FLOAT_EQ(tc[u1], vertex_buffer[2].m_U);
-    ASSERT_FLOAT_EQ(tc[v1], vertex_buffer[2].m_V);
-    ASSERT_FLOAT_EQ(tc[u1], vertex_buffer[3].m_U);
-    ASSERT_FLOAT_EQ(tc[v1], vertex_buffer[3].m_V);
-    ASSERT_FLOAT_EQ(tc[u0], vertex_buffer[4].m_U);
-    ASSERT_FLOAT_EQ(tc[v0], vertex_buffer[4].m_V);
-    ASSERT_FLOAT_EQ(tc[u1], vertex_buffer[5].m_U);
-    ASSERT_FLOAT_EQ(tc[v0], vertex_buffer[5].m_V);
+    ASSERT_EQ(u0, vertex_buffer[0].m_U);
+    ASSERT_EQ(v1, vertex_buffer[0].m_V);
+    ASSERT_EQ(u0, vertex_buffer[1].m_U);
+    ASSERT_EQ(v0, vertex_buffer[1].m_V);
+    ASSERT_EQ(u1, vertex_buffer[2].m_U);
+    ASSERT_EQ(v1, vertex_buffer[2].m_V);
+    ASSERT_EQ(u1, vertex_buffer[3].m_U);
+    ASSERT_EQ(v1, vertex_buffer[3].m_V);
+    ASSERT_EQ(u0, vertex_buffer[4].m_U);
+    ASSERT_EQ(v0, vertex_buffer[4].m_V);
+    ASSERT_EQ(u1, vertex_buffer[5].m_U);
+    ASSERT_EQ(v0, vertex_buffer[5].m_V);
 }
 
-void ParticleTest::VerifyVertexDims(ParticleVertex* vertex_buffer, uint32_t particle_count, float size, uint32_t tile_width, uint32_t tile_height)
+void ParticleTest::VerifyVertexDims(dmParticle::Vertex* vertex_buffer, uint32_t particle_count, float size, uint32_t tile_width, uint32_t tile_height)
 {
     float width_factor = 1.0f;
     float height_factor = 1.0f;
@@ -92,7 +84,7 @@ void ParticleTest::VerifyVertexDims(ParticleVertex* vertex_buffer, uint32_t part
     }
     for (uint32_t i = 0; i < particle_count; ++i)
     {
-        ParticleVertex* v = &vertex_buffer[i*6];
+        dmParticle::Vertex* v = &vertex_buffer[i*6];
         float x = v[0].m_X - v[2].m_X;
         float y = v[0].m_Y - v[2].m_Y;
         float w = sqrt(x * x + y * y);
@@ -189,6 +181,11 @@ void RenderInstanceCallback(void* usercontext, void* material, void* texture, dm
     data->m_VertexCount = vertex_count;
 }
 
+TEST_F(ParticleTest, VertexBufferSize)
+{
+    ASSERT_EQ(6 * sizeof(dmParticle::Vertex), dmParticle::GetVertexBufferSize(1));
+}
+
 /**
  * Verify creation/destruction, check leaks
  */
@@ -252,7 +249,7 @@ TEST_F(ParticleTest, IncompleteParticleFX)
             false,
             true
     };
-    ParticleVertex vertex_buffer[6];
+    dmParticle::Vertex vertex_buffer[6];
     for (uint32_t i = 0; i < 3; ++i)
     {
         if (m_Prototype != 0x0)
@@ -282,7 +279,7 @@ TEST_F(ParticleTest, IncompleteParticleFX)
             ASSERT_EQ(sizeof(vertex_buffer), out_vertex_buffer_size);
             ASSERT_EQ((void*)0x0, render_data.m_Material);
             ASSERT_EQ((void*)0x0, render_data.m_Texture);
-            VerifyVertexTexCoords((ParticleVertex*)&((float*)vertex_buffer)[render_data.m_VertexIndex], g_UnitTexCoords, 0);
+            VerifyVertexTexCoords((dmParticle::Vertex*)&((float*)vertex_buffer)[render_data.m_VertexIndex], g_UnitTexCoords, 0);
             ASSERT_EQ(6u, render_data.m_VertexCount);
             ASSERT_EQ((void*)0x0, render_data.m_Texture);
         }
@@ -832,7 +829,7 @@ TEST_F(ParticleTest, Animation)
             {5, 4, 3, 2, 1, 5, 4, 3}, // loop bwd, 8-frame particle
             {1, 2, 3, 4, 5, 4, 3, 2}, // loop pingpong, 8-frame particle
     };
-    ParticleVertex vertex_buffer[6 * type_count];
+    dmParticle::Vertex vertex_buffer[6 * type_count];
     uint32_t vertex_buffer_size;
 
     dmParticle::StartInstance(m_Context, instance);
@@ -840,7 +837,7 @@ TEST_F(ParticleTest, Animation)
     for (uint32_t it = 0; it < it_count; ++it)
     {
         dmParticle::Update(m_Context, dt, (float*)vertex_buffer, sizeof(vertex_buffer), &vertex_buffer_size, FetchAnimationCallback);
-        ParticleVertex* vb = vertex_buffer;
+        dmParticle::Vertex* vb = vertex_buffer;
         for (uint32_t type = 0; type < type_count; ++type)
         {
             uint32_t tile = tiles[type][it];
@@ -851,7 +848,7 @@ TEST_F(ParticleTest, Animation)
                 vb += 6;
             }
         }
-        ASSERT_EQ((vb - vertex_buffer) * sizeof(ParticleVertex), vertex_buffer_size);
+        ASSERT_EQ((vb - vertex_buffer) * sizeof(dmParticle::Vertex), vertex_buffer_size);
     }
 
     dmParticle::DestroyInstance(m_Context, instance);

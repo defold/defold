@@ -370,6 +370,31 @@ public class RenderUtil {
         gl.glMultMatrixd(a, 0);
     }
 
+    public static float[] matrixToArray(Matrix4d m) {
+        float[] a = new float[16];
+        int i = 0;
+        a[i++] = (float)m.m00;
+        a[i++] = (float)m.m10;
+        a[i++] = (float)m.m20;
+        a[i++] = (float)m.m30;
+
+        a[i++] = (float)m.m01;
+        a[i++] = (float)m.m11;
+        a[i++] = (float)m.m21;
+        a[i++] = (float)m.m31;
+
+        a[i++] = (float)m.m02;
+        a[i++] = (float)m.m12;
+        a[i++] = (float)m.m22;
+        a[i++] = (float)m.m32;
+
+        a[i++] = (float)m.m03;
+        a[i++] = (float)m.m13;
+        a[i++] = (float)m.m23;
+        a[i++] = (float)m.m33;
+        return a;
+    }
+
     public static FloatBuffer createDashedCircle(int count) {
         FloatBuffer v = BufferUtil.newFloatBuffer(count * 3);
 

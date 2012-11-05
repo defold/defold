@@ -50,8 +50,8 @@ namespace dmGameSystem
         // and hence shared among all the worlds
         dmGraphics::VertexElement ve[] =
         {
-                {"position", 0, 3, dmGraphics::TYPE_FLOAT},
-                {"texcoord0", 1, 2, dmGraphics::TYPE_FLOAT},
+                {"position", 0, 3, dmGraphics::TYPE_FLOAT, false},
+                {"texcoord0", 1, 2, dmGraphics::TYPE_FLOAT, false},
         };
         world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
 
