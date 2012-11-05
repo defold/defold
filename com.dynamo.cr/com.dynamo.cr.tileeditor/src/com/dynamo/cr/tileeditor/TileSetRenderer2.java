@@ -180,8 +180,8 @@ KeyListener {
         }
     }
 
-    public void refresh(IStructuredSelection selection) {
-        if (!this.tileSet.getStatus().isOK()) {
+    public void refresh() {
+        if (this.tileSet != null && !this.tileSet.getStatus().isOK()) {
             setEnabled(false);
             return;
         }
@@ -191,6 +191,9 @@ KeyListener {
             setupRenderData();
             this.context.release();
         }
+    }
+
+    public void setSelection(IStructuredSelection selection) {
         Object[] selectedObjects = selection.toArray();
         if (selectedObjects.length == 1 && selectedObjects[0] instanceof CollisionGroupNode) {
             CollisionGroupNode collisionGroup = (CollisionGroupNode)selectedObjects[0];
@@ -423,7 +426,7 @@ KeyListener {
         }
     }
 
-    public void requestPaint() {
+    private void requestPaint() {
         if (this.paintRequested || this.canvas == null)
             return;
         this.paintRequested = true;
