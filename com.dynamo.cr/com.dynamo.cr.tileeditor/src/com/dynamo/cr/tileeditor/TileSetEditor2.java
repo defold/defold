@@ -381,7 +381,7 @@ public class TileSetEditor2 extends AbstractDefoldEditor implements ISceneEditor
         if (event.getSource().equals(Activator.getDefault().getPreferenceStore())) {
             if (event.getProperty().equals(PreferenceConstants.P_TOP_BKGD_COLOR)
                     || event.getProperty().equals(PreferenceConstants.P_BOTTOM_BKGD_COLOR)) {
-                this.tileSetRenderer.refresh(this.presenterContext.getSelection());
+                this.sceneView.refreshRenderView();
             }
         }
     }

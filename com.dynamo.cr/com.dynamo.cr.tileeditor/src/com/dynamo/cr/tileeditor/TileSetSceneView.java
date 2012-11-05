@@ -32,7 +32,7 @@ public class TileSetSceneView extends AbstractSceneView {
 
     @Override
     public void refreshRenderView() {
-        this.renderer.requestPaint();
+        this.renderer.refresh();
     }
 
     @Override
@@ -42,7 +42,8 @@ public class TileSetSceneView extends AbstractSceneView {
         this.propertySheetPage.setSelection(selection);
         this.propertySheetPage.refresh();
         this.manipulatorController.setSelection(selection);
-        this.renderer.refresh(selection);
+        this.renderer.setSelection(selection);
+        this.renderer.refresh();
         this.editor.setDirty(dirty);
     }
 
