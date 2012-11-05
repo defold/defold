@@ -74,7 +74,7 @@ public class FormPropertySheetViewer extends Viewer {
         propertiesComposite.setLayout(stackLayout);
         noSelectionComposite = toolkit.createComposite(this.propertiesComposite);
         noSelectionComposite.setLayout(new GridLayout());
-        toolkit.createText(noSelectionComposite, Messages.FormPropertySheetViewer_NO_PROPERTIES);
+        toolkit.createLabel(noSelectionComposite, Messages.FormPropertySheetViewer_NO_PROPERTIES);
 
         stackLayout.topControl = noSelectionComposite;
         propertiesComposite.layout();
@@ -201,7 +201,7 @@ public class FormPropertySheetViewer extends Viewer {
         }
 
         /*
-         * NOTE: We cache properties composite for performce reasons
+         * NOTE: We cache properties composite for performance reasons
          * We previously used the array of property descriptors as key but when dynamic
          * properties where introduced the assumption about the key isn't true anymore.
          * We used to assume that model.getPropertyDescs() returned the same reference
@@ -323,6 +323,12 @@ public class FormPropertySheetViewer extends Viewer {
                     IPropertyDesc[] lhs = m.getPropertyDescs();
                     IPropertyDesc[] rhs = modelList.get(0).getPropertyDescs();
                     // All models must have access to the exact same set of descriptors (class + id) for the properties view to display the input
+
+                    if (lhs.length != rhs.length) {
+                        setNoSelection();
+                        return;
+                    }
+
                     for (int i = 0; i < lhs.length; ++i) {
                         IPropertyDesc lhsDesc = lhs[i];
                         IPropertyDesc rhsDesc = rhs[i];
