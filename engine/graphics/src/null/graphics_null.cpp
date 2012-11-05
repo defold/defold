@@ -214,6 +214,11 @@ namespace dmGraphics
         }
     }
 
+    void SetSwapInterval(HContext /*context*/, uint32_t /*swap_interval*/)
+    {
+        // NOP
+    }
+
     HVertexBuffer NewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         VertexBuffer* vb = new VertexBuffer();

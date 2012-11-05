@@ -40,7 +40,7 @@ def configure(conf):
             ddf_search_lst = os.getenv('PYTHONPATH').split(':')
 
     if platform == "darwin":
-        conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon'])
+        conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo'])
     elif platform == "armv7-darwin":
         conf.env.append_value('LINKFLAGS', ['-framework', 'IOKit'])
     elif platform == "linux":

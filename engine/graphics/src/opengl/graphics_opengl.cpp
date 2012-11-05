@@ -498,6 +498,11 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR
     }
 
+    void SetSwapInterval(HContext context, uint32_t swap_interval)
+    {
+        glfwSwapInterval(swap_interval);
+    }
+
     HVertexBuffer NewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         uint32_t buffer = 0;

@@ -69,9 +69,13 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     EAGLContext *context;
     GLuint viewRenderbuffer, viewFramebuffer;
     GLuint depthRenderbuffer;
+    CADisplayLink* displayLink;
+    int countDown;
+    int swapInterval;
 }
 
 - (void)swapBuffers;
+- (void)newFrame;
 - (void)setupView;
 
 @end
@@ -92,6 +96,14 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 + (Class)layerClass
 {
     return [CAEAGLLayer class];
+}
+
+- (id) init {
+  self = [super init];
+  if (self != nil) {
+      [self setSwapInterval: 1];
+  }
+  return self;
 }
 
 - (id)initWithFrame:(CGRect)frame
@@ -115,6 +127,10 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
             return nil;
         }
 
+        displayLink = [[UIScreen mainScreen] displayLinkWithTarget:self selector:@selector(newFrame)];
+        [displayLink addToRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
+        displayLink.frameInterval = 1;
+
         [self setupView];
     }
     return self;
@@ -126,8 +142,33 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 - (void)swapBuffers
 {
+    NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
+
+    while (countDown > 0)
+    {
+        CFRunLoopRunInMode(kCFRunLoopDefaultMode, 1, TRUE);
+    }
+    [pool release];
+
+    countDown = swapInterval;
+
     glBindRenderbuffer(GL_RENDERBUFFER, viewRenderbuffer);
     [context presentRenderbuffer:GL_RENDERBUFFER];
+}
+
+- (void)newFrame
+{
+    countDown--;
+}
+
+- (void) setSwapInterval: (int) interval
+{
+    if (interval < 1)
+    {
+        interval = 1;
+    }
+    swapInterval = interval;
+    countDown = swapInterval;
 }
 
 - (void)touchesMoved:(NSSet *)touches withEvent:(UIEvent *)event
@@ -176,7 +217,6 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     [self createFramebuffer];
     [self swapBuffers];
 }
-
 
 - (BOOL)createFramebuffer
 {
@@ -230,6 +270,10 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 - (void)dealloc
 {
+    if (displayLink != 0)
+    {
+        [displayLink release];
+    }
     [EAGLContext setCurrentContext:context];
     [self destroyFramebuffer];
     [EAGLContext setCurrentContext:nil];
@@ -528,6 +572,7 @@ void _glfwPlatformSwapBuffers( void )
 
 void _glfwPlatformSwapInterval( int interval )
 {
+    [ _glfwWin.view setSwapInterval: interval ];
 }
 
 //========================================================================
