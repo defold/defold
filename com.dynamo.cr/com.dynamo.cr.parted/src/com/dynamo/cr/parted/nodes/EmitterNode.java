@@ -463,12 +463,17 @@ public class EmitterNode extends Node {
 
 
     protected IStatus validateEmitterType() {
+
+        // Disabled info about emitter type as the information is propagated as error
+        return Status.OK_STATUS;
+
+        /*
         EmitterType t = getEmitterType();
         if (t == EmitterType.EMITTER_TYPE_SPHERE || t == EmitterType.EMITTER_TYPE_CONE) {
             return new Status(IStatus.INFO, ParticleEditorPlugin.PLUGIN_ID, Messages.EmitterNode_animation_3DEMITTER_INFO);
         } else {
             return Status.OK_STATUS;
-        }
+        }*/
 
     }
 
