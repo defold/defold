@@ -78,7 +78,7 @@ namespace dmParticle
         return i;
     }
 
-    double Hermite(float x0, float x1, float t0, float t1, float t) {
+    float Hermite(float x0, float x1, float t0, float t1, float t) {
         return (2 * t * t * t - 3 * t * t + 1) * x0 +
                (t * t * t - 2 * t * t + t) * t0 +
                (- 2 * t * t * t + 3 * t * t) * x1 +
@@ -733,7 +733,7 @@ namespace dmParticle
                  *
                  *  p is a point in the parallelogram
                  */
-                float x = -width * 0.5 * u + width * 0.5 * v;
+                float x = -width * 0.5f * u + width * 0.5f * v;
                 float y = height * u + height * v;
                 // Mirror points outside triangle
                 y = dmMath::Select(height - y, y, 2 * height - y);
