@@ -473,7 +473,12 @@ public class TileSetNode extends Node {
     }
 
     private void updateTexCoords() {
-        if (getLoadedImage() == null || !getStatus().isOK()) {
+        IStatus status = getStatus();
+        if (status == null) {
+            updateStatus();
+            status = getStatus();
+        }
+        if (getLoadedImage() == null || !status.isOK()) {
             this.texCoords = null;
             return;
         }

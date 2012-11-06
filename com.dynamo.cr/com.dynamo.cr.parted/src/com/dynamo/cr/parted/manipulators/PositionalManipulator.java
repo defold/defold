@@ -1,6 +1,9 @@
 package com.dynamo.cr.parted.manipulators;
 
+import javax.vecmath.Matrix4d;
+import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
+import javax.vecmath.Vector3d;
 
 import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.swt.events.MouseEvent;
@@ -71,8 +74,14 @@ public class PositionalManipulator extends RootManipulator {
         PositionalModifierNode modifier = (PositionalModifierNode) getSelection().get(0);
         magnitude = originalMagnitude = modifier.getMagnitude().getValue();
         maxDistance = originalMaxDistance = modifier.getMaxDistance();
-        setTranslation(modifier.getTranslation());
-        setRotation(modifier.getRotation());
+        Matrix4d worldTransform = new Matrix4d();
+        modifier.getWorldTransform(worldTransform);
+        Vector3d worldTranslation = new Vector3d();
+        worldTransform.get(worldTranslation);
+        setTranslation(new Point3d(worldTranslation));
+        Quat4d worldRotation = new Quat4d();
+        worldTransform.get(worldRotation);
+        setRotation(worldRotation);
     }
 
     @Override

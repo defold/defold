@@ -53,6 +53,7 @@ Here is a list of settings for advanced users:
 ** _render_ - which render file to use, which defines the render pipeline, +/builtins/render/default.renderc+ by default
 * *display*
 ** _samples_ - how many samples to use for super sampling anti-aliasing, 0 by default, which means it is turned off
+** _update_frequency_ - frame update frequency, 60 by default. Valid values are 60, 30, 20, 15, 12, 10, 6, 5, 4, 3, 2 and 1
 * *graphics*
 ** _default_texture_min_filter_ - which filtering to use for min filtering, +linear+ (default) or +nearest+
 ** _default_texture_min_filter_ - which filtering to use for mag filtering, +linear+ (default) or +nearest+

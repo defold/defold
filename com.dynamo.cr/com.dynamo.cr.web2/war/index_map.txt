@@ -4,6 +4,7 @@
 /ref/gui.html
 /ref/render.html
 /ref/script.html
+/blog/particle_editor_and_ios_improvements_release_1_2_7.html
 /blog/fixed_immediate_game_termination_release_1_2_6.html
 /blog/improved_sprite_rendering_release_1_2_5.html
 /blog/brand_new_platformer_article_and_release_1_2_4.html
@@ -61,6 +62,7 @@
 /doc/scripting_debugging.html
 /doc/side_scroller.html
 /doc/tiles.html
+/doc/particlefx.html
 /doc/sindex.html
 /about/eula.html
 /about/privacy.html
