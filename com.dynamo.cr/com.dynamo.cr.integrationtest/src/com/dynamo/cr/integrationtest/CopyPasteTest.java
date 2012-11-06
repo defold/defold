@@ -1,7 +1,5 @@
 package com.dynamo.cr.integrationtest;
 
-import java.util.List;
-
 import javax.vecmath.Quat4d;
 import javax.vecmath.Vector4d;
 
@@ -31,6 +29,7 @@ import com.dynamo.cr.tileeditor.operations.AddAnimationNodeOperation;
 import com.dynamo.cr.tileeditor.operations.AddCollisionGroupNodeOperation;
 import com.dynamo.cr.tileeditor.scene.AnimationNode;
 import com.dynamo.cr.tileeditor.scene.CollisionGroupNode;
+import com.dynamo.cr.tileeditor.scene.TileGridNode;
 import com.dynamo.cr.tileeditor.scene.TileSetNode;
 import com.dynamo.model.proto.Model.ModelDesc;
 import com.dynamo.particle.proto.Particle.EmissionSpace;
@@ -128,6 +127,14 @@ public class CopyPasteTest extends AbstractSceneTest {
         ModelNode model = new ModelNode(b.build());
 
         testCopyPaste(go, model);
+    }
+
+    @Test
+    public void testTileGrid() throws Exception {
+        GameObjectNode go = new GameObjectNode();
+        TileGridNode tileGrid = new TileGridNode();
+        tileGrid.setTileSource("/tileset/test.tileset");
+        testCopyPaste(go, tileGrid);
     }
 
     private void testCopyPaste(GameObjectNode gameObject, ComponentNode component) throws Exception {
