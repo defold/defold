@@ -38,7 +38,8 @@ docs = ['game_project.html',
         'script_properties.html',
         'scripting_debugging.html',
         'side_scroller.html',
-        'tiles.html']
+        'tiles.html',
+        'particlefx.html']
 
 for d in docs:
     asciidoc('doc/%s' % d, active_page = 'documentation', disqus = True)
