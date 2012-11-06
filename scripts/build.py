@@ -462,7 +462,9 @@ Multiple commands can be specified'''
         for cmd in args:
             if cmd == 'build_engine' or cmd == 'archive_engine':
                 f = getattr(c, cmd, None)
-            f()
+                if not f:
+                    parser.error('Unknown command %s' % cmd)
+                f()
 
     c = Configuration(dynamo_home = os.environ.get('DYNAMO_HOME', None),
                       target_platform = target_platform,
