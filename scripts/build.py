@@ -444,7 +444,7 @@ Multiple commands can be specified'''
         parser.error('No command specified')
 
     target_platform = options.target_platform if options.target_platform else get_host_platform()
-    if target_platform == 'darwin' and 'build_engine' in args:
+    if target_platform == 'darwin':
         # NOTE: Darwin is currently mixed 32 and 64-bit.
         # That's why we have this temporary hack
         # NOTE: Build 64-bit first as 32-bit is the current default
@@ -458,7 +458,10 @@ Multiple commands can be specified'''
                           set_version = options.set_version,
                           eclipse = options.eclipse)
 
-        f = getattr(c, 'build_engine', None)
+
+        for cmd in args:
+            if cmd == 'build_engine' or cmd == 'archive_engine':
+                f = getattr(c, cmd, None)
         f()
 
     c = Configuration(dynamo_home = os.environ.get('DYNAMO_HOME', None),
