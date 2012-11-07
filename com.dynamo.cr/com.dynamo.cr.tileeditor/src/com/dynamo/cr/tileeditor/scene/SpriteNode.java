@@ -189,7 +189,7 @@ public class SpriteNode extends ComponentTypeNode {
     }
 
     private void updateVertexData() {
-        if (this.tileSetNode == null || this.tileSetNode.getLoadedImage() == null || !getStatus().isOK() || !this.tileSetNode.getStatus().isOK()) {
+        if (this.tileSetNode == null || this.tileSetNode.getLoadedImage() == null || !this.tileSetNode.getStatus().isOK()) {
             this.vertexData = null;
             return;
         }
