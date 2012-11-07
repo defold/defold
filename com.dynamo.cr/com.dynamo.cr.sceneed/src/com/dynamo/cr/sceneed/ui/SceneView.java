@@ -30,12 +30,11 @@ public class SceneView extends AbstractSceneView {
     @Inject private IRenderView renderView;
     @Inject private SceneEditor editor;
     @Inject private IContainer contentRoot;
-    @Inject private SceneRenderViewProvider sceneRenderViewProvider;
 
     @Override
     public void setRoot(Node root) {
         this.outline.setInput(root);
-        this.sceneRenderViewProvider.setRoot(root);
+        this.renderView.setInput(root);
     }
 
     @Override
@@ -114,8 +113,13 @@ public class SceneView extends AbstractSceneView {
 
     @Override
     public void getCameraFocusPoint(Point3d focusPoint) {
-        Vector4d p = this.editor.getCameraController().getFocusPoint();
+        Vector4d p = this.renderView.getCameraFocusPoint();
         focusPoint.set(p.x, p.y, p.z);
+    }
+
+    @Override
+    public void frameSelection() {
+        this.renderView.frameSelection();
     }
 
     @Override

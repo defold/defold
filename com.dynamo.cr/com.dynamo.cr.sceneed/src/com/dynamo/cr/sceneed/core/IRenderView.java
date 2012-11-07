@@ -27,13 +27,17 @@ public interface IRenderView  {
 
     List<Node> findNodesBySelection(Point2i start, Point2i end);
 
+    Node getInput();
+    void setInput(Node input);
     void setSelection(IStructuredSelection selection);
     void viewToWorld(int x, int y, Vector4d clickPos, Vector4d clickDir);
     double[] worldToView(Point3d point);
     Camera getCamera();
     void setCamera(Camera camera);
+    Vector4d getCameraFocusPoint();
     Matrix4d getViewTransform();
     Matrix4d getProjectionTransform();
+    void frameSelection();
 
     // TODO This is part of a "quick-fix" to enable disposal of graphics resources inside nodes
     // See SceneEditor#dispose for more info

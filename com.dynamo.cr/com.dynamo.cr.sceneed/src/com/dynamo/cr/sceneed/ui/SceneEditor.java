@@ -104,9 +104,10 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
 
     private boolean dirty;
     private SceneRenderViewProvider sceneRenderViewProvider;
+    @SuppressWarnings("unused")
+    private CameraController cameraController;
     private ManipulatorController manipulatorController;
     private IManipulatorRegistry manipulatorRegistry;
-    private CameraController cameraController;
 
     class Module extends AbstractModule {
         @Override
@@ -242,10 +243,6 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
 
     public ManipulatorController getManipulatorController() {
         return manipulatorController;
-    }
-
-    public CameraController getCameraController() {
-        return cameraController;
     }
 
     /**

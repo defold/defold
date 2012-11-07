@@ -24,7 +24,6 @@ import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.sceneed.core.IRenderView;
 import com.dynamo.cr.sceneed.core.IRenderViewController;
 import com.dynamo.cr.sceneed.core.IRenderViewProvider;
-import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.Manipulator;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.RenderContext;
@@ -33,8 +32,6 @@ import com.dynamo.cr.sceneed.core.RenderContext.Pass;
 public class SceneRenderViewProvider implements IRenderViewProvider, ISelectionProvider, IRenderViewController {
 
     private IRenderView renderView;
-    private IPresenterContext presenterContext;
-    private Node root;
 
     // SelectionProvider
     private final List<ISelectionChangedListener> selectionListeners = new ArrayList<ISelectionChangedListener>();
@@ -48,16 +45,11 @@ public class SceneRenderViewProvider implements IRenderViewProvider, ISelectionP
     private List<Node> originalSelection = Collections.emptyList();
 
     @Inject
-    public SceneRenderViewProvider(IRenderView renderView, IPresenterContext presenterContext) {
+    public SceneRenderViewProvider(IRenderView renderView) {
         this.renderView = renderView;
-        this.presenterContext = presenterContext;
         this.selectionBoxNode = new SelectionBoxNode();
         renderView.addRenderProvider(this);
         renderView.addRenderController(this);
-    }
-
-    public void setRoot(Node root) {
-        this.root = root;
     }
 
     @PreDestroy
@@ -68,8 +60,9 @@ public class SceneRenderViewProvider implements IRenderViewProvider, ISelectionP
 
     @Override
     public void setup(RenderContext renderContext) {
-        if (root != null) {
-            renderView.setupNode(renderContext, root);
+        Node input = this.renderView.getInput();
+        if (input != null) {
+            renderView.setupNode(renderContext, input);
         }
         if (renderContext.getPass().equals(Pass.OVERLAY) && this.selectionBoxNode.isVisible()) {
             this.renderView.setupNode(renderContext, this.selectionBoxNode);
@@ -230,7 +223,7 @@ public class SceneRenderViewProvider implements IRenderViewProvider, ISelectionP
         }
         // Make sure the root is selected at empty selections
         if (selectedNodes.isEmpty()) {
-            selectedNodes.add(this.root);
+            selectedNodes.add(this.renderView.getInput());
         }
         List<Node> selected = new ArrayList<Node>(selectedNodes);
         return new StructuredSelection(selected);

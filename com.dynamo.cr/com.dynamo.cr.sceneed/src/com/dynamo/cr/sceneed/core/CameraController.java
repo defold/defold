@@ -166,7 +166,7 @@ public class CameraController implements IRenderViewController {
                 || (type == MouseType.ONE_BUTTON && (event.stateMask & (SWT.CTRL|SWT.ALT)) != 0);
     }
 
-    public void frameObjects() {
+    public void frameSelection() {
         AABB aabb = new AABB();
 
         if (selection.isEmpty()) {

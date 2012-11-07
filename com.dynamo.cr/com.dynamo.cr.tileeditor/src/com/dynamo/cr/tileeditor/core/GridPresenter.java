@@ -23,6 +23,7 @@ import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.swt.graphics.Rectangle;
+import org.eclipse.swt.widgets.Display;
 
 import com.dynamo.cr.tileeditor.core.Layer.Cell;
 import com.dynamo.cr.tileeditor.operations.AddLayerOperation;
@@ -201,6 +202,7 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
         this.loading = false;
         setUndoRedoCounter(0);
         refresh();
+        doPreviewFrame();
     }
 
     @Override
@@ -224,10 +226,20 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
         this.view.setPreview(this.previewPosition, this.previewZoom);
     }
 
-    @Override
-    public void onPreviewFrame() {
-        TileSetModel tileSetModel = this.model.getTileSetModel();
-        if (tileSetModel != null) {
+    // TODO This is a hack to frame once the editor has been opened
+    // At the moment we have no callbacks for this happening (when the client-rect has been set)
+    // so we delay until it has.
+    // This will be automatically fixed when we merge the tile map editor with the scene editor.
+    private void doPreviewFrame() {
+        Rectangle clientRect = this.view.getPreviewRect();
+        if (clientRect.isEmpty()) {
+            Display.getCurrent().asyncExec(new Runnable() {
+                @Override
+                public void run() {
+                    doPreviewFrame();
+                }
+            });
+        } else {
             Vector2f dim = new Vector2f(this.model.getTileSetModel().getTileWidth(),
                     this.model.getTileSetModel().getTileHeight());
             Point2f bb_min = new Point2f(Float.MAX_VALUE, Float.MAX_VALUE);
@@ -257,11 +269,18 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
             bb_dim.sub(bb_min);
             this.previewPosition.set(bb_dim);
             this.previewPosition.scaleAdd(0.5f, bb_min);
-            Rectangle clientRect = this.view.getPreviewRect();
             Vector2f clientDim = new Vector2f(clientRect.width, clientRect.height);
             clientDim.scale(0.8f);
             this.previewZoom = Math.min(clientDim.getX() / bb_dim.getX(), clientDim.getY() / bb_dim.getY());
             this.view.setPreview(this.previewPosition, this.previewZoom);
+        }
+    }
+
+    @Override
+    public void onPreviewFrame() {
+        TileSetModel tileSetModel = this.model.getTileSetModel();
+        if (tileSetModel != null) {
+            doPreviewFrame();
         }
     }
 
