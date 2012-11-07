@@ -1,5 +1,74 @@
 :max-width: 45em
 
+Particle Editor and iOS Improvements (Release 1.2.7)
+----------------------------------------------------
+_November 6, 2012_
+
+This release is the largest release we have made so far, it even outweighs the alpha (1.0).
+Below are the changes listed in order of importance.
+
+Particle Editor
+~~~~~~~~~~~~~~~
+
+We have completely revamped our particle system and made a new editor to go with it.
+We are really happy with how it came out and want to thank all the great VFX designers who provided feedback during the development.
+Check out the video below and see the new link:/doc/particlefx[guide] for more info.
+
+link:/youtube_embed/qzyB1lXNDKQ["Defold Particle FX"]
+
+Mipmaps and Image Sizes
+~~~~~~~~~~~~~~~~~~~~~~~
+
+We have enabled link:http://en.wikipedia.org/wiki/Mipmap[mipmaps] for prettier graphics.
+iOS devices require the width and height of mipmapped textures to be link:http://en.wikipedia.org/wiki/Power_of_two[Power-Of-Two], so all images are currently automatically scaled to the closest POT.
+If your images appear blurry after this release, you can make them crisp again by padding your images to the closest POT above the current width and height.
+Reasonable POTs are: 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024 and 2048.
+
+iOS Improvements
+~~~~~~~~~~~~~~~~
+
+We have added support for iOS 6 (we now support 4.3 and up).
+The orientation of the game (portrait or landscape) is automatically selected based on the specified resolution (see the link:/doc/game_project[reference]).
+The editor now locates devices faster and in a more stable manner.
+When starting the game on your device, the load times have been heavily reduced by using a cache (which means that the first time might be slower since nothing is cached).
+We now also support the retina display and have improved life-cycle support.
+
+Sound Component
+~~~~~~~~~~~~~~~
+
+There is now a proper sound component, which you can add to your game objects to play sounds and specify if they should loop or not.
+We have also added support for OGG files on top of the WAV support.
+
+Camera Navigation
+~~~~~~~~~~~~~~~~~
+
+We have unified the camera navigation to work the same in the Scene, Tile Source, Tile Map, Particle and Curve editors.
+The navigation is still Maya-style with the addition of using the scroll-wheel to zoom.
+
+Customizable FPS
+~~~~~~~~~~~~~~~~
+
+Games in Defold runs at 60 FPS by default, this can now be configured in the game.project file (see the link:/doc/game_project[reference] for more info).
+
+Open browser from inside the game
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+There is a now a function called link:/ref/script#sys.open_url[sys.open_url(url)] which lets you open a URL in a browser (according to end-user settings) from inside your game.
+
+Other Fixes
+~~~~~~~~~~~
+
+* Scene editor is more responsive while box-selecting
+* Full support for OSX Mountain Lion (issue with signing apps)
+* Erroneous statuses of nodes in the Outline view could randomly cease to work
+* Multi-selecting sub-collections and game objects in a collection caused exceptions to occur
+** Similar issue when bringing up the context menu for multiple selected nodes, which would make the editor freeze
+* Larger limit for the resource streamer so that 2048x1024 can be streamed to the game
+* Synchronize-messages could not contain quotes ("") (Windows-specific)
+* Selections made in the Scene Editor were not properly updated when undone (mostly related to enabled commands etc)
+* For some tile sources, adding a collision image would make the tiles cease to be rendered
+* Game objects containing tile maps could not be copy-pasted
+
 Fixed immediate game termination (Release 1.2.6)
 ------------------------------------------------
 _October 19, 2012_

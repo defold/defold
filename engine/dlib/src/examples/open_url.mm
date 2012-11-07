@@ -10,15 +10,8 @@
 
 int main(int argc, char **argv)
 {
+    // NOTE: This example doesn't work on iOS. Is UIApplication main required?
     NSAutoreleasePool*pool = [[NSAutoreleasePool alloc] init];
     dmSys::OpenURL("http://www.google.com");
-
-    for (int i = 0; i < 10; ++i)
-    {
-        CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0, TRUE);
-        usleep(1000 * 1000);
-
-    }
-
     [pool drain];
 }

@@ -448,13 +448,8 @@ Multiple commands can be specified'''
         # NOTE: Darwin is currently mixed 32 and 64-bit.
         # That's why we have this temporary hack
         # NOTE: Build 64-bit first as 32-bit is the current default
-        target_platforms = ['x86_64-%s' % target_platform, target_platform]
-    else:
-        target_platforms = [target_platform]
-
-    for target_platform in target_platforms:
         c = Configuration(dynamo_home = os.environ.get('DYNAMO_HOME', None),
-                          target_platform = target_platform,
+                          target_platform = 'x86_64-%s' % target_platform,
                           eclipse_home = options.eclipse_home,
                           skip_tests = options.skip_tests,
                           skip_codesign = options.skip_codesign,
@@ -463,8 +458,26 @@ Multiple commands can be specified'''
                           set_version = options.set_version,
                           eclipse = options.eclipse)
 
+
         for cmd in args:
-            f = getattr(c, cmd, None)
-            if not f:
-                parser.error('Unknown command %s' % cmd)
-            f()
+            if cmd == 'build_engine' or cmd == 'archive_engine':
+                f = getattr(c, cmd, None)
+                if not f:
+                    parser.error('Unknown command %s' % cmd)
+                f()
+
+    c = Configuration(dynamo_home = os.environ.get('DYNAMO_HOME', None),
+                      target_platform = target_platform,
+                      eclipse_home = options.eclipse_home,
+                      skip_tests = options.skip_tests,
+                      skip_codesign = options.skip_codesign,
+                      no_colors = options.no_colors,
+                      archive_path = options.archive_path,
+                      set_version = options.set_version,
+                      eclipse = options.eclipse)
+
+    for cmd in args:
+        f = getattr(c, cmd, None)
+        if not f:
+            parser.error('Unknown command %s' % cmd)
+        f()
