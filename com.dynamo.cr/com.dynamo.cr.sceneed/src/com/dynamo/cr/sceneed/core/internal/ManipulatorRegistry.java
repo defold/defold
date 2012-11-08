@@ -22,10 +22,8 @@ public class ManipulatorRegistry implements IManipulatorRegistry {
 
     Map<String, ManipulatorMode> modes = new HashMap<String, ManipulatorMode>();
     private static Logger logger = LoggerFactory.getLogger(ManipulatorRegistry.class);
-    private Plugin plugin;
 
     public void init(Plugin plugin) {
-        this.plugin = plugin;
         IConfigurationElement[] config = Platform.getExtensionRegistry()
                 .getConfigurationElementsFor("com.dynamo.cr.manipulators");
         try {

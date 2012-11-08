@@ -38,6 +38,8 @@ public interface ISceneView extends ISelectionListener {
         void onDNDMoveSelection(IPresenterContext presenterContext, List<Node> copies, Node targetParent);
         void onDNDDuplicateSelection(IPresenterContext presenterContext, List<Node> copies, Node targetParent);
 
+        void onFrameSelection();
+
         void toogleSimulation();
     }
 
@@ -70,5 +72,6 @@ public interface ISceneView extends ISelectionListener {
     String selectFile(String title, String[] extensions);
 
     void getCameraFocusPoint(Point3d focusPoint);
+    void frameSelection();
 
 }

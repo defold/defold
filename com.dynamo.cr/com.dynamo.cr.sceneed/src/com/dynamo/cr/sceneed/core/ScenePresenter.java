@@ -104,6 +104,7 @@ public class ScenePresenter implements IPresenter, IModelListener {
     public void rootChanged(Node root) {
         this.currentSelection = this.model.getSelection();
         this.view.setRoot(root);
+        this.view.frameSelection();
     }
 
     @Override
@@ -194,6 +195,11 @@ public class ScenePresenter implements IPresenter, IModelListener {
             nodes.add((Node)object);
         }
         return nodes;
+    }
+
+    @Override
+    public void onFrameSelection() {
+        this.view.frameSelection();
     }
 
     @Override

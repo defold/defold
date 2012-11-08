@@ -16,7 +16,7 @@ public class FrameObjectsHandler extends AbstractHandler implements IHandler {
         IEditorPart activeEditor = HandlerUtil.getActiveEditor(event);
         if (activeEditor instanceof SceneEditor) {
             SceneEditor sceneEditor = (SceneEditor) activeEditor;
-            sceneEditor.getCameraController().frameObjects();
+            sceneEditor.getScenePresenter().onFrameSelection();
         }
         return null;
     }

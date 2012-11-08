@@ -48,6 +48,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.sceneed.core.Camera;
+import com.dynamo.cr.sceneed.core.CameraController;
 import com.dynamo.cr.sceneed.core.INodeRenderer;
 import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
@@ -74,16 +75,19 @@ IRenderView {
 
     private static Logger logger = LoggerFactory.getLogger(RenderView.class);
     private final INodeTypeRegistry nodeTypeRegistry;
+    private Node input;
     private IStructuredSelection selection;
 
     private GLCanvas canvas;
     private GLContext context;
     private final int[] viewPort = new int[4];
     private boolean enabled = true;
+    private boolean pendingFrameSelection = false;
 
     private List<IRenderViewProvider> providers = new ArrayList<IRenderViewProvider>();
     private List<IRenderViewController> controllers = new ArrayList<IRenderViewController>();
     private IRenderViewController focusController = null;
+    private CameraController cameraController;
 
     private Camera camera;
 
@@ -194,6 +198,17 @@ IRenderView {
         this.simulating  = simulating;
     }
 
+    @Override
+    public Node getInput() {
+        return this.input;
+    }
+
+    @Override
+    public void setInput(Node input) {
+        this.input = input;
+    }
+
+    @Override
     public void setSelection(IStructuredSelection selection) {
         this.selection = selection;
         for (IRenderViewController controller : this.controllers) {
@@ -266,6 +281,14 @@ IRenderView {
     }
 
     @Override
+    public Vector4d getCameraFocusPoint() {
+        if (this.cameraController != null) {
+            return this.cameraController.getFocusPoint();
+        }
+        throw new IllegalStateException("No camera controller available");
+    }
+
+    @Override
     public Camera getCamera() {
         return this.camera;
     }
@@ -273,6 +296,22 @@ IRenderView {
     @Override
     public void setCamera(Camera camera) {
         this.camera = camera;
+    }
+
+    private void doFrameSelection() {
+        if (this.cameraController != null) {
+            this.cameraController.frameSelection();
+        }
+    }
+
+    @Override
+    public void frameSelection() {
+        if (this.context != null) {
+            doFrameSelection();
+            requestPaint();
+        } else {
+            this.pendingFrameSelection = true;
+        }
     }
 
     // Listener
@@ -293,6 +332,10 @@ IRenderView {
             Point size = canvas.getSize();
             double aspect = ((double) size.x) / size.y;
             camera.setOrthographic(camera.getFov(), aspect, -100000, 100000);
+            if (this.pendingFrameSelection) {
+                this.pendingFrameSelection = false;
+                doFrameSelection();
+            }
         } else if (event.type == SWT.Paint) {
             requestPaint();
         }
@@ -852,11 +895,17 @@ IRenderView {
     @Override
     public void addRenderController(IRenderViewController controller) {
         this.controllers.add(controller);
+        if (controller instanceof CameraController) {
+            this.cameraController = (CameraController)controller;
+        }
     }
 
     @Override
     public void removeRenderController(IRenderViewController controller) {
         this.controllers.remove(controller);
+        if (this.cameraController == controller) {
+            this.cameraController = null;
+        }
     }
 
     @Override

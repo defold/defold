@@ -402,12 +402,15 @@ public class ParticleFXCurveEditorPage implements ICurveView, IPageBookViewPage,
 
     @Override
     public void historyNotification(OperationHistoryEvent event) {
-        switch (event.getEventType()) {
-        case OperationHistoryEvent.DONE:
-        case OperationHistoryEvent.UNDONE:
-        case OperationHistoryEvent.REDONE:
-            if (event.getOperation().hasContext(undoContext)) {
-                updateInput();
+        // Only react when we have an undo context (i.e. is enabled)
+        if (this.undoContext != null) {
+            switch (event.getEventType()) {
+            case OperationHistoryEvent.DONE:
+            case OperationHistoryEvent.UNDONE:
+            case OperationHistoryEvent.REDONE:
+                if (event.getOperation().hasContext(undoContext)) {
+                    updateInput();
+                }
             }
         }
     }

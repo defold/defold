@@ -80,6 +80,11 @@ public class TileSetSceneView extends AbstractSceneView {
     }
 
     @Override
+    public void frameSelection() {
+        this.renderer.frameTileSet();
+    }
+
+    @Override
     protected IWorkbenchPart getPart() {
         return this.editor;
     }

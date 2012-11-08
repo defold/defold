@@ -403,4 +403,13 @@
          <enablement></enablement>
       </commonWizard>
    </extension>
+   <extension
+         point="com.dynamo.cr.editor.ui.tip">
+      <tip
+            editor-id="com.dynamo.cr.parted.particleFXEditor"
+            link="See the &lt;a href=&quot;http://www.defold.com/doc/particlefx&quot;&gt;ParticleFX guide&lt;/a&gt; for more info."
+            tip="Use the Space-bar to start and stop the effect. To animate a value, right-click in its text field and select &quot;Curve&quot;. Use Alt+mouse-wheel in a numeric text field to spin the value up and down."
+            title="ParticleFX">
+      </tip>
+   </extension>
 </plugin>
