@@ -32,3 +32,16 @@ index 3b73b01..4d89c75 100644
  
  // The main function for a threadsafe-style death test child process.
  // This function is called in a clone()-ed process and thus must avoid
+diff --git a/src/gtest.cc b/src/gtest.cc
+index 342d458..64e8be3 100644
+--- a/src/gtest.cc
++++ b/src/gtest.cc
+@@ -1644,7 +1644,7 @@ bool String::CaseInsensitiveWideCStringEquals(const wchar_t* lhs,
+ 
+ #if GTEST_OS_WINDOWS
+   return _wcsicmp(lhs, rhs) == 0;
+-#elif GTEST_OS_LINUX
++#elif GTEST_OS_LINUX && !defined(ANDROID)
+   return wcscasecmp(lhs, rhs) == 0;
+ #else
+   // Mac OS X and Cygwin don't define wcscasecmp.  Other unknown OSes

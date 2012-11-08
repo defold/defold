@@ -145,6 +145,7 @@ TEST(dmMemProfile, TestMemAlign)
 #endif
 
 
+#if !defined(ANDROID)
 TEST(dmMemProfile, TestPosixMemAlign)
 {
     // We assume that the memory (actual size) allocated is 1024 <= x <= 1044
@@ -177,6 +178,8 @@ TEST(dmMemProfile, TestPosixMemAlign)
         ASSERT_LE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, 1044);
     }
 }
+#endif
+
 #endif
 
 TEST(dmMemProfile, TestNewDelete1)

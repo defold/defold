@@ -40,3 +40,19 @@ iOS Debugging
 * Select executable
 * Make sure that debugger is lldb. Otherwise debuginfo is not found for static libraries when compiled with clang for unknown reason
 
+
+Android testing
+---------------
+Copy executable (or directory) with
+
+    # adb push <DIR_OR_DIR> /data/local/tmp
+
+When copying directories append directory name to destination path. It's oterhwise skipped
+
+Run exec with:
+
+    # adb shell /data/local/tmp/....
+
+For interactive shell run "adb shell"
+
+

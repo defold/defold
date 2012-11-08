@@ -50,7 +50,7 @@ def configure(conf):
     conf.env['STATICLIB_DLIB'] = 'dlib'
     conf.env['STATICLIB_PROTOBUF'] = 'protobuf'
     conf.env['LIB_GTEST'] = 'gtest'
-    if sys.platform == 'linux2':
+    if conf.env.PLATFORM == 'linux':
         conf.env['LIB_PTHREAD'] = 'pthread'
 
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="DDF"')

@@ -5,7 +5,7 @@
 #include "profile.h"
 #include "memprofile.h"
 
-#ifndef _MSC_VER
+#if !(defined(_MSC_VER) || defined(ANDROID))
 
 #include <stdlib.h>
 #include <dlfcn.h>
@@ -46,7 +46,7 @@ namespace dmMemProfile
 
     void Initialize()
     {
-#if defined(__MACH__) or defined(__linux__)
+#if defined(__MACH__) or defined(__linux__) and !defined(ANDROID)
         void (*init)(dmMemProfile::InternalData*) = (void (*)(dmMemProfile::InternalData*)) dlsym(RTLD_DEFAULT, "dmMemProfileInitializeLibrary");
         if (init)
         {
@@ -81,8 +81,8 @@ namespace dmMemProfile
 
 // Code belonging to libdlib_profile. Not part of libdlib.
 
-// Not available on WIN32 - yet.
-#ifndef _MSC_VER
+// Not available on WIN32 or Android - yet.
+#if !(defined(_MSC_VER) || defined(ANDROID))
 
 namespace dmMemProfile
 {

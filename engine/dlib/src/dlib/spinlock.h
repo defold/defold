@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#if defined(__linux__)
+#if defined(__linux__) and !defined(ANDROID)
 #include <pthread.h>
 namespace dmSpinlock
 {
@@ -74,6 +74,44 @@ namespace dmSpinlock
         *lock = 0;
     }
 }
+#elif defined(ANDROID)
+namespace dmSpinlock
+{
+    typedef uint32_t lock_t;
+
+    static inline void Init(lock_t* lock)
+    {
+        *lock = 0;
+    }
+
+    static inline void Lock(lock_t* lock)
+    {
+        uint32_t tmp;
+         __asm__ __volatile__(
+ "1:     ldrex   %0, [%1]\n"
+ "       teq     %0, #0\n"
+ "       wfene\n"
+ "       strexeq %0, %2, [%1]\n"
+ "       teqeq   %0, #0\n"
+ "       bne     1b\n"
+"        dsb\n"
+         : "=&r" (tmp)
+         : "r" (lock), "r" (1)
+         : "cc");
+
+    }
+
+    static inline void Unlock(lock_t* lock)
+    {
+        __asm__ __volatile__(
+"       dsb\n"
+"       str     %1, [%0]\n"
+        :
+        : "r" (lock), "r" (0)
+        : "cc");
+    }
+}
+
 #else
 #error "Unsupported platform"
 #endif

@@ -16,6 +16,7 @@ PACKAGES_HOST="protobuf-2.3.0 gtest-1.5.0 glut-3.7.6 cg-2.1 nvidia-texture-tools
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg".split()
 PACKAGES_IOS="protobuf-2.3.0 gtest-1.5.0".split()
 PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0".split()
+PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.5.0".split()
 
 def get_host_platform():
     return 'linux' if sys.platform == 'linux2' else sys.platform
@@ -100,6 +101,9 @@ class Configuration(object):
         if self.host == 'darwin':
             for p in PACKAGES_DARWIN_64:
                 self._extract_tgz(make_path('x86_64-darwin'), ext)
+
+        for p in PACKAGES_ANDROID:
+            self._extract_tgz(make_path('armv7-android'), ext)
 
         for egg in glob(join(self.defold_root, 'packages', '*.egg')):
             self._log('Installing %s' % basename(egg))
@@ -407,7 +411,7 @@ Multiple commands can be specified'''
 
     parser.add_option('--platform', dest='target_platform',
                       default = None,
-                      choices = ['linux', 'darwin', 'x86_64-darwin', 'win32', 'armv7-darwin'],
+                      choices = ['linux', 'darwin', 'x86_64-darwin', 'win32', 'armv7-darwin', 'armv7-android'],
                       help = 'Target platform')
 
     parser.add_option('--skip-tests', dest='skip_tests',
