@@ -285,31 +285,20 @@ namespace dmGameSystem
         const dmArray<uint32_t>& sort_buffer = sprite_world->m_RenderSortBuffer;
 
         dmGameSystemDDF::TileSet* tile_set_ddf = tile_set->m_TileSet;
-        dmGraphics::HTexture texture = tile_set->m_Texture;
 
-        uint16_t texture_width = dmGraphics::GetOriginalTextureWidth(texture);
-        uint16_t texture_height = dmGraphics::GetOriginalTextureHeight(texture);
-        float texture_width_recip = 1.0f / texture_width;
-        float texture_height_recip = 1.0f / texture_height;
-        uint32_t tiles_per_row = CalculateTileCount(tile_set_ddf->m_TileWidth, texture_width, tile_set_ddf->m_TileMargin, tile_set_ddf->m_TileSpacing);
-
-        const float tile_width = tile_set_ddf->m_TileWidth;
-        const float tile_height = tile_set_ddf->m_TileHeight;
-        const float step_x = tile_set_ddf->m_TileWidth + tile_set_ddf->m_TileSpacing + 2 * tile_set_ddf->m_TileMargin;
-        const float step_y = tile_set_ddf->m_TileHeight + tile_set_ddf->m_TileSpacing + 2 * tile_set_ddf->m_TileMargin;
         for (uint32_t i = start_index; i < end_index; ++i)
         {
             const SpriteComponent* component = &components[sort_buffer[i]];
 
             dmGameSystemDDF::Animation* animation_ddf = &tile_set_ddf->m_Animations[component->m_CurrentAnimation];
 
-            uint16_t tile_x = component->m_CurrentTile % tiles_per_row;
-            uint16_t tile_y = component->m_CurrentTile / tiles_per_row;
-
             SpriteVertex *v = (SpriteVertex*)((vertex_buffer)) + i * 6;
 
-            float u0 = (tile_x * step_x + tile_set_ddf->m_TileMargin) * texture_width_recip;
-            float u1 = u0 + tile_width * texture_width_recip;
+            float* tc = &tile_set->m_TexCoords[component->m_CurrentTile * 4];
+            float u0 = tc[0];
+            float v0 = tc[1];
+            float u1 = tc[2];
+            float v1 = tc[3];
             // ddf values are guaranteed to be 0 or 1 when saved by the editor
             // component values are guaranteed to be 0 or 1
             if (animation_ddf->m_FlipHorizontal ^ component->m_FlipHorizontal)
@@ -318,8 +307,6 @@ namespace dmGameSystem
                 u0 = u1;
                 u1 = u;
             }
-            float v0 = (tile_y * step_y + tile_set_ddf->m_TileMargin) * texture_height_recip;
-            float v1 = v0 + tile_height * texture_height_recip;
             if (animation_ddf->m_FlipVertical ^ component->m_FlipVertical)
             {
                 float v = v0;

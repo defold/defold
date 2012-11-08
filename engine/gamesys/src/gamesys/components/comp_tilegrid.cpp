@@ -314,12 +314,12 @@ namespace dmGameSystem
                             t[2] = puv[2];
                             t[3] = puv[3];
 
-                            v->x = p[0]; v->y = p[1]; v->z = z; v->u = t[0]; v->v = t[1]; ++v;
-                            v->x = p[0]; v->y = p[3]; v->z = z; v->u = t[0]; v->v = t[3]; ++v;
-                            v->x = p[2]; v->y = p[3]; v->z = z; v->u = t[2]; v->v = t[3]; ++v;
-                            v->x = p[0]; v->y = p[1]; v->z = z; v->u = t[0]; v->v = t[1]; ++v;
-                            v->x = p[2]; v->y = p[3]; v->z = z; v->u = t[2]; v->v = t[3]; ++v;
-                            v->x = p[2]; v->y = p[1]; v->z = z; v->u = t[2]; v->v = t[1]; ++v;
+                            v->x = p[0]; v->y = p[1]; v->z = z; v->u = t[0]; v->v = t[3]; ++v;
+                            v->x = p[0]; v->y = p[3]; v->z = z; v->u = t[0]; v->v = t[1]; ++v;
+                            v->x = p[2]; v->y = p[3]; v->z = z; v->u = t[2]; v->v = t[1]; ++v;
+                            v->x = p[0]; v->y = p[1]; v->z = z; v->u = t[0]; v->v = t[3]; ++v;
+                            v->x = p[2]; v->y = p[3]; v->z = z; v->u = t[2]; v->v = t[1]; ++v;
+                            v->x = p[2]; v->y = p[1]; v->z = z; v->u = t[2]; v->v = t[3]; ++v;
                             vertex_count += VERTCIES_PER_TILE;
                         }
                     }

@@ -12,8 +12,8 @@ namespace dmGameSystem
     {
         uint32_t u0 = tile_x * (tile_set_ddf->m_TileSpacing + 2 * tile_set_ddf->m_TileMargin + tile_set_ddf->m_TileWidth) + tile_set_ddf->m_TileMargin;
         uint32_t u1 = u0 + tile_set_ddf->m_TileWidth;
-        uint32_t v1 = tile_y * (tile_set_ddf->m_TileSpacing + 2 * tile_set_ddf->m_TileMargin + tile_set_ddf->m_TileHeight) + tile_set_ddf->m_TileMargin;
-        uint32_t v0 = v1 + tile_set_ddf->m_TileHeight;
+        uint32_t v0 = tile_y * (tile_set_ddf->m_TileSpacing + 2 * tile_set_ddf->m_TileMargin + tile_set_ddf->m_TileHeight) + tile_set_ddf->m_TileMargin;
+        uint32_t v1 = v0 + tile_set_ddf->m_TileHeight;
         out_v[0] = u0 * recip_tex_width;
         out_v[1] = v0 * recip_tex_height;
         out_v[2] = u1 * recip_tex_width;
