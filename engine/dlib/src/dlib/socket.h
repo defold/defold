@@ -3,7 +3,10 @@
 
 #include <stdint.h>
 
-#if defined(__linux__) || defined(__MACH__)
+#include <sys/select.h>
+#include <errno.h>
+
+#if defined(__linux__) || defined(__MACH__) || defined(ANDROID)
 #include <sys/socket.h>
 #include <sys/errno.h>
 #include <netinet/in.h>

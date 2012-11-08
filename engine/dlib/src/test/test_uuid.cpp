@@ -5,6 +5,8 @@
 #include <gtest/gtest.h>
 #include "../dlib/uuid.h"
 
+
+#ifndef ANDROID
 TEST(dmUUID, Linkage)
 {
     dmUUID::UUID uuid;
@@ -20,6 +22,7 @@ TEST(dmUUID, Linkage)
     }
     printf("}\n");
 }
+#endif
 
 int main(int argc, char **argv)
 {

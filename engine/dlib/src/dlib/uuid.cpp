@@ -10,7 +10,7 @@ typedef unsigned long (__stdcall* NtAllocateUuidsProto)(void* time  /* 8 bytes *
                                                         void* seed /* 6 bytes */);
 #include "safe_windows.h"
 
-#else
+#elif !defined(ANDROID)
 #include <uuid/uuid.h>
 #endif
 
@@ -49,6 +49,13 @@ namespace dmUUID
         static unsigned char seed[6] = { '\0' };
         uint8_t* p = &uuid->m_UUID[0];
         NtAllocateUuids(p, p+8, p+12, &seed[0] );
+    }
+
+#elif defined(ANDROID)
+#include <assert.h>
+    void Generate(UUID* uuid)
+    {
+        assert(false && "NOT SUPPORTED");
     }
 #else
     void Generate(UUID* uuid)

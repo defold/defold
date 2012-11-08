@@ -5,6 +5,11 @@ from TaskGen import extension, taskgen, feature, after, before
 from Logs import error
 import cc, cxx
 
+ANDROID_ROOT=os.path.join(os.environ['HOME'], 'android')
+ANDROID_NDK_VERSION='8b'
+ANDROID_VERSION='14'
+ANDROID_GCC_VERSION='4.6'
+
 def new_copy_task(name, input_ext, output_ext):
     def compile(task):
         with open(task.inputs[0].srcpath(task.env), 'rb') as in_f:
@@ -72,6 +77,34 @@ def default_flags(self):
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-g', '-O2', '-gdwarf-2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-arch', 'armv7', '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION)])
         self.env.append_value('LINKFLAGS', [ '-arch', 'armv7', '-lobjc', '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION), '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION])
+    elif platform == 'armv7-android':
+
+        sysroot='%s/android-ndk-r%s/platforms/android-%s/arch-arm' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_VERSION)
+        stl="%s/android-ndk-r%s/sources/cxx-stl/gnu-libstdc++/%s/include" % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_GCC_VERSION)
+        stl_lib="%s/android-ndk-r%s/sources/cxx-stl/gnu-libstdc++/%s/libs/armeabi-v7a" % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_GCC_VERSION)
+        stl_arch="%s/include" % stl_lib
+
+        for f in ['CCFLAGS', 'CXXFLAGS']:
+            # NOTE: -mthumb removed from default flags
+            self.env.append_value(f, ['-g', '-O0', '-gdwarf-2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall',
+                                      '-fpic', '-ffunction-sections', '-funwind-tables', '-fstack-protector',
+                                      '-D__ARM_ARCH_5__', '-D__ARM_ARCH_5T__', '-D__ARM_ARCH_5E__', '-D__ARM_ARCH_5TE__',
+                                      '-Wno-psabi', '-march=armv7-a', '-mfloat-abi=softfp', '-mfpu=vfp',
+                                      '-fomit-frame-pointer', '-fno-strict-aliasing', '-finline-limit=64',
+                                      '-I%s/android-ndk-r%s/sources/android/native_app_glue' % (ANDROID_ROOT, ANDROID_NDK_VERSION),
+                                      '-I%s/tmp/android-ndk-r%s/platforms/android-%s/arch-arm/usr/include' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_VERSION),
+                                      '-I%s' % stl,
+                                      '-I%s' % stl_arch,
+                                      '--sysroot=%s' % sysroot,
+                                      '-DANDROID', '-Wa,--noexecstack'])
+
+        # TODO: Should be part of shared libraries
+        # -Wl,-soname,libnative-activity.so -shared
+        # -lgnustl_static -lsupc++
+        self.env.append_value('LINKFLAGS', [
+                '--sysroot=%s' % sysroot,
+                '-Wl,--fix-cortex-a8', '-Wl,--no-undefined', '-Wl,-z,noexecstack',
+                '-L%s' % stl_lib])
     else:
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS'])
@@ -89,6 +122,14 @@ def default_flags(self):
     self.env.append_value('CPPPATH', os.path.join(dynamo_home, "include"))
     self.env.append_value('CPPPATH', os.path.join(dynamo_home, "include", platform))
     self.env.append_value('LIBPATH', os.path.join(dynamo_ext, "lib", platform))
+
+@feature('cprogram', 'cxxprogram', 'cstaticlib', 'cshlib')
+@after('apply_obj_vars')
+def android_link_flags(self):
+    platform = self.env['PLATFORM']
+    build_platform = self.env['BUILD_PLATFORM']
+    if platform == 'armv7-android':
+        self.link_task.env.append_value('LINKFLAGS', ['-lgnustl_static'])
 
 # Install all static libraries by default
 @feature('cstaticlib')
@@ -409,7 +450,7 @@ def run_gtests(valgrind = False):
 
 @feature('cprogram', 'cxxprogram', 'cstaticlib', 'cshlib')
 @after('apply_obj_vars')
-def link_flags(self):
+def linux_link_flags(self):
     platform = self.env['PLATFORM']
     if platform == 'linux':
         self.link_task.env.append_value('LINKFLAGS', ['-lpthread', '-lm'])
@@ -485,6 +526,15 @@ def detect(conf):
         conf.env['AR'] = '%s/usr/bin/ar' % (IOS_TOOLCHAIN_ROOT)
         conf.env['RANLIB'] = '%s/usr/bin/ranlib' % (IOS_TOOLCHAIN_ROOT)
         conf.env['LD'] = '%s/usr/bin/ld' % (IOS_TOOLCHAIN_ROOT)
+    elif platform == "armv7-android":
+        bin='%s/android-ndk-r%s/toolchains/arm-linux-androideabi-%s/prebuilt/%s-x86/bin' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_GCC_VERSION, build_platform)
+        conf.env['CC'] = '%s/arm-linux-androideabi-gcc' % (bin)
+        conf.env['CXX'] = '%s/arm-linux-androideabi-g++' % (bin)
+        conf.env['LINK_CXX'] = '%s/arm-linux-androideabi-g++' % (bin)
+        conf.env['CPP'] = '%s/arm-linux-androideabi-cpp' % (bin)
+        conf.env['AR'] = '%s/arm-linux-androideabi-ar' % (bin)
+        conf.env['RANLIB'] = '%s/arm-linux-androideabi-ranlib' % (bin)
+        conf.env['LD'] = '%s/arm-linux-androideabi-ld' % (bin)
 
     conf.check_tool('compiler_cc')
     conf.check_tool('compiler_cxx')
@@ -511,6 +561,8 @@ def detect(conf):
         conf.env['LIB_DL'] = 'dl'
         conf.env['LIB_UUID'] = 'uuid'
     elif 'darwin' in platform:
+        conf.env['LIB_PLATFORM_SOCKET'] = ''
+    elif 'android' in platform:
         conf.env['LIB_PLATFORM_SOCKET'] = ''
     else:
         conf.env['LIB_PLATFORM_SOCKET'] = 'WS2_32'
