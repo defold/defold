@@ -50,6 +50,7 @@ public class RefComponentNode extends ComponentNode {
             this.type.setModel(this.getModel());
             this.type.setFlagsRecursively(Flags.LOCKED);
             addChild(type);
+            setTransformable(type.isTransformable());
         }
     }
 
@@ -138,6 +139,7 @@ public class RefComponentNode extends ComponentNode {
                 if (this.type != null) {
                     this.type.setFlagsRecursively(Flags.LOCKED);
                     addChild(this.type);
+                    setTransformable(type.isTransformable());
                     reloadComponentProperties();
                 }
             } catch (Throwable e) {

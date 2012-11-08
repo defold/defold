@@ -138,6 +138,8 @@ namespace dmGameSystem
         TileGrid* tile_grid = new TileGrid();
         tile_grid->m_Instance = params.m_Instance;
         tile_grid->m_TileGridResource = resource;
+        tile_grid->m_Translation = Vector3(params.m_Position);
+        tile_grid->m_Rotation = params.m_Rotation;
         if (!CreateTileGrid(tile_grid))
         {
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
@@ -354,6 +356,12 @@ namespace dmGameSystem
             TileGrid* tile_grid = tile_grids[i];
             TileGridResource* resource = tile_grid->m_TileGridResource;
             dmGraphics::HTexture texture = resource->m_TileSet->m_Texture;
+            Point3 world_position = dmGameObject::GetWorldPosition(tile_grid->m_Instance);
+            Quat world_rotation = dmGameObject::GetWorldRotation(tile_grid->m_Instance);
+            world_position += rotate(world_rotation, tile_grid->m_Translation);
+            world_rotation *= tile_grid->m_Rotation;
+            Matrix4 world = Matrix4::rotation(world_rotation);
+            world.setCol3(Vector4(world_position));
 
             for (uint32_t rx = 0; rx < tile_grid->m_RegionsX; ++rx)
             {
@@ -366,8 +374,6 @@ namespace dmGameSystem
                     dmRender::RenderObject* ro = &region->m_RenderObject;
                     if (ro->m_VertexCount > 0)
                     {
-                        Matrix4 world = Matrix4::rotation(dmGameObject::GetWorldRotation(tile_grid->m_Instance));
-                        world.setCol3(Vector4(dmGameObject::GetWorldPosition(tile_grid->m_Instance)));
                         ro->m_WorldTransform = world;
                         ro->m_Textures[0] = texture;
                         dmRender::AddToRender(render_context, ro);

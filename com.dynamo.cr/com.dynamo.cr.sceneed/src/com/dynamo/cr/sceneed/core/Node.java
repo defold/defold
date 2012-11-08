@@ -120,12 +120,16 @@ public abstract class Node implements IAdaptable, Serializable {
         }
     }
 
-    public final boolean isTranslationVisible() {
+    public final boolean isTransformable() {
         return flags.contains(Flags.TRANSFORMABLE);
     }
 
+    public final boolean isTranslationVisible() {
+        return isTransformable();
+    }
+
     public final boolean isEulerVisible() {
-        return flags.contains(Flags.TRANSFORMABLE);
+        return isTransformable();
     }
 
     public final boolean isEditable() {
