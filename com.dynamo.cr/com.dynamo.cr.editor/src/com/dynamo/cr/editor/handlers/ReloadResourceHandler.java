@@ -10,6 +10,7 @@ import java.util.Map;
 
 import javax.ws.rs.core.UriBuilder;
 
+import org.apache.commons.io.FilenameUtils;
 import org.eclipse.core.commands.AbstractHandler;
 import org.eclipse.core.commands.ExecutionEvent;
 import org.eclipse.core.commands.ExecutionException;
@@ -29,6 +30,7 @@ import org.eclipse.ui.handlers.HandlerUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.dynamo.bob.ResourceUtil;
 import com.dynamo.cr.editor.Activator;
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.preferences.PreferenceConstants;
@@ -57,7 +59,13 @@ public class ReloadResourceHandler extends AbstractHandler {
                 IContainer contentRoot = EditorUtil.findContentRoot(fileInput.getFile());
                 path = path.makeRelativeTo(contentRoot.getFullPath());
 
-                final String stringPath = path.toPortableString() + "c";
+                String stringPath = path.toPortableString() + "c";
+                // TODO Hack to handle tilesource => tilesetc (ProtoBuilders.java)
+                // https://defold.fogbugz.com/default.asp?1770
+                if (FilenameUtils.isExtension(stringPath, "tilesourcec")) {
+                    stringPath = ResourceUtil.changeExt(stringPath, ".tilesetc");
+                }
+                final String sPath = stringPath;
                 editor.getSite().getPage().saveEditor(editor, false);
 
                 Job job = new Job("reload") {
@@ -78,7 +86,7 @@ public class ReloadResourceHandler extends AbstractHandler {
 
                             Reload reload = Resource.Reload
                                     .newBuilder()
-                                    .setResource(stringPath)
+                                    .setResource(sPath)
                                     .build();
 
                             ITarget target = targetService.getSelectedTarget();
