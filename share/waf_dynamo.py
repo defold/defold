@@ -381,7 +381,7 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
         android:versionName="1.0">
 
     <uses-sdk android:minSdkVersion="9" />
-    <application android:label="%(app_name)s" android:hasCode="false">
+    <application android:label="%(app_name)s" android:hasCode="false" android:debuggable="true">
         <activity android:name="android.app.NativeActivity"
                 android:label="%(app_name)s"
                 android:configChanges="orientation|keyboardHidden">
@@ -422,8 +422,9 @@ def android_package(task):
     manifest = task.manifest.abspath(task.env)
     ap_ = task.ap_.abspath(task.env)
     native_lib = task.native_lib.abspath(task.env)
-
+    gdbserver = task.gdbserver.abspath(task.env)
     shutil.copy(task.native_lib_in.abspath(task.env), native_lib)
+    shutil.copy('%s/android-ndk-r%s/prebuilt/android-arm/gdbserver/gdbserver' % (ANDROID_ROOT, ANDROID_NDK_VERSION), gdbserver)
 
     ret = bld.exec_command('%s package --no-crunch -f --debug-mode -M %s -I %s -F %s' % (aapt, manifest, android_jar, ap_))
     if ret != 0:
@@ -433,7 +434,7 @@ def android_package(task):
     apkbuilder = '%s/android-sdk/tools/apkbuilder' % (ANDROID_ROOT)
     apk_unaligned = task.apk_unaligned.abspath(task.env)
     libs_dir = task.native_lib.parent.parent.abspath(task.env)
-    ret = bld.exec_command('%s %s -v -z %s -nf %s' % (apkbuilder, apk_unaligned, ap_, libs_dir))
+    ret = bld.exec_command('%s %s -v -z %s -nf %s -d' % (apkbuilder, apk_unaligned, ap_, libs_dir))
     if ret != 0:
         error('Error running apkbuilder')
         return 1
@@ -444,6 +445,15 @@ def android_package(task):
     if ret != 0:
         error('Error running zipalign')
         return 1
+
+    with open(task.android_mk.abspath(task.env), 'wb') as f:
+        print >>f, 'APP_ABI := armeabi-v7a'
+
+    with open(task.application_mk.abspath(task.env), 'wb') as f:
+        print >>f, ''
+
+    with open(task.gdb_setup.abspath(task.env), 'wb') as f:
+        print >>f, 'set solib-search-path ./libs/armeabi-v7a:./obj/local/armeabi-v7a/'
 
     return 0
 
@@ -474,6 +484,9 @@ def create_android_package(self):
     android_package_task.native_lib = native_lib
     android_package_task.native_lib_in = self.link_task.outputs[0]
 
+    gdbserver = self.path.exclusive_build_node("%s.android/libs/armeabi-v7a/gdbserver" % (exe_name))
+    android_package_task.gdbserver = gdbserver
+
     ap_ = self.path.exclusive_build_node("%s.android/%s.ap_" % (exe_name, exe_name))
     android_package_task.ap_ = ap_
 
@@ -483,7 +496,13 @@ def create_android_package(self):
     apk = self.path.exclusive_build_node("%s.android/%s.apk" % (exe_name, exe_name))
     android_package_task.apk = apk
 
-    android_package_task.set_outputs([native_lib, manifest, ap_, apk_unaligned, apk])
+    # NOTE: These files are required for ndk-gdb
+    android_package_task.android_mk = self.path.exclusive_build_node("%s.android/jni/Android.mk" % (exe_name))
+    android_package_task.application_mk = self.path.exclusive_build_node("%s.android/jni/Application.mk" % (exe_name))
+    android_package_task.gdb_setup = self.path.exclusive_build_node("%s.android/libs/armeabi-v7a/gdb.setup" % (exe_name))
+
+    android_package_task.set_outputs([native_lib, manifest, ap_, apk_unaligned, apk, gdbserver,
+                                      android_package_task.android_mk, android_package_task.application_mk, android_package_task.gdb_setup])
 
     self.android_package_task = android_package_task
 
