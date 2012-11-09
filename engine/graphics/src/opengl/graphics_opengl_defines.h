@@ -1,7 +1,7 @@
 #ifndef DMGRAPHICS_OPENGL_DEFINES_H
 #define DMGRAPHICS_OPENGL_DEFINES_H
 
-#ifdef __linux__
+#if defined(__linux__) && !defined(ANDROID)
 
 #include <GL/gl.h>
 #include <GL/glu.h>
@@ -25,6 +25,12 @@
 #include <win32/glut.h>
 
 #include "win32/glext.h"
+
+#elif defined (ANDROID)
+#define GL_GLEXT_PROTOTYPES
+#include <GLES2/gl2.h>
+#include <GLES2/gl2ext.h>
+#define GL_BGRA GL_BGRA_EXT
 #else
 #error "Platform not supported."
 #endif

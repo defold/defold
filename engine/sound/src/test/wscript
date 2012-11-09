@@ -1,3 +1,4 @@
+import re
 import Task, TaskGen
 from TaskGen import extension, declare_extension
 
@@ -8,14 +9,15 @@ def build(bld):
                                        source = 'dummy.cpp',  # Make waf happy
                                        embed_source = 'drumloop.wav onefootstep.wav layer-guitar-a.ogg click-track.ogg osc2_sin_440hz.wav door_opening.wav')
 
-    test_sound = bld.new_task_gen(features = 'cxx cprogram embed',
-                                  includes = '../../../src .',
-                                  uselib = 'GTEST DLIB PLATFORM_SOCKET OPENAL',
-                                  uselib_local = 'sound alut embedded_sounds',
-                                  target = 'test_sound',
-                                  source = 'test_sound.cpp')
+    if not re.match('arm.*?android', bld.env['PLATFORM']):
+        test_sound = bld.new_task_gen(features = 'cxx cprogram embed',
+                                      includes = '../../../src .',
+                                      uselib = 'GTEST DLIB PLATFORM_SOCKET OPENAL',
+                                      uselib_local = 'sound alut embedded_sounds',
+                                      target = 'test_sound',
+                                      source = 'test_sound.cpp')
 
-    test_sound.install_path = None
+        test_sound.install_path = None
 
     test_sound_null = bld.new_task_gen(features = 'cxx cprogram embed',
                                   includes = '../../../src .',

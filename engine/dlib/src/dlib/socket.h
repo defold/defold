@@ -3,9 +3,6 @@
 
 #include <stdint.h>
 
-#include <sys/select.h>
-#include <errno.h>
-
 #if defined(__linux__) || defined(__MACH__) || defined(ANDROID)
 #include <sys/socket.h>
 #include <sys/errno.h>

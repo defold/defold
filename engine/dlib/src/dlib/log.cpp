@@ -13,6 +13,10 @@
 #include "path.h"
 #include "sys.h"
 
+#ifdef ANDROID
+#include <android/log.h>
+#endif
+
 const uint32_t DM_LOG_MAX_LOG_FILE_SIZE = 1024 * 1024 * 32;
 
 struct dmLogConnection
@@ -330,6 +334,35 @@ void dmLogSetlevel(dmLogSeverity severity)
     g_LogLevel = severity;
 }
 
+#ifdef ANDROID
+static android_LogPriority ToAndroidPriority(dmLogSeverity severity)
+{
+    switch (severity)
+    {
+        case DM_LOG_SEVERITY_DEBUG:
+            return ANDROID_LOG_DEBUG;
+
+        case DM_LOG_SEVERITY_USER_DEBUG:
+            return ANDROID_LOG_DEBUG;
+
+        case DM_LOG_SEVERITY_INFO:
+            return ANDROID_LOG_INFO;
+
+        case DM_LOG_SEVERITY_WARNING:
+            return ANDROID_LOG_WARN;
+
+        case DM_LOG_SEVERITY_ERROR:
+            return ANDROID_LOG_ERROR;
+
+        case DM_LOG_SEVERITY_FATAL:
+            return ANDROID_LOG_FATAL;
+
+        default:
+            return ANDROID_LOG_ERROR;
+    }
+}
+#endif
+
 void dmLogInternal(dmLogSeverity severity, const char* domain, const char* format, ...)
 {
     if (severity < g_LogLevel)
@@ -383,7 +416,11 @@ void dmLogInternal(dmLogSeverity severity, const char* domain, const char* forma
     }
     str_buf[str_buf_size-1] = '\0';
 
+#ifdef ANDROID
+    __android_log_print(ToAndroidPriority(severity), "defold", str_buf);
+#else
     fwrite(str_buf, 1, dmMath::Min(n, str_buf_size-1), stderr);
+#endif
     va_end(lst);
 
     dmLogServer* self = g_dmLogServer;

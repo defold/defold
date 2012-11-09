@@ -10,7 +10,7 @@
 
 #define DEGREES_TO_RADIANS(ANGLE) ((ANGLE) / 180.0 * 3.14159265f)
 
-int main( void )
+int main(int argc, char** argv)
 {
     int width, height, touchx, touchy, angle;
     double t;

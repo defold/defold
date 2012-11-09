@@ -16,8 +16,12 @@
 
 #include <graphics/glfw/glfw.h>
 
-#ifdef __linux__
+#if defined(__linux__) and !defined(ANDROID)
 #include <GL/glext.h>
+
+#elif defined (ANDROID)
+#define GL_GLEXT_PROTOTYPES
+#include <GLES2/gl2ext.h>
 
 #elif defined (__MACH__)
 
@@ -1138,6 +1142,9 @@ static void LogFrameBufferError(GLenum status)
         case TEXTURE_FORMAT_DEPTH:
             return true;
 
+#ifndef ANDROID
+        // No support for compressed textures on Android for now (different hardware)
+
 #ifndef __arm__
         // Non arm platform. We currently assume that DXT* is supported
         case TEXTURE_FORMAT_RGB_DXT1:
@@ -1165,6 +1172,7 @@ static void LogFrameBufferError(GLenum status)
         case TEXTURE_FORMAT_RGBA_DXT5:
             return false;
 
+#endif
 #endif
         }
         return false;
@@ -1244,6 +1252,8 @@ static void LogFrameBufferError(GLenum status)
             internal_format = GL_RGBA;
             break;
 
+#ifndef ANDROID
+
 #ifdef GL_COMPRESSED_RGB_S3TC_DXT1_EXT
         case TEXTURE_FORMAT_RGB_DXT1:
             gl_format = GL_COMPRESSED_RGB_S3TC_DXT1_EXT;
@@ -1273,6 +1283,8 @@ static void LogFrameBufferError(GLenum status)
         case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
             gl_format = GL_COMPRESSED_RGBA_PVRTC_4BPPV1_IMG;
             break;
+#endif
+
 #endif
 
         case TEXTURE_FORMAT_DEPTH:
