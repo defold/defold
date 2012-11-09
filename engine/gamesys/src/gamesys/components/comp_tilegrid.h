@@ -16,7 +16,7 @@ namespace dmGameSystem
         uint32_t                  m_Dirty : 1;
     };
 
-    struct TileGrid
+    struct TileGridComponent
     {
         struct Layer
         {
@@ -24,7 +24,7 @@ namespace dmGameSystem
             uint32_t    m_Visible : 1;
         };
 
-        TileGrid();
+        TileGridComponent();
 
         dmArray<Layer>              m_Layers;
         Vectormath::Aos::Vector3    m_Translation;
@@ -44,11 +44,8 @@ namespace dmGameSystem
             memset(this, 0, sizeof(TileGridWorld));
         }
 
-        dmArray<TileGrid*>              m_TileGrids;
+        dmArray<TileGridComponent*>     m_TileGrids;
         dmGraphics::HVertexDeclaration  m_VertexDeclaration;
-        dmRender::HMaterial             m_Material;
-        dmGraphics::HVertexProgram      m_VertexProgram;
-        dmGraphics::HFragmentProgram    m_FragmentProgram;
     };
 
     dmGameObject::CreateResult CompTileGridNewWorld(const dmGameObject::ComponentNewWorldParams& params);

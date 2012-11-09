@@ -48,6 +48,7 @@ import com.dynamo.cr.tileeditor.core.Layer.Cell;
 import com.dynamo.tile.proto.Tile;
 import com.dynamo.tile.proto.Tile.TileCell;
 import com.dynamo.tile.proto.Tile.TileGrid;
+import com.dynamo.tile.proto.Tile.TileGrid.BlendMode;
 import com.dynamo.tile.proto.Tile.TileLayer;
 import com.google.protobuf.TextFormat;
 
@@ -62,6 +63,14 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
     @Resource
     @NotEmpty
     private String tileSource;
+
+    @Property(editorType = EditorType.RESOURCE, extensions = { "material" })
+    @Resource
+    @NotEmpty
+    private String material = "";
+
+    @Property
+    private BlendMode blendMode = BlendMode.BLEND_MODE_ALPHA;
 
     private final IOperationHistory history;
     private final IUndoContext undoContext;
@@ -125,6 +134,22 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
             }
         }
         return Status.OK_STATUS;
+    }
+
+    public String getMaterial() {
+        return this.material;
+    }
+
+    public void setMaterial(String material) {
+        this.material = material;
+    }
+
+    public BlendMode getBlendMode() {
+        return this.blendMode;
+    }
+
+    public void setBlendMode(BlendMode blendMode) {
+        this.blendMode = blendMode;
     }
 
     public List<Layer> getLayers() {
@@ -245,6 +270,8 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
             TextFormat.merge(new InputStreamReader(is), tileGridBuilder);
             TileGrid tileGrid = tileGridBuilder.build();
             setTileSource(tileGrid.getTileSet());
+            setMaterial(tileGrid.getMaterial());
+            setBlendMode(tileGrid.getBlendMode());
             List<Layer> layers = new ArrayList<Layer>(tileGrid.getLayersCount());
             for (Tile.TileLayer layerDDF : tileGrid.getLayersList()) {
                 Layer layer = new Layer();
@@ -274,7 +301,7 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
 
     public void save(OutputStream os, IProgressMonitor monitor) throws IOException {
         TileGrid.Builder tileGridBuilder = TileGrid.newBuilder()
-                .setTileSet(this.tileSource);
+                .setTileSet(this.tileSource).setMaterial(this.material).setBlendMode(this.blendMode);
         for (Layer layer : this.layers) {
             TileLayer.Builder layerBuilder = TileLayer.newBuilder()
                     .setId(layer.getId())

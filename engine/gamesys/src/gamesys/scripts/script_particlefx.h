@@ -1,5 +1,5 @@
-#ifndef DM_GAMESYS_COMP_PARTICLEFX_H
-#define DM_GAMESYS_COMP_PARTICLEFX_H
+#ifndef DM_GAMESYS_SCRIPT_PARTICLEFX_H
+#define DM_GAMESYS_SCRIPT_PARTICLEFX_H
 
 #include <dlib/configfile.h>
 
@@ -12,4 +12,4 @@ namespace dmGameSystem
     void ScriptParticleFXRegister(void* context);
 }
 
-#endif // DM_GAMESYS_COMP_PARTICLEFX_H
+#endif // DM_GAMESYS_SCRIPT_PARTICLEFX_H

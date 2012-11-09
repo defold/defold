@@ -22,54 +22,56 @@ namespace dmGameSystem
         }
 
         dmResource::Result r = dmResource::Get(factory, tile_grid_ddf->m_TileSet, (void**)&tile_grid->m_TileSet);
-        if (r == dmResource::RESULT_OK)
+        if (r != dmResource::RESULT_OK)
         {
-            tile_grid->m_TileGrid = tile_grid_ddf;
-            TileSetResource* tile_set = tile_grid->m_TileSet;
-            dmGameSystemDDF::TileSet* tile_set_ddf = tile_set->m_TileSet;
-            dmPhysics::HHullSet2D hull_set = tile_set->m_HullSet;
-            if (hull_set != 0x0)
+            return r;
+        }
+        r = dmResource::Get(factory, tile_grid_ddf->m_Material, (void**)&tile_grid->m_Material);
+        if (r != dmResource::RESULT_OK)
+        {
+            return r;
+        }
+        tile_grid->m_TileGrid = tile_grid_ddf;
+        TileSetResource* tile_set = tile_grid->m_TileSet;
+        dmGameSystemDDF::TileSet* tile_set_ddf = tile_set->m_TileSet;
+        dmPhysics::HHullSet2D hull_set = tile_set->m_HullSet;
+        if (hull_set != 0x0)
+        {
+            // Calculate AABB for offset
+            Point3 offset(0.0f, 0.0f, 0.0f);
+            int32_t min_x = INT32_MAX;
+            int32_t min_y = INT32_MAX;
+            int32_t max_x = INT32_MIN;
+            int32_t max_y = INT32_MIN;
+            uint32_t layer_count = tile_grid_ddf->m_Layers.m_Count;
+            tile_grid->m_GridShapes.SetCapacity(layer_count);
+            tile_grid->m_GridShapes.SetSize(layer_count);
+            // find boundaries
+            for (uint32_t i = 0; i < layer_count; ++i)
             {
-                // Calculate AABB for offset
-                Point3 offset(0.0f, 0.0f, 0.0f);
-                int32_t min_x = INT32_MAX;
-                int32_t min_y = INT32_MAX;
-                int32_t max_x = INT32_MIN;
-                int32_t max_y = INT32_MIN;
-                uint32_t layer_count = tile_grid_ddf->m_Layers.m_Count;
-                tile_grid->m_GridShapes.SetCapacity(layer_count);
-                tile_grid->m_GridShapes.SetSize(layer_count);
-                // find boundaries
-                for (uint32_t i = 0; i < layer_count; ++i)
+                dmGameSystemDDF::TileLayer* layer = &tile_grid_ddf->m_Layers[i];
+                uint32_t cell_count = layer->m_Cell.m_Count;
+                for (uint32_t j = 0; j < cell_count; ++j)
                 {
-                    dmGameSystemDDF::TileLayer* layer = &tile_grid_ddf->m_Layers[i];
-                    uint32_t cell_count = layer->m_Cell.m_Count;
-                    for (uint32_t j = 0; j < cell_count; ++j)
-                    {
-                        dmGameSystemDDF::TileCell* cell = &layer->m_Cell[j];
-                        min_x = dmMath::Min(min_x, cell->m_X);
-                        min_y = dmMath::Min(min_y, cell->m_Y);
-                        max_x = dmMath::Max(max_x, cell->m_X + 1);
-                        max_y = dmMath::Max(max_y, cell->m_Y + 1);
-                    }
-                }
-                tile_grid->m_ColumnCount = max_x - min_x;
-                tile_grid->m_RowCount = max_y - min_y;
-                tile_grid->m_MinCellX = min_x;
-                tile_grid->m_MinCellY = min_y;
-                uint32_t cell_width = tile_set_ddf->m_TileWidth;
-                uint32_t cell_height = tile_set_ddf->m_TileHeight;
-                offset.setX(cell_width * 0.5f * (min_x + max_x));
-                offset.setY(cell_height * 0.5f * (min_y + max_y));
-                for (uint32_t i = 0; i < layer_count; ++i)
-                {
-                    tile_grid->m_GridShapes[i] = dmPhysics::NewGridShape2D(context, hull_set, offset, cell_width, cell_height, tile_grid->m_RowCount, tile_grid->m_ColumnCount);
+                    dmGameSystemDDF::TileCell* cell = &layer->m_Cell[j];
+                    min_x = dmMath::Min(min_x, cell->m_X);
+                    min_y = dmMath::Min(min_y, cell->m_Y);
+                    max_x = dmMath::Max(max_x, cell->m_X + 1);
+                    max_y = dmMath::Max(max_y, cell->m_Y + 1);
                 }
             }
-        }
-        else
-        {
-            dmDDF::FreeMessage(tile_grid_ddf);
+            tile_grid->m_ColumnCount = max_x - min_x;
+            tile_grid->m_RowCount = max_y - min_y;
+            tile_grid->m_MinCellX = min_x;
+            tile_grid->m_MinCellY = min_y;
+            uint32_t cell_width = tile_set_ddf->m_TileWidth;
+            uint32_t cell_height = tile_set_ddf->m_TileHeight;
+            offset.setX(cell_width * 0.5f * (min_x + max_x));
+            offset.setY(cell_height * 0.5f * (min_y + max_y));
+            for (uint32_t i = 0; i < layer_count; ++i)
+            {
+                tile_grid->m_GridShapes[i] = dmPhysics::NewGridShape2D(context, hull_set, offset, cell_width, cell_height, tile_grid->m_RowCount, tile_grid->m_ColumnCount);
+            }
         }
         return r;
     }
@@ -78,6 +80,9 @@ namespace dmGameSystem
     {
         if (tile_grid->m_TileSet)
             dmResource::Release(factory, tile_grid->m_TileSet);
+
+        if (tile_grid->m_Material)
+            dmResource::Release(factory, tile_grid->m_Material);
 
         if (tile_grid->m_TileGrid)
             dmDDF::FreeMessage(tile_grid->m_TileGrid);
