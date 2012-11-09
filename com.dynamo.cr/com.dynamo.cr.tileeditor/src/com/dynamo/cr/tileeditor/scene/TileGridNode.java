@@ -15,8 +15,8 @@ import org.eclipse.core.runtime.Status;
 import com.dynamo.cr.go.core.ComponentTypeNode;
 import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
-import com.dynamo.cr.properties.Resource;
 import com.dynamo.cr.properties.Property.EditorType;
+import com.dynamo.cr.properties.Resource;
 import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Node;
@@ -43,6 +43,11 @@ public class TileGridNode extends ComponentTypeNode {
         if (this.tileSetNode != null) {
             this.tileSetNode.dispose();
         }
+    }
+
+    @Override
+    public void parentSet() {
+        setTransformable(getParent() != null);
     }
 
     public String getTileSource() {

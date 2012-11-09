@@ -127,6 +127,11 @@ public class ParticleFXNode extends ComponentTypeNode {
        }
     }
 
+    @Override
+    public void parentSet() {
+        setTransformable(getParent() != null);
+    }
+
     public void bindContext(Pointer context) {
         if (this.context != null) {
             throw new UnsupportedOperationException("A context can only be bound once.");

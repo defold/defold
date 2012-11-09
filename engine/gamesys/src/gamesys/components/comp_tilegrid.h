@@ -27,6 +27,8 @@ namespace dmGameSystem
         TileGrid();
 
         dmArray<Layer>              m_Layers;
+        Vectormath::Aos::Vector3    m_Translation;
+        Vectormath::Aos::Quat       m_Rotation;
         dmGameObject::HInstance     m_Instance;
         TileGridResource*           m_TileGridResource;
         uint16_t*                   m_Cells;
