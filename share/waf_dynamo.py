@@ -128,8 +128,23 @@ def default_flags(self):
 def android_link_flags(self):
     platform = self.env['PLATFORM']
     build_platform = self.env['BUILD_PLATFORM']
-    if platform == 'armv7-android':
-        self.link_task.env.append_value('LINKFLAGS', ['-lgnustl_static'])
+    if re.match('arm.*?android', platform):
+        self.link_task.env.append_value('LINKFLAGS', ['-lgnustl_static', '-lm', '-llog', '-lc'])
+        self.link_task.env.append_value('LINKFLAGS', '-Wl,--no-undefined -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now'.split())
+
+        if 'apk' in self.features:
+            # NOTE: This is a hack We change cprogram -> cshlib
+            # but it's probably to late. It works for the name though (libX.so and not X)
+            self.link_task.env.append_value('LINKFLAGS', ['-shared'])
+
+@feature('apk')
+@before('apply_core')
+def apply_apk_test(self):
+    platform = self.env['PLATFORM']
+    build_platform = self.env['BUILD_PLATFORM']
+    if re.match('arm.*?android', platform):
+        self.features.remove('cprogram')
+        self.features.append('cshlib')
 
 # Install all static libraries by default
 @feature('cstaticlib')
@@ -358,6 +373,154 @@ def create_app_bundle(self):
         codesign.exe = self.link_task.outputs[0]
         codesign.signed_exe = signed_exe
 
+ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
+<!-- BEGIN_INCLUDE(manifest) -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+        package="com.defold.%(package)s"
+        android:versionCode="1"
+        android:versionName="1.0">
+
+    <uses-sdk android:minSdkVersion="9" />
+    <application android:label="%(app_name)s" android:hasCode="false">
+        <activity android:name="android.app.NativeActivity"
+                android:label="%(app_name)s"
+                android:configChanges="orientation|keyboardHidden">
+            <meta-data android:name="android.app.lib_name"
+                    android:value="%(lib_name)s" />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+    <uses-permission android:name="android.permission.INTERNET" />
+
+</manifest>
+<!-- END_INCLUDE(manifest) -->
+"""
+
+ANDROID_STUB = """
+extern void _glfwPreMain(struct android_app* state);
+
+void android_main(struct android_app* state)
+{
+    // Make sure glue isn't stripped.
+    app_dummy();
+    _glfwPreMain(state);
+}
+"""
+
+def android_package(task):
+    bld = task.generator.bld
+
+    manifest_file = open(task.manifest.bldpath(task.env), 'wb')
+    manifest_file.write(ANDROID_MANIFEST % { 'package' : task.exe_name, 'app_name' : task.exe_name, 'lib_name' : task.exe_name })
+    manifest_file.close()
+
+    aapt = '%s/android-sdk/platform-tools/aapt' % (ANDROID_ROOT)
+    android_jar = '%s/android-sdk/platforms/android-16/android.jar' % (ANDROID_ROOT)
+    manifest = task.manifest.abspath(task.env)
+    ap_ = task.ap_.abspath(task.env)
+    native_lib = task.native_lib.abspath(task.env)
+
+    shutil.copy(task.native_lib_in.abspath(task.env), native_lib)
+
+    ret = bld.exec_command('%s package --no-crunch -f --debug-mode -M %s -I %s -F %s' % (aapt, manifest, android_jar, ap_))
+    if ret != 0:
+        error('Error running aapt')
+        return 1
+
+    apkbuilder = '%s/android-sdk/tools/apkbuilder' % (ANDROID_ROOT)
+    apk_unaligned = task.apk_unaligned.abspath(task.env)
+    libs_dir = task.native_lib.parent.parent.abspath(task.env)
+    ret = bld.exec_command('%s %s -v -z %s -nf %s' % (apkbuilder, apk_unaligned, ap_, libs_dir))
+    if ret != 0:
+        error('Error running apkbuilder')
+        return 1
+
+    apk = task.apk.abspath(task.env)
+    zipalign = '%s/android-sdk/tools/zipalign' % (ANDROID_ROOT)
+    ret = bld.exec_command('%s -f 4 %s %s' % (zipalign, apk_unaligned, apk))
+    if ret != 0:
+        error('Error running zipalign')
+        return 1
+
+    return 0
+
+Task.task_type_from_func('android_package',
+                         func = android_package,
+                         vars = ['SRC', 'DST'],
+                         after  = 'cxx_link cc_link static_link')
+
+@taskgen
+@after('apply_link')
+@feature('apk')
+def create_android_package(self):
+    if not re.match('arm.*?android', self.env['PLATFORM']):
+        return
+
+    android_package_task = self.create_task('android_package', self.env)
+    android_package_task.set_inputs(self.link_task.outputs)
+
+    exe_name = self.name
+    lib_name = self.link_task.outputs[0].name
+
+    android_package_task.exe_name = exe_name
+
+    manifest = self.path.exclusive_build_node("%s.android/AndroidManifest.xml" % exe_name)
+    android_package_task.manifest = manifest
+
+    native_lib = self.path.exclusive_build_node("%s.android/libs/armeabi-v7a/%s" % (exe_name, lib_name))
+    android_package_task.native_lib = native_lib
+    android_package_task.native_lib_in = self.link_task.outputs[0]
+
+    ap_ = self.path.exclusive_build_node("%s.android/%s.ap_" % (exe_name, exe_name))
+    android_package_task.ap_ = ap_
+
+    apk_unaligned = self.path.exclusive_build_node("%s.android/%s-unaligned.apk" % (exe_name, exe_name))
+    android_package_task.apk_unaligned = apk_unaligned
+
+    apk = self.path.exclusive_build_node("%s.android/%s.apk" % (exe_name, exe_name))
+    android_package_task.apk = apk
+
+    android_package_task.set_outputs([native_lib, manifest, ap_, apk_unaligned, apk])
+
+    self.android_package_task = android_package_task
+
+def copy_glue(task):
+    with open(task.glue_file, 'rb') as in_f:
+        with open(task.outputs[0].bldpath(task.env), 'wb') as out_f:
+            out_f.write(in_f.read())
+
+    with open(task.outputs[1].bldpath(task.env), 'wb') as out_f:
+        out_f.write(ANDROID_STUB)
+
+    return 0
+
+task = Task.task_type_from_func('copy_glue',
+                                func  = copy_glue,
+                                color = 'PINK',
+                                before  = 'cc cxx')
+
+from Constants import RUN_ME
+
+task.runnable_status = lambda self: RUN_ME
+
+@taskgen
+@before('apply_core')
+@feature('apk')
+def create_copy_glue(self):
+    if not re.match('arm.*?android', self.env['PLATFORM']):
+        return
+
+    glue = self.path.find_or_declare('android_native_app_glue.c')
+    self.allnodes.append(glue)
+    stub = self.path.find_or_declare('androd_stub.c')
+    self.allnodes.append(stub)
+
+    task = self.create_task('copy_glue')
+    task.glue_file = '%s/android-ndk-r%s/sources/android/native_app_glue/android_native_app_glue.c' % (ANDROID_ROOT, ANDROID_NDK_VERSION)
+    task.set_outputs([glue, stub])
 
 def embed_build(task):
     symbol = task.inputs[0].name.upper().replace('.', '_').replace('-', '_')
