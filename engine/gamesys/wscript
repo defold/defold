@@ -6,7 +6,7 @@ APPNAME='gamesys'
 srcdir = '.'
 blddir = 'build'
 
-import sys, os
+import sys, os, re
 import waf_ddf, waf_graphics, waf_dynamo, waf_physics, waf_render
 
 def init():
@@ -31,8 +31,10 @@ def configure(conf):
 
     if platform == "darwin":
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo'])
-    elif platform == "armv7-darwin":
+    elif re.match('arm.*?darwin', platform):
         conf.env.append_value('LINKFLAGS', ['-framework', 'IOKit'])
+    elif re.match('arm.*?android', platform):
+        conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid'])
     elif platform == "linux":
         conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']
     elif platform == "win32":

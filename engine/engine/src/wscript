@@ -19,9 +19,14 @@ def build(bld):
     bld.install_files('${PREFIX}/include/engine', 'engine.h')
     bld.install_files('${PREFIX}/share/proto', '../proto/engine_ddf.proto')
 
+    if 'android' in bld.env['PLATFORM']:
+        sound_lib = 'SOUND_NULL'
+    else:
+        sound_lib = 'SOUND'
+
     obj = bld.new_task_gen(
-        features = 'cc cxx cprogram',
-        uselib = 'RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET LUA OPENAL SCRIPT HID INPUT DLIB DMGLFW PARTICLE GUI SOUND ALUT X',
+        features = 'cc cxx cprogram apk',
+        uselib = 'RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET LUA OPENAL SCRIPT HID INPUT DLIB DMGLFW PARTICLE GUI %s ALUT X' % sound_lib,
         uselib_local = 'engine',
         includes = '../build ../proto .',
         #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff

@@ -11,6 +11,9 @@ if platform == 'darwin':
 elif re.match('arm.*?darwin', platform):
     dmglfw.find_sources_in_dirs('. ios')
     dmglfw.includes = '. ios'
+elif re.match('arm.*?android', platform):
+    dmglfw.find_sources_in_dirs('. android')
+    dmglfw.includes = '. android'
 elif platform == 'linux':
     dmglfw.find_sources_in_dirs('. x11')
     dmglfw.includes = '. x11'

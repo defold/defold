@@ -6,7 +6,7 @@ APPNAME='engine'
 srcdir = '.'
 blddir = 'build'
 
-import os, sys
+import os, sys, re
 import waf_ddf, waf_graphics, waf_dynamo, waf_gamesys, waf_physics, waf_render, waf_resource
 
 if sys.platform == "win32":
@@ -48,8 +48,10 @@ def configure(conf):
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo'])
         # In order to get accurate result from the memory profiler this is necessary
         conf.env.append_value('LINKFLAGS', [ '-flat_namespace' ])
-    elif platform == "armv7-darwin":
+    elif re.match('arm.*?darwin', platform):
         conf.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'OpenGLES', '-framework', 'QuartzCore', '-framework', 'CoreGraphics', '-framework', 'OpenAL', '-framework', 'IOKit'])
+    elif re.match('arm.*?android', platform):
+        conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid'])
     elif platform == "linux":
         conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']
     elif platform == "win32":

@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-import os, sys
+import os, sys, re
 
 def configure(conf):
     pass
@@ -18,10 +18,11 @@ def build(bld):
     else:
         alut.defines = 'HAVE_STDINT_H HAVE_STAT HAVE_UNISTD_H HAVE_USLEEP'
 
-    sound = bld.new_task_gen(features = 'cc cxx cstaticlib ddf',
-                             includes = '. alut vorbis_tremor',
-                             target = 'sound',
-                             source = 'sound.cpp stb_vorbis/stb_vorbis.c')
+    if not re.match('arm.*?android', bld.env['PLATFORM']):
+        sound = bld.new_task_gen(features = 'cc cxx cstaticlib ddf',
+                                 includes = '. alut vorbis_tremor',
+                                 target = 'sound',
+                                 source = 'sound.cpp stb_vorbis/stb_vorbis.c')
 
     sound_null = bld.new_task_gen(features = 'cxx cstaticlib ddf',
                              includes = '.',
