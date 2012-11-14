@@ -205,6 +205,11 @@ public class TileSetNode extends Node {
         this.materialTag = materialTag;
     }
 
+    public boolean isMaterialTagVisible() {
+        // Hide material tag since it's deprecated
+        return false;
+    }
+
     @Override
     protected void childAdded(Node child) {
         sortChildren();

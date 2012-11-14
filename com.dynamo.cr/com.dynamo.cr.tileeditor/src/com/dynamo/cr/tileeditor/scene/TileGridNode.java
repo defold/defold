@@ -23,6 +23,7 @@ import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.tileeditor.Activator;
 import com.dynamo.cr.tileeditor.core.Layer;
 import com.dynamo.tile.TileSetUtil;
+import com.dynamo.tile.proto.Tile.TileGrid.BlendMode;
 
 @SuppressWarnings("serial")
 public class TileGridNode extends ComponentTypeNode {
@@ -31,6 +32,14 @@ public class TileGridNode extends ComponentTypeNode {
     @Resource
     @NotEmpty
     private String tileSource = "";
+
+    @Property(editorType = EditorType.RESOURCE, extensions = { "material" })
+    @Resource
+    @NotEmpty
+    private String material = "";
+
+    @Property
+    private BlendMode blendMode = BlendMode.BLEND_MODE_ALPHA;
 
     private transient TileSetNode tileSetNode = null;
 
@@ -89,6 +98,22 @@ public class TileGridNode extends ComponentTypeNode {
 
     public TileSetNode getTileSetNode() {
         return this.tileSetNode;
+    }
+
+    public String getMaterial() {
+        return this.material;
+    }
+
+    public void setMaterial(String material) {
+        this.material = material;
+    }
+
+    public BlendMode getBlendMode() {
+        return this.blendMode;
+    }
+
+    public void setBlendMode(BlendMode blendMode) {
+        this.blendMode = blendMode;
     }
 
     public FloatBuffer getVertexData() {

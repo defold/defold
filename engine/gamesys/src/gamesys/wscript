@@ -14,7 +14,7 @@ def build(bld):
                                 classpath=bld.env['DYNAMO_HOME'] + '/ext/share/java/protobuf-java-2.3.0.jar' + os.pathsep + bld.env['DYNAMO_HOME'] + '/share/java/ddf.jar',
                                 target = 'gamesys',
                                 ddf_jar = 'gamesys.jar',
-                                embed_source='../../content/materials/gui.vpc ../../content/materials/gui.fpc ../../content/materials/tile_map.vpc ../../content/materials/tile_map.fpc')
+                                embed_source='../../content/materials/gui.vpc ../../content/materials/gui.fpc')
 
     resource.find_sources_in_dirs(['.', 'resources', 'components', 'scripts', '../../proto'])
     bld.add_group()

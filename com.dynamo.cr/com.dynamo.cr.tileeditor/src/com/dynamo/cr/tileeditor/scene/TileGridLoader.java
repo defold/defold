@@ -29,6 +29,8 @@ public class TileGridLoader implements INodeLoader<TileGridNode> {
         TileGrid ddf = builder.build();
         TileGridNode node = new TileGridNode();
         node.setTileSource(ddf.getTileSet());
+        node.setMaterial(ddf.getMaterial());
+        node.setBlendMode(ddf.getBlendMode());
         int layerCount = ddf.getLayersCount();
         for (int i = 0; i < layerCount; ++i) {
             TileLayer ddfLayer = ddf.getLayers(i);

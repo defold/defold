@@ -8,7 +8,6 @@ option java_outer_classname = "Sprite";
 
 message SpriteDesc
 {
-    // NOTE: Enum values must correspond to the enum values in comp_sprite.cpp
     enum BlendMode
     {
         BLEND_MODE_ALPHA     = 0 [(displayName) = "Alpha"];

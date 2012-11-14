@@ -132,6 +132,7 @@ def transform_sprite(task, msg):
 
 def transform_tilegrid(task, msg):
     msg.tile_set = transform_tilesource_name(msg.tile_set)
+    msg.material = msg.material.replace('.material', '.materialc')
     return msg
 
 def transform_sound(task, msg):

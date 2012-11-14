@@ -653,11 +653,8 @@ namespace dmGameSystem
          * and standard world-transformation is removed from vertex-program.
          *
          * NOTES:
-         * 1. If custom material is introduced the rending scheme is unaffected
-         *    as long as the material is part of the tileset. Otherwise the sorting and
-         *    batching predicates must be updated
-         * 2. When/if transparency the batching predicates must be updated in order to
-         *    support per sprite correct sorting.
+         * * When/if transparency the batching predicates must be updated in order to
+         *   support per sprite correct sorting.
          */
 
         SpriteContext* sprite_context = (SpriteContext*)params.m_Context;
