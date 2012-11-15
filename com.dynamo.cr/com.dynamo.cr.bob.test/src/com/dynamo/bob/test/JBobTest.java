@@ -314,6 +314,16 @@ public class JBobTest {
     }
 
     @Test
+    public void testTaskOutputAsInputFailing() throws Exception {
+        fileSystem.addFile("test.proj", "".getBytes());
+        fileSystem.addFile("test1.in_err", "A".getBytes());
+        project.setInputs(Arrays.asList("test.proj", "test1.in_err"));
+        List<TaskResult> result = build();
+        assertThat(result.size(), is(1));
+        assertThat(result.get(0).isOk(), is(false));
+    }
+
+    @Test
     public void testAbsPath() throws Exception {
         fileSystem.addFile("/root/test.in", "test data".getBytes());
         project.setInputs(Arrays.asList("/root/test.in"));
