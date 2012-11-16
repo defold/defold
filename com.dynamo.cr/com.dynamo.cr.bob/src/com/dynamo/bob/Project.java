@@ -303,8 +303,14 @@ run:
                 boolean shouldRun = (!allOutputExists || !allSigsEquals) && !completedTasks.contains(task);
 
                 if (!shouldRun) {
-                    completedTasks.add(task);
-                    completedOutputs.addAll(task.getOutputs());
+                    if (allOutputExists && allSigsEquals)
+                    {
+                        // Task is successfully completed now or in a previous build.
+                        // Only if the conditions in the if-statements are true add the task to the completed set and the
+                        // output files to the completed output set
+                        completedTasks.add(task);
+                        completedOutputs.addAll(task.getOutputs());
+                    }
                     continue;
                 }
 
