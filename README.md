@@ -56,3 +56,11 @@ Run exec with:
 For interactive shell run "adb shell"
 
 
+Android debugging
+-----------------
+
+* Go to application bundle-dir in build/default/...,  e.g. build/default/examples/simple_gles2.android
+* Install and launch application
+* Run ndk-gdb from android ndk
+* Debug
+
