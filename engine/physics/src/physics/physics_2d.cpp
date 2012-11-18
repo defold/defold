@@ -102,7 +102,7 @@ namespace dmPhysics
                     b2WorldManifold world_manifold;
                     contact->GetWorldManifold(&world_manifold);
                     float inv_scale = m_World->m_Context->m_InvScale;
-                    int32 n_p = contact->GetManifold()->pointCount;
+                    int32 n_p = dmMath::Min(contact->GetManifold()->pointCount, impulse->count);
                     for (int32 i = 0; i < n_p; ++i)
                     {
                         ContactPoint cp;
@@ -114,7 +114,7 @@ namespace dmPhysics
                         b2Vec2 rv = fixture_b->GetBody()->GetLinearVelocity() - fixture_a->GetBody()->GetLinearVelocity();
                         FromB2(rv, cp.m_RelativeVelocity, inv_scale);
                         cp.m_Distance = contact->GetManifold()->points[i].distance * inv_scale;
-                        cp.m_AppliedImpulse = impulse->normalImpulses[0] * inv_scale;
+                        cp.m_AppliedImpulse = impulse->normalImpulses[i] * inv_scale * inv_scale;
                         cp.m_MassA = fixture_a->GetBody()->GetMass();
                         cp.m_MassB = fixture_b->GetBody()->GetMass();
                         cp.m_GroupA = fixture_a->GetFilterData(index_a).categoryBits;

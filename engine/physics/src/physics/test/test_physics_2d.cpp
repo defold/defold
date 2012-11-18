@@ -510,7 +510,7 @@ TYPED_TEST(PhysicsTest, GridShapeCrack)
     (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 
     float eps = 0.000001f;
-    ASSERT_EQ(4u, crack_data.m_Count);
+    ASSERT_EQ(2u, crack_data.m_Count);
     ASSERT_EQ(0.0f, crack_data.m_Normal.getX());
     ASSERT_EQ(1.0f, crack_data.m_Normal.getY());
     ASSERT_EQ(0.0f, crack_data.m_Normal.getZ());
@@ -591,7 +591,7 @@ TYPED_TEST(PhysicsTest, GridShapeCorner)
     (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 
     float eps = 0.000001f;
-    ASSERT_EQ(2u, crack_data.m_Count);
+    ASSERT_EQ(1u, crack_data.m_Count);
     ASSERT_EQ(0.0f, crack_data.m_Normal.getX());
     ASSERT_EQ(1.0f, crack_data.m_Normal.getY());
     ASSERT_EQ(0.0f, crack_data.m_Normal.getZ());
