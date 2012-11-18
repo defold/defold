@@ -35,6 +35,7 @@ namespace dmPhysics
         dmMessage::HSocket          m_Socket;
         float                       m_Scale;
         float                       m_InvScale;
+        float                       m_ContactImpulseLimit;
     };
 
     inline void ToBt(const Vectormath::Aos::Point3& p0, btVector3& p1, float scale)

@@ -152,6 +152,8 @@ namespace dmPhysics
         uint32_t m_WorldCount;
         /// How the physics worlds are scaled in relation to the game world
         float m_Scale;
+        /// Contacts with impulses below this limit will not be reported through callbacks
+        float m_ContactImpulseLimit;
     };
 
     /**

@@ -84,6 +84,16 @@ namespace dmPhysics
         {
             if (contact->IsTouching())
             {
+                // verify that the impulse is large enough to be reported
+                float max_impulse = 0.0f;
+                for (int32 i = 0; i < impulse->count; ++i)
+                {
+                    max_impulse = dmMath::Max(max_impulse, impulse->normalImpulses[i]);
+                }
+                // early out if the impulse is too small to be reported
+                if (max_impulse < m_World->m_Context->m_ContactImpulseLimit)
+                    return;
+
                 b2Fixture* fixture_a = contact->GetFixtureA();
                 b2Fixture* fixture_b = contact->GetFixtureB();
                 int32_t index_a = contact->GetChildIndexA();
@@ -143,6 +153,7 @@ namespace dmPhysics
         ToB2(params.m_Gravity, context->m_Gravity, params.m_Scale);
         context->m_Scale = params.m_Scale;
         context->m_InvScale = 1.0f / params.m_Scale;
+        context->m_ContactImpulseLimit = params.m_ContactImpulseLimit * params.m_Scale * params.m_Scale;
         dmMessage::Result result = dmMessage::NewSocket(PHYSICS_SOCKET_NAME, &context->m_Socket);
         if (result != dmMessage::RESULT_OK)
         {

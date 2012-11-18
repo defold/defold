@@ -2,6 +2,7 @@
 
 #include <dlib/array.h>
 #include <dlib/log.h>
+#include <dlib/math.h>
 #include <dlib/profile.h>
 
 #include "btBulletDynamicsCommon.h"
@@ -152,6 +153,7 @@ namespace dmPhysics
         context->m_Worlds.SetCapacity(params.m_WorldCount);
         context->m_Scale = params.m_Scale;
         context->m_InvScale = 1.0f / params.m_Scale;
+        context->m_ContactImpulseLimit = params.m_ContactImpulseLimit * params.m_Scale * params.m_Scale;
         dmMessage::Result result = dmMessage::NewSocket(PHYSICS_SOCKET_NAME, &context->m_Socket);
         if (result != dmMessage::RESULT_OK)
         {
@@ -288,6 +290,7 @@ namespace dmPhysics
         CollisionCallback collision_callback = context.m_CollisionCallback;
         ContactPointCallback contact_point_callback = context.m_ContactPointCallback;
         btDispatcher* dispatcher = world->m_DynamicsWorld->getDispatcher();
+        float contact_impulse_limit = world->m_Context->m_ContactImpulseLimit;
         if (collision_callback != 0x0 || contact_point_callback != 0x0)
         {
             DM_PROFILE(Physics, "CollisionCallbacks");
@@ -301,6 +304,18 @@ namespace dmPhysics
                 if (!object_a->isActive() && !object_b->isActive())
                     continue;
 
+                // verify that the impulse is large enough to be reported
+                float max_impulse = 0.0f;
+                int num_contacts = contact_manifold->getNumContacts();
+                for (int j = 0; j < num_contacts && requests_contact_callbacks; ++j)
+                {
+                    btManifoldPoint& pt = contact_manifold->getContactPoint(j);
+                    max_impulse = dmMath::Max(max_impulse, pt.getAppliedImpulse());
+                }
+                // early out if the impulse is too small to be reported
+                if (max_impulse < contact_impulse_limit)
+                    return;
+
                 if (collision_callback != 0x0 && requests_collision_callbacks)
                 {
                     requests_collision_callbacks = collision_callback(object_a->getUserPointer(), object_a->getBroadphaseHandle()->m_collisionFilterGroup, object_b->getUserPointer(), object_b->getBroadphaseHandle()->m_collisionFilterGroup, context.m_CollisionUserData);
@@ -310,7 +325,6 @@ namespace dmPhysics
 
                 if (contact_point_callback != 0x0)
                 {
-                    int num_contacts = contact_manifold->getNumContacts();
                     for (int j = 0; j < num_contacts && requests_contact_callbacks; ++j)
                     {
                         btManifoldPoint& pt = contact_manifold->getContactPoint(j);
@@ -333,7 +347,7 @@ namespace dmPhysics
                         const btVector3& normal = pt.m_normalWorldOnB;
                         FromBt(-normal, point.m_Normal, 1.0f); // Don't scale normals
                         point.m_Distance = -pt.getDistance() * inv_scale;
-                        point.m_AppliedImpulse = pt.getAppliedImpulse() * inv_scale;
+                        point.m_AppliedImpulse = pt.getAppliedImpulse() * inv_scale * inv_scale;
                         Vectormath::Aos::Vector3 vel_a(0.0f, 0.0f, 0.0f);
                         if (body_a)
                         {

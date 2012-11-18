@@ -488,6 +488,7 @@ namespace dmEngine
             if (physics_params.m_Scale > dmPhysics::MAX_SCALE)
                 physics_params.m_Scale = dmPhysics::MAX_SCALE;
         }
+        physics_params.m_ContactImpulseLimit = dmConfigFile::GetFloat(engine->m_Config, "physics.contact_impulse_limit", 0.0f);
         if (strncmp(physics_type, "3D", 2) == 0)
         {
             engine->m_PhysicsContext.m_3D = true;

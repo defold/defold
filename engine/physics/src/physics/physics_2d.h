@@ -46,6 +46,7 @@ namespace dmPhysics
         dmMessage::HSocket          m_Socket;
         float                       m_Scale;
         float                       m_InvScale;
+        float                       m_ContactImpulseLimit;
     };
 
     class ProcessRayCastResultCallback2D : public b2RayCastCallback
