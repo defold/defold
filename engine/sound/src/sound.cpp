@@ -467,6 +467,7 @@ namespace dmSound
         }
 
         alBufferData(buffer, sound_data->m_Format, sound->m_TempBuffer, total_read, sound_data->m_Frequency);
+        CheckAndPrintError();
         return total_read;
     }
 
@@ -636,6 +637,7 @@ namespace dmSound
 
         ALint prev_state;
         alGetSourcei (source, AL_SOURCE_STATE, &prev_state);
+        CheckAndPrintError();
 
         alSourcef(source, AL_GAIN, sound_instance->m_Gain * sound->m_MasterGain);
         CheckAndPrintError();

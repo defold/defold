@@ -52,10 +52,23 @@ namespace dmGameSystem
             if (entry.m_SoundInstance != 0)
             {
                 dmSound::Stop(entry.m_SoundInstance);
+            }
+        }
+
+        // An update is required after dmSound::Stop and the follwing dmSound::DeleteSoundInstance
+        // Immediate stop isn't supported and will rending in AL_INVALID_OPERATION. Probably due to state-mismatch in source/buffer
+        dmSound::Update();
+
+        for (uint32_t i = 0; i < size; ++i)
+        {
+            PlayEntry& entry = world->m_Entries[i];
+            if (entry.m_SoundInstance != 0)
+            {
                 dmSound::DeleteSoundInstance(entry.m_SoundInstance);
                 dmResource::Release(entry.m_Factory, entry.m_Sound);
             }
         }
+
         delete world;
         return dmGameObject::CREATE_RESULT_OK;
     }
