@@ -23,6 +23,11 @@ namespace dmHttpServer
 
     struct Server
     {
+        Server()
+        {
+            m_ServerSocket = dmSocket::INVALID_SOCKET_HANDLE;
+            m_Reconnect = 0;
+        }
         dmSocket::Address   m_Address;
         uint16_t            m_Port;
         HttpHeader          m_HttpHeader;
@@ -34,6 +39,8 @@ namespace dmHttpServer
         dmArray<Connection> m_Connections;
         dmSocket::Socket    m_ServerSocket;
         char                m_Buffer[BUFFER_SIZE];
+
+        uint32_t            m_Reconnect : 1;
     };
 
     struct InternalRequest
@@ -75,15 +82,20 @@ namespace dmHttpServer
         params->m_ConnectionTimeout = 60;
     }
 
-    Result New(const NewParams* params, uint16_t port, HServer* server)
+    static void Disconnect(Server* server)
     {
-        *server = 0;
+        if (server->m_ServerSocket != dmSocket::INVALID_SOCKET_HANDLE)
+        {
+            dmSocket::Delete(server->m_ServerSocket);
+            server->m_ServerSocket = dmSocket::INVALID_SOCKET_HANDLE;
+        }
+    }
 
-        if (!params->m_HttpResponse)
-            return RESULT_ERROR_INVAL;
-
+    static Result Connect(Server* server, uint16_t port)
+    {
         dmSocket::Socket socket;
 
+        Disconnect(server);
         dmSocket::Result r = dmSocket::New(dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &socket);
         if (r != dmSocket::RESULT_OK)
             return RESULT_UNKNOWN;
@@ -113,14 +125,31 @@ namespace dmHttpServer
             return RESULT_SOCKET_ERROR;
         }
 
+        server->m_Address = address;
+        server->m_Port = actual_port;
+        server->m_ServerSocket = socket;
+
+        return RESULT_OK;
+    }
+
+    Result New(const NewParams* params, uint16_t port, HServer* server)
+    {
+        *server = 0;
+
+        if (!params->m_HttpResponse)
+            return RESULT_ERROR_INVAL;
+
         Server* ret = new Server();
-        ret->m_Address = address;
-        ret->m_Port = actual_port;
+        if (Connect(ret, port) != RESULT_OK)
+        {
+            delete ret;
+            return RESULT_SOCKET_ERROR;
+        }
+
         ret->m_HttpHeader = params->m_HttpHeader;
         ret->m_HttpResponse = params->m_HttpResponse;
         ret->m_Userdata = params->m_Userdata;
         ret->m_ConnectionTimeout = params->m_ConnectionTimeout * 1000000U;
-        ret->m_ServerSocket = socket;
         ret->m_Connections.SetCapacity(params->m_MaxConnections);
 
         *server = ret;
@@ -495,6 +524,12 @@ bail:
 
     Result Update(HServer server)
     {
+        if (server->m_Reconnect)
+        {
+            dmLogWarning("Reconnecting http server (%d)", server->m_Port);
+            Connect(server, server->m_Port);
+            server->m_Reconnect = 0;
+        }
         dmSocket::Selector selector;
         dmSocket::SelectorSet(&selector, dmSocket::SELECTOR_KIND_READ, server->m_ServerSocket);
 
@@ -526,6 +561,10 @@ bail:
                     connection.m_ConnectionTimeStart = dmTime::GetTime();
                     server->m_Connections.Push(connection);
                 }
+            }
+            else if (r == dmSocket::RESULT_CONNABORTED || r == dmSocket::RESULT_NOTCONN)
+            {
+                server->m_Reconnect = 1;
             }
         }
 

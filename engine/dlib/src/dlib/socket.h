@@ -54,6 +54,7 @@ namespace dmSocket
         RESULT_ADDRNOTAVAIL   = -28,  //!< RESULT_ADDRNOTAVAIL
         RESULT_CONNREFUSED    = -29,  //!< RESULT_CONNREFUSED
         RESULT_ADDRINUSE      = -30,  //!< RESULT_ADDRINUSE
+        RESULT_CONNABORTED    = -31,  //!< RESULT_CONNABORTED
 
         // gethostbyname errors
         RESULT_HOST_NOT_FOUND = -100, //!< RESULT_HOST_NOT_FOUND
