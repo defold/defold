@@ -1069,14 +1069,13 @@ TEST_F(ParticleTest, AccelerationWorld)
     ASSERT_EQ(1.0f, particle->GetVelocity().getY());
     ASSERT_EQ(0.0f, particle->GetVelocity().getZ());
 
-    dmParticle::SetRotation(m_Context, instance, Quat::rotationZ(M_PI));
+    dmParticle::SetRotation(m_Context, instance, Quat::rotationZ(M_PI * 0.5f));
     dmParticle::ResetInstance(m_Context, instance);
     dmParticle::StartInstance(m_Context, instance);
     dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
     particle = &i->m_Emitters[0].m_Particles[0];
-    ASSERT_NEAR(0.0f, particle->GetVelocity().getX(), EPSILON);
-    // velocity is still in emitter space
-    ASSERT_EQ(-1.0f, particle->GetVelocity().getY());
+    ASSERT_EQ(0.0f, particle->GetVelocity().getX());
+    ASSERT_EQ(1.0f, particle->GetVelocity().getY());
     ASSERT_EQ(0.0f, particle->GetVelocity().getZ());
 
     dmParticle::DestroyInstance(m_Context, instance);

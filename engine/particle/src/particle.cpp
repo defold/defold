@@ -1168,12 +1168,7 @@ namespace dmParticle
 
     static Quat CalculateModifierRotation(Instance* instance, dmParticleDDF::Emitter* emitter_ddf, dmParticleDDF::Modifier* modifier_ddf)
     {
-        Quat rotation = emitter_ddf->m_Rotation * modifier_ddf->m_Rotation;
-        if (emitter_ddf->m_Space == EMISSION_SPACE_WORLD)
-        {
-            rotation = instance->m_Rotation * rotation;
-        }
-        return rotation;
+        return emitter_ddf->m_Rotation * modifier_ddf->m_Rotation;
     }
 
     void Simulate(Instance* instance, Emitter* emitter, EmitterPrototype* prototype, dmParticleDDF::Emitter* ddf, float dt)
