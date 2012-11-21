@@ -157,6 +157,13 @@ TEST_F(PropsTest, PropsNil)
     lua_close(L);
 }
 
+TEST_F(PropsTest, PropsSpawnNoProperties)
+{
+    dmGameObject::HInstance instance = dmGameObject::Spawn(m_Collection, "/props_go.goc", dmHashString64("test_id"), 0x0, 0, Point3(0.0f, 0.0f, 0.0f), Quat(0.0f, 0.0f, 0.0f, 1.0f));
+    ASSERT_NE((void*)0u, instance);
+    // Script init is run in spawn which verifies the properties
+}
+
 TEST_F(PropsTest, PropsFailDefaultURL)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/props_fail_default_url.goc");
