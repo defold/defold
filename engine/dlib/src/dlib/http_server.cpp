@@ -38,6 +38,7 @@ namespace dmHttpServer
         uint64_t            m_ConnectionTimeout;
         dmArray<Connection> m_Connections;
         dmSocket::Socket    m_ServerSocket;
+        // Receive and send buffer
         char                m_Buffer[BUFFER_SIZE];
 
         uint32_t            m_Reconnect : 1;
@@ -64,6 +65,9 @@ namespace dmHttpServer
         // Total content received, ie the payload
         uint32_t m_TotalContentReceived;
 
+        // Number of bytes in send buffer
+        uint32_t m_SendBufferPos;
+
         uint16_t m_CloseConnection : 1;
         uint16_t m_HeaderSent : 1;
         uint16_t m_AttributesSent : 1;
@@ -74,6 +78,8 @@ namespace dmHttpServer
             m_StatusCode = 200;
         }
     };
+
+    static void FlushSendBuffer(const Request* request);
 
     void SetDefaultParams(struct NewParams* params)
     {
@@ -309,6 +315,8 @@ bail:
         if (!internal_req->m_AttributesSent)
             SendAttributes(internal_req);
 
+        FlushSendBuffer(request);
+
         HTTP_SERVER_SENDALL_AND_BAIL("0\r\n\r\n")
 
         return;
@@ -328,6 +336,32 @@ bail:
 
         internal_req->m_StatusCode = status_code;
         return RESULT_OK;
+    }
+
+    static void FlushSendBuffer(const Request* request)
+    {
+        InternalRequest* internal_req = (InternalRequest*) request->m_Internal;
+        dmSocket::Result r;
+        if (internal_req->m_SendBufferPos > 0)
+        {
+            uint32_t data_length = internal_req->m_SendBufferPos;
+            internal_req->m_SendBufferPos = 0;
+
+            char buf[16];
+            DM_SNPRINTF(buf, sizeof(buf), "%x", data_length);
+            HTTP_SERVER_SENDALL_AND_BAIL(buf);
+            HTTP_SERVER_SENDALL_AND_BAIL("\r\n")
+
+            r = SendAll(internal_req->m_Socket, (const char*) internal_req->m_Server->m_Buffer, data_length);
+            if (r != dmSocket::RESULT_OK)
+                goto bail;
+
+            HTTP_SERVER_SENDALL_AND_BAIL("\r\n")
+        }
+
+        return;
+bail:
+        internal_req->m_Result = RESULT_SOCKET_ERROR;
     }
 
     Result Send(const Request* request, const void* data, uint32_t data_length)
@@ -353,22 +387,20 @@ bail:
 
         dmSocket::Result r;
 
-        char buf[16];
-        DM_SNPRINTF(buf, sizeof(buf), "%x", data_length);
-        HTTP_SERVER_SENDALL_AND_BAIL(buf);
-        HTTP_SERVER_SENDALL_AND_BAIL("\r\n")
-
-        r = SendAll(internal_req->m_Socket, (const char*) data, data_length);
-        if (r != dmSocket::RESULT_OK)
-            goto bail;
-
-        HTTP_SERVER_SENDALL_AND_BAIL("\r\n")
-
+        uint32_t total_sent = 0;
         internal_req->m_Result = RESULT_OK;
 
-        return internal_req->m_Result;
-bail:
-        internal_req->m_Result = RESULT_SOCKET_ERROR;
+        while (total_sent < data_length && internal_req->m_Result == RESULT_OK)
+        {
+            uint32_t to_send = dmMath::Min(BUFFER_SIZE - internal_req->m_SendBufferPos, data_length - total_sent);
+            memcpy(internal_req->m_Server->m_Buffer + internal_req->m_SendBufferPos, (char*) data + total_sent, to_send);
+            internal_req->m_SendBufferPos += to_send;
+            if (internal_req->m_SendBufferPos == BUFFER_SIZE)
+            {
+                FlushSendBuffer(request);
+            }
+            total_sent += to_send;
+        }
         return internal_req->m_Result;
     }
 
