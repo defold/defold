@@ -23,6 +23,11 @@ namespace dmHttpServer
 
     struct Server
     {
+        Server()
+        {
+            m_ServerSocket = dmSocket::INVALID_SOCKET_HANDLE;
+            m_Reconnect = 0;
+        }
         dmSocket::Address   m_Address;
         uint16_t            m_Port;
         HttpHeader          m_HttpHeader;
@@ -33,7 +38,10 @@ namespace dmHttpServer
         uint64_t            m_ConnectionTimeout;
         dmArray<Connection> m_Connections;
         dmSocket::Socket    m_ServerSocket;
+        // Receive and send buffer
         char                m_Buffer[BUFFER_SIZE];
+
+        uint32_t            m_Reconnect : 1;
     };
 
     struct InternalRequest
@@ -57,6 +65,9 @@ namespace dmHttpServer
         // Total content received, ie the payload
         uint32_t m_TotalContentReceived;
 
+        // Number of bytes in send buffer
+        uint32_t m_SendBufferPos;
+
         uint16_t m_CloseConnection : 1;
         uint16_t m_HeaderSent : 1;
         uint16_t m_AttributesSent : 1;
@@ -68,6 +79,8 @@ namespace dmHttpServer
         }
     };
 
+    static void FlushSendBuffer(const Request* request);
+
     void SetDefaultParams(struct NewParams* params)
     {
         memset(params, 0, sizeof(*params));
@@ -75,15 +88,20 @@ namespace dmHttpServer
         params->m_ConnectionTimeout = 60;
     }
 
-    Result New(const NewParams* params, uint16_t port, HServer* server)
+    static void Disconnect(Server* server)
     {
-        *server = 0;
+        if (server->m_ServerSocket != dmSocket::INVALID_SOCKET_HANDLE)
+        {
+            dmSocket::Delete(server->m_ServerSocket);
+            server->m_ServerSocket = dmSocket::INVALID_SOCKET_HANDLE;
+        }
+    }
 
-        if (!params->m_HttpResponse)
-            return RESULT_ERROR_INVAL;
-
+    static Result Connect(Server* server, uint16_t port)
+    {
         dmSocket::Socket socket;
 
+        Disconnect(server);
         dmSocket::Result r = dmSocket::New(dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &socket);
         if (r != dmSocket::RESULT_OK)
             return RESULT_UNKNOWN;
@@ -113,14 +131,31 @@ namespace dmHttpServer
             return RESULT_SOCKET_ERROR;
         }
 
+        server->m_Address = address;
+        server->m_Port = actual_port;
+        server->m_ServerSocket = socket;
+
+        return RESULT_OK;
+    }
+
+    Result New(const NewParams* params, uint16_t port, HServer* server)
+    {
+        *server = 0;
+
+        if (!params->m_HttpResponse)
+            return RESULT_ERROR_INVAL;
+
         Server* ret = new Server();
-        ret->m_Address = address;
-        ret->m_Port = actual_port;
+        if (Connect(ret, port) != RESULT_OK)
+        {
+            delete ret;
+            return RESULT_SOCKET_ERROR;
+        }
+
         ret->m_HttpHeader = params->m_HttpHeader;
         ret->m_HttpResponse = params->m_HttpResponse;
         ret->m_Userdata = params->m_Userdata;
         ret->m_ConnectionTimeout = params->m_ConnectionTimeout * 1000000U;
-        ret->m_ServerSocket = socket;
         ret->m_Connections.SetCapacity(params->m_MaxConnections);
 
         *server = ret;
@@ -280,6 +315,8 @@ bail:
         if (!internal_req->m_AttributesSent)
             SendAttributes(internal_req);
 
+        FlushSendBuffer(request);
+
         HTTP_SERVER_SENDALL_AND_BAIL("0\r\n\r\n")
 
         return;
@@ -299,6 +336,32 @@ bail:
 
         internal_req->m_StatusCode = status_code;
         return RESULT_OK;
+    }
+
+    static void FlushSendBuffer(const Request* request)
+    {
+        InternalRequest* internal_req = (InternalRequest*) request->m_Internal;
+        dmSocket::Result r;
+        if (internal_req->m_SendBufferPos > 0)
+        {
+            uint32_t data_length = internal_req->m_SendBufferPos;
+            internal_req->m_SendBufferPos = 0;
+
+            char buf[16];
+            DM_SNPRINTF(buf, sizeof(buf), "%x", data_length);
+            HTTP_SERVER_SENDALL_AND_BAIL(buf);
+            HTTP_SERVER_SENDALL_AND_BAIL("\r\n")
+
+            r = SendAll(internal_req->m_Socket, (const char*) internal_req->m_Server->m_Buffer, data_length);
+            if (r != dmSocket::RESULT_OK)
+                goto bail;
+
+            HTTP_SERVER_SENDALL_AND_BAIL("\r\n")
+        }
+
+        return;
+bail:
+        internal_req->m_Result = RESULT_SOCKET_ERROR;
     }
 
     Result Send(const Request* request, const void* data, uint32_t data_length)
@@ -324,22 +387,20 @@ bail:
 
         dmSocket::Result r;
 
-        char buf[16];
-        DM_SNPRINTF(buf, sizeof(buf), "%x", data_length);
-        HTTP_SERVER_SENDALL_AND_BAIL(buf);
-        HTTP_SERVER_SENDALL_AND_BAIL("\r\n")
-
-        r = SendAll(internal_req->m_Socket, (const char*) data, data_length);
-        if (r != dmSocket::RESULT_OK)
-            goto bail;
-
-        HTTP_SERVER_SENDALL_AND_BAIL("\r\n")
-
+        uint32_t total_sent = 0;
         internal_req->m_Result = RESULT_OK;
 
-        return internal_req->m_Result;
-bail:
-        internal_req->m_Result = RESULT_SOCKET_ERROR;
+        while (total_sent < data_length && internal_req->m_Result == RESULT_OK)
+        {
+            uint32_t to_send = dmMath::Min(BUFFER_SIZE - internal_req->m_SendBufferPos, data_length - total_sent);
+            memcpy(internal_req->m_Server->m_Buffer + internal_req->m_SendBufferPos, (char*) data + total_sent, to_send);
+            internal_req->m_SendBufferPos += to_send;
+            if (internal_req->m_SendBufferPos == BUFFER_SIZE)
+            {
+                FlushSendBuffer(request);
+            }
+            total_sent += to_send;
+        }
         return internal_req->m_Result;
     }
 
@@ -495,6 +556,12 @@ bail:
 
     Result Update(HServer server)
     {
+        if (server->m_Reconnect)
+        {
+            dmLogWarning("Reconnecting http server (%d)", server->m_Port);
+            Connect(server, server->m_Port);
+            server->m_Reconnect = 0;
+        }
         dmSocket::Selector selector;
         dmSocket::SelectorSet(&selector, dmSocket::SELECTOR_KIND_READ, server->m_ServerSocket);
 
@@ -526,6 +593,10 @@ bail:
                     connection.m_ConnectionTimeStart = dmTime::GetTime();
                     server->m_Connections.Push(connection);
                 }
+            }
+            else if (r == dmSocket::RESULT_CONNABORTED || r == dmSocket::RESULT_NOTCONN)
+            {
+                server->m_Reconnect = 1;
             }
         }
 

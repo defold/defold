@@ -125,7 +125,13 @@ public class TargetService implements ITargetService, Runnable {
                     search = true;
                 }
                 boolean changed = ssdp.update(search);
-                if (changed) {
+
+                /*
+                 * NOTE: We can't just rely on the "changed" variable
+                 * as TargetService doens't try to reconnect to
+                 * devices in updateTargets() in case of timeout etc
+                 */
+                if (changed || search) {
                     updateTargets();
                     postEvent(new TargetChangedEvent(this));
                 }

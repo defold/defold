@@ -95,6 +95,8 @@ namespace dmSSDP
             memset(this, 0, sizeof(*this));
             m_DiscoveredDevices.SetCapacity(983, 1024);
             m_RegistredEntries.SetCapacity(17, 32);
+            m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
+            m_MCastSocket = dmSocket::INVALID_SOCKET_HANDLE;
         }
 
         // Max age for registered devices
@@ -103,6 +105,9 @@ namespace dmSSDP
 
         // True if announce messages should be sent
         uint32_t                m_Announce : 1;
+
+        // True if reconnection should be performed in next update
+        uint32_t                m_Reconnect : 1;
 
         // Send/Receive buffer
         uint8_t                 m_Buffer[1500];
@@ -336,17 +341,29 @@ bail:
         dmHttpServer::Send(request, device_desc, strlen(device_desc));
     }
 
-    Result New(const NewParams* params,  HSSDP* hssdp)
+    static void Disconnect(SSDP* ssdp)
     {
-        *hssdp = 0;
-        SSDP* ssdp = 0;
+        if (ssdp->m_Socket != dmSocket::INVALID_SOCKET_HANDLE)
+        {
+            dmSocket::Delete(ssdp->m_Socket);
+            ssdp->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
+        }
+
+        if (ssdp->m_MCastSocket != dmSocket::INVALID_SOCKET_HANDLE)
+        {
+            dmSocket::Delete(ssdp->m_MCastSocket);
+            ssdp->m_MCastSocket = dmSocket::INVALID_SOCKET_HANDLE;
+        }
+    }
+
+    static Result Connect(SSDP* ssdp)
+    {
+        Disconnect(ssdp);
+
         dmSocket::Socket sock = dmSocket::INVALID_SOCKET_HANDLE;
         dmSocket::Socket mcast_sock = dmSocket::INVALID_SOCKET_HANDLE;
         dmSocket::Result sr;
         dmSocket::Address address;
-        dmHttpServer::HServer http_server = 0;
-        dmHttpServer::NewParams http_params;
-        dmHttpServer::Result hsr;
 
         sr = dmSocket::GetLocalAddress(&address);
         if (sr != dmSocket::RESULT_OK) goto bail;
@@ -375,16 +392,39 @@ bail:
             dmLogError("Unable to add broadcast membership for ssdp socket. No network connection? (%d)", sr);
         }
 
+        ssdp->m_Socket = sock;
+        ssdp->m_Address = address;
+        ssdp->m_Port = sock_port;
+        ssdp->m_MCastSocket = mcast_sock;
+
+        return RESULT_OK;
+
+bail:
+        if (sock != dmSocket::INVALID_SOCKET_HANDLE)
+            dmSocket::Delete(sock);
+
+        if (mcast_sock != dmSocket::INVALID_SOCKET_HANDLE)
+            dmSocket::Delete(mcast_sock);
+
+        return RESULT_NETWORK_ERROR;
+    }
+
+    Result New(const NewParams* params,  HSSDP* hssdp)
+    {
+        *hssdp = 0;
+        SSDP* ssdp = 0;
+        dmHttpServer::HServer http_server = 0;
+        dmHttpServer::NewParams http_params;
+        dmHttpServer::Result hsr;
+
         ssdp = new SSDP();
+        Result r = Connect(ssdp);
+        if (r != RESULT_OK) goto bail;
 
         ssdp->m_MaxAge = params->m_MaxAge;
         DM_SNPRINTF(ssdp->m_MaxAgeText, sizeof(ssdp->m_MaxAgeText), "%u", params->m_MaxAge);
         ssdp->m_Announce = params->m_Announce;
-        ssdp->m_Socket = sock;
-        ssdp->m_Address = address;
         ssdp->m_AddressExpires = dmTime::GetTime() + SSDP_LOCAL_ADDRESS_EXPIRATION * uint64_t(1000000U);
-        ssdp->m_Port = sock_port;
-        ssdp->m_MCastSocket = mcast_sock;
 
         *hssdp = ssdp;
 
@@ -404,11 +444,11 @@ bail:
         DM_SNPRINTF(ssdp->m_HttpPortText, sizeof(ssdp->m_HttpPortText), "%u", http_port);
 
         DM_SNPRINTF(ssdp->m_Hostname, sizeof(ssdp->m_Hostname), "%u.%u.%u.%u",
-                (address >> 24) & 0xff, (address >> 16) & 0xff, (address >> 8) & 0xff, (address >> 0) & 0xff);
+                (ssdp->m_Address >> 24) & 0xff, (ssdp->m_Address >> 16) & 0xff, (ssdp->m_Address >> 8) & 0xff, (ssdp->m_Address >> 0) & 0xff);
 
         dmLogInfo("SSDP started (ssdp://%s:%u, http://%u.%u.%u.%u:%u)",
                 ssdp->m_Hostname,
-                sock_port,
+                ssdp->m_Port,
                 (http_address >> 24) & 0xff,
                 (http_address >> 16) & 0xff,
                 (http_address >> 8) & 0xff,
@@ -418,17 +458,12 @@ bail:
         return RESULT_OK;
 
 bail:
+        Disconnect(ssdp);
+
         if (http_server)
             dmHttpServer::Delete(http_server);
 
-        if (sock != dmSocket::INVALID_SOCKET_HANDLE)
-            dmSocket::Delete(sock);
-
-        if (mcast_sock != dmSocket::INVALID_SOCKET_HANDLE)
-            dmSocket::Delete(mcast_sock);
-
-        if (ssdp)
-            delete ssdp;
+        delete ssdp;
 
         return RESULT_NETWORK_ERROR;
     }
@@ -436,8 +471,7 @@ bail:
     Result Delete(HSSDP ssdp)
     {
         dmHttpServer::Delete(ssdp->m_HttpServer);
-        dmSocket::Delete(ssdp->m_Socket);
-        dmSocket::Delete(ssdp->m_MCastSocket);
+        Disconnect(ssdp);
         delete ssdp;
         return RESULT_OK;
     }
@@ -678,7 +712,14 @@ bail:
         }
     };
 
-    static void DispatchSocket(SSDP* ssdp, dmSocket::Socket socket, bool response)
+    /**
+     * Dispatch socket
+     * @param ssdp ssdp handle
+     * @param socket socket to dispatch
+     * @param response true for response-dispatch
+     * @return true on success or on transient errors. false on permanent errors.
+     */
+    static bool DispatchSocket(SSDP* ssdp, dmSocket::Socket socket, bool response)
     {
         static const dmhash_t usn_hash = dmHashString64("USN");
         static const dmhash_t ssdp_alive_hash = dmHashString64("ssdp:alive");
@@ -695,7 +736,15 @@ bail:
 
         if (sr != dmSocket::RESULT_OK)
         {
-            return;
+            // When returning from sleep mode on iOS socket is in state ECONNABORTED
+            if (sr == dmSocket::RESULT_CONNABORTED || sr == dmSocket::RESULT_NOTCONN)
+            {
+                return false;
+            }
+            else
+            {
+                return true;
+            }
         }
 
         uint8_t comps[4];
@@ -705,7 +754,7 @@ bail:
         if (from_addr == ssdp->m_Address && from_port == ssdp->m_Port)
         {
             dmLogDebug("Ignoring package from self (%u.%u.%u.%u:%d)", comps[0],comps[1],comps[2],comps[3], from_port);
-            return;
+            return true;
         }
 
         dmLogDebug("Multicast SSDP message from %u.%u.%u.%u:%d", comps[0],comps[1],comps[2],comps[3], from_port);
@@ -773,6 +822,7 @@ bail:
             dmLogWarning("Malformed message from %u.%u.%u.%u:%d", comps[0],comps[1],comps[2],comps[3], from_port);
         }
 
+       return true;
     }
 
     static void VisitDiscoveredExpireDevice(ExpireContext* context, const dmhash_t* key, Device* device)
@@ -818,6 +868,13 @@ bail:
 
     void Update(HSSDP ssdp, bool search)
     {
+        if (ssdp->m_Reconnect)
+        {
+            dmLogWarning("Reconnecting SSDP");
+            Connect(ssdp);
+            ssdp->m_Reconnect = 0;
+        }
+
         dmSocket::Address address;
 
         uint64_t current_time = dmTime::GetTime();
@@ -851,13 +908,25 @@ bail:
 
             if (dmSocket::SelectorIsSet(&selector, dmSocket::SELECTOR_KIND_READ, ssdp->m_MCastSocket))
             {
-                DispatchSocket(ssdp, ssdp->m_MCastSocket, false);
-                incoming_data = true;
+                if (DispatchSocket(ssdp, ssdp->m_MCastSocket, false))
+                {
+                    incoming_data = true;
+                }
+                else
+                {
+                    ssdp->m_Reconnect = 1;
+                }
             }
             if (dmSocket::SelectorIsSet(&selector, dmSocket::SELECTOR_KIND_READ, ssdp->m_Socket))
             {
-                DispatchSocket(ssdp, ssdp->m_Socket, true);
-                incoming_data = true;
+                if (DispatchSocket(ssdp, ssdp->m_Socket, true))
+                {
+                    incoming_data = true;
+                }
+                else
+                {
+                    ssdp->m_Reconnect = 1;
+                }
             }
         } while (incoming_data);
 

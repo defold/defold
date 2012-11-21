@@ -564,13 +564,22 @@ namespace dmProfile
     Sample g_DummySample = { "OUT_OF_SAMPLES", 0, 0, 0, 0 };
     Sample* AllocateSample()
     {
+        // NOTE: We can't take the spinlock if paused
+        // as it might already been taken in dmProfile:Begin()
+        // A deadlock case occur in dmMessage::Post if http-server is logging
+        // TODO: Use mutex instead?
+        if (g_Paused)
+        {
+            return &g_DummySample;
+        }
+
         dmSpinlock::Lock(&g_ProfileLock);
         Profile* profile = g_ActiveProfile;
 
         bool full = profile->m_Samples.Full();
-        if (full || g_Paused)
+        if (full)
         {
-            g_OutOfSamples = full;
+            g_OutOfSamples = true;
             dmSpinlock::Unlock(&g_ProfileLock);
             return &g_DummySample;
         }
@@ -611,7 +620,7 @@ namespace dmProfile
     void AddCounterHash(const char* name, uint32_t name_hash, uint32_t amount)
     {
         // dmProfile::Initialize allocates memory. Is memprofile is activated this function is called from overloaded malloc while g_CountersTable is being created. No good!
-        if (!g_IsInitialized)
+        if (!g_IsInitialized || g_Paused)
             return;
 
         dmSpinlock::Lock(&g_ProfileLock);
