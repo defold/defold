@@ -577,6 +577,9 @@ namespace dmSound
                 }
                 else
                 {
+                    alSourcef(source, AL_GAIN, instance->m_Gain * sound->m_MasterGain);
+                    CheckAndPrintError();
+
                     // Buffer more data
                     int processed;
                     alGetSourcei(source, AL_BUFFERS_PROCESSED, &processed);

@@ -148,6 +148,26 @@ message StopSound
 {
 }
 
+/*# set sound gain
+ * Post this message to a sound-component to set gain on all active playing voices.
+ *
+ * @message
+ * @name set_gain
+ * @param [gain] sound gain between 0 and 1, default is 1 (number)
+ * @examples
+ * <p>
+ * Assuming the script belongs to an instance with a sound-component with id "sound", this will set the gain to 0.5
+ * </p>
+ * <pre>
+ * msg.post("#sound", "set_gain", {gain = 0.5})
+ * </pre>
+ */
+message SetGain
+{
+    optional float gain = 1 [default=1.0];
+}
+
+
 /* Documented in scripts/script_particlefx.cpp */
 message PlayParticleFX {}
 message StopParticleFX {}
