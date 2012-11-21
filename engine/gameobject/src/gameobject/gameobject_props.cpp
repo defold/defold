@@ -58,9 +58,16 @@ namespace dmGameObject
         {
             delete [] properties->m_Buffer;
         }
-        properties->m_Buffer = new uint8_t[buffer_size];
         properties->m_BufferSize = buffer_size;
-        memcpy(properties->m_Buffer, buffer, buffer_size);
+        if (buffer_size > 0u)
+        {
+            properties->m_Buffer = new uint8_t[buffer_size];
+            memcpy(properties->m_Buffer, buffer, buffer_size);
+        }
+        else
+        {
+            properties->m_Buffer = 0x0;
+        }
     }
 
     void LogNotFound(dmhash_t id)
