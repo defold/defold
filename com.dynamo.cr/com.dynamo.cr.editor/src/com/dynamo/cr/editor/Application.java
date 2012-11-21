@@ -1,7 +1,10 @@
 package com.dynamo.cr.editor;
 
+import org.eclipse.core.runtime.Platform;
 import org.eclipse.equinox.app.IApplication;
 import org.eclipse.equinox.app.IApplicationContext;
+import org.eclipse.jface.dialogs.MessageDialog;
+import org.eclipse.osgi.service.datalocation.Location;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.ui.IWorkbench;
 import org.eclipse.ui.PlatformUI;
@@ -15,6 +18,13 @@ public class Application implements IApplication {
 	 * @see org.eclipse.equinox.app.IApplication#start(org.eclipse.equinox.app.IApplicationContext)
 	 */
 	public Object start(IApplicationContext context) throws Exception {
+
+	    Location instanceLocation = Platform.getInstanceLocation();
+	    if (!instanceLocation.lock()) {
+	        MessageDialog.openError(null, "Editor running", "An instance of Defold Editor is already running.");
+            return IApplication.EXIT_OK;
+	    }
+
 		Display display = PlatformUI.createDisplay();
 		try {
 			int returnCode = PlatformUI.createAndRunWorkbench(display, new ApplicationWorkbenchAdvisor());
@@ -25,7 +35,7 @@ public class Application implements IApplication {
 		} finally {
 			display.dispose();
 		}
-		
+
 	}
 
 	/* (non-Javadoc)
