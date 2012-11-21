@@ -6,8 +6,10 @@ import java.io.IOException;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.logging.Logger;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
@@ -34,6 +36,9 @@ public class ProcessTask extends HttpServlet {
 
     private static final long serialVersionUID = 1L;
 
+    private static final Logger log = Logger.getLogger(ProcessTask.class.getName());
+
+
     public static int process() {
         DatastoreService ds = DatastoreServiceFactory.getDatastoreService();
 
@@ -59,24 +64,34 @@ public class ProcessTask extends HttpServlet {
 
     private static void processMonth(DatastoreService ds, Key monthKey) {
         try {
+            log.info("Processing " + monthKey);
             Entity month = ds.get(monthKey);
 
-            Iterable<Entity> recordEntities = ds.prepare(new Query("record", monthKey)).asIterable();
-            Map<String, Issue.Builder> issues = new HashMap<String, Issue.Builder>();
-            for (Entity entity : recordEntities) {
-                Record record = LogModel.getRecord(entity.getKey());
-                String sha1 = (String) entity.getProperty("sha1");
+            boolean gotData = true;
+            int offset = 0;
+            int limit = 100;
 
-                Issue.Builder b = issues.get(sha1);
-                if (b == null) {
-                    b = Issue.newBuilder()
-                            .setSha1(sha1)
-                            .setFixed(false)
-                            .setRecord(record)
-                            .setReported(0);
-                    issues.put(sha1, b);
+            Map<String, Issue.Builder> issues = new HashMap<String, Issue.Builder>();
+            while (gotData) {
+                List<Entity> recordEntities = ds.prepare(new Query("record", monthKey)).asList(FetchOptions.Builder.withOffset(offset).limit(limit));
+                gotData = recordEntities.size() > 0;
+                log.info("Month batch: " + recordEntities.size());
+                for (Entity entity : recordEntities) {
+                    Record record = LogModel.getRecord(entity.getKey());
+                    String sha1 = (String) entity.getProperty("sha1");
+
+                    Issue.Builder b = issues.get(sha1);
+                    if (b == null) {
+                        b = Issue.newBuilder()
+                                .setSha1(sha1)
+                                .setFixed(false)
+                                .setRecord(record)
+                                .setReported(0);
+                        issues.put(sha1, b);
+                    }
+                    b.setReported(b.getReported() + 1);
                 }
-                b.setReported(b.getReported() + 1);
+                offset += recordEntities.size();
             }
 
             for (Issue.Builder i : issues.values()) {
