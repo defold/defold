@@ -36,6 +36,18 @@ def build(bld):
         target = 'dmengine',
         source=['main.cpp'])
 
+    obj = bld.new_task_gen(
+        features = 'cc cxx cprogram apk',
+        uselib = 'RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET LUA OPENAL SCRIPT HID INPUT DLIB DMGLFW PARTICLE GUI %s ALUT X' % sound_lib,
+        uselib_local = 'engine',
+        includes = '../build ../proto .',
+        #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
+        defines = '_XBOX DM_RELEASE=1',
+        proto_gen_py = True,
+        protoc_includes = '../proto',
+        target = 'dmengine_release',
+        source=['main.cpp'])
+
     if bld.env.BUILD_PLATFORM == 'win32':
         obj.source.append('engine.rc')
 

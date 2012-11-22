@@ -21,7 +21,7 @@ public class BundleWin32Handler extends AbstractBundleHandler {
     protected void bundleApp(ProjectProperties projectProperties,
             String projectRoot, String contentRoot, String outputDir) throws ConfigurationException, IOException {
 
-        String exe = Engine.getDefault().getEnginePath("win32");
+        String exe = Engine.getDefault().getEnginePath("win32", true);
         Win32Bundler bundler = new Win32Bundler(projectProperties, exe, projectRoot, contentRoot, outputDir);
         bundler.bundleApplication();
     }

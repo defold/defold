@@ -58,7 +58,7 @@ public abstract class AbstractBundleHandler extends AbstractHandler {
 
     class BundleRunnable implements IRunnableWithProgress {
 
-        private void buildProject(IProject project, IProgressMonitor monitor) throws CoreException {
+        private void buildProject(IProject project, int kind, IProgressMonitor monitor) throws CoreException {
 
             HashMap<String, String> bobArgs = new HashMap<String, String>();
             bobArgs.put("build_disk_archive", "true");
@@ -68,7 +68,7 @@ public abstract class AbstractBundleHandler extends AbstractHandler {
             Map<String, String> args = new HashMap<String, String>();
             args.put("location", "local");
             args.put("bobArgs", bobArgsEncoded);
-            project.build(IncrementalProjectBuilder.FULL_BUILD,  "com.dynamo.cr.editor.builders.contentbuilder", args, monitor);
+            project.build(kind,  "com.dynamo.cr.editor.builders.contentbuilder", args, monitor);
         }
 
         private void bundle(IProgressMonitor monitor, IProject project)
@@ -106,10 +106,11 @@ public abstract class AbstractBundleHandler extends AbstractHandler {
         public void run(IProgressMonitor monitor)
                 throws InvocationTargetException, InterruptedException {
             IProject project = EditorUtil.getProject();
-            monitor.beginTask("Bundling Application...", 10);
+            monitor.beginTask("Bundling Application...", 11);
             try {
-                buildProject(project, new SubProgressMonitor(monitor, 9));
+                buildProject(project, IncrementalProjectBuilder.FULL_BUILD, new SubProgressMonitor(monitor, 9));
                 bundle(monitor, project);
+                buildProject(project, IncrementalProjectBuilder.CLEAN_BUILD, new SubProgressMonitor(monitor, 1));
                 monitor.done();
             } catch (Exception e) {
                 final String msg = e.getMessage();

@@ -4,6 +4,7 @@
 #include <vectormath/cpp/vectormath_aos.h>
 #include <sys/stat.h>
 
+#include <dlib/dlib.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/profile.h>
@@ -426,9 +427,13 @@ namespace dmEngine
         dmResource::NewFactoryParams params;
         int32_t http_cache = dmConfigFile::GetInt(engine->m_Config, "resource.http_cache", 1);
         params.m_MaxResources = max_resources;
-        params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
-        if (http_cache)
-            params.m_Flags |= RESOURCE_FACTORY_FLAGS_HTTP_CACHE;
+        params.m_Flags = 0;
+        if (dLib::IsDebugMode())
+        {
+            params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+            if (http_cache)
+                params.m_Flags |= RESOURCE_FACTORY_FLAGS_HTTP_CACHE;
+        }
         params.m_StreamBufferSize = 16 * 1024 * 1024; // We have some *large* textures...!
         params.m_BuiltinsArchive = (const void*) BUILTINS_ARC;
         params.m_BuiltinsArchiveSize = BUILTINS_ARC_SIZE;
@@ -625,7 +630,14 @@ bail:
 
     uint16_t GetHttpPort(HEngine engine)
     {
-        return dmEngineService::GetPort(engine->m_EngineService);
+        if (engine->m_EngineService)
+        {
+            return dmEngineService::GetPort(engine->m_EngineService);
+        }
+        else
+        {
+            return 0;
+        }
     }
 
     RunResult Run(HEngine engine)
@@ -656,7 +668,10 @@ bail:
                 fflush(stdout);
                 fflush(stderr);
 
-                dmEngineService::Update(engine->m_EngineService);
+                if (engine->m_EngineService)
+                {
+                    dmEngineService::Update(engine->m_EngineService);
+                }
 
                 {
                     DM_PROFILE(Engine, "Sim");
@@ -834,10 +849,15 @@ bail:
 
     int Launch(int argc, char *argv[], PreRun pre_run, PostRun post_run, void* context)
     {
-        dmEngineService::HEngineService engine_service = dmEngineService::New(8001);
-        if (engine_service == 0)
+        dmEngineService::HEngineService engine_service = 0;
+
+        if (dLib::IsDebugMode())
         {
-            return 5;
+            engine_service = dmEngineService::New(8001);
+            if (engine_service == 0)
+            {
+                return 5;
+            }
         }
 
         dmEngine::RunResult run_result = InitRun(engine_service, argc, argv, pre_run, post_run, context);
@@ -848,7 +868,10 @@ bail:
             run_result = tmp;
         }
         run_result.Free();
-        dmEngineService::Delete(engine_service);
+        if (dLib::IsDebugMode())
+        {
+            dmEngineService::Delete(engine_service);
+        }
         return run_result.m_ExitCode;
     }
 

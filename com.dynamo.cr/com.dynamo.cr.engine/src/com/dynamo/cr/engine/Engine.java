@@ -23,13 +23,21 @@ public class Engine extends Plugin {
         return plugin;
     }
 
-    public String getEnginePath(String platform) {
+    public String getEnginePath(String platform, boolean release) {
         String ext = "";
         if (platform.equals("win32")) {
             ext = ".exe";
         }
 
-        URL bundleUrl = getBundle().getEntry("/engine/" + platform + "/dmengine" + ext);
+        URL bundleUrl = null;
+        if (release)
+        {
+            bundleUrl = getBundle().getEntry("/engine/" + platform + "/dmengine_release" + ext);
+        }
+        else
+        {
+            bundleUrl = getBundle().getEntry("/engine/" + platform + "/dmengine" + ext);
+        }
         URL fileUrl;
         try {
             fileUrl = FileLocator.toFileURL(bundleUrl);
@@ -37,6 +45,10 @@ public class Engine extends Plugin {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public String getEnginePath(String platform) {
+        return getEnginePath(platform, false);
     }
 
     public String getEnginePath() {

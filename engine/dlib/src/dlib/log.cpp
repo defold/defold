@@ -2,6 +2,7 @@
 #include <stdarg.h>
 #include <string.h>
 #include <assert.h>
+#include "dlib.h"
 #include "array.h"
 #include "dstrings.h"
 #include "log.h"
@@ -205,6 +206,9 @@ static void dmLogThread(void* args)
 
 void dmLogInitialize(const dmLogParams* params)
 {
+    if (!dLib::IsDebugMode())
+        return;
+
     if (g_dmLogServer)
     {
         fprintf(stderr, "ERROR:DLIB: dmLog already initialized\n");
@@ -365,6 +369,9 @@ static android_LogPriority ToAndroidPriority(dmLogSeverity severity)
 
 void dmLogInternal(dmLogSeverity severity, const char* domain, const char* format, ...)
 {
+    if (!dLib::IsDebugMode())
+        return;
+
     if (severity < g_LogLevel)
         return;
 

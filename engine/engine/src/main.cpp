@@ -1,3 +1,4 @@
+#include <dlib/dlib.h>
 #include <dlib/socket.h>
 #include <dlib/memprofile.h>
 #include <dlib/log.h>
@@ -7,6 +8,9 @@
 
 int main(int argc, char *argv[])
 {
+#if DM_RELEASE
+    dLib::SetDebugMode(false);
+#endif
     dmDDF::RegisterAllTypes();
     dmSocket::Initialize();
     dmMemProfile::Initialize();

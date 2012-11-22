@@ -22,7 +22,7 @@ public class BundleOSXHandler extends AbstractBundleHandler {
             String projectRoot, String contentRoot, String outputDir)
             throws ConfigurationException, IOException {
 
-        String exe = Engine.getDefault().getEnginePath("darwin");
+        String exe = Engine.getDefault().getEnginePath("darwin", true);
         OSXBundler bundler = new OSXBundler(projectProperties, exe, projectRoot, contentRoot, outputDir);
         bundler.bundleApplication();
     }

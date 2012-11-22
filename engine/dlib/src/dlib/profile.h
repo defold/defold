@@ -151,6 +151,7 @@ namespace dmProfile
 
     /**
      * Begin profiling, eg start of frame
+     * @note NULL is returned if profiling is disabled
      * @return A snapshot of the current profile. Must be release by #Release after processed. It's valid to keep the profile snapshot throughout a "frame".
      */
     HProfile Begin();
@@ -253,6 +254,9 @@ namespace dmProfile
     extern uint32_t g_BeginTime;
 
     /// Internal, do not use.
+    extern bool g_IsInitialized;
+
+    /// Internal, do not use.
     struct ProfileScope
     {
         uint64_t    m_Start;
@@ -260,6 +264,11 @@ namespace dmProfile
         Scope*      m_Scope;
         inline ProfileScope(Scope* scope, const char* name)
         {
+            if (!g_IsInitialized)
+            {
+                return;
+            }
+
             Sample*s = AllocateSample();
             m_Scope = scope;
 
@@ -278,6 +287,11 @@ namespace dmProfile
 
         inline ~ProfileScope()
         {
+            if (!g_IsInitialized)
+            {
+                return;
+            }
+
             uint64_t end;
 #if defined(_WIN32)
             QueryPerformanceCounter((LARGE_INTEGER *) &end);

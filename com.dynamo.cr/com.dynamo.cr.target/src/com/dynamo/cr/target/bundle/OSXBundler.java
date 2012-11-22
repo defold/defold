@@ -103,6 +103,7 @@ public class OSXBundler {
         for (PropertyAlias alias : propertyAliases) {
             info.setProperty(alias.bundleProperty, projectProperties.getStringValue(alias.category, alias.key, alias.defaultValue));
         }
+        info.setProperty("CFBundleExecutable", FilenameUtils.getName(exe));
 
         // Copy icon
         copyIcon();
