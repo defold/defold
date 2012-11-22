@@ -24,6 +24,7 @@ public class TestHttpServer extends AbstractHandler
     Pattern m_AddPattern = Pattern.compile("/add/(\\d+)/(\\d+)");
     Pattern m_ArbPattern = Pattern.compile("/arb/(\\d+)");
     Pattern m_CachedPattern = Pattern.compile("/cached/(\\d+)");
+    Pattern m_EchoPattern = Pattern.compile("/echo/(.*)");
     public TestHttpServer()
     {
         super();
@@ -90,6 +91,7 @@ public class TestHttpServer extends AbstractHandler
         Matcher addm = m_AddPattern.matcher(target);
         Matcher arbm = m_ArbPattern.matcher(target);
         Matcher cachedm = m_CachedPattern.matcher(target);
+        Matcher echom = m_EchoPattern.matcher(target);
 
         if (target.equals("/"))
         {
@@ -222,6 +224,12 @@ public class TestHttpServer extends AbstractHandler
             is.close();
 
             response.getWriter().println(sum);
+            response.setStatus(HttpServletResponse.SC_OK);
+        } else if (echom.matches()) {
+            String s = echom.group(1);
+            s = URLDecoder.decode(s, "UTF-8");
+            baseRequest.setHandled(true);
+            response.getWriter().print(s);
             response.setStatus(HttpServletResponse.SC_OK);
         }
         // No match? Let ResourceHandler handle the request. See setup code.

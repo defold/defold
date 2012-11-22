@@ -13,6 +13,8 @@
 #include "log.h"
 #include "sys.h"
 #include "dstrings.h"
+#include "uri.h"
+#include "path.h"
 
 namespace dmHttpClient
 {
@@ -360,14 +362,14 @@ if (sock_res != dmSocket::RESULT_OK)\
 }\
 
 
-    static dmSocket::Result SendRequest(HClient client, const char* path, const char* method)
+    static dmSocket::Result SendRequest(HClient client, const char* encoded_path, const char* method)
     {
         dmSocket::Result sock_res;
         uint32_t send_content_length = 0;
 
         HTTP_CLIENT_SENDALL_AND_BAIL(method);
         HTTP_CLIENT_SENDALL_AND_BAIL(" ")
-        HTTP_CLIENT_SENDALL_AND_BAIL(path)
+        HTTP_CLIENT_SENDALL_AND_BAIL(encoded_path)
         HTTP_CLIENT_SENDALL_AND_BAIL(" HTTP/1.1\r\n")
         HTTP_CLIENT_SENDALL_AND_BAIL("Host: ");
         HTTP_CLIENT_SENDALL_AND_BAIL(client->m_Hostname);
@@ -627,7 +629,10 @@ bail:
             return r;
 
         dmSocket::Result sock_res;
-        sock_res = SendRequest(client, path, method);
+
+        char encoded_path[DMPATH_MAX_PATH];
+        dmURI::Encode(path, encoded_path, DMPATH_MAX_PATH);
+        sock_res = SendRequest(client, encoded_path, method);
 
         if (sock_res != dmSocket::RESULT_OK)
         {

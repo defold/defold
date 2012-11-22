@@ -42,6 +42,24 @@ namespace dmURI
      * @return RESULT_OK on success
      */
     Result Parse(const char* uri, Parts* parts);
+
+    /**
+     * Encodes the provided URI into escaped format.
+     * @note This function currently only replaces spaces with '+'
+     * @param uri URI to encode
+     * @param out Decoded URI
+     * @param out_size size of the provided out buffer
+     */
+    void Encode(const char* uri, char* out, uint32_t out_size);
+
+    /**
+     * Decodes the provided URI into escaped format.
+     * @note This function currently only replaces '+' with ' '
+     * @param uri URI to decode
+     * @param out Decoded URI
+     * @param out_size size of the provided out buffer
+     */
+    void Decode(const char* uri, char* out, uint32_t out_size);
 }
 
 #endif // DM_URI_H

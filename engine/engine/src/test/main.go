@@ -19,7 +19,7 @@ embedded_components {
 embedded_components {
   id: "attacker_target_proxy"
   type: "collectionproxy"
-  data: "collection: \"/attacker_target/test_attacker_target.collection\"\n"
+  data: "collection: \"/attacker_target/test attacker_target.collection\"\n"
 }
 embedded_components {
   id: "identifiers_proxy"
