@@ -102,6 +102,55 @@ public class GitStatusTest {
     }
 
     @Test
+    public void testAddedStagedWithSpace() throws Exception {
+        String file = "test 1";
+        writeFile(this.repoA, file, "A");
+        this.git.add(this.repoA, file);
+        GitState state = this.git.getState(this.repoA);
+        assertThat(state, is(GitState.DIRTY));
+        GitStatus status = this.git.getStatus(this.repoA);
+        assertThat(status.commitsAhead, is(0));
+        assertThat(status.commitsBehind, is(0));
+        assertStatus(status, file, 'A', ' ');
+    }
+
+    @Test
+    public void testRenamedStaged() throws Exception {
+        String file1 = "test1";
+        String file2 = "test2";
+        writeFile(this.repoA, file1, "A");
+        this.git.add(this.repoA, file1);
+        this.git.commit(this.repoA, "test commit");
+        this.git.rm(this.repoA, file1, false, false);
+        writeFile(this.repoA, file2, "A");
+        this.git.add(this.repoA, file2);
+        GitStatus status = this.git.getStatus(this.repoA);
+        GitStatus.Entry entry = status.files.get(0);
+        assertThat(entry.file, is(file2));
+        assertThat(entry.original, is(file1));
+        assertThat(entry.indexStatus, is('R'));
+        assertThat(entry.workingTreeStatus, is(' '));
+    }
+
+    @Test
+    public void testRenamedStagedWithSpace() throws Exception {
+        String file1 = "test 1";
+        String file2 = "test 2";
+        writeFile(this.repoA, file1, "A");
+        this.git.add(this.repoA, file1);
+        this.git.commit(this.repoA, "test commit");
+        this.git.rm(this.repoA, file1, false, false);
+        writeFile(this.repoA, file2, "A");
+        this.git.add(this.repoA, file2);
+        GitStatus status = this.git.getStatus(this.repoA);
+        GitStatus.Entry entry = status.files.get(0);
+        assertThat(entry.file, is(file2));
+        assertThat(entry.original, is(file1));
+        assertThat(entry.indexStatus, is('R'));
+        assertThat(entry.workingTreeStatus, is(' '));
+    }
+
+    @Test
     public void testModifiedUnstaged() throws Exception {
         String file = "test";
         writeFile(this.repoA, file, "A");

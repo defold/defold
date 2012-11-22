@@ -108,8 +108,8 @@ public class CGit implements IGit {
 
     // We have two regexps due to problem with parsing "->" and non-greedy parsing.
     // It is perhaps possible to write in a single regexp but this seems to work.
-    static Pattern statusPattern1 = Pattern.compile("([MADRCU\\? ])([MADU\\? ])[ ](.*?)( -> )(.*?)?$");
-    static Pattern statusPattern2 = Pattern.compile("([MADRCU\\? ])([MADU\\? ])[ ](.*)$");
+    static Pattern statusPattern1 = Pattern.compile("([MADRCU\\? ])([MADU\\? ])[ ]\"?(.*?)\"?( -> )\"?(.*?)?\"?$");
+    static Pattern statusPattern2 = Pattern.compile("([MADRCU\\? ])([MADU\\? ])[ ]\"?(.*?)\"?$");
 
     static GitStatus.Entry parseStatusEntry(String line) throws GitException {
         Matcher m1 = statusPattern1.matcher(line);

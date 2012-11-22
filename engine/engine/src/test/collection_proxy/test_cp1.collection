@@ -1,0 +1,5 @@
+name: "test_cp1"
+instances {
+  id: "test_id"
+  prototype: "/collection_proxy/test_cp1.go"
+}

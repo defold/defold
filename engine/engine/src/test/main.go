@@ -47,8 +47,8 @@ embedded_components {
   data: "collection: \"/tile/test_tile.collection\"\n"
 }
 embedded_components {
-  id: "final_post_proxy"
+  id: "collection_proxy_proxy"
   type: "collectionproxy"
-  data: "collection: \"/final_post/test_final_post.collection\"\n"
+  data: "collection: \"/collection_proxy/test_collection_proxy.collection\"\n"
 }
 

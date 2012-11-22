@@ -8,6 +8,6 @@ game_binding = /default.input_bindingc
 [resource]
 uri = build/default/src/test
 [physics]
-world_count = 10
+world_count = 11
 [collection_proxy]
 max_count = 10
