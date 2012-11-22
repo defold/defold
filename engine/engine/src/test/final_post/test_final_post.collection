@@ -1,5 +1,0 @@
-name: "test_final_post"
-instances {
-  id: "test_id"
-  prototype: "/final_post/test_final_post.go"
-}
