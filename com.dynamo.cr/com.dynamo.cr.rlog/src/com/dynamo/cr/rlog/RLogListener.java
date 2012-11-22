@@ -17,7 +17,9 @@ import com.dynamo.cr.rlog.proto.RLog.Severity;
 
 public class RLogListener implements ILogListener, Runnable {
 
-    public static final int RETAIN_COUNT = 100;
+    public static final int RETAIN_COUNT = 20;
+    public static final int MAX_RECORDS = 100;
+    private int logRecordCount = 0;
     private static DateTimeFormatter isoFormat = ISODateTimeFormat.dateTime();
     private IRLogTransport transport = null;
 
@@ -54,6 +56,11 @@ public class RLogListener implements ILogListener, Runnable {
 
     @Override
     public void logging(IStatus status, String plugin) {
+        if (this.logRecordCount >= MAX_RECORDS) {
+            // Too many records. Discard
+            return;
+        }
+
         /*
          * NOTE: buffer must be synchronized on
          */
@@ -93,6 +100,7 @@ public class RLogListener implements ILogListener, Runnable {
                 // Try to fetch an entry
                 if (buffer.size() > 0) {
                     entry = buffer.getFirst();
+                    logRecordCount++;
                 }
             }
             if (entry != null) {
@@ -184,7 +192,7 @@ public class RLogListener implements ILogListener, Runnable {
             if (msg != null) {
                 stb.setMessage(msg);
             } else {
-                stb.setMessage("");
+                stb.setMessage("No exception message found");
             }
             recordBuilder.setStackTrace(stb);
         }

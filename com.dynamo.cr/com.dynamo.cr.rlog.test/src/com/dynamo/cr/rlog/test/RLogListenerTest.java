@@ -47,6 +47,15 @@ public class RLogListenerTest {
     }
 
     @Test
+    public void testThrottle() throws Exception {
+        for (int i = 0; i < RLogListener.MAX_RECORDS + 1; ++i) {
+            log(1);
+            listener.process();
+        }
+        verify(transport, times(RLogListener.MAX_RECORDS)).send(any(Record.class));
+    }
+
+    @Test
     public void testPermanentAlwaysFail() throws Exception {
         int n = 10;
         doThrow(new NullPointerException()).when(transport).send(any(Record.class));
