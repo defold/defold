@@ -96,6 +96,9 @@ public class Signer {
             String p = FilenameUtils.normalize(f.getPath(), true);
             String rel = p.substring(root.length());
 
+            // NOTE: The path is rooted. This works for over-the-air installation
+            // but not via iTunes. See comment in IOSBundler for more information.
+            // I don't dare to change this one to relative
             zipStream.putNextEntry(new ZipEntry("/Payload" + rel));
 
             FileInputStream input = new FileInputStream(f);
