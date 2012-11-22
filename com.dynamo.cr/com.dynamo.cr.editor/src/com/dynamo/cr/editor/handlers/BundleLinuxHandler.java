@@ -21,7 +21,7 @@ public class BundleLinuxHandler extends AbstractBundleHandler {
     protected void bundleApp(ProjectProperties projectProperties,
             String projectRoot, String contentRoot, String outputDir) throws ConfigurationException, IOException {
 
-        String exe = Engine.getDefault().getEnginePath("linux");
+        String exe = Engine.getDefault().getEnginePath("linux", true);
         LinuxBundler bundler = new LinuxBundler(projectProperties, exe, projectRoot, contentRoot, outputDir);
         bundler.bundleApplication();
     }

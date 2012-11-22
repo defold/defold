@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <string.h>
+#include "dlib.h"
 #include "profile.h"
 #include "hashtable.h"
 #include "hash.h"
@@ -214,6 +215,9 @@ namespace dmProfile
 
     void Initialize(uint32_t max_scopes, uint32_t max_samples, uint32_t max_counters)
     {
+        if (!dLib::IsDebugMode())
+            return;
+
         if (g_Scopes.Capacity() > 0 && g_Scopes.Capacity() != max_scopes)
         {
             dmLogError("Failed to initialize profiler. It's not valid change number of scopes.");
@@ -515,9 +519,11 @@ namespace dmProfile
     {
         if (!g_IsInitialized)
         {
-            dmLogError("dmProfile is not initialized");
             return;
         }
+
+        if (!profile)
+            return;
 
         dmSpinlock::Lock(&g_ProfileLock);
         g_FreeProfiles.Push(profile);

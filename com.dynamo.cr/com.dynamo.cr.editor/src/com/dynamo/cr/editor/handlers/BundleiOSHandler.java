@@ -55,7 +55,7 @@ public class BundleiOSHandler extends AbstractBundleHandler {
         String identity = presenter.getIdentity();
         String profile = presenter.getProvisioningProfile();
 
-        String exe = Engine.getDefault().getEnginePath("ios");
+        String exe = Engine.getDefault().getEnginePath("ios", true);
         IOSBundler bundler = new IOSBundler(identity, profile,  projectProperties, exe, projectRoot, contentRoot, outputDir);
         bundler.bundleApplication();
     }

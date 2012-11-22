@@ -123,7 +123,8 @@ public class ContentBuilder extends IncrementalProjectBuilder {
         String[] commands;
         if (kind == IncrementalProjectBuilder.FULL_BUILD) {
             commands = new String[] { "distclean", "build" };
-
+        } else if (kind == IncrementalProjectBuilder.CLEAN_BUILD) {
+            commands = new String[] { "distclean" };
         } else {
             commands = new String[] { "build" };
         }

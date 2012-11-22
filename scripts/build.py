@@ -161,11 +161,14 @@ class Configuration(object):
             lib_dir = ''
 
         engine = join(dynamo_home, 'bin', bin_dir, 'dmengine' + exe_ext)
+        engine_release = join(dynamo_home, 'bin', bin_dir, 'dmengine_release' + exe_ext)
         if self.target_platform != 'x86_64-darwin':
             # NOTE: Temporary check as we don't build the entire engine to 64-bit
             self._log('Archiving %s' % engine)
             self.exec_command(['scp', engine,
                                '%s/dmengine%s.%s' % (full_archive_path, exe_ext, sha1)])
+            self.exec_command(['scp', engine,
+                               '%s/dmengine_release%s.%s' % (full_archive_path, exe_ext, sha1)])
 
         libparticle = join(dynamo_home, 'lib', lib_dir, '%sparticle_shared%s' % (lib_prefix, lib_ext))
         self._log('Archiving %s' % libparticle)

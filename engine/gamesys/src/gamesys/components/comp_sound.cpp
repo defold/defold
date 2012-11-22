@@ -185,6 +185,24 @@ namespace dmGameSystem
                 }
             }
         }
+        else if (params.m_Message->m_Descriptor == (uintptr_t)dmGameSystemDDF::SetGain::m_DDFDescriptor)
+        {
+            World* world = (World*)params.m_World;
+            dmGameSystemDDF::SetGain* set_gain = (dmGameSystemDDF::SetGain*)params.m_Message->m_Data;
+
+            for (uint32_t i = 0; i < world->m_Entries.Size(); ++i)
+            {
+                PlayEntry& entry = world->m_Entries[i];
+                if (entry.m_SoundInstance != 0 && entry.m_Sound == (Sound*) *params.m_UserData)
+                {
+                    dmSound::Result r = dmSound::SetParameter(entry.m_SoundInstance, dmSound::PARAMETER_GAIN, Vector4(set_gain->m_Gain, 0, 0, 0));
+                    if (r != dmSound::RESULT_OK)
+                    {
+                        dmLogError("Fail to set gain on sound");
+                    }
+                }
+            }
+        }
 
         return dmGameObject::UPDATE_RESULT_OK;
     }

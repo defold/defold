@@ -15,6 +15,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <pthread.h>
+#include "dlib.h"
 #include "profile.h"
 
 #ifdef __MACH__
@@ -46,6 +47,8 @@ namespace dmMemProfile
 
     void Initialize()
     {
+        if (!dLib::IsDebugMode())
+            return;
 #if defined(__MACH__) or defined(__linux__) and !defined(ANDROID)
         void (*init)(dmMemProfile::InternalData*) = (void (*)(dmMemProfile::InternalData*)) dlsym(RTLD_DEFAULT, "dmMemProfileInitializeLibrary");
         if (init)
