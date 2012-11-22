@@ -84,4 +84,29 @@ namespace dmURI
             return RESULT_OK;
         }
     }
-}  // namespace dmURI
+
+    void Encode(const char *str, char* out, uint32_t out_size)
+    {
+        dmStrlCpy(out, str, out_size);
+        char* p = out;
+        while (*p != 0)
+        {
+            if (*p == ' ')
+                *p = '+';
+            ++p;
+        }
+    }
+
+    void Decode(const char *str, char* out, uint32_t out_size)
+    {
+        dmStrlCpy(out, str, out_size);
+        char* p = out;
+        while (*p != 0)
+        {
+            if (*p == '+')
+                *p = ' ';
+            ++p;
+        }
+    }
+
+}   // namespace dmURI

@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <gtest/gtest.h>
 #include "dlib/uri.h"
+#include "dlib/path.h"
 
 TEST(dmURI, TestEmpty)
 {
@@ -200,6 +201,20 @@ TEST(dmURI, TestOverflow2)
 
     free((void*) buf);
     delete uri_parts;
+}
+
+TEST(dmURI, TestEncodeDecode)
+{
+    const char* uri = "http://my_domain.com/my spaced file.html";
+    char enc_uri[DMPATH_MAX_PATH];
+    dmURI::Encode(uri, enc_uri, DMPATH_MAX_PATH);
+    ASSERT_EQ((void*)0, strchr(enc_uri, ' '));
+    ASSERT_STRNE(uri, enc_uri);
+    char dec_uri[DMPATH_MAX_PATH];
+    dmURI::Decode(uri, dec_uri, DMPATH_MAX_PATH);
+    ASSERT_NE((void*)0, strchr(dec_uri, ' '));
+    ASSERT_STRNE(dec_uri, enc_uri);
+    ASSERT_STREQ(uri, dec_uri);
 }
 
 int main(int argc, char **argv)

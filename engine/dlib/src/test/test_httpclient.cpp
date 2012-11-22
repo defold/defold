@@ -462,6 +462,17 @@ TEST_F(dmHttpClientTest, Cache)
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
 }
 
+TEST_F(dmHttpClientTest, PathWithSpaces)
+{
+    char buf[128];
+
+    const char* message = "testing 1 2";
+    snprintf(buf, 128, "/echo/%s", message);
+    m_Content = "";
+    dmHttpClient::Result r = dmHttpClient::Get(m_Client, buf);
+    ASSERT_EQ(dmHttpClient::RESULT_OK, r);
+    ASSERT_STREQ(message, m_Content.c_str());
+}
 
 class dmHttpClientTestCache : public dmHttpClientTest
 {
