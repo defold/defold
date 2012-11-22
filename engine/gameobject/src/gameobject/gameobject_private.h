@@ -199,6 +199,7 @@ namespace dmGameObject
             m_FrameSocket = 0;
             m_GenInstanceCounter = 0;
             m_InUpdate = 0;
+            m_ToBeDeleted = 0;
 
             for (uint32_t i = 0; i < m_LevelIndices.Size(); ++i)
             {
@@ -273,6 +274,8 @@ namespace dmGameObject
 
         // Set to 1 if in update-loop
         uint32_t                 m_InUpdate : 1;
+        // Used for deferred deletion
+        uint32_t                 m_ToBeDeleted : 1;
     };
 
     ComponentType* FindComponentType(Register* regist, uint32_t resource_type, uint32_t* index);

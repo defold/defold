@@ -46,4 +46,9 @@ embedded_components {
   type: "collectionproxy"
   data: "collection: \"/tile/test_tile.collection\"\n"
 }
+embedded_components {
+  id: "final_post_proxy"
+  type: "collectionproxy"
+  data: "collection: \"/final_post/test_final_post.collection\"\n"
+}
 

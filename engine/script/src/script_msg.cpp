@@ -54,19 +54,17 @@ namespace dmScript
     {
         char tmp[32];
         *buffer = '\0';
-        if (url->m_Socket != 0)
+        const char* socket = "<unknown>";
+        if (dmMessage::IsSocketValid(url->m_Socket))
         {
-            const char* socket = dmMessage::GetSocketName(url->m_Socket);
-            if (socket != 0x0)
+            const char* s = dmMessage::GetSocketName(url->m_Socket);
+            if (s != 0x0)
             {
-                dmStrlCpy(buffer, socket, buffer_size);
-                dmStrlCat(buffer, ":", buffer_size);
-            }
-            else
-            {
-                dmStrlCpy(buffer, "unknown:", buffer_size);
+                socket = s;
             }
         }
+        dmStrlCpy(buffer, socket, buffer_size);
+        dmStrlCat(buffer, ":", buffer_size);
         if (url->m_Path != 0)
         {
             DM_SNPRINTF(tmp, sizeof(tmp), "%s", (const char*) dmHashReverse64(url->m_Path, 0));
@@ -406,6 +404,16 @@ namespace dmScript
         else
         {
             message_id = CheckHash(L, 2);
+        }
+
+        if (!dmMessage::IsSocketValid(receiver.m_Socket))
+        {
+            const char* message_name = (char*)dmHashReverse64(message_id, 0x0);
+            char receiver_buffer[64];
+            url_tostring(&receiver, receiver_buffer, 64);
+            char sender_buffer[64];
+            url_tostring(&sender, sender_buffer, 64);
+            return luaL_error(L, "Could not send message '%s' from '%s' to '%s'.", message_name, sender_buffer, receiver_buffer);
         }
 
         char data[MAX_MESSAGE_DATA_SIZE];

@@ -139,11 +139,11 @@ namespace dmGameObject
 
     void DoDeleteAll(HCollection collection);
 
-    void DeleteCollection(HCollection collection)
+    void DoDeleteCollection(HCollection collection)
     {
-        HRegister regist = collection->m_Register;
         Final(collection);
         DoDeleteAll(collection);
+        HRegister regist = collection->m_Register;
         for (uint32_t i = 0; i < regist->m_ComponentTypeCount; ++i)
         {
             ComponentDeleteWorldParams params;
@@ -183,6 +183,11 @@ namespace dmGameObject
         }
 
         delete collection;
+    }
+
+    void DeleteCollection(HCollection collection)
+    {
+        collection->m_ToBeDeleted = 1;
     }
 
     void* GetWorld(HCollection collection, uint32_t component_index)
@@ -1015,7 +1020,11 @@ namespace dmGameObject
         DispatchMessagesContext* context = (DispatchMessagesContext*) user_ptr;
 
         Instance* instance = 0x0;
-        if (message->m_UserData != 0)
+        // Start by looking for the instance in the user-data,
+        // which is the case when an instance sends to itself.
+        if (message->m_UserData != 0
+                && message->m_Sender.m_Socket == message->m_Receiver.m_Socket
+                && message->m_Sender.m_Path == message->m_Receiver.m_Path)
         {
             Instance* user_data_instance = (Instance*)message->m_UserData;
             if (message->m_Receiver.m_Path == user_data_instance->m_Identifier)
@@ -1234,9 +1243,12 @@ namespace dmGameObject
             iterate = false;
             for (uint32_t i = 0; i < socket_count; ++i)
             {
-                uint32_t message_count = dmMessage::Dispatch(sockets[i], &DispatchMessagesFunction, (void*) &ctx);
-                if (message_count > 0)
-                    iterate = true;
+                if (dmMessage::IsSocketValid(sockets[i]))
+                {
+                    uint32_t message_count = dmMessage::Dispatch(sockets[i], &DispatchMessagesFunction, (void*) &ctx);
+                    if (message_count > 0)
+                        iterate = true;
+                }
             }
             ++iteration_count;
         }
@@ -1418,6 +1430,33 @@ namespace dmGameObject
                 DoDelete(collection, instance);
             }
             collection->m_InstancesToDelete.SetSize(0);
+        }
+
+        return result;
+    }
+
+    bool PostUpdate(HRegister reg)
+    {
+        DM_PROFILE(GameObject, "PostUpdateRegister");
+
+        assert(reg != 0x0);
+
+        bool result = true;
+
+        uint32_t collection_count = reg->m_Collections.Size();
+        uint32_t i = 0;
+        while (i < collection_count)
+        {
+            HCollection collection = reg->m_Collections[i];
+            if (collection->m_ToBeDeleted)
+            {
+                DoDeleteCollection(collection);
+                --collection_count;
+            }
+            else
+            {
+                ++i;
+            }
         }
 
         return result;

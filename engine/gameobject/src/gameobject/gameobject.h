@@ -624,6 +624,13 @@ namespace dmGameObject
     bool PostUpdate(HCollection collection);
 
     /**
+     * Performs clean up of the register after update, such as deleting all collections scheduled for delete.
+     * @param reg Game object register
+     * @return True on success
+     */
+    bool PostUpdate(HRegister reg);
+
+    /**
      * Dispatches input actions to the input focus stacks in the supplied game object collection.
      * @param collection Game object collection
      * @param input_actions Array of input actions to dispatch

@@ -1,0 +1,7 @@
+function update(self, dt)
+    msg.post("main:/main#script", "done")
+end
+
+function final(self)
+    msg.post("main:/main#script", "good_bye")
+end

@@ -3,5 +3,5 @@ function on_message(self, message_id, message)
 end
 
 function update(self)
-    msg.post("post1:go1#script", "message1")
+    msg.post("post1:/go1#script", "message1")
 end

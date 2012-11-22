@@ -524,6 +524,21 @@ TEST_F(ScriptMsgTest, TestPerf)
     printf("Time per post: %.4f\n", time / (double)count);
 }
 
+TEST_F(ScriptMsgTest, TestPostDeletedSocket)
+{
+    dmMessage::HSocket socket;
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("test_socket", &socket));
+
+    ASSERT_TRUE(RunString(L, "test_url = msg.url(\"test_socket:\")"));
+    ASSERT_TRUE(RunString(L, "msg.post(test_url, \"test_message\")"));
+
+    ASSERT_EQ(1u, dmMessage::Consume(socket));
+
+    dmMessage::DeleteSocket(socket);
+
+    ASSERT_FALSE(RunString(L, "msg.post(test_url, \"test_message\")"));
+}
+
 int main(int argc, char **argv)
 {
     dmDDF::RegisterAllTypes();
