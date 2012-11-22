@@ -35,7 +35,7 @@ namespace dmGameSystem
         uint32_t                        m_ComponentIndex : 8;
         uint32_t                        m_Initialized : 1;
         uint32_t                        m_Enabled : 1;
-        uint32_t                        m_Unload : 1;
+        uint32_t                        m_Unloaded : 1;
     };
 
     struct CollectionProxyWorld
@@ -159,6 +159,22 @@ namespace dmGameSystem
                     proxy->m_AccumulatedTime = 0.0f;
                 }
             }
+            if (proxy->m_Unloaded)
+            {
+                proxy->m_Unloaded = 0;
+                if (dmMessage::IsSocketValid(proxy->m_Unloader.m_Socket))
+                {
+                    dmMessage::URL sender;
+                    sender.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(proxy->m_Instance));
+                    sender.m_Path = dmGameObject::GetIdentifier(proxy->m_Instance);
+                    dmGameObject::GetComponentId(proxy->m_Instance, proxy->m_ComponentIndex, &sender.m_Fragment);
+                    dmMessage::Result msg_result = dmMessage::Post(&sender, &proxy->m_Unloader, dmHashString64("proxy_unloaded"), 0, 0, 0, 0);
+                    if (msg_result != dmMessage::RESULT_OK)
+                    {
+                        dmLogWarning("proxy_unloaded could not be posted: %d", msg_result);
+                    }
+                }
+            }
         }
         return result;
     }
@@ -167,8 +183,6 @@ namespace dmGameSystem
     {
         CollectionProxyWorld* proxy_world = (CollectionProxyWorld*)params.m_World;
         dmGameObject::UpdateResult result = dmGameObject::UPDATE_RESULT_OK;
-        CollectionProxyContext* context = (CollectionProxyContext*)params.m_Context;
-        dmResource::HFactory factory = context->m_Factory;
         for (uint32_t i = 0; i < proxy_world->m_Components.Size(); ++i)
         {
             CollectionProxyComponent* proxy = &proxy_world->m_Components[i];
@@ -178,30 +192,6 @@ namespace dmGameSystem
                 {
                     if (!dmGameObject::PostUpdate(proxy->m_Collection))
                         result = dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
-                }
-                if (proxy->m_Unload)
-                {
-                    if (proxy->m_Initialized)
-                    {
-                        dmGameObject::Final(proxy->m_Collection);
-                        proxy->m_Initialized = 0;
-                    }
-                    dmResource::Release(factory, proxy->m_Collection);
-                    proxy->m_Collection = 0;
-                    proxy->m_Enabled = 0;
-                    proxy->m_Unload = 0;
-                    if (dmMessage::IsSocketValid(proxy->m_Unloader.m_Socket))
-                    {
-                        dmMessage::URL sender;
-                        sender.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(proxy->m_Instance));
-                        sender.m_Path = dmGameObject::GetIdentifier(proxy->m_Instance);
-                        dmGameObject::GetComponentId(proxy->m_Instance, proxy->m_ComponentIndex, &sender.m_Fragment);
-                        dmMessage::Result msg_result = dmMessage::Post(&sender, &proxy->m_Unloader, dmHashString64("proxy_unloaded"), 0, 0, 0, 0);
-                        if (msg_result != dmMessage::RESULT_OK)
-                        {
-                            dmLogWarning("proxy_unloaded could not be posted: %d", msg_result);
-                        }
-                    }
                 }
             }
         }
@@ -216,7 +206,7 @@ namespace dmGameSystem
         {
             if (proxy->m_Collection == 0)
             {
-                proxy->m_Unload = 0;
+                proxy->m_Unloaded = 0;
                 // TODO: asynchronous loading
                 dmResource::Result result = dmResource::Get(context->m_Factory, proxy->m_Resource->m_DDF->m_Collection, (void**)&proxy->m_Collection);
                 if (result != dmResource::RESULT_OK)
@@ -242,7 +232,10 @@ namespace dmGameSystem
         {
             if (proxy->m_Collection != 0)
             {
-                proxy->m_Unload = 1;
+                dmResource::Release(context->m_Factory, proxy->m_Collection);
+                proxy->m_Collection = 0;
+                proxy->m_Enabled = 0;
+                proxy->m_Unloaded = 1;
                 proxy->m_Unloader = params.m_Message->m_Sender;
             }
             else
@@ -333,7 +326,7 @@ namespace dmGameSystem
     dmGameObject::InputResult CompCollectionProxyOnInput(const dmGameObject::ComponentOnInputParams& params)
     {
         CollectionProxyComponent* proxy = (CollectionProxyComponent*) *params.m_UserData;
-        if (proxy->m_Enabled && !proxy->m_Unload)
+        if (proxy->m_Enabled)
             dmGameObject::DispatchInput(proxy->m_Collection, (dmGameObject::InputAction*)params.m_InputAction, 1);
         return dmGameObject::INPUT_RESULT_IGNORED;
     }

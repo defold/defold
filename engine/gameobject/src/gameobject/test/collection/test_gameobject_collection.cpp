@@ -32,6 +32,7 @@ protected:
     virtual void TearDown()
     {
         dmGameObject::DeleteCollection(m_Collection);
+        dmGameObject::PostUpdate(m_Register);
         dmGameObject::Finalize(m_Factory);
         dmScript::DeleteContext(m_ScriptContext);
         dmResource::DeleteFactory(m_Factory);
@@ -70,6 +71,8 @@ TEST_F(CollectionTest, Collection)
         ASSERT_NE(go01, go02);
 
         dmResource::Release(m_Factory, (void*) coll);
+
+        dmGameObject::PostUpdate(m_Register);
     }
 }
 
@@ -99,6 +102,8 @@ TEST_F(CollectionTest, PostCollection)
 
         dmResource::Release(m_Factory, (void*) coll1);
         dmResource::Release(m_Factory, (void*) coll2);
+
+        dmGameObject::PostUpdate(m_Register);
     }
 }
 
@@ -191,6 +196,8 @@ TEST_F(CollectionTest, CollectionInCollection)
         ASSERT_TRUE(ret);
 
         dmResource::Release(m_Factory, (void*) coll);
+
+        dmGameObject::PostUpdate(m_Register);
     }
 }
 
@@ -228,6 +235,8 @@ TEST_F(CollectionTest, DefaultValues)
         ASSERT_EQ(1.0f, r.getW());
     }
     dmResource::Release(m_Factory, (void*) coll);
+
+    dmGameObject::PostUpdate(m_Register);
 }
 
 int main(int argc, char **argv)

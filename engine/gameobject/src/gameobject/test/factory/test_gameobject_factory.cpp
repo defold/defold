@@ -32,6 +32,7 @@ protected:
     virtual void TearDown()
     {
         dmGameObject::DeleteCollection(m_Collection);
+        dmGameObject::PostUpdate(m_Register);
         dmGameObject::Finalize(m_Factory);
         dmScript::DeleteContext(m_ScriptContext);
         dmResource::DeleteFactory(m_Factory);

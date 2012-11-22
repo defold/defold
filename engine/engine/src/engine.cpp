@@ -156,6 +156,7 @@ namespace dmEngine
     {
         if (engine->m_MainCollection)
             dmResource::Release(engine->m_Factory, engine->m_MainCollection);
+        dmGameObject::PostUpdate(engine->m_Register);
 
         dmGameSystem::ScriptLibContext script_lib_context;
         script_lib_context.m_Factory = engine->m_Factory;
@@ -726,6 +727,7 @@ bail:
                     }
 
                     dmGameObject::PostUpdate(engine->m_MainCollection);
+                    dmGameObject::PostUpdate(engine->m_Register);
 
                     dmRender::ClearRenderObjects(engine->m_RenderContext);
 
