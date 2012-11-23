@@ -20,6 +20,7 @@ namespace dmGameSystem
         Sound*                  m_Sound;
         dmSound::HSoundInstance m_SoundInstance;
         float                   m_Delay;
+        dmGameObject::HInstance m_Instance;
         uint32_t                m_StopRequested : 1;
     };
 
@@ -154,6 +155,7 @@ namespace dmGameSystem
                 entry.m_Factory = factory;
                 entry.m_Sound = sound;
                 entry.m_StopRequested = 0;
+                entry.m_Instance = params.m_Instance;
                 entry.m_Delay = play_sound->m_Delay;
                 dmSound::Result result = dmSound::NewSoundInstance(sound_data, &entry.m_SoundInstance);
                 if (result == dmSound::RESULT_OK)
@@ -179,7 +181,7 @@ namespace dmGameSystem
             for (uint32_t i = 0; i < world->m_Entries.Size(); ++i)
             {
                 PlayEntry& entry = world->m_Entries[i];
-                if (entry.m_SoundInstance != 0 && entry.m_Sound == (Sound*) *params.m_UserData)
+                if (entry.m_SoundInstance != 0 && entry.m_Sound == (Sound*) *params.m_UserData && entry.m_Instance == params.m_Instance)
                 {
                     entry.m_StopRequested = 1;
                 }
@@ -193,7 +195,7 @@ namespace dmGameSystem
             for (uint32_t i = 0; i < world->m_Entries.Size(); ++i)
             {
                 PlayEntry& entry = world->m_Entries[i];
-                if (entry.m_SoundInstance != 0 && entry.m_Sound == (Sound*) *params.m_UserData)
+                if (entry.m_SoundInstance != 0 && entry.m_Sound == (Sound*) *params.m_UserData && entry.m_Instance == params.m_Instance)
                 {
                     dmSound::Result r = dmSound::SetParameter(entry.m_SoundInstance, dmSound::PARAMETER_GAIN, Vector4(set_gain->m_Gain, 0, 0, 0));
                     if (r != dmSound::RESULT_OK)
