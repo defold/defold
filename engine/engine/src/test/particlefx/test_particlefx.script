@@ -1,0 +1,10 @@
+function init(self)
+    particlefx.play("#particlefx")
+end
+
+function update(self, dt)
+    if not self.done then
+        self.done = true
+        msg.post("main:/main#script", "done")
+    end
+end

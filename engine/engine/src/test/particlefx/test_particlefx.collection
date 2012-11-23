@@ -1,0 +1,5 @@
+name: "test_particlefx"
+instances {
+  id: "test_id"
+  prototype: "/particlefx/test_particlefx.go"
+}

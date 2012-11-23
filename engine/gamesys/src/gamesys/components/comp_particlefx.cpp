@@ -51,6 +51,7 @@ namespace dmGameSystem
         void* m_ClientBuffer;
         dmGraphics::HVertexDeclaration m_VertexDeclaration;
         uint32_t m_VertexCount;
+        uint32_t m_WarnOutOfROs : 1;
     };
 
     dmGameObject::CreateResult CompParticleFXNewWorld(const dmGameObject::ComponentNewWorldParams& params)
@@ -70,6 +71,7 @@ namespace dmGameSystem
         uint32_t buffer_size = dmParticle::GetVertexBufferSize(ctx->m_MaxParticleCount);
         world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(ctx->m_RenderContext), buffer_size, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         world->m_ClientBuffer = new char[buffer_size];
+        world->m_WarnOutOfROs = 0;
         dmGraphics::VertexElement ve[] =
         {
             {"position", 0, 3, dmGraphics::TYPE_FLOAT, false},
@@ -303,6 +305,7 @@ namespace dmGameSystem
     void CompParticleFXOnReload(const dmGameObject::ComponentOnReloadParams& params)
     {
         ParticleFXWorld* world = (ParticleFXWorld*)params.m_World;
+        world->m_WarnOutOfROs = 0;
         uint32_t count = world->m_Components.Size();
         for (uint32_t i = 0; i < count; ++i)
         {
@@ -356,20 +359,30 @@ namespace dmGameSystem
 
     void RenderInstanceCallback(void* context, void* material, void* texture, dmParticleDDF::BlendMode blend_mode, uint32_t vertex_index, uint32_t vertex_count, dmParticle::RenderConstant* constants, uint32_t constant_count)
     {
+        // TODO currently one render object per emitter, should be batched better
+        // https://defold.fogbugz.com/default.asp?1815
         ParticleFXWorld* world = (ParticleFXWorld*)context;
-        dmRender::RenderObject ro;
-        ro.m_Material = (dmRender::HMaterial)material;
-        ro.m_Textures[0] = (dmGraphics::HTexture)texture;
-        ro.m_VertexStart = vertex_index;
-        ro.m_VertexCount = vertex_count;
-        ro.m_VertexBuffer = world->m_VertexBuffer;
-        ro.m_VertexDeclaration = world->m_VertexDeclaration;
-        ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
-        ro.m_CalculateDepthKey = 1;
-        ro.m_SetBlendFactors = 1;
-        SetBlendFactors(&ro, blend_mode);
-        SetRenderConstants(&ro, constants, constant_count);
-        world->m_RenderObjects.Push(ro);
+        if (!world->m_RenderObjects.Full())
+        {
+            dmRender::RenderObject ro;
+            ro.m_Material = (dmRender::HMaterial)material;
+            ro.m_Textures[0] = (dmGraphics::HTexture)texture;
+            ro.m_VertexStart = vertex_index;
+            ro.m_VertexCount = vertex_count;
+            ro.m_VertexBuffer = world->m_VertexBuffer;
+            ro.m_VertexDeclaration = world->m_VertexDeclaration;
+            ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
+            ro.m_CalculateDepthKey = 1;
+            ro.m_SetBlendFactors = 1;
+            SetBlendFactors(&ro, blend_mode);
+            SetRenderConstants(&ro, constants, constant_count);
+            world->m_RenderObjects.Push(ro);
+        }
+        else if (!world->m_WarnOutOfROs)
+        {
+            world->m_WarnOutOfROs = 1;
+            dmLogWarning("Particles could not be rendered since the buffer is full (%d). Tweak \"%s\" in the config file.", world->m_RenderObjects.Capacity(), dmParticle::MAX_INSTANCE_COUNT_KEY);
+        }
     }
 
     void RenderLineCallback(void* usercontext, const Vectormath::Aos::Point3& start, const Vectormath::Aos::Point3& end, const Vectormath::Aos::Vector4& color)
