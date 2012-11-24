@@ -651,10 +651,6 @@ public class TileSetNodeTest extends AbstractNodeTest {
         assertPropertiesStatus(new String[] { "tileWidth", "tileMargin",
         "tileSpacing" }, IStatus.OK, null);
 
-        // Empty material
-        setProperty("materialTag", "");
-        assertPropertyStatus("materialTag", IStatus.ERROR, Messages.TileSetNode_materialTag_EMPTY);
-
         // Invalid tile margin
         setProperty("tileMargin", -1);
         assertPropertyStatus("tileMargin", IStatus.ERROR, Messages.TileSetNode_tileMargin_OUTSIDE_RANGE);

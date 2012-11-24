@@ -17,7 +17,6 @@ public class Messages extends NLS {
     public static String TileSetNode_tileHeight_OUTSIDE_RANGE;
     public static String TileSetNode_tileMargin_OUTSIDE_RANGE;
     public static String TileSetNode_tileSpacing_OUTSIDE_RANGE;
-    public static String TileSetNode_materialTag_EMPTY;
     public static String TileSetNode_DIFF_IMG_DIMS;
     public static String TileSetNode_TILE_WIDTH_GT_IMG;
     public static String TileSetNode_TILE_HEIGHT_GT_IMG;

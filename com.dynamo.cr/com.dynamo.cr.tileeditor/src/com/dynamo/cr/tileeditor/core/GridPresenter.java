@@ -240,6 +240,9 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
                 }
             });
         } else {
+            if (this.model.getTileSetModel() == null) {
+                return;
+            }
             Vector2f dim = new Vector2f(this.model.getTileSetModel().getTileWidth(),
                     this.model.getTileSetModel().getTileHeight());
             Point2f bb_min = new Point2f(Float.MAX_VALUE, Float.MAX_VALUE);
@@ -267,12 +270,14 @@ public class GridPresenter implements IGridView.Presenter, PropertyChangeListene
             }
             Vector2f bb_dim = new Vector2f(bb_max);
             bb_dim.sub(bb_min);
-            this.previewPosition.set(bb_dim);
-            this.previewPosition.scaleAdd(0.5f, bb_min);
-            Vector2f clientDim = new Vector2f(clientRect.width, clientRect.height);
-            clientDim.scale(0.8f);
-            this.previewZoom = Math.min(clientDim.getX() / bb_dim.getX(), clientDim.getY() / bb_dim.getY());
-            this.view.setPreview(this.previewPosition, this.previewZoom);
+            if (bb_dim.x > 0.0f && bb_dim.y > 0.0f) {
+                this.previewPosition.set(bb_dim);
+                this.previewPosition.scaleAdd(0.5f, bb_min);
+                Vector2f clientDim = new Vector2f(clientRect.width, clientRect.height);
+                clientDim.scale(0.8f);
+                this.previewZoom = Math.min(clientDim.getX() / bb_dim.getX(), clientDim.getY() / bb_dim.getY());
+                this.view.setPreview(this.previewPosition, this.previewZoom);
+            }
         }
     }
 

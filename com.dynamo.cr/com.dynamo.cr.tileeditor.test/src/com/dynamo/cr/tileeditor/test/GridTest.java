@@ -58,6 +58,8 @@ import org.eclipse.swt.graphics.Rectangle;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 import org.osgi.framework.Bundle;
 
 import com.dynamo.cr.editor.core.EditorCorePlugin;
@@ -75,6 +77,7 @@ import com.dynamo.cr.tileeditor.core.Messages;
 import com.dynamo.cr.tileeditor.core.TileSetModel;
 import com.dynamo.tile.proto.Tile.TileCell;
 import com.dynamo.tile.proto.Tile.TileGrid;
+import com.dynamo.tile.proto.Tile.TileGrid.BlendMode;
 import com.dynamo.tile.proto.Tile.TileLayer;
 import com.google.common.base.Joiner;
 import com.google.inject.AbstractModule;
@@ -152,6 +155,13 @@ public class GridTest implements IResourceChangeListener {
         this.propertyModel = (IPropertyModel<GridModel, GridModel>) this.model.getAdapter(IPropertyModel.class);
 
         workspace.addResourceChangeListener(this);
+
+        when(this.view.getPreviewRect()).thenAnswer(new Answer<Rectangle>() {
+            @Override
+            public Rectangle answer(InvocationOnMock invocation) throws Throwable {
+                return new Rectangle(0, 0, 1, 1);
+            }
+        });
     }
 
     @After
@@ -820,6 +830,8 @@ public class GridTest implements IResourceChangeListener {
     public void testLoadSave() throws Exception {
         TileGrid tileGrid  = TileGrid.newBuilder()
                 .setTileSet("my.tileset")
+                .setMaterial("/builtins/materials/tile_map.material")
+                .setBlendMode(BlendMode.BLEND_MODE_ALPHA)
                 .addLayers(TileLayer.newBuilder()
                         .setId("some_id")
                         .setIsVisible(1)
