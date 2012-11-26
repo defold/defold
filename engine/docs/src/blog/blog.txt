@@ -37,7 +37,7 @@ Other Fixes
 * Corrupted sounds fixed when rebooting the running game
 * Modifiers of emitters that emits in world space are also in world space
 * Connecting devices with the editor (Project > Target) is even more stable
-* Optimized web profiler, access http://<id>:8002 to use it (replace <id> with the id of your device)
+* Optimized web profiler, access http://<ip>:8002 to use it (replace <ip> with the IP of your device)
 * Random crash when creating game objects with an empty set of script properties
 * Error dialog if you try to start two instances of the same editor installation
 * Error message when posting messages to instances that have been deleted
