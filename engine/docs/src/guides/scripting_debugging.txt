@@ -8,7 +8,7 @@ There are three types of scripts in Defold:
 * render scripts (.renderscript)
 
 All types are based on the link:http://www.lua.org/[Lua] scripting language.
-We have extended Lua with Defold-specific functions, check the link:/ref[reference] for a list of what's available.
+We have extended Lua with Defold-specific functions, check the link:/ref/engine[reference] for a list of what's available.
 
 Auto-Completion
 ---------------
