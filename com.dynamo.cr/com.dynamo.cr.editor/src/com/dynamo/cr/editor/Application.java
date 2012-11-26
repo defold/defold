@@ -21,7 +21,12 @@ public class Application implements IApplication {
 
 	    Location instanceLocation = Platform.getInstanceLocation();
 	    if (!instanceLocation.lock()) {
-	        MessageDialog.openError(null, "Editor running", "An instance of Defold Editor is already running.");
+	        Display.getDefault().syncExec(new Runnable() {
+	            @Override
+	            public void run() {
+	                MessageDialog.openError(null, "Editor running", "An instance of Defold Editor is already running.");
+	            }
+	        });
             return IApplication.EXIT_OK;
 	    }
 
