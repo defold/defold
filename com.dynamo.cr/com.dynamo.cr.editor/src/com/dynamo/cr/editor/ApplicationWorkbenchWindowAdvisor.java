@@ -66,6 +66,17 @@ public class ApplicationWorkbenchWindowAdvisor extends WorkbenchWindowAdvisor {
 
     private static final String JUSTUPDATED = "justUpdated";
 
+    private void restartWorkbench() {
+        Display.getDefault().syncExec(new Runnable() {
+            @Override
+            public void run() {
+                final IPreferenceStore prefStore = Activator.getDefault().getPreferenceStore();
+                prefStore.setValue(JUSTUPDATED, true);
+                PlatformUI.getWorkbench().restart();
+            }
+        });
+    }
+
     private void checkForUpdates() {
         if (System.getProperty("osgi.dev") != null) {
             // Do not run update when running from eclipse
@@ -96,7 +107,7 @@ public class ApplicationWorkbenchWindowAdvisor extends WorkbenchWindowAdvisor {
                 } else if (updateStatus.getSeverity() != IStatus.ERROR
                         && updateStatus.getSeverity() != IStatus.CANCEL) {
                     prefStore.setValue(JUSTUPDATED, true);
-                    PlatformUI.getWorkbench().restart();
+                    restartWorkbench();
                 } else {
                     LogHelper.log(updateStatus);
                 }
@@ -108,7 +119,10 @@ public class ApplicationWorkbenchWindowAdvisor extends WorkbenchWindowAdvisor {
             @Override
             public void run() {
                 try {
-                    new ProgressMonitorDialog(display.getActiveShell()).run(false, true, runnable);
+                    // NOTE: We fork the update process to ensure we don't run in the user-interface thread
+                    // If we block the user-interface thread the progress-bar isn't updated and windows
+                    // might think that the application has hang
+                    new ProgressMonitorDialog(display.getActiveShell()).run(true, true, runnable);
                 } catch (InvocationTargetException e) {
                     Activator.logException(e);
                 } catch (InterruptedException e) {
