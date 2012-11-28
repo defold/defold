@@ -571,6 +571,20 @@
             </or>
          </enablement>
       </decorator>
+      <decorator
+            adaptable="true"
+            class="com.dynamo.cr.editor.decorators.ProblemLabelDecorator"
+            id="com.dynamo.cr.editor.decorators.problemLabel"
+            label="Problem Label"
+            lightweight="true"
+            location="TOP_LEFT"
+            state="true">
+         <enablement>
+            <objectClass
+                  name="org.eclipse.core.resources.IResource">
+            </objectClass>
+         </enablement>
+      </decorator>
    </extension>
    <extension
          point="org.eclipse.ui.services">
