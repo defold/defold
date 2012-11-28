@@ -255,8 +255,8 @@ namespace dmGameSystem
         uint32_t row_count = resource->m_RowCount;
         int32_t min_x = resource->m_MinCellX + region_x * TILEGRID_REGION_WIDTH;
         int32_t min_y = resource->m_MinCellY + region_y * TILEGRID_REGION_HEIGHT;
-        int32_t max_x = dmMath::Min(min_x + TILEGRID_REGION_WIDTH, resource->m_MinCellX + column_count);
-        int32_t max_y = dmMath::Min(min_y + TILEGRID_REGION_HEIGHT, resource->m_MinCellY + row_count);
+        int32_t max_x = dmMath::Min(min_x + (int32_t)TILEGRID_REGION_WIDTH, resource->m_MinCellX + (int32_t)column_count);
+        int32_t max_y = dmMath::Min(min_y + (int32_t)TILEGRID_REGION_HEIGHT, resource->m_MinCellY + (int32_t)row_count);
 
         dmArray<TileGridComponent::Layer>& layers = component->m_Layers;
         uint32_t layer_count = layers.Size();
