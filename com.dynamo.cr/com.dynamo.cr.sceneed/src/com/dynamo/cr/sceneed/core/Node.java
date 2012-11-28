@@ -400,6 +400,10 @@ public abstract class Node implements IAdaptable, Serializable {
         return this.status;
     }
 
+    /**
+     * Recursively updates the status of this node and all of its children that are not locked
+     * (a locked child can not be remedied anyway).
+     */
     public final void updateStatus() {
         if (this.model == null)
             return;
@@ -409,8 +413,10 @@ public abstract class Node implements IAdaptable, Serializable {
         if (!this.children.isEmpty()) {
             MultiStatus childStatuses = new MultiStatus(Activator.PLUGIN_ID, 0, null, null);
             for (Node child : this.children) {
-                child.updateStatus();
-                childStatuses.merge(child.getStatus());
+                if (child.isEditable()) {
+                    child.updateStatus();
+                    childStatuses.merge(child.getStatus());
+                }
             }
             if (!childStatuses.isOK()) {
                 this.status = childStatuses;

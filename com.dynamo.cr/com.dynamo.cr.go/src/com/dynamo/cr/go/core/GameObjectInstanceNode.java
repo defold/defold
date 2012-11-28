@@ -78,12 +78,7 @@ public class GameObjectInstanceNode extends InstanceNode {
 
     public IStatus validateGameObject() {
         if (getModel() != null && !this.gameObject.isEmpty()) {
-            if (this.gameObjectNode != null) {
-                IStatus status = this.gameObjectNode.getStatus();
-                if (!status.isOK()) {
-                    return new Status(IStatus.ERROR, Constants.PLUGIN_ID, Messages.GameObjectInstanceNode_gameObject_INVALID_REFERENCE);
-                }
-            } else {
+            if (this.gameObjectNode == null) {
                 int index = this.gameObject.lastIndexOf('.');
                 String message = null;
                 if (index < 0) {

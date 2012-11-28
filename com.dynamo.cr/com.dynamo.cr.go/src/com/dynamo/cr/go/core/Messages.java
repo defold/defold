@@ -17,7 +17,6 @@ public class Messages extends NLS {
     public static String ComponentNode_id_EMPTY;
     public static String ComponentNode_id_DUPLICATE;
 
-    public static String RefComponentNode_component_INVALID_REFERENCE;
     public static String RefComponentNode_component_INVALID_TYPE;
     public static String RefComponentNode_component_UNKNOWN_TYPE;
     public static String RefComponentNode_component_INVALID_NUMBER;
@@ -26,11 +25,9 @@ public class Messages extends NLS {
     public static String InstanceNode_id_EMPTY;
     public static String InstanceNode_id_DUPLICATE;
 
-    public static String GameObjectInstanceNode_gameObject_INVALID_REFERENCE;
     public static String GameObjectInstanceNode_gameObject_INVALID_TYPE;
     public static String GameObjectInstanceNode_gameObject_UNKNOWN_TYPE;
 
-    public static String CollectionInstanceNode_collection_INVALID_REFERENCE;
     public static String CollectionInstanceNode_collection_INVALID_TYPE;
     public static String CollectionInstanceNode_collection_UNKNOWN_TYPE;
 
