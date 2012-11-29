@@ -113,6 +113,19 @@
             </reference-resource-type>
          </references>
       </resource-type>
+      <resource-type
+            file-extension="atlas"
+            id="com.dynamo.cr.tileeditor.resourcetypes.ImageAtlas"
+            name="Atlas"
+            proto-message-class="com.dynamo.atlas.proto.Atlas$ImageAtlas"
+            template-data=""
+            type-class="atlas">
+         <references>
+            <reference-type-class
+                  type-class="image">
+            </reference-type-class>
+         </references>
+      </resource-type>
    </extension>
    <extension
          point="org.eclipse.ui.newWizards">

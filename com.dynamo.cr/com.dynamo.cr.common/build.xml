@@ -41,6 +41,7 @@
             <proto dir="../../engine/engine/proto" file="engine_ddf.proto"/>
             <proto dir="../../engine/gameobject/proto" file="gameobject_ddf.proto"/>
             <proto dir="../../engine/gameobject/proto" file="lua_ddf.proto"/>
+            <proto dir="../../engine/gamesys/proto/" file="atlas_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="camera_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="gamesys_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="gui_ddf.proto"/>

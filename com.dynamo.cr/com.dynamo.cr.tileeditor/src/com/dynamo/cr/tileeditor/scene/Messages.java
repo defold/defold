@@ -8,7 +8,6 @@ public class Messages extends NLS {
     // Property validation
 
     // Tile Set
-
     public static String TileSetNode_image_EMPTY;
     public static String TileSetNode_image_NOT_FOUND;
     public static String TileSetNode_collision_EMPTY;
@@ -29,13 +28,14 @@ public class Messages extends NLS {
     public static String AnimationNode_endTile_INVALID;
 
     // Sprite
-
     public static String TileGridNode_tileSet_EMPTY;
-
     public static String SpriteNode_tileSet_INVALID_REFERENCE;
     public static String SpriteNode_tileSet_CONTENT_ERROR;
     public static String SpriteNode_defaultAnimation_EMPTY;
     public static String SpriteNode_defaultAnimation_INVALID;
+
+    // Atlas
+    public static String Atlas_UNABLE_TO_LOAD_IMAGE;
 
     static {
         // initialize resource bundle
