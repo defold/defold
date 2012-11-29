@@ -63,7 +63,7 @@ public class IOSBundler {
     }
 
     static {
-        addProperty("CFBundleIdentifier", "ios", "bundle_identifier", "Unnamed");
+        addProperty("CFBundleIdentifier", "ios", "bundle_identifier", "example.unnamed");
         addProperty("CFBundleShortVersionString", "project", "version", "1.0");
     }
 
@@ -177,9 +177,26 @@ public class IOSBundler {
 
         // Sign
         if (identity != null && provisioningProfile != null) {
+            File textProvisionFile = File.createTempFile("mobileprovision", ".plist");
+            textProvisionFile.deleteOnExit();
+
+            Exec.exec("security", "cms", "-D", "-i", provisioningProfile, "-o", textProvisionFile.getAbsolutePath());
+
+            XMLPropertyListConfiguration decodedProvision = new XMLPropertyListConfiguration();
+            decodedProvision.load(textProvisionFile);
+            String applicationIdentifierPrefix = decodedProvision.getStringArray("ApplicationIdentifierPrefix")[0];
+
+            String entitlementTemplate = IOUtils.toString(getClass().getResource("resources/ios/entitlement.xcent"));
+            String entitlement = entitlementTemplate.replaceAll("IDENTIFIER", applicationIdentifierPrefix + "." + projectProperties.getStringValue("ios", "bundle_identifier", "example.unnamed"));
+
+            File entitlementOut = File.createTempFile("entitlement", ".xcent");
+            entitlementOut.deleteOnExit();
+            FileUtils.write(entitlementOut, entitlement);
+
             ProcessBuilder processBuilder = new ProcessBuilder("codesign",
                     "-f", "-s", identity, "--resource-rules="
                             + resourceRulesOutFile.getAbsolutePath(),
+                    "--entitlements", entitlementOut.getAbsolutePath(),
                     appDir.getAbsolutePath());
             processBuilder.environment().put("EMBEDDED_PROFILE_NAME",
                     "embedded.mobileprovision");
