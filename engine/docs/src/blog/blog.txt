@@ -1,5 +1,51 @@
 :max-width: 45em
 
+Tile map rendering and better sound control (Release 1.2.8)
+-----------------------------------------------------------
+_November 26, 2012_
+
+In this release, we bring you custom rendered tile maps, improved sound control and lots of other fixes.
+We have also reached the cap of registered users once again, so please be patient if you have registered but haven't got the invitation mail.
+We will let you in in time.
+We have also heard that some mail providers filter these mails as spam, so please check your spam if you haven't received it.
+
+Custom Rendered Tile Maps
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Tile maps can now be rendered with a custom material and blend mode, just like Sprites and ParticleFX.
+These settings are available in the tile map properties.
+You can also set shader constants in runtime through link:/ref/gamesys#tilemap.set_constant[tilemap.set_constant].
+
+Better Sound Control
+~~~~~~~~~~~~~~~~~~~~
+
+We have now added the ability to set the gain of sounds from scripts, by sending link:/ref/gamesys#set_gain[set_gain] to the sound component in question.
+
+Other Fixes
+~~~~~~~~~~~
+
+* Components referenced from files (like tile maps and ParticleFX) can now be moved and rotated inside game objects
+* The contents of visually edited files is automatically framed when such a file is opened
+* Copy/pasting sprites made the new sprites invisible
+* ParticleFX editor has a tip on how to use it that appears when such files are opened
+* Particles were not correctly flipped according to tile source animation settings
+* In some cases, files were incorrectly flagged as being built when they contained errors
+* Opening other file types after having worked with ParticleFX files could yield exceptions
+* Tile sources can be reloaded (problem with file extension)
+* The impulse in contact_point_response messages was incorrectly scaled
+* You can now set an impulse limit in game.project, which makes contact_point_response messages be ignored when their impulse go below that limit
+* Corrupted sounds fixed when rebooting the running game
+* Modifiers of emitters that emits in world space are also in world space
+* Connecting devices with the editor (Project > Target) is even more stable
+* Optimized web profiler, access http://<ip>:8002 to use it (replace <ip> with the IP of your device)
+* Random crash when creating game objects with an empty set of script properties
+* Error dialog if you try to start two instances of the same editor installation
+* Error message when posting messages to instances that have been deleted
+* Files and directories can contain spaces
+* Collection proxies handled messages posted in the final-function incorrectly
+* Sounds from the same source file were treated as equal when controlled through messages. Now only the addressed sound is controlled.
+* ParticleFX could run out of rendering resources, resulting in assert
+
 Particle Editor and iOS Improvements (Release 1.2.7)
 ----------------------------------------------------
 _November 6, 2012_

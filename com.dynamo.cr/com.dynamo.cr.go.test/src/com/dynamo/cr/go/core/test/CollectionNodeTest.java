@@ -291,7 +291,7 @@ public class CollectionNodeTest extends AbstractNodeTest {
         GameObjectInstanceNode instance = (GameObjectInstanceNode)instance(0);
         setNodeProperty(instance, "gameObject", "/invalid.go");
 
-        assertNodePropertyStatus(instance, "gameObject", IStatus.ERROR, Messages.GameObjectInstanceNode_gameObject_INVALID_REFERENCE);
+        assertNodePropertyStatus(instance, "gameObject", IStatus.OK, null);
 
         setNodeProperty(instance, "gameObject", "/test.test2");
         assertNodePropertyStatus(instance, "gameObject", IStatus.ERROR, NLS.bind(Messages.GameObjectInstanceNode_gameObject_INVALID_TYPE, "test2"));
@@ -310,7 +310,7 @@ public class CollectionNodeTest extends AbstractNodeTest {
         CollectionInstanceNode instance = (CollectionInstanceNode)instance(0);
         setNodeProperty(instance, "collection", "/invalid.collection");
 
-        assertNodePropertyStatus(instance, "collection", IStatus.ERROR, Messages.CollectionInstanceNode_collection_INVALID_REFERENCE);
+        assertNodePropertyStatus(instance, "collection", IStatus.OK, null);
 
         setNodeProperty(instance, "collection", "/test.test2");
         assertNodePropertyStatus(instance, "collection", IStatus.ERROR, NLS.bind(Messages.CollectionInstanceNode_collection_INVALID_TYPE, "test2"));

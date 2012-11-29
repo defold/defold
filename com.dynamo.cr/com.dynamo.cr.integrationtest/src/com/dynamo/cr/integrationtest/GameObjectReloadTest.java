@@ -1,5 +1,6 @@
 package com.dynamo.cr.integrationtest;
 
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.junit.Assert.assertThat;
@@ -14,7 +15,6 @@ import java.io.InputStream;
 
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.CoreException;
-import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Path;
 import org.junit.Test;
 
@@ -74,12 +74,12 @@ public class GameObjectReloadTest extends AbstractSceneTest {
         AddComponentOperation op = new AddComponentOperation(go, component, getPresenterContext());
         getModel().executeOperation(op);
         assertThat(go.getChildren().size(), is(1));
-        assertNodePropertyStatus(component, "component", IStatus.ERROR, null);
+        assertThat(((SpriteNode)component.getChildren().get(0)).getTileSource(), equalTo(""));
         ComponentTypeNode type = component.getType();
 
         saveSpriteComponent(path, tileSet, defaultAnimation, material);
 
-        assertNodePropertyStatus(component, "component", IStatus.OK, null);
+        assertThat(((SpriteNode)component.getChildren().get(0)).getTileSource(), equalTo(tileSet));
         assertThat((RefComponentNode)go.getChildren().get(0), is(component));
         assertThat(type, is(not(component.getType())));
     }

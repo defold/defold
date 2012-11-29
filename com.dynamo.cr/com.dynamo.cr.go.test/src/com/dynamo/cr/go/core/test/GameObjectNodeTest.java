@@ -221,7 +221,7 @@ public class GameObjectNodeTest extends AbstractNodeTest {
 
         ComponentNode component = component(0);
 
-        assertNodePropertyStatus(component, "component", IStatus.ERROR, Messages.RefComponentNode_component_INVALID_REFERENCE);
+        assertNodePropertyStatus(component, "component", IStatus.OK, null);
 
         setNodeProperty(component, "component", "/test.test2");
         assertNodePropertyStatus(component, "component", IStatus.ERROR, NLS.bind(Messages.RefComponentNode_component_INVALID_TYPE, "test2"));
