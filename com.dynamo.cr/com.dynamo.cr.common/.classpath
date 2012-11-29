@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
+	<classpathentry exported="true" kind="lib" path="ext/commons-io-2.4.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext_generated/fontc.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext_generated/tile.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext_generated/gamesys.jar"/>
@@ -16,7 +17,6 @@
 	<classpathentry exported="true" kind="lib" path="ext/jackson-mapper-asl-1.9.2.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/jersey-client-1.11.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/jersey-core-1.11.jar"/>
-	<classpathentry exported="true" kind="lib" path="ext/commons-io-2.0.1.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/commons-lang3-3.0-beta.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/httpclient-4.0.1.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/httpcore-4.0.1.jar"/>
