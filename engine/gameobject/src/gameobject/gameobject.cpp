@@ -41,8 +41,7 @@ namespace dmGameObject
         // If m_CurrentCollection != 0 => loading sub-collection
         m_CurrentCollection = 0;
         // Accumulated position for child collections
-        m_AccumulatedTranslation = Vector3(0,0,0);
-        m_AccumulatedRotation = Quat::identity();
+        m_AccumulatedTransform.SetIdentity();
     }
 
     Register::~Register()
@@ -656,18 +655,15 @@ namespace dmGameObject
             assert(collection->m_Instances[instance->m_Index] == instance);
 
             // Update world transforms since some components might need them in their init-callback
-            Transform* trans = &collection->m_WorldTransforms[instance->m_Index];
+            dmTransform::TransformS1* trans = &collection->m_WorldTransforms[instance->m_Index];
             if (instance->m_Parent == INVALID_INSTANCE_INDEX)
             {
-                trans->m_Translation = instance->m_Position;
-                trans->m_Rotation = instance->m_Rotation;
+                *trans = instance->m_Transform;
             }
             else
             {
-                const Transform* parent_trans = &collection->m_WorldTransforms[instance->m_Parent];
-                trans->m_Rotation = parent_trans->m_Rotation * instance->m_Rotation;
-                trans->m_Translation = rotate(parent_trans->m_Rotation, Vector3(instance->m_Position))
-                                      + parent_trans->m_Translation;
+                const dmTransform::TransformS1* parent_trans = &collection->m_WorldTransforms[instance->m_Parent];
+                *trans = dmTransform::Mul(*parent_trans, instance->m_Transform);
             }
 
             uint32_t next_component_instance_data = 0;
@@ -1095,24 +1091,20 @@ namespace dmGameObject
                         dmLogWarning("Could not find parent instance with id '%s'.", (const char*) dmHashReverse64(sp->m_ParentId, 0));
 
                 }
-                Point3 parent_wp(0.0f, 0.0f, 0.0f);
-                Quat parent_wr(0.0f, 0.0f, 0.0f, 1.0f);
+                dmTransform::TransformS1 parent_t;
+                parent_t.SetIdentity();
                 if (parent)
                 {
-                    parent_wp = GetWorldPosition(parent);
-                    parent_wr = GetWorldRotation(parent);
+                    parent_t = context->m_Collection->m_WorldTransforms[parent->m_Index];
                 }
                 if (sp->m_KeepWorldTransform == 0)
                 {
-                    Transform& world = context->m_Collection->m_WorldTransforms[instance->m_Index];
-                    world.m_Rotation = parent_wr * GetRotation(instance);
-                    world.m_Translation = rotate(parent_wr, Vector3(GetPosition(instance))) + parent_wp;
+                    dmTransform::TransformS1& world = context->m_Collection->m_WorldTransforms[instance->m_Index];
+                    world = dmTransform::Mul(parent_t, instance->m_Transform);
                 }
                 else
                 {
-                    Quat conj_parent_wr = conj(parent_wr);
-                    dmGameObject::SetPosition(instance, Point3(rotate(conj_parent_wr, GetWorldPosition(instance) - parent_wp)));
-                    dmGameObject::SetRotation(instance, conj_parent_wr * GetWorldRotation(instance));
+                    instance->m_Transform = dmTransform::Mul(dmTransform::Inv(parent_t), context->m_Collection->m_WorldTransforms[instance->m_Index]);
                 }
                 dmGameObject::Result result = dmGameObject::SetParent(instance, parent);
 
@@ -1265,12 +1257,10 @@ namespace dmGameObject
         for (uint32_t i = 0; i < collection->m_LevelInstanceCount[0]; ++i)
         {
             uint16_t index = collection->m_LevelIndices[i];
-            Transform* trans = &collection->m_WorldTransforms[index];
             Instance* instance = collection->m_Instances[index];
+            collection->m_WorldTransforms[index] = instance->m_Transform;
             uint16_t parent_index = instance->m_Parent;
             assert(parent_index == INVALID_INSTANCE_INDEX);
-            trans->m_Translation = instance->m_Position;
-            trans->m_Rotation = instance->m_Rotation;
         }
 
         // World-transform for levels 1..MAX_HIERARCHICAL_DEPTH-1
@@ -1281,39 +1271,14 @@ namespace dmGameObject
             {
                 uint16_t index = collection->m_LevelIndices[level * max_instance + i];
                 Instance* instance = collection->m_Instances[index];
-                Transform* trans = &collection->m_WorldTransforms[index];
+                dmTransform::TransformS1* trans = &collection->m_WorldTransforms[index];
 
                 uint16_t parent_index = instance->m_Parent;
                 assert(parent_index != INVALID_INSTANCE_INDEX);
 
-                Transform* parent_trans = &collection->m_WorldTransforms[parent_index];
+                dmTransform::TransformS1* parent_trans = &collection->m_WorldTransforms[parent_index];
 
-                /*
-                 * Quaternion + Translation transform:
-                 *
-                 *   x' = q * x * q^-1 + t
-                 *
-                 *
-                 * The compound transform:
-                 * The first transform is given by:
-                 *
-                 *    x' = q1 * x * q1^-1 + t1
-                 *
-                 * apply the second transform
-                 *
-                 *   x'' = q2 ( q1 * x * q1^-1 + t1 ) q2^-1 + t2
-                 *   x'' = q2 * q1 * x * q1^-1 * q2^-1 + q2 * t1 * q2^-1 + t2
-                 *
-                 * by inspection the following holds:
-                 *
-                 * Compound rotation: q2 * q1
-                 * Compound translation: q2 * t1 * q2^-1 + t2
-                 *
-                 */
-
-                trans->m_Rotation = parent_trans->m_Rotation * instance->m_Rotation;
-                trans->m_Translation = rotate(parent_trans->m_Rotation, Vector3(instance->m_Position))
-                                      + parent_trans->m_Translation;
+                *trans = dmTransform::Mul(*parent_trans, instance->m_Transform);
             }
         }
     }
@@ -1605,34 +1570,50 @@ namespace dmGameObject
 
     void SetPosition(HInstance instance, Point3 position)
     {
-        instance->m_Position = position;
+        instance->m_Transform.SetTranslation(Vector3(position));
     }
 
     Point3 GetPosition(HInstance instance)
     {
-        return instance->m_Position;
+        return Point3(instance->m_Transform.GetTranslation());
     }
 
     void SetRotation(HInstance instance, Quat rotation)
     {
-        instance->m_Rotation = rotation;
+        instance->m_Transform.SetRotation(rotation);
     }
 
     Quat GetRotation(HInstance instance)
     {
-        return instance->m_Rotation;
+        return instance->m_Transform.GetRotation();
+    }
+
+    void SetScale(HInstance instance, float scale)
+    {
+        instance->m_Transform.SetScale(scale);
+    }
+
+    float GetScale(HInstance instance)
+    {
+        return instance->m_Transform.GetScale();
     }
 
     Point3 GetWorldPosition(HInstance instance)
     {
         HCollection collection = instance->m_Collection;
-        return collection->m_WorldTransforms[instance->m_Index].m_Translation;
+        return Point3(collection->m_WorldTransforms[instance->m_Index].GetTranslation());
     }
 
     Quat GetWorldRotation(HInstance instance)
     {
         HCollection collection = instance->m_Collection;
-        return collection->m_WorldTransforms[instance->m_Index].m_Rotation;
+        return collection->m_WorldTransforms[instance->m_Index].GetRotation();
+    }
+
+    float GetWorldScale(HInstance instance)
+    {
+        HCollection collection = instance->m_Collection;
+        return collection->m_WorldTransforms[instance->m_Index].GetScale();
     }
 
     Result SetParent(HInstance child, HInstance parent)

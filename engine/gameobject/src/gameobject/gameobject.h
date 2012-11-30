@@ -705,6 +705,20 @@ namespace dmGameObject
     Quat GetRotation(HInstance instance);
 
     /**
+     * Set gameobject instance uniform scale
+     * @param instance Gameobject instance
+     * @param scale New uniform scale
+     */
+    void SetScale(HInstance instance, float scale);
+
+    /**
+     * Get gameobject instance uniform scale
+     * @param instance Gameobject instance
+     * @return Uniform scale
+     */
+    float GetScale(HInstance instance);
+
+    /**
      * Get gameobject instance world position
      * @param instance Gameobject instance
      * @return World position
@@ -717,6 +731,13 @@ namespace dmGameObject
      * @return World rotation
      */
     Quat GetWorldRotation(HInstance instance);
+
+    /**
+     * Get gameobject instance world uniform scale
+     * @param instance Gameobject instance
+     * @return World uniform scale
+     */
+    float GetWorldScale(HInstance instance);
 
     /**
      * Set parent instance to child
