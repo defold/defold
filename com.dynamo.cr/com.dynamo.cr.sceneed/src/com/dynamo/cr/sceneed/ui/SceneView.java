@@ -17,7 +17,6 @@ import org.eclipse.jface.viewers.LabelProvider;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.ui.IWorkbenchPart;
 import org.eclipse.ui.dialogs.ListDialog;
-import org.eclipse.ui.dialogs.ResourceListSelectionDialog;
 
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.ui.FilteredResourceListSelectionDialog;
@@ -103,7 +102,7 @@ public class SceneView extends AbstractSceneView {
 
     @Override
     public String selectFile(String title, String[] extensions) {
-        ResourceListSelectionDialog dialog = new FilteredResourceListSelectionDialog(this.editor.getSite().getShell(), this.contentRoot, IResource.FILE, extensions);
+        FilteredResourceListSelectionDialog dialog = new FilteredResourceListSelectionDialog(this.editor.getSite().getShell(), this.contentRoot, IResource.FILE, extensions);
         dialog.setTitle(title);
 
         int ret = dialog.open();
@@ -116,7 +115,7 @@ public class SceneView extends AbstractSceneView {
 
     @Override
     public String[] selectFiles(String title, String[] extensions) {
-        ResourceListSelectionDialog dialog = new FilteredResourceListSelectionDialog(this.editor.getSite().getShell(), this.contentRoot, IResource.FILE, extensions);
+        FilteredResourceListSelectionDialog dialog = new FilteredResourceListSelectionDialog(this.editor.getSite().getShell(), this.contentRoot, IResource.FILE, extensions, true);
         dialog.setTitle(title);
 
         int ret = dialog.open();

@@ -780,11 +780,16 @@
                   checkEnabled="false">
                <and>
                   <reference
-                        definitionId="com.dynamo.cr.tileeditor.definitions.atlasSelected">
-                  </reference>
-                  <reference
                         definitionId="com.dynamo.cr.sceneed.definitions.singleSelection">
                   </reference>
+                  <or>
+                     <reference
+                           definitionId="com.dynamo.cr.tileeditor.definitions.atlasSelected">
+                     </reference>
+                     <reference
+                           definitionId="com.dynamo.cr.tileeditor.definitions.atlasAnimationSelected">
+                     </reference>
+                  </or>
                </and>
             </visibleWhen>
          </command>
@@ -1287,6 +1292,9 @@
       <node-type
             id="com.dynamo.cr.tileeditor.nodetypes.atlasAnimation"
             node="com.dynamo.cr.tileeditor.scene.AtlasAnimationNode">
+         <reference-node-type
+               node-type="com.dynamo.cr.tileeditor.nodetypes.atlasImage">
+         </reference-node-type>
       </node-type>
       <node-type
             id="com.dynamo.cr.tileeditor.nodetypes.atlasImage"
