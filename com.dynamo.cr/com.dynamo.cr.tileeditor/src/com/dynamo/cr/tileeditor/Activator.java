@@ -24,15 +24,18 @@ public class Activator extends AbstractDefoldPlugin {
     // Context IDs
     public static final String TILE_SET_CONTEXT_ID = "com.dynamo.cr.tileeditor.contexts.TileSetEditor"; //$NON-NLS-1$
     public static final String GRID_CONTEXT_ID = "com.dynamo.cr.tileeditor.contexts.GridEditor"; //$NON-NLS-1$
+    public static final String ATLAS_CONTEXT_ID = "com.dynamo.cr.tileeditor.contexts.AtlasEditor"; //$NON-NLS-1$
 
     // Image ids
     public static final String COLLISION_GROUP_IMAGE_ID = "COLLISION_GROUP"; //$NON-NLS-1$
     public static final String GRID_IMAGE_ID = "GRID"; //$NON-NLS-1$
     public static final String LAYER_IMAGE_ID = "LAYER"; //$NON-NLS-1$
     public static final String ANIMATION_IMAGE_ID = "ANIMATION"; //$NON-NLS-1$
+    public static final String IMAGE_IMAGE_ID = "IMAGE"; //$NON-NLS-1$
 
     // Collision groups
     public static final int MAX_COLLISION_GROUP_COUNT = 16;
+
 
     // The shared instance
     private static Activator plugin;
@@ -100,6 +103,7 @@ public class Activator extends AbstractDefoldPlugin {
         registry.put(GRID_IMAGE_ID, imageDescriptorFromPlugin(PLUGIN_ID, "icons/tile_grid.png"));
         registry.put(LAYER_IMAGE_ID, imageDescriptorFromPlugin(PLUGIN_ID, "icons/layer.png"));
         registry.put(ANIMATION_IMAGE_ID, imageDescriptorFromPlugin(PLUGIN_ID, "icons/film.png"));
+        registry.put(IMAGE_IMAGE_ID, imageDescriptorFromPlugin(PLUGIN_ID, "icons/image.png"));
 
         generateCollisionGroupColors();
         generateCollisionGroupIcons();

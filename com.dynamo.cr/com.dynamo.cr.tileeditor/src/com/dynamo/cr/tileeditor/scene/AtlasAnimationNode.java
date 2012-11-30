@@ -1,14 +1,22 @@
 package com.dynamo.cr.tileeditor.scene;
 
+import org.eclipse.swt.graphics.Image;
+
+import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.tileeditor.Activator;
 import com.dynamo.tile.proto.Tile.Playback;
 
 @SuppressWarnings("serial")
 public class AtlasAnimationNode extends Node {
 
-    private Playback playback;
-    private int fps;
+    @Property
+    private Playback playback = Playback.PLAYBACK_ONCE_FORWARD;
+    @Property
+    private int fps = 30;
+    @Property
     private boolean flipHorizontally;
+    @Property
     private boolean flipVertically;
 
     public void setPlayback(Playback playback) {
@@ -41,6 +49,16 @@ public class AtlasAnimationNode extends Node {
 
     public boolean isFlipVertically() {
         return flipVertically;
+    }
+
+    @Override
+    public String toString() {
+        return "Animation Group";
+    }
+
+    @Override
+    public Image getIcon() {
+        return Activator.getDefault().getImageRegistry().get(Activator.ANIMATION_IMAGE_ID);
     }
 
 }
