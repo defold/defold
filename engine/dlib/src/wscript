@@ -38,6 +38,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/stringpool.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/sys.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/template.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/transform.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/mutex.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/thread.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/time.h')
