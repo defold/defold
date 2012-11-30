@@ -21,10 +21,9 @@ using namespace dmTransform;
 
 TEST(dmTransform, Multiply)
 {
-    TransformS1 t0;
-    t0.SetTranslation(Vector3(1.0f, 0.0f, 0.0f));
-    t0.SetRotation(Quat::rotationZ(M_PI_2));
-    t0.SetScale(2.0f);
+    TransformS1 t0(Vector3(1.0f, 0.0f, 0.0f),
+            Quat::rotationZ(M_PI_2),
+            2.0f);
 
     TransformS1 res = Mul(t0, t0);
     ASSERT_V3_NEAR(Vector3(1.0f, 2.0f, 0.0f), res.GetTranslation());
@@ -37,10 +36,9 @@ TEST(dmTransform, Inverse)
     TransformS1 i;
     i.SetIdentity();
 
-    TransformS1 t0;
-    t0.SetTranslation(Vector3(1.0f, 0.0f, 0.0f));
-    t0.SetRotation(Quat::rotationZ(M_PI_2));
-    t0.SetScale(2.0f);
+    TransformS1 t0(Vector3(1.0f, 0.0f, 0.0f),
+            Quat::rotationZ(M_PI_2),
+            2.0f);
 
     // Identity inverse is identity
     ASSERT_TRANSFORMS1_NEAR(i, Inv(i));

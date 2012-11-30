@@ -14,11 +14,21 @@ namespace dmTransform
      * Transform applied as:
      * T(p) = translate(rotate(scale(p))) = p'
      */
-    struct TransformS1
+    class TransformS1
     {
         // tx, ty, tz, scale
         Vector4 m_TranslationScale;
         Quat    m_Rotation;
+    public:
+
+        TransformS1() {}
+
+        TransformS1(Vector3 translation, Quat rotation, float scale)
+        : m_TranslationScale(translation, scale)
+        , m_Rotation(rotation)
+        {
+
+        }
 
         inline void SetIdentity()
         {
