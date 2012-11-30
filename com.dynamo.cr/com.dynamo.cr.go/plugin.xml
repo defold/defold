@@ -38,6 +38,10 @@
                node-type="com.dynamo.cr.go.core.nodes.gameObjectInstance">
          </reference-node-type>
       </node-type>
+      <node-type
+            id="com.dynamo.cr.go.manipulators.uniformScaleManipulator"
+            node="com.dynamo.cr.go.core.manipulators.UniformScaleManipulator">
+      </node-type>
    </extension>
    <extension
          point="org.eclipse.core.expressions.definitions">
@@ -418,4 +422,12 @@
             title="Manipulators">
       </tip>
    Navigation tip:\nTracking: Alt + Right Button (Three Button) or Option + Ctrl + Mouse Button (One Button)\nDollying: Alt + Middle Button (Three Button) or Ctrl + Mouse Button (One Button)</extension>
+   <extension
+         point="com.dynamo.cr.manipulators">
+      <manipulator
+            mode="com.dynamo.cr.sceneed.core.manipulators.scale-mode"
+            name="Uniform Scale Manipulator"
+            node-type="com.dynamo.cr.go.manipulators.uniformScaleManipulator">
+      </manipulator>
+   </extension>
 </plugin>

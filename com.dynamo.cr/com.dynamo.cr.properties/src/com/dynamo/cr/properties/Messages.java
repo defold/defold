@@ -12,6 +12,7 @@ public class Messages extends NLS {
     public static String RangeValidator_OUTSIDE_RANGE;
     public static String ResourceValidator_NOT_FOUND;
     public static String GreaterThanZero_OUTSIDE_RANGE;
+    public static String NotZero_OUTSIDE_RANGE;
 
     static {
         // initialize resource bundle

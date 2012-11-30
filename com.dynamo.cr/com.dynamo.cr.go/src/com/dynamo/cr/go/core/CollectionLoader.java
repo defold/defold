@@ -48,6 +48,7 @@ public class CollectionLoader implements INodeLoader<CollectionNode> {
             GameObjectInstanceNode instanceNode = new GameObjectInstanceNode(gameObjectNode);
             instanceNode.setTranslation(LoaderUtil.toPoint3d(instanceDesc.getPosition()));
             instanceNode.setRotation(LoaderUtil.toQuat4(instanceDesc.getRotation()));
+            instanceNode.setScale(instanceDesc.getScale());
             instanceNode.setId(instanceDesc.getId());
             instanceNode.setGameObject(path);
             idToInstance.put(instanceDesc.getId(), instanceNode);
@@ -85,6 +86,7 @@ public class CollectionLoader implements INodeLoader<CollectionNode> {
             CollectionInstanceNode instanceNode = new CollectionInstanceNode(collectionNode);
             instanceNode.setTranslation(LoaderUtil.toPoint3d(instanceDesc.getPosition()));
             instanceNode.setRotation(LoaderUtil.toQuat4(instanceDesc.getRotation()));
+            instanceNode.setScale(instanceDesc.getScale());
             instanceNode.setId(instanceDesc.getId());
             instanceNode.setCollection(path);
             node.addChild(instanceNode);
@@ -109,6 +111,7 @@ public class CollectionLoader implements INodeLoader<CollectionNode> {
                 InstanceDesc.Builder instanceBuilder = InstanceDesc.newBuilder();
                 instanceBuilder.setPosition(LoaderUtil.toPoint3(instance.getTranslation()));
                 instanceBuilder.setRotation(LoaderUtil.toQuat(instance.getRotation()));
+                instanceBuilder.setScale((float)instance.getScale());
                 instanceBuilder.setId(instance.getId());
                 instanceBuilder.setPrototype(instance.getGameObject());
                 for (Node grandChild : child.getChildren()) {
@@ -124,6 +127,7 @@ public class CollectionLoader implements INodeLoader<CollectionNode> {
                 CollectionInstanceDesc.Builder instanceBuilder = CollectionInstanceDesc.newBuilder();
                 instanceBuilder.setPosition(LoaderUtil.toPoint3(instance.getTranslation()));
                 instanceBuilder.setRotation(LoaderUtil.toQuat(instance.getRotation()));
+                instanceBuilder.setScale((float)instance.getScale());
                 instanceBuilder.setId(instance.getId());
                 instanceBuilder.setCollection(instance.getCollection());
                 builder.addCollectionInstances(instanceBuilder);
