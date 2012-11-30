@@ -184,14 +184,11 @@ public class IOSBundler {
 
             XMLPropertyListConfiguration decodedProvision = new XMLPropertyListConfiguration();
             decodedProvision.load(textProvisionFile);
-            String applicationIdentifierPrefix = decodedProvision.getStringArray("ApplicationIdentifierPrefix")[0];
-
-            String entitlementTemplate = IOUtils.toString(getClass().getResource("resources/ios/entitlement.xcent"));
-            String entitlement = entitlementTemplate.replaceAll("IDENTIFIER", applicationIdentifierPrefix + "." + projectProperties.getStringValue("ios", "bundle_identifier", "example.unnamed"));
-
+            XMLPropertyListConfiguration entitlements = new XMLPropertyListConfiguration();
+            entitlements.append(decodedProvision.configurationAt("Entitlements"));
             File entitlementOut = File.createTempFile("entitlement", ".xcent");
             entitlementOut.deleteOnExit();
-            FileUtils.write(entitlementOut, entitlement);
+            entitlements.save(entitlementOut);
 
             ProcessBuilder processBuilder = new ProcessBuilder("codesign",
                     "-f", "-s", identity, "--resource-rules="
