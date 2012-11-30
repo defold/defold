@@ -547,6 +547,18 @@
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
             sequence="BS">
       </key>
+      <key
+            commandId="com.dynamo.cr.tileeditor.commands.addAnimationGroup"
+            contextId="com.dynamo.cr.tileeditor.contexts.AtlasEditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="O">
+      </key>
+      <key
+            commandId="com.dynamo.cr.tileeditor.commands.addImages"
+            contextId="com.dynamo.cr.tileeditor.contexts.AtlasEditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="I">
+      </key>
    </extension>
    <extension
          point="org.eclipse.ui.menus">
@@ -1083,23 +1095,22 @@
             class="com.dynamo.cr.tileeditor.handlers.AddImagesHandler"
             commandId="com.dynamo.cr.tileeditor.commands.addImages">
          <activeWhen>
-            <or>
+            <and>
                <reference
-                     definitionId="com.dynamo.cr.tileeditor.definitions.atlasSelected">
+                     definitionId="com.dynamo.cr.sceneed.definitions.singleSelection">
                </reference>
-               <reference
-                     definitionId="com.dynamo.cr.tileeditor.definitions.atlasAnimationSelected">
-               </reference>
-            </or>
+            </and>
          </activeWhen>
       </handler>
       <handler
             class="com.dynamo.cr.tileeditor.handlers.AddAnimationGroupHandler"
             commandId="com.dynamo.cr.tileeditor.commands.addAnimationGroup">
          <activeWhen>
-            <reference
-                  definitionId="com.dynamo.cr.tileeditor.definitions.atlasSelected">
-            </reference>
+            <and>
+               <reference
+                     definitionId="com.dynamo.cr.sceneed.definitions.singleSelection">
+               </reference>
+            </and>
          </activeWhen>
       </handler>
    </extension>

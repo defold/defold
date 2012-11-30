@@ -13,14 +13,30 @@ import com.dynamo.cr.tileeditor.operations.AddImagesNodeOperation;
 public class AtlasNodePresenter implements INodePresenter<AtlasNode> {
 
     public void onAddAnimationGroup(IPresenterContext presenterContext) {
-        AtlasNode atlasNode = (AtlasNode) presenterContext.getSelection().getFirstElement();
-        presenterContext.executeOperation(new AddAnimationGroupNodeOperation(atlasNode, new AtlasAnimationNode(), presenterContext));
+        Node parent = (Node) presenterContext.getSelection().getFirstElement();
+        while (parent != null) {
+            if (parent instanceof AtlasNode) {
+                break;
+            }
+            parent = parent.getParent();
+        }
+
+        if (parent != null) {
+            presenterContext.executeOperation(new AddAnimationGroupNodeOperation((AtlasNode) parent, new AtlasAnimationNode(), presenterContext));
+        }
     }
 
     public void onAddImages(IPresenterContext presenterContext) {
         Node parent = (Node) presenterContext.getSelection().getFirstElement();
 
-        if (parent instanceof AtlasNode || parent instanceof AtlasAnimationNode) {
+        while (parent != null) {
+            if (parent instanceof AtlasNode || parent instanceof AtlasAnimationNode) {
+                break;
+            }
+            parent = parent.getParent();
+        }
+
+        if (parent != null) {
             String[] files = presenterContext.selectFiles("Add Images", new String[] {"png"});
             if (files != null) {
 
