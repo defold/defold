@@ -5,6 +5,9 @@ function init(self)
     assert(p.y == 0)
     assert(p.z == 0)
 
+    local s = go.get_scale()
+    assert(s == 1)
+
     self.counter = 0
     assert(self.counter == 0)
 
@@ -31,6 +34,10 @@ function update(self, dt)
 
     p = go.get_position(hash("my_object01"))
     assert(p.y == 123.0)
+
+    go.set_scale(2)
+    local s = go.get_scale()
+    assert(s == 2)
 
     msg.post("@system:", "factory", {prototype = "test", pos = vmath.vector3(1, 2, 3)})
 end
