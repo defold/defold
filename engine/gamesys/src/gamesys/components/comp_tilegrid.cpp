@@ -375,12 +375,17 @@ namespace dmGameSystem
             TileGridComponent* tile_grid = tile_grids[i];
             TileGridResource* resource = tile_grid->m_TileGridResource;
             dmGraphics::HTexture texture = resource->m_TileSet->m_Texture;
-            Point3 world_position = dmGameObject::GetWorldPosition(tile_grid->m_Instance);
-            Quat world_rotation = dmGameObject::GetWorldRotation(tile_grid->m_Instance);
-            world_position += rotate(world_rotation, tile_grid->m_Translation);
-            world_rotation *= tile_grid->m_Rotation;
-            Matrix4 world = Matrix4::rotation(world_rotation);
-            world.setCol3(Vector4(world_position));
+            dmTransform::TransformS1 world = dmGameObject::GetWorldTransform(tile_grid->m_Instance);
+            dmTransform::TransformS1 local(tile_grid->m_Translation, tile_grid->m_Rotation, 1.0f);
+            if (dmGameObject::ScaleAlongZ(tile_grid->m_Instance))
+            {
+                world = dmTransform::Mul(world, local);
+            }
+            else
+            {
+                world = dmTransform::MulNoScaleZ(world, local);
+            }
+            Matrix4 w = dmTransform::ToMatrix4(world);
 
             for (uint32_t rx = 0; rx < tile_grid->m_RegionsX; ++rx)
             {
@@ -393,7 +398,7 @@ namespace dmGameSystem
                     dmRender::RenderObject* ro = &region->m_RenderObject;
                     if (ro->m_VertexCount > 0)
                     {
-                        ro->m_WorldTransform = world;
+                        ro->m_WorldTransform = w;
                         ro->m_Textures[0] = texture;
                         dmRender::AddToRender(render_context, ro);
                     }
@@ -425,12 +430,19 @@ namespace dmGameSystem
                 return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
             }
             dmGameObject::HInstance instance = component->m_Instance;
-            Point3 pos = dmGameObject::GetWorldPosition(instance);
-            Quat rot_conj = conj(dmGameObject::GetWorldRotation(instance));
-            Vector3 cell = rotate(rot_conj, st->m_Position - pos);
+            dmTransform::TransformS1 inv_world(dmTransform::Inv(dmGameObject::GetWorldTransform(instance)));
+            Point3 cell = st->m_Position;
+            if (dmGameObject::ScaleAlongZ(instance))
+            {
+                cell = dmTransform::Apply(inv_world, cell);
+            }
+            else
+            {
+                cell = dmTransform::ApplyNoScaleZ(inv_world, cell);
+            }
             TileGridResource* resource = component->m_TileGridResource;
             dmGameSystemDDF::TileSet* tile_set = resource->m_TileSet->m_TileSet;
-            cell = mulPerElem(cell, Vector3(1.0f / tile_set->m_TileWidth, 1.0f / tile_set->m_TileHeight, 0.0f));
+            cell = mulPerElem(cell, Point3(1.0f / tile_set->m_TileWidth, 1.0f / tile_set->m_TileHeight, 0.0f));
             int32_t cell_x = (int32_t)floor(cell.getX()) + st->m_Dx - resource->m_MinCellX;
             int32_t cell_y = (int32_t)floor(cell.getY()) + st->m_Dy - resource->m_MinCellY;
             if (cell_x < 0 || cell_x >= (int32_t)resource->m_ColumnCount || cell_y < 0 || cell_y >= (int32_t)resource->m_RowCount)

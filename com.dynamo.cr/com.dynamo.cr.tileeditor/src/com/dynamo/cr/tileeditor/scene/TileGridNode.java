@@ -46,6 +46,10 @@ public class TileGridNode extends ComponentTypeNode {
     // Graphics resources
     private transient FloatBuffer vertexData;
 
+    public TileGridNode() {
+        setFlags(Flags.SUPPORTS_SCALE);
+    }
+
     @Override
     public void dispose() {
         super.dispose();
@@ -57,6 +61,7 @@ public class TileGridNode extends ComponentTypeNode {
     @Override
     public void parentSet() {
         setTransformable(getParent() != null);
+        getParent().setFlags(Flags.SUPPORTS_SCALE);
     }
 
     public String getTileSource() {

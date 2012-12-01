@@ -67,11 +67,21 @@ namespace dmTransform
         }
     };
 
+    inline Point3 Apply(const TransformS1& t, const Point3 p)
+    {
+        return Point3(rotate(t.GetRotation(), Vector3(p) * t.GetScale()) + t.GetTranslation());
+    }
+
+    inline Point3 ApplyNoScaleZ(const TransformS1& t, const Point3 p)
+    {
+        return Point3(rotate(t.GetRotation(), mulPerElem(Vector3(t.GetScale(), t.GetScale(), 1.0f), Vector3(p))) + t.GetTranslation());
+    }
+
     inline TransformS1 Mul(const TransformS1& lhs, const TransformS1& rhs)
     {
         TransformS1 res;
         res.SetRotation(lhs.GetRotation() * rhs.GetRotation());
-        res.SetTranslation(rotate(lhs.GetRotation(), lhs.GetScale() * rhs.GetTranslation()) + lhs.GetTranslation());
+        res.SetTranslation(Vector3(Apply(lhs, Point3(rhs.GetTranslation()))));
         res.SetScale(lhs.GetScale() * rhs.GetScale());
         return res;
     }
@@ -80,7 +90,7 @@ namespace dmTransform
     {
         TransformS1 res;
         res.SetRotation(lhs.GetRotation() * rhs.GetRotation());
-        res.SetTranslation(rotate(lhs.GetRotation(), mulPerElem(Vector3(lhs.GetScale(), lhs.GetScale(), 1.0f), rhs.GetTranslation())) + lhs.GetTranslation());
+        res.SetTranslation(Vector3(ApplyNoScaleZ(lhs, Point3(rhs.GetTranslation()))));
         res.SetScale(lhs.GetScale() * rhs.GetScale());
         return res;
     }
