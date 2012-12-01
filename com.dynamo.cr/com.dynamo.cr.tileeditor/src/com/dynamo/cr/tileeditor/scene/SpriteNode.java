@@ -45,6 +45,10 @@ public class SpriteNode extends ComponentTypeNode {
     // Graphics resources
     private transient FloatBuffer vertexData;
 
+    public SpriteNode() {
+        setFlags(Flags.SUPPORTS_SCALE);
+    }
+
     @Override
     public void dispose() {
         super.dispose();

@@ -6,6 +6,7 @@
 
 #include <dlib/message.h>
 #include <dlib/hash.h>
+#include <dlib/transform.h>
 
 #include <ddf/ddf.h>
 
@@ -596,6 +597,13 @@ namespace dmGameObject
     Result GetComponentId(HInstance instance, uint8_t component_index, dmhash_t* component_id);
 
     /**
+     * Returns whether the scale of the supplied instance should be applied along Z or not.
+     * @param instance Instance
+     * @return if the scale should be applied along Z
+     */
+    bool ScaleAlongZ(HInstance instance);
+
+    /**
      * Initializes all game object instances in the supplied collection.
      * @param collection Game object collection
      */
@@ -733,11 +741,18 @@ namespace dmGameObject
     Quat GetWorldRotation(HInstance instance);
 
     /**
-     * Get gameobject instance world uniform scale
-     * @param instance Gameobject instance
+     * Get game object instance world transform
+     * @param instance Game object instance
      * @return World uniform scale
      */
     float GetWorldScale(HInstance instance);
+
+    /**
+     * Get game object instance world uniform scale
+     * @param instance Game object instance
+     * @return World uniform scale
+     */
+    const dmTransform::TransformS1& GetWorldTransform(HInstance instance);
 
     /**
      * Set parent instance to child

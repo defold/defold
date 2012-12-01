@@ -1012,6 +1012,11 @@ namespace dmGameObject
         return RESULT_COMPONENT_NOT_FOUND;
     }
 
+    bool ScaleAlongZ(HInstance instance)
+    {
+        return instance->m_ScaleAlongZ != 0;
+    }
+
     struct DispatchMessagesContext
     {
         HCollection m_Collection;
@@ -1642,6 +1647,12 @@ namespace dmGameObject
     {
         HCollection collection = instance->m_Collection;
         return collection->m_WorldTransforms[instance->m_Index].GetScale();
+    }
+
+    const dmTransform::TransformS1& GetWorldTransform(HInstance instance)
+    {
+        HCollection collection = instance->m_Collection;
+        return collection->m_WorldTransforms[instance->m_Index];
     }
 
     Result SetParent(HInstance child, HInstance parent)

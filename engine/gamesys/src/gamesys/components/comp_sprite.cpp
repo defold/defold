@@ -459,17 +459,19 @@ namespace dmGameSystem
                 TileSetResource* tile_set = c->m_Resource->m_TileSet;
                 dmGameSystemDDF::TileSet* tile_set_ddf = tile_set->m_TileSet;
 
-                Point3 world_pos = dmGameObject::GetWorldPosition(c->m_Instance);
-                Quat world_rot = dmGameObject::GetWorldRotation(c->m_Instance);
-                const Quat& local_rot = c->m_Rotation;
-                const Point3& local_pos = c->m_Position;
-                Quat rotation = world_rot * local_rot;
-                Point3 position = rotate(world_rot, Vector3(local_pos)) + world_pos;
-                Matrix4 world = Matrix4::rotation(rotation);
-                // This is equivalent to world = world * diag(w, h, 1, 0) but more efficient
-                world.setCol(0, world.getCol(0) * tile_set_ddf->m_TileWidth * c->m_Scale.getX());
-                world.setCol(1, world.getCol(1) * tile_set_ddf->m_TileHeight * c->m_Scale.getY());
-
+                dmTransform::TransformS1 world = dmGameObject::GetWorldTransform(c->m_Instance);
+                dmTransform::TransformS1 local(Vector3(c->m_Position), c->m_Rotation, 1.0f);
+                if (dmGameObject::ScaleAlongZ(c->m_Instance))
+                {
+                    world = dmTransform::Mul(world, local);
+                }
+                else
+                {
+                    world = dmTransform::MulNoScaleZ(world, local);
+                }
+                Matrix4 w = dmTransform::ToMatrix4(world);
+                w = appendScale(w, Vector3(tile_set_ddf->m_TileWidth * c->m_Scale.getX(), tile_set_ddf->m_TileHeight * c->m_Scale.getY(), 1.0f));
+                Vector4 position = w.getCol3();
                 if (!sub_pixels)
                 {
                     position.setX((int) position.getX());
@@ -478,8 +480,8 @@ namespace dmGameSystem
                 float z = position.getZ();
                 min_z = dmMath::Min(min_z, z);
                 max_z = dmMath::Max(max_z, z);
-                world.setCol3(Vector4(position));
-                c->m_World = world;
+                w.setCol3(position);
+                c->m_World = w;
             }
         }
 
