@@ -79,6 +79,7 @@ message CollectionDesc
     required string                 name                    = 1;
     repeated InstanceDesc           instances               = 2;
     repeated CollectionInstanceDesc collection_instances    = 3;
+    optional uint32                 scale_along_z           = 4 [default = 0];
 }
 
 /*# acquires the user input focus

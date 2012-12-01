@@ -65,8 +65,16 @@ namespace dmGameObject
             dmGameObject::HInstance instance = dmGameObject::New(collection, instance_desc.m_Prototype);
             if (instance != 0x0)
             {
+                instance->m_ScaleAlongZ = collection_desc->m_ScaleAlongZ;
                 dmTransform::TransformS1 instance_t(Vector3(instance_desc.m_Position), instance_desc.m_Rotation, instance_desc.m_Scale);
-                instance->m_Transform = dmTransform::Mul(regist->m_AccumulatedTransform, instance_t);
+                if (instance->m_ScaleAlongZ)
+                {
+                    instance->m_Transform = dmTransform::Mul(regist->m_AccumulatedTransform, instance_t);
+                }
+                else
+                {
+                    instance->m_Transform = dmTransform::MulNoScaleZ(regist->m_AccumulatedTransform, instance_t);
+                }
 
                 dmHashInit64(&instance->m_CollectionPathHashState, true);
                 dmHashUpdateBuffer64(&instance->m_CollectionPathHashState, regist->m_CurrentIdentifierPath, strlen(regist->m_CurrentIdentifierPath));
@@ -162,7 +170,14 @@ namespace dmGameObject
                     if (r == dmGameObject::RESULT_OK)
                     {
                         // Reverse transform
-                        child->m_Transform = dmTransform::Mul(dmTransform::Inv(regist->m_AccumulatedTransform), child->m_Transform);
+                        if (child->m_ScaleAlongZ)
+                        {
+                            child->m_Transform = dmTransform::Mul(dmTransform::Inv(regist->m_AccumulatedTransform), child->m_Transform);
+                        }
+                        else
+                        {
+                            child->m_Transform = dmTransform::MulNoScaleZ(dmTransform::Inv(regist->m_AccumulatedTransform), child->m_Transform);
+                        }
                     }
                     else
                     {

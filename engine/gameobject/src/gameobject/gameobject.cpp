@@ -663,7 +663,14 @@ namespace dmGameObject
             else
             {
                 const dmTransform::TransformS1* parent_trans = &collection->m_WorldTransforms[instance->m_Parent];
-                *trans = dmTransform::Mul(*parent_trans, instance->m_Transform);
+                if (instance->m_ScaleAlongZ)
+                {
+                    *trans = dmTransform::Mul(*parent_trans, instance->m_Transform);
+                }
+                else
+                {
+                    *trans = dmTransform::MulNoScaleZ(*parent_trans, instance->m_Transform);
+                }
             }
 
             uint32_t next_component_instance_data = 0;
@@ -1100,11 +1107,25 @@ namespace dmGameObject
                 if (sp->m_KeepWorldTransform == 0)
                 {
                     dmTransform::TransformS1& world = context->m_Collection->m_WorldTransforms[instance->m_Index];
-                    world = dmTransform::Mul(parent_t, instance->m_Transform);
+                    if (instance->m_ScaleAlongZ)
+                    {
+                        world = dmTransform::Mul(parent_t, instance->m_Transform);
+                    }
+                    else
+                    {
+                        world = dmTransform::MulNoScaleZ(parent_t, instance->m_Transform);
+                    }
                 }
                 else
                 {
-                    instance->m_Transform = dmTransform::Mul(dmTransform::Inv(parent_t), context->m_Collection->m_WorldTransforms[instance->m_Index]);
+                    if (instance->m_ScaleAlongZ)
+                    {
+                        instance->m_Transform = dmTransform::Mul(dmTransform::Inv(parent_t), context->m_Collection->m_WorldTransforms[instance->m_Index]);
+                    }
+                    else
+                    {
+                        instance->m_Transform = dmTransform::MulNoScaleZ(dmTransform::Inv(parent_t), context->m_Collection->m_WorldTransforms[instance->m_Index]);
+                    }
                 }
                 dmGameObject::Result result = dmGameObject::SetParent(instance, parent);
 
@@ -1278,7 +1299,14 @@ namespace dmGameObject
 
                 dmTransform::TransformS1* parent_trans = &collection->m_WorldTransforms[parent_index];
 
-                *trans = dmTransform::Mul(*parent_trans, instance->m_Transform);
+                if (instance->m_ScaleAlongZ)
+                {
+                    *trans = dmTransform::Mul(*parent_trans, instance->m_Transform);
+                }
+                else
+                {
+                    *trans = dmTransform::MulNoScaleZ(*parent_trans, instance->m_Transform);
+                }
             }
         }
     }

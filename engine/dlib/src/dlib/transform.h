@@ -76,6 +76,15 @@ namespace dmTransform
         return res;
     }
 
+    inline TransformS1 MulNoScaleZ(const TransformS1& lhs, const TransformS1& rhs)
+    {
+        TransformS1 res;
+        res.SetRotation(lhs.GetRotation() * rhs.GetRotation());
+        res.SetTranslation(rotate(lhs.GetRotation(), mulPerElem(Vector3(lhs.GetScale(), lhs.GetScale(), 1.0f), rhs.GetTranslation())) + lhs.GetTranslation());
+        res.SetScale(lhs.GetScale() * rhs.GetScale());
+        return res;
+    }
+
     inline TransformS1 Inv(const TransformS1& t)
     {
         assert(t.GetScale() != 0.0f && "Transform can not be inverted (0 scale).");

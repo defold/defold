@@ -31,6 +31,18 @@ TEST(dmTransform, Multiply)
     ASSERT_EQ(4.0f, res.GetScale());
 }
 
+TEST(dmTransform, MultiplyNoScaleZ)
+{
+    TransformS1 t0(Vector3(0.0f, 0.0f, 1.0f),
+            Quat::identity(),
+            2.0f);
+
+    TransformS1 res = Mul(t0, t0);
+    ASSERT_V3_NEAR(Vector3(0.0f, 0.0f, 3.0f), res.GetTranslation());
+    res = MulNoScaleZ(t0, t0);
+    ASSERT_V3_NEAR(Vector3(0.0f, 0.0f, 2.0f), res.GetTranslation());
+}
+
 TEST(dmTransform, Inverse)
 {
     TransformS1 i;
